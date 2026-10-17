@@ -141,8 +141,19 @@ class DirectoryPatch(BaseModel):
     """CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (settings_doc `directory.*`, default off)."""
     model_config = ConfigDict(extra="forbid")
     managers_full_phones: StrictBool | None = None
-class RfqPatch(BaseModel):  # CR-RFQ-PAYMENT-SCHEDULE: the requests-for-quotation keys (RFQ contract sections 13 / 20.9)
+
+
+class RfqPatch(BaseModel):
+    """The requests-for-quotation section (settings_doc validates every range again). One model for the two branches that added it at
+    integ/264: RFQQUESTIONS (the existing `rfq` keys + `question_reminder_hours`; before this the section had no route) and
+    CR-RFQ-PAYMENT-SCHEDULE (`schedule_arrival`, `arrival_reminder_hours`; RFQ contract sections 13 / 20.9)."""
     model_config = ConfigDict(extra="forbid")
+    default_due_days: int | None = Field(default=None, ge=1, le=60)
+    grace_hours: int | None = Field(default=None, ge=0, le=168)
+    link_keep_days: int | None = Field(default=None, ge=1, le=365)
+    retention_months: int | None = Field(default=None, ge=6, le=120)
+    reminder_hours: int | None = Field(default=None, ge=0, le=168)
+    question_reminder_hours: int | None = Field(default=None, ge=0, le=168)
     schedule_arrival: StrictBool | None = None  # the payment schedule + arrival confirmation (default OFF)
     arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
 
@@ -161,7 +172,7 @@ class SettingsBody(BaseModel):
     costs: CostsPatch | None = None  # slice 9
     staff_links: StaffLinksPatch | None = None  # TKSTAFF1
     directory: DirectoryPatch | None = None  # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17)
-    rfq: RfqPatch | None = None  # CR-RFQ-PAYMENT-SCHEDULE
+    rfq: RfqPatch | None = None  # RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -216,7 +227,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / CR-RFQ-PAYMENT-SCHEDULE
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE
         sent = getattr(body, block)
         if sent is not None:
             values = {k: v for k, v in sent.model_dump().items() if v is not None and k != "confirm_live_links"}

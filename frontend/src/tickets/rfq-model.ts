@@ -276,7 +276,9 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
     'award_pending', 'awarded', 'award_declined', 'due_passed', 'cancelled', 'closed', 'message_sent', 'message_failed', 'message_unknown', 'message_fallback',
     'order_created', 'order_sent', 'attachment_added', 'attachment_changed', 'attachment_removed',
     // CR-RFQ-PAYMENT-SCHEDULE (contract 20.7)
-    'terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected'];
+    'terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected',
+    // RFQQUESTIONS
+    'vendor_message', 'question_answered', 'question_resolved', 'question_reminder'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
 }
 
@@ -390,7 +392,9 @@ export function refusalKey(code: string | undefined): string | null {
     'attachment_limit', 'attachment_total', 'attachment_locked', 'attachment_not_found', 'unsupported_format', 'heic_refused', 'payload_too_large',
     'image_invalid', 'too_many_pixels', 'pdf_invalid', 'pdf_refused', 'office_invalid', 'office_refused', 'storage_full',
     // CR-RFQ-PAYMENT-SCHEDULE
-    'terms_not_found', 'arrival_not_proposed'];
+    'terms_not_found', 'arrival_not_proposed',
+    // RFQQUESTIONS
+    'question_answered', 'message_not_found'];
   return code && known.includes(code) ? `err_${code}` : null;
 }
 

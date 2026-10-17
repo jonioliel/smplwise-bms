@@ -9,6 +9,7 @@ const he = {
   'rfq.question': 'שאלת הבהרה מספק',
   'rfq.due_passed': 'המועד להגשת הצעות עבר',
   'rfq.arrival': 'ספק אישר מועד הגעה או הציע מועד אחר',
+  'rfq.question_unanswered': 'שאלת ספק ממתינה לתשובה',
   kind: 'בקשת הצעת מחיר',
   open: 'פתח את הבקשה',
 };
@@ -20,6 +21,7 @@ const en: Partial<Record<RfqNotifyKey, string>> = {
   'rfq.question': 'Clarification question from a vendor',
   'rfq.due_passed': 'Quote deadline passed',
   'rfq.arrival': 'Vendor confirmed or proposed an arrival date',
+  'rfq.question_unanswered': 'Vendor question waiting for an answer',
   kind: 'Request for quotation',
   open: 'Open the request',
 };

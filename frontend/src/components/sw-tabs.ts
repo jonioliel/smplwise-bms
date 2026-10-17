@@ -9,6 +9,8 @@ export interface TabItem {
   label: string;
   href?: string;
   count?: number;
+  /** RFQQUESTIONS: something waits for the user here (a red number pill after the label; the dropdown shows `alert`'s dot) */
+  badge?: number;
   /** Dropdown presentation only: a dot on the chip while this item is not the selected one (`true` = alert, `'warn'` = attention). */
   alert?: boolean | 'warn';
   /** Dropdown presentation, capsule style only (Unreleased): an icon at the start of the option; the other looks ignore it. */
@@ -149,6 +151,20 @@ export class SwTabs extends LitElement {
     }
     .on .count {
       color: var(--sw-accent-text);
+    }
+    .tbadge {
+      display: inline-grid;
+      place-items: center;
+      min-inline-size: 18px;
+      block-size: 18px;
+      margin-inline-start: 6px;
+      padding-inline: 5px;
+      border-radius: 999px;
+      background: var(--sw-danger, #d92d20);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
     }
 
     /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
@@ -358,7 +374,7 @@ export class SwTabs extends LitElement {
     if (this.mode === 'dropdown') {
       return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
-    const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
+    const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}</span>`;
     return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
       it.href
         ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`

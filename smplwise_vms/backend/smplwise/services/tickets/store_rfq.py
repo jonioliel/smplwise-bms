@@ -484,6 +484,67 @@ def set_message_notified(conn: sqlite3.Connection, message_id: str, outbox_id: s
     conn.execute("UPDATE ticket_rfq_messages SET notified = 1, outbox_id = ? WHERE id = ?", (outbox_id, message_id))
 
 
+# ---------------------------------------------------------------- RFQQUESTIONS: a vendor's question (an inbound message) and its state
+
+def message(conn: sqlite3.Connection, message_id: str | None) -> dict[str, Any] | None:
+    if not message_id:
+        return None
+    return _dict(conn.execute("SELECT * FROM ticket_rfq_messages WHERE id = ?", (message_id,)).fetchone())
+
+
+def pending_questions(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
+    """The request's unanswered vendor questions, oldest first."""
+    return [dict(r) for r in conn.execute(
+        "SELECT * FROM ticket_rfq_messages WHERE rfq_id = ? AND direction = 'in' AND answered_at IS NULL ORDER BY created_at, rowid",
+        (rfq_id,)).fetchall()]
+
+
+def question_counts(conn: sqlite3.Connection, rfq_id: str) -> dict[str, dict[str, int]]:
+    """Per vendor row: {pending, unread} of the unanswered questions."""
+    return {r[0]: {"pending": int(r[1]), "unread": int(r[2] or 0)} for r in conn.execute(
+        "SELECT rfq_vendor_id, COUNT(*), SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) FROM ticket_rfq_messages "
+        "WHERE rfq_id = ? AND direction = 'in' AND answered_at IS NULL GROUP BY rfq_vendor_id", (rfq_id,)).fetchall()}
+
+
+def rfqs_with_pending(conn: sqlite3.Connection, states: Iterable[str], limit: int = 500) -> list[tuple[str, int, int]]:
+    """(rfq_id, pending, unread) of the requests in `states` that hold unanswered questions - the caller filters by visibility."""
+    st = list(states)
+    return [(r[0], int(r[1]), int(r[2] or 0)) for r in conn.execute(
+        "SELECT m.rfq_id, COUNT(*), SUM(CASE WHEN m.read_at IS NULL THEN 1 ELSE 0 END) FROM ticket_rfq_messages m "
+        "JOIN ticket_rfqs r ON r.id = m.rfq_id "
+        f"WHERE m.direction = 'in' AND m.answered_at IS NULL AND r.state IN ({', '.join('?' * len(st))}) "
+        "GROUP BY m.rfq_id ORDER BY MAX(m.created_at) DESC LIMIT ?", (*st, int(limit))).fetchall()]
+
+
+def mark_questions_read(conn: sqlite3.Connection, rfq_vendor_id: str, by: str, at: str) -> int:
+    cur = conn.execute("UPDATE ticket_rfq_messages SET read_at = ?, read_by = ? WHERE rfq_vendor_id = ? AND direction = 'in' AND read_at IS NULL",
+                       (at, by, rfq_vendor_id))
+    return int(cur.rowcount or 0)
+
+
+def answer_questions(conn: sqlite3.Connection, ids: Iterable[str], *, by: str, at: str, answer_id: str | None) -> int:
+    """Mark these pending questions answered (by `answer_id`, or handled without a reply when None); read with it."""
+    n = 0
+    for qid in ids:
+        cur = conn.execute("UPDATE ticket_rfq_messages SET answered_at = ?, answered_by = ?, answer_id = ?, read_at = COALESCE(read_at, ?), "
+                           "read_by = COALESCE(read_by, ?) WHERE id = ? AND direction = 'in' AND answered_at IS NULL",
+                           (at, by, answer_id, at, by, qid))
+        n += int(cur.rowcount or 0)
+    return n
+
+
+def questions_due_for_reminder(conn: sqlite3.Connection, before: str, states: Iterable[str], limit: int = 200) -> list[dict[str, Any]]:
+    st = list(states)
+    return [dict(r) for r in conn.execute(
+        "SELECT m.* FROM ticket_rfq_messages m JOIN ticket_rfqs r ON r.id = m.rfq_id "
+        f"WHERE m.direction = 'in' AND m.answered_at IS NULL AND m.reminded_at IS NULL AND m.created_at <= ? AND r.state IN ({', '.join('?' * len(st))}) "
+        "ORDER BY m.created_at, m.rowid LIMIT ?", (before, *st, int(limit))).fetchall()]
+
+
+def set_question_reminded(conn: sqlite3.Connection, message_id: str, at: str) -> None:
+    conn.execute("UPDATE ticket_rfq_messages SET reminded_at = ? WHERE id = ?", (at, message_id))
+
+
 # ---------------------------------------------------------------- the RFQ timeline
 
 def insert_event(conn: sqlite3.Connection, rfq_id: str, kind: str, *, actor_kind: str = "system", actor_user_id: str | None = None,

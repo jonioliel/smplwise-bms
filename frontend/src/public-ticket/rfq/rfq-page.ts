@@ -259,11 +259,12 @@ class RfqPage {
       }
       return;
     }
+    const asked = typeof body.question === 'string';
     this.draft = null;
     this.editing = false;
     this.showErrors = false;
     this.keep();
-    this.banner = { key: 'sentOk', tone: 'ok' };
+    this.banner = { key: asked ? 'sentAsked' : 'sentOk', tone: 'ok' };
     if (out.quote) this.view = { ...v, quote: out.quote };
     await this.load(false);
   }
@@ -683,6 +684,12 @@ class RfqPage {
     f.appendChild(h('label', { class: 'swc-field' }, h('span', { class: 'swc-label' }, `${this.c('notes')} ${this.c('optional')}`), notes));
     const pay = payEditor(this.termsHost(), d, v); // CR-RFQ-PAYMENT-SCHEDULE: only when the installation offers it (`form.payment`)
     if (pay) f.appendChild(pay);
+    // RFQQUESTIONS: a question has its own field (the manager sees it as a question waiting for him, not hidden in the notes)
+    const qa = h('textarea', { class: 'swc-input swc-area', attrs: { dir: 'auto', maxlength: v.form?.limits.message ?? 2000, 'data-rfq-question': true },
+      on: { input: (e) => { d.question = (e.target as HTMLTextAreaElement).value; this.keep(); } } });
+    qa.value = d.question ?? '';
+    if (v.can?.ask) f.appendChild(h('label', { class: 'swc-field' }, h('span', { class: 'swc-label' }, `${this.t('qField')} ${this.c('optional')}`), qa,
+      h('span', { class: 'swc-muted swc-small-text' }, this.t('qFieldHint'))));
     this.errorHost = h('p', { class: 'swc-error', attrs: { role: 'alert', 'data-rfq-error': true } });
     this.errorHost.hidden = true;
     f.appendChild(this.errorHost);
@@ -804,7 +811,8 @@ class RfqPage {
     const list = h('ol', { class: 'timeline', attrs: { 'data-rfq-thread': items.length } });
     for (const m of items) {
       list.appendChild(h('li', { class: m.mine ? 'mine' : 'theirs', attrs: { 'data-rfq-msg': m.mine ? 'mine' : 'theirs' } },
-        h('div', { class: 'meta' }, h('span', { class: 'who' }, this.t(m.mine ? 'you' : 'org')), h('span', { class: 'when' }, this.when(m.at))),
+        h('div', { class: 'meta' }, h('span', { class: 'who' }, this.t(m.mine ? 'you' : 'org')), h('span', { class: 'when' }, this.when(m.at)),
+          m.mine && typeof m.answered === 'boolean' ? h('span', { class: `chip ${m.answered ? 'st-done' : 'st-waiting_part'}`, attrs: { 'data-rfq-q-state': m.answered ? 'answered' : 'waiting' } }, this.t(m.answered ? 'qAnswered' : 'qWaiting')) : null),
         h('div', { class: 'body', attrs: { dir: 'auto' } }, m.text)));
     }
     const card = h('section', { class: 'card', attrs: { 'data-rfq-thread-card': true } }, h('h2', null, this.t('thread')),

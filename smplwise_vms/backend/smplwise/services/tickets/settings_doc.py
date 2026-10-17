@@ -214,6 +214,7 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # upgrade changes nothing; `arrival_reminder_hours` = the reminder when he has not confirmed after being messaged (0 = no reminder)
     ("rfq", "schedule_arrival"): (False, boolean),
     ("rfq", "arrival_reminder_hours"): (24, int_range(0, 168)),
+    ("rfq", "question_reminder_hours"): (24, int_range(0, 168)),  # RFQQUESTIONS: remind the RFQ managers of a vendor question still unanswered after N hours; 0 = off
 }
 
 

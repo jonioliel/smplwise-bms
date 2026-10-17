@@ -10,8 +10,8 @@
 import { ApiError } from './client';
 import type { LineInput, LineKind, StoredLine, VatMode } from './tickets-costs';
 import type {
-  RfqAward, RfqAwardAnswer, RfqBackend, RfqChannel, RfqCompareQuote, RfqComparison, RfqCreateBody, RfqDetail, RfqEvent, RfqFile, RfqKpis, RfqListPage,
-  RfqMessage, RfqMeta, RfqOrder, RfqOrderAnswer, RfqOrderPreview, RfqQuoteBody, RfqScope, RfqState, RfqSummary, RfqVendor, RfqVendorState,
+  RfqAnswerBody, RfqAnswerPreview, RfqAward, RfqAwardAnswer, RfqBackend, RfqChannel, RfqCompareQuote, RfqComparison, RfqCreateBody, RfqDetail, RfqEvent, RfqFile, RfqKpis, RfqListPage,
+  RfqMessage, RfqMeta, RfqOrder, RfqOrderAnswer, RfqOrderPreview, RfqQuestion, RfqQuestionCounts, RfqQuoteBody, RfqScope, RfqState, RfqSummary, RfqVendor, RfqVendorState,
 } from './tickets-rfq';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, quantityToMilli, vatOf } from '../tickets/cost-model';
 
@@ -169,7 +169,13 @@ function seed(): void {
   nm.declined_at = iso(sent + HOUR);
   nm.decline_reason = 'אין זמינות החודש';
   alon.messages.push({ id: nid('m'), direction: 'out', text: 'האם המחיר כולל פינוי?', at: iso(now - 22 * HOUR), by: ME, source: { kind: 'clarify', id: null }, notified: true },
-    { id: nid('m'), direction: 'in', text: 'כן, כולל פינוי והובלה', at: iso(now - 21 * HOUR), by: 'אלון ד.', source: null, notified: false });
+    { id: nid('m'), direction: 'in', text: 'כן, כולל פינוי והובלה', at: iso(now - 21 * HOUR), by: 'אלון ד.', source: null, notified: false,
+      question: { state: 'answered', read: true, answered_at: iso(now - 20 * HOUR), answer_id: null, quote_id: null } });
+  // RFQQUESTIONS: a question sent with a quote (new) and one by a WhatsApp reply (seen, still unanswered)
+  aklim.messages.push({ id: nid('m'), direction: 'in', text: 'האם אפשר לעבוד ביום שישי בבוקר? אחרת המועד נדחה בשבוע.', at: iso(now - 2 * HOUR), by: 'מוחמד ע.', source: null,
+    notified: false, question: { state: 'pending', read: false, answered_at: null, answer_id: null, quote_id: aklim.quotes[0].id } });
+  tz.messages.push({ id: nid('m'), direction: 'in', text: 'יש חניה לרכב עבודה ליד הבניין?', at: iso(now - 27 * HOUR), by: 'צחי ק.', source: null, notified: false, via: 'whatsapp',
+    unverified: true, question: { state: 'pending', read: true, answered_at: null, answer_id: null, quote_id: null } });
   r7.vendors = [alon, kortek, aklim, nm, tz, bz];
   event(r7, 'created', sent - 10 * 60_000, null);
   event(r7, 'sent', sent, null, ME, { vendors: 6 });
@@ -225,6 +231,23 @@ function vstate(r: DRfq, v: DVendor): RfqVendorState {
 }
 const live = (v: DVendor) => v.quotes.find((q) => q.state === 'submitted' || q.state === 'approved' || q.state === 'partially_approved') ?? null;
 const OPEN: RfqState[] = ['sent', 'collecting', 'due_passed'];
+const pendingOf = (v: DVendor) => v.messages.filter((m) => m.direction === 'in' && m.question?.state === 'pending');
+/** RFQQUESTIONS: the server's counts - zero once the request is no longer open */
+function qCounts(r: DRfq, v?: DVendor): RfqQuestionCounts {
+  if (!OPEN.includes(effective(r))) return { pending: 0, unread: 0 };
+  const list = (v ? [v] : r.vendors.filter((x) => x.state !== 'removed')).flatMap(pendingOf);
+  return { pending: list.length, unread: list.filter((m) => !m.question?.read).length };
+}
+function qItems(r: DRfq): RfqQuestion[] {
+  if (!OPEN.includes(effective(r))) return [];
+  return r.vendors.filter((v) => v.state !== 'removed').flatMap((v) => pendingOf(v).map((m): RfqQuestion => ({
+    id: m.id, vendor_id: v.id, vendor: { name: v.contact.name, company: v.contact.company }, text: m.text, at: m.at, read: !!m.question?.read,
+    via: m.via === 'whatsapp' ? 'whatsapp' : 'page', unverified: !!m.unverified,
+    quote: m.question?.quote_id ? { id: m.question.quote_id, version: v.quotes.find((q) => q.id === m.question?.quote_id)?.version ?? 1 } : null,
+    age_h: Math.max(0, Math.floor((Date.now() - Date.parse(m.at)) / HOUR)),
+  }))).sort((a, b) => a.at.localeCompare(b.at));
+}
+const FRAME = { q: 'שאלה שהתקבלה מספק', named: 'שאלה מ{name}', a: 'תשובה' };
 const deptOf = (id: string) => DEPTS.find((d) => d.id === id) ?? DEPTS[0];
 
 function majority(qs: DQuote[]): string {
@@ -260,7 +283,7 @@ function summary(r: DRfq): RfqSummary {
   return {
     id: r.id, number: r.number, ref: `RFQ-${String(r.number).padStart(2, '0')}`, state: effective(r), title: r.title, department: { id: r.dept, name: deptOf(r.dept).name },
     place_text: r.place_text, due_at: r.due_at, work_from: r.work_from, work_to: r.work_to, created_at: r.created_at, updated_at: r.updated_at,
-    internal_owner: { id: 'u-me', name: r.owner }, kpis: kpis(r),
+    internal_owner: { id: 'u-me', name: r.owner }, kpis: kpis(r), questions: qCounts(r),
   };
 }
 
@@ -279,8 +302,8 @@ function detail(r: DRfq): RfqDetail {
       first_opened_at: v.first_opened_at, open_count: v.open_count, quoted_at: v.quoted_at, declined_at: v.declined_at, decline_reason: v.decline_reason,
       link: { state: v.link, expires_at: r.due_at, sent_via: v.channel === 'manual' ? null : v.channel }, delivery: null,
       quote: q && f ? { id: q.id, version: q.version, state: q.state, created_at: q.created_at, total_minor: f.total, subtotal_minor: f.subtotal, currency: q.currency,
-        work_from: q.work_from, work_to: q.work_to, revision: q.revision } : null,
-      messages: v.messages.length, revision: v.revision, require_code: v.require_code, channel_choice: v.channel_choice ?? 'auto',
+        work_from: q.work_from, work_to: q.work_to, revision: q.revision, has_note: !!q.note?.trim() } : null,
+      messages: v.messages.length, questions: qCounts(r, v), revision: v.revision, require_code: v.require_code, channel_choice: v.channel_choice ?? 'auto',
       can: {
         remove: !ended && vs !== 'removed' && vs !== 'awarded' && !r.awards.some((a) => a.vendor_id === v.id && a.state !== 'declined'),
         remind: (state === 'sent' || state === 'collecting') && (vs === 'sent' || vs === 'opened') && v.channel !== 'manual',
@@ -306,8 +329,9 @@ function detail(r: DRfq): RfqDetail {
     sent_at: r.sent_at, awarded_at: r.awarded_at, closed_at: r.closed_at, cancelled_at: r.cancelled_at, cancel_reason: r.cancel_reason, revision: r.revision,
     kpis: kpis(r), vendors, awards: r.awards.map((a) => awardOut(r, a)), second_approval: { threshold_minor: threshold, enabled: threshold !== null },
     timeline: [...r.events].map(amounts).sort((a, b) => b.at.localeCompare(a.at)), vendor_page: true, attachments: clone(r.files.filter((f) => !f.removed)),
+    questions: { ...qCounts(r), items: qItems(r) },
     can: {
-      edit: !ended, add_vendor: state === 'draft' || open, send: (state === 'draft' || state === 'sent' || state === 'collecting') && r.vendors.some((v) => v.state === 'draft'),
+      answer: true, edit: !ended, add_vendor: state === 'draft' || open, send: (state === 'draft' || state === 'sent' || state === 'collecting') && r.vendors.some((v) => v.state === 'draft'),
       remind: state === 'sent' || state === 'collecting', cancel: (state === 'draft' || open) && !hasAward, close: (open || state === 'awarded' || state === 'ordered') && !pending,
       award: (open || state === 'awarded') && !pending, see_amounts: true, delete: true,
       order: r.awards.some((a) => awardOut(r, a).can?.order), send_order: r.awards.some((a) => awardOut(r, a).can?.send_order),
@@ -415,7 +439,7 @@ function comparison(r: DRfq): RfqComparison {
       late: !!due && Date.parse(q.created_at) > due, currency: q.currency, vat_mode: q.vat_mode, vat_rate_bp: q.vat_rate_bp,
       lines: q.lines.map((l, index) => ({ index, ...l })), by_kind: f.by_kind, subtotal_minor: f.subtotal, vat_minor: f.vat, total_minor: f.total, net_minor: f.net,
       work_from: q.work_from, work_to: q.work_to, in_window: inWindow === null ? null : !!inWindow, note: q.note, vendor_ref: q.vendor_ref, messages: v.messages.length,
-      lowest: q.id === low, earliest: q.id === early, award: a ? { id: a.id, state: a.state, line_indexes: a.line_indexes } : null, revision: q.revision,
+      questions: qCounts(r, v), lowest: q.id === low, earliest: q.id === early, award: a ? { id: a.id, state: a.state, line_indexes: a.line_indexes } : null, revision: q.revision,
       valid_until: q.valid_until, can: { award: q.state === 'submitted' && !q.created_by_me },
     };
   });
@@ -747,6 +771,7 @@ export const mockRfq: RfqBackend = {
     const v = vendorOf(r, vendorId);
     const item: RfqMessage = { id: nid('m'), direction: 'out', text, at: iso(Date.now()), by: ME, source: source ? { kind: source.kind, id: source.id } : { kind: 'clarify', id: null }, notified: notify && v.channel !== 'manual' };
     v.messages.push(item);
+    if (!source) for (const m of pendingOf(v)) m.question = { ...m.question!, state: 'answered', read: true, answered_at: item.at, answer_id: item.id };
     event(r, 'message', Date.now(), v);
     return { item: clone(item), notified: { queued: item.notified, channel: item.notified ? v.channel : null } };
   },
@@ -810,6 +835,50 @@ export const mockRfq: RfqBackend = {
     event(r, 'order_sent', Date.now(), v, ME, { award_id: a.id });
     return orderAnswer(r, awardId, { notified: { queued: true, channel: v.channel, already: false } });
   },
+  async questionsSummary() {
+    seed();
+    await sleep(40);
+    const c = rfqs.map((r) => qCounts(r));
+    return { pending: c.reduce((n, x) => n + x.pending, 0), unread: c.reduce((n, x) => n + x.unread, 0), requests: c.filter((x) => x.pending).length };
+  },
+  async markRead(id, vendorId) {
+    await sleep(40);
+    let n = 0;
+    for (const m of pendingOf(vendorOf(find(id), vendorId))) if (!m.question?.read) { m.question = { ...m.question!, read: true }; n += 1; }
+    return { read: n };
+  },
+  async answerPreview(id, qid, body) {
+    await sleep(80);
+    return answerPlan(find(id), qid, body);
+  },
+  async answer(id, qid, body) {
+    await sleep();
+    const r = find(id);
+    const p = answerPlan(r, qid, body);
+    const at = iso(Date.now());
+    const items = p.recipients.map((x) => {
+      const v = vendorOf(r, x.vendor_id);
+      const m: RfqMessage = { id: nid('m'), direction: 'out', text: x.text, at, by: ME, source: { kind: 'clarify', id: null }, notified: !!x.notify_channel, answers_id: qid, to_all: p.scope === 'all' };
+      v.messages.push(m);
+      return { vendor_id: v.id, message_id: m.id, notified: m.notified };
+    });
+    const q = r.vendors.flatMap((v) => v.messages).find((m) => m.id === qid);
+    if (q) q.question = { ...q.question!, state: 'answered', read: true, answered_at: at, answer_id: items.find((x) => p.recipients.find((y) => y.vendor_id === x.vendor_id)?.asker)?.message_id ?? null };
+    touch(r);
+    event(r, 'question_answered', Date.now(), vendorOf(r, p.recipients[0].vendor_id), ME, { scope: p.scope, copies: items.length });
+    return { rfq: detail(r), answer: { question_id: qid, scope: p.scope, items, notified: items.filter((x) => x.notified).length, broadcast_id: p.scope === 'all' ? nid('b') : null }, replayed: false };
+  },
+  async resolveQuestion(id, qid) {
+    await sleep();
+    const r = find(id);
+    const v = r.vendors.find((x) => x.messages.some((m) => m.id === qid && m.direction === 'in'));
+    const q = v?.messages.find((m) => m.id === qid);
+    if (!v || !q) fail(404, 'message_not_found', 'השאלה לא נמצאה.');
+    if (q.question?.state === 'answered') fail(409, 'question_answered', 'כבר ניתנה תשובה לשאלה הזו.');
+    q.question = { ...q.question!, state: 'answered', read: true, answered_at: iso(Date.now()), answer_id: null };
+    event(r, 'question_resolved', Date.now(), v);
+    return detail(r);
+  },
   // RFQATT: the demo store keeps the picked file in memory (an object URL) - the real server checks, re-encodes and stores it
   async uploadAttachment(id, file, options = {}) {
     await sleep(150);
@@ -866,6 +935,28 @@ function demoKind(file: File): RfqFile['kind'] | null {
   if (n.endsWith('.docx')) return 'docx';
   if (n.endsWith('.xlsx')) return 'xlsx';
   return null;
+}
+
+/** RFQQUESTIONS: the server's plan of an answer - the asker gets the answer, the others the question as worded + the answer (no name unless chosen). */
+function answerPlan(r: DRfq, qid: string, body: RfqAnswerBody): RfqAnswerPreview {
+  const asker = r.vendors.find((v) => v.messages.some((m) => m.id === qid && m.direction === 'in'));
+  const q = asker?.messages.find((m) => m.id === qid);
+  if (!asker || !q) fail(404, 'message_not_found', 'השאלה לא נמצאה.');
+  if (q.question?.state === 'answered') fail(409, 'question_answered', 'כבר ניתנה תשובה לשאלה הזו.');
+  const text = body.text.trim();
+  if (!text || text.length > 2000) fail(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'text', code: text ? 'too_long' : 'required' }] });
+  const shown = (body.question_text ?? q.text).trim();
+  if (body.scope === 'all' && (!shown || shown.length > 1000)) fail(422, 'validation', 'ערך לא תקין.', { fields: [{ field: 'question_text', code: shown ? 'too_long' : 'required' }] });
+  const named = body.scope === 'all' && !!body.name_asker;
+  const vs = body.scope === 'all' ? [asker, ...r.vendors.filter((v) => v !== asker && !['draft', 'removed', 'not_awarded'].includes(v.state))] : [asker];
+  return {
+    question_id: qid, scope: body.scope, name_asker: named,
+    recipients: vs.map((v) => ({
+      vendor_id: v.id, vendor: { name: v.contact.name, company: v.contact.company }, asker: v === asker, lang: v.contact.lang,
+      text: v === asker ? text : `${named ? FRAME.named.replace('{name}', asker.contact.company || asker.contact.name) : FRAME.q}: ${shown}\n${FRAME.a}: ${text}`,
+      notify_channel: body.notify && v.channel !== 'manual' && v.link === 'live' ? v.channel : null,
+    })),
+  };
 }
 
 /** Back to the seeded requests (the evidence specs replay the demo store as a fake server, one clean store per test). */

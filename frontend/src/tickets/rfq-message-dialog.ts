@@ -12,6 +12,7 @@ import { rt } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
 import { MESSAGE_MAX, dateTime } from './rfq-model';
 import { rfqError } from './rfq-new';
+import { refreshRfqQuestions } from './rfq-questions-store';
 
 /**
  * TKRFQ2 `<tickets-rfq-message-dialog .rfq .vendor .open>`: the private thread with one vendor and a new clarification. The text is
@@ -55,6 +56,15 @@ export class TicketsRfqMessageDialog extends LitElement {
     } catch {
       this.items = [];
     }
+    // RFQQUESTIONS: an RFQ manager opened the thread - the vendor's questions are no longer "new" (still pending until answered)
+    if (this.rfq.can.answer && (this.vendor.questions?.unread ?? 0) > 0) {
+      try {
+        await ticketsRfqApi().markRead(this.rfq.id, this.vendor.id);
+        refreshRfqQuestions();
+      } catch {
+        /* the badge stays "new" */
+      }
+    }
   }
 
   private async save(): Promise<void> {
@@ -78,7 +88,7 @@ export class TicketsRfqMessageDialog extends LitElement {
       <div class="stack">
         <div class="thread" role="log" aria-label=${rt('thread')} data-rfq-thread>
           ${this.items === null ? html`<span class="skl" style="block-size:40px"></span>`
-            : this.items.length ? this.items.map((m) => html`<div class=${`m ${m.direction}`} ?data-rfq-via-whatsapp=${m.via === 'whatsapp'}>${bidi(m.text)}<small>${bidi(m.by)} · ${dateTime(m.at)}${m.via === 'whatsapp' ? ` · ${rt('viaWhatsapp')}` : ''}</small></div>`)
+            : this.items.length ? this.items.map((m) => html`<div class=${`m ${m.direction}`} ?data-rfq-via-whatsapp=${m.via === 'whatsapp'}>${bidi(m.text)}<small>${bidi(m.by)} · ${dateTime(m.at)}${m.via === 'whatsapp' ? ` · ${rt('viaWhatsapp')}` : ''}${m.question ? ` · ${rt(m.question.state === 'answered' ? 'qAnswered' : 'qPendingChip')}` : ''}${m.to_all ? ` · ${rt('qToAll')}` : ''}</small></div>`)
             : html`<span class="note">${rt('threadEmpty')}</span>`}
         </div>
         <label class="fld">${rt('writeVendor')}<textarea class="inp" style="min-block-size:96px;padding-block:10px" maxlength=${MESSAGE_MAX} data-rfq-message-text .value=${this.text}

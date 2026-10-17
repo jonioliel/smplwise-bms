@@ -21,6 +21,8 @@ import { rt, type RfqTextKey } from '../tickets/rfq-text';
 import { rfqStyles } from '../tickets/rfq-styles';
 import { dateTime, duePassed, inFilter, listTiles, matchesQuery, parseRfqRoute, rfqHref, rfqStateTone, statusBar, stripCounts, type RfqRoute } from '../tickets/rfq-model';
 import { rfqError } from '../tickets/rfq-new';
+import { questionBadge } from '../tickets/rfq-questions';
+import { rIcon } from '../tickets/rfq-icons';
 import { tt, ticketsLang } from '../tickets/text';
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off' | 'unavailable';
@@ -198,7 +200,9 @@ export class TicketsRfqsPage extends LitElement {
   private tiles(): TemplateResult {
     const t = listTiles(this.items.filter((i) => !this.r.dept || i.department.id === this.r.dept));
     const tile = (label: RfqTextKey, n: number, attr: string, warn = false) => html`<div class=${`kpi${warn ? ' warn' : ''}`} data-kpi=${attr}><small>${rt(label)}</small><b>${n}</b></div>`;
+    const questions = this.items.filter((i) => !this.r.dept || i.department.id === this.r.dept).reduce((n, i) => n + (i.questions?.pending ?? 0), 0);
     return html`<div class="kpis" data-rfq-tiles>
+      ${questions ? tile('qSection', questions, 'questions', true) : nothing}
       ${tile('tileOpen', t.open, 'open')}${tile('tileCollecting', t.collecting, 'collecting')}${tile('tileDecide', t.decide, 'decide', t.decide > 0)}
       ${tile('tileQuotes', t.quotes, 'quotes')}${tile('tileNoReply', t.noReply, 'no_reply')}
     </div>`;
@@ -222,7 +226,7 @@ export class TicketsRfqsPage extends LitElement {
     const late = duePassed(i.due_at, now);
     return html`<li><a class="rrow" href=${rfqHref({ id: i.id })} data-rfq-row=${i.id} data-rstate=${i.state}>
       <div class="t">
-        <span class="meta"><span class="ref">${i.ref}</span><span class=${`chip ${rfqStateTone(i.state)}`} data-rfq-row-state>${rt(`st_${i.state}` as RfqTextKey)}</span></span>
+        <span class="meta"><span class="ref">${i.ref}</span><span class=${`chip ${rfqStateTone(i.state)}`} data-rfq-row-state>${rt(`st_${i.state}` as RfqTextKey)}</span>${this.qBadge(i)}</span>
         <b>${bidi(i.title)}</b>
         <span class="meta"><span>${bidi(i.department.name)}</span>${i.place_text ? html`<span>${bidi(i.place_text)}</span>` : nothing}
           <span>${i.due_at ? (late ? rt('duePassed', { when: dateTime(i.due_at) }) : rt('dueIn', { when: dateTime(i.due_at) })) : rt('noDue')}</span>
@@ -232,6 +236,13 @@ export class TicketsRfqsPage extends LitElement {
       <div class="end">${i.kpis.lowest_total_minor !== null ? html`<span class="num" data-rfq-lowest><b>${rt('lowestLine', { amount: this.money(i.kpis.lowest_total_minor, i.kpis.currency) })}</b></span>` : nothing}
         <span class="chip">${rt('vs_quoted')} ${i.kpis.quoted}</span></div>
     </a></li>`;
+  }
+
+  /** RFQQUESTIONS: the row's "N questions waiting" badge (red while one is new). */
+  private qBadge(i: RfqSummary): TemplateResult | typeof nothing {
+    const b = questionBadge(i.questions);
+    if (!b) return nothing;
+    return html`<span class=${`qbadge${b.fresh ? '' : ' seen'}`} aria-label=${rt('qBadgeAria', { n: b.n })} data-rfq-q-badge="row" data-n=${b.n}>${rIcon('chat')}${b.n === 1 ? rt('qBadgeOne') : rt('qBadge', { n: b.n })}${b.fresh ? ` · ${rt('qBadgeNew')}` : ''}</span>`;
   }
 
   private stateBox(icon: Parameters<typeof tIcon>[0], title: string, kind: string, action?: TemplateResult): TemplateResult {

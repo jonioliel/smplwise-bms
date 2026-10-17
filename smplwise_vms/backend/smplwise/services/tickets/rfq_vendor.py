@@ -151,8 +151,15 @@ def present_quote(row: Mapping[str, Any], q: Mapping[str, Any]) -> dict[str, Any
 def present_messages(conn, v: Mapping[str, Any]) -> list[dict[str, Any]]:
     """His own thread. TKRFQ5: a message that came by a WhatsApp reply (an unverified sender - rfq_inbound) is the managers' only; the
     page never shows words a forged event could have put in his mouth."""
-    return [{"id": m["id"], "mine": m["direction"] == "in", "text": m["body"], "at": m["created_at"]} for m in store_rfq.messages_of_vendor(conn, v["id"])
-            if not str(m.get("source_id") or "").startswith("whatsapp:")]
+    out = []
+    for m in store_rfq.messages_of_vendor(conn, v["id"]):
+        if str(m.get("source_id") or "").startswith("whatsapp:"):
+            continue
+        item: dict[str, Any] = {"id": m["id"], "mine": m["direction"] == "in", "text": m["body"], "at": m["created_at"]}
+        if m["direction"] == "in":  # RFQQUESTIONS: his question got an answer in this thread (a question handled by phone shows nothing)
+            item["answered"] = bool(m.get("answer_id"))
+        out.append(item)
+    return out
 
 
 def _form(conn, row: Mapping[str, Any], v: Mapping[str, Any], cur: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -290,6 +297,10 @@ def _valid_until(value: Any, now: dt.datetime) -> str | None:
 
 def submit(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> dict[str, Any]:
     row, v = _open_for_writes(conn, link, now)
+    # RFQQUESTIONS: the quote form's own "question" field - checked before anything is stored (a refused question stores no quote)
+    question = _clean(body.get("question"), "question", MESSAGE_MAX) if body.get("question") is not None else ""
+    if question and store_rfq.inbound_message_count(conn, v["id"]) >= MESSAGES_PER_VENDOR:
+        raise VendorRefused(409, "message_limit")
     current = _submitted(conn, v)
     base = body.get("base_version")
     if (current["version"] if current else None) != base:
@@ -339,6 +350,8 @@ def submit(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) -> dict[s
                            data={"quote_id": qid, "version": version, "on_behalf": False, "late": False}, at=at)
     _audit(conn, link, "ticket.rfq.vendor_quote", row, vendor_id=v["id"], quote_id=qid, version=version)  # review F3: ids only, no amount
     rfq_notify.quote(conn, row, v["id"], "updated" if previous else "new")
+    if question:
+        _store_question(conn, link, row, v, question, at, quote_id=qid)
     return present_quote(row, store_quotes.quote(conn, qid) or {})
 
 
@@ -395,11 +408,20 @@ def ask(conn, link: Any, text: Any, now: dt.datetime) -> dict[str, Any]:
         raise VendorRefused(409, "message_limit")
     body = _clean(text, "text", MESSAGE_MAX, required=True)
     at = iso(now)
-    mid = store_rfq.insert_message(conn, {"rfq_id": row["id"], "rfq_vendor_id": v["id"], "direction": "in", "body": body, "author_kind": "contact",
-                                          "author_id": v["contact_id"], "source_kind": "clarify", "source_id": None, "created_at": at})
     store_rfq.update_rfq(conn, row["id"], {"updated_at": at})
-    store_rfq.insert_event(conn, row["id"], "vendor_message", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
-                           data={"message_id": mid}, at=at)
-    _audit(conn, link, "ticket.rfq.vendor_message", row, vendor_id=v["id"], message_id=mid)
+    mid = _store_question(conn, link, row, v, body, at)
+    return {"id": mid, "mine": True, "text": body, "at": at, "answered": False}
+
+
+def _store_question(conn, link: Any, row: Mapping[str, Any], v: Mapping[str, Any], body: str, at: str, *, quote_id: str | None = None) -> str:
+    """His question in his thread (pending, unread - RFQQUESTIONS), its timeline / audit rows (ids only) and the managers' notification."""
+    mid = store_rfq.insert_message(conn, {"rfq_id": row["id"], "rfq_vendor_id": v["id"], "direction": "in", "body": body, "author_kind": "contact",
+                                          "author_id": v["contact_id"], "source_kind": "clarify", "source_id": None, "created_at": at,
+                                          "quote_id": quote_id})
+    data: dict[str, Any] = {"message_id": mid}
+    if quote_id:
+        data["quote_id"] = quote_id
+    store_rfq.insert_event(conn, row["id"], "vendor_message", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"], data=data, at=at)
+    _audit(conn, link, "ticket.rfq.vendor_message", row, vendor_id=v["id"], message_id=mid, **({"quote_id": quote_id} if quote_id else {}))
     rfq_notify.question(conn, row, v["id"], mid)
-    return {"id": mid, "mine": True, "text": body, "at": at}
+    return mid

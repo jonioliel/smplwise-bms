@@ -1219,10 +1219,27 @@ def write_message(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body:
         a = store_rfq.award(conn, source.get("id"))
         if a is None or a["rfq_id"] != seen.row["id"] or a["rfq_vendor_id"] != v["id"]:
             raise invalid(conn, "source.id", "not_found")
+    kind = (source or {}).get("kind") or "clarify"
+    mid, notified = store_out_message(conn, viewer, seen, v, msg, notify, now, source_kind=kind, source_id=(source or {}).get("id"))
+    if kind == "award":
+        rfq_terms.requested(conn, (source or {}).get("id"), via="award", now=now)  # CR-RFQ-PAYMENT-SCHEDULE: the confirmation clock starts
+    if kind == "clarify":  # RFQQUESTIONS: a clarification to the vendor answers his open questions (the TKRFQ5 rule, now stored)
+        store_rfq.answer_questions(conn, [q["id"] for q in store_rfq.pending_questions(conn, seen.row["id"]) if q["rfq_vendor_id"] == v["id"]],
+                                   by=viewer.uid, at=iso(now), answer_id=mid)
+        rfq_notify.answered(conn, seen.row["id"], v["id"])  # TKRFQ5: the vendor's question row is over
+    _touch(conn, seen.row, {}, None, now)
+    _audit(conn, viewer, "ticket.rfq.message", seen.row, rid, vendor_id=v["id"], message_id=mid, notified=notified["queued"])
+    return {"item": present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v["id"]) if m["id"] == mid)), "notified": notified}
+
+
+def store_out_message(conn, viewer: Viewer, seen: RfqSeen, v: Mapping[str, Any], msg: str, notify: bool, now: dt.datetime, *, source_kind: str,
+                      source_id: str | None, answers_id: str | None = None, broadcast_id: str | None = None) -> tuple[str, dict[str, Any]]:
+    """One outbound thread message (already checked text) + the optional templated `rfq_update` notice + its timeline row. Shared by the
+    vendor-message route and RFQQUESTIONS' answers (one copy per vendor)."""
     at = iso(now)
     mid = store_rfq.insert_message(conn, {"rfq_id": seen.row["id"], "rfq_vendor_id": v["id"], "direction": "out", "body": msg, "author_kind": "user",
-                                          "author_id": viewer.uid, "source_kind": (source or {}).get("kind") or "clarify",
-                                          "source_id": (source or {}).get("id"), "created_at": at})
+                                          "author_id": viewer.uid, "source_kind": source_kind, "source_id": source_id, "created_at": at,
+                                          "answers_id": answers_id, "broadcast_id": broadcast_id})
     notified: dict[str, Any] = {"queued": False, "channel": None}
     link = store_rfq.link_of_vendor(conn, v["id"])
     contact = store_links.contact(conn, v["contact_id"]) or {}
@@ -1234,22 +1251,29 @@ def write_message(conn, viewer: Viewer, seen: RfqSeen, rfq_vendor_id: str, body:
                            requested_by=viewer.uid, idempotency_key=f"rfqmsg:{mid}")
             store_rfq.set_message_notified(conn, mid, oid)
             notified["queued"] = True
-    if source is not None and source.get("kind") == "award":
-        rfq_terms.requested(conn, source.get("id"), via="award", now=now)  # CR-RFQ-PAYMENT-SCHEDULE: the confirmation clock starts
-    _touch(conn, seen.row, {}, None, now)
-    rfq_notify.answered(conn, seen.row["id"], v["id"])  # TKRFQ5: the vendor's question row is over
+    data: dict[str, Any] = {"message_id": mid, "notified": notified["queued"]}
+    if answers_id:
+        data["answers"] = answers_id
+    if broadcast_id:
+        data["broadcast"] = True
     store_rfq.insert_event(conn, seen.row["id"], "message", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
-                           rfq_vendor_id=v["id"], data={"message_id": mid, "notified": notified["queued"]}, at=at)
-    _audit(conn, viewer, "ticket.rfq.message", seen.row, rid, vendor_id=v["id"], message_id=mid, notified=notified["queued"])
-    return {"item": present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v["id"]) if m["id"] == mid)), "notified": notified}
+                           rfq_vendor_id=v["id"], data=data, at=at)
+    return mid, notified
 
 
 def present_message(conn, m: Mapping[str, Any]) -> dict[str, Any]:
     by = store.display_name(conn, m["author_id"]) if m["author_kind"] == "user" else (store_links.contact(conn, m["author_id"]) or {}).get("display_name", "")
     whatsapp = str(m.get("source_id") or "").startswith("whatsapp:")  # TKRFQ5: a WhatsApp reply matched to the thread (unverified sender)
-    return {"id": m["id"], "direction": m["direction"], "text": m["body"], "at": m["created_at"], "by": by,
-            "source": None if whatsapp else ({"kind": m["source_kind"], "id": m["source_id"]} if m.get("source_kind") else None),
-            "notified": bool(m["notified"]), "via": "whatsapp" if whatsapp else None, "unverified": whatsapp}
+    out = {"id": m["id"], "direction": m["direction"], "text": m["body"], "at": m["created_at"], "by": by,
+           "source": None if whatsapp else ({"kind": m["source_kind"], "id": m["source_id"]} if m.get("source_kind") else None),
+           "notified": bool(m["notified"]), "via": "whatsapp" if whatsapp else None, "unverified": whatsapp}
+    if m["direction"] == "in":  # RFQQUESTIONS: every inbound message is a question with a state
+        out["question"] = {"state": "answered" if m.get("answered_at") else "pending", "read": bool(m.get("read_at")),
+                           "answered_at": m.get("answered_at"), "answer_id": m.get("answer_id"), "quote_id": m.get("quote_id")}
+    else:
+        out["answers_id"] = m.get("answers_id")
+        out["to_all"] = bool(m.get("broadcast_id"))
+    return out
 
 
 # ---------------------------------------------------------------- award drafts (never sent by the system)
@@ -1331,7 +1355,10 @@ def purge(conn, viewer: Viewer, seen: RfqSeen, rid: str | None = None, files_out
 
 def retention(conn, now: dt.datetime) -> dict[str, int]:
     doc = settings_doc.read(conn)["rfq"]
-    out = {"due_passed": tick(conn, now), "links": 0, "purged": 0, "arrival_reminders": rfq_terms.tick(conn, now)}
+    from .rfq_questions import remind  # RFQQUESTIONS: the "still unanswered" reminder
+
+    out = {"due_passed": tick(conn, now), "links": 0, "purged": 0, "arrival_reminders": rfq_terms.tick(conn, now),
+           "question_reminders": remind(conn, now)}
     for row in store_rfq.ended_before(conn, iso(now - dt.timedelta(days=int(doc["link_keep_days"])))):
         out["links"] += store_rfq.drop_links_of_rfq(conn, row["id"])
     months = int(doc["retention_months"])
@@ -1397,7 +1424,8 @@ def _quote_summary(q: Mapping[str, Any] | None, amounts: bool) -> dict[str, Any]
     out: dict[str, Any] = {"id": q["id"], "version": q["version"], "state": q["state"], "created_at": q["created_at"]}
     if amounts:
         out.update({"total_minor": q["total_minor"], "subtotal_minor": q["subtotal_minor"], "currency": q["currency"],
-                    "work_from": q.get("work_from"), "work_to": q.get("work_to"), "revision": q["revision"]})
+                    "work_from": q.get("work_from"), "work_to": q.get("work_to"), "revision": q["revision"],
+                    "has_note": bool((q.get("note") or "").strip())})  # RFQQUESTIONS: the vendor wrote a note (the text is the comparison's)
     return out
 
 
@@ -1485,7 +1513,13 @@ def summary(conn, viewer: Viewer, seen: RfqSeen, now: dt.datetime) -> dict[str, 
             "location": org_locations.present_request(row), "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
             "updated_at": row["updated_at"], "internal_owner": {"id": row.get("internal_owner_user_id"),
                                                                  "name": store.display_name(conn, row.get("internal_owner_user_id"))},
-            "kpis": kpis(conn, row, vendors, live, now, amounts)}
+            "kpis": kpis(conn, row, vendors, live, now, amounts), "questions": _questions().counts(conn, row, now)[0]}
+
+
+def _questions():
+    from . import rfq_questions  # RFQQUESTIONS (imports this module)
+
+    return rfq_questions
 
 
 def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
@@ -1499,6 +1533,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
     vendors = store_rfq.vendors_of(conn, row["id"])
     live = _live_by_vendor(conn, vendors)
     counts = store_rfq.message_counts(conn, row["id"])
+    q_total, q_per = _questions().counts(conn, row, now)  # RFQQUESTIONS
     deliveries = store_rfq.outbox_states(conn, row["id"]) if manager else {}
     awards = store_rfq.awards_of(conn, row["id"])
     pending = any(a["state"] == "pending_second" for a in awards)
@@ -1515,6 +1550,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
             "link": rfq_links.block(link, now) if manager else None,
             "delivery": deliveries.get((link or {}).get("id")) if manager else None,
             "quote": _quote_summary(live.get(v["id"]), amounts), "messages": counts.get(v["id"], 0), "revision": v["revision"],
+            "questions": q_per.get(v["id"], {"pending": 0, "unread": 0}),
             "require_code": bool(v["require_code"]), "channel_choice": (v.get("channel_choice") or "auto") if manager else None,
             "can": {"remove": manager and state not in ENDED and vs not in ("removed", "awarded") and not _award_live_of_vendor(conn, v["id"]),
                     "remind": manager and state in ("sent", "collecting") and vs in ("sent", "opened") and v["channel"] != "manual",
@@ -1551,7 +1587,8 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         "awards": out_awards,
         "second_approval": {"threshold_minor": threshold if amounts else None, "enabled": threshold is not None},
         "timeline": present_events(conn, row, amounts), "vendor_page": vendor_page_ready(conn), "attachments": files["attachments"],
-        "can": {"edit": manager and state not in ENDED, "add_vendor": manager and (state == "draft" or open_),
+        "questions": {**q_total, "items": _questions().pending_items(conn, viewer, seen, now)},
+        "can": {"answer": manager, "edit": manager and state not in ENDED, "add_vendor": manager and (state == "draft" or open_),
                 "send": manager and state in ("draft", "sent", "collecting") and any(v["state"] == "draft" for v in vendors),
                 "remind": manager and state in ("sent", "collecting"), "cancel": manager and (state == "draft" or open_) and not has_award,
                 "close": manager and (open_ or state in ("awarded", "ordered")) and not pending,
@@ -1568,6 +1605,7 @@ def comparison(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
     vendors = {v["id"]: v for v in store_rfq.vendors_of(conn, row["id"])}
     live = _live_by_vendor(conn, list(vendors.values()))
     counts = store_rfq.message_counts(conn, row["id"])
+    _qt, q_per = _questions().counts(conn, row, now)  # RFQQUESTIONS
     awards = {a["quote_id"]: a for a in store_rfq.awards_of(conn, row["id"]) if a["state"] in ("pending_second", "approved")}
     qs = sorted(live.values(), key=lambda q: q["created_at"])
     low_id, early_id, currency = _lowest_earliest(conn, qs)
@@ -1589,6 +1627,7 @@ def comparison(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
             "subtotal_minor": q["subtotal_minor"], "vat_minor": q["vat_minor"], "total_minor": q["total_minor"],
             "net_minor": q["total_minor"] - q["vat_minor"], "work_from": q.get("work_from"), "work_to": q.get("work_to"), "in_window": in_window,
             "note": q.get("note"), "vendor_ref": q.get("vendor_ref"), "messages": counts.get(q["rfq_vendor_id"], 0),
+            "questions": q_per.get(q["rfq_vendor_id"], {"pending": 0, "unread": 0}),
             "lowest": q["id"] == low_id, "earliest": q["id"] == early_id,
             "award": {"id": a["id"], "state": a["state"], "line_indexes": json.loads(a["line_indexes_json"])} if a else None,
             "revision": q["revision"], "payment_proposal": rfq_terms.present_plan(rfq_terms.loads(q.get("payment_plan_json"))),
