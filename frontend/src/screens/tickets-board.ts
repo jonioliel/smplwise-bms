@@ -22,6 +22,7 @@ import { relTime, ticketHref, listHref } from '../tickets/model';
 import { lastScope } from '../tickets/model';
 import { tt } from '../tickets/text';
 import { bt } from '../tickets/board-text';
+import { ot } from '../tickets/overview-text';
 import { tIcon } from '../tickets/icons';
 import { onTicketNames, setTicketNames } from '../tickets/naming';
 import { ageOf, boardHref, floorChips, floorsLayout, groupingOn, parseBoardRoute, placeLabel, sections, stripItems, type BoardRoute } from '../tickets/board-model';
@@ -346,7 +347,7 @@ export class TicketsBoard extends LitElement {
   }
 
   private queryKey(): string {
-    return `${this.r.state}|${this.r.dept}|${this.r.place}|${this.r.q.trim()}`;
+    return `${this.r.state}|${this.r.dept}|${this.r.place}|${this.r.q.trim()}|${this.r.assignee ?? ''}`;
   }
 
   private reloadIfNeeded(force = false): void {
@@ -361,7 +362,7 @@ export class TicketsBoard extends LitElement {
     const seq = ++this.seq;
     if (!quiet && !this.data) this.screen = 'loading';
     try {
-      const d = await boardApi().board({ state: this.r.state, department_id: this.r.dept || undefined, place: this.r.place || undefined, q: this.r.q });
+      const d = await boardApi().board({ state: this.r.state, department_id: this.r.dept || undefined, place: this.r.place || undefined, q: this.r.q, assignee: this.r.assignee || undefined });
       if (seq !== this.seq) return;
       this.data = d;
       this.now = new Date();
@@ -376,6 +377,14 @@ export class TicketsBoard extends LitElement {
     this.toast = { text, tone };
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => (this.toast = null), tone === 'bad' ? 7000 : 3500);
+  }
+
+  /** MGRDASH: the name on the chip of the handler filter (a row of the overview's load card opens the board filtered to one handler). */
+  private assigneeName(): string {
+    const key = this.r.assignee ?? '';
+    if (key === 'none') return bt('noAssigneeGroup');
+    const it = this.data?.items.find((x) => x.assignee_key === key) ?? this.data?.closed.find((x) => x.assignee_key === key);
+    return it?.assignee?.name ?? this.data?.handling.find((h) => h.key === key)?.name ?? ot('ldTitle');
   }
 
   private ui(): BoardUi {
@@ -469,6 +478,7 @@ export class TicketsBoard extends LitElement {
         ${d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
           ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
         </div>` : nothing}
+        ${this.r.assignee ? html`<button type="button" class="rc" aria-pressed="true" data-assignee-filter=${this.r.assignee} aria-label=${ot('clearHandler', { name: this.assigneeName() })} @click=${() => this.go({ assignee: undefined })}>${tIcon('x')}${bidi(this.assigneeName())}</button>` : nothing}
         <span class="grow"></span>
         ${layout.treeInFilter ? html`<button type="button" class="btn" aria-expanded=${String(this.filterOpen)} data-filter-btn @click=${() => (this.filterOpen = !this.filterOpen)}>${tIcon('filter')}${bt('filter')}</button>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>

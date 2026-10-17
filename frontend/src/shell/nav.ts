@@ -9,6 +9,7 @@ import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '
 import { onTicketNames } from '../tickets/naming';
 import { tt } from '../tickets/text';
 import { bt } from '../tickets/board-text'; // CR-038 slice 6: the board tab's label
+import { ot } from '../tickets/overview-text'; // MGRDASH: the overview tab's label
 import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
 import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
 
@@ -585,7 +586,9 @@ export const TICKETS_SETTINGS_HREF = '#/system/tickets';
 export const TICKETS_HANDLERS_HREF = '#/tickets/handlers'; // owner request 2026-10-14: "מטפלים וספקים" (out of Settings)
 export const TICKETS_ACCOUNTS_HREF = '#/tickets/accounts'; // TK258: the vendors account
 export const TICKETS_RFQS_HREF = '#/tickets/rfqs'; // TKRFQ2 (2.6.1): requests for quotation (the manager UI)
+export const TICKETS_OVERVIEW_HREF = '#/tickets/overview'; // MGRDASH (owner 2026-10-17): the manager overview, the area's first tab (managers only)
 export const TICKETS_TABS: TabItem[] = [
+  { id: 'overview', get label() { return ot('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: first, for managers only (TAB_PERMISSIONS + the board's server gate)
   { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
   { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
   { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
@@ -791,7 +794,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -948,6 +951,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [TICKETS_MINE_HREF]: ['tickets.view', 'tickets.create'],
   [TICKETS_DEPARTMENT_HREF]: ['tickets.view'],
   [TICKETS_ALL_HREF]: ['tickets.all_departments'],
+  [TICKETS_OVERVIEW_HREF]: ['tickets.manage'], // MGRDASH: the manager overview (the server's board gate also needs a manager membership or all departments)
   [TICKETS_BOARD_HREF]: ['tickets.manage'], // slice 6: the manager board (the server also needs a manager membership or all departments)
   // "מטפלים וספקים": the directory's readers (tickets.configure edits; a department manager reads his departments' rows, masked phones)
   [TICKETS_HANDLERS_HREF]: ['tickets.configure', 'tickets.manage'],

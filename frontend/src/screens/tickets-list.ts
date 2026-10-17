@@ -8,6 +8,7 @@ import '../tickets/ticket-create';
 import '../tickets/calendar-view'; // TKCAL: the weekly calendar mode
 import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (a chip only while the queue is not empty)
 import './tickets-table'; // CR-038 S6b (D24): the board's table view
+import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top of "שלי" (owner decision, question 4 b)
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
@@ -485,6 +486,7 @@ export class TicketsList extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     return html`<div class="page" data-screen="tickets-list" data-scope=${this.r.scope}>
       ${this.header()}
+      ${this.r.scope === 'mine' && this.screen === 'ready' ? html`<tickets-my-numbers .module=${this.module} .manager=${!!this.meta?.can.manage} .source=${this.items}></tickets-my-numbers>` : nothing}
       ${this.body()}
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}

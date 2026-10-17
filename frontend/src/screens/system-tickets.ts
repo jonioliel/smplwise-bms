@@ -43,6 +43,8 @@ import { SETTINGS_TABS, isSettingsTab, rovingIndex, visibleTabs } from '../ticke
 import { tt, type TicketTextKey } from '../tickets/text';
 import { ticketPermLabel } from '../tickets/perm-label';
 import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 rows of the display card
+import '../tickets/overview-settings'; // MGRDASH: the manager overview card of the display tab
+import { ot } from '../tickets/overview-text';
 import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
@@ -130,6 +132,36 @@ export class SystemTickets extends LitElement {
       --sw-seg-on-bg: var(--mm-seg-thumb);
       --sw-seg-on-fg: var(--dv-text);
       --sw-seg-on-shadow: var(--dv-shadow-control);
+    }
+    /* MGRDASH: the "busy" threshold fields of the manager overview card (tickets/overview-settings.ts) */
+    .num-in {
+      inline-size: 4.5em;
+      min-block-size: 36px;
+      box-sizing: border-box;
+      padding-inline: 10px;
+      border-radius: var(--sw-r-sm);
+      border: 1px solid var(--dv-border-strong);
+      background: var(--dv-surface-2);
+      color: var(--dv-text);
+      font: inherit;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .num-in[aria-invalid='true'] {
+      border-color: var(--dv-danger);
+    }
+    .busy-depts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      justify-content: flex-end;
+    }
+    .busy-dept {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+      color: var(--dv-text-2);
     }
     .page {
       max-inline-size: 1320px;
@@ -646,6 +678,9 @@ export class SystemTickets extends LitElement {
           <ticket-board-settings .doc=${doc as unknown as BoardSettingsDoc} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<BoardSettingsDoc>) => { this.doc = e.detail as unknown as SettingsDoc; this.say(tt('setSaved')); }}></ticket-board-settings>
         </sw-card>
         <sw-card heading=${tt('u6CardDevice')} data-card="display-device">${this.longPressRow()}</sw-card>
+        <sw-card heading=${ot('setCard')} data-card="display-overview">
+          <ticket-overview-settings .doc=${doc as unknown as BoardSettingsDoc} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<BoardSettingsDoc>) => { this.doc = e.detail as unknown as SettingsDoc; this.say(tt('setSaved')); }}></ticket-overview-settings>
+        </sw-card>
       </div>
     </div>`;
   }

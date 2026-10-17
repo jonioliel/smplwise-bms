@@ -105,8 +105,8 @@ test('the rail, the scope tabs, the settings tab and the settings index carry th
   const groups = visibleGroups(true, ALL);
   expect(searchSettings(groups, 'תקלות').map((r) => r.entry.href)).toContain(TICKETS_SETTINGS_HREF);
   expect(searchSettings(groups, 'מחלקות').map((r) => r.entry.href)).toContain('#/system/tickets?tab=departments');
-  // slice 6 adds the manager board; owner 2026-10-14 the fifth entry "מטפלים וספקים"; TKRFQ2 "בקשות הצעת מחיר"; TK258 "חשבון ספקים" last
-  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['שלי', 'המחלקה', 'לוח מנהל', 'הכול', 'מטפלים וספקים', 'בקשות הצעת מחיר', 'חשבון ספקים']);
+  // slice 6 adds the manager board; owner 2026-10-14 the fifth entry "מטפלים וספקים"; TKRFQ2 "בקשות הצעת מחיר"; TK258 "חשבון ספקים" last; MGRDASH "סקירה" first
+  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['סקירה', 'שלי', 'המחלקה', 'לוח מנהל', 'הכול', 'מטפלים וספקים', 'בקשות הצעת מחיר', 'חשבון ספקים']);
 });
 
 test('the module switch: the area is hidden until the session says it is on; the settings tab stays (it is where the switch is)', () => {

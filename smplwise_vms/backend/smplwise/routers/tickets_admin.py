@@ -77,6 +77,12 @@ class UiPatch(BaseModel):
     drawer_size: Literal["drawer", "wide", "full"] | None = None  # TKUI1
     phone_sheet: Literal["full", "half"] | None = None  # TKUI1
     handled_days: StrictInt | None = None  # HANDLERLOAD: the default period of the "handled" number (days)
+    # MGRDASH phase 1: the manager overview's display choices (settings_doc validates every value again)
+    dash_handler_numbers: Literal["managers", "own", "everyone"] | None = None
+    dash_vendors: Literal["tagged", "separate", "hidden"] | None = None
+    dash_busy: StrictInt | None = None
+    dash_busy_departments: dict[str, StrictInt] | None = Field(default=None, max_length=200)
+    dash_compare: Literal["top", "below_numbers", "bottom"] | None = None
 
 
 class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose client-address header is believed
