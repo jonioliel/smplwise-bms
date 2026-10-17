@@ -447,7 +447,11 @@ skin storage, the acceptance overlay (2b) and compositing (2c) are not built. **
   outline) - `GET /floors/{id}/skins` hands it out; a stale key is 409 `geometry_changed`, no published structure 409
   `no_geometry`. PNG validated by bytes: signature, a chunk walk with CRCs, only critical and colour chunks (a
   `tEXt`/`zTXt`/`iTXt`/`eXIf` chunk is refused - no label rides along as metadata), decodable, exactly 1536x1024,
-  8 MB cap. Stored as `<data>/skins/<floor>/control-<state>-<key16>.png` (one per floor and state; a new key replaces
+  8 MB cap. STILLCAM-SKIN (2026-10-17): the control scene leaves out every object bound to a camera anchor (it stands at
+  that camera's place, and the skin is for every reader); the upload carries `recipe` (`control-2` or later, else 409
+  `control_recipe_outdated`), only such a control is ever `current` (`store.control_current` - the test 2b/2c must use
+  before sending or serving), and one stored before the fix is withheld from camera-scoped editors. Stored as
+  `<data>/skins/<floor>/<recipe>-<state>-<key16>.png` (before the fix `control-<state>-<key16>.png`) (one per floor and state; a new key replaces
   the old image), never served by any route, deleted with the floor (`catalog.delete_floor`, counted in the
   `floor.delete` audit). The response says whether the bytes equal the stored ones for the same key.
 - **Deviation / limits recorded**: the control image is drawn in the current design's tokens (a/b), so switching the

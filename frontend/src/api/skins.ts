@@ -2,7 +2,7 @@
  * floor's control images. The API key never reaches the browser - only whether it is configured. */
 import { get, post, upload } from './client';
 import type { ControlState } from '../map/skin-control';
-import { dataUrlBytes } from '../map/skin-control';
+import { CONTROL_RECIPE, dataUrlBytes } from '../map/skin-control';
 
 export interface SkinsBudget {
   monthly_cap: number;
@@ -50,6 +50,8 @@ export interface SkinControl {
   width: number;
   height: number;
   created_at: string;
+  /** The control scene's recipe (STILLCAM-SKIN); null for a control stored before camera-bound bodies were left out. */
+  recipe?: string | null;
   current?: boolean;
   identical?: boolean;
 }
@@ -71,6 +73,7 @@ export function uploadControlImage(floorId: string, state: ControlState, geometr
   const form = new FormData();
   form.set('state', state);
   form.set('geometry_key', geometryKey);
+  form.set('recipe', CONTROL_RECIPE); // STILLCAM-SKIN: the backend refuses a control drawn with camera-bound bodies
   form.set('file', new Blob([dataUrlBytes(pngDataUrl)], { type: 'image/png' }), `control-${state}.png`);
   return upload<SkinControl>(`floors/${floorId}/skins/control-image`, form);
 }

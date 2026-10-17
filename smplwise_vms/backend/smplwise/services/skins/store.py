@@ -5,7 +5,9 @@ uploads, the render records and the budgets. Nothing in this module talks to a n
   rooms (id, level, outline). A skin rendered from one key is outdated once the key changes (2c shows "skin outdated").
 - **Control images** - PNG only, one fixed size (the provider's landscape size, so an answer shares the pixel grid),
   no ancillary text/metadata chunks (a label must not ride along in a tEXt chunk), stored under
-  `<data>/skins/<floor id>/control-<state>-<key>.png`, never served to a browser, deleted with the floor.
+  `<data>/skins/<floor id>/<recipe>-<state>-<key>.png`, never served to a browser, deleted with the floor. STILLCAM-SKIN:
+  only a recipe that draws no camera-bound body is accepted, and only such a control can be current (`control_current`);
+  one stored before the fix is withheld from camera-scoped editors (`control_withheld`).
 - **Render records** - `plan_skin_renders`, one row per request that was sent (the shape 2b/2c reuse); in 2a only the
   owner's connection test writes one (`test = 1`).
 - **Budgets** - `skins.budget_monthly` successful renders per calendar month of the installation's zone (tests count:
@@ -36,6 +38,15 @@ CONTROL_MAX_BYTES = 8 * 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 # Critical chunks plus colour / physical-size ancillaries. Text (tEXt, zTXt, iTXt), EXIF and anything else is refused.
 PNG_CHUNKS_ALLOWED = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS", b"sRGB", b"gAMA", b"cHRM", b"pHYs", b"iCCP", b"sBIT", b"bKGD"}
+# STILLCAM-SKIN: the recipe of the control scene. From `control-2` on the browser draws it without the objects bound to a
+# camera anchor (frontend/src/map/skin-control.ts controlSceneInput -> withoutCameraBodies): such a body stands at that
+# camera's position, and the skin made from the control image is meant for every reader of the floor, also one whose camera
+# scope hides that camera. The recipe rides in the stored file name (`<recipe>-<state>-<key16>.png`, no schema change); a
+# file named the way the code before the fix named it (`control-<state>-<key16>.png`) has no recipe: an older control.
+CONTROL_RECIPE = "control-2"
+SAFE_CONTROL_RANK = 2
+_CONTROL_RECIPE_RE = re.compile(r"^control-(\d{1,4})$")
+_CONTROL_FILE_RE = re.compile(r"^(control-\d{1,4})-(?:all_off|all_on)-[0-9a-f]{16}\.png$")
 TEST_PROMPT_VERSION = "test-1"
 TEST_PROMPT = ("Connection test from a building management system. The input is a synthetic 64x64 test pattern, not a "
                "building. Return a simple image of the same pattern.")
@@ -183,28 +194,61 @@ def _unlink_stored(settings: Settings, rel: str) -> bool:
         return False
 
 
+def recipe_omits_camera_bodies(recipe: Any) -> bool:
+    """STILLCAM-SKIN: whether a control image of `recipe` was drawn without camera-bound bodies (unknown / none: no)."""
+    if not isinstance(recipe, str):
+        return False
+    m = _CONTROL_RECIPE_RE.match(recipe)
+    return bool(m) and int(m[1]) >= SAFE_CONTROL_RANK
+
+
+def control_recipe(path: Any) -> str | None:
+    """The recipe a stored control was drawn with, read from its file name; None for a control stored before the fix."""
+    if not isinstance(path, str):
+        return None
+    m = _CONTROL_FILE_RE.match(path.rsplit("/", 1)[-1])
+    return m[1] if m else None
+
+
+def control_current(c: dict[str, Any], real_key: str | None) -> bool:
+    """A control image that may become the source of a skin: drawn from the current structure AND without camera-bound
+    bodies. Whatever sends a control to a provider or serves a skin made from one (CR-006 2b/2c) must use this test."""
+    return real_key is not None and c.get("geometry_key") == real_key and recipe_omits_camera_bodies(c.get("recipe"))
+
+
+def control_withheld(c: dict[str, Any], visible: Any) -> bool:
+    """STILLCAM-SKIN, the stills rule (services/plan_bakes.pixels_withheld) for control images: a control of an older recipe
+    is never current, so - fail closed, like a stale older still - it is withheld from every reader whose camera scope can
+    withhold something. A reader from whom nothing can be withheld (visible None) still sees it listed."""
+    return visible is not None and not recipe_omits_camera_bodies(c.get("recipe"))
+
+
 def control_row(r: sqlite3.Row) -> dict[str, Any]:
     return {"id": r["id"], "floor_id": r["floor_id"], "state": r["state_key"], "geometry_key": r["geometry_key"], "sha256": r["sha256"],
-            "bytes": r["bytes"], "width": r["width"], "height": r["height"], "created_at": r["created_at"]}
+            "bytes": r["bytes"], "width": r["width"], "height": r["height"], "created_at": r["created_at"], "recipe": control_recipe(r["path"])}
 
 
-def store_control(settings: Settings, conn: sqlite3.Connection, floor_id: str, state: str, key: str, data: bytes, actor_id: str | None) -> tuple[dict[str, Any], bool]:
+def store_control(settings: Settings, conn: sqlite3.Connection, floor_id: str, state: str, key: str, data: bytes, actor_id: str | None,
+                  recipe: str = CONTROL_RECIPE) -> tuple[dict[str, Any], bool]:
     """Write the control image for (floor, state, key); an older key's image of the same state is removed. Returns the
-    row and whether the bytes equal the ones already stored for the same key (the determinism check of the capture)."""
+    row and whether the bytes equal the ones already stored for the same key and recipe (the determinism check of the
+    capture). A recipe that draws camera-bound bodies is refused (STILLCAM-SKIN)."""
     if state not in STATES:
         raise ControlImageError("bad_state", "מצב לא מוכר.", {"choices": list(STATES)})
     if not re.fullmatch(r"[0-9a-f]{64}", key or ""):
         raise ControlImageError("validation", "מפתח הגאומטריה אינו תקין.")
+    if not recipe_omits_camera_bodies(recipe):
+        raise ControlImageError("control_recipe_outdated", "גרסת היישום ישנה: רעננו את הדף וצלמו שוב.", {"recipe": CONTROL_RECIPE})
     folder = skins_dir(settings, floor_id)  # SkinStoreError for an id that is not a plain id
     w, h = validate_png(data)
     sha = hashlib.sha256(data).hexdigest()
     folder.mkdir(parents=True, exist_ok=True)
     prev = conn.execute("SELECT * FROM plan_skin_controls WHERE floor_id = ? AND state_key = ?", (floor_id, state)).fetchall()
-    identical = any(p["geometry_key"] == key and p["sha256"] == sha for p in prev)
+    identical = any(p["geometry_key"] == key and p["sha256"] == sha and control_recipe(p["path"]) == recipe for p in prev)
     for p in prev:
         _unlink_stored(settings, p["path"])
     conn.execute("DELETE FROM plan_skin_controls WHERE floor_id = ? AND state_key = ?", (floor_id, state))
-    dest = _confine(settings, folder / f"control-{state}-{key[:16]}.png")
+    dest = _confine(settings, folder / f"{recipe}-{state}-{key[:16]}.png")
     dest.write_bytes(data)
     cid = new_id()
     conn.execute(

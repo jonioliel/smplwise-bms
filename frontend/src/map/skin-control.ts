@@ -10,14 +10,19 @@
  * What the control scene keeps: floor plates, rooms (their faint plate), walls with lintels / sills / heads, doors (the
  * leaf closed: no live state), windows, objects, connectors, and - in `all_on` - the warm lit plate of every room and
  * the glow of every lamp. What it drops: every sprite (room names, labels, entity pills, temperature chips), cameras and
- * their cones, entities, open-opening markers, presence tints. The live states never enter: `all_off` / `all_on` are
- * synthetic snapshots.
+ * their cones, entities, open-opening markers, presence tints, and every object bound to a camera anchor
+ * (`withoutCameraBodies`, STILLCAM-SKIN). The live states never enter: `all_off` / `all_on` are synthetic snapshots.
  */
+import type { GeometryDoc } from './geometry';
 import type { RoomState, RoomStateLayer } from './room-state';
 import type { SceneAnchor, SceneDescription, SceneInput, ScenePart } from './scene-builder';
 
 export type ControlState = 'all_off' | 'all_on';
 export const CONTROL_STATES: readonly ControlState[] = ['all_off', 'all_on'];
+/** The recipe of the control scene, sent with every upload. `control-2` (STILLCAM-SKIN): camera-bound objects are left out;
+ * the backend refuses an upload without a recipe that does so, never counts an older control as current and withholds one
+ * from camera-scoped editors (services/skins/store.py CONTROL_RECIPE). */
+export const CONTROL_RECIPE = 'control-2';
 /** The provider's landscape size (OpenAI edits: 1536x1024): the answer comes back on the control image's pixel grid, so
  * the room polygons projected with our camera matrix line up with it (2c's masks). The backend refuses other sizes. */
 export const CONTROL_W = 1536;
@@ -52,20 +57,37 @@ export function allOnLayer(input: SceneInput): RoomStateLayer {
   return { rooms, openOpenings: [], levels: {} };
 }
 
+/**
+ * STILLCAM / STILLCAM-SKIN (leftovers of the Studio 6 security review): the document without the objects bound to a CAMERA
+ * anchor. A still, a lightmap or a skin control image is drawn once, in one editor's browser, and the picture (or the AI skin
+ * made from it) is meant for every reader of the floor - also a reader whose camera scope hides that camera. The store copies
+ * the anchor's position and heading onto its body (plan_geometry.apply_anchor_positions), so a body drawn in such a picture
+ * shows the hidden camera's place, which the normal plan read withholds from that reader (plan_anchor_scope.redact). Whoever
+ * draws, such a body is left out: the same pixels are safe for every reader. Entity-bound and free objects stay. A body the
+ * drawer's own read already withheld arrives unbound at the plan centre (redact's rule) and is drawn there - it tells nothing.
+ * Returns `doc` itself when nothing is bound to a camera.
+ */
+export function withoutCameraBodies(doc: GeometryDoc): GeometryDoc {
+  if (!doc.objects.some((o) => o.anchor_ref?.resource_type === 'camera')) return doc;
+  return { ...doc, objects: doc.objects.filter((o) => o.anchor_ref?.resource_type !== 'camera') };
+}
+
 /** The builder input of a control image: the floor's structure and rooms with every live value replaced by the
  * synthetic state - no labels, no names, every level, every structural layer, cameras and entities off. No anchors:
  * they are not part of the geometry key, so a body bound to an anchor stands where the document stores it (review 2a) -
- * the same key gives the same scene for every viewer, whatever anchors that viewer may see. */
+ * the same key gives the same scene for every viewer, whatever anchors that viewer may see. A body bound to a CAMERA anchor
+ * is left out altogether (`withoutCameraBodies`, recipe CONTROL_RECIPE): where it stands is that camera's place. */
 export function controlSceneInput(input: SceneInput, state: ControlState): SceneInput {
+  const doc = withoutCameraBodies(input.doc);
   const anchors: SceneAnchor[] = [];
   const circuitStates: Record<string, string | null> = {};
   const entityStates: Record<string, string | null> = {};
   if (state === 'all_on') {
-    for (const c of input.doc.circuits ?? []) circuitStates[c.id] = 'on';
-    for (const o of input.doc.objects) if (o.anchor_ref && o.anchor_ref.resource_type === 'ha_entity' && o.anchor_ref.resource_id) entityStates[o.anchor_ref.resource_id] = 'on';
+    for (const c of doc.circuits ?? []) circuitStates[c.id] = 'on';
+    for (const o of doc.objects) if (o.anchor_ref && o.anchor_ref.resource_type === 'ha_entity' && o.anchor_ref.resource_id) entityStates[o.anchor_ref.resource_id] = 'on';
   }
   return {
-    doc: input.doc,
+    doc,
     width: input.width,
     height: input.height,
     anchors,
