@@ -57,11 +57,11 @@ export class TicketsRfqFiles extends LitElement {
       gap: 8px;
       padding: 12px;
       border: 1.5px dashed var(--sw-line, rgba(127, 127, 127, 0.4));
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
     }
     .drop.over {
-      border-color: var(--sw-accent, #2f6fed);
-      background: color-mix(in srgb, var(--sw-accent, #2f6fed) 8%, transparent);
+      border-color: var(--sw-accent);
+      background: color-mix(in srgb, var(--sw-accent) 8%, transparent);
     }
     .drop small {
       flex-basis: 100%;
@@ -80,7 +80,7 @@ export class TicketsRfqFiles extends LitElement {
       gap: 10px;
       align-items: center;
       padding: 8px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       border: 1px solid var(--sw-line, rgba(127, 127, 127, 0.25));
     }
     li.removed {
@@ -89,7 +89,7 @@ export class TicketsRfqFiles extends LitElement {
     .th {
       inline-size: 56px;
       block-size: 56px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       display: grid;
       place-items: center;
       overflow: hidden;

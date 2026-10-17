@@ -57,7 +57,7 @@ export class TicketsLocationsSettings extends LitElement {
       align-items: center;
       gap: 8px 12px;
       padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border, rgba(127, 127, 127, 0.2));
+      border-block-end: 1px solid var(--sw-border);
       min-inline-size: 0;
     }
     .loc:last-child {
@@ -106,14 +106,14 @@ export class TicketsLocationsSettings extends LitElement {
       align-items: center;
     }
     .err {
-      color: var(--sw-danger, #c62828);
+      color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
     }
     .chip {
       font-size: var(--sw-fs-xs);
       padding: 1px 8px;
       border-radius: 999px;
-      background: var(--sw-surface-2, rgba(127, 127, 127, 0.12));
+      background: var(--sw-surface-2);
     }
     a.nav {
       color: var(--sw-accent);

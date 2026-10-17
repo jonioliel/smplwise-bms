@@ -160,9 +160,9 @@ export class SwTabs extends LitElement {
       margin-inline-start: 6px;
       padding-inline: 5px;
       border-radius: 999px;
-      background: var(--sw-danger, #d92d20);
-      color: #fff;
-      font-size: 11px;
+      background: var(--sw-danger);
+      color: var(--sw-on-video); /* white on the danger fill */
+      font-size: var(--sw-fs-xs);
       font-weight: 700;
       line-height: 1;
     }

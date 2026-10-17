@@ -267,9 +267,9 @@ export class SwApp extends LitElement {
       block-size: 16px;
       padding-inline: 4px;
       border-radius: 999px;
-      background: var(--sw-danger, #d92d20);
-      color: #fff;
-      font-size: 10px;
+      background: var(--sw-danger);
+      color: var(--sw-on-video); /* white on the danger fill */
+      font-size: var(--sw-fs-2xs);
       font-weight: 700;
       line-height: 1;
       pointer-events: none;

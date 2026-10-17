@@ -23,9 +23,9 @@ export const rfqStyles = css`
     min-block-size: 22px;
     padding-inline: 8px;
     border-radius: 999px;
-    background: var(--dv-danger, #d92d20);
-    color: #fff;
-    font-size: var(--sw-fs-xs, 12px);
+    background: var(--dv-danger);
+    color: var(--sw-on-video); /* white on the danger fill */
+    font-size: var(--sw-fs-xs);
     font-weight: 700;
     white-space: nowrap;
   }
@@ -39,10 +39,10 @@ export const rfqStyles = css`
   }
   .qsec {
     display: grid;
-    gap: var(--sw-s-2, 8px);
-    padding: var(--sw-s-3, 12px);
-    border-radius: var(--sw-r-lg, 14px);
-    border: 1px solid color-mix(in srgb, var(--dv-danger, #d92d20) 40%, transparent);
+    gap: var(--sw-s-2);
+    padding: var(--sw-s-3);
+    border-radius: var(--sw-r-lg);
+    border: 1px solid color-mix(in srgb, var(--dv-danger) 40%, transparent);
     background: linear-gradient(var(--dv-danger-soft), var(--dv-danger-soft)), var(--dv-surface);
   }
   .qsec h2 {
@@ -50,14 +50,14 @@ export const rfqStyles = css`
     align-items: center;
     gap: 8px;
     margin: 0;
-    font-size: var(--sw-fs-md, 16px);
+    font-size: var(--sw-fs-md);
   }
   .qsec > small {
     color: var(--dv-text-2);
   }
   .qlist {
     display: grid;
-    gap: var(--sw-s-2, 8px);
+    gap: var(--sw-s-2);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -68,7 +68,7 @@ export const rfqStyles = css`
     gap: 6px 12px;
     align-items: start;
     padding: 10px 12px;
-    border-radius: var(--sw-r-md, 10px);
+    border-radius: var(--sw-r-md);
     background: var(--dv-surface-solid, var(--dv-surface));
   }
   .qitem .qmeta {
@@ -76,7 +76,7 @@ export const rfqStyles = css`
     flex-wrap: wrap;
     gap: 4px 10px;
     align-items: center;
-    font-size: var(--sw-fs-xs, 12px);
+    font-size: var(--sw-fs-xs);
     color: var(--dv-text-2);
   }
   .qitem p {
@@ -89,7 +89,7 @@ export const rfqStyles = css`
   }
   .qbox {
     padding: 10px 12px;
-    border-radius: var(--sw-r-md, 10px);
+    border-radius: var(--sw-r-md);
     background: var(--dv-surface-2, var(--dv-surface));
   }
   .qbox p {
@@ -811,7 +811,7 @@ export const rfqStyles = css`
   .sendfiles .th {
     inline-size: 40px;
     block-size: 40px;
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -1128,7 +1128,7 @@ export const rfqStyles = css`
       gap: 2px;
       max-block-size: 76px;
       overflow-y: auto;
-      font-size: var(--sw-fs-xs, 12px);
+      font-size: var(--sw-fs-xs);
       line-height: 1.35;
     }
     .bar2[data-empty] .sum {
