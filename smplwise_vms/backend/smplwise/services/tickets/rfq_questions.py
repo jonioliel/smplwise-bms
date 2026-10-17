@@ -29,7 +29,7 @@ from typing import Any, Mapping
 from ...audit import audit
 from ...db import new_id
 from . import rfq, rfq_notify, settings_doc, store_links, store_quotes, store_rfq
-from .access import Viewer, text
+from .access import ALL_DEPARTMENTS, Viewer, text
 from .costs import iso, now_utc
 from .text_hygiene import clean_text
 
@@ -100,12 +100,17 @@ def pending_items(conn, viewer: Viewer, seen: rfq.RfqSeen, now: dt.datetime) -> 
 
 def nav_summary(conn, viewer: Viewer) -> dict[str, int]:
     """The navigation badge: unanswered questions of the open requests the caller MANAGES (an RFQ manager, contract section 6) - a plain
-    viewer is not asked to answer, so his badge stays empty."""
+    viewer is not asked to answer, so his badge stays empty - unless `rfq.question_badge_all_viewers` (RFQQSET, default off) is on: then a
+    viewer who holds tickets.all_departments where the request lies also gets the COUNTS (never a text; the detail still shows
+    nothing more than before)."""
     now = now_utc()
+    everyone = bool(settings_doc.read(conn)["rfq"].get("question_badge_all_viewers"))
     pending = unread = requests = 0
     for rfq_id, p, u in store_rfq.rfqs_with_pending(conn, rfq.OPEN, NAV_LIMIT):
         seen = rfq.visible_by_id(viewer, rfq_id)
-        if seen is None or not rfq.is_manager(viewer, seen) or not badge_open(seen.row, now):
+        if seen is None or not badge_open(seen.row, now):
+            continue
+        if not (rfq.is_manager(viewer, seen) or (everyone and viewer.holds(ALL_DEPARTMENTS, seen.row))):
             continue
         pending, unread, requests = pending + p, unread + u, requests + 1
     return {"pending": pending, "unread": unread, "requests": requests}

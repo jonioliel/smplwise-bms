@@ -74,3 +74,12 @@ phone: section in view, no overflow, 44 px targets, badges, the answer dialog, t
 3. The reminder hours (default 24) are settable through the API only. Add a field to the module's settings screen (א), or leave it API-only (ב)?
 4. The award warning only warns. Keep (א), or require an explicit "I know" tick before approving with unanswered questions (ב)?
 5. Should the nav badge also count questions for an all-departments viewer who is not a manager (א - no, as built; ב - yes)?
+
+## Follow-up RFQQSET (pilot/RFQQ-SETTINGS, from integ/264 @ 5fa03e7a)
+
+* Owner questions 3 and 5 answered: the module's settings screen (RFQ card) now has `rfq.question_reminder_hours` (0-168, 0 = off, default 24)
+  and a NEW `rfq.question_badge_all_viewers` (default off, no migration - settings only). When on, a viewer who holds
+  `tickets.all_departments` where the request lies and is not a manager also gets the navigation counts (`GET /tickets/rfqs/questions/summary`);
+  the response stays counts only - never a text. Plain members and viewers without the all-departments permission still get zeros.
+* Strings: `frontend/src/tickets/rfq-settings-text.ts` (he / en; ar / ru fall back, as the settings screens are he / en only). Kept out of
+  `rfq-text.ts` so the RFQ page bundle does not grow.
