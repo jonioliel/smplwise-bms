@@ -45,6 +45,12 @@ It does two things and nothing else:
    only, never a write), arm with the bypass set, operate a zone's bypass control and read a camera's
    stream source (the administrator rule of that handler is waived for such a screened message only); the area write never. The add-on has its
    own copy of the switch - both must be on. The switch travels to the add-on with the directory push.
+13. The run fences (0.9.2, SVCIDENT3 - the 2.7.0 security review S1 / S2; runnable.py): for a message screened on behalf of an Arx-only person,
+   `execute` checks the service user's Home Assistant entity policy for every entity (literal entity ids only), and a script / scene /
+   automation runs (`script.turn_on` / `scene.turn_on`, `config_item` `trigger` / `run_script` / `apply_scene`) only when its entity id is on the
+   options-flow allowlist `local_identity_runnable` (empty by default) AND the impact check of its steps (one nested level) found no door, no
+   disarm, no arming with the bypass set, no service outside the closed step list and no target the service user may not control. The list
+   travels to the add-on with the directory push (the add-on has its own copy; both must list the item).
 """
 from __future__ import annotations
 
@@ -65,9 +71,9 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
-from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
-from . import media_policy, service_identity
+from . import media_policy, runnable, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .signing import Verifier, sign
@@ -311,11 +317,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """0.9.1 (SVCIDENT2): the extended mode of the service identity, read live from the options (an HA administrator sets it; off by default)."""
         return entry.options.get(CONF_LOCAL_IDENTITY_EXTENDED, False) is True
 
+    def runnable_ids() -> frozenset[str]:
+        """0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run, read live from the options (empty by default; malformed = empty)."""
+        return runnable.allowlist(entry.options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
+
     async def screened(name: str, call: ServiceCall) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Verify the signature once and judge the service-identity rules (service_identity.screen)."""
         return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id(), local_extended())
 
     async def execute(call: ServiceCall) -> ServiceResponse:
+        on_behalf = "on_behalf_of" in call.data
         msg, refused = await screened(SERVICE_EXECUTE, call)
         if refused is not None or msg is None:
             return refused
@@ -347,6 +358,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if media_blocked:
                 _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, media_blocked)
                 return {"ok": False, "error": media_blocked}
+        if on_behalf:
+            # 0.9.2 (SVCIDENT3, review S2 / S1): the service user's own entity policy for every entity, then - a script / scene - the runnable
+            # allowlist and the impact check of its steps (runnable.py); a Home Assistant user's own message is never judged here
+            run_blocked = await runnable.execute_refusal(hass, user, domain, service, data, runnable_ids())
+            if run_blocked:
+                _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, run_blocked)
+                return {"ok": False, "request_id": msg["request_id"], "error": run_blocked}
         context = Context(user_id=user.id)
         try:
             await hass.services.async_call(domain, service, data, blocking=True, context=context)
@@ -446,9 +464,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def config_item(call: ServiceCall) -> ServiceResponse:
         """0.6.0 (CR-017): a signed write to / run of an automation, script or scene as the VMS user (see config_service.py)."""
+        on_behalf = "on_behalf_of" in call.data
         msg, refused = await screened(SERVICE_CONFIG_ITEM, call)  # 0.9.0: a local identity is refused here (automation_write_requires_ha_identity)
         if refused is not None or msg is None:
             return refused
+        if on_behalf:
+            # 0.9.2 (SVCIDENT3, review S1): a run op on behalf of an Arx-only person - the runnable allowlist and the impact check (runnable.py)
+            run_blocked = await runnable.config_item_refusal(hass, await hass.auth.async_get_user(msg["user_id"]), msg, runnable_ids())
+            if run_blocked:
+                _LOGGER.warning("smplwise_bridge.config_item %s refused: %s", msg.get("op"), run_blocked)
+                return {"ok": False, "request_id": msg.get("request_id"), "error": run_blocked}
         return await async_handle_config_item(hass, service_identity.PREVERIFIED, msg, delegated=delegated)
 
     hass.services.async_register(DOMAIN, SERVICE_CONFIG_ITEM, config_item, schema=CONFIG_ITEM_SCHEMA, supports_response=SupportsResponse.ONLY)
@@ -467,7 +492,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
                                                                                 "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
-                                                                                "local_identity_extended": local_extended()}), timeout=10) as resp:
+                                                                                "local_identity_extended": local_extended(),
+                                                                                "local_identity_runnable": sorted(runnable_ids())}), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0

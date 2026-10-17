@@ -227,18 +227,18 @@ def test_every_signed_service_is_screened_and_no_handler_verifies_again():
     assert tree is not None
 
 
-def test_version_091_and_both_copies_identical():
+def test_version_092_and_both_copies_identical():
     import json
 
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.1"
-        assert 'VERSION = "0.9.1"' in (root / "const.py").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.2"
+        assert 'VERSION = "0.9.2"' in (root / "const.py").read_text(encoding="utf-8")
         assert (root / "service_identity.py").read_bytes() == (SRC / "service_identity.py").read_bytes()
     for name in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / name).read_text(encoding="utf-8"))
         assert "service_user_id" in data["options"]["step"]["init"]["data"], name
         assert "local_identity_extended" in data["options"]["step"]["init"]["data"], name  # 0.9.1 (SVCIDENT2)
-        assert set(data["options"]["error"]) == {"service_user_format", "service_user_unknown", "service_user_admin"}, name
+        assert set(data["options"]["error"]) == {"service_user_format", "service_user_unknown", "service_user_admin", "runnable_format", "runnable_too_many"}, name  # 0.9.2
 
 
 # ---------------------------------------------------------------- 0.9.1 (SVCIDENT2): the extended switch - negative cases first

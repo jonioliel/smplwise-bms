@@ -196,7 +196,7 @@ def _payload(secret: str, user_id: str, entity_id: str, subject: dict[str, Any] 
     return ha_bridge.sign(secret, {**(subject or {"user_id": user_id}), "entity_id": entity_id, "request_id": uuid.uuid4().hex[:12]})
 
 
-def _subject(conn: sqlite3.Connection, principal_or_id: Principal | str, request_id: str | None = None) -> dict[str, Any]:
+def _subject(conn: sqlite3.Connection, principal_or_id: Principal | str, request_id: str | None = None, quiet: bool = False) -> dict[str, Any]:
     """The identity a source is read as. A Home Assistant person: its own id (unchanged). SVCIDENT2 (owner decision 3, 2026-10-17): an
     Arx-only person through the service identity's `cameras.live` feature - only in the extended mode (else refused exactly as before:
     the table has no stream source), and the bridge waives its administrator rule only for such a screened message with its own copy on."""
@@ -204,7 +204,15 @@ def _subject(conn: sqlite3.Connection, principal_or_id: Principal | str, request
 
     if isinstance(principal_or_id, Principal):
         return si.subject(conn, principal_or_id, "cameras.live", bridge_service="stream_source", item="read", request_id=request_id)
-    return si.subject_for_user(conn, principal_or_id, "cameras.live", bridge_service="stream_source", item="read", request_id=request_id)
+    return si.subject_for_user(conn, principal_or_id, "cameras.live", bridge_service="stream_source", item="read", request_id=request_id, quiet=quiet)
+
+
+def _local_off(conn: sqlite3.Connection, rec: dict[str, Any] | None) -> bool:
+    """SVCIDENT3 (review S5): a camera an Arx-only person enabled while the extended mode is not in force - it is not served, not read again
+    and its stream is removed by reconcile (one audit row there), instead of being kept alive and audited on every refresh."""
+    from . import service_identity as si
+
+    return bool(rec) and str(rec.get("enabled_by") or "").startswith("l_") and not si.extended_on(conn)
 
 
 def _fetch_source(settings: Settings, payload: dict[str, Any]) -> str:
@@ -435,6 +443,9 @@ def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
         rec = _load(conn).get(entity_id)
         if rec is None:
             raise ApiError(404, "not_found", "המצלמה לא מופעלת לשידור חי.")
+        if _local_off(conn, rec):
+            # SVCIDENT3 (review S5): enabled by an Arx-only person, the extended mode is off - the old stream is not served (reconcile removes it)
+            raise ApiError(503, "ha_live_unavailable", "השידור החי של המצלמה אינו זמין כרגע.", retryable=False)
         try:  # only needed when a re-read is due
             secret: str | None = _ready(conn, settings)
         except ApiError:
@@ -491,7 +502,7 @@ def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
                 subj = None
                 if who.startswith("l_"):
                     with db.connection(label="ha live subject") as wconn:
-                        subj = _subject(wconn, who)
+                        subj = _subject(wconn, who, quiet=True)  # SVCIDENT3 (S5): no identity audit row per refresh
                 outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, who, entity_id, subj)), still_wanted)
             except ApiError as exc:
                 if switched_off:  # switched off while it was being read: nothing was written, nothing to keep alive
@@ -532,6 +543,17 @@ def reconcile(db: Database, settings: Settings, *, force: bool = False) -> dict[
             row = conn.execute("SELECT removed_at FROM ha_entities WHERE entity_id = ? AND domain = 'camera'", (entity_id,)).fetchone()
             if row is None or row["removed_at"] is not None:
                 gone.append(entity_id)
+        # SVCIDENT3 (review S5): a camera an Arx-only person enabled is dropped once the extended mode is no longer in force (its stream is then
+        # deleted below as not wanted) - one audit row, not one per refresh
+        local_off = [entity_id for entity_id, rec in cams.items() if entity_id not in gone and _local_off(conn, rec)]
+        for entity_id in local_off:
+            cams.pop(entity_id, None)
+            _forget(entity_id)
+            slug_ok = bool(g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]))
+            if slug_ok:
+                _WRITTEN.pop(stream_name(entity_id), None)
+            audit(conn, actor=None, action="camera_card.ha_live.disable", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="extended_off",
+                  details={"stream": stream_name(entity_id) if slug_ok else None})
         for entity_id in gone:
             cams.pop(entity_id, None)
             _forget(entity_id)
@@ -539,9 +561,9 @@ def reconcile(db: Database, settings: Settings, *, force: bool = False) -> dict[
                 _WRITTEN.pop(stream_name(entity_id), None)  # the opt-in is removed: nothing to protect any more
             audit(conn, actor=None, action="camera_card.ha_live.disable", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="camera_gone",
                   details={"stream": stream_name(entity_id) if g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]) else None})
-        if gone:
+        if gone or local_off:
             _save(conn, cams)
-        out["dropped"] = len(gone)
+        out["dropped"] = len(gone) + len(local_off)
     try:
         client = g2.Go2rtc(settings)
         with db.connection(mode="read", label="ha live reconcile") as conn:

@@ -297,7 +297,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     # USR2 P3: a local (Arx-only) principal acts through the service identity, `devices.control` allow-list only (the alarm panel goes through the
     # alarm section and its PIN rules); a Home Assistant principal keeps {"user_id": its own id}. Refused here = nothing recorded, nothing sent.
-    subj = service_identity.subject(conn, principal, "devices.control", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=rid)
+    subj = service_identity.subject(conn, principal, "devices.control", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=rid,
+                                   entity_id=entity_id)  # SVCIDENT3: a script / scene runs only from the runnable allowlist
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()
