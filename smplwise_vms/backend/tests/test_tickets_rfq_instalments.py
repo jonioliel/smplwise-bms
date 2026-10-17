@@ -48,6 +48,12 @@ def terms_of(s4, rid: str, user: str = "kim") -> dict:
     return detail(s4, rid, user)["awards"][0]["terms"]
 
 
+def _frozen_at():
+    """`_at(days)` of test_tickets_rfq_terms, but from ONE captured instant - a value computed twice compares equal."""
+    base = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    return lambda days: (base + dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _key(d, a) -> str:
     return f"rfqpay:{d['id']}:{a['id']}"
 
@@ -315,7 +321,7 @@ def _own(s4, rid: str, uid: str = "dev-kim") -> None:
 def test_an_arrival_move_is_refused_for_the_wrong_person_a_bad_window_a_stale_revision_or_a_finished_job(s4):
     import uuid
 
-    from test_tickets_rfq_terms import _at
+    _at = _frozen_at()  # one clock for the whole test (two calls may straddle a second on a busy machine)
 
     d, v1, tok, c, a = _awarded(s4)
     rev = terms_of(s4, d["id"])["revision"]
@@ -350,7 +356,7 @@ def test_an_arrival_move_is_refused_for_the_wrong_person_a_bad_window_a_stale_re
 
 
 def test_the_manager_moves_the_arrival_the_vendor_sees_it_marked_and_is_told_only_when_chosen(s4):
-    from test_tickets_rfq_terms import _at
+    _at = _frozen_at()  # one clock for the whole test (two calls may straddle a second on a busy machine)
 
     d, v1, tok, c, a = _awarded(s4)
     assert arrival(c, tok).status_code == 200  # he confirmed the planned window
@@ -383,7 +389,7 @@ def test_the_manager_moves_the_arrival_the_vendor_sees_it_marked_and_is_told_onl
 
 
 def test_moving_the_arrival_supersedes_a_pending_proposal(s4):
-    from test_tickets_rfq_terms import _at
+    _at = _frozen_at()  # one clock for the whole test (two calls may straddle a second on a busy machine)
 
     d, v1, tok, c, a = _awarded(s4)
     assert arrival(c, tok, action="propose", work_from=_at(12)).status_code == 200
@@ -473,3 +479,92 @@ def test_the_overdue_signal_repeats_only_after_the_interval_and_0_means_once(s4)
     with s4.db.connection(mode="read") as conn:
         t = store_rfq.terms(conn, a["id"])
         assert t["overdue_key"] is None and t["overdue_notified_at"] is None
+
+
+# ---------------------------------------------------------------- owner decision 2026-10-17: re-send the work order after a date change (20.15)
+
+def _order(s4, d, a, send: bool = True) -> str:
+    import uuid
+
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order", json={"request_key": f"ord-{uuid.uuid4().hex[:16]}"}, headers=s4.h("kim"))
+    assert r.status_code == 201, r.text
+    if send:
+        s = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order/send", headers=s4.h("kim"))
+        assert s.status_code == 200 and s.json()["notified"]["queued"] is True, s.text
+    return r.json()["ticket"]["id"]
+
+
+def _orders_sent(s4, rid: str) -> list[dict]:
+    return _rows(s4, "SELECT idempotency_key, params_json FROM ticket_outbox WHERE rfq_id = ? AND purpose = 'rfq_order' ORDER BY rowid", rid)
+
+
+def test_a_resend_is_refused_without_a_sent_order_a_finished_request_or_the_order_rights_and_nothing_is_written(s4, monkeypatch):
+    _at = _frozen_at()  # one clock for the whole test (two calls may straddle a second on a busy machine)
+
+    from smplwise.services.tickets import access
+
+    d, v1, tok, c, a = _awarded(s4)
+    rev = terms_of(s4, d["id"])["revision"]
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, resend_order=True)  # no order at all
+    assert r.status_code == 404 and r.json()["code"] == "order_not_found", r.text
+    tid = _order(s4, d, a, send=False)
+    assert detail(s4, d["id"], "kim")["awards"][0]["can"]["resend_order"] is False
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, resend_order=True)  # created, never sent: the first send is the order card's
+    assert r.status_code == 409 and r.json()["code"] == "order_not_sent", r.text
+    s = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order/send", headers=s4.h("kim"))
+    assert s.status_code == 200, s.text
+    assert detail(s4, d["id"], "kim")["awards"][0]["can"]["resend_order"] is True
+    rev = terms_of(s4, d["id"])["revision"]  # the send started the confirmation clock (a terms write)
+    with monkeypatch.context() as m:  # a costs decider who may not order in the department: an audited 403
+        m.setattr(access.Viewer, "manages_department", lambda self, dept: False)
+        r = move(s4, d["id"], a["id"], 0, _day(7), revision=rev, resend_order=True)
+        assert r.status_code == 403 and r.json()["details"]["reason"] == "not_department_manager", r.text
+    t = terms_of(s4, d["id"])
+    assert t["revision"] == rev and t["schedule"]["items"][0]["date"] == _day(6) and not t["arrival"]["changed_at"]  # all or nothing
+    assert len(_orders_sent(s4, d["id"])) == 1
+    with s4.db.connection() as conn:  # the request was marked done: no re-send (and the arrival is history)
+        conn.execute("UPDATE tickets SET done_at = ? WHERE id = ?", (_at(0), tid))
+    r = move(s4, d["id"], a["id"], 0, _day(7), revision=rev, resend_order=True)
+    assert r.status_code == 409 and r.json()["code"] == "order_ticket_closed", r.text
+    assert terms_of(s4, d["id"])["schedule"]["items"][0]["date"] == _day(6)
+    assert detail(s4, d["id"], "kim")["awards"][0]["can"]["resend_order"] is False
+
+
+def test_the_updated_work_order_is_resent_only_when_ticked_with_the_new_window_once_per_change(s4):
+    _at = _frozen_at()  # one clock for the whole test (two calls may straddle a second on a busy machine)
+
+    d, v1, tok, c, a = _awarded(s4)
+    tid = _order(s4, d, a)
+    assert len(_orders_sent(s4, d["id"])) == 1
+    assert move_arrival(s4, d["id"], a["id"], _at(9)).status_code == 200  # the tick off (default): no order message
+    assert len(_orders_sent(s4, d["id"])) == 1
+    # the preview of the re-send: the order text with the window about to be saved (no side effect)
+    pv = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order/preview", params={"work_from": _at(12)}, headers=s4.h("kim"))
+    assert pv.status_code == 200 and pv.json()["refusals"] == [], pv.text
+    assert len(_orders_sent(s4, d["id"])) == 1
+    rev = terms_of(s4, d["id"])["revision"]
+    r = move_arrival(s4, d["id"], a["id"], _at(12), resend_order=True, reason="הספק ביקש")
+    assert r.status_code == 200, r.text
+    sent = _orders_sent(s4, d["id"])
+    assert len(sent) == 2 and sent[-1]["idempotency_key"].endswith(f":re{rev + 1}")  # the same send path, its own key per change
+    assert json.loads(sent[-1]["params_json"]).get("window") != json.loads(sent[0]["params_json"]).get("window")  # the new window travels
+    aw = r.json()["awards"][0]
+    assert aw["order"]["work_from"] == _at(12)  # the order now carries the moved window
+    ev = [e for e in detail(s4, d["id"], "mona")["timeline"] if e["kind"] == "order_resent"]
+    assert len(ev) == 1 and ev[0]["data"]["change"] == "arrival" and ev[0]["data"]["work_from"] == _at(12)
+    tk = s4.c.get(f"{API}/tickets/{tid}", headers=s4.h("joni")).json()
+    from smplwise.services.tickets import rfq_orders
+
+    with s4.db.connection(mode="read") as conn:
+        day = rfq_orders._local_day(conn, _at(12))
+    assert f"מועד עבודה: {day}" in tk["description"] and "₪" not in tk["description"]
+    audits = [json.loads(x["details_json"]) for x in _rows(s4, "SELECT details_json FROM audit_log WHERE action IN "
+                                                               "('ticket.rfq.order_resend', 'ticket.rfq.arrival_reschedule') AND decision = 'allowed' ORDER BY rowid")]
+    assert audits[-1]["order_resent"] is True and any(x.get("change") == "arrival" for x in audits)
+    # an instalment date shown in the order: its line in the request's text follows, and the order is re-sent once more
+    r = move(s4, d["id"], a["id"], 0, _day(7), resend_order=True)
+    assert r.status_code == 200, r.text
+    assert len(_orders_sent(s4, d["id"])) == 3
+    tk = s4.c.get(f"{API}/tickets/{tid}", headers=s4.h("joni")).json()
+    assert dt.date.fromisoformat(_day(7)).strftime("%d.%m.%Y") in tk["description"]
+    assert dt.date.fromisoformat(_day(6)).strftime("%d.%m.%Y") not in tk["description"]

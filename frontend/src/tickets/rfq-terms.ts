@@ -27,7 +27,9 @@ import { ticketsLang } from './text';
  * `changed` (detail: RfqDetail), `notice` ({ok} | {error}).
  */
 /** RFQPAY2: an open date-move editor (an instalment day, or the arrival window `date`..`to`) and its optional vendor notice. */
-interface MoveDraft { date: string; to: string; reason: string; notify: boolean; message: string }
+interface MoveDraft { date: string; to: string; reason: string; notify: boolean; message: string;
+  /** RFQPAY2 20.15: re-send the already-sent work order; `orderText` = its preview with the new dates (null = not loaded) */
+  resend: boolean; orderText: string | null }
 
 @customElement('tickets-rfq-terms')
 export class TicketsRfqTerms extends LitElement {
@@ -54,6 +56,7 @@ export class TicketsRfqTerms extends LitElement {
     .tins[data-overdue='yes'] .trow span:first-child { color: var(--dv-warn, inherit); }
     .tmove { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; }
     .tmove .tacts, .tmove .tfull, .tmove .tcheck { grid-column: 1 / -1; }
+    .tpre { white-space: pre-wrap; margin: 4px 0; font: inherit; }
     .tcheck { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); }
   `];
 
@@ -137,7 +140,7 @@ export class TicketsRfqTerms extends LitElement {
   }
 
   private openMove(key: string, date: string, to: string): void {
-    this.moving = { ...this.moving, [key]: { date, to, reason: '', notify: false, message: '' } };
+    this.moving = { ...this.moving, [key]: { date, to, reason: '', notify: false, message: '', resend: false, orderText: null } };
   }
 
   private closeMove(key: string): void {
@@ -154,7 +157,7 @@ export class TicketsRfqTerms extends LitElement {
     const key = it ? `${a.id}:${it.index}` : `${a.id}:arrival`;
     const m = this.moving[key];
     if (!d || !m?.date || this.busy) return;
-    const opts = { reason: m.reason, notify: m.notify, message: m.message };
+    const opts = { reason: m.reason, notify: m.notify, message: m.message, resendOrder: m.resend };
     this.busy = a.id;
     this.errors = { ...this.errors, [a.id]: '' };
     try {
@@ -163,11 +166,28 @@ export class TicketsRfqTerms extends LitElement {
       if (!it && api.moveArrival) next = await api.moveArrival(d.id, a.id, dayToIso(m.date), m.to ? dayToIso(m.to) : null, t.revision, opts);
       if (!next) return;
       this.closeMove(key);
-      this.done(next, rt(m.notify ? 'insMovedSent' : it ? 'insMovedDone' : 'arrMovedDone'));
+      this.done(next, rt(m.resend ? 'mvOrderResent' : m.notify ? 'insMovedSent' : it ? 'insMovedDone' : 'arrMovedDone'));
     } catch (e) {
       this.errors = { ...this.errors, [a.id]: rfqError(e) };
     } finally {
       this.busy = '';
+    }
+  }
+
+  /** RFQPAY2 (20.15): the preview of the re-sent work order - the exact template text with the window about to be saved. */
+  private async loadOrderPreview(a: RfqAward, key: string, it: RfqInstalment | null): Promise<void> {
+    const d = this.rfq;
+    const m = this.moving[key];
+    if (!d || !m) return;
+    const t = a.terms;
+    const from = it ? isoLocalDay(t?.arrival.planned_from) : m.date;
+    const to = it ? isoLocalDay(t?.arrival.planned_to) : m.to;
+    try {
+      const pv = await ticketsRfqApi().orderPreview(d.id, a.id, from ? { work_from: dayToIso(from), work_to: to ? dayToIso(to) : null } : undefined);
+      const cur = this.moving[key];
+      if (cur) this.moving = { ...this.moving, [key]: { ...cur, orderText: pv.refusals.length ? '' : pv.text } };
+    } catch (e) {
+      this.errors = { ...this.errors, [a.id]: rfqError(e) };
     }
   }
 
@@ -177,7 +197,7 @@ export class TicketsRfqTerms extends LitElement {
     const set = (patch: Partial<MoveDraft>) => { this.moving = { ...this.moving, [key]: { ...m, ...patch } }; };
     const canNotify = !!t.can.notify_vendor && !!t.notice;
     const preview = (it ? t.notice?.instalment : t.notice?.arrival) ?? '';
-    const bad = !m.date || (!it && !!m.to && m.to < m.date) || (m.notify && !m.message.trim());
+    const bad = !m.date || (!it && !!m.to && m.to < m.date) || (m.notify && !m.message.trim()) || (m.resend && !m.orderText);
     return html`<div class="tmove" data-move=${key}>
       <label class="fld">${rt(it ? 'insMoveDate' : 'arrMoveFrom')}<input class="inp" type="date" dir="ltr" .value=${m.date}
         @input=${(e: Event) => set({ date: (e.target as HTMLInputElement).value })}></label>
@@ -191,6 +211,10 @@ export class TicketsRfqTerms extends LitElement {
           <textarea class="inp" rows="3" maxlength="2000" .value=${m.message}
             @input=${(e: Event) => set({ message: (e.target as HTMLTextAreaElement).value })}></textarea>
           <small class="mut">${rt('mvMessageNote')}</small></label>` : nothing}` : nothing}
+      ${a.can?.resend_order ? html`<label class="tcheck" data-move-resend=${key}><input type="checkbox" .checked=${m.resend}
+        @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; set({ resend: on, orderText: null }); if (on) void this.loadOrderPreview(a, key, it); }}>${rt('mvResend')}</label>
+        ${m.resend ? html`<div class="tfull note" data-move-order-preview=${key}>${m.orderText === null ? rt('mvOrderLoading')
+          : m.orderText ? html`<pre class="tpre">${m.orderText}</pre>` : rt('mvOrderUnavailable')}<small class="mut">${rt('mvResendNote')}</small></div>` : nothing}` : nothing}
       <div class="tacts"><button type="button" class="btn primary sm" data-move-save=${key} ?disabled=${!!this.busy || bad || m.date === current}
         @click=${() => void this.move(a, t, it)}>${rt(m.notify ? 'mvSaveSend' : 'insMoveSave')}</button>
         <button type="button" class="btn sm" data-move-close=${key} @click=${() => this.closeMove(key)}>${rt('insMoveClose')}</button></div>

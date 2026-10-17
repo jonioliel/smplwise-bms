@@ -108,11 +108,15 @@ test('RFQPAY2 owner decisions: a move sends the vendor notice only when ticked; 
   expect(isoLocalDay('nonsense')).toBe('');
   expect(isoLocalDay('2026-11-03T12:00:00Z')).toMatch(/^2026-11-0[34]$/);
   for (const k of ['mvNotify', 'mvMessage', 'mvMessageNote', 'mvSaveSend', 'insMovedSent', 'arrMove', 'arrMoveFrom', 'arrMoveTo', 'arrMoved', 'arrMovedDone',
-    'stInstalmentHours', 'stInstalmentHoursSub'] as const) {
+    'stInstalmentHours', 'stInstalmentHoursSub', 'mvResend', 'mvResendNote', 'mvOrderLoading', 'mvOrderUnavailable', 'mvOrderResent'] as const) {
     expect(RFQ_TEXT_HE[k], k).toBeTruthy();
     expect(RFQ_TEXT_EN_KEYS, k).toContain(k);
   }
-  for (const code of ['work_done', 'vendor_unreachable']) expect(refusalKey(code)).toBe(`err_${code}`);
+  for (const code of ['work_done', 'vendor_unreachable', 'order_not_sent']) expect(refusalKey(code)).toBe(`err_${code}`);
+  expect(moveExtras({ notify: false, resendOrder: true })).toEqual({ resend_order: true }); // 20.15: only when ticked
+  expect(moveExtras({ notify: false, resendOrder: false })).toEqual({});
+  expect(eventLine({ id: 1, kind: 'order_resent', at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key)
+    .toBe('ev_order_resent');
   expect(eventLine({ id: 1, kind: 'arrival_rescheduled', at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key)
     .toBe('ev_arrival_rescheduled');
 });

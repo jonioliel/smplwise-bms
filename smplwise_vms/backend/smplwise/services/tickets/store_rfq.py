@@ -394,7 +394,7 @@ def ordered_quotes_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[st
 
 def order_events(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
     """TKRFQ4: the order rows of a request's timeline (every one - not the presentation window of events_of)."""
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_events WHERE rfq_id = ? AND kind IN ('order_created', 'order_sent') ORDER BY id",
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_events WHERE rfq_id = ? AND kind IN ('order_created', 'order_sent', 'order_resent') ORDER BY id",
                                           (rfq_id,)).fetchall()]
 
 

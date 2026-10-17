@@ -575,6 +575,7 @@ class InstalmentDateBody(BaseModel):
     revision: int = Field(ge=1)
     notify_vendor: bool = False  # owner decision 2026-10-17: the manager chooses; default off
     message: str | None = Field(default=None, max_length=5000)  # the edited preview (terms.notice.*) - the vendor's thread only
+    resend_order: bool = False  # 20.15: re-send the already-sent work order (default off)
 
 
 @router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/instalments/{index}/date")
@@ -586,7 +587,7 @@ def post_instalment_date(body: InstalmentDateBody, request: Request, rfq_id: str
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
     rfq_terms.reschedule(conn, viewer, seen, award_id, index, body.date, body.reason, body.revision, _rid(request),
-                         notify=body.notify_vendor, message=body.message)
+                         notify=body.notify_vendor, message=body.message, resend_order=body.resend_order)
     return _detail(conn, viewer, rfq_id)
 
 
@@ -598,6 +599,7 @@ class ArrivalDateBody(BaseModel):
     revision: int = Field(ge=1)
     notify_vendor: bool = False
     message: str | None = Field(default=None, max_length=5000)
+    resend_order: bool = False  # 20.15
 
 
 @router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/arrival/date")
@@ -608,7 +610,7 @@ def post_arrival_date(body: ArrivalDateBody, request: Request, rfq_id: str = Pat
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
     rfq_terms.reschedule_arrival(conn, viewer, seen, award_id, body.work_from, body.work_to, body.reason, body.revision, _rid(request),
-                                 notify=body.notify_vendor, message=body.message)
+                                 notify=body.notify_vendor, message=body.message, resend_order=body.resend_order)
     return _detail(conn, viewer, rfq_id)
 
 
@@ -658,11 +660,12 @@ def post_order(body: OrderBody, request: Request, rfq_id: str = Path(..., patter
 
 @router.get("/tickets/rfqs/{rfq_id}/awards/{award_id}/order/preview")
 def get_order_preview(request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                      work_from: str | None = Query(None, max_length=40), work_to: str | None = Query(None, max_length=40),
                       principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The exact text of the order message, its channel and every refusal - no side effect (a refusal of the role is audited)."""
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    return rfq_orders.preview(conn, viewer, seen, award_id, _rid(request))
+    return rfq_orders.preview(conn, viewer, seen, award_id, _rid(request), work_from=work_from, work_to=work_to)  # RFQPAY2 20.15: a window about to be saved
 
 
 @router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/order/send")

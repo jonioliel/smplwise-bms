@@ -162,7 +162,8 @@ export interface RfqAward {
   scope?: RfqScope | null;
   /** TKRFQ4: the order form's dates (the quote's work window, else the request's) - while no order exists, for a viewer who may order */
   order_defaults?: { work_from: string | null; work_to: string | null } | null;
-  can?: { order: boolean; send_order: boolean };
+  /** RFQPAY2 (20.15): `resend_order` - the date-change editor may offer "send the updated work order" */
+  can?: { order: boolean; send_order: boolean; resend_order?: boolean };
   /** CR-RFQ-PAYMENT-SCHEDULE (contract 20.7): the approved schedule and the vendor's arrival confirmation (null while the switch is off) */
   terms?: RfqAwardTerms | null;
 }
@@ -203,7 +204,7 @@ export interface RfqAwardTerms {
 }
 export interface RfqChangeNotice { lang: string; instalment: string; arrival: string; notify_default: boolean }
 /** RFQPAY2: the optional vendor notice sent with a moved date (the thread + the templated notice; never free text outside). */
-export interface RfqMoveNotice { notify: boolean; message?: string; reason?: string }
+export interface RfqMoveNotice { notify: boolean; message?: string; reason?: string; resendOrder?: boolean }
 
 export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
 export interface RfqScope { kind: 'all' | 'kinds' | 'lines'; kinds: LineKind[]; lines: number }
@@ -491,7 +492,8 @@ export interface RfqBackend {
   /** TKRFQ4 (contract 18.2): open the awarded vendor's service request (idempotent by request_key; nothing is sent) */
   createOrder(id: string, awardId: string, body: RfqOrderBody): Promise<RfqOrderAnswer>;
   /** TKRFQ4: the exact order message before the explicit send */
-  orderPreview(id: string, awardId: string): Promise<RfqOrderPreview>;
+  /** RFQPAY2 (20.15): `window` renders the text with dates about to be saved (no side effect) */
+  orderPreview(id: string, awardId: string, window?: { work_from: string; work_to?: string | null }): Promise<RfqOrderPreview>;
   /** TKRFQ4: the manager's explicit send of the order message (a repeat answers the first send) */
   sendOrder(id: string, awardId: string): Promise<RfqOrderAnswer>;
   /** RFQATT (contract 19.3): one file onto a draft / open request (multipart); answers the detail + the new row */
@@ -551,6 +553,7 @@ export function createWireBody(body: RfqCreateBody, meta: Pick<RfqMeta, 'vendor_
 export function moveExtras(opts?: RfqMoveNotice): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (opts?.reason?.trim()) out.reason = opts.reason.trim();
+  if (opts?.resendOrder) out.resend_order = true; // RFQPAY2 20.15: re-send the already-sent work order (default off)
   if (opts?.notify) {
     out.notify_vendor = true;
     out.message = (opts.message ?? '').trim();
@@ -587,7 +590,8 @@ const rest: RfqBackend = {
   writeMessage: (id, vendorId, text, notify, source) => post<RfqMessageAnswer>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages`, { text, notify, ...(source ? { source } : {}) }),
   setThreshold: (departmentId, minor) => put(`${R}/departments/${enc(departmentId)}`, { second_approval_minor: minor }),
   createOrder: (id, awardId, body) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order`, body),
-  orderPreview: (id, awardId) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview`),
+  orderPreview: (id, awardId, window) => get<RfqOrderPreview>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/preview${window?.work_from
+    ? `?${new URLSearchParams({ work_from: window.work_from, ...(window.work_to ? { work_to: window.work_to } : {}) }).toString()}` : ''}`),
   sendOrder: (id, awardId) => post<RfqOrderAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/order/send`),
   uploadAttachment: (id, file, options = {}) => {
     const form = new FormData();

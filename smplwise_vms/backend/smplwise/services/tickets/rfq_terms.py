@@ -879,9 +879,30 @@ def _rfq():
     return rfq
 
 
+def _resend_check(conn, viewer: Any, seen: Any, a: Mapping[str, Any], resend: bool, now: dt.datetime, rid: str | None) -> dict[str, Any] | None:
+    """RFQPAY2 (contract 20.15, owner decision 2026-10-17): with `resend_order` the manager also re-sends the already-sent work order -
+    checked BEFORE the date change writes anything (the existing order rules, rfq_orders.resend_check). None = not asked."""
+    if not resend:
+        return None
+    from . import rfq_orders
+
+    return rfq_orders.resend_check(conn, viewer, seen, a["id"], now, rid)
+
+
+def _resend(conn, viewer: Any, seen: Any, ctx: Mapping[str, Any] | None, now: dt.datetime, rid: str | None, change: str, token: int,
+            old_lines: list[str]) -> bool:
+    if ctx is None:
+        return False
+    from . import rfq_orders
+
+    rfq_orders.resend(conn, viewer, seen, ctx, now, rid, change=change, token=str(token), old_lines=old_lines)
+    return True
+
+
 def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: Any, reason: str | None, revision: int,
-               rid: str | None = None, *, notify: bool = False, message: Any = None) -> dict[str, Any]:
-    """POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date `{date, reason?, revision, notify_vendor?, message?}` (contract
+               rid: str | None = None, *, notify: bool = False, message: Any = None, resend_order: bool = False) -> dict[str, Any]:
+    """POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date `{date, reason?, revision, notify_vendor?, message?,
+    resend_order?}` (contract 20.15: `resend_order` re-sends the already-sent work order with the updated lines;
     20.13). Only a dated instalment (409 `instalment_not_dated`), not one marked paid (409 `instalment_paid`); the new day today .. today
     + 366 in the installation zone and in order with the other dated instalments (422 `date` `range` / `format` / `order`); the terms'
     revision (409 `rfq_stale`). The first move keeps the agreed day (`agreed_date`); moving back to it clears the marker. The quote's copy
@@ -912,6 +933,8 @@ def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: An
     old = it["date"]
     if new == old:
         return t  # nothing to move (a repeated click): no write, no audit
+    order_ctx = _resend_check(conn, viewer, seen, a, resend_order, now, rid)
+    old_lines = order_lines(conn, a["id"])
     at = iso(now)
     agreed = it.get("agreed_date") or old
     it["date"] = new
@@ -934,16 +957,18 @@ def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: An
     store_rfq.insert_event(conn, seen.row["id"], "instalment_rescheduled", actor_kind="user", actor_user_id=viewer.uid,
                            actor_name=rfq.actor_name(viewer), rfq_vendor_id=a["rfq_vendor_id"], data=data, at=at)
     notified = _notice_send(conn, viewer, seen, a, text, now)
+    resent = _resend(conn, viewer, seen, order_ctx, now, rid, "instalment", int(revision) + 1, old_lines)
     rfq._audit(conn, viewer, "ticket.rfq.instalment_reschedule", seen.row, rid, award_id=a["id"], instalment_index=int(index),
-               from_date=old, to_date=new, has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]))
+               from_date=old, to_date=new, has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]), order_resent=resent)
     fresh = store_rfq.terms(conn, a["id"]) or t
     overdue_sync(conn, seen.row, fresh, now)
     return fresh
 
 
 def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: Any, work_to: Any, reason: str | None, revision: int,
-                       rid: str | None = None, *, notify: bool = False, message: Any = None) -> dict[str, Any]:
-    """POST /tickets/rfqs/{id}/awards/{award_id}/arrival/date `{work_from, work_to?, reason?, revision, notify_vendor?, message?}`
+                       rid: str | None = None, *, notify: bool = False, message: Any = None, resend_order: bool = False) -> dict[str, Any]:
+    """POST /tickets/rfqs/{id}/awards/{award_id}/arrival/date `{work_from, work_to?, reason?, revision, notify_vendor?, message?,
+    resend_order?}` (20.15: re-send the already-sent work order with the new window)
     (contract 20.14, owner decision 2026-10-17). tickets.costs + view (audited 403), the 20.11 states; 409 `work_done` once the order's
     ticket is marked done; the terms' revision (409 `rfq_stale`); the window's first day today .. today + 366 in the installation zone
     (422 `work_from` `range`), `work_to` not before `work_from` (422 `work_to` `order`). The same window = nothing written. The state:
@@ -975,6 +1000,8 @@ def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: A
     text = _notice_check(conn, viewer, seen, a, notify, message, rid)
     if wf == t.get("planned_from") and (wt or None) == (t.get("planned_to") or None):
         return t  # the same window (a repeated click): no write, no audit, nothing sent
+    order_ctx = _resend_check(conn, viewer, seen, a, resend_order, now, rid)
+    old_lines = order_lines(conn, a["id"])
     at = iso(now)
     fields: dict[str, Any] = {"planned_from": wf, "planned_to": wt, "arrival_changed_at": at, "updated_at": at}
     state = t["arrival_state"]
@@ -994,8 +1021,9 @@ def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: A
     if state == "proposed":
         rfq_notify.arrival_done(conn, seen.row["id"], a["rfq_vendor_id"])  # his proposal is superseded: nothing waits on a decision
     notified = _notice_send(conn, viewer, seen, a, text, now)
+    resent = _resend(conn, viewer, seen, order_ctx, now, rid, "arrival", int(revision) + 1, old_lines)
     rfq._audit(conn, viewer, "ticket.rfq.arrival_reschedule", seen.row, rid, award_id=a["id"], from_date=t.get("planned_from"), to_date=wf,
-               has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]))
+               has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]), order_resent=resent)
     fresh = store_rfq.terms(conn, a["id"]) or t
     if state == "confirmed":
         _on_confirmed(conn, seen.row, fresh, now)

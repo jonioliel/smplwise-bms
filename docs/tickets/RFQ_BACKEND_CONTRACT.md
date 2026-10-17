@@ -1025,8 +1025,29 @@ with `confirmed_by: "manager"`, `confirmed_at` now (and the order's ticket gets 
 window). `ticket_rfq_award_terms.arrival_changed_at` (migration 0112) marks it: the managers' `terms.arrival.changed_at`, the vendor's
 `terms.arrival.changed: true` (his page shows "date changed"). Timeline `arrival_rescheduled` (`{award_id, from, to, reason?}`), audit
 `ticket.rfq.arrival_reschedule` (`award_id`, `from_date`, `to_date`, `has_reason`, `vendor_notified` - never the reason text). The optional
-vendor notice: exactly as 20.13 (preview `terms.notice.arrival`). Known limit: a work order already SENT keeps the old window in its
-message (nothing is re-sent); the order's ticket timeline records the new window only for a confirmed arrival.
+vendor notice: exactly as 20.13 (preview `terms.notice.arrival`). A work order already SENT is re-sent only when the manager ticks it
+(20.15); without the tick the sent message keeps the old window.
+
+### 20.15 Re-sending the work order after a date change (v1.5, RFQPAY2 - owner decision 2026-10-17)
+
+Both date-change routes (20.13 instalment, 20.14 arrival) take `resend_order: bool` (default **false**) - the manager's tick "send the
+updated work order to the vendor". Offered only when `awards[].can.resend_order` (the order rule of 18 - an RFQ manager who manages the
+department and may create there - AND the order was already sent AND its request is not final / done AND the RFQ did not end). With the
+tick, BEFORE anything is written (`rfq_orders.resend_check`): the order rule (audited 403 `not_department_manager` / `create_not_allowed`
+/ ...), the order exists (404 `order_not_found`) and was sent (409 `order_not_sent` - the FIRST send stays the order card's), the request
+is not done (`done_at`) / closed (409 `order_ticket_closed`), and the send's own refusals (`order_link_unavailable`, `vendor_not_allowed`,
+`order_channel_unavailable`). Then, in the same transaction as the date change (`rfq_orders.resend`, reusing the send path
+`_enqueue_order` - no second copy of its logic):
+* the request's description: the order block's lines as written (`מועד עבודה: ...` and the 20.9 terms lines) are replaced by the current
+  ones, line by line, only where they still stand verbatim (a line the manager edited is left alone); never an amount;
+* the SAME templated `rfq_order` message is queued with the current window (the terms' planned window, else the order's) over the
+  request's handler link - the outbox's send-hours rules, idempotency key `rfqorder:<award>:<link generation>:re<terms revision>` (one
+  message per change; a repeat of the request is refused by the revision);
+* timeline `order_resent` (RFQ: `{award_id, ticket_id, outbox_id, channel, change: arrival | instalment, work_from, work_to}`) and
+  `rfq_order_resent` (the request), audit `ticket.rfq.order_resend` (+ `order_resent: true` on the date-change audit row). The order's
+  window (`awards[].order.work_from/to`) reads the latest re-send.
+Preview: `GET .../awards/{award_id}/order/preview?work_from=&work_to=` renders the exact order text with a window about to be saved (no
+side effect; the existing route and its refusals). The vendor-facing text is the existing `rfq_order` template - no new vendor string.
 
 ## 21. Vendor questions (v1.4, RFQQUESTIONS - owner report 2026-10-17)
 
@@ -1113,6 +1134,8 @@ hours - never the text or the vendor. The engine applies each recipient's channe
   `message`, the F7 path; preview `terms.notice`); 20.14 the arrival window moved after the award (new route, `arrival_changed_at`, public
   `terms.arrival.changed`); 20.12 the repeat interval `rfq.instalment_reminder_hours` (default 24, 0 = once; `overdue_notified_at`).
   `terms.can` gains `reschedule_arrival`, `notify_vendor`; `terms.arrival` gains `changed_at`. Migration 0112 edited in place (unreleased).
+  Third commit (owner decision 2026-10-17): 20.15 re-send the already-sent work order after a date change (`resend_order` default off,
+  the existing send path, `order_resent`, `awards[].can.resend_order`, the preview's `work_from` / `work_to`). No migration change.
 
 * v1.4.1 (2026-10-17, the review fixes merged at integ/264; no new migration file):
   * (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,

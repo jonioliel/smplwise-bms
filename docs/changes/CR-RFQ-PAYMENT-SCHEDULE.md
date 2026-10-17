@@ -160,17 +160,17 @@ Owner decisions on the RFQPAY2 open questions (2026-10-17, second commit on `pil
 | E9 | A moved instalment date: the MANAGER chooses whether the vendor is told - "notify the vendor" tick (default OFF) with the editable preview (`terms.notice`, his language); sent in the same act through the F7 / vendor-message path (thread + the templated `rfq_update`, send hours, `rfqmsg:<id>` idempotency). A text without the tick is refused, never dropped. The tick also needs the RFQ manager rule (who may message the vendor). | Owner answer to Q9 (was "nothing is sent"); no free text outside; the vendor-message permission is not widened by the costs permission. |
 | E10 | The ARRIVAL window can be moved after the award (tickets.costs + view, audited, reason optional, revision, today .. today + 366, refused once the work is marked done), same notice mechanism. `awaiting` stays, a pending proposal is superseded, `confirmed` stays confirmed by the manager. The vendor page shows "date changed". | Owner answer to Q5 (previously "not built"); re-opening the confirmation state machine for a confirmed date was not asked for - the vendor can still message / the manager can notify him. |
 | E11 | The overdue reminder repeats only every `rfq.instalment_reminder_hours` (default 24, 0 = once; 0-168) while the same instalments stay overdue; a NEW overdue instalment always notifies. `overdue_notified_at` per award. | Owner: the reminder must not be annoying. |
+| E12 | (third commit) After a date change the manager may re-send the ALREADY-SENT work order - tick "send the updated work order" (default OFF), preview = the existing order preview rendered with the new window; checked before any write (the order rule, sent, not done / closed, link + channel); the existing `rfq_order` send path (`_enqueue_order`, shared with the first send), one message per change (`...:re<terms revision>`); the request's description lines are updated where they still stand verbatim. | Owner answer to Q13; reuse the send path; never a second copy of its logic; the first send stays the order card's. |
 
 Kept as built (owner): closed requests keep working until a cancel (Q3); no Costs-tab display (Q11); the separate demand record (Q1);
-no "waived" status (Q12). Migration 0112 was edited in place (unreleased): + `arrival_changed_at`, `overdue_notified_at`.
+no "waived" status (Q12); a confirmed arrival moved by the manager stays confirmed (E10); the settings field he / en only; no "paid"
+display for the vendor (Q10 - closed). Migration 0112 was edited in place (unreleased): + `arrival_changed_at`, `overdue_notified_at`.
 
 Bundle budgets (measured with the guard's method on a local build into the scratch directory, `www-public` NOT rebuilt): see the
 report of each commit - the vendor marker stays in the lazy `rfq-page-terms` chunk (3 KB cap).
 
-Still open after RFQPAY2:
-
-10. **The vendor's view of demands:** the vendor page shows no demand / paid state per instalment. Show "paid" per instalment to him?
-13. **A sent work order and a moved arrival:** an order message already sent keeps the old window (nothing is re-sent). Offer a re-send?
+Still open after RFQPAY2: none from this CR's owner questions (Q10 no, Q13 built as E12). Known limit: a manager-edited line of the
+order's description is not rewritten by a re-send (only the message carries the new window).
 
 ## 7. Rollback
 

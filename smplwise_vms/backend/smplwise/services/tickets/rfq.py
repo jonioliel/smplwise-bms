@@ -84,6 +84,7 @@ MESSAGES = {
     "order_not_found": "עדיין לא נפתחה הזמנת עבודה לספק הזה.",
     "order_channel_unavailable": "אין כרגע ערוץ שיכול לשלוח את הזמנת העבודה לספק. אפשר להעתיק את הקישור מ{the_ticket} ולשלוח בעצמכם.",
     "order_link_unavailable": "הקישור של הספק ב{the_ticket} אינו פעיל. צרו קישור חדש ב{the_ticket}.",
+    "order_not_sent": "הזמנת העבודה עוד לא נשלחה לספק - שלחו אותה מכרטיס ההזמנה.",  # RFQPAY2 20.15
     "order_ticket_closed": "{the_ticket} {f:שנפתחה|m:שנפתח} כבר {f:סגורה|m:סגור}.",
     # CR-RFQ-PAYMENT-SCHEDULE (contract section 20)
     "terms_not_found": "לאישור הזה אין לוח תשלומים ומועד הגעה.",
