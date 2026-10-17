@@ -167,6 +167,7 @@ class RfqPatch(BaseModel):
     retention_months: int | None = Field(default=None, ge=6, le=120)
     reminder_hours: int | None = Field(default=None, ge=0, le=168)
     question_reminder_hours: int | None = Field(default=None, ge=0, le=168)
+    question_badge_all_viewers: StrictBool | None = None  # RFQQSET (default OFF)
     schedule_arrival: StrictBool | None = None  # the payment schedule + arrival confirmation (default OFF)
     arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
     attachments: RfqAttachmentsPatch | None = None  # RFQATT review 2.6.4: rfq.attachments.allow_office

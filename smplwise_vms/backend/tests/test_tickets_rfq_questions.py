@@ -286,6 +286,45 @@ def test_the_reminder_is_raised_once_after_n_hours_and_resolved_by_the_answer(s4
     assert notif(s4, "rfq.question_unanswered")[0]["state"] == "resolved"
 
 
+def put_rfq_settings(s4, **rfq_keys):
+    r = s4.c.get(f"{API}/tickets/settings")
+    return s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "rfq": rfq_keys})
+
+
+def test_the_all_viewers_badge_is_off_by_default_and_ranges_are_validated(s4):
+    d, a, _b, c = setup_two(s4)
+    assert ask(c, token(s4, a)).status_code == 201
+    doc = s4.c.get(f"{API}/tickets/settings").json()
+    assert doc["rfq"]["question_badge_all_viewers"] is False and doc["rfq"]["question_reminder_hours"] == 24
+    zero = {"pending": 0, "unread": 0, "requests": 0}
+    assert s4.c.get(f"{API}/tickets/rfqs/questions/summary", headers=s4.h("alda")).json() == zero, "off: a viewer of all departments sees none"
+    for bad in ({"question_reminder_hours": 169}, {"question_reminder_hours": -1}, {"question_badge_all_viewers": "yes"}, {"question_badge_all_viewers": 1}):
+        assert put_rfq_settings(s4, **bad).status_code in (400, 422), bad
+    assert s4.c.get(f"{API}/tickets/settings").json()["rfq"]["question_badge_all_viewers"] is False
+
+
+def test_the_all_viewers_badge_counts_for_a_viewer_of_all_departments_without_leaking_text(s4):
+    d, a, _b, c = setup_two(s4)
+    text = "האם המחיר כולל פינוי של היחידה הישנה?"
+    assert ask(c, token(s4, a), text).status_code == 201
+    assert put_rfq_settings(s4, question_badge_all_viewers=True).status_code == 200
+    r = s4.c.get(f"{API}/tickets/rfqs/questions/summary", headers=s4.h("alda"))
+    assert r.json() == {"pending": 1, "unread": 1, "requests": 1}
+    assert text not in r.text and set(r.json()) == {"pending", "unread", "requests"}
+    assert s4.c.get(f"{API}/tickets/rfqs/questions/summary", headers=s4.h("tom")).json() == {"pending": 0, "unread": 0, "requests": 0},         "a department member who is no all-departments viewer stays empty"
+    assert s4.c.get(f"{API}/tickets/rfqs/questions/summary", headers=s4.h("vic")).status_code == 403
+    assert s4.c.get(f"{API}/tickets/rfqs/questions/summary", headers=s4.h("mona")).json()["pending"] == 1
+    assert answer(s4, d["id"], question_id(s4, d["id"])).status_code == 201
+    assert s4.c.get(f"{API}/tickets/rfqs/questions/summary", headers=s4.h("alda")).json()["pending"] == 0
+
+
+def test_the_reminder_hours_setting_is_stored_and_zero_means_off(s4):
+    assert put_rfq_settings(s4, question_reminder_hours=48).status_code == 200
+    assert s4.c.get(f"{API}/tickets/settings").json()["rfq"]["question_reminder_hours"] == 48
+    assert put_rfq_settings(s4, question_reminder_hours=0).status_code == 200
+    assert s4.c.get(f"{API}/tickets/settings").json()["rfq"]["question_reminder_hours"] == 0
+
+
 def test_the_reminder_is_off_at_zero_hours(s4):
     d, a, _b, c = setup_two(s4)
     assert ask(c, token(s4, a)).status_code == 201

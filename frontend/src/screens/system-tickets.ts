@@ -16,6 +16,7 @@ import '../tickets/settings-locations'; // CR-ORG-LOCATIONS: the organisation's 
 import { lt } from '../tickets/org-locations-text';
 import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
 import { ct } from '../tickets/cost-text';
+import { qst } from '../tickets/rfq-settings-text'; // RFQQSET
 import { mtt } from '../tickets/messages-text';
 import { ApiError, describeError, patch } from '../api/client';
 import { productSettings, invalidateSettings } from '../api/prefs';
@@ -102,7 +103,7 @@ export class SystemTickets extends LitElement {
   @state() private publicError = ''; // 2.5.3: the failed save of a public-address key, shown in its own card too
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
-  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string } = {};
+  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string; qHours?: string } = {};
   private okTimer = 0;
   private offNames: (() => void) | null = null;
 
@@ -598,6 +599,10 @@ export class SystemTickets extends LitElement {
     const hours = doc.rfq?.arrival_reminder_hours ?? 24;
     const raw = this.instDraft.arrHours ?? String(hours);
     const n = intIn(raw, 0, 168);
+    const qHours = doc.rfq?.question_reminder_hours ?? 24;
+    const qRaw = this.instDraft.qHours ?? String(qHours);
+    const qn = intIn(qRaw, 0, 168);
+    const qAll = doc.rfq?.question_badge_all_viewers === true;
     return html`<sw-card heading=${rt('stRfqCard')} data-card="rfq-terms">
       <div class="row"><span class="lbl">${rt('stScheduleArrival')}<span class="muted">${rt('stScheduleArrivalSub')}</span></span>
         <sw-toggle label=${rt('stScheduleArrival')} labelHidden .checked=${on} ?disabled=${this.busy} data-inst-schedule-arrival
@@ -607,6 +612,14 @@ export class SystemTickets extends LitElement {
           @input=${(e: Event) => (this.instDraft = { ...this.instDraft, arrHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
           <sw-button size="sm" variant="primary" data-inst-arrival-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
             @click=${() => void this.saveDoc({ rfq: { arrival_reminder_hours: n } }, () => (this.instDraft = { ...this.instDraft, arrHours: undefined }))}>${tt('save')}</sw-button></span></div>
+      <div class="row"><span class="lbl">${qst('qReminder')}<span class="muted">${qst('qReminderSub')}</span></span>
+        <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-question-hours aria-label=${qst('qReminder')} aria-invalid=${String(Number.isNaN(qn))} .value=${qRaw}
+          @input=${(e: Event) => (this.instDraft = { ...this.instDraft, qHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
+          <sw-button size="sm" variant="primary" data-inst-question-save ?disabled=${Number.isNaN(qn) || qn === qHours || this.busy}
+            @click=${() => void this.saveDoc({ rfq: { question_reminder_hours: qn } }, () => (this.instDraft = { ...this.instDraft, qHours: undefined }))}>${tt('save')}</sw-button></span></div>
+      <div class="row"><span class="lbl">${qst('qBadgeAll')}<span class="muted">${qst('qBadgeAllSub')}</span></span>
+        <sw-toggle label=${qst('qBadgeAll')} labelHidden .checked=${qAll} ?disabled=${this.busy} data-inst-question-badge-all
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { question_badge_all_viewers: e.detail.checked } })}></sw-toggle></div>
     </sw-card>`;
   }
 
