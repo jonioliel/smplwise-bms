@@ -331,7 +331,7 @@ def test_the_award_approves_an_edited_schedule_and_the_vendor_confirms_the_plann
     assert v["page_state"] == "awarded" and v["terms"]["can"] == {"confirm": True, "propose": True}
     assert [i["amount_minor"] for i in v["terms"]["schedule"]["items"]] == [i["amount_minor"] for i in sched["items"]]
     assert set(v["terms"]["arrival"]) == {"state", "planned_from", "planned_to", "proposed_from", "proposed_to", "rejected", "confirmed_at",
-                                         "acknowledged_at"}
+                                         "acknowledged_at", "changed"}  # + RFQPAY2 20.14
     r = arrival(c, tok, ack=False)
     assert r.status_code == 422 and r.json()["fields"] == [{"field": "acknowledge_schedule", "code": "required"}]
     r = arrival(c, tok, action="confirm", ack=True, work_from=_at(9))

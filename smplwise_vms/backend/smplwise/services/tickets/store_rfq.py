@@ -428,7 +428,8 @@ def update_award(conn: sqlite3.Connection, award_id: str, fields: Mapping[str, A
 
 TERMS_COLUMNS = ("currency", "total_minor", "schedule_json", "schedule_source", "arrival_state", "planned_from", "planned_to", "proposed_from",
                  "proposed_to", "rejected_at", "requested_at", "reminded_at", "reminders", "confirmed_at", "confirmed_by", "acknowledged_at",
-                 "acknowledged_hash", "escalated_at", "decided_by", "decided_at", "updated_at")  # overdue_key: set_overdue_key (no bump)
+                 "acknowledged_hash", "escalated_at", "decided_by", "decided_at", "updated_at",
+                 "arrival_changed_at")  # + RFQPAY2 20.14; overdue_key: set_overdue_key (no bump)
 
 
 def insert_terms(conn: sqlite3.Connection, row: Mapping[str, Any]) -> None:
@@ -483,10 +484,16 @@ def terms_unconfirmed(conn: sqlite3.Connection, reminded_before: str, max_remind
         "AND t.reminded_at <= ? ORDER BY t.reminded_at, t.award_id LIMIT 200", (int(max_reminders), reminded_before)).fetchall()]
 
 
-def set_overdue_key(conn: sqlite3.Connection, award_id: str, key: str | None) -> None:
-    """RFQPAY2: the janitor's memory of the overdue instalments it signalled - NOT a revision bump (a manager's open page never goes
-    stale because the janitor looked)."""
-    conn.execute("UPDATE ticket_rfq_award_terms SET overdue_key = ? WHERE award_id = ?", (key, award_id))
+_KEEP = object()
+
+
+def set_overdue_key(conn: sqlite3.Connection, award_id: str, key: str | None, notified_at: Any = _KEEP) -> None:
+    """RFQPAY2: the janitor's memory of the overdue instalments it signalled (and when it last notified) - NOT a revision bump (a
+    manager's open page never goes stale because the janitor looked)."""
+    if notified_at is _KEEP:
+        conn.execute("UPDATE ticket_rfq_award_terms SET overdue_key = ? WHERE award_id = ?", (key, award_id))
+    else:
+        conn.execute("UPDATE ticket_rfq_award_terms SET overdue_key = ?, overdue_notified_at = ? WHERE award_id = ?", (key, notified_at, award_id))
 
 
 def terms_payable(conn: sqlite3.Connection, states: Iterable[str]) -> list[dict[str, Any]]:

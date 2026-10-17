@@ -278,7 +278,7 @@ export function eventLine(e: RfqEvent, vendorName: (id: string | null) => string
     // CR-RFQ-PAYMENT-SCHEDULE (contract 20.7)
     'terms_set', 'arrival_requested', 'arrival_reminder', 'arrival_proposed', 'arrival_confirmed', 'arrival_rejected',
     // RFQPAY2 (contract 20.11 / 20.13)
-    'instalment_demand_created', 'instalment_paid', 'instalment_demand_cancelled', 'instalment_rescheduled',
+    'instalment_demand_created', 'instalment_paid', 'instalment_demand_cancelled', 'instalment_rescheduled', 'arrival_rescheduled',
     // RFQQUESTIONS
     'vendor_message', 'question_answered', 'question_resolved', 'question_reminder'];
   return { key: known.includes(e.kind) ? `ev_${e.kind}` : 'ev_other', vars };
@@ -397,7 +397,7 @@ export function refusalKey(code: string | undefined): string | null {
     'terms_not_found', 'arrival_not_proposed', 'arrival_date_passed',
     // RFQPAY2: instalment demands and moved dates
     'terms_closed', 'instalment_not_found', 'instalment_not_dated', 'instalment_paid', 'demand_not_found', 'demand_paid', 'demand_cancelled',
-    'demand_zero_amount',
+    'demand_zero_amount', 'work_done', 'vendor_unreachable',
     // RFQQUESTIONS
     'question_answered', 'message_not_found'];
   return code && known.includes(code) ? `err_${code}` : null;

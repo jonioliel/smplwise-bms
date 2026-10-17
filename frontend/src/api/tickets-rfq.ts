@@ -191,12 +191,19 @@ export interface RfqAwardTerms {
     proposed_to: string | null; rejected_at: string | null; confirmed_at: string | null; confirmed_by: 'vendor' | 'manager' | null;
     acknowledged_at: string | null; requested_at: string | null; reminders: number;
     /** not confirmed after the last reminder: the RFQ managers were notified (the work order is not blocked) */
-    escalated_at?: string | null };
+    escalated_at?: string | null;
+    /** RFQPAY2 (20.14): a manager moved the window after the award */
+    changed_at?: string | null };
   revision: number;
   /** review F7: after a rejected date, the editable notice for the vendor (managers only; sent only by the manager's explicit click) */
   draft?: RfqMessageDraft | null;
-  can: { decide_arrival: boolean; reschedule?: boolean; demand?: boolean };
+  /** RFQPAY2 (20.13 / 20.14): the preview texts of the optional vendor notice of a moved date (the vendor's language; default off) */
+  notice?: RfqChangeNotice | null;
+  can: { decide_arrival: boolean; reschedule?: boolean; demand?: boolean; reschedule_arrival?: boolean; notify_vendor?: boolean };
 }
+export interface RfqChangeNotice { lang: string; instalment: string; arrival: string; notify_default: boolean }
+/** RFQPAY2: the optional vendor notice sent with a moved date (the thread + the templated notice; never free text outside). */
+export interface RfqMoveNotice { notify: boolean; message?: string; reason?: string }
 
 export interface RfqOrderTicket { id: string | null; number: number; status?: string | null }
 export interface RfqScope { kind: 'all' | 'kinds' | 'lines'; kinds: LineKind[]; lines: number }
@@ -498,7 +505,9 @@ export interface RfqBackend {
   /** CR-RFQ-PAYMENT-SCHEDULE (20.6): accept / reject the arrival date the vendor proposed (the demo store has no terms) */
   decideArrival?(id: string, awardId: string, action: 'accept' | 'reject', revision: number): Promise<RfqDetail>;
   /** RFQPAY2 (20.13): move a dated instalment's planned day (tickets.costs + view; reason optional; nothing is sent) */
-  moveInstalment?(id: string, awardId: string, index: number, date: string, revision: number, reason?: string): Promise<RfqDetail>;
+  moveInstalment?(id: string, awardId: string, index: number, date: string, revision: number, opts?: RfqMoveNotice): Promise<RfqDetail>;
+  /** RFQPAY2 (20.14): move the planned arrival window after the award (tickets.costs + view; optional vendor notice) */
+  moveArrival?(id: string, awardId: string, workFrom: string, workTo: string | null, revision: number, opts?: RfqMoveNotice): Promise<RfqDetail>;
   /** RFQPAY2 (20.11): the instalment's payment demand - create (idempotent) / mark paid / cancel */
   instalmentDemand?(id: string, awardId: string, index: number, action: RfqDemandAction): Promise<RfqDemandAnswer>;
   /** RFQQUESTIONS: the navigation badge (the open requests the caller manages) */
@@ -535,6 +544,17 @@ export function createWireBody(body: RfqCreateBody, meta: Pick<RfqMeta, 'vendor_
   const out: Record<string, unknown> = { ...body };
   out.vendors = body.vendors.map((v) => (meta?.vendor_options ? { ...v } : { contact_id: v.contact_id }));
   for (const k of Object.keys(out)) if (out[k] === undefined || out[k] === '') delete out[k];
+  return out;
+}
+
+/** RFQPAY2: the optional fields of a date move - the reason, and the vendor notice only when ticked (never a text without the tick). */
+export function moveExtras(opts?: RfqMoveNotice): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (opts?.reason?.trim()) out.reason = opts.reason.trim();
+  if (opts?.notify) {
+    out.notify_vendor = true;
+    out.message = (opts.message ?? '').trim();
+  }
   return out;
 }
 
@@ -580,8 +600,10 @@ const rest: RfqBackend = {
   removeAttachment: (id, attachmentId) => api<RfqDetail>(`${R}/${enc(id)}/attachments/${enc(attachmentId)}`, { method: 'DELETE' }),
   attachmentUrl: (id, attachmentId, thumb = false) => resourceUrl(`api/v1/${R}/${enc(id)}/attachments/${enc(attachmentId)}${thumb ? '/thumb' : ''}`),
   decideArrival: (id, awardId, action, revision) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival`, { action, revision }),
-  moveInstalment: (id, awardId, index, date, revision, reason) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/date`,
-    { date, revision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
+  moveInstalment: (id, awardId, index, date, revision, opts) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/date`,
+    { date, revision, ...moveExtras(opts) }),
+  moveArrival: (id, awardId, workFrom, workTo, revision, opts) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival/date`,
+    { work_from: workFrom, ...(workTo ? { work_to: workTo } : {}), revision, ...moveExtras(opts) }),
   instalmentDemand: (id, awardId, index, action) => post<RfqDemandAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/demand`, { action }),
   questionsSummary: () => get<RfqQuestionsSummary>(`${R}/questions/summary`),
   markRead: (id, vendorId) => post<{ read: number }>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages/read`),

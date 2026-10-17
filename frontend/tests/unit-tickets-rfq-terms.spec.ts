@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import type { RfqAwardTerms } from '../src/api/tickets-rfq';
-import { arrivalKey, dueWords, payFromProposal, payProblems, payWire, proposalLines, scheduleExact } from '../src/tickets/rfq-terms-model';
+import { moveExtras, type RfqAwardTerms } from '../src/api/tickets-rfq';
+import { arrivalKey, dueWords, isoLocalDay, payFromProposal, payProblems, payWire, proposalLines, scheduleExact } from '../src/tickets/rfq-terms-model';
 import { RFQ_TEXT_HE, RFQ_TEXT_EN_KEYS } from '../src/tickets/rfq-text';
 import { refusalKey, eventLine } from '../src/tickets/rfq-model';
 
@@ -97,4 +97,22 @@ test('RFQPAY2: the demand / moved-date / overdue words, refusals and timeline ki
     expect(eventLine({ id: 1, kind, at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key).toBe(`ev_${kind}`);
   }
   expect(RFQ_TEXT_HE.insMoved).toContain('{date}');
+});
+
+test('RFQPAY2 owner decisions: a move sends the vendor notice only when ticked; the arrival move and the reminder interval have words', () => {
+  expect(moveExtras()).toEqual({});
+  expect(moveExtras({ notify: false, message: 'שלום', reason: '  ' })).toEqual({}); // never a text without the tick
+  expect(moveExtras({ notify: false, reason: ' דחייה ' })).toEqual({ reason: 'דחייה' });
+  expect(moveExtras({ notify: true, message: ' עודכן ' })).toEqual({ notify_vendor: true, message: 'עודכן' });
+  expect(isoLocalDay(null)).toBe('');
+  expect(isoLocalDay('nonsense')).toBe('');
+  expect(isoLocalDay('2026-11-03T12:00:00Z')).toMatch(/^2026-11-0[34]$/);
+  for (const k of ['mvNotify', 'mvMessage', 'mvMessageNote', 'mvSaveSend', 'insMovedSent', 'arrMove', 'arrMoveFrom', 'arrMoveTo', 'arrMoved', 'arrMovedDone',
+    'stInstalmentHours', 'stInstalmentHoursSub'] as const) {
+    expect(RFQ_TEXT_HE[k], k).toBeTruthy();
+    expect(RFQ_TEXT_EN_KEYS, k).toContain(k);
+  }
+  for (const code of ['work_done', 'vendor_unreachable']) expect(refusalKey(code)).toBe(`err_${code}`);
+  expect(eventLine({ id: 1, kind: 'arrival_rescheduled', at: '', vendor_id: null, actor: { kind: 'user', name: 'x' }, data: {} } as never, () => 'v', () => '').key)
+    .toBe('ev_arrival_rescheduled');
 });

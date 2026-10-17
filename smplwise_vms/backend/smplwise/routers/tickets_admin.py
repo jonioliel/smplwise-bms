@@ -163,6 +163,7 @@ class RfqPatch(BaseModel):
     question_reminder_hours: int | None = Field(default=None, ge=0, le=168)
     schedule_arrival: StrictBool | None = None  # the payment schedule + arrival confirmation (default OFF)
     arrival_reminder_hours: StrictInt | None = None  # settings_doc validates the range (0-168)
+    instalment_reminder_hours: StrictInt | None = None  # RFQPAY2: hours between overdue-instalment reminders (0 = once; settings_doc: 0-168)
     attachments: RfqAttachmentsPatch | None = None  # RFQATT review 2.6.4: rfq.attachments.allow_office
 
 

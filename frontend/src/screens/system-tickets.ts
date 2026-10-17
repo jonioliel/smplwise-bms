@@ -100,7 +100,7 @@ export class SystemTickets extends LitElement {
   @state() private publicError = ''; // 2.5.3: the failed save of a public-address key, shown in its own card too
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
-  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string } = {};
+  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string; insHours?: string } = {};
   private okTimer = 0;
   private offNames: (() => void) | null = null;
 
@@ -575,7 +575,21 @@ export class SystemTickets extends LitElement {
           @input=${(e: Event) => (this.instDraft = { ...this.instDraft, arrHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
           <sw-button size="sm" variant="primary" data-inst-arrival-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
             @click=${() => void this.saveDoc({ rfq: { arrival_reminder_hours: n } }, () => (this.instDraft = { ...this.instDraft, arrHours: undefined }))}>${tt('save')}</sw-button></span></div>
+      ${this.instalmentHoursRow(doc)}
     </sw-card>`;
+  }
+
+  /** RFQPAY2 (owner 2026-10-17): hours between two reminders of the same overdue instalments (default 24; 0 = once only). */
+  private instalmentHoursRow(doc: SettingsDoc): TemplateResult {
+    const hours = doc.rfq?.instalment_reminder_hours ?? 24;
+    const raw = this.instDraft.insHours ?? String(hours);
+    const n = intIn(raw, 0, 168);
+    return html`<div class="row"><span class="lbl">${rt('stInstalmentHours')}<span class="muted">${rt('stInstalmentHoursSub')}</span></span>
+      <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-instalment-hours aria-label=${rt('stInstalmentHours')}
+        aria-invalid=${String(Number.isNaN(n))} .value=${raw}
+        @input=${(e: Event) => (this.instDraft = { ...this.instDraft, insHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
+        <sw-button size="sm" variant="primary" data-inst-instalment-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
+          @click=${() => void this.saveDoc({ rfq: { instalment_reminder_hours: n } }, () => (this.instDraft = { ...this.instDraft, insHours: undefined }))}>${tt('save')}</sw-button></span></div>`;
   }
 
   private generalTab(): TemplateResult {

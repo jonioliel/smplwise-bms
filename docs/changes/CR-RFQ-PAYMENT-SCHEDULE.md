@@ -153,18 +153,24 @@ The owner approved answers 1, 2 and 4 of section 6 (previously "recorded, not bu
 | E7 | Only dated instalments move, in order with the others, today .. today + 366; never one marked paid; the quote's copy and an open demand's due day follow. | The same rules as the plan (20.2); the demand check and the overdue scan read the moved day. |
 | E8 | The vendor-page marker text lives in `rfq-page-terms.ts` (its own lazy chunk), not in `rfq-text.ts`. | The `rfq-page` chunk has ~120 B of its 20 KB budget left; the terms chunk has its own 3 KB cap. |
 
-Bundle budgets (measured with the guard's method on a local build into the scratch directory, `www-public` NOT rebuilt): ticket page
-62,334 B / 62,464 B (unchanged), RFQ chunk 20,356 B / 20,480 B (unchanged), `rfq-page-terms` 2,409 B / 3,072 B (+195 B).
+Owner decisions on the RFQPAY2 open questions (2026-10-17, second commit on `pilot/RFQPAY2`; contract 20.12 - 20.14):
+
+| # | Decision | Why |
+|---|----------|-----|
+| E9 | A moved instalment date: the MANAGER chooses whether the vendor is told - "notify the vendor" tick (default OFF) with the editable preview (`terms.notice`, his language); sent in the same act through the F7 / vendor-message path (thread + the templated `rfq_update`, send hours, `rfqmsg:<id>` idempotency). A text without the tick is refused, never dropped. The tick also needs the RFQ manager rule (who may message the vendor). | Owner answer to Q9 (was "nothing is sent"); no free text outside; the vendor-message permission is not widened by the costs permission. |
+| E10 | The ARRIVAL window can be moved after the award (tickets.costs + view, audited, reason optional, revision, today .. today + 366, refused once the work is marked done), same notice mechanism. `awaiting` stays, a pending proposal is superseded, `confirmed` stays confirmed by the manager. The vendor page shows "date changed". | Owner answer to Q5 (previously "not built"); re-opening the confirmation state machine for a confirmed date was not asked for - the vendor can still message / the manager can notify him. |
+| E11 | The overdue reminder repeats only every `rfq.instalment_reminder_hours` (default 24, 0 = once; 0-168) while the same instalments stay overdue; a NEW overdue instalment always notifies. `overdue_notified_at` per award. | Owner: the reminder must not be annoying. |
+
+Kept as built (owner): closed requests keep working until a cancel (Q3); no Costs-tab display (Q11); the separate demand record (Q1);
+no "waived" status (Q12). Migration 0112 was edited in place (unreleased): + `arrival_changed_at`, `overdue_notified_at`.
+
+Bundle budgets (measured with the guard's method on a local build into the scratch directory, `www-public` NOT rebuilt): see the
+report of each commit - the vendor marker stays in the lazy `rfq-page-terms` chunk (3 KB cap).
 
 Still open after RFQPAY2:
 
-9. **Vendor notice of a moved date:** nothing is sent; the vendor sees the change only when he opens his page. Offer an editable notice
-   (the F7 draft pattern) after a move?
 10. **The vendor's view of demands:** the vendor page shows no demand / paid state per instalment. Show "paid" per instalment to him?
-11. **Where demands are shown:** on the RFQ board only (they stay with the ordered quote after a purge, but are then not shown). Show
-    them on the order's ticket (its Costs tab)?
-12. **A waived instalment:** there is no "waive" action; an instalment that will never be paid stays overdue until it is marked paid or
-    moved. Add a "waived" status?
+13. **A sent work order and a moved arrival:** an order message already sent keeps the old window (nothing is re-sent). Offer a re-send?
 
 ## 7. Rollback
 

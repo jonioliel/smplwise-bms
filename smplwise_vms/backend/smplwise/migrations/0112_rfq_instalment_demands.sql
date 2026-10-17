@@ -6,7 +6,8 @@
 --       instalments the last `rfq.instalment_overdue` signal covered, so a signal is raised only when a NEW instalment becomes overdue;
 --   (3) a manager may move an instalment's planned date after the award - stored inside the schedule JSON (`agreed_date`,
 --       `date_changed_at`), so no column is needed for it.
--- Migration 0112 (provisional - the lead renumbers at integration). Additive only: one new table + one nullable column; nothing existing
+--   (4) (owner decision 2026-10-17, contract 20.14) a manager may move the planned ARRIVAL window after the award (`arrival_changed_at`).
+-- Migration 0112 (provisional - the lead renumbers at integration). Additive only: one new table + three nullable columns; nothing existing
 -- is rebuilt or rewritten, nothing is read while the installation switch `tickets.settings.rfq.schedule_arrival` is off and no terms exist.
 -- Money: integers in minor units (VAT included, as the approved schedule). Arx never initiates or executes a payment: "paid" is the
 -- manager's record that the payment was made outside the system. No bank data, no payment reference text.
@@ -39,3 +40,7 @@ CREATE INDEX idx_ticket_rfq_instalment_demands_award ON ticket_rfq_instalment_de
 
 -- The overdue instalments (comma-separated indexes) the last `rfq.instalment_overdue` signal covered; NULL = none open.
 ALTER TABLE ticket_rfq_award_terms ADD COLUMN overdue_key TEXT;
+-- When that signal last notified (owner decision 2026-10-17: re-notify only every `rfq.instalment_reminder_hours`, 0 = once); NULL = none.
+ALTER TABLE ticket_rfq_award_terms ADD COLUMN overdue_notified_at TEXT;
+-- (owner decision 2026-10-17, contract 20.14) a manager changed the planned ARRIVAL window after the award: the vendor's page marks it.
+ALTER TABLE ticket_rfq_award_terms ADD COLUMN arrival_changed_at TEXT;

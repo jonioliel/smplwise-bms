@@ -11,8 +11,8 @@ import { tIcon } from './icons';
 import { rIcon } from './rfq-icons';
 import { rt, type RfqTextKey } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
-import { initials, windowText } from './rfq-model';
-import { arrivalKey, dueWords, scheduleExact } from './rfq-terms-model';
+import { dayToIso, initials, windowText } from './rfq-model';
+import { arrivalKey, dueWords, isoLocalDay, scheduleExact } from './rfq-terms-model';
 import { rfqError } from './rfq-new';
 import { ticketsLang } from './text';
 
@@ -26,6 +26,9 @@ import { ticketsLang } from './text';
  * it, and change a dated instalment's day (reason optional); the row shows "moved" (with the agreed day) and "past its date". Events:
  * `changed` (detail: RfqDetail), `notice` ({ok} | {error}).
  */
+/** RFQPAY2: an open date-move editor (an instalment day, or the arrival window `date`..`to`) and its optional vendor notice. */
+interface MoveDraft { date: string; to: string; reason: string; notify: boolean; message: string }
+
 @customElement('tickets-rfq-terms')
 export class TicketsRfqTerms extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -35,7 +38,7 @@ export class TicketsRfqTerms extends LitElement {
   /** review F7: the manager's edits of each award's rejection notice */
   @state() private drafts: Record<string, string> = {};
   /** RFQPAY2: the open "change date" editors, by `<award id>:<instalment index>` */
-  @state() private moving: Record<string, { date: string; reason: string }> = {};
+  @state() private moving: Record<string, MoveDraft> = {};
 
   static styles = [bubbleChrome, ...automationsStyles, rfqStyles, css`
     .tcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--sw-s-4); }
@@ -50,7 +53,8 @@ export class TicketsRfqTerms extends LitElement {
     .tins:last-child { border-block-end: 0; padding-block-end: 0; }
     .tins[data-overdue='yes'] .trow span:first-child { color: var(--dv-warn, inherit); }
     .tmove { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; }
-    .tmove .tacts { grid-column: 1 / -1; }
+    .tmove .tacts, .tmove .tfull, .tmove .tcheck { grid-column: 1 / -1; }
+    .tcheck { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); }
   `];
 
   connectedCallback(): void {
@@ -132,30 +136,65 @@ export class TicketsRfqTerms extends LitElement {
     }
   }
 
+  private openMove(key: string, date: string, to: string): void {
+    this.moving = { ...this.moving, [key]: { date, to, reason: '', notify: false, message: '' } };
+  }
+
   private closeMove(key: string): void {
     const rest = { ...this.moving };
     delete rest[key];
     this.moving = rest;
   }
 
-  /** RFQPAY2 (20.13): move a dated instalment's day (audited; the reason is optional; the vendor sees the new day marked as changed). */
-  private async move(a: RfqAward, t: RfqAwardTerms, it: RfqInstalment): Promise<void> {
+  /** RFQPAY2 (20.13 / 20.14): save a moved instalment day (`it`) or arrival window (no `it`) - audited, the reason optional; the vendor
+   * is told ONLY when the manager ticked "notify the vendor" (his edited text: the thread + the templated notice, in the same act). */
+  private async move(a: RfqAward, t: RfqAwardTerms, it: RfqInstalment | null): Promise<void> {
     const d = this.rfq;
     const api = ticketsRfqApi();
-    const key = `${a.id}:${it.index}`;
+    const key = it ? `${a.id}:${it.index}` : `${a.id}:arrival`;
     const m = this.moving[key];
-    if (!d || !m?.date || this.busy || !api.moveInstalment) return;
+    if (!d || !m?.date || this.busy) return;
+    const opts = { reason: m.reason, notify: m.notify, message: m.message };
     this.busy = a.id;
     this.errors = { ...this.errors, [a.id]: '' };
     try {
-      const next = await api.moveInstalment(d.id, a.id, it.index, m.date, t.revision, m.reason);
+      let next: RfqDetail | null = null;
+      if (it && api.moveInstalment) next = await api.moveInstalment(d.id, a.id, it.index, m.date, t.revision, opts);
+      if (!it && api.moveArrival) next = await api.moveArrival(d.id, a.id, dayToIso(m.date), m.to ? dayToIso(m.to) : null, t.revision, opts);
+      if (!next) return;
       this.closeMove(key);
-      this.done(next, rt('insMovedDone'));
+      this.done(next, rt(m.notify ? 'insMovedSent' : it ? 'insMovedDone' : 'arrMovedDone'));
     } catch (e) {
       this.errors = { ...this.errors, [a.id]: rfqError(e) };
     } finally {
       this.busy = '';
     }
+  }
+
+  /** RFQPAY2: the move editor - the new day (and, for the arrival, the last day), the optional reason, and the "notify the vendor" tick
+   * (default off) that opens the editable preview of the notice. */
+  private moveEditor(a: RfqAward, t: RfqAwardTerms, it: RfqInstalment | null, key: string, m: MoveDraft, current: string): TemplateResult {
+    const set = (patch: Partial<MoveDraft>) => { this.moving = { ...this.moving, [key]: { ...m, ...patch } }; };
+    const canNotify = !!t.can.notify_vendor && !!t.notice;
+    const preview = (it ? t.notice?.instalment : t.notice?.arrival) ?? '';
+    const bad = !m.date || (!it && !!m.to && m.to < m.date) || (m.notify && !m.message.trim());
+    return html`<div class="tmove" data-move=${key}>
+      <label class="fld">${rt(it ? 'insMoveDate' : 'arrMoveFrom')}<input class="inp" type="date" dir="ltr" .value=${m.date}
+        @input=${(e: Event) => set({ date: (e.target as HTMLInputElement).value })}></label>
+      ${it ? nothing : html`<label class="fld">${rt('arrMoveTo')}<input class="inp" type="date" dir="ltr" .value=${m.to}
+        @input=${(e: Event) => set({ to: (e.target as HTMLInputElement).value })}></label>`}
+      <label class="fld">${rt('insMoveReason')}<input class="inp" type="text" maxlength="500" .value=${m.reason}
+        @input=${(e: Event) => set({ reason: (e.target as HTMLInputElement).value })}></label>
+      ${canNotify ? html`<label class="tcheck" data-move-notify=${key}><input type="checkbox" .checked=${m.notify}
+        @change=${(e: Event) => set({ notify: (e.target as HTMLInputElement).checked, message: m.message || preview })}>${rt('mvNotify')}</label>
+        ${m.notify ? html`<label class="fld tfull" data-move-message=${key}>${rt('mvMessage')}
+          <textarea class="inp" rows="3" maxlength="2000" .value=${m.message}
+            @input=${(e: Event) => set({ message: (e.target as HTMLTextAreaElement).value })}></textarea>
+          <small class="mut">${rt('mvMessageNote')}</small></label>` : nothing}` : nothing}
+      <div class="tacts"><button type="button" class="btn primary sm" data-move-save=${key} ?disabled=${!!this.busy || bad || m.date === current}
+        @click=${() => void this.move(a, t, it)}>${rt(m.notify ? 'mvSaveSend' : 'insMoveSave')}</button>
+        <button type="button" class="btn sm" data-move-close=${key} @click=${() => this.closeMove(key)}>${rt('insMoveClose')}</button></div>
+    </div>`;
   }
 
   /** RFQPAY2: one schedule row - the due rule, the moved / overdue markers, the demand state and the actions of a costs decider. */
@@ -168,7 +207,6 @@ export class TicketsRfqTerms extends LitElement {
     const canMove = !!t.can.reschedule && !!api.moveInstalment && it.due === 'date' && dm?.status !== 'paid';
     const offerCreate = canDemand && it.amount_minor !== 0 && (!dm || dm.status === 'cancelled');
     const actions = it.overdue || dm || offerCreate || (canMove && !m);
-    const set = (patch: Partial<{ date: string; reason: string }>) => { this.moving = { ...this.moving, [key]: { ...(m ?? { date: '', reason: '' }), ...patch } }; };
     return html`<li class="tins" data-instalment=${it.kind} data-index=${it.index} data-overdue=${it.overdue ? 'yes' : 'no'}>
       <div class="trow"><span>${rt(`pk_${it.kind}` as RfqTextKey)} · ${dueWords(it, words)}
         ${it.agreed_date ? html`<small class="mut" data-moved>${rt('insMoved', { date: dueWords({ due: 'date', date: it.agreed_date, days: null }, words) })}</small>` : nothing}</span>
@@ -182,18 +220,21 @@ export class TicketsRfqTerms extends LitElement {
           @click=${() => void this.demand(a, it, 'paid')}>${tIcon('check')}${rt('insPaid')}</button>
           <button type="button" class="btn sm" data-demand-cancel=${key} ?disabled=${!!this.busy} @click=${() => void this.demand(a, it, 'cancel')}>${rt('insCancel')}</button>` : nothing}
         ${canMove && !m ? html`<button type="button" class="btn sm" data-move-open=${key} ?disabled=${!!this.busy}
-          @click=${() => set({ date: it.date ?? '', reason: '' })}>${rIcon('cal')}${rt('insMove')}</button>` : nothing}
+          @click=${() => this.openMove(key, it.date ?? '', '')}>${rIcon('cal')}${rt('insMove')}</button>` : nothing}
       </div>` : nothing}
-      ${canMove && m ? html`<div class="tmove" data-move=${key}>
-        <label class="fld">${rt('insMoveDate')}<input class="inp" type="date" dir="ltr" .value=${m.date}
-          @input=${(e: Event) => set({ date: (e.target as HTMLInputElement).value })}></label>
-        <label class="fld">${rt('insMoveReason')}<input class="inp" type="text" maxlength="500" .value=${m.reason}
-          @input=${(e: Event) => set({ reason: (e.target as HTMLInputElement).value })}></label>
-        <div class="tacts"><button type="button" class="btn primary sm" data-move-save=${key} ?disabled=${!!this.busy || !m.date || m.date === it.date}
-          @click=${() => void this.move(a, t, it)}>${rt('insMoveSave')}</button>
-          <button type="button" class="btn sm" data-move-close=${key} @click=${() => this.closeMove(key)}>${rt('insMoveClose')}</button></div>
-      </div>` : nothing}
+      ${canMove && m ? this.moveEditor(a, t, it, key, m, it.date ?? '') : nothing}
     </li>`;
+  }
+
+  /** RFQPAY2 (20.14): "change the arrival date" for a costs decider while the work is not marked done. */
+  private arrivalMove(a: RfqAward, t: RfqAwardTerms): TemplateResult | typeof nothing {
+    if (!t.can.reschedule_arrival || !ticketsRfqApi().moveArrival) return nothing;
+    const key = `${a.id}:arrival`;
+    const m = this.moving[key];
+    const from = isoLocalDay(t.arrival.planned_from);
+    if (m) return this.moveEditor(a, t, null, key, m, from);
+    return html`<div class="tacts"><button type="button" class="btn sm" data-arrival-move-open=${a.id} ?disabled=${!!this.busy}
+      @click=${() => this.openMove(key, from, isoLocalDay(t.arrival.planned_to))}>${rIcon('cal')}${rt('arrMove')}</button></div>`;
   }
 
   private card(a: RfqAward, t: RfqAwardTerms): TemplateResult {
@@ -207,7 +248,10 @@ export class TicketsRfqTerms extends LitElement {
     return html`<article class="tcard" data-rfq-terms-card=${a.vendor_id} data-award=${a.id} data-arrival=${ar.state} aria-label=${`${rt('trmSection')}: ${name}`}>
       <div class="thead"><span class="av" aria-hidden="true">${initials(name)}</span><b>${bidi(name)}</b>
         <span class=${`chip ${key === 'trm_confirmed' ? 'ok' : key === 'trm_proposed' ? 'warn' : ''}`} data-arrival-chip=${key}>${rt(key)}</span></div>
-      <div class="trow" data-terms-planned><span>${rIcon('cal')} ${rt('trmPlanned')}</span><b class="num">${windowText(ar.planned_from, ar.planned_to) || rt('trmNone')}</b></div>
+      <div class="trow" data-terms-planned><span>${rIcon('cal')} ${rt('trmPlanned')}
+        ${ar.changed_at ? html`<small class="mut" data-arrival-moved>${rt('arrMoved')}</small>` : nothing}</span>
+        <b class="num">${windowText(ar.planned_from, ar.planned_to) || rt('trmNone')}</b></div>
+      ${this.arrivalMove(a, t)}
       ${ar.state === 'proposed' ? html`<div class="trow" data-terms-proposed><span>${rt('trmProposed')}</span><b class="num">${windowText(ar.proposed_from, ar.proposed_to)}</b></div>` : nothing}
       ${ar.reminders ? html`<div class="note">${rt('trmReminders', { n: ar.reminders })}</div>` : nothing}
       <div class="trow"><b>${rt('trmSchedule')}</b><small class="mut">${rt(src)}</small></div>

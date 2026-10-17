@@ -61,6 +61,11 @@ def enabled(conn) -> bool:
     return settings_doc.read(conn)["rfq"].get("schedule_arrival") is True
 
 
+def instalment_reminder_hours(conn) -> int:
+    """RFQPAY2: hours between two reminders of an award's overdue instalments (0 = once only)."""
+    return int(settings_doc.read(conn)["rfq"].get("instalment_reminder_hours") or 0)
+
+
 def reminder_hours(conn) -> int:
     return int(settings_doc.read(conn)["rfq"].get("arrival_reminder_hours") or 0)
 
@@ -386,7 +391,8 @@ def _arrival(t: Mapping[str, Any]) -> dict[str, Any]:
     return {"state": t["arrival_state"], "planned_from": t.get("planned_from"), "planned_to": t.get("planned_to"),
             "proposed_from": t.get("proposed_from"), "proposed_to": t.get("proposed_to"), "rejected_at": t.get("rejected_at"),
             "confirmed_at": t.get("confirmed_at"), "confirmed_by": t.get("confirmed_by"), "acknowledged_at": acknowledged_at(t),
-            "requested_at": t.get("requested_at"), "reminders": int(t.get("reminders") or 0), "escalated_at": t.get("escalated_at")}
+            "requested_at": t.get("requested_at"), "reminders": int(t.get("reminders") or 0), "escalated_at": t.get("escalated_at"),
+            "changed_at": t.get("arrival_changed_at")}  # RFQPAY2 20.14: a manager moved the window after the award
 
 
 def present(conn, award: Mapping[str, Any], *, amounts: bool, manager: bool, costs: bool = False,
@@ -420,8 +426,11 @@ def present(conn, award: Mapping[str, Any], *, amounts: bool, manager: bool, cos
            "arrival": _arrival(t), "revision": t["revision"],
            "draft": (rejection_draft(conn, award) if manager and award["state"] == "approved" and t["arrival_state"] == "awaiting"
                      and t.get("rejected_at") and not t.get("requested_at") else None),
+           # RFQPAY2 20.13 / 20.14: the editable notices a manager may send with a moved date (managers who may also message the vendor)
+           "notice": change_notice(conn, award) if payable and manager else None,
            "can": {"decide_arrival": manager and award["state"] == "approved" and t["arrival_state"] == "proposed",
-                   "reschedule": payable, "demand": payable}}
+                   "reschedule": payable, "demand": payable, "reschedule_arrival": payable and completed is None,
+                   "notify_vendor": payable and manager}}
     return out
 
 
@@ -473,7 +482,8 @@ def vendor_block(conn, row: Mapping[str, Any], v: Mapping[str, Any], *, read_onl
             "arrival": {"state": t["arrival_state"], "planned_from": t.get("planned_from"), "planned_to": t.get("planned_to"),
                         "proposed_from": t.get("proposed_from"), "proposed_to": t.get("proposed_to"),
                         "rejected": bool(t.get("rejected_at")) and t["arrival_state"] == "awaiting",
-                        "confirmed_at": t.get("confirmed_at"), "acknowledged_at": acknowledged_at(t)},
+                        "confirmed_at": t.get("confirmed_at"), "acknowledged_at": acknowledged_at(t),
+                        "changed": bool(t.get("arrival_changed_at"))},  # RFQPAY2 20.14: a manager moved the window after the award
             "can": {"confirm": open_ and t["arrival_state"] == "awaiting" and bool(t.get("planned_from")),
                     "propose": open_ and t["arrival_state"] in ("awaiting", "proposed")}}
 
@@ -807,20 +817,84 @@ def _instalment(conn, t: Mapping[str, Any], index: int) -> tuple[dict[str, Any],
     return sched, it
 
 
+CHANGE_TEXT = {  # RFQPAY2 20.13 / 20.14: the editable notices of a moved date (the vendor's language; never an amount or a date)
+    "instalment": {
+        "he": "מועד של תשלום בלוח התשלומים שלכם עודכן. המועד החדש מופיע בדף ההצעה.",
+        "en": "The date of an instalment in your payment schedule was updated. The new date is shown on the quote page.",
+        "ar": "تم تحديث موعد دفعة في جدول الدفعات الخاص بكم. الموعد الجديد معروض في صفحة العرض.",
+        "ru": "Дата одного из платежей в вашем графике платежей изменена. Новая дата указана на странице предложения.",
+    },
+    "arrival": {
+        "he": "מועד ההגעה לביצוע העבודה עודכן. המועד החדש מופיע בדף ההצעה.",
+        "en": "The arrival date for the work was updated. The new date is shown on the quote page.",
+        "ar": "تم تحديث موعد الوصول لتنفيذ العمل. الموعد الجديد معروض في صفحة العرض.",
+        "ru": "Дата прибытия для выполнения работ изменена. Новая дата указана на странице предложения.",
+    },
+}
+
+
+def change_notice(conn, award: Mapping[str, Any]) -> dict[str, Any]:
+    """The preview of the optional vendor notice of a moved date (owner decision 2026-10-17): the editable text per change kind in the
+    vendor's language. Sent only when the manager ticks "notify the vendor" on the move itself: the text goes to the vendor's thread and
+    the existing templated `rfq_update` notice ("there is a new message") is queued - the F7 path, the send-hours rules, idempotency key
+    `rfqmsg:<message id>`. The free text never travels outside the page."""
+    from . import store_links
+
+    v = store_rfq.vendor(conn, award["rfq_vendor_id"]) or {}
+    contact = store_links.contact(conn, v.get("contact_id")) or {}
+    lang = contact.get("lang") if contact.get("lang") in REJECT_TEXT else "he"
+    return {"lang": lang, "instalment": CHANGE_TEXT["instalment"][lang], "arrival": CHANGE_TEXT["arrival"][lang], "notify_default": False}
+
+
+def _notice_check(conn, viewer: Any, seen: Any, a: Mapping[str, Any], notify: bool, message: Any, rid: str | None) -> str | None:
+    """BEFORE any write: with `notify_vendor` the caller must also be an RFQ manager (the vendor-message rule, an audited 403), the vendor
+    must still be reachable in the thread, and the edited text must be a valid message (422 `message`). None = nothing to send."""
+    if not notify:
+        if message not in (None, ""):
+            raise _rfq().invalid(conn, "message", "not_allowed")  # a text without the tick would be silently dropped
+        return None
+    rfq = _rfq()
+    rfq.need_manager(conn, viewer, seen, "ticket.rfq.message", rid)
+    v = store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}
+    if v.get("state") in (None, "draft", "removed"):
+        raise rfq._err(conn, 409, "vendor_unreachable")
+    return rfq._text_field(conn, message, "message", rfq.MESSAGE_MAX, required=True, multiline=True)
+
+
+def _notice_send(conn, viewer: Any, seen: Any, a: Mapping[str, Any], text: str | None, now: dt.datetime) -> dict[str, Any] | None:
+    """The checked notice: the vendor's thread + the templated `rfq_update` (store_out_message - the F7 path). Returns `notified`."""
+    if text is None:
+        return None
+    rfq = _rfq()
+    v = store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}
+    _mid, notified = rfq.store_out_message(conn, viewer, seen, v, text, True, now, source_kind="award", source_id=a["id"])
+    if notified["queued"]:
+        requested(conn, a["id"], via="award", now=now)  # as write_message: a told vendor's confirmation clock (once)
+    return notified
+
+
+def _rfq():
+    from . import rfq
+
+    return rfq
+
+
 def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: Any, reason: str | None, revision: int,
-               rid: str | None = None) -> dict[str, Any]:
-    """POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date `{date, reason?, revision}` (contract 20.13). Only a dated
-    instalment (409 `instalment_not_dated`), not one marked paid (409 `instalment_paid`); the new day today .. today + 366 in the
-    installation zone and in order with the other dated instalments (422 `date` `range` / `format` / `order`); the terms' revision (409
-    `rfq_stale`). The first move keeps the agreed day (`agreed_date`); moving back to it clears the marker. The quote's copy of the schedule
-    (the demand check's basis) and an open demand's due day follow. Timeline `instalment_rescheduled`, audit
-    `ticket.rfq.instalment_reschedule` (ids and days - never an amount). Nothing is sent to the vendor; his page shows the new day."""
+               rid: str | None = None, *, notify: bool = False, message: Any = None) -> dict[str, Any]:
+    """POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date `{date, reason?, revision, notify_vendor?, message?}` (contract
+    20.13). Only a dated instalment (409 `instalment_not_dated`), not one marked paid (409 `instalment_paid`); the new day today .. today
+    + 366 in the installation zone and in order with the other dated instalments (422 `date` `range` / `format` / `order`); the terms'
+    revision (409 `rfq_stale`). The first move keeps the agreed day (`agreed_date`); moving back to it clears the marker. The quote's copy
+    of the schedule (the demand check's basis) and an open demand's due day follow. Timeline `instalment_rescheduled`, audit
+    `ticket.rfq.instalment_reschedule` (ids and days - never an amount). The vendor is told ONLY when the manager ticks `notify_vendor`
+    (default off): his edited `message` (preview: `terms.notice.instalment`) goes through the F7 path, in the same transaction."""
     from . import rfq
 
     now = rfq.now_utc()
     a, t, q = _payable(conn, viewer, seen, award_id, "ticket.rfq.instalment_reschedule", rid)
     if int(t["revision"]) != int(revision):
         raise rfq._err(conn, 409, "rfq_stale", revision=t["revision"])
+    text = _notice_check(conn, viewer, seen, a, notify, message, rid)
     sched, it = _instalment(conn, t, index)
     if it["due"] != "date":
         raise rfq._err(conn, 409, "instalment_not_dated")
@@ -859,10 +933,72 @@ def reschedule(conn, viewer: Any, seen: Any, award_id: str, index: int, date: An
         data["reason"] = why  # the managers' timeline only (the vendor never reads the RFQ timeline)
     store_rfq.insert_event(conn, seen.row["id"], "instalment_rescheduled", actor_kind="user", actor_user_id=viewer.uid,
                            actor_name=rfq.actor_name(viewer), rfq_vendor_id=a["rfq_vendor_id"], data=data, at=at)
+    notified = _notice_send(conn, viewer, seen, a, text, now)
     rfq._audit(conn, viewer, "ticket.rfq.instalment_reschedule", seen.row, rid, award_id=a["id"], instalment_index=int(index),
-               from_date=old, to_date=new, has_reason=bool(why))
+               from_date=old, to_date=new, has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]))
     fresh = store_rfq.terms(conn, a["id"]) or t
     overdue_sync(conn, seen.row, fresh, now)
+    return fresh
+
+
+def reschedule_arrival(conn, viewer: Any, seen: Any, award_id: str, work_from: Any, work_to: Any, reason: str | None, revision: int,
+                       rid: str | None = None, *, notify: bool = False, message: Any = None) -> dict[str, Any]:
+    """POST /tickets/rfqs/{id}/awards/{award_id}/arrival/date `{work_from, work_to?, reason?, revision, notify_vendor?, message?}`
+    (contract 20.14, owner decision 2026-10-17). tickets.costs + view (audited 403), the 20.11 states; 409 `work_done` once the order's
+    ticket is marked done; the terms' revision (409 `rfq_stale`); the window's first day today .. today + 366 in the installation zone
+    (422 `work_from` `range`), `work_to` not before `work_from` (422 `work_to` `order`). The same window = nothing written. The state:
+    `awaiting` stays (he confirms the new window), a pending `proposed` date is superseded (back to `awaiting`, its `rfq.arrival` row
+    resolved), `confirmed` stays confirmed with `confirmed_by: manager` (the order's ticket gets the new window on its timeline). The
+    vendor's page marks it (`arrival.changed`). Timeline `arrival_rescheduled` (`{award_id, from, to, reason?}`), audit
+    `ticket.rfq.arrival_reschedule` (`from_date`, `to_date`, `has_reason`, `vendor_notified`). Notice: as 20.13 (`terms.notice.arrival`)."""
+    from . import rfq
+    from .quotes import _instant
+
+    now = rfq.now_utc()
+    a, t, q = _payable(conn, viewer, seen, award_id, "ticket.rfq.arrival_reschedule", rid)
+    if _completed(conn, q) is not None:
+        raise rfq._err(conn, 409, "work_done")
+    if int(t["revision"]) != int(revision):
+        raise rfq._err(conn, 409, "rfq_stale", revision=t["revision"])
+    try:
+        wf = _instant(work_from, "work_from", now)
+        wt = _instant(work_to, "work_to", now)
+    except CostRefused as exc:
+        raise rfq.invalid(conn, exc.field or "work_from", exc.code) from None
+    if wf is None:
+        raise rfq.invalid(conn, "work_from", "required")
+    first, day0 = local_day(conn, wf), today(conn, now)
+    if first is None or first < day0 or first > day0 + dt.timedelta(days=HORIZON_DAYS):
+        raise rfq.invalid(conn, "work_from", "range")
+    if wt and wt < wf:
+        raise rfq.invalid(conn, "work_to", "order")
+    text = _notice_check(conn, viewer, seen, a, notify, message, rid)
+    if wf == t.get("planned_from") and (wt or None) == (t.get("planned_to") or None):
+        return t  # the same window (a repeated click): no write, no audit, nothing sent
+    at = iso(now)
+    fields: dict[str, Any] = {"planned_from": wf, "planned_to": wt, "arrival_changed_at": at, "updated_at": at}
+    state = t["arrival_state"]
+    if state == "proposed":
+        fields.update({"arrival_state": "awaiting", "proposed_from": None, "proposed_to": None})
+    elif state == "confirmed":
+        fields.update({"confirmed_by": "manager", "confirmed_at": at, "decided_by": viewer.uid, "decided_at": at})
+    if not store_rfq.update_terms(conn, a["id"], fields, expect_revision=int(revision)):
+        raise rfq._err(conn, 409, "rfq_stale", revision=t["revision"])
+    rfq._touch(conn, seen.row, {}, None, now)
+    why = (reason or "").strip()[:REASON_MAX]
+    data: dict[str, Any] = {"award_id": a["id"], "from": t.get("planned_from"), "to": wf}
+    if why:
+        data["reason"] = why
+    store_rfq.insert_event(conn, seen.row["id"], "arrival_rescheduled", actor_kind="user", actor_user_id=viewer.uid,
+                           actor_name=rfq.actor_name(viewer), rfq_vendor_id=a["rfq_vendor_id"], data=data, at=at)
+    if state == "proposed":
+        rfq_notify.arrival_done(conn, seen.row["id"], a["rfq_vendor_id"])  # his proposal is superseded: nothing waits on a decision
+    notified = _notice_send(conn, viewer, seen, a, text, now)
+    rfq._audit(conn, viewer, "ticket.rfq.arrival_reschedule", seen.row, rid, award_id=a["id"], from_date=t.get("planned_from"), to_date=wf,
+               has_reason=bool(why), vendor_notified=bool(notified and notified["queued"]))
+    fresh = store_rfq.terms(conn, a["id"]) or t
+    if state == "confirmed":
+        _on_confirmed(conn, seen.row, fresh, now)
     return fresh
 
 
@@ -923,8 +1059,10 @@ def instalment_demand(conn, viewer: Any, seen: Any, award_id: str, index: int, a
 
 def overdue_sync(conn, row: Mapping[str, Any] | None, t: Mapping[str, Any], now: dt.datetime) -> bool:
     """Bring one award's overdue signal up to date: raise `rfq.instalment_overdue` when an instalment that was not overdue at the last
-    look is now (returns True), resolve it when none is, otherwise only remember the set (`overdue_key`, no revision bump). Nothing is
-    overdue while the switch is off, the award is not final or the request is not awarded / ordered / closed."""
+    look is now (returns True), resolve it when none is, otherwise only remember the set (`overdue_key`, no revision bump). Owner
+    decision 2026-10-17 (not annoying): while the same instalments stay overdue the signal is raised AGAIN only once
+    `rfq.instalment_reminder_hours` passed since it last notified (`overdue_notified_at`); 0 = notify once only. Nothing is overdue while
+    the switch is off, the award is not final or the request is not awarded / ordered / closed."""
     a = store_rfq.award(conn, t["award_id"])
     idx: list[int] = []
     if enabled(conn) and a is not None and a["state"] == "approved" and row is not None and row["state"] in PAYMENT_RFQ:
@@ -933,13 +1071,16 @@ def overdue_sync(conn, row: Mapping[str, Any] | None, t: Mapping[str, Any], now:
     key = ",".join(str(i) for i in idx) or None
     prev = {int(x) for x in (t.get("overdue_key") or "").split(",") if x.strip().isdigit()}
     if not idx:
-        if t.get("overdue_key"):
+        if t.get("overdue_key") or t.get("overdue_notified_at"):
             rfq_notify.instalment_settled(conn, t["rfq_id"], t["award_id"])
-            store_rfq.set_overdue_key(conn, t["award_id"], None)
+            store_rfq.set_overdue_key(conn, t["award_id"], None, None)
         return False
-    if set(idx) - prev:
+    every = instalment_reminder_hours(conn)
+    last = parse(t.get("overdue_notified_at"))
+    again = every > 0 and last is not None and now - last >= dt.timedelta(hours=every)
+    if set(idx) - prev or again:
         rfq_notify.instalment_overdue(conn, row, t["award_id"], t["rfq_vendor_id"], count=len(idx))  # type: ignore[arg-type]
-        store_rfq.set_overdue_key(conn, t["award_id"], key)
+        store_rfq.set_overdue_key(conn, t["award_id"], key, iso(now))
         return True
     if key != t.get("overdue_key"):
         store_rfq.set_overdue_key(conn, t["award_id"], key)

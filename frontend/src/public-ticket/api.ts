@@ -220,7 +220,9 @@ export interface RfqTerms {
     /** RFQPAY2 (20.13): a manager moved this date after the award */
     date_changed?: boolean }[] };
   arrival: { state: 'awaiting' | 'proposed' | 'confirmed'; planned_from: string | null; planned_to: string | null; proposed_from: string | null; proposed_to: string | null;
-    rejected: boolean; confirmed_at: string | null; acknowledged_at: string | null };
+    rejected: boolean; confirmed_at: string | null; acknowledged_at: string | null;
+    /** RFQPAY2 (20.14): a manager moved the window after the award */
+    changed?: boolean };
   can: { confirm: boolean; propose: boolean };
 }
 

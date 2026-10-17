@@ -76,7 +76,9 @@ def test_only_a_costs_decider_may_demand_or_move_and_others_learn_nothing(s4):
     d, v1, tok, c, a = _awarded(s4)
     t = terms_of(s4, d["id"])
     assert t["can"]["demand"] is True and t["can"]["reschedule"] is True
-    assert terms_of(s4, d["id"], "mona")["can"] == {"decide_arrival": False, "reschedule": False, "demand": False}
+    assert terms_of(s4, d["id"], "mona")["can"] == {"decide_arrival": False, "reschedule": False, "demand": False, "reschedule_arrival": False,
+                                                    "notify_vendor": False}
+    assert terms_of(s4, d["id"], "mona")["notice"] is None
     r = demand(s4, d["id"], a["id"], 0, user="mona")  # an RFQ manager without tickets.costs: an audited 403
     assert r.status_code == 403 and r.json()["details"]["reason"] == "costs_permission_missing", r.text
     r = move(s4, d["id"], a["id"], 0, _day(7), user="mona", revision=t["revision"])
@@ -289,3 +291,185 @@ def test_the_retention_janitor_runs_the_overdue_scan(s4):
     with s4.db.connection() as conn:
         out = rfq.retention(conn, dt.datetime.now(dt.timezone.utc))
     assert out["instalments_overdue"] == 1
+
+
+# ---------------------------------------------------------------- owner decisions 2026-10-17: the optional vendor notice (20.13) and the
+# ---------------------------------------------------------------- arrival window moved after the award (20.14)
+
+def move_arrival(s4, rid: str, aid: str, work_from, user: str = "kim", revision: int | None = None, **body):
+    if revision is None:
+        revision = next(a for a in detail(s4, rid, "kim")["awards"] if a["id"] == aid)["terms"]["revision"]
+    return s4.c.post(f"{API}/tickets/rfqs/{rid}/awards/{aid}/arrival/date", json={"work_from": work_from, "revision": revision, **body},
+                     headers=s4.h(user))
+
+
+def _outbox(s4, rid: str) -> list[str]:
+    return [r["purpose"] for r in _rows(s4, "SELECT purpose FROM ticket_outbox WHERE rfq_id = ? ORDER BY rowid", rid)]
+
+
+def _own(s4, rid: str, uid: str = "dev-kim") -> None:
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_rfqs SET internal_owner_user_id = ? WHERE id = ?", (uid, rid))
+
+
+def test_an_arrival_move_is_refused_for_the_wrong_person_a_bad_window_a_stale_revision_or_a_finished_job(s4):
+    import uuid
+
+    from test_tickets_rfq_terms import _at
+
+    d, v1, tok, c, a = _awarded(s4)
+    rev = terms_of(s4, d["id"])["revision"]
+    r = move_arrival(s4, d["id"], a["id"], _at(9), user="mona", revision=rev)  # an RFQ manager without tickets.costs
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "costs_permission_missing", r.text
+    assert move_arrival(s4, d["id"], a["id"], _at(9), user="cleo", revision=rev).status_code == 404
+    for body, code in ((_at(-2), "range"), (_at(400), "range"), ("nonsense", None)):
+        r = move_arrival(s4, d["id"], a["id"], body, revision=rev)
+        assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "work_from", (body, r.text)
+        if code:
+            assert r.json()["details"]["fields"][0]["code"] == code
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, work_to=_at(8))
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "work_to", "code": "order"}], r.text
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev + 3)
+    assert r.status_code == 409 and r.json()["code"] == "rfq_stale"
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, message="שלום")  # a text without the tick would be dropped silently
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "message", "code": "not_allowed"}], r.text
+    _own(s4, d["id"])
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, notify_vendor=True, message="   ")
+    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "message", r.text
+    t = terms_of(s4, d["id"])
+    assert t["revision"] == rev and not t["arrival"]["changed_at"]  # nothing was written
+    # the work was marked done: the arrival is history
+    o = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order", json={"request_key": f"ord-{uuid.uuid4().hex[:16]}"}, headers=s4.h("mona"))
+    assert o.status_code == 201, o.text
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE tickets SET done_at = ? WHERE id = ?", (_at(0), o.json()["ticket"]["id"]))
+    t = terms_of(s4, d["id"])
+    assert t["can"]["reschedule_arrival"] is False
+    r = move_arrival(s4, d["id"], a["id"], _at(9), revision=t["revision"])
+    assert r.status_code == 409 and r.json()["code"] == "work_done", r.text
+
+
+def test_the_manager_moves_the_arrival_the_vendor_sees_it_marked_and_is_told_only_when_chosen(s4):
+    from test_tickets_rfq_terms import _at
+
+    d, v1, tok, c, a = _awarded(s4)
+    assert arrival(c, tok).status_code == 200  # he confirmed the planned window
+    before = _outbox(s4, d["id"]).count("rfq_update")
+    r = move_arrival(s4, d["id"], a["id"], _at(9), reason="שינוי בלוח הזמנים")  # default: the vendor is NOT told
+    assert r.status_code == 200, r.text
+    ar = r.json()["awards"][0]["terms"]["arrival"]
+    assert ar["planned_from"] == _at(9) and ar["state"] == "confirmed" and ar["confirmed_by"] == "manager" and ar["changed_at"]
+    assert _outbox(s4, d["id"]).count("rfq_update") == before
+    v = view(c, tok)["terms"]["arrival"]
+    assert v["changed"] is True and v["planned_from"] == _at(9)
+    ev = next(e for e in detail(s4, d["id"], "mona")["timeline"] if e["kind"] == "arrival_rescheduled")
+    assert ev["data"]["to"] == _at(9) and ev["data"]["reason"] == "שינוי בלוח הזמנים"
+    audit = json.loads(_rows(s4, "SELECT details_json FROM audit_log WHERE action = 'ticket.rfq.arrival_reschedule' AND decision = 'allowed'")[0]["details_json"])
+    assert audit["to_date"] == _at(9) and audit["has_reason"] is True and audit["vendor_notified"] is False
+    rev = terms_of(s4, d["id"])["revision"]
+    assert move_arrival(s4, d["id"], a["id"], _at(9)).status_code == 200 and terms_of(s4, d["id"])["revision"] == rev  # same window: no write
+    # the chosen notice: the manager's edited text in the thread + the templated rfq_update (the F7 path), in the same act
+    _own(s4, d["id"])
+    notice = terms_of(s4, d["id"])["notice"]
+    assert notice["arrival"] and notice["notify_default"] is False and "₪" not in notice["arrival"]
+    r = move_arrival(s4, d["id"], a["id"], _at(11), notify_vendor=True, message=notice["arrival"] + " תודה.")
+    assert r.status_code == 200, r.text
+    assert _outbox(s4, d["id"]).count("rfq_update") == before + 1
+    bodies = [m["body"] for m in _rows(s4, "SELECT body FROM ticket_rfq_messages WHERE rfq_vendor_id = ? AND direction = 'out' ORDER BY rowid", v1)]
+    assert bodies[-1] == notice["arrival"] + " תודה."
+    audits = [json.loads(x["details_json"]) for x in _rows(s4, "SELECT details_json FROM audit_log WHERE action = 'ticket.rfq.arrival_reschedule' "
+                                                               "AND decision = 'allowed' ORDER BY rowid")]
+    assert audits[-1]["vendor_notified"] is True
+
+
+def test_moving_the_arrival_supersedes_a_pending_proposal(s4):
+    from test_tickets_rfq_terms import _at
+
+    d, v1, tok, c, a = _awarded(s4)
+    assert arrival(c, tok, action="propose", work_from=_at(12)).status_code == 200
+    key = f"rfq:{d['id']}:arrival:{v1}"
+    assert _rows(s4, "SELECT state FROM notifications WHERE dedupe_key = ?", key)[-1]["state"] != "resolved"
+    r = move_arrival(s4, d["id"], a["id"], _at(10))
+    assert r.status_code == 200, r.text
+    ar = r.json()["awards"][0]["terms"]["arrival"]
+    assert ar["state"] == "awaiting" and ar["proposed_from"] is None and ar["planned_from"] == _at(10)
+    assert all(x["state"] == "resolved" for x in _rows(s4, "SELECT state FROM notifications WHERE dedupe_key = ?", key))
+    v = view(c, tok)["terms"]
+    assert v["can"]["confirm"] is True and v["arrival"]["changed"] is True  # he confirms the new window
+
+
+def test_an_instalment_move_tells_the_vendor_only_when_chosen_and_only_by_a_manager_who_may_message(s4, monkeypatch):
+    from smplwise.services.tickets import access
+
+    d, v1, tok, c, a = _awarded(s4)
+    sent = _outbox(s4, d["id"]).count("rfq_update")
+    with monkeypatch.context() as m:  # a costs decider who is NOT an RFQ manager of this request (the vendor-message rule)
+        m.setattr(access.Viewer, "is_manager", lambda self, row: False)
+        assert terms_of(s4, d["id"])["notice"] is None and terms_of(s4, d["id"])["can"]["notify_vendor"] is False
+        r = move(s4, d["id"], a["id"], 0, _day(7), notify_vendor=True, message="x")
+        assert r.status_code == 403 and r.json()["details"]["reason"] == "not_manager", r.text
+        assert move(s4, d["id"], a["id"], 0, _day(7)).status_code == 200  # without the tick the costs permission is enough
+    assert terms_of(s4, d["id"])["schedule"]["items"][0]["date"] == _day(7)
+    assert _outbox(s4, d["id"]).count("rfq_update") == sent
+    t = terms_of(s4, d["id"])
+    notice = t["notice"]
+    assert notice["instalment"] and t["can"]["notify_vendor"] is True
+    r = move(s4, d["id"], a["id"], 0, _day(6), notify_vendor=True, message="   ")  # the edited text is a real message (all or nothing)
+    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "message", r.text
+    assert terms_of(s4, d["id"])["schedule"]["items"][0]["date"] == _day(7)
+    r = move(s4, d["id"], a["id"], 1, _day(9), notify_vendor=True, message=notice["instalment"])
+    assert r.status_code == 200, r.text
+    assert _outbox(s4, d["id"]).count("rfq_update") == sent + 1
+    bodies = [m["body"] for m in _rows(s4, "SELECT body FROM ticket_rfq_messages WHERE rfq_vendor_id = ? AND direction = 'out' ORDER BY rowid", v1)]
+    assert bodies[-1] == notice["instalment"]
+    keys = [k["idempotency_key"] for k in _rows(s4, "SELECT idempotency_key FROM ticket_outbox WHERE rfq_id = ? AND purpose = 'rfq_update'", d["id"])]
+    assert keys and all(k.startswith(("rfqmsg:", "rfqarr:")) for k in keys)  # the existing message key - one notice per thread message
+
+
+# ---------------------------------------------------------------- owner decision 2026-10-17: the overdue reminder is not annoying
+
+def _set_rfq(s4, **keys):
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    return s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "rfq": keys})
+
+
+def test_the_reminder_interval_setting_refuses_out_of_range_values_and_defaults_to_24(s4):
+    for bad in (169, -1, "24", 2.5, True):
+        r = _set_rfq(s4, instalment_reminder_hours=bad)
+        assert r.status_code == 422, (bad, r.text)
+    assert s4.c.get(f"{API}/tickets/settings").json()["rfq"]["instalment_reminder_hours"] == 24
+    r = _set_rfq(s4, instalment_reminder_hours=0)
+    assert r.status_code == 200 and r.json()["rfq"]["instalment_reminder_hours"] == 0, r.text
+
+
+def test_the_overdue_signal_repeats_only_after_the_interval_and_0_means_once(s4):
+    d, v1, tok, c, a = _awarded(s4)
+    assert _set_rfq(s4, instalment_reminder_hours=12).status_code == 200
+    _backdate(s4, a, 0, -1)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+
+    def tick(hours: float) -> int:
+        with s4.db.connection() as conn:
+            return rfq_terms.overdue_tick(conn, now + dt.timedelta(hours=hours))
+
+    assert tick(0) == 1
+    assert tick(1) == 0 and tick(11.5) == 0  # still overdue, the interval has not passed: no re-notify
+    assert tick(12) == 1  # the interval passed and it is still overdue: notified again
+    assert tick(13) == 0 and tick(23.9) == 0
+    assert tick(24.1) == 1
+    with s4.db.connection(mode="read") as conn:
+        assert store_rfq.terms(conn, a["id"])["overdue_notified_at"]
+    rows = _rows(s4, "SELECT count, state FROM notifications WHERE dedupe_key = ?", _key(d, a))
+    assert rows and rows[-1]["state"] != "resolved" and sum(r["count"] for r in rows) >= 3  # through the engine, folded per award
+    # 0 = once only: no repeat however long it stays overdue; a NEW overdue instalment still notifies
+    assert _set_rfq(s4, instalment_reminder_hours=0).status_code == 200
+    assert tick(100) == 0 and tick(150) == 0  # (before the progress instalment's own day, 8 days out)
+    _backdate(s4, a, 1, -1)
+    assert tick(501) == 1 and tick(900) == 0
+    # paid: resolved, and the memory of the last notice is cleared
+    for i in (0, 1):
+        assert demand(s4, d["id"], a["id"], i).status_code == 200
+        assert demand(s4, d["id"], a["id"], i, "paid").status_code == 200
+    with s4.db.connection(mode="read") as conn:
+        t = store_rfq.terms(conn, a["id"])
+        assert t["overdue_key"] is None and t["overdue_notified_at"] is None

@@ -257,12 +257,14 @@ arithmetic only (money.py); a quote in another currency is shown and never ranke
 ## 13. Settings (`tickets.settings`, section `rfq`)
 
 `default_due_days` (1-60, default 3), `grace_hours` (0-168, 24), `link_keep_days` (1-365, 30), `retention_months` (6-120, 24),
-`reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off). Department: `rfq_second_approval_minor` (section 7). The allowed line
+`reminder_hours` (0-168, 24 - C2's automatic reminder; 0 = off), `instalment_reminder_hours` (0-168, 24 - RFQPAY2 20.12: hours between
+two overdue-instalment reminders of one award; 0 = once only). Department: `rfq_second_approval_minor` (section 7). The allowed line
 kinds default is DETAIL's (`costs.allowed_line_kinds` <- department <- the RFQ).
 
 Audit actions (ids, states, totals, counts - never a text; the PUBLIC vendor rows of 15.4 carry ids / versions / states / counts only, never an amount): `ticket.rfq.create`, `.edit`, `.vendor_add`, `.vendor_remove`, `.send`,
 `.remind`, `.link_revoke`, `.quote_on_behalf`, `.quote_withdraw`, `.decline_on_behalf`, `.award`, `.award_confirm`, `.award_decline`,
-`.cancel`, `.close`, `.message`, `.delete`, `.department`.
+`.cancel`, `.close`, `.message`, `.delete`, `.department` (+ v1.4 / v1.5: `.vendor_arrival`, `.arrival_decide`, `.instalment_demand`,
+`.instalment_reschedule`, `.arrival_reschedule`).
 
 ## 15. Public vendor page (stage C2, TKRFQVP)
 
@@ -976,6 +978,13 @@ not overdue at its last look is (the set is kept in `ticket_rfq_award_terms.over
 a demand action or a moved date brings it up to date at once; it is resolved when nothing of the award is overdue, when the switch is
 turned off (the next janitor pass), and by a cancel / delete / purge of the request (`rfq_notify.payments_ended`).
 
+Repeat interval (owner decision 2026-10-17, "not annoying"): installation setting `rfq.instalment_reminder_hours` (0-168, default 24;
+`PUT /tickets/settings` `{rfq: {instalment_reminder_hours}}`, StrictInt - a string / float / bool is 422; out of range 422; Settings ->
+the RFQ card). While the SAME instalments stay overdue the row is raised again only once that many hours passed since it last notified
+(`ticket_rfq_award_terms.overdue_notified_at`, migration 0112, no revision bump); 0 = notify once only. A NEW overdue instalment always
+notifies at once. A resolved award clears `overdue_key` and `overdue_notified_at`. The re-notification goes through the engine with the
+same dedupe key (folded on the open row; the engine's channels and quiet hours decide the delivery).
+
 ### 20.13 A manager moves an instalment's planned date (v1.5, RFQPAY2)
 
 `POST /tickets/rfqs/{id}/awards/{award_id}/instalments/{index}/date` `{date: "YYYY-MM-DD", reason?: <= 500, revision (of the terms)}` -
@@ -986,10 +995,38 @@ again = nothing written. The schedule item keeps the AGREED day in `agreed_date`
 `date_changed_at`; moving back to the agreed day removes both. The quote's copy (`payment_schedule_json`, the 20.8 basis) and an open
 demand's `due_date` follow. Timeline `instalment_rescheduled` (`{award_id, index, kind, from, to, reason?}` - the managers' timeline only),
 audit `ticket.rfq.instalment_reschedule` (`award_id`, `instalment_index`, `from_date`, `to_date`, `has_reason` - never an amount or the
-reason text). Answer: the detail. Nothing is sent to the vendor (no notice, no new purpose); his page (`GET /t/api/rfq` `terms.schedule.
-items[]`) shows the new day with `date_changed: true`, and never the agreed day or the reason. The acknowledgement is NOT reset: the
-schedule hash (F10) is computed with each moved item's `agreed_date` in place of its `date` (an unmoved schedule hashes exactly as before),
-so the vendor's acknowledgement of the agreed terms stays valid - a moved date is the manager's unilateral record, not new terms.
+reason text; + `vendor_notified`). Answer: the detail. His page (`GET /t/api/rfq` `terms.schedule.items[]`) shows the new day with
+`date_changed: true`, and never the agreed day or the reason. The acknowledgement is NOT reset: the schedule hash (F10) is computed with
+each moved item's `agreed_date` in place of its `date` (an unmoved schedule hashes exactly as before), so the vendor's acknowledgement of
+the agreed terms stays valid - a moved date is the manager's unilateral record, not new terms.
+
+**The optional vendor notice (owner decision 2026-10-17 - the manager chooses).** The body may add `notify_vendor: bool` (default
+**false**) and `message` (<= 2000 after trim, the edited preview). Without the tick nothing is sent, and a `message` without it is 422
+`{field: "message", code: "not_allowed"}` (never silently dropped). With the tick, BEFORE anything is written: the caller must also be an
+RFQ manager of the request (the vendor-message rule, section 6 - audited 403 `not_manager` / `external_permission_missing`), the vendor
+reachable in the thread (409 `vendor_unreachable`), and `message` a valid thread text (422 `message`). Then, in the same transaction as the
+move: the text goes to the vendor's private thread (`source: {kind: "award", id}`) and the EXISTING templated `rfq_update` notice ("there
+is a new message about your quote" + his link) is queued - the F7 / vendor-message path: no free text leaves the system, the send-hours
+rules of the outbox apply, idempotency key `rfqmsg:<message id>` (one notice per thread message), no new purpose, a manual channel or a
+dead link queues nothing; a queued notice starts the arrival-confirmation clock like any award-sourced message (20.7). The preview:
+detail `terms.notice` = `{lang, instalment, arrival, notify_default: false}` (the vendor's language he / en / ar / ru - ar / ru developer
+translations; no amount, no date), present for a viewer with `can.notify_vendor` (tickets.costs + view AND an RFQ manager), else null.
+A repeated request is refused by the revision (409 `rfq_stale`), so a double click never sends twice.
+
+### 20.14 A manager moves the planned ARRIVAL window after the award (v1.5, RFQPAY2 - owner decision 2026-10-17)
+
+`POST /tickets/rfqs/{id}/awards/{award_id}/arrival/date` `{work_from, work_to?, reason?: <= 500, revision (of the terms), notify_vendor?,
+message?}` - tickets.costs + view (audited 403), the 20.11 states (404 `terms_not_found`, 409 `terms_closed`). 409 `work_done` once the
+order's ticket has `done_at` (`terms.can.reschedule_arrival` false); 409 `rfq_stale`; `work_from` an instant whose day in the installation
+zone is today .. today + 366 (422 `{field: "work_from", code: range | format | required}`), `work_to` not before it (422 `work_to`
+`order`). The same window again = nothing written. State: `awaiting` stays (the vendor confirms the new window, his reminders continue);
+a pending `proposed` date is superseded (-> `awaiting`, `proposed_*` cleared, his `rfq.arrival` row resolved); `confirmed` stays confirmed
+with `confirmed_by: "manager"`, `confirmed_at` now (and the order's ticket gets the `rfq_arrival_confirmed` timeline row with the new
+window). `ticket_rfq_award_terms.arrival_changed_at` (migration 0112) marks it: the managers' `terms.arrival.changed_at`, the vendor's
+`terms.arrival.changed: true` (his page shows "date changed"). Timeline `arrival_rescheduled` (`{award_id, from, to, reason?}`), audit
+`ticket.rfq.arrival_reschedule` (`award_id`, `from_date`, `to_date`, `has_reason`, `vendor_notified` - never the reason text). The optional
+vendor notice: exactly as 20.13 (preview `terms.notice.arrival`). Known limit: a work order already SENT keeps the old window in its
+message (nothing is re-sent); the order's ticket timeline records the new window only for a confirmed arrival.
 
 ## 21. Vendor questions (v1.4, RFQQUESTIONS - owner report 2026-10-17)
 
@@ -1072,6 +1109,10 @@ hours - never the text or the vendor. The engine applies each recipient's channe
   moves a dated instalment's planned day after the award (audited, reason optional, the vendor sees `date_changed`; the acknowledgement
   stays bound to the agreed terms). Detail `terms.schedule.items[]` gains `demand`, `due_date`, `overdue`, `agreed_date`,
   `date_changed_at`; `terms.can` gains `demand`, `reschedule`; the public `terms.schedule.items[]` gains `date_changed`.
+  Second commit (owner decisions 2026-10-17): 20.13 the optional vendor notice of a moved date (`notify_vendor` default off + the edited
+  `message`, the F7 path; preview `terms.notice`); 20.14 the arrival window moved after the award (new route, `arrival_changed_at`, public
+  `terms.arrival.changed`); 20.12 the repeat interval `rfq.instalment_reminder_hours` (default 24, 0 = once; `overdue_notified_at`).
+  `terms.can` gains `reschedule_arrival`, `notify_vendor`; `terms.arrival` gains `changed_at`. Migration 0112 edited in place (unreleased).
 
 * v1.4.1 (2026-10-17, the review fixes merged at integ/264; no new migration file):
   * (2026-10-17, `pilot/RFQPAY-FIX`, review `RELEASE_264_REVIEW_RFQPAY` F1-F11 + the lead's owner answers; merged at integ/264,

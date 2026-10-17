@@ -26,6 +26,7 @@
     POST   /tickets/rfqs/{id}/awards/{award_id}/arrival                CR-RFQ-PAYMENT-SCHEDULE: accept / reject the vendor's proposed date
     POST   /tickets/rfqs/{id}/awards/{award_id}/instalments/{i}/date   RFQPAY2: move a dated instalment's day (tickets.costs + view)
     POST   /tickets/rfqs/{id}/awards/{award_id}/instalments/{i}/demand RFQPAY2: the instalment's payment demand - create / paid / cancel
+    POST   /tickets/rfqs/{id}/awards/{award_id}/arrival/date           RFQPAY2: move the planned arrival window (tickets.costs + view)
     POST   /tickets/rfqs/{id}/awards/{award_id}/order                  TKRFQ4: open the vendor's service request (idempotent; sends nothing)
     GET    /tickets/rfqs/{id}/awards/{award_id}/order/preview          TKRFQ4: the exact order message, its channel, the refusals
     POST   /tickets/rfqs/{id}/awards/{award_id}/order/send             TKRFQ4: the explicit send of the order message
@@ -572,6 +573,8 @@ class InstalmentDateBody(BaseModel):
     date: str = Field(min_length=1, max_length=10)
     reason: str | None = Field(default=None, max_length=rfq_terms.REASON_MAX)
     revision: int = Field(ge=1)
+    notify_vendor: bool = False  # owner decision 2026-10-17: the manager chooses; default off
+    message: str | None = Field(default=None, max_length=5000)  # the edited preview (terms.notice.*) - the vendor's thread only
 
 
 @router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/instalments/{index}/date")
@@ -579,10 +582,33 @@ def post_instalment_date(body: InstalmentDateBody, request: Request, rfq_id: str
                          index: int = Path(..., ge=0, le=5), principal: Principal = Depends(current_principal),
                          conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """RFQPAY2 (contract 20.13): tickets.costs + view moves a dated instalment's planned day after the award (audited, reason optional).
-    Sends nothing; the vendor's page shows the new day with a "changed" marker."""
+    The vendor's page shows the new day with a "changed" marker; he is told only with `notify_vendor` (the F7 notice path)."""
     viewer = Viewer(conn, principal)
     seen = rfq.require_visible(viewer, rfq_id)
-    rfq_terms.reschedule(conn, viewer, seen, award_id, index, body.date, body.reason, body.revision, _rid(request))
+    rfq_terms.reschedule(conn, viewer, seen, award_id, index, body.date, body.reason, body.revision, _rid(request),
+                         notify=body.notify_vendor, message=body.message)
+    return _detail(conn, viewer, rfq_id)
+
+
+class ArrivalDateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    work_from: str = Field(min_length=1, max_length=40)
+    work_to: str | None = Field(default=None, max_length=40)
+    reason: str | None = Field(default=None, max_length=rfq_terms.REASON_MAX)
+    revision: int = Field(ge=1)
+    notify_vendor: bool = False
+    message: str | None = Field(default=None, max_length=5000)
+
+
+@router.post("/tickets/rfqs/{rfq_id}/awards/{award_id}/arrival/date")
+def post_arrival_date(body: ArrivalDateBody, request: Request, rfq_id: str = Path(..., pattern=ID), award_id: str = Path(..., pattern=ID),
+                      principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """RFQPAY2 (contract 20.14, owner decision 2026-10-17): tickets.costs + view moves the planned ARRIVAL window after the award
+    (audited, reason optional, not after the work was marked done); the vendor is told only with `notify_vendor`."""
+    viewer = Viewer(conn, principal)
+    seen = rfq.require_visible(viewer, rfq_id)
+    rfq_terms.reschedule_arrival(conn, viewer, seen, award_id, body.work_from, body.work_to, body.reason, body.revision, _rid(request),
+                                 notify=body.notify_vendor, message=body.message)
     return _detail(conn, viewer, rfq_id)
 
 
