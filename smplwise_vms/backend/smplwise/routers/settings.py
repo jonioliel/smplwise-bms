@@ -982,6 +982,8 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     if "security.local_identity_extended" in changes:
         # SVCIDENT2: the extended mode of the service identity widens what every Arx-only user may do in Home Assistant - like the switch
         # itself, a system administrator only; like the sign-in shaping keys, the local channel only; audited `identity.service_identity.*`
+        from ..services import service_identity as service_identity_svc
+
         current_ext = "on" if (get_setting(conn, "security.local_identity_extended", "off") or "off") == "on" else "off"
         if changes["security.local_identity_extended"] == current_ext:
             changes.pop("security.local_identity_extended")
@@ -993,6 +995,12 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
                 audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
                       reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"to": changes["security.local_identity_extended"]})
                 raise ApiError(403, "forbidden", "רק מנהל מערכת יכול להפעיל או לכבות את המצב המורחב של משתמשי Arx.")
+            if changes["security.local_identity_extended"] == "on" and not service_identity_svc.extended_go_live_permitted():
+                # integ/270 (2.7.0 security review S7): the go-live guard - after the authority checks, this build refuses to turn the
+                # extended mode on (turning it off always works); the stored value stays as it is; one audit row
+                audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="denied", resource_type="installation", resource_id="service_identity",
+                      reason="extended_not_permitted", request_id=getattr(request.state, "correlation_id", None), details={"to": "on"})
+                raise ApiError(409, "extended_not_permitted", "המצב המורחב של משתמשי Arx אינו זמין בגרסה הזו: הוא יופעל רק אחרי השלמת תיקוני האבטחה הנדרשים.")
             audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="allowed", resource_type="installation", resource_id="service_identity",
                   request_id=getattr(request.state, "correlation_id", None), details={"from": current_ext, "to": changes["security.local_identity_extended"]})
     if "security.local_public_url" in changes:

@@ -65,6 +65,13 @@ NEVER_LOCAL_EXTENDED = frozenset({AREA_WRITE})
 EXTENDED_SETTING = "security.local_identity_extended"
 BRIDGE_EXTENDED = "bridge.local_identity_extended"  # what the bridge reported in its last directory push (its options-flow copy)
 BRIDGE_EXTENDED_REQUIRED = "0.9.1"
+# integ/270 (2.7.0 security review S7): the code-level go-live guard of the extended mode, the GO_LIVE_PERMITTED pattern of
+# services/access_grants.py. While False the add-on switch cannot be turned on (PATCH /settings answers 409 `extended_not_permitted`) and
+# extended_on() is False whatever the stored value says - everything behaves exactly as 2.6.4. It is flipped only in the commit that lands
+# the review's S1 (a per-installation allowlist of runnable scripts / scenes / automations, default empty, + the bridge-side impact check)
+# and S2 (the service user's HA entity-policy check in the bridge's execute handler), together with the owner-approved amendment of
+# docs/security/HA_IDENTITY_RBAC_HE.md sections 7-8 (CR-USR2 section 11.8).
+EXTENDED_GO_LIVE_PERMITTED = False
 ALARM_PAIRS = frozenset({
     ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_arm_night"),
     ("alarm_control_panel", "alarm_arm_vacation"), ("alarm_control_panel", "alarm_disarm"),
@@ -205,11 +212,19 @@ def extended_requested(conn: sqlite3.Connection) -> bool:
         return False
 
 
+def extended_go_live_permitted() -> bool:
+    """integ/270 (review S7): whether this build may run the extended mode at all (EXTENDED_GO_LIVE_PERMITTED, False in 2.7.0)."""
+    return EXTENDED_GO_LIVE_PERMITTED is True
+
+
 def extended_on(conn: sqlite3.Connection) -> bool:
     """SVCIDENT2: the extended mode is in force only while BOTH Arx-only identities (`security.local_identity`) and the extended switch are
-    on. The bridge decides again with its own options-flow copy (both must agree, else the bridge refuses: fail closed)."""
+    on. The bridge decides again with its own options-flow copy (both must agree, else the bridge refuses: fail closed). integ/270 (S7):
+    and only in a build whose go-live permit is set - never in 2.7.0."""
     from . import local_identity
 
+    if not extended_go_live_permitted():
+        return False
     return extended_requested(conn) and local_identity.enabled(conn)
 
 
@@ -569,7 +584,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         "bridge": {"paired": paired, "version": bridge_version, "required": BRIDGE_SERVICE_IDENTITY_REQUIRED, "version_ok": bridge_ok,
                    "capable": bridge_capable, "reported_user_id": bridge_reported, "agrees": bool(sid) and bridge_reported == sid},
         "feature_on": local_identity.enabled(conn),
-        "extended": {"requested": ext_requested, "on": ext_on, "bridge_on": bridge_ext, "bridge_version_ok": bridge_ext_ok,
+        "extended": {"permitted": extended_go_live_permitted(), "requested": ext_requested, "on": ext_on, "bridge_on": bridge_ext, "bridge_version_ok": bridge_ext_ok,
                      "agrees": ext_requested == bridge_ext, "required": BRIDGE_EXTENDED_REQUIRED},
         "ready": ready,
         "steps": steps,

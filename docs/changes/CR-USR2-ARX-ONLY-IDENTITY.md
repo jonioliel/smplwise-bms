@@ -656,3 +656,40 @@ switch is system-admin / local-channel only and audited; the drift of the never-
 routes through the real bridge screen + config_item handler (switch off = refused as before; the bridge copy off = 503; the bridge's own copy
 off = refused there; on = sent as the service identity under `automations.run`), writes / enable / disable / stop still refused with the switch
 on, no run permission = refused, an HA user with `alarm.arm` only refused `arm_custom_bypass`.
+
+### 11.9 The go-live guard and what must land before the switch may be turned on (integ/270, 2.7.0 security review)
+
+The consolidated 2.7.0 security review (`private/planning/RELEASE_270_REVIEW_CONSOLIDATED.md`, findings S1-S7) found that the extended
+mode, as built, cannot be enabled consistently with `docs/security/HA_IDENTITY_RBAC_HE.md` sections 7 and 8 (finding **S1**, HIGH: a script,
+scene or automation run widens an Arx-only user's reach to everything the referenced item does - e.g. a script that unlocks every door - with no
+Arx grant checked). The switch therefore ships in 2.7.0 behind a code constant, like `services/access_grants.GO_LIVE_PERMITTED`:
+
+- `services/service_identity.EXTENDED_GO_LIVE_PERMITTED = False` (finding **S7**). While it is False, `PATCH /api/v1/settings` refuses
+  `security.local_identity_extended = "on"` with **409 `extended_not_permitted`** (after the existing local-channel and system-administrator
+  checks; one audit row `identity.service_identity.extended_switch`, denied, reason `extended_not_permitted`; nothing is stored), turning it
+  `off` always works, and `extended_on()` answers False whatever the stored value says - every Arx-only user is refused exactly as in 2.6.4.
+  The self-check reply carries `extended.permitted` (False). Tests (negative first, red before the guard):
+  `tests/test_service_identity_extended.py::test_the_extended_mode_ships_without_the_go_live_permit`,
+  `::test_the_switch_cannot_be_turned_on_without_the_go_live_permit`, `::test_a_stored_on_value_changes_nothing_without_the_go_live_permit`
+  (every extended item); the tests that describe the enabled behaviour run with the permit monkeypatched on.
+- The constant is flipped ONLY in the commit that lands all of the following, each with its own tests:
+  1. **S1 (a)** a per-installation allowlist of the script / scene / automation entity ids that Arx-only users may run
+     (`security.local_identity_runnable`, **default empty**, edited by a system administrator on the local channel, audited), enforced in
+     `_local_subject` with the entity id passed into the feature check;
+  2. **S1 (b)** a bridge-side impact check for a screened `script.turn_on` / `run_script` / `trigger`: the item's configured sequence is read
+     and the call refused (`service_identity_refused`, reason `impact`) when it names a service outside that person's extended allow-list
+     (lock, alarm panel, intercom, a script that calls a script) unless the allowlist row says so;
+  3. **S2** the service user's Home Assistant entity-policy check in the bridge's `execute` handler for every message screened on behalf of an
+     Arx-only person (`permissions.check_entity(entity_id, POLICY_CONTROL)` - a second fence independent of Arx's scope computation);
+  4. **S1 (c)** the amendment of `docs/security/HA_IDENTITY_RBAC_HE.md` sections 7-8 proposed in the review (the conditional paragraph after
+     section 8 paragraph 3: the section 7/8 defaults hold for Arx-only users; the extension only with both switches on, the action's own
+     dedicated permission, the runnable allowlist + the bridge impact check, and the service user's entity policy), **approved by the owner as
+     a change request**. The security document itself is NOT edited by this integration.
+  Also before enabling (2.7.1): S4 (the card says doors follow the add-on switch alone), S5 (a stream a local user enabled is removed when the
+  mode goes off; no audit row per refresh). S6 (an HA user now needs `alarm.bypass` for `arm_custom_bypass`) ships in 2.7.0 and is named in
+  the bilingual release notes; the UI follow-up hides that arming mode from a caller without the permission.
+- Bridge: 2.7.0 ships this branch's bridge as **0.9.1** (finding S3: the key-rotation branch, which also claimed 0.9.1, is not in 2.7.0 and
+  becomes 0.9.2 when it lands). Manifest, `const.VERSION`, the card's `VERSION` and every `test_bridge_*` pin say 0.9.1; the two copies
+  (`custom_components/smplwise_bridge`, `smplwise_vms/integration/smplwise_bridge`) are byte-identical. The bridge's own options-flow switch
+  is not guarded by the add-on constant, but the add-on never sends an extended item while `extended_on()` is False, so the bridge copy alone
+  changes nothing (section 11.2).

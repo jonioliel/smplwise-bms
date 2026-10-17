@@ -48,6 +48,48 @@ def _audit(db, action: str) -> list[dict]:
         return [dict(r) for r in conn.execute("SELECT actor_user_id, decision, reason, details_json FROM audit_log WHERE action = ? ORDER BY rowid", (action,))]
 
 
+@pytest.fixture(autouse=True)
+def _go_live_permit(request, monkeypatch):
+    """integ/270 (2.7.0 security review S7): the extended mode ships with `EXTENDED_GO_LIVE_PERMITTED = False`. The tests below that
+    describe the FUTURE enabled behaviour run with the permit set (like test_access_grants' GO_LIVE_PERMITTED); the tests named
+    `..._without_the_go_live_permit` run with the value this build ships."""
+    if "without_the_go_live_permit" not in request.node.name:
+        monkeypatch.setattr(si, "EXTENDED_GO_LIVE_PERMITTED", True)
+
+
+# ---------------------------------------------------------------- 0. the go-live guard (S7): in 2.7.0 the mode cannot be turned on
+
+def test_the_extended_mode_ships_without_the_go_live_permit():
+    assert si.EXTENDED_GO_LIVE_PERMITTED is False
+    assert si.extended_go_live_permitted() is False
+
+
+def test_the_switch_cannot_be_turned_on_without_the_go_live_permit(lx_app):
+    lx = lx_app
+    lx.enable()
+    r = lx.admin.patch("/api/v1/settings", json={"security.local_identity_extended": "on"})
+    assert r.status_code == 409 and r.json()["code"] == "extended_not_permitted", r.text
+    assert lx.admin.get("/api/v1/settings").json()["settings"]["security.local_identity_extended"] == "off"  # nothing stored
+    created, c = lx.ready("maria", "site_admin")
+    assert c.patch("/arx/api/v1/settings", json={"security.local_identity_extended": "on"}).status_code == 403  # the authority checks come first
+    assert lx.admin.patch("/api/v1/settings", json={"security.local_identity_extended": "off"}).status_code == 200  # off always works
+    rows = lx.rows("SELECT decision, reason FROM audit_log WHERE action = 'identity.service_identity.extended_switch' ORDER BY rowid")
+    assert not [row for row in rows if row["decision"] == "allowed"]  # never an allowed switch to on
+
+
+@pytest.mark.parametrize("feature,service,item", EXT_ITEMS)
+def test_a_stored_on_value_changes_nothing_without_the_go_live_permit(db, feature, service, item):
+    _seed(db)
+    _ext(db, on=True, bridge_on=True)  # as if a later build had stored it (both copies on, a 0.9.1 bridge)
+    with db.connection(mode="read") as conn:
+        assert si.extended_requested(conn) is True and si.extended_on(conn) is False
+        assert si.status(conn)["extended"]["permitted"] is False and si.status(conn)["extended"]["on"] is False
+    assert _code(db, _local(), feature=feature, service=service, item=item) == "service_identity_refused"  # exactly the 2.6.4 refusal
+    expected = "never_local" if item in si.NEVER_LOCAL else "service_identity_refused"
+    assert _audit(db, "identity.service_identity.refused")[-1]["reason"] == expected
+    assert _audit(db, "identity.service_identity.extended") == []
+
+
 # ---------------------------------------------------------------- 1. switch off: exactly the 2.6.4 refusals
 
 @pytest.mark.parametrize("feature,service,item", EXT_ITEMS)
@@ -184,7 +226,7 @@ def test_the_self_check_shows_both_copies_and_the_lists_follow_the_mode(db):
     _seed(db)
     with db.connection(mode="read") as conn:
         st = si.status(conn)
-    assert st["extended"] == {"requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.1"}
+    assert st["extended"] == {"permitted": True, "requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.1"}
     assert {a["key"] for a in st["allowed"]} == set(si.FEATURES) and not any(s["code"].startswith("extended") for s in st["steps"])
     _ext(db, bridge_on=False)
     with db.connection(mode="read") as conn:
