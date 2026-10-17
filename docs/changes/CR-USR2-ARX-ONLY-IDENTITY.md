@@ -687,7 +687,8 @@ Arx grant checked). The switch therefore ships in 2.7.0 behind a code constant, 
      a change request**. The security document itself is NOT edited by this integration.
   Also before enabling (2.7.1): S4 (the card says doors follow the add-on switch alone), S5 (a stream a local user enabled is removed when the
   mode goes off; no audit row per refresh). S6 (an HA user now needs `alarm.bypass` for `arm_custom_bypass`) ships in 2.7.0 and is named in
-  the bilingual release notes; the UI follow-up hides that arming mode from a caller without the permission.
+  the bilingual release notes; the panel list no longer offers that arming mode to a caller without the permission
+  (`pilot/ALARM-ARMMODES`, merged in the same release).
 - Bridge: 2.7.0 ships this branch's bridge as **0.9.1** (finding S3: the key-rotation branch, which also claimed 0.9.1, is not in 2.7.0 and
   becomes 0.9.2 when it lands). Manifest, `const.VERSION`, the card's `VERSION` and every `test_bridge_*` pin say 0.9.1; the two copies
   (`custom_components/smplwise_bridge`, `smplwise_vms/integration/smplwise_bridge`) are byte-identical. The bridge's own options-flow switch

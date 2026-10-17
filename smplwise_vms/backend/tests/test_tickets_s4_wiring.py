@@ -424,7 +424,8 @@ def test_w17_the_slice4_public_modules_read_bodies_with_the_strict_readers():
         text = (SMPLWISE / "services" / "tickets" / name).read_text(encoding="utf-8")
         assert "await request.body()" not in text and "await request.json()" not in text, name
     routes = (SMPLWISE / "services" / "tickets" / "public_routes.py").read_text(encoding="utf-8")
-    assert routes.count("await read_json(request,") == 4 and routes.count("parse_client_request_id(") == 4
+    # integ/270: + WISKEYID POST /t/api/arrival (strict reader + client request id), so five of each
+    assert routes.count("await read_json(request,") == 5 and routes.count("parse_client_request_id(") == 5
 
 
 # ---------------------------------------------------------------- the add-on option
