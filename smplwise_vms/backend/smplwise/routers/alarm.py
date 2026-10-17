@@ -403,7 +403,8 @@ def verify_code_for(conn: sqlite3.Connection, principal: Principal, settings: An
     return plan["prompt"]
 
 
-def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dict[str, Any], send_code: str | None, client_request_id: str, attributes: dict[str, Any] | None) -> dict[str, Any]:
+def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dict[str, Any], send_code: str | None, client_request_id: str, attributes: dict[str, Any] | None,
+          feature: str = "alarm") -> dict[str, Any]:
     """The device-action path: allow-list, ha_actions record (never the code), signed bridge call, honest status."""
     conn, principal = act.conn, act.principal
     settings = settings_of(request)
@@ -412,9 +413,10 @@ def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dic
     spec, data = ha_bridge.validate_action(action_id, entity_id, args)
     # USR2 P3 (owner answer Q4): a local (Arx-only) principal arms / disarms through the service identity - after the same Arx permission, remote
     # rules and PIN rules as everyone (all checked by the callers above); the `alarm` feature holds arm / disarm only (no `arm_custom_bypass`:
-    # security review F1); the zone-bypass route refuses a local principal itself before reaching here
+    # security review F1); the zone-bypass route refuses a local principal itself before reaching here. SVCIDENT2: with the extended mode on,
+    # `alarm` also holds `arm_custom_bypass` (the panel route asks alarm.bypass for it first) and the zone-bypass route sends as `alarm.bypass`
     try:
-        subj = service_identity.subject(conn, principal, "alarm", bridge_service="execute", item=(spec["domain"], spec["service"]),
+        subj = service_identity.subject(conn, principal, feature, bridge_service="execute", item=(spec["domain"], spec["service"]),
                                         request_id=getattr(request.state, "correlation_id", None))
     except ApiError as exc:
         raise act.refuse(exc) from None
@@ -471,6 +473,12 @@ def panel_action(entity_id: str, request: Request, principal: Principal = Depend
     if not scope.allowed(perm, entity_id):
         require(conn, principal, perm, INSTALLATION)  # the audited 403
     note_grant(scope.decision(perm, entity_id), perm)
+    if (body.action == "arm_custom_bypass" and not scope.allowed(BYPASS, entity_id)
+            and (not service_identity.is_local(principal) or service_identity.extended_on(conn))):
+        # SVCIDENT2 (owner decisions 2 and, second round, 4 - 2026-10-17): arming with the bypass set is a zone bypass, so it needs alarm.bypass on
+        # the panel in addition to alarm.arm - for a Home Assistant user always, for an Arx-only user in the extended mode (with the mode off the
+        # service identity refuses an Arx-only user exactly as in 2.6.4)
+        require(conn, principal, BYPASS, INSTALLATION)
     cfg = _settings(conn)
     blocked = _remote_block(principal, cfg, "disarm" if disarm else "arm")
     if blocked:
@@ -609,7 +617,7 @@ def zone_bypass(zone_entity_id: str, request: Request, principal: Principal = De
         action_id, args = "select.select_option", {"option": option}
     row = conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (ctl["entity_id"],)).fetchone()
     attrs = json.loads(row["attributes_json"] or "{}") if row else {}
-    return _send(act, request, ctl["entity_id"], action_id, args, None, body.client_request_id, attrs)
+    return _send(act, request, ctl["entity_id"], action_id, args, None, body.client_request_id, attrs, feature="alarm.bypass")
 
 
 # ---------------------------------------------------------------- the caller's own code settings

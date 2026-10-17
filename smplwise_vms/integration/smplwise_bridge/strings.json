@@ -33,7 +33,8 @@
         "description": "Home Assistant lets only administrators write automations, scenes and scripts. When the first switch is on, the SmplWise Arx add-on may save them for the household members it has granted that permission, for the floors they are limited to. Only content of the simple builder is saved for them; anything advanced still needs an administrator. Off by default; only an administrator can change it, here.\n\nService identity (optional): the id of ONE Home Assistant user who is NOT an administrator (Settings > People > Users, advanced mode shows the id). SmplWise Arx users who have no Home Assistant account act through it - only device control, the alarm, media, casting and schedules, never automations. Enter the same id in the add-on (Settings > Arx users). Leave empty to refuse every such request.",
         "data": {
           "delegated_authoring": "Let Arx save automations, scenes and scripts for users who are not administrators - simple-builder content only",
-          "service_user_id": "Service identity: Home Assistant user id (not an administrator)"
+          "service_user_id": "Service identity: Home Assistant user id (not an administrator)",
+          "local_identity_extended": "Extended mode for Arx-only users: doors, alarm zone bypass, scripts and scenes, live camera source (under each user's Arx permission; a security review is required before turning it on)"
         }
       }
     },

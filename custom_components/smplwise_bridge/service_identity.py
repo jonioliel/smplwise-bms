@@ -21,6 +21,14 @@ compared by a drift test):
 - NEVER_LOCAL (zone-bypass arming, doors, scripts, scenes) is refused for a local identity before any feature table is consulted.
 - Automation / script / scene writes and runs (`config_item`) are never available to a local identity (`automation_write_requires_ha_identity`),
   nor is the area registry write (`set_entity_area`) or the camera stream source (`stream_source`).
+- 0.9.1 (SVCIDENT2, owner decisions 2026-10-17): the options-flow switch `local_identity_extended` (off by default; only an HA administrator
+  opens the options flow). With it ON the never-list shrinks to the area write (NEVER_LOCAL_EXTENDED) and EXTENDED_FEATURES applies: doors
+  (`lock.unlock`), `script.turn_on` / `scene.turn_on`, `alarm_arm_custom_bypass`, a zone's bypass control (`alarm.bypass`) and the camera
+  stream source (`cameras.live`; the stream-source handler then waives its administrator rule for that screened message only), and running
+  from the automations screen (`automations.run`: the `config_item` ops `trigger`, `run_script`, `apply_scene` only - every write,
+  `enable` / `disable` and `stop_script` stay `automation_write_requires_ha_identity` in both modes). The add-on
+  has its own copy of the switch: both must be on. Residual risks (CR-USR2 section 11): `execute` has no per-entity check, and a script /
+  scene can do anything the service user can. A security review is required before the switch is turned on.
 
 Dependency-free (no Home Assistant import), so the same functions run in plain unit tests. Refusals log the code only.
 """
@@ -45,6 +53,11 @@ OBO_KEYS = frozenset({"kind", "user_id", "feature"})
 NEVER_LOCAL = frozenset({
     ("alarm_control_panel", "alarm_arm_custom_bypass"), ("lock", "unlock"), ("lock", "open"), ("script", "turn_on"), ("scene", "turn_on"),
 })
+# 0.9.1 (SVCIDENT2, owner decisions 2026-10-17): with the options-flow switch `local_identity_extended` ON (an HA administrator, inside Home
+# Assistant; off by default) only the area write stays on the never-list. A non-execute bridge service is named as the HA service it is
+# (`smplwise_bridge.<service>`), so one list of (domain, service) pairs covers both. With the switch off: NEVER_LOCAL, exactly as 0.9.0.
+AREA_WRITE = ("smplwise_bridge", "set_entity_area")
+NEVER_LOCAL_EXTENDED = frozenset({AREA_WRITE})
 
 ALARM_PAIRS = frozenset({
     ("alarm_control_panel", "alarm_arm_home"), ("alarm_control_panel", "alarm_arm_away"), ("alarm_control_panel", "alarm_arm_night"),
@@ -89,6 +102,31 @@ SERVICE_FEATURES: dict[str, dict[str, frozenset[Any]]] = {
     "schedules": {"schedule": frozenset({"add", "edit", "remove", "copy", "run", "enable", "disable"})},
 }
 
+# 0.9.1 (SVCIDENT2): what the extended switch adds - doors, scripts / scenes from device control, arming with the bypass set, a zone's bypass
+# control (its own feature), the camera stream source. The add-on asks the person's own Arx permission first; nothing here authorises by it.
+DOOR_PAIRS = frozenset({("lock", "unlock"), ("lock", "open")})  # `lock.open` is not in ALLOWED_SERVICES: listed for parity, still refused there
+SCRIPT_SCENE_PAIRS = frozenset({("script", "turn_on"), ("scene", "turn_on")})
+BYPASS_PAIRS = frozenset({("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")})
+# 0.9.1 (SVCIDENT2 second round): RUNNING from the automations screen only - `trigger`, `run_script`, `apply_scene`; never `upsert` / `delete`,
+# never `enable` / `disable` / `stop_script` (automation_write_requires_ha_identity, in both modes).
+AUTOMATION_RUN_OPS = frozenset({"trigger", "run_script", "apply_scene"})
+EXTENDED_FEATURES: dict[str, dict[str, frozenset[Any]]] = {
+    **SERVICE_FEATURES,
+    "devices.control": {"execute": DEVICE_PAIRS | DOOR_PAIRS | SCRIPT_SCENE_PAIRS},
+    "alarm": {"execute": ALARM_PAIRS | {("alarm_control_panel", "alarm_arm_custom_bypass")}},
+    "alarm.bypass": {"execute": BYPASS_PAIRS},
+    "cameras.live": {"stream_source": frozenset({"read"})},
+    "automations.run": {"config_item": AUTOMATION_RUN_OPS},
+}
+
+
+def features(extended: bool) -> dict[str, dict[str, frozenset[Any]]]:
+    return EXTENDED_FEATURES if extended else SERVICE_FEATURES
+
+
+def never_list(extended: bool) -> frozenset[Any]:
+    return NEVER_LOCAL_EXTENDED if extended else NEVER_LOCAL
+
 
 class _Preverified:
     """Handed to a service handler after screen() verified the signature itself: the nonce is already spent, so a second
@@ -110,24 +148,39 @@ def item_of(bridge_service: str, msg: dict[str, Any]) -> Any:
         return msg.get("op")
     if bridge_service == "media_query":
         return msg.get("query")
+    if bridge_service == "stream_source":
+        return "read"  # 0.9.1: the one (read-only) op of the stream-source question
     return None
 
 
-def obo_refusal(obo: Any, bridge_service: str, item: Any) -> str | None:
-    """The shape and allow-list judgement of an `on_behalf_of` block (no Home Assistant needed). None = allowed."""
+def never_local(bridge_service: str, item: Any, extended: bool = False) -> bool:
+    """The explicit never-list (NEVER_LOCAL, or NEVER_LOCAL_EXTENDED with the extended switch on) - whatever the feature tables say."""
+    pair = item if bridge_service == "execute" else ("smplwise_bridge", bridge_service)
+    try:
+        return pair in never_list(extended)
+    except TypeError:
+        return True
+
+
+def obo_refusal(obo: Any, bridge_service: str, item: Any, extended: bool = False) -> str | None:
+    """The shape and allow-list judgement of an `on_behalf_of` block (no Home Assistant needed). None = allowed. `extended`: the options-flow
+    switch `local_identity_extended` (0.9.1), read live by the caller."""
     if not isinstance(obo, dict) or set(obo) != OBO_KEYS:
         return "service_identity_refused"
     if obo.get("kind") != "local" or not isinstance(obo.get("user_id"), str) or not LOCAL_ID_RE.fullmatch(obo["user_id"]):
         return "service_identity_refused"
     if bridge_service == "config_item":
-        return "automation_write_requires_ha_identity"
-    try:
-        if bridge_service == "execute" and item in NEVER_LOCAL:
-            return "service_identity_refused"
-    except TypeError:
+        # automations / scripts / scenes: writes never; RUNNING (AUTOMATION_RUN_OPS) only in the extended mode, under `automations.run` below
+        try:
+            runnable = extended and item in features(True).get("automations.run", {}).get("config_item", frozenset())
+        except TypeError:
+            runnable = False
+        if not runnable:
+            return "automation_write_requires_ha_identity"
+    if never_local(bridge_service, item, extended):
         return "service_identity_refused"
     feature = obo.get("feature")
-    services = SERVICE_FEATURES.get(feature) if isinstance(feature, str) else None
+    services = features(extended).get(feature) if isinstance(feature, str) else None
     if not services or bridge_service not in services:
         return "service_identity_refused"
     try:
@@ -156,9 +209,10 @@ def _refuse(msg: dict[str, Any], bridge_service: str, error: str) -> dict[str, A
     return {"ok": False, "request_id": msg.get("request_id"), "error": error}
 
 
-async def screen(hass: Any, verifier: Any, msg: dict[str, Any], bridge_service: str, service_user_id: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+async def screen(hass: Any, verifier: Any, msg: dict[str, Any], bridge_service: str, service_user_id: Any,
+                 extended: bool = False) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """Verify the signature once and judge the service-identity rules. (message to hand on WITHOUT `on_behalf_of`, None) to proceed - the handler
-    then gets PREVERIFIED - or (None, refusal answer)."""
+    then gets PREVERIFIED - or (None, refusal answer). `extended`: the options-flow switch (0.9.1), off by default."""
     msg = dict(msg)
     reason = verifier.verify(msg)
     if reason:
@@ -171,7 +225,7 @@ async def screen(hass: Any, verifier: Any, msg: dict[str, Any], bridge_service: 
             # the service identity never acts as itself; a local id is never a Home Assistant user
             return None, _refuse(msg, bridge_service, "service_identity_refused")
         return msg, None
-    why = obo_refusal(obo, bridge_service, item_of(bridge_service, msg))
+    why = obo_refusal(obo, bridge_service, item_of(bridge_service, msg), extended is True)
     if why:
         return None, _refuse(msg, bridge_service, why)
     if service_id is None:

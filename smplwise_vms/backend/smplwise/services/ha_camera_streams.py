@@ -190,8 +190,21 @@ def _ready(conn: sqlite3.Connection, settings: Settings) -> str:
     return secret
 
 
-def _payload(secret: str, user_id: str, entity_id: str) -> dict[str, Any]:
-    return ha_bridge.sign(secret, {"user_id": user_id, "entity_id": entity_id, "request_id": uuid.uuid4().hex[:12]})
+def _payload(secret: str, user_id: str, entity_id: str, subject: dict[str, Any] | None = None) -> dict[str, Any]:
+    """`subject`: the identity fields (service_identity.subject) - SVCIDENT2: an Arx-only person reads the source through the service
+    identity, `{"user_id": <service id>, "on_behalf_of": {...}}`; a Home Assistant person: `{"user_id": <its id>}` (the default)."""
+    return ha_bridge.sign(secret, {**(subject or {"user_id": user_id}), "entity_id": entity_id, "request_id": uuid.uuid4().hex[:12]})
+
+
+def _subject(conn: sqlite3.Connection, principal_or_id: Principal | str, request_id: str | None = None) -> dict[str, Any]:
+    """The identity a source is read as. A Home Assistant person: its own id (unchanged). SVCIDENT2 (owner decision 3, 2026-10-17): an
+    Arx-only person through the service identity's `cameras.live` feature - only in the extended mode (else refused exactly as before:
+    the table has no stream source), and the bridge waives its administrator rule only for such a screened message with its own copy on."""
+    from . import service_identity as si
+
+    if isinstance(principal_or_id, Principal):
+        return si.subject(conn, principal_or_id, "cameras.live", bridge_service="stream_source", item="read", request_id=request_id)
+    return si.subject_for_user(conn, principal_or_id, "cameras.live", bridge_service="stream_source", item="read", request_id=request_id)
 
 
 def _fetch_source(settings: Settings, payload: dict[str, Any]) -> str:
@@ -264,8 +277,15 @@ def _delete_stream(settings: Settings, name: str) -> None:
 
 # ---------------------------------------------------------------- enable / disable
 
-def _identity_ok(settings: Settings, principal: Principal) -> bool:
-    return principal.source in ("ingress", "remote") or bool(settings.dev_user)
+def _identity_ok(settings: Settings, principal: Principal, conn: sqlite3.Connection | None = None) -> bool:
+    """SVCIDENT2: a local principal only in the service identity's extended mode (its call then goes through `_subject`)."""
+    if principal.source in ("ingress", "remote") or bool(settings.dev_user):
+        return True
+    if conn is not None and principal.source == "local":
+        from . import service_identity as si
+
+        return si.extended_on(conn)
+    return False
 
 
 def enable(conn: sqlite3.Connection, settings: Settings, principal: Principal, entity_id: str, request_id: str | None = None) -> dict[str, Any]:
@@ -280,10 +300,10 @@ def enable(conn: sqlite3.Connection, settings: Settings, principal: Principal, e
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     if entity_id in cc.link_ha_cameras(conn):
         raise ApiError(409, "camera_is_nvr_channel", "המצלמה הזו היא ערוץ של ה־NVR: היא כבר משודרת חי משם.")
-    if not _identity_ok(settings, principal):
+    if not _identity_ok(settings, principal, conn):
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולה בתשתית המערכת.")
     secret = _ready(conn, settings)
-    payload = _payload(secret, principal.user_id, entity_id)
+    payload = _payload(secret, principal.user_id, entity_id, _subject(conn, principal, request_id))
     # two-phase: the attempt is recorded (and committed by unlocked) before Home Assistant is asked
     audit(conn, actor=principal, action="camera_card.ha_live.enable", decision="allowed", resource_type="ha_entity", resource_id=entity_id, request_id=request_id,
           details={"phase": "attempt", "stream": name})
@@ -465,7 +485,14 @@ def ensure_ready(db: Database, settings: Settings, entity_id: str) -> str:
                 return ok
 
             try:
-                outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, str(rec.get("enabled_by") or ""), entity_id)), still_wanted)
+                who = str(rec.get("enabled_by") or "")
+                # SVCIDENT2: a camera an Arx-only person enabled is read again through the service identity (refused - and the old
+                # stream kept - once the extended mode is off or that person can no longer act); a Home Assistant person: unchanged
+                subj = None
+                if who.startswith("l_"):
+                    with db.connection(label="ha live subject") as wconn:
+                        subj = _subject(wconn, who)
+                outcome = _write_stream(settings, entity_id, _fetch_source(settings, _payload(secret, who, entity_id, subj)), still_wanted)
             except ApiError as exc:
                 if switched_off:  # switched off while it was being read: nothing was written, nothing to keep alive
                     raise

@@ -90,10 +90,18 @@ def _unlock_decisions(conn: sqlite3.Connection, principal: Principal, entity_ids
     return allow, None
 
 
-def identity_ok(principal: Principal, dev_mode: bool) -> bool:
+def identity_ok(principal: Principal, dev_mode: bool, conn: sqlite3.Connection | None = None) -> bool:
     """An identified principal: a Home Assistant user through Ingress or the Arx remote channel; a developer identity only
-    in developer identity mode (never in the add-on, where `dev-<name>` principals do not exist)."""
-    return principal.source in ("ingress", "remote") or (principal.source == "dev" and dev_mode)
+    in developer identity mode (never in the add-on, where `dev-<name>` principals do not exist). SVCIDENT2 (owner decision 1,
+    2026-10-17): an Arx-only (local) user too, but only while the service identity's extended mode is on
+    (service_identity.local_door_ok) - then the rest of this rule decides exactly as for everyone, with no extra approval step."""
+    if principal.source in ("ingress", "remote") or (principal.source == "dev" and dev_mode):
+        return True
+    if conn is not None and principal.source == "local":
+        from . import service_identity
+
+        return service_identity.local_door_ok(conn, principal)
+    return False
 
 
 KIOSK_ROLE = "kiosk"
@@ -115,7 +123,7 @@ def check(conn: sqlite3.Connection, principal: Principal, station_id: str, relay
     """May `principal` open this WisKey door? `entity_id` when the request named a lock entity (the tile path); else the
     entities the door map links to (station, relay) - or to any relay of the station when `relay` is None (the WisKey
     screen's permission gate, before the body names the relay)."""
-    if not identity_ok(principal, dev_mode):
+    if not identity_ok(principal, dev_mode, conn):
         return DoorDecision(False, "identity_unmapped")
     user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if user is not None and not user["active"]:

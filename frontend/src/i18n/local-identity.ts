@@ -127,7 +127,7 @@ const he = {
   sessions: 'כניסות פעילות',
   // USR2 P3: the service identity card (settings only - it may name Home Assistant)
   siTitle: 'זהות שירות ב־Home Assistant',
-  siSub: 'למשתמשי Arx אין חשבון ב־Home Assistant. כדי שיוכלו לשלוט בהתקנים, באזעקה (לפי כללי הקוד), במדיה, בשידור למסך ובתזמונים, Arx פועל עבורם דרך משתמש Home Assistant אחד שאינו מנהל - זהות השירות. כל פעולה נרשמת על שם האדם עצמו. לעולם לא: אוטומציות, סקריפטים וסצנות, פתיחת דלתות ועקיפת אזורי אזעקה. זהות השירות היא משתמש טכני - אסור שאדם ייכנס בשמו.',
+  siSub: 'למשתמשי Arx אין חשבון ב־Home Assistant. כדי שיוכלו לשלוט בהתקנים, באזעקה (לפי כללי הקוד), במדיה, בשידור למסך ובתזמונים, Arx פועל עבורם דרך משתמש Home Assistant אחד שאינו מנהל - זהות השירות. כל פעולה נרשמת על שם האדם עצמו. כברירת מחדל לעולם לא: אוטומציות, סקריפטים וסצנות, פתיחת דלתות, עקיפת אזורי אזעקה ומצלמות בזרם חי דרך Home Assistant. זהות השירות היא משתמש טכני - אסור שאדם ייכנס בשמו.',
   siReady: 'מוכן',
   siNotReady: 'לא מוכן',
   siUserId: 'מזהה משתמש Home Assistant (32 תווים)',
@@ -144,6 +144,9 @@ const he = {
   siAdmin: 'מנהל - אסור',
   siRemote: 'זהות השירות מוגדרת רק מכניסה מקומית (דרך Home Assistant).',
   siPlaceholder: '0123456789abcdef0123456789abcdef',
+  // SVCIDENT2: the extended mode (security.local_identity_extended + the bridge's own switch)
+  siExtendedOn: 'מצב מורחב פעיל: משתמשי Arx יכולים גם לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות, להריץ אוטומציות, סקריפטים וסצנות ממסך האוטומציות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו ב־Arx. כתיבה של אוטומציות, הפעלה / כיבוי שלהן ושיוך התקן לאזור נשארים אסורים. נדרשת סקירת אבטחה לפני הפעלה.',
+  siExtendedOff: 'מצב מורחב (פתיחת דלתות, עקיפת אזורים, סקריפטים וסצנות, הרצה ממסך האוטומציות, מצלמות בזרם חי) כבוי. הפעלתו דורשת סקירת אבטחה, מנהל מערכת בכניסה מקומית (security.local_identity_extended) וגם הפעלה ברכיב החיבור.',
   // USR2 phase 4: passkeys
   passkeys: 'מפתחות גישה',
   passkeySignIn: 'כניסה עם מפתח גישה',
@@ -252,7 +255,7 @@ const en: Partial<Record<Key, string>> = {
   publicUrlSave: 'Save the address',
   publicUrlSaved: 'Address saved.',
   siTitle: 'Service identity in Home Assistant',
-  siSub: 'Arx users have no Home Assistant account. So that they can control devices, the alarm (under the PIN rules), media, casting and schedules, Arx acts for them through ONE Home Assistant user who is not an administrator - the service identity. Every action is recorded under the person. Never: automations, scripts and scenes, opening doors, alarm zone bypass. The service identity is a technical user - no person may sign in as it.',
+  siSub: 'Arx users have no Home Assistant account. So that they can control devices, the alarm (under the PIN rules), media, casting and schedules, Arx acts for them through ONE Home Assistant user who is not an administrator - the service identity. Every action is recorded under the person. Never by default: automations, scripts and scenes, opening doors, alarm zone bypass, live cameras through Home Assistant. The service identity is a technical user - no person may sign in as it.',
   siReady: 'Ready',
   siNotReady: 'Not ready',
   siUserId: 'Home Assistant user id (32 characters)',
@@ -269,6 +272,8 @@ const en: Partial<Record<Key, string>> = {
   siAdmin: 'administrator - not allowed',
   siRemote: 'The service identity is configured from a local (Home Assistant) session only.',
   siPlaceholder: '0123456789abcdef0123456789abcdef',
+  siExtendedOn: 'Extended mode is on: Arx users may also open doors, bypass alarm zones, run scripts and scenes, run automations, scripts and scenes from the automations screen and show live cameras - each only under their own Arx permission. Writing automations, enabling / disabling them and assigning a device to an area stay refused. A security review is required before enabling it.',
+  siExtendedOff: "Extended mode (doors, zone bypass, scripts and scenes, running from the automations screen, live cameras) is off. Turning it on needs a security review, a system administrator on the local channel (security.local_identity_extended) and the bridge's own switch.",
   passkeys: 'Passkeys',
   passkeySignIn: 'Sign in with a passkey',
   passkeyUse: 'Verify with a passkey',

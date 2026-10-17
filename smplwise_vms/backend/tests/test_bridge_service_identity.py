@@ -227,14 +227,124 @@ def test_every_signed_service_is_screened_and_no_handler_verifies_again():
     assert tree is not None
 
 
-def test_version_090_and_both_copies_identical():
+def test_version_091_and_both_copies_identical():
     import json
 
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.0"
-        assert 'VERSION = "0.9.0"' in (root / "const.py").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.1"
+        assert 'VERSION = "0.9.1"' in (root / "const.py").read_text(encoding="utf-8")
         assert (root / "service_identity.py").read_bytes() == (SRC / "service_identity.py").read_bytes()
     for name in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / name).read_text(encoding="utf-8"))
         assert "service_user_id" in data["options"]["step"]["init"]["data"], name
+        assert "local_identity_extended" in data["options"]["step"]["init"]["data"], name  # 0.9.1 (SVCIDENT2)
         assert set(data["options"]["error"]) == {"service_user_format", "service_user_unknown", "service_user_admin"}, name
+
+
+# ---------------------------------------------------------------- 0.9.1 (SVCIDENT2): the extended switch - negative cases first
+
+EXTENDED_ITEMS = [  # (bridge service, feature, body) that only the extended switch admits (owner decisions 1, 2, 3, 5 of 2026-10-17)
+    ("execute", "devices.control", {"domain": "lock", "service": "unlock", "data": {"entity_id": "lock.front"}}),
+    ("execute", "devices.control", {"domain": "script", "service": "turn_on", "data": {"entity_id": "script.x"}}),
+    ("execute", "devices.control", {"domain": "scene", "service": "turn_on", "data": {"entity_id": "scene.x"}}),
+    ("execute", "alarm", {"domain": "alarm_control_panel", "service": "alarm_arm_custom_bypass", "data": {"entity_id": "alarm_control_panel.h"}}),
+    ("execute", "alarm.bypass", {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.kitchen_bypass"}}),
+    ("execute", "alarm.bypass", {"domain": "select", "service": "select_option", "data": {"entity_id": "select.zone_3", "option": "bypassed"}}),
+    ("stream_source", "cameras.live", {"entity_id": "camera.garden"}),
+    # second round (owner 2026-10-17): running from the automations screen - run ops only
+    ("config_item", "automations.run", {"op": "trigger", "kind": "automation", "item_id": "a1"}),
+    ("config_item", "automations.run", {"op": "run_script", "kind": "script", "item_id": "s1"}),
+    ("config_item", "automations.run", {"op": "apply_scene", "entity_id": "scene.x"}),
+]
+
+
+def _screen_x(msg: dict, service: str = "execute", extended=True):
+    return asyncio.run(si.screen(_hass(), signing.Verifier(SECRET), msg, service, SID, extended))
+
+
+@pytest.mark.parametrize("service,feature,body", EXTENDED_ITEMS)
+def test_switch_off_refuses_every_extended_item_exactly_as_090(service, feature, body):
+    msg = _signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body})
+    before = "automation_write_requires_ha_identity" if service == "config_item" else "service_identity_refused"  # exactly the 0.9.0 answer
+    assert _error(_screen_x(dict(msg), service, extended=False)) == before
+    for not_true in ("true", 1, "on", None):  # only a real boolean True switches it on
+        assert _error(_screen_x(_signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body}), service, extended=not_true)) == before
+
+
+@pytest.mark.parametrize("service,feature,body", EXTENDED_ITEMS)
+def test_switch_on_admits_each_extended_item_as_the_service_identity(service, feature, body):
+    out, refused = _screen_x(_signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body}), service)
+    assert refused is None and out["user_id"] == SID and "on_behalf_of" not in out
+
+
+@pytest.mark.parametrize("feature,domain,service", [
+    ("media", "lock", "unlock"),  # a door only under device control
+    ("alarm", "lock", "unlock"),
+    ("alarm", "switch", "turn_on"),  # the bypass control only under its own feature
+    ("devices.control", "alarm_control_panel", "alarm_arm_custom_bypass"),
+    ("alarm.bypass", "light", "turn_on"),
+    ("alarm.bypass", "alarm_control_panel", "alarm_disarm"),
+    ("cameras.live", "light", "turn_on"),
+    ("alarm", "alarm_control_panel", "alarm_trigger"),
+    ("system", "homeassistant", "restart"),
+])
+def test_switch_on_still_refuses_items_outside_their_feature(feature, domain, service):
+    assert _error(_screen_x(_execute(domain=domain, service=service, obo=_obo(feature)))) == "service_identity_refused"
+
+
+def test_switch_on_never_admits_the_area_write_or_automations(monkeypatch):
+    base = {"user_id": SID, "request_id": "r1"}
+    for feature in ("devices.control", "devices.area", "cameras.live"):
+        msg = _signed({**base, "entity_id": "light.x", "area_id": "kitchen", "on_behalf_of": _obo(feature)})
+        assert _error(_screen_x(msg, "set_entity_area")) == "service_identity_refused"
+    # an explicit rule, not only the tables: a table widened to the area write still cannot carry it
+    widened = {k: dict(v) for k, v in si.EXTENDED_FEATURES.items()}
+    widened["devices.area"] = {"set_entity_area": frozenset({None})}
+    monkeypatch.setattr(si, "EXTENDED_FEATURES", widened)
+    assert _error(_screen_x(_signed({**base, "entity_id": "light.x", "area_id": "k", "on_behalf_of": _obo("devices.area")}), "set_entity_area")) == "service_identity_refused"
+    assert si.never_list(True) == {si.AREA_WRITE} and si.NEVER_LOCAL_EXTENDED == frozenset({("smplwise_bridge", "set_entity_area")})
+    for op in ("upsert", "delete", "enable", "disable", "stop_script", "snapshot_scene", ["trigger"]):  # writes and the other runtime ops: HA users only
+        for feature in ("automations.run", "devices.control"):
+            assert _error(_screen_x(_signed({**base, "op": op, "kind": "script", "on_behalf_of": _obo(feature)}), "config_item")) == "automation_write_requires_ha_identity", (op, feature)
+    for feature in ("devices.control", "schedules", "automations"):  # a run op only under its own feature
+        assert _error(_screen_x(_signed({**base, "op": "trigger", "kind": "automation", "on_behalf_of": _obo(feature)}), "config_item")) == "service_identity_refused", feature
+
+
+def test_switch_on_keeps_every_identity_rule():
+    body = {"domain": "lock", "service": "unlock", "data": {"entity_id": "lock.front"}, "request_id": "r1"}
+    assert _error(_screen_x(_signed({"user_id": OTHER, "on_behalf_of": _obo(), **body}))) == "service_identity_refused"
+    msg = _signed({"user_id": ADMIN, "on_behalf_of": _obo(), **body})
+    assert _error(asyncio.run(si.screen(_hass(), signing.Verifier(SECRET), msg, "execute", ADMIN, True))) == "service_identity_admin"
+    assert _error(_screen_x(_signed({"user_id": SID, **body}))) == "service_identity_refused"  # never as itself
+    assert _error(_screen_x(_signed({"user_id": LID, **body}))) == "service_identity_refused"
+    out, refused = _screen_x(_signed({"user_id": OTHER, **body}))  # a Home Assistant user: untouched by the switch
+    assert refused is None and out["user_id"] == OTHER
+
+
+def test_extended_tables_match_the_addon_and_extend_only_what_the_owner_named():
+    import importlib
+
+    added = {k: {s: frozenset(v) - frozenset(si.SERVICE_FEATURES.get(k, {}).get(s, frozenset())) for s, v in d.items()} for k, d in si.EXTENDED_FEATURES.items()}
+    added = {k: {s: v for s, v in d.items() if v} for k, d in added.items()}
+    assert {k: d for k, d in added.items() if d} == {
+        "devices.control": {"execute": frozenset({("lock", "unlock"), ("lock", "open"), ("script", "turn_on"), ("scene", "turn_on")})},
+        "alarm": {"execute": frozenset({("alarm_control_panel", "alarm_arm_custom_bypass")})},
+        "alarm.bypass": {"execute": frozenset({("switch", "turn_on"), ("switch", "turn_off"), ("select", "select_option")})},
+        "cameras.live": {"stream_source": frozenset({"read"})},
+        "automations.run": {"config_item": frozenset({"trigger", "run_script", "apply_scene"})},
+    }
+    addon = importlib.import_module("smplwise.services.service_identity")
+    assert addon.NEVER_LOCAL_EXTENDED == si.NEVER_LOCAL_EXTENDED and addon.AREA_WRITE == si.AREA_WRITE
+    assert {k: {s: frozenset(v) for s, v in d.items()} for k, d in addon.EXTENDED_FEATURES.items()} == \
+           {k: {s: frozenset(v) for s, v in d.items()} for k, d in si.EXTENDED_FEATURES.items()}
+
+
+def test_the_switch_is_read_live_and_travels_with_the_directory_push():
+    text = (SRC / "__init__.py").read_text(encoding="utf-8")
+    assert "entry.options.get(CONF_LOCAL_IDENTITY_EXTENDED, False) is True" in text
+    assert "service_identity.screen(hass, verifier, dict(call.data), name, service_user_id(), local_extended())" in text
+    assert '"local_identity_extended": local_extended()' in text
+    assert "admin_waived=on_behalf and local_extended()" in text  # the stream source's administrator rule is waived only for a screened local message
+    flow = (SRC / "config_flow.py").read_text(encoding="utf-8")
+    assert "vol.Optional(CONF_LOCAL_IDENTITY_EXTENDED, default=extended): bool" in flow
+    assert load("const").CONF_LOCAL_IDENTITY_EXTENDED == "local_identity_extended"

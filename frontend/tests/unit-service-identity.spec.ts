@@ -125,6 +125,28 @@ test('an administrator id is refused with the server text; a regular id makes it
   expect(puts.map((c) => JSON.parse(c.body))).toEqual([{ user_id: 'c'.repeat(32) }, { user_id: SID }]);
 });
 
+// SVCIDENT2: the extended mode line - off says what turning it on needs; on (requested) is a warning naming the security review
+const EXT_OFF = { requested: false, on: false, bridge_on: false, bridge_version_ok: false, agrees: true, required: '0.9.1' };
+test('the extended mode is shown off by default', async ({ page }) => {
+  await setup(page, { [`GET ${API}`]: { status: 200, body: { ...READY, extended: EXT_OFF } } });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-extended="off"]')).toContainText('security.local_identity_extended');
+});
+
+test('the extended mode on is a warning naming the security review', async ({ page }) => {
+  await setup(page, { [`GET ${API}`]: { status: 200, body: { ...READY, extended: { ...EXT_OFF, requested: true, on: true, bridge_on: true, bridge_version_ok: true } } } });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-extended="on"]')).toContainText('סקירת אבטחה');
+  await expect(page.locator('system-service-identity [data-si-extended="on"]')).toHaveClass(/warn/);
+});
+
+test('an older server without the extended block shows no extended line', async ({ page }) => {
+  await setup(page, { [`GET ${API}`]: { status: 200, body: READY } });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-state="ready"]')).toBeVisible();
+  await expect(page.locator('system-service-identity [data-si-extended]')).toHaveCount(0);
+});
+
 for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 390, h: 844 }]) {
   test(`screens for review (${view.name})`, async ({ page }) => {
     await page.setViewportSize({ width: view.w, height: view.h });

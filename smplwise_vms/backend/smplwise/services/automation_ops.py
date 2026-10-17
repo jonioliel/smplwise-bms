@@ -220,8 +220,13 @@ def bridge_error(resp: dict[str, Any], op: str | None = None) -> ApiError:
 def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | None, base_revision: str | None, profile: str | None, config: dict[str, Any] | None,
                 preserved: list[str] | None, sensitive: bool, variables: dict[str, Any] | None, skip_condition: bool | None, entity_id: str | None) -> dict[str, Any]:
     """The message of one op with exactly the keys the bridge accepts for it (`config_policy.OP_KEYS`: any other key is refused as `invalid_payload`)."""
-    service_identity.refuse_automation_write(w.conn, w.principal, w.request_id)  # USR2 P3: never for a local identity (also refused in the router)
-    body: dict[str, Any] = {"user_id": w.principal.user_id, "op": op, "request_id": op_id}
+    if op in service_identity.AUTOMATION_RUN_OPS and service_identity.is_local(w.principal):
+        # SVCIDENT2 second round: a run / apply for a local identity - the service identity, `automations.run` (refused unless the extended mode is on)
+        subj = service_identity.subject(w.conn, w.principal, "automations.run", bridge_service="config_item", item=op, request_id=w.request_id)
+    else:
+        service_identity.refuse_automation_write(w.conn, w.principal, w.request_id)  # USR2 P3: never for a local identity (also refused in the router)
+        subj = {"user_id": w.principal.user_id}
+    body: dict[str, Any] = {**subj, "op": op, "request_id": op_id}
     if op == "apply_scene":
         body["entity_id"] = entity_id
         return body

@@ -199,6 +199,15 @@ def _bridge_writer(request: Request, conn: sqlite3.Connection, principal: Princi
     return _writer(request, conn, principal)
 
 
+def _bridge_runner(request: Request, conn: sqlite3.Connection, principal: Principal) -> ops.W:
+    """_bridge_writer() for the three RUN routes (an automation's run, a script's run, a scene's apply). SVCIDENT2 second round (owner
+    2026-10-17): a local identity is refused exactly as by _bridge_writer while `security.local_identity_extended` is off; in the extended mode
+    the route's own Arx run permission decides and the call goes through the service identity (`automations.run`). Writes, enable / disable
+    and stop keep _bridge_writer."""
+    service_identity.refuse_automation_run(conn, principal, _rid(request))
+    return _writer(request, conn, principal)
+
+
 def _reply(result: tuple[int, dict[str, Any]]) -> JSONResponse:
     return JSONResponse(status_code=result[0], content=result[1])
 
@@ -479,13 +488,13 @@ def disable_automation(item_id: str, request: Request, principal: Principal = De
 @router.post("/automations/automation/{item_id}/run")
 def run_automation(item_id: str, request: Request, principal: Principal = Depends(_auto_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, RunBody)
-    return _reply(ops.run_automation(_bridge_writer(request, conn, principal), item_id, body.skip_condition, body.confirm, body.client_request_id))
+    return _reply(ops.run_automation(_bridge_runner(request, conn, principal), item_id, body.skip_condition, body.confirm, body.client_request_id))
 
 
 @router.post("/automations/script/{item_id}/run")
 def run_script(item_id: str, request: Request, principal: Principal = Depends(_script_run_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, ScriptRunBody)
-    return _reply(ops.run_script(_bridge_writer(request, conn, principal), item_id, body.fields, body.confirm, body.client_request_id))
+    return _reply(ops.run_script(_bridge_runner(request, conn, principal), item_id, body.fields, body.confirm, body.client_request_id))
 
 
 @router.post("/automations/script/{item_id}/stop")
@@ -497,7 +506,7 @@ def stop_script(item_id: str, request: Request, principal: Principal = Depends(_
 @router.post("/automations/scene/{item_id}/apply")
 def apply_scene(item_id: str, request: Request, principal: Principal = Depends(_scene_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, ApplyBody)
-    return _reply(ops.apply_scene(_bridge_writer(request, conn, principal), item_id, body.confirm, body.client_request_id))
+    return _reply(ops.apply_scene(_bridge_runner(request, conn, principal), item_id, body.confirm, body.client_request_id))
 
 
 @router.get("/automations/{kind}/{item_id}/runs")
