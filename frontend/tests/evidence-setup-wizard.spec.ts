@@ -175,6 +175,9 @@ test.describe('setup hint and optional steps (mocked backend)', () => {
   const phone = (name: string) => name === 'mobile'; // under 768 px the progress lives in the user menu, not as a row
 
   async function goLive(page: Page) {
+    // integ/264 (pre-gate): a hash-only page.goto on the same document does not reload, so /setup/state was not fetched again -
+    // leave the document first so the shell boots (and asks) anew
+    await page.goto('about:blank');
     const state = page.waitForResponse((r) => r.url().includes('/setup/state'), { timeout: 20_000 });
     await page.goto('/?design=a#/explore/sites');
     await page.waitForSelector('sw-app');

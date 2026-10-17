@@ -32,8 +32,8 @@ export class SwLookupScope extends LitElement {
     :host { display: block; margin-block-end: var(--sw-space-4, 16px); }
     .row { display: flex; flex-wrap: wrap; gap: var(--sw-space-3, 12px); align-items: end; }
     select, input { min-width: 16rem; max-width: 100%; }
-    .err { color: var(--sw-danger, #b42318); }
-    .ok { color: var(--sw-success, #067647); }
+    .err { color: var(--sw-danger); }
+    .ok { color: var(--sw-success); }
   `;
 
   connectedCallback(): void {
