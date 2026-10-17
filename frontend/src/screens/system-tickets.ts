@@ -250,6 +250,20 @@ export class SystemTickets extends LitElement {
       .stabs .seg {
         inline-size: 100%;
       }
+      /* TKGATEFIX4: the display tab's choices on a phone - the row stacks, so the segmented control takes the line and its options
+         share it; an option's text may wrap (the glass sheet's .seg button is nowrap, and "מגירה + מסך מלא" pushed the third option
+         13-20 px out of its track at 320 px) */
+      [data-display-tab] .row .seg {
+        inline-size: 100%;
+      }
+      [data-display-tab] .row .seg button {
+        flex: 1 1 0;
+        min-inline-size: 0;
+        padding-inline: 8px;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.25;
+      }
     }
   `];
 
