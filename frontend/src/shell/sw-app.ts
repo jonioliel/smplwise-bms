@@ -2179,6 +2179,10 @@ export class SwApp extends LitElement {
         // CR-038: #/tickets/<id> is a ticket on the full screen (D18); #/tickets/<mine|department|all> the list with its drawer (?t=) and the
         // create form (?new=1). #/tickets opens this user's first visible scope tab. The screens answer "the module is off" themselves.
         if (isTicketId(s[1])) return keyed(s[1], html`<tickets-detail .ticketId=${s[1]}></tickets-detail>`);
+        if (s[1] === 'overview') {
+          void import('../screens/tickets-overview'); // MGRDASH: the manager overview, a lazy chunk of its own (the element upgrades when it lands)
+          return html`<tickets-overview .route=${r}></tickets-overview>`;
+        }
         if (s[1] === 'board') return html`<tickets-board .route=${r}></tickets-board>`; // CR-038 slice 6: the manager board (13.5)
         if (s[1] === 'handlers') return html`<tickets-handlers></tickets-handlers>`; // owner 2026-10-14: handlers, employees, vendors, contacts
         if (s[1] === 'accounts') return html`<tickets-vendor-accounts></tickets-vendor-accounts>`; // TK258: the vendors account

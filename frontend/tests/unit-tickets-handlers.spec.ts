@@ -20,11 +20,12 @@ const READY: Readiness = {
 };
 
 test('the fifth entry of the area: "מטפלים וספקים", for the directory\'s readers, in the tickets area', () => {
-  // TK258 added "חשבון ספקים" after it (the sixth entry); this one stays the fifth
-  expect(TICKETS_TABS[4]?.id).toBe('handlers');
-  expect(TICKETS_TABS[4]?.href).toBe(TICKETS_HANDLERS_HREF);
+  // TK258 added "חשבון ספקים" after it (the sixth entry); this one stays the fifth of the scope tabs. MGRDASH put the managers'
+  // "סקירה" before them all (index 0), so it is at index 5
+  expect(TICKETS_TABS[5]?.id).toBe('handlers');
+  expect(TICKETS_TABS[5]?.href).toBe(TICKETS_HANDLERS_HREF);
   expect(TICKETS_HANDLERS_HREF).toBe(HANDLERS_HREF);
-  expect(TICKETS_TABS[4]?.label).toBe('מטפלים וספקים');
+  expect(TICKETS_TABS[5]?.label).toBe('מטפלים וספקים');
   expect(TAB_PERMISSIONS[TICKETS_HANDLERS_HREF]).toEqual(['tickets.configure', 'tickets.manage']);
   const r = { path: '/tickets/handlers', mode: 'tickets', segments: ['tickets', 'handlers'], params: new URLSearchParams() } as never;
   expect(areaOf(r)).toBe('tickets');

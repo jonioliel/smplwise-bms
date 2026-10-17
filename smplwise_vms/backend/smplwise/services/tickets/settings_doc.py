@@ -142,6 +142,24 @@ def line_kinds(v: Any) -> list[str]:
         raise ValueError("labor_required")
     return [k for k in LINE_KINDS if k in v]
 
+_DEPT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
+BUSY_MAP_MAX = 200
+
+
+def busy_map(v: Any) -> dict[str, int]:
+    """MGRDASH: the per-department "busy" thresholds - {department id: 1..99}, at most BUSY_MAP_MAX entries, ids in the shape of the
+    department ids (a key of a department that no longer exists is harmless: nobody reads it)."""
+    if not isinstance(v, dict) or len(v) > BUSY_MAP_MAX:
+        raise ValueError("invalid")
+    out: dict[str, int] = {}
+    check = int_range(1, 99)
+    for k, n in v.items():
+        if not isinstance(k, str) or not _DEPT_ID.match(k):
+            raise ValueError("invalid")
+        out[k] = check(n)
+    return out
+
+
 # section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)
 SLIDING_DAYS = (1, 90)
 CAP_DAYS = (7, 365)
@@ -161,6 +179,19 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # HANDLERLOAD (owner 2026-10-17): the period of the "handled" number on the handler cards, in days (1 = today, 7, 30); each viewer's
     # own choice (kept in the browser) wins over this installation default
     ("ui", "handled_days"): (7, int_choice(1, 7, 30)),
+    # MGRDASH phase 1 (owner decisions 2026-10-17, docs/design/MANAGER_DASHBOARD_SPEC_HE.md): the manager overview's display choices.
+    # In `ui` because the screens read them from GET /tickets/module and GET /tickets/board; none of them widens what anybody may see
+    # (every number is still counted from the rows the server lets the viewer manage).
+    #   dash_handler_numbers  who sees a handler's own numbers: managers only / each handler his own (default) / everyone
+    #   dash_vendors          vendors in the load card: in the same list with a tag (default) / a separate list / hidden
+    #   dash_busy             the "busy" threshold (open requests in hand) of every department without its own value (default 8)
+    #   dash_busy_departments the per-department thresholds {department id: n}
+    #   dash_compare          where the department comparison sits for the all-departments manager (default: under the numbers row)
+    ("ui", "dash_handler_numbers"): ("own", _choice("managers", "own", "everyone")),
+    ("ui", "dash_vendors"): ("tagged", _choice("tagged", "separate", "hidden")),
+    ("ui", "dash_busy"): (8, int_range(1, 99)),
+    ("ui", "dash_busy_departments"): ({}, busy_map),
+    ("ui", "dash_compare"): ("below_numbers", _choice("top", "below_numbers", "bottom")),
     ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5

@@ -21,16 +21,22 @@ export interface BoardRoute {
   creating: boolean;
   /** CR-DEPT-MANAGER-HANDLERS: the requests ('cards', the default) or the "מטפלים וספקים" pane of a manager */
   pane?: 'cards' | 'handlers';
+  /** MGRDASH: one handler's requests (`user:<id>` / `contact:<id>` / `none`) - a row of the overview's load card opens the board so */
+  assignee?: string;
 }
 
 const isId = (s: string) => /^[0-9a-f]{16}$/.test(s);
 const PLACE_RE = /^(none|(site|building|floor|zone|area):[A-Za-z0-9][A-Za-z0-9_.:-]{0,95})$/;
+/** the server's own pattern of the board's `assignee` filter (routers/tickets_board.py ASSIGNEE) */
+export const ASSIGNEE_RE = /^(none|(user|contact):[A-Za-z0-9][A-Za-z0-9_.-]{0,63})$/;
 
 export function parseBoardRoute(params: URLSearchParams): BoardRoute {
   const state = params.get('state') as BoardState | null;
   const place = params.get('place') ?? '';
   const t = params.get('t') ?? '';
+  const assignee = params.get('assignee') ?? '';
   return {
+    ...(ASSIGNEE_RE.test(assignee) ? { assignee } : {}), // MGRDASH: absent = every handler
     state: state && BOARD_STATES.includes(state) ? state : 'all',
     dept: (params.get('dept') ?? '').slice(0, 64),
     place: PLACE_RE.test(place) ? place : '',
@@ -49,6 +55,7 @@ export function boardHref(r: Partial<BoardRoute>, extra: { t?: string; create?: 
   if (r.place) p.set('place', r.place);
   if (r.q?.trim()) p.set('q', r.q.trim());
   if (r.pane === 'handlers') p.set('pane', 'handlers');
+  if (r.assignee && ASSIGNEE_RE.test(r.assignee)) p.set('assignee', r.assignee);
   if (extra.t) p.set('t', extra.t);
   if (extra.create) p.set('new', '1');
   const s = p.toString();
