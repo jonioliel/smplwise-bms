@@ -137,7 +137,7 @@ export interface ClaimInfo {
   claim_mode?: boolean;
   /** CR-CLAIM-PREFILL: null for an ordinary assignment (nothing changes) */
   prefill?: ClaimPrefill | null;
-  /** 0116: the instalment this claim is bound to (the page then offers no other) and his other demands of the assignment */
+  /** 0117: the instalment this claim is bound to (the page then offers no other) and his other demands of the assignment */
   instalment_index?: number | null;
   instalment_fixed?: boolean;
   claims?: { instalment_index: number | null; status: ClaimStatus; total_minor: number | null; currency: string }[];

@@ -4,7 +4,7 @@
 -- date by itself (an RFQ manager moves it through the existing arrival-date route, contract 20.14, or acknowledges the notice).
 -- The award notice itself needs no column: it is ONE outbox row (purpose `rfq_update`, the code-owned template variant
 -- `starter:rfq_award_notice:<lang>`, idempotency key `rfqaward:<award_id>`) + the RFQ timeline row `award_notice`.
--- Migration 0115 (provisional; the lead renumbers at integration). Additive only: one new table, nothing existing is rebuilt.
+-- Migration 0115 (kept its provisional number at the integ/271 integration for 2.7.1). Additive only: one new table, nothing existing is rebuilt.
 -- Rollback: run the previous version (the table stays, unread).
 
 CREATE TABLE ticket_rfq_postponements (

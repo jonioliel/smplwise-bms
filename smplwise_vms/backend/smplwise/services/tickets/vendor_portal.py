@@ -234,7 +234,7 @@ def _quote(conn, assignment_id: str) -> dict[str, Any] | None:
 def _demand(conn, assignment_id: str) -> dict[str, Any] | None:
     """The payment demand (cost claim) of the assignment: status, amount, paid / unpaid. NEVER the payment reference or date."""
     r = conn.execute("SELECT status, currency, no_charge, current_revision_id, approved_total_minor FROM ticket_cost_claims WHERE assignment_id = ? "
-                     "ORDER BY created_at DESC, rowid DESC LIMIT 1", (assignment_id,)).fetchone()  # CR-CLAIM-PREFILL (0116): the latest demand
+                     "ORDER BY created_at DESC, rowid DESC LIMIT 1", (assignment_id,)).fetchone()  # CR-CLAIM-PREFILL (0117): the latest demand
     if r is None:
         return None
     total: int | None = None

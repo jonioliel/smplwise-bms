@@ -1,4 +1,4 @@
-"""CR-CLAIM-PREFILL follow-up (owner decision 2026-10-17, open question 2; migration 0116): several payment demands per assignment, one
+"""CR-CLAIM-PREFILL follow-up (owner decision 2026-10-17, open question 2; migration 0117): several payment demands per assignment, one
 per approved instalment, over the REAL store, the real migrations, the internal API and the public app.
 
 Negative cases first: the migration on a database that already holds claims (no row of a claim, revision, decision, file or page lost;
@@ -28,16 +28,16 @@ AT = "2026-10-01T08:00:00Z"
 
 # ---------------------------------------------------------------- the migration on a populated database (negative first)
 
-def _at_0115(settings, tmp_path, monkeypatch) -> dbmod.Database:
+def _at_0116(settings, tmp_path, monkeypatch) -> dbmod.Database:
     real = dbmod.MIGRATIONS_DIR
-    older = tmp_path / "at-0115"
+    older = tmp_path / "at-0116"
     older.mkdir()
     for f in real.glob("*.sql"):
-        if int(f.name.split("_", 1)[0]) <= 115:
+        if int(f.name.split("_", 1)[0]) <= 116:
             shutil.copy(f, older / f.name)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
     database = dbmod.Database(settings.db_path)
-    assert database.migrate()[-1] == 115
+    assert database.migrate()[-1] == 116
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
     return database
 
@@ -71,15 +71,15 @@ def _dump(conn) -> dict:
     return out
 
 
-def test_0116_keeps_every_claim_row_and_moves_the_uniqueness(settings, tmp_path, monkeypatch):
-    database = _at_0115(settings, tmp_path, monkeypatch)
+def test_0117_keeps_every_claim_row_and_moves_the_uniqueness(settings, tmp_path, monkeypatch):
+    database = _at_0116(settings, tmp_path, monkeypatch)
     with database.connection() as conn:
         _seed(conn)
         before = _dump(conn)
         with pytest.raises(sqlite3.IntegrityError):  # 0083: one claim per assignment
             conn.execute("INSERT INTO ticket_cost_claims (id, department_id, assignment_id, contact_id, required, status, currency, snapshot_json, "
                          "created_at, updated_at) VALUES ('x', 'd', 'asg1', 'c1', 0, 'awaiting', 'ILS', '{}', ?, ?)", (AT, AT))
-    assert database.migrate() == [116]
+    assert database.migrate() == [117]
     assert database.migrate() == []  # recorded once: running the migrations again changes nothing
     with database.connection() as conn:
         assert _dump(conn) == before, "no claim, revision, decision, file or page was changed or lost"

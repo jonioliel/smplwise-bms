@@ -1,7 +1,7 @@
 # CR-AWARD-NOTICE - the award is binding; the vendor gives notice in advance if he postpones
 
-Status: built on `pilot/AWARD-NOTICE` (from `integ/270` @ 4fde337e), 2026-10-17. Contract: `docs/tickets/RFQ_BACKEND_CONTRACT.md` v1.6
-sections 20.16 / 20.17 (+ 15.5 `binding`, 13 settings / audit). Migration **0115** (provisional - the lead renumbers at integration).
+Status: built on `pilot/AWARD-NOTICE` (from `integ/270` @ 4fde337e), 2026-10-17. Contract: `docs/tickets/RFQ_BACKEND_CONTRACT.md` v1.7 (v1.6 on the branch; renumbered at integ/271, where CLAIM-PREFILL took v1.6)
+sections 20.16 / 20.17 (+ 15.5 `binding`, 13 settings / audit). Migration **0115** (provisional number kept at the integ/271 integration for 2.7.1).
 **A Fable review of the public surface (POST /t/api/rfq/arrival `action: postpone`, the `binding` block of GET /t/api/rfq) is required
 before release.**
 

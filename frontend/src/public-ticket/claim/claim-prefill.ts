@@ -136,7 +136,7 @@ export function attach(h: PrefillHost): PrefillExt {
   let inst: number | null = last()?.basis?.instalment_index ?? pre()?.instalment ?? null;
   let reason = last()?.basis?.above_reason ?? '';
 
-  // 0116: a claim bound to an instalment keeps it, whatever the page chose before
+  // 0117: a claim bound to an instalment keeps it, whatever the page chose before
   const cur = (): number | null => (h.info()?.instalment_fixed ? h.info()?.instalment_index ?? inst : inst);
   const item = () => {
     const i = cur();
@@ -186,7 +186,7 @@ export function attach(h: PrefillHost): PrefillExt {
 
   return {
     form() {
-      // a new form (0116: possibly the NEXT instalment's claim): the choice and the reason come from the claim now on the page
+      // a new form (0117: possibly the NEXT instalment's claim): the choice and the reason come from the claim now on the page
       inst = last()?.basis?.instalment_index ?? pre()?.instalment ?? null;
       reason = last()?.basis?.above_reason ?? '';
       return fresh();
@@ -197,7 +197,7 @@ export function attach(h: PrefillHost): PrefillExt {
       if (!p || b === null) return;
       const f = h.form();
       const info = h.info();
-      // 0116: his other demands of this assignment (one per instalment) - what was already asked, and its state
+      // 0117: his other demands of this assignment (one per instalment) - what was already asked, and its state
       for (const c of info?.claims ?? []) {
         const it = p.instalments.find((x) => x.index === c.instalment_index);
         if (c.total_minor !== null) host.prepend(el('p', 'swc-muted', t('earlier', { what: it ? tx[it.kind] : t('whole'), amount: money(c.total_minor, c.currency), state: t(c.status === 'approved' || c.status === 'paid' ? 'done' : 'sent') })));

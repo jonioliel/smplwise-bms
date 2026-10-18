@@ -87,7 +87,7 @@ test('a correction keeps the instalment and the reason of the last revision', ()
   expect(b.instalment_index).toBe(0); // his own choice wins over the manager's open demand
 });
 
-test('0116: the NEXT instalment claim is bound to its instalment - the page cannot send another one', () => {
+test('0117: the NEXT instalment claim is bound to its instalment - the page cannot send another one', () => {
   const info: ClaimInfo = { status: 'awaiting', prefill: { ...PREFILL, instalment: 1 }, instalment_index: 1, instalment_fixed: true, revisions: [],
     claims: [{ instalment_index: 0, status: 'approved', total_minor: 38940, currency: 'ILS' }] };
   const { ext, state } = host(info);

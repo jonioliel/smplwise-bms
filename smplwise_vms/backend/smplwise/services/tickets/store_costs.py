@@ -28,8 +28,8 @@ def claim(conn: sqlite3.Connection, claim_id: str) -> dict[str, Any] | None:
 
 def claim_for_assignment(conn: sqlite3.Connection, assignment_id: str | None) -> dict[str, Any] | None:
     """The PRIMARY claim of an assignment: the ordinary one (`instalment_index` NULL) - or, once the vendor's first demand named an
-    instalment (CR-CLAIM-PREFILL, migration 0116: that claim took the index), the earliest one. Without a payment schedule an
-    assignment has exactly one claim, as before 0116."""
+    instalment (CR-CLAIM-PREFILL, migration 0117: that claim took the index), the earliest one. Without a payment schedule an
+    assignment has exactly one claim, as before 0117."""
     if not assignment_id:
         return None
     return _dict(conn.execute("SELECT * FROM ticket_cost_claims WHERE assignment_id = ? "
@@ -37,7 +37,7 @@ def claim_for_assignment(conn: sqlite3.Connection, assignment_id: str | None) ->
 
 
 def claims_of_assignment(conn: sqlite3.Connection, assignment_id: str | None) -> list[dict[str, Any]]:
-    """CR-CLAIM-PREFILL: every claim of an assignment, oldest first (one per approved instalment the vendor demanded, 0116)."""
+    """CR-CLAIM-PREFILL: every claim of an assignment, oldest first (one per approved instalment the vendor demanded, 0117)."""
     if not assignment_id:
         return []
     return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_claims WHERE assignment_id = ? ORDER BY created_at, rowid",

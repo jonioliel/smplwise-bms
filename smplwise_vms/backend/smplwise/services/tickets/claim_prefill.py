@@ -7,7 +7,7 @@ LOADED from the approved quote of his work order instead of being typed again.
               instalments with the instalment a manager opened a demand for (RFQPAY2, 20.11) pre-selected. Null without such a quote:
               an ordinary assignment changes nothing.
     basis     POST /t/api/claim `instalment_index?` / `above_reason?`: what the demand is compared with (the approved total, or one
-              instalment of the approved schedule) is stored on the revision (`basis_json`, migration 0115). A vendor's demand ABOVE
+              instalment of the approved schedule) is stored on the revision (`basis_json`, migration 0116). A vendor's demand ABOVE
               that amount needs a short reason (422 `{field: "above_reason", code: "required"}`); a demand below or with other lines
               is accepted as it is (flag, never refuse).
     check     the managers' claim view `quote_check`: `same` | `differs` with the flags `above_quote` / `below_quote` / `lines_differ`
@@ -64,7 +64,7 @@ def prefill(conn, claim: Mapping[str, Any]) -> dict[str, Any] | None:
     if items:
         from . import store_costs
 
-        # 0116: an instalment that already has its own claim is not offered again as the pre-selection
+        # 0117: an instalment that already has its own claim is not offered again as the pre-selection
         taken = {c["instalment_index"] for c in store_costs.claims_of_assignment(conn, claim.get("assignment_id")) if c.get("instalment_index") is not None}
         payable = {it["index"] for it in items if it["amount_minor"] > 0} - taken
         opened = sorted(i for i, d in store_rfq.demands_of_quote(conn, q["id"]).items() if d.get("status") == "open" and i in payable)

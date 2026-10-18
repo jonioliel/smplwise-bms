@@ -1,6 +1,6 @@
 # Requests for quotation (RFQ) - backend contract, stage C1 (TKRFQ1)
 
-Status: **v1.6 (CR-AWARD-NOTICE: 20.16 the award notice, 20.17 the vendor's postponement notice, migration 0115 provisional) / v1.5 (combined at the integ/270 integration for 2.7.0: RFQPAY2, 20.11 - 20.15, a demand per instalment, the overdue
+Status: **v1.7 (combined at the integ/271 integration for 2.7.1: CR-AWARD-NOTICE, 20.16 the award notice, 20.17 the vendor's postponement notice, migration 0115) / v1.6 (CR-CLAIM-PREFILL, section 22, the payment demand loaded from the approved quote, migrations 0116 + 0117) / v1.5.1 (HARDEN271, review fixes of 19.10 / 20.11, no migration) / v1.5 (combined at the integ/270 integration for 2.7.0: RFQPAY2, 20.11 - 20.15, a demand per instalment, the overdue
 notification, a moved instalment date / arrival window, the order re-send, migration 0110; v1.4.2 RFQ-VENDOR-UPLOAD, 19.10, a vendor's own
 files, migration 0109) / v1.4.1 (the review fixes of RFQPAY (section 20) and RFQATT (section 19), no new migration) / v1.4 (combined at the integ/264 integration, 2026-10-17: section 19 = files and pictures on a request (RFQATT, migration 0102);
 section 20 = the payment schedule and the arrival confirmation, behind a switch that is OFF by default (RFQPAY, migration 0103); section
@@ -80,7 +80,7 @@ Why a table of its own: `ticket_links.ticket_id` and `assignment_id` are NOT NUL
 rebuild of `ticket_links` would cascade into its five child tables. One link per invited vendor (`rfq_vendor_id` UNIQUE).
 
 Life of a link: minted at the first send (not before); `expires_at = max(due_at, now) + rfq.link_keep_days` (default 30), `cap_at =
-now + 180 days`; a later `due_at` moves `expires_at` with it. **The awarded vendor (v1.6, CR-AWARD-NOTICE, owner decision 2026-10-17 -
+now + 180 days`; a later `due_at` moves `expires_at` with it. **The awarded vendor (v1.7, CR-AWARD-NOTICE, owner decision 2026-10-17 -
 option A):** while the request is `awarded` / `ordered` and his row `awarded`, HIS link lives until the end of the work + 14 days (the
 end of the scheduled window - the terms' planned arrival, else the work order's window, else the awarded quote's / the request's window -
 or, once the order's request is marked done, `done_at` + 14 days), never shorter than the ordinary rule and never past `created_at` +
@@ -180,7 +180,7 @@ Which act sends what: **send** queues `rfq_invite` per vendor (WhatsApp / e-mail
 **remind** queues `rfq_reminder` (manual, per vendor or "everyone who did not answer"); **cancel** queues `rfq_cancelled` to vendors
 with a live quote (`notify: false` skips it); a **vendor message** is stored in the private thread (`ticket_rfq_messages`, shown on the
 vendor page in C2) and, with `notify`, queues `rfq_update`. **Award, second approval, decline-on-behalf, close, not_awarded: never a
-message** - except the award notice of 20.16 (v1.6), which leaves only on the manager's explicit tick (`confirm`, the default) or by the
+message** - except the award notice of 20.16 (v1.7), which leaves only on the manager's explicit tick (`confirm`, the default) or by the
 administrator's installation choice (`auto`). Outbox rows carry `rfq_id` and the link id; the outcome hooks write `message_sent` / `message_failed` RFQ events and the
 `ticket.message.send` audit row like ticket rows.
 
@@ -274,7 +274,7 @@ kinds default is DETAIL's (`costs.allowed_line_kinds` <- department <- the RFQ).
 Audit actions (ids, states, totals, counts - never a text; the PUBLIC vendor rows of 15.4 carry ids / versions / states / counts only, never an amount): `ticket.rfq.create`, `.edit`, `.vendor_add`, `.vendor_remove`, `.send`,
 `.remind`, `.link_revoke`, `.quote_on_behalf`, `.quote_withdraw`, `.decline_on_behalf`, `.award`, `.award_confirm`, `.award_decline`,
 `.cancel`, `.close`, `.message`, `.delete`, `.department` (+ v1.4 / v1.5: `.vendor_arrival`, `.arrival_decide`, `.instalment_demand`,
-`.instalment_reschedule`, `.arrival_reschedule`; + v1.6: `.award_notice`, `.vendor_postponement`, `.postponement_ack`).
+`.instalment_reschedule`, `.arrival_reschedule`; + v1.7: `.award_notice`, `.vendor_postponement`, `.postponement_ack`).
 
 ## 15. Public vendor page (stage C2, TKRFQVP)
 
@@ -418,7 +418,7 @@ the uniform 404, a read-only grace 409 `read_only`, a code switched on meanwhile
 | `quote.payment` (v1.4) | his OWN proposed instalments on his own quote | after the code |
 | `form.payment` (v1.4) | the installation switch + code constants (`null` while off) | after the code |
 | `terms.*` (v1.4, section 20.4) | his OWN approved award's schedule (amounts of his award only) and arrival confirmation | after the code, only when page_state is `awarded` |
-| `binding.*` (v1.6, section 20.17) | `text` = a code constant in his language; `scheduled_from/to` = his OWN award's scheduled window (terms / work order / his quote / the request); `postponement` = his OWN latest notice (dates, time, state - not the reason, not who handled it); `can.postpone` derived | after the code, only when page_state is `awarded` |
+| `binding.*` (v1.7, section 20.17) | `text` = a code constant in his language; `scheduled_from/to` = his OWN award's scheduled window (terms / work order / his quote / the request); `postponement` = his OWN latest notice (dates, time, state - not the reason, not who handled it); `can.postpone` derived | after the code, only when page_state is `awarded` |
 | `messages[].id` | his own thread's message ids | after the code |
 | `can.*` | derived (15.3) | after the code |
 | `page_state` | derived (15.3) | after the code |
@@ -1160,7 +1160,7 @@ is not done (`done_at`) / closed (409 `order_ticket_closed`), and the send's own
 Preview: `GET .../awards/{award_id}/order/preview?work_from=&work_to=` renders the exact order text with a window about to be saved (no
 side effect; the existing route and its refusals). The vendor-facing text is the existing `rfq_order` template - no new vendor string.
 
-### 20.16 The award notice - "approved and binding" (v1.6, CR-AWARD-NOTICE - owner request 2026-10-17)
+### 20.16 The award notice - "approved and binding" (v1.7, CR-AWARD-NOTICE - owner request 2026-10-17)
 
 Owner request: after a quote is approved the vendor must be told that it is APPROVED and BINDING, and that it is his duty to notify IN
 ADVANCE, through his link, if he postpones the work. Decisions and open questions: `docs/changes/CR-AWARD-NOTICE.md`. This section does NOT
@@ -1203,12 +1203,12 @@ depend on the payment-schedule switch (20.1).
 Detail `awards[].notice` (approved / pending awards): `{mode, state: queued | not_sent | pending | none, at, by, channel, reason, requested
 (pending only: the first approver's tick), can: {send}}`.
 
-### 20.17 The vendor's postponement notice through his link (v1.6, CR-AWARD-NOTICE)
+### 20.17 The vendor's postponement notice through his link (v1.7, CR-AWARD-NOTICE)
 
 The other half of the owner's rule: the awarded vendor gives the advance notice on his own RFQ page. **It never changes the agreed date by
 itself.**
 
-* **Migration 0115** (provisional; the lead renumbers at integration), additive: `ticket_rfq_postponements` (`id, rfq_id, award_id,
+* **Migration 0115** (the provisional number, kept at the integ/271 integration), additive: `ticket_rfq_postponements` (`id, rfq_id, award_id,
   rfq_vendor_id, link_id, proposed_from, proposed_to, reason, scheduled_from, lead_seconds, created_at, state open | acknowledged |
   rescheduled | ended, resolved_at, resolved_by, late`), a partial UNIQUE index = one OPEN notice per award. Purged with the request
   (`store_rfq.purge_rfq` deletes it explicitly).
@@ -1346,7 +1346,7 @@ bank data (strict models; the server never reads an amount from the client).
   `{code: "invalid", fields}`): `instalment_index` `not_allowed` (no approved quote / a no-charge demand), `invalid` (not an instalment of
   HIS approved schedule with an amount > 0); `above_reason` `required` (the vendor's demand total is above the approved total, or above
   the named instalment, same currency), `not_allowed` (not above), `too_long`. Below / different lines are accepted as they are.
-* Migration **0115**: `ticket_cost_revisions.basis_json` (nullable) `{quote_id, basis: total | instalment, instalment_index, basis_minor
+* Migration **0116** (provisional 0115, renumbered at integ/271): `ticket_cost_revisions.basis_json` (nullable) `{quote_id, basis: total | instalment, instalment_index, basis_minor
   (copied from the stored quote / schedule), above_reason}`. Revisions (vendor and managers' views) add `basis: null | {basis,
   instalment_index, basis_minor, above_reason}` (never the quote id).
 * The managers' claim view adds `quote_check`: `null` (no baseline) or `{status: same | differs, flags: [above_quote | below_quote |
@@ -1355,7 +1355,7 @@ bank data (strict models; the server never reads an amount from the client).
   (that flag switches the approve buttons to the exceptional-line choice). The 20.8 `schedule_check` is unchanged.
 * Contract 20.11 said "the vendor's page shows nothing of [the instalment demand]": v1.6 shows ONLY which instalment has an open demand,
   as the pre-selection (his own payment; never the status history, a paid mark or a manager name).
-* **Several demands per assignment (migration 0116, owner decision 2026-10-17).** `ticket_cost_claims.instalment_index` (NULL = the
+* **Several demands per assignment (migration 0117 - provisional 0116, owner decision 2026-10-17).** `ticket_cost_claims.instalment_index` (NULL = the
   ordinary claim; 0..5) with `UNIQUE (assignment_id, IFNULL(instalment_index, -1))` instead of 0083's `assignment_id UNIQUE`. The vendor's
   first demand naming an instalment takes that index on the ordinary claim; a NEW claim for instalment N opens only when a manager opened
   an RFQPAY2 demand for N (`open`) and N has no claim (else 409 `instalment_not_open`); the same instalment again goes to its own claim
@@ -1370,7 +1370,7 @@ bank data (strict models; the server never reads an amount from the client).
 
 ## 14. Change log
 
-* v1.6 (2026-10-17, CR-AWARD-NOTICE, `pilot/AWARD-NOTICE` from `integ/270`; migration 0115, provisional): 20.16 the award notice
+* v1.7 (2026-10-17, CR-AWARD-NOTICE, `pilot/AWARD-NOTICE` from `integ/270`, v1.6 on the branch - renumbered at integ/271; migration 0115): 20.16 the award notice
   ("approved and binding; give notice in advance through the link if you postpone") - a code-owned variant of `rfq_update`, setting
   `rfq.award_notice` (confirm default / auto / off), the preview route, `award_notice` on the award / confirm bodies and answers, the later
   send route, `awards[].notice`, `meta.award_notice`; 20.17 the vendor's postponement notice (`POST /t/api/rfq/arrival` `action: postpone`),
@@ -1381,7 +1381,7 @@ bank data (strict models; the server never reads an amount from the client).
   the manager's tick IS the explicit act; `auto` is an administrator's explicit installation choice. **A Fable review of the public surface
   is required before release.**
 
-* v1.6 (2026-10-17, CR-CLAIM-PREFILL, `pilot/CLAIM-PREFILL` from `integ/270`; migrations 0115 + 0116): section 22 - the payment demand
+* v1.6 (2026-10-17, CR-CLAIM-PREFILL, `pilot/CLAIM-PREFILL` from `integ/270`; migrations 0116 + 0117 - provisional 0115 + 0116, renumbered at integ/271): section 22 - the payment demand
   loaded from the approved quote (`prefill`, `instalment_index`, `above_reason`, `basis`, `quote_check`); one claim per approved instalment
   (`instalment_index`, `instalment_fixed`, `claims`, 409 `instalment_not_open`); the approved (partial) total on the quote card.
 

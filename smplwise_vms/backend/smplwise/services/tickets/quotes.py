@@ -407,7 +407,7 @@ def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, a
         # approved / paid) it was checked against the baseline of ITS submission time; a quote approved now would become a baseline the
         # demand's exceptional lines were never checked against. The manager decides the demand first (a rejected demand is checked
         # again against the new baseline when the vendor resubmits).
-        # CR-CLAIM-PREFILL (0116): any demand of the assignment (one per instalment) locks it
+        # CR-CLAIM-PREFILL (0117): any demand of the assignment (one per instalment) locks it
         if any(c["status"] in DEMAND_LOCKS for c in store_costs.claims_of_assignment(conn, q.get("assignment_id"))):
             raise CostRefused(409, "demand_pending")
         lines = lines_of(q)
@@ -470,7 +470,7 @@ def flow(conn, ticket: Mapping[str, Any]) -> dict[str, Any]:
     mode = quote_mode(asg)
     out = {"stage": "none", "sub_state": sub, "assignment_id": asg["id"], "quote_mode": mode}
     rows = store_costs.claims_of_assignment(conn, asg["id"])
-    claim = rows[-1] if rows else None  # CR-CLAIM-PREFILL (0116): the latest demand (one per instalment) sets the stage
+    claim = rows[-1] if rows else None  # CR-CLAIM-PREFILL (0117): the latest demand (one per instalment) sets the stage
     if claim is not None and claim["status"] != "awaiting":
         out["stage"] = {"submitted": "demand_submitted", "rejected": "demand_rejected", "approved": "demand_approved", "paid": "paid"}[claim["status"]]
         return out

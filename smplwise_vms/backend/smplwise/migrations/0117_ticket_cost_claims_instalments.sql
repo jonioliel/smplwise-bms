@@ -1,22 +1,22 @@
 -- CR-CLAIM-PREFILL follow-up (owner decision 2026-10-17, open question 2): SEVERAL payment demands per assignment, one per approved
 -- instalment, so a vendor demands the NEXT instalment from his page after the previous demand was approved.
--- Migration 0116 (pilot/CLAIM-PREFILL, cut from integ/270; the lead renumbers at integration if the number is taken).
+-- Migration 0117 (provisional 0116 on pilot/CLAIM-PREFILL; renumbered at the integ/271 integration for 2.7.1). It needs 0116 (basis_json) first.
 --
 -- 0083 made `ticket_cost_claims.assignment_id` UNIQUE (one claim per assignment). SQLite cannot drop a column constraint in place, so the
 -- table is rebuilt with the same columns + `instalment_index` (NULL = the ordinary claim - the only one an assignment without a payment
 -- schedule ever has, exactly as before) and the uniqueness moves to an expression index: (assignment_id, IFNULL(instalment_index, -1)) -
 -- at most ONE ordinary claim and at most one claim per instalment of an assignment (NULLs would not collide in a plain UNIQUE pair).
--- Existing rows are copied unchanged with `instalment_index` NULL (every pre-0116 claim is an ordinary claim). No data is changed or lost.
+-- Existing rows are copied unchanged with `instalment_index` NULL (every pre-0117 claim is an ordinary claim). No data is changed or lost.
 --
 -- Migrations run with foreign keys ON, and ticket_cost_revisions / ticket_cost_decisions / ticket_cost_files reference the claims ON
 -- DELETE CASCADE (ticket_cost_revision_files cascades from revisions and files): the DROP would delete them, so their rows are kept in
 -- temporary tables across the rebuild and written back unchanged (the 0087 pattern). The column order of the children is untouched, so
 -- `SELECT *` round-trips. Runs once (schema_migrations); the whole file is one transaction (Database.migrate), so a failure leaves the
--- 0115 schema intact.
+-- 0116 schema intact.
 --
 -- Rollback (manual, only while no assignment holds two claims): `SELECT assignment_id FROM ticket_cost_claims GROUP BY assignment_id
 -- HAVING COUNT(*) > 1` must be empty; then rebuild the table the same way with `assignment_id TEXT NOT NULL UNIQUE` and without
--- `instalment_index`, and delete version 116 from schema_migrations. An older build ignores the extra column but would not refuse a
+-- `instalment_index`, and delete version 117 from schema_migrations. An older build ignores the extra column but would not refuse a
 -- second claim row it never writes; it reads `claim_for_assignment` as "the first row", which is the primary claim.
 
 CREATE TEMP TABLE _cc_revisions AS SELECT * FROM ticket_cost_revisions;
