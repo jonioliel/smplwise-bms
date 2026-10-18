@@ -8,13 +8,15 @@ import type { RouteState } from '../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../electricity/access';
 import { generatorAccess } from '../generator/access';
 import '../generator/gen-settings'; // CR-031: הגדרות › תשתיות › גנרטור
+import { elevatorsAccess } from '../elevators/access';
+import '../elevators/elevator-settings'; // CR-INFRA-ELEVATORS: הגדרות › תשתיות › מעליות
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 // the sections register themselves (`screens/electricity/settings-*.ts`); see docs/architecture/ELECTRICITY_UI_SHELL.md
 import.meta.glob('./electricity/{page,settings}-*.ts', { eager: true });
 
-type Section = 'prices' | 'calendar' | 'business' | 'retention' | 'generator';
+type Section = 'prices' | 'calendar' | 'business' | 'retention' | 'generator' | 'elevators';
 interface SectionDef {
   id: Section;
   label: string;
@@ -30,6 +32,8 @@ const SECTIONS: SectionDef[] = [
   { id: 'retention', label: 'שמירת נתונים', tag: 'elec-settings-retention', allowed: (a) => a.system || a.manage },
   // CR-031 GEN1: the generator's detection, sensor mapping, thresholds and alert routing (generator.manage)
   { id: 'generator', label: 'גנרטור', tag: 'gen-settings', allowed: (_a, g) => g.manage },
+  // CR-INFRA-ELEVATORS: define elevators and link their state sensors (infra.elevators.manage)
+  { id: 'elevators', label: 'מעליות', tag: 'elevator-settings', allowed: () => elevatorsAccess().manage },
 ];
 
 /**

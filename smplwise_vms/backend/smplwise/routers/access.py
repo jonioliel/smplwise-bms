@@ -287,6 +287,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # alert routing (site_admin, system_admin). View and alerts only: there is NO command to the controller, so no control permission.
     "generator.view": "צפייה בגנרטור והתראותיו",
     "generator.manage": "ניהול הגנרטור: זיהוי, מיפוי חיישנים וניתוב התראות",
+    # CR-INFRA-ELEVATORS: define elevators and link their state sensors (site_admin, system_admin; installation scope). Viewing the
+    # elevators needs no permission of its own: devices.read, scoped by the floors of the linked sensors (routers/elevators.py).
+    "infra.elevators.manage": "ניהול מעליות: הגדרה וקישור חיישני מצב",
     # CR-038 (the optional tickets module, docs/changes/CR-038-TICKETS-MODULE.md section 8; owner decisions D15 / D25): WHAT a person
     # may do with tickets - WHERE is the ticket's place AND department membership (services/tickets/access.py visible()). view: see
     # tickets (own, assigned to me, my departments') and be assignable in a department one is a member of (operator, site_admin,
