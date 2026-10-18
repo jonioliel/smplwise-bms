@@ -101,7 +101,7 @@ test.describe('needs review report (NEEDSREVIEW 2.8.0)', () => {
   test('reject and delete: the dialog, then the existing reject route; delete now: the door note, then the erase', async ({ page }) => {
     const sent = await go(page, 'admin');
     await page.locator(`${R} [data-review-row="${PENDING.contact_id}"] [data-review-action="reject"]`).click();
-    await expect(page.locator(`${R} [data-review-dialog="reject"]`)).toBeVisible();
+    await expect(page.locator(`${R} [data-review-dialog="reject"] [data-review-confirm]`)).toBeVisible(); // the host is a zero-size wrapper of a fixed backdrop
     await expect(page.locator(`${R} [data-review-door-note]`)).toHaveCount(0);
     await shot(page, 'reject-dialog', 'light');
     await page.locator(`${R} [data-review-cancel]`).click();
