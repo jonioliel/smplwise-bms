@@ -255,6 +255,38 @@ def staff_starter_by_id(template_id: str | None) -> "TemplateText | None":
     return staff_starter(parts[1], parts[2])
 
 
+# CR-AWARD-NOTICE (owner request 2026-10-17): the award notice - a code-owned VARIANT of the `rfq_update` purpose (an RFQ link message:
+# the existing purpose, its send-hours rules, its link handling), chosen by the outbox row's `template_id`
+# ('starter:rfq_award_notice:<lang>'). Never editable in Settings and never a stored template: the binding / advance-notice wording is the
+# organisation's commitment text, not a free text. No amount, no date, no phone. ar / ru: developer translations pending a native review.
+AWARD_NOTICE = "rfq_award_notice"
+CODE_VARIANTS: dict[str, tuple[str, dict[str, str]]] = {
+    AWARD_NOTICE: ("rfq_update", {
+        "he": "ההצעה שלכם ל\"{title}\" (מס' {number}) אושרה, והיא מחייבת מעכשיו.\nאם תצטרכו לדחות את העבודה, חובה להודיע על כך מראש דרך הקישור: {link}\n{organization}",
+        "en": "Your quote for \"{title}\" (no. {number}) was approved and is now binding.\nIf you need to postpone the work, you must notify us in advance through the link: {link}\n{organization}",
+        "ar": "تمت الموافقة على عرض السعر الخاص بكم لـ\"{title}\" (رقم {number})، وأصبح ملزمًا من الآن.\nإذا احتجتم إلى تأجيل العمل، يجب إبلاغنا بذلك مسبقًا عبر الرابط: {link}\n{organization}",
+        "ru": "Ваше предложение по «{title}» (№ {number}) утверждено и с этого момента является обязательным.\nЕсли вам нужно перенести работы, вы обязаны заранее сообщить об этом по ссылке: {link}\n{organization}",
+    }),
+}
+
+
+def variant_template_id(name: str, lang: str) -> str:
+    texts = CODE_VARIANTS[name][1]
+    return f"starter:{name}:{lang if lang in texts else DEFAULT_LANG}"
+
+
+def variant_by_id(template_id: str | None, purpose: str | None = None) -> "TemplateText | None":
+    """'starter:<variant>:<lang>' of a code-owned variant -> its TemplateText (only for the purpose it belongs to); anything else -> None."""
+    parts = (template_id or "").split(":")
+    if len(parts) != 3 or parts[0] != "starter" or parts[1] not in CODE_VARIANTS:
+        return None
+    own, texts = CODE_VARIANTS[parts[1]]
+    if purpose is not None and purpose != own:
+        return None
+    lang = parts[2] if parts[2] in texts else DEFAULT_LANG
+    return TemplateText(id=f"starter:{parts[1]}:{lang}", purpose=own, lang=lang, body=texts[lang])
+
+
 class TemplateError(ValueError):
     """`code` is a stable word; the message never carries a value."""
 

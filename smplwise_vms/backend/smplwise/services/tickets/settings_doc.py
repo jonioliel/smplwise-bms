@@ -275,6 +275,13 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # RFQPAY2 (owner decision 2026-10-17): hours between two reminders of the same award's overdue instalments while something is still
     # overdue (0 = notify once only; a NEW overdue instalment always notifies)
     ("rfq", "instalment_reminder_hours"): (24, int_range(0, 168)),
+    # CR-AWARD-NOTICE (owner request 2026-10-17): the award notice to the vendor ("approved and binding; give notice in advance through
+    # the link if you postpone"). `confirm` (default) = the award dialog shows the exact text with a send tick, nothing leaves before the
+    # manager confirms the award with it; `auto` = queued with every final award; `off` = never (the field is refused)
+    ("rfq", "award_notice"): ("confirm", _choice("confirm", "auto", "off")),
+    # CR-AWARD-NOTICE (owner decision 2026-10-17): a postponement notice given less than N hours before the scheduled start (or after it)
+    # is tagged "late" for the managers - a visible tag only, never a block; 0 = tag only a notice given after the scheduled start
+    ("rfq", "postpone_late_hours"): (24, int_range(0, 720)),
     ("rfq", "question_reminder_hours"): (24, int_range(0, 168)),  # RFQQUESTIONS: remind the RFQ managers of a vendor question still unanswered after N hours; 0 = off
     # RFQQSET: off by default - a viewer of all departments who is not a manager of the request also gets the pending-questions count in the navigation
     ("rfq", "question_badge_all_viewers"): (False, boolean),

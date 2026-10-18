@@ -262,6 +262,9 @@ def create_order(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, body: M
         rfq._touch(conn, row, fields, None, now)
         rfq._audit(conn, viewer, "ticket.rfq.order", row, rid, award_id=a["id"], vendor_id=v["id"], quote_id=q["id"], ticket_id=tid,
                    ticket_number=res.number, assignment_id=aid, state=fields.get("state", row["state"]))
+    from . import rfq_links  # CR-AWARD-NOTICE: the awarded vendor's link follows the order's work window (+ 14 days)
+
+    rfq_links.sync_awarded(conn, row["id"])
     out = {"ticket_id": tid, "number": res.number}
     store.request_put(conn, scope, request_key, "rfq.order", 201, out)
     return {**out, "replayed": False}

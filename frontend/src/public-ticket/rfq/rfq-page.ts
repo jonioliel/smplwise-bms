@@ -313,7 +313,7 @@ class RfqPage {
   }
 
   /** CR-RFQ-PAYMENT-SCHEDULE: confirm the planned arrival or propose another date (both acknowledge the approved schedule). */
-  private async arrival(action: 'confirm' | 'propose'): Promise<void> {
+  private async arrival(action: 'confirm' | 'propose' | 'postpone'): Promise<void> {
     const v = this.view;
     if (!v) return;
     if (!this.terms) return; // the confirm / propose buttons exist only once the terms module rendered them
@@ -325,10 +325,11 @@ class RfqPage {
     await this.load(false);
   }
 
-  /** Fetch the terms module when this answer needs it (a payment form or approved terms); renders again once it is here. */
+  /** Fetch the terms module when this answer needs it (a payment form, approved terms, or - CR-AWARD-NOTICE - his binding award);
+   * renders again once it is here. */
   private needTerms(): void {
     const v = this.view;
-    if (this.terms || this.termsAsked || !v || !(v.form?.payment || v.terms)) return;
+    if (this.terms || this.termsAsked || !v || !(v.form?.payment || v.terms || v.binding)) return;
     this.termsAsked = true;
     import('./rfq-page-terms').then((m) => { this.terms = m; this.render(); }, () => { this.termsAsked = false; });
   }

@@ -52,6 +52,8 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_proposed": ("{ref}: ספק הציע מועד הגעה אחר", "{place} · ממתין להחלטה"),
         "arrival_unconfirmed": ("{ref}: ספק לא אישר את מועד ההגעה", "{place} · נשלחו שתי תזכורות · הזמנת העבודה אינה נחסמת"),
         "instalment_overdue": ("{ref}: מועד תשלום לספק עבר", "{place} · {count} תשלומים שמועדם עבר ולא סומנו כשולמו"),
+        "vendor_postponement": ("{ref}: ספק הודיע על דחיית העבודה", "{place}"),
+        "vendor_postponement_late": ("{ref}: ספק הודיע על דחיית העבודה", "{place} · באיחור"),
     },
     "en": {
         "quote_new": ("{ref}: quote received", "{place}"),
@@ -66,12 +68,17 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_proposed": ("{ref}: a vendor proposed another arrival date", "{place} · waiting for a decision"),
         "arrival_unconfirmed": ("{ref}: a vendor did not confirm the arrival date", "{place} · two reminders sent · the work order is not blocked"),
         "instalment_overdue": ("{ref}: a vendor payment is past its date", "{place} · {count} instalments past their date and not marked paid"),
+        "vendor_postponement": ("{ref}: a vendor gave notice of postponing the work", "{place}"),
+        "vendor_postponement_late": ("{ref}: a vendor gave notice of postponing the work", "{place} · late"),
     },
 }
 # RFQPAY2: the overdue-instalment rows are keyed OUTSIDE `rfq:<id>:` (`rfqpay:<rfq_id>:<award_id>`) - a later final award or the close of
 # the request (`ended`) must not silence a payment that is still due; they end with a cancel / delete / purge (`payments_ended`) or when
 # nothing is overdue any more (paid, cancelled, moved).
 PAY_PREFIX = "rfqpay"
+# CR-AWARD-NOTICE: the vendor's postponement notice of an award - keyed OUTSIDE `rfq:<id>:` too (`rfqpost:<rfq_id>:<award_id>`): a later
+# award of a split request (`ended`) must not silence it; it ends when a manager acts on it or the request closes / is cancelled / deleted
+POST_PREFIX = "rfqpost"
 PART_SOURCE = {"quote": "rfq.quote_received", "declined": "rfq.declined", "question": "rfq.question", "due": "rfq.due_passed",
                "arrival": "rfq.arrival", "qremind": "rfq.question_unanswered"}
 
@@ -276,3 +283,22 @@ def payments_ended(conn: sqlite3.Connection, rfq_id: str) -> None:
     """The request was cancelled, deleted or purged: every overdue-instalment row of it is over."""
     for key in store.open_notification_keys(conn, f"{PAY_PREFIX}:{rfq_id}:"):
         resolve(conn, "rfq.instalment_overdue", key)
+
+
+def postponement(conn: sqlite3.Connection, row: Mapping[str, Any], award_id: str, rfq_vendor_id: str, *, late: bool = False) -> str | None:
+    """CR-AWARD-NOTICE (contract 20.17): the awarded vendor gave notice, through his link, that he postpones the work. One row per award;
+    the text is the reference and the place only (+ the plain word "late" when it was given late - owner decision 2026-10-17) - never the
+    proposed date, the reason, the lead time or his name."""
+    return _emit(conn, "rfq.vendor_postponement", row, "vendor_postponement_late" if late else "vendor_postponement", dedupe=f"{POST_PREFIX}:{row['id']}:{award_id}",
+                 origin={"rfq_vendor_id": rfq_vendor_id, "award_id": award_id})
+
+
+def postponement_done(conn: sqlite3.Connection, rfq_id: str, award_id: str) -> None:
+    """A manager moved the arrival window or acknowledged the notice: its row is over."""
+    resolve(conn, "rfq.vendor_postponement", f"{POST_PREFIX}:{rfq_id}:{award_id}")
+
+
+def postponements_ended(conn: sqlite3.Connection, rfq_id: str) -> None:
+    """The request was closed, cancelled, deleted or purged: every postponement row of it is over."""
+    for key in store.open_notification_keys(conn, f"{POST_PREFIX}:{rfq_id}:"):
+        resolve(conn, "rfq.vendor_postponement", key)

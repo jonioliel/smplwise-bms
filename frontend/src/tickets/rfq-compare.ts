@@ -10,12 +10,12 @@ import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError } from '../api/client';
 import type { LineKind } from '../api/tickets-costs';
-import { ticketsRfqApi, type RfqAwardAnswer, type RfqAwardBody, type RfqCompareQuote, type RfqComparison, type RfqDetail, type RfqMessageDraft, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
+import { ticketsRfqApi, type RfqAwardAnswer, type RfqAwardBody, type RfqAwardNoticePreview, type RfqCompareQuote, type RfqComparison, type RfqDetail, type RfqMessageDraft, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
 import { formatMoney } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
 import { tIcon } from './icons';
 import { rIcon } from './rfq-icons';
-import { rt } from './rfq-text';
+import { rt, type RfqTextKey } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
 import {
   KIND_ORDER, arrangeQuotes, awardPreview, currencyGroups, dateTime, dayToIso, initials, kindsOf, notSelected, rfqHref, scopeValid, secondApprovalHint, selectionTotals, splitPlan,
@@ -61,6 +61,9 @@ export class TicketsRfqCompare extends LitElement {
    * planned arrival day ('' = the quote's / request's window) */
   @state() private pays = new Map<string, MgrPay>();
   @state() private arrivals = new Map<string, string>();
+  /** CR-AWARD-NOTICE (contract 20.16): per selected vendor - the exact notice text from the server, and the vendors the manager unticked */
+  @state() private notices = new Map<string, RfqAwardNoticePreview>();
+  @state() private noticeOff = new Set<string>();
   private seq = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, rfqStyles];
@@ -151,7 +154,8 @@ export class TicketsRfqCompare extends LitElement {
     try {
       for (const body of splitPlan(sel)) {
         current = body.quote_id;
-        const a = await ticketsRfqApi().award(d.id, { ...body, ...this.termsBody(body.quote_id) });
+        const vendorId = sel.find((s) => s.quote.quote_id === body.quote_id)?.quote.vendor_id ?? '';
+        const a = await ticketsRfqApi().award(d.id, { ...body, ...this.termsBody(body.quote_id), ...this.noticeBody(vendorId) });
         answers.push(a);
         this.d = a.rfq;
         if (a.award.state === 'pending_second') break; // the RFQ waits: nothing more until the second approver decides
@@ -163,6 +167,8 @@ export class TicketsRfqCompare extends LitElement {
       this.sel = new Map();
       this.pays = new Map();
       this.arrivals = new Map();
+      this.notices = new Map();
+      this.noticeOff = new Set();
       await this.load();
     } catch (e) {
       this.error = rfqError(e);
@@ -180,6 +186,63 @@ export class TicketsRfqCompare extends LitElement {
     if (!q || !this.termsOn() || this.pays.has(q.quote_id) || !fields?.some((f) => String(f.field ?? '').startsWith('payment'))) return;
     this.setPay(q.quote_id, payFromProposal(q.payment_proposal));
     this.error = rt('pyInvalid');
+  }
+
+  // ---------------------------------------------------------------- CR-AWARD-NOTICE: the approval notice at the award
+
+  private noticeMode(): 'confirm' | 'auto' | 'off' | null {
+    return this.meta?.award_notice ?? null;
+  }
+
+  private openConfirm(): void {
+    this.error = '';
+    this.confirm = true;
+    void this.loadNotices();
+  }
+
+  /** The exact notice per selected vendor (no side effect on the server); a vendor whose preview fails gets no tick (nothing silently). */
+  private async loadNotices(): Promise<void> {
+    const d = this.d;
+    const api = ticketsRfqApi();
+    const mode = this.noticeMode();
+    if (!d || !mode || mode === 'off' || !api.awardNoticePreview) return;
+    const next = new Map<string, RfqAwardNoticePreview>();
+    for (const s of this.selections()) {
+      try {
+        next.set(s.quote.vendor_id, await (api.awardNoticePreview as NonNullable<typeof api.awardNoticePreview>)(d.id, s.quote.vendor_id));
+      } catch {
+        /* the block is not shown; the award sends no notice for this vendor */
+      }
+    }
+    this.notices = next;
+  }
+
+  /** The award body's `award_notice`: confirm mode - the tick (only with a preview that can go); auto - an explicit opt-out only. */
+  private noticeBody(vendorId: string): Pick<RfqAwardBody, 'award_notice'> {
+    const mode = this.noticeMode();
+    if (!mode || mode === 'off') return {};
+    const p = this.notices.get(vendorId);
+    if (mode === 'auto') return this.noticeOff.has(vendorId) ? { award_notice: false } : {};
+    return { award_notice: !!p && p.refusals.length === 0 && !this.noticeOff.has(vendorId) };
+  }
+
+  private noticeBlock(q: RfqCompareQuote): TemplateResult | typeof nothing {
+    const mode = this.noticeMode();
+    const p = this.notices.get(q.vendor_id);
+    if (!mode || mode === 'off' || !p) return nothing;
+    const blocked = p.refusals.length > 0;
+    const off = this.noticeOff.has(q.vendor_id);
+    const toggle = (on: boolean) => { const n = new Set(this.noticeOff); if (on) n.delete(q.vendor_id); else n.add(q.vendor_id); this.noticeOff = n; };
+    return html`<div class="draft" data-cmp-notice=${q.vendor_id} data-notice-mode=${mode}>
+      <b>${bidi(this.name(q))} · ${rt('anTitle')}</b>
+      ${blocked ? html`<div class="banner warn" role="status" data-cmp-notice-blocked>${rt('anCannot', { why: rt(`anWhy_${p.refusals[0]}` as RfqTextKey) })}</div>` : nothing}
+      ${mode === 'confirm' ? html`<label class="chk"><input type="checkbox" data-cmp-notice-send .checked=${!blocked && !off} ?disabled=${blocked || this.busy}
+          @change=${(e: Event) => toggle((e.target as HTMLInputElement).checked)} />${rt('anSend')}</label>`
+        : html`<p class="note">${rt('anAuto')}</p><label class="chk"><input type="checkbox" data-cmp-notice-skip .checked=${off} ?disabled=${this.busy}
+          @change=${(e: Event) => toggle(!(e.target as HTMLInputElement).checked)} />${rt('anAutoSkip')}</label>`}
+      <p class="note" dir="auto" style="white-space:pre-line" data-cmp-notice-text lang=${p.lang}>${p.text}</p>
+      <p class="note">${rt('anNote')}</p>
+    </div>`;
   }
 
   // ---------------------------------------------------------------- CR-RFQ-PAYMENT-SCHEDULE: the schedule and the arrival at the award
@@ -407,7 +470,7 @@ export class TicketsRfqCompare extends LitElement {
     const totals = selectionTotals(sel);
     const valid = sel.length > 0 && sel.every((s) => scopeValid(s.quote, s.scope));
     return html`<div class="bar2" data-cmp-bar ?data-empty=${sel.length === 0}>
-      <button type="button" class="btn primary" data-cmp-approve ?disabled=${!valid || this.busy} @click=${() => { this.error = ''; this.confirm = true; }}>
+      <button type="button" class="btn primary" data-cmp-approve ?disabled=${!valid || this.busy} @click=${() => this.openConfirm()}>
         ${tIcon('check')}${sel.length > 1 ? rt('approveSplit', { n: sel.length }) : rt('approveOne')}</button>
       <div class="sum" data-cmp-sum>${sel.length ? html`${sel.map((s) => html`<span>${bidi(this.name(s.quote))} · ${this.scopeLabel(s.quote, s.scope)} · <b class="num">${this.money(awardPreview(s.quote, s.scope).total, s.quote.currency)}</b></span>`)}
           ${totals.length > 1 ? html`<span data-cmp-currency-note>${rt('selCurrencyNote')}</span>` : nothing}` : html`<span>${rt('selNone')}</span>`}</div>
@@ -431,6 +494,7 @@ export class TicketsRfqCompare extends LitElement {
         <p class="note">${rt('awardOthers')}</p>
         <p class="note" data-cmp-second=${hint ? 'maybe' : 'off'}>${hint && threshold !== null ? rt('awardSecondMaybe', { amount: this.money(threshold, this.c.currency) }) : rt('awardSecondOff')}</p>
         ${this.termsOn() ? sel.map((s) => this.termsEditor(s.quote)) : nothing}
+        ${sel.map((s) => this.noticeBlock(s.quote))}
         ${this.error ? html`<div class="err" role="alert" data-cmp-error>${this.error}</div>` : nothing}
       </div>
       <button slot="footer" type="button" class="btn quiet" ?disabled=${this.busy} @click=${() => (this.confirm = false)}>${rt('back')}</button>

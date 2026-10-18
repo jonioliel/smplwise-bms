@@ -112,7 +112,7 @@ export class SystemTickets extends LitElement {
   @state() private publicError = ''; // 2.5.3: the failed save of a public-address key, shown in its own card too
   @state() private ok = '';
   @state() private newDept = { name: '', key: '' };
-  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string; qHours?: string; insHours?: string } = {};
+  @state() private instDraft: { sliding?: string; cap?: string; grace?: string; from?: string; to?: string; arrHours?: string; qHours?: string; insHours?: string; lateHours?: string } = {};
   @state() private vuDraft: Partial<Record<VuKey, string>> = {}; // RFQ-VENDOR-UPLOAD: the limit fields being edited
   private okTimer = 0;
   private offNames: (() => void) | null = null;
@@ -631,7 +631,32 @@ export class SystemTickets extends LitElement {
         <sw-toggle label=${qst('qBadgeAll')} labelHidden .checked=${qAll} ?disabled=${this.busy} data-inst-question-badge-all
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { question_badge_all_viewers: e.detail.checked } })}></sw-toggle></div>
       ${this.instalmentHoursRow(doc)}
+      ${this.awardNoticeRow(doc)}
+      ${this.lateHoursRow(doc)}
     </sw-card>`;
+  }
+
+  /** CR-AWARD-NOTICE (owner 2026-10-17): the "late" tag threshold of a postponement notice (default 24 h, 0-720; 0 = only after the start). */
+  private lateHoursRow(doc: SettingsDoc): TemplateResult {
+    const hours = doc.rfq?.postpone_late_hours ?? 24;
+    const raw = this.instDraft.lateHours ?? String(hours);
+    const n = intIn(raw, 0, 720);
+    return html`<div class="row"><span class="lbl">${qst('ppLateHours')}<span class="muted">${qst('ppLateHoursSub')}</span></span>
+      <span class="unit"><input class="in num" type="number" min="0" max="720" data-inst-postpone-late aria-label=${qst('ppLateHours')}
+        aria-invalid=${String(Number.isNaN(n))} .value=${raw}
+        @input=${(e: Event) => (this.instDraft = { ...this.instDraft, lateHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
+        <sw-button size="sm" variant="primary" data-inst-postpone-late-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
+          @click=${() => void this.saveDoc({ rfq: { postpone_late_hours: n } }, () => (this.instDraft = { ...this.instDraft, lateHours: undefined }))}>${tt('save')}</sw-button></span></div>`;
+  }
+
+  /** CR-AWARD-NOTICE (contract 20.16): how the "approved and binding" notice reaches the selected vendor - confirm (default) | auto | off. */
+  private awardNoticeRow(doc: SettingsDoc): TemplateResult {
+    const mode = doc.rfq?.award_notice ?? 'confirm';
+    return html`<div class="row"><span class="lbl">${qst('anSetting')}<span class="muted">${qst('anSettingSub')}</span></span>
+      <select class="in" data-inst-award-notice aria-label=${qst('anSetting')} ?disabled=${this.busy}
+        @change=${(e: Event) => void this.saveDoc({ rfq: { award_notice: (e.target as HTMLSelectElement).value as 'confirm' | 'auto' | 'off' } })}>
+        ${(['confirm', 'auto', 'off'] as const).map((m) => html`<option value=${m} ?selected=${mode === m}>${qst(`anMode_${m}`)}</option>`)}
+      </select></div>`;
   }
 
   /** RFQPAY2 (owner 2026-10-17): hours between two reminders of the same overdue instalments (default 24; 0 = once only). */

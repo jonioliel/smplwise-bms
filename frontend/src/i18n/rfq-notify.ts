@@ -11,6 +11,7 @@ const he = {
   'rfq.arrival': 'ספק אישר מועד הגעה או הציע מועד אחר',
   'rfq.question_unanswered': 'שאלת ספק ממתינה לתשובה',
   'rfq.instalment_overdue': 'מועד תשלום לספק עבר',
+  'rfq.vendor_postponement': 'ספק הודיע על דחיית העבודה', // CR-AWARD-NOTICE
   kind: 'בקשת הצעת מחיר',
   open: 'פתח את הבקשה',
 };
@@ -24,6 +25,7 @@ const en: Partial<Record<RfqNotifyKey, string>> = {
   'rfq.arrival': 'Vendor confirmed or proposed an arrival date',
   'rfq.question_unanswered': 'Vendor question waiting for an answer',
   'rfq.instalment_overdue': 'Vendor payment past its date',
+  'rfq.vendor_postponement': 'Vendor gave notice of postponing the work',
   kind: 'Request for quotation',
   open: 'Open the request',
 };

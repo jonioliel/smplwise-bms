@@ -166,6 +166,10 @@ export interface RfqAward {
   can?: { order: boolean; send_order: boolean; resend_order?: boolean };
   /** CR-RFQ-PAYMENT-SCHEDULE (contract 20.7): the approved schedule and the vendor's arrival confirmation (null while the switch is off) */
   terms?: RfqAwardTerms | null;
+  /** CR-AWARD-NOTICE (contract 20.16): the "approved and binding" notice to the vendor (absent on older servers) */
+  notice?: RfqAwardNotice | null;
+  /** CR-AWARD-NOTICE (contract 20.17): the vendor's postponement notices given through his link (null = none) */
+  postponement?: RfqPostponementBlock | null;
 }
 
 /** CR-RFQ-PAYMENT-SCHEDULE: one instalment (amounts null without tickets.costs.view; the final one is the remainder). */
@@ -397,7 +401,37 @@ export interface RfqMeta {
   schedule_arrival?: boolean;
   /** RFQ-VENDOR-UPLOAD: vendors may attach files to their quotes (installation switch, OFF by default) */
   vendor_uploads?: boolean;
+  /** CR-AWARD-NOTICE: the award notice setting (absent on older servers = no notice block) */
+  award_notice?: RfqAwardNoticeMode;
 }
+
+/** CR-AWARD-NOTICE: the setting `rfq.award_notice` - confirm (default) | auto | off. */
+export type RfqAwardNoticeMode = 'confirm' | 'auto' | 'off';
+/** `awards[].notice` (contract 20.16). */
+export interface RfqAwardNotice {
+  mode: RfqAwardNoticeMode;
+  /** queued = the notice went to the outbox; not_sent = tried, the vendor could not be reached (`reason`); pending = a second approval waits */
+  state: 'queued' | 'not_sent' | 'pending' | 'none';
+  at: string | null; by: string | null; channel: string | null; reason: string | null;
+  /** a pending award: the first approver's tick (the second approver's default) */
+  requested: boolean | null;
+  can: { send: boolean };
+}
+/** `GET tickets/rfqs/{id}/vendors/{rv}/award-notice` - the exact text before the award (no side effect). */
+export interface RfqAwardNoticePreview {
+  mode: RfqAwardNoticeMode; text: string; lang: string; channel: string;
+  /** why it cannot go now: vendor | page | link | channel */
+  refusals: string[]; notify_default: boolean; sent: boolean;
+}
+export interface RfqAwardNoticeResult { queued: boolean; already: boolean; channel: string | null; outbox_id: string | null; reason: string | null }
+/** One postponement notice of the awarded vendor (contract 20.17) - the lead time is stored as given, no judgement. */
+export interface RfqPostponement {
+  id: string; proposed_from: string; proposed_to: string | null; reason: string; scheduled_from: string | null; lead_seconds: number | null;
+  /** owner decision 2026-10-17: given after the scheduled start or less than `rfq.postpone_late_hours` before it - a tag, never a block */
+  late: boolean;
+  at: string; state: 'open' | 'acknowledged' | 'rescheduled' | 'ended'; resolved_at: string | null; resolved_by: string | null;
+}
+export interface RfqPostponementBlock { open: RfqPostponement | null; items: RfqPostponement[]; count: number; can: { acknowledge: boolean } }
 
 export interface RfqVendorRef { contact_id: string; channel?: RfqChannel; require_code?: boolean }
 
@@ -445,7 +479,9 @@ export interface RfqVendorOptionsBody { revision: number; require_code?: boolean
 export interface RfqAwardBody { quote_id: string; revision: number; line_indexes?: number[]; kinds?: LineKind[]; finalize: boolean;
   /** CR-RFQ-PAYMENT-SCHEDULE (20.3): the manager's plan, or the explicit choice (`vendor` = the proposal as is, `default` = one final
    * instalment) - one of the two is REQUIRED when the vendor proposed a schedule (review F1) - and the planned arrival */
-  payment?: { items: Record<string, unknown>[] }; payment_source?: 'vendor' | 'default'; arrival?: { work_from: string; work_to?: string } }
+  payment?: { items: Record<string, unknown>[] }; payment_source?: 'vendor' | 'default'; arrival?: { work_from: string; work_to?: string };
+  /** CR-AWARD-NOTICE (20.16): the dialog's "send the approval notice" tick (sent only when the server's meta has `award_notice`) */
+  award_notice?: boolean }
 
 /** The editable notice of an award (rfq.award_draft) - never sent by the system. */
 export interface RfqMessageDraft {
@@ -455,7 +491,7 @@ export interface RfqMessageDraft {
   send: { route: string; source: { kind: 'award'; id: string } };
 }
 
-export interface RfqAwardAnswer { rfq: RfqDetail; award: RfqAward; message_draft: RfqMessageDraft | null }
+export interface RfqAwardAnswer { rfq: RfqDetail; award: RfqAward; message_draft: RfqMessageDraft | null; award_notice?: RfqAwardNoticeResult | null }
 
 export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string; at: string; by: string; source: { kind: string; id: string | null } | null; notified: boolean;
   /** TKRFQ5: a vendor's WhatsApp reply matched to the thread - an unverified sender (the vendor page never shows it). */
@@ -508,7 +544,7 @@ export interface RfqBackend {
   declineOnBehalf(id: string, vendorId: string, reason?: string): Promise<RfqDetail>;
   comparison(id: string): Promise<RfqComparison>;
   award(id: string, body: RfqAwardBody): Promise<RfqAwardAnswer>;
-  confirmAward(id: string, awardId: string, revision: number): Promise<RfqAwardAnswer>;
+  confirmAward(id: string, awardId: string, revision: number, awardNotice?: boolean): Promise<RfqAwardAnswer>;
   declineAward(id: string, awardId: string, revision: number, reason: string): Promise<RfqDetail>;
   cancel(id: string, revision: number, reason: string | undefined, notify: boolean): Promise<RfqDetail>;
   close(id: string, revision: number): Promise<RfqDetail>;
@@ -540,6 +576,12 @@ export interface RfqBackend {
   moveArrival?(id: string, awardId: string, workFrom: string, workTo: string | null, revision: number, opts?: RfqMoveNotice): Promise<RfqDetail>;
   /** RFQPAY2 (20.11): the instalment's payment demand - create (idempotent) / mark paid / cancel */
   instalmentDemand?(id: string, awardId: string, index: number, action: RfqDemandAction): Promise<RfqDemandAnswer>;
+  /** CR-AWARD-NOTICE (20.16): the exact award notice for one vendor, its channel and why it cannot go now (no side effect) */
+  awardNoticePreview?(id: string, vendorId: string): Promise<RfqAwardNoticePreview>;
+  /** CR-AWARD-NOTICE: send the notice of a final award that did not go with it (once per award) */
+  sendAwardNotice?(id: string, awardId: string): Promise<{ rfq: RfqDetail; award_notice: RfqAwardNoticeResult }>;
+  /** CR-AWARD-NOTICE (20.17): an RFQ manager acknowledges the vendor's open postponement notice (the date does not move) */
+  ackPostponement?(id: string, awardId: string, postponementId: string): Promise<RfqDetail>;
   /** RFQQUESTIONS: the navigation badge (the open requests the caller manages) */
   questionsSummary(): Promise<RfqQuestionsSummary>;
   /** RFQQUESTIONS: an RFQ manager opened the vendor's thread (his questions are no longer new) */
@@ -610,7 +652,8 @@ const rest: RfqBackend = {
   declineOnBehalf: (id, vendorId, reason) => post<RfqDetail>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/decline`, reason ? { reason } : {}),
   comparison: (id) => get<RfqComparison>(`${R}/${enc(id)}/comparison`),
   award: (id, body) => post<RfqAwardAnswer>(`${R}/${enc(id)}/awards`, body),
-  confirmAward: (id, awardId, revision) => post<RfqAwardAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/confirm`, { revision }),
+  confirmAward: (id, awardId, revision, awardNotice) => post<RfqAwardAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/confirm`,
+    { revision, ...(awardNotice === undefined ? {} : { award_notice: awardNotice }) }),
   declineAward: (id, awardId, revision, reason) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/decline`, { revision, reason }),
   cancel: (id, revision, reason, notify) => post<RfqDetail>(`${R}/${enc(id)}/cancel`, { revision, notify, ...(reason ? { reason } : {}) }),
   close: (id, revision) => post<RfqDetail>(`${R}/${enc(id)}/close`, { revision }),
@@ -638,6 +681,9 @@ const rest: RfqBackend = {
   moveArrival: (id, awardId, workFrom, workTo, revision, opts) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/arrival/date`,
     { work_from: workFrom, ...(workTo ? { work_to: workTo } : {}), revision, ...moveExtras(opts) }),
   instalmentDemand: (id, awardId, index, action) => post<RfqDemandAnswer>(`${R}/${enc(id)}/awards/${enc(awardId)}/instalments/${index}/demand`, { action }),
+  awardNoticePreview: (id, vendorId) => get<RfqAwardNoticePreview>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/award-notice`),
+  sendAwardNotice: (id, awardId) => post<{ rfq: RfqDetail; award_notice: RfqAwardNoticeResult }>(`${R}/${enc(id)}/awards/${enc(awardId)}/notice`),
+  ackPostponement: (id, awardId, postponementId) => post<RfqDetail>(`${R}/${enc(id)}/awards/${enc(awardId)}/postponement/ack`, { postponement_id: postponementId }),
   questionsSummary: () => get<RfqQuestionsSummary>(`${R}/questions/summary`),
   markRead: (id, vendorId) => post<{ read: number }>(`${R}/${enc(id)}/vendors/${enc(vendorId)}/messages/read`),
   answerPreview: (id, qid, body) => post<RfqAnswerPreview>(`${R}/${enc(id)}/questions/${enc(qid)}/preview`, answerWire(body)),

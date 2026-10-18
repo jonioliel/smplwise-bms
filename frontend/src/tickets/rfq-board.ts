@@ -271,10 +271,47 @@ export class TicketsRfqBoard extends LitElement {
       </div>` : nothing}
       ${done.map((a) => html`<div class="banner info" role="status" data-rfq-awarded=${a.vendor_id}>${tIcon('check')}
         <div><b>${rt('awardedTo', { name: this.vendorName(a.vendor_id) })}${a.total_minor !== null ? html` · <span class="num">${this.money(a.total_minor, a.currency)}</span>` : nothing}</b>
-          <small>${rt('baseline')}</small></div>
+          <small>${rt('baseline')}</small>${this.noticeLine(a)}</div>
+        ${a.notice?.can.send ? html`<button type="button" class="btn sm" data-rfq-award-notice-send ?disabled=${this.busy} @click=${() => void this.sendNotice(a)}>${tIcon('send')}${rt('anSendNow')}</button>` : nothing}
         ${a.ticket ? html`<a class="btn sm" href=${`#/tickets/${a.ticket.id}`} data-rfq-order-ticket>${tIcon('ticket')}${rt('orderTicket', { number: a.ticket.number })}</a>` : nothing}
       </div>`)}
+      ${done.map((a) => this.postponementBanner(a))}
       ${d.state === 'cancelled' && d.cancel_reason ? html`<div class="banner bad" role="status">${rIcon('ban')}<div><b>${rt('st_cancelled')}</b><small>${bidi(d.cancel_reason)}</small></div></div>` : nothing}`;
+  }
+
+  /** CR-AWARD-NOTICE (contract 20.16): whether the "approved and binding" notice went to the vendor. */
+  private noticeLine(a: RfqAward): TemplateResult | typeof nothing {
+    const n = a.notice;
+    if (!n || n.state === 'none' || n.state === 'pending') return nothing;
+    return n.state === 'queued' ? html`<small data-rfq-award-notice="queued">${rt('anSentAt', { at: dateTime(n.at) })}</small>`
+      : html`<small data-rfq-award-notice="not_sent">${rt('anNotSent')}${n.reason ? ` · ${rt(`anWhy_${n.reason}` as RfqTextKey)}` : ''}</small>`;
+  }
+
+  private async sendNotice(a: RfqAward): Promise<void> {
+    const d = this.d as RfqDetail;
+    const api = ticketsRfqApi();
+    if (!api.sendAwardNotice) return;
+    await this.run(async () => (await (api.sendAwardNotice as NonNullable<typeof api.sendAwardNotice>)(d.id, a.id)).rfq, rt('anSentDone'));
+  }
+
+  /** CR-AWARD-NOTICE (contract 20.17): the vendor's OPEN postponement notice - what he proposes, the date that was scheduled, how far in
+   * advance he gave it (as stored, no judgement), his reason; the agreed date never moves by itself (the arrival-date editor moves it). */
+  private postponementBanner(a: RfqAward): TemplateResult | typeof nothing {
+    const p = a.postponement?.open;
+    if (!p) return nothing;
+    const lead = p.lead_seconds;
+    const h = lead === null ? 0 : Math.round(Math.abs(lead) / 3600);
+    const api = ticketsRfqApi();
+    return html`<div class="banner warn" role="status" data-rfq-postponement=${p.id}>${tIcon('clock')}
+      <div><b>${rt('ppTitle')} · ${this.vendorName(a.vendor_id)}</b>${p.late ? html` <span class="chip warn" title=${rt('ppLateTitle')} data-rfq-postponement-late>${rt('ppLate')}</span>` : nothing}
+        <small>${rt('ppProposed', { date: windowText(p.proposed_from, p.proposed_to) })}</small>
+        ${p.scheduled_from ? html`<small>${rt('ppScheduled', { date: windowText(p.scheduled_from, null) })}</small>` : nothing}
+        ${lead !== null ? html`<small data-rfq-postponement-lead=${lead}>${rt(lead >= 0 ? 'ppLeadBefore' : 'ppLeadAfter', { h })}</small>` : nothing}
+        <small>${rt('ppReason')}: ${bidi(p.reason)}</small>
+        <small class="mut">${rt('ppMoveHint')}</small></div>
+      ${a.postponement?.can.acknowledge && api.ackPostponement ? html`<div class="rowacts"><button type="button" class="btn sm" data-rfq-postponement-ack ?disabled=${this.busy}
+        @click=${() => void this.run(() => (api.ackPostponement as NonNullable<typeof api.ackPostponement>)((this.d as RfqDetail).id, a.id, p.id), rt('ppAckDone'))}>${tIcon('check')}${rt('ppAck')}</button></div>` : nothing}
+    </div>`;
   }
 
   /** Whether the viewer may decide (the comparison and the second approval): the server's award flag, or an open pending award (the

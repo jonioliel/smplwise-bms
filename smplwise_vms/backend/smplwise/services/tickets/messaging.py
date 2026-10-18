@@ -236,6 +236,9 @@ class DbTemplates:
         staff = mt.staff_starter_by_id(template_id)  # TKSTAFF1: the code-owned staff texts (the row names one; never editable)
         if staff is not None:
             return staff
+        variant = mt.variant_by_id(template_id, purpose)  # CR-AWARD-NOTICE: a code-owned variant the row names (never a stored text)
+        if variant is not None:
+            return variant
         with self.io.read() as conn:
             cands = [template_text(r) for r in message_template_rows(conn, purpose=purpose, department_id=department_id)]
         if template_id:
