@@ -1010,6 +1010,7 @@ class FakeAccessEngine:
         self.fail: dict[str, str] = {}
         self.unknown_after_apply = False
         self.unknown_before_apply = False
+        self.hide_doors = False  # WisKey's ManagedUser.public carries no door_permissions: every view reports doors_known=False
         self.calls: list[str] = []
         self.deleted: list[str] = []
         self._pins = list(self.PIN_SENTINELS)
@@ -1034,7 +1035,7 @@ class FakeAccessEngine:
         return EnginePerson(id=p["id"], revision=p["revision"], display_name=p["display_name"], active=p["active"], valid_from=p["valid_from"],
                             valid_until=p["valid_until"], doors={k: list(v) for k, v in p["doors"].items()},
                             stations=tuple(sorted(set(p["doors"]) | set(p.get("other_stations", ())))), pin_configured=p["pin"] is not None,
-                            timing=copy.deepcopy(p["timing"]), category=p["category"])
+                            timing=copy.deepcopy(p["timing"]), category=p["category"], doors_known=not self.hide_doors)
 
     def _get(self, person_id: str) -> dict[str, Any]:
         p = self.people.get(person_id)

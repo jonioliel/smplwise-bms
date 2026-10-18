@@ -22,6 +22,7 @@ from tickets_world import API, build as build_world
 from smplwise.db import Database, bump_permission_revision, new_id, set_setting
 from smplwise.rbac import Principal
 from smplwise.services import access_grants as ag
+from smplwise.services import access_grant_engine as age
 from smplwise.services.access_grant_engine import EngineError, WiskeyServiceEngine
 
 UTC = timezone.utc
@@ -661,3 +662,69 @@ def test_audit_rows_carry_ids_only(env):
             "access.grant.code_sent", "access.person_link.create", "access.grant.notice_ack"} <= actions, actions
     text = " ".join(r["details_json"] or "" for r in rows)
     assert "יוסי" not in text and PHONE not in text and "pk-" not in text
+
+
+# ================================================================ WisKey adapter findings (static source reading, 2.8.0)
+
+def _is_utc_z(value: str) -> datetime:
+    parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    return parsed.replace(tzinfo=UTC)
+
+
+@pytest.mark.parametrize("category", ["contractor", "visitor"])
+def test_create_payload_always_carries_a_valid_aware_validity_pair(category):
+    data = age.create_payload(display_name="x", employee_no="x1", category=category, responsible_person="r", access_purpose="p", at=T0)
+    vf, vu = _is_utc_z(data["valid_from"]), _is_utc_z(data["valid_until"])
+    assert vf < vu and datetime(1970, 1, 1, tzinfo=UTC) <= vf and vu <= datetime(2037, 12, 31, 23, 59, 59, tzinfo=UTC)
+    assert data["active"] is False and "." not in data["valid_from"] + data["valid_until"]
+    edge = age.create_payload(display_name="x", employee_no="x1", category=category, responsible_person="r", access_purpose="p",
+                              at=datetime(2040, 1, 1, 0, 0, 0, 123456, tzinfo=UTC))
+    assert _is_utc_z(edge["valid_from"]) < _is_utc_z(edge["valid_until"]) <= datetime(2037, 12, 31, 23, 59, 59, tzinfo=UTC)
+    low = age.create_payload(display_name="x", employee_no="x1", category=category, responsible_person="r", access_purpose="p",
+                             at=datetime(1960, 1, 1, tzinfo=UTC))
+    assert _is_utc_z(low["valid_from"]) >= datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def test_create_payload_never_sends_null_and_normalises_text():
+    data = age.create_payload(display_name="  " + "א" * 40 + "  ", employee_no="x-1_A", category="visitor", responsible_person="   ", access_purpose=None)  # type: ignore[arg-type]
+    assert data["responsible_person"] == "Arx" and data["access_purpose"] == "" and "phone" not in data
+    assert len(data["display_name"]) == 32 and data["display_name"] == "א" * 32
+    assert all(v is not None for v in data.values())
+    assert age.create_payload(display_name="   ", employee_no="a", category="visitor", responsible_person="r", access_purpose="")["display_name"] == "Guest"
+    assert age.create_payload(display_name="😀" * 40, employee_no="a", category="visitor", responsible_person="r", access_purpose="")["display_name"] == "😀" * 32
+    for bad in ("", "a" * 33, "יוסי", "a b", "a.b"):
+        with pytest.raises(ValueError):
+            age.create_payload(display_name="x", employee_no=bad, category="visitor", responsible_person="r", access_purpose="")
+
+
+def test_the_arx_employee_numbers_fit_wiskeys_pattern(env):
+    gid = env.active_grant()
+    assert age._EMPLOYEE_NO.fullmatch(env.person_of(gid)["employee_no"])
+
+
+def test_the_strip_payload_does_not_pretend_that_an_empty_door_map_revokes():
+    data = age.strip_payload()
+    assert "door_permissions" not in data and data["active"] is False and data["pin"] is None and data["access_timing_policy"] is None
+
+
+def test_person_from_raw_reads_a_missing_door_map_as_unknown_not_as_no_doors():
+    base = {"id": "u1", "revision": 3, "display_name": "x", "active": True}
+    assert age.person_from_raw(base).doors_known is False
+    assert age.person_from_raw({**base, "door_permissions": None}).doors_known is False
+    known = age.person_from_raw({**base, "door_permissions": {}})
+    assert known.doors_known is True and known.doors == {}
+    with_doors = age.person_from_raw({**base, "door_permissions": {"st-a": [1]}, "assignments": {"st-b": {}}})
+    assert with_doors.doors_known and with_doors.doors == {"st-a": [1]} and with_doors.stations == ("st-a", "st-b")
+
+
+def test_a_revoke_is_not_reported_done_while_the_door_map_cannot_be_read_back(env):
+    gid = env.active_grant()
+    env.engine.hide_doors = True
+    r = env.post(f"/access-grants/{gid}/revoke")
+    assert r.status_code == 200 and r.json()["grant"]["state"] == "revoking"
+    env.run()
+    assert env.grant(gid)["state"] == "revoking", "a sent strip without proof the doors are gone is not a revoke"
+    assert env.person_of(gid)["active"] is False and env.grant(gid)["revoke_attempts"] >= 1
+    env.engine.hide_doors = False
+    env.run()
+    assert env.grant(gid)["state"] == "revoked"

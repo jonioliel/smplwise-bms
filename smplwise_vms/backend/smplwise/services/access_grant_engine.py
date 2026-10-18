@@ -15,7 +15,9 @@ try again later), `unknown` (sent, no clear answer - never retried blindly: the 
 answered an error), `not_permitted` (the go-live permit is not in the build)."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
 KEEP = object()  # `apply(pin=KEEP)`: leave the person's PIN as it is (a narrowing push)
@@ -45,6 +47,9 @@ class EnginePerson:
     pin_configured: bool = False
     timing: dict[str, Any] | None = None
     category: str = "unknown"
+    # False when the WisKey record carried no `door_permissions` key at all (ManagedUser.public never does): `doors` is then {}
+    # only because nothing was reported, NOT because the person has no doors. Callers must treat the door map as unknown.
+    doors_known: bool = True
 
 
 class Engine(Protocol):
@@ -75,11 +80,61 @@ def _doors_of(raw: Any) -> dict[str, list[int]]:
     return out
 
 
+_EMPLOYEE_NO = re.compile(r"[A-Za-z0-9_-]{1,32}")
+_VALID_MIN = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_VALID_MAX = datetime(2037, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+NAME_MAX = 32  # WisKey: 32 Unicode code points (Python str slicing counts code points)
+
+
+def _clean_name(name: Any, fallback: str = "Guest") -> str:
+    return (str(name or "").strip()[:NAME_MAX]).strip() or fallback
+
+
+def _iso_z(moment: datetime) -> str:
+    return moment.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def default_validity(at: datetime | None = None) -> tuple[str, str]:
+    """A valid (valid_from < valid_until) timezone-aware pair for a person that is created inactive: WisKey rejects a contractor/visitor
+    without one (`invalid_validity`) even when `active` is false. The real window is written later by `apply`."""
+    start = (at or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(microsecond=0)
+    start = min(max(start, _VALID_MIN), _VALID_MAX - timedelta(days=1))
+    return _iso_z(start), _iso_z(start + timedelta(days=1))
+
+
+def create_payload(*, display_name: str, employee_no: str, category: str, responsible_person: str, access_purpose: str,
+                   at: datetime | None = None) -> dict[str, Any]:
+    """The users/create `data`. Never null for phone/responsible_person/access_purpose (WisKey rejects null; `phone` is simply not sent);
+    access_purpose may be ""; responsible_person is non-empty; validity always present."""
+    if not isinstance(employee_no, str) or not _EMPLOYEE_NO.fullmatch(employee_no):
+        raise ValueError("employee_no must be ASCII [A-Za-z0-9_-] 1..32")
+    valid_from, valid_until = default_validity(at)
+    return {"display_name": _clean_name(display_name), "employee_no": employee_no, "access_category": category,
+            "responsible_person": (str(responsible_person or "").strip()[:64]).strip() or "Arx",
+            "access_purpose": str(access_purpose or "").strip()[:128], "active": False, "valid_from": valid_from, "valid_until": valid_until}
+
+
+def apply_payload(*, doors: dict[str, list[int]], valid_from: str, valid_until: str, timing: dict[str, Any] | None, active: bool, pin: Any = KEEP) -> dict[str, Any]:
+    data: dict[str, Any] = {"door_permissions": doors, "valid_from": valid_from, "valid_until": valid_until, "active": active,
+                            "access_timing_policy": {"mode": "ha", "schedule": timing, "bindings": {}} if timing else None}
+    if pin is not KEEP:
+        data["pin"] = pin
+    return data
+
+
+def strip_payload() -> dict[str, Any]:
+    """The revoke write. It deliberately does NOT send `door_permissions: {}`: WisKey does not treat {} as removing grants, so sending
+    it would only look like a revoke. What it does send (deactivate, clear the PIN, drop the timing policy) is real, but the door map
+    cannot be proven empty from WisKey's answer (see `person_from_raw`), so the worker never reports the revoke done on this write alone."""
+    return {"pin": None, "active": False, "access_timing_policy": None}
+
+
 def person_from_raw(raw: Any) -> EnginePerson:
     """A WisKey person record (users/get or a save's answer, rc.37 shapes as S11 reads them) -> EnginePerson. Raises ValueError
     on anything that is not a person record (after a write that is "outcome unknown")."""
     if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not isinstance(raw.get("revision"), int):
         raise ValueError("unexpected person record")
+    doors_known = isinstance(raw.get("door_permissions"), dict)
     doors = _doors_of(raw.get("door_permissions"))
     stations = set(doors)
     overrides = raw.get("permission_overrides")
@@ -93,7 +148,7 @@ def person_from_raw(raw: Any) -> EnginePerson:
         id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=bool(raw.get("active")),
         valid_from=raw.get("valid_from") if isinstance(raw.get("valid_from"), str) else None,
         valid_until=raw.get("valid_until") if isinstance(raw.get("valid_until"), str) else None,
-        doors=doors, stations=tuple(sorted(stations)), pin_configured=bool(raw.get("pin_configured")),
+        doors=doors, doors_known=doors_known, stations=tuple(sorted(stations)), pin_configured=bool(raw.get("pin_configured")),
         timing=policy.get("schedule") if policy and isinstance(policy.get("schedule"), dict) else None,
         category=raw.get("access_category") if raw.get("access_category") in ("staff", "visitor", "contractor") else "unknown",
     )
@@ -153,8 +208,8 @@ class WiskeyServiceEngine:
         self._guard()
         from . import intercom_client
 
-        data = {"display_name": display_name[:32], "employee_no": employee_no, "access_category": category, "responsible_person": responsible_person[:64],
-                "access_purpose": access_purpose[:128], "active": False}
+        data = create_payload(display_name=display_name, employee_no=employee_no, category=category, responsible_person=responsible_person,
+                              access_purpose=access_purpose)
         return self._write(lambda call: intercom_client.users_create(call, data, True))
 
     def get_person(self, person_id: str) -> EnginePerson:
@@ -175,17 +230,14 @@ class WiskeyServiceEngine:
         self._guard()
         from . import intercom_client
 
-        data: dict[str, Any] = {"door_permissions": doors, "valid_from": valid_from, "valid_until": valid_until, "active": active,
-                                "access_timing_policy": {"mode": "ha", "schedule": timing, "bindings": {}} if timing else None}
-        if pin is not KEEP:
-            data["pin"] = pin
+        data = apply_payload(doors=doors, valid_from=valid_from, valid_until=valid_until, timing=timing, active=active, pin=pin)
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True))
 
     def strip(self, person_id: str, revision: int) -> EnginePerson:
         self._guard()
         from . import intercom_client
 
-        data = {"pin": None, "door_permissions": {}, "active": False, "access_timing_policy": None}
+        data = strip_payload()
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True))
 
     def pin_generate(self, person_id: str) -> str:
@@ -206,7 +258,7 @@ class WiskeyServiceEngine:
         self._guard()
         from . import intercom_client
 
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": display_name[:32]}, True))
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True))
 
     def delete(self, person_id: str, revision: int) -> None:
         self._guard()

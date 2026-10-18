@@ -1510,14 +1510,19 @@ class Worker:
         if link is not None:
             try:
                 person = engine.get_person(link["wiskey_person_id"])
-                if person.doors or person.active or person.pin_configured:
+                # an unknown door map (WisKey's person record carries none) is never read as "no doors": strip, then require proof
+                if not person.doors_known or person.doors or person.active or person.pin_configured:
                     try:
-                        engine.strip(person.id, person.revision)
+                        person = engine.strip(person.id, person.revision)
                     except EngineError as exc:
                         if exc.kind != "revision_conflict":
                             raise
                         person = engine.get_person(link["wiskey_person_id"])
-                        engine.strip(person.id, person.revision)
+                        person = engine.strip(person.id, person.revision)
+                    if not person.doors_known or person.doors or person.active or person.pin_configured:
+                        # WisKey does not remove door grants on `door_permissions: {}`; without a readback showing them gone the revoke
+                        # is NOT done: it stays `revoking` (retried, managers alerted) - never reported as revoked on a sent {}.
+                        raise EngineError("unknown", "revoke_unverified")
             except EngineError as exc:
                 if exc.kind == "not_found":
                     outcome = "wiskey_missing"

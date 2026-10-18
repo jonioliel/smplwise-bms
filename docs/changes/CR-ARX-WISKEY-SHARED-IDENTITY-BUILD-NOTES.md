@@ -115,3 +115,17 @@ Review: `private/planning/RELEASE_270_REVIEW_CONSOLIDATED.md` section 2. Negativ
   `idx_ticket_rfq_events_rfq`), found through the quote's `rfq_vendor_id`.
 - Not changed: K5 (wording, counsel), K7 (optional). Backups: `access.external_grants` and every `access.external.*` limit are in
   `backup.SETTINGS_KEEP` (never exported, never restored).
+
+## WisKey answers (static source reading, 2.8.0 adapter fixes)
+
+Statements WisKey gave for the access engine port (`services/access_grant_engine.py`). They come from WisKey reading its own source, not from a run against a live WisKey (NOT_RUN).
+
+- After a write is dispatched, its state on the Arx side is `sent_unknown` until a fresh read says otherwise. Cancelling is not a rollback: a cancelled write may still have landed.
+- Sync completion is known only from the `desired_revision` / `applied_revision` readback, never from the write's acknowledgement.
+- `users/delete` answers `accepted` and leaves a `delete_pending` tombstone; the person and its station removals are not gone at that point.
+- `users/create` for category contractor/visitor needs a valid timezone-aware `valid_from` < `valid_until` (1970-01-01 .. 2037-12-31T23:59:59Z, normalised to UTC, fractional seconds dropped) even when `active` is false (`invalid_validity` otherwise). `phone`, `responsible_person` and `access_purpose` are never sent as null (`access_purpose` may be an empty string; `responsible_person` is non-empty after strip). Name: at most 32 Unicode code points. `employee_no`: ASCII `[A-Za-z0-9_-]`, 1..32.
+- `door_permissions: {}` does NOT remove existing grants, and the person result (`ManagedUser.public`) carries no `door_permissions`.
+
+Arx adapter behaviour that follows: the create payload always carries a validity pair; the revoke write (`strip_payload`) no longer sends `door_permissions: {}` and a revoke is reported done only when a readback shows the person inactive, PIN cleared and the door map known and empty; a person record without a door map is `doors_known=False` (unknown, never "no doors"), so the revoke stays `revoking` and is retried.
+
+Open questions for WisKey: which call really removes a person's door grants (and whether `door_permissions` on update replaces or merges per station, which also decides whether a narrowing `apply` removes a dropped station); whether any read returns the door map (without it the live revoke cannot complete).
