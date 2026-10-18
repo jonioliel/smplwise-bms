@@ -71,6 +71,8 @@ ACCEPT = ("image/jpeg", "image/png", "image/webp", "application/pdf", MIME["docx
 
 # this route's OWN decode slot (attachments.py / image_intake keep theirs): a manager's upload never waits for an anonymous one
 _DECODE = threading.BoundedSemaphore(1)
+# VU-F4: the PUBLIC listener's own slot for a vendor's Office scan (inflate + parse of up to 10 MiB), so it never holds the photo decode slot
+_PUBLIC_OFFICE = threading.BoundedSemaphore(1)
 DECODE_WAIT_S = 5.0
 
 # ---------------------------------------------------------------- office packages
@@ -580,7 +582,7 @@ def check_pdf(data: bytes) -> cost_files.PdfInfo:
 
 
 def store(root: Path, folder: str, data: bytes, *, wait_s: float = DECODE_WAIT_S, allow_office: bool = True, allow_webp: bool = True,
-          semaphore: threading.BoundedSemaphore | None = None) -> StoredFile:
+          semaphore: threading.BoundedSemaphore | None = None, office_semaphore: threading.BoundedSemaphore | None = None) -> StoredFile:
     """Check and write one file of a request. Raises IntakeError (the refusal) or StorePathError. Blocking: run it in a worker
     thread, OUTSIDE the database write lock. `allow_office` is the installation setting `rfq.attachments.allow_office` (OFF by
     default; the route passes it): without it a Word / Excel package is refused (422 `office_disabled`) before it is scanned.
@@ -608,7 +610,7 @@ def store(root: Path, folder: str, data: bytes, *, wait_s: float = DECODE_WAIT_S
         info = check_pdf(data)
         rel = _write(root, folder, "pdf", bytes(data))
         return StoredFile("pdf", MIME["pdf"], rel, None, info.sha256, info.bytes)
-    with image_intake.decode_slot(wait_s, sem):  # F9: the inflate + parse takes this route's slot (a burst never fills the pool)
+    with image_intake.decode_slot(wait_s, office_semaphore or sem):  # F9: the inflate + parse takes this route's slot (a burst never fills the pool)
         office = check_office(data)
     rel = _write(root, folder, EXT[office.kind], bytes(data))
     return StoredFile(office.kind, MIME[office.kind], rel, None, office.sha256, office.bytes)
@@ -644,7 +646,10 @@ def path_of(root: Path, rel: str) -> Path:
 # ---------------------------------------------------------------- serving headers
 
 def _ascii_name(ref_number: int, index: str, kind: str) -> str:
-    return f"rfq-{int(ref_number):02d}-{re.sub(r'[^A-Za-z0-9]', '', index)[:8] or 'file'}.{EXT[kind]}"
+    tag = re.sub(r'[^A-Za-z0-9]', '', index)[:8] or 'file'
+    if not ref_number or int(ref_number) <= 0:  # VU-F9: the request is gone (purged): a neutral name, never "rfq-00-"
+        return f"file-{tag}.{EXT[kind]}"
+    return f"rfq-{int(ref_number):02d}-{tag}.{EXT[kind]}"
 
 
 def headers(kind: str, *, ref_number: int, file_id: str, name: str, thumb: bool = False) -> dict[str, str]:

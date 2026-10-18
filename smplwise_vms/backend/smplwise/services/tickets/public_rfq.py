@@ -25,6 +25,7 @@ answered inside the effect's own transaction (`ticket_requests`, scope `link:<li
 NEW effect is stored. No answer ever carries another vendor, another quote, an amount of someone else or an internal note."""
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime as dt
 import json
@@ -46,6 +47,7 @@ from .keyring import KEYS
 from .module_key import ModuleKeyError
 from .public_app import (Idempotency, LinkContext, PublicError, begin_body, idempotency_scope, parse_client_request_id, public_request, read_json,
                          spend_budget)
+from .public_http import MULTIPART_SLACK
 from .public_multipart import FieldRule, MultipartError, boundary_of, parse_form
 from .public_claims import LineIn
 from .public_ports import CodeRecord, FailureRecord, SessionRecord
@@ -617,6 +619,18 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
         `client_request_id` (a retry of a stored upload is its replay, before any decode)."""
         await upload_gate(ctx)
         deps = request.app.state.deps
+        # VU-F6: the edge knows the hard cap only; refuse a declared length above the LARGER configured cap (+ framing) before any
+        # budget, memory or body is spent
+        declared = ctx.request.content_length
+        if declared is not None:
+            def _cap_now() -> int:
+                with db.connection(mode="read", label="tickets.public.rfq.upload_cap") as conn:
+                    lim = rfq_vendor_files.limits_of(conn)
+                return max(lim.cap("image"), lim.cap("doc"))
+
+            cap = await run_in_threadpool(_cap_now)
+            if declared > cap + MULTIPART_SLACK:
+                raise PublicError(413, "too_large", max_bytes=cap)
         guards = getattr(request.app.state, "uploads", None)
         root = getattr(deps, "attachments_root", None)
         if guards is None or root is None:
@@ -686,11 +700,15 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, limi
                         if prior is not None:
                             return prior
                         allow_office = await run_in_threadpool(office_on)
+                        # VU-F4: an Office package has its own public slot (rfq_files._PUBLIC_OFFICE, taken inside store); only a
+                        # picture waits at the shared decode admission, so a slow scan never turns the photo uploads away
+                        is_office = rfq_files.check_size(data) == "office"
                         try:
-                            async with guards.decode():
+                            async with (contextlib.nullcontext() if is_office else guards.decode()):
                                 stored = await run_in_threadpool(lambda: rfq_files.store(
                                     root, link.rfq_id, data, wait_s=getattr(deps, "decode_wait_s", image_intake.DECODE_WAIT_S),
-                                    allow_office=allow_office, allow_webp=False, semaphore=image_intake._DECODE))
+                                    allow_office=allow_office, allow_webp=False, semaphore=image_intake._DECODE,
+                                    office_semaphore=rfq_files._PUBLIC_OFFICE))
                         except StorePathError:
                             raise PublicError(404, "link_unavailable") from None
                         except IntakeError as exc:

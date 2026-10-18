@@ -586,3 +586,51 @@ def test_the_work_order_references_the_awarded_vendors_files_for_cost_viewers_on
     with s4.db.connection() as conn:
         conn.execute("DELETE FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?", (tid,))
         assert store_rfq.drop_orphan_vendor_files(conn) == 2
+
+
+# ---------------------------------------------------------------- VU-FIX273: F4 office slot, F6 cap before the body, F9 neutral name
+
+def test_f6_a_declared_length_above_the_larger_admin_cap_is_refused_before_any_budget_or_body(s4, monkeypatch):
+    from smplwise.services.tickets import public_rfq
+
+    _d, c, ta, qid, _tb = world(s4)
+    limits(s4, max_doc_mb=1, max_image_mb=1)
+    spent = []
+    real = public_rfq.begin_body
+    monkeypatch.setattr(public_rfq, "begin_body", lambda request: (spent.append(1), real(request))[1])
+    r = up(c, ta, qid, pdf(b"3 0 obj << /Pad (" + b"x" * (2 * MiB) + b") >> endobj"))
+    assert (r.status_code, r.json()["code"], r.json()["max_bytes"]) == (413, "too_large", MiB), r.text
+    assert spent == [], "no unit of the link's upload budget is spent and no body is read"
+    assert up(c, ta, qid, pdf()).status_code == 201 and spent == [1], "a body within the cap still goes through the normal path"
+    limits(s4, max_doc_mb=4, max_image_mb=1)  # the larger of the two caps decides (the kind is unknown before the body)
+    assert up(c, ta, qid, pdf(b"4 0 obj << /Pad (" + b"x" * (2 * MiB) + b") >> endobj")).status_code == 201
+
+
+def test_f4_an_office_scan_never_holds_the_photo_decode_slot(s4):
+    from smplwise.services.tickets import image_intake, rfq_files
+
+    allow_office(s4)
+    _d, c, ta, qid, _tb = world(s4)
+    assert rfq_files._PUBLIC_OFFICE is not image_intake._DECODE
+    assert image_intake._DECODE.acquire(timeout=1)  # a photo upload is decoding right now
+    try:
+        r = up(c, ta, qid, office(), name="boq.docx")
+        assert r.status_code == 201, "the Office scan has its own public slot"
+    finally:
+        image_intake._DECODE.release()
+    assert rfq_files._PUBLIC_OFFICE.acquire(timeout=1)  # a slow Office scan is running right now
+    try:
+        r = up(c, ta, qid, jpeg(), name="roof.jpg", mime="image/jpeg")
+        assert r.status_code == 201, "a photo upload is not turned away by an Office scan"
+    finally:
+        rfq_files._PUBLIC_OFFICE.release()
+
+
+def test_f9_the_download_name_after_a_purge_is_neutral_and_thumbnails_stay_downloads():
+    from smplwise.services.tickets import rfq_files
+
+    h = rfq_files.vendor_headers("pdf", ref_number=0, file_id="abcdef1234567890", name="q.pdf")
+    assert 'filename="file-abcdef12.pdf"' in h["Content-Disposition"] and "rfq-00" not in h["Content-Disposition"]
+    assert 'filename="rfq-07-abcdef12.pdf"' in rfq_files.vendor_headers("pdf", ref_number=7, file_id="abcdef1234567890", name="q.pdf")["Content-Disposition"]
+    t = rfq_files.vendor_headers("image", ref_number=0, file_id="abcdef1234567890", name="x.jpg", thumb=True)
+    assert t["Content-Disposition"].startswith("attachment;") and "rfq-00" not in t["Content-Disposition"]
