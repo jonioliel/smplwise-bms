@@ -435,6 +435,8 @@ export const mediaPageStyles = css`
         padding-inline-end: calc(24px + var(--sw-float-reserve, 0px));
       }
     }
+    /* header dropdown placement 4: the title row keeps the shell's start-edge chip room free (0 everywhere else) */
+    ${leadReserveStyles}
   `;
 
 /**
@@ -447,7 +449,6 @@ export function measureHeaderBar(root: ParentNode, phone: boolean): void {
   const top = dh.getBoundingClientRect().top;
   let bottom = 0;
   for (const el of dh.querySelectorAll<HTMLElement>(phone ? ':scope > .dh-row > h1, :scope > .dh-row > .flwrap' : ':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
-  const h = `${Math.ceil(bottom + (phone ? 8 : 10))}px    ${leadReserveStyles}
-`;
+  const h = `${Math.ceil(bottom + (phone ? 8 : 10))}px`;
   if (bottom && dh.style.getPropertyValue('--mm-bar-h') !== h) dh.style.setProperty('--mm-bar-h', h);
 }

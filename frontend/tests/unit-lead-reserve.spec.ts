@@ -15,6 +15,7 @@ const DIRS = ['screens', 'tickets'];
 const ALLOW: Record<string, string> = {
   'screens/kiosk-wall.ts': 'full-screen kiosk wall: it replaces the application, no shell chrome and no tab-group dropdown',
   'screens/bubble-demo.ts': 'style-guide fixture page (#/styleguide/bubble), not a product screen',
+  'screens/devices-area-nav.ts': "drawn only inside sw-page's header (the crumbs slot of devices-area), which keeps the reserve: its own doubled it (2.7.2)",
 };
 
 const HEADER = /<h1\b|<header class="dh\b|<header class=\$\{[^}]*\bdh\b|\bdh: true\b|`dh\$\{/;
@@ -32,7 +33,14 @@ test.describe('header dropdown placement 4: every screen header keeps the lead r
     expect(snip).toContain('padding-inline-start: var(--sw-lead-reserve, 0px)');
     expect(snip).toContain('.lead-head');
     expect(snip).toContain('.dh .dh-row');
-    expect(readFileSync(join(SRC, 'styles/media-page.ts'), 'utf8')).toContain('${leadReserveStyles}');
+    // inside the mediaPageStyles css`` block itself (2.7.2: it had slipped into measureHeaderBar's template string, so no media-page
+    // header kept the reserve and --mm-bar-h became an invalid value)
+    const media = readFileSync(join(SRC, 'styles/media-page.ts'), 'utf8');
+    const start = media.indexOf('export const mediaPageStyles = css`');
+    const end = media.indexOf('\n  `;', start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(media.slice(start, end)).toContain('${leadReserveStyles}');
+    expect(media.slice(end)).not.toContain('${leadReserveStyles}');
     expect(readFileSync(join(SRC, 'components/sw-page.ts'), 'utf8')).toContain('var(--sw-lead-reserve, 0px)');
   });
 
