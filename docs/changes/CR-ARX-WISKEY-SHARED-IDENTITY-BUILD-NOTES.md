@@ -129,3 +129,38 @@ Statements WisKey gave for the access engine port (`services/access_grant_engine
 Arx adapter behaviour that follows: the create payload always carries a validity pair; the revoke write (`strip_payload`) no longer sends `door_permissions: {}` and a revoke is reported done only when a readback shows the person inactive, PIN cleared and the door map known and empty; a person record without a door map is `doors_known=False` (unknown, never "no doors"), so the revoke stays `revoking` and is retried.
 
 Open questions for WisKey: which call really removes a person's door grants (and whether `door_permissions` on update replaces or merges per station, which also decides whether a narrowing `apply` removes a dropped station); whether any read returns the door map (without it the live revoke cannot complete).
+
+## WisKey answers, round 2 (2026-10-18) - WisKey-stated, source-derived, NOT_RUN on hardware
+
+Source: `private/planning/wiskey_reply2_answer_2026-10-18/` (WisKey's static reading of its pinned code, c0b2d94c; no command was sent, no
+response captured). The Arx service-channel wrapper (`intercom_client` / `intercom_sync`) was NOT reviewed by WisKey. Everything below is
+implemented against the fake engine only (`tests/fake_wiskey.py`); nothing ran against a WisKey, a station or a door.
+
+- **Revoke-all** is one revision-checked `users/update` with `sync_now` and `data = {group_ids: [], permission_overrides: {}, active: false, pin: null}`.
+  `door_permissions: {}` does not remove grants; `permission_overrides` is never combined with legacy `assignments`. `pin: null` is the explicit PIN
+  clear (omitting `pin` keeps it, `""` is invalid) - the ONE allowed null; `phone`, `responsible_person`, `access_purpose` are never null. A successful
+  update answers the public person object directly (revision + 1). `strip_payload()` sends exactly this.
+- **Narrowing** replaces the COMPLETE `permission_overrides` dict: the dropped station is set to `"deny"`, every other personal entry is kept (a one-entry
+  dict is not a merge). Dropping a station from `door_permissions` does not revoke it; `door_permissions` replaces the lock list of each supplied station
+  only; an empty lock list (`unmanaged_lock`) and a key outside the resolved stations (`invalid_assignments`) are rejected. `plan_overrides()` /
+  `push_scope()` build the replacement (new stations get `"allow"`); on a restricted projection nothing is sent (`not_sent projection_restricted`).
+- **Reading the door map**: `users/get` returns `ManagedUser.public` with `assignments` (config_entry_id, enabled, allowed_locks, desired_revision,
+  applied_revision, sync_state, last_error), `group_ids`, `permission_overrides`; there is no `door_permissions` key. Arx projects enabled assignments ->
+  `allowed_locks` (disabled rows keep historical locks and are skipped). The result is UNKNOWN (`doors_known=False`, never known-empty) when
+  `redacted_fields` names an access field or `assignments` / `permission_overrides` / `group_ids` are missing; `pin_known=False` when credential fields may be
+  unreadable (then `pin_configured=false` proves nothing). A person missing from a scoped list is not proof of absence (open question below).
+- **After a revoke there is no revision row**, so an empty `assignments` map is not proof of physical removal. The worker keeps the grant `revoking` until a
+  fresh central readback shows the expected state (door map known and empty, no groups, no overrides, inactive, PIN known cleared) AND
+  `Engine.revocation_pending()` (central sync status) reports no pending revocation. It never reports revoked from the update result. The live engine
+  returns UNKNOWN for the sync status (no confirmation endpoint is asserted; Arx's overview projection drops revocations), so a live revoke stays `revoking`
+  until the pinned service-channel source shows where it can be read.
+- **employee_no** is server-generated (nine digits) when omitted on create and retained when omitted on update; it can change before `identity_locked`.
+  Arx omits it on create, stores what the server returns (`EnginePerson.employee_no`) and never sends it on update; it is not assumed immutable.
+- **Revoke loop (Fable review H2/F1)**: after one successful write, retries are reads only (no repeated `users/update` while the readback shows nothing left
+  to remove or the projection is restricted); exponential backoff 15 s ... capped 5 min using `revoke_attempts` / `updated_at`; the managers are alerted at
+  2 minutes and again each hour in `revoking`.
+- **F5**: `deliver_code` and `resolve_unknown` honour `doors_known` (unknown stays unknown: no code, no verdict); with the assignments projection a real WisKey
+  yields a known door map.
+
+Open questions for WisKey: where the central sync status / pending revocations can be read through the service channel (and its pinned `intercom_client` /
+`intercom_sync` source); whether `users/get` of a person outside the caller's scope answers `user_not_found` (Arx maps that to "WisKey person missing").

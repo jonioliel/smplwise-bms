@@ -53,7 +53,7 @@ from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia
-from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson
+from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, plan_overrides
 
 log = logging.getLogger("smplwise.access_grants")
 
@@ -88,6 +88,9 @@ CODE_GAP_S = 60
 PIN_ATTEMPTS = 3
 PROVISION_RETRY_S = 300     # E1: at most every 5 minutes ...
 PROVISION_ATTEMPTS = 12     # ... for one hour, then `failed`
+REVOKE_BACKOFF_BASE_S = 15  # F1: a revoke that is not yet verified is retried with exponential backoff (15 s, 30 s, ... capped) ...
+REVOKE_BACKOFF_CAP_S = 300  # ... at most every 5 minutes
+REVOKE_REALERT_S = 3600     # F1: the managers are told again each hour a grant stays `revoking`
 REVOKE_ALERT_S = 120        # a revoke WisKey did not acknowledge alerts the managers after 2 minutes
 RETENTION_DAYS = 365        # CR 2.6: grant rows (ids only) 12 months after their end
 NOTICE_VERSION = "n1"
@@ -1129,6 +1132,15 @@ def send_code(db: Any, msg: CodeMessage) -> str:
 
 # ---------------------------------------------------------------- the worker
 
+def push_scope(engine: Engine, person: EnginePerson, scope: "Scope", *, pin: Any = KEEP) -> EnginePerson:
+    """One revision-checked users/update that makes the person's stations the grant's. Dropping a station from the door map would NOT revoke it
+    (WisKey-stated, source-derived, NOT_RUN), so the COMPLETE permission_overrides replacement (drop = "deny", add = "allow", other personal
+    entries kept) travels with it. A restricted projection refuses (`not_sent`) rather than send a replacement built on a partial view."""
+    overrides = plan_overrides(person, scope.doors)
+    return engine.apply(person.id, person.revision, doors=scope.doors, valid_from=scope.valid_from, valid_until=scope.valid_until, timing=scope.timing,
+                        active=True, pin=pin, overrides=overrides)
+
+
 class Worker:
     """Runs the engine side of every grant transition: re-decision, reconciliation, window end, provisioning, unknown outcomes,
     revocation, code delivery, link clean-up, retention. `run_once` is deterministic (tests call it); the background thread calls
@@ -1364,17 +1376,17 @@ class Worker:
             contact = contact_row(conn, g["subject_id"])
             approver = conn.execute("SELECT display_name FROM users WHERE id = ?", (g.get("approved_by"),)).fetchone()
         if link is None:
-            employee_no = "x" + secrets.token_hex(6)
             category = "contractor" if (contact or {}).get("vendor_id") else "visitor"
             ref = f"{g['source_kind']}:{(g.get('source_ref') or g['id'])[:12]}"
-            person = engine.create_person(display_name=((contact or {}).get("display_name") or "אורח")[:32], employee_no=employee_no, category=category,
+            # employee_no is omitted: WisKey generates one (nine digits) and returns it - stored as returned, never sent on update
+            person = engine.create_person(display_name=((contact or {}).get("display_name") or "אורח")[:32], category=category,
                                           responsible_person=((approver["display_name"] if approver else "") or "Arx")[:64],
                                           access_purpose=f"Arx external access {ref}")
             with db.connection(label="access_grants.link.create") as conn:
                 lid = uuid.uuid4().hex
                 conn.execute("""INSERT INTO access_person_links(id, subject_kind, subject_id, wiskey_person_id, origin, employee_no, linked_by, linked_at, last_pushed_rev)
                                 VALUES (?, ?, ?, ?, 'created_from_arx', ?, ?, ?, ?)""",
-                             (lid, g["subject_kind"], g["subject_id"], person.id, employee_no, g.get("approved_by") or "system", iso(now()), person.revision))
+                             (lid, g["subject_kind"], g["subject_id"], person.id, person.employee_no, g.get("approved_by") or "system", iso(now()), person.revision))
                 _audit(conn, None, "access.person_link.create", lid, resource_type="access_person_link", wiskey_person_id=person.id, grant_id=g["id"])
                 link = link_row(conn, lid)
         if g.get("link_id") != link["id"]:
@@ -1395,14 +1407,12 @@ class Worker:
             link = self._ensure_link(db, engine, g)
             person = engine.get_person(link["wiskey_person_id"])
             try:
-                person = engine.apply(person.id, person.revision, doors=scope.doors, valid_from=scope.valid_from, valid_until=scope.valid_until,
-                                      timing=scope.timing, active=True, pin=None)
+                person = push_scope(engine, person, scope, pin=None)
             except EngineError as exc:
                 if exc.kind != "revision_conflict":
                     raise
                 person = engine.get_person(link["wiskey_person_id"])  # E3: re-read, apply once more
-                person = engine.apply(person.id, person.revision, doors=scope.doors, valid_from=scope.valid_from, valid_until=scope.valid_until,
-                                      timing=scope.timing, active=True, pin=None)
+                person = push_scope(engine, person, scope, pin=None)
         except EngineError as exc:
             return self._provision_failed(db, g, exc)
         except Exception:  # noqa: BLE001 - anything else after the write may have left: an unknown outcome (E2), never a blind retry
@@ -1468,6 +1478,8 @@ class Worker:
                 with db.connection(label="access_grants.unknown.missing") as conn:
                     mark_revoking(conn, grant_row(conn, g["id"]), "wiskey_missing")
             return None  # not reachable now: the next pass reads again
+        if not person.doors_known:
+            return None  # a restricted projection decides nothing (never read as "no doors"): the next pass reads again
         matches = person.active and person.doors == scope.doors and person.valid_until == scope.valid_until and person.valid_from == scope.valid_from
         with db.connection(label="access_grants.unknown.decide") as conn:
             cur = grant_row(conn, g["id"])
@@ -1489,8 +1501,7 @@ class Worker:
         engine = engine_for(db)
         try:
             person = engine.get_person(link["wiskey_person_id"])
-            person = engine.apply(person.id, person.revision, doors=scope.doors, valid_from=scope.valid_from, valid_until=scope.valid_until, timing=scope.timing,
-                                  active=True, pin=KEEP)
+            person = push_scope(engine, person, scope)
         except EngineError as exc:
             if exc.kind in ("unknown", "not_found"):
                 with db.connection(label="access_grants.narrow.unknown") as conn:  # cannot prove the narrowing landed: revoke (fail closed)
@@ -1502,7 +1513,34 @@ class Worker:
 
     # ---- revocation (at least once)
 
+    @staticmethod
+    def _revoked(person: EnginePerson) -> bool:
+        """The readback shows the revoked state: door map KNOWN and empty, no group, no personal override, inactive, PIN known cleared. A
+        restricted projection (doors_known / pin_known False) is UNKNOWN and never counts."""
+        return (person.doors_known and person.pin_known and not person.doors and not person.group_ids and not person.overrides
+                and not person.active and not person.pin_configured)
+
+    @staticmethod
+    def revoke_backoff_s(attempts: int) -> int:
+        return min(REVOKE_BACKOFF_BASE_S * (2 ** max(int(attempts) - 1, 0)), REVOKE_BACKOFF_CAP_S)
+
+    @staticmethod
+    def _needs_revoke_write(person: EnginePerson, attempts: int) -> bool:
+        """Only a readback that still shows something to remove justifies another users/update (each one bumps the revision). When the
+        projection is restricted (door map unknown) and the person is already inactive, a write that was sent before is not repeated: the
+        retries are reads only."""
+        if person.active or (person.pin_known and person.pin_configured):
+            return True
+        if person.doors_known:
+            return bool(person.doors or person.group_ids or person.overrides)
+        return int(attempts) == 0
+
     def strip(self, db: Database, g: dict[str, Any]) -> bool:
+        attempts = int(g.get("revoke_attempts") or 0)
+        if attempts > 0:  # F1: no hammering - wait out the backoff (no WisKey call at all)
+            last = parse_iso(g.get("updated_at"))
+            if last is not None and (now() - last).total_seconds() < self.revoke_backoff_s(attempts):
+                return False
         with db.connection(mode="read", label="access_grants.strip.read") as conn:
             link = link_row(conn, g.get("link_id")) or link_of_subject(conn, g["subject_kind"], g["subject_id"])
         engine = engine_for(db)
@@ -1510,19 +1548,22 @@ class Worker:
         if link is not None:
             try:
                 person = engine.get_person(link["wiskey_person_id"])
-                # an unknown door map (WisKey's person record carries none) is never read as "no doors": strip, then require proof
-                if not person.doors_known or person.doors or person.active or person.pin_configured:
+                if self._needs_revoke_write(person, attempts):
+                    # ONE revision-checked users/update (group_ids [], permission_overrides {}, active false, pin null, sync_now). Its answer
+                    # is the public person object - central DESIRED state, not proof that a station dropped the person.
                     try:
-                        person = engine.strip(person.id, person.revision)
+                        engine.strip(person.id, person.revision)
                     except EngineError as exc:
                         if exc.kind != "revision_conflict":
                             raise
                         person = engine.get_person(link["wiskey_person_id"])
-                        person = engine.strip(person.id, person.revision)
-                    if not person.doors_known or person.doors or person.active or person.pin_configured:
-                        # WisKey does not remove door grants on `door_permissions: {}`; without a readback showing them gone the revoke
-                        # is NOT done: it stays `revoking` (retried, managers alerted) - never reported as revoked on a sent {}.
-                        raise EngineError("unknown", "revoke_unverified")
+                        engine.strip(person.id, person.revision)
+                # never "revoked" from the update result alone: a fresh central readback must show the expected state (door map KNOWN and
+                # empty, inactive, PIN known cleared) AND the central sync status must show no pending revocation. After a revoke there is no
+                # revision row, so an empty `assignments` map by itself proves nothing about the stations.
+                person = engine.get_person(link["wiskey_person_id"])
+                if not self._revoked(person) or engine.revocation_pending(person.id) is not False:
+                    raise EngineError("unknown", "revoke_unverified")
             except EngineError as exc:
                 if exc.kind == "not_found":
                     outcome = "wiskey_missing"
@@ -1600,14 +1641,16 @@ class Worker:
         person: EnginePerson | None = None
         try:
             person = engine.get_person(link["wiskey_person_id"])
+            if not person.doors_known:
+                self._code_end(db, g, "not_delivered", "door_map_unknown")
+                return False
             if person.doors != scope.doors:
                 self._code_end(db, g, "not_delivered", "door_map_changed")
                 return False
             for _attempt in range(PIN_ATTEMPTS):
                 pin = engine.pin_generate(person.id)
                 try:
-                    person = engine.apply(person.id, person.revision, doors=scope.doors, valid_from=scope.valid_from, valid_until=scope.valid_until,
-                                          timing=scope.timing, active=True, pin=pin)
+                    person = push_scope(engine, person, scope, pin=pin)
                     break
                 except EngineError as exc:
                     pin = None
@@ -1667,11 +1710,16 @@ class Worker:
         at = now()
         with db.connection(label="access_grants.attention") as conn:
             rows = conn.execute(
-                "SELECT * FROM access_grants WHERE alerted_at IS NULL AND ((state = 'revoking' AND revoking_since <= ?) OR code_state IN ('not_delivered', 'unknown') "
-                "OR state IN ('failed', 'unknown'))", (iso(at - timedelta(seconds=REVOKE_ALERT_S)),)).fetchall()
+                "SELECT * FROM access_grants WHERE (alerted_at IS NULL AND ((state = 'revoking' AND revoking_since <= ?) OR code_state IN ('not_delivered', 'unknown') "
+                "OR state IN ('failed', 'unknown'))) OR (state = 'revoking' AND alerted_at <= ?)",
+                (iso(at - timedelta(seconds=REVOKE_ALERT_S)), iso(at - timedelta(seconds=REVOKE_REALERT_S)))).fetchall()
             for r in rows:
                 kind = "revoke_pending" if r["state"] == "revoking" else ("code_" + r["code_state"]) if r["code_state"] in ("not_delivered", "unknown") else r["state"]
-                _notify(conn, "access.grant_attention", r["id"], kind)
+                again = 0
+                if r["state"] == "revoking" and r["alerted_at"]:  # F1: a new hourly alert, not a dedupe of the first one
+                    since = parse_iso(r["revoking_since"]) or at
+                    again = max(int((at - since).total_seconds() // REVOKE_REALERT_S), 1)
+                _notify(conn, "access.grant_attention", r["id"], kind, repeat=again)
                 conn.execute("UPDATE access_grants SET alerted_at = ? WHERE id = ?", (iso(at), r["id"]))
             cutoff = iso(at - timedelta(days=RETENTION_DAYS))
             conn.execute("DELETE FROM access_grants WHERE state IN ('ended', 'revoked', 'refused', 'failed') AND COALESCE(ended_at, updated_at) < ?", (cutoff,))
@@ -1681,12 +1729,12 @@ class Worker:
 WORKER = Worker()
 
 
-def _notify(conn: sqlite3.Connection, source: str, subject_id: str, kind: str) -> None:
+def _notify(conn: sqlite3.Connection, source: str, subject_id: str, kind: str, repeat: int = 0) -> None:
     """A content-free notification to the managers (no name, no number, no door). Never raises."""
     try:
         from . import notify
 
-        notify.emit(conn, notify.Signal(source=source, subject_kind="system", subject_id=subject_id[:32], dedupe_key=f"{source}:{subject_id[:32]}",
+        notify.emit(conn, notify.Signal(source=source, subject_kind="system", subject_id=subject_id[:32], dedupe_key=f"{source}:{subject_id[:32]}" + (f":r{repeat}" if repeat else ""),
                                         params={"kind": kind}, link="#/system/access?tab=external"))
     except Exception:  # noqa: BLE001
         log.warning("access grants notification failed")

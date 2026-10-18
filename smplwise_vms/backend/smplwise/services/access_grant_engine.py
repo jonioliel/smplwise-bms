@@ -12,7 +12,14 @@ WisKey (NOT_RUN; the W-a..W-e questions of the CR section 9 are open).
 
 Error kinds (`EngineError.kind`): `not_found`, `revision_conflict`, `pin_conflict`, `not_sent` (nothing reached WisKey - safe to
 try again later), `unknown` (sent, no clear answer - never retried blindly: the next step is a fresh read), `refused` (WisKey
-answered an error), `not_permitted` (the go-live permit is not in the build)."""
+answered an error), `not_permitted` (the go-live permit is not in the build).
+
+2.8.0 WisKey answers (reply 2, 2026-10-18; SOURCE-DERIVED static reading of WisKey's pinned code, NOT_RUN against any WisKey or hardware;
+the Arx service-channel wrapper around these commands is unreviewed): revoke-all is ONE revision-checked users/update with
+`{group_ids: [], permission_overrides: {}, active: false, pin: null}`; narrowing replaces the COMPLETE `permission_overrides` dict (target
+station "deny", other personal entries kept); the door map is READ by projecting the enabled `assignments` (`users/get` has no
+`door_permissions`); a restricted projection is UNKNOWN, never known-empty; after a revoke an empty `assignments` is no proof of physical
+removal, so the worker also needs the central sync status to show no pending revocation (`Engine.revocation_pending`)."""
 from __future__ import annotations
 
 import re
@@ -50,17 +57,29 @@ class EnginePerson:
     # False when the WisKey record carried no `door_permissions` key at all (ManagedUser.public never does): `doors` is then {}
     # only because nothing was reported, NOT because the person has no doors. Callers must treat the door map as unknown.
     doors_known: bool = True
+    employee_no: str = ""  # server-generated (nine digits) when omitted on create; stored as returned, never sent on update
+    # permission_overrides as WisKey returned them ({station: "allow"|"deny"}); `overrides_known` False when they were unreadable.
+    overrides: dict[str, str] = field(default_factory=dict)
+    overrides_known: bool = True
+    group_ids: tuple[str, ...] = ()
+    # False when `pin_configured` may be unreadable (restricted projection): pin_configured=False is then NOT proof of a cleared PIN.
+    pin_known: bool = True
 
 
 class Engine(Protocol):
-    def create_person(self, *, display_name: str, employee_no: str, category: str, responsible_person: str, access_purpose: str) -> EnginePerson: ...
+    def create_person(self, *, display_name: str, category: str, responsible_person: str, access_purpose: str,
+                      employee_no: str | None = None) -> EnginePerson: ...
 
     def get_person(self, person_id: str) -> EnginePerson: ...
 
     def apply(self, person_id: str, revision: int, *, doors: dict[str, list[int]], valid_from: str, valid_until: str,
-              timing: dict[str, Any] | None, active: bool, pin: Any = KEEP) -> EnginePerson: ...
+              timing: dict[str, Any] | None, active: bool, pin: Any = KEEP, overrides: dict[str, str] | None = None) -> EnginePerson: ...
 
     def strip(self, person_id: str, revision: int) -> EnginePerson: ...
+
+    def revocation_pending(self, person_id: str) -> bool | None:
+        """Central sync status: True = a revocation for this person is still pending, False = none, None = cannot tell."""
+        ...
 
     def pin_generate(self, person_id: str) -> str: ...
 
@@ -102,55 +121,117 @@ def default_validity(at: datetime | None = None) -> tuple[str, str]:
     return _iso_z(start), _iso_z(start + timedelta(days=1))
 
 
-def create_payload(*, display_name: str, employee_no: str, category: str, responsible_person: str, access_purpose: str,
-                   at: datetime | None = None) -> dict[str, Any]:
+def create_payload(*, display_name: str, category: str, responsible_person: str, access_purpose: str,
+                   employee_no: str | None = None, at: datetime | None = None) -> dict[str, Any]:
     """The users/create `data`. Never null for phone/responsible_person/access_purpose (WisKey rejects null; `phone` is simply not sent);
-    access_purpose may be ""; responsible_person is non-empty; validity always present."""
-    if not isinstance(employee_no, str) or not _EMPLOYEE_NO.fullmatch(employee_no):
-        raise ValueError("employee_no must be ASCII [A-Za-z0-9_-] 1..32")
+    access_purpose may be ""; responsible_person is non-empty; validity always present. `employee_no` is normally OMITTED: WisKey then
+    generates a nine-digit one and returns it (Arx stores what comes back); an explicit value must match ASCII [A-Za-z0-9_-] 1..32."""
     valid_from, valid_until = default_validity(at)
-    return {"display_name": _clean_name(display_name), "employee_no": employee_no, "access_category": category,
-            "responsible_person": (str(responsible_person or "").strip()[:64]).strip() or "Arx",
-            "access_purpose": str(access_purpose or "").strip()[:128], "active": False, "valid_from": valid_from, "valid_until": valid_until}
+    data: dict[str, Any] = {"display_name": _clean_name(display_name), "access_category": category,
+                            "responsible_person": (str(responsible_person or "").strip()[:64]).strip() or "Arx",
+                            "access_purpose": str(access_purpose or "").strip()[:128], "active": False, "valid_from": valid_from,
+                            "valid_until": valid_until}
+    if employee_no is not None:
+        if not isinstance(employee_no, str) or not _EMPLOYEE_NO.fullmatch(employee_no):
+            raise ValueError("employee_no must be ASCII [A-Za-z0-9_-] 1..32")
+        data["employee_no"] = employee_no
+    return data
 
 
-def apply_payload(*, doors: dict[str, list[int]], valid_from: str, valid_until: str, timing: dict[str, Any] | None, active: bool, pin: Any = KEEP) -> dict[str, Any]:
+def apply_payload(*, doors: dict[str, list[int]], valid_from: str, valid_until: str, timing: dict[str, Any] | None, active: bool, pin: Any = KEEP,
+                  overrides: dict[str, str] | None = None) -> dict[str, Any]:
+    """The users/update `data` of a grant push. `door_permissions` replaces the lock list of each SUPPLIED station only - leaving a station
+    out does NOT revoke it; stations to drop travel in `overrides` (the COMPLETE permission_overrides dict, see `plan_overrides`).
+    `employee_no` is never sent on update."""
     data: dict[str, Any] = {"door_permissions": doors, "valid_from": valid_from, "valid_until": valid_until, "active": active,
                             "access_timing_policy": {"mode": "ha", "schedule": timing, "bindings": {}} if timing else None}
+    if overrides is not None:
+        data["permission_overrides"] = overrides
     if pin is not KEEP:
         data["pin"] = pin
     return data
 
 
+def plan_overrides(person: EnginePerson, doors: dict[str, list[int]]) -> dict[str, str] | None:
+    """The COMPLETE `permission_overrides` replacement that makes the person's enabled stations equal `doors`' stations: stations to drop get
+    "deny" (a deny beats an inherited allow), stations to add get "allow", every other personal entry is kept (a one-entry dict is not a
+    merge and would erase the rest). None = nothing to change. Raises `not_sent` when the person's access fields were not readable: a
+    replacement built on a restricted view could erase exceptions."""
+    if not person.doors_known or not person.overrides_known:
+        raise EngineError("not_sent", "projection_restricted")
+    have, want = set(person.doors), set(doors)
+    new = dict(person.overrides)
+    for sid in have - want:
+        new[sid] = "deny"
+    for sid in want - have:
+        new[sid] = "allow"
+    return new if new != person.overrides else None
+
+
 def strip_payload() -> dict[str, Any]:
-    """The revoke write. It deliberately does NOT send `door_permissions: {}`: WisKey does not treat {} as removing grants, so sending
-    it would only look like a revoke. What it does send (deactivate, clear the PIN, drop the timing policy) is real, but the door map
-    cannot be proven empty from WisKey's answer (see `person_from_raw`), so the worker never reports the revoke done on this write alone."""
-    return {"pin": None, "active": False, "access_timing_policy": None}
+    """The revoke-all write (WisKey-stated, source-derived, NOT_RUN): group_ids [] + permission_overrides {} remove every central grant
+    (`door_permissions: {}` does not), active false, and `pin: null` is the explicit PIN clear (omitting pin keeps it, "" is invalid) - the
+    ONE allowed null (phone/responsible_person/access_purpose are never null). Sent with sync_now; the answer is the public person object.
+    It is not proof of physical removal: the worker waits for a readback AND the central sync status (see `Worker.strip`)."""
+    return {"group_ids": [], "permission_overrides": {}, "active": False, "pin": None}
+
+
+_ACCESS_FIELDS = frozenset({"assignments", "group_ids", "permission_overrides"})
+_CREDENTIAL_FIELDS = frozenset({"pin_configured", "pin", "cards"})
+
+
+def _redacted(raw: Any) -> tuple[bool, bool]:
+    """(access fields unreadable, credential fields unreadable) from `redacted_fields`. A present but unparseable marker blocks both."""
+    if raw in (None, [], {}, ()):
+        return False, False
+    names = set(raw) if isinstance(raw, (list, tuple, set, dict)) else None
+    if names is None or not all(isinstance(n, str) for n in names):
+        return True, True
+    return bool(names & _ACCESS_FIELDS), bool(names & _CREDENTIAL_FIELDS)
 
 
 def person_from_raw(raw: Any) -> EnginePerson:
-    """A WisKey person record (users/get or a save's answer, rc.37 shapes as S11 reads them) -> EnginePerson. Raises ValueError
-    on anything that is not a person record (after a write that is "outcome unknown")."""
+    """A WisKey person record (users/get or a save's answer: `ManagedUser.public`, WisKey-stated) -> EnginePerson. Raises ValueError
+    on anything that is not a person record (after a write that is "outcome unknown").
+
+    The record has NO `door_permissions`. The desired door map is the projection of the ENABLED `assignments` to their `allowed_locks`;
+    a disabled row keeps historical locks and is skipped. The projection is UNKNOWN (`doors_known=False`, never known-empty) when
+    assignments / permission_overrides / group_ids are missing or unreadable or `redacted_fields` names an access field; `pin_known` is
+    False when the credential fields may be unreadable (then pin_configured=False proves nothing)."""
     if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not isinstance(raw.get("revision"), int):
         raise ValueError("unexpected person record")
-    doors_known = isinstance(raw.get("door_permissions"), dict)
-    doors = _doors_of(raw.get("door_permissions"))
-    stations = set(doors)
-    overrides = raw.get("permission_overrides")
-    if isinstance(overrides, dict):
-        stations |= {k for k in overrides if isinstance(k, str)}
+    access_redacted, credential_redacted = _redacted(raw.get("redacted_fields"))
     assignments = raw.get("assignments")
+    overrides_raw = raw.get("permission_overrides")
+    groups = raw.get("group_ids")
+    doors: dict[str, list[int]] = {}
+    stations: set[str] = set()
     if isinstance(assignments, dict):
-        stations |= {k for k in assignments if isinstance(k, str)}
+        for sid, row in assignments.items():
+            if not isinstance(sid, str) or not isinstance(row, dict):
+                continue
+            stations.add(sid)
+            if row.get("enabled") is True:
+                doors[sid] = sorted({r for r in (row.get("allowed_locks") or []) if isinstance(r, int) and not isinstance(r, bool)})
+    overrides: dict[str, str] = {}
+    if isinstance(overrides_raw, dict):
+        overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and v in ("allow", "deny")}
+        stations |= set(overrides)
+    overrides_known = isinstance(overrides_raw, dict) and not access_redacted
+    doors_known = isinstance(assignments, dict) and overrides_known and isinstance(groups, list) and not access_redacted
+    if not doors_known:
+        doors = {}
     policy = raw.get("access_timing_policy") if isinstance(raw.get("access_timing_policy"), dict) else None
     return EnginePerson(
         id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=bool(raw.get("active")),
         valid_from=raw.get("valid_from") if isinstance(raw.get("valid_from"), str) else None,
         valid_until=raw.get("valid_until") if isinstance(raw.get("valid_until"), str) else None,
-        doors=doors, doors_known=doors_known, stations=tuple(sorted(stations)), pin_configured=bool(raw.get("pin_configured")),
+        doors=doors, doors_known=doors_known, stations=tuple(sorted(stations)),
+        pin_configured=bool(raw.get("pin_configured")), pin_known=isinstance(raw.get("pin_configured"), bool) and not credential_redacted,
         timing=policy.get("schedule") if policy and isinstance(policy.get("schedule"), dict) else None,
         category=raw.get("access_category") if raw.get("access_category") in ("staff", "visitor", "contractor") else "unknown",
+        employee_no=str(raw.get("employee_no") or "")[:32], overrides=overrides, overrides_known=overrides_known,
+        group_ids=tuple(g for g in groups if isinstance(g, str)) if isinstance(groups, list) else (),
     )
 
 
@@ -204,7 +285,8 @@ class WiskeyServiceEngine:
             raise EngineError("unknown", "invalid_response")
         return person_from_raw(raw)
 
-    def create_person(self, *, display_name: str, employee_no: str, category: str, responsible_person: str, access_purpose: str) -> EnginePerson:
+    def create_person(self, *, display_name: str, category: str, responsible_person: str, access_purpose: str,
+                      employee_no: str | None = None) -> EnginePerson:
         self._guard()
         from . import intercom_client
 
@@ -226,11 +308,11 @@ class WiskeyServiceEngine:
         return person_from_raw(raw)
 
     def apply(self, person_id: str, revision: int, *, doors: dict[str, list[int]], valid_from: str, valid_until: str,
-              timing: dict[str, Any] | None, active: bool, pin: Any = KEEP) -> EnginePerson:
+              timing: dict[str, Any] | None, active: bool, pin: Any = KEEP, overrides: dict[str, str] | None = None) -> EnginePerson:
         self._guard()
         from . import intercom_client
 
-        data = apply_payload(doors=doors, valid_from=valid_from, valid_until=valid_until, timing=timing, active=active, pin=pin)
+        data = apply_payload(doors=doors, valid_from=valid_from, valid_until=valid_until, timing=timing, active=active, pin=pin, overrides=overrides)
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True))
 
     def strip(self, person_id: str, revision: int) -> EnginePerson:
@@ -239,6 +321,12 @@ class WiskeyServiceEngine:
 
         data = strip_payload()
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True))
+
+    def revocation_pending(self, person_id: str) -> bool | None:
+        """No confirmation endpoint is asserted by WisKey, and Arx's overview projection drops tombstones / revocations (B0, D-006): until the
+        pinned service-channel source shows where the central sync status can be read, this is UNKNOWN - a live revoke stays `revoking`."""
+        self._guard()
+        return None
 
     def pin_generate(self, person_id: str) -> str:
         self._guard()
