@@ -64,8 +64,12 @@ class Arrival:
         self.client, _ = self.s4.public(Clock(time.time()))
 
     def day(self, plus: int) -> str:
-        return (dt.datetime.now(ag.zone_of_default()).date() + dt.timedelta(days=plus)).isoformat() if hasattr(ag, "zone_of_default") else \
-            (dt.date.today() + dt.timedelta(days=plus)).isoformat()
+        """A plain day N days from today IN THE INSTALLATION'S ZONE (the product's rule, access_grants.zone_of). TKGATEFIX8: the
+        fallback used the MACHINE's date (`ag.zone_of_default` does not exist), the previous day on the Etc/UTC runner after the
+        installation's midnight."""
+        with self.db.connection(mode="read") as conn:
+            zone = ag.zone_of(conn)
+        return (dt.datetime.now(zone).date() + dt.timedelta(days=plus)).isoformat()
 
     def body(self, **over) -> dict:
         b = {"person_id": self.tech, "date_from": self.day(3), "date_to": self.day(3), "hours": "08:00-17:00", "notice_ack": True,

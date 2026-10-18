@@ -27,7 +27,14 @@ DAY = 86400.0
 
 
 def _day(days: int) -> str:
-    return (dt.date.today() + dt.timedelta(days=days)).isoformat()
+    """A plain day N days from TODAY IN THE INSTALLATION'S ZONE - the product's "today" (rfq_terms.today). TKGATEFIX8: it was the
+    MACHINE's date (`date.today()`), which on the Etc/UTC test runner is the previous day between the installation's midnight and
+    00:00 UTC (21:00 / 22:00 - 24:00 UTC for Asia/Jerusalem): `_day(0)` was then already past, and the gate failed only at night."""
+    from zoneinfo import ZoneInfo
+
+    from smplwise.services.tickets.messaging import DEFAULT_TZ
+
+    return (dt.datetime.now(ZoneInfo(DEFAULT_TZ)).date() + dt.timedelta(days=days)).isoformat()
 
 
 def _at(days: float) -> str:

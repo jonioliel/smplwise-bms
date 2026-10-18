@@ -383,10 +383,28 @@ def resend_check(conn, viewer: Viewer, seen: rfq.RfqSeen, award_id: str, now: dt
     return {"a": a, "order": order, "v": v, "contact": contact, "ticket": ticket, "link": link, "planned": planned}
 
 
+ORDER_LINE_LABELS = ("מועד עבודה: ", "מועד הגעה: ", "לוח תשלומים מאושר: ")  # the generated lines of the order block (_description)
+
+
+def refresh_order_lines(desc: str, lines: list[str]) -> str:
+    """The description with each generated order line replaced by its current text, matched by its LABEL (`מועד עבודה:`, `מועד הגעה:`,
+    `לוח תשלומים מאושר:` at the start of a line - the first such line only). A label that is missing is not added; nothing else changes."""
+    rows = desc.split("\n")
+    for new in lines:
+        label = next((lb for lb in ORDER_LINE_LABELS if new.startswith(lb)), None)
+        if label is None:
+            continue
+        i = next((k for k, r in enumerate(rows) if r.startswith(label)), None)
+        if i is not None:
+            rows[i] = new
+    return "\n".join(rows)
+
+
 def resend(conn, viewer: Viewer, seen: rfq.RfqSeen, ctx: Mapping[str, Any], now: dt.datetime, rid: str | None, *, change: str,
-           token: str, old_lines: list[str]) -> str | None:
+           token: str, old_lines: list[str] | None = None) -> str | None:
     """RFQPAY2 (contract 20.15): the manager ticked "send the updated work order" on a date change. The request's description gets the
-    updated order lines (the work window and the terms lines - replaced line by line where they still stand as written; never an amount),
+    updated order lines (the work window and the terms lines, matched by their label - `refresh_order_lines`; never an amount;
+    `old_lines` is accepted and unused since TKGATEFIX8),
     then the SAME `rfq_order` message is queued again with the current window (idempotency `rfqorder:<award>:<generation>:re<token>` -
     one per change). Timeline `order_resent` (RFQ) / `rfq_order_resent` (the request), audit `ticket.rfq.order_resend`."""
     from . import rfq_terms
@@ -397,16 +415,12 @@ def resend(conn, viewer: Viewer, seen: rfq.RfqSeen, ctx: Mapping[str, Any], now:
     wf = t.get("planned_from") or order.get("work_from")
     wt = t.get("planned_to") or (wf if t.get("planned_from") else order.get("work_to")) or wf
     fresh = {**order, "work_from": wf, "work_to": wt}
-    # the request's text: the order block's lines as they were written -> as they are now (a line the manager edited stays his)
-    def work_line(f: str | None, to: str | None) -> str:
-        x, y = _local_day(conn, f), _local_day(conn, to)
-        return f"מועד עבודה: {x if x == y or not y else f'{x} - {y}'}"
+    # the request's text: every generated order line (by its label) -> as it is now. TKGATEFIX8: NOT "the old text, verbatim" - a date
+    # moved earlier WITHOUT a re-send left its line older than the last state we know, and the verbatim match then missed it (a stale
+    # arrival line survived the re-send; the gate run after the installation's midnight exposed it)
+    x, y = _local_day(conn, wf), _local_day(conn, wt)
     desc = str(ticket.get("description") or "")
-    pairs = [(work_line(order.get("work_from"), order.get("work_to")), work_line(wf, wt)), *zip(old_lines, rfq_terms.order_lines(conn, a["id"]))]
-    new_desc = desc
-    for old, new in pairs:
-        if old and old != new and old in new_desc:
-            new_desc = new_desc.replace(old, new, 1)
+    new_desc = refresh_order_lines(desc, [f"מועד עבודה: {x if x == y or not y else f'{x} - {y}'}", *rfq_terms.order_lines(conn, a["id"])])
     if new_desc != desc:
         store.update_ticket(conn, ticket["id"], {"description": new_desc[:model.DESCRIPTION_MAX]}, bump=False)
     oid = _enqueue_order(conn, viewer, row, a, fresh, contact, ticket, link, ctx["planned"],

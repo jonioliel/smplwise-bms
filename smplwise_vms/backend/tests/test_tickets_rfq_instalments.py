@@ -568,3 +568,21 @@ def test_the_updated_work_order_is_resent_only_when_ticked_with_the_new_window_o
     tk = s4.c.get(f"{API}/tickets/{tid}", headers=s4.h("joni")).json()
     assert dt.date.fromisoformat(_day(7)).strftime("%d.%m.%Y") in tk["description"]
     assert dt.date.fromisoformat(_day(6)).strftime("%d.%m.%Y") not in tk["description"]
+
+
+def test_tkgatefix8_the_resend_rewrites_the_generated_order_lines_by_label_even_when_an_earlier_move_was_not_resent():
+    """TKGATEFIX8 (gate #2 of 2.7.0, after the installation's midnight): the re-send matched the order lines VERBATIM against the text
+    of the last state; a date moved earlier without a re-send left the request's arrival line older than that, so it survived."""
+    from smplwise.services.tickets.rfq_orders import refresh_order_lines
+
+    desc = "\n".join(["היחידה דולפת", "", "הזמנת עבודה מבקשת הצעת מחיר RFQ-01", "מועד עבודה: 24.10.2026 - 29.10.2026",
+                      "מועד הגעה: 24.10.2026 - 29.10.2026 (טרם אושר על ידי הספק)", "לוח תשלומים מאושר: מקדמה - 25.10.2026"])
+    assert refresh_order_lines(desc, []) == desc
+    assert refresh_order_lines(desc, ["משהו אחר: 1"]) == desc  # an unknown label changes nothing
+    no_arrival = desc.replace("מועד הגעה:", "הגעה (נערך ידנית):")
+    out = refresh_order_lines(no_arrival, ["מועד הגעה: 30.10.2026 (אושר)"])
+    assert out == no_arrival  # a line whose label the manager changed is left alone, and a missing label is never added
+    out = refresh_order_lines(desc, ["מועד עבודה: 30.10.2026", "מועד הגעה: 30.10.2026 (אושר)", "לוח תשלומים מאושר: מקדמה - 26.10.2026"])
+    assert "24.10.2026" not in out and "25.10.2026" not in out
+    assert out.split("\n")[3:] == ["מועד עבודה: 30.10.2026", "מועד הגעה: 30.10.2026 (אושר)", "לוח תשלומים מאושר: מקדמה - 26.10.2026"]
+    assert out.split("\n")[:3] == desc.split("\n")[:3]  # nothing else changes

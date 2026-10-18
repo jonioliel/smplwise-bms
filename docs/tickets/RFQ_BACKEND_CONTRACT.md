@@ -1137,8 +1137,10 @@ tick, BEFORE anything is written (`rfq_orders.resend_check`): the order rule (au
 is not done (`done_at`) / closed (409 `order_ticket_closed`), and the send's own refusals (`order_link_unavailable`, `vendor_not_allowed`,
 `order_channel_unavailable`). Then, in the same transaction as the date change (`rfq_orders.resend`, reusing the send path
 `_enqueue_order` - no second copy of its logic):
-* the request's description: the order block's lines as written (`מועד עבודה: ...` and the 20.9 terms lines) are replaced by the current
-  ones, line by line, only where they still stand verbatim (a line the manager edited is left alone); never an amount;
+* the request's description: the order block's generated lines - `מועד עבודה:`, `מועד הגעה:`, `לוח תשלומים מאושר:` (20.9) - are
+  replaced by their current text, each matched by its LABEL at the start of a line (the first such line; a missing label is not added;
+  never an amount). TKGATEFIX8: not "the previous text, verbatim" - a date moved earlier WITHOUT a re-send left its line older than the
+  last known state, and the verbatim match missed it (a stale arrival line survived the re-send);
 * the SAME templated `rfq_order` message is queued with the current window (the terms' planned window, else the order's) over the
   request's handler link - the outbox's send-hours rules, idempotency key `rfqorder:<award>:<link generation>:re<terms revision>` (one
   message per change; a repeat of the request is refused by the revision);

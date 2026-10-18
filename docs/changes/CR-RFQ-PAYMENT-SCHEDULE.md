@@ -169,8 +169,10 @@ display for the vendor (Q10 - closed). Migration 0110 was edited in place (unrel
 Bundle budgets (measured with the guard's method on a local build into the scratch directory, `www-public` NOT rebuilt): see the
 report of each commit - the vendor marker stays in the lazy `rfq-page-terms` chunk (3 KB cap).
 
-Still open after RFQPAY2: none from this CR's owner questions (Q10 no, Q13 built as E12). Known limit: a manager-edited line of the
-order's description is not rewritten by a re-send (only the message carries the new window).
+Still open after RFQPAY2: none from this CR's owner questions (Q10 no, Q13 built as E12). TKGATEFIX8 (gate #2 of 2.7.0): a re-send
+rewrites the order block's generated lines by their LABEL (a verbatim match missed a line written before an earlier move without a
+re-send); a line whose label the manager changed is left alone. The tests' "today" is the installation's (Asia/Jerusalem), not the
+machine's (the Etc/UTC runner is a day behind between the installation's midnight and 24:00 UTC).
 
 ## 7. Rollback
 
