@@ -279,3 +279,16 @@ def test_an_ordinary_assignment_changes_nothing(s4):
     assert r.status_code == 201 and r.json()["revision"]["basis"] is None, r.text
     claim = _manager_claim(s4, t["id"])
     assert claim["quote_check"] is None and claim["baseline"] is None
+
+
+def test_quote_check_compares_a_total_demand_with_the_stored_basis_not_the_live_baseline_review_f2():
+    from smplwise.services.tickets import claim_prefill
+
+    base = {"approved_total_minor": 150_000, "currency": "ILS", "version": 2}  # the quote was revised after the demand
+    rev = {"total_minor": 100_000, "currency": "ILS", "no_charge": 0, "lines_json": "[]",
+           "basis_json": '{"basis": "total", "basis_minor": 100000, "instalment_index": null, "above_reason": null}'}
+    qc = claim_prefill.check(base, rev)
+    assert qc["basis_minor"] == 100_000 and qc["delta_minor"] == 0 and "below_quote" not in qc["flags"]
+    # a revision without a stored basis keeps the live baseline
+    qc = claim_prefill.check(base, {**rev, "basis_json": None})
+    assert qc["basis_minor"] == 150_000 and "below_quote" in qc["flags"]
