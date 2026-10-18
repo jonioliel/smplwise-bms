@@ -208,3 +208,29 @@ def contact_phone_confirm(body: ConfirmBody, request: Request, contact_id: str =
     from ..services.tickets import phone_verify
 
     return phone_verify.manager_confirm(conn, Viewer(conn, principal), contact_id, {"confirm": body.confirm}, _rid(request))
+
+
+# ---------------------------------------------------------------- NEEDSREVIEW (2.8.0): the "needs review" privacy report
+
+class ReviewDeleteBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: Literal[True]
+
+
+@router.get("/tickets/contacts-review")
+def needs_review(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """דוח דורש בחינה (services/needs_review.py): technicians pending too long and people Arx knows for access with no activity;
+    `tickets.configure`. Read-only; the thresholds are `directory.review_pending_days` / `directory.review_idle_months`."""
+    from ..services import needs_review as nr
+
+    return nr.report(conn, principal)
+
+
+@router.post("/tickets/contacts-review/{contact_id}/delete")
+def needs_review_delete(body: ReviewDeleteBody, request: Request, contact_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """"מחק עכשיו" of an idle row: the directory's own erase after re-checking the row is still due (no live grant). Arx-side only -
+    never a door-system call (a pending technician's row uses POST /access-grants/pending-contacts/{id}/reject instead)."""
+    from ..services import needs_review as nr
+
+    return nr.delete_idle(conn, principal, contact_id, _rid(request))
