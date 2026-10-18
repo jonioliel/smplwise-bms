@@ -101,6 +101,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "security.local_identity",
                  # SVCIDENT2: the extended mode of the service identity - a restore never switches it on
                  "security.local_identity_extended",
+                 # SVCIDENT3 (review S1 a): the scripts / scenes / automations Arx-only users may run - a restore never widens it
+                 "security.local_identity_runnable",
                  # USR2 phase 2: where links sent by WhatsApp point - an archive never re-aims reset links
                  "security.local_public_url",
                  # USR2 phase 4: passwordless sign-in and the Android app association - an archive never switches them on / re-aims them

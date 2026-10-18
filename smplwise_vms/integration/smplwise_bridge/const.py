@@ -1,6 +1,9 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.9.1"
+VERSION = "0.9.2"
+# 0.9.2 (SVCIDENT3, the 2.7.0 security review S1 / S2): the options-flow allowlist `local_identity_runnable` (empty by default) of the scripts /
+# scenes / automations an Arx-only person may run, the impact check of each run (runnable.py) and the service user's entity policy on every
+# entity of a message screened on behalf of an Arx-only person. Nothing changes for a Home Assistant user's own message.
 # 0.9.1 (SVCIDENT2, owner decisions 2026-10-17): the options-flow switch `local_identity_extended` (off by default) - with it on, Arx-only users
 # may open doors, run scripts / scenes, bypass alarm zones and read a camera stream source through the service identity (service_identity.py).
 # 0.9.0 (USR2 phase 3): the service identity - an Arx-only (local) user acts through ONE configured non-administrator HA user (options flow),
@@ -36,5 +39,7 @@ CONF_DELEGATED_CHANGED_AT = "delegated_changed_at"
 CONF_SERVICE_USER_ID = "service_user_id"
 # 0.9.1 (SVCIDENT2): the extended mode of the service identity, set by an HA administrator in the options flow; off by default.
 CONF_LOCAL_IDENTITY_EXTENDED = "local_identity_extended"
+# 0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run (entity ids), set by an HA administrator in the options flow; empty by default.
+CONF_LOCAL_IDENTITY_RUNNABLE = "local_identity_runnable"
 DIRECTORY_INTERVAL_S = 60
 SIGNATURE_WINDOW_S = 60

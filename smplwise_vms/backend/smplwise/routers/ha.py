@@ -23,7 +23,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
+from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import service_identity
 from ..services import devices as dsvc
@@ -295,9 +295,15 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
     if not service_identity.identity_ok(principal, settings):  # CR-008: the Arx remote channel is the same HA user; USR2 P3: a local one, the service identity
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
+    if (spec["domain"], spec["service"]) == ("script", "turn_on") and service_identity.is_local(principal) and service_identity.extended_on(conn):
+        # SVCIDENT3 (owner answer 2026-10-18): an Arx-only person runs a script from device control only with the script run permission too -
+        # `script.run` or `script.manage`, held anywhere, exactly as the automations screen's run route asks; else the audited 403
+        if not ({"script.run", "script.manage"} & set(permissions_anywhere(conn, principal))):
+            require(conn, principal, "script.run", INSTALLATION)
     # USR2 P3: a local (Arx-only) principal acts through the service identity, `devices.control` allow-list only (the alarm panel goes through the
     # alarm section and its PIN rules); a Home Assistant principal keeps {"user_id": its own id}. Refused here = nothing recorded, nothing sent.
-    subj = service_identity.subject(conn, principal, "devices.control", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=rid)
+    subj = service_identity.subject(conn, principal, "devices.control", bridge_service="execute", item=(spec["domain"], spec["service"]), request_id=rid,
+                                   entity_id=entity_id)  # SVCIDENT3: a script / scene runs only from the runnable allowlist
     secret = ha_bridge.signing_key(conn)
     paired = bool(secret) and bool(get_setting(conn, "bridge.paired_at"))
     aid, now = uuid.uuid4().hex[:12], now_iso()

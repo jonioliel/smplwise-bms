@@ -28,9 +28,18 @@ Rules (both sides enforce; the bridge has the same table in custom_components/sm
   stream source under `cameras.live`. Each still needs the route's own Arx permission first; allowed extended items are audited
   `identity.service_identity.extended` (ids only). A WisKey door is judged by door_authority for a local user in this mode (local_door_ok).
   A security review is required before the switch is ever turned on.
+- SVCIDENT3 (the 2.7.0 security review S1 / S2, CR-USR2 section 12): in the extended mode a script / scene / automation runs for an Arx-only
+  person only when its entity id is on the per-installation allowlist `security.local_identity_runnable` (EMPTY by default; a system
+  administrator on the local channel, audited `identity.service_identity.runnable`) - checked here with the entity id the route passes in -
+  AND on the bridge's own options-flow copy (reported with the directory push); the bridge (>= 0.9.2) checks its copy again, reads the item's
+  steps (the impact check: no door, no disarm, no arming with the bypass set, nothing outside the closed step list, one nested level) and
+  applies the service user's Home Assistant entity policy to every entity of a message sent on behalf of an Arx-only person (S2). Every
+  extended item therefore needs a 0.9.2 bridge. EXTENDED_GO_LIVE_PERMITTED stays False: flipping it needs the owner's explicit permit, an
+  approved amendment of docs/security/HA_IDENTITY_RBAC_HE.md sections 7-8 and a Fable re-review.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sqlite3
@@ -64,7 +73,13 @@ AREA_WRITE = ("smplwise_bridge", "set_entity_area")
 NEVER_LOCAL_EXTENDED = frozenset({AREA_WRITE})
 EXTENDED_SETTING = "security.local_identity_extended"
 BRIDGE_EXTENDED = "bridge.local_identity_extended"  # what the bridge reported in its last directory push (its options-flow copy)
-BRIDGE_EXTENDED_REQUIRED = "0.9.1"
+# SVCIDENT3: every extended item needs the bridge that carries the run fences (S1 b: the impact check, S2: the entity policy) - 0.9.2
+BRIDGE_EXTENDED_REQUIRED = "0.9.2"
+# SVCIDENT3 (review S1 a): the scripts / scenes / automations (entity ids) Arx-only users may run in the extended mode - EMPTY by default
+RUNNABLE_SETTING = "security.local_identity_runnable"
+BRIDGE_RUNNABLE = "bridge.local_identity_runnable"  # the bridge's options-flow copy, as reported in its last directory push (JSON list)
+RUNNABLE_RE = re.compile(r"^(script|scene|automation)\.[a-z0-9_]{1,100}$")
+MAX_RUNNABLE = 100
 # integ/270 (2.7.0 security review S7): the code-level go-live guard of the extended mode, the GO_LIVE_PERMITTED pattern of
 # services/access_grants.py. While False the add-on switch cannot be turned on (PATCH /settings answers 409 `extended_not_permitted`) and
 # extended_on() is False whatever the stored value says - everything behaves exactly as 2.6.4. It is flipped only in the commit that lands
@@ -135,12 +150,15 @@ REFUSED_LABELS = [("אוטומציות, סצנות וסקריפטים (כתיב�
                   ("פתיחת דלתות ומנעולים", "Opening doors and locks")]
 # SVCIDENT2: the card's lists while the extended mode is on (both switches); each item still only under the person's own Arx permission
 EXTENDED_FEATURE_LABELS = {
-    "devices.control": ("שליטה בהתקנים, כולל סקריפטים וסצנות (לפי הרשאת שליטה)", "Device control, scripts and scenes included (under the control permission)"),
-    "doors": ("פתיחת דלתות ומנעולים (לפי הרשאת הדלתות של המשתמש)", "Opening doors and locks (under the user's door permission)"),
+    "devices.control": ("שליטה בהתקנים, כולל סקריפטים וסצנות מרשימת ההרצה בלבד (לפי הרשאת שליטה)", "Device control, scripts and scenes from the runnable list only (under the control permission)"),
+    # SVCIDENT3 (review S4): a WisKey door is opened by the door transport, not through the bridge - only the add-on's switch applies to it
+    "doors": ("פתיחת דלתות ומנעולים (לפי הרשאת הדלתות של המשתמש). דלתות WisKey תלויות במתג של התוסף בלבד; מנעולים של תשתית המערכת - בשני המתגים",
+              "Opening doors and locks (under the user's door permission). WisKey doors follow the add-on's switch alone; infrastructure locks need both switches"),
     "alarm": ("אזעקה (דריכה / נטרול לפי כללי הקוד; דריכה עם עקיפה דורשת הרשאת עקיפה)", "Alarm (arm / disarm under the PIN rules; arming with bypass needs the bypass permission)"),
     "alarm.bypass": ("עקיפת אזורי אזעקה (לפי הרשאת עקיפה)", "Alarm zone bypass (under the bypass permission)"),
     "cameras.live": ("מצלמות בזרם חי דרך תשתית המערכת (לפי הרשאת הגדרת מקורות)", "Live cameras through the infrastructure (under the sources permission)"),
-    "automations.run": ("הרצת אוטומציות וסקריפטים והפעלת סצנות ממסך האוטומציות (לפי הרשאות ההרצה)", "Running automations and scripts and applying scenes on the automations screen (under the run permissions)"),
+    "automations.run": ("הרצת אוטומציות וסקריפטים והפעלת סצנות ממסך האוטומציות - מרשימת ההרצה בלבד (לפי הרשאות ההרצה)",
+                        "Running automations and scripts and applying scenes on the automations screen - from the runnable list only (under the run permissions)"),
     "media": FEATURE_LABELS["media"], "cast": FEATURE_LABELS["cast"], "schedules": FEATURE_LABELS["schedules"],
 }
 EXTENDED_REFUSED_LABELS = [("שיוך התקן לאזור", "Assigning a device to an area"),
@@ -152,7 +170,9 @@ MESSAGES = {
     "service_identity_unconfigured": "פעולות בתשתית המערכת למשתמשי Arx דורשות זהות שירות. מנהל המערכת מגדיר אותה בהגדרות › משתמשי Arx.",
     "service_identity_admin": "זהות השירות שהוגדרה היא משתמש עם הרשאות ניהול, ולכן הפעולה נחסמה. מנהל המערכת יבחר משתמש רגיל.",
     "service_identity_bridge_outdated": "נדרש עדכון של רכיב החיבור (0.9.0 ומעלה) כדי שמשתמשי Arx יוכלו לפעול בתשתית המערכת.",
-    "service_identity_extended_bridge_off": "הפעולה דורשת שהמצב המורחב של משתמשי Arx יופעל גם ברכיב החיבור (0.9.1 ומעלה) - מנהל בתשתית המערכת מפעיל אותו שם.",
+    "service_identity_extended_bridge_off": "הפעולה דורשת שהמצב המורחב של משתמשי Arx יופעל גם ברכיב החיבור (0.9.2 ומעלה) - מנהל בתשתית המערכת מפעיל אותו שם.",
+    "service_identity_not_runnable": "הפריט הזה אינו ברשימת הסקריפטים, הסצנות והאוטומציות שמשתמשי Arx רשאים להריץ. מנהל המערכת מוסיף אותו בהגדרות › משתמשי Arx.",
+    "service_identity_runnable_bridge_missing": "הפריט ברשימת ההרצה של Arx אך לא ברשימה של רכיב החיבור - מנהל בתשתית המערכת מוסיף אותו גם שם.",
     "automation_write_requires_ha_identity": "שמירה והפעלה של אוטומציות, סצנות וסקריפטים זמינות רק למשתמשי תשתית המערכת.",
     "local_identity_off": "משתמשי Arx כבויים בהגדרות המערכת.",
     "user_inactive": "המשתמש אינו פעיל.",
@@ -265,22 +285,26 @@ def _refuse(conn: sqlite3.Connection, principal: Principal | None, user_id: str,
     return ApiError(status, code, MESSAGES.get(code, MESSAGES["service_identity_refused"]), details={"feature": feature})
 
 
-def subject(conn: sqlite3.Connection, principal: Principal, feature: str, *, bridge_service: str, item: Any, request_id: str | None = None) -> dict[str, Any]:
+def subject(conn: sqlite3.Connection, principal: Principal, feature: str, *, bridge_service: str, item: Any, request_id: str | None = None,
+            entity_id: str | None = None) -> dict[str, Any]:
     """The identity fields of a signed bridge message. A Home Assistant (or developer) principal: `{"user_id": <its id>}` - unchanged. A local
-    principal: the service identity + `on_behalf_of`, or ApiError (audited `identity.service_identity.refused`) - nothing is sent then."""
+    principal: the service identity + `on_behalf_of`, or ApiError (audited `identity.service_identity.refused`) - nothing is sent then.
+    `entity_id` (SVCIDENT3): the script / scene / automation a run item targets - judged against the runnable allowlist (a run without it is
+    refused)."""
     if not is_local(principal):
         return {"user_id": principal.user_id}
     # a principal that is local by source OR by id form is judged as local, whatever its id looks like (fail closed: a `source = local`
     # principal carrying a Home Assistant-shaped id is refused below, never passed on as that Home Assistant user)
-    return _local_subject(conn, principal.user_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=principal)
+    return _local_subject(conn, principal.user_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=principal, entity_id=entity_id)
 
 
 def subject_for_user(conn: sqlite3.Connection, user_id: str, feature: str, *, bridge_service: str, item: Any, request_id: str | None = None,
-                     actor: Principal | None = None) -> dict[str, Any]:
-    """subject() for a stored principal id (a background follow-up of a local user's earlier request)."""
+                     actor: Principal | None = None, entity_id: str | None = None, quiet: bool = False) -> dict[str, Any]:
+    """subject() for a stored principal id (a background follow-up of a local user's earlier request). `quiet` (SVCIDENT3, review S5): a
+    background refresh writes no `identity.service_identity.extended` row each time (its own audit row records the refresh)."""
     if not is_local(user_id):
         return {"user_id": user_id}
-    return _local_subject(conn, user_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=actor)
+    return _local_subject(conn, user_id, feature, bridge_service=bridge_service, item=item, request_id=request_id, actor=actor, entity_id=entity_id, quiet=quiet)
 
 
 # A clean-up command that must still go out when the local person who started something can no longer act (security review F3): the
@@ -332,7 +356,7 @@ def never_local(bridge_service: str, item: Any, extended: bool = False) -> bool:
 
 
 def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, bridge_service: str, item: Any, request_id: str | None,
-                   actor: Principal | None, require_active: bool = True) -> dict[str, Any]:
+                   actor: Principal | None, require_active: bool = True, entity_id: str | None = None, quiet: bool = False) -> dict[str, Any]:
     args = {"feature": feature, "bridge_service": bridge_service, "item": item, "request_id": request_id}
     from . import local_identity
 
@@ -349,6 +373,10 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
     why = feature_refusal(feature, bridge_service, item, extended)
     if why:
         raise _refuse(conn, actor, user_id, why, 403, **args)
+    run = runnable_item(bridge_service, item)
+    if run is not None and runnable_refusal(conn, run, entity_id) is not None:
+        # SVCIDENT3 (review S1 a): a script / scene / automation runs only from the per-installation allowlist (empty by default)
+        raise _refuse(conn, actor, user_id, "service_identity_not_runnable", 403, reason="not_runnable", **args)
     sid = configured_id(conn)
     if sid is None:
         raise _refuse(conn, actor, user_id, "service_identity_unconfigured", 503, **args)
@@ -365,9 +393,86 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
         if (_version_tuple(get_setting(conn, "bridge.integration_version")) < _version_tuple(BRIDGE_EXTENDED_REQUIRED)
                 or (get_setting(conn, BRIDGE_EXTENDED) or "") != "true"):
             raise _refuse(conn, actor, user_id, "service_identity_extended_bridge_off", 503, **args)
-        audit(conn, actor=actor, action="identity.service_identity.extended", decision="allowed", resource_type="user", resource_id=user_id, request_id=request_id,
-              details={"feature": feature, "bridge_service": bridge_service, "item": _audit_item(item)})
+        if run is not None and entity_id not in bridge_runnable_ids(conn):
+            # the bridge (0.9.2) refuses an item missing from its own copy of the allowlist: not sent (both copies must list it)
+            raise _refuse(conn, actor, user_id, "service_identity_runnable_bridge_missing", 503, **args)
+        if not quiet:
+            details = {"feature": feature, "bridge_service": bridge_service, "item": _audit_item(item)}
+            if run is not None:
+                details["entity_id"] = entity_id
+            audit(conn, actor=actor, action="identity.service_identity.extended", decision="allowed", resource_type="user", resource_id=user_id, request_id=request_id,
+                  details=details)
     return {"user_id": sid, "on_behalf_of": {"kind": "local", "user_id": user_id, "feature": feature}}
+
+
+# ---------------------------------------------------------------- SVCIDENT3: the runnable allowlist (review S1 a)
+
+RUN_KIND = {("execute", ("script", "turn_on")): "script", ("execute", ("scene", "turn_on")): "scene",
+            ("config_item", "trigger"): "automation", ("config_item", "run_script"): "script", ("config_item", "apply_scene"): "scene"}
+
+
+def runnable_item(bridge_service: str, item: Any) -> str | None:
+    """The kind (script / scene / automation) a bridge item RUNS, or None for an item that runs nothing."""
+    try:
+        return RUN_KIND.get((bridge_service, item))
+    except TypeError:
+        return None
+
+
+def parse_runnable(value: Any) -> list[str] | None:
+    """A sorted, de-duplicated list of runnable entity ids, or None when any entry is malformed or there are too many."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        return None
+    ids = sorted({x.strip().lower() for x in value if x.strip()})
+    if len(ids) > MAX_RUNNABLE or not all(RUNNABLE_RE.fullmatch(x) for x in ids):
+        return None
+    return ids
+
+
+def _stored_ids(conn: sqlite3.Connection, key: str) -> frozenset[str]:
+    try:
+        raw = get_setting(conn, key)
+        ids = parse_runnable(json.loads(raw)) if raw else []
+    except (ValueError, TypeError, sqlite3.OperationalError):
+        ids = None
+    return frozenset(ids or ())  # malformed = empty: every run refused (fail closed)
+
+
+def runnable_ids(conn: sqlite3.Connection) -> frozenset[str]:
+    """The add-on's allowlist `security.local_identity_runnable` (empty by default)."""
+    return _stored_ids(conn, RUNNABLE_SETTING)
+
+
+def bridge_runnable_ids(conn: sqlite3.Connection) -> frozenset[str]:
+    """The bridge's options-flow copy of the allowlist, as reported in its last directory push (an older bridge reports none)."""
+    return _stored_ids(conn, BRIDGE_RUNNABLE)
+
+
+def runnable_refusal(conn: sqlite3.Connection, kind: str, entity_id: Any) -> str | None:
+    """None when `entity_id` is an entity of `kind` on the add-on's allowlist; else why not (no entity id = refused: fail closed)."""
+    if not isinstance(entity_id, str) or not RUNNABLE_RE.fullmatch(entity_id):
+        return "no_entity"
+    if entity_id.split(".", 1)[0] != kind:
+        return "wrong_kind"
+    return None if entity_id in runnable_ids(conn) else "not_listed"
+
+
+def configure_runnable(conn: sqlite3.Connection, principal: Principal, value: Any, request_id: str | None) -> dict[str, Any]:
+    """Replace the allowlist (a system administrator, local channel - the route checks both). Audited `identity.service_identity.runnable`
+    with the ids added and removed (entity ids only). Refused (422) when an entry is not a script / scene / automation entity id."""
+    ids = parse_runnable(value)
+    if ids is None:
+        audit(conn, actor=principal, action="identity.service_identity.runnable", decision="denied", resource_type="installation", resource_id="service_identity",
+              reason="validation", request_id=request_id, details={"count": len(value) if isinstance(value, list) else None})
+        raise ApiError(422, "validation", f"רשימת ההרצה מקבלת עד {MAX_RUNNABLE} מזהי ישויות של סקריפטים, סצנות או אוטומציות (script.x, scene.x, automation.x).",
+                       details={"fields": ["entity_ids"]})
+    before = runnable_ids(conn)
+    set_setting(conn, RUNNABLE_SETTING, json.dumps(ids))
+    audit(conn, actor=principal, action="identity.service_identity.runnable", decision="allowed", resource_type="installation", resource_id="service_identity",
+          request_id=request_id, details={"added": sorted(set(ids) - before), "removed": sorted(before - set(ids)), "count": len(ids)})
+    return status(conn)
 
 
 def _audit_item(item: Any) -> Any:
@@ -572,6 +677,10 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     elif bridge_ext:
         step("extended_bridge_only", "המצב המורחב פעיל ברכיב החיבור בלבד. כל עוד הוא כבוי כאן, הפעולות המורחבות נחסמות.",
              "Extended mode is on in the bridge only. While it is off here, the extended actions are refused.")
+    run_ids, bridge_run_ids = runnable_ids(conn), bridge_runnable_ids(conn)
+    if ext_requested and run_ids != bridge_run_ids:
+        step("runnable_mismatch", "רשימת הסקריפטים, הסצנות והאוטומציות להרצה שונה בין Arx לבין רכיב החיבור. פריט שאינו בשתי הרשימות לא ירוץ.",
+             "The list of runnable scripts, scenes and automations differs between Arx and the bridge. An item missing from either list does not run.")
     if ext_on:
         allowed = [{"key": k, "he": v[0], "en": v[1]} for k, v in EXTENDED_FEATURE_LABELS.items()]
         refused = [{"he": he, "en": en} for he, en in EXTENDED_REFUSED_LABELS]
@@ -585,7 +694,10 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
                    "capable": bridge_capable, "reported_user_id": bridge_reported, "agrees": bool(sid) and bridge_reported == sid},
         "feature_on": local_identity.enabled(conn),
         "extended": {"permitted": extended_go_live_permitted(), "requested": ext_requested, "on": ext_on, "bridge_on": bridge_ext, "bridge_version_ok": bridge_ext_ok,
-                     "agrees": ext_requested == bridge_ext, "required": BRIDGE_EXTENDED_REQUIRED},
+                     "agrees": ext_requested == bridge_ext, "required": BRIDGE_EXTENDED_REQUIRED,
+                     # SVCIDENT3 (review S4): the two-switch rule is the bridge's - a WisKey door follows the add-on's switch alone
+                     "doors_addon_only": True},
+        "runnable": {"ids": sorted(run_ids), "bridge_ids": sorted(bridge_run_ids), "agrees": run_ids == bridge_run_ids, "max": MAX_RUNNABLE},
         "ready": ready,
         "steps": steps,
         "allowed": allowed,
@@ -602,9 +714,13 @@ def note_directory_push(conn: sqlite3.Connection, message: dict[str, Any]) -> No
     reported = reported if isinstance(reported, str) and HA_USER_ID_RE.fullmatch(reported) else ""
     # SVCIDENT2 (bridge >= 0.9.1): the bridge's options-flow copy of the extended switch; an older bridge sends no key = off
     ext = "true" if message.get("local_identity_extended") is True else "false"
-    if capable != (get_setting(conn, BRIDGE_CAPABLE) or "") or reported != (get_setting(conn, BRIDGE_SETTING) or "") or ext != (get_setting(conn, BRIDGE_EXTENDED) or "false"):
+    # SVCIDENT3 (bridge >= 0.9.2): the bridge's copy of the runnable allowlist; an older bridge or a malformed list = none
+    run = json.dumps(parse_runnable(message.get("local_identity_runnable")) or [])
+    if (capable != (get_setting(conn, BRIDGE_CAPABLE) or "") or reported != (get_setting(conn, BRIDGE_SETTING) or "") or ext != (get_setting(conn, BRIDGE_EXTENDED) or "false")
+            or run != (get_setting(conn, BRIDGE_RUNNABLE) or "[]")):
         set_setting(conn, BRIDGE_CAPABLE, capable)
         set_setting(conn, BRIDGE_SETTING, reported)
         set_setting(conn, BRIDGE_EXTENDED, ext)
+        set_setting(conn, BRIDGE_RUNNABLE, run)
         audit(conn, actor=None, action="bridge.service_identity_seen", decision="allowed", resource_type="installation", resource_id="service_identity",
-              details={"capable": capable == "true", "user_id": reported or None, "extended": ext == "true"})
+              details={"capable": capable == "true", "user_id": reported or None, "extended": ext == "true", "runnable": json.loads(run)})

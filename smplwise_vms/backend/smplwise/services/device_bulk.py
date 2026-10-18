@@ -773,7 +773,7 @@ def record(conn: Any, principal: Principal, bulk_id: str, plan: dict[str, Any], 
         # USR2 P3: the identity fields of this call - a Home Assistant principal's own id, or (a local principal) the service identity under the
         # `devices.control` / `media` allow-list; one refused target refuses the whole bulk before anything is recorded or sent
         t["subject"] = service_identity.subject(conn, principal, service_identity.feature_for_pair(spec["domain"], spec["service"], media=plan.get("origin") == "media"),
-                                                bridge_service="execute", item=(spec["domain"], spec["service"]))
+                                                bridge_service="execute", item=(spec["domain"], spec["service"]), entity_id=t["entity_id"])
         # the arguments as validated (cleaned: entity_id dropped) - CR-007 slice 4: an attribute confirmation (e.g.
         # covers_position) compares the observed attribute to THESE, exactly as the single-entity route does
         # (routers/ha.py); every earlier bulk kind sends no arguments at all, so this was always "{}" for them.

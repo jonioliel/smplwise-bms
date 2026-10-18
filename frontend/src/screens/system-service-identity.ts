@@ -13,7 +13,18 @@ export interface ServiceIdentityStatus {
   bridge: { paired: boolean; version: string | null; required: string; version_ok: boolean; capable: boolean; reported_user_id: string | null; agrees: boolean };
   feature_on: boolean;
   /** SVCIDENT2: the extended mode - the add-on's switch, whether it is in force, and the bridge's own copy (absent from an older add-on). */
-  extended?: { /** integ/270 (S7): false in 2.7.0 - the build may not run the extended mode */ permitted?: boolean; requested: boolean; on: boolean; bridge_on: boolean; bridge_version_ok: boolean; agrees: boolean; required: string };
+  extended?: {
+    /** integ/270 (S7): false in 2.7.0 - the build may not run the extended mode */ permitted?: boolean;
+    requested: boolean;
+    on: boolean;
+    bridge_on: boolean;
+    bridge_version_ok: boolean;
+    agrees: boolean;
+    required: string;
+    /** SVCIDENT3 (review S4): WisKey doors follow the add-on's switch alone */ doors_addon_only?: boolean;
+  };
+  /** SVCIDENT3 (review S1 a): the scripts / scenes / automations Arx-only users may run (absent from an older add-on) */
+  runnable?: { ids: string[]; bridge_ids: string[]; agrees: boolean; max: number };
   ready: boolean;
   steps: { code: string; he: string; en: string }[];
   allowed: { key: string; he: string; en: string }[];
@@ -40,6 +51,8 @@ export class SystemServiceIdentity extends LitElement {
   @state() private saved = false;
   @state() private busy = false;
   @state() private value = '';
+  @state() private runText = '';
+  @state() private runSaved = false;
 
   static styles = css`
     :host {
@@ -142,6 +155,16 @@ export class SystemServiceIdentity extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
+    [data-si-doors-addon-only] {
+      margin-block-start: 6px;
+    }
+    .runnable {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-block-start: 1px solid var(--sw-border, transparent);
+      padding-block-start: 10px;
+    }
     bdi.id {
       font-family: var(--sw-font-mono, ui-monospace, monospace);
       word-break: break-all;
@@ -158,6 +181,7 @@ export class SystemServiceIdentity extends LitElement {
       const d = await get<ServiceIdentityStatus>('/identity/service-identity');
       this.data = d;
       this.value = d.configured_user_id ?? '';
+      this.runText = (d.runnable?.ids ?? []).join(', ');
       this.error = '';
     } catch (err) {
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) this.notShown = true;
@@ -174,6 +198,27 @@ export class SystemServiceIdentity extends LitElement {
       this.data = d;
       this.value = d.configured_user_id ?? '';
       this.saved = true;
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** SVCIDENT3: replace the runnable allowlist (PUT /identity/service-identity/runnable; the server judges and audits every id). */
+  private async saveRunnable() {
+    this.busy = true;
+    this.error = '';
+    this.runSaved = false;
+    try {
+      const ids = this.runText
+        .split(/[\s,]+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const d = await put<ServiceIdentityStatus>('/identity/service-identity/runnable', { entity_ids: ids });
+      this.data = d;
+      this.runText = (d.runnable?.ids ?? []).join(', ');
+      this.runSaved = true;
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -205,6 +250,7 @@ export class SystemServiceIdentity extends LitElement {
               ${d.extended
                 ? html`<div class="note ${d.extended.requested ? 'warn' : ''}" data-si-extended=${d.extended.on ? 'on' : d.extended.requested ? 'requested' : 'off'}>
                     ${d.extended.requested ? lit('siExtendedOn') : lit('siExtendedOff')}
+                    ${d.extended.doors_addon_only ? html`<div data-si-doors-addon-only>${lit('siDoorsAddonOnly')}</div>` : nothing}
                   </div>`
                 : nothing}
               ${d.steps.length
@@ -228,6 +274,33 @@ export class SystemServiceIdentity extends LitElement {
                 <sw-button variant="primary" ?disabled=${this.busy} @click=${() => this.save()} data-si-save>${lit('siSave')}</sw-button>
                 ${d.configured_user_id ? html`<sw-button variant="ghost" ?disabled=${this.busy} @click=${() => this.save(true)} data-si-clear>${lit('siClear')}</sw-button>` : nothing}
               </div>
+              ${d.runnable
+                ? html`<div class="runnable" data-si-runnable=${d.runnable.agrees ? 'agrees' : 'differs'}>
+                    <div class="label">${lit('siRunTitle')}</div>
+                    <p class="sub">${lit('siRunSub')}</p>
+                    <div class="row">
+                      <label
+                        >${lit('siRunLabel')}
+                        <input
+                          .value=${this.runText}
+                          spellcheck="false"
+                          autocomplete="off"
+                          placeholder="script.evening_lights, scene.movie"
+                          @input=${(e: Event) => (this.runText = (e.target as HTMLInputElement).value)}
+                          data-si-run-input
+                      /></label>
+                      <sw-button variant="secondary" ?disabled=${this.busy} @click=${() => this.saveRunnable()} data-si-run-save>${lit('siRunSave')}</sw-button>
+                    </div>
+                    ${this.runSaved ? html`<div class="note" role="status" data-si-run-saved>${lit('siRunSaved')}</div>` : nothing}
+                    <div class="facts">
+                      <span data-si-run-bridge
+                        >${lit('siRunBridge')}:
+                        ${d.runnable.bridge_ids.length ? html`<bdi class="id">${d.runnable.bridge_ids.join(', ')}</bdi>` : lit('siRunEmpty')}</span
+                      >
+                      <span>${d.runnable.agrees ? lit('siRunAgrees') : lit('siRunDiffers')}</span>
+                    </div>
+                  </div>`
+                : nothing}
               <div class="cols">
                 <div>
                   <div class="label">${lit('siAllowed')}</div>

@@ -140,11 +140,44 @@ test('the extended mode on is a warning naming the security review', async ({ pa
   await expect(page.locator('system-service-identity [data-si-extended="on"]')).toHaveClass(/warn/);
 });
 
+// SVCIDENT3 (review S4): WisKey doors follow the add-on switch alone - one line under the extended note
+test('the extended note says WisKey doors follow the add-on switch alone', async ({ page }) => {
+  await setup(page, { [`GET ${API}`]: { status: 200, body: { ...READY, extended: { ...EXT_OFF, doors_addon_only: true } } } });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-doors-addon-only]')).toContainText('WisKey');
+});
+
+// SVCIDENT3 (review S1 a): the runnable allowlist - empty by default; a refused list shows the server text; a saved list shows the bridge agreement
+const RUN_EMPTY = { ids: [], bridge_ids: [], agrees: true, max: 100 };
+test('the runnable list: empty by default, a refused list shows the server text, a saved list is sent as ids', async ({ page }) => {
+  const calls = await setup(page, {
+    [`GET ${API}`]: { status: 200, body: { ...READY, extended: EXT_OFF, runnable: RUN_EMPTY } },
+    [`PUT ${API}/runnable`]: [
+      { status: 422, body: { code: 'validation', user_message: 'רשימת ההרצה מקבלת עד 100 מזהי ישויות של סקריפטים, סצנות או אוטומציות.', retryable: false, details: {} } },
+      { status: 200, body: { ...READY, extended: EXT_OFF, runnable: { ids: ['scene.movie', 'script.evening'], bridge_ids: [], agrees: false, max: 100 } } },
+    ],
+  });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-runnable="agrees"]')).toBeVisible();
+  await expect(page.locator('system-service-identity [data-si-run-input]')).toHaveValue('');
+  await page.locator('system-service-identity [data-si-run-input]').fill('light.kitchen');
+  await page.locator('system-service-identity [data-si-run-save]').click();
+  await expect(page.locator('system-service-identity [data-si-error]')).toContainText('רשימת ההרצה');
+  await page.locator('system-service-identity [data-si-run-input]').fill('script.evening, scene.movie');
+  await page.locator('system-service-identity [data-si-run-save]').click();
+  await expect(page.locator('system-service-identity [data-si-run-saved]')).toBeVisible();
+  await expect(page.locator('system-service-identity [data-si-runnable="differs"]')).toBeVisible();
+  await expect(page.locator('system-service-identity [data-si-run-input]')).toHaveValue('scene.movie, script.evening');
+  const puts = calls.filter((c) => c.method === 'PUT' && c.path === `${API}/runnable`);
+  expect(puts.map((c) => JSON.parse(c.body))).toEqual([{ entity_ids: ['light.kitchen'] }, { entity_ids: ['script.evening', 'scene.movie'] }]);
+});
+
 test('an older server without the extended block shows no extended line', async ({ page }) => {
   await setup(page, { [`GET ${API}`]: { status: 200, body: READY } });
   await mount(page);
   await expect(page.locator('system-service-identity [data-si-state="ready"]')).toBeVisible();
   await expect(page.locator('system-service-identity [data-si-extended]')).toHaveCount(0);
+  await expect(page.locator('system-service-identity [data-si-runnable]')).toHaveCount(0);
 });
 
 for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 390, h: 844 }]) {
@@ -154,6 +187,20 @@ for (const view of [{ name: 'desktop', w: 1440, h: 900 }, { name: 'mobile', w: 3
     await mount(page);
     await expect(page.locator('system-service-identity [data-si-step="not_configured"]')).toBeVisible();
     await page.screenshot({ path: path.join(EVIDENCE, `service-identity-not-ready-${view.name}.png`), fullPage: true });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow).toBe(false);
+  });
+
+  // SVCIDENT3: the runnable list and the WisKey doors line (the extended mode as the card would show it once permitted)
+  test(`screens for review: the runnable list (${view.name})`, async ({ page }) => {
+    await page.setViewportSize({ width: view.w, height: view.h });
+    const runnable = { ids: ['scene.movie', 'script.evening_lights'], bridge_ids: ['script.evening_lights'], agrees: false, max: 100 };
+    const extended = { ...EXT_OFF, requested: true, on: true, bridge_on: true, bridge_version_ok: true, required: '0.9.2', doors_addon_only: true };
+    const steps = [{ code: 'runnable_mismatch', he: 'רשימת הסקריפטים, הסצנות והאוטומציות להרצה שונה בין Arx לבין רכיב החיבור. פריט שאינו בשתי הרשימות לא ירוץ.', en: 'x' }];
+    await setup(page, { [`GET ${API}`]: { status: 200, body: { ...READY, extended, runnable, steps } } });
+    await mount(page);
+    await expect(page.locator('system-service-identity [data-si-runnable="differs"]')).toBeVisible();
+    await page.screenshot({ path: path.join(EVIDENCE, `service-identity-runnable-${view.name}.png`), fullPage: true });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
   });

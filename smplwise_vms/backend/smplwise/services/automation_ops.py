@@ -70,6 +70,14 @@ BRIDGE_ERRORS = {
     "legacy_schema": lambda d: ApiError(422, "validation", "ערך לא תקין — התוכן משתמש במפתחות ישנים; השתמשו בתצוגת הקוד כפי שהוצגה.", details={"path": d.get("path")}),
     "invalid_payload": lambda d: ApiError(422, "validation", "ערך לא תקין — התוכן אינו עומד בכללי השמירה.", details={"path": d.get("path")}),
     "unauthorized": lambda d: ApiError(403, "entity_not_controllable", "אין לך הרשאת שליטה בהתקן; תשתית המערכת דחתה את הפעולה."),
+    # SVCIDENT3 (bridge 0.9.2, review S1): the bridge's run fences for an Arx-only person - the allowlist and the impact check
+    "service_identity_not_runnable": lambda d: ApiError(403, "service_identity_not_runnable", "הפריט אינו ברשימת ההרצה של רכיב החיבור."),
+    **{code: (lambda c: lambda d: ApiError(403, "run_impact_refused", "רכיב החיבור סירב להריץ את הפריט עבור משתמש Arx: אחד הצעדים שלו אינו מותר (דלת, נטרול, שירות מחוץ לרשימה או התקן שזהות השירות אינה רשאית לשלוט בו).",
+                                         details={"reason": c}))(code)
+       for code in ("impact_unknown_item", "impact_never_local", "impact_service_not_allowed", "impact_template", "impact_target_unresolved", "impact_device_action",
+                    "impact_event", "impact_step_unknown", "impact_nesting_too_deep", "impact_too_large", "impact_entity_policy",
+                    "impact_physical_access", "impact_nested_not_runnable",
+                    "service_identity_policy_unavailable")},
 }
 
 
@@ -218,11 +226,15 @@ def bridge_error(resp: dict[str, Any], op: str | None = None) -> ApiError:
 # ================================================================ the bridge
 
 def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | None, base_revision: str | None, profile: str | None, config: dict[str, Any] | None,
-                preserved: list[str] | None, sensitive: bool, variables: dict[str, Any] | None, skip_condition: bool | None, entity_id: str | None) -> dict[str, Any]:
-    """The message of one op with exactly the keys the bridge accepts for it (`config_policy.OP_KEYS`: any other key is refused as `invalid_payload`)."""
+                preserved: list[str] | None, sensitive: bool, variables: dict[str, Any] | None, skip_condition: bool | None, entity_id: str | None,
+                run_entity: str | None = None) -> dict[str, Any]:
+    """The message of one op with exactly the keys the bridge accepts for it (`config_policy.OP_KEYS`: any other key is refused as `invalid_payload`).
+    `run_entity` (SVCIDENT3): the entity id of the item a run op runs - judged against the runnable allowlist for a local identity (never sent)."""
     if op in service_identity.AUTOMATION_RUN_OPS and service_identity.is_local(w.principal):
-        # SVCIDENT2 second round: a run / apply for a local identity - the service identity, `automations.run` (refused unless the extended mode is on)
-        subj = service_identity.subject(w.conn, w.principal, "automations.run", bridge_service="config_item", item=op, request_id=w.request_id)
+        # SVCIDENT2 second round: a run / apply for a local identity - the service identity, `automations.run` (refused unless the extended mode is on);
+        # SVCIDENT3 (review S1 a): and only for an item on the runnable allowlist
+        subj = service_identity.subject(w.conn, w.principal, "automations.run", bridge_service="config_item", item=op, request_id=w.request_id,
+                                        entity_id=run_entity if op != "apply_scene" else entity_id)
     else:
         service_identity.refuse_automation_write(w.conn, w.principal, w.request_id)  # USR2 P3: never for a local identity (also refused in the router)
         subj = {"user_id": w.principal.user_id}
@@ -247,12 +259,16 @@ def bridge_body(w: W, op: str, op_id: str, *, kind: str | None, item_id: str | N
 
 def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: str | None = None, base_revision: str | None = None, profile: str | None = None,
                 config: dict[str, Any] | None = None, preserved: list[str] | None = None, sensitive: bool = False, variables: dict[str, Any] | None = None,
-                skip_condition: bool | None = None, entity_id: str | None = None) -> dict[str, Any]:
+                skip_condition: bool | None = None, entity_id: str | None = None, run_entity: str | None = None) -> dict[str, Any]:
     """One signed `smplwise_bridge.config_item` call, made with the request's write lock released. Never retried. A transport failure or `ok: false` settles the op
     and raises (504 `config_timeout` leaves it `unknown`)."""
     secret = ha_bridge.signing_key(w.conn)
-    body = bridge_body(w, op, op_id, kind=kind, item_id=item_id, base_revision=base_revision, profile=profile, config=config, preserved=preserved, sensitive=sensitive,
-                       variables=variables, skip_condition=skip_condition, entity_id=entity_id)
+    try:
+        body = bridge_body(w, op, op_id, kind=kind, item_id=item_id, base_revision=base_revision, profile=profile, config=config, preserved=preserved, sensitive=sensitive,
+                           variables=variables, skip_condition=skip_condition, entity_id=entity_id, run_entity=run_entity)
+    except ApiError as exc:
+        store_finish(w.conn, op_id, "failed", error=exc.code)  # SVCIDENT3: a refused identity settles the op (nothing was sent)
+        raise
     signed = ha_bridge.sign(secret or "", body)
     transport = tr.get_transport()
     try:
@@ -988,7 +1004,8 @@ def run_automation(w: W, item_id: str, skip_condition: bool, confirm: bool, clie
             gap_release(key)
             return replay(w, again, "run", "run", "automation", item_id)
         try:
-            resp = bridge_call(w, "trigger", op_id, kind="automation", item_id=row.config_id, skip_condition=bool(skip_condition), sensitive=facts["sensitive"])
+            resp = bridge_call(w, "trigger", op_id, kind="automation", item_id=row.config_id, skip_condition=bool(skip_condition), sensitive=facts["sensitive"],
+                               run_entity=row.entity_id)
         except ApiError:
             gap_release(key)
             raise
@@ -1065,7 +1082,8 @@ def run_script(w: W, item_id: str, fields: dict[str, Any], confirm: bool, client
             gap_release(key)
             return replay(w, again, "run", "run", "script", item_id)
         try:
-            resp = bridge_call(w, "run_script", op_id, kind="script", item_id=row.config_id or item_id, variables=variables or None, sensitive=facts["sensitive"])
+            resp = bridge_call(w, "run_script", op_id, kind="script", item_id=row.config_id or item_id, variables=variables or None, sensitive=facts["sensitive"],
+                               run_entity=row.entity_id)
         except ApiError:
             gap_release(key)
             raise

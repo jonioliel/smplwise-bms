@@ -694,3 +694,102 @@ Arx grant checked). The switch therefore ships in 2.7.0 behind a code constant, 
   (`custom_components/smplwise_bridge`, `smplwise_vms/integration/smplwise_bridge`) are byte-identical. The bridge's own options-flow switch
   is not guarded by the add-on constant, but the add-on never sends an extended item while `extended_on()` is False, so the bridge copy alone
   changes nothing (section 11.2).
+
+## 12. SVCIDENT3 - the fences the extended mode needs before it may be enabled (2.7.0 security review S1, S2, S4, S5)
+
+Branch `pilot/SVCIDENT3` (from `integ/270` @ 4fde337e). No migration. Bridge **0.9.2** (2.7.0 ships 0.9.1; the key-rotation branch WXROT
+becomes 0.9.3). **The extended mode stays impossible to turn on:** `services/service_identity.EXTENDED_GO_LIVE_PERMITTED = False` is NOT
+changed here. Flipping it needs, in this order: (1) the owner's approval of the draft amendment
+`docs/security/HA_IDENTITY_RBAC_AMENDMENT_EXTENDED_SERVICE_IDENTITY_DRAFT_HE.md` as a change request and its application to
+`docs/security/HA_IDENTITY_RBAC_HE.md` by that document's owner, (2) a Fable security re-review of this branch, (3) the owner's explicit,
+separate permit, landed in its own commit with tests, (4) a full gate on the runner. The security document itself is NOT edited here.
+
+### 12.1 What was built (each item negative-first tested)
+
+| Review item | Add-on | Bridge 0.9.2 |
+|---|---|---|
+| **S1 (a)** runnable allowlist | `security.local_identity_runnable` (JSON list of `script.` / `scene.` / `automation.` entity ids, max 100, **empty by default**, never restored from a backup). `PUT /identity/service-identity/runnable {entity_ids}`: `system.configure`, local channel only (`BLOCKED_ON_REMOTE` prefix), a local principal refused, audited `identity.service_identity.runnable` (added / removed ids; a refused list audited `denied`, nothing stored). Enforced in `_local_subject` with the entity id the route passes (`subject(..., entity_id=)`: `routers/ha.py`, `device_bulk.record`, `automation_ops.bridge_body` via `run_entity`): a run item (`execute` `script.turn_on` / `scene.turn_on`, `config_item` `trigger` / `run_script` / `apply_scene`) without a listed entity id of the right kind is 403 `service_identity_not_runnable` (audited reason `not_runnable`) **even with both switches on**; listed here but missing from the bridge's reported copy: 503 `service_identity_runnable_bridge_missing` (not sent). A malformed stored list is empty. | Options-flow field `local_identity_runnable` (text, ids separated by commas; errors `runnable_format`, `runnable_too_many`; stored as a sorted list; malformed at run time = empty). Reported with every directory push (`local_identity_runnable`), stored by the add-on as `bridge.local_identity_runnable` and shown on the card (`runnable.agrees`, step `runnable_mismatch`). For a message screened on behalf of an Arx-only person: `execute` `script.turn_on` / `scene.turn_on` and `config_item` run ops refuse an entity not on the list: `service_identity_not_runnable`. |
+| **S1 (b)** impact check | - (the add-on cannot see the item's steps) | `runnable.py`: the item's configuration is read from the UI files (`scripts.yaml` / `automations.yaml` / `scenes.yaml`, the same store `config_service` writes; the registry entry must be of the UI platform) and every step is walked at any depth plus ONE nested level (`script.turn_on`, `script.<object id>`, `automation.trigger`, `scene.turn_on`, the `scene:` step, inline `scene.apply`). Closed refusal codes: `impact_never_local` (`lock.unlock`, `lock.open`, `alarm_disarm`, `alarm_arm_custom_bypass`, a scene setting a lock to anything but `locked` or setting an alarm panel), `impact_service_not_allowed` (outside `IMPACT_STEP_PAIRS` = the 2.6.4 `DEVICE_PAIRS` + plain arming), `impact_template`, `impact_target_unresolved` (area / device / floor / label / `all` / none / another domain), `impact_device_action`, `impact_event`, `impact_step_unknown`, `impact_nesting_too_deep`, `impact_too_large` (depth > 24 or > 500 steps), `impact_unknown_item` (not registered, not a UI-file item, missing, unreadable), `impact_entity_policy` (a step target - or a nested item - the service user may not control). The allowlist does NOT override the impact check. |
+| **S2** entity policy | - | For every message screened on behalf of an Arx-only person, `execute` checks `user.permissions.check_entity(entity_id, POLICY_CONTROL)` of the service user for every entity (`service_identity_entity_policy`); a target that is not a literal entity list (`area_id`, `device_id`, `floor_id`, `label_id`, `target`, a template, `all`): `service_identity_target`; a permission API that is missing / raises, or an administrator user: `service_identity_policy_unavailable`. Placed after the allow-list / media checks and before `Context(...)` - nothing runs on a refusal. A Home Assistant user's own message is not judged here (unchanged). |
+| Version | `BRIDGE_EXTENDED_REQUIRED = "0.9.2"`: no extended item (doors, bypass, camera source, runs) is sent to a 0.9.0 / 0.9.1 bridge (503 `service_identity_extended_bridge_off`) - 0.9.1 has the switch but not the fences. | `const.VERSION`, `manifest.json`, the card's `VERSION` = 0.9.2; both copies byte-identical (tested file by file). |
+| **S4** | `status().extended.doors_addon_only = true`; the `doors` label says WisKey doors follow the add-on switch alone (infrastructure locks need both); the card shows one line under the extended note (`data-si-doors-addon-only`). | - |
+| **S5** | `ha_camera_streams`: a camera whose `enabled_by` is an `l_` id while `extended_on()` is False is not served (`ensure_ready` answers 503 `ha_live_unavailable` before any identity call - no `identity.service_identity.refused` row per attempt); `reconcile()` drops its opt-in and deletes its stream with ONE `camera_card.ha_live.disable` row, reason `extended_off`; a background re-read in the extended mode passes `quiet=True` (no `identity.service_identity.extended` row per refresh; the existing `camera_card.ha_live.refresh` row stays). A Home Assistant user's camera is untouched. | - |
+| Cheap extras | `automation_ops.bridge_call` settles the op as `failed` when the identity is refused before sending; `BRIDGE_ERRORS` maps the bridge's new codes (403 `service_identity_not_runnable`, 403 `run_impact_refused` with `details.reason`). | Docstrings corrected (the F5 sentence "execute performs no per-entity check" is no longer true for screened messages). |
+
+### 12.2 Exposed surfaces added
+
+`PUT /api/v1/identity/service-identity/runnable` (local channel, `system.configure`); `GET /identity/service-identity` gains `runnable` and
+`extended.doors_addon_only`; the directory push carries `local_identity_runnable`; the bridge options flow gains one text field. No public
+route, no new permission, no migration.
+
+### 12.3 Residual risks (for the Fable re-review)
+
+1. The step allow-list is the everyday device list: a `switch` / `button` wired to a gate relay looks like any other switch / button. Bounded by
+   the allowlist (an administrator picks each item), the service user's entity policy and - for direct control - Arx's scope.
+2. The impact check reads the files, not Home Assistant's loaded configuration; a hand-edited, not-reloaded file may differ from what runs
+   (an HA administrator's act). Items outside the UI files (YAML packages, integration scenes) are refused (`impact_unknown_item`).
+3. The entity policy protects only when the HA administrator restricted the service user (a group with an entity policy); the default policy
+   of a non-administrator user is broad. The ops guide / card must say so (follow-up).
+4. (Resolved in 12.7: a nested item must be on the allowlist too.)
+5. Arx-only users holding `schedules` (2.6.4, not the extended mode) can schedule scripts / scenes; that path is governed by the existing
+   "script allowed in schedules" administrator mark for disarm / unlock scripts (`schedule_ops.mark_script`) and the bridge's schedule handler
+   checks the service user's entity policy - not by the runnable allowlist. Recorded, not changed (out of this branch's scope).
+6. A live viewing session that is already open when the mode goes off is not cut by S5 (new opens are refused at once; reconcile deletes the
+   stream within its 300 s throttle).
+
+### 12.4 Open questions (recorded, not silently resolved) - all four answered by the owner on 2026-10-18, see 12.7
+
+1. Device-control runs (`script.turn_on` / `scene.turn_on`) need `ha.entity.control` on the item + the allowlist + the impact check; the
+   review's proposed amendment names "the action's own dedicated permission" (`script.run`). Should device-control runs also need `script.run`?
+2. Widen the step list (`notify.*`, `*.toggle`, `input_boolean.toggle`)? Today they are refused.
+3. Must a nested item be on the allowlist too?
+4. The bridge's allowlist is a free-text options field (Home Assistant's options flow has no multi-entity picker without a selector import);
+   a selector is a possible UI follow-up.
+
+### 12.5 Rollback
+
+Revert the branch. No migration; the settings rows `security.local_identity_runnable` / `bridge.local_identity_runnable` are ignored by older
+code. A 0.9.1 bridge with a 0.9.2-aware add-on: every extended item is refused (fail closed) - and the mode cannot be on anyway.
+
+### 12.6 Tests (local only - the runner was busy with a gate)
+
+`tests/test_bridge_runnable.py` (bridge: every impact code, one nesting level, scenes / inline scenes, the entity policy incl. unavailable /
+administrator / raising APIs, the allowlist option, the `__init__` wiring by AST, version 0.9.2 + both copies byte-identical, the closed
+code list known to the add-on); `tests/test_service_identity_runnable.py` (add-on: the constant False, empty default refuses every run with
+both switches on, entity id / kind / bridge copy, older bridges, malformed lists, the route's authority / channel / validation / audit, the
+directory push, S4, S5 with the real bridge screen); `tests/test_service_identity_extended.py` updated (0.9.2, both copies of the list; the
+device-control and automations-screen route tests now first prove the allowlist refusal); version pins in the `test_bridge_*` /
+`test_lovelace_card` files; `frontend/tests/unit-service-identity.spec.ts` (the runnable section and the doors line, screenshots
+`docs/evidence/USR2/service-identity-runnable-{desktop,mobile}.png`). A mutation check (each fence disabled in turn) turned its tests red.
+
+### 12.7 Owner answers of 2026-10-18 to the open questions of 12.4 (second commit on `pilot/SVCIDENT3`; bridge stays 0.9.2)
+
+1. **Device-control script runs need `script.run` too - built.** In the extended mode, `POST /ha/entities/script.<x>/actions` `script.turn_on`
+   for an Arx-only person additionally requires `script.run` or `script.manage` held anywhere (the automations screen's run rule); otherwise the
+   audited 403 `forbidden` (`require(..., "script.run")`), before anything is recorded or sent. Scenes unchanged (`ha.entity.control`). With
+   the switch off nothing changes (the 2.6.4 refusal comes first).
+2. **The closed step list is widened - built, each addition with its reason in `runnable.STEP_ADDITIONS`:**
+   - `notify.*` - only with literal content: a template anywhere in the step (message, title, data, target) refuses it (`impact_template`); an
+     unknown key refuses it (`impact_step_unknown`); `notify.send_message` entity targets still pass the service user's entity policy.
+   - `light.toggle`, `switch.toggle`, `fan.toggle`, `input_boolean.toggle`, `media_player.toggle` (`TOGGLE_DOMAINS`) - no physical-access effect
+     (a switch wired to a gate relay is the same residual risk as `switch.turn_on`, already in the list).
+   - **Never toggled:** `cover`, `lock`, `alarm_control_panel`, `climate`, `siren`, `valve` and every other domain (`impact_service_not_allowed`).
+   - **Covers, decided in this commit (fail closed):** the owner's rule for `cover.toggle` - "physical access unless the device class is plainly
+     not a door / gate / garage; when unsure refuse" - is applied to EVERY cover a runnable item drives, because `cover.open_cover` /
+     `close_cover` / `set_cover_position` on a garage door are the same physical access as a toggle. A cover service step, or a scene that sets a
+     cover, passes only when Home Assistant reports the cover's `device_class` in `COVER_SAFE_CLASSES` = `blind`, `curtain`, `shade`, `awning`;
+     `door`, `gate`, `garage`, `shutter`, `damper`, `window`, any other or a missing class, or a cover without a state: `impact_physical_access`.
+     `cover.toggle` itself stays OUTSIDE the step list (refused even on a blind), as the owner listed cover among the never-toggled domains.
+     **Recorded for the owner:** this tightens the 12.1 behaviour for open / close / position steps on non-window covers.
+3. **A nested item must be on the allowlist too - built.** A runnable item that calls a script / scene / automation (any of the nested forms)
+   is refused `impact_nested_not_runnable` unless the nested entity id is on the bridge's allowlist as well; a listed nested item is still
+   judged on its own steps.
+4. **A picker for the bridge's list** (a multi-entity selector in the options flow instead of free text) is a later UI task - recorded here,
+   not built.
+
+New closed codes: `impact_physical_access`, `impact_nested_not_runnable` (both mapped by the add-on to 403 `run_impact_refused`). Tests:
+`tests/test_bridge_runnable.py` (negative first: notify with a template in message / title / data, an unknown notify key, each never-toggled
+domain, `cover.toggle` even on a blind, open / close / position on a garage / gate / door / shutter / unknown-class / stateless cover, a scene
+setting such a cover, each nested form not on the list; then each addition passing with literal content), `tests/test_service_identity_extended.py`
+(an operator without `script.run` is refused `forbidden` with the switch on and the refusal is audited, then with `script.run` the allowlist
+decides).

@@ -14,10 +14,10 @@ compared by a drift test):
 - `on_behalf_of` absent: a message naming the service identity in `user_id` is refused (the service identity never acts as itself, so it can
   never bypass the allow-list), and a message naming an `l_` id is refused (a local id is never a Home Assistant user).
 - `on_behalf_of.user_id` is ATTRIBUTION ONLY: nothing here authorises by it. Home Assistant runs the call with `Context(user_id=<service id>)`.
-  That does NOT bound the entities the call may touch: the `execute` handler performs no per-entity check and an in-process service call
-  does not apply a user's entity policy, so "non-administrator" only keeps administrator-only services out. The entity guard for an Arx-only
-  person is Arx's own scope (`ha_scope`) alone (security review F5, recorded in CR-USR2 section 9). The add-on links the answer's context id
-  to the person for the activity log.
+  An in-process service call does not apply a user's entity policy by itself (security review F5, CR-USR2 section 9.1), so since 0.9.2
+  (SVCIDENT3, review S2) the `execute` handler checks the service user's entity policy for every entity of a message screened on behalf of
+  an Arx-only person (runnable.py) - a second fence next to Arx's own scope (`ha_scope`). The add-on links the answer's context id to the
+  person for the activity log.
 - NEVER_LOCAL (zone-bypass arming, doors, scripts, scenes) is refused for a local identity before any feature table is consulted.
 - Automation / script / scene writes and runs (`config_item`) are never available to a local identity (`automation_write_requires_ha_identity`),
   nor is the area registry write (`set_entity_area`) or the camera stream source (`stream_source`).
@@ -27,8 +27,9 @@ compared by a drift test):
   stream source (`cameras.live`; the stream-source handler then waives its administrator rule for that screened message only), and running
   from the automations screen (`automations.run`: the `config_item` ops `trigger`, `run_script`, `apply_scene` only - every write,
   `enable` / `disable` and `stop_script` stay `automation_write_requires_ha_identity` in both modes). The add-on
-  has its own copy of the switch: both must be on. Residual risks (CR-USR2 section 11): `execute` has no per-entity check, and a script /
-  scene can do anything the service user can. A security review is required before the switch is turned on.
+  has its own copy of the switch: both must be on. 0.9.2 (SVCIDENT3): a script / scene / automation run on behalf of an Arx-only person also
+  needs the options-flow allowlist `local_identity_runnable` and the impact check of runnable.py (review S1). A security review is required
+  before the switch is turned on (CR-USR2 sections 11.9 and 12).
 
 Dependency-free (no Home Assistant import), so the same functions run in plain unit tests. Refusals log the code only.
 """

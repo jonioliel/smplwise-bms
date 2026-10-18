@@ -36,11 +36,32 @@ EXT_ITEMS = [  # (feature, bridge service, item) admitted only by the extended m
 ]
 
 
-def _ext(db, *, on: bool = True, bridge_on: bool = True, version: str = "0.9.1") -> None:
+# SVCIDENT3 (review S1 a): a run item names the script / scene / automation it runs; both copies of the allowlist list these
+RUN_ENTITY = {("execute", ("script", "turn_on")): "script.open_front", ("execute", ("scene", "turn_on")): "scene.evening",
+              ("config_item", "trigger"): "automation.a1", ("config_item", "run_script"): "script.s1", ("config_item", "apply_scene"): "scene.x"}
+RUN_IDS = sorted(RUN_ENTITY.values())
+
+
+def _ext(db, *, on: bool = True, bridge_on: bool = True, version: str = "0.9.2", runnable: list[str] | None = None) -> None:
     with db.connection() as conn:
         set_setting(conn, si.EXTENDED_SETTING, "on" if on else "off")
         set_setting(conn, si.BRIDGE_EXTENDED, "true" if bridge_on else "false")
         set_setting(conn, "bridge.integration_version", version)
+        ids = RUN_IDS if runnable is None else runnable
+        set_setting(conn, si.RUNNABLE_SETTING, json.dumps(ids))
+        set_setting(conn, si.BRIDGE_RUNNABLE, json.dumps(ids))
+
+
+def _xsubject(db, principal, feature="devices.control", service="execute", item=("light", "turn_on")):
+    """_subject with the entity id a run item names (SVCIDENT3)."""
+    with db.connection() as conn:
+        return si.subject(conn, principal, feature, bridge_service=service, item=item, entity_id=RUN_ENTITY.get((service, item)) if not isinstance(item, list) else None)
+
+
+def _xcode(db, principal, **kw) -> str:
+    with pytest.raises(ApiError) as e:
+        _xsubject(db, principal, **kw)
+    return e.value.code
 
 
 def _audit(db, action: str) -> list[dict]:
@@ -115,9 +136,10 @@ def test_switch_on_without_local_identities_is_still_off(db):
 def test_switch_on_needs_the_bridge_copy_and_a_091_bridge(db, feature, service, item):
     _seed(db)
     _ext(db, bridge_on=False)
-    assert _code(db, _local(), feature=feature, service=service, item=item) == "service_identity_extended_bridge_off"
-    _ext(db, bridge_on=True, version="0.9.0")
-    assert _code(db, _local(), feature=feature, service=service, item=item) == "service_identity_extended_bridge_off"
+    assert _xcode(db, _local(), feature=feature, service=service, item=item) == "service_identity_extended_bridge_off"
+    for old in ("0.9.0", "0.9.1"):  # SVCIDENT3: the run fences (S1 b, S2) are in 0.9.2 - an older bridge gets no extended item at all
+        _ext(db, bridge_on=True, version=old)
+        assert _xcode(db, _local(), feature=feature, service=service, item=item) == "service_identity_extended_bridge_off"
     # an item the 2.6.4 tables already allow does not depend on the bridge's copy
     assert _subject(db, _local())["on_behalf_of"]["feature"] == "devices.control"
 
@@ -128,13 +150,14 @@ def test_switch_on_needs_the_bridge_copy_and_a_091_bridge(db, feature, service, 
 def test_switch_on_admits_each_extended_item_through_the_service_identity(db, feature, service, item):
     _seed(db)
     _ext(db)
-    assert _subject(db, _local(), feature=feature, service=service, item=item) == {
+    assert _xsubject(db, _local(), feature=feature, service=service, item=item) == {
         "user_id": SID, "on_behalf_of": {"kind": "local", "user_id": LID, "feature": feature}}
     rows = _audit(db, "identity.service_identity.extended")
     assert rows[-1]["actor_user_id"] == LID and rows[-1]["decision"] == "allowed"
     details = json.loads(rows[-1]["details_json"])
     assert {k: details[k] for k in ("feature", "bridge_service", "item")} == {"feature": feature, "bridge_service": service, "item": list(item) if isinstance(item, tuple) else item}
-    assert set(details) <= {"feature", "bridge_service", "item", "channel", "identity"}  # ids only (the audit layer adds channel / identity)
+    assert set(details) <= {"feature", "bridge_service", "item", "entity_id", "channel", "identity"}  # ids only (the audit layer adds channel / identity)
+    assert details.get("entity_id") == RUN_ENTITY.get((service, item))  # SVCIDENT3: a run names the item it runs
 
 
 def test_area_write_is_refused_in_both_modes(db):
@@ -226,7 +249,8 @@ def test_the_self_check_shows_both_copies_and_the_lists_follow_the_mode(db):
     _seed(db)
     with db.connection(mode="read") as conn:
         st = si.status(conn)
-    assert st["extended"] == {"permitted": True, "requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.1"}
+    assert st["extended"] == {"permitted": True, "requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.2",
+                              "doors_addon_only": True}  # SVCIDENT3 (review S4)
     assert {a["key"] for a in st["allowed"]} == set(si.FEATURES) and not any(s["code"].startswith("extended") for s in st["steps"])
     _ext(db, bridge_on=False)
     with db.connection(mode="read") as conn:
@@ -261,7 +285,7 @@ def test_never_lists_and_extended_tables_are_identical_on_both_sides():
     for k, d in si.EXTENDED_FEATURES.items():  # nothing on the extended never-list is in an extended table
         for svc, items in d.items():
             assert not any(si.never_local(svc, i, True) for i in items), k
-    assert si.BRIDGE_EXTENDED_REQUIRED == load("const").VERSION == "0.9.1"
+    assert si.BRIDGE_EXTENDED_REQUIRED == load("const").VERSION == "0.9.2"  # SVCIDENT3: the run fences ship in 0.9.2
 
 
 # ---------------------------------------------------------------- 4. through the routes: the user's own permission still decides
@@ -283,7 +307,7 @@ def _service_user(lx) -> None:
 
 def test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_permission(lx_app, monkeypatch):
     lx = lx_app
-    secret, calls = _bridge(lx, monkeypatch, version="0.9.1")
+    secret, calls = _bridge(lx, monkeypatch, version="0.9.2")
     lx.enable()
     _service_user(lx)
     door_user, c = lx.ready("dora", "operator")  # operator: ha.entity.control, no door.unlock
@@ -303,6 +327,22 @@ def test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_
     assert r.status_code == 503 and r.json()["code"] == "service_identity_extended_bridge_off" and calls == []
     with lx.db.connection() as conn:
         set_setting(conn, si.BRIDGE_EXTENDED, "true")
+    # SVCIDENT3 (review S1 a): a script / scene outside the runnable allowlist (empty by default) is refused with both switches on, nothing sent
+    # owner answer 2026-10-18: a script from device control also needs script.run / script.manage - an operator holds neither (audited 403)
+    r = _action(p, entity="script.open_front", action="script.turn_on", crid="sr-0", confirmation_grant="confirmed")
+    assert r.status_code == 403 and r.json()["code"] == "forbidden", r.text
+    denied = lx.rows("SELECT reason FROM audit_log WHERE action = 'script.run' AND decision = 'denied' ORDER BY rowid")
+    assert denied, "the script.run refusal is audited"
+    _bind_role(lx, plain_user["user"]["id"], ["script.run"], [])
+    for i, (entity, action) in enumerate((("script.open_front", "script.turn_on"), ("scene.evening", "scene.turn_on"))):
+        r = _action(p, entity=entity, action=action, crid=f"nr-{i}", confirmation_grant="confirmed")
+        assert r.status_code == 403 and r.json()["code"] == "service_identity_not_runnable", r.text
+    assert calls == []
+    assert lx.admin.put("/api/v1/identity/service-identity/runnable", json={"entity_ids": ["script.open_front", "scene.evening"]}).status_code == 200
+    r = _action(p, entity="script.open_front", action="script.turn_on", crid="nr-2", confirmation_grant="confirmed")
+    assert r.status_code == 503 and r.json()["code"] == "service_identity_runnable_bridge_missing" and calls == []  # the bridge's copy lacks it
+    with lx.db.connection() as conn:
+        set_setting(conn, si.BRIDGE_RUNNABLE, json.dumps(["scene.evening", "script.open_front"]))
     # missing permission first: no door.unlock -> the grant refusal; no ha.entity.control -> forbidden; nothing sent
     r = _action(p, crid="d-2", **unlock)
     assert r.status_code == 403 and r.json()["code"] == "grant_required", r.text
@@ -552,6 +592,19 @@ def _runs(c, ids):
     }
 
 
+def _entity_ids(c, ids) -> list[str]:
+    """The entity ids of the three fixture items (what the runnable allowlist names)."""
+    from automations_fixture import get_item
+
+    out = []
+    for kind, item_id in ids.items():
+        body = get_item(c, kind, item_id).json()
+        eid = body.get("entity_id") or (body.get("item") or {}).get("entity_id")
+        assert isinstance(eid, str) and eid.startswith(kind + "."), body
+        out.append(eid)
+    return out
+
+
 def _items(c):
     from automations_fixture import create_item, draft_of, item_by_name
 
@@ -565,7 +618,7 @@ def test_runs_from_the_automations_screen_need_the_switch_on_both_sides_and_the_
     ids = _items(c)  # by the bootstrap administrator, before any override
     local = _local_runner(app, c, sensitive=["automation.manage", "scene.manage", "ha.entity.control"])  # a scene needs the control of its entity
     with app.state.db.connection() as conn:
-        set_setting(conn, "bridge.integration_version", "0.9.1")
+        set_setting(conn, "bridge.integration_version", "0.9.2")
     bridge_extended = [False]
     seen = _screened_transport(tr, bridge_extended=bridge_extended)
     _as(app, local)
@@ -574,13 +627,19 @@ def test_runs_from_the_automations_screen_need_the_switch_on_both_sides_and_the_
         for kind, r in _runs(c, ids).items():
             assert r.status_code == 403 and r.json()["code"] == "automation_write_requires_ha_identity", (kind, r.text)
         assert seen == []
+        # SVCIDENT3 (review S1 a): both switches on, the runnable allowlist empty (the default): refused, nothing sent
+        _ext(app.state.db, bridge_on=True, runnable=[])
+        for kind, r in _runs(c, ids).items():
+            assert r.status_code == 403 and r.json()["code"] == "service_identity_not_runnable", (kind, r.text)
+        assert seen == []
+        run_ids = _entity_ids(c, ids)
         # the add-on's switch on, the bridge's copy not reported: nothing sent
-        _ext(app.state.db, bridge_on=False)
+        _ext(app.state.db, bridge_on=False, runnable=run_ids)
         for kind, r in _runs(c, ids).items():
             assert r.status_code == 503 and r.json()["code"] == "service_identity_extended_bridge_off", (kind, r.text)
         assert seen == []
         # the add-on believes the bridge is on, the bridge's own copy is off: the bridge refuses (fail closed)
-        _ext(app.state.db, bridge_on=True)
+        _ext(app.state.db, bridge_on=True, runnable=run_ids)
         r = _runs(c, ids)["script"]
         assert r.status_code != 202 and seen[-1]["on_behalf_of"]["feature"] == "automations.run"
         # both sides on: each run goes as the service identity, attributed to the person, `automations.run`
