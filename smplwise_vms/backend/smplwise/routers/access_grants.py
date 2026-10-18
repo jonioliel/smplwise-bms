@@ -165,6 +165,11 @@ def accept_contact(request: Request, contact_id: str = Path(..., pattern=_ID), p
     return ag.accept_pending_contact(_db(request), principal, contact_id, _rid(request))
 
 
+@router.post("/access-grants/pending-contacts/{contact_id}/reject")
+def reject_contact(request: Request, contact_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
+    return ag.reject_pending_contact(_db(request), principal, contact_id, _rid(request))
+
+
 @router.put("/access-grants/entrances/{station_id}")
 def entrance(body: EntranceIn, request: Request, station_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return ag.set_entrance(_db(request), principal, station_id, body.entrance, _rid(request))

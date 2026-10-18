@@ -970,6 +970,40 @@ def accept_pending_contact(db: Database, principal: Principal, contact_id: str, 
         return {"contact_id": contact_id, "accepted": True}
 
 
+def reject_pending_contact(db: Database, principal: Principal, contact_id: str, request_id: str | None = None) -> dict[str, Any]:
+    """Lead decision 6 ("reject and delete", 2026-10-18): a manager rejects a technician the vendor added and never accepted. Same
+    authority as accepting. The vendor-typed data (name, phone) is erased with the directory's own erase (the row stays as a
+    tombstone because the vendor's request references it); the open request for him ends at once (nothing was sent to WisKey for a
+    pending person); `rejected_at` is written. A technician with a link to a WisKey person or any decided grant is refused (409)."""
+    from .tickets import contacts as tcontacts
+    from .tickets.access import Viewer
+
+    with db.connection(label="access_grants.reject_contact") as conn:
+        if PERMISSION not in permissions_anywhere(conn, principal) and not authorize(conn, principal, "tickets.configure", INSTALLATION).allowed:
+            _audit(conn, principal, "access.pending_contact.reject", contact_id, decision="denied", reason="no_binding", resource_type="contact", request_id=request_id)
+            raise forbidden(permission=PERMISSION, target_type="installation", target_id="*", reason="no_binding")
+        row = conn.execute("SELECT * FROM access_pending_contacts WHERE contact_id = ?", (contact_id,)).fetchone()
+        if row is None or row["accepted_at"] or row["rejected_at"]:
+            raise ApiError(404, "access_pending_not_found", "אין טכנאי ממתין לאישור.")
+        contact = contact_row(conn, contact_id)
+        if contact is None or contact.get("erased_at"):
+            raise ApiError(404, "access_pending_not_found", "אין טכנאי ממתין לאישור.")
+        if conn.execute("SELECT 1 FROM access_person_links WHERE subject_kind = 'contact' AND subject_id = ?", (contact_id,)).fetchone() is not None:
+            raise _conflict("access_pending_has_link", "לטכנאי יש קישור לאדם במערכת הכניסה, ולכן אי אפשר למחוק אותו כאן.")
+        if conn.execute("SELECT 1 FROM access_grants WHERE subject_kind = 'contact' AND subject_id = ? AND state NOT IN ('requested', 'revoked', 'failed')",
+                        (contact_id,)).fetchone() is not None:
+            raise _conflict("access_pending_has_grant", "לטכנאי יש גישה שהוחלטה, ולכן אי אפשר למחוק אותו כאן.")
+        ended = 0
+        for g in conn.execute("SELECT * FROM access_grants WHERE subject_kind = 'contact' AND subject_id = ? AND state = 'requested'", (contact_id,)).fetchall():
+            mark_revoking(conn, dict(g), "refused", actor=principal, request_id=request_id)
+            ended += 1
+        at = iso(now())
+        conn.execute("UPDATE access_pending_contacts SET rejected_at = ? WHERE contact_id = ?", (at, contact_id))
+        tcontacts.erase_checked(conn, Viewer(conn, principal), contact, history=True, rid=request_id)
+        _audit(conn, principal, "access.pending_contact.reject", contact_id, resource_type="contact", request_id=request_id, requests_ended=ended)
+        return {"contact_id": contact_id, "rejected": True, "deleted": True, "requests_ended": ended}
+
+
 def set_entrance(db: Database, principal: Principal, station_id: str, entrance: bool, request_id: str | None = None) -> dict[str, Any]:
     if not ia.valid_id(station_id):
         raise _invalid("station_id", "format")
