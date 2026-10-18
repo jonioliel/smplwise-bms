@@ -156,3 +156,23 @@ glyphs are product icons; the door LED is shown faded ("not linked") as in the m
 - Tests: `tests/test_infra_elevators_280.py` (off by default + silent tracking, no retroactive notification, master overrides state, turning off
   closes with `alerts_disabled` and never re-notifies, nobody without recipients, roles / users / groups intersected with visibility, permissions
   and validation, revision conflict, the generic switch cannot bypass, the catalogue defaults); `tests/unit-elevators.spec.ts` (helpers).
+### 9.5 Independent review 2026-10-19 (head 122d31529) - fixes
+
+| Finding | Fix | Regression test |
+|---|---|---|
+| H1 notification visibility leak | Subject kind `elevator` is now judged per notification: an `elevator.<state>` row is visible only to who sees THAT state's own sensor (an unknown source needs every sensor) - D3 applied per state (`elevators.visible_to(..., role)`, `notify_visibility`). | `test_review_h1_...` (read rule both ways + recipients) |
+| M1 "already notified" with nothing opened | With alerts on, the memory row is written only after a notification really opened; a refused (generic policy off) or failing emit leaves no row and the next tick retries. With alerts off the row is still written on purpose (9.4 rule 2: never retroactive). | `test_review_m1_...` (both scenarios) |
+| M2 stale history while disabled | A disabled elevator is recorded `unknown`. | `test_review_m2_...` |
+| M3 policy delay ignored | Hold = built-in 0 / 30 / 30 s + the source policy's `after_s`. | `test_review_m3_...` |
+| L2 hold across a disconnect | A disconnected tick clears the hold timers. | `test_review_l2_...` |
+| L3 dead / removed sensor | An open notification is closed (resolution `sensor_unavailable`) at once when its sensor is removed from the platform, after 1 h without a live value otherwise; the condition stays tracked (no re-notify when the sensor returns still on). | `test_review_l3_...` |
+| L4 display card overwrite | Each save re-reads the home settings and changes only the elevators widget; the size control sets the layout direction in use only. | (UI; reviewed by hand) |
+| L5 personal hidden replaced the installation list | The personal list is ADDED to the installation's (server `apply_personal`; the personal panel disables boxes the administrator hid). | `test_elevators_personal_override_mode_and_hidden`, unit `review L5` |
+| L6 edit-panel move buttons | Indices and ends count only the listed widgets (`moveAmong`). | unit `review L6` |
+| L8 colour-only state | Each light has a spoken / tooltip text ("תקלה: פעיל"); the bar has a text summary of hours per state. | unit `review L8` |
+| L9 orphans after a rollback | The hourly janitor resolves open `elevator.*` notifications whose elevator no longer exists (resolution `elevator_removed`). | `test_review_l9_...` |
+| Nit | `device.battery_low` line restored to its original formatting. | - |
+
+Not changed: L1 (the tick keeps the IMMEDIATE transaction, like the generator runner); L7 (`both` mode renders a second section next to the widget
+shell - a browser evidence spec for the home widget is still to be written before release); the downtime heartbeat suggested under M2 (the last
+state before an add-on stop still spans the outage until the first tick after the start writes the new state).

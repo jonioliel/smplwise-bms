@@ -7,7 +7,7 @@ import '../components/sw-button';
 import { bidi } from '../i18n/bidi';
 import {
   CALENDAR_FIELD_LABEL, CALENDAR_FIELDS, CLOCK_MODE_LABEL, CLOCK_MODES, DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, EXTRAS_MAX, FORECAST_LENS, forecastCount, HOME_TITLE_DEFAULT, HOME_TITLE_MAX, LABEL_MAX, moveId,
-  moveWidget, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, previewData, widgetOn, widgetSize, QUICK_ACTION_LABEL, QUICK_ACTIONS, SIDE_LABEL, SIDES, SIZE_LABEL, SIZES, WEATHER_FIELD_LABEL, WEATHER_FIELDS, WEATHER_SOURCE_FIELDS, WIDGET_NAME,
+  moveAmong, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, previewData, widgetOn, widgetSize, QUICK_ACTION_LABEL, QUICK_ACTIONS, SIDE_LABEL, SIDES, SIZE_LABEL, SIZES, WEATHER_FIELD_LABEL, WEATHER_FIELDS, WEATHER_SOURCE_FIELDS, WIDGET_NAME,
   type CalendarField, type Direction, type ForecastLen, type PhoneLayout, type HomeCandidates, type HomeConfig, type HomeData, type HomeSettings, type QuickAction, type Side, type Size, type WeatherField, type WidgetId,
 } from '../api/home';
 import { agendaBody, launcherBody, styleRow, type Bv1EditHost } from './home-edit-bv1';
@@ -334,8 +334,14 @@ export class HomeEditPanel extends LitElement {
     this.dispatchEvent(new CustomEvent('home-edit-open', { detail: { id: this.open === id ? '' : id }, bubbles: true, composed: true }));
   }
 
+  /** The widgets the editor lists: the elevators widget only while the editor sees an elevator (review L6: indices and ends count these). */
+  private get listed(): WidgetId[] {
+    return this.draft.config.order.filter((id) => id !== 'elevators' || this.elevators.length > 0);
+  }
+
   private moveW(id: WidgetId, to: number) {
-    this.setConfig((c) => (c.order = moveWidget(c.order, id, to)));
+    const listed = this.listed;
+    this.setConfig((c) => (c.order = moveAmong(c.order, listed, id, to)));
     // the draft is re-rendered by the screen: focus the same row's button (or the other one at an end) once that is done
     void this.updateComplete.then(() => requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(`[data-home-wrow="${id}"] [data-home-wmove]:not([disabled])`)?.focus()));
   }
@@ -373,7 +379,7 @@ export class HomeEditPanel extends LitElement {
           </span>
         </div>
         <h3>ווידג׳טים</h3>
-        ${repeat(d.config.order.filter((id) => id !== 'elevators' || this.elevators.length > 0), (id) => id, (id) => this.widgetRow(id, d.config.order.indexOf(id)))}
+        ${repeat(this.listed, (id) => id, (id, i) => this.widgetRow(id, i))}
         ${this.candidatesError ? html`<div class="err" role="alert">${this.candidatesError}</div>` : nothing}
       </div>
       <div class="col" data-home-floors-col>
@@ -398,7 +404,7 @@ export class HomeEditPanel extends LitElement {
     const d = this.draft;
     const w = d.config[id];
     const open = this.open === id;
-    const last = d.config.order.length - 1;
+    const last = this.listed.length - 1;
     return html`<div class=${classMap({ w: true, off: !w.on })} data-home-wrow=${id}>
       <div class="w-top">
         <label class="check"><input type="checkbox" data-home-toggle=${id} .checked=${w.on} @change=${(e: Event) => this.setWidget(id, { on: (e.target as HTMLInputElement).checked } as never)} aria-label=${`הצג ${WIDGET_NAME[id]}`} /><span class="w-name">${WIDGET_NAME[id]}</span></label>

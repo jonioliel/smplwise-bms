@@ -569,6 +569,15 @@ export function moveWidget(order: WidgetId[], id: WidgetId, to: number): WidgetI
   return out;
 }
 
+/** Review L6: a move among the widgets the editor LISTS (a widget left out of the list - the elevators one without elevators - is skipped): `to`
+ * is a place in `visible`; the widget lands where that visible neighbour is in the full order. */
+export function moveAmong(order: WidgetId[], visible: readonly WidgetId[], id: WidgetId, to: number): WidgetId[] {
+  const t = Math.max(0, Math.min(visible.length - 1, to));
+  const target = visible[t];
+  if (target === undefined || target === id) return order;
+  return moveWidget(order, id, order.indexOf(target));
+}
+
 /** The forecast the card draws: `len` entries ("max" = all the entity carries, up to FORECAST_MAX_SHOWN), only those with a time. */
 export function forecastShown(entries: ForecastEntry[], len: ForecastLen): ForecastEntry[] {
   const usable = entries.filter((e) => !Number.isNaN(new Date(e.datetime).getTime()));

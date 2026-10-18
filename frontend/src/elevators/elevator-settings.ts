@@ -208,25 +208,28 @@ export class ElevatorSettings extends LitElement {
     }
   }
 
-  private async saveHome(fn: (c: ElevatorsCfg) => void) {
-    const from = this.home;
-    if (!from) return;
-    const to: HomeSettings = JSON.parse(JSON.stringify(from)) as HomeSettings;
-    fn(to.config.elevators);
-    this.home = to;
+  /** Review L4: the change is applied to a FRESH copy of the home settings read right before the save, and only the elevators widget's own keys
+   * change - an edit made meanwhile in the home edit mode (another tab or user) is kept, never overwritten by an old snapshot. */
+  private async saveHome(fn: (c: ElevatorsCfg, direction: HomeSettings['direction']) => void) {
+    if (!this.home) return;
     this.homeBusy = true;
     this.homeFail = '';
+    const before = this.home;
     try {
+      const from = await loadHomeSettings(true);
+      const to: HomeSettings = JSON.parse(JSON.stringify(from)) as HomeSettings;
+      fn(to.config.elevators, to.direction);
+      this.home = to;
       this.home = await saveHomeSettings(from, to);
     } catch (e) {
-      this.home = from;
+      this.home = before;
       this.homeFail = describeError(e);
     } finally {
       this.homeBusy = false;
     }
   }
 
-  /** The mockup's "תצוגה במסך הראשי": the widget on / off, the display mode, the default size (every layout direction), what is listed and which
+  /** The mockup's "תצוגה במסך הראשי": the widget on / off, the display mode, the size in the layout direction in use (the others keep theirs, review L4), what is listed and which
    * elevators appear. These are the installation's choices (system.configure, the home settings' own permission); a user with
    * screen.personalize may choose differently for himself (החשבון שלי › המסך שלי). Place and size per direction: the home edit mode. */
   private display() {
@@ -234,7 +237,7 @@ export class ElevatorSettings extends LitElement {
     if (!canHome) return html`<div class="card" data-elevators-display><div class="b">${elt('displayTitle')}</div><div class="mut">${elt('displayAdmin')}</div></div>`;
     if (!this.home) return nothing;
     const c = this.home.config.elevators;
-    const size = c.sizes.a;
+    const size = c.sizes[this.home.direction]; // review L4: the size of the layout direction in use; the other directions keep theirs
     const seg = <T extends string>(label: string, values: readonly T[], cur: T, key: (v: T) => EltKey, set: (v: T) => void, attr: string) => html`<div class="drow"><span>${label}</span>
       <span class="seg" role="group" aria-label=${label}>${values.map((v) => html`<button type="button" data-elevators-display-opt=${`${attr}:${v}`} aria-pressed=${String(cur === v)} ?disabled=${this.homeBusy} @click=${() => set(v)}>${elt(key(v))}</button>`)}</span></div>`;
     return html`<div class="card" data-elevators-display>
@@ -242,7 +245,7 @@ export class ElevatorSettings extends LitElement {
       <div class="dset">
         ${seg(elt('displayWidget'), ['on', 'off'] as const, c.on ? 'on' : 'off', (v) => (v === 'on' ? 'shown' : 'hiddenOpt'), (v) => void this.saveHome((x) => (x.on = v === 'on')), 'on')}
         ${seg(elt('displayMode'), ELEVATOR_MODES, c.mode, (v) => MODE_KEY[v], (v) => void this.saveHome((x) => (x.mode = v)), 'mode')}
-        ${seg(elt('defaultSize'), ['s', 'm', 'l'] as const, size, (v) => (v === 's' ? 'sizeS' : v === 'm' ? 'sizeM' : 'sizeL'), (v) => void this.saveHome((x) => (x.sizes = { a: v, b: v, c: v })), 'size')}
+        ${seg(elt('defaultSize'), ['s', 'm', 'l'] as const, size, (v) => (v === 's' ? 'sizeS' : v === 'm' ? 'sizeM' : 'sizeL'), (v) => void this.saveHome((x, dir) => (x.sizes = { ...x.sizes, [dir]: v })), 'size')}
         ${seg(elt('filter'), ELEVATOR_FILTERS, c.filter, (v) => FILTER_KEY[v], (v) => void this.saveHome((x) => (x.filter = v)), 'filter')}
         <div class="drow"><span>${elt('include')}</span><span class="incl">${(this.list ?? []).map((e) => html`<label class="row"><input type="checkbox" data-elevators-display-include=${e.id} .checked=${!c.hidden.includes(e.id)} ?disabled=${this.homeBusy}
           @change=${(ev: Event) => { const on = (ev.target as HTMLInputElement).checked; void this.saveHome((x) => (x.hidden = on ? x.hidden.filter((h) => h !== e.id) : [...x.hidden, e.id])); }} /> ${e.name}</label>`)}</span></div>

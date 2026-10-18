@@ -133,7 +133,24 @@ export function barOf(history: readonly HistorySegment[] | null | undefined, lo:
   return { lead: parts.length ? ((first - lo) / span) * 100 : 100, parts };
 }
 
-/** "מלפני 2 דק׳" / "מלפני 3 שע׳" / "מאתמול" / "מלפני 4 ימים"; "עכשיו" under a minute; '' without a time. */
+/** Review L8 (state never by colour alone): a light's spoken / tooltip text, e.g. "תקלה: פעיל", "דלת: לא מקושר". */
+export function ledText(l: Pick<Led, 'label' | 'on' | 'na'>): string {
+  return `${l.label}: ${elt(l.na ? 'ledNa' : l.on === true ? 'ledOn' : l.on === false ? 'ledOff' : 'ledNoValue')}`;
+}
+
+/** Review L8: the 24-hour bar as text - each state with its total hours, loudest first: "24 שעות אחרונות: תקלה 6 שע׳, ממתינה 18 שע׳". */
+export function barSummary(bar: { parts: readonly Bar[] }): string {
+  const hours = new Map<ElevatorState, number>();
+  for (const p of bar.parts) {
+    const s = p.state === 'moving_up' || p.state === 'moving_down' ? 'active' : p.state;
+    hours.set(s, (hours.get(s) ?? 0) + (p.pct * 24) / 100);
+  }
+  if (!hours.size) return `${elt('last24')}: ${elt('noHistory')}`;
+  const parts = [...hours.entries()].sort((a, b) => RANK[a[0]] - RANK[b[0]]).map(([s, h]) => `${chipOf({ state: s, stale: false }).label} ${h < 1 ? elt('lessHour') : elt('hours', { n: Math.round(h) })}`);
+  return `${elt('last24')}: ${parts.join(', ')}`;
+}
+
+/** "מלפני 2 דק׳" /"מלפני 3 שע׳" / "מאתמול" / "מלפני 4 ימים"; "עכשיו" under a minute; '' without a time. */
 export function agoText(iso: string | null | undefined, now = new Date()): string {
   if (!iso) return '';
   const t = Date.parse(iso);
@@ -207,6 +224,13 @@ export const recipientChoices = (r: AlertRecipients): number => r.roles.length +
 export function toggled<T extends string>(list: readonly T[], id: T, on: boolean): T[] {
   return on ? (list.includes(id) ? [...list] : [...list, id]) : list.filter((x) => x !== id);
 }
+
+/** Review L5: the user's own hidden list after ticking (shown = true) or unticking one elevator; it is ADDED to the installation's list on the
+ * server, so it only ever holds the user's own choices. */
+export const personalHidden = (mine: readonly string[], id: string, shown: boolean): string[] => toggled(mine, id, !shown);
+
+/** The effective hidden list of a user: the installation's plus his own (the server's home_config.apply_personal). */
+export const effectiveHidden = (installation: readonly string[], mine: readonly string[] | undefined): string[] => [...new Set([...installation, ...(mine ?? [])])];
 
 // ------------------------------------------------------------------------------------------------ the KPI-row tiles (CR-INFRA-ELEVATORS 2.7.x)
 

@@ -78,7 +78,7 @@ const he = {
   modeCombined: 'כרטיס אחד לכל המעליות',
   modeCards: 'כרטיס לכל מעלית',
   modeBoth: 'שניהם',
-  defaultSize: 'גודל יישומון ברירת מחדל',
+  defaultSize: 'גודל היישומון (בפריסה הנוכחית)',
   sizeS: 'קטן',
   sizeM: 'בינוני',
   sizeL: 'גדול',
@@ -110,6 +110,12 @@ const he = {
   chNote: 'דוא״ל ו־WhatsApp אינם זמינים להתראות מעליות',
   alertsReadOnly: 'שינוי ההתראות דורש הרשאת הגדרות מערכת',
   search: 'חיפוש',
+  ledOn: 'פעיל',
+  ledOff: 'כבוי',
+  ledNoValue: 'אין נתון',
+  ledNa: 'לא מקושר',
+  hours: '{n} שע׳',
+  lessHour: 'פחות משעה',
 };
 type Key = keyof typeof he;
 
@@ -186,7 +192,7 @@ const en: Partial<Record<Key, string>> = {
   modeCombined: 'One card for all elevators',
   modeCards: 'A card per elevator',
   modeBoth: 'Both',
-  defaultSize: 'Default widget size',
+  defaultSize: 'Widget size (current layout)',
   sizeS: 'Small',
   sizeM: 'Medium',
   sizeL: 'Large',
@@ -217,6 +223,12 @@ const en: Partial<Record<Key, string>> = {
   chNote: 'E-mail and WhatsApp are not available for elevator alerts',
   alertsReadOnly: 'Changing the alerts needs the system settings permission',
   search: 'Search',
+  ledOn: 'on',
+  ledOff: 'off',
+  ledNoValue: 'no value',
+  ledNa: 'not linked',
+  hours: '{n} h',
+  lessHour: 'under an hour',
 };
 
 // initial translation - needs a native review (dev-marked)

@@ -8,7 +8,7 @@ import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listElevators, type Elevator, type ElevatorsResponse } from '../api/elevators';
 import { elevatorsAccess, onElevatorsAccess, type ElevatorsAccess } from '../elevators/access';
-import { ELEVATORS_SETTINGS_HREF, agoText, barOf, chipOf, kpisOf, ledsOf, type Look } from '../elevators/model';
+import { ELEVATORS_SETTINGS_HREF, agoText, barOf, barSummary, chipOf, kpisOf, ledText, ledsOf, type Look } from '../elevators/model';
 import { doorIcon, elevatorCss, stateBadge } from '../elevators/styles';
 import { elt, type EltKey } from '../i18n/elevators';
 import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
@@ -136,10 +136,10 @@ export class InfraElevators extends LitElement {
       <div class="head"><h3>${e.name}${e.area_name ? html`<small>${e.area_name}</small>` : nothing}</h3>${stateBadge(c)}</div>
       <div class="body">${doorIcon(c, 74)}
         <div class="meta">
-          <div class="leds" role="list" aria-label=${elt('sensorsLit')}>${ledsOf(e, stale || e.stale).map((l) => html`<span class="led" role="listitem" data-look=${l.look} data-on=${String(l.on)} ?data-na=${l.na} data-led=${l.role}><i aria-hidden="true"></i>${l.label}</span>`)}</div>
+          <div class="leds" role="list" aria-label=${elt('sensorsLit')}>${ledsOf(e, stale || e.stale).map((l) => html`<span class="led" role="listitem" data-look=${l.look} data-on=${String(l.on)} ?data-na=${l.na} data-led=${l.role} aria-label=${ledText(l)} title=${ledText(l)}><i aria-hidden="true"></i>${l.label}</span>`)}</div>
           ${extras.length ? html`<div class="ext">${extras.map((x) => html`<span class="chip ${x.on ? 'c-acc' : 'c-mut'} nodot" data-extra=${x.position}>${x.label}</span>`)}</div>` : nothing}
           ${e.history !== null && e.history !== undefined
-            ? html`<div class="tl" data-elevator-bar role="img" aria-label=${elt('last24')}>${bar.lead > 0 && bar.parts.length ? html`<span class="lead" style=${`flex:${bar.lead}`}></span>` : nothing}${bar.parts.map((p) => html`<span data-look=${p.look} data-bar-state=${p.state} style=${`flex:${p.pct}`}></span>`)}</div>`
+            ? html`<div class="tl" data-elevator-bar role="img" aria-label=${barSummary(bar)} title=${barSummary(bar)}>${bar.lead > 0 && bar.parts.length ? html`<span class="lead" style=${`flex:${bar.lead}`}></span>` : nothing}${bar.parts.map((p) => html`<span data-look=${p.look} data-bar-state=${p.state} style=${`flex:${p.pct}`}></span>`)}</div>`
             : nothing}
           <div class="row2"><span>${e.history ? (bar.parts.length ? elt('last24') : elt('noHistory')) : e.partial ? elt('partial') : ''}</span><span data-elevator-ago>${ago}</span></div>
         </div>

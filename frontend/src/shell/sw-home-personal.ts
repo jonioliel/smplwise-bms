@@ -7,7 +7,7 @@ import {
 } from '../api/home';
 import { listElevators, type Elevator } from '../api/elevators';
 import { elevatorsAccess } from '../elevators/access';
-import { MODE_KEY } from '../elevators/model';
+import { MODE_KEY, personalHidden } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
 import { productSettings } from '../api/prefs';
@@ -161,7 +161,8 @@ export class SwHomePersonal extends LitElement {
   private elevatorChoices() {
     const base = this.base!.config.elevators;
     const own = this.personal.widgets.elevators ?? {};
-    const hidden = own.hidden ?? base.hidden;
+    // review L5: the user's own list ADDS to the installation's - an elevator the administrator hid stays hidden (its box is disabled)
+    const mine = own.hidden ?? [];
     return html`<div class="row" data-home-personal-elevators-mode>
         <span class="seg" role="group" aria-label=${elt('displayMode')}>
           <button type="button" data-home-personal-elevators-mode="" aria-pressed=${String(own.mode === undefined)} ?disabled=${this.busy} @click=${() => this.setElevators({ mode: null })}>${elt('personalDefault')}</button>
@@ -169,12 +170,14 @@ export class SwHomePersonal extends LitElement {
         </span>
       </div>
       <div class="row" role="group" aria-label=${elt('include')} data-home-personal-elevators-include>
-        ${this.elevators.map((e) => html`<label class="check"><input type="checkbox" data-home-personal-elevator=${e.id} .checked=${!hidden.includes(e.id)} ?disabled=${this.busy}
+        ${this.elevators.map((e) => {
+          const byAdmin = base.hidden.includes(e.id);
+          return html`<label class="check"><input type="checkbox" data-home-personal-elevator=${e.id} .checked=${!byAdmin && !mine.includes(e.id)} ?disabled=${this.busy || byAdmin}
           @change=${(ev: Event) => {
-            const on = (ev.target as HTMLInputElement).checked;
-            const next = on ? hidden.filter((x) => x !== e.id) : [...hidden, e.id];
-            this.setElevators({ hidden: JSON.stringify([...next].sort()) === JSON.stringify([...base.hidden].sort()) ? null : next });
-          }} />${e.name}</label>`)}
+            const next = personalHidden(mine, e.id, (ev.target as HTMLInputElement).checked);
+            this.setElevators({ hidden: next.length ? next : null });
+          }} />${e.name}</label>`;
+        })}
       </div>`;
   }
 
