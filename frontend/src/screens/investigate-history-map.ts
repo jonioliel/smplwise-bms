@@ -129,6 +129,10 @@ export class InvestigateHistoryMap extends LitElement {
       gap: 10px;
       padding: 14px 24px 12px;
     }
+    /* the header dropdown's lead reserve (styles/lead-reserve.ts) is ADDED to the row's own 24 px start padding, never in its place */
+    .head.lead-head {
+      padding-inline-start: calc(24px + var(--sw-lead-reserve, 0px));
+    }
     h1 {
       margin: 0;
       font-size: var(--sw-fs-2xl);
@@ -334,7 +338,8 @@ export class InvestigateHistoryMap extends LitElement {
         margin-inline: 12px;
         padding-inline: 12px;
       }
-      .head {
+      .head,
+      .head.lead-head {
         padding-inline: 0;
       }
       .layout {

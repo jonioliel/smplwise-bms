@@ -245,6 +245,11 @@ export class ExploreFloorMap extends LitElement {
       gap: 10px 12px;
       padding: 14px 24px 12px;
     }
+    /* the header dropdown's lead reserve (styles/lead-reserve.ts) is ADDED to the row's own start padding, never in its place
+       (the plain snippet's padding-inline-start outranked .head and dropped the 24 / 12 px inset: classic map pixel baselines) */
+    .head.lead-head {
+      padding-inline-start: calc(24px + var(--sw-lead-reserve, 0px));
+    }
     .crumbs {
       display: flex;
       align-items: center;
@@ -1034,6 +1039,9 @@ export class ExploreFloorMap extends LitElement {
       .head {
         padding: 12px 12px 8px;
       }
+      .head.lead-head {
+        padding-inline-start: calc(12px + var(--sw-lead-reserve, 0px));
+      }
       .stage {
         margin: 0;
         border-radius: 0;
@@ -1109,6 +1117,9 @@ export class ExploreFloorMap extends LitElement {
         gap: 4px 8px;
         align-items: center;
         flex-wrap: nowrap;
+      }
+      .head.lead-head {
+        padding-inline-start: calc(12px + var(--sw-lead-reserve, 0px));
       }
       .crumbs,
       .sub,
