@@ -611,6 +611,19 @@ def _note_connect_gap(db: Database) -> None:
     device_activity.note_connect(db, last)
 
 
+def _note_platform_back(db: Database, lost_at: str) -> None:
+    """A ready session was lost at `lost_at` and a new one is ready: Home Assistant was restarted in between (the add-on kept running), by
+    hand or otherwise. Stored 'restart needed' reasons added before the drop are cleared; the bridge reason is computed against the
+    version the bridge reports and is not touched."""
+    from . import platform_restart
+
+    try:
+        with db.connection(label="platform_restart.back") as conn:
+            platform_restart.clear_after_restart(conn, lost_at)
+    except Exception:  # noqa: BLE001 - never fails the session
+        log.warning("platform restart reasons not cleared", exc_info=False)
+
+
 def _note_location(db: Database, cfg: Any) -> None:
     """CR-029 S2: keep the site location of a core config reply (services/site_location.py). Never fails the session: a
     reply without a position or a busy database keeps the last known value."""
@@ -695,6 +708,7 @@ class HaSync:
         self._last_done: tuple[float, bool] | None = None
         # CR-014: the id of this session's `scheduler_updated` subscription (its event frames carry it), None = not subscribed
         self._sched_sub_id: int | None = None
+        self._ha_lost_at: str | None = None  # the moment a ready session was lost: the next ready session means the platform restarted since
         # CR-038 S5b: the ids of this session's TICKET_EVENTS subscriptions ([] = not subscribed)
         self._ticket_sub_ids: list[int] = []
 
@@ -820,6 +834,7 @@ class HaSync:
                 debouncer.poke(event["event_type"])
 
         refresher_task: asyncio.Task[None] | None = None
+        ready_seen = [False]
 
         async def on_ready(call) -> None:
             nonlocal refresher_task, debouncer
@@ -849,6 +864,10 @@ class HaSync:
                 raise RuntimeError("subscribe_events refused")
             STATE.connected = True
             STATE.last_error = None
+            ready_seen[0] = True
+            lost, self._ha_lost_at = self._ha_lost_at, None
+            if lost:  # the platform came back after a drop: a "restart needed" reason that was added before the drop is satisfied
+                await loop.run_in_executor(None, _note_platform_back, db, lost)
             log.info("HA sync connected: %d entities, HA %s", STATE.entities, STATE.ha_version)
             publish({"type": "ha_sync_state", "connected": True})
             self._session_loop, self._session_call = loop, call  # refresh_now (the manual button) runs on this session from here on
@@ -877,14 +896,19 @@ class HaSync:
                             await loop.run_in_executor(None, _note_location, db, again.get("result"))
                         except Exception as exc:  # noqa: BLE001 - the last known location stays
                             log.warning("site location refresh failed: %s", type(exc).__name__)
-                    await self._schedules_pull("periodic")  # CR-014: the third refresh layer (§6.2)
-                    await self._automations_pull("periodic")  # CR-017: the full pull of every 10 minutes (§12)
+                    try:  # one failing step must never end the loop: the schedules mirror would go stale for good
+                        await self._schedules_pull("periodic")  # CR-014: the third refresh layer (§6.2)
+                        await self._automations_pull("periodic")  # CR-017: the full pull of every 10 minutes (§12)
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("periodic pulls failed: %s", type(exc).__name__)
 
             refresher_task = asyncio.create_task(refresher(), name="ha-registry-refresher")
 
         try:
             await ha_client.ws_session(settings, on_ready, on_event, stop_evt, on_message=on_message)
         finally:
+            if ready_seen[0] and not stop_evt.is_set():
+                self._ha_lost_at = now_iso()
             self._session_loop = self._session_call = None
             self._sched_sub_id = None
             self._ticket_sub_ids = []

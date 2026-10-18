@@ -991,9 +991,9 @@ export class DevicesSchedules extends LitElement {
   }
 
   /** The server says something changed (or a write finished): status, list and whatever is open, again. */
-  private async refresh() {
+  private async refresh(recheck = false) {
     try {
-      this.status = await getScheduleStatus();
+      this.status = await getScheduleStatus(recheck);
     } catch {
       /* keep the last answer; the list below reports its own failure */
     }
@@ -1324,7 +1324,7 @@ export class DevicesSchedules extends LitElement {
     const blocked = st.readOnly && !!this.status?.can.manage;
     if (!st.stale && !blocked && !attention) return nothing;
     return html`<div class="stack">
-      ${st.stale ? html`<div class="banner warn" role="status" data-sched-stale>${aIcon('wifiOff')}<div>${STALE_TEXT}</div><button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh()}>${aIcon('refresh')}נסו שוב</button></div>` : nothing}
+      ${st.stale ? html`<div class="banner warn" role="status" data-sched-stale>${aIcon('wifiOff')}<div>${STALE_TEXT}</div><button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh(true)}>${aIcon('refresh')}נסו שוב</button></div>` : nothing}
       ${blocked ? html`<div class="banner info" role="status" data-sched-readonly>${aIcon('lock')}<div>${st.readOnlyText}</div></div>` : nothing}
       ${attention ? html`<div class="banner warn" role="status" data-sched-attention>${aIcon('warning')}<div><b>${attention} דורשים בדיקה</b></div><button type="button" class="btn sm" data-open-review @click=${() => this.go('review')}>לבדיקה</button></div>` : nothing}
     </div>`;

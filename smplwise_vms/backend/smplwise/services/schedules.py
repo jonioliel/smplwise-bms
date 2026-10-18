@@ -216,18 +216,21 @@ class Mirror:
 
     # -- pulls
 
-    def ensure(self, conn: sqlite3.Connection) -> None:
-        """A request found the mirror never synced (a fresh start, or the feature was just switched on): pull now, at most
-        once per RETRY_S. Reads never wait for the periodic pull to have something to show."""
+    def ensure(self, conn: sqlite3.Connection, force: bool = False) -> None:
+        """A request found the mirror never synced (a fresh start, or the feature was just switched on), last failed, or not
+        refreshed for STALE_AFTER_S (the periodic pull died or its failure was never cleared): pull now, at most once per
+        RETRY_S (`force` = the person's retry button skips that wait). Reads never wait for the periodic pull to have
+        something to show, and a connected system never stays "stale" for lack of a re-check."""
         if not feature_on(conn) or not get_transport().connected():
             return
         st = self.state(conn)
-        if st.get("last_sync_at") is not None:
+        synced = _parse(st.get("last_sync_at"))
+        if not force and st.get("last_sync_at") is not None and not st.get("last_error") and synced is not None                 and (self.now() - synced).total_seconds() <= STALE_AFTER_S:
             return
         last = _parse(st.get("last_attempt_at"))
-        if last is not None and (self.now() - last).total_seconds() < ENSURE_RETRY_S:
+        if not force and last is not None and (self.now() - last).total_seconds() < ENSURE_RETRY_S:
             return
-        self.pull(conn, "first")
+        self.pull(conn, "first" if st.get("last_sync_at") is None else "recheck")
 
     def pull(self, conn: sqlite3.Connection | None = None, reason: str = "") -> dict[str, Any]:
         """Full pull of every item (`scheduler`), then the cache is made equal to it. Failures keep the cache and are

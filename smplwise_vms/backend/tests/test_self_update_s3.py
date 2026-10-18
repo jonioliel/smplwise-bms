@@ -205,7 +205,7 @@ def test_platform_restart_reasons(world, monkeypatch):  # noqa: F811
     with app.state.db.connection() as conn:
         assert platform_restart.reasons(conn) == []
         monkeypatch.setattr(bridge_install, "status", lambda db=None, conn=None: {"state": "update_pending", "installed_version": "0.7.0"})
-        assert platform_restart.reasons(conn) == [{"code": "bridge", "version": "0.7.0"}]
+        assert platform_restart.reasons(conn) == [{"code": "bridge", "version": "0.7.0", "running": None}]
         monkeypatch.setattr(bridge_install, "status", lambda db=None, conn=None: {"state": "active", "installed_version": "0.7.0"})
         assert platform_restart.note_component_manifest(conn, "wiskey", {"version": "2.1.0", "requires_ha_restart": "true"}) is False, "only the JSON literal true"
         assert platform_restart.note_component_manifest(conn, "wiskey", {"version": "2.1.0"}) is False

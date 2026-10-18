@@ -246,12 +246,12 @@ def _feature_or_409(ctx: view.Ctx) -> None:
 # ---------------------------------------------------------------- reads
 
 @router.get("/schedules/status")
-def schedules_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """§3.1 - never 403: a caller without view gets `can.view = false` and zero counts."""
+def schedules_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), recheck: bool = False) -> dict[str, Any]:
+    """§3.1 - never 403: a caller without view gets `can.view = false` and zero counts. `recheck` (the banner's retry button) pulls again now."""
     _bind(request)
     a = view.Access(conn, principal)
     if a.anywhere(view.VIEW) or a.anywhere(view.MANAGE):
-        store.MIRROR.ensure(conn)
+        store.MIRROR.ensure(conn, force=recheck)
     return view.status_payload(conn, principal)
 
 

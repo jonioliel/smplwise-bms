@@ -593,8 +593,9 @@ function qs(query: object): string {
 const rid = (o?: WriteOptions) => o?.client_request_id ?? commandId();
 const enc = encodeURIComponent;
 
-export function getScheduleStatus(): Promise<ScheduleStatus> {
-  return isApi() ? get<ScheduleStatus>('schedules/status') : demoStore().status();
+/** `recheck`: the banner's retry button - the server pulls from the infrastructure again before it answers. */
+export function getScheduleStatus(recheck = false): Promise<ScheduleStatus> {
+  return isApi() ? get<ScheduleStatus>(recheck ? 'schedules/status?recheck=true' : 'schedules/status') : demoStore().status();
 }
 
 export function listSchedules(query: ScheduleQuery = {}): Promise<ScheduleList> {
