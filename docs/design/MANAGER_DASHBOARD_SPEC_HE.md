@@ -263,3 +263,26 @@
 15. **צ'יפי הסיבות ב"איפה נתקע" - סינון או תצוגה בלבד?**
     א. לחיצה מסננת את רשימת המקומות (כך בדגם) · ב. תצוגה בלבד, הלחיצה פותחת את הלוח מסונן
     **המלצה: א** - המנהל שואל "איפה זה לא נפתח", והתשובה במקום, בלי לעזוב את המסך.
+
+---
+
+## Phase 2 as built (2026-10-19, branch pilot/DASH2-280)
+
+Server only (the cards 5-8 and 11 on the screen are phase 3). `GET /api/v1/tickets/dashboard?department_id=&period=today|7d|30d` -
+the board's manager gate; a department the caller does not manage is an audited 403. `period` omitted = `ui.handled_days`.
+Definitions live in `smplwise_vms/backend/smplwise/services/tickets/dashboard.py`; all SQL in `store_dash.py`.
+
+* `throughput.rows[]` per handler key (`user:` / `contact:`): `done` (the HANDLERLOAD definition - the same number as the handler
+  cards), `closed` (credited to the assignee holding the request at the close), `returned` (done sent back to handling, or a reopen,
+  credited to the handler of the latest `done`), `median_seconds` (assignment to done). Owner question 2: both columns (mock-up v2).
+* `daily.days[]` - 14 local days, `opened` / `closed`, oldest first; `daily.net`.
+* `approvals.quotes|claims|second` - `count` + up to 50 `items`; `amount_minor` / `currency` only with `tickets.costs.view` where
+  the item lies, never summed. `second` lists only awards the caller may confirm (`rfq.second_approvers`, the confirm rule).
+* `rfqs` - open requests the caller manages; `stage` = `second` | `decide` | `questions` | `collecting`; question counts only.
+* `departments` - only for a `tickets.all_departments` manager, else `null`: open, stuck, overdue, waiting, done_7d, busy_handlers
+  (against `ui.dash_busy` / `ui.dash_busy_departments`, the phase 1 settings).
+* Cache: 30 seconds per database, caller, permission revision, department and period (process memory). An allowed open is
+  audited at most once per caller per 10 minutes (the screen polls every minute); every refusal is audited.
+* Migration (provisional **0121**): `idx_ticket_events_status_at (to_status, at)` partial, `idx_tickets_done_at (done_at)` partial.
+* Not in phase 2: `upcoming` / `overdue` (phase 1 computes them on the client from existing routes; payment dates are phase 4),
+  `dashboard.digest_hour` and the notifications (phase 5), the performance run with 20,000 tickets / 200,000 events (open).

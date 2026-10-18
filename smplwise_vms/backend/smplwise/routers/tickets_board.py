@@ -5,6 +5,8 @@
                           department chips and the floors tree (D19) - over the tickets the caller MANAGES
     GET /tickets/handler-load?days=1|7|30   the board's gate: how many requests each handler resolved in the period (HANDLERLOAD, count per
                           assignee key only; services/tickets/handler_load.py has the definition)
+    GET /tickets/dashboard?department_id=&period=today|7d|30d   the board's gate: MGRDASH phase 2, the manager overview's summary
+                          (throughput, opened vs closed, waiting for my decision, RFQs to decide, the department comparison)
     GET /tickets/facets   tickets.view: counts per status / group / department / place / stuck kind over the caller's VISIBLE set
                           (the state strip and the tree of every tickets screen; slice 6b's table uses it too)
 
@@ -22,7 +24,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, board, handler_load, messaging, model, settings_doc, store
+from ..services.tickets import access, board, dashboard, handler_load, messaging, model, settings_doc, store
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, STATUS_FILTER, module_gate
 
@@ -106,4 +108,30 @@ def get_handler_load(
     chosen = int(days) if days else int(ui["handled_days"])
     out = handler_load.handled_counts(conn, viewer, chosen, dt.datetime.now(dt.timezone.utc), messaging.time_zone(conn))
     out["default_days"] = int(ui["handled_days"])
+    return out
+
+
+@router.get("/tickets/dashboard")
+def get_dashboard(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    department_id: str | None = Query(None, pattern=ID),
+    period: str | None = Query(None, pattern=r"^(today|7d|30d)$"),
+) -> dict[str, Any]:
+    """MGRDASH phase 2: the manager overview's summary route (services/tickets/dashboard.py has the definitions). The board's manager gate;
+    a department the caller does not manage is an audited 403 (never an empty answer that would say the department exists). `period`
+    omitted = the installation default `ui.handled_days` (the handler cards' period)."""
+    viewer = Viewer(conn, principal)
+    _manager_gate(conn, viewer)
+    if department_id and not viewer.manages_department(department_id):
+        audit(conn, actor=principal, action="ticket.dashboard", decision="denied", resource_type="ticket_department", resource_id=department_id,
+              reason="department_not_managed")
+        raise ApiError(403, "forbidden", text(conn, "הסקירה פתוחה רק למחלקות שבניהולך."), details={"permission": access.MANAGE})
+    ui = settings_doc.read(conn)["ui"]
+    chosen, _days = dashboard.period_days(period, int(ui["handled_days"]))
+    out = dashboard.cached_summary(conn, viewer, department_id=department_id or None, period=chosen, now=dt.datetime.now(dt.timezone.utc),
+                                   tz=messaging.time_zone(conn))
+    if dashboard.CACHE.audit_due(dashboard.db_key(conn), viewer.uid):
+        audit(conn, actor=principal, action="ticket.dashboard", decision="allowed", resource_type="installation", resource_id="*",
+              details={"department_id": department_id, "period": chosen})
     return out
