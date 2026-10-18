@@ -90,22 +90,53 @@ PROVISION_RETRY_S = 300     # E1: at most every 5 minutes ...
 PROVISION_ATTEMPTS = 12     # ... for one hour, then `failed`
 REVOKE_ALERT_S = 120        # a revoke WisKey did not acknowledge alerts the managers after 2 minutes
 RETENTION_DAYS = 365        # CR 2.6: grant rows (ids only) 12 months after their end
-NOTICE_VERSION = "n1"
+NOTICE_VERSION = "n2"
 HOURS_CHOICES = ("07:00-12:00", "07:00-16:00", "08:00-17:00", "12:00-20:00", "07:00-20:00", "00:00-24:00")
 
-# CR 2.6 / owner answer 9: the fixed notice shown on the arrival page (code-owned; the owner confirms the wording with counsel).
+# CR 2.6 / owner answer 9: the fixed notice shown on the arrival page (code-owned). n2: third person (read by the vendor), four languages;
+# wording from the technician-privacy legal pack, adopted by the lead under the owner's delegation on 2026-10-18 (owner sign-off still required before go-live).
 NOTICE_TEXT = {
-    "he": "לצורך הכניסה יישמרו שמך, השעה והדלת בכל כניסה (ובמקומות שהוגדרו גם תמונת כניסה). הנתונים נשמרים לצורך אבטחת המבנה בלבד "
-          "ונמחקים לפי מדיניות השמירה של הארגון. לשאלות יש לפנות למנהל המבנה.",
-    "en": "For entry, your name, the time and the door of each entry are recorded (and, where enabled, an entry picture). The data is kept "
-          "for building security only and deleted under the organisation's retention policy. For questions, contact the building manager.",
+    "he": "לצורך כניסת הטכנאי למבנה נשמרים שמו ומספר הטלפון שלו, ובכל כניסה גם השעה והדלת (ובמקומות שהדבר הופעל - גם תמונה ברגע הכניסה). "
+          "המידע משמש לאבטחת המבנה ולניהול הכניסות לעבודה זו בלבד. מספר הטלפון משמש רק לאימות המספר ולמשלוח קוד הכניסה האישי בוואטסאפ. "
+          "המידע נשמר עד שהארגון מוחק אותו, בהתאם למדיניות השמירה שלו. אין חובה חוקית למסור את הפרטים, אך בלעדיהם לא ניתן להנפיק קוד כניסה. "
+          "לבקשת עיון, תיקון או מחיקה, או בכל שאלה, יש לפנות למנהל המבנה.",
+    "en": "For the technician to enter the building, the technician's name and phone number are kept, and for each entry the time and the door "
+          "(and, where this is enabled, a picture taken at the moment of entry). This information is used only for building security and for "
+          "managing entries for this job. The phone number is used only to confirm the number and to send the personal entry code by WhatsApp. "
+          "The information is kept until the organisation deletes it, in line with its retention policy. There is no legal obligation to provide "
+          "these details, but without them no entry code can be issued. To ask to see, correct or delete the information, or with any question, "
+          "contact the building manager.",
+    "ar": "لغرض دخول الفني إلى المبنى، يُحفظ اسم الفني ورقم هاتفه، ويُسجَّل عند كل دخول وقتُه والبابُ الذي تمّ الدخول منه (وحيثما فُعِّلت هذه "
+          "الخاصية، تُلتقط صورة لحظة الدخول أيضًا). تُستخدم هذه المعلومات لأغراض أمن المبنى وإدارة الدخول الخاص بهذا العمل فقط. يُستخدم رقم "
+          "الهاتف فقط للتحقق منه ولإرسال رمز الدخول الشخصي عبر واتساب. تُحفظ المعلومات إلى أن تحذفها المؤسسة، وفقًا لسياسة الاحتفاظ بالبيانات "
+          "المعتمدة لديها. تقديم هذه البيانات ليس واجبًا بموجب القانون، غير أنه لا يمكن إصدار رمز دخول بدونها. لطلب الاطلاع على المعلومات أو "
+          "تصحيحها أو حذفها، أو لأي استفسار، يُرجى التواصل مع مدير المبنى.",
+    "ru": "Для допуска техника в здание сохраняются его имя и номер телефона, а при каждом входе — время и дверь (а там, где эта функция включена, "
+          "— также снимок в момент входа). Эти данные используются только для обеспечения безопасности здания и учёта входов в рамках данной "
+          "работы. Номер телефона используется только для его подтверждения и отправки личного кода входа через WhatsApp. Данные хранятся до "
+          "их удаления организацией в соответствии с её политикой хранения данных. Предоставление этих данных не является обязательным по "
+          "закону, однако без них код входа не может быть выдан. Чтобы запросить ознакомление с данными, их исправление или удаление, а также "
+          "по любым вопросам, обращайтесь к управляющему зданием.",
+}
+# The vendor's attestation next to the mandatory tick (notice, not consent: the optional consent clause is not included).
+NOTICE_ATTEST = {
+    "he": "הודעתי לטכנאי על האמור לעיל.",
+    "en": "I have told the technician the above.",
+    "ar": "أبلغتُ الفني بما ورد أعلاه.",
+    "ru": "Подтверждаю: техник уведомлён мною об изложенном выше.",
 }
 TEMPLATES = {  # owner answers 3 / 9 / 11: fixed, code-owned, never editable, no link, no username, no ticket text
     "he": "SmplWise Arx: קוד הכניסה האישי שלך הוא {code}. דלתות: {doors}. בתוקף {dates}, {hours}. הקוד אישי - אל תעביר אותו לאיש. "
-          "הכניסות נרשמות (שם, שעה ודלת). אסמכתא {ref}.",
+          "הכניסות נרשמות (שם, שעה ודלת) לצורכי אבטחה בלבד; לשאלות: מנהל המבנה. אסמכתא {ref}.",
     "en": "SmplWise Arx: your personal entry code is {code}. Doors: {doors}. Valid {dates}, {hours}. The code is personal - do not pass it on. "
-          "Entries are recorded (name, time and door). Reference {ref}.",
+          "Entries are recorded (name, time and door) for security only; questions: the building manager. Reference {ref}.",
+    "ar": "رمز الدخول الشخصي الخاص بك من SmplWise Arx هو: {code}. الأبواب: {doors}. مدة الصلاحية: {dates}، {hours}. الرمز شخصي - يُرجى عدم "
+          "مشاركته مع أي شخص. تُسجَّل عمليات الدخول (الاسم والوقت والباب) لأغراض أمنية فقط؛ للاستفسار: مدير المبنى. الرقم المرجعي: {ref}.",
+    "ru": "SmplWise Arx: ваш личный код входа — {code}. Двери: {doors}. Действует: {dates}, {hours}. Код личный — никому его не передавайте. "
+          "Входы регистрируются (имя, время и дверь) только в целях безопасности; по вопросам обращайтесь к управляющему зданием. "
+          "Справочный номер: {ref}.",
 }
+HOURS_PHRASE = {"he": "משעה {start} עד {end}", "en": "{start}-{end}", "ar": "من {start} حتى {end}", "ru": "с {start} до {end}"}
 END_REASONS = ("ended", "manual", "contact_inactive", "contact_erased", "contact_changed", "vendor_inactive", "ticket_ended", "ticket_reassigned",
                "rfq_ended", "approver_lost_authority", "unlinked", "wiskey_missing", "station_changed", "feature_off", "emergency", "person_deleted",
                "refused", "failed")
@@ -735,7 +766,7 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         if not noticed and told:
             conn.execute("INSERT OR IGNORE INTO access_grant_notices(grant_id, version, via, by_ref, at) VALUES (?, ?, 'approver', ?, ?)",
                          (grant_id, NOTICE_VERSION, principal.user_id, iso(at)))
-            _audit(conn, principal, "access.grant.notice_ack", grant_id, request_id=request_id, via="approver", version=NOTICE_VERSION)
+            _audit(conn, principal, "access.grant.notice_ack", grant_id, request_id=request_id, via="approver", version=NOTICE_VERSION, acknowledged_for=g["subject_id"])
         fields: dict[str, Any] = {"doors_json": json.dumps(chosen.doors, sort_keys=True), "valid_from": vf, "valid_until": vu, "pending_json": None,
                                   "approved_by": principal.user_id, "approved_at": iso(at), "approval_revision": permission_revision(conn),
                                   "phone_confirmed_at": (contact or {}).get("phone_confirmed_at")}
@@ -1062,7 +1093,7 @@ def _door_names(doors: dict[str, list[int]]) -> str:
 
 
 def render_code_message(conn: sqlite3.Connection, g: dict[str, Any], contact: dict[str, Any], pin: str) -> CodeMessage:
-    lang = contact.get("lang") if contact.get("lang") in TEMPLATES else "en" if contact.get("lang") in ("ar", "ru") else "he"
+    lang = contact.get("lang") if contact.get("lang") in TEMPLATES else "he"
     tz = zone_of(conn)
     vf, vu = parse_iso(g["valid_from"]).astimezone(tz), parse_iso(g["valid_until"]).astimezone(tz)
     last = vu - timedelta(seconds=1)
@@ -1071,7 +1102,7 @@ def render_code_message(conn: sqlite3.Connection, g: dict[str, Any], contact: di
     if timing and timing.get("periods"):
         hours = ", ".join(f"{p['start']}-{p['end']}" for p in timing["periods"])
     else:
-        hours = f"{vf.strftime('%H:%M')}-{vu.strftime('%H:%M')}" if lang != "he" else f"משעה {vf.strftime('%H:%M')} עד {vu.strftime('%H:%M')}"
+        hours = HOURS_PHRASE[lang].format(start=vf.strftime("%H:%M"), end=vu.strftime("%H:%M"))
     text = TEMPLATES[lang].format(code=pin, doors=_door_names(json.loads(g["doors_json"])), dates=dates, hours=hours, ref=g["id"][:8])
     from .tickets.channel import phone_digits
 

@@ -200,3 +200,37 @@ def test_returning_the_ticket_ends_the_request(arr):
     assert r.status_code == 200, r.text
     (g,) = arr.grants()
     assert (g["state"], g["end_reason"]) == ("revoked", "ticket_reassigned")
+
+
+# ---- n2 privacy notice (technician privacy pack, 2026-10-18)
+def _view(a):
+    r = a.client.get("/t/api/arrival", headers={"x-ticket-token": a.token})
+    assert r.status_code == 200, r.text
+    return r.json()["notice"]
+
+
+def _set_lang(a, lang):
+    with a.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET lang = ? WHERE id IN (SELECT contact_id FROM ticket_assignments WHERE id = ?)", (lang, a.assignment))
+
+
+@pytest.mark.parametrize("lang", ["he", "en", "ar", "ru"])
+def test_the_notice_is_served_in_the_vendors_language(arr, lang):
+    _set_lang(arr, lang)
+    n = _view(arr)
+    assert n == {"version": "n2", "text": ag.NOTICE_TEXT[lang], "attest": ag.NOTICE_ATTEST[lang], "lang": lang}
+
+
+def test_an_arabic_vendor_no_longer_gets_hebrew(arr):
+    import re
+    _set_lang(arr, "ar")
+    text = _view(arr)["text"]
+    assert re.search("[֐-׿]", text) is None and re.search("[؀-ۿ]", text)
+
+
+def test_a_stale_n1_acknowledgement_is_refused(arr):
+    r = arr.post(notice_version="n1")
+    assert r.status_code == 422 and "notice_ack" in r.text
+    assert arr.grants() == []
+    with arr.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM access_grant_notices").fetchone()[0] == 0
