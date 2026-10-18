@@ -19,7 +19,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import new_id, now_iso
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import elevators as el
 from ..services import ha_scope
 
@@ -162,6 +162,62 @@ def candidates(q: str = Query("", max_length=80), principal: Principal = Depends
     if needle:
         items = [i for i in items if needle in i["name"].casefold() or needle in i["entity_id"].casefold()]
     return {"items": items[:500]}
+
+
+# ---------------------------------------------------------------- 2.8.0: alert settings (owner decision 2026-10-18; services/elevator_alerts.py)
+
+CONFIGURE = "system.configure"
+
+
+class AlertRecipientsIn(_Body):
+    roles: list[str] = Field(default_factory=list, max_length=10)
+    users: list[str] = Field(default_factory=list, max_length=100)
+    groups: list[str] = Field(default_factory=list, max_length=20)
+
+
+class AlertStateIn(_Body):
+    enabled: bool | None = None
+    recipients: AlertRecipientsIn | None = None
+    channels: list[str] | None = Field(default=None, max_length=5)
+
+
+class AlertsIn(_Body):
+    enabled: bool | None = None
+    states: dict[str, AlertStateIn] | None = None
+    row_version: int | None = None
+
+
+def _alerts_reader(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """Reading the alert settings: the elevator managers and the system configurators (who may change them)."""
+    if not authorize(conn, principal, MANAGE, INSTALLATION).allowed:
+        require(conn, principal, CONFIGURE, INSTALLATION)
+    return principal
+
+
+def _alerts_writer(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    require(conn, principal, CONFIGURE, INSTALLATION)  # owner: changing the elevator alerts needs the system-settings permission
+    return principal
+
+
+@router.get("/infra/elevators/alerts")
+def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The elevator alert settings: master switch, per-state switches (all default off), recipients (roles / users / groups) and channels."""
+    from ..services import elevator_alerts
+
+    return {**elevator_alerts.view(conn), "can_edit": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed}
+
+
+@router.put("/infra/elevators/alerts")
+def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Saves the alert settings (system.configure; audited, ids only). Turning a state off closes its open elevator notifications with the visible
+    resolution "התראות המעליות כובו"; turning one on notifies only transitions that happen from now on."""
+    from ..services import elevator_alerts
+
+    try:
+        out = elevator_alerts.save(conn, principal, body.model_dump(exclude_none=True))
+    except elevator_alerts.AlertsInvalid as e:
+        raise ApiError(409 if e.code == "revision_conflict" else 422, e.code, e.message, details={**e.details, "message_en": e.message_en}) from None
+    return {**out, "can_edit": True}
 
 
 def _validate(conn: sqlite3.Connection, principal: Principal, body: ElevatorIn) -> list[tuple[str, int, str, str | None]]:

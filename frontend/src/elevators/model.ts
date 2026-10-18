@@ -8,7 +8,7 @@
  * moving_down (possible only with sensors mapped before this release) is shown as "פעילה" without an arrow. Every state has its own look
  * (`look`): the out-of-service state has its own strong colour, clearly apart from fault and fire service (decision 9a).
  */
-import type { Elevator, ElevatorRole, ElevatorState, HistorySegment } from '../api/elevators';
+import type { AlertRecipients, AlertSettings, AlertState, Elevator, ElevatorRole, ElevatorState, HistorySegment } from '../api/elevators';
 import type { IconName } from '../components/sw-icon';
 import type { StateKind } from '../components/sw-badge';
 import { elt, type EltKey } from '../i18n/elevators';
@@ -191,6 +191,21 @@ export function widgetView(list: readonly Elevator[], cfg: { hidden: readonly st
 export function summaryLine(k: Kpis): string {
   return [k.total === 1 ? elt('countOne') : elt('summary', { n: k.total }), k.fault ? elt('summaryFault', { f: k.fault }) : '', k.off ? `${k.off} ${elt('kpiOff')}` : '',
     k.fire ? elt('summaryFire', { k: k.fire }) : ''].filter(Boolean).join(' · ');
+}
+
+// ------------------------------------------------------------------------------------------------ the alert settings (owner decision 2026-10-18)
+
+/** A state notifies only while the master switch AND its own switch are on (the server's elevator_alerts.is_on). */
+export function alertActive(s: Pick<AlertSettings, 'enabled' | 'states'>, state: AlertState): boolean {
+  return !!(s.enabled && s.states[state]?.enabled);
+}
+
+/** How many recipient choices a state has (roles + users + groups); 0 = nobody is notified. */
+export const recipientChoices = (r: AlertRecipients): number => r.roles.length + r.users.length + r.groups.length;
+
+/** A list with `id` added (on) or removed (off), order kept, no duplicates. */
+export function toggled<T extends string>(list: readonly T[], id: T, on: boolean): T[] {
+  return on ? (list.includes(id) ? [...list] : [...list, id]) : list.filter((x) => x !== id);
 }
 
 // ------------------------------------------------------------------------------------------------ the KPI-row tiles (CR-INFRA-ELEVATORS 2.7.x)

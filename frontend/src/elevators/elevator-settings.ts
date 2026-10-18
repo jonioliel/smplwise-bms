@@ -14,6 +14,7 @@ import { elevatorsAccess, refreshElevatorsVisibility } from './access';
 import { bodyOf, draftOf, moved, newDraft, problemOf, type Draft, type DraftProblem } from './draft';
 import { ELEVATOR_FILTERS, ELEVATOR_MODES, FILTER_KEY, HOME_EDIT_HREF, MODE_KEY, chipOf } from './model';
 import { elevatorCss, stateBadge } from './styles';
+import './elevator-alerts'; // 2.8.0: the alert settings card (owner decision 2026-10-18)
 import { elt, type EltKey } from '../i18n/elevators';
 import { canAnywhere } from '../api/session';
 import { loadHomeSettings, saveHomeSettings, type ElevatorsCfg, type HomeSettings } from '../api/home';
@@ -193,6 +194,7 @@ export class ElevatorSettings extends LitElement {
             </div>`;
           })}</div>`}
       ${this.list.length ? this.display() : nothing}
+      ${this.list.length ? html`<elevator-alerts></elevator-alerts>` : nothing}
       ${this.dialog()}${this.deleteDialog()}`;
   }
 

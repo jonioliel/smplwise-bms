@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { agoText, barOf, chipOf, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
+import { agoText, alertActive, barOf, chipOf, recipientChoices, toggled, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
 import { configOf, defaultConfig, resolveWidgets, type HomeData } from '../src/api/home-config';
 import { personalOf } from '../src/api/home';
 import { bodyOf, draftOf, moved, newDraft, problemOf } from '../src/elevators/draft';
@@ -232,4 +232,18 @@ test('personal override: mode and hidden only for the elevators widget', () => {
 
 test('the new strings exist in English and never name the home platform', () => {
   for (const k of ['kpiOk', 'modeCombined', 'modeCards', 'modeBoth', 'filterAlerts', 'noAlerts', 'futureNone', 'displayTitle'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
+});
+
+test('alert settings helpers: master AND state, recipient count, toggling', () => {
+  const st = (enabled: boolean) => ({ enabled, recipients: { roles: [], users: [], groups: [] }, channels: [] as ('push' | 'app')[] });
+  const s = { enabled: false, states: { fire_service: st(true), fault: st(false), out_of_service: st(true) } };
+  expect(alertActive(s, 'fire_service')).toBe(false); // the master switch is off (the owner's default)
+  expect(alertActive({ ...s, enabled: true }, 'fire_service')).toBe(true);
+  expect(alertActive({ ...s, enabled: true }, 'fault')).toBe(false);
+  expect(recipientChoices({ roles: [], users: [], groups: [] })).toBe(0); // nothing selected = nobody
+  expect(recipientChoices({ roles: ['operator'], users: ['u1', 'u2'], groups: ['g'] })).toBe(4);
+  expect(toggled(['a'], 'b', true)).toEqual(['a', 'b']);
+  expect(toggled(['a', 'b'], 'b', true)).toEqual(['a', 'b']);
+  expect(toggled(['a', 'b'], 'a', false)).toEqual(['b']);
+  for (const k of ['alertsMaster', 'alertsOff', 'alertsRule', 'noRecipients', 'chNote'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
 });

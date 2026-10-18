@@ -26,6 +26,19 @@ def owner(app):  # noqa: F811
     rt.reset()
 
 
+ALERTS = f"{API}/alerts"
+
+
+def enable(c, states=("fire_service", "fault", "out_of_service"), recipients=None, master=True, channels=None):
+    """Turns elevator alerts on through the settings route (joni is system_admin): master + the given states, the given recipients (default:
+    the system administrators role, so a notification has someone to reach)."""
+    rec = recipients if recipients is not None else {"roles": ["system_admin"]}
+    body = {"enabled": master, "states": {s: {"enabled": True, "recipients": rec, **({"channels": channels} if channels is not None else {})} for s in states}}
+    r = c.put(ALERTS, json=body)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
 def tick(db, t, connected=True):
     with db.connection() as conn:
         return rt.evaluate(conn, t, connected=connected)
@@ -41,6 +54,7 @@ def notes(db, eid=None):
 
 def test_no_notification_before_the_hold_time_and_none_twice(owner):
     c, db, _, eid = owner
+    enable(owner[0])
     set_state(db, OWNER["fault"], "on")
     assert tick(db, T0)["raised"] == 0  # a fault must hold 30 s
     assert tick(db, T0 + 15)["raised"] == 0
@@ -54,6 +68,7 @@ def test_no_notification_before_the_hold_time_and_none_twice(owner):
 
 def test_a_blip_shorter_than_the_hold_is_not_a_notification(owner):
     _, db, _, _ = owner
+    enable(owner[0])
     set_state(db, OWNER["out_of_service"], "on")
     tick(db, T0)
     set_state(db, OWNER["out_of_service"], "off")
@@ -65,6 +80,7 @@ def test_a_blip_shorter_than_the_hold_is_not_a_notification(owner):
 
 def test_dead_sensor_and_disconnected_mirror_change_nothing(owner):
     _, db, _, _ = owner
+    enable(owner[0])
     set_state(db, OWNER["fire_service"], "on")
     assert tick(db, T0)["raised"] == 1  # fire service: at once
     set_state(db, OWNER["fire_service"], "unavailable")
@@ -79,6 +95,7 @@ def test_dead_sensor_and_disconnected_mirror_change_nothing(owner):
 def test_each_role_is_judged_on_its_own_sensor(owner):
     """A fault masked by fire service on the screen keeps its own notification; fire service ending does not end the fault."""
     _, db, _, _ = owner
+    enable(owner[0])
     set_state(db, OWNER["fault"], "on")
     set_state(db, OWNER["fire_service"], "on")
     tick(db, T0)
@@ -94,6 +111,7 @@ def test_each_role_is_judged_on_its_own_sensor(owner):
 
 def test_unmapping_disabling_and_deleting_resolve(owner):
     c, db, _, eid = owner
+    enable(owner[0])
     set_state(db, OWNER["fault"], "on")
     set_state(db, OWNER["out_of_service"], "on")
     tick(db, T0)
@@ -122,6 +140,7 @@ def test_unmapping_disabling_and_deleting_resolve(owner):
 
 def test_memory_survives_a_restart(owner):
     _, db, _, _ = owner
+    enable(owner[0])
     set_state(db, OWNER["fire_service"], "on")
     tick(db, T0)
     rt.reset()  # the process restarts: the hold timers are gone, the memory row is not
@@ -129,21 +148,144 @@ def test_memory_survives_a_restart(owner):
     assert len(notes(db)) == 1 and notes(db)[0]["count"] == 1
 
 
-def test_recipients_default_policy_is_the_administrators_who_see_it(owner):
-    """One default recipient policy (owner 2026-10-18): the notify.manage holders, intersected with who may see the elevator."""
-    c, db, settings, eid = owner
-    bind(c, settings, "vera", "viewer", "installation", "*")
-    bind(c, settings, "adm", "site_admin", "installation", "*")
-    c.get("/api/v1/me", headers=as_user("vera"))
-    c.get("/api/v1/me", headers=as_user("adm"))
+def _recipients(db, nid):
+    with db.connection(mode="read") as conn:
+        return {r["username"] for r in conn.execute("SELECT u.username FROM notification_recipients r JOIN users u ON u.id = r.user_id WHERE r.notification_id = ?", (nid,)).fetchall()}
+
+
+def _uid(db, username):
+    with db.connection(mode="read") as conn:
+        return conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()[0]
+
+
+def test_nothing_selected_means_nobody_is_notified(owner):
+    c, db, _, _ = owner
+    enable(c, states=("fire_service",), recipients={})
     set_state(db, OWNER["fire_service"], "on")
     tick(db, T0)
-    nid = notes(db)[0]["id"]
+    n = notes(db)
+    assert len(n) == 1 and _recipients(db, n[0]["id"]) == set()
+
+
+def test_recipients_roles_users_and_groups_intersected_with_visibility(owner):
+    """Recipients as chosen (owner 2026-10-18, the generator's routing pattern): a role (direct bindings and bindings through a group), a named
+    user, a group's members - then only those who may see the elevator."""
+    c, db, settings, _ = owner
+    for u, role in (("vera", "viewer"), ("adm", "site_admin"), ("ops", "operator"), ("kio", "kiosk")):
+        bind(c, settings, u, role, "installation", "*")
+        c.get("/api/v1/me", headers=as_user(u))
+    with db.connection() as conn:
+        now = "2026-10-18T00:00:00Z"
+        conn.execute("INSERT INTO groups (id, name, created_at) VALUES ('g1', 'שומרים', ?)", (now,))
+        conn.execute("INSERT INTO group_members (group_id, user_id) VALUES ('g1', ?)", (_uid(db, "kio"),))  # a kiosk: in the group, but cannot see
+        conn.execute("INSERT INTO group_members (group_id, user_id) VALUES ('g1', ?)", (_uid(db, "ops"),))
+    enable(c, states=("fire_service",), recipients={"roles": ["site_admin"], "users": [_uid(db, "vera")], "groups": ["g1"]})
+    set_state(db, OWNER["fire_service"], "on")
+    tick(db, T0)
+    got = _recipients(db, notes(db)[0]["id"])
+    assert got == {"adm", "vera", "ops"}  # joni (system_admin) not chosen; the kiosk cannot see the elevator
     with db.connection(mode="read") as conn:
-        users = {r["username"] for r in conn.execute("SELECT u.username FROM notification_recipients r JOIN users u ON u.id = r.user_id WHERE r.notification_id = ?", (nid,)).fetchall()}
-        policy = conn.execute("SELECT recipients_json FROM notify_policies WHERE source = 'elevator.fire_service'").fetchone()[0]
-    assert "vera" not in users and "joni" in users
-    assert '"managers"' in policy
+        pol = dict(conn.execute("SELECT enabled, recipients_json, channels_json FROM notify_policies WHERE source = 'elevator.fire_service'").fetchone())
+    assert pol["enabled"] == 1 and '"elevator"' in pol["recipients_json"] and '"whatsapp": false' in pol["channels_json"] and '"email": false' in pol["channels_json"]
+
+
+def test_alerts_are_off_by_default_and_a_condition_is_tracked_silently(owner):
+    c, db, _, eid = owner
+    got = c.get(ALERTS).json()
+    assert got["enabled"] is False and all(not s["enabled"] for s in got["states"].values())
+    assert all(s["recipients"] == {"roles": [], "users": [], "groups": []} and s["channels"] == [] for s in got["states"].values())
+    set_state(db, OWNER["fire_service"], "on")
+    out = tick(db, T0)
+    assert (out["tracked"], out["raised"]) == (1, 0)
+    assert notes(db) == []
+    with db.connection(mode="read") as conn:
+        assert conn.execute("SELECT notification_id FROM infra_elevator_alerts WHERE elevator_id = ?", (eid,)).fetchone()[0] is None
+
+
+def test_turning_on_never_notifies_a_condition_that_already_held(owner):
+    c, db, _, _ = owner
+    set_state(db, OWNER["fault"], "on")
+    tick(db, T0)
+    tick(db, T0 + 30)  # the fault holds while alerts are off
+    enable(c)
+    assert tick(db, T0 + 45)["raised"] == 0  # no retroactive notification
+    set_state(db, OWNER["fault"], "off")
+    assert tick(db, T0 + 60)["cleared"] == 0  # nothing was open
+    set_state(db, OWNER["fault"], "on")
+    tick(db, T0 + 75)
+    assert tick(db, T0 + 105)["raised"] == 1  # a NEW transition after turning on
+    assert len(notes(db)) == 1
+
+
+def test_master_switch_overrides_the_state_switch(owner):
+    c, db, _, _ = owner
+    enable(c, master=False)
+    set_state(db, OWNER["fire_service"], "on")
+    assert tick(db, T0)["raised"] == 0
+    assert notes(db) == []
+
+
+def test_turning_off_closes_open_notifications_with_a_clear_resolution(owner):
+    """The documented rule: turning a state (or the master) off resolves its open elevator notifications at once (resolution alerts_disabled);
+    the condition stays tracked, so turning on again does not re-notify it."""
+    c, db, _, _ = owner
+    enable(c)
+    set_state(db, OWNER["fire_service"], "on")
+    set_state(db, OWNER["fault"], "on")
+    tick(db, T0)
+    tick(db, T0 + 30)
+    assert {n["source"]: n["state"] for n in notes(db)} == {"elevator.fire_service": "open", "elevator.fault": "open"}
+    r = c.put(ALERTS, json={"states": {"fault": {"enabled": False}}})
+    assert r.status_code == 200
+    got = {n["source"]: (n["state"], n["resolution"]) for n in notes(db)}
+    assert got == {"elevator.fire_service": ("open", None), "elevator.fault": ("resolved", "alerts_disabled")}
+    assert c.put(ALERTS, json={"enabled": False}).status_code == 200
+    assert all(n["state"] == "resolved" and n["resolution"] == "alerts_disabled" for n in notes(db))
+    assert c.put(ALERTS, json={"enabled": True, "states": {"fault": {"enabled": True}}}).status_code == 200
+    assert tick(db, T0 + 45)["raised"] == 0  # still the same conditions: never re-notified
+    with db.connection(mode="read") as conn:
+        audit = conn.execute("SELECT details_json FROM audit_log WHERE action = 'infra.elevator.alerts.update' ORDER BY rowid").fetchall()
+    assert len(audit) == 4 and all("binary_sensor" not in (a[0] or "") for a in audit)
+
+
+def test_alert_settings_permissions_and_validation(owner):
+    c, db, settings, _ = owner
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    bind(c, settings, "ops", "operator", "installation", "*")
+    a, o = as_user("adm"), as_user("ops")
+    assert c.get(ALERTS, headers=a).status_code == 200 and c.get(ALERTS, headers=a).json()["can_edit"] is False  # an elevator manager reads
+    assert c.put(ALERTS, json={"enabled": True}, headers=a).status_code == 403  # changing needs system.configure
+    assert c.get(ALERTS, headers=o).status_code == 403
+    assert c.put(ALERTS, json={"enabled": True}, headers=o).status_code == 403
+    for body, code in (
+        ({"states": {"moving_up": {"enabled": True}}}, "validation"),
+        ({"states": {"fault": {"recipients": {"roles": ["kiosk"]}}}}, "recipient_role"),
+        ({"states": {"fault": {"recipients": {"users": ["nobody"]}}}}, "recipient_user"),
+        ({"states": {"fault": {"recipients": {"groups": ["nogroup"]}}}}, "recipient_group"),
+        ({"states": {"fault": {"channels": ["email"]}}}, "channel"),
+        ({"states": {"fault": {"channels": ["whatsapp"]}}}, "channel"),
+    ):
+        r = c.put(ALERTS, json=body)
+        assert r.status_code == 422 and r.json()["code"] == code, (body, r.text)
+        assert r.json()["details"]["message_en"]
+    assert c.get(ALERTS).json()["enabled"] is False  # nothing was saved
+    v = c.put(ALERTS, json={"states": {"fault": {"channels": ["push", "app"]}}}).json()
+    assert v["states"]["fault"]["channels"] == ["push", "app"] and v["row_version"] == 1
+    r = c.put(ALERTS, json={"enabled": True, "row_version": 0})
+    assert r.status_code == 409 and r.json()["code"] == "revision_conflict"
+
+
+def test_generic_policy_switch_cannot_bypass_the_master_switch(owner):
+    """An administrator flipping the CR-018 policy on in the generic notification settings does not start elevator alerts: the evaluator
+    asks the elevator settings."""
+    _, db, _, _ = owner
+    with db.connection() as conn:
+        from smplwise.services import notify_policy
+
+        notify_policy.ensure_defaults(conn)
+        conn.execute("UPDATE notify_policies SET enabled = 1 WHERE source LIKE 'elevator.%'")
+    set_state(db, OWNER["fire_service"], "on")
+    assert tick(db, T0)["raised"] == 0 and notes(db) == []
 
 
 def test_visibility_rule_of_the_elevator_subject(owner, monkeypatch):
@@ -172,11 +314,12 @@ def test_visibility_rule_of_the_elevator_subject(owner, monkeypatch):
 def test_sources_are_in_the_catalogue_with_their_defaults():
     from smplwise.services import notify_policy as p
 
-    for role, sev, push in (("fire_service", "critical", True), ("fault", "alert", True), ("out_of_service", "info", False)):
+    # owner decision 2026-10-18: OFF, nobody, inbox only until an administrator chooses otherwise
+    for role, sev in (("fire_service", "critical"), ("fault", "alert"), ("out_of_service", "info")):
         s = p.BY_KEY[f"elevator.{role}"]
-        assert (s.severity, s.push, s.who, s.subject, s.category) == (sev, push, "managers", "elevator", "device_faults")
-        assert "whatsapp" not in [k for k, v in p.default_row(s)["channels"].items() if v]
-    assert "elevator" in p.SUBJECT_KINDS
+        assert (s.severity, s.enabled, s.push, s.who, s.subject, s.category) == (sev, False, False, "elevator", "elevator", "device_faults")
+        assert [k for k, v in p.default_row(s)["channels"].items() if v] == ["inbox"]
+    assert "elevator" in p.SUBJECT_KINDS and "elevator" in p.RECIPIENT_RULES
 
 
 # ---------------------------------------------------------------- history

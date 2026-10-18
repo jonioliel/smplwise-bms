@@ -93,6 +93,23 @@ const he = {
   countOne: 'מעלית אחת',
   personalTitle: 'מעליות: התצוגה שלי',
   personalDefault: 'כמו לכולם',
+  // 2.8.0 alert settings (owner decision 2026-10-18: off by default, recipients chosen now)
+  alertsTitle: 'התראות מעליות',
+  alertsMaster: 'שליחת התראות מעליות',
+  alertsOff: 'כבוי: לא נשלחת אף התראה. היסטוריית המצבים ממשיכה להירשם.',
+  alertsRule: 'הפעלה שולחת התראה רק על מצב שמתחיל מעכשיו. כיבוי סוגר מיד את ההתראות הפתוחות של אותו מצב.',
+  recRoles: 'תפקידים',
+  recUsers: 'משתמשים',
+  recGroups: 'קבוצות',
+  noRecipients: 'לא נבחרו נמענים: אף אחד לא יקבל התראה',
+  recipientsCount: '{n} נמענים נבחרו',
+  channels: 'ערוצים',
+  chInbox: 'מרכז ההתראות (תמיד)',
+  chPush: 'התראת דפדפן',
+  chApp: 'אפליקציית הטלפון',
+  chNote: 'דוא״ל ו־WhatsApp אינם זמינים להתראות מעליות',
+  alertsReadOnly: 'שינוי ההתראות דורש הרשאת הגדרות מערכת',
+  search: 'חיפוש',
 };
 type Key = keyof typeof he;
 
@@ -184,6 +201,22 @@ const en: Partial<Record<Key, string>> = {
   countOne: 'One elevator',
   personalTitle: 'Elevators: my display',
   personalDefault: 'Same as everyone',
+  alertsTitle: 'Elevator alerts',
+  alertsMaster: 'Send elevator alerts',
+  alertsOff: 'Off: no alert is sent. The state history keeps being recorded.',
+  alertsRule: 'Turning on alerts only on states that begin from now on. Turning off closes the open alerts of that state at once.',
+  recRoles: 'Roles',
+  recUsers: 'Users',
+  recGroups: 'Groups',
+  noRecipients: 'No recipients chosen: nobody will be alerted',
+  recipientsCount: '{n} recipients chosen',
+  channels: 'Channels',
+  chInbox: 'Notification centre (always)',
+  chPush: 'Browser notification',
+  chApp: 'Phone app',
+  chNote: 'E-mail and WhatsApp are not available for elevator alerts',
+  alertsReadOnly: 'Changing the alerts needs the system settings permission',
+  search: 'Search',
 };
 
 // initial translation - needs a native review (dev-marked)

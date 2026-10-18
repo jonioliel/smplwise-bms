@@ -11,10 +11,24 @@ CREATE TABLE infra_elevator_states (
   PRIMARY KEY (elevator_id, at)
 );
 
+-- A row = the role's sensor has been live `on` for its hold time ("the condition holds"). It is kept whether or not alerts are on, so
+-- turning alerts on never notifies a condition that began earlier (only a new transition does).
 CREATE TABLE infra_elevator_alerts (
   elevator_id     TEXT NOT NULL REFERENCES infra_elevators(id) ON DELETE CASCADE,
   role            TEXT NOT NULL,                   -- fire_service | fault | out_of_service (the notification sources elevator.<role>)
-  raised_at       TEXT NOT NULL,
-  notification_id TEXT,                            -- the notification-centre row it opened (NULL when the source is disabled)
+  raised_at       TEXT NOT NULL,                   -- when the condition started to hold
+  notification_id TEXT,                            -- the notification it opened; NULL = none (alerts were off, or closed by turning them off)
   PRIMARY KEY (elevator_id, role)
+);
+
+-- The elevator alert settings (owner decision 2026-10-18): ONE row. Master switch and per-state switches default OFF; per state the
+-- recipients (roles, named users, groups - nothing selected = nobody) and the extra channels (push, app; the inbox always). Changed only by
+-- holders of system.configure (services/elevator_alerts.py).
+CREATE TABLE infra_elevator_alert_settings (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  enabled     INTEGER NOT NULL DEFAULT 0,
+  states_json TEXT NOT NULL DEFAULT '{}',          -- {role: {"enabled": bool, "recipients": {"roles": [], "users": [], "groups": []}, "channels": []}}
+  row_version INTEGER NOT NULL DEFAULT 1,
+  updated_by  TEXT,
+  updated_at  TEXT
 );

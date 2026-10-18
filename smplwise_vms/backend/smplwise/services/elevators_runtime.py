@@ -10,9 +10,11 @@ Every TICK_S (15 s) over the state mirror, for every elevator (all of its sensor
   change nothing (no information is not "the condition ended"). Each role is judged on its own sensor, not on the derived state, so a fault
   that is masked by fire service on the screen still holds its notification.
 
-Recipients: one default policy for now (owner 2026-10-18: recipient selection comes later) - the catalogue's rule `managers` (holders of
-notify.manage) intersected with who may see the elevator (subject kind `elevator`, services/notify_visibility). Delivery is the CR-018 pipeline's;
-nothing is sent from here, and nothing is ever sent to an elevator. The janitor (hourly, main.janitor_tick) prunes the history."""
+Alerts are OFF by default (owner decision 2026-10-18, services/elevator_alerts.py): a condition is always tracked (memory row), but a
+notification is raised only when the transition happens while the master switch AND the state's switch are on - never retroactively for a
+condition that already held when alerts were turned on. Recipients are the ones chosen per state (rule `elevator`), intersected with who may
+see the elevator (subject kind `elevator`). Delivery is the CR-018 pipeline's; nothing is sent from here, and nothing is ever sent to an
+elevator. The janitor (hourly, main.janitor_tick) prunes the history."""
 from __future__ import annotations
 
 import datetime as dt
@@ -24,6 +26,7 @@ import time
 from typing import Any
 
 from ..db import Database
+from . import elevator_alerts as alerts
 from . import elevators as el
 from . import notify
 from .timeutil import iso_utc
@@ -89,11 +92,11 @@ def resolve_all(conn: sqlite3.Connection, elevator_id: str) -> int:
     """Resolves every open notification of one elevator and forgets its memory (the delete route, before the row goes)."""
     e = conn.execute("SELECT id, name, area_id FROM infra_elevators WHERE id = ?", (elevator_id,)).fetchone()
     try:
-        rows = conn.execute("SELECT role FROM infra_elevator_alerts WHERE elevator_id = ?", (elevator_id,)).fetchall()
+        rows = conn.execute("SELECT role, notification_id FROM infra_elevator_alerts WHERE elevator_id = ?", (elevator_id,)).fetchall()
     except sqlite3.Error:  # before the migration
         return 0
     for r in rows:
-        if e is not None:
+        if e is not None and r["notification_id"]:
             _emit(conn, _signal(e, r["role"], None, resolve=True))
         with _lock:
             _PENDING.pop((elevator_id, r["role"]), None)
@@ -102,13 +105,14 @@ def resolve_all(conn: sqlite3.Connection, elevator_id: str) -> int:
 
 
 def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dict[str, int]:
-    """One pass: history rows and notification transitions. Returns {recorded, raised, cleared}."""
+    """One pass: history rows and condition transitions. Returns {recorded, tracked (new conditions), raised (notifications), cleared}."""
     now = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc).replace(microsecond=0))
     rows = conn.execute("SELECT id, name, area_id, enabled FROM infra_elevators ORDER BY sort_order, id").fetchall()
     sensors = el.sensors_of(conn, [r["id"] for r in rows])
     raised = {(r["elevator_id"], r["role"]): r for r in conn.execute("SELECT * FROM infra_elevator_alerts").fetchall()}
     areas: dict[str, str] | None = None
-    out = {"recorded": 0, "raised": 0, "cleared": 0}
+    settings = alerts.load(conn)
+    out = {"recorded": 0, "tracked": 0, "raised": 0, "cleared": 0}
     for e in rows:
         live = el.live_of(sensors.get(e["id"], []), connected=connected)
         if e["enabled"] and el.record_state(conn, e["id"], live["state"], now, live["since"]):
@@ -123,17 +127,22 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
                 continue  # mapped, no live value: no change
             if v and key not in raised:
                 if _held(key, True, HOLD_S[role], now_ts):
-                    if areas is None:
-                        areas = _area_names(conn)
-                    nid = _emit(conn, _signal(e, role, areas.get(e["area_id"] or "")))
+                    # a new transition: always remembered; notified only while this state's alerts are on (owner: default off, never retroactive)
+                    nid = None
+                    if alerts.is_on(settings, role):
+                        if areas is None:
+                            areas = _area_names(conn)
+                        nid = _emit(conn, _signal(e, role, areas.get(e["area_id"] or "")))
+                        out["raised"] += 1
                     conn.execute("INSERT OR REPLACE INTO infra_elevator_alerts (elevator_id, role, raised_at, notification_id) VALUES (?, ?, ?, ?)", (e["id"], role, now, nid))
-                    out["raised"] += 1
+                    out["tracked"] += 1
             elif not v:
                 _held(key, False, 0, now_ts)
                 if key in raised:
-                    _emit(conn, _signal(e, role, None, resolve=True))
+                    if raised[key]["notification_id"]:
+                        _emit(conn, _signal(e, role, None, resolve=True))
+                        out["cleared"] += 1
                     conn.execute("DELETE FROM infra_elevator_alerts WHERE elevator_id = ? AND role = ?", key)
-                    out["cleared"] += 1
     return out
 
 

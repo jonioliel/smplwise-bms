@@ -68,7 +68,38 @@ export interface ElevatorBody {
   revision?: number;
 }
 
-export const listElevators = (history: 0 | 24 = 0) => get<ElevatorsResponse>(history ? `infra/elevators?history=${history}` : 'infra/elevators');
+/** 2.8.0 (owner decision 2026-10-18): the elevator alert settings - everything OFF by default; recipients chosen per state (roles, users,
+ * groups; none = nobody); extra channels push / app (the inbox always). Read: elevator managers and system configurators; write: system.configure. */
+export type AlertState = 'fire_service' | 'fault' | 'out_of_service';
+export type AlertChannel = 'push' | 'app';
+export interface AlertRecipients {
+  roles: string[];
+  users: string[];
+  groups: string[];
+}
+export interface AlertStateSettings {
+  enabled: boolean;
+  recipients: AlertRecipients;
+  channels: AlertChannel[];
+}
+export interface AlertSettings {
+  enabled: boolean;
+  states: Record<AlertState, AlertStateSettings>;
+  row_version: number;
+  roles: { id: string; label: string }[];
+  channels: AlertChannel[];
+  states_order: AlertState[];
+  can_edit: boolean;
+}
+export interface AlertSettingsBody {
+  enabled?: boolean;
+  states?: Partial<Record<AlertState, Partial<AlertStateSettings>>>;
+  row_version?: number;
+}
+export const getAlertSettings = () => get<AlertSettings>('infra/elevators/alerts');
+export const putAlertSettings = (body: AlertSettingsBody) => put<AlertSettings>('infra/elevators/alerts', body);
+
+export const listElevators =(history: 0 | 24 = 0) => get<ElevatorsResponse>(history ? `infra/elevators?history=${history}` : 'infra/elevators');
 export const listManaged = () => get<{ elevators: ManagedElevator[]; roles: ElevatorRole[]; max_extras: number }>('infra/elevators/manage');
 export const listCandidates = (q = '') => get<{ items: Candidate[] }>(`infra/elevators/candidates${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 export const createElevator = (body: ElevatorBody) => post<ManagedElevator>('infra/elevators', body);

@@ -110,9 +110,8 @@ exclude; placement and size via the edit mode; persisted for the installation an
 |---|----------|------------|
 | E1 | Migration **0120** (0119 is reserved for another branch): `infra_elevator_states` (history) and `infra_elevator_alerts` (notification memory). The runner applies every unrecorded file in order, so a later 0119 still runs. | - |
 | E2 | `services/elevators_runtime.py`: one read-only thread, every 15 s (env `SW_ELEVATORS=0` turns it off). History row on every derived-state change (the deciding sensor's `last_changed`, normalised to `...Z`); while the mirror is disconnected the elevator is recorded `unknown`. Hourly prune keeps 8 days (and each elevator's last row before the cutoff). | D1 (history was "never stored") |
-| E3 | Notifications: sources `elevator.fire_service` (critical, push), `elevator.fault` (alert, push), `elevator.out_of_service` (info, inbox only); category `device_faults`; WhatsApp / e-mail off. Each role is judged on its OWN sensor (a fault masked on screen by fire service keeps its notification). Hold 0 / 30 / 30 s; raised once (memory row), resolved on live off, unlinking, disable or delete; a dead sensor or a disconnected mirror changes nothing. | D8 |
-| E4 | Recipients: ONE default policy - rule `managers` (notify.manage holders) intersected with visibility. New subject kind `elevator`: visible to exactly who sees the elevator (devices.read on at least one of its sensors, D3). The administrator can still edit the policy in the generic notification settings; an elevator-specific recipient picker is NOT built (owner: later). | - |
-| E5 | `GET /infra/elevators?history=24` adds per-elevator segments `[{state, from, to}]`; only for a caller who sees ALL of the elevator's sensors (the history is derived from every sensor), `null` otherwise. Every item carries `flags` (the visible roles' live values) for the sensor lights. | - |
+| E3 | Notifications: sources `elevator.fire_service` (critical), `elevator.fault` (alert), `elevator.out_of_service` (info); category `device_faults`. Each role is judged on its OWN sensor (a fault masked on screen by fire service keeps its condition). Hold 0 / 30 / 30 s. **OFF by default** - see 9.4 (owner decision 2026-10-18, supersedes the first 2.8.0 commit's "on, to the managers"). | D8 |
+| E4 | Recipients chosen NOW per state: roles (viewer / operator / site_admin / system_admin), named users, groups - the generator's routing pattern (own table, mirrored onto the CR-018 policy with the recipient rule `elevator`). Nothing selected = nobody. Then intersected with who may see the elevator (new subject kind `elevator`). | - || E5 | `GET /infra/elevators?history=24` adds per-elevator segments `[{state, from, to}]`; only for a caller who sees ALL of the elevator's sensors (the history is derived from every sensor), `null` otherwise. Every item carries `flags` (the visible roles' live values) for the sensor lights. | - |
 | E6 | No direction: the frontend shows `moving_up` / `moving_down` as "פעילה" without an arrow; the settings dialog offers waiting / fault / fire service / shutdown and a line "עולה / יורדת / דלת פתוחה / קומה - לא מוגדר (אפשר להוסיף בעתיד)"; a role an elevator already links stays offered. The server derivation is unchanged (section 3). | - |
 | E7 | State looks (`elevators/styles.ts`, `--sw-el-*`, solid fills under white text, >= 4.5:1): waiting green, in operation blue (doors slightly open), fault red, **out of service strong orange with a striped edge / square dot** (shape, not only colour), fire service crimson and pulsing (stops under reduced motion), unknown grey. | D9 tones on the new surfaces |
 | E8 | Home: widget `elevators` in the home widget configuration (`home.widgets`): `mode` combined / cards / both, `hidden` (elevator ids, <= 50), `filter` all / alerts; sizes s / m / l per direction like every widget. Drawn only when the viewer sees at least one elevator (absent otherwise, no ghost in edit mode). The 2.7.x KPI-row tiles are removed from the home screen. A user holding `screen.personalize` may store his own `mode` and `hidden` (`home.personal.widgets.elevators`). | D5 |
@@ -121,10 +120,9 @@ exclude; placement and size via the edit mode; persisted for the installation an
 ### 9.2 Built vs the mockup
 
 Built: the Infrastructure screen (title, "+ מעלית חדשה", KPI row, cards with door icon / badge / sensor lights / 24-hour bar / "מלפני ...",
-the add card); the home widget in three sizes and three modes; edit-mode placement and sizing; the settings card and the display card.
+the add card); the home widget in three sizes and three modes; edit-mode placement and sizing; the settings card, the display card and the alert settings card (9.4).
 Changed from the mockup: the mockup's separate "summary tiles row" is replaced by the widget's `cards` mode (owner feedback); the emoji
-glyphs are product icons; the door LED is shown faded ("not linked") as in the mockup. Not built: an elevator-specific recipient picker
-(owner: later); floor display (no sensor); a longer history range than 24 h (8 days are kept for it).
+glyphs are product icons; the door LED is shown faded ("not linked") as in the mockup. Not built: floor display (no sensor); a longer history range than 24 h (8 days are kept for it).
 
 ### 9.3 Tests
 
@@ -134,3 +132,27 @@ glyphs are product icons; the door LED is shown faded ("not linked") as in the m
 - Frontend node-only: `tests/unit-elevators.spec.ts` (looks, no direction, KPIs, lights, bar, relative times, widget view, config, personal).
 - `tests/evidence-elevators.spec.ts` (desktop + mobile, light + dark) run against a local Vite dev server with mocked routes; screenshots in
   `docs/evidence/elevators/`. The home widget has no committed browser spec yet (checked once in a throwaway harness).
+### 9.4 Elevator alerts: off by default, recipients, channels (owner decision 2026-10-18)
+
+- Settings › תשתיות › מעליות › "התראות מעליות" (`elevators/elevator-alerts.ts`; `GET/PUT /api/v1/infra/elevators/alerts`; read: elevator managers
+  and system configurators; **write: `system.configure`**, revision-guarded, audited `infra.elevator.alerts.update` with ids / switches only).
+- A master switch "שליחת התראות מעליות" and a switch per state (fire service / fault / shutdown). **All default OFF.** A state notifies only while
+  the master AND its own switch are on. Stored in `infra_elevator_alert_settings` (one row, migration **0120 extended** - no new number).
+- Recipients per state: roles, named users, groups (none = nobody). Roles resolve against the current bindings, direct and through a group;
+  groups resolve to their members; then only those who may see the elevator.
+- Channels per state: the notification centre always; browser push and the phone app on request. E-mail and WhatsApp are not offered for
+  elevators (the pipeline's flags are written false).
+- The choices are mirrored onto the CR-018 policy of each source (enabled = master AND state, rule `elevator`, channels). The evaluator ALSO asks
+  the elevator settings before raising, so switching the generic policy on in the notification matrix cannot start elevator alerts by itself.
+  (Changing the generic matrix's recipient rule for an elevator source is possible there, as for the generator; the next save here rewrites it.)
+- **Rules:**
+  1. Off: no notification is raised. The evaluator keeps recording the history and keeps tracking which conditions hold (memory rows with no
+     notification).
+  2. Turning on (master or a state): only NEW transitions notify. A condition that already held keeps its memory row and is never notified
+     retroactively; after it ends, its next start notifies.
+  3. Turning off (master or a state): the open elevator notifications of the states that went off are resolved at once with the resolution
+     `alerts_disabled` (for fire service, which sends a resolve notice, the notice text is "התראות המעליות כובו"). Nothing is closed silently;
+     the conditions stay tracked, so turning on again does not re-notify them.
+- Tests: `tests/test_infra_elevators_280.py` (off by default + silent tracking, no retroactive notification, master overrides state, turning off
+  closes with `alerts_disabled` and never re-notifies, nobody without recipients, roles / users / groups intersected with visibility, permissions
+  and validation, revision conflict, the generic switch cannot bypass, the catalogue defaults); `tests/unit-elevators.spec.ts` (helpers).
