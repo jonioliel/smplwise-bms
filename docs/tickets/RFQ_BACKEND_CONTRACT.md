@@ -1186,6 +1186,11 @@ depend on the payment-schedule switch (20.1).
 * **Second approval** (section 7): an award waiting for the second approval sends nothing; the first approver's tick is remembered on the
   `award_pending` timeline row (`notice_requested`) and is the default of `POST .../awards/{award_id}/confirm` `{revision, award_notice?}`
   (the second approver may change it - `false` sends nothing). The notice is queued when the award becomes final there (`via: confirm`).
+  An INHERITED tick (no `award_notice` in the confirm body) never refuses the confirm (2.7.1 review A1): an unreachable vendor is recorded
+  like `auto` (`award_notice` row `queued: false`, `reason`) and the later send stays available; only an explicit `award_notice: true` in
+  the confirm body is checked (409 `award_notice_unavailable`). The board's second-approval banner shows the inherited tick with an untick.
+  In every mode an unexpected outbox failure while queueing is rolled back and recorded as `reason: outbox` - it never fails the award
+  (review A3).
 * **Once per award**: outbox idempotency key `rfqaward:<award_id>`; the RFQ timeline row `award_notice` (`{award_id, queued, channel,
   outbox_id, mode, via: award | confirm | later, reason?}`) and the audit row `ticket.rfq.award_notice` (ids, `queued`, `channel`,
   `notice_mode`, `via`, `reason?` - never a text) are written once; a later send answers `already: true` and writes nothing.

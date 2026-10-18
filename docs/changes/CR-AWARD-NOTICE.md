@@ -31,7 +31,8 @@ responsibility to notify IN ADVANCE, through the link, if he postpones the work.
 3. **A ticked notice that cannot go is refused before the award writes anything** (`confirm` only; 409 `award_notice_unavailable` with the
    reason - the preview already said why). `auto` never blocks an award: the failure is recorded on the timeline.
 4. **Second approval**: nothing is sent while the award waits; the first approver's tick is the default of the second approver's confirm,
-   who may untick. The notice goes when the award becomes final.
+   who may untick. The notice goes when the award becomes final. An inherited tick never blocks the confirm (2.7.1 review A1): an
+   unreachable vendor is recorded as not sent; only the second approver's own explicit tick is checked like rule 3.
 5. **One notice per award** (idempotency key, one timeline row, one audit row); a later "send the approval notice" button exists for a
    final award whose notice did not go (unticked, or unreachable then).
 6. **A queued notice starts the arrival-confirmation clock** of the terms (20.7), like an award-sourced thread message (it tells the vendor).
