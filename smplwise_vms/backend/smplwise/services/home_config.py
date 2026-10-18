@@ -43,7 +43,8 @@ SIDES = ("start", "end")
 DEFAULT_SIDE = "end"
 # `media` (CR-015) is appended: a stored order without it keeps its look, the widget lands last like every widget a release adds.
 # BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way.
-WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher")
+# CR-INFRA-ELEVATORS 2.8.0: `elevators` is appended the same way (it is drawn only once the viewer sees at least one elevator).
+WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators")
 SIZES = ("s", "m", "l")
 PHONE_LAYOUTS = ("snap", "stack", "two")  # a horizontal snap row | one card under the other | two per row (wrapping)
 DEFAULT_PHONE_LAYOUT = "stack"
@@ -58,7 +59,14 @@ DEFAULT_SIZES: dict[str, dict[str, str]] = {
     "media": {"a": "m", "b": "s", "c": "m"},
     "agenda": {"a": "m", "b": "m", "c": "m"},
     "launcher": {"a": "m", "b": "s", "c": "m"},
+    "elevators": {"a": "m", "b": "s", "c": "m"},
 }
+# CR-INFRA-ELEVATORS 2.8.0 (owner decision 10b + owner feedback 2026-10-18): how the elevators appear on the home screen -
+# one card per elevator, ONE combined card for all of them, or both; which elevators are left out; all states or only the alerting ones.
+ELEVATOR_MODES = ("combined", "cards", "both")
+ELEVATOR_FILTERS = ("all", "alerts")
+ELEVATOR_HIDDEN_MAX = 50
+_ELEVATOR_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 CLOCK_MODES = ("time", "datetime")
 # BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card)
 TILE_STYLES = ("card", "tile")
@@ -102,6 +110,8 @@ def _default_widget(wid: str) -> dict[str, Any]:
         base.update({"calendars": [], "days": 7})
     elif wid == "launcher":
         base.update({"items": []})
+    elif wid == "elevators":
+        base.update({"mode": "combined", "hidden": [], "filter": "all"})
     return base
 
 
@@ -175,7 +185,7 @@ def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str
 def _widget(wid: str, value: Any) -> dict[str, Any]:
     common = {"on", "sizes", "label", "phone_on", "phone_size"}
     extra = {"clock": {"mode", "seconds", "hebrew", "style"}, "weather": {"entity", "fields", "forecast", "sources", "style"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set(),
-             "agenda": {"calendars", "days"}, "launcher": {"items"}}[wid]
+             "agenda": {"calendars", "days"}, "launcher": {"items"}, "elevators": {"mode", "hidden", "filter"}}[wid]
     given = _obj(value, wid, common | extra)
     out = _default_widget(wid)
     if "on" in given:
@@ -226,6 +236,26 @@ def _widget(wid: str, value: Any) -> dict[str, Any]:
     elif wid == "launcher":
         if "items" in given:
             out["items"] = _launch_items(given["items"])
+    elif wid == "elevators":
+        if "mode" in given:
+            out["mode"] = _choice(given["mode"], ELEVATOR_MODES, "elevators.mode")
+        if "filter" in given:
+            out["filter"] = _choice(given["filter"], ELEVATOR_FILTERS, "elevators.filter")
+        if "hidden" in given:
+            out["hidden"] = elevator_ids(given["hidden"], "elevators.hidden")
+    return out
+
+
+def elevator_ids(value: Any, name: str) -> list[str]:
+    """The elevators left out of the home screen: distinct elevator ids (an id that no longer exists is harmless - it matches nothing)."""
+    if not isinstance(value, list) or len(value) > ELEVATOR_HIDDEN_MAX:
+        raise ValueError(f"{name} must be a list of at most {ELEVATOR_HIDDEN_MAX}")
+    out: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not _ELEVATOR_ID.match(item):
+            raise ValueError(f"{name} holds an invalid elevator id")
+        if item not in out:
+            out.append(item)
     return out
 
 
@@ -395,6 +425,8 @@ def from_legacy(get: Callable[[str, str], str]) -> dict[str, Any] | None:
 # ------------------------------------------------------------------------------------------------ the personal override
 
 PERSONAL_WIDGET_KEYS = {"on", "size"}
+# CR-INFRA-ELEVATORS 2.8.0 (owner feedback 2026-10-18): a user may also choose for himself HOW the elevators appear and WHICH are left out
+PERSONAL_ELEVATOR_KEYS = {"mode", "hidden"}
 
 
 def normalise_personal(value: Any) -> dict[str, Any]:
@@ -419,8 +451,12 @@ def normalise_personal(value: Any) -> dict[str, Any]:
     if given.get("widgets") is not None:
         widgets = _obj(given["widgets"], "home.personal.widgets", set(WIDGET_IDS))
         for wid, w in widgets.items():
-            e = _obj(w, f"home.personal.widgets.{wid}", PERSONAL_WIDGET_KEYS)
+            e = _obj(w, f"home.personal.widgets.{wid}", PERSONAL_WIDGET_KEYS | (PERSONAL_ELEVATOR_KEYS if wid == "elevators" else set()))
             entry: dict[str, Any] = {}
+            if e.get("mode") is not None:
+                entry["mode"] = _choice(e["mode"], ELEVATOR_MODES, "home.personal.widgets.elevators.mode")
+            if e.get("hidden") is not None:
+                entry["hidden"] = elevator_ids(e["hidden"], "home.personal.widgets.elevators.hidden")
             if e.get("on") is not None:
                 entry["on"] = _bool(e["on"], f"home.personal.widgets.{wid}.on")
             if e.get("size") is not None:
@@ -456,4 +492,9 @@ def apply_personal(cfg: dict[str, Any], direction: str, personal: dict[str, Any]
             out[wid]["phone_on"] = None  # a personal on / off is for every screen, the phone included
         if e.get("size") in SIZES:
             out[wid]["sizes"][direction] = e["size"]
+        if wid == "elevators":  # 2.8.0: the user's own display mode and his own list of elevators left out
+            if e.get("mode") in ELEVATOR_MODES:
+                out[wid]["mode"] = e["mode"]
+            if isinstance(e.get("hidden"), list):
+                out[wid]["hidden"] = list(e["hidden"])
     return out, direction
