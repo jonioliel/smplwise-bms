@@ -431,7 +431,7 @@ class PublicLimits:
     # follows: 5 live files + a few retries / replacements an hour) and per CLIENT NETWORK (/24 or /64, checked and counted at
     # admission before any lookup: one network cannot spread uploads over many stolen / forwarded links)
     token_rfq_uploads: Limits = ((3600.0, 12),)
-    rfq_upload_per_network: Limits = ((600.0, 12), (3600.0, 30))
+    rfq_upload_per_network: Limits = ((600.0, 30), (3600.0, 90))  # HARDEN271 (review F2): widened - a carrier /24 shared by a few vendors fits
     redeem_per_network: Limits = ((60.0, 10),)
     code_per_recipient: Limits = ((3600.0, 6),)
     # VPORTAL (the vendor portal, services/tickets/vendor_portal.py): per client network (/24 or /64) and installation-wide. The
@@ -620,13 +620,15 @@ class PublicRateGate:
                     or self._hit("pw:*", self.limits.portal_write_global, "flood") or Decision(True))
         if kind not in TOKEN_KINDS:
             raise ValueError(f"unknown route kind {kind!r}")
-        if kind == "rfq_upload":
-            # RFQ-VENDOR-UPLOAD: the client network's own upload window first (a locked network learns that first), counted for every
-            # attempt that reaches here - a valid token or not - so one network cannot spread uploads over many links
+        if kind == "rfq_upload" and token_key:
+            # RFQ-VENDOR-UPLOAD: the client network's own upload window (a locked network learns that first). HARDEN271 (review F2): only
+            # CHECKED here, and only for a well-formed token; it is SPENT when an upload body actually starts (RequestCost.body_phase - the
+            # token proved valid and the upload gate passed), so tokenless or invalid attempts from a shared address (CGNAT, an office NAT)
+            # can no longer lock out every vendor behind it. Tokenless floods stay on the network failure budget like every route.
             locked = self._locks(net, None, ())
             if locked is not None:
                 return locked
-            refused_net = self._hit(f"un:{net}", self.limits.rfq_upload_per_network, "rfq_upload_net_rate")
+            refused_net = self._check(f"un:{net}", self.limits.rfq_upload_per_network, "rfq_upload_net_rate")
             if refused_net is not None:
                 return refused_net
         if not token_key:
@@ -720,6 +722,8 @@ class RequestCost:
             return
         self.body_spent = True
         self.gate.spend(self.kind, self.token_key)
+        if self.kind == "rfq_upload":  # HARDEN271 (review F2): the network's upload window is spent by real upload bodies only
+            self.gate.limiter.record(f"un:{self.net}", self.gate.limits.rfq_upload_per_network)
 
     def effect(self) -> None:
         """A route's effect happened (a write stored): one unit of its budget - unless the body phase already paid."""

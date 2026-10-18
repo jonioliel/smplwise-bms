@@ -97,9 +97,11 @@ def pending_items(conn, viewer: Viewer, seen: rfq.RfqSeen, now: dt.datetime) -> 
                     "age_h": max(0, int((now - (rfq.parse(m["created_at"]) or now)).total_seconds() // 3600))})
     from . import rfq_vendor_files  # RFQ-VENDOR-UPLOAD (contract 19.10): the files a vendor attached to his question, next to it
 
-    files = rfq_vendor_files.by_message(conn, row["id"], [x["id"] for x in out])
+    # HARDEN271 (review F1): costs.view for every vendor file - otherwise `files: []` and the neutral count `files_hidden`
+    files, hidden = rfq_vendor_files.by_message_for(conn, viewer, seen, [x["id"] for x in out])
     for x in out:
         x["files"] = files.get(x["id"], [])
+        x["files_hidden"] = hidden.get(x["id"], 0)
     return out
 
 

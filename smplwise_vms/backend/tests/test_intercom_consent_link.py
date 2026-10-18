@@ -389,7 +389,7 @@ def test_decline_lands_on_the_opt_out_list_drops_the_held_message_and_tells_the_
     r = w.answer(w.token(), "decline")
     assert r.status_code == 200 and r.json()["answer"] == "declined"
     (opt,) = w.q("SELECT * FROM intercom_message_optout")
-    assert opt["person_id"] == "u1" and opt["by_user_id"] is None and opt["by_name"] == C.OPTOUT_BY
+    assert opt["person_id"] == "u1" and opt["by_user_id"] == C.OPTOUT_BY_ID and opt["by_name"] == C.OPTOUT_BY  # HARDEN271 (C3): not NULL
     (held,) = w.q("SELECT * FROM intercom_held_messages")
     assert (held["state"], held["reason"]) == ("dropped", "declined")
     assert w.release()["released"] == 0 and len(wa_texts(w)) == 1, "nothing but the consent request was ever sent"

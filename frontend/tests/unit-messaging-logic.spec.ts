@@ -189,7 +189,7 @@ test.describe('a bulk run', () => {
     expect(progress).toEqual([[1, 3], [2, 3], [3, 3]]);
     expect(out.rows.map((r) => [r.id, r.status, r.reason])).toEqual([['4', 'failed', 'no_phone'], ['1', 'sent', undefined], ['2', 'failed', 'not_registered'], ['3', 'sent', undefined]]);
     expect(orderRows(['1', '2', '3', '4'], out.rows).map((r) => r.id)).toEqual(['1', '2', '3', '4']);
-    expect(bulkSummary(out)).toEqual({ sent: 2, failed: 2, unknown: 0 });
+    expect(bulkSummary(out)).toEqual({ sent: 2, held: 0, failed: 2, unknown: 0 });
   });
 
   test('the server\'s pace is kept between the sends - not before the first, not after the last', async () => {
@@ -270,7 +270,15 @@ test.describe('a bulk run', () => {
     expect(n).toBe(2);
     expect(out.failed).toEqual([{ id: '1', reason: 'uncertain' }, { id: '2', reason: 'uncertain' }]);
     expect(out.rows.map((r) => r.status)).toEqual(['unknown', 'unknown']);
-    expect(bulkSummary(out)).toEqual({ sent: 0, failed: 0, unknown: 2 });
+    expect(bulkSummary(out)).toEqual({ sent: 0, held: 0, failed: 0, unknown: 2 });
+  });
+
+  test('HARDEN271: a message held for the consent of the person is not counted as sent', async () => {
+    const plan = bulkPlan([rcpt('1'), rcpt('2'), rcpt('3')], config(), draft('x'));
+    const out = await runBulk(plan, draft('x'), async (id): Promise<SendResult> =>
+      id === '1' ? sent() : { ok: true, sent_at: '2026-10-12T08:21:00Z', held: id === '2' ? 'held' : 'consent_requested' });
+    expect(out.rows.map((r) => r.status)).toEqual(['sent', 'held', 'held']);
+    expect(bulkSummary(out)).toEqual({ sent: 1, held: 2, failed: 0, unknown: 0 });
   });
 
   test('a run has its own id', () => {

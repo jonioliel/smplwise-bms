@@ -573,6 +573,10 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     active); `widening` (held in `pending_json` for a new approval; the approved scope keeps working meanwhile)."""
     if not enabled(conn):
         raise _off()
+    if not scope.doors:
+        # HARDEN271 K1: an empty door map (a vendor-page arrival on a ticket with no station placement and no "entrance for external
+        # people" station) could never be approved - the approver may only narrow. Refused here, so nothing unapprovable is stored.
+        raise _conflict("no_doors_suggested", "לא ניתן להציע דלתות לכתובת הזו. בקשו ממנהל הקריאה לבקש את הגישה.")
     contact = contact_row(conn, contact_id)
     problem = subject_problem(conn, contact)
     if problem and not (problem == "contact_pending" and str(requested_by).startswith("contact:")):
@@ -622,6 +626,20 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
 
 # ---------------------------------------------------------------- approve / refuse / revoke / rotate (own transactions)
 
+def _visible_or_404(conn: sqlite3.Connection, principal: Principal, grant_id: str, *, also: str | None = None) -> dict[str, Any]:
+    """HARDEN271 K2 (HA_IDENTITY_RBAC_HE.md section 15): the mutating routes answer the same 404 for an unknown id and for a grant the
+    caller cannot see, before any authority, state or revision answer - an id never discloses existence to a non-holder. `also`: a
+    permission that makes the grant visible to this route too (revoke: people.manage on one of its stations, R2)."""
+    g = grant_row(conn, grant_id)
+    if g is None:
+        raise _not_found()
+    if visible(conn, principal, g):
+        return g
+    if also and holds_somewhere(conn, principal, also, stations_of(json.loads(g["doors_json"] or "{}"))):
+        return g
+    raise _not_found()
+
+
 def _person_stations(db: Any, g: dict[str, Any]) -> list[str]:
     """The stations of the linked WisKey person besides the grant's own (CR 3.2: the approver needs people.manage + sensitive on
     every station of the person). No link yet: none. WisKey unreachable: the approval is refused (fail closed)."""
@@ -644,16 +662,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
     """CR 3.2: an interactive human holding `access.external.grant` + people.manage + people.sensitive (+ pin.generate for a PIN)
     on EVERY station of the grant and of the linked person. The approver may only narrow what was requested. Sends nothing: the
     worker provisions the door map and validity; the code leaves at its due time (owner answer 4)."""
-    with db.connection(mode="read", label="access_grants.approve.read") as conn:
-        g = grant_row(conn, grant_id)
-    if g is None:
-        raise _not_found()
-    person_stations = _person_stations(db, g)
-    with db.connection(label="access_grants.approve") as conn:
-        g = grant_row(conn, grant_id)
-        if g is None:
-            raise _not_found()
-
+    def caller_checks(conn: sqlite3.Connection) -> dict[str, Any]:
+        """The checks that need no WisKey read: the switch, the session kind, the local-approver rule (none of them discloses the
+        id), then the uniform 404 for a grant the caller cannot see (HARDEN271 K2)."""
         def deny(reason: str, exc: ApiError) -> ApiError:
             _audit(conn, principal, "access.grant.approve", grant_id, decision="denied", reason=reason, request_id=request_id)
             return exc
@@ -664,6 +675,31 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
             raise deny("not_interactive", ApiError(403, "access_grant_interactive_only", "אישור גישה אפשרי רק ממסך מחובר של אדם, לא מאפליקציה או סקריפט."))
         if str(principal.user_id).startswith(LOCAL_ID_PREFIX) and not local_approvers(conn):
             raise deny("local_not_allowed", ApiError(403, "access_grant_local_not_allowed", "משתמש Arx מקומי אינו יכול לאשר גישת דלתות."))
+        return _visible_or_404(conn, principal, grant_id)
+
+    with db.connection(label="access_grants.approve.check") as conn:
+        g = caller_checks(conn)
+        # HARDEN271 K3: the caller's authority on the grant's own stations is decided BEFORE WisKey is read - an unauthorised caller
+        # can neither make Arx issue a WisKey read nor tell "engine unreachable" (503) from "reachable" (403)
+        pre = Scope.of_json(g["pending_json"]) if g.get("pending_json") else Scope.of_row(g)
+        try:
+            pre_doors = parse_doors(doors, max_doors(conn)) if doors is not None else pre.doors
+        except ApiError:
+            pre_doors = pre.doors  # the write transaction answers the validation error
+        missing = missing_on(conn, principal, approve_permissions(pre.credential), stations_of(pre_doors))
+        if missing:
+            perm, sid = missing[0]
+            _audit(conn, principal, "access.grant.approve", grant_id, decision="denied", reason="no_binding", request_id=request_id, permission=perm, station=sid)
+    if missing:
+        raise forbidden(permission=perm, target_type=STATION, target_id=sid, reason="no_binding")
+    person_stations = _person_stations(db, g)
+    with db.connection(label="access_grants.approve") as conn:
+        g = caller_checks(conn)
+
+        def deny(reason: str, exc: ApiError) -> ApiError:
+            _audit(conn, principal, "access.grant.approve", grant_id, decision="denied", reason=reason, request_id=request_id)
+            return exc
+
         amendment = g["state"] in DECIDED and g.get("pending_json")
         if g["state"] != "requested" and not amendment:
             raise deny("state", _conflict("access_grant_state", "הגישה אינה ממתינה לאישור.", state=g["state"]))
@@ -704,7 +740,7 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
                                   "approved_by": principal.user_id, "approved_at": iso(at), "approval_revision": permission_revision(conn),
                                   "phone_confirmed_at": (contact or {}).get("phone_confirmed_at")}
         if amendment:
-            if g["state"] == "active":
+            if g["state"] in ("active", "provisioning"):  # HARDEN271 K4: a write in flight carries the old map - push the new one after it
                 fields["needs_push"] = 1
             action = "access.grant.amend"
         else:
@@ -723,9 +759,7 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
 
 def refuse(db: Database, principal: Principal, grant_id: str, revision: int, request_id: str | None = None) -> dict[str, Any]:
     with db.connection(label="access_grants.refuse") as conn:
-        g = grant_row(conn, grant_id)
-        if g is None:
-            raise _not_found()
+        g = _visible_or_404(conn, principal, grant_id)
         stations = stations_of(Scope.of_json(g["pending_json"]).doors if g.get("pending_json") else json.loads(g["doors_json"] or "{}"))
         if not holds_somewhere(conn, principal, PERMISSION, stations):
             _audit(conn, principal, "access.grant.refuse", grant_id, decision="denied", reason="no_binding", request_id=request_id)
@@ -745,9 +779,7 @@ def refuse(db: Database, principal: Principal, grant_id: str, revision: int, req
 def revoke(db: Database, principal: Principal, grant_id: str, request_id: str | None = None) -> dict[str, Any]:
     """R2: revoking must be easy - `access.external.grant` OR `access.people.manage` on ONE station of the grant suffices."""
     with db.connection(label="access_grants.revoke") as conn:
-        g = grant_row(conn, grant_id)
-        if g is None:
-            raise _not_found()
+        g = _visible_or_404(conn, principal, grant_id, also=ia.PEOPLE_MANAGE)
         stations = stations_of(json.loads(g["doors_json"] or "{}"))
         if not (holds_somewhere(conn, principal, PERMISSION, stations) or holds_somewhere(conn, principal, ia.PEOPLE_MANAGE, stations)):
             _audit(conn, principal, "access.grant.revoke", grant_id, decision="denied", reason="no_binding", request_id=request_id)
@@ -765,9 +797,7 @@ def rotate(db: Database, principal: Principal, grant_id: str, revision: int, req
     """CR 4.1.4: Arx cannot resend a code it does not have - a "resend" is a rotation (a new PIN replaces the old one in the same
     write), by an approver-level principal, within the per-grant cap (3 sends in total)."""
     with db.connection(label="access_grants.rotate") as conn:
-        g = grant_row(conn, grant_id)
-        if g is None:
-            raise _not_found()
+        g = _visible_or_404(conn, principal, grant_id)
         if not _interactive(principal):
             raise ApiError(403, "access_grant_interactive_only", "החלפת קוד אפשרית רק ממסך מחובר של אדם.")
         stations = stations_of(json.loads(g["doors_json"] or "{}"))
@@ -809,9 +839,7 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
 def provision_now(db: Database, principal: Principal, grant_id: str, request_id: str | None = None) -> dict[str, Any]:
     """E1: "provision now" for an approved grant (a configuration write with a revision check - never a physical command)."""
     with db.connection(label="access_grants.provision_now") as conn:
-        g = grant_row(conn, grant_id)
-        if g is None:
-            raise _not_found()
+        g = _visible_or_404(conn, principal, grant_id)
         stations = stations_of(json.loads(g["doors_json"] or "{}"))
         if not holds_somewhere(conn, principal, PERMISSION, stations):
             raise forbidden(permission=PERMISSION, target_type=STATION, target_id=(stations or ["*"])[0], reason="no_binding")
@@ -1387,7 +1415,11 @@ class Worker:
                 if cur is not None:
                     _touch(conn, g["id"], {"wiskey_revision": person.revision})
                 return False
-            _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "provision_after": None})
+            # HARDEN271 K4: an amendment approved (or merged) while this write was out changed the row - WisKey holds the snapshot
+            # applied above, so the row's own scope is pushed next (push_narrowing pushes whatever the row holds)
+            moved = Scope.of_row(cur) != scope
+            _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "provision_after": None,
+                                   "needs_push": 1 if moved else cur["needs_push"]})
             _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, stations=stations_of(scope.doors))
         return True
 

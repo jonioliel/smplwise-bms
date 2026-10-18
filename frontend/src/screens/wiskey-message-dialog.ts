@@ -544,8 +544,8 @@ export class WiskeyMessageDialog extends LitElement {
       line = html`<div class="line wait" role="status" data-msg-line="sending"><sw-icon name="refresh" size=${16}></sw-icon><span>${this.stopping ? pt('msg.stopping') : pt('msg.sending_n', { done: this.progress[0], total: this.progress[1] })}</span></div>`;
     } else if (done) {
       const s = bulkSummary(done);
-      const tone = s.failed || s.unknown ? 'warn' : 'ok';
-      line = html`<div class="line ${tone}" role="status" data-msg-line="bulk-done" data-msg-tone=${tone}><sw-icon name="check" size=${16}></sw-icon><span>${pt('msg.bulk_done', { sent: s.sent, failed: (s.failed ? pt('msg.bulk_failed', { n: s.failed }) : '') + (s.unknown ? pt('msg.bulk_unknown', { n: s.unknown }) : '') })}</span></div>`;
+      const tone = s.failed || s.unknown || s.held ? 'warn' : 'ok';
+      line = html`<div class="line ${tone}" role="status" data-msg-line="bulk-done" data-msg-tone=${tone}><sw-icon name="check" size=${16}></sw-icon><span>${pt('msg.bulk_done', { sent: s.sent, failed: (s.held ? pt('msg.bulk_held', { n: s.held }) : '') + (s.failed ? pt('msg.bulk_failed', { n: s.failed }) : '') + (s.unknown ? pt('msg.bulk_unknown', { n: s.unknown }) : '') })}</span></div>`;
     } else if (this.confirming) {
       line = html`<div class="line warn" role="alert" data-msg-line="confirm"><sw-icon name="warning" size=${16}></sw-icon><span>${pt('msg.confirm_bulk', { n: plan.send.length })}</span></div>`;
     } else if (plan.tooMany) {

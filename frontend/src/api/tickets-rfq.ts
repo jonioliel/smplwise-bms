@@ -465,7 +465,9 @@ export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string;
   /** RFQQUESTIONS: an outbound message that answers a question / one copy of an answer to every vendor */
   answers_id?: string | null; to_all?: boolean;
   /** RFQ-VENDOR-UPLOAD (contract 19.10): the files the vendor attached to this question (inbound only; absent on older servers) */
-  files?: RfqVendorFile[] }
+  files?: RfqVendorFile[];
+  /** HARDEN271 (review F1): files attached that this viewer may not see (no tickets.costs.view) - a count only, no id or name */
+  files_hidden?: number }
 export interface RfqMessageAnswer { item: RfqMessage; notified: { queued: boolean; channel: string | null } }
 
 export interface RfqSendAnswer extends RfqDetail { sent?: Record<string, unknown> }

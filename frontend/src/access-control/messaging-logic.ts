@@ -419,9 +419,11 @@ export function orderRows(selected: readonly string[], rows: readonly BulkRow[])
   return selected.map((id) => by.get(id)).filter((r): r is BulkRow => !!r);
 }
 
-/** One line for the run: "N sent" plus, when some were not, how many. */
-export function bulkSummary(out: BulkOutcome): { sent: number; failed: number; unknown: number } {
-  return { sent: out.sent.length, failed: out.rows.filter((r) => r.status === 'failed').length, unknown: out.rows.filter((r) => r.status === 'unknown').length };
+/** One line for the run: "N sent" plus, when some were not, how many. A held message (WA-CONSENT-LINK: waiting for the person's
+ * consent) was NOT sent - it is counted apart, never as sent (HARDEN271). */
+export function bulkSummary(out: BulkOutcome): { sent: number; held: number; failed: number; unknown: number } {
+  const count = (s: BulkRow['status']) => out.rows.filter((r) => r.status === s).length;
+  return { sent: count('sent'), held: count('held'), failed: count('failed'), unknown: count('unknown') };
 }
 
 /** A new id for one bulk run (the server groups the run's records by it; it checks the run's size and that every message is the same). */

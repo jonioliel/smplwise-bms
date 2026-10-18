@@ -160,6 +160,13 @@ def rewrite_contact_names(conn: sqlite3.Connection, contact_id: str, tombstone: 
     """"מחק גם מההיסטוריה" (section 15.2): the frozen names of the person on assignments and timeline rows become the tombstone."""
     conn.execute("UPDATE ticket_assignments SET assignee_name = ? WHERE contact_id = ?", (tombstone, contact_id))
     conn.execute("UPDATE ticket_events SET actor_name = ? WHERE actor_contact_id = ?", (tombstone, contact_id))
+    # HARDEN271 (vendor-upload review F5): the person's name on the RFQ timeline rows of his vendor rows (every vendor event, the two
+    # vendor-file kinds included) and the names he typed for his own files (which may carry his name) - the files' bytes stay, they are
+    # the quote's record; the name becomes the neutral `file.<ext>` of what the content is
+    rows = "SELECT id FROM ticket_rfq_vendors WHERE contact_id = ?"
+    conn.execute(f"UPDATE ticket_rfq_events SET actor_name = ? WHERE actor_kind = 'contact' AND rfq_vendor_id IN ({rows})", (tombstone, contact_id))
+    conn.execute(f"UPDATE ticket_rfq_vendor_files SET name = 'file.' || CASE kind WHEN 'image' THEN 'jpg' ELSE kind END WHERE rfq_vendor_id IN ({rows})",
+                 (contact_id,))
 
 
 def phone_keyed_contacts(conn: sqlite3.Connection) -> list[dict[str, Any]]:

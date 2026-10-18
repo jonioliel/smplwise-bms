@@ -190,7 +190,7 @@ def test_people_manage_alone_or_the_grant_permission_alone_cannot_approve(env):
     bind(env.c, env.settings, "g2", only_manage, "installation", "*")
     gid = env.request().json()["grant"]["id"]
     assert env.approve(gid, user="g1").status_code == 403
-    assert env.approve(gid, user="g2").status_code == 403
+    assert env.approve(gid, user="g2").status_code == 404, "HARDEN271 K2: g2 cannot see the grant (no people.read / grant permission) - the uniform 404"
     assert env.grant(gid)["state"] == "requested"
 
 
@@ -500,7 +500,7 @@ def test_a_revoke_wiskey_does_not_acknowledge_stays_pending_and_is_retried(env):
 def test_revoke_needs_only_one_station_and_a_viewer_cannot(env):
     gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
     bind(env.c, env.settings, "vic2", "viewer", "installation", "*")
-    assert env.post(f"/access-grants/{gid}/revoke", user="vic2").status_code == 403
+    assert env.post(f"/access-grants/{gid}/revoke", user="vic2").status_code == 404, "HARDEN271 K2: a viewer cannot see the grant - the uniform 404"
     rid = env.role("ניהול אנשים עמדה ב", ["access.people.manage"])
     bind(env.c, env.settings, "mgr", rid, "access_control_station", "st-b")
     assert env.post(f"/access-grants/{gid}/revoke", user="mgr").status_code == 200

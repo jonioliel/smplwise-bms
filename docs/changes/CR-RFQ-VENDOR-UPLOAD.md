@@ -128,3 +128,20 @@ thread's rule, because a question is not a price; a vendor could still put price
 
 Revert the branch; drop `ticket_rfq_vendor_file_refs` and `ticket_rfq_vendor_files`; the orphan sweeps then remove the vendor files under
 `<data>/tickets/*/rfq/` that no `ticket_rfq_attachments` row names.
+
+## HARDEN271 (2.7.1, `pilot/HARDEN271`) - Fable review F1, F2, F3, F5 (`private/planning/RELEASE_270_REVIEW_VENDOR_UPLOAD.md`)
+
+Contract 19.10 v1.5.1. Tests negative-first (red on integ/270, green after): `tests/test_harden271_vendor_uploads.py` (F3, F5) and the two
+changed cases of `tests/test_tickets_rfq_vendor_uploads.py` (F1, F2).
+
+- **F1 (owner accepted the recommendation)** - ONE rule: every vendor file, quote or question, needs `tickets.costs.view` on the request
+  (`rfq_vendor_files.sees_request_files`). The download route decides it before reading the row (the same audited 403 for any id). The
+  thread and the pending questions give a viewer without it `files: []` and `files_hidden` (a count); the manager's thread dialog shows
+  "צורף קובץ" for it. The old test that let `tom` read a question file now expects 403.
+- **F2** - the per-network `rfq_upload` window is checked at admission for a well-formed token only and spent in `RequestCost.body_phase`
+  (a real upload body); widened to 30 / 10 min + 90 / h. The per-link 12 / h budget is unchanged.
+- **F3 (cheap part)** - a file bound to a question clears its `answered_at` / `read_at` (`store_rfq.reopen_question_for_file`): it is pending
+  and unread again, so the badge, the pending card and the thread show it.
+- **F5** - `store_links.rewrite_contact_names` (erase "also from the history") also rewrites `ticket_rfq_events.actor_name` of the contact's
+  vendor rows and sets his files' names to `file.<ext>` (the bytes stay).
+- Not changed: F4 (office-scan semaphore, only with `allow_office`), F6 / F9 (later), F7 / F8 (records).

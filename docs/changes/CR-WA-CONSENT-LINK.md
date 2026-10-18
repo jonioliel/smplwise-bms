@@ -185,3 +185,21 @@ template / free-text rules) is untouched - the consent text is code-owned and ne
   the page writes the opt-out row by record only (the public listener does not have the number); the number-based match applies once a staff
   opt-out of the same number exists.
 - Migration renumbered: provisional 0116 -> **0113** (WA-SEND-FIX's 0117 -> 0114).
+
+## 11. HARDEN271 (2.7.1, `pilot/HARDEN271`) - review residuals
+
+Tests: `tests/test_harden271_consent.py` (5 cases, all red on integ/270 before the change) + `frontend/tests/unit-messaging-logic.spec.ts`.
+
+- **One live request per person** - `create_request()` repeats `plan()` inside the write transaction that inserts (SQLite serialises the
+  writers), raising `ConsentRaced`; the send path withdraws its attempt record (`not_sent`, reason `consent_race`), sends nothing and
+  answers 409 `message_consent_pending` (or `message_consent_recently_requested`). A transactional guard, no migration.
+- **Bulk summary** - `bulkSummary()` counts `held` apart (`{sent, held, failed, unknown}`); the dialog line says how many wait for the
+  person's approval and is a warning, never "sent".
+- **C2** - the releaser builds the sender through `sender_principal()` (explicit `factor_ok = False`); `RELEASE_PERMISSIONS` must stay
+  disjoint from `rbac.LOCAL_ADMIN_PERMISSIONS` (pinned by a test); a build where they meet keeps the held message `due` (retry
+  `factor_unavailable`, logged) instead of dropping it `forbidden`.
+- **C3** - a decline writes the opt-out row with `by_user_id = "~consent"` (`OPTOUT_BY_ID`, never a user id, never NULL); the person's tab
+  still shows "קישור הסכמה" and an administrator can clear it (tested).
+- Backups: the whole `access.messaging` document (messaging switch, caps, send hours, `consent_by_link`) and `access.messaging.phone_key` are
+  in `backup.SETTINGS_KEEP`.
+- Still open before enabling: the real WhatsApp delivery check outside the 24-hour window and the template send (WisKey W11).

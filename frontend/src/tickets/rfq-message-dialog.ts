@@ -43,6 +43,8 @@ export class TicketsRfqMessageDialog extends LitElement {
   private files(m: RfqMessage) {
     const url = ticketsRfqApi().vendorFileUrl;
     const list = (m.files ?? []).filter((f) => !f.removed);
+    // HARDEN271 (review F1): without tickets.costs.view the server sends no file, only that one is attached
+    if (!list.length && (m.files_hidden ?? 0) > 0) return html`<small data-rfq-question-files-hidden>${rt('vendorFileAttached')}</small>`;
     if (!list.length || !url || !this.rfq) return nothing;
     const rid = this.rfq.id;
     return html`<small data-rfq-question-files>${rt('rowVendorFiles')}: ${list.map((f, i) => html`${i ? ', ' : ''}<a href=${url(rid, f.id)} download

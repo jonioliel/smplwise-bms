@@ -50,6 +50,7 @@ TEMPLATE_LABEL = "בקשת הסכמה"
 URL_MARK = "c."  # `#c.<token>` - '.' is not a base64url character, so a consent fragment is never a ticket token
 TOKEN_DOMAIN = "wac"
 OPTOUT_BY = "קישור הסכמה"  # the opt-out row's "by" when the PERSON declined on the consent page
+OPTOUT_BY_ID = "~consent"  # ... and its `by_user_id` (HARDEN271, review C3): '~' is never in a user id, so no join can mistake it for one
 AUDIT_REQUEST = "intercom.person.consent_request"
 AUDIT_ANSWER = "intercom.person.consent_answer"
 AUDIT_HELD = "intercom.person.message_held"
@@ -241,12 +242,27 @@ def hold(conn: sqlite3.Connection, *, request: dict[str, Any], principal: Any, p
     return held_id, False
 
 
+class ConsentRaced(Exception):
+    """Another send created (or recently sent) this person's consent request between `plan()` and the insert."""
+
+    def __init__(self, kind: str, row: dict[str, Any] | None) -> None:
+        super().__init__(kind)
+        self.kind = kind
+        self.row = row
+
+
 def create_request(conn: sqlite3.Connection, *, principal: Any, person_id: str, message_id: str, cfg: dict[str, Any], request_id: str | None,
                    now: datetime) -> dict[str, Any]:
     """A new consent request row (state `sending`) under the current module key. The caller holds the write transaction."""
     from .tickets import links
     from .tickets.keyring import KEYS
 
+    # HARDEN271 (review residual): never a second live consent request per person. `plan()` ran in an earlier transaction, so two sends to
+    # the same `unknown` person could both see "new"; the check is repeated here, inside the write transaction that inserts (SQLite holds
+    # the write lock from the first statement: the two inserts are serialised and the second one sees the first).
+    kind, existing = plan(conn, person_id, now)
+    if kind != "new":
+        raise ConsentRaced(kind, existing)
     key_id, key = KEYS.current(create=False)
     rid = new_request_id()
     token = links.derive_token(key, rid, 1, domain=TOKEN_DOMAIN)
@@ -322,8 +338,9 @@ def answer(conn: sqlite3.Connection, token_hash: str, choice: str, now: datetime
         released = conn.execute("UPDATE intercom_held_messages SET state = 'due' WHERE consent_request_id = ? AND state = 'held'", (row["id"],)).rowcount
     else:
         # the opt-out list keeps its meaning: a decline on the page is exactly "asked not to be messaged" (an administrator may clear it)
-        conn.execute("INSERT INTO intercom_message_optout(person_id, at, by_user_id, by_name) VALUES (?, ?, NULL, ?) ON CONFLICT(person_id) DO NOTHING",
-                     (row["person_id"], stamp, OPTOUT_BY))
+        # HARDEN271 (review C3): the row names who set it - the person, through the consent link (OPTOUT_BY_ID, never a user id) - not NULL
+        conn.execute("INSERT INTO intercom_message_optout(person_id, at, by_user_id, by_name) VALUES (?, ?, ?, ?) ON CONFLICT(person_id) DO NOTHING",
+                     (row["person_id"], stamp, OPTOUT_BY_ID, OPTOUT_BY))
         conn.execute("DELETE FROM intercom_consent WHERE person_id = ?", (row["person_id"],))
         dropped = drop_held(conn, row["id"], "declined", now)
     _audit(conn, AUDIT_ANSWER, row["person_id"], {"consent_request_id": row["id"], "answer": state, "notice_version": NOTICE_VERSION,
@@ -432,10 +449,30 @@ def _age_days(stamp: str, now: datetime) -> float:
         return 0.0
 
 
+RELEASE_PERMISSIONS = ("access.people.message", "access.people.read", "access.people.sensitive")  # what the release re-checks (may_message, person_level_of)
+
+
+def sender_principal(row: dict[str, Any], Principal: Any) -> Any:
+    """The held message's sender, rebuilt without a session (HARDEN271, review C2). `factor_ok` is False: there is no interactive second
+    factor at release time. That is correct ONLY while no permission the release re-checks is in rbac.LOCAL_ADMIN_PERMISSIONS (the
+    local-identity factor gate) - otherwise every Arx-only sender's held message would be dropped `forbidden`. The release therefore
+    refuses to run on such a build (fail closed, loud), and tests/test_harden271_consent.py pins the set."""
+    from ..rbac import LOCAL_ADMIN_PERMISSIONS
+
+    clash = sorted(set(RELEASE_PERMISSIONS) & set(LOCAL_ADMIN_PERMISSIONS))
+    if clash:
+        raise RuntimeError(f"held-message release needs a stored second factor for {clash}")
+    return Principal(user_id=row["actor_user_id"], username=row["actor_username"] or row["actor_user_id"], display_name=row["actor_name"] or "",
+                     source=row["actor_source"] or "ingress", factor_ok=False)
+
+
 def _release_one(db: Database, settings: Any, row: dict[str, Any], ApiError: Any, Principal: Any, ia: Any, MESSAGING: Any) -> tuple[str, str | None, str | None]:
     """(released | dropped | retry, reason, message id) for one held message."""
-    principal = Principal(user_id=row["actor_user_id"], username=row["actor_username"] or row["actor_user_id"], display_name=row["actor_name"] or "",
-                          source=row["actor_source"] or "ingress")
+    try:
+        principal = sender_principal(row, Principal)
+    except RuntimeError:
+        log.error("intercom consent: held message %s waits - the release cannot prove the sender's second factor", str(row.get("id"))[:8])
+        return "retry", "factor_unavailable", None
     with db.connection(mode="read", label="intercom consent release") as conn:
         cfg = M.read_settings(conn)
         if not cfg["enabled"]:
