@@ -1,6 +1,7 @@
 # CR-INFRA-ELEVATORS - Elevators under Infrastructure
 
-Status: implemented on `pilot/ELEVATORS` (from `integ/271`), not released. Owner request 2026-10-18: define elevators under
+Status: basic infrastructure released in 2.7.2 (migration 0118). **2.8.0 full feature on `pilot/ELEVATORS280` (section 9, migration
+0120), not released.** Sections 1-8 describe the 2.7.x basis; where section 9 supersedes a decision it says so. Owner request 2026-10-18: define elevators under
 Infrastructure, link the binary sensors his home-platform integration exposes per elevator, and see their status on the
 Infrastructure screen and on the home screen. Budget: small; reuse existing patterns, no new design language, no mockup round.
 
@@ -93,3 +94,43 @@ Labels: `infra.elevators.manage` = "ניהול מעליות: הגדרה וקיש
 - Backend `smplwise_vms/backend/tests/test_infra_elevators.py`: invalid / non-binary / missing / removed / duplicate sensors, unknown role, extras limit and label, missing area, duplicate names, permission matrix (viewer / operator / site_admin / kiosk), uniform 404 (missing, disabled, invisible), the derivation table (incl. conflict, partial, unavailable / unknown, stale mirror), the floor-scope rule, extras without ids, reorder / revision / delete, audit rows ids only, the permission registered for admins only.
 - Frontend node-only `frontend/tests/unit-elevators.spec.ts`: chip per state, stale = unknown, home tiles (none / per elevator / summary / loudest tone / stale), the dialog draft checks and round trip, reorder, the strings (en complete, ar/ru dev-marked, no branding), the tab gate.
 - `frontend/tests/evidence-elevators.spec.ts`: written, not run (needs a preview server).
+
+## 9. 2.8.0 - the full feature (owner-approved mockup `elevators-full-mockup.html`, owner decisions 2026-10-18)
+
+Owner decisions: a designed Infrastructure screen with door icons; a SEPARATE home widget in three sizes (10b) placed and sized in the home
+edit mode; a strong, clearly distinct colour for out of service / shutdown (9a); a ready notification mechanism with ONE default recipient
+policy (choosing recipients comes later, no selection UI now); the installation has NO up / down sensors, so no direction is shown anywhere.
+Owner feedback (same day, through the coordinator): the 2.7.x KPI-row cards ("one small card per elevator") looked bad and could not be
+controlled - the owner must choose WHAT is shown and WHERE: one card per elevator, ONE combined card, or both; per-elevator include /
+exclude; placement and size via the edit mode; persisted for the installation and, optionally, per user.
+
+### 9.1 Decisions
+
+| # | Decision | Supersedes |
+|---|----------|------------|
+| E1 | Migration **0120** (0119 is reserved for another branch): `infra_elevator_states` (history) and `infra_elevator_alerts` (notification memory). The runner applies every unrecorded file in order, so a later 0119 still runs. | - |
+| E2 | `services/elevators_runtime.py`: one read-only thread, every 15 s (env `SW_ELEVATORS=0` turns it off). History row on every derived-state change (the deciding sensor's `last_changed`, normalised to `...Z`); while the mirror is disconnected the elevator is recorded `unknown`. Hourly prune keeps 8 days (and each elevator's last row before the cutoff). | D1 (history was "never stored") |
+| E3 | Notifications: sources `elevator.fire_service` (critical, push), `elevator.fault` (alert, push), `elevator.out_of_service` (info, inbox only); category `device_faults`; WhatsApp / e-mail off. Each role is judged on its OWN sensor (a fault masked on screen by fire service keeps its notification). Hold 0 / 30 / 30 s; raised once (memory row), resolved on live off, unlinking, disable or delete; a dead sensor or a disconnected mirror changes nothing. | D8 |
+| E4 | Recipients: ONE default policy - rule `managers` (notify.manage holders) intersected with visibility. New subject kind `elevator`: visible to exactly who sees the elevator (devices.read on at least one of its sensors, D3). The administrator can still edit the policy in the generic notification settings; an elevator-specific recipient picker is NOT built (owner: later). | - |
+| E5 | `GET /infra/elevators?history=24` adds per-elevator segments `[{state, from, to}]`; only for a caller who sees ALL of the elevator's sensors (the history is derived from every sensor), `null` otherwise. Every item carries `flags` (the visible roles' live values) for the sensor lights. | - |
+| E6 | No direction: the frontend shows `moving_up` / `moving_down` as "פעילה" without an arrow; the settings dialog offers waiting / fault / fire service / shutdown and a line "עולה / יורדת / דלת פתוחה / קומה - לא מוגדר (אפשר להוסיף בעתיד)"; a role an elevator already links stays offered. The server derivation is unchanged (section 3). | - |
+| E7 | State looks (`elevators/styles.ts`, `--sw-el-*`, solid fills under white text, >= 4.5:1): waiting green, in operation blue (doors slightly open), fault red, **out of service strong orange with a striped edge / square dot** (shape, not only colour), fire service crimson and pulsing (stops under reduced motion), unknown grey. | D9 tones on the new surfaces |
+| E8 | Home: widget `elevators` in the home widget configuration (`home.widgets`): `mode` combined / cards / both, `hidden` (elevator ids, <= 50), `filter` all / alerts; sizes s / m / l per direction like every widget. Drawn only when the viewer sees at least one elevator (absent otherwise, no ghost in edit mode). The 2.7.x KPI-row tiles are removed from the home screen. A user holding `screen.personalize` may store his own `mode` and `hidden` (`home.personal.widgets.elevators`). | D5 |
+| E9 | Settings › תשתיות › מעליות gains "תצוגה במסך הראשי" (widget on/off, mode, default size for every direction, filter, included elevators, link to the home edit mode) for `system.configure` holders (the home settings' permission); others see one line saying so. | - |
+
+### 9.2 Built vs the mockup
+
+Built: the Infrastructure screen (title, "+ מעלית חדשה", KPI row, cards with door icon / badge / sensor lights / 24-hour bar / "מלפני ...",
+the add card); the home widget in three sizes and three modes; edit-mode placement and sizing; the settings card and the display card.
+Changed from the mockup: the mockup's separate "summary tiles row" is replaced by the widget's `cards` mode (owner feedback); the emoji
+glyphs are product icons; the door LED is shown faded ("not linked") as in the mockup. Not built: an elevator-specific recipient picker
+(owner: later); floor display (no sensor); a longer history range than 24 h (8 days are kept for it).
+
+### 9.3 Tests
+
+- Backend: `tests/test_infra_elevators_280.py` (notification hold / once / dead sensor / disconnected / per-role / unlink / disable / delete /
+  restart memory / default recipients / visibility rule / catalogue; history transitions, normalised instants, segments, prune, `?history`
+  refusal and partial-visibility hiding, flags); `tests/test_home_config.py` (widget validation, personal override).
+- Frontend node-only: `tests/unit-elevators.spec.ts` (looks, no direction, KPIs, lights, bar, relative times, widget view, config, personal).
+- `tests/evidence-elevators.spec.ts` (desktop + mobile, light + dark) run against a local Vite dev server with mocked routes; screenshots in
+  `docs/evidence/elevators/`. The home widget has no committed browser spec yet (checked once in a throwaway harness).

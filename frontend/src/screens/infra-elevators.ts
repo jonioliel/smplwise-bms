@@ -83,6 +83,12 @@ export class InfraElevators extends LitElement {
       color: var(--sw-text-2); text-decoration: none; text-align: center; padding: 16px;
     }
     .add b { display: block; font-size: calc(var(--sw-fs-3xl) * 1.3); color: var(--sw-accent); line-height: 1; }
+    @media (max-width: 600px) {
+      /* the title first, the button under it: the top start corner belongs to the floating search */
+      .top { flex-direction: column; align-items: stretch; }
+      .top .sp { display: none; }
+      .new { align-self: flex-start; }
+    }
     @media (max-width: 420px) {
       .body { gap: 12px; }
     }
@@ -157,7 +163,8 @@ export class InfraElevators extends LitElement {
       ${stale ? html`<sw-badge kind="stale" label=${elt('stale')} data-elevators-stale></sw-badge>` : nothing}
       ${manage ? html`<a class="new" href=${ELEVATORS_SETTINGS_HREF} data-elevators-new><sw-icon name="plus" size="16"></sw-icon>${elt('newElevator')}</a>` : nothing}</div>`;
     if (!list.length) {
-      return html`${l1}${top}${manage
+      // no elevators: no Infrastructure tab strip (the module is absent until one is defined); a manager still gets the way to add one
+      return html`${top}${manage
         ? html`<div class="grid"><a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add data-state="empty"><div><b>+</b>${elt('addCard')}</div></a></div>`
         : html`<sw-state-panel state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`}`;
     }
