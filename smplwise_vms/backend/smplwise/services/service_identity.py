@@ -225,7 +225,8 @@ def candidate_refusal(conn: sqlite3.Connection, user_id: str) -> str | None:
 
 
 def extended_requested(conn: sqlite3.Connection) -> bool:
-    """The add-on's switch `security.local_identity_extended` (off by default; a system administrator, local channel only, audited)."""
+    """The add-on's switch `security.local_identity_extended` (off by default; a system administrator, audited; ON from the local channel
+    only, OFF from either channel - SVCIDENT-AMEND273, owner decision 5 of 2026-10-18)."""
     try:
         return (get_setting(conn, EXTENDED_SETTING) or "off") == "on"
     except sqlite3.OperationalError:
@@ -473,6 +474,31 @@ def configure_runnable(conn: sqlite3.Connection, principal: Principal, value: An
     audit(conn, actor=principal, action="identity.service_identity.runnable", decision="allowed", resource_type="installation", resource_id="service_identity",
           request_id=request_id, details={"added": sorted(set(ids) - before), "removed": sorted(before - set(ids)), "count": len(ids)})
     return status(conn)
+
+
+def kill_switch(conn: sqlite3.Connection, principal: Principal, *, turn_off: bool, clear_runnable: bool, channel: str,
+                request_id: str | None) -> dict[str, Any]:
+    """SVCIDENT-AMEND273 (owner decision 5 of 2026-10-18; go-live pack R7): the kill switch - turn the add-on's extended switch OFF and / or
+    empty the add-on's runnable allowlist, from either channel (the route checks the system administrator). It can only REMOVE authority:
+    there is no argument that turns anything on or adds an id. Each actual change writes the same audit row as the local path
+    (`identity.service_identity.extended_switch`, `identity.service_identity.runnable`); one `identity.service_identity.kill_switch` row
+    sums it up. The answer names counts and the switch state only - never the service identity's configuration."""
+    turned_off = False
+    if turn_off and extended_requested(conn):
+        set_setting(conn, EXTENDED_SETTING, "off")
+        audit(conn, actor=principal, action="identity.service_identity.extended_switch", decision="allowed", resource_type="installation",
+              resource_id="service_identity", request_id=request_id, details={"from": "on", "to": "off", "channel": channel, "via": "kill_switch"})
+        turned_off = True
+    cleared = 0
+    if clear_runnable:
+        before = runnable_ids(conn)
+        if before or get_setting(conn, RUNNABLE_SETTING) not in (None, "[]"):  # a malformed stored value is replaced by the empty list too
+            configure_runnable(conn, principal, [], request_id)
+        cleared = len(before)
+    audit(conn, actor=principal, action="identity.service_identity.kill_switch", decision="allowed", resource_type="installation",
+          resource_id="service_identity", request_id=request_id,
+          details={"turn_off": turn_off, "clear_runnable": clear_runnable, "turned_off": turned_off, "cleared": cleared, "channel": channel})
+    return {"extended": "on" if extended_requested(conn) else "off", "runnable_count": len(runnable_ids(conn)), "turned_off": turned_off, "cleared": cleared}
 
 
 def _audit_item(item: Any) -> Any:
