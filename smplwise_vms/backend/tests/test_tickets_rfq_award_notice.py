@@ -574,3 +574,99 @@ def test_the_hard_cap_and_a_done_job_shorten_it(s4, monkeypatch):
     base = _link(s4, v2)["expires_at"]  # same deadline, same mint time (within the test): the ordinary expiry
     assert abs((dt.datetime.fromisoformat(_link(s4, v1)["expires_at"].replace("Z", "+00:00"))
                 - dt.datetime.fromisoformat(base.replace("Z", "+00:00"))).total_seconds()) < 120
+
+
+# ================================================================ release 2.7.1 review fixes (A1, A3, A5)
+
+def _pending_ticked(s4, settings):
+    bind(s4.c, settings, "lea", "system_admin", "installation", "*")
+    assert s4.c.put(f"{API}/tickets/rfqs/departments/dept-maintenance", json={"second_approval_minor": 100}).status_code == 200
+    d, v1, tok, c, body = awarded(s4, award_notice=True)
+    assert body["award"]["state"] == "pending_second"
+    return d, v1, body["award"]
+
+
+def test_an_inherited_tick_never_blocks_the_second_approval_review_a1(s4, settings):
+    d, v1, a = _pending_ticked(s4, settings)
+    assert s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{v1}/link/revoke", headers=s4.h("mona")).status_code == 200
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/confirm", json={"revision": a["revision"]}, headers=s4.h("lea"))
+    assert r.status_code == 200, r.text  # was 409 award_notice_unavailable: the award stayed pending for ever
+    assert r.json()["award"]["state"] == "approved"
+    n = r.json()["award_notice"]
+    assert n["queued"] is False and n["reason"] == "link" and notices(s4, d["id"]) == []
+    ev = events(s4, d["id"], "award_notice")
+    assert len(ev) == 1 and ev[0]["data"]["queued"] is False and ev[0]["data"]["via"] == "confirm"
+    assert detail(s4, d["id"], "kim")["awards"][0]["notice"]["state"] == "not_sent"
+
+
+def test_an_inherited_tick_on_an_expired_link_never_blocks_the_second_approval_review_a1(s4, settings):
+    d, v1, a = _pending_ticked(s4, settings)
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_rfq_links SET expires_at = ? WHERE id = ?", (_at(-1), _link(s4, v1)["id"]))
+    p = s4.c.get(f"{API}/tickets/rfqs/{d['id']}/vendors/{v1}/award-notice", headers=s4.h("kim")).json()
+    assert p["refusals"] == ["link"]
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/confirm", json={"revision": a["revision"]}, headers=s4.h("lea"))
+    assert r.status_code == 200 and r.json()["award"]["state"] == "approved", r.text
+
+
+def test_an_explicit_tick_on_the_confirm_is_still_checked_review_a1(s4, settings):
+    d, v1, a = _pending_ticked(s4, settings)
+    assert s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{v1}/link/revoke", headers=s4.h("mona")).status_code == 200
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/confirm", json={"revision": a["revision"], "award_notice": True},
+                  headers=s4.h("lea"))
+    assert r.status_code == 409 and r.json()["code"] == "award_notice_unavailable" and r.json()["details"]["reason"] == "link", r.text
+    assert rows(s4, "SELECT state FROM ticket_rfq_awards WHERE id = ?", a["id"]) == [{"state": "pending_second"}]
+
+
+def test_an_outbox_failure_never_breaks_the_award_review_a3(s4, monkeypatch):
+    from smplwise.services.tickets import rfq
+
+    real = rfq._enqueue
+
+    def broken(conn, **kw):
+        real(conn, **kw)  # the outbox row is written, then the runtime fails: the savepoint takes the row back
+        raise RuntimeError("template render failed")
+
+    mode(s4, "auto")
+    d, v1, tok, c = quoted(s4)  # the invitations go out normally
+    monkeypatch.setattr(rfq, "_enqueue", broken)
+    r = award(s4, d["id"], v1)
+    assert r.status_code == 201, r.text  # before the fix: the exception refused the award
+    body = r.json()
+    assert body["award"]["state"] == "approved"
+    assert body["award_notice"]["queued"] is False and body["award_notice"]["reason"] == "outbox"
+    assert notices(s4, d["id"]) == []
+    ev = events(s4, d["id"], "award_notice")
+    assert len(ev) == 1 and ev[0]["data"]["reason"] == "outbox"
+    monkeypatch.setattr(rfq, "_enqueue", real)  # the later send still works
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{body['award']['id']}/notice", headers=s4.h("kim"))
+    assert r.status_code == 200 and r.json()["award_notice"]["queued"] is True, r.text
+
+
+def test_a_lowered_keep_days_does_not_shorten_an_awarded_link_with_nothing_scheduled_review_a5(s4, monkeypatch):
+    from smplwise.services.tickets import rfq_links
+
+    d, v1, v2, t1, t2 = _long_job(s4, 60)
+    monkeypatch.setattr(rfq_links, "award_until", lambda conn, rfq, award: None)  # nothing scheduled
+    assert award(s4, d["id"], v1).status_code == 201
+    minted = _link(s4, v1)
+    monkeypatch.setattr(rfq_links, "keep_days", lambda conn: 5)  # the installation lowered `link_keep_days` after the mint
+    with s4.db.connection() as conn:
+        assert rfq_links.sync_all_awarded(conn) == 0
+    assert (_link(s4, v1)["expires_at"], _link(s4, v1)["cap_at"]) == (minted["expires_at"], minted["cap_at"])
+
+
+def test_a_lifetime_this_module_gave_is_still_taken_back_when_nothing_is_scheduled_review_a5(s4, monkeypatch):
+    from smplwise.services.tickets import rfq_links
+
+    d, v1, v2, t1, t2 = _long_job(s4, 300)
+    assert award(s4, d["id"], v1).status_code == 201
+    ext = _link(s4, v1)
+    created = dt.datetime.fromisoformat(ext["created_at"].replace("Z", "+00:00"))
+    assert ext["expires_at"] > (created + dt.timedelta(days=rfq_links.CAP_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")  # past the mint cap
+    monkeypatch.setattr(rfq_links, "award_until", lambda conn, rfq, award: None)  # the schedule is gone
+    with s4.db.connection() as conn:
+        assert rfq_links.sync_all_awarded(conn) == 1
+    back = _link(s4, v1)
+    assert abs((dt.datetime.fromisoformat(back["expires_at"].replace("Z", "+00:00"))
+                - dt.datetime.fromisoformat(_link(s4, v2)["expires_at"].replace("Z", "+00:00"))).total_seconds()) < 120

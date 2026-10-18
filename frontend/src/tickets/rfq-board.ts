@@ -74,6 +74,8 @@ export class TicketsRfqBoard extends LitElement {
   @state() private sendNav = false;
   @state() private contacts: Contact[] | null = null;
   @state() private picks = new Set<string>();
+  /** CR-AWARD-NOTICE review A1: the second approver's notice tick per pending award (absent = the first approver's tick, inherited) */
+  @state() private secondNotice = new Map<string, boolean>();
   /** TKRFQVP: vendors whose code the directory demands (the server answered 409 vendor_code_locked): the off-switch is disabled */
   @state() private codeLocked = new Set<string>();
   @state() private codeBusy = '';
@@ -213,7 +215,23 @@ export class TicketsRfqBoard extends LitElement {
 
   private async confirmSecond(a: RfqAward): Promise<void> {
     const d = this.d as RfqDetail;
-    await this.run(async () => (await ticketsRfqApi().confirmAward(d.id, a.id, a.revision)).rfq, rt('secondConfirmed'));
+    // Review A1: the inherited tick is sent as SILENCE (the server records an unreachable vendor instead of refusing the approval);
+    // only the second approver's own change is explicit.
+    const own = this.secondNotice.get(a.id);
+    const flag = own === undefined || own === !!a.notice?.requested ? undefined : own;
+    const ok = await this.run(async () => (await ticketsRfqApi().confirmAward(d.id, a.id, a.revision, flag)).rfq, rt('secondConfirmed'));
+    if (ok) { const n = new Map(this.secondNotice); n.delete(a.id); this.secondNotice = n; }
+  }
+
+  /** The pending award's notice tick (confirm mode): the first approver's choice, which the second approver may change. */
+  private secondNoticeTick(a: RfqAward): TemplateResult | typeof nothing {
+    const n = a.notice;
+    if (!n || n.mode !== 'confirm') return nothing;
+    const on = this.secondNotice.get(a.id) ?? !!n.requested;
+    const set = (v: boolean) => { const m = new Map(this.secondNotice); m.set(a.id, v); this.secondNotice = m; };
+    return html`<label class="chk" data-rfq-second-notice><input type="checkbox" data-rfq-second-notice-send .checked=${on} ?disabled=${this.busy}
+        @change=${(e: Event) => set((e.target as HTMLInputElement).checked)} />${rt('anSecondSend')}</label>
+      ${on && n.requested ? html`<small>${rt('anSecondNote')}</small>` : nothing}`;
   }
 
   // ---------------------------------------------------------------- parts
@@ -266,6 +284,7 @@ export class TicketsRfqBoard extends LitElement {
       ${pending ? html`<div class="banner warn" role="status" data-rfq-pending-second>${tIcon('clock')}
         <div><b>${rt('pendingSecond')}</b><small>${rt('pendingSecondLong', { name: this.vendorName(pending.vendor_id), amount: this.money(pending.total_minor, pending.currency) })}</small></div>
         ${d.can.see_amounts && this.meta && this.mayDecide(d) ? html`<div class="rowacts">
+          ${this.secondNoticeTick(pending)}
           <button type="button" class="btn sm primary" data-rfq-second-confirm ?disabled=${this.busy} @click=${() => void this.confirmSecond(pending)}>${tIcon('check')}${rt('confirmSecond')}</button>
           <button type="button" class="btn sm" data-rfq-second-decline ?disabled=${this.busy} @click=${() => this.open({ kind: 'second-decline', a: pending })}>${rt('declineSecond')}</button></div>` : nothing}
       </div>` : nothing}

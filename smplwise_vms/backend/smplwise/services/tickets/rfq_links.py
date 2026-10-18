@@ -176,7 +176,10 @@ def sync_awarded(conn, rfq_id: str) -> int:
             cap = min(max(base_cap, exp), hard)
         elif rfq["state"] in ("closed", "cancelled"):
             continue  # an ended request: its read-only grace ends the access whatever the expiry says (grace_until, fold / state)
-        elif stored_exp > base_exp:  # it was extended and no longer is (he is no longer awarded): back to the rule
+        elif stored_exp > base_exp and (v.get("state") != "awarded" or stored_exp > base_cap):
+            # it was extended and no longer is: back to the rule. Review A5: while he is still awarded with nothing scheduled, only a
+            # lifetime this module gave (past the mint cap - the mint rule never goes there) is shortened; a link minted under a longer
+            # `link_keep_days` keeps its stored expiry, like every other link of the installation.
             exp, cap = base_exp, base_cap
         else:
             continue

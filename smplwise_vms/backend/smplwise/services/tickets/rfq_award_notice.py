@@ -14,7 +14,9 @@ that it is APPROVED and BINDING, and that it is his duty to notify IN ADVANCE, t
     once      ONE notice per award: outbox idempotency key `rfqaward:<award_id>` + the RFQ timeline row `award_notice` (the later
               send route answers `already: true` and queues nothing).
     second    an award waiting for a second approval sends nothing; the first approver's tick is remembered on the `award_pending`
-              timeline row and is the default of the second approver's confirm (who may change it).
+              timeline row and is the default of the second approver's confirm (who may change it). An INHERITED tick never refuses
+              the confirm (review A1): an unreachable vendor is recorded (`queued: false`, reason) and the later send stays available;
+              only an explicit `award_notice: true` in the confirm body is checked (409 `award_notice_unavailable`).
     clock     a queued notice tells the vendor: it starts the arrival-confirmation clock of the payment-schedule terms (20.7), like an
               award-sourced thread message.
 Audit `ticket.rfq.award_notice`: ids, mode, channel, queued - never a text."""
@@ -22,11 +24,14 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 from typing import Any, Mapping
 
 from . import message_templates as mt
 from . import rfq_links, rfq_terms, settings_doc, store_links, store_rfq
 from .costs import iso
+
+log = logging.getLogger("smplwise.tickets.rfq")
 
 MODES = ("confirm", "auto", "off")
 IDEM = "rfqaward:{award_id}"
@@ -156,7 +161,8 @@ def want(conn, flag: bool | None) -> bool | None:
 def check(conn, row: Mapping[str, Any], v: Mapping[str, Any], wanted: bool, now: dt.datetime) -> None:
     """In `confirm` mode a ticked notice that cannot go now is refused BEFORE the award writes anything (409 `award_notice_unavailable`,
     `details.reason`) - the dialog's preview already showed why, so the manager unticks or fixes the channel. `auto` never refuses an
-    award: an unreachable vendor is recorded (`award_notice` row, `queued: false`)."""
+    award: an unreachable vendor is recorded (`award_notice` row, `queued: false`). The caller checks only an EXPLICIT tick: the second
+    approval's INHERITED tick never refuses (review A1, `rfq.confirm`)."""
     if not wanted or mode(conn) != "confirm":
         return
     _c, _l, _p, why = reach(conn, row, v, now)
@@ -178,11 +184,20 @@ def send(conn, viewer: Any, row: Mapping[str, Any], award: Mapping[str, Any], no
     oid = None
     if why is None and link is not None and contact:
         lang = contact.get("lang") if contact.get("lang") in mt.LANGS else mt.DEFAULT_LANG
-        oid = rfq._enqueue(conn, purpose="rfq_update", row=row, vendor=v, contact=contact, channel=planned, link_id=link["id"],
-                           requested_by=viewer.uid, idempotency_key=IDEM.format(award_id=award["id"]),
-                           template_id=mt.variant_template_id(mt.AWARD_NOTICE, lang))
+        # Review A3: the notice never breaks the award - an unexpected failure inside the outbox (a template render, a key problem) is
+        # rolled back to this savepoint and recorded as `outbox` (nothing queued) instead of refusing the award's transaction.
+        conn.execute("SAVEPOINT award_notice_enqueue")
+        try:
+            oid = rfq._enqueue(conn, purpose="rfq_update", row=row, vendor=v, contact=contact, channel=planned, link_id=link["id"],
+                               requested_by=viewer.uid, idempotency_key=IDEM.format(award_id=award["id"]),
+                               template_id=mt.variant_template_id(mt.AWARD_NOTICE, lang))
+        except Exception as exc:  # noqa: BLE001 - see above; logged without any text
+            conn.execute("ROLLBACK TO award_notice_enqueue")
+            log.warning("award notice not queued (award %s): %s", award["id"], type(exc).__name__)
+            oid = None
+        conn.execute("RELEASE award_notice_enqueue")
         if oid is None:
-            why = "outbox"  # the messaging runtime is not running: nothing was queued
+            why = "outbox"  # the messaging runtime is not running, or it failed: nothing was queued
     queued = oid is not None
     at = iso(now)
     data: dict[str, Any] = {"award_id": award["id"], "queued": queued, "channel": planned if queued else None, "outbox_id": oid,

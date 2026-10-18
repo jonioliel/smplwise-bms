@@ -1143,10 +1143,12 @@ def confirm(conn, viewer: Viewer, seen: RfqSeen, award_id: str, revision: int, r
     if viewer.uid not in second_approvers(conn, seen.row, a["first_by"], store_quotes.quote(conn, a["quote_id"])):
         raise _err(conn, 409, "second_approver_required")
     row = dict(seen.row)
-    if award_notice is None and rfq_award_notice.mode(conn) == "confirm":
+    explicit = award_notice is not None
+    if not explicit and rfq_award_notice.mode(conn) == "confirm":
         award_notice = rfq_award_notice.requested_on_pending(conn, row["id"], a["id"])
     wanted = rfq_award_notice.want(conn, award_notice)
-    rfq_award_notice.check(conn, row, store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}, bool(wanted), now)
+    if explicit:  # review A1: an INHERITED tick never blocks the second approval - `send` records an unreachable vendor instead
+        rfq_award_notice.check(conn, row, store_rfq.vendor(conn, a["rfq_vendor_id"]) or {}, bool(wanted), now)
     fresh = _finalize(conn, viewer, row, a, now)
     _audit(conn, viewer, "ticket.rfq.award_confirm", row, rid, award_id=a["id"], quote_id=a["quote_id"], state=fresh["state"],
            approved_total_minor=a["approved_total_minor"])
