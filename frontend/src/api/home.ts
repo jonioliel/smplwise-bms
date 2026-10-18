@@ -14,8 +14,8 @@ import { getMyPrefs, putMyPrefs } from './me-prefs';
 import { invalidateSettings, productSettings } from './prefs';
 import { isApi } from './session';
 import {
-  configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, PHONE_LAYOUTS, SIDES, SIZES, WIDGET_IDS, sameConfig, defaultConfig,
-  type Direction, type HomeCandidates, type HomeConfig, type PhoneLayout, type Side, type Size, type WidgetId,
+  configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, ELEVATOR_MODES, PHONE_LAYOUTS, SIDES, SIZES, WIDGET_IDS, elevatorIds, sameConfig, defaultConfig,
+  type Direction, type ElevatorMode, type HomeCandidates, type HomeConfig, type PhoneLayout, type Side, type Size, type WidgetId,
 } from './home-config';
 
 export * from './home-config';
@@ -132,7 +132,14 @@ export interface HomePersonal {
   /** The phone presentation of the widgets (null = the installation's). */
   phone_layout: PhoneLayout | null;
   order: WidgetId[] | null;
-  widgets: Partial<Record<WidgetId, { on?: boolean; size?: Size }>>;
+  widgets: Partial<Record<WidgetId, PersonalWidget>>;
+}
+/** One widget's personal choice; `mode` / `hidden` exist only for the elevators widget (CR-INFRA-ELEVATORS 2.8.0, owner feedback 2026-10-18). */
+export interface PersonalWidget {
+  on?: boolean;
+  size?: Size;
+  mode?: ElevatorMode;
+  hidden?: string[];
 }
 
 export const PERSONAL_EMPTY: HomePersonal = { direction: null, phone_layout: null, order: null, widgets: {} };
@@ -149,9 +156,13 @@ export function personalOf(raw: unknown): HomePersonal {
     const e = w[id];
     if (!e || typeof e !== 'object') continue;
     const x = e as Record<string, unknown>;
-    const entry: { on?: boolean; size?: Size } = {};
+    const entry: PersonalWidget = {};
     if (typeof x.on === 'boolean') entry.on = x.on;
     if (SIZES.includes(x.size as Size)) entry.size = x.size as Size;
+    if (id === 'elevators') {
+      if (ELEVATOR_MODES.includes(x.mode as ElevatorMode)) entry.mode = x.mode as ElevatorMode;
+      if (Array.isArray(x.hidden)) entry.hidden = elevatorIds(x.hidden);
+    }
     if (Object.keys(entry).length) widgets[id] = entry;
   }
   const order = Array.isArray(o.order) ? (o.order.filter((x) => WIDGET_IDS.includes(x as WidgetId)) as WidgetId[]) : null;

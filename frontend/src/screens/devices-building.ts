@@ -7,7 +7,6 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
 import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
-import { homeTiles, type HomeTile } from '../elevators/model';
 import type { Elevator } from '../api/elevators';
 import '../components/sw-state-panel';
 import '../components/sw-button';
@@ -1270,7 +1269,8 @@ export class DevicesBuilding extends LitElement {
 
   /** The widget cards this render draws (edit mode adds the ghosts that say why a widget is not shown). */
   private widgetItems(t: DeviceTree, h: HomeView): WidgetItem[] {
-    return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0 });
+    return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
+      elevatorsAvailable: !!this.elevators?.length });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1291,8 +1291,8 @@ export class DevicesBuilding extends LitElement {
     }
   }
 
-  /** CR-INFRA-ELEVATORS: the elevators for the home tiles - read once, then every 30 s only while at least one exists (an installation
-   * without elevators asks once and never again; a failure shows nothing). */
+  /** CR-INFRA-ELEVATORS: the elevators for the home widget (2.8.0: the widget replaces the 2.7.x KPI-row tiles, owner feedback) - read once,
+   * then every 30 s only while at least one exists (an installation without elevators asks once and never again; a failure shows nothing). */
   private async loadElevators() {
     const r = await refreshElevatorsVisibility();
     this.elevators = r?.elevators ?? [];
@@ -1302,16 +1302,6 @@ export class DevicesBuilding extends LitElement {
         if (document.visibilityState === 'visible') void this.loadElevators();
       }, 30_000);
     }
-  }
-
-  /** The elevators' home tiles in the KPI row: one per elevator up to four, else one summary; fault is the loudest tone. Tap = תשתיות › מעליות. */
-  private renderElevatorTiles(layout: 'cards' | 'compact') {
-    const tiles: HomeTile[] = homeTiles(this.elevators ?? [], this.elevatorsStale);
-    return tiles.map((t) =>
-      t.kind === 'elevator'
-        ? html`<sw-kpi data-kpi="elevator" data-elevator=${t.id} data-elevator-state=${t.chip.state} label=${t.name} value=${t.chip.label} .icon=${t.chip.icon} tone=${t.chip.tone} layout=${layout} icon-end href=${t.href}></sw-kpi>`
-        : html`<sw-kpi data-kpi="elevators" data-value=${t.value} label=${t.label} value=${t.value} detail=${t.detail} .icon=${t.icon} tone=${t.tone} layout=${layout} icon-end href=${t.href}></sw-kpi>`,
-    );
   }
 
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
@@ -1331,6 +1321,7 @@ export class DevicesBuilding extends LitElement {
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
     return html`<home-widgets layout=${layout} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
+      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale}
       @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }
 
@@ -1376,7 +1367,7 @@ export class DevicesBuilding extends LitElement {
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget}
+    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>`;
   }
 
@@ -2893,7 +2884,6 @@ export class DevicesBuilding extends LitElement {
       ${kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating')}
       ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
       ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
-      ${this.renderElevatorTiles(layout)}
       ${c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
     </div>`;
   }

@@ -11,6 +11,9 @@ import {
   type CalendarField, type Direction, type ForecastLen, type PhoneLayout, type HomeCandidates, type HomeConfig, type HomeData, type HomeSettings, type QuickAction, type Side, type Size, type WeatherField, type WidgetId,
 } from '../api/home';
 import { agendaBody, launcherBody, styleRow, type Bv1EditHost } from './home-edit-bv1';
+import type { Elevator } from '../api/elevators';
+import { ELEVATOR_FILTERS, ELEVATOR_MODES, FILTER_KEY, MODE_KEY } from '../elevators/model';
+import { elt } from '../i18n/elevators';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
 export interface HomeEditFloor {
@@ -44,6 +47,8 @@ export class HomeEditPanel extends LitElement {
   @property({ attribute: false }) candidatesError = '';
   @property({ attribute: false }) baseData!: HomeData;
   @property({ attribute: false }) floors: HomeEditFloor[] = [];
+  /** CR-INFRA-ELEVATORS 2.8.0: the elevators the editor sees (empty = the elevators widget is not listed). */
+  @property({ attribute: false }) elevators: Elevator[] = [];
   /** The widget whose settings are open (a card's "הגדרות" button sets it). */
   @property() open: WidgetId | '' = '';
   @state() private dragFloor = '';
@@ -368,7 +373,7 @@ export class HomeEditPanel extends LitElement {
           </span>
         </div>
         <h3>ווידג׳טים</h3>
-        ${repeat(d.config.order, (id) => id, (id, i) => this.widgetRow(id, i))}
+        ${repeat(d.config.order.filter((id) => id !== 'elevators' || this.elevators.length > 0), (id) => id, (id) => this.widgetRow(id, d.config.order.indexOf(id)))}
         ${this.candidatesError ? html`<div class="err" role="alert">${this.candidatesError}</div>` : nothing}
       </div>
       <div class="col" data-home-floors-col>
@@ -414,7 +419,7 @@ export class HomeEditPanel extends LitElement {
       ${open
         ? html`<div class="w-body" data-home-wbody=${id}>
             <label class="f">כותרת <input type="text" data-home-label=${id} maxlength=${LABEL_MAX} .value=${w.label} placeholder=${WIDGET_NAME[id]} @input=${(e: Event) => this.setWidget(id, { label: (e.target as HTMLInputElement).value } as never)} /></label>
-            ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : id === 'agenda' ? agendaBody(this.bv1) : id === 'launcher' ? launcherBody(this.bv1) : id === 'media' ? nothing : this.quickBody()}
+            ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : id === 'agenda' ? agendaBody(this.bv1) : id === 'launcher' ? launcherBody(this.bv1) : id === 'elevators' ? this.elevatorsBody() : id === 'media' ? nothing : this.quickBody()}
           </div>`
         : nothing}
     </div>`;
@@ -546,6 +551,17 @@ export class HomeEditPanel extends LitElement {
 
   private setExtra(i: number, patch: Partial<{ entity_id: string; label: string }>) {
     this.setConfig((c) => Object.assign(c.calendar.extras[i], patch));
+  }
+
+  // ---- elevators (CR-INFRA-ELEVATORS 2.8.0, owner feedback 2026-10-18: how, which, what)
+
+  private elevatorsBody() {
+    const cfg = this.draft.config.elevators;
+    return html`<div class="f wide">${elt('displayMode')}<span class="seg" role="group" aria-label=${elt('displayMode')}>${ELEVATOR_MODES.map((m) => html`<button type="button" data-home-elevators-mode=${m} aria-pressed=${String(cfg.mode === m)} @click=${() => this.setWidget('elevators', { mode: m })}>${elt(MODE_KEY[m])}</button>`)}</span></div>
+      <div class="f wide">${elt('filter')}<span class="seg" role="group" aria-label=${elt('filter')}>${ELEVATOR_FILTERS.map((f) => html`<button type="button" data-home-elevators-filter=${f} aria-pressed=${String(cfg.filter === f)} @click=${() => this.setWidget('elevators', { filter: f })}>${elt(FILTER_KEY[f])}</button>`)}</span></div>
+      <div class="f wide" data-home-elevators-include>${elt('include')}
+        <div class="fields">${this.elevators.map((e) => html`<label class="check"><input type="checkbox" data-home-elevator-include=${e.id} .checked=${!cfg.hidden.includes(e.id)}
+          @change=${(ev: Event) => this.setWidget('elevators', { hidden: (ev.target as HTMLInputElement).checked ? cfg.hidden.filter((x) => x !== e.id) : [...cfg.hidden, e.id] })} />${bidi(e.name)}</label>`)}</div></div>`;
   }
 
   // ---- alarm / quick
