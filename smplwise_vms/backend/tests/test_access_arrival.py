@@ -192,7 +192,7 @@ def test_reject_and_delete_erases_the_pending_technician_and_ends_his_request(ar
         assert conn.execute("SELECT rejected_at FROM access_pending_contacts WHERE contact_id = ?", (new,)).fetchone()[0]
         st = conn.execute("SELECT state FROM access_grants WHERE id = ?", (g["id"],)).fetchone()[0]
         assert st == "revoked"
-        audit = conn.execute("SELECT details FROM audit_log WHERE action = 'access.pending_contact.reject'").fetchall()
+        audit = conn.execute("SELECT details_json FROM audit_log WHERE action = 'access.pending_contact.reject'").fetchall()
         assert len(audit) == 1 and "אבי" not in str(audit[0][0]) and "0057" not in str(audit[0][0])
 
 
