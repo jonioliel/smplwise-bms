@@ -46,6 +46,28 @@ DEFAULT_SEARCH = "4"
 PICKERS: tuple[str, ...] = ("dropdown", "chips")
 DEFAULT_PICKER = "dropdown"
 
+# Header dropdown placement (owner 2026-10-17): where a tab group's dropdown chip sits on a wide screen - `1` its own row above the page
+# title, `2` the far end of the title row, `3` right after the title, `4` the start edge before the title (default). One global value:
+# `ui.dd_place` as the installation's default and as a user's own choice (null = follow the installation). Presentation only; narrow
+# screens always use their own row.
+PLACES: tuple[str, ...] = ("1", "2", "3", "4")
+DEFAULT_PLACE = "4"
+
+
+def normalize_place(value: Any) -> str:
+    """Exactly one of PLACES (a string, no trimming); else refused."""
+    if isinstance(value, str) and value in PLACES:
+        return value
+    raise ValueError(f"dropdown placement must be one of {', '.join(PLACES)}")
+
+
+def stored_place(raw: Any) -> str:
+    """The stored installation value as read back; a corrupt or foreign value reads as the default."""
+    try:
+        return normalize_place(raw)
+    except ValueError:
+        return DEFAULT_PLACE
+
 
 def normalize_search(value: Any) -> str:
     """Exactly one of SEARCH_MODES (a string, no trimming, no case folding); else refused."""

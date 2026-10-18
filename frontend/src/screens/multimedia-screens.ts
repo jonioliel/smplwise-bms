@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { leadReserveStyles } from '../styles/lead-reserve';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -94,7 +95,7 @@ export class MultimediaScreens extends LitElement {
   private loading = false;
   private homeFloorsLoaded = false;
 
-  static styles = [mediaGlassStyles, css`
+  static styles = [mediaGlassStyles, leadReserveStyles, css`
     :host {
       display: block;
       position: relative;

@@ -46,10 +46,13 @@ export class SwPage extends LitElement {
       /* the shell's floating search / status corner (sw-app, no top bar) sits over the far end of the first row when
          nothing else is above the page; the shell sets this only then (0 elsewhere) */
       padding-inline-end: var(--sw-float-reserve, 0px);
+      /* header dropdown placement 4 (shell): the chip sits at the start edge of this row */
+      padding-inline-start: var(--sw-lead-reserve, 0px);
     }
     :host([flush]) header {
       padding: 12px 16px 0;
       padding-inline-end: calc(16px + var(--sw-float-reserve, 0px));
+      padding-inline-start: calc(16px + var(--sw-lead-reserve, 0px));
     }
     /* the title block may shrink below its content: a scrolling chip row in the crumbs slot (the area page on a phone) otherwise
        widened the block to the whole row and dragged the page sideways */

@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { leadReserveStyles } from '../styles/lead-reserve';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -230,6 +231,7 @@ export class ExploreFloorMap extends LitElement {
   private onMq = () => (this.narrow = this.mq.matches);
 
   static styles = css`
+    ${leadReserveStyles}
     :host {
       display: flex;
       flex-direction: column;
@@ -3050,7 +3052,7 @@ export class ExploreFloorMap extends LitElement {
     const cameraCount = b ? (b.source === 'demo' ? current?.cameraCount ?? 0 : b.anchors.filter((a) => a.resource_type === 'camera').length) : 0;
     const apiFloor = this.tree?.source === 'api' ? this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((x) => x.floors ?? [])).find((f) => f.id === this.floorId) : null;
     return html`
-      <div class="head" data-head>
+      <div class="head lead-head" data-head>
         ${this.embedded ? nothing : html`<div>
           <div class="crumbs">
             <a href="#/explore/sites">${b?.siteName ?? 'אתרים'}</a><sw-icon name="chevron" size=${11}></sw-icon>

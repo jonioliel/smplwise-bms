@@ -1,4 +1,5 @@
 import { css } from 'lit';
+import { leadReserveStyles } from './lead-reserve';
 
 /**
  * CR-016: the page chrome shared by the players page and the groups page (the screens page keeps its own copy, 0.1.149): the
@@ -446,6 +447,7 @@ export function measureHeaderBar(root: ParentNode, phone: boolean): void {
   const top = dh.getBoundingClientRect().top;
   let bottom = 0;
   for (const el of dh.querySelectorAll<HTMLElement>(phone ? ':scope > .dh-row > h1, :scope > .dh-row > .flwrap' : ':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
-  const h = `${Math.ceil(bottom + (phone ? 8 : 10))}px`;
+  const h = `${Math.ceil(bottom + (phone ? 8 : 10))}px    ${leadReserveStyles}
+`;
   if (bottom && dh.style.getPropertyValue('--mm-bar-h') !== h) dh.style.setProperty('--mm-bar-h', h);
 }

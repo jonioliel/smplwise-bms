@@ -996,7 +996,7 @@ export class SystemTickets extends LitElement {
 
   render() {
     const heading = tt('area');
-    if (this.enabled === null) return html`<div class="page" data-tickets-settings><div class="ttl"><div class="crumbs">הגדרות</div><h1>${heading}</h1></div><sw-state-panel state="loading"></sw-state-panel></div>`;
+    if (this.enabled === null) return html`<div class="page" data-tickets-settings><div class="ttl lead-head"><div class="crumbs">הגדרות</div><h1>${heading}</h1></div><sw-state-panel state="loading"></sw-state-panel></div>`;
     const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: lt('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), permissions: tt('setTabPermissions') };
     const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
     const tabs = this.enabled ? html`<div class="stabs"><div class="seg sm" role="tablist" aria-label=${heading} data-tickets-settings-tabs @keydown=${(e: KeyboardEvent) => this.onTabKey(e, items.map((x) => x.id))}>${items.map((i) => html`<button type="button" role="tab"
@@ -1010,7 +1010,7 @@ export class SystemTickets extends LitElement {
       : this.permissionsTab();
     return html`<div class="page" data-tickets-settings data-tab=${this.tab}>
       ${tabs}
-      <div class="ttl"><div class="crumbs">הגדרות</div><h1>${heading}</h1><div class="sub">${tt('setSub')}</div></div>
+      <div class="ttl lead-head"><div class="crumbs">הגדרות</div><h1>${heading}</h1><div class="sub">${tt('setSub')}</div></div>
       ${this.error ? html`<div class="msg err" role="alert" data-tickets-settings-error>${this.error}</div>` : nothing}
       ${this.ok ? html`<div class="msg ok" role="status" data-tickets-settings-ok>${this.ok}</div>` : nothing}
       ${body}

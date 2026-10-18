@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { leadReserveStyles } from '../styles/lead-reserve';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -115,7 +116,7 @@ export class InvestigateHistoryMap extends LitElement {
     }
   };
 
-  static styles = [css`
+  static styles = [leadReserveStyles, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -723,13 +724,13 @@ export class InvestigateHistoryMap extends LitElement {
 
   private renderApi() {
     const b = this.bundle;
-    if (this.error && !b) return html`<div class="head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
-    if (!b) return html`<div class="head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
+    if (this.error && !b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
+    if (!b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
     const sel = this.selectedAnchor;
     const segs = sel?.resource_type === 'camera' ? this.segmentsFor(sel.resource_id) ?? [] : Array.from(this.recordings.keys()).flatMap((id) => this.segmentsFor(id) ?? []);
     const tlEvents: TimelineEvent[] = (sel?.resource_type === 'camera' ? this.events.filter((e) => e.camera_id === sel.resource_id) : this.events).map((e) => ({ minute: minuteInZone(new Date(e.occurred_at), this.tz), kind: markerKind(e.type), label: `${EVENT_LABEL[e.type] ?? e.type}${e.count > 1 ? ` ×${e.count}` : ''}` }));
     return html`
-      <div class="head">
+      <div class="head lead-head">
         <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${this.date} ${secondLabel(this.minute)}</span> · ${this.tz}</div></div>
         <span class="grow"></span>
         ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
@@ -787,7 +788,7 @@ export class InvestigateHistoryMap extends LitElement {
   private renderDemo() {
     const floor = demoFloors.find((f) => f.id === this.floorId) ?? demoFloors[0];
     return html`
-      <div class="head">
+      <div class="head lead-head">
         <div><h1>מפה היסטורית · ${bidi(floor.name)}</h1><div class="sub">מצב המפה בזמן נבחר · פעולות פיזיות כבויות בחקירה · נתוני הדגמה</div></div>
         <span class="grow"></span>
         <a href="#/explore/floors/${floor.id}"><sw-button icon="live">חזרה ל־Live</sw-button></a>

@@ -103,6 +103,7 @@ DEFAULTS: dict[str, str] = {
     # and how the camera comparison picker is shown - dropdown (default) | chips (a button per camera). services/dd_style.py.
     "ui.dd_search": "4",
     "ui.dd_picker": "dropdown",
+    "ui.dd_place": "4",
     # Unreleased (owner 2026-10-04): the SIZE of a dropdown - sm | md (the reference size, default) | lg - global and per tab group
     # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
     "ui.dd_size": "md",
@@ -412,6 +413,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     out["ui.dd_phone"] = dd_style.stored_phone(out["ui.dd_phone"])
     out["ui.dd_search"] = dd_style.stored_search(out["ui.dd_search"])
     out["ui.dd_picker"] = dd_style.stored_picker(out["ui.dd_picker"])
+    out["ui.dd_place"] = dd_style.stored_place(out["ui.dd_place"])
     out["ui.dd_size"] = dd_style.stored_size(out["ui.dd_size"])
     out["ui.dd_size_groups"] = dd_style.stored_size_groups(out["ui.dd_size_groups"])
     out["ui.dd_ring"] = dd_style.stored_ring(out["ui.dd_ring"])
@@ -643,6 +645,7 @@ class SettingsPatch(BaseModel):
     ui_dd_phone: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PHONE_MODES) + ")$", alias="ui.dd_phone")
     ui_dd_search: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.SEARCH_MODES) + ")$", alias="ui.dd_search")
     ui_dd_picker: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PICKERS) + ")$", alias="ui.dd_picker")
+    ui_dd_place: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PLACES) + ")$", alias="ui.dd_place")
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # validated in full by services/dd_style.py
     ui_dd_size: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.SIZES) + ")$", alias="ui.dd_size")
     ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # validated in full by services/dd_style.py

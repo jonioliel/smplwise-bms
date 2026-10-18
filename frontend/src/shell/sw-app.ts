@@ -18,7 +18,7 @@ import { findScreenView, onScreenViews, screenViews } from './screen-view';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { onPairChip, pairChip } from './tab-pair';
 import type { TabItem } from '../components/sw-tabs';
-import { HYBRID_MAX_ITEMS, ddPanelOf, ddRingOf, ddSizeOf, ddStyleOf, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf, type DdPanel, type DdRing, type DdSize, type DdStyle } from './tabs-mode';
+import { HYBRID_MAX_ITEMS, ddPanelOf, ddPlaceOf, ddRingOf, ddSizeOf, ddStyleOf, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf, type DdPanel, type DdRing, type DdSize, type DdStyle } from './tabs-mode';
 import { listAlerts } from '../api/rules';
 import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
@@ -1109,6 +1109,77 @@ export class SwApp extends LitElement {
         inset: -6px;
       }
     }
+    /* Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 4). On a wide screen
+       (>= 1100 px) the dropdown form of a tab group (the single chip of an area, or the two chips + alarm button of the pair) can share the
+       page title's row instead of taking a row above it. The chrome row then collapses to zero height and its chips hang on the page's first
+       row. data-dd-place is the EFFECTIVE placement, written by updated(): 1 own row (also below 1100 px, on the phone, and when a screen's
+       title would collide with the chips - checkDdCollision), 2 the far end of the row, 3 after the title (approximate: the shell cannot
+       measure a screen's heading), 4 the start edge, before the title: the page header keeps --sw-lead-reserve free there (sw-page).
+       data-dd-head = how many chips hang there. Everything is in logical properties: RTL puts the start on the right, LTR mirrors it. */
+    @media (min-width: 1100px) {
+      :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .tabpair:not(.single) {
+        position: relative;
+        z-index: 4;
+        flex: none;
+        align-items: flex-start;
+        block-size: 0;
+        min-block-size: 0;
+        padding-block: 0;
+        overflow: visible;
+      }
+      :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .subnav[data-tabstyle='dropdown'] sw-tabs,
+      :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .tabpair > sw-tabs,
+      :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .tabpair > sw-dropdown,
+      :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .tabpair > a.alarmpin {
+        flex: 0 0 auto;
+        position: relative;
+        inset-block-start: 14px;
+        align-self: flex-start;
+      }
+      /* 2: far end of the title row, clear of the floating corner (the pages keep their end side free through --sw-float-reserve) */
+      :host([data-design='a'][data-dd-head][data-dd-place='2']) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-dd-head][data-dd-place='2']) .tabpair:not(.single) {
+        justify-content: flex-end;
+        padding-inline: 30px 84px;
+      }
+      :host([data-design='a'][data-dd-head='1'][data-dd-place='2']) {
+        --sw-float-reserve: 276px;
+      }
+      :host([data-design='a'][data-dd-head='2'][data-dd-place='2']) {
+        --sw-float-reserve: 500px;
+      }
+      /* 3: after the title, from the start side by an approximate offset (--sw-dd-title-offset) */
+      :host([data-design='a'][data-dd-head][data-dd-place='3']) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-dd-head][data-dd-place='3']) .tabpair:not(.single) {
+        justify-content: flex-start;
+        padding-inline: var(--sw-dd-title-offset, 360px) 84px;
+      }
+      /* 4: the start edge: fixed-width chips, the page header leaves --sw-lead-reserve at its start */
+      :host([data-design='a'][data-dd-head][data-dd-place='4']) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-dd-head][data-dd-place='4']) .tabpair:not(.single) {
+        justify-content: flex-start;
+        padding-inline: 30px 84px;
+      }
+      :host([data-design='a'][data-dd-head][data-dd-place='4']) .subnav[data-tabstyle='dropdown'] sw-tabs,
+      :host([data-design='a'][data-dd-head][data-dd-place='4']) .tabpair > sw-tabs,
+      :host([data-design='a'][data-dd-head][data-dd-place='4']) .tabpair > sw-dropdown {
+        flex: 0 0 190px;
+        inline-size: 190px;
+        max-inline-size: 190px;
+      }
+      :host([data-design='a'][data-dd-head='1'][data-dd-place='4']) {
+        --sw-lead-reserve: 204px;
+      }
+      :host([data-design='a'][data-dd-head='2'][data-dd-place='4']) {
+        --sw-lead-reserve: 440px;
+      }
+      /* 3 and 4: the row no longer holds the floating corner's reserve, so the page's first row keeps clear of it */
+      :host([data-design='a'][data-dd-head][data-dd-place='3']),
+      :host([data-design='a'][data-dd-head][data-dd-place='4']) {
+        --sw-float-reserve: 76px;
+      }
+    }
     @media (max-width: 767px) {
       :host([data-design='a']) {
         grid-template-rows: minmax(0, 1fr) auto;
@@ -1487,6 +1558,7 @@ export class SwApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.ddTimer = window.setInterval(() => this.checkDdCollision(), 1200); // a screen heading appears after its data loads
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
@@ -1651,6 +1723,36 @@ export class SwApp extends LitElement {
    * does not move, so while scrolled it still passes under the banner; such a toolbar should use
    * `top: var(--sw-banner-h, 0px)` (inherited from sw-app's host) if it must stay clear. */
   private bannerObs: ResizeObserver | null = null;
+  /** The route (hash) on which a screen's title collided with the header chips: that route falls back to the own-row placement. */
+  private ddCollideRoute = '';
+  private ddTimer = 0;
+
+  /** Placements 2-4 put the chips on the page's first row. A screen whose own heading would sit under them (it does not keep the
+   * start / end reserve free) falls back to the own row for that route, so no title is ever covered. Re-checked while the screen loads. */
+  private checkDdCollision(): void {
+    const place = this.getAttribute('data-dd-place');
+    if (!place || place === '1' || !this.hasAttribute('data-dd-head') || !window.matchMedia('(min-width: 1100px)').matches) return;
+    const chips = [...this.renderRoot.querySelectorAll<HTMLElement>('.subnav[data-tabstyle="dropdown"] > sw-tabs, .tabpair:not(.single) > sw-tabs, .tabpair:not(.single) > sw-dropdown')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0);
+    const screen = this.renderRoot.querySelector('.screen');
+    if (!chips.length || !screen) return;
+    const find = (root: ParentNode): HTMLElement | null => {
+      for (const el of root.querySelectorAll<HTMLElement>('*')) {
+        if (el.localName === 'h1' && el.getBoundingClientRect().width > 0) return el;
+        const inner = el.shadowRoot ? find(el.shadowRoot) : null;
+        if (inner) return inner;
+      }
+      return null;
+    };
+    const h1 = find(screen);
+    if (!h1) return;
+    const range = document.createRange();
+    range.selectNodeContents(h1);
+    const t = range.getBoundingClientRect();
+    const hit = chips.some((c) => t.left < c.right && t.right > c.left && t.top < c.bottom && t.bottom > c.top);
+    if (!hit) return;
+    this.ddCollideRoute = location.hash;
+    this.setAttribute('data-dd-place', '1');
+  }
   private observedBanner: HTMLElement | null = null;
 
   /** The navigation's sizes onto the host as CSS variables (the one design), the rail's real width into --sw-rail-w (the
@@ -1684,6 +1786,18 @@ export class SwApp extends LitElement {
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
     const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone, .tabpair') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
     if (this.getAttribute('data-top') !== top) this.setAttribute('data-top', top);
+    // the dropdown form's chips share the page title's row on a wide screen (CSS, min-width 1100): how many chips hang there, and where
+    const chips = this.renderRoot.querySelectorAll('.subnav[data-tabstyle="dropdown"] > sw-tabs, .tabpair:not(.single) > sw-tabs, .tabpair:not(.single) > sw-dropdown').length;
+    const dd = chips ? String(Math.min(chips, 2)) : null;
+    if (this.getAttribute('data-dd-head') !== dd) {
+      if (dd === null) this.removeAttribute('data-dd-head');
+      else this.setAttribute('data-dd-head', dd);
+    }
+    const route = location.hash;
+    if (route !== this.ddCollideRoute) this.ddCollideRoute = '';
+    const place = this.ddCollideRoute ? '1' : ddPlaceOf();
+    if (this.getAttribute('data-dd-place') !== place) this.setAttribute('data-dd-place', place);
+    requestAnimationFrame(() => this.checkDdCollision());
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
     if (banner === this.observedBanner) return;
     this.bannerObs?.disconnect();
@@ -1698,6 +1812,7 @@ export class SwApp extends LitElement {
   }
 
   disconnectedCallback() {
+    window.clearInterval(this.ddTimer);
     this.bannerObs?.disconnect();
     super.disconnectedCallback();
     this.stopDesign?.();
