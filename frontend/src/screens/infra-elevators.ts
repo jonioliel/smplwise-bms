@@ -6,10 +6,11 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
-import { listElevators, type ElevatorsResponse } from '../api/elevators';
+import { listElevators, type Elevator, type ElevatorsResponse } from '../api/elevators';
 import { elevatorsAccess, onElevatorsAccess, type ElevatorsAccess } from '../elevators/access';
-import { chipOf, sinceText } from '../elevators/model';
-import { elt } from '../i18n/elevators';
+import { ELEVATORS_SETTINGS_HREF, agoText, barOf, chipOf, kpisOf, ledsOf, type Look } from '../elevators/model';
+import { doorIcon, elevatorCss, stateBadge } from '../elevators/styles';
+import { elt, type EltKey } from '../i18n/elevators';
 import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
 import { canNav, isApi } from '../api/session';
 import { elecCss } from '../electricity/styles';
@@ -17,11 +18,13 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const POLL_MS = 15_000;
+const DAY_MS = 24 * 3600_000;
 
 /**
- * תשתיות › מעליות (CR-INFRA-ELEVATORS): one row per elevator - name, area, the state chip (up / down / waiting / door open / fault /
- * out of service / unknown) and the time of the last change when the mirror has it. View only; polled while shown. A stale list shows
- * every elevator as unknown (model.ts). Clean operator screen: no hints, no paragraphs.
+ * תשתיות › מעליות (CR-INFRA-ELEVATORS, designed in 2.8.0 from the owner-approved mockup): the KPI row (all / waiting or in operation / in fault /
+ * out of service / fire service), then one card per elevator - the door icon in the state colour, the solid state badge, the lights of its
+ * linked sensors, the 24-hour state bar and how long ago the state began. Managers get "מעלית חדשה" and an add card (both open the settings
+ * section). View only; polled while shown; a stale list shows every elevator as unknown. No direction is shown anywhere (no up / down sensors).
  */
 @customElement('infra-elevators')
 export class InfraElevators extends LitElement {
@@ -33,7 +36,7 @@ export class InfraElevators extends LitElement {
   private timer?: number;
   private stop?: () => void;
 
-  static styles = [elecCss, css`
+  static styles = [elecCss, elevatorCss, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -43,36 +46,45 @@ export class InfraElevators extends LitElement {
       inline-size: 100%;
       box-sizing: border-box;
     }
-    .el {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-block-end: 1px solid var(--sw-border);
-      min-inline-size: 0;
+    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; }
+    .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+    .top .sp { flex: 1; }
+    .new {
+      display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; text-decoration: none;
+      background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; box-shadow: var(--sw-shadow-1);
     }
-    .el:last-child {
-      border-block-end: 0;
+    .new:focus-visible, .add:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 3px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .kpi {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md, 20px);
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1);
     }
-    .el .nm {
-      flex: 1;
-      min-inline-size: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
+    .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--el-c); flex: none; }
+    .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
+    .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
+    .ecard {
+      position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
     }
-    .el .nm b {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .ecard[data-look='fire'] { background: linear-gradient(160deg, color-mix(in srgb, var(--sw-el-fire) 16%, transparent), var(--sw-surface) 60%); border-color: color-mix(in srgb, var(--sw-el-fire) 50%, transparent); }
+    .ecard[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
+    .ecard[data-look='off'] { border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); border-inline-start-width: 4px; }
+    .head { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
+    .head h3 { margin: 0; font-size: var(--sw-fs-xl); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+    .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
+    .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
+    .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); }
+    .ext { display: flex; flex-wrap: wrap; gap: 6px; }
+    .add {
+      display: grid; place-items: center; min-block-size: 200px; border-radius: var(--sw-r-lg, 26px); border: 2px dashed var(--sw-border);
+      color: var(--sw-text-2); text-decoration: none; text-align: center; padding: 16px;
     }
-    .el[data-state='fault'] sw-icon {
-      color: var(--sw-danger);
-    }
-    .ext {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    .add b { display: block; font-size: calc(var(--sw-fs-3xl) * 1.3); color: var(--sw-accent); line-height: 1; }
+    @media (max-width: 420px) {
+      .body { gap: 12px; }
     }
   `, bubbleChrome];
 
@@ -94,11 +106,39 @@ export class InfraElevators extends LitElement {
   private async load() {
     if (!this.access.view) return;
     try {
-      this.data = await listElevators();
+      this.data = await listElevators(24);
       this.error = '';
     } catch (e) {
       this.error = describeError(e);
     }
+  }
+
+  private kpis(list: Elevator[], stale: boolean) {
+    const k = kpisOf(list, stale);
+    const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
+    return html`<div class="kpis" role="group" aria-label=${elt('title')}>
+      ${cell('unk', k.total, 'title', 'total')}${cell('wait', k.ok, 'kpiOk', 'ok')}${cell('fault', k.fault, 'kpiFault', 'fault')}${cell('off', k.off, 'kpiOff', 'off')}${cell('fire', k.fire, 'kpiFire', 'fire')}
+    </div>`;
+  }
+
+  private card(e: Elevator, stale: boolean, now: number) {
+    const c = chipOf({ state: e.state, stale: stale || e.stale });
+    const ago = c.state === 'unknown' ? '' : agoText(e.since, new Date(now));
+    const bar = barOf(e.history, now - DAY_MS, now);
+    const extras = e.extras.filter((x) => x.on !== null);
+    return html`<article class="ecard" data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
+      <div class="head"><h3>${e.name}${e.area_name ? html`<small>${e.area_name}</small>` : nothing}</h3>${stateBadge(c)}</div>
+      <div class="body">${doorIcon(c, 74)}
+        <div class="meta">
+          <div class="leds" role="list" aria-label=${elt('sensorsLit')}>${ledsOf(e, stale || e.stale).map((l) => html`<span class="led" role="listitem" data-look=${l.look} data-on=${String(l.on)} ?data-na=${l.na} data-led=${l.role}><i aria-hidden="true"></i>${l.label}</span>`)}</div>
+          ${extras.length ? html`<div class="ext">${extras.map((x) => html`<span class="chip ${x.on ? 'c-acc' : 'c-mut'} nodot" data-extra=${x.position}>${x.label}</span>`)}</div>` : nothing}
+          ${e.history !== null && e.history !== undefined
+            ? html`<div class="tl" data-elevator-bar role="img" aria-label=${elt('last24')}>${bar.lead > 0 && bar.parts.length ? html`<span class="lead" style=${`flex:${bar.lead}`}></span>` : nothing}${bar.parts.map((p) => html`<span data-look=${p.look} data-bar-state=${p.state} style=${`flex:${p.pct}`}></span>`)}</div>`
+            : nothing}
+          <div class="row2"><span>${e.history ? (bar.parts.length ? elt('last24') : elt('noHistory')) : e.partial ? elt('partial') : ''}</span><span data-elevator-ago>${ago}</span></div>
+        </div>
+      </div>
+    </article>`;
   }
 
   render() {
@@ -110,21 +150,21 @@ export class InfraElevators extends LitElement {
         : html`${l1}<div class="skl" style="block-size:160px" data-state="loading"></div>`;
     }
     const list = this.data.elevators;
-    if (!list.length) return html`<sw-state-panel state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`;
-    return html`${l1}
-      <div class="row"><span class="h2">${elt('title')}</span><div class="sp"></div>${this.data.stale ? html`<sw-badge kind="stale" label=${elt('stale')} data-elevators-stale></sw-badge>` : nothing}</div>
-      <div class="card flush" data-elevators>
-        ${list.map((e) => {
-          const c = chipOf({ state: e.state, stale: e.stale || this.data!.stale });
-          const since = c.state === 'unknown' ? '' : sinceText(e.since);
-          const extras = e.extras.filter((x) => x.on !== null);
-          return html`<div class="el" data-elevator=${e.id} data-state=${c.state}>
-            <sw-icon name=${c.icon} size="22"></sw-icon>
-            <div class="nm"><b>${e.name}</b>${e.area_name || since ? html`<span class="mut">${[e.area_name, since].filter(Boolean).join(' · ')}</span>` : nothing}
-              ${extras.length ? html`<div class="ext">${extras.map((x) => html`<span class="chip ${x.on ? 'c-acc' : 'c-mut'} nodot" data-extra=${x.position}>${x.label}</span>`)}</div>` : nothing}</div>
-            <sw-badge kind=${c.tone} label=${c.label} data-elevator-state=${c.state}></sw-badge>
-          </div>`;
-        })}
+    const manage = this.access.manage;
+    const stale = this.data.stale;
+    const now = Date.now();
+    const top = html`<div class="top"><div><h1>${elt('title')}</h1><p class="sub">${elt('subtitle')}</p></div><span class="sp"></span>
+      ${stale ? html`<sw-badge kind="stale" label=${elt('stale')} data-elevators-stale></sw-badge>` : nothing}
+      ${manage ? html`<a class="new" href=${ELEVATORS_SETTINGS_HREF} data-elevators-new><sw-icon name="plus" size="16"></sw-icon>${elt('newElevator')}</a>` : nothing}</div>`;
+    if (!list.length) {
+      return html`${l1}${top}${manage
+        ? html`<div class="grid"><a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add data-state="empty"><div><b>+</b>${elt('addCard')}</div></a></div>`
+        : html`<sw-state-panel state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`}`;
+    }
+    return html`${l1}${top}${this.kpis(list, stale)}
+      <div class="grid" data-elevators>
+        ${list.map((e) => this.card(e, stale, now))}
+        ${manage ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}
       </div>`;
   }
 }

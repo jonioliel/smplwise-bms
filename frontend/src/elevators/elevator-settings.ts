@@ -12,14 +12,20 @@ import {
 } from '../api/elevators';
 import { elevatorsAccess, refreshElevatorsVisibility } from './access';
 import { bodyOf, draftOf, moved, newDraft, problemOf, type Draft, type DraftProblem } from './draft';
-import { chipOf } from './model';
+import { ELEVATOR_FILTERS, ELEVATOR_MODES, FILTER_KEY, HOME_EDIT_HREF, MODE_KEY, chipOf } from './model';
+import { elevatorCss, stateBadge } from './styles';
 import { elt, type EltKey } from '../i18n/elevators';
+import { canAnywhere } from '../api/session';
+import { loadHomeSettings, saveHomeSettings, type ElevatorsCfg, type HomeSettings } from '../api/home';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 
 const ROLE_LABEL: Record<ElevatorRole, EltKey> = {
   moving_up: 'roleMovingUp', moving_down: 'roleMovingDown', waiting: 'roleWaiting', fault: 'roleFault', fire_service: 'roleFireService', door_open: 'roleDoorOpen', out_of_service: 'roleOutOfService',
 };
+/** 2.8.0 (owner 2026-10-18): the installation has waiting / fault / fire service / shutdown sensors only - up, down and door are offered again
+ * only when an elevator already links one (kept, never dropped silently); the dialog says they can be added later. */
+const SHOWN_ROLES: readonly ElevatorRole[] = ['waiting', 'fault', 'fire_service', 'out_of_service'];
 const PROBLEM: Record<Exclude<DraftProblem, null>, EltKey> = {
   name: 'name', no_sensor: 'needOne', duplicate_sensor: 'needOne', too_many_extras: 'extras', extra_label: 'extraLabel',
 };
@@ -40,9 +46,21 @@ export class ElevatorSettings extends LitElement {
   @state() private busy = false;
   @state() private fail = '';
   @state() private msg = '';
+  /** 2.8.0: the installation's home settings (the elevators widget's display choices); null = not read / not allowed. */
+  @state() private home: HomeSettings | null = null;
+  @state() private homeBusy = false;
+  @state() private homeFail = '';
 
-  static styles = [elecCss, css`
+  static styles = [elecCss, elevatorCss, css`
     :host { display: flex; flex-direction: column; gap: 14px; }
+    .dset { display: grid; gap: 8px; max-inline-size: 640px; margin-block-start: 8px; }
+    .drow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border: 1px solid var(--sw-border); border-radius: 14px; padding: 8px 12px; }
+    .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: 999px; gap: 1px; }
+    .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: 999px; cursor: pointer; }
+    .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
+    .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+    .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }
     .el { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-block-end: 1px solid var(--sw-border); }
     .el:last-child { border-block-end: 0; }
     .el .grow { flex: 1; min-inline-size: 0; }
@@ -56,6 +74,7 @@ export class ElevatorSettings extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+    if (canAnywhere('system.configure')) void this.loadHome();
   }
 
   private async load() {
@@ -123,8 +142,9 @@ export class ElevatorSettings extends LitElement {
       <div class="col" style="gap:12px">
         <div class="fld"><label for="elname">${elt('name')}</label><input id="elname" maxlength="60" .value=${d.name} @input=${(e: Event) => this.setDraft({ name: (e.target as HTMLInputElement).value })} /></div>
         <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${(e: Event) => this.setDraft({ enabled: (e.target as HTMLInputElement).checked })} /> ${elt('enabled')}</label>
-        <div class="map" data-roles>${ELEVATOR_ROLES.map((r) => html`<label for=${`el-${r}`}>${elt(ROLE_LABEL[r])}</label>
-          <select id=${`el-${r}`} data-role=${r} @change=${(e: Event) => this.setDraft({ sensors: { ...d.sensors, [r]: (e.target as HTMLSelectElement).value } })}>${this.options(d.sensors[r])}</select>`)}</div>
+        <div class="map" data-roles>${ELEVATOR_ROLES.filter((r) => SHOWN_ROLES.includes(r) || !!d.sensors[r]).map((r) => html`<label for=${`el-${r}`}>${elt(ROLE_LABEL[r])}</label>
+          <select id=${`el-${r}`} data-role=${r} @change=${(e: Event) => this.setDraft({ sensors: { ...d.sensors, [r]: (e.target as HTMLSelectElement).value } })}>${this.options(d.sensors[r])}</select>`)}
+          <span class="mut">${elt('futureRoles')}</span><span class="mut" data-roles-future>${elt('futureNone')}</span></div>
         <div class="col" style="gap:8px" data-extras><span class="b">${elt('extras')}</span>
           ${d.extras.map((x, i) => html`<div class="xrow" data-extra=${i}>
             <input aria-label=${elt('extraLabel')} placeholder=${elt('extraLabel')} maxlength="40" .value=${x.label} @input=${(e: Event) => this.setDraft({ extras: d.extras.map((y, j) => (j === i ? { ...y, label: (e.target as HTMLInputElement).value } : y)) })} />
@@ -165,14 +185,69 @@ export class ElevatorSettings extends LitElement {
             const missing = Object.values(e.sensors).some((s) => s?.missing) || e.extras.some((x) => x.missing);
             return html`<div class="el" data-elevator=${e.id}>
               <div class="grow"><b>${e.name}</b>${!e.enabled ? html` <span class="chip c-mut nodot">${elt('disabled')}</span>` : nothing}${missing ? html`<div class="mut" data-missing>${elt('missing')}</div>` : nothing}</div>
-              <sw-badge kind=${c.tone} label=${c.label}></sw-badge>
+              ${stateBadge(c, true)}
               <button type="button" class="btn sm" aria-label=${elt('up')} ?disabled=${this.busy || i === 0} @click=${() => void this.run(() => reorderElevators(moved(ids, e.id, -1)))}><sw-icon name="arrowUp" size="16"></sw-icon></button>
               <button type="button" class="btn sm" aria-label=${elt('down')} ?disabled=${this.busy || i === ids.length - 1} @click=${() => void this.run(() => reorderElevators(moved(ids, e.id, 1)))}><sw-icon name="arrowDown" size="16"></sw-icon></button>
               <button type="button" class="btn sm" data-elevator-edit @click=${() => void this.open(draftOf(e))}>${elt('edit')}</button>
               <button type="button" class="btn sm dng" data-elevator-remove @click=${() => (this.confirmDelete = e)}><sw-icon name="trash" size="16"></sw-icon></button>
             </div>`;
           })}</div>`}
+      ${this.list.length ? this.display() : nothing}
       ${this.dialog()}${this.deleteDialog()}`;
+  }
+
+  // ---------------------------------------------------------------- 2.8.0: how the elevators appear on the home screen (for everyone)
+
+  private async loadHome() {
+    try {
+      this.home = await loadHomeSettings(true);
+    } catch {
+      this.home = null;
+    }
+  }
+
+  private async saveHome(fn: (c: ElevatorsCfg) => void) {
+    const from = this.home;
+    if (!from) return;
+    const to: HomeSettings = JSON.parse(JSON.stringify(from)) as HomeSettings;
+    fn(to.config.elevators);
+    this.home = to;
+    this.homeBusy = true;
+    this.homeFail = '';
+    try {
+      this.home = await saveHomeSettings(from, to);
+    } catch (e) {
+      this.home = from;
+      this.homeFail = describeError(e);
+    } finally {
+      this.homeBusy = false;
+    }
+  }
+
+  /** The mockup's "תצוגה במסך הראשי": the widget on / off, the display mode, the default size (every layout direction), what is listed and which
+   * elevators appear. These are the installation's choices (system.configure, the home settings' own permission); a user with
+   * screen.personalize may choose differently for himself (החשבון שלי › המסך שלי). Place and size per direction: the home edit mode. */
+  private display() {
+    const canHome = canAnywhere('system.configure');
+    if (!canHome) return html`<div class="card" data-elevators-display><div class="b">${elt('displayTitle')}</div><div class="mut">${elt('displayAdmin')}</div></div>`;
+    if (!this.home) return nothing;
+    const c = this.home.config.elevators;
+    const size = c.sizes.a;
+    const seg = <T extends string>(label: string, values: readonly T[], cur: T, key: (v: T) => EltKey, set: (v: T) => void, attr: string) => html`<div class="drow"><span>${label}</span>
+      <span class="seg" role="group" aria-label=${label}>${values.map((v) => html`<button type="button" data-elevators-display-opt=${`${attr}:${v}`} aria-pressed=${String(cur === v)} ?disabled=${this.homeBusy} @click=${() => set(v)}>${elt(key(v))}</button>`)}</span></div>`;
+    return html`<div class="card" data-elevators-display>
+      <div class="b">${elt('displayTitle')}</div>
+      <div class="dset">
+        ${seg(elt('displayWidget'), ['on', 'off'] as const, c.on ? 'on' : 'off', (v) => (v === 'on' ? 'shown' : 'hiddenOpt'), (v) => void this.saveHome((x) => (x.on = v === 'on')), 'on')}
+        ${seg(elt('displayMode'), ELEVATOR_MODES, c.mode, (v) => MODE_KEY[v], (v) => void this.saveHome((x) => (x.mode = v)), 'mode')}
+        ${seg(elt('defaultSize'), ['s', 'm', 'l'] as const, size, (v) => (v === 's' ? 'sizeS' : v === 'm' ? 'sizeM' : 'sizeL'), (v) => void this.saveHome((x) => (x.sizes = { a: v, b: v, c: v })), 'size')}
+        ${seg(elt('filter'), ELEVATOR_FILTERS, c.filter, (v) => FILTER_KEY[v], (v) => void this.saveHome((x) => (x.filter = v)), 'filter')}
+        <div class="drow"><span>${elt('include')}</span><span class="incl">${(this.list ?? []).map((e) => html`<label class="row"><input type="checkbox" data-elevators-display-include=${e.id} .checked=${!c.hidden.includes(e.id)} ?disabled=${this.homeBusy}
+          @change=${(ev: Event) => { const on = (ev.target as HTMLInputElement).checked; void this.saveHome((x) => (x.hidden = on ? x.hidden.filter((h) => h !== e.id) : [...x.hidden, e.id])); }} /> ${e.name}</label>`)}</span></div>
+        <a class="lnk" href=${HOME_EDIT_HREF} data-elevators-home-edit>${elt('editHome')}</a>
+      </div>
+      ${this.homeFail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.homeFail}</div></div>` : nothing}
+    </div>`;
   }
 }
 
