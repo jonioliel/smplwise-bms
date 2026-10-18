@@ -1,17 +1,20 @@
 """CR-INFRA-ELEVATORS - elevators under Infrastructure: storage helpers, sensor validation and the derived state.
 
-An elevator maps up to six binary-sensor ROLES (moving_up, moving_down, waiting, fault, door_open, out_of_service) and up to four free
+An elevator maps binary-sensor ROLES (fire_service, fault, out_of_service, moving_up, moving_down, door_open, waiting) and up to four free
 labelled extras onto the state mirror (`ha_entities`). Nothing is stored about the live state: it is derived on every read.
 
 Derived state, highest priority first (docs/changes/CR-INFRA-ELEVATORS.md section 3):
 
-    fault > out_of_service > moving (up | down) > door_open > waiting > unknown
+    fire_service > fault > out_of_service > moving (up | down) > door_open > waiting / active > unknown
 
 * A sensor counts only when its mirrored state is a live `on` / `off`; `unavailable`, `unknown`, empty, a removed or disabled entity,
   or a mirror that is not connected (stale) all count as NO information.
 * moving_up and moving_down both `on` is a contradiction: the movement is `unknown` (reason `conflict`), never a guessed direction;
-  fault and out_of_service still win over it.
+  fire_service, fault and out_of_service still win over it.
 * `waiting` is stated by the waiting sensor, or inferred when both movement sensors are live and `off` (and no higher role is on).
+* `active` (in operation, owner 2026-10-18): the waiting sensor is live `off`, nothing higher is on and NO movement sensor is mapped (an
+  integration without up / down sensors). With movement sensors mapped the inference above applies instead.
+* Roles are stored as keys (`infra_elevator_sensors.role`, no CHECK): a new role (e.g. a future numeric `floor`) is a code change only.
 * `partial` is true when a higher-priority role is mapped but has no live value while a lower one decided the state.
 * No live sensor at all (or none mapped / visible) = `unknown`. There is no `ok` state: the module never claims health it cannot see.
 
@@ -22,9 +25,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Iterable
 
-ROLES: tuple[str, ...] = ("moving_up", "moving_down", "waiting", "fault", "door_open", "out_of_service")
+# the closed list of roles (the table stores keys only, so adding one needs no migration); out_of_service = the owner's "השבתה" (shutdown)
+ROLES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting")
 MAX_EXTRAS = 4
-STATES: tuple[str, ...] = ("fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting", "unknown")
+STATES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting", "active", "unknown")
 DEAD = {"", "unknown", "unavailable", "none", "null"}
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -77,8 +81,10 @@ def derive(values: dict[str, bool | None]) -> dict[str, Any]:
             dead_above = True
         return v
 
+    if take("fire_service"):
+        return {"state": "fire_service", "reason": "fire_service", "partial": False}
     if take("fault"):
-        return {"state": "fault", "reason": "fault", "partial": False}
+        return {"state": "fault", "reason": "fault", "partial": dead_above}
     if take("out_of_service"):
         return {"state": "out_of_service", "reason": "out_of_service", "partial": dead_above}
     up, down = take("moving_up"), take("moving_down")
@@ -94,6 +100,8 @@ def derive(values: dict[str, bool | None]) -> dict[str, Any]:
         return {"state": "waiting", "reason": "waiting", "partial": dead_above}
     if up is False and down is False:
         return {"state": "waiting", "reason": "inferred_idle", "partial": dead_above}
+    if values.get("waiting") is False and "moving_up" not in mapped and "moving_down" not in mapped:
+        return {"state": "active", "reason": "inferred_active", "partial": dead_above}
     return {"state": "unknown", "reason": "insufficient", "partial": dead_above}
 
 
@@ -130,7 +138,9 @@ def live_of(rows: list[sqlite3.Row], *, connected: bool) -> dict[str, Any]:
         changed[r["role"]] = r["last_changed"] if v is not None else None
     d = derive(values)
     st, reason = d["state"], d["reason"]
-    if reason == "inferred_idle":
+    if reason == "inferred_active":
+        stamps = [changed.get("waiting")]
+    elif reason == "inferred_idle":
         stamps = [changed.get("moving_up"), changed.get("moving_down")]
     elif st != "unknown":
         stamps = [changed.get(st if st in values else reason)]

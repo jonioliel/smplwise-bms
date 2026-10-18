@@ -4,9 +4,10 @@
  */
 import { del, get, post, put } from './client';
 
-export const ELEVATOR_ROLES = ['moving_up', 'moving_down', 'waiting', 'fault', 'door_open', 'out_of_service'] as const;
+/** The closed list of roles in the settings dialog's order (out_of_service = the owner's shutdown, "השבתה"); mirrors services/elevators.py ROLES. */
+export const ELEVATOR_ROLES = ['waiting', 'fault', 'fire_service', 'out_of_service', 'moving_up', 'moving_down', 'door_open'] as const;
 export type ElevatorRole = (typeof ELEVATOR_ROLES)[number];
-export type ElevatorState = 'fault' | 'out_of_service' | 'moving_up' | 'moving_down' | 'door_open' | 'waiting' | 'unknown';
+export type ElevatorState = 'fire_service' | 'fault' | 'out_of_service' | 'active' | 'moving_up' | 'moving_down' | 'door_open' | 'waiting' | 'unknown';
 export const MAX_EXTRAS = 4;
 
 export interface ElevatorLive {

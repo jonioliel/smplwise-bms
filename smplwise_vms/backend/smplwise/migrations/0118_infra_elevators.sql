@@ -1,5 +1,5 @@
 -- CR-INFRA-ELEVATORS: elevators under Infrastructure (docs/changes/CR-INFRA-ELEVATORS.md). An elevator is a name, an optional area and
--- up to six binary-sensor roles plus up to four free labelled extras. Live state is NOT stored: it is derived on read from the state
+-- binary-sensor roles (fire_service, fault, out_of_service, moving_up, moving_down, door_open, waiting) plus up to four free labelled extras. Live state is NOT stored: it is derived on read from the state
 -- mirror (ha_entities), like the generator module. No row = the feature is absent (no tab, no home tile).
 
 CREATE TABLE infra_elevators (
@@ -17,7 +17,7 @@ CREATE UNIQUE INDEX idx_infra_elevators_name ON infra_elevators (name_key);
 
 CREATE TABLE infra_elevator_sensors (
   elevator_id TEXT NOT NULL REFERENCES infra_elevators(id) ON DELETE CASCADE,
-  role        TEXT NOT NULL CHECK (role IN ('moving_up', 'moving_down', 'waiting', 'fault', 'door_open', 'out_of_service', 'extra')),
+  role        TEXT NOT NULL,                       -- a role key; the closed list lives in code (services/elevators.py ROLES) so a new role needs no migration
   position    INTEGER NOT NULL DEFAULT 0,          -- 0 for the fixed roles; 0..3 for the extras
   entity_id   TEXT NOT NULL,                       -- a binary_sensor.*; returned only to holders of infra.elevators.manage
   label       TEXT,                                -- extras only

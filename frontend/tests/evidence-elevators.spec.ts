@@ -56,7 +56,7 @@ test.describe('elevators evidence', () => {
     await page.goto(url('/system/infra/elevators'));
     await expect(page.locator('sw-app elevator-settings [data-elevator]')).toHaveCount(3);
     await page.locator('sw-app elevator-settings [data-elevator-add]').click();
-    await expect(page.locator('sw-app elevator-settings [data-roles] select')).toHaveCount(6);
+    await expect(page.locator('sw-app elevator-settings [data-roles] select')).toHaveCount(7);
     await expect(page.locator('sw-app elevator-settings [data-elevator-save]')).toBeDisabled(); // no name, no sensor
     await page.screenshot({ path: path.join(OUT, `settings-dialog-${test.info().project.name}.png`) });
   });

@@ -151,6 +151,19 @@ T, F, N = True, False, None
 
 
 @pytest.mark.parametrize("values,state,reason,partial", [
+    # owner 2026-10-18 (waiting / fault / fire service / shutdown, no up-down sensors): negative first
+    ({"fire_service": N, "waiting": F}, "active", "inferred_active", True),
+    ({"fire_service": N, "fault": N, "waiting": N}, "unknown", "no_live_sensor", False),
+    ({"fire_service": T, "fault": T}, "fire_service", "fire_service", False),
+    ({"fire_service": T, "waiting": T}, "fire_service", "fire_service", False),
+    ({"fire_service": T, "out_of_service": T, "moving_up": T}, "fire_service", "fire_service", False),
+    ({"fire_service": N, "fault": T}, "fault", "fault", True),
+    ({"fire_service": F, "fault": F, "out_of_service": T, "waiting": F}, "out_of_service", "out_of_service", False),
+    ({"fire_service": F, "fault": F, "out_of_service": F, "waiting": F}, "active", "inferred_active", False),
+    ({"fire_service": F, "fault": F, "out_of_service": F, "waiting": T}, "waiting", "waiting", False),
+    ({"waiting": F, "moving_up": F, "moving_down": F}, "waiting", "inferred_idle", False),
+    ({"waiting": F, "moving_up": N}, "unknown", "insufficient", True),
+    ({"waiting": F, "door_open": T}, "door_open", "door_open", False),
     ({}, "unknown", "no_live_sensor", False),
     ({"fault": N, "moving_up": N}, "unknown", "no_live_sensor", False),
     ({"fault": T, "moving_up": T, "out_of_service": T}, "fault", "fault", False),
@@ -162,7 +175,7 @@ T, F, N = True, False, None
     ({"moving_up": F, "moving_down": F, "door_open": T}, "door_open", "door_open", False),
     ({"moving_up": F, "moving_down": F, "waiting": T}, "waiting", "waiting", False),
     ({"moving_up": F, "moving_down": F}, "waiting", "inferred_idle", False),
-    ({"waiting": F}, "unknown", "insufficient", False),
+    ({"waiting": F}, "active", "inferred_active", False),
     ({"fault": F}, "unknown", "insufficient", False),
     ({"moving_up": F, "moving_down": N}, "unknown", "insufficient", True),
     ({"fault": N, "moving_up": T}, "moving_up", "moving_up", True),
@@ -247,6 +260,36 @@ def test_floor_scoped_viewer_sees_only_his_sensors(app, monkeypatch):
     r = c.get(f"{API}/{b}", headers=h)
     assert r.status_code == 404 and r.json()["code"] == "elevator_not_found"
     assert '"B"' not in c.get(API, headers=h).text
+
+
+def test_owner_set_fire_service_and_active(app):
+    """The owner's integration: waiting, fault, fire service and shutdown per elevator, no movement sensors."""
+    c, db, _ = app
+    for e in ("binary_sensor.el3_wait", "binary_sensor.el3_fault", "binary_sensor.el3_fire", "binary_sensor.el3_shut"):
+        add_entity(db, e, "off")
+    eid = create(c, sensors={"waiting": "binary_sensor.el3_wait", "fault": "binary_sensor.el3_fault", "fire_service": "binary_sensor.el3_fire",
+                             "out_of_service": "binary_sensor.el3_shut"}).json()["id"]
+    assert c.get(f"{API}/{eid}").json()["state"] == "active"
+    set_state(db, "binary_sensor.el3_wait", "on")
+    assert c.get(f"{API}/{eid}").json()["state"] == "waiting"
+    set_state(db, "binary_sensor.el3_fault", "on")
+    set_state(db, "binary_sensor.el3_fire", "on")
+    body = c.get(API).json()
+    assert body["elevators"][0]["state"] == "fire_service" and body["summary"]["fire_service"] == 1
+    set_state(db, "binary_sensor.el3_fire", "unavailable")  # ignored: the fault decides, marked partial
+    got = c.get(f"{API}/{eid}").json()
+    assert got["state"] == "fault" and got["partial"] is True
+    for e in ("binary_sensor.el3_wait", "binary_sensor.el3_fault", "binary_sensor.el3_shut"):
+        set_state(db, e, "unknown")
+    assert c.get(f"{API}/{eid}").json()["state"] == "unknown"
+
+
+def test_a_new_role_needs_no_migration(app):
+    """Roles are keys in the sensors table (no CHECK): the closed list is code only."""
+    _, db, _ = app
+    with db.connection(mode="read") as conn:
+        sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'infra_elevator_sensors'").fetchone()[0]
+    assert "CHECK" not in sql.upper()
 
 
 # ---------------------------------------------------------------- order, update, delete, audit

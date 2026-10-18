@@ -1,7 +1,7 @@
 /**
  * CR-INFRA-ELEVATORS: the pure presentation model of the elevators - the state chip (label, icon, tone) and the home tiles - so the node-only unit
  * specs can drive it without a DOM. The state itself is derived by the server (services/elevators.py, documented priority
- * fault > out_of_service > moving > door_open > waiting > unknown); this module never upgrades it: a stale list shows every elevator as unknown.
+ * fire_service > fault > out_of_service > moving > door_open > waiting / active > unknown); this module never upgrades it: a stale list shows every elevator as unknown.
  */
 import type { Elevator, ElevatorState } from '../api/elevators';
 import type { IconName } from '../components/sw-icon';
@@ -20,12 +20,14 @@ export interface Chip {
 }
 
 const CHIPS: Record<ElevatorState, { key: EltKey; icon: IconName; tone: StateKind }> = {
+  fire_service: { key: 'stateFireService', icon: 'flame', tone: 'error' },
   fault: { key: 'stateFault', icon: 'warning', tone: 'error' },
   out_of_service: { key: 'stateOutOfService', icon: 'pause', tone: 'stale' },
   moving_up: { key: 'stateMovingUp', icon: 'arrowUp', tone: 'live' },
   moving_down: { key: 'stateMovingDown', icon: 'arrowDown', tone: 'live' },
   door_open: { key: 'stateDoorOpen', icon: 'door', tone: 'neutral' },
   waiting: { key: 'stateWaiting', icon: 'elevator', tone: 'neutral' },
+  active: { key: 'stateActive', icon: 'activity', tone: 'live' },
   unknown: { key: 'stateUnknown', icon: 'elevator', tone: 'unknown' },
 };
 
@@ -41,8 +43,8 @@ export function chipOf(e: Pick<Elevator, 'state' | 'stale'>): Chip {
   return { state, label: elt(c.key), icon: c.icon, tone: c.tone };
 }
 
-/** Loudest first for the summary: fault, then out of service. */
-const RANK: Record<ElevatorState, number> = { fault: 0, out_of_service: 1, unknown: 2, moving_up: 3, moving_down: 3, door_open: 4, waiting: 5 };
+/** Loudest first for the summary: fire service, fault, then out of service. */
+const RANK: Record<ElevatorState, number> = { fire_service: 0, fault: 1, out_of_service: 2, unknown: 3, moving_up: 4, moving_down: 4, active: 4, door_open: 5, waiting: 6 };
 
 export type HomeTile =
   | { kind: 'elevator'; id: string; name: string; chip: Chip; href: string }
@@ -50,18 +52,20 @@ export type HomeTile =
 
 /**
  * The home tiles: nothing without elevators (or without permission - the caller passes an empty list); one tile per elevator up to
- * HOME_CHIP_MAX, in the configured order; above that ONE summary tile "N מעליות · F בתקלה" whose tone is the loudest state present.
+ * HOME_CHIP_MAX, in the configured order; above that ONE summary tile "N מעליות · F בתקלה · K פיקוד כבאים" whose tone is the loudest state present.
  */
 export function homeTiles(list: readonly Elevator[], stale = false): HomeTile[] {
   if (!list.length) return [];
   const items = list.map((e) => ({ e, chip: chipOf({ state: e.state, stale: stale || e.stale }) }));
   if (items.length <= HOME_CHIP_MAX) return items.map(({ e, chip }) => ({ kind: 'elevator', id: e.id, name: e.name, chip, href: ELEVATORS_HREF }));
   const faults = items.filter((i) => i.chip.state === 'fault').length;
+  const fire = items.filter((i) => i.chip.state === 'fire_service').length;
   const loudest = [...items].sort((a, b) => RANK[a.chip.state] - RANK[b.chip.state])[0].chip;
-  const tone: StateKind = faults ? 'error' : loudest.state === 'out_of_service' ? 'stale' : 'neutral';
+  const tone: StateKind = faults || fire ? 'error' : loudest.state === 'out_of_service' ? 'stale' : 'neutral';
   return [{
-    kind: 'summary', label: elt('title'), value: String(items.length), detail: faults ? elt('summaryFaults', { n: items.length, f: faults }) : elt('summary', { n: items.length }),
-    icon: faults ? 'warning' : 'elevator', tone, href: ELEVATORS_HREF,
+    kind: 'summary', label: elt('title'), value: String(items.length),
+    detail: [elt('summary', { n: items.length }), faults ? elt('summaryFault', { f: faults }) : '', fire ? elt('summaryFire', { k: fire }) : ''].filter(Boolean).join(' · '),
+    icon: fire ? 'flame' : faults ? 'warning' : 'elevator', tone, href: ELEVATORS_HREF,
   }];
 }
 

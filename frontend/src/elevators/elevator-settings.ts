@@ -18,7 +18,7 @@ import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 
 const ROLE_LABEL: Record<ElevatorRole, EltKey> = {
-  moving_up: 'roleMovingUp', moving_down: 'roleMovingDown', waiting: 'roleWaiting', fault: 'roleFault', door_open: 'roleDoorOpen', out_of_service: 'roleOutOfService',
+  moving_up: 'roleMovingUp', moving_down: 'roleMovingDown', waiting: 'roleWaiting', fault: 'roleFault', fire_service: 'roleFireService', door_open: 'roleDoorOpen', out_of_service: 'roleOutOfService',
 };
 const PROBLEM: Record<Exclude<DraftProblem, null>, EltKey> = {
   name: 'name', no_sensor: 'needOne', duplicate_sensor: 'needOne', too_many_extras: 'extras', extra_label: 'extraLabel',

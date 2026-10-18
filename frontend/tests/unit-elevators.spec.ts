@@ -14,12 +14,14 @@ const el = (id: string, state: ElevatorState, extra: Partial<Elevator> = {}): El
 
 test('every state has its chip: fault is the error tone, moving is live, unknown is grey', () => {
   const expected: Record<ElevatorState, [string, string, string]> = {
+    fire_service: ['error', 'flame', 'פיקוד כבאים'],
     fault: ['error', 'warning', 'תקלה'],
-    out_of_service: ['stale', 'pause', 'מושבתת'],
+    out_of_service: ['stale', 'pause', 'בהשבתה'],
     moving_up: ['live', 'arrowUp', 'עולה'],
     moving_down: ['live', 'arrowDown', 'יורדת'],
     door_open: ['neutral', 'door', 'דלת פתוחה'],
     waiting: ['neutral', 'elevator', 'ממתינה'],
+    active: ['live', 'activity', 'פעילה'],
     unknown: ['unknown', 'elevator', 'לא ידוע'],
   };
   for (const [state, [tone, icon, label]] of Object.entries(expected)) {
@@ -40,6 +42,12 @@ test('home: no elevators = no tiles at all', () => {
   expect(homeTiles([])).toEqual([]);
 });
 
+test('home: a fire-service tile is loud and distinct from a fault', () => {
+  const [f, g] = homeTiles([el('a', 'fire_service'), el('b', 'fault')]);
+  expect(f.kind === 'elevator' && [f.chip.tone, f.chip.icon, f.chip.label]).toEqual(['error', 'flame', 'פיקוד כבאים']);
+  expect(g.kind === 'elevator' && [g.chip.tone, g.chip.icon]).toEqual(['error', 'warning']);
+});
+
 test('home: one tile per elevator up to four, in the given order, each linking to the infrastructure screen', () => {
   const list = [el('a', 'waiting'), el('b', 'fault'), el('c', 'moving_up'), el('d', 'unknown')];
   const tiles = homeTiles(list);
@@ -54,6 +62,11 @@ test('home: more than four fold into one summary; a fault makes it the loudest t
   expect(calm[0]).toMatchObject({ kind: 'summary', value: '5', tone: 'neutral', detail: '5 מעליות', icon: 'elevator' });
   const faulty = homeTiles([el('a', 'fault'), el('b', 'fault'), el('c', 'waiting'), el('d', 'out_of_service'), el('e', 'waiting')]);
   expect(faulty[0]).toMatchObject({ kind: 'summary', value: '5', tone: 'error', detail: '5 מעליות · 2 בתקלה', icon: 'warning' });
+  // owner 2026-10-18: fire service is as loud as a fault, with its own icon and its own part of the summary
+  const fire = homeTiles([el('a', 'fire_service'), el('b', 'fault'), el('c', 'active'), el('d', 'waiting'), el('e', 'active')]);
+  expect(fire[0]).toMatchObject({ tone: 'error', icon: 'flame', detail: '5 מעליות · 1 בתקלה · 1 פיקוד כבאים' });
+  const fireOnly = homeTiles([el('a', 'fire_service'), el('b', 'active'), el('c', 'active'), el('d', 'active'), el('e', 'active')]);
+  expect(fireOnly[0]).toMatchObject({ tone: 'error', detail: '5 מעליות · 1 פיקוד כבאים' });
   const maint = homeTiles([el('a', 'out_of_service'), el('b', 'waiting'), el('c', 'waiting'), el('d', 'waiting'), el('e', 'waiting')]);
   expect(maint[0]).toMatchObject({ tone: 'stale' });
 });
@@ -107,7 +120,8 @@ test('reorder: one step up or down, unchanged at the edges', () => {
 test('strings: English is complete, Arabic / Russian are dev-marked, placeholders survive, no platform branding', () => {
   expect(ELT_KEYS.filter((k) => !ELT_TABLES.en[k])).toEqual([]);
   expect(ELT_DEV_MARKED).toEqual(['ar', 'ru']);
-  expect(elt('summaryFaults', { n: 3, f: 1 }, 'en')).toBe('3 elevators · 1 in fault');
+  expect(elt('summaryFault', { f: 1 }, 'en')).toBe('1 in fault');
+  expect(elt('summaryFire', { k: 2 }, 'en')).toBe('2 fire service');
   expect(elt('stateFault', undefined, 'ru')).toBe('Неисправность');
   expect(elt('roleWaiting', undefined, 'ar')).toBe('ממתינה / עומדת'); // missing in ar -> Hebrew
   for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
