@@ -526,7 +526,9 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/system/secrets"), ("PUT", "/api/v1/system/secrets/{name}"), ("DELETE", "/api/v1/system/secrets/{name}"),
                      ("POST", "/api/v1/system/secrets/{name}/test"),
                      # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) - local sessions only
-                     ("GET", "/api/v1/identity/service-identity"), ("PUT", "/api/v1/identity/service-identity")}
+                     ("GET", "/api/v1/identity/service-identity"), ("PUT", "/api/v1/identity/service-identity"),
+                     # SVCIDENT3: the runnable switch is local-only too (prefix-blocked in remote_channel; the remote 404 is asserted in test_service_identity_runnable.py)
+                     ("PUT", "/api/v1/identity/service-identity/runnable")}
 
 
 def test_every_route_needs_a_remote_session(arx):
