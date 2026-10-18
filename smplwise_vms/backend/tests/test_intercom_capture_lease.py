@@ -288,3 +288,35 @@ def leak_scan(w, caplog, replies: list[str]) -> None:
     for text in replies:
         for s in secrets_seen:
             assert s not in text
+
+
+def test_confirm_refused_capture_operation_busy_keeps_the_session_and_the_lease(route):
+    """ARX-FU 1: like capture_not_ready, `capture_operation_busy` leaves the host's session untouched: the card still waits."""
+    w = route
+    sid = start(w).json()["capture"]["session_id"]
+    ref = lease_of(w, sid)["id"]
+    w.host.present_card(ref)
+    wait_state(w, sid, "captured")
+    intercom_capture.CAPTURES._stop.set()  # freeze the poller: the confirm route alone decides the state
+    w.host.confirm_outcome = "busy"
+    r = w.client.post(f"/api/v1/intercom/card-capture/{sid}/confirm", json=env(label="x", confirmed=True), headers=as_user("joni"))
+    assert r.status_code == 409 and r.json()["details"]["wiskey_code"] == "capture_operation_busy"
+    assert r.json()["details"]["capture"]["state"] == "captured", "the session is kept, not closed"
+    assert lease_of(w, sid)["state"] != "destroyed" and ref in w.host.leases
+    w.host.confirm_outcome = "ok"  # the owner may approve again
+    r = w.client.post(f"/api/v1/intercom/card-capture/{sid}/confirm", json=env(label="x", confirmed=True), headers=as_user("joni"))
+    assert r.status_code == 200, r.text
+
+
+def test_confirm_refused_other_code_still_closes_the_session(route, monkeypatch):
+    """Negative control for the busy rule: a code outside the keep list (card_conflict) ends the session."""
+    w = route
+    sid = start(w).json()["capture"]["session_id"]
+    w.host.present_card(lease_of(w, sid)["id"])
+    wait_state(w, sid, "captured")
+    intercom_capture.CAPTURES._stop.set()
+    orig = w.host.handle_request
+    monkeypatch.setattr(w.host, "handle_request", lambda dto: {"result": "refused", "request_id": dto.request_id, "code": "card_conflict"} if dto.action == "capture_confirm" else orig(dto))
+    r = w.client.post(f"/api/v1/intercom/card-capture/{sid}/confirm", json=env(label="x", confirmed=True), headers=as_user("joni"))
+    assert r.status_code == 409 and r.json()["details"]["capture"]["state"] == "closed"
+    assert lease_of(w, sid)["state"] == "destroyed"

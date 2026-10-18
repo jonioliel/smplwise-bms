@@ -69,12 +69,52 @@ nothing is sent. The host destroys every live lease after 15 s without a revoke 
 `{result: unknown_stream, request_id}` · `{result: rejected, stage, code[, request_id]}` (request_id iff the schema stage passed).
 Any other shape, another `request_id` or another `sequence` is NOT an acknowledgement (Arx retries).
 
-`lease_request` (PROVISIONAL, for alignment with WisKey's revised C04): `{result: acknowledged, request_id, session: {session_id,
-state}}` (start) · `{..., capture: {state, error, card: {masked_number, technology, reader_id}}}` (status) · `{..., person: {...}}`
-(confirm) · `{..., cancelled: true}` (cancel) · `{result: refused, request_id, code}` (WisKey refused before acting; codes such as
-`capture_not_found`, `lease_gone`, `capture_station_busy`, `revision_conflict`) · `{result: sent_unknown, request_id}` (confirm
-passed the barrier, outcome unknown) · `{result: rejected, stage, code}`. No answer carries a card value beyond the masked form
-in a status, a person name in an event answer, or a station address.
+`lease_request` (CLOSED, Arx answer ARX-LEASE-RESPONSE of 2026-10-17): the bridge service's answer object (the `service_response` of
+`return_response`) for `smplwise_bridge.lease_request` is validated by one closed JSON Schema per action (draft 2020-12,
+`additionalProperties: false` in every object, `oneOf` of variants). Requests, services, timings and M1-M14 are unchanged.
+
+| Action | Schema (file in this folder) | sha256 |
+|---|---|---|
+| capture_start | `capture_start.answer.schema.json` | `23378fe3cd65ce1e2509ed4a8582840640e48df42e8205a569f25ad97c82ac86` |
+| capture_status | `capture_status.answer.schema.json` | `add66c749402c03834b92cacb6f55b429a770445725942903e7d3c33ee8218d8` |
+| capture_confirm | `capture_confirm.answer.schema.json` | `09d38691c816cef0fd77daeaf6e49b49b2770e4f964e5cf444d395d88d8ce99b` |
+| capture_cancel | `capture_cancel.answer.schema.json` | `d563830801861d3b958f7d53135ef959227d65dee98cbb39b2da95afa3d115f8` |
+| codes table | `CAPTURE_ANSWER_CODES.json` | `624383caed968e84b62caf11570f39dfed213419b93d23786c161aae34f7e342` |
+
+These five files are byte copies of the Arx reply files of the same names (`arx_reply_all_open_2026-10-17/A_lease_response/`); the
+sha256 above are the reply's, and a copy that differs from them is not this contract.
+
+Variants and `request_id` (DTO v3 section 9: the `request_id` is present iff the schema stage passed):
+
+| Variant | Actions | `request_id` |
+|---|---|---|
+| `acknowledged` | all four: start `session {session_id, state: preparing\|waiting}`; status `capture {state: preparing\|waiting\|captured\|error, error, card}`; confirm `person` (exactly `ManagedUser.public()`, never `pin`, `card_no` or `photo`); cancel `cancelled: true` | required, equal to the request |
+| `refused` | all four, a code from the closed per-action table below | required, equal to the request |
+| `sent_unknown` | `capture_confirm` only (past the confirm barrier, outcome unknown) | required, equal to the request |
+| `rejected` at transport / encoding / parse / schema | all four | forbidden |
+| `rejected` at binding / signature / time / state | all four | required, equal to the request |
+
+Status details: `error` is non-null exactly when `state` is `error` (`capture_timeout|capture_unsupported|capture_reader_invalid|
+capture_failed`); `card` is non-null exactly when `state` is `captured`: `{masked_number: ^•{4}( [A-Za-z0-9_-]{4})?$, technology: one of
+TypeA_M1, TypeA_CPU, TypeB, ID_125K, FelicaCard, DesfireCard, or null; reader_id: 1..8 or null}`. `applying` is never reported on the
+lease route (during a confirm the host answers `refused capture_operation_busy`). An acknowledged confirm means WisKey's store holds
+the card, not that a station applied it.
+
+Closed `refused` codes per action:
+
+| Action | Codes |
+|---|---|
+| capture_start | `capture_station_busy`, `capture_limit`, `revision_conflict`, `lease_gone`, `binding_denied`, `capture_unsupported`, `capture_reader_invalid`, `capture_failed` |
+| capture_status | `capture_not_found`, `lease_gone`, `binding_denied`, `capture_operation_busy` |
+| capture_confirm | `capture_not_ready`, `invalid_text`, `capture_operation_busy`, `capture_not_found`, `lease_gone`, `binding_denied`, `card_conflict`, `revision_conflict` |
+| capture_cancel | `capture_not_found`, `lease_gone`, `binding_denied`, `capture_applying` |
+
+The host's session is UNCHANGED after `capture_not_ready`, `invalid_text`, `capture_operation_busy` and `capture_applying`
+(Arx keeps its own session for these, so the owner may confirm again); after any other code it has ended. A cancel for a
+`lease_ref` the host holds no session for is `refused capture_not_found`, never `acknowledged`. `rejected` codes per stage are in
+`CAPTURE_ANSWER_CODES.json` (`rejected`); `stage` and `code` match `^[a-z][a-z0-9_]{0,63}$`; `Unauthorized` is not a code (M10).
+The internal-to-wire mapping WisKey applies and Arx's handling of each answer are in the same file. No answer carries a card
+value beyond the masked form in a status, a person name in an event answer, or a station address.
 
 ## 5. Arx-side reconciliation and robustness (LEASE-FIX, review 2026-10-16)
 

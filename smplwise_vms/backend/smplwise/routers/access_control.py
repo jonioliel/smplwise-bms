@@ -1690,7 +1690,7 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
     capture_lease_route._clock_check(kind, data)
     if kind in ("refused", "rejected"):
         code = data["code"]
-        if code in ("capture_not_ready", "invalid_text") or kind == "rejected":
+        if code in ("capture_not_ready", "invalid_text", "capture_operation_busy") or kind == "rejected":
             CAPTURES.back_to_captured(capture)
         else:
             CAPTURES.set_state(capture, "lost" if code in ("capture_not_found", "lease_gone") else "closed", code, only_from=("applying",))
