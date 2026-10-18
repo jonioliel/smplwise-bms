@@ -149,7 +149,7 @@ def check(base: Mapping[str, Any] | None, rev: Mapping[str, Any] | None) -> dict
         return None
     b = loads(rev) or {}
     instalment = b.get("basis") == "instalment" and b.get("basis_minor") is not None
-    basis_minor = int(b["basis_minor"]) if instalment else int(base["approved_total_minor"])
+    basis_minor = int(b["basis_minor"]) if b.get("basis_minor") is not None else int(base["approved_total_minor"])  # review F2: the stored basis
     total = int(rev["total_minor"])
     flags: list[str] = []
     delta: int | None = None
