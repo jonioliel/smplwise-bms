@@ -404,8 +404,13 @@ export class TicketCostCard extends LitElement {
     const exc = rev?.exceptional ?? [];
     if (!c.baseline && !exc.length) return nothing;
     const cur = rev?.currency ?? c.currency;
+    const qc = c.quote_check; // CR-CLAIM-PREFILL: flags for the manager (never a refusal)
     return html`<div class="vsq" data-against-quote>
       ${c.baseline ? html`<div class="vline" data-claim-baseline=${c.baseline.quote_id}><span>${qt('againstQuote', { n: c.baseline.version, total: this.money(c.baseline.total_minor, c.baseline.currency) })}</span></div>` : nothing}
+      ${qc?.basis === 'instalment' ? html`<div class="vline" data-claim-instalment=${qc.instalment_index ?? ''}><span>${qt('qcInstalment', { n: (qc.instalment_index ?? 0) + 1, total: this.money(qc.basis_minor, qc.currency) })}</span></div>` : nothing}
+      ${qc?.status === 'differs' ? html`<div class="vline" data-quote-check="differs"><span class="chip warn">${cIcon('warning')}${qt('qcDiffers')}</span>
+        <span>${qc.flags.map((f) => qt(`qc_${f}` as QuoteTextKey)).join(' · ')}</span></div>` : nothing}
+      ${qc?.above_reason ? html`<div class="vline" data-quote-check-reason><span>${qt('qcReason')}</span><span class="why">${qc.above_reason}</span></div>` : nothing}
       ${exc.length ? html`<ul class="exc" aria-label=${qt('exceptional')} data-exceptional>${exc.map((e) => html`<li data-exc=${e.index} data-exc-kind=${e.kind} data-exc-review=${e.review ?? 'none'}>
         <span class="el">${cIcon('warning')}${bidi([ct(`k_${e.kind}` as CostTextKey), e.description].filter(Boolean).join(' · '))}
           <span class=${`chip ${e.review === 'pending' ? 'warn' : e.review === 'excluded' ? '' : e.review === 'accepted' ? 'ok' : 'warn'}`}>${qt(e.review ? (`exc_${e.review}` as QuoteTextKey) : (`exc_${e.reason}` as QuoteTextKey))}</span></span>
@@ -425,6 +430,7 @@ export class TicketCostCard extends LitElement {
       <div class="ch">
         ${name ? html`<span class="who">${bidi(name)}</span>` : nothing}
         ${many ? this.statusChip(c.status) : nothing}
+        ${c.instalment_index !== null && c.instalment_index !== undefined ? html`<span class="chip" data-claim-instalment-n=${c.instalment_index}>${qt('qcPaymentN', { n: c.instalment_index + 1 })}</span>` : nothing}
         ${c.high_amount ? html`<span class="chip warn" data-high-amount>${cIcon('warning')}${ct('highAmount')}</span>` : nothing}
         ${c.no_charge ? html`<span class="chip" data-no-charge>${ct('noCharge')}</span>` : nothing}
         <span class="sp"></span>

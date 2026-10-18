@@ -202,6 +202,11 @@ def demand_view(conn, claim: Mapping[str, Any], revs: Sequence[Mapping[str, Any]
 
     check = rfq_terms.check_demand(conn, claim, base, current)
     out["schedule_check"] = check
+    # CR-CLAIM-PREFILL: the demand against the approved quote (or the instalment it named) - `differs` flags it for the manager; it does
+    # not set needs_review (that switches the approve buttons to the exceptional-line choice, which is about lines outside the quote)
+    from . import claim_prefill
+
+    out["quote_check"] = claim_prefill.check(base, current)
     if check is not None and check["status"] == "flagged" and claim["status"] == "submitted":
         out["needs_review"] = True
     return out
@@ -402,8 +407,8 @@ def decide(conn, q: Mapping[str, Any], action: str, *, by: str, revision: int, a
         # approved / paid) it was checked against the baseline of ITS submission time; a quote approved now would become a baseline the
         # demand's exceptional lines were never checked against. The manager decides the demand first (a rejected demand is checked
         # again against the new baseline when the vendor resubmits).
-        claim = store_costs.claim_for_assignment(conn, q.get("assignment_id")) if q.get("assignment_id") else None
-        if claim is not None and claim["status"] in DEMAND_LOCKS:
+        # CR-CLAIM-PREFILL (0116): any demand of the assignment (one per instalment) locks it
+        if any(c["status"] in DEMAND_LOCKS for c in store_costs.claims_of_assignment(conn, q.get("assignment_id"))):
             raise CostRefused(409, "demand_pending")
         lines = lines_of(q)
         if line_indexes is None:
@@ -464,7 +469,8 @@ def flow(conn, ticket: Mapping[str, Any]) -> dict[str, Any]:
         return {"stage": "none", "sub_state": sub, "assignment_id": asg["id"], "quote_mode": None}
     mode = quote_mode(asg)
     out = {"stage": "none", "sub_state": sub, "assignment_id": asg["id"], "quote_mode": mode}
-    claim = store_costs.claim_for_assignment(conn, asg["id"])
+    rows = store_costs.claims_of_assignment(conn, asg["id"])
+    claim = rows[-1] if rows else None  # CR-CLAIM-PREFILL (0116): the latest demand (one per instalment) sets the stage
     if claim is not None and claim["status"] != "awaiting":
         out["stage"] = {"submitted": "demand_submitted", "rejected": "demand_rejected", "approved": "demand_approved", "paid": "paid"}[claim["status"]]
         return out

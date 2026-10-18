@@ -27,13 +27,30 @@ def claim(conn: sqlite3.Connection, claim_id: str) -> dict[str, Any] | None:
 
 
 def claim_for_assignment(conn: sqlite3.Connection, assignment_id: str | None) -> dict[str, Any] | None:
+    """The PRIMARY claim of an assignment: the ordinary one (`instalment_index` NULL) - or, once the vendor's first demand named an
+    instalment (CR-CLAIM-PREFILL, migration 0116: that claim took the index), the earliest one. Without a payment schedule an
+    assignment has exactly one claim, as before 0116."""
     if not assignment_id:
         return None
-    return _dict(conn.execute("SELECT * FROM ticket_cost_claims WHERE assignment_id = ?", (assignment_id,)).fetchone())
+    return _dict(conn.execute("SELECT * FROM ticket_cost_claims WHERE assignment_id = ? "
+                              "ORDER BY instalment_index IS NOT NULL, created_at, rowid LIMIT 1", (assignment_id,)).fetchone())
+
+
+def claims_of_assignment(conn: sqlite3.Connection, assignment_id: str | None) -> list[dict[str, Any]]:
+    """CR-CLAIM-PREFILL: every claim of an assignment, oldest first (one per approved instalment the vendor demanded, 0116)."""
+    if not assignment_id:
+        return []
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_claims WHERE assignment_id = ? ORDER BY created_at, rowid",
+                                          (assignment_id,)).fetchall()]
+
+
+def claim_for_instalment(conn: sqlite3.Connection, assignment_id: str, index: int) -> dict[str, Any] | None:
+    return _dict(conn.execute("SELECT * FROM ticket_cost_claims WHERE assignment_id = ? AND instalment_index = ?",
+                              (assignment_id, int(index))).fetchone())
 
 
 def claims_of_ticket(conn: sqlite3.Connection, ticket_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_claims WHERE ticket_id = ? ORDER BY created_at, id", (ticket_id,)).fetchall()]
+    return [dict(r) for r in conn.execute("SELECT * FROM ticket_cost_claims WHERE ticket_id = ? ORDER BY created_at, rowid", (ticket_id,)).fetchall()]
 
 
 def insert_claim(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str:

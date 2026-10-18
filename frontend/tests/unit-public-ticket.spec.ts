@@ -213,13 +213,17 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let portal = 0;
   let portalMore = 0;
   let consent = 0;
+  let claimPrefill = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
       const n = gzipSync(readFileSync(p)).length;
+      // CR-CLAIM-PREFILL: the demand loaded from the approved quote - a lazy chunk the claim step fetches only when the claim carries
+      // `prefill` (an approved quote on the link's assignment); its own 3 KB cap, so the 61 KB ticket page never grows for it
+      if (/^claim-prefill[-.]/.test(f)) claimPrefill += n;
       // integ/264 (budget decision a): the payment-terms module is a lazy chunk the vendor page fetches only with the switch on -
       // its own 3 KB cap, booked BEFORE the rfq rule so that rule measures the common path (page + files) only
-      if (/^rfq-page-terms[-.]/.test(f)) rfqTerms += n;
+      else if (/^rfq-page-terms[-.]/.test(f)) rfqTerms += n;
       // RFQ-VENDOR-UPLOAD: the vendor's own files on his quote - a lazy chunk fetched only with the installation switch on; its own 5 KB cap (quote + question-with-files UI)
       else if (/^rfq-upload[-.]/.test(f)) rfqUpload += n;
       // RFQATT: `rfq-files-*` (the request's files) belongs to the RFQ page; a ticket link fetches it only when a work order referenced files
@@ -240,6 +244,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(portal).toBeLessThanOrEqual(12 * 1024);
   expect(portalMore).toBeLessThanOrEqual(6 * 1024);
   expect(consent).toBeLessThanOrEqual(5 * 1024);
+  expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {

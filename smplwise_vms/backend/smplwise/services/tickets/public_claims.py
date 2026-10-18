@@ -3,7 +3,9 @@
     GET  /t/api/claim        the claim of the link's assignment (status, the vendor's own revisions, the form settings)
     POST /t/api/claim/file   (public_app.claim_file) one photographed page or PDF -> a pending file id
     POST /t/api/claim        {lines[], currency, amounts_include_vat, vendor_ref?, notes?, no_charge?, documents: [{file_ids}],
-                              client_request_id} -> the server-computed revision
+                              instalment_index?, above_reason?, client_request_id} -> the server-computed revision
+    CR-CLAIM-PREFILL: GET adds `prefill` (the link's OWN approved quote - claim_prefill.prefill), POST validates `instalment_index` /
+    `above_reason` against it (claim_prefill.basis). No new route, no new rate kind.
 
 Wiring rules (code review section 3, as public_routes): the token through `link_context(allow_claim=True)` only - CLAIM MODE lets a
 link whose page no longer serves (closed past its grace, expired, a cannot-handle return) reach these routes and nothing else
@@ -71,7 +73,7 @@ class SqlClaimFileSink(ClaimFileSink):
         self._clock = clock or (lambda: dt.datetime.now(UTC).timestamp())
 
     def _open_claim(self, conn, link: LinkRecord, now: dt.datetime) -> dict[str, Any]:
-        claim = store_costs.claim_for_assignment(conn, link.assignment_id)
+        claim = costs.focus_claim(conn, link.assignment_id, now)  # CR-CLAIM-PREFILL (0116): a NEW instalment's claim takes files too
         if claim is None:
             raise PublicError(409, "claim_not_open")
         if claim["status"] in costs.SETTLED:
@@ -144,6 +146,10 @@ class ClaimIn(_Strict):
     notes: str | None = Field(default=None, max_length=4000)
     no_charge: bool = False
     documents: list[DocumentIn] = Field(default_factory=list, max_length=3)
+    # CR-CLAIM-PREFILL: the instalment of the approved schedule this demand is for, and the short reason of a demand above the approved
+    # total / instalment (claim_prefill.basis validates both against the link's own approved quote; the amount is never the client's)
+    instalment_index: int | None = Field(default=None, ge=0, le=5)
+    above_reason: str | None = Field(default=None, max_length=1000)
     client_request_id: str = Field(max_length=64)
 
 
@@ -195,7 +201,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 replay = claim_request(conn, link, crid, CLAIM_ROUTE, when)
                 if replay is not None:
                     return replay[0], replay[1], False
-                claim = store_costs.claim_for_assignment(conn, link.assignment_id)
+                try:  # CR-CLAIM-PREFILL (0116): the claim of the named instalment (a NEW one is written only after the submission validated)
+                    claim = costs.claim_for_submission(conn, link.assignment_id, payload.get("instalment_index"), when)
+                except costs.CostRefused as exc:
+                    raise _error(exc) from None
                 if claim is None:
                     raise PublicError(409, "claim_not_open")
                 asg = store_links.contact(conn, link.contact_id) or {}
