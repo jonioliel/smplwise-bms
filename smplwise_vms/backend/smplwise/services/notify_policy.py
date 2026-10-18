@@ -25,7 +25,7 @@ RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "tick
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq")  # rfq: TKRFQ5
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator")  # rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -76,7 +76,15 @@ SOURCES: tuple[Source, ...] = (
     _s("recorder.clock", "שעון המקליט", "device_faults", "alert", "שעון המקליט סוטה", "{name}: {detail}.", after_s=600, who="managers", push=False, subject="system", resolve_text="השעון תקין"),
     _s("recorder.certificate", "תעודת המקליט", "device_faults", "alert", "תעודת המקליט עומדת לפוג", "{name}: {detail}.", who="managers", push=False, email=True, subject="system", resolve_text="התעודה חודשה"),
     _s("device.unavailable", "התקן לא זמין", "device_faults", "info", "התקן לא זמין", "{name} לא זמין.", after_s=900, push=False, resolve_text="ההתקן חזר"),
-    _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
+    # CR-INFRA-ELEVATORS 2.8.0 (services/elevators_runtime.py): one source per alerting role, judged on that role's sensor. ONE default recipient
+    # policy for now (owner 2026-10-18: choosing recipients comes later) - the administrators (notify.manage) who may also see the elevator.
+    _s("elevator.fire_service", "מעלית: פיקוד כבאים", "device_faults", "critical", "פיקוד כבאים במעלית", "{name} עברה למצב פיקוד כבאים.", who="managers",
+       subject="elevator", resolve_notice=True, resolve_text="המעלית יצאה ממצב פיקוד כבאים"),
+    _s("elevator.fault", "מעלית: תקלה", "device_faults", "alert", "תקלה במעלית", "{name} מדווחת על תקלה.", who="managers", subject="elevator",
+       resolve_text="התקלה הסתיימה"),
+    _s("elevator.out_of_service", "מעלית: השבתה", "device_faults", "info", "מעלית בהשבתה", "{name} בהשבתה.", who="managers", push=False, subject="elevator",
+       resolve_text="ההשבתה הסתיימה"),
+    _s("device.battery_low","סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
     _s("backup.stale", "גיבוי ישן", "system", "info", "הגיבוי ישן", "{name}.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),

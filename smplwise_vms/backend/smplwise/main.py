@@ -103,6 +103,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         generator_runtime.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("generator janitor failed", exc_info=True)
+    try:  # CR-INFRA-ELEVATORS 2.8.0: the elevators' state history past its retention (hourly inside; no Home Assistant call)
+        from .services import elevators_runtime
+
+        elevators_runtime.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("elevators janitor failed", exc_info=True)
     try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
         from .services import update_runs
 
@@ -654,6 +660,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import generator_runtime
 
         generator_runtime.RUNNER.start(app.state.db, settings)  # CR-031: generator detection, history samples and alerts from the state mirror (read-only)
+        from .services import elevators_runtime
+
+        elevators_runtime.RUNNER.start(app.state.db)  # CR-INFRA-ELEVATORS 2.8.0: elevator state history and notifications from the state mirror (read-only)
         if os.environ.get("SW_BILL_PDF_SELFCHECK", "1") != "0":  # CR-023: log and expose which bill PDF engine really works here
             from .services import bill_pdf
 
@@ -755,6 +764,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import generator_runtime
 
         generator_runtime.RUNNER.shutdown()
+        from .services import elevators_runtime as _elr
+
+        _elr.RUNNER.shutdown()
         from .services import wiskey_background_feed as _wbf
 
         _wbf.FEED.shutdown()

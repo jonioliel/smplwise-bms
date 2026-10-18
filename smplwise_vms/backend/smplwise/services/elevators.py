@@ -28,6 +28,8 @@ from typing import Any, Iterable
 # the closed list of roles (the table stores keys only, so adding one needs no migration); out_of_service = the owner's "השבתה" (shutdown)
 ROLES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting")
 MAX_EXTRAS = 4
+# 2.8.0: the roles that raise a notification while their sensor is live `on` (sources elevator.<role>, services/elevators_runtime.py)
+ALERT_ROLES: tuple[str, ...] = ("fire_service", "fault", "out_of_service")
 STATES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting", "active", "unknown")
 DEAD = {"", "unknown", "unavailable", "none", "null"}
 
@@ -147,8 +149,82 @@ def live_of(rows: list[sqlite3.Row], *, connected: bool) -> dict[str, Any]:
     else:
         stamps = []
     since = max((s for s in stamps if s), default=None)
+    # 2.8.0: `flags` = each mapped role's live value (True / False / None = no live value) - the Infrastructure screen's sensor lights. Only the
+    # roles of the rows given (already filtered to what the caller may see), never an entity id.
     return {"state": st, "reason": reason, "partial": d["partial"], "stale": not connected, "since": since,
-            "roles": sorted(values), "extras": sorted(extras, key=lambda x: x["position"])}
+            "roles": sorted(values), "flags": {k: values[k] for k in sorted(values)}, "extras": sorted(extras, key=lambda x: x["position"])}
+
+
+# ---------------------------------------------------------------- 2.8.0: the state history (migration 0120, written by elevators_runtime)
+
+HISTORY_KEEP_S = 8 * 86400  # the screen shows 24 h; a week more is kept for a future longer bar
+HISTORY_HOURS = (24,)
+
+
+def history(conn: sqlite3.Connection, elevator_ids: list[str], lo: str, hi: str) -> dict[str, list[dict[str, Any]]]:
+    """Per elevator the segments [{state, from, to}] covering lo..hi (ISO UTC). The state in force at `lo` is the last row before it; the time
+    before the first known row is left out (never guessed). `to` of the last segment is `hi`. Empty without rows."""
+    out: dict[str, list[dict[str, Any]]] = {}
+    for eid in elevator_ids:
+        first = conn.execute("SELECT at, state FROM infra_elevator_states WHERE elevator_id = ? AND at <= ? ORDER BY at DESC LIMIT 1", (eid, lo)).fetchone()
+        rows = conn.execute("SELECT at, state FROM infra_elevator_states WHERE elevator_id = ? AND at > ? AND at <= ? ORDER BY at", (eid, lo, hi)).fetchall()
+        points = ([(lo, first["state"])] if first else []) + [(r["at"], r["state"]) for r in rows]
+        segs: list[dict[str, Any]] = []
+        for i, (at, state) in enumerate(points):
+            end = points[i + 1][0] if i + 1 < len(points) else hi
+            if segs and segs[-1]["state"] == state:
+                segs[-1]["to"] = end
+            elif end > at:
+                segs.append({"state": state, "from": at, "to": end})
+        out[eid] = segs
+    return out
+
+
+def _norm_iso(value: str | None) -> str | None:
+    """The mirror keeps the platform's own `last_changed` text (fractions, +00:00); the history compares instants as `...Z` text."""
+    if not value:
+        return None
+    from .timeutil import iso_utc, parse_utc
+
+    try:
+        return iso_utc(parse_utc(value))
+    except (ValueError, TypeError):
+        return None
+
+
+def record_state(conn: sqlite3.Connection, elevator_id: str, state: str, now: str, since: str | None) -> bool:
+    """Appends a history row when the derived state differs from the last one. The row's instant is the deciding sensor's last change when it is
+    known, later than the previous row and not in the future; else `now`. Returns whether a row was written."""
+    last = conn.execute("SELECT at, state FROM infra_elevator_states WHERE elevator_id = ? ORDER BY at DESC LIMIT 1", (elevator_id,)).fetchone()
+    if last is not None and last["state"] == state:
+        return False
+    since = _norm_iso(since)
+    at = since if since and since <= now and (last is None or since > last["at"]) else now
+    if last is not None and at <= last["at"]:
+        at = now if now > last["at"] else last["at"]
+    conn.execute("INSERT OR REPLACE INTO infra_elevator_states (elevator_id, at, state) VALUES (?, ?, ?)", (elevator_id, at, state))
+    return True
+
+
+def prune_history(conn: sqlite3.Connection, cutoff: str) -> int:
+    """Rows older than `cutoff`, except each elevator's newest row before it (it still says what held at the start of the window)."""
+    return conn.execute(
+        """DELETE FROM infra_elevator_states WHERE at < ? AND at < (
+               SELECT MAX(s2.at) FROM infra_elevator_states s2 WHERE s2.elevator_id = infra_elevator_states.elevator_id AND s2.at < ?)""",
+        (cutoff, cutoff)).rowcount
+
+
+def visible_to(conn: sqlite3.Connection, entity_visible: Any, elevator_id: str | None) -> bool:
+    """The notification rule of subject kind `elevator` (services/notify_visibility.Reach): the caller sees an ENABLED elevator through at least one
+    of its sensors (`entity_visible(entity_id)` is the caller's devices.read scope test) - the same rule as the operator routes (D3)."""
+    if not elevator_id:
+        return False
+    try:
+        rows = conn.execute("SELECT s.entity_id FROM infra_elevator_sensors s JOIN infra_elevators e ON e.id = s.elevator_id WHERE s.elevator_id = ? AND e.enabled = 1",
+                            (elevator_id,)).fetchall()
+    except sqlite3.Error:  # before the migration
+        return False
+    return any(entity_visible(r[0]) for r in rows)
 
 
 def mirror_connected() -> bool:
