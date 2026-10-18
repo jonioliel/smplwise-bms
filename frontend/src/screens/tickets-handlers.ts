@@ -374,7 +374,10 @@ export class TicketsHandlersPage extends LitElement {
       return html`${this.meta?.can.configure || this.meta?.can.technician_requests ? html`<tickets-portal-requests @notice=${this.onNotice}></tickets-portal-requests>` : nothing}
         <tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     }
-    if (this.seg === 'review') return html`<tickets-needs-review @notice=${this.onNotice} @review-count=${this.onReviewCount}></tickets-needs-review>`;
+    if (this.seg === 'review') {
+      // never a denied call: the report mounts only once the server said this viewer edits the directory
+      return this.meta?.can.configure ? html`<tickets-needs-review @notice=${this.onNotice} @review-count=${this.onReviewCount}></tickets-needs-review>` : html``;
+    }
     if (this.seg === 'contacts') return html`<tickets-contacts kind="person" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     return html`<div class="body" data-handlers-segment>
       <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${loads} .handledLabel=${label} .managed=${this.managed()}
