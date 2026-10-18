@@ -109,6 +109,7 @@ import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../a
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
+import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, DD_PLACE_DECLINED, ddHeader, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
@@ -1111,12 +1112,13 @@ export class SwApp extends LitElement {
         inset: -6px;
       }
     }
-    /* Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 1; 2-4 experimental until 2.7.2). On a wide screen
+    /* Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 1). On a wide screen
        (>= 1100 px) the dropdown form of a tab group (the single chip of an area, or the two chips + alarm button of the pair) can share the
        page title's row instead of taking a row above it. The chrome row then collapses to zero height and its chips hang on the page's first
-       row. data-dd-place is the EFFECTIVE placement, written by updated(): 1 own row (also below 1100 px, on the phone, and when a screen's
-       title would collide with the chips - checkDdCollision), 2 the far end of the row, 3 after the title (approximate: the shell cannot
-       measure a screen's heading), 4 the start edge, before the title: the page header keeps --sw-lead-reserve free there (sw-page).
+       row. data-dd-place is the EFFECTIVE placement, written by updated(): 1 own row (also below 1100 px and on the phone; for the areas in
+       DD_PLACE_DECLINED; and when the measured layout still collides - fitDd; data-dd-fallback says which), 2 the far end of the row, clear of
+       the floating corner (--sw-dd-float-end, measured), 3 right after the title, in the first free gap of the title row (--sw-dd-title-offset,
+       measured by fitDd), 4 the start edge, before the title: the page header keeps --sw-lead-reserve free there (sw-page, styles/lead-reserve.ts).
        data-dd-head = how many chips hang there. Everything is in logical properties: RTL puts the start on the right, LTR mirrors it. */
     @media (min-width: 1100px) {
       :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .subnav[data-tabstyle='dropdown'],
@@ -1139,19 +1141,20 @@ export class SwApp extends LitElement {
         inset-block-start: 14px;
         align-self: flex-start;
       }
-      /* 2: far end of the title row, clear of the floating corner (the pages keep their end side free through --sw-float-reserve) */
+      /* 2: far end of the title row, clear of the floating corner (--sw-dd-float-end: the corner's measured far-end extent + a gap); the
+         pages keep their end side free through --sw-float-reserve, the chips' measured extent (--sw-dd-end) */
       :host([data-design='a'][data-dd-head][data-dd-place='2']) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head][data-dd-place='2']) .tabpair:not(.single) {
         justify-content: flex-end;
-        padding-inline: 30px 84px;
+        padding-inline: 30px var(--sw-dd-float-end, 104px);
       }
       :host([data-design='a'][data-dd-head='1'][data-dd-place='2']) {
-        --sw-float-reserve: 276px;
+        --sw-float-reserve: var(--sw-dd-end, 296px);
       }
       :host([data-design='a'][data-dd-head='2'][data-dd-place='2']) {
-        --sw-float-reserve: 500px;
+        --sw-float-reserve: var(--sw-dd-end, 520px);
       }
-      /* 3: after the title, from the start side by an approximate offset (--sw-dd-title-offset) */
+      /* 3: right after the title: --sw-dd-title-offset is measured by fitDd (the title's far edge, or the first free gap past it, + a gap) */
       :host([data-design='a'][data-dd-head][data-dd-place='3']) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head][data-dd-place='3']) .tabpair:not(.single) {
         justify-content: flex-start;
@@ -1560,7 +1563,7 @@ export class SwApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.ddTimer = window.setInterval(() => this.checkDdCollision(), 1200); // a screen heading appears after its data loads
+    this.ddTimer = window.setInterval(() => this.fitDd(), 1200); // a screen heading appears after its data loads
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
@@ -1726,35 +1729,88 @@ export class SwApp extends LitElement {
    * does not move, so while scrolled it still passes under the banner; such a toolbar should use
    * `top: var(--sw-banner-h, 0px)` (inherited from sw-app's host) if it must stay clear. */
   private bannerObs: ResizeObserver | null = null;
-  /** The route (hash) on which a screen's title collided with the header chips: that route falls back to the own-row placement. */
+  /** The route (hash) on which the measured header layout still collided with the chips: that route falls back to the own-row placement. */
   private ddCollideRoute = '';
+  /** When the current collision was first seen: a collision has to persist for DD_COLLIDE_MS before the route falls back (a loading
+   * screen draws a provisional header for a moment). */
+  private ddMissSince = 0;
+  private ddRoute = '';
   private ddTimer = 0;
 
-  /** Placements 2-4 put the chips on the page's first row. A screen whose own heading would sit under them (it does not keep the
-   * start / end reserve free) falls back to the own row for that route, so no title is ever covered. Re-checked while the screen loads. */
-  private checkDdCollision(): void {
+  /** Placements 2-4 put the chips on the page's first row. fitDd measures that row (the title as a text range, and every control of the
+   * screen's top rows: buttons, links, fields, selectors, tabs, headings, through the shadow roots - ddHeader) and the floating corner:
+   *   - 2: publishes the corner's extent (--sw-dd-float-end) and the chips' own (--sw-dd-end, read as the pages' --sw-float-reserve);
+   *   - 3: places the chips right after the title (the title plus a control that wraps it, such as the devices area selector), moving on
+   *     past any control already there to the first free gap of the row (--sw-dd-title-offset);
+   *   - every placement: when a chip still overlaps the title, a control or the corner (or leaves the viewport) for DD_COLLIDE_MS, the route
+   *     falls back to the own row (data-dd-fallback="collision"), so nothing is ever covered. Re-run after every render and every 1.2 s. */
+  private fitDd(): void {
     const place = this.getAttribute('data-dd-place');
-    if (!place || place === '1' || !this.hasAttribute('data-dd-head') || !window.matchMedia('(min-width: 1100px)').matches) return;
-    const chips = [...this.renderRoot.querySelectorAll<HTMLElement>('.subnav[data-tabstyle="dropdown"] > sw-tabs, .tabpair:not(.single) > sw-tabs, .tabpair:not(.single) > sw-dropdown')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0);
+    if (!place || place === '1' || !this.hasAttribute('data-dd-head') || !window.matchMedia('(min-width: 1100px)').matches) {
+      this.ddMissSince = 0;
+      return;
+    }
+    const row = this.renderRoot.querySelector<HTMLElement>('.tabpair:not(.single), .subnav[data-tabstyle="dropdown"]');
     const screen = this.renderRoot.querySelector('.screen');
-    if (!chips.length || !screen) return;
-    const find = (root: ParentNode): HTMLElement | null => {
-      for (const el of root.querySelectorAll<HTMLElement>('*')) {
-        if (el.localName === 'h1' && el.getBoundingClientRect().width > 0) return el;
-        const inner = el.shadowRoot ? find(el.shadowRoot) : null;
-        if (inner) return inner;
-      }
-      return null;
+    const chipEls = [...this.renderRoot.querySelectorAll<HTMLElement>(DD_CHIPS)];
+    const measure = () => chipEls.map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+    let chips = measure();
+    if (!row || !screen || !chips.length) return;
+    const rtl = getComputedStyle(this).direction === 'rtl';
+    const rr = row.getBoundingClientRect();
+    /** how far an x coordinate lies from the row's start edge / far edge */
+    const fromStart = (x: number) => (rtl ? rr.right - x : x - rr.left);
+    const fromEnd = (x: number) => (rtl ? x - rr.left : rr.right - x);
+    const set = (k: string, v: number) => {
+      const px = `${Math.max(0, Math.round(v))}px`;
+      if (this.style.getPropertyValue(k) !== px) this.style.setProperty(k, px);
     };
-    const h1 = find(screen);
-    if (!h1) return;
-    const range = document.createRange();
-    range.selectNodeContents(h1);
-    const t = range.getBoundingClientRect();
-    const hit = chips.some((c) => t.left < c.right && t.right > c.left && t.top < c.bottom && t.bottom > c.top);
-    if (!hit) return;
+    const corner = this.renderRoot.querySelector<HTMLElement>('.float');
+    const cr = corner && corner.offsetWidth > 0 ? corner.getBoundingClientRect() : null;
+    if (place === '2') {
+      if (cr) set('--sw-dd-float-end', fromEnd(rtl ? cr.right : cr.left) + DD_GAP);
+      chips = measure();
+      set('--sw-dd-end', Math.max(...chips.map((c) => fromEnd(rtl ? c.right : c.left))) + DD_GAP);
+    }
+    const band = Math.max(...chips.map((c) => c.bottom)) + 8;
+    const { title, obstacles } = ddHeader(screen, band);
+    if (place === '3' && title && title.top < band) {
+      // the title, together with a control that wraps or overlaps it (the devices area selector draws the area name as its heading)
+      const box = { left: title.left, right: title.right };
+      for (const o of obstacles) {
+        if (o.left < title.right && o.right > title.left && o.top < title.bottom && o.bottom > title.top) {
+          box.left = Math.min(box.left, o.left);
+          box.right = Math.max(box.right, o.right);
+        }
+      }
+      const span = Math.max(...chips.map((c) => c.right)) - Math.min(...chips.map((c) => c.left));
+      let at = fromStart(rtl ? box.left : box.right) + DD_GAP;
+      for (let i = 0; i < 60; i++) {
+        const a = rtl ? rr.right - at - span : rr.left + at;
+        const b = a + span;
+        const hit = obstacles.filter((o) => o.left < b && o.right > a && !(o.left >= box.left - 0.5 && o.right <= box.right + 0.5));
+        if (!hit.length) break;
+        at = Math.max(...hit.map((o) => fromStart(rtl ? o.left : o.right))) + DD_GAP;
+      }
+      set('--sw-dd-title-offset', at);
+      chips = measure();
+    }
+    const covers = (c: DOMRect, o: DdBox) => c.left < o.right - 0.5 && c.right > o.left + 0.5 && c.top < o.bottom - 0.5 && c.bottom > o.top + 0.5;
+    const blocked: DdBox[] = [...obstacles, ...(title ? [title] : []), ...(cr ? [cr] : [])];
+    const offPage = chips.some((c) => c.left < -0.5 || c.right > window.innerWidth + 0.5);
+    // placement 3 with no title on the chips' row (a title under a row of the screen's own tabs) has nothing to follow
+    const hit = offPage || (place === '3' && (!title || title.top >= band)) || chips.some((c) => blocked.some((o) => covers(c, o)));
+    if (!hit) {
+      this.ddMissSince = 0;
+      return;
+    }
+    const now = performance.now();
+    if (!this.ddMissSince) this.ddMissSince = now;
+    if (now - this.ddMissSince < DD_COLLIDE_MS) return;
+    this.ddMissSince = 0;
     this.ddCollideRoute = location.hash;
     this.setAttribute('data-dd-place', '1');
+    this.setAttribute('data-dd-fallback', 'collision');
   }
   private observedBanner: HTMLElement | null = null;
 
@@ -1798,9 +1854,20 @@ export class SwApp extends LitElement {
     }
     const route = location.hash;
     if (route !== this.ddCollideRoute) this.ddCollideRoute = '';
-    const place = this.ddCollideRoute ? '1' : ddPlaceOf();
+    if (route !== this.ddRoute) {
+      this.ddRoute = route;
+      this.ddMissSince = 0; // a collision seen on the previous screen does not count here
+    }
+    const asked = ddPlaceOf();
+    const declined = asked !== '1' && !!DD_PLACE_DECLINED[areaOf(this.route) ?? '']?.includes(asked);
+    const place = declined || this.ddCollideRoute ? '1' : asked;
+    const fallback = declined ? 'declared' : this.ddCollideRoute ? 'collision' : null;
     if (this.getAttribute('data-dd-place') !== place) this.setAttribute('data-dd-place', place);
-    requestAnimationFrame(() => this.checkDdCollision());
+    if (this.getAttribute('data-dd-fallback') !== fallback) {
+      if (fallback) this.setAttribute('data-dd-fallback', fallback);
+      else this.removeAttribute('data-dd-fallback');
+    }
+    requestAnimationFrame(() => this.fitDd());
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
     if (banner === this.observedBanner) return;
     this.bannerObs?.disconnect();

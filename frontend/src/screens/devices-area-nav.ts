@@ -1,5 +1,4 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { leadReserveStyles } from '../styles/lead-reserve';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-dropdown';
@@ -60,8 +59,9 @@ export class DevicesAreaNav extends LitElement {
   /** The home group's dropdown SIZE dial (sm / md / lg) sizes the two pickers (`data-dd-size` on the host). */
   private tabsMode = new TabsModeController(this, 'home');
 
+  /* no lead reserve of its own (placement 4): the nav always sits in sw-page's header (the crumbs slot), which keeps it; reserving
+     here too doubled the gap before the floor picker (2.7.2) */
   static styles = css`
-    ${leadReserveStyles}
     :host {
       display: block;
       margin-block-end: 4px;
@@ -434,7 +434,7 @@ export class DevicesAreaNav extends LitElement {
     const sep = html`<span class="sep" aria-hidden="true"><sw-icon name="chevron" size=${11}></sw-icon></span>`;
     // the unassigned bucket is not an area of a floor: the floor picker alone, the page keeps its plain title
     const area = this.areaId !== 'unassigned';
-    return html`<nav class="lead-head" aria-label="ניווט: קומה ואזור">
+    return html`<nav aria-label="ניווט: קומה ואזור">
         <a class="crumb" data-crumb="home" href="#/devices/building" @click=${(e: Event) => { e.preventDefault(); navigate('/devices/building'); }}>${this.phone ? html`<sw-icon name="home" size=${16}></sw-icon>` : nothing}<span>חשמל והתקנים</span></a>
         ${sep}
         <div class="picks" data-nav-picks>${this.pick('floor', 'קומה', floor, 'floor')}${area ? this.pick('area', 'אזור', this.areaName, 'door') : nothing}</div>
