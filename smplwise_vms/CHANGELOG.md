@@ -1,5 +1,35 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.7.3 (pilot) — Vendor-upload enable blockers, claim-prefill check fix, remote kill switch for the extended service identity (still locked), security amendment wording
+**After installing:** **no database migration** (the sequence stays 0001..0118, contiguous). No bridge change (still 0.9.2; no Home Assistant restart needed for this version). **Add-on options:** no new option; the six deprecated, empty secret options are still declared - leave them empty. Reload the installed web app once. Nothing needs a switch.
+- **עברית:** אחרי ההתקנה: **אין מיגרציה של מסד הנתונים** (הרצף נשאר 0001..0118, רציף). אין שינוי בגשר (עדיין 0.9.2; אין צורך להפעיל מחדש את Home Assistant בגרסה הזו). **אפשרויות התוסף:** אין אפשרות חדשה; שש אפשרויות הסוד הישנות והריקות עדיין מוגדרות - יש להשאיר אותן ריקות. יש לטעון מחדש פעם אחת את אפליקציית הרשת המותקנת. שום דבר לא דורש מתג.
+
+### What was changed - מה השתנה
+- **English:** Vendor uploads (enable blockers from the 2.7.1 review): reading an Office package no longer holds the one shared public decode slot (it has its own), a declared upload size above the cap is refused before the body is read, and a download after the request number was purged gets a neutral file name.
+- **עברית:** העלאות ספקים (חוסמי הפעלה מסקירת 2.7.1): קריאת חבילת Office כבר לא תופסת את מקום הפענוח הציבורי היחיד המשותף (יש לה מקום משלה), גודל העלאה מוצהר מעל המגבלה נדחה לפני קריאת הגוף, והורדה אחרי שמספר הבקשה נמחק מקבלת שם קובץ ניטרלי.
+- **English:** Claim prefill: the check of a total payment demand against the approved quote now compares with the stored approved amount (it no longer drifts with the live baseline).
+- **עברית:** מילוי מקדים של תביעה: הבדיקה של דרישת תשלום כוללת מול ההצעה המאושרת משווה עכשיו לסכום המאושר השמור (היא כבר לא סוטה עם בסיס החישוב החי).
+- **English:** Extended service identity, remote kill switch: a system administrator can now turn the extended mode OFF and empty the add-on's runnable list from the remote channel too (new `POST /identity/extended-mode/off`, no second factor, audited). Turning it ON, adding ids and editing the configuration stay local-only. The mode is still locked (`EXTENDED_GO_LIVE_PERMITTED` is False): nothing here enables it.
+- **עברית:** זהות שירות מורחבת, מתג כיבוי מרחוק: מנהל מערכת יכול עכשיו לכבות את המצב המורחב ולרוקן את רשימת ההרצה של התוסף גם מהערוץ המרוחק (נתיב חדש `POST /identity/extended-mode/off`, בלי גורם אימות שני, עם רישום ביקורת). הפעלה, הוספת מזהים ועריכת התצורה נשארות מקומיות בלבד. המצב עדיין נעול (`EXTENDED_GO_LIVE_PERMITTED` הוא False): שום דבר כאן לא מפעיל אותו.
+- **English:** Documents: the HA identity amendment draft carries the owner's wording fixes E1-E12 and the accepted residual risks (section 4a); the 2.7.2 notes state the handler-page claim prefill (see below). No wording of the binding `HA_IDENTITY_RBAC_HE.md` changed.
+- **עברית:** מסמכים: טיוטת התיקון לזהות HA כוללת את תיקוני הניסוח E1-E12 של הבעלים ואת הסיכונים שהתקבלו (סעיף 4א); הערות 2.7.2 מציינות את המילוי המקדים בדף המטפל (ראו להלן). הנוסח המחייב `HA_IDENTITY_RBAC_HE.md` לא שונה.
+
+### Changes that apply without a switch - שינויים שחלים בלי מתג
+- **English:** The three vendor-upload fixes and the claim-prefill comparison above; the kill-switch route only removes authority (it can never turn anything on). Installations that approve quotes on the handler page (no quote request) have had the claim prefill and the "reason above the approved amount" rule since 2.7.1 (stated in the 2.7.2 notes, carried here).
+- **עברית:** שלושת תיקוני ההעלאות והשוואת המילוי המקדים שלמעלה; נתיב המתג מסיר סמכות בלבד (לעולם לא מפעיל דבר). התקנות שמאשרות הצעות בדף המטפל (בלי בקשת הצעות מחיר) מקבלות את המילוי המקדים של התביעה ואת הכלל "נימוק מעל הסכום המאושר" מאז 2.7.1 (נכתב בהערות 2.7.2, נשמר כאן).
+
+### What is OFF by default and how to enable - מה כבוי כברירת מחדל ואיך מפעילים
+- **English:** Every 2.7.2 switch keeps its state; the features locked in 2.7.0 / 2.7.1 stay locked, including the extended service identity.
+- **עברית:** כל מתג של 2.7.2 שומר על מצבו; התכונות שננעלו ב-2.7.0 / 2.7.1 נשארות נעולות, כולל זהות השירות המורחבת.
+
+### How to use - איך משתמשים
+- **English:** Kill switch (system administrator, system.configure): `POST /api/v1/identity/extended-mode/off` with `{"turn_off": true, "clear_runnable": true}` (both default true, at least one must be true); or `PATCH /settings` `security.local_identity_extended` = false from the remote channel. Rollback: install 2.7.2 again (no migration to undo).
+- **עברית:** מתג כיבוי (מנהל מערכת, system.configure): `POST /api/v1/identity/extended-mode/off` עם `{"turn_off": true, "clear_runnable": true}` (שניהם ברירת מחדל true, לפחות אחד חייב להיות true); או `PATCH /settings` `security.local_identity_extended` = false מהערוץ המרוחק. חזרה לאחור: מתקינים שוב את 2.7.2 (אין מיגרציה לבטל).
+
+### Known limits - מגבלות ידועות
+- **English:** The extended service identity stays locked; the go-live permit, one Fable review and a full gate remain required. Decision 7 (`notify`) is taken: it stays as built, an accepted residual risk. The rest of the carry-over list is in the integration notes.
+- **עברית:** זהות השירות המורחבת נשארת נעולה; נדרשים עדיין אישור ההפעלה של הבעלים, סקירת Fable אחת ושער מלא. החלטה 7 (`notify`) התקבלה: נשאר כפי שנבנה, סיכון מקובל. שאר רשימת ההמשך בהערות האינטגרציה.
+
 ## 2.7.2 (pilot) — Elevators under Infrastructure (hidden until one is defined), award-notice review fixes, schedules no longer stuck on "stale", "restart needed" clears after a manual restart
 **After installing:** **one automatic database migration** (0118: two new, empty tables for elevator definitions and their sensors; the sequence is 0001..0118, contiguous). No bridge change (still 0.9.2; no Home Assistant restart needed for this version). **Add-on options:** no new option; the six deprecated, empty secret options are still declared - leave them empty. Reload the installed web app once. Elevators appear nowhere until a manager defines one in Settings; nothing else needs a switch.
 - **עברית:** אחרי ההתקנה: **מיגרציה אוטומטית אחת של מסד הנתונים** (0118: שתי טבלאות חדשות וריקות להגדרות מעליות ולחיישנים שלהן; הרצף הוא 0001..0118, רציף). אין שינוי בגשר (עדיין 0.9.2; אין צורך להפעיל מחדש את Home Assistant בגרסה הזו). **אפשרויות התוסף:** אין אפשרות חדשה; שש אפשרויות הסוד הישנות והריקות עדיין מוגדרות - יש להשאיר אותן ריקות. יש לטעון מחדש פעם אחת את אפליקציית הרשת המותקנת. מעליות לא מופיעות בשום מקום עד שמנהל מגדיר מעלית בהגדרות; שום דבר אחר לא דורש מתג.

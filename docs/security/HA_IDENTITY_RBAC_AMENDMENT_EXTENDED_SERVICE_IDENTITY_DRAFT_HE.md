@@ -63,7 +63,7 @@ SVCIDENT3 בונה את שלושת החסמים (רשימת היתר, בדיקת
 > - **ד. בדיקת השפעות בגשר.** לפני כל הרצה כזו הגשר קורא את התצורה של הפריט (קובצי ה־UI של Home Assistant) ועובר על כל הצעדים בכל עומק, וגם על
 >   רמה אחת של סקריפט / סצנה / אוטומציה שהפריט מפעיל. הוא דוחה (נכשל סגור) פריט שאחד מצעדיו: פותח מנעול (`lock.unlock`, `lock.open`, או סצנה
 >   שמציבה מנעול במצב שאינו נעול), מנטרל אזעקה או דורך עם עקיפה (או סצנה שמציבה לוח אזעקה); קורא לשירות מחוץ לרשימה הסגורה (runnable.IMPACT_STEP_PAIRS ו-STEP_ADDITIONS בקוד; נספח א מפרט אותה במלואה), שכוללת: שליטה יומיומית בתאורה, מתגים, מאווררים, מיזוג, כיסויים (בכפוף לכלל הכיסויים), מדיה ושלטים (כולל remote.send_command ו-media_player.play_media - שאינם נבדקים בתוך פריט כפי שהם נבדקים בשליטה ישירה), לחצנים (button.press), סירנה (הפעלה וכיבוי), ברזים, דודים, שואבים, נעילה (lock.lock בלבד), דריכה רגילה,
->   `notify.*` עם תוכן מילולי בלבד (מגבלות נוספות על notify - החלטת הבעלים 7 טרם התקבלה; סעיף 4 פריט 12) ו־`toggle` של תאורה, מתג, מאוורר, `input_boolean` ונגן מדיה (לעולם לא `toggle` של
+>   `notify.*` עם תוכן מילולי בלבד (אין מגבלות נוספות על notify - החלטת הבעלים 7 התקבלה כסיכון מקובל; סעיף 4א) ו־`toggle` של תאורה, מתג, מאוורר, `input_boolean` ונגן מדיה (לעולם לא `toggle` של
 >   כיסוי, מנעול, אזעקה, מיזוג, סירנה); מפעיל כיסוי (`cover`) שסוג המכשיר שלו אינו בבירור וילון / וילון גלילה (shade) / סוכך (`blind`, `curtain`, `shade`,
 >   `awning`) - כל סוג אחר (door, gate, garage, shutter, damper, window), סוג חסר או כיסוי בלי מצב נדחים; cover.toggle נדחה תמיד, גם על וילון; פונה לשירות או ליעד בתבנית; פונה ליעד שאינו מזהי ישויות מפורשים; הוא פעולת מכשיר (device action) או
 >   ירי אירוע; אינו צעד מוכר; מקנן רמה שנייה; או עמוק / גדול מכדי לשפוט. פריט שאינו נמצא בקובצי ה־UI או שלא ניתן לקרוא אותו - נדחה. כל
@@ -99,7 +99,7 @@ SVCIDENT3 בונה את שלושת החסמים (רשימת היתר, בדיקת
 9. גורם שני: door.unlock, alarm.bypass, alarm.disarm ו-script.run אינן הרשאות ניהול, ולכן כיום אין חובת אימות דו-שלבי עבורן, ומשתמשי Arx נכנסים רק מהערוץ המרוחק. (R3 - התקבל בידי הבעלים, החלטה 2, סעיף 4א.)
 10. כיבוי המצב המורחב וריקון רשימת ההיתר של התוסף אפשריים למנהל מערכת גם מהערוץ המרוחק, בלי גורם שני (החלטת הבעלים 5 מ-18.10.2026; נבנה ב-`pilot/SVCIDENT-AMEND273`): בהגדרות (`security.local_identity_extended` = off) או במתג הכיבוי `POST /api/v1/identity/extended-mode/off`. **הדלקה** ועריכת הרשימה המלאה נשארות בערוץ המקומי בלבד. נתיבי כיבוי נוספים: כיבוי משתמשי Arx כולם (`security.local_identity`), השבתת משתמש בודד, וכיבוי המתג או ריקון הרשימה בצד תשתית המערכת על ידי מנהל שלה. (R7 - טופל.)
 11. הרצת אוטומציה ממסך האוטומציות מדלגת כברירת מחדל על התנאים שלה (skip_condition). (R11)
-12. **notify (פתוח):** `notify.*` מילולי עדיין יכול לשאת הודעת פקודה לאפליקציה (`command_...`), כפתורי פעולה (`data.actions`), intent, TTS או יעד SMS חיצוני. החלטת הבעלים 7 **טרם התקבלה**; הנושא אינו מסומן כסיכון מקובל, והקוד לא שונה. (R4)
+12. **notify (התקבל כסיכון מקובל, החלטה 7):** `notify.*` מילולי עדיין יכול לשאת הודעת פקודה לאפליקציה (`command_...`), כפתורי פעולה (`data.actions`), intent, TTS או יעד SMS חיצוני. החלטת הבעלים 7 (18.10.2026): `notify.*` נשאר כפי שנבנה (אפשרות ב - הכול מותר, כולל הודעות פקודה לאפליקציה, כפתורי פעולה ו-intent); התקבל כסיכון מקובל, בלי שינוי קוד. (R4)
 13. מקור הזרם של מצלמה בשם משתמש Arx אינו נבדק מול מדיניות הישויות של משתמש השירות; מוגבל ב-`sources.configure` ובגורם שני. (R6 - התקבל, סעיף 4א.)
 
 ## 4א. סיכונים שנותרו ושהבעלים קיבלו (החלטת הבעלים 18.10.2026) / Accepted residual risks (owner decision 2026-10-18)
@@ -112,9 +112,10 @@ SVCIDENT3 בונה את שלושת החסמים (רשימת היתר, בדיקת
 | 3 | "dangerous services inside scripts and template entities: accepted as residual risk, no code change" | R1, R2 | השפעות עקיפות (ישויות template, דגלים שאוטומציה מאזינה להם) ו-`remote.send_command`, `button.press`, `siren.turn_off`, `play_media` חופשי נשארים ברשימת הצעדים (נספח א). |
 | 4 | "entity policy for the service user: recommendation only, no enforcement" | R5, R6 | הקבוצה המוגבלת של משתמש השירות היא המלצה (סעיף 2.2 ו-3א); אין בדיקה בקוד שהיא קיימת, ואין בדיקת מדיניות בקריאת מקור מצלמה. |
 | 6 | "no rate limit" | R8 | אין מגבלת קצב לכל משתמש / פריט בפתיחת דלת או הרצת סקריפט משליטה ישירה. |
+| 7 | `notify.*` נשאר כפי שנבנה (אפשרות ב: הכול מותר, כולל הודעות פקודה לאפליקציה, כפתורי פעולה ו-intent) | R4 | `notify.*` מילולי יכול לשאת הודעת פקודה לאפליקציה, כפתורי פעולה, intent, TTS או יעד SMS חיצוני; אין מגבלה נוספת בקוד. |
 | 8 | "gate/garage as 'cover': leave as is" | R12 | בשליטה ישירה, כיסוי מסוג שער / חניה דורש `ha.entity.control` בלבד (בלי `door.unlock`), לכל המשתמשים - כמו היום. (בתוך פריט מורץ הוא נדחה, סעיף 3א ד.) |
 
-לא בטבלה: החלטה 5 (כיבוי מרחוק) - **נבנתה**, לא התקבלה כסיכון (סעיף 4 פריט 10); החלטה 7 (notify) - **פתוחה** (סעיף 4 פריט 12).
+לא בטבלה: החלטה 5 (כיבוי מרחוק) - **נבנתה**, לא התקבלה כסיכון (סעיף 4 פריט 10); 
 
 **קבלת הסיכונים אינה היתר.** היתר ההפעלה (הפיכת `EXTENDED_GO_LIVE_PERMITTED` ל-`True` בקומיט ייעודי באישור מפורש של הבעלים), סקירת Fable
 אחת על הקוד המוקשח (החלטה 9) ו-gate מלא על ה-runner עדיין נדרשים, כמפורט בסעיף 6.
@@ -138,7 +139,7 @@ SVCIDENT3 בונה את שלושת החסמים (רשימת היתר, בדיקת
 5. הרצה מפוקחת ראשונה במעבדה, עם רכיב חיבור 0.9.2 מותקן, לפי רשימת הבדיקה של חבילת העלייה לאוויר.
 6. נוסח סיכון 4 (מדיניות הישויות) מופיע בכרטיס ההגדרות, בטופס ההגדרות של רכיב החיבור ובמדריך ההפעלה.
 7. החלטות הבעלים על ההחמרות (גורם שני, השפעות עקיפות, notify, כיבוי מרחוק) נרשמו ב-CR-USR2, ומה שנבחר לבנייה נבנה ונבדק לפני ההיתר.
-   (מצב 18.10.2026: נרשמו ב-CR-USR2 §12.8; נבחר לבנייה רק כיבוי מרחוק - נבנה ב-`pilot/SVCIDENT-AMEND273` עם בדיקות; notify ממתין להחלטה 7.)
+   (מצב 18.10.2026: נרשמו ב-CR-USR2 §12.8; נבחר לבנייה רק כיבוי מרחוק - נבנה ב-`pilot/SVCIDENT-AMEND273` עם בדיקות; notify - החלטה 7: נשאר כפי שנבנה, סיכון מקובל, בלי קוד.)
 
 ## 7. הערת החלה לבעל המסמך (E12 - אינה חלק מנוסח התיקון)
 
@@ -189,5 +190,5 @@ Home Assistant users are unaffected. Owner decisions of 2026-10-18: the wording 
 the extended mode OFF (never ON) and empty the add-on allowlist from the remote channel too, without a second factor (built on
 `pilot/SVCIDENT-AMEND273`); accepted residual risks (section 4a): no second factor (R3), indirect effects and dangerous step services (R1,
 R2), entity policy as a recommendation only (R5, R6), no rate limit (R8), gate / garage covers on the direct path unchanged (R12); `notify`
-limits are still open (decision 7). Accepting these risks is not a permit: flipping `EXTENDED_GO_LIVE_PERMITTED` additionally needs the
+stays as built (decision 7, option b: everything allowed, accepted, R4). Accepting these risks is not a permit: flipping `EXTENDED_GO_LIVE_PERMITTED` additionally needs the
 owner's explicit permit in a dedicated commit, one Fable review of the hardened code and a full gate.
