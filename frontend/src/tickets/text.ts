@@ -13,6 +13,7 @@ import { S4_EN, S4_HE } from './text-s4';
 import { UI6_EN, UI6_HE } from './text-ui6';
 import { OTP_EN, OTP_HE } from './text-otp';
 import { DM_EN, DM_HE } from './text-deptmgr';
+import { NR_EN, NR_HE } from './text-needsreview';
 
 const he = {
   // the area, the navigation, the settings index
@@ -395,6 +396,7 @@ const he = {
   ...UI6_HE, // TKUI6: the redesigned handlers page and settings (tickets/text-ui6.ts)
   ...OTP_HE, // TKNOTIFOTP: the optional number verification by code (tickets/text-otp.ts)
   ...DM_HE, // CR-DEPT-MANAGER-HANDLERS: a department manager's handlers and vendors (tickets/text-deptmgr.ts)
+  ...NR_HE, // NEEDSREVIEW: the "needs review" privacy report (tickets/text-needsreview.ts)
 } as const;
 
 export type TicketTextKey = keyof typeof he;
@@ -753,6 +755,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   ...UI6_EN, // TKUI6 (tickets/text-ui6.ts)
   ...OTP_EN, // TKNOTIFOTP (tickets/text-otp.ts)
   ...DM_EN, // CR-DEPT-MANAGER-HANDLERS (tickets/text-deptmgr.ts)
+  ...NR_EN, // NEEDSREVIEW (tickets/text-needsreview.ts)
 };
 
 /** The language of the tickets screens: the document's (English or the product's Hebrew). */

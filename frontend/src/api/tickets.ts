@@ -374,9 +374,9 @@ export interface VendorPortalSettings { enabled: boolean; closed_months: number;
   rfqs?: boolean; technician_requests?: boolean }
 export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */;
   /** CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (system.configure, default off) */
-  directory?: { managers_full_phones: boolean }; rfq?: RfqSettings;
+  directory?: { managers_full_phones: boolean; /* NEEDSREVIEW: the report's thresholds (days / months) */ review_pending_days?: number; review_idle_months?: number }; rfq?: RfqSettings;
   vendor_portal?: VendorPortalSettings; brand?: { logo: string } /* VPORTAL: the logo's stamp ("" = none), set only by the logo routes */ }
-export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones: boolean };
+export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; urgent_is_critical?: boolean; organization_name?: string; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones?: boolean; review_pending_days?: number; review_idle_months?: number };
   rfq?: { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; instalment_reminder_hours?: number; vendor_uploads?: Partial<RfqVendorUploadSettings> }; vendor_portal?: Partial<VendorPortalSettings> }
 
 export interface TicketsBackend {

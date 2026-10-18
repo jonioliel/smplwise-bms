@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../tickets/contacts-directory';
 import '../tickets/handlers-members';
 import '../tickets/portal-requests';
+import '../tickets/needs-review';
+import { needsReviewApi } from '../api/tickets-needs-review';
 import type { TicketsContacts } from '../tickets/contacts-directory';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
@@ -16,7 +18,7 @@ import { ticketsS4Api, type Readiness } from '../api/tickets-s4';
 import { boardApi } from '../api/tickets-board';
 import { ApiError } from '../api/client';
 import { onTicketNames } from '../tickets/naming';
-import { HANDLERS_SEGMENTS, missingItems, type HandlersSegment } from '../tickets/readiness-model';
+import { REVIEW_SEGMENTS, handlersSegments, missingItems, type HandlersSegment } from '../tickets/readiness-model';
 import { handlersGlass } from '../tickets/handlers-glass';
 import { asHandledDays, HANDLED_DEFAULT, HANDLED_PERIODS, loadsFromBoard, managedDepartments, readStoredPeriod, storePeriod, withHandled, type HandledDays, type MemberLoad } from '../tickets/handler-load';
 import { rovingIndex } from '../tickets/settings-tabs';
@@ -126,7 +128,7 @@ export class TicketsHandlersPage extends LitElement {
         inline-size: 100%;
         box-sizing: border-box;
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(var(--segs, 3), minmax(0, 1fr));
         overflow: visible;
       }
       .dh-det .rooms {
@@ -164,7 +166,7 @@ export class TicketsHandlersPage extends LitElement {
     this.phoneMq.addEventListener('change', this.onPhone);
     this.offNames = onTicketNames(() => this.requestUpdate());
     void ticketsS4Api().readiness().then((r) => (this.readiness = r)).catch(() => undefined);
-    void ticketsApi().meta().then((m) => { this.meta = m; void this.loadLoads(); }).catch(() => undefined);
+    void ticketsApi().meta().then((m) => { this.meta = m; void this.loadLoads(); void this.loadReviewCount(); }).catch(() => undefined);
     void this.loadCounts();
   }
 
@@ -179,6 +181,8 @@ export class TicketsHandlersPage extends LitElement {
   protected willUpdate(changed: PropertyValues): void {
     // a department chip that left the list (or a viewer who sees fewer departments) never leaves the page filtered by nothing
     if (changed.has('meta' as never) && this.dept && !this.meta?.departments.some((d) => d.id === this.dept)) this.dept = '';
+    // NEEDSREVIEW: a `?seg=review` address opened by someone who is not a directory editor lands on the first segment
+    if (changed.has('meta' as never) && this.meta && this.seg === 'review' && !this.meta.can.configure) this.seg = 'handlers';
   }
 
   private onHash = () => {
@@ -187,7 +191,7 @@ export class TicketsHandlersPage extends LitElement {
 
   private readSeg(): void {
     const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('seg') as HandlersSegment | null;
-    this.seg = q && HANDLERS_SEGMENTS.includes(q) ? q : 'handlers';
+    this.seg = q && REVIEW_SEGMENTS.includes(q) ? q : 'handlers';
   }
 
   private setSeg(id: HandlersSegment): void {
@@ -221,8 +225,29 @@ export class TicketsHandlersPage extends LitElement {
     if (members !== null || employees !== null) next.handlers = (members ?? 0) + (employees ?? 0);
     if (vendors !== null) next.vendors = vendors;
     if (persons !== null) next.contacts = persons;
+    if (this.counts.review !== undefined) next.review = this.counts.review;
     this.counts = next;
   }
+
+  /** NEEDSREVIEW: the segments this viewer sees ("דורש בחינה" for the directory's editors only). */
+  private segments(): readonly HandlersSegment[] {
+    return handlersSegments(!!this.meta?.can.configure);
+  }
+
+  /** NEEDSREVIEW: the number on the "דורש בחינה" pill (editors only; a failure leaves the pill bare). */
+  private async loadReviewCount(): Promise<void> {
+    if (!this.meta?.can.configure) return;
+    try {
+      const r = await needsReviewApi.report();
+      this.counts = { ...this.counts, review: r.pending.length + r.idle.length };
+    } catch {
+      /* the pill stays bare */
+    }
+  }
+
+  private onReviewCount = (e: CustomEvent<{ n: number }>) => {
+    this.counts = { ...this.counts, review: e.detail.n };
+  };
 
   /**
    * The load of the handlers - open / waiting for them / stuck - from the manager board (the same server rule decides which requests the
@@ -305,11 +330,12 @@ export class TicketsHandlersPage extends LitElement {
 
   /** The segments are a radio group: the arrow keys move between them (the visual order follows the text direction). */
   private onSegKey = (e: KeyboardEvent) => {
-    const i = HANDLERS_SEGMENTS.indexOf(this.seg);
-    const n = rovingIndex(e.key, i, HANDLERS_SEGMENTS.length, getComputedStyle(this).direction === 'rtl');
+    const segs = this.segments();
+    const i = segs.indexOf(this.seg);
+    const n = rovingIndex(e.key, i, segs.length, getComputedStyle(this).direction === 'rtl');
     if (n === null) return;
     e.preventDefault();
-    this.setSeg(HANDLERS_SEGMENTS[n]);
+    this.setSeg(segs[n]);
     void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-handlers-tabs] [data-seg="${this.seg}"]`) as HTMLElement | null)?.focus());
   };
 
@@ -348,6 +374,7 @@ export class TicketsHandlersPage extends LitElement {
       return html`${this.meta?.can.configure || this.meta?.can.technician_requests ? html`<tickets-portal-requests @notice=${this.onNotice}></tickets-portal-requests>` : nothing}
         <tickets-contacts kind="vendor" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     }
+    if (this.seg === 'review') return html`<tickets-needs-review @notice=${this.onNotice} @review-count=${this.onReviewCount}></tickets-needs-review>`;
     if (this.seg === 'contacts') return html`<tickets-contacts kind="person" head .dept=${this.dept} .query=${this.q} @notice=${this.onNotice}></tickets-contacts>`;
     return html`<div class="body" data-handlers-segment>
       <tickets-handlers-members .dept=${this.dept} .query=${this.q} .loads=${loads} .handledLabel=${label} .managed=${this.managed()}
@@ -361,7 +388,9 @@ export class TicketsHandlersPage extends LitElement {
     // embedded in the manager board: only the departments he manages (never another department's name)
     const depts = this.embedded ? all.filter((d) => d.can_manage) : all;
     const mine = handlerDepartments(all);
-    const canAdd = this.seg !== 'handlers' || (this.meta?.can.configure ?? true) || mine.length > 0;
+    const review = this.seg === 'review';
+    const segs = this.segments();
+    const canAdd = !review && (this.seg !== 'handlers' || (this.meta?.can.configure ?? true) || mine.length > 0);
     return html`<div class=${this.embedded ? 'page embedded' : 'page'} data-tickets-handlers data-seg=${this.seg} ?data-embedded=${this.embedded}>
       <header class="dh" data-tickets-header>
         ${this.embedded ? nothing : html`<div class="dh-row">
@@ -369,17 +398,17 @@ export class TicketsHandlersPage extends LitElement {
           <span class="grow"></span>
         </div>`}
         <div class="dh-det">
-          <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs @keydown=${this.onSegKey}>
-            ${HANDLERS_SEGMENTS.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
+          <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs style=${`--segs:${segs.length}`} @keydown=${this.onSegKey}>
+            ${segs.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
           </div>
-          ${depts.length > 1 ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')} data-handlers-depts>
+          ${depts.length > 1 && !review ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')} data-handlers-depts>
             <button type="button" class="rc" aria-pressed=${String(!this.dept)} data-handlers-dept="" @click=${() => (this.dept = '')}>${tt('allDepartments')}</button>
             ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(this.dept === d.id)} data-handlers-dept=${d.id} @click=${() => (this.dept = d.id)}>${bidi(d.name)}</button>`)}
           </div>` : nothing}
           <span class="grow"></span>
           ${this.periodPicker()}
-          <label class="search">${tIcon('search')}<span class="vh">${tt('u6SearchPh')}</span><input type="search" data-handlers-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('u6SearchPh')}
-            .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
+          ${review ? nothing : html`<label class="search">${tIcon('search')}<span class="vh">${tt('u6SearchPh')}</span><input type="search" data-handlers-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('u6SearchPh')}
+            .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>`}
           ${canAdd ? html`<button type="button" class="btn primary newbtn" data-handlers-new aria-expanded=${this.seg === 'handlers' ? String(this.adding) : nothing} @click=${() => this.onAdd()}>${tIcon('plus')}${this.addLabel()}</button>` : nothing}
         </div>
       </header>
