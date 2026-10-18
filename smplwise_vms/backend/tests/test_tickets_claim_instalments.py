@@ -205,3 +205,35 @@ def test_the_managers_demand_reopens_the_claim_step_for_its_window_only(s4):
     assert r.status_code == 201, r.text
     gone, _ = s4.public(Clock(time.time() + 120 * 86400))
     assert gone.get("/t/api/claim", headers=hdr(tok)).content == UNIFORM_404
+
+
+# ---------------------------------------------------------------- CR-CLAIM-ORDER (owner 12a, 2026-10-18): no demand before the earlier one is settled
+
+def test_a_later_instalment_is_refused_while_an_earlier_one_is_not_settled(s4):
+    d, a, tok, client, clock, tid = _ordered(s4)
+    p = _claim_page(client, tok)["prefill"]
+    adv, prog = p["instalments"][0], p["instalments"][1]
+    # the vendor names the later instalment FIRST (the ordinary claim would adopt it): refused, nothing written, nothing adopted
+    r = _instalment(client, tok, 1, prog["amount_minor"])
+    assert r.status_code == 409 and r.json()["code"] == "earlier_instalment_unsettled", r.text
+    with s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ticket_cost_claims WHERE ticket_id = ? AND instalment_index IS NOT NULL", (tid,)).fetchone()[0] == 0
+    # the first instalment is unaffected; while it is only SUBMITTED the next one stays refused even with the manager's demand open
+    assert _instalment(client, tok, 0, adv["amount_minor"]).status_code == 201
+    assert demand(s4, d["id"], a["id"], 1).status_code == 200
+    r = _instalment(client, tok, 1, prog["amount_minor"])
+    assert r.status_code == 409 and r.json()["code"] == "earlier_instalment_unsettled", r.text
+    assert [(x["instalment_index"], x["status"]) for x in _rows(s4, tid)] == [(0, "submitted")]
+    # settled (approved): the next one opens
+    _approve(s4, tid)
+    assert _instalment(client, tok, 1, prog["amount_minor"]).status_code == 201
+    assert [(x["instalment_index"], x["status"]) for x in _rows(s4, tid)] == [(0, "approved"), (1, "submitted")]
+
+
+def test_a_single_claim_award_is_not_affected_by_the_instalment_order(s4):
+    d, a, tok, client, clock, tid = _ordered(s4)
+    p = _claim_page(client, tok)["prefill"]
+    from test_tickets_claim_prefill import _lines_from, _post
+
+    assert _post(client, tok, _lines_from(p), p).status_code == 201  # a whole-quote demand: no instalment index, no ordering rule
+    assert [x["instalment_index"] for x in _rows(s4, tid)] == [None]

@@ -370,9 +370,29 @@ def focus_claim(conn, assignment_id: str, now: dt.datetime) -> dict[str, Any] | 
     return rows[-1]
 
 
+def _earlier_unsettled(conn, primary: Mapping[str, Any], assignment_id: str, index: int) -> bool:
+    """CR-CLAIM-ORDER (owner 12a, 2026-10-18): True when a payable instalment BEFORE `index` of the approved schedule has no settled
+    (approved / paid) claim - none opened yet, or one still awaiting / submitted / rejected. No schedule (a single-claim award): False."""
+    from . import claim_prefill
+
+    q = claim_prefill.baseline_for(conn, primary)
+    if q is None:
+        return False
+    payable = [it for it in claim_prefill._schedule(conn, q) if it["amount_minor"] > 0]
+    if index not in {it["index"] for it in payable}:
+        return False  # not an instalment of the schedule: `claim_prefill.basis` refuses it with its own field error
+    for it in payable:
+        if it["index"] < index:
+            earlier = store_costs.claim_for_instalment(conn, assignment_id, it["index"])
+            if earlier is None or earlier["status"] not in SETTLED:
+                return True
+    return False
+
+
 def claim_for_submission(conn, assignment_id: str, index: Any, at: dt.datetime) -> dict[str, Any] | None:
     """The claim a vendor's submission goes to (nothing is written here). Refusals: 422 `instalment_index` `required` (his demands are
-    per instalment now), 409 `claim_closed` (a whole-quote demand was settled), 409 `instalment_not_open` (no manager demand for it)."""
+    per instalment now), 409 `claim_closed` (a whole-quote demand was settled), 409 `instalment_not_open` (no manager demand for it), 409 `earlier_instalment_unsettled` (an earlier payable
+    instalment has no approved / paid claim yet)."""
     primary = store_costs.claim_for_assignment(conn, assignment_id)
     if primary is None:
         return None
@@ -386,6 +406,8 @@ def claim_for_submission(conn, assignment_id: str, index: Any, at: dt.datetime) 
     if primary.get("instalment_index") is None:
         if primary["status"] in SETTLED:
             raise CostRefused(409, "claim_closed")
+        if _earlier_unsettled(conn, primary, assignment_id, index):  # CR-CLAIM-ORDER: a first demand may not skip an earlier instalment
+            raise CostRefused(409, "earlier_instalment_unsettled")
         return {**primary, "_adopt": index}
     from . import claim_prefill, store_rfq
 
@@ -393,6 +415,8 @@ def claim_for_submission(conn, assignment_id: str, index: Any, at: dt.datetime) 
     d = store_rfq.demands_of_quote(conn, q["id"]).get(index) if q else None
     if d is None or d.get("status") != "open":
         raise CostRefused(409, "instalment_not_open")
+    if _earlier_unsettled(conn, primary, assignment_id, index):  # CR-CLAIM-ORDER: a NEW demand only after every earlier instalment was settled
+        raise CostRefused(409, "earlier_instalment_unsettled")
     return _virtual(conn, primary, index, at)
 
 
