@@ -793,3 +793,27 @@ domain, `cover.toggle` even on a blind, open / close / position on a garage / ga
 setting such a cover, each nested form not on the list; then each addition passing with literal content), `tests/test_service_identity_extended.py`
 (an operator without `script.run` is refused `forbidden` with the switch on and the refusal is audited, then with `script.run` the allowlist
 decides).
+
+### 12.8 Owner decisions of 2026-10-18 on the go-live hardening (go-live pack `private/planning/svcident_golive_pack_2026-10-18/`)
+
+Recorded for the pack's checklist questions 1-9 (risk ids from its `RESIDUAL_RISK.md`). The go-live constant stays `False`; nothing here is a
+permit (the permit gets its own section and commit later).
+
+1. Apply the wording fixes E1-E12 to the amendment draft - **applied** (`docs/security/HA_IDENTITY_RBAC_AMENDMENT_EXTENDED_SERVICE_IDENTITY_DRAFT_HE.md`;
+   the binding `HA_IDENTITY_RBAC_HE.md` is NOT edited - that is the document owner's separate commit, E12).
+2. No second factor for extended actions - **accepted residual risk R3**.
+3. Dangerous services inside scripts and template entities - **accepted residual risk R1, R2**, no code change.
+4. Entity policy for the service user - **recommendation only, no enforcement** (R5; the camera stream source without an entity-policy check,
+   R6, read as covered by the same decision). **Recorded contradiction:** fix E5 proposed making the restricted group a go-live *condition*; the
+   draft keeps it as a recommendation, following decision 4.
+5. Remote kill switch without a second factor - **built** on `pilot/SVCIDENT-AMEND273` (R7): a system administrator may turn
+   `security.local_identity_extended` OFF from the remote channel (`PATCH /settings`; ON stays local-only, 403 `local_only`), and may call
+   `POST /api/v1/identity/extended-mode/off {turn_off?, clear_runnable?}` from either channel (both default true; it has no ON direction and
+   cannot add an id; extra fields 422). The route sits outside the remote-blocked `/identity/service-identity` prefix on purpose; the full
+   allowlist editor and the configuration stay local-only. Audited `identity.service_identity.kill_switch` (allowed and denied) plus the usual
+   `extended_switch` / `runnable` rows; the answer carries counts and the switch state only. The bridge's own switch and list are untouched
+   (no bridge change, no version bump). Tests: `tests/test_service_identity_remote_kill.py`, `tests/test_remote_access.py` (the route table).
+6. No rate limit - **accepted residual risk R8**.
+7. `notify` - **not decided**; nothing changed (R4 stays open).
+8. Gate / garage as a `cover` on the direct path - **leave as is**, accepted residual risk R12.
+9. Build the selected hardening first, then one Fable review of everything.
