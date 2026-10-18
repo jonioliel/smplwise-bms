@@ -486,7 +486,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
     from .routers import service_identity as service_identity_router
 
-    app.include_router(service_identity_router.router, prefix=api, tags=["identity"])  # USR2 P3: the service identity (local channel only)
+    app.include_router(service_identity_router.router, prefix=api, tags=["identity"])  # USR2 P3: the service identity (local channel only; its off-only kill switch: either channel)
     from .routers import local_passkeys as local_passkeys_router
 
     app.include_router(local_passkeys_router.router, prefix=api, tags=["identity"])  # USR2 phase 4: passkeys of Arx-only identities

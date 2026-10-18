@@ -529,6 +529,23 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/identity/service-identity"), ("PUT", "/api/v1/identity/service-identity"),
                      # SVCIDENT3: the runnable switch is local-only too (prefix-blocked in remote_channel; the remote 404 is asserted in test_service_identity_runnable.py)
                      ("PUT", "/api/v1/identity/service-identity/runnable")}
+# SVCIDENT-AMEND273 (owner decision 5, 2026-10-18): the extended mode's OFF-only kill switch is deliberately NOT local-only - it sits outside
+# the blocked `/identity/service-identity` prefix, so on the remote channel it needs a session (401 without one, like every other route)
+# and then a system administrator (tests/test_service_identity_remote_kill.py). It is listed here so a later block of it fails a test.
+REMOTE_KILL_SWITCH = ("POST", "/api/v1/identity/extended-mode/off")
+
+
+def test_the_extended_mode_kill_switch_is_reachable_on_the_remote_channel():
+    from smplwise import remote_channel
+
+    from test_plan_routes_unique import _routers
+
+    routes = {(m, "/api/v1" + r.path) for router in _routers().values() for r in router.routes for m in getattr(r, "methods", set())}
+    assert REMOTE_KILL_SWITCH in routes
+    assert REMOTE_KILL_SWITCH not in BLOCKED_ON_REMOTE and REMOTE_KILL_SWITCH not in PUBLIC_ON_REMOTE
+    path = REMOTE_KILL_SWITCH[1]
+    assert not any(path == b or path.startswith(b + "/") for b in remote_channel.BLOCKED_ON_REMOTE)
+    assert ("PUT", "/api/v1/identity/service-identity/runnable") in BLOCKED_ON_REMOTE  # the full allowlist editor stays local-only
 
 
 def test_every_route_needs_a_remote_session(arx):

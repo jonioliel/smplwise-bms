@@ -11,6 +11,10 @@
 
 Both: `system.configure` at the installation, LOCAL CHANNEL ONLY (remote_channel.BLOCKED_ON_REMOTE answers 404 on the remote channel; the
 route checks again). The switch `security.local_identity` does not gate them: the owner may prepare the identity before turning it on.
+
+`POST /identity/extended-mode/off {turn_off?, clear_runnable?}`  SVCIDENT-AMEND273 (owner decision 5, 2026-10-18): the kill switch - turn
+                                   the extended switch OFF and / or empty the allowlist (both by default). A system administrator, EITHER
+                                   channel, no second factor; it can never turn anything on. Audited `identity.service_identity.kill_switch`.
 """
 from __future__ import annotations
 
@@ -68,3 +72,31 @@ def put_runnable(body: RunnableBody, request: Request, principal: Principal = De
     if si.is_local(principal):  # defence in depth, as above: a local identity never configures what local identities may run
         raise ApiError(403, "forbidden", "הפעולה אינה זמינה למשתמשי Arx.")
     return si.configure_runnable(conn, principal, body.entity_ids, getattr(request.state, "correlation_id", None))
+
+
+class KillBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    turn_off: bool = Field(default=True, strict=True)
+    clear_runnable: bool = Field(default=True, strict=True)
+
+
+@router.post("/identity/extended-mode/off")
+def post_extended_kill(body: KillBody, request: Request, principal: Principal = Depends(current_principal),
+                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """SVCIDENT-AMEND273 (owner decision 5 of 2026-10-18; go-live pack R7): the kill switch of the extended mode - turn the add-on switch
+    OFF and / or empty the runnable allowlist. Deliberately OUTSIDE the `/identity/service-identity` prefix that remote_channel blocks, so a
+    system administrator off-site can stop the extended mode from the remote channel; there is no ON direction here (turning the mode on and
+    editing the list stay local-only, above and in routers/settings). No second factor (owner decision 2/5). Audited, refusals included."""
+    from ..audit import audit
+    from ..rbac import is_system_admin
+
+    request_id = getattr(request.state, "correlation_id", None)
+    channel = "remote" if is_remote(request) else "local"
+    if not body.turn_off and not body.clear_runnable:
+        raise ApiError(422, "validation", "יש לבחור לפחות פעולה אחת: כיבוי המצב המורחב או ריקון רשימת ההרצה.", details={"fields": ["turn_off", "clear_runnable"]})
+    if si.is_local(principal) or not is_system_admin(conn, principal.user_id):  # a local identity is never a system administrator; said twice
+        audit(conn, actor=principal, action="identity.service_identity.kill_switch", decision="denied", resource_type="installation", resource_id="service_identity",
+              reason="not_system_admin", request_id=request_id, details={"channel": channel})
+        raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לכבות את המצב המורחב של משתמשי Arx.")
+    require(conn, principal, "system.configure", INSTALLATION)  # as the local switch: system.configure AND a system administrator
+    return si.kill_switch(conn, principal, turn_off=body.turn_off, clear_runnable=body.clear_runnable, channel=channel, request_id=request_id)
