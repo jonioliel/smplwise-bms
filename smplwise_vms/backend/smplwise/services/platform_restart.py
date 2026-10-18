@@ -73,7 +73,8 @@ def reasons(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     except Exception:  # noqa: BLE001 - a status that cannot be read is no reason
         st = {}
     if st.get("state") in BRIDGE_STATES:
-        out.append({"code": "bridge", "version": st.get("installed_version")})
+        # `version` = the copy waiting in custom_components, `running` = what the platform reports it loaded (None = nothing yet): the card shows both
+        out.append({"code": "bridge", "version": st.get("installed_version"), "running": st.get("active_version")})
     for code in STORED:
         data = _stored(conn, code)
         if data is not None:

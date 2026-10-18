@@ -533,7 +533,7 @@ export class SystemUpdate extends LitElement {
         </sw-card>
         ${this.renderSwitch(d)}
         ${this.renderNotes(d)}
-        <sw-restarts-card ?required=${d.requires_platform_restart === true} @run-started=${(e: CustomEvent<RunView>) => this.startRun(e.detail)}></sw-restarts-card>
+        <sw-restarts-card ?required=${d.requires_platform_restart === true} .reasons=${d.platform_restart_reasons ?? []} @run-started=${(e: CustomEvent<RunView>) => this.startRun(e.detail)}></sw-restarts-card>
       </div>
       ${this.renderConfirm(d)}
     </sw-page>`;

@@ -6,7 +6,7 @@ import './sw-dialog';
 import './sw-icon';
 import { get } from '../api/client';
 import { can, onRemote } from '../api/session';
-import { classifyRunError, newIdempotencyKey, restartArx, restartPlatform, runFailureRequestText, type RunView } from '../api/system-update-runs';
+import { classifyRunError, newIdempotencyKey, restartArx, restartPlatform, runFailureRequestText, type RestartReason, type RunView } from '../api/system-update-runs';
 
 /** How long the screen waits for Arx to answer again before it asks for a manual start (the same two minutes as the connection banner). */
 export const RESTART_WAIT_MS = 120_000;
@@ -28,6 +28,8 @@ type Phase = 'idle' | 'confirm' | 'sending' | 'waiting' | 'manual';
 export class SwRestartsCard extends LitElement {
   /** The server says the platform needs a restart (holders of system.update only). */
   @property({ type: Boolean }) required = false;
+  /** Why (server `platform_restart_reasons`): a bridge copy waiting shows the waiting and the running version. */
+  @property({ attribute: false }) reasons: RestartReason[] = [];
   /** An update or restart run is open: both buttons wait. */
   @property({ type: Boolean }) busy = false;
   @state() private which: Which = 'platform';
@@ -196,7 +198,7 @@ export class SwRestartsCard extends LitElement {
     const disabled = this.busy || this.phase === 'sending';
     return html`<sw-card heading="הפעלות מחדש" data-restarts-card>
       ${this.required
-        ? html`<div class="row" data-restart-required><span class="need"><span class="dot" aria-hidden="true"></span>נדרשת הפעלה מחדש של תשתית המערכת</span></div>`
+        ? html`<div class="row" data-restart-required><span class="need"><span class="dot" aria-hidden="true"></span>נדרשת הפעלה מחדש של תשתית המערכת</span>${this.reasons.filter((r) => r.code === 'bridge').map((r) => html`<span class="lbl" data-restart-reason>רכיב החיבור: ממתינה גרסה ${r.version ?? '—'}, פועלת ${r.running ?? 'לא דווחה'}</span>`)}</div>`
         : nothing}
       ${this.phase === 'waiting'
         ? html`<div class="wait" role="status" data-restart-phase="waiting"><sw-icon name="refresh" size=${18}></sw-icon>המערכת מופעלת מחדש…</div>`

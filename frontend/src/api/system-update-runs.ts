@@ -39,6 +39,8 @@ export interface RestartReason {
   /** bridge | wiskey | release */
   code: string;
   version?: string | null;
+  /** bridge only: the version Home Assistant reports as loaded (null = nothing reported yet). */
+  running?: string | null;
 }
 
 export const isTerminal = (s: string | null | undefined): boolean => !!s && (TERMINAL_STATES as readonly string[]).includes(s);
