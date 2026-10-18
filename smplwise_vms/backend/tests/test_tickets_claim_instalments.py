@@ -28,17 +28,22 @@ AT = "2026-10-01T08:00:00Z"
 
 # ---------------------------------------------------------------- the migration on a populated database (negative first)
 
-def _at_0116(settings, tmp_path, monkeypatch) -> dbmod.Database:
-    real = dbmod.MIGRATIONS_DIR
-    older = tmp_path / "at-0116"
+def _upto(tmp_path, last: int):
+    """A copy of the migrations directory up to and including `last` (later migrations, e.g. 0118+, stay out of the rebuild test)."""
+    older = tmp_path / f"at-{last:04d}"
     older.mkdir()
-    for f in real.glob("*.sql"):
-        if int(f.name.split("_", 1)[0]) <= 116:
+    for f in dbmod.MIGRATIONS_DIR.glob("*.sql"):
+        if int(f.name.split("_", 1)[0]) <= last:
             shutil.copy(f, older / f.name)
-    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
+    return older
+
+
+def _at_0116(settings, tmp_path, monkeypatch) -> dbmod.Database:
+    upto_0117 = _upto(tmp_path, 117)  # copied first, from the real directory
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", _upto(tmp_path, 116))
     database = dbmod.Database(settings.db_path)
     assert database.migrate()[-1] == 116
-    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", upto_0117)
     return database
 
 
