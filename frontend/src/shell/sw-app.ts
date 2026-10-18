@@ -1109,7 +1109,7 @@ export class SwApp extends LitElement {
         inset: -6px;
       }
     }
-    /* Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 4). On a wide screen
+    /* Header dropdown placement (owner 2026-10-17; setting ui.dd_place, installation default + personal override, default 1; 2-4 experimental until 2.7.2). On a wide screen
        (>= 1100 px) the dropdown form of a tab group (the single chip of an area, or the two chips + alarm button of the pair) can share the
        page title's row instead of taking a row above it. The chrome row then collapses to zero height and its chips hang on the page's first
        row. data-dd-place is the EFFECTIVE placement, written by updated(): 1 own row (also below 1100 px, on the phone, and when a screen's

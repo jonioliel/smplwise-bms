@@ -103,7 +103,7 @@ DEFAULTS: dict[str, str] = {
     # and how the camera comparison picker is shown - dropdown (default) | chips (a button per camera). services/dd_style.py.
     "ui.dd_search": "4",
     "ui.dd_picker": "dropdown",
-    "ui.dd_place": "4",
+    "ui.dd_place": "1",
     # Unreleased (owner 2026-10-04): the SIZE of a dropdown - sm | md (the reference size, default) | lg - global and per tab group
     # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
     "ui.dd_size": "md",

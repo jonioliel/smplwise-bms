@@ -88,11 +88,11 @@ export type { DdSearch, DdPicker };
 export const DD_SEARCHES: readonly DdSearch[] = DD_SEARCH_IDS;
 export const DD_SEARCH_LABEL: Record<DdSearch, string> = { always: 'תמיד', '4': 'מ־4 מצלמות', '8': 'מ־8 מצלמות', never: 'אף פעם' };
 /** 2026-10-17: where a tab group's dropdown chip sits on a wide screen (>= 1100 px; narrower always uses its own row): 1 its own row above
- * the page title, 2 the far end of the title row, 3 right after the title, 4 the start edge before the title (default). One global value,
+ * the page title, 2 the far end of the title row, 3 right after the title, 4 the start edge before the title; the default is 1 (2-4 are experimental, 2.7.2). One global value,
  * installation `ui.dd_place` and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
 export type DdPlace = '1' | '2' | '3' | '4';
 export const DD_PLACES: readonly DdPlace[] = ['1', '2', '3', '4'];
-export const DD_PLACE_DEFAULT: DdPlace = '4';
+export const DD_PLACE_DEFAULT: DdPlace = '1';
 export function asDdPlace(v: unknown): DdPlace | null {
   return typeof v === 'string' && (DD_PLACES as readonly string[]).includes(v) ? (v as DdPlace) : null;
 }
@@ -473,7 +473,7 @@ const searchChoice = new Choice<DdSearch>('search', asDdSearch, DD_SEARCH_DEFAUL
 const pickerChoice = new Choice<DdPicker>('picker', asDdPicker, DD_PICKER_DEFAULT, 'sw.dd.picker');
 const placeChoice = new Choice<DdPlace>('place', asDdPlace, DD_PLACE_DEFAULT, 'sw.dd.place');
 
-/** The effective header-dropdown placement: the user's own over the installation's (an unreadable value is the default, 4). */
+/** The effective header-dropdown placement: the user's own over the installation's (an unreadable value is the default, 1). */
 export const ddPlaceOf = (): DdPlace => placeChoice.resolve().value;
 export const installationDdPlace = (): DdPlace => placeChoice.inst;
 /** The user's own placement; null = follows the installation. */

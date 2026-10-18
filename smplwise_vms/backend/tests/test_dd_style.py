@@ -170,13 +170,13 @@ BAD_PICKER = ["", "Dropdown", "CHIPS", " chips", "chips ", "buttons", "list", "a
 
 
 def test_place_validator_and_stored_reading():
-    assert dd_style.PLACES == ("1", "2", "3", "4") and dd_style.DEFAULT_PLACE == "4"
+    assert dd_style.PLACES == ("1", "2", "3", "4") and dd_style.DEFAULT_PLACE == "1"
     for m in dd_style.PLACES:
         assert dd_style.normalize_place(m) == m
     for bad in BAD_PLACE:
         with pytest.raises(ValueError):
             dd_style.normalize_place(bad)
-    assert dd_style.stored_place("nonsense") == "4" and dd_style.stored_place(None) == "4" and dd_style.stored_place("2") == "2"
+    assert dd_style.stored_place("nonsense") == "1" and dd_style.stored_place(None) == "1" and dd_style.stored_place("2") == "2"
 
 
 def test_search_and_picker_validators_and_stored_reading():
@@ -196,7 +196,7 @@ def test_search_and_picker_validators_and_stored_reading():
     assert dd_style.stored_picker("nonsense") == "dropdown" and dd_style.stored_picker(None) == "dropdown" and dd_style.stored_picker("chips") == "chips"
 
 
-@pytest.mark.parametrize("key,default,other,bad", [("ui.dd_search", "4", "never", BAD_SEARCH), ("ui.dd_picker", "dropdown", "chips", BAD_PICKER), ("ui.dd_place", "4", "2", BAD_PLACE)])
+@pytest.mark.parametrize("key,default,other,bad", [("ui.dd_search", "4", "never", BAD_SEARCH), ("ui.dd_picker", "dropdown", "chips", BAD_PICKER), ("ui.dd_place", "1", "2", BAD_PLACE)])
 def test_search_picker_installation_default_round_trips_and_refuses_unknown_values(settings, key, default, other, bad):
     with TestClient(create_app(settings)) as c:
         assert c.get("/api/v1/settings").json()["settings"][key] == default
@@ -209,7 +209,7 @@ def test_search_picker_installation_default_round_trips_and_refuses_unknown_valu
         assert c.get("/api/v1/settings").json()["settings"][key] == default
 
 
-@pytest.mark.parametrize("key,default,other", [("ui.dd_search", "4", "always"), ("ui.dd_picker", "dropdown", "chips"), ("ui.dd_place", "4", "1")])
+@pytest.mark.parametrize("key,default,other", [("ui.dd_search", "4", "always"), ("ui.dd_picker", "dropdown", "chips"), ("ui.dd_place", "1", "4")])
 def test_search_picker_installation_default_needs_system_configure(settings, key, default, other):
     c = TestClient(create_app(settings))
     c.get("/api/v1/me")

@@ -47,11 +47,11 @@ PICKERS: tuple[str, ...] = ("dropdown", "chips")
 DEFAULT_PICKER = "dropdown"
 
 # Header dropdown placement (owner 2026-10-17): where a tab group's dropdown chip sits on a wide screen - `1` its own row above the page
-# title, `2` the far end of the title row, `3` right after the title, `4` the start edge before the title (default). One global value:
+# title, `2` the far end of the title row, `3` right after the title, `4` the start edge before the title. The default is `1` (2-4 are experimental). One global value:
 # `ui.dd_place` as the installation's default and as a user's own choice (null = follow the installation). Presentation only; narrow
 # screens always use their own row.
 PLACES: tuple[str, ...] = ("1", "2", "3", "4")
-DEFAULT_PLACE = "4"
+DEFAULT_PLACE = "1"
 
 
 def normalize_place(value: Any) -> str:

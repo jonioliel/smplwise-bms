@@ -7,7 +7,7 @@ import type { DdPlace } from '../shell/tabs-mode';
 const STR = {
   he: {
     title: 'מיקום התפריט הנפתח בכותרת',
-    sub: 'במסך רחב (מ־1100 פיקסלים). במסך צר התפריט תמיד בשורה משלו מעל הכותרת',
+    sub: 'במסך רחב (מ־1100 פיקסלים). במסך צר התפריט תמיד בשורה משלו מעל הכותרת. ברירת המחדל: בשורה משלו; מיקומים 2-4 ניסיוניים',
     inst: 'ברירת המחדל של ההתקנה',
     own: 'ההעדפה שלי',
     follow: 'לפי ההתקנה (כרגע: {v})',
@@ -18,7 +18,7 @@ const STR = {
   },
   en: {
     title: 'Header dropdown placement',
-    sub: 'On a wide screen (1100 px and up). On a narrow screen the dropdown always has its own row above the title',
+    sub: 'On a wide screen (1100 px and up). On a narrow screen the dropdown always has its own row above the title. Default: own row; placements 2-4 are experimental',
     inst: 'Installation default',
     own: 'My preference',
     follow: 'Follow the installation (now: {v})',

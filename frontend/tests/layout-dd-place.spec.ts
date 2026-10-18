@@ -31,7 +31,7 @@ async function open(page: Page, hash: string, width: number, place: string) {
     try {
       localStorage.setItem('sw.dd.place', JSON.stringify({ u: 'anon', value: p }));
     } catch {
-      /* storage unavailable: the installation default (4) applies */
+      /* storage unavailable: the installation default (1) applies */
     }
   }, place);
   await page.goto(`/#${hash}`);
