@@ -492,9 +492,10 @@ def apply_personal(cfg: dict[str, Any], direction: str, personal: dict[str, Any]
             out[wid]["phone_on"] = None  # a personal on / off is for every screen, the phone included
         if e.get("size") in SIZES:
             out[wid]["sizes"][direction] = e["size"]
-        if wid == "elevators":  # 2.8.0: the user's own display mode and his own list of elevators left out
+        if wid == "elevators":  # 2.8.0: the user's own display mode, and the elevators HE leaves out ADDED to the installation's (review L5:
+            # an elevator the administrator hides later is hidden for him too; a user cannot bring back one the administrator hid)
             if e.get("mode") in ELEVATOR_MODES:
                 out[wid]["mode"] = e["mode"]
             if isinstance(e.get("hidden"), list):
-                out[wid]["hidden"] = list(e["hidden"])
+                out[wid]["hidden"] = list(dict.fromkeys([*out[wid]["hidden"], *e["hidden"]]))
     return out, direction

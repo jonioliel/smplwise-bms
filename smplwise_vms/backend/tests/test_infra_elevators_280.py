@@ -411,3 +411,135 @@ def test_flags_are_the_visible_roles_live_values(owner):
 def test_tick_skips_without_elevators(app):  # noqa: F811
     _, db, _ = app
     assert rt.tick(db, T0, connected=True) == {"skipped": "no_elevators"}
+
+
+# ---------------------------------------------------------------- independent review 2026-10-19 (regression tests)
+
+def test_review_h1_a_notification_needs_its_own_state_sensor_visible(owner, monkeypatch):
+    """H1 (D3): a floor-scoped viewer who sees only the WAITING sensor must not see the FAULT notification of that elevator; who sees the fault
+    sensor does. An unknown elevator source needs every sensor visible."""
+    from smplwise.services import ha_scope
+    from smplwise.services.notify_visibility import Reach, principal_of
+
+    c, db, settings, eid = owner
+    bind(c, settings, "flo", "viewer", "installation", "*")
+    c.get("/api/v1/me", headers=as_user("flo"))
+    real = ha_scope.visible_floors
+    monkeypatch.setattr(ha_scope, "visible_floors", lambda conn, p, perm: (False, {"f1"}) if p.username == "flo" else real(conn, p, perm))
+    monkeypatch.setattr(ha_scope, "placements", lambda conn: {OWNER["waiting"]: [{"floor_id": "f1", "floor_name": "1"}]})
+    fault = {"subject_kind": "elevator", "subject_id": eid, "origin_json": "{}", "source": "elevator.fault"}
+    with db.connection() as conn:
+        p = principal_of(conn, _uid(db, "flo"))
+        assert Reach(conn, p).can_see(fault) is False  # the leak the review reproduced
+        assert Reach(conn, p).can_see({**fault, "source": "elevator.something_new"}) is False
+    monkeypatch.setattr(ha_scope, "placements", lambda conn: {OWNER["waiting"]: [{"floor_id": "f1", "floor_name": "1"}], OWNER["fault"]: [{"floor_id": "f1", "floor_name": "1"}]})
+    with db.connection() as conn:
+        p = principal_of(conn, _uid(db, "flo"))
+        assert Reach(conn, p).can_see(fault) is True
+        assert Reach(conn, p).can_see({**fault, "source": "elevator.fire_service"}) is False  # the fire sensor is still off his floors
+    # as a recipient too: with the role chosen, the floor-scoped viewer is not a recipient of the fault notification
+    monkeypatch.setattr(ha_scope, "placements", lambda conn: {OWNER["waiting"]: [{"floor_id": "f1", "floor_name": "1"}]})
+    enable(c, states=("fault",), recipients={"roles": ["viewer", "system_admin"]})
+    set_state(db, OWNER["fault"], "on")
+    tick(db, T0)
+    tick(db, T0 + 30)
+    assert _recipients(db, notes(db)[0]["id"]) == {"joni"}
+
+
+def test_review_m1_nothing_opened_means_no_memory_and_a_retry(owner, monkeypatch):
+    """M1: with alerts on, a refused emit (the generic policy switched off) or a failing emit writes no memory row; the next tick retries."""
+    c, db, _, _ = owner
+    enable(c, states=("fire_service",))
+    with db.connection() as conn:
+        conn.execute("UPDATE notify_policies SET enabled = 0 WHERE source = 'elevator.fire_service'")
+    set_state(db, OWNER["fire_service"], "on")
+    assert tick(db, T0)["raised"] == 0
+    with db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM infra_elevator_alerts").fetchone()[0] == 0
+    with db.connection() as conn:
+        conn.execute("UPDATE notify_policies SET enabled = 1 WHERE source = 'elevator.fire_service'")
+    assert tick(db, T0 + 15)["raised"] == 1  # retried, while the condition still holds
+    # scenario B: the centre raises once
+    from smplwise.services import notify
+
+    set_state(db, OWNER["fault"], "on")
+    enable(c, states=("fire_service", "fault"))
+    real = notify.emit_full
+    calls = {"n": 0}
+
+    def flaky(conn, s):
+        if s.source == "elevator.fault" and not s.resolve and calls["n"] == 0:
+            calls["n"] += 1
+            raise RuntimeError("locked")
+        return real(conn, s)
+
+    monkeypatch.setattr(notify, "emit_full", flaky)
+    tick(db, T0 + 30)
+    assert tick(db, T0 + 60)["raised"] == 0 and calls["n"] == 1  # the failed attempt
+    assert tick(db, T0 + 75)["raised"] == 1  # retried
+    assert {n["source"] for n in notes(db)} == {"elevator.fire_service", "elevator.fault"}
+
+
+def test_review_m2_a_disabled_elevator_is_unknown_in_the_history(owner):
+    c, db, _, eid = owner
+    set_state(db, OWNER["fault"], "on")
+    tick(db, T0)
+    assert c.put(f"{API}/{eid}", json={"name": "מעלית ראשית", "sensors": OWNER, "enabled": False}).status_code == 200
+    tick(db, T0 + 15)
+    with db.connection(mode="read") as conn:
+        states = [r[0] for r in conn.execute("SELECT state FROM infra_elevator_states WHERE elevator_id = ? ORDER BY at", (eid,)).fetchall()]
+    assert states == ["fault", "unknown"]
+
+
+def test_review_m3_the_policy_delay_adds_to_the_hold(owner):
+    c, db, _, _ = owner
+    enable(c, states=("fire_service",))
+    with db.connection() as conn:
+        conn.execute("UPDATE notify_policies SET after_s = 60 WHERE source = 'elevator.fire_service'")
+    set_state(db, OWNER["fire_service"], "on")
+    assert tick(db, T0)["raised"] == 0  # 0 s built in + 60 s set by the administrator
+    assert tick(db, T0 + 45)["raised"] == 0
+    assert tick(db, T0 + 60)["raised"] == 1
+
+
+def test_review_l2_the_hold_restarts_after_a_disconnect(owner):
+    c, db, _, _ = owner
+    enable(c, states=("fault",))
+    set_state(db, OWNER["fault"], "on")
+    tick(db, T0)
+    tick(db, T0 + 15, connected=False)
+    assert tick(db, T0 + 600)["raised"] == 0  # the first observation after the reconnect starts the hold again
+    assert tick(db, T0 + 630)["raised"] == 1
+
+
+def test_review_l3_a_removed_or_long_dead_sensor_closes_its_notification(owner):
+    c, db, _, eid = owner
+    enable(c, states=("fire_service", "out_of_service"))
+    set_state(db, OWNER["fire_service"], "on")
+    set_state(db, OWNER["out_of_service"], "on")
+    tick(db, T0)
+    tick(db, T0 + 30)
+    assert len([n for n in notes(db) if n["state"] == "open"]) == 2
+    set_state(db, OWNER["out_of_service"], "unavailable")
+    assert tick(db, T0 + 45)["closed"] == 0  # dead, not yet long
+    assert tick(db, T0 + 45 + rt.DEAD_CLOSE_S)["closed"] == 1
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET removed_at = ? WHERE entity_id = ?", ("2027-01-15T00:00:00Z", OWNER["fire_service"]))
+    assert tick(db, T0 + 60 + rt.DEAD_CLOSE_S)["closed"] == 1  # removed: at once
+    got = {n["source"]: (n["state"], n["resolution"]) for n in notes(db)}
+    assert got == {"elevator.fire_service": ("resolved", "sensor_unavailable"), "elevator.out_of_service": ("resolved", "sensor_unavailable")}
+    # the condition stays tracked: the sensor coming back still on does not re-notify
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET removed_at = NULL WHERE entity_id = ?", (OWNER["fire_service"],))
+    assert tick(db, T0 + 75 + rt.DEAD_CLOSE_S)["raised"] == 0
+
+
+def test_review_l9_orphan_notifications_are_resolved_by_the_janitor(owner):
+    c, db, _, eid = owner
+    enable(c, states=("fire_service",))
+    set_state(db, OWNER["fire_service"], "on")
+    tick(db, T0)
+    with db.connection() as conn:  # a delete that bypasses the route (e.g. after a rollback)
+        conn.execute("DELETE FROM infra_elevators WHERE id = ?", (eid,))
+    assert rt.janitor(db, T0 + 10_000) is not None
+    assert notes(db)[0]["state"] == "resolved" and notes(db)[0]["resolution"] == "elevator_removed"

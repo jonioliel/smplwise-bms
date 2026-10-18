@@ -214,17 +214,22 @@ def prune_history(conn: sqlite3.Connection, cutoff: str) -> int:
         (cutoff, cutoff)).rowcount
 
 
-def visible_to(conn: sqlite3.Connection, entity_visible: Any, elevator_id: str | None) -> bool:
-    """The notification rule of subject kind `elevator` (services/notify_visibility.Reach): the caller sees an ENABLED elevator through at least one
-    of its sensors (`entity_visible(entity_id)` is the caller's devices.read scope test) - the same rule as the operator routes (D3)."""
+def visible_to(conn: sqlite3.Connection, entity_visible: Any, elevator_id: str | None, role: str | None = None) -> bool:
+    """The notification rule of subject kind `elevator` (services/notify_visibility.Reach), D3 applied per notification (review H1): an
+    `elevator.<role>` notification says what THAT role's sensor reports, so the caller must see that very sensor (`entity_visible(entity_id)` is
+    his devices.read scope test) on an ENABLED elevator. Seeing another sensor of the same elevator is not enough. Without a known role (a source
+    this release does not know) every linked sensor must be visible - the strict rule of the history bar."""
     if not elevator_id:
         return False
     try:
-        rows = conn.execute("SELECT s.entity_id FROM infra_elevator_sensors s JOIN infra_elevators e ON e.id = s.elevator_id WHERE s.elevator_id = ? AND e.enabled = 1",
+        rows = conn.execute("SELECT s.role, s.entity_id FROM infra_elevator_sensors s JOIN infra_elevators e ON e.id = s.elevator_id WHERE s.elevator_id = ? AND e.enabled = 1",
                             (elevator_id,)).fetchall()
     except sqlite3.Error:  # before the migration
         return False
-    return any(entity_visible(r[0]) for r in rows)
+    if role in ALERT_ROLES:
+        own = [r["entity_id"] for r in rows if r["role"] == role]
+        return bool(own) and all(entity_visible(e) for e in own)
+    return bool(rows) and all(entity_visible(r["entity_id"]) for r in rows)
 
 
 def mirror_connected() -> bool:

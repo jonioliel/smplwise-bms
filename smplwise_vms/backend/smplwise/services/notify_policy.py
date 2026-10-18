@@ -85,7 +85,7 @@ SOURCES: tuple[Source, ...] = (
        subject="elevator", resolve_text="התקלה הסתיימה"),
     _s("elevator.out_of_service", "מעלית: השבתה", "device_faults", "info", "מעלית בהשבתה", "{name} בהשבתה.", who="elevator", push=False, enabled=False,
        subject="elevator", resolve_text="ההשבתה הסתיימה"),
-    _s("device.battery_low","סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
+    _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
     _s("backup.stale", "גיבוי ישן", "system", "info", "הגיבוי ישן", "{name}.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),

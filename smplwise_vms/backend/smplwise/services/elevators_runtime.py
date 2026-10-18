@@ -41,6 +41,10 @@ SOURCE_PREFIX = "elevator."
 LINK = "#/infra/elevators"
 
 _PENDING: dict[tuple[str, str], float] = {}
+_DEAD: dict[tuple[str, str], float] = {}  # since when a mapped alert sensor has had no live value
+# an open notification whose sensor has had no live value this long is closed (resolution sensor_unavailable); a removed sensor at once
+DEAD_CLOSE_S = 3600
+SENSOR_GONE_TEXT = "החיישן של המעלית לא זמין"
 _LAST = {"prune": 0.0}
 _lock = threading.Lock()
 
@@ -49,6 +53,7 @@ def reset() -> None:
     """Tests: forget the hold timers and the janitor clock."""
     with _lock:
         _PENDING.clear()
+        _DEAD.clear()
     _LAST["prune"] = 0.0
 
 
@@ -76,13 +81,35 @@ def _signal(e: sqlite3.Row, role: str, area_name: str | None, *, resolve: bool =
 
 
 def _emit(conn: sqlite3.Connection, signal: notify.Signal) -> str | None:
+    """The notification id when the centre really opened (or folded into) a row; None otherwise - a disabled source, nothing to resolve, or an error
+    (logged; review M1: the caller then writes no memory row, so the next tick tries again)."""
     try:
         res = notify.emit_full(conn, signal)
         return res.id if res.action in ("created", "folded", "renotified") else None
-    except Exception:  # noqa: BLE001 - the memory row stands even if the centre refused the signal
+    except Exception:  # noqa: BLE001 - one failed emit never stops the pass
         log.warning("elevator notification could not reach the notification centre", exc_info=True)
         return None
 
+
+def _close(conn: sqlite3.Connection, e: sqlite3.Row, role: str, resolution: str, text: str) -> None:
+    """Resolves the open notification of one condition with a stated resolution and forgets it (the condition itself stays tracked)."""
+    try:
+        notify.emit_full(conn, notify.Signal(source_of(role), "elevator", e["id"], dedupe_key=dedupe_of(role, e["id"]), resolve=True,
+                                             params={"name": e["name"], "resolution": resolution, "resolve_text": text}, origin={"elevator_id": e["id"]}))
+    except Exception:  # noqa: BLE001
+        log.warning("elevator notification could not be resolved", exc_info=True)
+        return
+    conn.execute("UPDATE infra_elevator_alerts SET notification_id = NULL WHERE elevator_id = ? AND role = ?", (e["id"], role))
+
+
+def _hold_of(conn: sqlite3.Connection, role: str, cache: dict[str, int]) -> int:
+    """The built-in hold plus the delay the administrator set on the source's policy (`after_s`), like every other held source (review M3)."""
+    if role not in cache:
+        from . import notify_policy
+
+        pol = notify_policy.get_policy(conn, source_of(role)) or {}
+        cache[role] = HOLD_S[role] + max(0, int(pol.get("after_s") or 0))
+    return cache[role]
 
 def _area_names(conn: sqlite3.Connection) -> dict[str, str]:
     return {r["area_id"]: r["name"] for r in conn.execute("SELECT area_id, name FROM ha_areas").fetchall()}
@@ -105,34 +132,54 @@ def resolve_all(conn: sqlite3.Connection, elevator_id: str) -> int:
 
 
 def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dict[str, int]:
-    """One pass: history rows and condition transitions. Returns {recorded, tracked (new conditions), raised (notifications), cleared}."""
+    """One pass: history rows and condition transitions. Returns {recorded, tracked (new conditions), raised (notifications), cleared, closed}."""
     now = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc).replace(microsecond=0))
     rows = conn.execute("SELECT id, name, area_id, enabled FROM infra_elevators ORDER BY sort_order, id").fetchall()
     sensors = el.sensors_of(conn, [r["id"] for r in rows])
     raised = {(r["elevator_id"], r["role"]): r for r in conn.execute("SELECT * FROM infra_elevator_alerts").fetchall()}
     areas: dict[str, str] | None = None
     settings = alerts.load(conn)
-    out = {"recorded": 0, "tracked": 0, "raised": 0, "cleared": 0}
+    holds: dict[str, int] = {}
+    out = {"recorded": 0, "tracked": 0, "raised": 0, "cleared": 0, "closed": 0}
+    if not connected:
+        with _lock:  # review L2: a hold must be observed after the reconnect, never carried across an outage
+            _PENDING.clear()
+            _DEAD.clear()
     for e in rows:
-        live = el.live_of(sensors.get(e["id"], []), connected=connected)
-        if e["enabled"] and el.record_state(conn, e["id"], live["state"], now, live["since"]):
+        rows_e = sensors.get(e["id"], [])
+        live = el.live_of(rows_e, connected=connected)
+        # review M2: while disabled the elevator is not observed - its history says unknown, never the last state carried on
+        if el.record_state(conn, e["id"], live["state"] if e["enabled"] else "unknown", now, live["since"] if e["enabled"] else None):
             out["recorded"] += 1
         if not connected:
             continue  # the mirror is not a reading: hold every notification as it is
         flags: dict[str, bool | None] = live["flags"] if e["enabled"] else {}
+        removed = {s["role"] for s in rows_e if s["domain"] is None or s["removed_at"]}
         for role in el.ALERT_ROLES:
             key = (e["id"], role)
             v = flags.get(role, False)  # an unmapped role (or a disabled elevator) is "off": its notification ends
             if v is None:
-                continue  # mapped, no live value: no change
+                # mapped, no live value: no change - except an open notification whose sensor was removed from the platform (closed at once) or
+                # has had no value for DEAD_CLOSE_S (review L3): it is closed with a stated resolution; the condition stays tracked
+                with _lock:
+                    since = _DEAD.setdefault(key, now_ts)
+                r = raised.get(key)
+                if r is not None and r["notification_id"] and (role in removed or now_ts - since >= DEAD_CLOSE_S):
+                    _close(conn, e, role, "sensor_unavailable", SENSOR_GONE_TEXT)
+                    out["closed"] += 1
+                continue
+            with _lock:
+                _DEAD.pop(key, None)
             if v and key not in raised:
-                if _held(key, True, HOLD_S[role], now_ts):
-                    # a new transition: always remembered; notified only while this state's alerts are on (owner: default off, never retroactive)
+                if _held(key, True, _hold_of(conn, role, holds), now_ts):
+                    # a new transition: notified only while this state's alerts are on (owner: default off, never retroactive)
                     nid = None
                     if alerts.is_on(settings, role):
                         if areas is None:
                             areas = _area_names(conn)
                         nid = _emit(conn, _signal(e, role, areas.get(e["area_id"] or "")))
+                        if nid is None:
+                            continue  # review M1: nothing opened (refused / failed) - no memory row, the next tick tries again
                         out["raised"] += 1
                     conn.execute("INSERT OR REPLACE INTO infra_elevator_alerts (elevator_id, role, raised_at, notification_id) VALUES (?, ?, ?, ?)", (e["id"], role, now, nid))
                     out["tracked"] += 1
@@ -144,7 +191,6 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
                         out["cleared"] += 1
                     conn.execute("DELETE FROM infra_elevator_alerts WHERE elevator_id = ? AND role = ?", key)
     return out
-
 
 def tick(db: Database, now: float | None = None, *, connected: bool | None = None) -> dict[str, Any]:
     t = float(now if now is not None else time.time())
@@ -166,9 +212,28 @@ def janitor(db: Database, now: float | None = None) -> dict[str, Any] | None:
     cutoff = iso_utc(dt.datetime.fromtimestamp(t - el.HISTORY_KEEP_S, dt.timezone.utc).replace(microsecond=0))
     with db.connection(label="elevators.janitor") as conn:
         try:
-            return {"history": el.prune_history(conn, cutoff)}
+            return {"history": el.prune_history(conn, cutoff), "orphans": resolve_orphans(conn)}
         except sqlite3.Error:
             return {"skipped": "no_schema"}
+
+
+def resolve_orphans(conn: sqlite3.Connection) -> int:
+    """Review L9: an open elevator notification whose elevator no longer exists (deleted by a path that did not resolve it, e.g. after a rollback
+    and a re-upgrade) is resolved with the resolution `elevator_removed`."""
+    rows = conn.execute("""SELECT source, subject_id FROM notifications WHERE source LIKE 'elevator.%' AND state != 'resolved'
+                           AND subject_id NOT IN (SELECT id FROM infra_elevators)""").fetchall()
+    n = 0
+    for r in rows:
+        role = str(r["source"]).split(".", 1)[1]
+        if role not in el.ALERT_ROLES:
+            continue
+        try:
+            res = notify.emit_full(conn, notify.Signal(r["source"], "elevator", r["subject_id"], dedupe_key=dedupe_of(role, r["subject_id"]), resolve=True,
+                                                       params={"resolution": "elevator_removed"}))
+            n += res.action == "resolved"
+        except Exception:  # noqa: BLE001
+            log.warning("orphan elevator notification could not be resolved", exc_info=True)
+    return n
 
 
 class Runner:

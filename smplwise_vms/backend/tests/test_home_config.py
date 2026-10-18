@@ -79,5 +79,6 @@ def test_elevators_personal_override_mode_and_hidden():
     assert p["widgets"] == {"elevators": {"mode": "cards", "hidden": ["e2"], "size": "l"}}
     cfg = home_config.normalise({"elevators": {"mode": "combined", "hidden": ["e1"]}})
     out, d = home_config.apply_personal(cfg, "a", p)
-    assert (out["elevators"]["mode"], out["elevators"]["hidden"], out["elevators"]["sizes"]["a"]) == ("cards", ["e2"], "l")
+    # review L5: the user's own list ADDS to the installation's
+    assert (out["elevators"]["mode"], out["elevators"]["hidden"], out["elevators"]["sizes"]["a"]) == ("cards", ["e1", "e2"], "l")
     assert cfg["elevators"]["hidden"] == ["e1"]  # the installation config is untouched
