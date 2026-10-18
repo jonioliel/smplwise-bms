@@ -6,6 +6,9 @@ import '../components/sw-page';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
+import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
+import { homeTiles, type HomeTile } from '../elevators/model';
+import type { Elevator } from '../api/elevators';
 import '../components/sw-state-panel';
 import '../components/sw-button';
 import './devices-bulk';
@@ -988,6 +991,10 @@ export class DevicesBuilding extends LitElement {
   @state() private forbidden = false;
   /** CR-015: how many approved screens this user may see (media.read); null = not known yet / not readable. Feeds `resolveWidgets`. */
   @state() private mediaScreens: number | null = null;
+  /** CR-INFRA-ELEVATORS: the elevators the viewer sees (empty = no tiles at all; null = not read yet). */
+  @state() private elevators: Elevator[] | null = null;
+  @state() private elevatorsStale = false;
+  private elevatorsTimer?: number;
   @state() private sync: HaSyncState | null = null;
   private stop: (() => void) | null = null;
   private timer = 0;
@@ -1282,6 +1289,29 @@ export class DevicesBuilding extends LitElement {
     } catch {
       this.mediaScreens = null;
     }
+  }
+
+  /** CR-INFRA-ELEVATORS: the elevators for the home tiles - read once, then every 30 s only while at least one exists (an installation
+   * without elevators asks once and never again; a failure shows nothing). */
+  private async loadElevators() {
+    const r = await refreshElevatorsVisibility();
+    this.elevators = r?.elevators ?? [];
+    this.elevatorsStale = r?.stale ?? false;
+    if (this.elevators.length && this.elevatorsTimer === undefined && this.isConnected) {
+      this.elevatorsTimer = window.setInterval(() => {
+        if (document.visibilityState === 'visible') void this.loadElevators();
+      }, 30_000);
+    }
+  }
+
+  /** The elevators' home tiles in the KPI row: one per elevator up to four, else one summary; fault is the loudest tone. Tap = תשתיות › מעליות. */
+  private renderElevatorTiles(layout: 'cards' | 'compact') {
+    const tiles: HomeTile[] = homeTiles(this.elevators ?? [], this.elevatorsStale);
+    return tiles.map((t) =>
+      t.kind === 'elevator'
+        ? html`<sw-kpi data-kpi="elevator" data-elevator=${t.id} data-elevator-state=${t.chip.state} label=${t.name} value=${t.chip.label} .icon=${t.chip.icon} tone=${t.chip.tone} layout=${layout} icon-end href=${t.href}></sw-kpi>`
+        : html`<sw-kpi data-kpi="elevators" data-value=${t.value} label=${t.label} value=${t.value} detail=${t.detail} .icon=${t.icon} tone=${t.tone} layout=${layout} icon-end href=${t.href}></sw-kpi>`,
+    );
   }
 
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
@@ -2339,6 +2369,7 @@ export class DevicesBuilding extends LitElement {
     window.addEventListener('resize', this.onResize);
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     void this.loadMediaScreens();
+    void this.loadElevators();
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
     this.registerView();
     void this.prefsReady.then(() => this.registerView()); // K88: the plan view appears once plan.surfaces says so
@@ -2404,6 +2435,7 @@ export class DevicesBuilding extends LitElement {
     window.cancelAnimationFrame(this.fitTimer);
     this.noteTimer = this.fitTimer = 0;
     window.removeEventListener('resize', this.onResize);
+    window.clearInterval(this.elevatorsTimer);
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     this.offView?.();
     this.offView = null;
@@ -2861,6 +2893,7 @@ export class DevicesBuilding extends LitElement {
       ${kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating')}
       ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
       ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
+      ${this.renderElevatorTiles(layout)}
       ${c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
     </div>`;
   }

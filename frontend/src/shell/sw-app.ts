@@ -50,6 +50,7 @@ import '../screens/multimedia-groups'; // CR-016: "קבוצות"
 import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
 import '../screens/system-multimedia';
 import '../screens/infra-generator'; // CR-031: תשתיות › גנרטור (live, charts, alerts, history)
+import '../screens/infra-elevators'; // CR-INFRA-ELEVATORS: תשתיות › מעליות (live list)
 import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
 import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
 import '../screens/tickets-list'; // CR-038: the tickets area (the list, the drawer, the create sheet)
@@ -112,6 +113,7 @@ import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabil
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
+import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the elevators tab under תשתיות
 import { refreshGeneratorVisibility } from '../generator/access'; // CR-031: the generator tab under תשתיות
 import { onTicketNames, setTicketNames } from '../tickets/naming'; // CR-038 D33: the tickets module's configurable name
 import { isTicketId } from '../tickets/model';
@@ -1633,6 +1635,7 @@ export class SwApp extends LitElement {
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
           if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
+          void refreshElevatorsVisibility(); // CR-INFRA-ELEVATORS: the elevators tab appears once an elevator is defined
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
@@ -2287,6 +2290,7 @@ export class SwApp extends LitElement {
       case 'infra':
         // CR-031: #/infra/generator/<live|charts|alerts|history>[/<alert id>]
         if (s[1] === 'generator') return html`<infra-generator .route=${r}></infra-generator>`;
+        if (s[1] === 'elevators') return html`<infra-elevators .route=${r}></infra-elevators>`; // CR-INFRA-ELEVATORS
         // CR-023: #/infra/electricity/<page> (meters, accounts, bills, customers); #/infra opens the meters page
         if (!s[1] || s[1] !== 'electricity' || !s[2]) queueMicrotask(() => window.location.replace('#/infra/electricity/meters'));
         return html`<infra-electricity .route=${r}></infra-electricity>`;
