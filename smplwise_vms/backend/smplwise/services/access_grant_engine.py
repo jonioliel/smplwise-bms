@@ -22,6 +22,7 @@ station "deny", other personal entries kept); the door map is READ by projecting
 removal, so the worker also needs the central sync status to show no pending revocation (`Engine.revocation_pending`)."""
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -67,7 +68,11 @@ class EnginePerson:
     # R4-04: whether the stations have APPLIED the central record: True = every enabled assignment reports `sync_state` "synced" with
     # applied_revision == desired_revision; False = at least one does not; None = cannot tell (door map unknown, bookkeeping missing).
     # Recorded beside a proof of the central scope, never taken as physical completion and never required by it.
+    # R5-A7: None also when no assignment is enabled - "no evidence", never a vacuous True.
     stations_synced: bool | None = None
+    # R5-A2: the COMPLETE `access_timing_policy` as WisKey returned it ({mode, schedule, bindings}, each key only when it was present;
+    # None = no policy). `timing` above is its schedule only; a scope proof compares the whole policy (mode and bindings included).
+    timing_policy: dict[str, Any] | None = None
 
 
 class Engine(Protocol):
@@ -148,7 +153,7 @@ def apply_payload(*, doors: dict[str, list[int]], valid_from: str, valid_until: 
     out does NOT revoke it; stations to drop travel in `overrides` (the COMPLETE permission_overrides dict, see `plan_overrides`).
     `employee_no` is never sent on update."""
     data: dict[str, Any] = {"door_permissions": doors, "valid_from": valid_from, "valid_until": valid_until, "active": active,
-                            "access_timing_policy": {"mode": "ha", "schedule": timing, "bindings": {}} if timing else None}
+                            "access_timing_policy": requested_policy(timing)}
     if overrides is not None:
         data["permission_overrides"] = overrides
     if pin is not KEEP:
@@ -201,8 +206,14 @@ def person_from_raw(raw: Any) -> EnginePerson:
     The record has NO `door_permissions`. The desired door map is the projection of the ENABLED `assignments` to their `allowed_locks`;
     a disabled row keeps historical locks and is skipped. The projection is UNKNOWN (`doors_known=False`, never known-empty) when
     assignments / permission_overrides / group_ids are missing or unreadable or `redacted_fields` names an access field; `pin_known` is
-    False when the credential fields may be unreadable (then pin_configured=False proves nothing)."""
-    if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not isinstance(raw.get("revision"), int):
+    False when the credential fields may be unreadable (then pin_configured=False proves nothing).
+
+    R5-A7 (fail closed on malformed input): the id is a non-empty string and the revision an int that is not a bool (else ValueError); a
+    malformed assignment row (a non-string key, a row that is not an object, `enabled` that is not a boolean, `allowed_locks` that is not
+    a list of ints) or a malformed `permission_overrides` / `group_ids` entry makes the door map UNKNOWN - it is never skipped, so a
+    malformed row cannot shrink a known map; bookkeeping revisions that are bools are missing; no enabled assignment is `stations_synced`
+    None (no evidence), never True."""
+    if (not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or not _strict_int(raw.get("revision"))):
         raise ValueError("unexpected person record")
     access_redacted, credential_redacted = _redacted(raw.get("redacted_fields"))
     # WisKey round 3 (R3-03): WisKey names the withheld CATEGORIES (`access`, `credentials`), and a record projected for a restricted
@@ -218,25 +229,38 @@ def person_from_raw(raw: Any) -> EnginePerson:
     groups = raw.get("group_ids")
     doors: dict[str, list[int]] = {}
     stations: set[str] = set()
+    malformed = False
+    enabled_rows = 0
     synced: bool | None = True
     if isinstance(assignments, dict):
         for sid, row in assignments.items():
-            if not isinstance(sid, str) or not isinstance(row, dict):
+            if not isinstance(sid, str) or not sid or not isinstance(row, dict) or not isinstance(row.get("enabled", False), bool):
+                malformed = True  # R5-A7: never skipped - a malformed row makes the whole map unknown
                 continue
             stations.add(sid)
             if row.get("enabled") is True:
-                doors[sid] = sorted({r for r in (row.get("allowed_locks") or []) if isinstance(r, int) and not isinstance(r, bool)})
+                locks = row.get("allowed_locks")
+                if not isinstance(locks, list) or not all(_strict_int(r) for r in locks):
+                    malformed = True
+                    continue
+                enabled_rows += 1
+                doors[sid] = sorted(set(locks))
                 desired, applied = row.get("desired_revision"), row.get("applied_revision")
-                if not (isinstance(desired, int) and isinstance(applied, int)):
+                if not (_strict_int(desired) and _strict_int(applied)):
                     synced = None if synced is not False else False
                 elif row.get("sync_state") != "synced" or applied != desired:
                     synced = False
+    if enabled_rows == 0:
+        synced = None  # R5-A7: nothing enabled is no evidence of application, not a vacuous "synced"
     overrides: dict[str, str] = {}
     if isinstance(overrides_raw, dict):
         overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and v in ("allow", "deny")}
+        malformed = malformed or len(overrides) != len(overrides_raw)
         stations |= set(overrides)
-    overrides_known = isinstance(overrides_raw, dict) and not access_redacted
-    doors_known = isinstance(assignments, dict) and overrides_known and isinstance(groups, list) and not access_redacted
+    if isinstance(groups, list) and not all(isinstance(g, str) for g in groups):
+        malformed = True
+    overrides_known = isinstance(overrides_raw, dict) and not access_redacted and not malformed
+    doors_known = isinstance(assignments, dict) and overrides_known and isinstance(groups, list) and not access_redacted and not malformed
     if not doors_known:
         doors = {}
         synced = None
@@ -251,7 +275,30 @@ def person_from_raw(raw: Any) -> EnginePerson:
         category=raw.get("access_category") if raw.get("access_category") in ("staff", "visitor", "contractor") else "unknown",
         employee_no=str(raw.get("employee_no") or "")[:32], overrides=overrides, overrides_known=overrides_known,
         group_ids=tuple(g for g in groups if isinstance(g, str)) if isinstance(groups, list) else (), stations_synced=synced,
+        timing_policy=_policy_of(raw.get("access_timing_policy")),
     )
+
+
+def _strict_int(value: Any) -> bool:
+    """R5-A7: an int that is not a bool (True / False are ints in Python, never a revision or a lock number)."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _policy_of(raw: Any) -> dict[str, Any] | None:
+    """R5-A2: the timing policy as WisKey returned it - mode, schedule and bindings, each only when it was present (an absent key stays
+    absent, so it can never compare equal to the requested `{mode: "ha", ..., bindings: {}}`). A non-object policy is kept as a marker
+    that compares unequal to everything Arx requests. No normalisation: WisKey's normaliser is not an accepted contract (ACR5-02), so
+    Arx compares exactly and a reordered equivalent schedule fails closed (never widened, never an invented equivalence)."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        return {"malformed": True}
+    return {k: copy.deepcopy(raw[k]) for k in ("mode", "schedule", "bindings") if k in raw} | ({"extra": True} if set(raw) - {"mode", "schedule", "bindings"} else {})
+
+
+def requested_policy(timing: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The `access_timing_policy` a grant push writes (`apply_payload`), as the readback must show it."""
+    return {"mode": "ha", "schedule": timing, "bindings": {}} if timing else None
 
 
 class WiskeyServiceEngine:

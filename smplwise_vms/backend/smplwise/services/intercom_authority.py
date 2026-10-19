@@ -329,9 +329,15 @@ ASSIGNMENT_KEYS = ("station_id", "enabled", "doors", "sync_state", "last_sync_at
 
 def person_station_ids(person: dict[str, Any]) -> list[str] | None:
     """The stations a superset person is assigned to; None when WisKey did not say (a redacted `access` category: unknown,
-    not "no assignment" - such a person can only be shown to a principal unrestricted for people)."""
+    not "no assignment" - such a person can only be shown to a principal unrestricted for people).
+
+    R5-A4: also None when the record says its station set is INCOMPLETE (`stations_known` / `access_known` false: a projection for a
+    restricted caller may hold only the stations that caller sees). A partial list is never evaluated as the complete set by an
+    authorization consumer (check_person, the messaging caps, the people views): unknown requires an unrestricted grant or refuses."""
     assignments = person.get("assignments")
     if not isinstance(assignments, list):
+        return None
+    if person.get("stations_known") is False or person.get("access_known") is False:
         return None
     return [a["station_id"] for a in assignments if isinstance(a, dict) and isinstance(a.get("station_id"), str)]
 

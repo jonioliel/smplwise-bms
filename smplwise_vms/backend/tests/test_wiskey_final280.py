@@ -155,6 +155,8 @@ def test_r4_04_a_failed_readback_is_reconciled_before_any_second_write(env):
 
 def _person(**over: Any) -> EnginePerson:
     base = dict(id="p", revision=2, active=True, valid_from=VF, valid_until=VU, doors={"st-a": [1]}, doors_known=True, timing=None)
+    # WISKEYFINAL2-281 (R5-A2): a person record carries its whole timing policy; this helper builds the one a grant push writes
+    base["timing_policy"] = age.requested_policy(over.get("timing"))
     return EnginePerson(**{**base, **over})
 
 
