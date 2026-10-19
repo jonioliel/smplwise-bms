@@ -64,6 +64,10 @@ class EnginePerson:
     group_ids: tuple[str, ...] = ()
     # False when `pin_configured` may be unreadable (restricted projection): pin_configured=False is then NOT proof of a cleared PIN.
     pin_known: bool = True
+    # R4-04: whether the stations have APPLIED the central record: True = every enabled assignment reports `sync_state` "synced" with
+    # applied_revision == desired_revision; False = at least one does not; None = cannot tell (door map unknown, bookkeeping missing).
+    # Recorded beside a proof of the central scope, never taken as physical completion and never required by it.
+    stations_synced: bool | None = None
 
 
 class Engine(Protocol):
@@ -214,6 +218,7 @@ def person_from_raw(raw: Any) -> EnginePerson:
     groups = raw.get("group_ids")
     doors: dict[str, list[int]] = {}
     stations: set[str] = set()
+    synced: bool | None = True
     if isinstance(assignments, dict):
         for sid, row in assignments.items():
             if not isinstance(sid, str) or not isinstance(row, dict):
@@ -221,6 +226,11 @@ def person_from_raw(raw: Any) -> EnginePerson:
             stations.add(sid)
             if row.get("enabled") is True:
                 doors[sid] = sorted({r for r in (row.get("allowed_locks") or []) if isinstance(r, int) and not isinstance(r, bool)})
+                desired, applied = row.get("desired_revision"), row.get("applied_revision")
+                if not (isinstance(desired, int) and isinstance(applied, int)):
+                    synced = None if synced is not False else False
+                elif row.get("sync_state") != "synced" or applied != desired:
+                    synced = False
     overrides: dict[str, str] = {}
     if isinstance(overrides_raw, dict):
         overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and v in ("allow", "deny")}
@@ -229,6 +239,7 @@ def person_from_raw(raw: Any) -> EnginePerson:
     doors_known = isinstance(assignments, dict) and overrides_known and isinstance(groups, list) and not access_redacted
     if not doors_known:
         doors = {}
+        synced = None
     policy = raw.get("access_timing_policy") if isinstance(raw.get("access_timing_policy"), dict) else None
     return EnginePerson(
         id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=bool(raw.get("active")),
@@ -239,7 +250,7 @@ def person_from_raw(raw: Any) -> EnginePerson:
         timing=policy.get("schedule") if policy and isinstance(policy.get("schedule"), dict) else None,
         category=raw.get("access_category") if raw.get("access_category") in ("staff", "visitor", "contractor") else "unknown",
         employee_no=str(raw.get("employee_no") or "")[:32], overrides=overrides, overrides_known=overrides_known,
-        group_ids=tuple(g for g in groups if isinstance(g, str)) if isinstance(groups, list) else (),
+        group_ids=tuple(g for g in groups if isinstance(g, str)) if isinstance(groups, list) else (), stations_synced=synced,
     )
 
 
@@ -316,7 +327,7 @@ class WiskeyServiceEngine:
         from . import intercom_client, intercom_sync
 
         target = intercom_sync.person_target(person_id)
-        if intercom_sync.SYNC.write_gate(target) == "outcome_pending":
+        if intercom_sync.SYNC.write_gate(target) == "outcome_pending":  # also a write to the person still in flight (R4-07)
             raise EngineError("not_sent", "outcome_pending")
         try:
             reply = intercom_sync.SYNC.command(self.settings, "person", lambda call: intercom_client.users_get(call, person_id), person_from_raw_dict, who=self.WHO,
@@ -350,9 +361,14 @@ class WiskeyServiceEngine:
         return None
 
     def pin_generate(self, person_id: str) -> str:
+        """users/pin_generate is a read in WisKey (the value is not reserved); it is NOT a readback of the person, so it carries no
+        `target` (a target on `command` would count as the fresh read that settles an unknown write). R4-07: it is still refused while
+        a write to the person is unsettled - the PIN could only be written after a fresh read anyway."""
         self._guard()
         from . import intercom_client, intercom_sync
 
+        if intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
+            raise EngineError("not_sent", "outcome_pending")
         try:
             reply = intercom_sync.SYNC.command(self.settings, "pin", lambda call: intercom_client.users_pin_generate(call, person_id), intercom_sync.project_pin,
                                                who=self.WHO)

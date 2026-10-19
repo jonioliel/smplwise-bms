@@ -35,11 +35,19 @@ How it is built:
   no longer approved, R7 approver lost authority (re-decision on every permission revision bump, fail closed), R8 unlink / WisKey
   person missing, R9 a station left the approver's chain (narrowed; revoked when none is left), R10 "revoke all" with the switch.
   R11 emergency stays a reserved reason with no effect (emergency and WisKey door windows are OFF; nothing here opens a door).
+- WISKEYFINAL-280 (the composed worker: the round-3 worker plus the GRANTS-FIX280 intent and WisKey round 4): a narrowing is `pushed`
+  only after a fresh read proves the COMPLETE scope (doors, validity, timing, active; an unknown door map proves nothing) and
+  `needs_push` is cleared by a compare-and-set on the row revision the pass read (F2, R4-04); an unknown outcome is settled only
+  against the row's CURRENT scope, by a revision compare-and-set (R4-03); no write ever goes to a WisKey person Arx did not create -
+  approval, provisioning, narrowing, revocation and code delivery all check the link's origin (F3, R4-05); ONE process runs the
+  worker - precondition "workers=1", enforced by an exclusive OS lock beside the database that every pass must hold and that is
+  never given up while a pass may still be writing (F4, R4-06).
 """
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import secrets
 import sqlite3
@@ -430,6 +438,22 @@ def link_of_subject(conn: sqlite3.Connection, kind: str, sid: str) -> dict[str, 
     return dict(r) if r else None
 
 
+def link_of_grant(conn: sqlite3.Connection, g: dict[str, Any]) -> dict[str, Any] | None:
+    """The link a grant acts on: its own `link_id`, else the subject's link (a link made after the request)."""
+    return link_row(conn, g.get("link_id")) or link_of_subject(conn, g["subject_kind"], g["subject_id"])
+
+
+def person_is_ours(link: dict[str, Any] | None) -> bool:
+    """F3 (grants-worker review H4): Arx approves, provisions and WRITES a grant only onto a WisKey person Arx created itself. A manually
+    matched person (`origin = 'matched'`) may hold WisKey-native access (a PIN, staff doors, a validity) that a provisioning write would
+    overwrite and a revoke would strip - refused until a merge design exists. No link yet: Arx will create the person."""
+    return link is None or link.get("origin") == "created_from_arx"
+
+
+def _person_not_ours() -> ApiError:
+    return _conflict("access_person_not_ours", "האדם נוצר במערכת הכניסה ולא על ידי Arx; אי אפשר לתת לו גישה זמנית. בטלו את הקישור כדי שתיווצר רשומה נפרדת.")
+
+
 def contact_row(conn: sqlite3.Connection, contact_id: str | None) -> dict[str, Any] | None:
     if not contact_id:
         return None
@@ -612,7 +636,9 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
         fields: dict[str, Any] = {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
                                   "pending_json": None}
-        if live["state"] == "active" and scope != current:
+        if live["state"] in ("active", "unknown") and scope != current:
+            # R4-03: also while an unknown outcome is being settled - the settlement CASes on the row revision (this write moves it), and a
+            # readback that still shows the broader scope activates the grant only with this flag set, so the narrowing is pushed next
             fields["needs_push"] = 1
         if live.get("code_state") in ("pending",) and live["state"] in DECIDED:
             fields["code_due_at"] = code_due(conn, scope.valid_from, now())
@@ -647,7 +673,7 @@ def _person_stations(db: Any, g: dict[str, Any]) -> list[str]:
     """The stations of the linked WisKey person besides the grant's own (CR 3.2: the approver needs people.manage + sensitive on
     every station of the person). No link yet: none. WisKey unreachable: the approval is refused (fail closed)."""
     with db.connection(mode="read", label="access_grants.person_stations") as conn:
-        link = link_row(conn, g.get("link_id")) or link_of_subject(conn, g["subject_kind"], g["subject_id"])
+        link = link_of_grant(conn, g)
     if link is None:
         return []
     try:
@@ -726,6 +752,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
             perm, sid = missing[0]
             _audit(conn, principal, "access.grant.approve", grant_id, decision="denied", reason="no_binding", request_id=request_id, permission=perm, station=sid)
             raise forbidden(permission=perm, target_type=STATION, target_id=sid, reason="no_binding")
+        if not person_is_ours(link_of_grant(conn, g)):
+            # F3 (grants-worker review H4): decided only after the caller's authority, so the answer tells nothing to a non-holder
+            raise deny("person_not_ours", _person_not_ours())
         contact = contact_row(conn, g["subject_id"])
         problem = subject_problem(conn, contact)
         if problem:
@@ -1143,36 +1172,178 @@ def push_scope(engine: Engine, person: EnginePerson, scope: "Scope", *, pin: Any
                         active=True, pin=pin, overrides=overrides)
 
 
+def _relays(doors: dict[str, list[int]] | None) -> dict[str, list[int]]:
+    return {sid: sorted(set(relays)) for sid, relays in (doors or {}).items() if relays}
+
+
+def scope_proven(readback: EnginePerson, scope: Scope) -> bool:
+    """F2 / R4-04: does a FRESH read prove that WisKey's central record carries exactly the grant's scope? Only when the door map is KNOWN
+    (fail closed: a record without a readable, complete door map - `doors_known` False or absent - proves nothing), the person is active,
+    the enabled stations and relays equal the grant's door map (no station, no relay beyond it), no group adds doors, and the validity
+    window AND the timing schedule are the grant's own. It proves the central DESIRED state only, never that a station applied it
+    (`EnginePerson.stations_synced` is recorded beside it, not required). The person is one Arx created (F3, R4-05), so any door beyond
+    the scope is a door a write failed to remove."""
+    if getattr(readback, "doors_known", False) is not True:
+        return False
+    return (readback.active is True and _relays(readback.doors) == _relays(scope.doors) and not readback.group_ids
+            and readback.valid_from == scope.valid_from and readback.valid_until == scope.valid_until
+            and (readback.timing or None) == (scope.timing or None))
+
+
+narrowing_proven = scope_proven  # the GRANTS-FIX280 name
+
+
+def readback_covers(readback: EnginePerson, scope: Scope) -> bool:
+    """R4-03: the read shows a KNOWN, active record whose scope is the same as or BROADER than `scope` (every door, the whole window, the
+    timing) - the earlier scope of a grant narrowed while its outcome was unknown. It never proves `scope`; the caller only uses it to
+    activate a grant that still has `needs_push` set, so the narrowing is written and proven next."""
+    if getattr(readback, "doors_known", False) is not True or readback.active is not True or readback.group_ids:
+        return False
+    if not readback.valid_from or not readback.valid_until:
+        return False
+    held = Scope(_relays(readback.doors), readback.valid_from, readback.valid_until, readback.timing, scope.credential)
+    return covers(held, scope)
+
+
 class Worker:
     """Runs the engine side of every grant transition: re-decision, reconciliation, window end, provisioning, unknown outcomes,
     revocation, code delivery, link clean-up, retention. `run_once` is deterministic (tests call it); the background thread calls
     it on every wake and at least every TICK_S."""
 
     TICK_S = 15.0
+    STOP_WAIT_S = 5.0  # stop(): how long the thread and the running pass are waited for (the lease is kept past it, R4-06)
 
     def __init__(self) -> None:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._db: Database | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # mutual exclusion INSIDE one process; across processes: the lease below
+        self._lease: Any = None  # the open lock file while this process owns the worker
+        self._lease_path: str | None = None
+        self._drop_when_idle = False  # stop() could not wait the running pass out: that pass gives the lease up when it ends
+        self.standby = False  # another process owns the worker (start() could not take the lease)
 
     def wake(self) -> None:
         self._wake.set()
+
+    # ---- F4 (review M6) / R4-06: one process only, and never two writers
+
+    @staticmethod
+    def lock_path(db: Database) -> str:
+        """The ONE canonical lock path: beside the database file (by its resolved path), `.<db name>.access-grants.lock` - a hidden name
+        that no `<db name>*` sweep (backups, the leak scans) picks up while it is locked."""
+        real = os.path.realpath(str(db.path))
+        return os.path.join(os.path.dirname(real), f".{os.path.basename(real)}.access-grants.lock")
+
+    def _take_lease(self, db: Database) -> bool:
+        """The worker's in-process mutex does not reach another process, so the add-on runs ONE API process (the written precondition
+        "workers=1": `python -m smplwise` hands uvicorn an app object, which cannot fork workers). This makes it a checked fact: an
+        exclusive, non-blocking OS lock on `<db>.access-grants.lock`, held while this process owns the worker. Every pass needs it
+        (`_require_lease`); a process that cannot take it runs no pass at all (no provisioning, no strip, no code). Called under
+        `self._lock` (or before the thread exists)."""
+        path = self.lock_path(db)
+        if self._lease is not None:
+            if self._lease_path == path:
+                return True
+            self._drop_lease()  # another database in the same process (tests only; the add-on has one): never two leases at once
+        try:
+            fh = open(path, "a+b")  # noqa: SIM115 - held open while this process owns the worker
+        except OSError:
+            log.error("access grants: the single-process lock file cannot be opened; the worker stays off")
+            return False
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            fh.close()
+            log.error("access grants: another process holds the worker lock (more than one API process?) - this process runs no grant pass")
+            return False
+        self._lease, self._lease_path = fh, path
+        return True
+
+    def _drop_lease(self) -> None:
+        fh, self._lease, self._lease_path = self._lease, None, None
+        if fh is None:
+            return
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            fh.close()
+
+    def holds_lease(self) -> bool:
+        return self._lease is not None
+
+    def _require_lease(self, db: Database) -> bool:
+        """R4-06: EVERY entry point (`run_once`, `run_grant`) runs only while this process holds the lease - taken here when it is free
+        (a standby process takes over once the owner is gone; the start-up rewrite runs then, by the new owner only)."""
+        if not self._take_lease(db):
+            return False
+        if self.standby:
+            self.standby = False
+            self.on_startup(db)
+        return True
+
+    def _after_pass(self) -> None:
+        if self._drop_when_idle:  # R4-06: the pass stop() could not wait for has ended - only now may another process take over
+            self._drop_when_idle = False
+            self._drop_lease()
 
     def start(self, db: Database, settings: Any) -> None:
         global _SETTINGS
         _SETTINGS = settings
         self._db = db
-        self.on_startup(db)
+        self._drop_when_idle = False
+        with self._lock:
+            owner = self._take_lease(db)
+            self.standby = not owner
+            if owner:
+                self.on_startup(db)  # fail closed: the start-up rewrite is the owning process's alone
         if self._thread is None or not self._thread.is_alive():
             self._stop.clear()
             self._thread = threading.Thread(target=self._loop, name="arx-access-grants", daemon=True)
             self._thread.start()
 
     def stop(self) -> None:
+        """R4-06: the lease is given up only when no pass of this process can still be writing. A pass that outlives the bounded wait
+        (a WisKey call can take up to the transport limit) keeps the lease and drops it itself when it ends - a bounded shutdown never
+        hands the worker to another process while this one may still write."""
         self._stop.set()
         self._wake.set()
+        thread = self._thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=self.STOP_WAIT_S)
+        if self._lock.acquire(timeout=self.STOP_WAIT_S):
+            try:
+                self._drop_lease()
+            finally:
+                self._lock.release()
+            return
+        self._drop_when_idle = True
+        if self._lock.acquire(blocking=False):  # the pass ended between the wait and the flag
+            try:
+                self._after_pass()
+            finally:
+                self._lock.release()
+        else:
+            log.warning("access grants: a worker pass is still running at shutdown - the worker lock is kept until it ends")
 
     def _loop(self) -> None:
         while not self._stop.is_set():
@@ -1208,27 +1379,37 @@ class Worker:
     def run_once(self, db: Database, at: datetime | None = None) -> dict[str, int]:
         with self._lock:
             summary = {"redecided": 0, "reconciled": 0, "ended": 0, "provisioned": 0, "revoked": 0, "codes": 0}
-            if _REDECIDE.is_set():
-                _REDECIDE.clear()
-                summary["redecided"] = self.redecide(db)
-            summary["reconciled"] = self.reconcile(db)
-            summary["ended"] = self.end_due(db)
-            with db.connection(mode="read", label="access_grants.worker.scan") as conn:
-                ids = [r[0] for r in conn.execute(
-                    "SELECT id FROM access_grants WHERE state IN ('approved', 'unknown', 'revoking') OR (state = 'active' AND (needs_push = 1 OR code_state = 'pending')) "
-                    "ORDER BY updated_at").fetchall()]
-            for gid in ids:
-                kind = self._process(db, gid)
-                if kind:
-                    summary[kind] = summary.get(kind, 0) + 1
-            self.finish_unlinks(db)
-            self.alert_and_prune(db)
-            return summary
+            try:
+                if not self._require_lease(db):  # F4 / R4-06: another process owns the worker
+                    return summary
+                if _REDECIDE.is_set():
+                    _REDECIDE.clear()
+                    summary["redecided"] = self.redecide(db)
+                summary["reconciled"] = self.reconcile(db)
+                summary["ended"] = self.end_due(db)
+                with db.connection(mode="read", label="access_grants.worker.scan") as conn:
+                    ids = [r[0] for r in conn.execute(
+                        "SELECT id FROM access_grants WHERE state IN ('approved', 'unknown', 'revoking') OR (state = 'active' AND (needs_push = 1 OR code_state = 'pending')) "
+                        "ORDER BY updated_at").fetchall()]
+                for gid in ids:
+                    kind = self._process(db, gid)
+                    if kind:
+                        summary[kind] = summary.get(kind, 0) + 1
+                self.finish_unlinks(db)
+                self.alert_and_prune(db)
+                return summary
+            finally:
+                self._after_pass()
 
     def run_grant(self, db: Database, grant_id: str) -> None:
         with self._lock:
-            self._process(db, grant_id)
-            self.finish_unlinks(db)
+            try:
+                if not self._require_lease(db):  # F4 / R4-06: the owning process picks the grant up on its next pass
+                    return
+                self._process(db, grant_id)
+                self.finish_unlinks(db)
+            finally:
+                self._after_pass()
 
     def _process(self, db: Database, grant_id: str) -> str | None:
         with db.connection(mode="read", label="access_grants.worker.read") as conn:
@@ -1289,7 +1470,7 @@ class Worker:
             mark_revoking(conn, g, "approver_lost_authority")
             return
         if kept != doors:  # R9 within the re-decision: narrowed to the stations the approver still holds
-            _touch(conn, g["id"], {"doors_json": json.dumps(kept, sort_keys=True), "needs_push": 1 if g["state"] == "active" else g["needs_push"],
+            _touch(conn, g["id"], {"doors_json": json.dumps(kept, sort_keys=True), "needs_push": 1 if g["state"] in ("active", "unknown") else g["needs_push"],
                                    "approval_revision": rev})
             _audit(conn, None, "access.grant.amend", g["id"], reason="station_changed", kind="narrowed", stations=stations_of(kept))
             return
@@ -1374,7 +1555,7 @@ class Worker:
 
     def _ensure_link(self, db: Database, engine: Engine, g: dict[str, Any]) -> dict[str, Any]:
         with db.connection(mode="read", label="access_grants.link.read") as conn:
-            link = link_row(conn, g.get("link_id")) or link_of_subject(conn, g["subject_kind"], g["subject_id"])
+            link = link_of_grant(conn, g)
             contact = contact_row(conn, g["subject_id"])
             approver = conn.execute("SELECT display_name FROM users WHERE id = ?", (g.get("approved_by"),)).fetchone()
         if link is None:
@@ -1400,6 +1581,12 @@ class Worker:
         if g.get("provision_after") and parse_iso(g["provision_after"]) and parse_iso(g["provision_after"]) > now():
             return False
         with db.connection(label="access_grants.provision.begin") as conn:
+            # F3 (review H4): never provision onto a WisKey person Arx did not create (a link matched after the approval, say)
+            if not person_is_ours(link_of_grant(conn, g)):
+                cur = grant_row(conn, g["id"])
+                if cur is not None and cur["revision"] == g["revision"] and cur["state"] == "approved":
+                    self._refuse_not_ours(conn, cur, int(g["pushed"]))
+                return False
             if not _touch(conn, g["id"], {"state": "provisioning", "pushed": 1}, expect_revision=g["revision"]):
                 return False
             _audit(conn, None, "access.grant.provision", g["id"], attempt=int(g["provision_attempts"]) + 1)
@@ -1407,6 +1594,12 @@ class Worker:
         scope = Scope.of_row(g)
         try:
             link = self._ensure_link(db, engine, g)
+            if not person_is_ours(link):  # a match that landed between the check above and here: nothing was written yet
+                with db.connection(label="access_grants.provision.not_ours") as conn:
+                    cur = grant_row(conn, g["id"])
+                    if cur is not None and cur["state"] == "provisioning":
+                        self._refuse_not_ours(conn, cur, int(g["pushed"]))
+                return False
             person = engine.get_person(link["wiskey_person_id"])
             try:
                 person = push_scope(engine, person, scope, pin=None)
@@ -1434,6 +1627,30 @@ class Worker:
                                    "needs_push": 1 if moved else cur["needs_push"]})
             _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, stations=stations_of(scope.doors))
         return True
+
+    @staticmethod
+    def _refuse_not_ours(conn: sqlite3.Connection, cur: dict[str, Any], pushed_before: int) -> None:
+        """F3: the grant fails (the managers are alerted) without any write to the matched person. `pushed` goes back to its value
+        before this attempt, so a grant that never reached WisKey ends at once and the person is never stripped."""
+        _touch(conn, cur["id"], {"pushed": pushed_before})
+        mark_revoking(conn, grant_row(conn, cur["id"]), "failed")
+        _audit(conn, None, "access.grant.fail", cur["id"], reason="person_not_ours", link_id=cur.get("link_id"))
+
+    @staticmethod
+    def _owned_link(db: Database, g: dict[str, Any], phase: str) -> tuple[dict[str, Any] | None, bool]:
+        """R4-05: the link a worker write acts on, read once and bound to that write: (link, ours). A link that is not Arx-created is never
+        written through - the grant's authority is withdrawn in Arx (`failed`; a grant that may have reached WisKey stays `revoking`, its
+        strip refused below, so the managers are alerted each hour to reconcile it by hand) and nothing goes to the matched person."""
+        with db.connection(mode="read", label=f"access_grants.{phase}.link") as conn:
+            link = link_of_grant(conn, g)
+        if person_is_ours(link):
+            return link, True
+        with db.connection(label=f"access_grants.{phase}.not_ours") as conn:
+            cur = grant_row(conn, g["id"])
+            if cur is not None and cur["state"] in LIVE and cur["state"] != "revoking":
+                mark_revoking(conn, cur, "failed")
+                _audit(conn, None, "access.grant.fail", g["id"], reason="person_not_ours", link_id=(link or {}).get("id"), phase=phase)
+        return link, False
 
     def _provision_failed(self, db: Database, g: dict[str, Any], exc: EngineError) -> bool:
         with db.connection(label="access_grants.provision.failed") as conn:
@@ -1467,13 +1684,23 @@ class Worker:
 
     def resolve_unknown(self, db: Database, g: dict[str, Any]) -> str | None:
         """E2: an unknown outcome is never retried blindly - a fresh read decides: the grant's door map and validity in WisKey ->
-        `active`; otherwise `failed` (and the person stripped)."""
-        with db.connection(mode="read", label="access_grants.unknown.read") as conn:
-            link = link_row(conn, g.get("link_id")) or link_of_subject(conn, g["subject_kind"], g["subject_id"])
+        `active`; otherwise `failed` (and the person stripped).
+
+        R4-03: the read is compared with the scope the row held when the pass read it, and the verdict is written only by a
+        compare-and-set on that row revision. A request that narrowed the still-unknown row while the read was out moved the revision:
+        nothing is decided, the grant stays `unknown` and the next pass reads again against the row's CURRENT scope. A read that shows
+        the earlier, broader scope of a row narrowed since (`needs_push` set) activates the grant with `needs_push` kept, so the
+        narrowing is written and proven next (`push_narrowing`); anything else fails the grant (fail closed). The verdict needs the
+        COMPLETE scope (R4-04: door map known, timing included) and a person Arx created (R4-05)."""
+        link, ours = self._owned_link(db, g, "unknown")
+        if not ours:
+            return None
         scope = Scope.of_row(g)
         if link is None:
             with db.connection(label="access_grants.unknown.nolink") as conn:
-                mark_revoking(conn, grant_row(conn, g["id"]), "failed")
+                cur = grant_row(conn, g["id"])
+                if cur is not None and cur["revision"] == g["revision"] and cur["state"] == "unknown":
+                    mark_revoking(conn, cur, "failed")
             return None
         try:
             person = engine_for(db).get_person(link["wiskey_person_id"])
@@ -1481,39 +1708,80 @@ class Worker:
             if exc.kind == "not_found":
                 with db.connection(label="access_grants.unknown.missing") as conn:
                     mark_revoking(conn, grant_row(conn, g["id"]), "wiskey_missing")
-            return None  # not reachable now: the next pass reads again
+            return None  # not reachable now (or an earlier write is still out): the next pass reads again
         if not person.doors_known:
             return None  # a restricted projection decides nothing (never read as "no doors"): the next pass reads again
-        matches = person.active and person.doors == scope.doors and person.valid_until == scope.valid_until and person.valid_from == scope.valid_from
         with db.connection(label="access_grants.unknown.decide") as conn:
             cur = grant_row(conn, g["id"])
             if cur is None or cur["state"] != "unknown":
                 return None
-            if matches:
-                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision})
-                _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, after="unknown")
+            if cur["revision"] != g["revision"]:  # R4-03: the row moved while the read was out - decide on a fresh read next pass
+                _audit(conn, None, "access.grant.unknown", g["id"], reason="scope_moved")
+                return None
+            if scope_proven(person, scope):
+                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "needs_push": 0}, expect_revision=g["revision"])
+                _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, after="unknown", stations_synced=person.stations_synced)
+                return "provisioned"
+            if cur["needs_push"] and readback_covers(person, scope):
+                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "needs_push": 1}, expect_revision=g["revision"])
+                _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, after="unknown", narrowing_pending=True)
+                WORKER.wake()
                 return "provisioned"
             mark_revoking(conn, cur, "failed")
         return None
 
     def push_narrowing(self, db: Database, g: dict[str, Any]) -> None:
-        with db.connection(mode="read", label="access_grants.narrow.read") as conn:
-            link = link_row(conn, g.get("link_id"))
-        if link is None:
+        """Push the row's scope after a narrowing (or an approved amendment). F2 / R4-04: `pushed` only on a FRESH read that proves the
+        complete scope; `needs_push` cleared only by a compare-and-set on the row revision this pass read (a narrowing that landed while
+        the push was out keeps it set: the next pass pushes the row's CURRENT scope). A readback that failed on an earlier pass is
+        reconciled first: when the read before the write already proves the scope, nothing is written again. R4-05: never through a
+        link Arx did not create."""
+        link, ours = self._owned_link(db, g, "narrow")
+        if not ours or link is None:
             return
         scope = Scope.of_row(g)
         engine = engine_for(db)
         try:
             person = engine.get_person(link["wiskey_person_id"])
-            person = push_scope(engine, person, scope)
         except EngineError as exc:
-            if exc.kind in ("unknown", "not_found"):
-                with db.connection(label="access_grants.narrow.unknown") as conn:  # cannot prove the narrowing landed: revoke (fail closed)
-                    mark_revoking(conn, grant_row(conn, g["id"]), "failed" if exc.kind == "unknown" else "wiskey_missing")
-            return
+            if exc.kind == "not_found":
+                with db.connection(label="access_grants.narrow.missing") as conn:
+                    mark_revoking(conn, grant_row(conn, g["id"]), "wiskey_missing")
+            return  # not readable now (or an earlier write is still out): `needs_push` stays set
+        if scope_proven(person, scope):
+            readback, written = person, False  # R4-04: the scope is already there (a write whose readback failed landed): no second write
+        else:
+            try:
+                push_scope(engine, person, scope)
+            except EngineError as exc:
+                if exc.kind in ("unknown", "not_found"):
+                    with db.connection(label="access_grants.narrow.unknown") as conn:  # cannot prove the narrowing landed: revoke (fail closed)
+                        mark_revoking(conn, grant_row(conn, g["id"]), "failed" if exc.kind == "unknown" else "wiskey_missing")
+                return  # not_sent / refused / revision_conflict: nothing landed - `needs_push` stays, the next pass reads and pushes again
+            # F2 (review H3 ii/iii): WisKey's answer to the write is not a readback; a per-station merge would keep a dropped station
+            try:
+                readback = engine.get_person(link["wiskey_person_id"])
+            except EngineError as exc:
+                if exc.kind == "not_found":
+                    with db.connection(label="access_grants.narrow.missing") as conn:
+                        mark_revoking(conn, grant_row(conn, g["id"]), "wiskey_missing")
+                return  # not readable now: `needs_push` stays set - the next pass reads FIRST and writes only if the scope is not there
+            written = True
+            if not scope_proven(readback, scope):
+                with db.connection(label="access_grants.narrow.unproven") as conn:
+                    cur = grant_row(conn, g["id"])
+                    if cur is not None:
+                        _audit(conn, None, "access.grant.amend", g["id"], kind="push_unproven", stations=stations_of(scope.doors),
+                               doors_known=bool(getattr(readback, "doors_known", False)))
+                        mark_revoking(conn, cur, "station_changed")
+                return
         with db.connection(label="access_grants.narrow.done") as conn:
-            _touch(conn, g["id"], {"needs_push": 0, "wiskey_revision": person.revision})
-            _audit(conn, None, "access.grant.amend", g["id"], kind="pushed", stations=stations_of(scope.doors))
+            # F2 (review H3 i): compare-and-set on the revision the scan read
+            if _touch(conn, g["id"], {"needs_push": 0, "wiskey_revision": readback.revision}, expect_revision=g["revision"]):
+                _audit(conn, None, "access.grant.amend", g["id"], kind="pushed", stations=stations_of(scope.doors), readback=True, written=written,
+                       central_only=True, stations_synced=readback.stations_synced)
+            else:
+                _audit(conn, None, "access.grant.amend", g["id"], kind="push_superseded", stations=stations_of(scope.doors))
 
     # ---- revocation (at least once)
 
@@ -1546,7 +1814,15 @@ class Worker:
             if last is not None and (now() - last).total_seconds() < self.revoke_backoff_s(attempts):
                 return False
         with db.connection(mode="read", label="access_grants.strip.read") as conn:
-            link = link_row(conn, g.get("link_id")) or link_of_subject(conn, g["subject_kind"], g["subject_id"])
+            link = link_of_grant(conn, g)
+        if not person_is_ours(link):
+            # R4-05: a revoke-all would wipe the matched person's WisKey-native access (its PIN, staff doors). Arx's authority is already
+            # withdrawn; the WisKey side is NOT written: the grant stays `revoking` (no WisKey call at all, backoff) and the managers are
+            # alerted each hour to reconcile that person by hand. No automatic "done" - an acknowledgement path is an open design item.
+            with db.connection(label="access_grants.strip.not_ours") as conn:
+                conn.execute("UPDATE access_grants SET revoke_attempts = revoke_attempts + 1, updated_at = ? WHERE id = ?", (iso(now()), g["id"]))
+                _audit(conn, None, "access.grant.revoke_retry", g["id"], code="person_not_ours", link_id=(link or {}).get("id"))
+            return False
         engine = engine_for(db)
         outcome = "stripped"
         if link is not None:
@@ -1634,9 +1910,15 @@ class Worker:
                 _touch(conn, cur["id"], {"code_state": "not_delivered"})
                 _audit(conn, None, "access.grant.code_not_delivered", cur["id"], reason=problem)
                 return False
+            link = link_row(conn, cur.get("link_id"))
+            if not person_is_ours(link):
+                # R4-05: no PIN is ever written to a WisKey person Arx did not create; the grant's authority is withdrawn in Arx
+                mark_revoking(conn, cur, "failed")
+                _audit(conn, None, "access.grant.code_not_delivered", cur["id"], reason="person_not_ours")
+                _audit(conn, None, "access.grant.fail", cur["id"], reason="person_not_ours", link_id=link.get("id"), phase="code")
+                return False
             _touch(conn, cur["id"], {"code_state": "queued"})  # CR 4.4: a restart from here on leaves it not_delivered
             _audit(conn, None, "access.grant.code_queued", cur["id"], job=secrets.token_hex(6))
-            link = link_row(conn, cur.get("link_id"))
             g = grant_row(conn, cur["id"])
         if link is None:
             self._code_end(db, g, "not_delivered", "no_link")
@@ -1650,7 +1932,7 @@ class Worker:
             if not person.doors_known:
                 self._code_end(db, g, "not_delivered", "door_map_unknown")
                 return False
-            if person.doors != scope.doors:
+            if not scope_proven(person, scope):  # R4-04: the complete scope (doors, validity, timing, active), not only the door map
                 self._code_end(db, g, "not_delivered", "door_map_changed")
                 return False
             for _attempt in range(PIN_ATTEMPTS):
@@ -1756,3 +2038,7 @@ def reset_for_tests() -> None:
     TRANSPORT = None
     _REDECIDE.clear()
     set_clock(None)
+    with WORKER._lock:
+        WORKER._drop_lease()
+        WORKER._drop_when_idle = False
+        WORKER.standby = False
