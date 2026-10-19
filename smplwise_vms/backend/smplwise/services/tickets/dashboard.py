@@ -47,6 +47,7 @@ CACHE_SECONDS = 30.0
 CACHE_MAX = 256
 AUDIT_EVERY = 600.0  # an allowed open is audited at most once per caller per 10 minutes (the screen polls every minute)
 RETURN_TO = ("new", "assigned", "acknowledged", "in_progress")
+RETURN_FROM = ("done", "closed")  # finished work that came back
 CLOSED_KINDS = frozenset({"closed", "auto_closed"})
 
 
@@ -192,11 +193,11 @@ def _throughput(conn, managed: _Managed, asgs: _Assignments, since: str, until: 
         if asg is not None:
             row(asg)["closed"] += 1
     seen_returned: set[tuple[str, str]] = set()
-    returns = store_dash.status_moves(conn, RETURN_TO, since, until)
-    managed.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in ("done", "closed"))
-    asgs.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in ("done", "closed") and managed.get(ev["ticket_id"]) is not None)
+    returns = store_dash.status_moves(conn, RETURN_TO, since, until, from_statuses=RETURN_FROM)
+    managed.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in RETURN_FROM)
+    asgs.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in RETURN_FROM and managed.get(ev["ticket_id"]) is not None)
     for ev in returns:
-        if ev["from_status"] not in ("done", "closed") or managed.get(ev["ticket_id"]) is None:
+        if ev["from_status"] not in RETURN_FROM or managed.get(ev["ticket_id"]) is None:
             continue
         done_at = store_dash.last_done_before(conn, ev["ticket_id"], ev["id"])
         asg = asgs.at(ev["ticket_id"], done_at) if done_at else None
@@ -221,7 +222,7 @@ def _daily(conn, managed: _Managed, now: dt.datetime, tz: dt.tzinfo, closed_move
     since, until = stuck.iso(start) or "", stuck.iso(now) or ""
     first = now.astimezone(tz).date() - dt.timedelta(days=DAILY_DAYS - 1)
     days = {(first + dt.timedelta(days=i)).isoformat(): {"opened": 0, "closed": 0} for i in range(DAILY_DAYS)}
-    opened = store_dash.status_moves(conn, ("new",), since, until)
+    opened = store_dash.status_moves(conn, ("new",), since, until, kinds=("created",))
     managed.prefetch(ev["ticket_id"] for ev in opened if ev["kind"] == "created")
     for ev in opened:
         if ev["kind"] != "created" or managed.get(ev["ticket_id"]) is None:
@@ -366,7 +367,8 @@ def summary(conn, viewer: Viewer, *, department_id: str | None, period: str, now
     since = stuck.iso(handler_load.period_start(now, days, tz)) or ""
     since14 = stuck.iso(handler_load.period_start(now, DAILY_DAYS, tz)) or ""
     until = stuck.iso(now) or ""
-    closed_moves = [e for e in store_dash.status_moves(conn, ("closed",), min(since, since14), until) if e["kind"] in CLOSED_KINDS]
+    closed_moves = [e for e in store_dash.status_moves(conn, ("closed",), min(since, since14), until, kinds=sorted(CLOSED_KINDS))
+                    if e["kind"] in CLOSED_KINDS]
     managed.prefetch(e["ticket_id"] for e in closed_moves)
     all_depts = access.ALL_DEPARTMENTS in viewer.anywhere
     departments, truncated = None, False

@@ -10,14 +10,25 @@ import sqlite3
 from typing import Any, Iterable
 
 
-def status_moves(conn: sqlite3.Connection, to_statuses: Iterable[str], since: str, until: str) -> list[dict[str, Any]]:
-    """Timeline rows that moved a ticket TO one of `to_statuses` between `since` and `until` (inclusive), oldest first."""
+def status_moves(conn: sqlite3.Connection, to_statuses: Iterable[str], since: str, until: str, *, kinds: Iterable[str] | None = None,
+                 from_statuses: Iterable[str] | None = None) -> list[dict[str, Any]]:
+    """Timeline rows that moved a ticket TO one of `to_statuses` between `since` and `until` (inclusive), oldest first. `kinds` /
+    `from_statuses` (optional) keep only rows of those kinds / coming FROM those statuses - the same rows a caller's own filter on the
+    full answer keeps, read without building the rest (MGRDASH speed fix)."""
     st = list(to_statuses)
     if not st:
         return []
+    where, args = [f"to_status IN ({', '.join('?' * len(st))})", "at >= ?", "at <= ?"], [*st, since, until]
+    for col, vals in (("kind", kinds), ("from_status", from_statuses)):
+        if vals is not None:
+            v = list(vals)
+            if not v:
+                return []
+            where.append(f"{col} IN ({', '.join('?' * len(v))})")
+            args.extend(v)
     return [dict(r) for r in conn.execute(
         "SELECT id, ticket_id, at, kind, from_status, to_status, assignment_id FROM ticket_events "
-        f"WHERE to_status IN ({', '.join('?' * len(st))}) AND at >= ? AND at <= ? ORDER BY at, id", (*st, since, until)).fetchall()]
+        f"WHERE {' AND '.join(where)} ORDER BY at, id", tuple(args)).fetchall()]
 
 
 def done_between(conn: sqlite3.Connection, since: str, until: str) -> list[dict[str, Any]]:
