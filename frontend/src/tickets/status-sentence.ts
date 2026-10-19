@@ -239,14 +239,14 @@ export function sentenceFor(t: SentenceTicket, role: ViewerRole = 'manager', now
 
 // ---------------------------------------------------------------- the warning line
 
-export type WarningKey = 'send_failed' | 'link_expired' | 'code_locked' | 'contact_changed' | 'user_inactive' | 'stuck' | 'late_reply' | 'reply';
+export type WarningKey = 'send_failed' | 'link_expired' | 'code_locked' | 'contact_changed' | 'user_inactive' | 'stuck' | 'late_reply' | 'reply' | 'question';
 export interface Warning {
   key: WarningKey;
   text: string;
   tone: 'warn' | 'bad';
 }
 /** The rank of the warning reasons (IA §3.3 rule 5); `user_inactive` sits with the contact problems. */
-export const WARNING_RANK: readonly WarningKey[] = ['send_failed', 'link_expired', 'code_locked', 'contact_changed', 'user_inactive', 'stuck', 'late_reply', 'reply'];
+export const WARNING_RANK: readonly WarningKey[] = ['send_failed', 'link_expired', 'code_locked', 'contact_changed', 'user_inactive', 'stuck', 'late_reply', 'reply', 'question'];
 const STUCK_KINDS = ['unassigned', 'overdue', 'unopened', 'ack', 'stuck', 'waiting'];
 
 /** The stuck state: the item's own (board / table), else the last `stuck` row after the last state change, assignment or status. */
@@ -280,6 +280,7 @@ export function warningFor(t: SentenceTicket, role: ViewerRole = 'manager'): War
     found.push({ key: 'stuck', text, tone: 'warn' });
   }
   if (r === 'late_reply') found.push({ key: 'late_reply', text: s('w_late_reply'), tone: 'warn' });
+  if (r === 'question') found.push({ key: 'question', text: s('w_question'), tone: 'warn' });
   if (r === 'reply') found.push({ key: 'reply', text: s('w_reply'), tone: 'warn' });
   found.sort((a, b) => WARNING_RANK.indexOf(a.key) - WARNING_RANK.indexOf(b.key));
   return found[0] ?? null;

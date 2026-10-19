@@ -79,6 +79,7 @@ test('the reasons a manager reads on a card', () => {
   expect(stuckChip({ stuck: null }, now)).toBe('');
   expect(waitingLabel('not_mine')).toBe('לא שלי');
   expect(waitingLabel('done')).toBe('ממתין לסגירה');
+  expect(waitingLabel('question')).toBe('שאלה מהמטפל');
   expect(waitingLabel('something_new')).toBe('');
   expect(autoCloseLine(null)).toBe('');
   expect(autoCloseLine('2026-10-16T05:00:00Z')).toMatch(/^תיסגר אוטומטית \d\d:\d\d 16\/10$/);
@@ -112,6 +113,8 @@ test('the timeline rows the SLA monitor writes', () => {
   expect(eventLine(ev('reminder', { n: 2 })).text).toBe('נשלחה תזכורת למטפל (2)');
   expect(eventLine(ev('manager_alerted')).text).toBe('המנהלים קיבלו התראה');
   expect(eventLine(ev('auto_closed')).text).toBe('נסגרה אוטומטית');
+  expect(eventLine(ev('note', { question: true })).text).toBe('שאלה למנהל'); // CR-038 18A: the handler's question
+  expect(eventLine(ev('note', {})).text).toBe('הערה');
   expect(eventLine(ev('link_expired')).icon).toBe('x');
 });
 
@@ -131,7 +134,7 @@ test('the notification category and subject kind of the module (spec 13.4)', () 
   setTicketNames({ he: { one: 'פנייה', many: 'פניות', gender: 'f' } });
   expect(CATEGORY_LABEL.tickets).toBe('פניות');
   expect(VISIBILITY_PERMISSION.ticket).toBe('tickets.view');
-  expect(TICKET_SOURCES.map((s) => s.key)).toEqual(['ticket.new_unassigned', 'ticket.assigned', 'ticket.reminder', 'ticket.stuck', 'ticket.returned', 'ticket.done',
+  expect(TICKET_SOURCES.map((s) => s.key)).toEqual(['ticket.new_unassigned', 'ticket.assigned', 'ticket.reminder', 'ticket.stuck', 'ticket.returned', 'ticket.question', 'ticket.done',
     'ticket.reply_unmatched', 'ticket.send_failed', 'ticket.contact_changed', 'ticket.channel_down', 'ticket.cost_submitted', 'ticket.cost_missing']);
   for (const s of TICKET_SOURCES) expect(s.label).not.toMatch(/קריא(ה|ות|ת)|\bTickets?\b/);
 });

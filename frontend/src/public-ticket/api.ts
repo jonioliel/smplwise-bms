@@ -91,6 +91,8 @@ export interface TimelineItem {
   kind: string;
   mine: boolean;
   name: string;
+  /** CR-038 18A: the handler's own note was a question for the manager */
+  question?: boolean;
   from: string | null;
   to: string | null;
   body: string | null;
@@ -153,7 +155,7 @@ export const api = {
   ticket: (c: Credentials) => call<TicketView>(c, 'GET', '/t/api/ticket'),
   status: (c: Credentials, status: string, note: string | null, crid: string) =>
     call<{ ok: boolean; status: string }>(c, 'POST', '/t/api/status', note ? { status, note, client_request_id: crid } : { status, client_request_id: crid }),
-  note: (c: Credentials, text: string, crid: string) => call<{ ok: boolean }>(c, 'POST', '/t/api/note', { text, client_request_id: crid }),
+  note: (c: Credentials, text: string, crid: string, ask = false) => call<{ ok: boolean }>(c, 'POST', '/t/api/note', ask ? { text, ask: true, client_request_id: crid } : { text, client_request_id: crid }),
   eta: (c: Credentials, etaAt: string | null, crid: string) => call<{ ok: boolean }>(c, 'POST', '/t/api/eta', { eta_at: etaAt, client_request_id: crid }),
   giveBack: (c: Credentials, kind: 'not_mine' | 'cannot_handle', reason: string, crid: string) =>
     call<{ ok: boolean; status: string; kind: string; number: number }>(c, 'POST', '/t/api/return', { kind, reason, client_request_id: crid }),

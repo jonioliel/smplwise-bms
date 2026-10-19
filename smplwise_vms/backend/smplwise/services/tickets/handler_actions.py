@@ -177,18 +177,29 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     return _finish(conn, f.link, crid, 200, {"ok": True, "status": to})
 
 
-def add_note(conn, link: LinkRecord, *, text: str, crid: str, now: dt.datetime, client_key: str,
+def add_note(conn, link: LinkRecord, *, text: str, crid: str, now: dt.datetime, client_key: str, ask: bool = False,
              route: str = "/t/api/note") -> tuple[int, dict[str, Any]]:
+    """A note on the timeline. `ask` (CR-038 18A, "ask the manager"): the note is a QUESTION - the ticket waits for the manager
+    (`waiting_on = manager`, reason `question`) until a manager answers in the conversation or the handler moves the status on; the
+    managers are told (`ticket.question`, never the text). Still a plain `note` row (`data.question`), so every reader of the timeline
+    keeps working."""
     f = fresh(conn, link, now)
     replay = claim(conn, f.link, crid, route, now)
     if replay is not None:
         return replay
+    if ask and (f.ticket["status"] in model.FINAL or f.ticket["status"] == "returned"):
+        raise ActionRefused(409, "invalid_state", current=f.ticket["status"])
     at = iso(now)
-    eid = _event(conn, f, "note", now, body=text)
-    store.update_ticket(conn, f.ticket["id"], {"last_activity_at": at, "last_external_activity_at": at}, bump=False)
+    eid = _event(conn, f, "note", now, body=text, data={"question": True} if ask else None)
+    fields: dict[str, Any] = {"last_activity_at": at, "last_external_activity_at": at}
+    if ask:
+        fields["waiting_on"], fields["waiting_reason"] = "manager", "question"
+    store.update_ticket(conn, f.ticket["id"], fields, bump=False)
     _progress(conn, f, now, client_key)
     sla.refresh(conn, f.ticket["id"])
-    audit_link(conn, f.link, "ticket.note")
+    audit_link(conn, f.link, "ticket.note", **({"ask": True} if ask else {}))
+    if ask:
+        notify_bridge.ticket_question(conn, f.ticket["id"])
     return _finish(conn, f.link, crid, 200, {"ok": True, "id": eid})
 
 
@@ -399,6 +410,8 @@ def view(conn, link: LinkRecord, *, code_ok: bool, read_only: bool, now: dt.date
             item["eta_at"] = data.get("eta_at")
         if ev["kind"] == "returned":
             item["return_kind"] = data.get("kind")
+        if ev["kind"] == "note" and data.get("question") is True:
+            item["question"] = True
         timeline.append(item)
     photos = [{"id": a["id"], "at": a["created_at"], "width": a["width"], "height": a["height"], "mine": a["uploaded_by_kind"] == "contact"}
               for a in store_links.handler_attachments(conn, ticket["id"], link.contact_id, since)]

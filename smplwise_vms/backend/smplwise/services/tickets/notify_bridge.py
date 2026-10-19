@@ -44,6 +44,7 @@ T_ASSIGNED = ("{ticket} #{number} {f:הועברה|m:הועבר} אליך", "{pla
 T_REMINDER = ("תזכורת: {ticket} #{number}", "{place} · {reason}")
 T_STUCK = ("{ticket} #{number} {f:תקועה|m:תקוע}", "{place} · {reason}")
 T_RETURNED = ("{ticket} #{number} {f:הוחזרה|m:הוחזר} למנהל", "{place} · {kind}")
+T_QUESTION = ("{ticket} #{number}: שאלה מהמטפל", "{place}")
 T_DONE = ("{ticket} #{number}: הטיפול הסתיים", "{place} · ממתין לסגירה")
 T_SEND_FAILED = ("ההודעה על {ticket} #{number} לא נשלחה", "{place}")
 T_CONTACT = ("פרטי המטפל ב{ticket} #{number} השתנו", "{place} · הקישור בוטל")
@@ -184,7 +185,7 @@ def resolve_prefix(conn: sqlite3.Connection, ticket_id: str, part: str = "") -> 
 def source_of_key(key: str) -> str | None:
     part = key.split(":")[2] if key.count(":") >= 2 else ""
     return {"unassigned": "ticket.new_unassigned", "assign": "ticket.assigned", "remind": "ticket.reminder", "stuck": "ticket.stuck",
-            "returned": "ticket.returned", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed",
+            "returned": "ticket.returned", "question": "ticket.question", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed",
             "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing"}.get(part)
 
 
@@ -222,6 +223,7 @@ def ticket_status(conn: sqlite3.Connection, ticket_id: str, from_status: str, to
     if to_status in ("closed", "cancelled"):
         resolve_prefix(conn, ticket_id)
         return
+    resolve_prefix(conn, ticket_id, "question")  # the handler moved on: an open question of theirs is over
     if from_status == "assigned" and to_status != "assigned":
         resolve_prefix(conn, ticket_id, "assign:")
     if from_status == "done":
@@ -240,6 +242,19 @@ def ticket_returned(conn: sqlite3.Connection, ticket_id: str, kind: str) -> None
         return
     resolve_prefix(conn, ticket_id, "assign:")
     _emit(conn, "ticket.returned", row, T_RETURNED, dedupe=f"ticket:{ticket_id}:returned", severity="alert", kind=RETURN_TEXT.get(kind, ""))
+
+
+def ticket_question(conn: sqlite3.Connection, ticket_id: str) -> None:
+    """The handler asked the manager a question on the page (CR-038 18A): `ticket.question` to the department's managers - the fact,
+    never the text. Resolved when a manager answers (`ticket_answered`), or by the status moves / closing that resolve by prefix."""
+    row = store.ticket_row_system(conn, ticket_id)
+    if row is None:
+        return
+    _emit(conn, "ticket.question", row, T_QUESTION, dedupe=f"ticket:{ticket_id}:question", severity="alert")
+
+
+def ticket_answered(conn: sqlite3.Connection, ticket_id: str) -> None:
+    resolve_prefix(conn, ticket_id, "question")
 
 
 # ---------------------------------------------------------------- the SLA monitor's ladder

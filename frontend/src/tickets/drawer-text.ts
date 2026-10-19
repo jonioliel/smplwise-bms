@@ -65,6 +65,7 @@ const he = {
   w_stuck_reminders: '{reason} · נשלחו {n} תזכורות',
   w_stuck_reminder: '{reason} · נשלחה תזכורת',
   w_late_reply: 'תשובה מהמטפל הגיעה באיחור · לבדיקה',
+  w_question: 'המטפל שואל אותך שאלה · השיבו בשיחה',
   w_reply: 'תשובה מהמטפל ממתינה לבדיקה',
 
   // ---- SLA (only when near or crossed; otherwise a quiet row in Overview)
@@ -255,6 +256,7 @@ const en: Partial<Record<DrawerTextKey, string>> = {
   w_stuck_reminders: '{reason} · {n} reminders sent',
   w_stuck_reminder: '{reason} · a reminder was sent',
   w_late_reply: 'A late reply from the handler · to review',
+  w_question: 'The handler asked you a question · answer in the conversation',
   w_reply: 'A reply from the handler waits for review',
   slaNear: 'Due in {dur}',
   slaOver: 'Past the target · {dur}',
