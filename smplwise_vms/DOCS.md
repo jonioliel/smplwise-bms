@@ -1490,3 +1490,41 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
+## Releases 2.6.4 to 2.8.0: what is on, off and locked
+
+Written from the release notes and the code of `integ/280` (2.8.0 is not released yet). Nothing here was verified against a live
+installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
+
+**On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
+service management > display > manager overview). The payment demand prefilled from the approved quote, one demand per instalment in
+order, the "approved and binding" award notice (`rfq.award_notice`, default: after the manager confirms) and the vendor's postponement
+notice (2.7.1, 2.7.3). The "needs review" privacy report on "handlers and vendors" with "reject and delete" and "delete now", for
+holders of `tickets.configure` (2.8.0; thresholds `directory.review_pending_days` 30 and `directory.review_idle_months` 12; a yearly
+January reminder with a count and a link, never a name). The header dropdown placement setting `ui.dd_place` (2.7.1; default 1, no
+visible change; 2 to 4 are experimental).
+
+**Elevators (2.7.2, full feature 2.8.0).** Hidden until one is defined under Settings > Infrastructure > Elevators
+(`infra.elevators.manage`). 2.8.0 adds migration 0119 (state history and notification memory), a 15-second read-only evaluator
+(`SW_ELEVATORS=0` turns it off), the designed Infrastructure screen, a home widget (combined card / a card per elevator / both) and
+alerts that are **off by default**: a master switch and a switch per state (fire service, fault, out of service), recipients per
+state (roles, users, groups; none selected = nobody), channels (notification centre, browser push, phone app; no e-mail or WhatsApp).
+Turning alerts on notifies only new transitions; turning them off closes the open notifications at once. No direction, floor number
+or history longer than 24 hours on the screen (8 days are kept).
+
+**Off by default.** Payment schedule and arrival confirmation, vendor file uploads (`rfq.vendor_uploads.enabled`), the vendor area and
+its open-quote-request and technician-request areas (`vendor_portal.*`), consent by link, Word and Excel attachments
+(`rfq.attachments.allow_office`), Arx-only users (`security.local_identity`, off; do not enable without the owner's approval),
+the Home-system users screen (`users.ha_manage`, system administrators; **not tried against a live system** - run the one-time live
+check with the owner first).
+
+**Locked in code (cannot be switched on).** The extended service identity (`EXTENDED_GO_LIVE_PERMITTED` is False; since 2.7.3 a
+remote kill switch `POST /identity/extended-mode/off` can only turn it off), the capture lease (`capture_lease.GO_LIVE_PERMITTED`),
+and external-person door grants (`access_grants.GO_LIVE_PERMITTED`, permission `access.external.grant`) including the technician
+privacy notice (version n2, four languages) shown on the arrival page. Enabling any of them needs the owner's separate permit, the
+fixes listed in `docs/release/2.7.3-INTEGRATION-NOTES.md` ("Fix before enabling") and a full gate.
+
+**Server only.** The manager dashboard phase 2 route `GET /api/v1/tickets/dashboard` (2.8.0) has no screen yet.
+
+**Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+installed web app once after each update.
