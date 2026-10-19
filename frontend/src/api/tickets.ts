@@ -379,7 +379,9 @@ export interface VendorPortalSettings { enabled: boolean; closed_months: number;
   /** VPORTALRFQ (default OFF): open requests for quotation / company technician requests inside the portal */
   rfqs?: boolean; technician_requests?: boolean }
 /** SLACAL: the working-hours calendar of the ticket timers (tickets/work-calendar-model.ts); OFF by default = around the clock */
-export interface WorkCalendarDoc { enabled: boolean; weekdays: number[]; start: string; end: string; holidays: string[]; departments: Record<string, { enabled?: boolean; weekdays?: number[]; start?: string; end?: string }> }
+export interface WorkCalendarDoc { enabled: boolean; weekdays: number[]; start: string; end: string; days?: Record<string, { start: string; end: string }>; holidays: string[];
+  hold_internal?: boolean; auto_close?: 'calendar' | 'working'; link_unopened?: 'wall' | 'working';
+  departments: Record<string, { enabled?: boolean; weekdays?: number[]; start?: string; end?: string; days?: Record<string, { start: string; end: string }> }> }
 export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDurations; send_hours?: SendHours; calendar?: WorkCalendarDoc; urgent_is_critical?: boolean; organization_name?: string; public?: PublicSettings; device_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */;
   /** CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (system.configure, default off) */
   directory?: { managers_full_phones: boolean; /* NEEDSREVIEW: the report's thresholds (days / months) */ review_pending_days?: number; review_idle_months?: number }; rfq?: RfqSettings;

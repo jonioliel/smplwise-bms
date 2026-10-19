@@ -141,7 +141,7 @@ def board_item(conn, seen: Seen, lk: Lookups, now: dt.datetime) -> dict[str, Any
     if row["status"] == "done" and row.get("done_at") and dept.get("auto_close_after_days"):
         d = stuck.parse(row["done_at"])
         if d is not None:
-            auto_close_at = stuck.iso(d + dt.timedelta(days=int(dept["auto_close_after_days"])))
+            auto_close_at = stuck.iso(work_calendar.auto_close_at(d, int(dept["auto_close_after_days"]), lk.calendar(row["department_id"])))
     item.update({
         "group": group_of(row) if row["status"] in stuck.OPEN_STATUSES else "closed",
         # TK251: the stuck reason and the SLA cell are management information (the board shows managed rows only - belt and braces)

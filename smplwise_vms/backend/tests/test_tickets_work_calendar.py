@@ -159,6 +159,9 @@ def test_validate_doc_accepts_and_normalises():
     {"holidays": ["2026-02-30"]}, {"holidays": ["21/10/2026"]}, {"holidays": [20261021]}, {"holidays": ["2026-10-21"] * 401},
     {"departments": {"bad id!": {}}}, {"departments": {"d": {"zone": "UTC"}}}, {"departments": {"d": {"start": "18:00", "end": "09:00"}}},
     {"departments": {"d": {"enabled": "no"}}}, {"departments": []},
+    {"days": {"7": {"start": "08:00", "end": "13:00"}}}, {"days": {"4": {"start": "13:00", "end": "08:00"}}}, {"days": {"4": {"start": "08:00"}}},
+    {"days": {"4": {"start": "08:00", "end": "13:00", "x": 1}}}, {"days": []}, {"hold_internal": "yes"}, {"auto_close": "never"}, {"link_unopened": True},
+    {"departments": {"d": {"days": {"9": {"start": "08:00", "end": "13:00"}}}}},
 ])
 def test_validate_doc_refuses(bad):
     with pytest.raises(ValueError):
@@ -312,7 +315,9 @@ def test_monitor_stuck_timer_waits_for_working_time(w):  # noqa: F811
     assert p is not None and p.actions == [], "wall clock would have called it stuck"
     due = wc.add_working_time(start, 3 * day, cal_now)
     assert due > start + dt.timedelta(minutes=3 * day)
-    p = look(w, t["id"], due + dt.timedelta(minutes=1))
+    with db(w).connection() as conn:
+        opening = wc.next_opening(due + dt.timedelta(minutes=1), wc.load(conn, None))  # the due may be exactly the closing: the reminder waits
+    p = look(w, t["id"], opening)
     assert p.actions == ["started", "remind"]
     assert len(notif_rows(w, "ticket.reminder", t["id"])) == 1
 
@@ -358,3 +363,124 @@ def test_question_reminder_counts_working_hours(s4):  # noqa: F811
         assert rfq_questions.remind(conn, due + dt.timedelta(days=1)) == 1
         assert rfq_questions.remind(conn, due + dt.timedelta(days=10)) == 0, "once per question"
     assert len(notif(s4, "rfq.question_unanswered")) == 1
+
+
+# ---------------------------------------------------------------- owner decisions 2026-10-19: per-day hours, hold, auto-close, link clock
+
+def test_defaults_of_the_new_keys_keep_todays_behaviour():
+    d = wc.validate_doc({})
+    assert (d["days"], d["hold_internal"], d["auto_close"], d["link_unopened"]) == ({}, True, "calendar", "wall")
+    off = wc.calendar_from_doc({"enabled": False, "auto_close": "working", "link_unopened": "working"}, "Asia/Jerusalem")
+    assert off is wc.WALL_CLOCK, "with the calendar off none of the choices matter"
+    t = at(2026, 10, 22, 16)
+    assert wc.auto_close_at(t, 2, wc.WALL_CLOCK) == t + dt.timedelta(days=2)
+    assert wc.is_working(t, wc.WALL_CLOCK) and wc.next_opening(t, wc.WALL_CLOCK) == t
+
+
+def test_a_shorter_friday_and_per_weekday_hours():
+    doc = wc.validate_doc({"enabled": True, "weekdays": [0, 1, 2, 3, 4, 6], "days": {"4": {"start": "08:00", "end": "13:00"}}})
+    c = wc.calendar_from_doc(doc, "Asia/Jerusalem")
+    assert c.window(4) == (dt.time(8, 0), dt.time(13, 0)) and c.window(0) == (dt.time(8, 0), dt.time(17, 0))
+    assert wc.working_minutes_between(at(2026, 10, 23, 0), at(2026, 10, 24, 0), c) == 300, "Friday 08:00-13:00"
+    assert local(wc.add_working_time(at(2026, 10, 22, 16), 120, c)) == "2026-10-23 09:00", "60 on Thursday, then Friday from 08:00"
+    assert local(wc.add_working_time(at(2026, 10, 23, 12), 120, c)) == "2026-10-25 09:00", "Friday closes at 13:00; Saturday is off"
+    assert wc.is_working(at(2026, 10, 23, 12, 59), c) and not wc.is_working(at(2026, 10, 23, 13), c)
+    # a day may also be LONGER than the daily window
+    longer = wc.calendar_from_doc(wc.validate_doc({"enabled": True, "days": {"0": {"start": "07:00", "end": "19:00"}}}), "Asia/Jerusalem")
+    assert wc.working_minutes_between(at(2026, 10, 19, 0), at(2026, 10, 20, 0), longer) == 720
+
+
+def test_is_working_and_next_opening():
+    c = cal()
+    assert wc.is_working(at(2026, 10, 19, 8), c) and wc.is_working(at(2026, 10, 19, 16, 59), c) and not wc.is_working(at(2026, 10, 19, 17), c)
+    assert local(wc.next_opening(at(2026, 10, 19, 17), c)) == "2026-10-20 08:00"
+    assert local(wc.next_opening(at(2026, 10, 22, 17), c)) == "2026-10-25 08:00", "over the weekend"
+    assert wc.next_opening(at(2026, 10, 19, 9), c) == at(2026, 10, 19, 9)
+    h = cal(holidays=frozenset({dt.date(2026, 10, 20)}))
+    assert local(wc.next_opening(at(2026, 10, 19, 18), h)) == "2026-10-21 08:00"
+
+
+def test_department_override_hours_and_days_semantics():
+    doc = wc.validate_doc({"enabled": True, "days": {"4": {"start": "08:00", "end": "13:00"}, "6": {"start": "09:00", "end": "12:00"}},
+                           "departments": {"own": {"enabled": True, "weekdays": [0, 4], "start": "10:00", "end": "14:00", "days": {"4": {"start": "10:00", "end": "11:00"}}},
+                                           "hours_only": {"start": "10:00", "end": "14:00"}, "plain": {}}})
+    base = wc.calendar_from_doc(doc, "Asia/Jerusalem")
+    assert base.window(6) == (dt.time(9, 0), dt.time(12, 0))
+    own = wc.calendar_from_doc(doc, "Asia/Jerusalem", "own")
+    assert own.weekdays == frozenset({0, 4}) and own.window(4) == (dt.time(10, 0), dt.time(11, 0)) and own.window(0) == (dt.time(10, 0), dt.time(14, 0))
+    ho = wc.calendar_from_doc(doc, "Asia/Jerusalem", "hours_only")
+    assert ho.window(6) == (dt.time(10, 0), dt.time(14, 0)), "an override that sets hours carries its own (empty) per-weekday list"
+    assert wc.calendar_from_doc(doc, "Asia/Jerusalem", "plain").window(6) == (dt.time(9, 0), dt.time(12, 0)), "an empty override inherits everything"
+    only_here = wc.validate_doc({"enabled": False, "departments": {"d": {"enabled": True, "start": "09:00", "end": "12:00"}}})
+    assert wc.calendar_from_doc(only_here, "Asia/Jerusalem", "d").enabled and wc.calendar_from_doc(only_here, "Asia/Jerusalem", "x") is wc.WALL_CLOCK
+
+
+def test_auto_close_counts_calendar_days_or_working_time():
+    done = at(2026, 10, 22, 16)  # Thursday 16:00
+    assert wc.auto_close_at(done, 1, cal()) == done + dt.timedelta(days=1), "the default"
+    w1 = cal(auto_close="working")
+    assert w1.day_minutes == 540
+    assert local(wc.auto_close_at(done, 1, w1)) == "2026-10-25 16:00", "one day = 540 working minutes: 60 on Thursday + 480 on Sunday"
+    assert local(wc.auto_close_at(done, 2, w1)) == "2026-10-26 16:00"
+    kw = dict(status="done", created_at=z(done), last_activity_at=z(done), unassigned_since=None, assigned_at=None, eta_at=None, done_at=z(done), rule=None,
+              auto_close_after_days=1)
+    assert sla.compute(**kw, cal=cal()).next_check_at == z(done + dt.timedelta(days=1))
+    assert sla.compute(**kw, cal=w1).next_check_at == z(at(2026, 10, 25, 16))
+
+
+def test_link_not_opened_is_the_vendors_clock_unless_chosen():
+    r = row("assigned", at(2026, 10, 22, 16))
+    r["asg_kind"] = "contact"
+    link = stuck.LinkInfo(sent_at=z(at(2026, 10, 22, 16)), first_opened_at=None)
+    wall = stuck.evaluate(r, RULE, at(2026, 10, 22, 16), link=link, cal=cal())
+    assert wall.dues["unopened"] == at(2026, 10, 22, 16) + dt.timedelta(minutes=1440), "wall clock by default"
+    work = stuck.evaluate(r, RULE, at(2026, 10, 22, 16), link=link, cal=cal(link_unopened="working"))
+    assert work.dues["unopened"] > wall.dues["unopened"], "1440 working minutes take longer than 1440 wall minutes"
+    assert local(work.dues["ack"]) == "2026-10-22 16:30", "other thresholds are working time either way"
+    # the cadence of that crossing follows the same choice
+    due = wall.dues["unopened"]
+    state = stuck.LadderState(kind="unopened", level=1, reminders=1, due=z(due), last_reminder_at=z(due))
+    ev = stuck.evaluate(r, RULE, due + dt.timedelta(hours=1), link=link, cal=cal())
+    assert ev.crossed.kind == "unopened"
+    p = stuck.plan(state, ev, RULE, due + dt.timedelta(minutes=31), assignee="contact", cal=cal(hold_internal=False))
+    assert p.remind, "30 wall minutes after the last reminder, whatever the hours"
+
+
+def test_internal_reminders_and_alerts_wait_for_the_opening_when_held():
+    c = cal()
+    due = at(2026, 10, 22, 16, 45)
+    r = row("in_progress", due - dt.timedelta(minutes=60))
+    after_close = at(2026, 10, 22, 17, 30)
+    ev = stuck.evaluate(r, RULE, after_close, cal=c)
+    assert ev.crossed and ev.crossed.due == due
+    held = stuck.plan(stuck.LadderState(), ev, RULE, after_close, assignee="user", cal=c)
+    assert not held.remind and not held.alert and held.started, "crossed at 16:45 but it is 17:30: nothing leaves, the crossing is recorded"
+    assert held.next_check <= after_close + dt.timedelta(hours=6)
+    morning = at(2026, 10, 25, 8)
+    go = stuck.plan(held.state, ev, RULE, morning, assignee="user", cal=c)
+    assert go.remind, "the first reminder leaves at the opening"
+    free = stuck.plan(stuck.LadderState(), ev, RULE, after_close, assignee="user", cal=cal(hold_internal=False))
+    assert free.remind, "hold_internal = false: reminders go out when due, as before"
+    # a manager alert (nobody to remind) waits too
+    un = stuck.evaluate(row("new", at(2026, 10, 22, 16, 50)), {**RULE, "unassigned_after_min": 5}, at(2026, 10, 22, 17, 30), cal=c)
+    assert un.crossed and un.crossed.kind == "unassigned"
+    a1 = stuck.plan(stuck.LadderState(), un, RULE, at(2026, 10, 22, 17, 30), assignee=None, cal=c)
+    assert not a1.alert
+    a2 = stuck.plan(stuck.LadderState(), un, RULE, at(2026, 10, 25, 8), assignee=None, cal=c)
+    assert a2.alert
+    # an outside contact's reminder is governed by the vendor send window, not by the calendar hold
+    ext = stuck.plan(stuck.LadderState(), ev, RULE, after_close, assignee="contact", window_open=True, cal=c)
+    assert ext.remind
+
+
+def test_settings_save_new_keys_and_refuse_bad_ones(w):  # noqa: F811
+    rev = w.c.get(f"{API}/tickets/settings").json()["revision"]
+    doc = {"enabled": True, "days": {"4": {"start": "08:00", "end": "13:00"}}, "hold_internal": False, "auto_close": "working", "link_unopened": "working",
+           "departments": {"d1": {"enabled": True, "start": "09:00", "end": "12:00", "days": {}}}}
+    r = w.c.put(f"{API}/tickets/settings", json={"revision": rev, "calendar": doc})
+    assert r.status_code == 200, r.text
+    got = r.json()["calendar"]
+    assert got["days"] == {"4": {"start": "08:00", "end": "13:00"}} and got["hold_internal"] is False and got["auto_close"] == "working"
+    assert got["departments"]["d1"] == {"enabled": True, "start": "09:00", "end": "12:00", "days": {}}
+    bad = w.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "calendar": {"auto_close": "soon"}})
+    assert bad.status_code == 422

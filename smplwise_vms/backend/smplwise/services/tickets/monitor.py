@@ -190,7 +190,7 @@ def auto_close(conn, ticket_id: str, now: dt.datetime) -> bool:
     dept = store.department_any(conn, row["department_id"]) or {}
     days = policy.effective(conn, dept).auto_close_after_days  # slice 2's policy: 1-30 days or None (two-step)
     done_at = stuck.parse(row["done_at"])
-    if not days or int(days) <= 0 or done_at is None or done_at + dt.timedelta(days=int(days)) > now:
+    if not days or int(days) <= 0 or done_at is None or work_calendar.auto_close_at(done_at, int(days), work_calendar.load(conn, row["department_id"])) > now:
         return False
     from . import costs  # slice 9 (11A.3): a REQUIRED cost claim not yet approved keeps the ticket open (it stays "waiting for me")
 

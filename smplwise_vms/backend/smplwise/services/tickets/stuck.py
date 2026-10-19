@@ -137,7 +137,7 @@ def evaluate(row: dict[str, Any], rule: dict[str, Any] | None, now: dt.datetime,
             sent = parse(link.sent_at) or parse(row.get("asg_at"))
             d = _mins(rule, "link_unopened_min")
             if sent and d:
-                dues["unopened"] = _after(sent, d, cal)
+                dues["unopened"] = _after(sent, d, cal.counts_link_unopened() if cal is not None else None)  # the vendor's clock unless chosen
         at = parse(row.get("asg_at"))
         d = _mins(rule, "ack_within_min")
         if at and d:
@@ -224,13 +224,20 @@ def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: d
         max_rem = 0  # nobody to remind: the managers are the ones to act (13.3: at once for unassigned)
     reminders, level = st.reminders, st.level
     last_rem = parse(st.last_reminder_at)
+    # SLACAL: the 'link not opened' crossing is the vendor's clock - its cadence follows the threshold's own choice; and an INTERNAL
+    # reminder / any manager alert that would fire outside working time waits for the next opening (calendar.hold_internal)
+    pcal = cal.counts_link_unopened() if cal is not None and cross.kind == "unopened" else cal
+    hold = cal is not None and not cal.is_24x7 and cal.hold_internal and not work_calendar.is_working(now, cal)
+    opening = work_calendar.next_opening(now, cal) if hold else None
     # 1. a reminder
     if reminders < max_rem:
-        due_at = cross.due if reminders == 0 or last_rem is None else max(cross.due, _after(last_rem, every or dt.timedelta(0), cal))
+        due_at = cross.due if reminders == 0 or last_rem is None else max(cross.due, _after(last_rem, every or dt.timedelta(0), pcal))
         if now >= due_at:
             if assignee == "contact" and not window_open:
                 p.remind_held_until = next_window
                 checks.append(next_window or cap)
+            elif assignee == "user" and hold:
+                checks.append(opening or cap)
             else:
                 p.remind = True
                 reminders += 1
@@ -243,8 +250,10 @@ def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: d
         # on the NOMINAL ladder (13.1: "an urgent reminder due at 02:00 leaves at 07:00 while the manager alert at 02:00 is not
         # delayed"): `need` reminders, one cadence apart, then the managers - whether or not a held reminder has left yet
         need = min(steps, max_rem)
-        alert_at = _after(cross.due, (every or dt.timedelta(0)) * need, cal)
-        if now >= alert_at:
+        alert_at = _after(cross.due, (every or dt.timedelta(0)) * need, pcal)
+        if now >= alert_at and hold:
+            checks.append(opening or cap)
+        elif now >= alert_at:
             p.alert = True
             level = 2
             p.actions.append("alert")
@@ -253,7 +262,7 @@ def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: d
     if level < 2 and reminders > 0:
         level = 1
     if reminders < max_rem and last_rem is not None and every is not None and reminders > 0:
-        checks.append(_after(last_rem, every, cal))
+        checks.append(_after(last_rem, every, pcal))
     p.state = LadderState(kind=cross.kind, level=level, reminders=reminders, due=iso(cross.due), last_reminder_at=iso(last_rem))
     future = [c for c in checks if c > now]
     p.next_check = min(future) if future else now + dt.timedelta(minutes=1)
