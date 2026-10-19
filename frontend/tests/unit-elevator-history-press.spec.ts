@@ -41,6 +41,18 @@ test('history rows: newest first, clipped to 24 hours, zero-length dropped', () 
   expect(historyRows(null, now)).toEqual([]);
 });
 
+test('2.9.1: a not-monitored stretch is its own unknown row, never merged into the state around it', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z');
+  const h = (n: number) => new Date(now - n * 3600_000).toISOString();
+  const rows = historyRows([
+    { state: 'waiting', from: h(24), to: h(20) },
+    { state: 'unknown', from: h(20), to: h(17) },
+    { state: 'waiting', from: h(17), to: h(0) },
+  ], now);
+  expect(rows.map((r) => r.state)).toEqual(['waiting', 'unknown', 'waiting']);
+  expect(rows[1].minutes).toBe(3 * 60);
+  expect(rows[1].look).toBe('unk');
+});
 test('duration text', () => {
   expect(durationText(45)).toBe('45 דק׳');
   expect(durationText(180)).toBe('3 שע׳');

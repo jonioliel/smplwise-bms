@@ -2,6 +2,8 @@
 
 Every TICK_S (15 s) over the state mirror, for every elevator (all of its sensors, no viewer filter - the routes filter on read):
 
+* the restart heartbeat (`settings` key elevators.heartbeat_at, written at the end of every pass): when the previous pass is older than
+  GAP_S the stretch in between is recorded as `unknown` (services/elevators.record_gap), not the last state carried across an add-on stop.
 * the state history (migration 0119 `infra_elevator_states`): a row whenever the derived state changes. While the infrastructure session is
   disconnected every elevator is recorded as `unknown` (the mirror is not a reading) - never an old state carried on.
 * the notifications (sources `elevator.fire_service`, `elevator.fault`, `elevator.out_of_service`, services/notify_policy.py): a role whose
@@ -140,7 +142,8 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
     areas: dict[str, str] | None = None
     settings = alerts.load(conn)
     holds: dict[str, int] = {}
-    out = {"recorded": 0, "tracked": 0, "raised": 0, "cleared": 0, "closed": 0}
+    out = {"recorded": 0, "tracked": 0, "raised": 0, "cleared": 0, "closed": 0, "gap": 0}
+    out["gap"] = el.record_gap(conn, [r["id"] for r in rows], now)  # the add-on was not running: that stretch is unknown, not the last state
     if not connected:
         with _lock:  # review L2: a hold must be observed after the reconnect, never carried across an outage
             _PENDING.clear()
@@ -190,6 +193,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
                         _emit(conn, _signal(e, role, None, resolve=True))
                         out["cleared"] += 1
                     conn.execute("DELETE FROM infra_elevator_alerts WHERE elevator_id = ? AND role = ?", key)
+    el.beat(conn, now)
     return out
 
 def tick(db: Database, now: float | None = None, *, connected: bool | None = None) -> dict[str, Any]:
