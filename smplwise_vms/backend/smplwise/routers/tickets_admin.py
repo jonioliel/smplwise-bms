@@ -149,6 +149,8 @@ class DirectoryPatch(BaseModel):
     """CR-DEPT-MANAGER-HANDLERS: "מנהלי מחלקה רואים מספרים מלאים" (settings_doc `directory.*`, default off)."""
     model_config = ConfigDict(extra="forbid")
     managers_full_phones: StrictBool | None = None
+    review_pending_days: StrictInt | None = None  # NEEDSREVIEW (ranges: settings_doc.SCHEMA)
+    review_idle_months: StrictInt | None = None
 
 
 class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attachments on requests for quotation (OFF by default)

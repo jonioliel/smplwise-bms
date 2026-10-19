@@ -131,6 +131,10 @@ SOURCES: tuple[Source, ...] = (
     _s("access.grant_attention", "גישה זמנית דורשת טיפול", "security", "alert", "גישה זמנית דורשת טיפול",
        "קוד לא נמסר, ביטול ממתין לאישור מערכת הכניסה או הפעלה שנכשלה. פרטים במסך הגישות הזמניות.", window_s=600, who="managers", subject="system",
        resolves=False),
+    # NEEDSREVIEW (2.8.0, lead decision 6): the yearly privacy reminder - once in January when the "needs review" report is not empty
+    # (services/needs_review.py). Content-free: a count only, never a name or a number; the review and every deletion stay manual.
+    _s("privacy.needs_review", "תזכורת שנתית: דוח דורש בחינה", "security", "info", "דוח דורש בחינה",
+       "{count} אנשים ממתינים לבחינה בדוח דורש בחינה. הבחינה והמחיקה ידניות.", who="managers", push=False, subject="system", resolves=False),
     # ---- alerts (rules, and the NVR smart events that only rules turn into notifications)
     _s("rule.alert", "התראות מחוקים", "alerts", "alert", "{name}", "{message}", window_s=300, subject="camera", resolve_text="טופל", resolves=False),
     _s("camera.motion", "תנועה (רק דרך חוקים)", "alerts", "info", "תנועה", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),

@@ -85,6 +85,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_billing.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy billing janitor failed", exc_info=True)
+    try:  # NEEDSREVIEW (2.8.0): the yearly "needs review" reminder (January, once, throttled to an hourly check; never a door-system call)
+        from .services import needs_review
+
+        needs_review.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("needs-review janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 

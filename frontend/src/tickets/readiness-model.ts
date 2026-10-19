@@ -8,8 +8,12 @@ import type { Readiness } from '../api/tickets-s4';
 import type { TicketTextKey } from './text';
 
 export const HANDLERS_HREF = '#/tickets/handlers';
-export type HandlersSegment = 'handlers' | 'vendors' | 'contacts';
+/** NEEDSREVIEW (2.8.0): `review` = "דורש בחינה", shown only to the directory's editors (tickets.configure) - see handlersSegments() */
+export type HandlersSegment = 'handlers' | 'vendors' | 'contacts' | 'review';
 export const HANDLERS_SEGMENTS: readonly HandlersSegment[] = ['handlers', 'vendors', 'contacts'];
+export const REVIEW_SEGMENTS: readonly HandlersSegment[] = [...HANDLERS_SEGMENTS, 'review'];
+/** The segments a viewer sees: the review report only for `tickets.configure` holders (the server refuses everyone else anyway). */
+export const handlersSegments = (configure: boolean): readonly HandlersSegment[] => (configure ? REVIEW_SEGMENTS : HANDLERS_SEGMENTS);
 export const handlersHref = (seg: HandlersSegment = 'handlers'): string => (seg === 'handlers' ? HANDLERS_HREF : `${HANDLERS_HREF}?seg=${seg}`);
 
 /** The settings each missing prerequisite is fixed in. */

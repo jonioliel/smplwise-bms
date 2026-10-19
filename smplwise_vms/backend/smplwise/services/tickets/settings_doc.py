@@ -232,6 +232,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # departments on "מטפלים וספקים". OFF by default (masked: the last four digits); changed with system.configure (system_admin),
     # audited by the settings route. Rows of other departments and rows shared with every department stay masked.
     ("directory", "managers_full_phones"): (False, boolean),
+    # NEEDSREVIEW (2.8.0, lead decision 5 2026-10-18): the thresholds of the "needs review" privacy report (services/needs_review.py) -
+    # a technician pending longer than N days, a person Arx knows for access with no activity for N months. system.configure, audited
+    ("directory", "review_pending_days"): (30, int_range(7, 365)),
+    ("directory", "review_idle_months"): (12, int_range(1, 60)),
     # VPORTAL (owner-approved 2026-10-16): the vendor portal on the public page (`/support` without a link): a vendor signs in with a
     # one-time WhatsApp code to the number on file and sees their requests read-only (services/tickets/vendor_portal.py). OFF by
     # default (nothing changes on upgrade); `closed_months`: how far back closed requests are listed (default 2)
