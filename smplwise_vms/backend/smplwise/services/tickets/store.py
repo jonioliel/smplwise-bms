@@ -443,6 +443,17 @@ def ticket_row_unchecked(conn: sqlite3.Connection, ticket_id: str) -> dict[str, 
     return _dict(conn.execute(_TICKET_SELECT + " WHERE t.id = ?", (ticket_id,)).fetchone())
 
 
+def ticket_rows_by_ids_unchecked(conn: sqlite3.Connection, ticket_ids: Iterable[str]) -> list[dict[str, Any]]:
+    """MGRDASH phases 4-5: the raw rows of many tickets in a few reads (chunks of 500 ids). Visibility is NOT checked here: only
+    services/tickets/access.py may call it (access.visible_by_ids decides every row)."""
+    ids = list(dict.fromkeys(i for i in ticket_ids if i))
+    out: list[dict[str, Any]] = []
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        out.extend(dict(r) for r in conn.execute(_TICKET_SELECT + f" WHERE t.id IN ({', '.join('?' * len(chunk))})", chunk).fetchall())
+    return out
+
+
 def ticket_by_number_unchecked(conn: sqlite3.Connection, number: int) -> dict[str, Any] | None:
     return _dict(conn.execute(_TICKET_SELECT + " WHERE t.number = ?", (number,)).fetchone())
 

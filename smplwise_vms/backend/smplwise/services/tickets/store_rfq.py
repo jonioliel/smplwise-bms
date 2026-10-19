@@ -79,6 +79,16 @@ def rfq_row_unchecked(conn: sqlite3.Connection, rfq_id: str | None) -> dict[str,
     return _dict(conn.execute("SELECT * FROM ticket_rfqs WHERE id = ?", (rfq_id,)).fetchone())
 
 
+def rfq_rows_by_ids_unchecked(conn: sqlite3.Connection, rfq_ids: Iterable[str]) -> list[dict[str, Any]]:
+    """MGRDASH phases 4-5: many requests in a few reads (chunks of 500) WITHOUT the visibility rule: services/tickets/rfq.py only."""
+    ids = list(dict.fromkeys(i for i in rfq_ids if i))
+    out: list[dict[str, Any]] = []
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        out.extend(dict(r) for r in conn.execute(f"SELECT * FROM ticket_rfqs WHERE id IN ({', '.join('?' * len(chunk))})", chunk).fetchall())
+    return out
+
+
 def rfq_candidates_unchecked(conn: sqlite3.Connection, *, department_ids: list[str] | None, user_id: str | None, states: tuple[str, ...] | None,
                              department_id: str | None, query: str, after: tuple[str, str] | None, limit: int,
                              number: int | None = None) -> list[dict[str, Any]]:

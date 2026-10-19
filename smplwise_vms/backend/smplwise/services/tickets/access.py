@@ -171,6 +171,11 @@ def visible(viewer: Viewer, row: dict[str, Any] | None) -> Seen | None:
     """THE rule (module docstring). None = the caller may not know the ticket exists."""
     if row is None or not module_on(viewer.conn):
         return None
+    return _decide(viewer, row)
+
+
+def _decide(viewer: Viewer, row: dict[str, Any]) -> Seen | None:
+    """visible() once the module switch was read (a batch reads it once, not per row)."""
     if not viewer.holds(VIEW, row):
         return None
     reasons: set[str] = set()
@@ -195,6 +200,20 @@ def visible_by_id(viewer: Viewer, ticket_id: str | None) -> Seen | None:
     if not ticket_id:
         return None
     return visible(viewer, store.ticket_row_unchecked(viewer.conn, ticket_id))
+
+
+def visible_by_ids(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen]:
+    """MGRDASH phases 4-5: many tickets by id in a few reads - the SAME rule as visible_by_id() for each row (`visible()`; the Viewer
+    caches every permission per place target, so a thousand rows ask the permission tables a handful of times). Only the tickets the
+    caller may see are in the answer (an absent id says nothing about why)."""
+    out: dict[str, Seen] = {}
+    if not module_on(viewer.conn):
+        return out
+    for row in store.ticket_rows_by_ids_unchecked(viewer.conn, ticket_ids):
+        seen = _decide(viewer, row)
+        if seen is not None:
+            out[row["id"]] = seen
+    return out
 
 
 def require_visible(viewer: Viewer, ticket_id: str) -> Seen:

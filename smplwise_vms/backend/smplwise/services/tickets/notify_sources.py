@@ -71,6 +71,12 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # resolved when a manager moves the arrival window or acknowledges it, or the request ends
     {"key": "rfq.vendor_postponement", "label": "ספק הודיע על דחיית העבודה", "label_en": "Vendor gave notice of postponing the work",
      "severity": "alert", "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},
+    # MGRDASH phases 4-5 (docs/design/MANAGER_DASHBOARD_SPEC_HE.md section 9): the manager overview's alerts - ALL OFF by default
+    # (`enabled: False`), switched on in the notification settings. Never a person in the text, never an amount.
+    # phase 4: an approved instalment is due tomorrow and not marked paid - the RFQ managers who may mark it (tickets.costs + view,
+    # audience `pay`); one row per award and day, resolved when it is paid / moved or the day comes
+    {"key": "rfq.instalment_due_tomorrow", "label": "מועד תשלום לספק מחר", "label_en": "Vendor payment due tomorrow", "severity": "info",
+     "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ, "enabled": False},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}
@@ -94,6 +100,7 @@ def source_kwargs() -> list[dict[str, Any]]:
     """The keyword arguments of notify_policy.Source for every ticket source."""
     return [
         {"key": d["key"], "label": d["label"], "category": CATEGORY, "severity": d["severity"], "title": "{title}", "body": "{body}",
-         "who": d["who"], "push": d.get("push", True), "subject": d.get("subject", SUBJECT), "resolves": d["resolves"], "resolve_text": "טופל"}
+         "who": d["who"], "push": d.get("push", True), "subject": d.get("subject", SUBJECT), "resolves": d["resolves"], "resolve_text": "טופל",
+         "enabled": d.get("enabled", True)}
         for d in SOURCE_DEFS
     ]

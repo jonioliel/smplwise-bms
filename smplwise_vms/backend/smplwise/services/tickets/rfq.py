@@ -155,6 +155,11 @@ class RfqSeen:
 def visible(viewer: Viewer, row: dict[str, Any] | None) -> RfqSeen | None:
     if row is None or not access.module_on(viewer.conn):
         return None
+    return _decide(viewer, row)
+
+
+def _decide(viewer: Viewer, row: dict[str, Any]) -> RfqSeen | None:
+    """visible() once the module switch was read (a batch reads it once, not per row)."""
     if not viewer.holds(VIEW, row):
         return None
     reasons: set[str] = set()
@@ -184,6 +189,18 @@ def visible_by_id(viewer: Viewer, rfq_id: str | None) -> RfqSeen | None:
     if not rfq_id:
         return None
     return visible(viewer, store_rfq.rfq_row_unchecked(viewer.conn, rfq_id))
+
+
+def visible_by_ids(viewer: Viewer, rfq_ids: Any) -> dict[str, RfqSeen]:
+    """MGRDASH phases 4-5: many requests in a few reads, each decided by `visible()` (the Viewer caches the permissions per place)."""
+    if not access.module_on(viewer.conn):
+        return {}
+    out: dict[str, RfqSeen] = {}
+    for row in store_rfq.rfq_rows_by_ids_unchecked(viewer.conn, rfq_ids):
+        seen = _decide(viewer, row)
+        if seen is not None:
+            out[row["id"]] = seen
+    return out
 
 
 def number_of(conn, rfq_id: str | None) -> int | None:
