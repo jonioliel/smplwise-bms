@@ -7,7 +7,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { ApiError, describeError } from '../api/client';
 import { saveBoardPrefs, tableApi, type ColumnKey, type SavedView, type ViewDoc } from '../api/tickets-table';
 import type { Meta } from '../api/tickets';
-import { activeExtraCount, chooserOrder, columnLabel, DEFAULT_COLUMNS, moveColumn, NO_TABLE_FILTERS, PRIORITY_KEYS, toggleColumn, type ExtraFilters, type TableLayout } from './table-model';
+import { activeExtraCount, monthlyRangeError, type MonthlyGroup, chooserOrder, columnLabel, DEFAULT_COLUMNS, moveColumn, NO_TABLE_FILTERS, PRIORITY_KEYS, toggleColumn, type ExtraFilters, type TableLayout } from './table-model';
 import { tbt, type TableTextKey } from './table-text';
 import { tbIcon } from './table-icons';
 import { tIcon } from './icons';
@@ -18,7 +18,7 @@ import { COST_FILTER_STATUSES } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
 import { lt } from './list-text';
 
-type Pop = 'columns' | 'views' | 'filters' | null;
+type Pop = 'columns' | 'views' | 'filters' | 'report' | null;
 
 /**
  * CR-038 slice 6b `<tickets-table-toolbar>`: the row above the board table - the count, the column chooser (show / hide / reorder /
@@ -52,6 +52,10 @@ export class TicketsTableToolbar extends LitElement {
   @state() private name = '';
   @state() private viewError = '';
   @state() private confirmDelete = '';
+  @state() private repFrom = '';
+  @state() private repTo = '';
+  @state() private repGroup: MonthlyGroup = 'department';
+  @state() private repError = '';
 
   static styles = [bubbleChrome, ...automationsStyles, ticketTableStyles];
 
@@ -213,6 +217,28 @@ export class TicketsTableToolbar extends LitElement {
     </div>`;
   }
 
+  /** The monthly-counts report: both dates required (the server refuses otherwise); the host downloads (`monthly-report`). */
+  private reportPop(): TemplateResult {
+    const go = (): void => {
+      const bad = monthlyRangeError(this.repFrom, this.repTo);
+      this.repError = bad ? tbt(bad === 'required' ? 'monthlyRequired' : bad === 'order' ? 'monthlyOrder' : 'monthlyTooLong') : '';
+      if (!bad) {
+        this.emit('monthly-report', { from: this.repFrom, to: this.repTo, group: this.repGroup });
+        this.close();
+      }
+    };
+    const grp = (g: MonthlyGroup, label: string) => html`<button type="button" class="rc" aria-pressed=${String(this.repGroup === g)} data-rep-group=${g} @click=${() => (this.repGroup = g)}>${label}</button>`;
+    return html`<div class="pop" role="dialog" aria-label=${tbt('monthlyTitle')} data-pop="report">
+      <div class="dates">
+        <label>${tbt('monthlyFrom')}<input class="inp" type="date" required data-rep-from .value=${this.repFrom} @change=${(ev: Event) => (this.repFrom = (ev.target as HTMLInputElement).value)} /></label>
+        <label>${tbt('monthlyTo')}<input class="inp" type="date" required data-rep-to .value=${this.repTo} @change=${(ev: Event) => (this.repTo = (ev.target as HTMLInputElement).value)} /></label>
+      </div>
+      <div class="fgrp">${grp('department', tbt('monthlyByDepartment'))}${grp('vendor', tbt('monthlyByVendor'))}</div>
+      ${this.repError ? html`<div class="hd" role="alert" data-rep-error>${this.repError}</div>` : nothing}
+      <button type="button" class="btn sm" data-rep-go @click=${go}>${tbIcon('download')}${tbt('monthlyDownload')}</button>
+    </div>`;
+  }
+
   private filtersPop(): TemplateResult {
     const e = this.extra;
     const prioName = (k: string) => this.meta?.departments[0]?.priorities.find((p) => p.key === k)?.name ?? tbt(`prio_${k}` as TableTextKey);
@@ -263,6 +289,10 @@ export class TicketsTableToolbar extends LitElement {
         @click=${() => this.setLayout({ density: compact ? 'comfortable' : 'compact' })}>${tbIcon('density')}${tbt(compact ? 'density_compact' : 'density_comfortable')}</button>
       <span class="grow"></span>
       ${this.count !== null ? html`<span class="count" data-table-count>${tbt(this.more ? 'countMore' : this.count === 1 ? 'countOne' : 'count', { n: this.count })}</span>` : nothing}
+      ${this.canExport ? html`<span class="anchor">
+        <button type="button" class="btn sm" aria-haspopup="dialog" aria-expanded=${String(this.pop === 'report')} data-open="report" aria-label=${tbt('monthlyTitle')} @click=${() => this.open('report')}>${tbIcon('download')}${tbt('monthly')}</button>
+        ${this.pop === 'report' ? this.reportPop() : nothing}
+      </span>` : nothing}
       ${this.canExport ? html`<button type="button" class="btn sm" data-export ?disabled=${this.exporting} aria-label=${tbt('exportTitle')} @click=${() => this.emit('export-csv', {})}>${tbIcon('download')}${tbt('csv')}</button>` : nothing}
     </div>`;
   }

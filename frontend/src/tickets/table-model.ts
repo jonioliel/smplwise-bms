@@ -147,6 +147,26 @@ export function queryParams(f: TableFilters, sort: readonly SortKey[], extra: { 
   return p;
 }
 
+export const MONTHLY_MAX_DAYS = 366;
+export type MonthlyGroup = 'department' | 'vendor';
+
+/** The monthly-counts report (GET tickets/reports/monthly.csv): both days are required, from <= to, at most MONTHLY_MAX_DAYS days. '' = fine. */
+export function monthlyRangeError(from: string, to: string): '' | 'required' | 'order' | 'tooLong' {
+  const ok = /^\d{4}-\d{2}-\d{2}$/;
+  if (!ok.test(from) || !ok.test(to)) return 'required';
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 'required';
+  if (a > b) return 'order';
+  return (b - a) / 86_400_000 + 1 > MONTHLY_MAX_DAYS ? 'tooLong' : '';
+}
+
+export function monthlyParams(from: string, to: string, group: MonthlyGroup, lang?: string): Record<string, string> {
+  const p: Record<string, string> = { from, to, group };
+  if (lang) p.lang = lang;
+  return p;
+}
+
 export function activeExtraCount(e: ExtraFilters): number {
   return (e.priority.length ? 1 : 0) + (e.cost_status.length ? 1 : 0) + (e.assignee ? 1 : 0) + (e.stuck ? 1 : 0) + (e.waiting ? 1 : 0) + (e.created_from || e.created_to ? 1 : 0);
 }
