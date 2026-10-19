@@ -2977,12 +2977,15 @@ WRITE_REFUSED = {
     "unmanaged_lock": 422, "station_not_found": 422, "station_has_no_managed_lock": 422, "card_capacity": 422, "pin_exceeds_capabilities": 422,
     "pin_device_managed": 422, "person_exceeds_capabilities": 422, "card_exceeds_capabilities": 422, "photo_storage_full": 422, "profile_settings_unavailable": 422,
     "schedule_overlap": 422, "invalid_user_timing": 422,
+    # WisKey round 3 (R3-04): the profile checks run before WisKey's save - refused, the caller's to fix (they were "unknown" before)
+    "profile_required": 422, "profile_value_invalid": 422, "profile_value_not_unique": 422,
 }
-WRITE_UNKNOWN = ["storage_write_failed", "manager_closed", "action_failed", "device_unavailable", "invalid_storage", "home_assistant_error", "a_code_nobody_documented", ""]
+WRITE_UNKNOWN = ["storage_write_failed", "manager_closed", "action_failed", "device_unavailable", "invalid_storage", "home_assistant_error", "a_code_nobody_documented", "",
+                 "profile_issue"]  # R3-04: the WisKey helper's NAME, not a wire code - unknown if it ever arrives
 DELETE_REFUSED = {**{code: WRITE_REFUSED[code] for code in ("unauthorized", "api_incompatible", "request_too_large", "unknown_command", "invalid_fields", "rate_limited")},
                   "revision_conflict": 409, "user_not_found": 404, "storage_stopping": 503}
 # for a delete, a build_user / collision code is NOT on the allow-list (it cannot come from _delete_user): unknown, the safe side
-DELETE_UNKNOWN = [*WRITE_UNKNOWN, "pin_conflict", "employee_conflict", "invalid_pin"]
+DELETE_UNKNOWN = [*WRITE_UNKNOWN, "pin_conflict", "employee_conflict", "invalid_pin", "profile_value_not_unique"]
 WRITES = {
     "users/create": ("intercom.person.create", lambda c: create(c), WRITE_REFUSED, WRITE_UNKNOWN),
     "users/update": ("intercom.person.update", lambda c: update(c), WRITE_REFUSED, WRITE_UNKNOWN),
@@ -2999,6 +3002,8 @@ def test_people_write_failure_codes_are_refused_only_when_pre_storage(feed, monk
     (504) - the UI must reload the person and compare the revision, never retry blindly."""
     monkeypatch.setattr(intercom_sync, "CONFIG_USER_BURST", 1000.0)
     monkeypatch.setattr(intercom_sync, "CONFIG_GLOBAL_BURST", 1000.0)
+    monkeypatch.setattr(intercom_sync, "USER_BURST", 1000.0)  # the fresh readbacks (R3-06) spend read tokens
+    monkeypatch.setattr(intercom_sync, "GLOBAL_BURST", 1000.0)
     current = {"code": ""}
     app, fakes, c = editor_feed(feed, lambda msg: [fail(msg, current["code"])] if msg["type"] == f"hikvision_intercom/{command}" else None)
     intercom_sync.SYNC._buckets_reset()
@@ -3018,6 +3023,9 @@ def test_people_write_failure_codes_are_refused_only_when_pre_storage(feed, monk
         assert "טענו מחדש" in r.json()["user_message"] and "במצלמה" not in r.json()["user_message"], "a save's advice: reload, not the camera"
         assert audit_rows(s, action, "outcome")[-1]["details"]["outcome"] == "unknown", (command, code)
         assert not intercom_client.refusal_is_pre_device(command, code)
+        if command != "users/create":  # R3-06: the person is read fresh before the next write to them (else 409, nothing sent)
+            assert send(c).json()["code"] == "intercom_outcome_pending"
+            assert c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam")).json()["person"] is not None
     assert len(sent(fakes, command)) == len(refused) + len(unknown), "each attempt was sent exactly once"
     assert intercom_sync.STATE.state == "ready"
     # by name: the ones the editor handles specially
@@ -3045,6 +3053,8 @@ def test_people_write_unanswered_or_malformed_answer_is_unknown(feed, monkeypatc
             return [ok(msg, {"accepted": "later"})]
         if msg["type"] == "hikvision_intercom/users/update":
             return [ok(msg, "not a person")]
+        if msg["type"] == "hikvision_intercom/users/get":
+            return [ok(msg, copy.deepcopy(PERSON))]
         return normal(msg, fake, EDITOR_OVERVIEW)
 
     fakes = install(script)
@@ -3059,10 +3069,15 @@ def test_people_write_unanswered_or_malformed_answer_is_unknown(feed, monkeypatc
     assert intercom_sync.SYNC._event_loop and fake.q
     intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, ok(msg, copy.deepcopy(SAVED)))  # the late answer
     wait_for(lambda: intercom_sync.SYNC._config_inflight._value == 1)
+    # R3-06: the late answer after the local timeout is classified and kept (ids and codes only) - the 504 is not rewritten
+    wait_for(lambda: bool(intercom_sync.SYNC.late_results()))
+    assert {k: intercom_sync.SYNC.late_results()[-1][k] for k in ("key", "lane", "target", "outcome")} == {"key": "person", "lane": "config", "target": None, "outcome": "ok"}
     for send, code in ((delete, "intercom.person.delete"), (update, "intercom.person.update")):
         r = send(c)
         assert r.status_code == 504 and r.json()["details"]["wiskey_code"] == "invalid_response", r.text
         assert audit_rows(s, code, "outcome")[-1]["details"]["outcome"] == "unknown"
+        # R3-08: a committed save whose answer cannot be used is unknown, never refused - and (R3-06) u1 is read fresh before the next write
+        assert c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam")).status_code == 200
     assert audit_rows(s, "intercom.person.create", "outcome")[0]["details"]["outcome"] == "unknown"
     assert len(sent(fakes, "users/create")) == 1, "never retried"
 
@@ -3091,10 +3106,13 @@ def test_people_config_lane_is_separate_from_the_action_lane(feed, monkeypatch):
     bind(c, s, "sam", "site_admin", "installation", "*")
     r = update(c)
     assert r.status_code == 504 and r.json()["details"]["wiskey_code"] == "timeout"
-    r = update(c)
+    r = update(c, user_id="u2")  # another person (u1 itself is held back by the unknown save: R3-06, below)
     assert r.status_code == 429 and r.json()["code"] == "intercom_busy" and r.json()["details"]["outcome"] == "not_sent", "the single config slot is still taken"
     assert release(c).status_code == 200, "a release is not blocked by the held save"
     assert c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam")).json()["state"] == "ready", "nor a read"
+    # R3-06: a read made while the unknown save is still out settles nothing - the next save of u1 is not sent
+    r = update(c)
+    assert r.status_code == 409 and r.json()["code"] == "intercom_outcome_pending" and r.json()["details"]["wiskey_code"] == "outcome_pending", r.text
     # and the other way round: every action slot taken, a save still goes (its own lane)
     actions = intercom_sync.SYNC._action_inflight = threading.BoundedSemaphore(1)
     assert actions.acquire(blocking=False)
@@ -3104,6 +3122,11 @@ def test_people_config_lane_is_separate_from_the_action_lane(feed, monkeypatch):
         assert intercom_sync.SYNC._event_loop and fake.q
         intercom_sync.SYNC._event_loop.call_soon_threadsafe(fake.q.put_nowait, ok(msg, copy.deepcopy(SAVED)))  # the late answer
         wait_for(lambda: intercom_sync.SYNC._config_inflight._value == 1)
+        wait_for(lambda: bool(intercom_sync.SYNC.late_results()))
+        late = intercom_sync.SYNC.late_results()[-1]
+        assert (late["key"], late["lane"], late["target"], late["outcome"], late["code"]) == ("person", "config", "person:u1", "ok", None), late
+        assert update(c).json()["details"]["wiskey_code"] == "readback_required", "the call is over, but no fresh read since"
+        assert c.get("/api/v1/intercom/people/u1/editor", headers=as_user("sam")).status_code == 200  # the fresh readback
         assert update(c).status_code == 504, "sent again (a new request) on the freed config slot, the action lane full"
     finally:
         actions.release()

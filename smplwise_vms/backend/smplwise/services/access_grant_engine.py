@@ -201,6 +201,14 @@ def person_from_raw(raw: Any) -> EnginePerson:
     if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not isinstance(raw.get("revision"), int):
         raise ValueError("unexpected person record")
     access_redacted, credential_redacted = _redacted(raw.get("redacted_fields"))
+    # WisKey round 3 (R3-03): WisKey names the withheld CATEGORIES (`access`, `credentials`), and a record projected for a restricted
+    # caller (`redacted_fields` or `operator_editable` present, even with nothing listed) may hold only the stations that caller sees -
+    # the door map of such a record is never the complete one.
+    from .intercom_sync import person_scope
+
+    scope = person_scope(raw)
+    access_redacted = access_redacted or not scope["stations_known"]
+    credential_redacted = credential_redacted or not scope["credentials_known"]
     assignments = raw.get("assignments")
     overrides_raw = raw.get("permission_overrides")
     groups = raw.get("group_ids")
@@ -273,11 +281,15 @@ class WiskeyServiceEngine:
             return EngineError("unknown", "invalid_response")
         return EngineError("unknown", type(exc).__name__)
 
-    def _write(self, send: Any) -> EnginePerson:
+    def _write(self, send: Any, person_id: str | None = None) -> EnginePerson:
+        """One people write. With `person_id` (every write to an existing person) an `unknown` outcome blocks the next write to that
+        person until `get_person` has read it fresh (WisKey round 3, R3-06): that write is refused here as `not_sent`
+        (`outcome_pending` / `readback_required`), never replayed."""
         from . import intercom_sync
 
+        target = intercom_sync.person_target(person_id) if person_id is not None else None
         try:
-            reply = intercom_sync.SYNC.action(self.settings, "person", send, person_from_raw_dict, self.WHO, lane="config")
+            reply = intercom_sync.SYNC.action(self.settings, "person", send, person_from_raw_dict, self.WHO, lane="config", target=target)
         except Exception as exc:  # noqa: BLE001 - mapped to the closed kinds
             raise self._map(exc) from None
         raw = reply.get("person")
@@ -295,11 +307,20 @@ class WiskeyServiceEngine:
         return self._write(lambda call: intercom_client.users_create(call, data, True))
 
     def get_person(self, person_id: str) -> EnginePerson:
+        """A fresh `users/get`. R3-06: while an earlier write to this person is still out (its outcome unknown, WisKey may yet save
+        it) no readback can decide anything: `not_sent outcome_pending`, the caller reads again on a later pass. A readback sent
+        after that write's call was over settles it (writes to the person are allowed again). R3-03 / round 3: WisKey's
+        `user_not_found` here is `not_found`, but it is NOT proof of absence (a person outside the caller's scope may answer the
+        same) - the worker never marks a grant revoked on it."""
         self._guard()
         from . import intercom_client, intercom_sync
 
+        target = intercom_sync.person_target(person_id)
+        if intercom_sync.SYNC.write_gate(target) == "outcome_pending":
+            raise EngineError("not_sent", "outcome_pending")
         try:
-            reply = intercom_sync.SYNC.command(self.settings, "person", lambda call: intercom_client.users_get(call, person_id), person_from_raw_dict, who=self.WHO)
+            reply = intercom_sync.SYNC.command(self.settings, "person", lambda call: intercom_client.users_get(call, person_id), person_from_raw_dict, who=self.WHO,
+                                               target=target)
         except Exception as exc:  # noqa: BLE001
             raise self._map(exc) from None
         raw = reply.get("person")
@@ -313,14 +334,14 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         data = apply_payload(doors=doors, valid_from=valid_from, valid_until=valid_until, timing=timing, active=active, pin=pin, overrides=overrides)
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True))
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
 
     def strip(self, person_id: str, revision: int) -> EnginePerson:
         self._guard()
         from . import intercom_client
 
         data = strip_payload()
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True))
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
 
     def revocation_pending(self, person_id: str) -> bool | None:
         """No confirmation endpoint is asserted by WisKey, and Arx's overview projection drops tombstones / revocations (B0, D-006): until the
@@ -346,7 +367,7 @@ class WiskeyServiceEngine:
         self._guard()
         from . import intercom_client
 
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True))
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True), person_id)
 
     def delete(self, person_id: str, revision: int) -> None:
         self._guard()
@@ -354,7 +375,7 @@ class WiskeyServiceEngine:
 
         try:
             intercom_sync.SYNC.action(self.settings, "deleted", lambda call: intercom_client.users_delete(call, person_id, revision), intercom_sync.project_accepted,
-                                      self.WHO, lane="config")
+                                      self.WHO, lane="config", target=intercom_sync.person_target(person_id))
         except Exception as exc:  # noqa: BLE001
             raise self._map(exc) from None
 

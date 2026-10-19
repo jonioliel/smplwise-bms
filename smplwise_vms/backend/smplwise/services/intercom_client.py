@@ -63,10 +63,18 @@ def command_type(command: str) -> str:
 
 
 def _result(frame: dict[str, Any], command: str) -> Any:
-    if frame.get("success"):
+    """A READ command's answer. WisKey round 3 (R3-08): the success marker is checked as strictly as a write's
+    (`_action_result`): only `success: true` (the boolean) is a result, only `success: false` a refusal with WisKey's code;
+    a frame that is neither (a truthy non-boolean such as `1` or `"yes"`, or no marker at all) is `invalid_response` -
+    never read as success."""
+    if not isinstance(frame, dict):
+        raise IntercomError("invalid_response", command)
+    if frame.get("success") is True:
         return frame.get("result")
-    error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
-    raise IntercomError(str(error.get("code") or "action_failed"), command)
+    if frame.get("success") is False:
+        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
+        raise IntercomError(str(error.get("code") or "action_failed"), command)
+    raise IntercomError("invalid_response", command)
 
 
 async def overview(call: Call) -> dict[str, Any]:
@@ -178,6 +186,12 @@ _USER_WRITE_REFUSED = frozenset({
     # person), both raised by manager._validate before the commit; and WisKey's dual-approval gate (`approval_required`,
     # websocket.py `_dispatch`, raised before the handler runs - WisKey's own setting, never bypassed by Arx).
     "user_archived", "guest_responsible_required", "approval_required",
+    # WisKey round 3 (R3-04; WisKey's static reading of its pinned source c0b2d94c, NOT_RUN): the profile checks. `profile_issue`
+    # is the HELPER's name, not a wire code: it returns `profile_required` / `profile_value_invalid`, raised by
+    # profile_settings.validate_profile from repository.permission_data (create / update and every `_update_user` path), and
+    # `profile_value_not_unique` is raised by access/profile_uniqueness.validate inside `_validate_collisions` - all inside the
+    # commit's `prepare()`, before `_save`. Not added to users/delete (its own, smaller table).
+    "profile_required", "profile_value_invalid", "profile_value_not_unique",
 })
 # CR-036 S11: the person writes the editor did not have (rc.37 reference source, read only - websocket.py `_dispatch_inner`
 # 1504-1590 and access/repository.py `_archive_user` / `async_cancel_temporary` / `_update_user`, access/admin_audit.py

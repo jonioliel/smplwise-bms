@@ -654,7 +654,9 @@ def _person_stations(db: Any, g: dict[str, Any]) -> list[str]:
         person = engine_for(db).get_person(link["wiskey_person_id"])
     except EngineError as exc:
         if exc.kind == "not_found":
-            return []
+            # WisKey round 3: `user_not_found` may mean "outside the service user's scope" - not "a person with no stations". The
+            # approver's check over the person's stations cannot be made, so the approval is refused (fail closed).
+            raise ApiError(409, "access_person_missing", "רשומת האדם לא נמצאה במערכת הכניסה, ולכן האישור לא נשמר.", details={"outcome": "not_sent"}) from None
         raise ApiError(503, "access_grant_engine_unavailable", "לא ניתן לקרוא כעת את רשומת האדם במערכת הכניסה, ולכן האישור לא נשמר.",
                        details={"outcome": "not_sent"}) from None
     return list(person.stations)
@@ -1443,11 +1445,13 @@ class Worker:
                 _touch(conn, g["id"], {"state": "unknown", "provision_attempts": attempts})
                 _audit(conn, None, "access.grant.unknown", g["id"], code=exc.code)
             elif exc.kind == "not_found":
+                # WisKey round 3: `user_not_found` is not proof of absence (a person outside the service user's scope may answer the
+                # same, and an earlier write may have landed) - never `revoked` on it: the revoke path keeps reading (fail closed)
                 if current.get("link_id"):
                     conn.execute("UPDATE access_person_links SET state = 'wiskey_missing', revision = revision + 1 WHERE id = ?", (current["link_id"],))
                     _audit(conn, None, "access.person_link.missing", current["link_id"], resource_type="access_person_link")
-                _touch(conn, g["id"], {"state": "revoked", "end_reason": "wiskey_missing", "ended_at": iso(now()), "provision_attempts": attempts})
-                _audit(conn, None, "access.grant.revoke", g["id"], reason="wiskey_missing", state="revoked")
+                _touch(conn, g["id"], {"provision_attempts": attempts})
+                mark_revoking(conn, grant_row(conn, g["id"]), "wiskey_missing")
             elif exc.kind in ("not_sent", "not_permitted") and attempts < PROVISION_ATTEMPTS:
                 # E1: back to approved; the scheduler tries again after 5 minutes, for one hour. A configuration write with a revision
                 # check - never a physical command. Nothing may have landed (not_sent): `pushed` stays as it was before.
@@ -1565,21 +1569,23 @@ class Worker:
                 if not self._revoked(person) or engine.revocation_pending(person.id) is not False:
                     raise EngineError("unknown", "revoke_unverified")
             except EngineError as exc:
-                if exc.kind == "not_found":
-                    outcome = "wiskey_missing"
-                else:
-                    with db.connection(label="access_grants.strip.retry") as conn:
-                        conn.execute("UPDATE access_grants SET revoke_attempts = revoke_attempts + 1, updated_at = ? WHERE id = ?", (iso(now()), g["id"]))
-                        _audit(conn, None, "access.grant.revoke_retry", g["id"], code=exc.kind)
-                    return False
+                # WisKey round 3: `user_not_found` (users/get or the write) is NOT proof that the person and their station grants are
+                # gone - it may mean "outside the service user's scope", and a delete leaves a tombstone whose station removals are
+                # still pending. So it never ends the grant: it stays `revoking` (retried with backoff, the managers alerted) like
+                # any other unverified revoke; the link is marked so that the other grants on it are withdrawn as well.
+                with db.connection(label="access_grants.strip.retry") as conn:
+                    conn.execute("UPDATE access_grants SET revoke_attempts = revoke_attempts + 1, updated_at = ? WHERE id = ?", (iso(now()), g["id"]))
+                    if exc.kind == "not_found" and link["state"] != "wiskey_missing":
+                        conn.execute("UPDATE access_person_links SET state = 'wiskey_missing', revision = revision + 1 WHERE id = ?", (link["id"],))
+                        _audit(conn, None, "access.person_link.missing", link["id"], resource_type="access_person_link")
+                    _audit(conn, None, "access.grant.revoke_retry", g["id"], code=exc.kind)
+                return False
         with db.connection(label="access_grants.strip.done") as conn:
             cur = grant_row(conn, g["id"])
             if cur is None or cur["state"] != "revoking":
                 return False
             state = final_state_for(cur["end_reason"] or "manual")
             _touch(conn, g["id"], {"state": state, "ended_at": iso(now()), "needs_push": 0})
-            if outcome == "wiskey_missing" and link is not None:
-                conn.execute("UPDATE access_person_links SET state = 'wiskey_missing', revision = revision + 1 WHERE id = ?", (link["id"],))
             _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome)
         return True
 

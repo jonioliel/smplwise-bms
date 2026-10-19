@@ -563,13 +563,17 @@ def test_a_matched_persons_other_stations_need_the_approvers_authority_too(env):
     assert r.status_code == 403 and r.json()["details"]["target_id"] == "st-z"
 
 
-def test_the_wiskey_person_deleted_elsewhere_revokes(env):
+def test_the_wiskey_person_deleted_elsewhere_stays_revoking(env):
+    """WisKey round 3 (R3-03 / handoff item 2): `user_not_found` may mean "outside the service user's scope" and a delete leaves a
+    tombstone whose station removals are pending - it is never proof of revocation. The grant stays `revoking` (authority withdrawn
+    in Arx, retried, the managers alerted) and the link is marked missing; it is never reported `revoked` on that answer."""
     gid = env.active_grant()
     pid = env.person_of(gid)["id"]
     del env.engine.people[pid]
     env.post(f"/access-grants/{gid}/revoke")
     g = env.grant(gid)
-    assert g["state"] == "revoked"
+    assert g["state"] == "revoking"
+    assert int(g["revoke_attempts"]) >= 1
     with env.db.connection(mode="read") as conn:
         assert ag.link_row(conn, g["link_id"])["state"] == "wiskey_missing"
 
@@ -734,7 +738,8 @@ def test_person_from_raw_projects_the_enabled_assignments_and_reads_a_restricted
         q = age.person_from_raw(_public(**bad))
         assert q.doors_known is False and q.doors == {}, bad
     cred = age.person_from_raw(_public(pin_configured=False, redacted_fields=["pin_configured"]))
-    assert cred.doors_known and cred.pin_known is False
+    # R3-03 (round 3): any restriction marker means a projection for a restricted caller, whose assignments may be filtered by station
+    assert cred.doors_known is False and cred.pin_known is False
     assert age.person_from_raw(_public(pin_configured=False)).pin_known is True
     assert age.person_from_raw({"id": "u", "revision": 1, "door_permissions": {"st-a": [1]}}).doors_known is False, "door_permissions is not read"
 
@@ -884,3 +889,65 @@ def test_the_code_is_delivered_against_the_projected_door_map(env):
     env.clock[0] = DUE
     env.run()
     assert len(env.transport.sent) == 1 and env.grant(gid)["code_state"] == "sent"
+
+
+# ================================================================ WisKey round 3 (R3-03 / R3-06, handoff item 2) - fakes only, NOT_RUN on WisKey
+
+def _always_missing(env):
+    def missing(person_id):
+        env.engine.calls.append("get_person")
+        raise EngineError("not_found", "user_not_found")
+    env.engine.get_person = missing
+
+
+def test_r3_a_person_missing_at_provisioning_is_revoking_never_revoked(env):
+    """`user_not_found` may mean "outside the service user's scope": a grant whose person WisKey does not show is withdrawn in Arx
+    (`revoking`, authority gone, the managers alerted) but never reported `revoked` on that answer alone."""
+    gid = env.request().json()["grant"]["id"]
+    env.approve(gid)
+    _always_missing(env)
+    for minutes in (0, 5, 30, 90):
+        env.clock[0] = T0 + timedelta(minutes=minutes)
+        env.run()
+        g = env.grant(gid)
+        assert (g["state"], g["end_reason"]) == ("revoking", "wiskey_missing"), (minutes, g["state"])
+    with env.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notifications WHERE source = 'access.grant_attention'").fetchone()[0] >= 1, "managers told"
+
+
+def test_r3_an_active_grant_whose_person_is_not_found_on_revoke_keeps_retrying(env):
+    gid = env.active_grant()
+    _always_missing(env)
+    env.post(f"/access-grants/{gid}/revoke")
+    for minutes in (1, 10, 60):
+        env.clock[0] = T0 + timedelta(minutes=minutes)
+        env.run()
+    g = env.grant(gid)
+    assert g["state"] == "revoking" and int(g["revoke_attempts"]) >= 2, "never ended on user_not_found"
+
+
+def test_r3_approval_is_refused_when_the_linked_person_is_not_found(env):
+    """The approver's authority over the person's other stations cannot be checked against a `user_not_found`: refused, nothing sent."""
+    env.engine.add_person("wk-out", stations=["st-z"])
+    assert env.post("/access-grants/links", {"contact_id": env.tech, "wiskey_person_id": "wk-out"}).status_code == 200
+    gid = env.request(doors={"st-a": [1]}).json()["grant"]["id"]
+    del env.engine.people["wk-out"]  # out of the service user's scope, or gone - WisKey answers the same
+    r = env.approve(gid)
+    assert r.status_code == 409 and r.json()["code"] == "access_person_missing", r.text
+    assert env.grant(gid)["state"] == "requested" and "apply" not in env.engine.calls
+
+
+def test_r3_an_unknown_outcome_is_decided_only_by_a_readback_that_answered(env):
+    """R3-06: after an unknown provisioning write the next step is a fresh read; while no read answers (the write may still be out),
+    nothing is decided and nothing is written again."""
+    env.engine.unknown_after_apply = True
+    gid = env.request().json()["grant"]["id"]
+    env.approve(gid)
+    env.run()
+    assert env.grant(gid)["state"] == "unknown"
+    for _ in range(3):
+        env.engine.fail["get_person"] = "not_sent"  # e.g. `outcome_pending`: the earlier write's call is still out
+        env.run()
+        assert env.grant(gid)["state"] == "unknown"
+    env.run()
+    assert env.grant(gid)["state"] == "active" and env.engine.calls.count("apply") == 1, "decided by the readback, never replayed"

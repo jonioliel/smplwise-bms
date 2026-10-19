@@ -472,6 +472,12 @@ def test_the_new_writes_are_refused_only_for_a_pre_storage_code(wx, command, pat
         r = post(c, path, "root", revision=rev(fake, uid), **body)
         assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown", (code, r.text)
         assert not intercom_client.refusal_is_pre_device(command, code)
+        # WisKey round 3 (R3-06): no next write to the person before a fresh read - refused here, nothing sent
+        before = len(sent(fake, command))
+        r = post(c, path, "root", revision=rev(fake, uid), **body)
+        assert r.status_code == 409 and r.json()["code"] == "intercom_outcome_pending" and r.json()["details"]["outcome"] == "not_sent", r.text
+        assert len(sent(fake, command)) == before
+        assert c.get(API + f"/people/{uid}/editor", headers=as_user("root")).status_code == 200  # the fresh readback
 
 
 def test_audit_rows_never_hold_a_value(wx):

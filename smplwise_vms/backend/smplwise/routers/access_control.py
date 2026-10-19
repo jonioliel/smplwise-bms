@@ -719,8 +719,11 @@ def _perform(
     slot_wait: float = 0.0,
     free: bool = False,
     on_result: Callable[[dict[str, Any], str], None] | None = None,
+    target: str | None = None,
 ) -> dict[str, Any]:
-    """Audit the attempt (committed), send once through IntercomSync.action, audit the outcome. `on_settled` is always
+    """Audit the attempt (committed), send once through IntercomSync.action, audit the outcome. `target` (a people write to an
+    existing person, `intercom_sync.person_target`): after an unknown outcome the next write to that person is refused, nothing
+    sent, until the editor has read the person fresh (WisKey round 3, R3-06). `on_settled` is always
     called exactly once (by IntercomSync once the command was handed over, here when it never got that far);
     `on_unknown` when the outcome is unknown. `summary` turns the projected result into what the outcome row records
     (the physical actions record the result itself; a people write records counts and names only). `slot_wait`: how
@@ -735,7 +738,7 @@ def _perform(
         raise
     try:
         reply = intercom_sync.SYNC.action(settings_of(act.request), key, send, project, who=act.principal.user_id, not_after=not_after, on_settled=on_settled, lane=lane, slot_wait=slot_wait, free=free,
-                                          on_result=on_result)
+                                          on_result=on_result, target=target)
     except ApiError as exc:
         outcome = str(exc.details.get("outcome") or "unknown")
         if outcome == "unknown" and on_unknown:
@@ -1313,7 +1316,8 @@ def person_editor(request: Request, auth: ia.Authority = Depends(people_writer()
     sensitive level)."""
     try:
         reply = intercom_sync.SYNC.command(settings_of(request), "person", lambda call: intercom_client.users_get(call, user_id),
-                                           lambda raw: {"superset": intercom_adapter.project_one_person(raw), "editor": iw.project_editor(raw)}, who=auth.principal.user_id)
+                                           lambda raw: {"superset": intercom_adapter.project_one_person(raw), "editor": iw.project_editor(raw)}, who=auth.principal.user_id,
+                                           target=intercom_sync.person_target(user_id))
     except ApiError as exc:
         if exc.code == "intercom_person_not_found":
             raise iw.uniform_not_found() from None
@@ -1426,7 +1430,8 @@ def person_update(request: Request, user_id: str, auth: ia.Authority = Depends(p
     settings = settings_of(request)
     gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, after=iw.draft_stations(data), sensitive=iw.sensitive_write(auth, data), revision=body.revision))
     not_after = _envelope(act, body)  # expiry and duplicate under the write lock again, right before the attempt row
-    reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), iw.project_editor, not_after, lane="config", summary=_person_summary)
+    reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), iw.project_editor, not_after, lane="config", summary=_person_summary,
+                     target=intercom_sync.person_target(user_id))
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["note"] = SAVE_NOTE
     reply.update(iw.effect_fields("users/update"))
@@ -1452,7 +1457,8 @@ def person_delete(request: Request, user_id: str, auth: ia.Authority = Depends(p
     settings = settings_of(request)
     gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, revision=body.revision))
     not_after = _envelope(act, body)
-    reply = _perform(act, "deleted", lambda call: intercom_client.users_delete(call, user_id, body.revision), intercom_sync.project_accepted, not_after, lane="config")
+    reply = _perform(act, "deleted", lambda call: intercom_client.users_delete(call, user_id, body.revision), intercom_sync.project_accepted, not_after, lane="config",
+                     target=intercom_sync.person_target(user_id))
     reply["note"] = "WisKey קיבל את המחיקה. ההסרה מכל תחנה (גם מנותקת) מתוזמנת על ידי WisKey ואינה מיידית."
     reply.update(iw.effect_fields("users/delete"))
     return reply

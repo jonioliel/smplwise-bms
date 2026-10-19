@@ -91,10 +91,13 @@ async def _ask(call: intercom_client.Call, command: str, **fields: Any) -> Any:
     if CHANNEL_OF.get(command) == "technical":
         fields["api_contract"] = API_CONTRACT  # a non-READ command carries the client API (WisKey's api_incompatible check)
     frame = await call(f"{DOMAIN}/{command}", **fields)
-    if frame.get("success"):
+    # WisKey round 3 (R3-08): the success marker must be the boolean - a truthy non-boolean is not a result
+    if isinstance(frame, dict) and frame.get("success") is True:
         return frame.get("result")
-    error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
-    raise IntercomError(str(error.get("code") or "action_failed"), command)
+    if isinstance(frame, dict) and frame.get("success") is False:
+        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
+        raise IntercomError(str(error.get("code") or "action_failed"), command)
+    raise IntercomError("invalid_response", command)
 
 
 # the filters each WisKey read is ever given (any other key a caller passes is dropped here, not only in the routers)

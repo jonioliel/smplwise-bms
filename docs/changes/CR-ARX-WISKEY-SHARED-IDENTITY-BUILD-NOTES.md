@@ -164,3 +164,31 @@ implemented against the fake engine only (`tests/fake_wiskey.py`); nothing ran a
 
 Open questions for WisKey: where the central sync status / pending revocations can be read through the service channel (and its pinned `intercom_client` /
 `intercom_sync` source); whether `users/get` of a person outside the caller's scope answers `user_not_found` (Arx maps that to "WisKey person missing").
+
+## WisKey round 3 (2026-10-18) - R3-03..R3-08, branch pilot/WISKEYR3-280
+
+Source: `private/planning/wiskey_reply3_answer_2026-10-18/` (WisKey's static review of `intercom_client.py` / `intercom_sync.py` at 2.7.2 and its own pinned
+source c0b2d94c; PROPOSED, NOT_RUN). Implemented against fakes only; nothing ran against a WisKey, a station or a door.
+
+- **R3-03 scope through the projection.** `intercom_sync.person_scope` reads WisKey's `redacted_fields` (category names `access`, `credentials`, `phone`, `photo`,
+  `profile`) and `operator_editable`. Either marker means a projection for a restricted caller whose assignments may be station-filtered (even with an empty
+  `redacted_fields`), so `stations_known` is false. `project_person` / `project_person_editor` keep `stations: []` but add `access_known`, `stations_known`,
+  `credentials_known`, `redacted_fields`, `operator_editable`, `access_category` (null when withheld); a withheld PIN flag / phone is null, never false / "";
+  the editor extras show category "unknown" and null responsible person / purpose when `access` is withheld (WisKey's blank "staff" is not the person's).
+  `person_from_raw` uses the same reading, so `Worker._revoked` never counts a restricted or redacted readback.
+- **R3-04 profile codes.** `profile_required`, `profile_value_invalid`, `profile_value_not_unique` are pre-storage refusals of every `_USER_WRITE_REFUSED`
+  command (not users/delete): 422 `intercom_profile_required` / `intercom_profile_invalid` / `intercom_profile_not_unique`. `profile_issue` stays unknown.
+- **R3-08 strict reads.** `intercom_client._result` and `intercom_adapter._ask` accept only `success: true` / `false`; anything else is `invalid_response`.
+  A committed write whose answer the projection rejects stays `unknown` (unchanged, now tested, also for late answers).
+- **R3-06 / R3-07 no retry without a fresh readback.** `IntercomSync.action(..., target=person:<id>)`: after an `unknown` outcome the next write to that
+  person is refused here, nothing sent (409 `intercom_outcome_pending`, `details.wiskey_code` `outcome_pending` while the call is still out,
+  `readback_required` once it is over) until a `command(..., target=)` read that STARTED after the call was over has answered (a record or `user_not_found`).
+  Wired into the editor writes (update, delete, archive / unarchive / set_active / temporary_cancel / cards) and their reads, and the grants engine
+  (`get_person` refuses `not_sent outcome_pending` while the write is out, so `resolve_unknown` decides nothing on such a read).
+- **R3-06 late results.** When the 35 s local wait runs out, the call is still not cancelled; its eventual answer is classified (`ok` / `refused` /
+  `unknown`) into `IntercomSync.late_results()` (ids and codes only, last 50) and an optional `on_late` callback. It is diagnostics: the HTTP 504 is never
+  rewritten and the state is still taken from the fresh readback.
+- **users/get `user_not_found` is not proof of absence.** The worker no longer ends a grant on it: provisioning moves the grant to `revoking`
+  (reason `wiskey_missing`, link marked) instead of `revoked`; the revoke path stays `revoking` (backoff, hourly manager alerts) instead of finishing; an
+  approval whose linked person is not found is refused 409 `access_person_missing` (the approver's authority over the person's other stations cannot be
+  checked). Consequence: a person really deleted outside Arx leaves its grant `revoking` with hourly alerts (no automatic end; a manual "confirmed gone" path is NOT built - open item).
