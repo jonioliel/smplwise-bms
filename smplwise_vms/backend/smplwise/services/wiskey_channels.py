@@ -38,6 +38,8 @@ log = logging.getLogger("smplwise.intercom")
 
 PREFIX = intercom_client.DOMAIN + "/"
 NOT_ALLOWED = "not_allowed_on_channel"
+RESERVED_KEY = "reserved_frame_key"
+RESERVED = frozenset({"id", "type"})  # the frame's own keys (ha_client.call sets them; WisKey R4-08)
 
 BACKGROUND = frozenset({"overview", "subscribe", "authorization/session"})
 
@@ -105,7 +107,10 @@ def guard(call: intercom_client.Call, channel: str) -> intercom_client.Call:
         raise ValueError(f"unknown WisKey channel {channel!r}")
 
     async def guarded(msg_type: str, **kw: Any) -> dict[str, Any]:
-        if not allowed(channel, msg_type):
+        if RESERVED.intersection(kw):  # R4-08: a top-level `type` / `id` would replace the checked type or the generated id on the wire
+            log.error("WisKey %s channel: refused a frame carrying a reserved key (%s)", channel, ",".join(sorted(RESERVED.intersection(kw))))
+            raise IntercomError(RESERVED_KEY, msg_type if isinstance(msg_type, str) else "")
+        if not isinstance(msg_type, str) or not allowed(channel, msg_type):
             log.error("WisKey %s channel: refused to send %s (not on the channel's allow-list)", channel, msg_type)
             raise IntercomError(NOT_ALLOWED, msg_type)
         return await call(msg_type, **kw)

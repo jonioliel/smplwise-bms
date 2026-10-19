@@ -22,6 +22,8 @@ from ..errors import ApiError
 
 log = logging.getLogger("smplwise.ha")
 
+RESERVED_FRAME_KEYS = frozenset({"id", "type"})  # WisKey R4-08: set by `call` itself, never by a caller's keyword
+
 
 def configured(settings: Settings) -> bool:
     return bool(settings.ha_url and settings.ha_token)
@@ -436,11 +438,16 @@ async def ws_session(
         pending: dict[int, asyncio.Future] = {}
 
         async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
+            # WisKey R4-08: `id` and `type` are the transport's own keys - a payload field of that name could replace the checked
+            # frame type or the correlation id, so it is refused before anything is sent (payload fields nest under `data`)
+            reserved = RESERVED_FRAME_KEYS.intersection(kw)
+            if reserved:
+                raise ValueError(f"reserved frame key(s) {sorted(reserved)}")
             counter["id"] += 1
             mid = counter["id"]
             fut: asyncio.Future = asyncio.get_event_loop().create_future()
             pending[mid] = fut
-            await ws.send(json.dumps({"id": mid, "type": msg_type, **kw}))
+            await ws.send(json.dumps({**kw, "id": mid, "type": msg_type}))
             return await asyncio.wait_for(fut, timeout=60)
 
         async def reader() -> None:
