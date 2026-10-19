@@ -83,6 +83,20 @@ export function editLocationBody(startPick: string, startOther: string, pick: st
   return { location_id: pick || null, place_text: '', location_nav: false };
 }
 
+/**
+ * The PATCH body's location part when a service request's location changes AFTER creation (owner 2026-10-19; the server takes a NEW
+ * snapshot and keeps the old one in the timeline). Same rules as a draft edit, without the navigation switch; a device's request
+ * (`placeEditable` false: its place is the device's) never sends `place_text`.
+ */
+export function ticketEditLocationBody(startPick: string, startOther: string, pick: string, other: string, placeEditable: boolean):
+  { location_id?: string | null; place_text?: string } {
+  const full = editLocationBody(startPick, startOther, pick, other);
+  const body: { location_id?: string | null; place_text?: string } = {};
+  if ('location_id' in full) body.location_id = full.location_id;
+  if ('place_text' in full && placeEditable) body.place_text = full.place_text;
+  return body;
+}
+
 export function otherTooLong(pick: string, other: string): boolean {
   return pick === OTHER && len(other.trim()) > OTHER_MAX;
 }

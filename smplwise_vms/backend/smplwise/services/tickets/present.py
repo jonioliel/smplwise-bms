@@ -100,11 +100,9 @@ def can_block(viewer: Viewer, seen: Seen, dept: dict[str, Any] | None) -> dict[s
     status = row["status"]
     creator = row.get("created_by") == viewer.uid
     writer = seen.full or seen.assignee or creator
-    edit_fields: list[str] = []
-    if seen.manager and status not in model.FINAL:
-        edit_fields = ["title", "description", "category_id", "priority_id", "department_id"]
-    elif creator and status == "new":
-        edit_fields = ["title", "description"]
+    from .service import editable_fields  # service imports this module
+
+    edit_fields = editable_fields(row, manager=seen.manager, creator=creator)  # + location_id / place_text (owner 2026-10-19)
     assign = seen.manager and (status in model.ASSIGN_FROM - {"closed"} or (status == "closed" and can_reopen(row, dept)))
     return {
         "edit_fields": edit_fields,

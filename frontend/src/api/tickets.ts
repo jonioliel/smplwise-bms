@@ -245,7 +245,12 @@ export interface CreateBody {
   place_text?: string;
 }
 export type CreateAnswer = (TicketDetail | { id: string; number: number; view: 'none' }) & { result: 'created' | 'absorbed'; open_for_entity?: TicketItem[] };
-export interface PatchBody { title?: string; description?: string; category_id?: string | null; priority_id?: string; department_id?: string; revision: number }
+export interface PatchBody {
+  title?: string; description?: string; category_id?: string | null; priority_id?: string; department_id?: string;
+  /** owner 2026-10-19: change the location after creation (a new snapshot; null clears) / the "other (free text)" place */
+  location_id?: string | null; place_text?: string;
+  revision: number;
+}
 /** `override_claim_reason` (slice 9, 11A.3): close despite a pending REQUIRED cost claim (tickets.costs; else 409 cost_claim_pending) */
 export interface StatusBody { to: TicketStatus; note?: string | null; duplicate_of?: string | null; override_claim_reason?: string; revision: number }
 /** `kind: 'contact'` + `cost_claim` are slice 4 / slice 9 (D32: the claim requirement of THIS assignment; omitted = the preselection) */

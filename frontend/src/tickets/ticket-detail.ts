@@ -46,8 +46,16 @@ import { statusBlock, statusBlockStyles } from './status-block';
 import { nowSection, overviewStyles, overviewTab, type OverviewCtx } from './overview-tab';
 import { viewerRole } from './status-sentence';
 import { loadOwnSize, saveOwnSize } from './drawer-prefs';
+import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
+import { locationPicker } from './location-picker';
+import { OTHER, editStartPick, otherTooLong, ticketEditLocationBody } from './org-locations-model';
+import { lt } from './org-locations-text';
 
-interface EditForm { title: string; description: string; department_id: string; category_id: string; priority_id: string }
+interface EditForm {
+  title: string; description: string; department_id: string; category_id: string; priority_id: string;
+  /** owner 2026-10-19: the location picker's choice and free text, and their starting values (nothing is sent when untouched) */
+  pick: string; place: string; startPick: string; startPlace: string;
+}
 
 type Dialog =
   | { kind: 'move'; to: TicketStatus; noteRequired: boolean }
@@ -129,6 +137,8 @@ export class TicketDetailView extends LitElement {
   @state() private deleting = false; // owner 14.10: the deletion dialog is open
   @state() private meta: Meta | null = null;
   @state() private edit: EditForm | null = null;
+  /** the active organisation locations for the edit dialog's picker (null while loading / unavailable) */
+  @state() private editLocs: LocationsAnswer | null = null;
   private loadedFor = '';
   private flashTimer = 0;
   private offNames: (() => void) | null = null;
@@ -642,8 +652,20 @@ export class TicketDetailView extends LitElement {
     }
     if (d.kind === 'eta') this.dlgText = toLocalInput(t.eta_at);
     if (d.kind === 'edit') {
-      this.edit = { title: t.title, description: t.description, department_id: t.department?.id ?? '', category_id: t.category?.id ?? '', priority_id: t.priority?.id ?? '' };
+      // owner 2026-10-19: the location may change after creation (a device's request keeps its device place: no free text)
+      const placeEditable = t.can.edit_fields.includes('place_text');
+      const start = editStartPick(t.location?.id, placeEditable ? t.place_text : '');
+      this.edit = { title: t.title, description: t.description, department_id: t.department?.id ?? '', category_id: t.category?.id ?? '', priority_id: t.priority?.id ?? '',
+        pick: start, place: placeEditable ? t.place_text : '', startPick: start, startPlace: placeEditable ? t.place_text : '' };
       if (!this.meta) void ticketsApi().meta().then((m) => (this.meta = m)).catch(() => undefined);
+      this.editLocs = null;
+      if (t.can.edit_fields.includes('location_id')) {
+        void ticketsLocationsApi().list().then((a) => {
+          this.editLocs = a;
+          // no organisation locations: the picker is the old free-text field, so "other" is the starting choice
+          if (!a.locations.length && this.edit && this.edit.startPick === '') this.edit = { ...this.edit, pick: OTHER, startPick: OTHER };
+        }).catch(() => { this.editLocs = null; });
+      }
     }
   }
 
@@ -817,6 +839,13 @@ export class TicketDetailView extends LitElement {
     if (can.has('department_id') && e.department_id && e.department_id !== t.department?.id) body.department_id = e.department_id;
     if (can.has('category_id') && (e.category_id || null) !== (t.category?.id ?? null)) body.category_id = e.category_id || null;
     if (can.has('priority_id') && e.priority_id && e.priority_id !== t.priority?.id) body.priority_id = e.priority_id;
+    if (can.has('location_id')) {
+      if (otherTooLong(e.pick, e.place)) {
+        this.dlgError = lt('err_too_long');
+        return;
+      }
+      Object.assign(body, ticketEditLocationBody(e.startPick, e.startPlace, e.pick, e.place, can.has('place_text')));
+    }
     if (Object.keys(body).length === 1) {
       this.closeDialog();
       return;
@@ -1113,6 +1142,9 @@ export class TicketDetailView extends LitElement {
             ${can.has('category_id') && dept ? html`<label class="fld"><span>${tt('fCategory')}</span><select class="inp" data-edit-category @change=${(ev: Event) => set({ category_id: (ev.target as HTMLSelectElement).value })}><option value="" ?selected=${!e.category_id}>${tt('fNoCategory')}</option>${dept.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === e.category_id}>${c.name}</option>`)}</select></label>` : nothing}
           </div>` : nothing}
           ${can.has('priority_id') && dept ? html`<div class="fld"><span>${tt('fPriority')}</span><div class="prio" role="radiogroup" aria-label=${tt('fPriority')}>${dept.priorities.map((p) => html`<button type="button" class="rc" role="radio" aria-checked=${String(p.id === e.priority_id)} data-edit-priority=${p.key} @click=${() => set({ priority_id: p.id })}><i class=${`dot ${priorityTone(p) === 'bad' ? 'bad' : priorityTone(p) === 'info' ? 'run' : ''}`}></i>${p.name}</button>`)}</div></div>` : nothing}
+          ${can.has('location_id') && (can.has('place_text') || this.editLocs?.locations.length) ? html`<div style="display:contents" data-edit-location>${locationPicker({
+            ans: this.editLocs, pick: e.pick, other: e.place, disabled: this.busy || (!can.has('place_text') && !this.editLocs),
+            onPick: (v) => set({ pick: v }), onOther: (v) => set({ place: v }) })}</div>` : nothing}
           ${err}</div>
         ${foot(html`<button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.submitEdit()}>${tIcon('check')}${tt('save')}</button>`)}
       </sw-dialog>`;
