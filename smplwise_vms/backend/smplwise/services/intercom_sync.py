@@ -799,6 +799,10 @@ class IntercomSync:
         self._writing: set[str] = set()
         self._seq = 0
         self._late: deque[dict[str, Any]] = deque(maxlen=LATE_KEEP)
+        # R5-A6: the DURABLE side of the gate (intercom_write_journal.WriteJournal over the database; installed by main.py at start-up,
+        # None in a process without one): every targeted person write is recorded before it is sent and its outcome after, and an
+        # unresolved write of an earlier process (restart / standby takeover) holds the next write to that person until a readback.
+        self.journal: Any = None
         self._buckets_reset()
         self._session_reset()
 
@@ -901,6 +905,7 @@ class IntercomSync:
             self._unsettled = {}
             self._writing = set()
             self._late = deque(maxlen=LATE_KEEP)
+        self.journal = None
         self._buckets_reset()
         self._session_reset()
         STATE.reset()
@@ -999,14 +1004,16 @@ class IntercomSync:
         `target` (R3-06, e.g. `person:<id>`): this read is a fresh readback of that target - once it has answered (a record, or
         WisKey's `user_not_found`) and it was sent after an unknown write's call was over, writes to the target are allowed again."""
         started = self._tick()
+        journal = self.journal
+        started_wall = journal.clock() if journal is not None else None
         try:
             reply, outcome = self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S if timeout is None else timeout, channel=channel, slot_wait=slot_wait)
         except ApiError as exc:
             if target is not None and isinstance(exc.details, dict) and exc.details.get("wiskey_code") == "user_not_found":
-                self.note_readback(target, started)  # an answer about the target, too (it is gone, or out of this caller's scope)
+                self.note_readback(target, started, started_wall)  # an answer about the target, too (it is gone, or out of this caller's scope)
             raise
         if target is not None and outcome == "ok":
-            self.note_readback(target, started)
+            self.note_readback(target, started, started_wall)
         return reply
 
     # -- R3-06: unknown people writes are reconciled by a fresh read before the next write to the same target
@@ -1015,7 +1022,51 @@ class IntercomSync:
         may yet be saved, or R4-07: another write to the target is being sent right now), `readback_required` (it is over, but no fresh
         read has answered since)."""
         with self._unsettled_lock:
-            return self._gate_locked(target)
+            blocked = self._gate_locked(target)
+        if blocked is None and self.journal is not None:
+            return self.journal.blocking(target)  # R5-A6: an unresolved write recorded by this or an earlier process
+        return blocked
+
+    def _journal_admit(self, target: str, key: str, lane: str) -> tuple[str | None, str | None]:
+        """R5-A6: after the in-memory admission, the durable side: (blocked, op id). An unresolved journal row holds the write
+        (`outcome_pending` / `readback_required`); otherwise the intent is recorded BEFORE dispatch - a journal that cannot record it
+        refuses the write (`journal_unavailable`, nothing sent). No journal installed: (None, None)."""
+        journal = self.journal
+        if journal is None:
+            return None, None
+        blocked = journal.blocking(target)
+        if blocked is not None:
+            return blocked, None
+        from .intercom_write_journal import JournalUnavailable
+
+        try:
+            return None, journal.begin(target, key, lane)
+        except JournalUnavailable:
+            return "journal_unavailable", None
+
+    def begin_external(self, target: str, key: str) -> tuple[str | None, str | None]:
+        """R5-A5: a people write that does NOT travel through `action` (the signed capture-lease confirm) takes the same per-person
+        admission: (blocked, op id). None = admitted - the caller MUST call `end_external` exactly once, whatever happens."""
+        blocked = self._admit(target)
+        if blocked is not None:
+            return blocked, None
+        blocked, op_id = self._journal_admit(target, key, "config")
+        if blocked is not None:
+            self._release(target)
+        return blocked, op_id
+
+    def end_external(self, target: str, op_id: str | None, outcome: str, code: str | None = None) -> None:
+        """R5-A5: the outcome of an externally sent people write. `unknown` keeps the target blocked until a fresh readback (the call
+        is over from this side when this is called; a later commit by the remote handler is what the readback is for)."""
+        try:
+            if outcome not in ("ok", "refused", "not_sent"):
+                with self._unsettled_lock:
+                    self._seq += 1
+                    self._unsettled[target] = {"since": time.monotonic(), "done_at": self._seq, "late": None}
+            if op_id is not None and self.journal is not None:
+                self.journal.finish(op_id, outcome if outcome in ("ok", "refused", "not_sent") else "unknown", code)
+        finally:
+            self._release(target)
 
     def _gate_locked(self, target: str) -> str | None:
         entry = self._unsettled.get(target)
@@ -1042,12 +1093,20 @@ class IntercomSync:
             self._seq += 1
             return self._seq
 
-    def note_readback(self, target: str, started: int) -> None:
-        """A read of `target` that started at `started` (a `_tick`) has answered: it settles an unknown write whose call was over by then."""
+    def note_readback(self, target: str, started: int, started_wall: float | None = None) -> None:
+        """A read of `target` that started at `started` (a `_tick`) has answered: it settles an unknown write whose call was over by then.
+        R5-A6: the journal's rows too - this process's own by the same sequence decision, an earlier process's by the wall clock
+        (`started_wall`) after the row's call was over (or its hold ran out)."""
+        memory = "absent"
         with self._unsettled_lock:
             entry = self._unsettled.get(target)
-            if entry is not None and entry["done_at"] is not None and started > entry["done_at"]:
-                del self._unsettled[target]
+            if entry is not None:
+                memory = "pending"
+                if entry["done_at"] is not None and started > entry["done_at"]:
+                    del self._unsettled[target]
+                    memory = "settled"
+        if self.journal is not None and started_wall is not None:
+            self.journal.readback(target, started_wall, memory)
 
     def late_results(self) -> list[dict[str, Any]]:
         """The late answers of writes this side stopped waiting for (newest last): key, lane, target, outcome, code, at."""
@@ -1055,7 +1114,7 @@ class IntercomSync:
             return [dict(r) for r in self._late]
 
     def _follow_unknown(self, future: Any, key: str, lane: str, project: Callable[[Any], Any], target: str | None, waited_out: bool,
-                        on_late: Callable[[dict[str, Any]], None] | None) -> None:
+                        on_late: Callable[[dict[str, Any]], None] | None, op_id: str | None = None) -> None:
         """An `unknown` outcome: with a `target`, block further writes to it until a fresh read (write_gate); when this side stopped
         waiting before the call was over (`waited_out`), classify the call's late answer once it comes (`_late`, `on_late`) - the
         caller's reconciliation still reads the target fresh, a late answer is never taken as the state."""
@@ -1078,13 +1137,23 @@ class IntercomSync:
                     entry["late"] = record
                 if record is not None:
                     self._late.append(record)
+            journal = self.journal
+            if op_id is not None and journal is not None:
+                # R5-A6: from now on a readback that STARTS later can settle the durable row too. A database write never runs on the
+                # feed's event loop (a busy database would stall the WisKey session): a call that ended later is recorded by a thread.
+                if inline[0]:
+                    journal.call_over(op_id)
+                else:
+                    threading.Thread(target=journal.call_over, args=(op_id,), name="intercom-journal", daemon=True).start()
             if record is not None and on_late is not None:
                 try:
                     on_late(dict(record))
                 except Exception:  # noqa: BLE001 - the caller's record of a late answer never breaks the loop
                     log.warning("intercom: on_late callback failed")
 
-        future.add_done_callback(finished)  # runs at once when the call is already over
+        inline = [True]
+        future.add_done_callback(finished)  # runs at once (in this thread) when the call is already over
+        inline[0] = False
 
     def action(
         self,
@@ -1173,14 +1242,24 @@ class IntercomSync:
         # R3-06 / R4-07: an earlier write to this target has no clear outcome yet (read it fresh first), or another write to it is being
         # sent: refused, nothing sent. The check and this write's registration are ONE step (`_admit`), so two callers can never both pass.
         blocked = self._admit(target) if target is not None else None
+        op_id: str | None = None
+        if blocked is None and target is not None and lane != "read":
+            blocked, op_id = self._journal_admit(target, key, lane)  # R5-A6: durable intent BEFORE dispatch (or the durable hold)
+            if blocked is not None:
+                self._release(target)
         if blocked is not None:
             reply.update(state="error", last_error=blocked, sync=STATE.as_dict())
             settled()
             return reply, "not_sent"
+        recorded = False
         try:
-            return self._execute_admitted(settings, reply, loop, key, send, project, who, timeout, lane, not_after, settled, slot_wait, free, bucket, on_result,
-                                          channel, target, on_late)
+            reply, outcome = self._execute_admitted(settings, reply, loop, key, send, project, who, timeout, lane, not_after, settled, slot_wait, free, bucket,
+                                                    on_result, channel, target, on_late, op_id)
+            recorded = True
+            return reply, outcome
         finally:
+            if op_id is not None and not recorded:
+                self.journal.finish(op_id, "unknown", "error")  # an unexpected failure after admission: unresolved, never "not sent"
             if target is not None:
                 self._release(target)  # after an `unknown` outcome `_follow_unknown` has already registered the target as unsettled
 
@@ -1188,17 +1267,25 @@ class IntercomSync:
                           project: Callable[[Any], dict[str, Any]], who: str, timeout: float, lane: str, not_after: datetime.datetime | None,
                           settled: Callable[[], None], slot_wait: float, free: bool, bucket: str | None,
                           on_result: Callable[[dict[str, Any], str], None] | None, channel: str, target: str | None,
-                          on_late: Callable[[dict[str, Any]], None] | None) -> tuple[dict[str, Any], str]:
+                          on_late: Callable[[dict[str, Any]], None] | None, op_id: str | None = None) -> tuple[dict[str, Any], str]:
+        journal = self.journal if op_id is not None else None
+
+        def record(outcome: str, code: Any) -> None:
+            if journal is not None:  # R5-A6: the outcome as this side knows it (`unknown`: the call's end is recorded by _follow_unknown)
+                journal.finish(op_id, outcome, code, over=outcome != "unknown")
+
         slot = {"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight, "message": self._message_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
         acquired = slot.acquire(timeout=slot_wait) if slot_wait > 0 else slot.acquire(blocking=False)
         if not acquired:  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
             settled()
+            record("not_sent", "busy")
             return reply, "not_sent"
         if not free and not self._spend_token(who, bucket or lane):
             slot.release()
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
             settled()
+            record("not_sent", RATE_LIMITED)
             return reply, "not_sent"
         coro = self._one_off(send, not_after, channel)
         try:
@@ -1208,6 +1295,7 @@ class IntercomSync:
             slot.release()
             reply.update(state="ha_unavailable", last_error=type(exc).__name__, sync=STATE.as_dict())
             settled()
+            record("not_sent", type(exc).__name__)
             return reply, "not_sent"
 
         # the slot is freed when BOTH are through: the call itself (answer, session end, or ha_client's own 60 s limit -
@@ -1232,9 +1320,16 @@ class IntercomSync:
 
         future.add_done_callback(done)
         try:
-            reply, outcome = self._settle(future, reply, key, project, timeout, lane, on_result)
+            try:
+                reply, outcome = self._settle(future, reply, key, project, timeout, lane, on_result)
+            except BaseException:
+                record("unknown", "error")
+                if journal is not None:
+                    future.add_done_callback(lambda _f: threading.Thread(target=journal.call_over, args=(op_id,), daemon=True).start())
+                raise
+            record(outcome, reply.get("last_error"))  # before _follow_unknown: its callback records the call's end
             if outcome == "unknown" and lane != "read":
-                self._follow_unknown(future, key, lane, project, target, reply.get("last_error") == "timeout", on_late)
+                self._follow_unknown(future, key, lane, project, target, reply.get("last_error") == "timeout", on_late, op_id=op_id)
             return reply, outcome
         finally:
             let_go()

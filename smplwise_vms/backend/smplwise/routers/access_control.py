@@ -1675,6 +1675,14 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
     if datetime.now(timezone.utc) >= not_after:
         CAPTURES.back_to_captured(capture)
         raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שנשלחה."))
+    # R5-A5: the signed confirm writes a card to the person - the SAME per-person admission and unknown reconciliation as every other
+    # people write (the classic confirm's `_perform(..., target=)`), around the unchanged signed operation: an earlier write to this
+    # person still out or unsettled refuses it here, nothing signed; an unclear answer blocks the next write until a fresh readback.
+    target = intercom_sync.person_target(capture.person_id)
+    pending = intercom_sync.SYNC.write_gate(target)
+    if pending is not None:
+        CAPTURES.back_to_captured(capture)
+        raise act.refuse(_gate_refusal(pending, capture))
     p = act.principal
     try:
         signed = lease_events.sign(act.conn, "capture_confirm", p.user_id, trusted_door.actor_name(p), capture.station_id,
@@ -1684,6 +1692,28 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
         raise act.refuse(capture_lease.unavailable()) from None
     act.details["body_sha256"] = signed.body_sha256
     act.attempt()
+    blocked, op_id = intercom_sync.SYNC.begin_external(target, "capture_confirm")  # checked AND registered in one step (after the commit)
+    if blocked is not None:
+        CAPTURES.back_to_captured(capture)
+        act.outcome("not_sent", blocked, {"error": blocked})
+        act.conn.execute("BEGIN")
+        raise _gate_refusal(blocked, capture)
+    settled = {"outcome": "unknown", "code": None}
+    try:
+        return _lease_confirm_admitted(act, auth, capture, db, settings, signed, settled)
+    finally:
+        intercom_sync.SYNC.end_external(target, op_id, settled["outcome"], settled["code"])
+
+
+def _gate_refusal(code: str, capture: Any) -> ApiError:
+    exc = intercom_sync.action_error({"state": "error", "last_error": code}, "not_sent", "config")
+    exc.details["capture"] = CAPTURES.view(capture)
+    return exc
+
+
+def _lease_confirm_admitted(act: _Action, auth: ia.Authority, capture: Any, db: Database, settings: Any, signed: Any, settled: dict[str, Any]) -> dict[str, Any]:
+    """`_lease_confirm` after the per-person admission: ONE signed capture_confirm, never retried. `settled` receives what is known about
+    the write (`ok` / `refused` / `not_sent`; it stays `unknown` otherwise) for the admission's own record (R5-A5)."""
     answer: Any = None
     try:
         try:
@@ -1692,6 +1722,7 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
             if exc.code in _NOT_SENT_CODES or (exc.code == "ha_unavailable" and exc.details.get("error") in _NOT_SENT_ERRORS):
                 CAPTURES.back_to_captured(capture)
                 act.outcome("not_sent", exc.code, {"error": exc.code})
+                settled.update(outcome="not_sent", code=exc.code)
                 raise ApiError(503, exc.code, capture_lease.UNAVAILABLE_TEXT, details={"outcome": "not_sent", "capture": CAPTURES.view(capture)}) from None
         except Exception as exc:  # noqa: BLE001 - after a possible delivery
             log.warning("capture lease confirm: no clear answer (%s)", type(exc).__name__)
@@ -1706,6 +1737,7 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
         else:
             CAPTURES.set_state(capture, "lost" if code in ("capture_not_found", "lease_gone") else "closed", code, only_from=("applying",))
             capture_lease.finish(db, capture.lease_ref, "destroyed", "lost" if code in ("capture_not_found", "lease_gone") else "error")
+        settled.update(outcome="refused", code=code)
         act.outcome("refused", code, {"code": code})
         raise ApiError(409, "intercom_refused", intercom_client_text(code), details={"outcome": "refused", "wiskey_code": code, "capture": CAPTURES.view(capture)})
     person = None
@@ -1721,6 +1753,7 @@ def _lease_confirm(request: Request, act: _Action, auth: ia.Authority, capture: 
         raise ApiError(504, "intercom_outcome_unknown", capture_lease_route.CONFIRM_UNKNOWN_TEXT, details={"outcome": "unknown", "capture": CAPTURES.view(capture)})
     CAPTURES.set_state(capture, "confirmed", only_from=("applying",))
     capture_lease.finish(db, capture.lease_ref, "destroyed", "confirmed")
+    settled.update(outcome="ok", code=None)
     act.outcome("ok", None, {"result": _person_summary(person)})
     return {"state": "ready", "configured": True, "last_error": None, "person": iw.view_editor_person(auth, person), "capture": CAPTURES.view(capture),
             "note": "WisKey הוסיף את הכרטיס לאדם וביקש לסנכרן את התחנות שלו. מצב הסנכרון של כל תחנה מוצג ברשומה.", "command_id": act.details["command_id"],

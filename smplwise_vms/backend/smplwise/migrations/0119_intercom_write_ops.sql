@@ -1,5 +1,5 @@
--- PROVISIONAL NUMBER (pilot/WISKEYFINAL2-281): 0119 is only "the next free number on this branch". Other 2.8.0 branches take 0119..0121;
--- the integration renumbers this file to the next free number (release_check: contiguous sequence) - the content does not depend on it.
+-- PROVISIONAL NUMBER (pilot/WISKEYFINAL2-281): 0119 is only "the next free number on this branch". Other 2.8.0 branches also number
+-- after 0118; the integration renumbers this file to the next free number (release_check: contiguous sequence) - the content does not depend on it.
 --
 -- WisKey round 5, R5-A1 / R5-A6: a durable journal of WisKey PERSON writes (intent before dispatch, outcome after) so that an unresolved
 -- write survives a restart or a standby takeover. Ids and codes only: never a PIN, a PIN hash, a card number, a name or a phone.
