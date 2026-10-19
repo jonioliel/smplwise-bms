@@ -21,7 +21,7 @@ GET /tickets/dashboard - what the manager board cannot say on its own:
 
 VISIBILITY (section 4): every ticket number passes access.visible() and must be MANAGED by the caller (`Seen.manager`, the board's rule);
 every request passes rfq.visible(). A department filter the caller does not manage is refused by the route (never an empty answer). The
-timeline is read by status and time (migration 0121), each ticket it names is checked once per request.
+timeline is read by status and time (migration 0120), each ticket it names is checked once per request.
 
 COST (section 5): at most a few range reads on indexes plus one visibility check per ticket touched in the window; the result is kept 30
 seconds per caller, department, period and permission revision (ten managers opening together do not run ten heavy reads)."""

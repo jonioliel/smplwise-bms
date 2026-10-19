@@ -3,7 +3,7 @@ store.py / store_costs.py / store_quotes.py / store_rfq.py. Read-only.
 
 Nothing here decides who may see what: every function returns ids and the few columns a count needs, and services/tickets/dashboard.py
 keeps a row only after the ticket passed access.visible() (and the caller manages it) or the request passed rfq.visible(). The reads
-use the indexes of migration 0121 (ticket_events (to_status, at), tickets (done_at)) and the existing ones of 0083 / 0088 / 0089."""
+use the indexes of migration 0120 (ticket_events (to_status, at), tickets (done_at)) and the existing ones of 0083 / 0088 / 0089."""
 from __future__ import annotations
 
 import sqlite3

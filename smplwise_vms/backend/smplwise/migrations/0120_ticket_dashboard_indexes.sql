@@ -1,7 +1,7 @@
 -- MGRDASH phase 2 (docs/design/MANAGER_DASHBOARD_SPEC_HE.md sections 5, 7 and 10): the manager overview's summary route
 -- (GET /tickets/dashboard) counts status moves of the timeline per period and the requests marked done per period. Two indexes,
--- no table, no data change. PROVISIONAL NUMBER 0121 (0119 / 0120 are taken by branches in flight for 2.8.0); the lead renumbers at
--- integration under the contiguous-sequence rule.
+-- no table, no data change. Built as provisional 0121; renumbered to 0120 at the 2.8.0 integration (integ/280; elevators took
+-- 0119) under the contiguous-sequence rule.
 --
 -- 1. ticket_events by the status a move led TO, then the time: "closed", "returned to handling" and "opened" of a period are one
 --    range read per status (equality on to_status, range on at). Partial: notes, messages and other timeline rows carry no status.

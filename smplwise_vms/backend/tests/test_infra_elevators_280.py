@@ -1,4 +1,4 @@
-"""CR-INFRA-ELEVATORS 2.8.0: the state history (migration 0120), the per-role sensor lights, and the notification mechanism (sources
+"""CR-INFRA-ELEVATORS 2.8.0: the state history (migration 0119), the per-role sensor lights, and the notification mechanism (sources
 elevator.fire_service / elevator.fault / elevator.out_of_service, one default recipient policy). Negative cases first: no notification before
 the hold time, none twice, none from a dead sensor or a disconnected mirror, none for a viewer who cannot see the elevator, no history for a
 viewer who sees only part of it. A fake mirror only; the evaluator is driven with explicit instants (no thread)."""

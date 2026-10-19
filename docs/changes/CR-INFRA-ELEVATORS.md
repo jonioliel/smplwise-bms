@@ -1,7 +1,7 @@
 # CR-INFRA-ELEVATORS - Elevators under Infrastructure
 
 Status: basic infrastructure released in 2.7.2 (migration 0118). **2.8.0 full feature on `pilot/ELEVATORS280` (section 9, migration
-0120), not released.** Sections 1-8 describe the 2.7.x basis; where section 9 supersedes a decision it says so. Owner request 2026-10-18: define elevators under
+0119), integrated on `integ/280`, not released.** Sections 1-8 describe the 2.7.x basis; where section 9 supersedes a decision it says so. Owner request 2026-10-18: define elevators under
 Infrastructure, link the binary sensors his home-platform integration exposes per elevator, and see their status on the
 Infrastructure screen and on the home screen. Budget: small; reuse existing patterns, no new design language, no mockup round.
 
@@ -108,7 +108,7 @@ exclude; placement and size via the edit mode; persisted for the installation an
 
 | # | Decision | Supersedes |
 |---|----------|------------|
-| E1 | Migration **0120** (0119 is reserved for another branch): `infra_elevator_states` (history) and `infra_elevator_alerts` (notification memory). The runner applies every unrecorded file in order, so a later 0119 still runs. | - |
+| E1 | Migration **0119** (built as provisional 0120 while 0119 was reserved for WXROT; WXROT is not shipped, so it was renumbered to 0119 at the 2.8.0 integration): `infra_elevator_states` (history) and `infra_elevator_alerts` (notification memory). | - |
 | E2 | `services/elevators_runtime.py`: one read-only thread, every 15 s (env `SW_ELEVATORS=0` turns it off). History row on every derived-state change (the deciding sensor's `last_changed`, normalised to `...Z`); while the mirror is disconnected the elevator is recorded `unknown`. Hourly prune keeps 8 days (and each elevator's last row before the cutoff). | D1 (history was "never stored") |
 | E3 | Notifications: sources `elevator.fire_service` (critical), `elevator.fault` (alert), `elevator.out_of_service` (info); category `device_faults`. Each role is judged on its OWN sensor (a fault masked on screen by fire service keeps its condition). Hold 0 / 30 / 30 s. **OFF by default** - see 9.4 (owner decision 2026-10-18, supersedes the first 2.8.0 commit's "on, to the managers"). | D8 |
 | E4 | Recipients chosen NOW per state: roles (viewer / operator / site_admin / system_admin), named users, groups - the generator's routing pattern (own table, mirrored onto the CR-018 policy with the recipient rule `elevator`). Nothing selected = nobody. Then intersected with who may see the elevator (new subject kind `elevator`). | - || E5 | `GET /infra/elevators?history=24` adds per-elevator segments `[{state, from, to}]`; only for a caller who sees ALL of the elevator's sensors (the history is derived from every sensor), `null` otherwise. Every item carries `flags` (the visible roles' live values) for the sensor lights. | - |
@@ -137,7 +137,7 @@ glyphs are product icons; the door LED is shown faded ("not linked") as in the m
 - Settings › תשתיות › מעליות › "התראות מעליות" (`elevators/elevator-alerts.ts`; `GET/PUT /api/v1/infra/elevators/alerts`; read: elevator managers
   and system configurators; **write: `system.configure`**, revision-guarded, audited `infra.elevator.alerts.update` with ids / switches only).
 - A master switch "שליחת התראות מעליות" and a switch per state (fire service / fault / shutdown). **All default OFF.** A state notifies only while
-  the master AND its own switch are on. Stored in `infra_elevator_alert_settings` (one row, migration **0120 extended** - no new number).
+  the master AND its own switch are on. Stored in `infra_elevator_alert_settings` (one row, migration **0119** extended - no new number).
 - Recipients per state: roles, named users, groups (none = nobody). Roles resolve against the current bindings, direct and through a group;
   groups resolve to their members; then only those who may see the elevator.
 - Channels per state: the notification centre always; browser push and the phone app on request. E-mail and WhatsApp are not offered for

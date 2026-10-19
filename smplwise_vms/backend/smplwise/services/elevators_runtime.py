@@ -2,7 +2,7 @@
 
 Every TICK_S (15 s) over the state mirror, for every elevator (all of its sensors, no viewer filter - the routes filter on read):
 
-* the state history (migration 0120 `infra_elevator_states`): a row whenever the derived state changes. While the infrastructure session is
+* the state history (migration 0119 `infra_elevator_states`): a row whenever the derived state changes. While the infrastructure session is
   disconnected every elevator is recorded as `unknown` (the mirror is not a reading) - never an old state carried on.
 * the notifications (sources `elevator.fire_service`, `elevator.fault`, `elevator.out_of_service`, services/notify_policy.py): a role whose
   sensor is live `on` for its hold time raises ONE notification (transition memory in `infra_elevator_alerts`, so a restart neither repeats

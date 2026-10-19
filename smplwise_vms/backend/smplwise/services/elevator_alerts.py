@@ -5,7 +5,7 @@ nothing selected = nobody is notified); per state the channels the notification 
 push and the phone app on request; e-mail and WhatsApp are NOT offered for elevators). Changing it needs system.configure.
 
 This reuses the generator's routing pattern (services/generator_alerts.py): the choices live in their own table
-(`infra_elevator_alert_settings`, migration 0120) and are MIRRORED onto the CR-018 policy of each source (`elevator.<state>`): enabled =
+(`infra_elevator_alert_settings`, migration 0119) and are MIRRORED onto the CR-018 policy of each source (`elevator.<state>`): enabled =
 master AND state, channels from the choice, recipients rule `elevator` - which services/notify.recipients_for resolves through
 `recipient_users` (roles against the current bindings, direct and through groups; named users; group members), and then intersects with who
 may see the elevator (subject kind `elevator`). Delivery, quiet hours and the delivery log stay with the pipeline.

@@ -104,7 +104,7 @@ def _with_history(conn: sqlite3.Connection, items: list[dict[str, Any]], whole: 
     lo, hi = _window(hours)
     try:
         hist = el.history(conn, [i["id"] for i in items if i["id"] in whole], lo, hi)
-    except sqlite3.Error:  # before migration 0120
+    except sqlite3.Error:  # before migration 0119
         hist = {}
     for i in items:
         i["history"] = hist.get(i["id"]) if i["id"] in whole else None
@@ -329,7 +329,7 @@ def delete(elevator_id: str, principal: Principal = Depends(_manage_w), conn: sq
     elevators_runtime.resolve_all(conn, elevator_id)  # 2.8.0: its open notifications end with it (the memory rows would cascade anyway)
     try:
         conn.execute("DELETE FROM infra_elevator_states WHERE elevator_id = ?", (elevator_id,))
-    except sqlite3.Error:  # before migration 0120
+    except sqlite3.Error:  # before migration 0119
         pass
     conn.execute("DELETE FROM infra_elevator_sensors WHERE elevator_id = ?", (elevator_id,))
     conn.execute("DELETE FROM infra_elevators WHERE id = ?", (elevator_id,))

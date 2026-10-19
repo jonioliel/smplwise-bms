@@ -3,7 +3,7 @@ summary route. Negative first: the gate, the department filter (a refusal, never
 checks between departments (a handler shared by two departments, quotes, demands, requests for quotation); then the definitions
 (services/tickets/dashboard.py): done / closed / returned per handler, the 14 days, waiting for my decision with amounts only for
 tickets.costs.view, the RFQ stages, the second approval of the exact confirm rule, the department comparison, the 30-second cache, the
-indexes of migration 0121. Every name and number here is invented."""
+indexes of migration 0120. Every name and number here is invented."""
 from __future__ import annotations
 
 import datetime as dt
@@ -265,7 +265,7 @@ def test_an_allowed_open_is_audited_at_most_once_in_ten_minutes(s4):
     assert n == 1
 
 
-def test_0121_adds_the_two_indexes(s4):
+def test_0120_adds_the_two_indexes(s4):
     with s4.db.connection(mode="read") as conn:
         names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
         plan = " ".join(str(r[3]) for r in conn.execute(

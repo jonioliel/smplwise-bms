@@ -155,7 +155,7 @@ def live_of(rows: list[sqlite3.Row], *, connected: bool) -> dict[str, Any]:
             "roles": sorted(values), "flags": {k: values[k] for k in sorted(values)}, "extras": sorted(extras, key=lambda x: x["position"])}
 
 
-# ---------------------------------------------------------------- 2.8.0: the state history (migration 0120, written by elevators_runtime)
+# ---------------------------------------------------------------- 2.8.0: the state history (migration 0119, written by elevators_runtime)
 
 HISTORY_KEEP_S = 8 * 86400  # the screen shows 24 h; a week more is kept for a future longer bar
 HISTORY_HOURS = (24,)

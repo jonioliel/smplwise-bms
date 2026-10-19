@@ -283,6 +283,6 @@ Definitions live in `smplwise_vms/backend/smplwise/services/tickets/dashboard.py
   (against `ui.dash_busy` / `ui.dash_busy_departments`, the phase 1 settings).
 * Cache: 30 seconds per database, caller, permission revision, department and period (process memory). An allowed open is
   audited at most once per caller per 10 minutes (the screen polls every minute); every refusal is audited.
-* Migration (provisional **0121**): `idx_ticket_events_status_at (to_status, at)` partial, `idx_tickets_done_at (done_at)` partial.
+* Migration **0120** (built as provisional 0121, renumbered at the 2.8.0 integration): `idx_ticket_events_status_at (to_status, at)` partial, `idx_tickets_done_at (done_at)` partial.
 * Not in phase 2: `upcoming` / `overdue` (phase 1 computes them on the client from existing routes; payment dates are phase 4),
   `dashboard.digest_hour` and the notifications (phase 5), the performance run with 20,000 tickets / 200,000 events (open).
