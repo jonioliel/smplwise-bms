@@ -579,7 +579,7 @@ export class TicketCostsTab extends LitElement {
     void this.load();
   };
 
-  /** HARDEN271: the RFQ instalment demands of a work order, read-only, in a lazy chunk fetched only when the server sent any (it sends them
+  /** HARDEN271 + COSTINST: the RFQ payment schedule of a work order in instalments ("mark paid" only where the server flags it), in a lazy chunk fetched only when the server sent any (it sends them
    * only to a caller who may see the amounts) - nothing of it is in the tab's own bundle. */
   private instalmentDemands(d: TicketCostsFull) {
     const items = d.instalment_demands ?? [];
@@ -588,7 +588,7 @@ export class TicketCostsTab extends LitElement {
       void import('./costs-demands').then(() => this.requestUpdate());
       return nothing;
     }
-    return html`<ticket-costs-demands .items=${items}></ticket-costs-demands>`;
+    return html`<ticket-costs-demands .items=${items} @cost-reload=${this.onCardReload}></ticket-costs-demands>`;
   }
 
   render() {

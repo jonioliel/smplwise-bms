@@ -442,16 +442,67 @@ def _present_demand(d: Mapping[str, Any] | None, amounts: bool) -> dict[str, Any
             "revision": d["revision"]}
 
 
-def ticket_demands(conn, ticket_row: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """HARDEN271 (owner 2026-10-17, RFQPAY2 follow-up): the instalment payment demands of the award a work order came from, for the
-    ticket's Costs tab - read-only (status, amount, due date). The caller decides who may see it: the Costs tab's own rule
-    (routers/tickets_costs `full`: the ticket's full view + tickets.costs.view on it). [] for a ticket that is not an RFQ work order."""
+SOON_DAYS = 14  # "due soon": a due day today .. today + 13 (the manager dashboard's "next two weeks" window)
+
+
+def timing(due: dt.date | None, paid: bool, today_: dt.date) -> str:
+    """COSTINST: where an instalment stands - `paid`, `late` (due day strictly before today), `soon` (within SOON_DAYS) or `later` (not due;
+    also an instalment with no day yet). A cancelled demand does not settle the instalment (the dashboard's overdue rule)."""
+    if paid:
+        return "paid"
+    if due is None:
+        return "later"
+    if due < today_:
+        return "late"
+    return "soon" if due < today_ + dt.timedelta(days=SOON_DAYS) else "later"
+
+
+def ticket_demands(conn, ticket_row: Mapping[str, Any], viewer: Any = None, now: dt.datetime | None = None, *, amounts: bool = True) -> list[dict[str, Any]]:
+    """HARDEN271 + COSTINST (backlog tickets-costs-tab-instalments): the instalments of the award a work order came from, for the ticket's
+    Costs tab: every non-zero instalment of the approved schedule (status `none` until a demand exists, else the demand's `open` / `paid`
+    / `cancelled`) with its due day, amount, `timing` (paid / late / soon / later) and `can_pay`. The caller decides who may see it: the
+    ticket's full view. `amounts` = the caller holds tickets.costs.view on it; without it the rows carry dates, kinds, status and timing but
+    NO amount, currency, ids or pay flag (owner decision 2026-10-19). `can_pay` = the dashboard payments card's rule: the request passes rfq.visible() and the viewer holds tickets.costs +
+    view there (rfq.can_decide), the award is final and the request awarded / ordered / closed - read in ONE batch, never per row.
+    [] for a ticket that is not an RFQ work order. Without schedule terms (switch off / none) only the existing demands are listed."""
     q = store_rfq.rfq_quote_of_ticket(conn, ticket_row["id"])
     if q is None:
         return []
-    return [{"id": d["id"], "index": i, "kind": d["kind"], "status": d["status"], "amount_minor": d["amount_minor"], "currency": d["currency"],
-             "due_date": d.get("due_date"), "created_at": d["created_at"], "paid_at": d.get("paid_at"), "cancelled_at": d.get("cancelled_at")}
-            for i, d in sorted(store_rfq.demands_of_quote(conn, q["id"]).items())]
+    demands = store_rfq.demands_of_quote(conn, q["id"])
+    today_ = today(conn, now or now_utc())
+    t = store_rfq.approved_terms_of_quote(conn, q["id"]) if enabled(conn) else None
+    if t is None:
+        return [{"id": d["id"], "index": i, "kind": d["kind"], "status": d["status"], "amount_minor": d["amount_minor"] if amounts else None,
+                 "currency": d["currency"] if amounts else None,
+                 "due_date": d.get("due_date"), "created_at": d["created_at"], "paid_at": d.get("paid_at"), "cancelled_at": d.get("cancelled_at"),
+                 "award_id": d.get("award_id") if amounts else None, "rfq_id": d.get("rfq_id") if amounts else None, "moved": False, "can_pay": False,
+                 "timing": timing(dt.date.fromisoformat(d["due_date"]) if d.get("due_date") else None, d["status"] == "paid", today_)}
+                for i, d in sorted(demands.items())]
+    sched = schedule_of(t)
+    completed = _completed(conn, q)
+    can_pay = False
+    if viewer is not None and amounts:
+        from . import rfq
+
+        seen = rfq.visible_by_ids(viewer, [t["rfq_id"]]).get(t["rfq_id"])
+        can_pay = seen is not None and rfq.can_decide(viewer, seen) and seen.row["state"] in PAYMENT_RFQ
+    out: list[dict[str, Any]] = []
+    for it in sched["items"]:
+        if int(it.get("amount_minor") or 0) <= 0:
+            continue
+        i = int(it["index"])
+        d = demands.get(i)
+        day = _due_day(None, it, completed)
+        paid = d is not None and d["status"] == "paid"
+        out.append({"id": d["id"] if d else f"{t['award_id']}:{i}", "index": i, "kind": it["kind"], "status": d["status"] if d else "none",
+                    "amount_minor": int(it["amount_minor"]) if amounts else None,
+                    "currency": (sched.get("currency") or t["currency"]) if amounts else None,
+                    "due_date": day.isoformat() if day else None, "created_at": d["created_at"] if d else None,
+                    "paid_at": d.get("paid_at") if d else None, "cancelled_at": d.get("cancelled_at") if d else None,
+                    "award_id": t["award_id"] if amounts else None, "rfq_id": t["rfq_id"] if amounts else None,
+                    "moved": bool(it.get("date_changed_at")), "can_pay": can_pay and not paid,
+                    "timing": timing(day, paid, today_)})
+    return out
 
 
 REJECT_TEXT = {
