@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { agoText, alertActive, barOf, barSummary, effectiveHidden, ledText, personalHidden, chipOf, recipientChoices, toggled, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { addAffordances, agoText, alertActive, barOf, barSummary, effectiveHidden, ledText, personalHidden, chipOf, recipientChoices, toggled, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
 import { configOf, defaultConfig, moveAmong, resolveWidgets, type HomeData } from '../src/api/home-config';
 import { personalOf } from '../src/api/home';
 import { bodyOf, draftOf, moved, newDraft, problemOf } from '../src/elevators/draft';
@@ -275,4 +278,19 @@ test('review L8: the lights and the 24-hour bar say their state in words', () =>
   const bar = barOf([{ state: 'waiting', from: '2027-01-15T00:00:00Z', to: '2027-01-15T18:00:00Z' }, { state: 'fault', from: '2027-01-15T18:00:00Z', to: '2027-01-16T00:00:00Z' }], lo, lo + 24 * 3600_000);
   expect(barSummary(bar)).toBe('24 שעות אחרונות: תקלה 6 שע׳, ממתינה 18 שע׳');
   expect(barSummary({ parts: [] })).toBe('24 שעות אחרונות: אין עדיין היסטוריה');
+});
+test('owner 2026-10-19: add-elevator affordances exist only in page edit mode for a manager (also with zero elevators)', () => {
+  expect(addAffordances(true, false)).toEqual({ newButton: false, addCard: false, doneButton: false });
+  expect(addAffordances(false, true)).toEqual({ newButton: false, addCard: false, doneButton: false });
+  expect(addAffordances(true, true)).toEqual({ newButton: true, addCard: true, doneButton: true });
+  expect(elt('editPage')).toBe('עריכת העמוד');
+  expect(elt('editPage', undefined, 'en')).toBeTruthy();
+  expect(elt('editDone', undefined, 'en')).toBeTruthy();
+});
+
+test('the elevators screen registers its page edit mode with the user menu and gates the affordances on it', () => {
+  const src = readFileSync(join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src', 'screens', 'infra-elevators.ts'), 'utf8');
+  expect(src).toMatch(/registerScreenEdit\(\{ id: 'elevators-edit'/);
+  expect(src).toMatch(/can: \(\) => this\.access\.manage && !this\.editing/);
+  expect(src).not.toMatch(/\$\{manage \?/);
 });
