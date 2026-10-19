@@ -290,3 +290,9 @@ export function durationText(minutes: number): string {
   const m = minutes % 60;
   return m ? `${elt('hours', { n: h })} ${elt('durMin', { n: m })}` : elt('hours', { n: h });
 }
+
+/** Owner 2026-10-19: the add-an-elevator affordances (top button, dashed card) exist ONLY in page edit mode, for a manager; never as a hint outside it. */
+export function addAffordances(manage: boolean, editing: boolean): { newButton: boolean; addCard: boolean; doneButton: boolean } {
+  const on = manage && editing;
+  return { newButton: on, addCard: on, doneButton: on };
+}

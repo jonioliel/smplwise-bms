@@ -9,10 +9,11 @@ import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listElevators, type Elevator, type ElevatorsResponse } from '../api/elevators';
 import { elevatorsAccess, onElevatorsAccess, type ElevatorsAccess } from '../elevators/access';
-import { ELEVATORS_SETTINGS_HREF, agoText, barOf, barSummary, chipOf, durationText, historyRows, kpisOf, ledText, ledsOf, type Look } from '../elevators/model';
+import { ELEVATORS_SETTINGS_HREF, addAffordances, agoText, barOf, barSummary, chipOf, durationText, historyRows, kpisOf, ledText, ledsOf, type Look } from '../elevators/model';
 import { ElevatorHistoryPress } from '../elevators/history-press';
 import { doorIcon, elevatorCss, stateBadge } from '../elevators/styles';
 import { elt, type EltKey } from '../i18n/elevators';
+import { registerScreenEdit } from '../shell/screen-edit';
 import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
 import { canNav, isApi } from '../api/session';
 import { elecCss } from '../electricity/styles';
@@ -27,7 +28,7 @@ const DAY_MS = 24 * 3600_000;
  * תשתיות › מעליות (CR-INFRA-ELEVATORS, designed in 2.8.0 from the owner-approved mockup): the KPI row (all / waiting or in operation / in fault /
  * out of service / fire service), then one card per elevator - the door icon in the state colour, the solid state badge, the lights of its
  * linked sensors, the 24-hour state bar and how long ago the state began. Managers get "מעלית חדשה" and an add card (both open the settings
- * section). View only; polled while shown; a stale list shows every elevator as unknown. No direction is shown anywhere (no up / down sensors).
+ * section) ONLY in page edit mode, entered from the user menu ("עריכת העמוד"). View only; polled while shown; a stale list shows every elevator as unknown. No direction is shown anywhere (no up / down sensors).
  */
 @customElement('infra-elevators')
 export class InfraElevators extends LitElement {
@@ -37,6 +38,9 @@ export class InfraElevators extends LitElement {
   @state() private data: ElevatorsResponse | null = null;
   @state() private error = '';
   @state() private historyId: string | null = null;
+  /** Page edit mode (owner 2026-10-19): entered from the user menu (shell/screen-edit.ts); only then are the add affordances shown. */
+  @state() private editing = false;
+  private offScreenEdit?: () => void;
   private historyOpener: HTMLElement | null = null;
   /** 2.9.0: the long press (and its keyboard / menu alternatives) on a card opens that elevator's history, like on the devices screen. */
   readonly press = new ElevatorHistoryPress(this, (id, opener) => this.openHistory(id, opener));
@@ -61,6 +65,7 @@ export class InfraElevators extends LitElement {
       display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; text-decoration: none;
       background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; box-shadow: var(--sw-shadow-1);
     }
+    button.new { border: 0; font: inherit; cursor: pointer; }
     .new:focus-visible, .add:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 3px; }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
     .kpi {
@@ -113,7 +118,11 @@ export class InfraElevators extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.stop = onElevatorsAccess((a) => (this.access = a));
+    this.stop = onElevatorsAccess((a) => {
+      this.access = a;
+      if (!a.manage) this.editing = false;
+    });
+    this.offScreenEdit = registerScreenEdit({ id: 'elevators-edit', label: elt('editPage'), icon: 'edit', can: () => this.access.manage && !this.editing, run: () => { this.editing = true; } });
     void this.load();
     this.timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void this.load();
@@ -123,6 +132,7 @@ export class InfraElevators extends LitElement {
   disconnectedCallback() {
     window.clearInterval(this.timer);
     this.stop?.();
+    this.offScreenEdit?.();
     super.disconnectedCallback();
   }
 
@@ -198,21 +208,23 @@ export class InfraElevators extends LitElement {
     }
     const list = this.data.elevators;
     const manage = this.access.manage;
+    const aff = addAffordances(manage, this.editing);
     const stale = this.data.stale;
     const now = Date.now();
     const top = html`<div class="top lead-head"><div><h1>${elt('title')}</h1><p class="sub">${elt('subtitle')}</p></div><span class="sp"></span>
       ${stale ? html`<sw-badge kind="stale" label=${elt('stale')} data-elevators-stale></sw-badge>` : nothing}
-      ${manage ? html`<a class="new" href=${ELEVATORS_SETTINGS_HREF} data-elevators-new><sw-icon name="plus" size="16"></sw-icon>${elt('newElevator')}</a>` : nothing}</div>`;
+      ${aff.newButton ? html`<a class="new" href=${ELEVATORS_SETTINGS_HREF} data-elevators-new><sw-icon name="plus" size="16"></sw-icon>${elt('newElevator')}</a>` : nothing}
+      ${aff.doneButton ? html`<button type="button" class="new" data-elevators-edit-done @click=${() => { this.editing = false; }}><sw-icon name="check" size="16"></sw-icon>${elt('editDone')}</button>` : nothing}</div>`;
     if (!list.length) {
-      // no elevators: no Infrastructure tab strip (the module is absent until one is defined); a manager still gets the way to add one
-      return html`${top}${manage
+      // no elevators: no Infrastructure tab strip (the module is absent until one is defined); the way to add one exists only in page edit mode
+      return html`${top}${aff.addCard
         ? html`<div class="grid"><a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add data-state="empty"><div><b>+</b>${elt('addCard')}</div></a></div>`
         : html`<sw-state-panel state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`}`;
     }
     return html`${l1}${top}${this.kpis(list, stale)}
       <div class="grid" data-elevators>
         ${list.map((e) => this.card(e, stale, now))}
-        ${manage ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}
+        ${aff.addCard ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}
       </div>
       ${this.historyDialog(list, now)}`;
   }
