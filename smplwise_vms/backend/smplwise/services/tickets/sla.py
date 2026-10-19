@@ -127,8 +127,7 @@ def refresh(conn: sqlite3.Connection, ticket_id: str) -> Dues:
 
 def refresh_all_open(conn: sqlite3.Connection) -> int:
     """SLACAL: the working-hours calendar changed - recompute the dues of every open ticket (inside the caller's write transaction)."""
-    ids = [r[0] for r in conn.execute("SELECT id FROM tickets WHERE status NOT IN ('closed', 'cancelled')").fetchall()]
-    return refresh_many(conn, ids)
+    return refresh_many(conn, store.all_open_ticket_ids(conn))
 
 
 def refresh_many(conn: sqlite3.Connection, ticket_ids: list[str]) -> int:
