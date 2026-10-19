@@ -128,7 +128,7 @@ def view(conn, link: Any, *, now: dt.datetime) -> dict[str, Any]:
     wf, wt = _local_dates(conn, order)
     return {"available": True, "persons": [{"id": p["id"], "label": _label(p)} for p in persons], "can_add": _vendor_root(contact) is not None,
             "window": {"from": wf, "to": wt}, "hours": list(ag.HOURS_CHOICES), "max_days": ag.max_days(conn),
-            "notice": {"version": ag.NOTICE_VERSION, "text": ag.NOTICE_TEXT[lang], "attest": ag.NOTICE_ATTEST[lang], "lang": lang}, "current": current}
+            "notice": {"version": ag.NOTICE_VERSION, "text": ag.notice_text(conn, lang), "attest": ag.NOTICE_ATTEST[lang], "lang": lang}, "current": current}
 
 
 def _new_technician(conn, link: Any, vendor_root: str, body: dict[str, Any], at: str) -> str:
@@ -270,7 +270,7 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
         raise Refused(409, exc.code) from None
     conn.execute("INSERT OR REPLACE INTO access_grant_notices(grant_id, version, via, by_ref, at) VALUES (?, ?, 'page', ?, ?)",
                  (g["id"], ag.NOTICE_VERSION, f"contact:{link.contact_id}", at))
-    ag._audit(conn, ag.ContactActor(f"contact:{link.contact_id}"), "access.grant.notice_ack", g["id"], via="page", version=ag.NOTICE_VERSION, acknowledged_for=person_id)
+    ag._audit(conn, ag.ContactActor(f"contact:{link.contact_id}"), "access.grant.notice_ack", g["id"], via="page", version=ag.NOTICE_VERSION, acknowledged_for=person_id, technician_id=person_id)
     store_links.insert_contact_event(conn, ticket["id"], "access_request", contact_id=link.contact_id, actor_name=assignment.get("assignee_name") or "",
                                      assignment_id=assignment["id"], at=at, data={"outcome": outcome, "outside_window": outside}, visible_external=True)
     audit_link(conn, link, "access.grant.request", outcome=outcome, outside_window=outside)

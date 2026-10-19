@@ -80,6 +80,47 @@ def _org_name(v: Any) -> str:
     return text
 
 
+_EMAIL = re.compile(r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
+_PHONE = re.compile(r"^[+(]?[0-9][0-9 ()\-]{5,24}$")
+
+
+def privacy_contact(v: Any) -> str:
+    """PRIVORG-291: the contact point for privacy requests - an e-mail address or a phone number (7-15 digits); empty = not set."""
+    if not isinstance(v, str):
+        raise ValueError("type")
+    text = v.strip()
+    if text == "":
+        return ""
+    if len(text) > 80:
+        raise ValueError("invalid")
+    if _EMAIL.match(text):
+        return text
+    if _PHONE.match(text) and 7 <= sum(c.isdigit() for c in text) <= 15:
+        return text
+    raise ValueError("invalid")
+
+
+def privacy_link(v: Any) -> str:
+    """PRIVORG-291: an optional https link to the organisation's privacy page; empty = not set."""
+    from urllib.parse import urlsplit
+
+    if not isinstance(v, str):
+        raise ValueError("type")
+    text = v.strip()
+    if text == "":
+        return ""
+    if len(text) > 200 or re.search(r"[\s{}<>\x22\x27\x5c\x00-\x1f\x7f]", text):
+        raise ValueError("invalid")
+    try:
+        parts = urlsplit(text)
+        host = parts.hostname
+    except ValueError:
+        raise ValueError("invalid") from None
+    if parts.scheme != "https" or not host or "@" in parts.netloc:
+        raise ValueError("invalid")
+    return text
+
+
 def _logo_stamp(v: Any) -> str:
     """VPORTAL: the logo's stamp (16 lowercase hex characters of its SHA-256) or "" for none (services/tickets/brand.py)."""
     if v == "":
@@ -327,6 +368,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("urgent_is_critical",): (True, boolean),  # D28
     # slice 4: the handler page (section 10 / 14.1)
     ("organization_name",): ("", _org_name),
+    # PRIVORG-291: the contact point for privacy requests (e-mail or phone) and an optional https link, used in the technician privacy
+    # notice, the entry-code message and the phone-verification message (services/privacy_org.py). Empty = not set = texts unchanged.
+    ("privacy", "contact"): ("", privacy_contact),
+    ("privacy", "link"): ("", privacy_link),
     ("public", "base_url"): ("", _base_url),
     ("public", "path_prefix"): ("support", _path_prefix),  # TK255: used when the address itself carries no path
     ("public", "legacy_t_paths"): (True, boolean),  # TK255: links already sent as /t/... keep working (turn off once none is live)

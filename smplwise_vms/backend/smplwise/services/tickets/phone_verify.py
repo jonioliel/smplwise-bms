@@ -243,6 +243,23 @@ def _target(conn, row: Mapping[str, Any] | None) -> dict[str, Any]:
     return dict(row)
 
 
+def _privacy_variant(conn, target: Mapping[str, Any]) -> dict[str, Any]:
+    """PRIVORG-291: once the installation set a privacy contact point, the code to a directory person (a technician, a vendor contact -
+    not a signed-in user verifying their own number) carries one neutral privacy line with that contact and the organisation name. Unset:
+    the fixed text exactly as before."""
+    if target.get("user_id"):
+        return {}
+    from ..privacy_org import identity
+
+    who = identity(conn)
+    if not who.contact:
+        return {}
+    params = {"privacy_contact": who.contact}
+    if who.organization:
+        params["organization"] = who.organization
+    return {"template_id": "starter:verify_privacy", "params": params}
+
+
 def send_code(conn, viewer: Viewer, row: Mapping[str, Any] | None, *, by: str, rid: str | None = None) -> dict[str, Any]:
     """Issue the row's next code and queue the fixed message (inside the request's transaction). The caller checked who may ask."""
     from . import messaging
@@ -275,9 +292,10 @@ def send_code(conn, viewer: Viewer, row: Mapping[str, Any] | None, *, by: str, r
     conn.execute("INSERT INTO ticket_phone_verifications(id, contact_id, phone_key, key_id, code_hash, requested_by, requester_id, created_at, expires_at) "
                  "VALUES (?,?,?,?,?,?,?,?,?)", (vid, target["id"], target["phone_key"], key_id, _hash(key, vid, target["phone_key"], code),
                                                 by, viewer.uid, _iso(now), _iso(now + CODE_TTL)))
+    extra = _privacy_variant(conn, target)
     try:
         out = rt.enqueue(conn, purpose="phone_verify", contact_id=target["id"], channel="whatsapp", code=code, code_id=vid,
-                         requested_by=viewer.uid)
+                         requested_by=viewer.uid, **extra)
     except Exception as exc:  # noqa: BLE001 - the code stays dead (it still counts against the caps)
         log.warning("phone verification code not queued (%s)", type(exc).__name__)
         conn.execute("UPDATE ticket_phone_verifications SET invalidated_at = ? WHERE id = ?", (_iso(now), vid))

@@ -81,11 +81,13 @@ def test_every_starter_is_valid_in_every_language():
 def test_the_fixed_code_variants_are_pinned_valid_and_name_the_organisation():
     """VPORTAL review F2 (2.6.4): the portal sign-in code is a code-owned variant of the fixed `phone_verify` message, chosen by the
     outbox row's template id; it names the organisation and the purpose and says the code is never asked for."""
-    assert set(tp.FIXED_STARTERS) == {"portal_code"}
+    assert set(tp.FIXED_STARTERS) == {"portal_code", "verify_privacy"}  # + PRIVORG-291
     for name, texts in tp.FIXED_STARTERS.items():
         assert set(texts) == set(channel.LANGS), name
         for lang, body in texts.items():
-            assert tp.problems("phone_verify", body) == [], (name, lang)
+            # PRIVORG-291: {privacy_contact} is a param of the fixed starters only - a stored template may not use it (placeholder_unknown)
+            assert tp.problems("phone_verify", body.replace("{privacy_contact}", "x")) == [], (name, lang)
+            assert ("{privacy_contact}" in body) == (name == "verify_privacy"), (name, lang)
             assert "{code}" in body and "{organization}" in body and "10" in body, (name, lang)
     assert tp.fixed_starter("phone_verify", "starter:portal_code", "ar").body == tp.FIXED_STARTERS["portal_code"]["ar"]
     assert tp.fixed_starter("phone_verify", "starter:portal_code", "xx").lang == "he"
