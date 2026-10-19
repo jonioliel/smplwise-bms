@@ -34,6 +34,7 @@ Verification: services/webauthn.py (own minimal implementation on `cryptography`
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import threading
 import time
@@ -42,6 +43,8 @@ from typing import Any
 
 from ..errors import ApiError
 from . import webauthn as wa
+
+log = logging.getLogger("smplwise.local_passkeys")
 
 FIRST_KEY = "security.local_passkey_first"
 ANDROID_KEY = "security.local_passkey_android"
@@ -476,12 +479,20 @@ def _check(conn: Any, row: Any, cred: _Cred, rec: _Challenge, require_uv: bool) 
 
 
 def _failed(conn: Any, row: Any, reason: str, *, step: str, ip_masked: str, request_id: str | None) -> None:
-    """The audit row of a refused assertion (a counter regression has its own action: a suspected cloned authenticator). No
-    notification-centre signal in phase 4 (a new catalogue source is a follow-up item - CR-USR2 section 10)."""
+    """The audit row of a refused assertion (a counter regression has its own action: a suspected cloned authenticator). A counter
+    regression of a KNOWN credential also reaches the managers as `security.local_passkey_clone` (content-free, folds for an hour)."""
     uid = row["user_id"] if row is not None else None
     _audit(conn, actor=None, action="auth.local.passkey.counter_regression" if reason == "counter_regression" else "auth.local.passkey.refused",
            decision="denied", resource_id=uid or "unknown", reason=reason,
            details={"step": step, "ip": ip_masked, **({"passkey": row["id"]} if row is not None else {})}, request_id=request_id)
+    if reason == "counter_regression" and uid:
+        try:
+            from . import notify
+
+            notify.emit(conn, notify.Signal(source="security.local_passkey_clone", subject_kind="system", subject_id=uid,
+                                            dedupe_key=f"security.local_passkey_clone:{uid}", params={}, link="#/system/access?tab=local"))
+        except Exception:  # noqa: BLE001 - a notice never changes a sign-in answer
+            log.warning("could not emit security.local_passkey_clone")
 
 
 def second_factor_sign_in(db: Any, settings: Any, conn_like: Any, pid: str | None, body: Any, request_id: str | None) -> Any:

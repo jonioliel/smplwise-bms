@@ -819,3 +819,19 @@ def test_cose_and_auth_data_refusals():
     assert wa.b64url_decode(base64.urlsafe_b64encode(b"ok").decode()) == b"ok"
     with pytest.raises(wa.WebAuthnError):
         wa.b64url_decode("not base64!")
+
+
+def test_a_counter_regression_also_tells_the_managers_without_naming_anyone(px):
+    px.configure()
+    uid, _c, auth = _with_passkey(px)
+    c2, _ = px.pending("maria")
+    assert c2.post(SF, json={"credential": auth.get(c2.post(SF_OPTS).json(), counter=5)}).status_code == 200
+    assert px.rows("SELECT id FROM notifications WHERE source = 'security.local_passkey_clone'") == []
+    for _ in range(2):  # a second regression folds into the same notice
+        c3, _ = px.pending("maria")
+        assert c3.post(SF, json={"credential": auth.get(c3.post(SF_OPTS).json(), counter=3)}).status_code == 401
+    notes = px.rows("SELECT * FROM notifications WHERE source = 'security.local_passkey_clone'")
+    assert len(notes) == 1 and notes[0]["subject_id"] == uid
+    assert "maria" not in json.dumps(notes, ensure_ascii=False).lower()
+    recipients = px.rows("SELECT user_id FROM notification_recipients WHERE notification_id = ?", (notes[0]["id"],))
+    assert {r["user_id"] for r in recipients} == {"dev-joni"}

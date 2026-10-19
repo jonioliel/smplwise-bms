@@ -477,7 +477,7 @@ stays behind `security.local_identity` (off by default; with it off nothing chan
 3. The RP id comes only from `security.local_public_url` (the design record said "the remote host"): never from a request header.
 4. Passkey first is two switches - the owner's installation switch (the design record's `security.local_passkey_first`) plus a per-user
    opt-in (the brief's "per-user optional mode").
-5. A counter regression is audited but sends no notification-centre signal (a new catalogue source is a follow-up item).
+5. A counter regression is audited and (USR2MINOR-290) also emits the notification-centre signal `security.local_passkey_clone` to the managers (category security, subject `system`, fold 1 h, content-free; only for a known credential). Previously audit only.
 6. A passkey sign-in is accepted while the account's password ceiling lock (§7) runs: the lock is an anti-guessing control and an
    assertion cannot be guessed; the per-address tier still applies.
 7. "Sessions list shows passkey use" (design record P4): the sign-in audit row carries the factor; the sessions list itself is

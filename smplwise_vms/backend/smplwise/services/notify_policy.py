@@ -124,6 +124,9 @@ SOURCES: tuple[Source, ...] = (
     _s("security.local_account_locked", "חשבון Arx ננעל", "security", "alert", "חשבון Arx ננעל זמנית",
        "חשבון של משתמש Arx ננעל ל־15 דקות אחרי ניסיונות שגויים רבים מכמה רשתות. אפשר לשחרר בהגדרות › משתמשי Arx.", window_s=3600, who="managers",
        subject="system", resolves=False),
+    _s("security.local_passkey_clone", "חשד לשכפול מפתח גישה", "security", "alert", "חשד לשכפול מפתח גישה",
+       "מפתח גישה (passkey) של משתמש Arx דיווח על מונה נמוך מהידוע - ייתכן שהוא שוכפל. הכניסה נדחתה. פרטים באודיט ובהגדרות › משתמשי Arx.",
+       window_s=3600, who="managers", subject="system", resolves=False),
     # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants, to the managers (a `system` subject). Content-free - never a name, a
     # number, a door or a code; the grant screen and the audit carry the ids.
     _s("access.grant_request", "בקשת גישה זמנית לאדם חיצוני", "security", "info", "בקשת גישה זמנית",
