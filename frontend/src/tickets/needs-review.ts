@@ -83,7 +83,7 @@ export class TicketsNeedsReview extends LitElement {
       padding-block: 6px;
     }
     .msg.err {
-      color: var(--sw-danger-text, var(--sw-danger));
+      color: var(--sw-danger-text);
     }
     .dlg {
       display: flex;
@@ -93,9 +93,9 @@ export class TicketsNeedsReview extends LitElement {
     .note {
       font-size: var(--sw-fs-sm);
       padding: 8px 10px;
-      border-radius: var(--sw-r-md, 8px);
+      border-radius: var(--sw-r-md);
       background: var(--sw-warning-bg, var(--sw-surface-2));
-      color: var(--sw-warning-text, var(--sw-text));
+      color: var(--sw-warning-text);
     }
     .foot {
       display: flex;
@@ -121,7 +121,7 @@ export class TicketsNeedsReview extends LitElement {
       box-sizing: border-box;
       padding-inline: 8px;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md, 8px);
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;

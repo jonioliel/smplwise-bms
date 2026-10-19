@@ -16,6 +16,7 @@ import { canNav, isApi } from '../api/session';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { leadReserveStyles } from '../styles/lead-reserve';
 
 const POLL_MS = 15_000;
 const DAY_MS = 24 * 3600_000;
@@ -36,7 +37,7 @@ export class InfraElevators extends LitElement {
   private timer?: number;
   private stop?: () => void;
 
-  static styles = [elecCss, elevatorCss, css`
+  static styles = [elecCss, elevatorCss, leadReserveStyles, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -159,7 +160,7 @@ export class InfraElevators extends LitElement {
     const manage = this.access.manage;
     const stale = this.data.stale;
     const now = Date.now();
-    const top = html`<div class="top"><div><h1>${elt('title')}</h1><p class="sub">${elt('subtitle')}</p></div><span class="sp"></span>
+    const top = html`<div class="top lead-head"><div><h1>${elt('title')}</h1><p class="sub">${elt('subtitle')}</p></div><span class="sp"></span>
       ${stale ? html`<sw-badge kind="stale" label=${elt('stale')} data-elevators-stale></sw-badge>` : nothing}
       ${manage ? html`<a class="new" href=${ELEVATORS_SETTINGS_HREF} data-elevators-new><sw-icon name="plus" size="16"></sw-icon>${elt('newElevator')}</a>` : nothing}</div>`;
     if (!list.length) {
