@@ -288,6 +288,10 @@ class PatchBody(BaseModel):
     category_id: str | None = Field(default=None, max_length=64, pattern=ID)
     priority_id: str | None = Field(default=None, max_length=64, pattern=ID)
     department_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    # owner 2026-10-19: change the location after creation - an active organisation location (a NEW snapshot is taken now; the old
+    # one stays in the timeline), null clears it; `place_text` is the "other (free text)" place (not on a device's ticket)
+    location_id: str | None = Field(default=None, max_length=64, pattern=ID)
+    place_text: str | None = Field(default=None, max_length=2000)
     revision: int = Field(ge=1)
 
 

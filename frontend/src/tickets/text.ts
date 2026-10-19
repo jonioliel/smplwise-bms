@@ -177,6 +177,8 @@ const he = {
   // timeline lines
   e_created: '{the_ticket} {f:נפתחה|m:נפתח}',
   e_edited: 'עודכנו: {fields}',
+  e_relocated: 'המיקום שונה מ"{from}" ל"{to}"',
+  e_noLocation: 'ללא מיקום',
   e_moved: '{the_ticket} {f:הועברה|m:הועבר} למחלקה {dept}',
   e_status: 'מצב: {status}',
   e_closed: '{the_ticket} {f:נסגרה|m:נסגר}',
@@ -200,6 +202,7 @@ const he = {
   fld_category_id: 'קטגוריה',
   fld_priority_id: 'עדיפות',
   fld_department_id: 'מחלקה',
+  fld_location: 'מיקום',
 
   // Settings › the module
   setTitle: 'הגדרות › {module}',
@@ -548,6 +551,8 @@ const en: Partial<Record<TicketTextKey, string>> = {
   saved: 'Saved',
   e_created: '{ticket} opened',
   e_edited: 'Updated: {fields}',
+  e_relocated: 'Location changed from "{from}" to "{to}"',
+  e_noLocation: 'no location',
   e_moved: 'Moved to the department {dept}',
   e_status: 'State: {status}',
   e_closed: '{ticket} closed',
@@ -571,6 +576,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   fld_category_id: 'category',
   fld_priority_id: 'priority',
   fld_department_id: 'department',
+  fld_location: 'location',
   setTitle: 'Settings › {module}',
   setSub: 'Every option of the {tickets} module',
   setTabGeneral: 'General',

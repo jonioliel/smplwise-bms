@@ -204,7 +204,11 @@ export interface EventLine {
 
 const FIELD_KEYS: Record<string, TicketTextKey> = {
   title: 'fld_title', description: 'fld_description', category_id: 'fld_category_id', priority_id: 'fld_priority_id', department_id: 'fld_department_id',
+  location_id: 'fld_location', place_text: 'fld_location',
 };
+
+/** One side of a location change as the `edited` timeline row keeps it (services/tickets/service.py `_location_view`). */
+interface LocationSide { id?: string | null; text?: string; place_text?: string }
 
 /** The one line a timeline row says (the body - a note, a reason - is shown under it). */
 export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): EventLine {
@@ -214,6 +218,12 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'plus', text: tt('e_created') };
     case 'edited': {
       if (typeof d.to_department === 'string') return { icon: 'edit', text: tt('e_moved', { dept: depts[d.to_department] ?? '' }).trim() };
+      const loc = d.location as { from?: LocationSide; to?: LocationSide } | undefined;
+      if (loc && typeof loc === 'object') {
+        // owner 2026-10-19: the location changed after creation - the old snapshot as the timeline kept it, then the new one
+        const side = (s?: LocationSide) => s?.text || s?.place_text || tt('e_noLocation');
+        return { icon: 'edit', text: tt('e_relocated', { from: side(loc.from), to: side(loc.to) }) };
+      }
       const fields = Array.isArray(d.fields) ? (d.fields as string[]).map((f) => (FIELD_KEYS[f] ? tt(FIELD_KEYS[f]) : f)).join(', ') : '';
       return { icon: 'edit', text: tt('e_edited', { fields }) };
     }

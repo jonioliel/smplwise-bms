@@ -80,7 +80,15 @@ change-log entry in `docs/tickets/RFQ_BACKEND_CONTRACT.md`.
 - The RFQ board's draft editor changes the location of a draft with the same picker as the new-RFQ sheet (release 2.8.2; a new
   snapshot is taken, the map-link switch goes back off; nothing is sent when the person did not touch the field). After the send it
   stays locked.
-- Changing a ticket's location after creation is not offered (the snapshot is the creation-time record).
+- Changing a ticket's location after creation (owner 2026-10-19, `pilot/TICKETS-POLISH2-282`): `PATCH /tickets/{id}` takes
+  `location_id` (an ACTIVE location; null clears) and `place_text` ("other (free text)", max 200; never on a device's request: 422
+  `place_text/device_place`). Same permissions as the other edit fields (a manager of the department; the creator while the request is
+  `new`; never on a closed / cancelled request). A NEW snapshot is taken at that moment (re-picking the same location takes a fresh
+  snapshot only when the location changed since); the ticket row holds the new one and the `edited` timeline row keeps both sides
+  (`data.location.from` / `.to`: id, snapshot, text, free-text place), so the old snapshot stays in the history. Audit `ticket.edit`
+  carries the field names and `location_from` / `location_to` ids only. A request sent to an outside contact is marked
+  `external_stale` (the vendor got the old place). The ticket's edit dialog shows the same picker as the creation form; nothing is
+  sent when it was not touched.
 - The locations do not feed the plan / map (section 2.9).
 - Nothing here was tested against real WhatsApp, a real phone or the lab.
 

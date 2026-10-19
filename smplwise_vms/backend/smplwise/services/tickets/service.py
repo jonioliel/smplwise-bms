@@ -19,8 +19,26 @@ from .access import Seen, Viewer, text
 from .present import DELETE_OWN_PHOTO_S, can_reopen
 
 PURGE_DAYS = 730  # section 15.1 default of `retention.closed_days`; the retention setting and the purge janitor belong to a later slice
-EDITABLE_BY_MANAGER = ("title", "description", "category_id", "priority_id", "department_id")
-EDITABLE_BY_CREATOR_WHILE_NEW = ("title", "description")
+EDITABLE_BY_MANAGER = ("title", "description", "category_id", "priority_id", "department_id", "location_id", "place_text")
+EDITABLE_BY_CREATOR_WHILE_NEW = ("title", "description", "location_id", "place_text")
+# owner 2026-10-19: the location may change after creation; a NEW snapshot is taken at that moment and the old one stays in the
+# timeline (the `edited` row's `location` data). A device's ticket keeps its resolved place: only its organisation location changes.
+
+
+def editable_fields(row: dict[str, Any], *, manager: bool, creator: bool) -> list[str]:
+    """The fields the caller may edit (the detail's `can.edit_fields` and `edit()` give the same answer)."""
+    if row["status"] in model.FINAL:
+        return []
+    fields = EDITABLE_BY_MANAGER if manager else EDITABLE_BY_CREATOR_WHILE_NEW if creator and row["status"] == "new" else ()
+    return [f for f in fields if not (f == "place_text" and row.get("entity_id"))]
+
+
+def _location_view(row: dict[str, Any]) -> dict[str, Any]:
+    """One side of a location change as the timeline keeps it: the reference, the snapshot as it was, the free-text place."""
+    from . import org_locations
+
+    snap = org_locations.parse_snapshot(row.get("location_snapshot"))
+    return {"id": row.get("location_id"), "snapshot": snap, "text": org_locations.display_text(snap), "place_text": row.get("place_text") or ""}
 
 
 # ---------------------------------------------------------------- shared answers
@@ -70,10 +88,12 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
     if row["status"] in model.FINAL:
         raise ApiError(409, "ticket_closed", text(conn, "{the_ticket} {f:סגורה|m:סגור}; פתחו {f:אותה|m:אותו} מחדש כדי לערוך."))
     creator = row["created_by"] == viewer.uid
-    allowed = set(EDITABLE_BY_MANAGER) if seen.manager else set(EDITABLE_BY_CREATOR_WHILE_NEW) if creator and row["status"] == "new" else set()
+    allowed = set(editable_fields(row, manager=seen.manager, creator=creator))
     asked = set(patch)
     if not asked:
         return []
+    if "place_text" in asked and row.get("entity_id") and (seen.manager or creator):
+        raise invalid(conn, model.Invalid([model.Problem("place_text", "device_place")]))  # the device's resolved place stays
     if asked - allowed:
         raise refuse(conn, viewer, "ticket.edit", row, "field_not_editable", rid, fields=sorted(asked - allowed))
     if row["revision"] != revision:
@@ -84,8 +104,23 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
             fields["title"] = model.text_field(patch["title"], "title", required=True, max_len=model.TITLE_MAX)
         if "description" in patch:
             fields["description"] = model.text_field(patch["description"], "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
+        if "place_text" in patch:
+            from .create import PLACE_OTHER_MAX
+
+            fields["place_text"] = model.text_field(patch["place_text"] or "", "place_text", required=False, max_len=PLACE_OTHER_MAX)
     except model.Invalid as exc:
         raise invalid(conn, exc) from None
+    if "location_id" in patch:
+        from . import org_locations
+
+        if patch["location_id"]:
+            try:
+                lid, snap = org_locations.resolve(conn, patch["location_id"])  # the snapshot of THIS moment (an active location only)
+            except org_locations.Invalid as exc:
+                raise invalid(conn, model.Invalid([model.Problem(exc.field, exc.code)])) from None
+            fields["location_id"], fields["location_snapshot"] = lid, snap
+        else:
+            fields["location_id"], fields["location_snapshot"] = None, None
     dept_id = row["department_id"]
     moved = False
     if "department_id" in patch and patch["department_id"] != row["department_id"]:
@@ -114,13 +149,17 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
         old = store.priority(conn, row["priority_id"])
         same = store.priority_by_key(conn, dept_id, old["key"]) if old else None
         fields["priority_id"] = (same or store.default_priority(conn, dept_id) or {}).get("id") or row["priority_id"]
-    changed = [k for k, v in fields.items() if row.get(k) != v]
+    changed = [k for k, v in fields.items() if ((row.get(k) or "") if k == "place_text" else row.get(k)) != v]
     if not changed:
         return []
     now = now_iso()
     update = {k: fields[k] for k in changed}
     update["last_activity_at"] = now
-    if row.get("asg_kind") == "contact" and _active_assignment(row) and set(changed) & {"title", "description", "priority_id"}:
+    relocated = bool(set(changed) & {"location_id", "location_snapshot", "place_text"})
+    # the names the timeline and the audit carry: a new snapshot of the same location is a change of "location_id"
+    if "location_snapshot" in changed:
+        changed = [k for k in changed if k != "location_snapshot"] + ([] if "location_id" in changed else ["location_id"])
+    if row.get("asg_kind") == "contact" and _active_assignment(row) and (set(changed) & {"title", "description", "priority_id"} or relocated):
         update["external_stale"] = 1  # the vendor got the old text ("נשלח לפני השינוי", slice 5b sends the update)
     ended = None
     if moved and row.get("asg_kind") == "user" and _active_assignment(row) and row.get("asg_user_id") not in store.department_user_ids(conn, dept_id):
@@ -136,9 +175,12 @@ def edit(conn, viewer: Viewer, seen: Seen, patch: dict[str, Any], revision: int,
         data.update({"from_department": row["department_id"], "to_department": dept_id})
     if ended:
         data["assignment_ended"] = True
+    if relocated:  # the old snapshot stays in the history; the ticket row holds the new one
+        data["location"] = {"from": _location_view(row), "to": _location_view({**row, **update})}
     store.insert_event(conn, row["id"], "edited", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer), data=data)
     sla.refresh(conn, row["id"])  # a priority or department change recomputes the dues from the creation time (11.3)
-    _audit(conn, viewer, "ticket.edit", row, rid, fields=changed, **({"department_id": dept_id} if moved else {}))
+    _audit(conn, viewer, "ticket.edit", row, rid, fields=changed, **({"department_id": dept_id} if moved else {}),
+           **({"location_from": row.get("location_id"), "location_to": update.get("location_id", row.get("location_id"))} if relocated else {}))
     return changed
 
 
