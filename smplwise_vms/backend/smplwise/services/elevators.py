@@ -218,6 +218,39 @@ def record_state(conn: sqlite3.Connection, elevator_id: str, state: str, now: st
     return True
 
 
+HEARTBEAT_KEY = "elevators.heartbeat_at"  # `settings` row (no migration): the instant of the last completed evaluator pass
+GAP_S = 60  # ticks are 15 s apart; a silence longer than this means the monitor was not running (add-on stopped / host asleep)
+
+
+def beat(conn: sqlite3.Connection, now: str) -> None:
+    conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (HEARTBEAT_KEY, now))
+
+
+def record_gap(conn: sqlite3.Connection, elevator_ids: Iterable[str], now: str) -> int:
+    """Restart heartbeat: when the previous pass is older than GAP_S, the time since it was not monitored. Every elevator whose last history row
+    is not already `unknown` gets an `unknown` row at the last heartbeat, so the stretch is shown as not monitored instead of the last state
+    being carried across the stop; the normal pass then records the state that is live now. Returns the rows written."""
+    from .timeutil import parse_utc
+
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (HEARTBEAT_KEY,)).fetchone()
+    hb = _norm_iso(row["value"] if row else None)
+    if hb is None:
+        return 0
+    try:
+        if (parse_utc(now) - parse_utc(hb)).total_seconds() <= GAP_S:
+            return 0
+    except (ValueError, TypeError):
+        return 0
+    n = 0
+    for eid in elevator_ids:
+        last = conn.execute("SELECT at, state FROM infra_elevator_states WHERE elevator_id = ? ORDER BY at DESC LIMIT 1", (eid,)).fetchone()
+        if last is None or last["state"] == "unknown" or hb <= last["at"]:
+            continue  # never observed, already unknown, or the last row is newer than the heartbeat
+        conn.execute("INSERT OR REPLACE INTO infra_elevator_states (elevator_id, at, state) VALUES (?, ?, 'unknown')", (eid, hb))
+        n += 1
+    return n
+
+
 def prune_history(conn: sqlite3.Connection, cutoff: str) -> int:
     """Rows older than `cutoff`, except each elevator's newest row before it (it still says what held at the start of the window)."""
     return conn.execute(

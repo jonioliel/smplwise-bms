@@ -543,3 +543,49 @@ def test_review_l9_orphan_notifications_are_resolved_by_the_janitor(owner):
         conn.execute("DELETE FROM infra_elevators WHERE id = ?", (eid,))
     assert rt.janitor(db, T0 + 10_000) is not None
     assert notes(db)[0]["state"] == "resolved" and notes(db)[0]["resolution"] == "elevator_removed"
+
+# ---------------------------------------------------------------- 2.9.1: the restart heartbeat (a stop is "not monitored", never the last state carried on)
+
+def _states(db, eid):
+    with db.connection(mode="read") as conn:
+        return [(r[0], r[1]) for r in conn.execute("SELECT at, state FROM infra_elevator_states WHERE elevator_id = ? ORDER BY at", (eid,)).fetchall()]
+
+
+def test_gap_after_a_stop_is_unknown_not_the_last_state(owner):
+    _, db, _, eid = owner
+    tick(db, T0)
+    tick(db, T0 + 15)  # heartbeat at T0 + 15
+    assert [s for _, s in _states(db, eid)] == ["active"]
+    out = tick(db, T0 + 15 + 3600)  # the add-on was down for an hour
+    assert out["gap"] == 1 and out["recorded"] == 1
+    rows = _states(db, eid)
+    assert [s for _, s in rows] == ["active", "unknown", "active"]
+    assert rows[1][0] == "2027-01-15T08:00:15Z"  # the unknown stretch starts at the last heartbeat
+    with db.connection(mode="read") as conn:
+        hist = el.history(conn, [eid], "2027-01-15T08:00:00Z", "2027-01-15T09:01:00Z")[eid]
+    assert [(s["state"], s["from"]) for s in hist] == [("active", "2027-01-15T08:00:00Z"), ("unknown", "2027-01-15T08:00:15Z"), ("active", "2027-01-15T09:00:15Z")]
+
+
+def test_normal_ticks_and_a_short_silence_write_no_gap(owner):
+    _, db, _, eid = owner
+    tick(db, T0)
+    for i in range(1, 6):
+        assert tick(db, T0 + 15 * i)["gap"] == 0
+    assert tick(db, T0 + 75 + el.GAP_S)["gap"] == 0  # exactly at the threshold: still a normal pass
+    assert [s for _, s in _states(db, eid)] == ["active"]
+
+
+def test_gap_does_not_repeat_when_already_unknown_and_first_pass_has_none(owner):
+    _, db, _, eid = owner
+    assert tick(db, T0)["gap"] == 0  # no heartbeat yet
+    tick(db, T0 + 15, connected=False)  # unknown (mirror down)
+    assert tick(db, T0 + 15 + 7200, connected=False)["gap"] == 0  # last row already unknown
+    assert [s for _, s in _states(db, eid)] == ["active", "unknown"]
+
+
+def test_gap_marks_the_stretch_even_when_the_state_changed_meanwhile(owner):
+    _, db, _, eid = owner
+    tick(db, T0)
+    set_state(db, OWNER["fault"], "on")  # changed while the add-on was not running
+    tick(db, T0 + 600)
+    assert [s for _, s in _states(db, eid)] == ["active", "unknown", "fault"]
