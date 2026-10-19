@@ -480,6 +480,9 @@ def test_monthly_report_cap_returns_413(w, monkeypatch):
     for i in range(3):
         w.create("tom", f"t{i}")
     monkeypatch.setattr(access, "EXPORT_MAX_ROWS", 2)
-    day = __import__("datetime").date.today().isoformat()
-    r = w.c.get(f"{MONTHLY}?from={day}&to={day}", headers=w.h("mona"))
+    # yesterday..tomorrow: the report counts by the INSTALLATION's day, which differs from the machine's local date near midnight
+    # (2.9.0 gate: a runner on UTC at 22:xx while the installation zone was already on the next day -> 0 rows, 200 instead of 413)
+    today = __import__("datetime").date.today()
+    one = __import__("datetime").timedelta(days=1)
+    r = w.c.get(f"{MONTHLY}?from={(today - one).isoformat()}&to={(today + one).isoformat()}", headers=w.h("mona"))
     assert r.status_code == 413 and r.json()["code"] == "export_too_large"
