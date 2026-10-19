@@ -11,14 +11,19 @@ import pytest
 from conftest import bind
 
 from smplwise.rbac import Principal
-from smplwise.services.tickets import access, dashboard, store
+from smplwise.db import new_id
+from smplwise.services.tickets import access, dashboard, store, store_dash
 from test_tickets_mgrdash_summary import _quote_and_claim, done_by
 from tickets_s4_world import API, build_s4
 
 # every kind of caller of the cast (tests/tickets_world.py): admin, department managers, an all-departments viewer who manages nothing,
 # a member, a non-member creator, floor-scoped operators, a member denied tickets.view, a viewer without any ticket permission
 USERS = ("joni", "mona", "cleo", "alda", "tom", "nora", "fred", "gil", "dina", "vic")
-NOW = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
+
+
+def _now() -> dt.datetime:
+    """A fixed instant for both paths of one comparison, just after the seed (taken per test: a slow run must not age it)."""
+    return dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
 
 
 @pytest.fixture()
@@ -59,10 +64,19 @@ def world(settings, monkeypatch):
     v2 = s4.ticket("joni", "משאבה")
     assert s4.assign_contact(v2["id"], s4.vendor["id"]).status_code == 200
     _quote_and_claim(s4, v2["id"], s4.vendor["id"])
+    # reassigned (tom -> gil, done by gil), and two assignments with the SAME start (the rowid decides, like the SQL's ORDER BY)
+    r = s4.ticket("mona", "ברז")
+    assert s4.w.assign("mona", r["id"], "tom").status_code == 200
+    assert s4.w.assign("mona", r["id"], "gil").status_code == 200
+    assert s4.w.status("gil", r["id"], "in_progress").status_code == 200
+    assert s4.w.status("gil", r["id"], "done").status_code == 200
     with s4.db.connection() as conn:
+        a0 = dict(conn.execute("SELECT * FROM ticket_assignments WHERE ticket_id = ? ORDER BY rowid DESC LIMIT 1", (a["id"],)).fetchone())
+        twin = {**a0, "id": new_id(), "assignee_name": "תאום"}
+        conn.execute(f"INSERT INTO ticket_assignments ({', '.join(twin)}) VALUES ({', '.join('?' * len(twin))})", tuple(twin.values()))
         conn.execute("UPDATE tickets SET created_by = 'dev-nora' WHERE id = ?", (n["id"],))
         conn.execute("UPDATE tickets SET created_by = 'dev-fred' WHERE id = ?", (fr["id"],))
-    for k, t in zip("abcdefghnFvw", (a, b, c, d, e, f, g, h, n, fr, v1, v2)):
+    for k, t in zip("abcdefghnFvwr", (a, b, c, d, e, f, g, h, n, fr, v1, v2, r)):
         ids[k] = t["id"]
     yield s4, ids
     dashboard.CACHE.clear()
@@ -134,21 +148,28 @@ def _per_ticket(self, ticket_ids) -> None:
     """The path before the fix: no batch, every ticket through access.visible_by_id one by one (_Managed.get's fallback)."""
 
 
-def _summary(s4, user: str, department_id: str | None, period: str, batched: bool) -> dict:
+def _old_path(mp) -> None:
+    """Every batch of the speed fix switched off: visibility and assignments one ticket at a time, as before."""
+    mp.setattr(dashboard._Managed, "prefetch", _per_ticket)
+    mp.setattr(dashboard._Assignments, "prefetch", _per_ticket)
+
+
+def _summary(s4, user: str, department_id: str | None, period: str, batched: bool, now: dt.datetime | None = None) -> dict:
     with pytest.MonkeyPatch.context() as mp:
         if not batched:
-            mp.setattr(dashboard._Managed, "prefetch", _per_ticket)
+            _old_path(mp)
         with s4.db.connection(mode="read") as conn:
-            return dashboard.summary(conn, _viewer(conn, user), department_id=department_id, period=period, now=NOW, tz=dt.timezone.utc)
+            return dashboard.summary(conn, _viewer(conn, user), department_id=department_id, period=period, now=now or _now(), tz=dt.timezone.utc)
 
 
 def test_the_summary_is_identical_for_every_caller_department_and_period(world):
     s4, _ids = world
+    now = _now()
     for user in USERS:
         for period in ("today", "7d", "30d"):
             for department_id in (None, "dept-maintenance", s4.w.cleaning):
-                old = _summary(s4, user, department_id, period, batched=False)
-                new = _summary(s4, user, department_id, period, batched=True)
+                old = _summary(s4, user, department_id, period, batched=False, now=now)
+                new = _summary(s4, user, department_id, period, batched=True, now=now)
                 assert new == old, (user, department_id, period)
 
 
@@ -171,7 +192,7 @@ def test_the_route_answers_the_same_both_ways(world):
         for batched in (False, True):
             with pytest.MonkeyPatch.context() as mp:
                 if not batched:
-                    mp.setattr(dashboard._Managed, "prefetch", _per_ticket)
+                    _old_path(mp)
                 dashboard.CACHE.clear()
                 r = s4.c.get(f"{API}/tickets/dashboard", params={"period": "30d"}, headers=s4.h(user))
             assert r.status_code == 200, r.text
@@ -181,3 +202,47 @@ def test_the_route_answers_the_same_both_ways(world):
             body["daily"].pop("since", None)
             bodies.append(body)
         assert bodies[0] == bodies[1], user
+
+
+def _shift(at: str, seconds: int) -> str:
+    d = dt.datetime.strptime(at[:19], "%Y-%m-%dT%H:%M:%S") + dt.timedelta(seconds=seconds)
+    return d.strftime("%Y-%m-%dT%H:%M:%S") + at[19:]
+
+
+def test_the_batched_assignment_is_the_single_read_at_every_instant(world):
+    """store_dash.pick_assignment over assignments_of() == store_dash.assignment_at() for every ticket at every instant that matters:
+    each assignment's start and end, one second either side, every timeline row, and the tie of two assignments with the same start."""
+    s4, ids = world
+    every = _all_ids(s4)
+    with s4.db.connection(mode="read") as conn:
+        batch = store_dash.assignments_of(conn, every + ["no-such-ticket"])
+        assert "no-such-ticket" not in batch
+        assert len(batch[ids["r"]]) == 2 and len(batch[ids["a"]]) == 2
+        checked = 0
+        for tid in every:
+            rows = batch.get(tid, [])
+            instants = {ev["at"] for ev in conn.execute("SELECT at FROM ticket_events WHERE ticket_id = ?", (tid,))}
+            for r in rows:
+                for at in (r["assigned_at"], r["ended_at"]):
+                    if at:
+                        instants |= {at, _shift(at, -1), _shift(at, 1)}
+            instants |= {"0000", "9999"}
+            for at in sorted(instants):
+                assert store_dash.pick_assignment(rows, at) == store_dash.assignment_at(conn, tid, at), (tid, at)
+                checked += 1
+        assert checked > 40
+        twin = store_dash.pick_assignment(batch[ids["a"]], batch[ids["a"]][0]["assigned_at"])
+        assert twin is not None and twin["assignee_name"] == "תאום", "the later rowid wins the tie, as in the SQL"
+    with pytest.raises(store_dash.NotComparable):
+        store_dash.pick_assignment([], None)
+
+
+def test_an_assignment_nobody_prefetched_is_read_the_old_way(world):
+    s4, ids = world
+    with s4.db.connection(mode="read") as conn:
+        asgs = dashboard._Assignments(conn)
+        at = dashboard.stuck.iso(_now())
+        assert asgs.at(ids["c"], at) == store_dash.assignment_at(conn, ids["c"], at)
+        asgs.prefetch([ids["c"]])
+        assert asgs.at(ids["c"], at) == store_dash.assignment_at(conn, ids["c"], at) is not None
+        assert asgs.at(ids["c"], None) == store_dash.assignment_at(conn, ids["c"], None)  # not text: asked of the SQL

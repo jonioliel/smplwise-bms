@@ -118,20 +118,46 @@ class _Managed:
         return self._seen[ticket_id]
 
 
+class _Assignments:
+    """store_dash.assignment_at() for one answer, batched: prefetch() reads every assignment of the given tickets at once and at()
+    picks the one that held the ticket at that instant in Python (store_dash.pick_assignment - the same rule as the SQL); a ticket
+    nobody prefetched, or a value that is not text, is asked of assignment_at() itself."""
+
+    def __init__(self, conn):
+        self.conn = conn
+        self._rows: dict[str, list[dict[str, Any]]] = {}
+
+    def prefetch(self, ticket_ids: Any) -> None:
+        todo = [i for i in dict.fromkeys(ticket_ids) if i and i not in self._rows]
+        if todo:
+            got = store_dash.assignments_of(self.conn, todo)
+            for i in todo:
+                self._rows[i] = got.get(i, [])
+
+    def at(self, ticket_id: str, at: Any) -> dict[str, Any] | None:
+        rows = self._rows.get(ticket_id)
+        if rows is not None:
+            try:
+                return store_dash.pick_assignment(rows, at)
+            except store_dash.NotComparable:
+                pass
+        return store_dash.assignment_at(self.conn, ticket_id, at)
+
+
 # ---------------------------------------------------------------- throughput and the 14 days
 
-def _done_rows(conn, managed: _Managed, since: str, until: str) -> list[tuple[Seen, dict[str, Any] | None, str]]:
+def _done_rows(conn, managed: _Managed, asgs: _Assignments, since: str, until: str) -> list[tuple[Seen, dict[str, Any] | None, str]]:
     out = []
     done = store_dash.done_between(conn, since, until)
     managed.prefetch(r["id"] for r in done)
-    for r in done:
-        s = managed.get(r["id"])
-        if s is not None:
-            out.append((s, store_dash.assignment_at(conn, r["id"], r["done_at"]), r["done_at"]))
+    kept = [(r, s) for r in done if (s := managed.get(r["id"])) is not None]
+    asgs.prefetch(r["id"] for r, _s in kept)
+    for r, s in kept:
+        out.append((s, asgs.at(r["id"], r["done_at"]), r["done_at"]))
     return out
 
 
-def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: list[dict[str, Any]]) -> dict[str, Any]:
+def _throughput(conn, managed: _Managed, asgs: _Assignments, since: str, until: str, closed_moves: list[dict[str, Any]]) -> dict[str, Any]:
     rows: dict[str, dict[str, Any]] = {}
     spans: dict[str, list[float]] = {}
     total = {"done": 0, "closed": 0, "returned": 0}
@@ -144,7 +170,7 @@ def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: l
             r["name"] = asg["assignee_name"]  # the latest name the period knows
         return r
 
-    for s, asg, done_at in _done_rows(conn, managed, since, until):
+    for s, asg, done_at in _done_rows(conn, managed, asgs, since, until):
         total["done"] += 1
         if asg is None:
             continue
@@ -153,10 +179,11 @@ def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: l
         if a is not None and b is not None and b >= a:
             spans.setdefault(_key(asg) or "none", []).append((b - a).total_seconds())
     seen_closed: set[tuple[str, str]] = set()
+    asgs.prefetch(ev["ticket_id"] for ev in closed_moves if since <= ev["at"] <= until and managed.get(ev["ticket_id"]) is not None)
     for ev in closed_moves:
         if not since <= ev["at"] <= until or managed.get(ev["ticket_id"]) is None:
             continue
-        asg = store_dash.assignment_at(conn, ev["ticket_id"], ev["at"])
+        asg = asgs.at(ev["ticket_id"], ev["at"])
         k = (_key(asg) or "none", ev["ticket_id"])
         if k in seen_closed:
             continue
@@ -167,11 +194,12 @@ def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: l
     seen_returned: set[tuple[str, str]] = set()
     returns = store_dash.status_moves(conn, RETURN_TO, since, until)
     managed.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in ("done", "closed"))
+    asgs.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in ("done", "closed") and managed.get(ev["ticket_id"]) is not None)
     for ev in returns:
         if ev["from_status"] not in ("done", "closed") or managed.get(ev["ticket_id"]) is None:
             continue
         done_at = store_dash.last_done_before(conn, ev["ticket_id"], ev["id"])
-        asg = store_dash.assignment_at(conn, ev["ticket_id"], done_at) if done_at else None
+        asg = asgs.at(ev["ticket_id"], done_at) if done_at else None
         k = (_key(asg) or "none", ev["ticket_id"])
         if k in seen_returned:
             continue
@@ -334,6 +362,7 @@ def summary(conn, viewer: Viewer, *, department_id: str | None, period: str, now
     days = PERIODS[period]
     decided: dict[str, Seen | None] = {}  # one read and one decision per ticket for the whole answer
     managed = _Managed(viewer, department_id, decided)
+    asgs = _Assignments(conn)  # one batched assignment read per answer
     since = stuck.iso(handler_load.period_start(now, days, tz)) or ""
     since14 = stuck.iso(handler_load.period_start(now, DAILY_DAYS, tz)) or ""
     until = stuck.iso(now) or ""
@@ -344,10 +373,10 @@ def summary(conn, viewer: Viewer, *, department_id: str | None, period: str, now
     if all_depts:
         since7 = stuck.iso(handler_load.period_start(now, 7, tz)) or ""
         everywhere = _Managed(viewer, None, decided)
-        departments, truncated = _departments(conn, viewer, now, _done_rows(conn, everywhere, since7, until))
+        departments, truncated = _departments(conn, viewer, now, _done_rows(conn, everywhere, asgs, since7, until))
     return {
         "period": period, "days": days, "since": since, "now": until, "department_id": department_id,
-        "throughput": _throughput(conn, managed, since, until, closed_moves),
+        "throughput": _throughput(conn, managed, asgs, since, until, closed_moves),
         "daily": _daily(conn, managed, now, tz, closed_moves),
         "approvals": _approvals(conn, viewer, managed, department_id),
         "rfqs": _rfqs(conn, viewer, department_id, now),

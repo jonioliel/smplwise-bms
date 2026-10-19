@@ -35,6 +35,46 @@ def assignment_at(conn: sqlite3.Connection, ticket_id: str, at: str) -> dict[str
     return dict(row) if row is not None else None
 
 
+ASSIGNMENT_COLUMNS = ("id", "assignee_kind", "user_id", "contact_id", "assignee_name", "assigned_at")  # assignment_at()'s answer, in order
+BATCH_IDS = 500
+
+
+def assignments_of(conn: sqlite3.Connection, ticket_ids: Iterable[str]) -> dict[str, list[dict[str, Any]]]:
+    """Every assignment of many tickets in IN batches (ticket id -> rows with `_rowid` and `ended_at`), for pick_assignment() - the
+    batched form of assignment_at() (MGRDASH speed fix, docs/design/evidence/dash3/speed_fix.md)."""
+    ids = list(dict.fromkeys(i for i in ticket_ids if i))
+    out: dict[str, list[dict[str, Any]]] = {}
+    for k in range(0, len(ids), BATCH_IDS):
+        chunk = ids[k:k + BATCH_IDS]
+        for r in conn.execute(
+                "SELECT rowid AS _rowid, ticket_id, id, assignee_kind, user_id, contact_id, assignee_name, assigned_at, ended_at "
+                f"FROM ticket_assignments WHERE ticket_id IN ({', '.join('?' * len(chunk))})", tuple(chunk)).fetchall():
+            out.setdefault(r["ticket_id"], []).append(dict(r))
+    return out
+
+
+class NotComparable(Exception):
+    """A value pick_assignment() cannot order exactly like SQLite (not text): the caller asks assignment_at() instead."""
+
+
+def pick_assignment(rows: list[dict[str, Any]], at: Any) -> dict[str, Any] | None:
+    """assignment_at() over rows read by assignments_of(), in Python: the latest assignment (assigned_at, then rowid) assigned at or before
+    `at` that had not ended before it. Text compares like SQLite's BINARY collation (code point order = UTF-8 byte order); anything that
+    is not text raises NotComparable rather than guess SQLite's cross-type order."""
+    if not isinstance(at, str):
+        raise NotComparable()
+    best: dict[str, Any] | None = None
+    for r in rows:
+        a, e = r["assigned_at"], r["ended_at"]
+        if not isinstance(a, str) or (e is not None and not isinstance(e, str)):
+            raise NotComparable()
+        if a > at or (e is not None and e < at):
+            continue
+        if best is None or (a, r["_rowid"]) > (best["assigned_at"], best["_rowid"]):
+            best = r
+    return {k: best[k] for k in ASSIGNMENT_COLUMNS} if best is not None else None
+
+
 def last_done_before(conn: sqlite3.Connection, ticket_id: str, event_id: int) -> str | None:
     """The time of the ticket's latest move to `done` before that timeline row (the work a manager sent back or reopened), else None."""
     row = conn.execute("SELECT at FROM ticket_events WHERE ticket_id = ? AND to_status = 'done' AND id < ? ORDER BY id DESC LIMIT 1",
