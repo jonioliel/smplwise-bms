@@ -146,23 +146,34 @@ def test_the_summary_answers_within_150_ms_on_20000_requests(settings, monkeypat
 
 
 def test_batched_visibility_against_the_per_ticket_path(settings, monkeypatch):
-    """The speed fix (docs/design/evidence/dash3/speed_fix.md): the same seed answered by the batched visibility read and by the
-    per-ticket path it replaced (_Managed.prefetch switched off, so every ticket goes through access.visible_by_id one by one), the two
-    interleaved call by call so a busy workstation slows both alike. The answers must be identical; the medians are printed."""
+    """The speed fix (docs/design/evidence/dash3/speed_fix.md): the same seed answered by the fixed path and by the path it replaced
+    (every change switched off: visibility and assignments one ticket at a time, rows built by dict(row), the whole timeline read), the
+    two interleaved call by call so a busy workstation slows both alike. The answers must be identical; the medians are printed."""
     s4 = build_s4(settings, monkeypatch)
     bind(s4.c, settings, "mona", "tickets_external", "installation", "*")
     _seed(s4)
-    batched = dashboard._Managed.prefetch
+    from smplwise.services.tickets import store, store_dash
 
-    def per_ticket(self, ticket_ids):  # the path before the fix: get() decides each ticket with its own read
+    def per_ticket(self, ticket_ids):  # the path before the fix: one read per ticket (get() / at() fall back to the single reads)
         return None
+
+    full_moves = store_dash.status_moves
+    fixed = {"vis": dashboard._Managed.prefetch, "asg": dashboard._Assignments.prefetch, "dicts": store._dicts, "moves": full_moves}
+    before = {"vis": per_ticket, "asg": per_ticket, "dicts": lambda cur: [dict(r) for r in cur.fetchall()],
+              "moves": lambda conn, st, since, until, **_kw: full_moves(conn, st, since, until)}
+
+    def use(impl):
+        monkeypatch.setattr(dashboard._Managed, "prefetch", impl["vis"])
+        monkeypatch.setattr(dashboard._Assignments, "prefetch", impl["asg"])
+        monkeypatch.setattr(store, "_dicts", impl["dicts"])
+        monkeypatch.setattr(store_dash, "status_moves", impl["moves"])
 
     for user, label in (("mona", "department manager"), ("joni", "all-departments manager")):
         for period in ("today", "7d", "30d"):
             t_old, t_new, bodies = [], [], {}
             for _ in range(RUNS):
-                for name, impl, times in (("old", per_ticket, t_old), ("new", batched, t_new)):
-                    monkeypatch.setattr(dashboard._Managed, "prefetch", impl)
+                for name, impl, times in (("old", before, t_old), ("new", fixed, t_new)):
+                    use(impl)
                     dashboard.CACHE.clear()
                     t = time.perf_counter()
                     r = s4.c.get(f"{API}/tickets/dashboard", params={"period": period}, headers=s4.h(user))

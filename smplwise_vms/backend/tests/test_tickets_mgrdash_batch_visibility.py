@@ -148,10 +148,26 @@ def _per_ticket(self, ticket_ids) -> None:
     """The path before the fix: no batch, every ticket through access.visible_by_id one by one (_Managed.get's fallback)."""
 
 
+_STATUS_MOVES = store_dash.status_moves
+
+
+def _full_status_moves(conn, to_statuses, since, until, **_filters):
+    """The timeline read before the fix: every row moving to those statuses, the caller filters in Python."""
+    return _STATUS_MOVES(conn, to_statuses, since, until)
+
+
+def _row_dicts(cur):
+    """The row build before the fix."""
+    return [dict(r) for r in cur.fetchall()]
+
+
 def _old_path(mp) -> None:
-    """Every batch of the speed fix switched off: visibility and assignments one ticket at a time, as before."""
+    """Every change of the speed fix switched off: visibility and assignments one ticket at a time, rows built by dict(row), the
+    timeline read whole and filtered in Python - as before."""
     mp.setattr(dashboard._Managed, "prefetch", _per_ticket)
     mp.setattr(dashboard._Assignments, "prefetch", _per_ticket)
+    mp.setattr(store, "_dicts", _row_dicts)
+    mp.setattr(store_dash, "status_moves", _full_status_moves)
 
 
 def _summary(s4, user: str, department_id: str | None, period: str, batched: bool, now: dt.datetime | None = None) -> dict:
@@ -246,3 +262,46 @@ def test_an_assignment_nobody_prefetched_is_read_the_old_way(world):
         asgs.prefetch([ids["c"]])
         assert asgs.at(ids["c"], at) == store_dash.assignment_at(conn, ids["c"], at) is not None
         assert asgs.at(ids["c"], None) == store_dash.assignment_at(conn, ids["c"], None)  # not text: asked of the SQL
+
+
+def test_the_one_pass_row_build_is_dict_of_row(world):
+    """store._dicts == [dict(row) ...] (values, keys, key order) for the list read the board scan uses and for the batched read."""
+    s4, _ids = world
+    with s4.db.connection(mode="read") as conn:
+        for sql in (store._TICKET_SELECT + " ORDER BY t.id", "SELECT 1 AS x, 2 AS X"):  # the second: a repeated name, case-insensitively
+            new, old = store._dicts(conn.execute(sql)), _row_dicts(conn.execute(sql))
+            assert new == old and [list(r) for r in new] == [list(r) for r in old]
+        assert store._dicts(conn.execute("SELECT 1 AS x, 2 AS X")) == [{"x": 1, "X": 1}], "dict(row)'s first match for both names"
+
+
+def test_every_list_and_scan_is_the_same_both_ways(world):
+    s4, _ids = world
+    for user in USERS:
+        got = []
+        for batched in (False, True):
+            with pytest.MonkeyPatch.context() as mp:
+                if not batched:
+                    _old_path(mp)
+                with s4.db.connection(mode="read") as conn:
+                    v = _viewer(conn, user)
+                    page, cursor = access.visible_page(v, scope="visible", limit=5)
+                    scan = dashboard.board.scan(v, scope="visible", statuses=dashboard.board.model_open(), department_id=None, query="")
+                    got.append(([(s.row, s.full, s.reasons, s.manager) for s in page], cursor,
+                                [(s.row, s.full, s.reasons, s.manager) for s in scan.rows], scan.truncated))
+        assert got[0] == got[1], user
+
+
+def test_the_filtered_timeline_reads_are_the_filtered_full_reads(world):
+    s4, _ids = world
+    with s4.db.connection(mode="read") as conn:
+        full = lambda st: _STATUS_MOVES(conn, st, "0000", "9999")  # noqa: E731
+        cases = [(("closed",), {"kinds": sorted(dashboard.CLOSED_KINDS)}, lambda e: e["kind"] in dashboard.CLOSED_KINDS),
+                 (dashboard.RETURN_TO, {"from_statuses": dashboard.RETURN_FROM}, lambda e: e["from_status"] in dashboard.RETURN_FROM),
+                 (("new",), {"kinds": ("created",)}, lambda e: e["kind"] == "created"),
+                 (("done", "closed"), {"kinds": ("status",), "from_statuses": ("in_progress", "done")},
+                  lambda e: e["kind"] == "status" and e["from_status"] in ("in_progress", "done"))]
+        for st, kw, keep in cases:
+            want = [e for e in full(st) if keep(e)]
+            assert store_dash.status_moves(conn, st, "0000", "9999", **kw) == want, (st, kw)
+        assert any(store_dash.status_moves(conn, dashboard.RETURN_TO, "0000", "9999", from_statuses=dashboard.RETURN_FROM))
+        assert store_dash.status_moves(conn, ("new",), "0000", "9999", kinds=()) == []
