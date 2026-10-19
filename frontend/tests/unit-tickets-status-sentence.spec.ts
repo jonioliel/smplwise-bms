@@ -184,7 +184,7 @@ test('the role: handler (return / own ETA), manager, approver (finance), request
 test('the warning line: exactly one item, ranked; managers and approvers only; never on a final ticket', () => {
   const base = tk({ status: 'in_progress', assignee: vendor });
   for (const [reason, text] of [['send_failed', 'ההודעה לא נשלחה · שלחו שוב'], ['link_expired', 'הקישור פג · שלחו קישור חדש'], ['code_locked', 'נעילת קוד · שלחו קישור חדש'],
-    ['contact_changed', 'פרטי איש הקשר השתנו · שלחו קישור חדש'], ['user_inactive', 'העובד אינו זמין · יש לשייך מחדש'], ['late_reply', 'תשובה מהמטפל הגיעה באיחור · לבדיקה'], ['reply', 'תשובה מהמטפל ממתינה לבדיקה']] as const) {
+    ['contact_changed', 'פרטי איש הקשר השתנו · שלחו קישור חדש'], ['user_inactive', 'העובד אינו זמין · יש לשייך מחדש'], ['late_reply', 'תשובה מהמטפל הגיעה באיחור · לבדיקה'], ['reply', 'תשובה מהמטפל ממתינה לבדיקה'], ['question', 'המטפל שואל אותך שאלה · השיבו בשיחה']] as const) {
     expect(warningFor(tk({ ...base, waiting_reason: reason }))?.text, reason).toBe(text);
   }
   expect(warningFor(base)).toBeNull();

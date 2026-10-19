@@ -154,7 +154,7 @@ export function stuckChip(item: Pick<BoardItem, 'stuck'>, now: Date): string {
 }
 
 const WAITING_KEYS: Record<string, BoardTextKey> = {
-  unassigned: 'w_unassigned', returned: 'w_returned', not_mine: 'w_not_mine', done: 'w_done', reply: 'w_reply', late_reply: 'w_late_reply',
+  unassigned: 'w_unassigned', returned: 'w_returned', not_mine: 'w_not_mine', done: 'w_done', question: 'w_question', reply: 'w_reply', late_reply: 'w_late_reply',
   send_failed: 'w_send_failed', link_expired: 'w_link_expired', contact_changed: 'w_contact_changed', code_locked: 'w_code_locked',
   user_inactive: 'w_user_inactive',
 };

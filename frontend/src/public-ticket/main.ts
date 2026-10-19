@@ -347,7 +347,7 @@ class Page {
 
   private run(step: Step) {
     if (step.kind === 'status') return api.status(this.creds, step.status, step.note, step.crid);
-    if (step.kind === 'note') return api.note(this.creds, step.text, step.crid);
+    if (step.kind === 'note') return api.note(this.creds, step.text, step.crid, step.ask === true);
     return api.eta(this.creds, step.eta, step.crid);
   }
 
@@ -795,7 +795,10 @@ class Page {
       'aria-label': this.t('note'), dir: 'auto', 'data-note': true },
     on: { input: (e) => { this.draft = { ...this.draft, note: (e.target as HTMLTextAreaElement).value }; this.saveDraft(); this.syncChrome(); } } });
     ta.value = this.draft.note;
-    return h('section', { class: 'card num' }, h('h2', null, this.t('cardDone')), ta);
+    const ask = !!this.draft.ask;
+    const toggle = h('button', { class: `pill ${ask ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(ask), 'data-ask-manager': true, title: this.t('askHint') },
+      on: { click: () => { this.draft = { ...this.draft, ask: !ask }; this.saveDraft(); this.render(); } } }, this.t('askManager'));
+    return h('section', { class: 'card num' }, h('h2', null, this.t('cardDone')), ta, h('div', { class: 'pills' }, toggle));
   }
 
   private photosCard(v: TicketView): HTMLElement | null {
@@ -863,7 +866,7 @@ class Page {
       else if (it.kind === 'eta') line = this.t('t_eta', { when: it.eta_at ? this.when(it.eta_at) : '—' });
       else if (it.kind === 'photo') line = this.t('t_photo');
       else if (it.kind === 'returned') line = this.t('t_returned');
-      else line = this.t('t_note');
+      else line = this.t(it.question ? 't_question' : 't_note');
       list.appendChild(h('li', { class: it.mine ? 'mine' : 'theirs' },
         h('div', { class: 'meta' }, h('span', { class: 'who' }, who), h('span', { class: 'when' }, this.when(it.at))),
         h('div', { class: 'what' }, line),

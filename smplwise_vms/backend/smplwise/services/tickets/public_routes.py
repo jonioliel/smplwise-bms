@@ -47,6 +47,7 @@ class StatusIn(_Strict):
 
 class NoteIn(_Strict):
     text: clean_str(handler_actions.NOTE_MAX, multiline=True)  # type: ignore[valid-type]
+    ask: bool = False  # CR-038 18A: the note is a question to the manager
     client_request_id: str = Field(max_length=64)
 
 
@@ -218,7 +219,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
     async def note(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:
         body: NoteIn = await read_json(request, NoteIn)
         crid = parse_client_request_id(body.client_request_id)
-        return await write(request, ctx, "/t/api/note", crid, handler_actions.add_note, text=body.text)
+        return await write(request, ctx, "/t/api/note", crid, handler_actions.add_note, text=body.text, ask=body.ask)
 
     @r.post("/t/api/eta")
     async def eta(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:

@@ -234,7 +234,7 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
     case 'returned':
       return { icon: 'refresh', text: tt(d.kind === 'not_mine' ? 'e_returned_not_mine' : 'e_returned_cannot_handle') };
     case 'note':
-      return { icon: 'note', text: d.absorbed ? tt('e_absorbed') : tt('e_note') };
+      return { icon: 'note', text: d.absorbed ? tt('e_absorbed') : d.question ? tt('e_question') : tt('e_note') };
     case 'eta':
       return { icon: 'clock', text: d.eta_at ? tt('e_eta', { when: shortDateTime(String(d.eta_at)) }) : tt('e_etaCleared') };
     case 'photo':

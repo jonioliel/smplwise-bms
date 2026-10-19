@@ -383,3 +383,26 @@ test('TKPOLISH: the quote form sends the optional work window and validity, vali
   const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
   for (const k of ['q_work_from', 'q_work_to']) expect(texts.match(new RegExp(`${k}:`, 'g'))?.length, k).toBe(4);
 });
+
+// ---------------------------------------------------------------- "ask the manager" (CR-038 18A)
+
+test('a question to the manager is its own call and never rides on the status', () => {
+  let n = 0;
+  const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
+  const asked = planSend({ status: 'in_progress', note: 'איזה מזגן?', ask: true, eta: undefined, crids: {} }, view(), id);
+  expect(asked.steps.map((s) => s.kind)).toEqual(['status', 'note']);
+  expect(asked.steps[0]).toMatchObject({ kind: 'status', note: null });
+  expect(asked.steps[1]).toMatchObject({ kind: 'note', text: 'איזה מזגן?', ask: true });
+  const only = planSend({ status: null, note: 'איזה מזגן?', ask: true, eta: undefined, crids: {} }, view(), id);
+  expect(only.steps).toHaveLength(1);
+  expect(only.steps[0]).toMatchObject({ kind: 'note', ask: true });
+  // a plain note (no ask) is unchanged: it carries no ask flag
+  const plain = planSend({ status: null, note: 'בדרך', eta: undefined, crids: {} }, view(), id).steps[0];
+  expect(plain.kind === 'note' && plain.ask).toBeFalsy();
+  // the question is done once the note step is confirmed: the toggle resets
+  const done = afterStep(only.draft, only.steps[0]);
+  expect(done.note).toBe('');
+  expect(done.ask).toBeFalsy();
+  expect(parseDraft(JSON.stringify({ note: 'x', ask: true })).ask).toBe(true);
+  expect(parseDraft(JSON.stringify({ note: 'x', ask: 'yes' })).ask).toBeUndefined();
+});

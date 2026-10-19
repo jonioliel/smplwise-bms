@@ -407,7 +407,13 @@ def add_note(conn, viewer: Viewer, seen: Seen, body: str | None, external: bool,
     asg = _active_assignment(row)
     eid = store.insert_event(conn, row["id"], "note", actor_kind="user", actor_user_id=viewer.uid, actor_name=actor_name(viewer),
                              assignment_id=asg if seen.assignee else None, body=note_text, visible_external=vis, at=now)
-    store.update_ticket(conn, row["id"], {"last_activity_at": now}, bump=False)  # a note is progress, not an edit of the ticket
+    fields: dict[str, Any] = {"last_activity_at": now}
+    answered = bool(seen.manager and vis and row.get("waiting_on") == "manager" and row.get("waiting_reason") == "question")
+    if answered:  # CR-038 18A: a manager's note to the handler answers the open question - the ball goes back to the handler
+        fields["waiting_on"], fields["waiting_reason"] = ("assignee", None) if row["status"] in model.HANDLING else model.waiting_for(row["status"])
+    store.update_ticket(conn, row["id"], fields, bump=False)  # a note is progress, not an edit of the ticket
+    if answered:
+        notify_bridge.ticket_answered(conn, row["id"])
     if seen.assignee and asg:
         store.update_assignment(conn, asg, {"last_update_at": now})
     sla.refresh(conn, row["id"])

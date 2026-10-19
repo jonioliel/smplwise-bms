@@ -127,6 +127,8 @@ export function codeMessage(e: ApiFailure): { key: string; n?: number } {
 export interface Draft {
   status: string | null;
   note: string;
+  /** CR-038 18A: the note is a question for the manager (sent as its own call, never with the status) */
+  ask?: boolean;
   /** undefined = untouched; null = clear the ETA; a UTC ISO instant */
   eta: string | null | undefined;
   /** one request id per part, created once and kept until the server confirmed that part */
@@ -137,7 +139,7 @@ export const EMPTY_DRAFT: Draft = { status: null, note: '', eta: undefined, crid
 
 export type Step =
   | { kind: 'status'; status: string; note: string | null; crid: string }
-  | { kind: 'note'; text: string; crid: string }
+  | { kind: 'note'; text: string; crid: string; ask?: boolean }
   | { kind: 'eta'; eta: string | null; crid: string };
 
 /** The calls one press of "send" makes, in order: the status (it carries the note when there is one), else the note alone,
@@ -146,12 +148,14 @@ export function planSend(draft: Draft, view: Pick<TicketView, 'status' | 'eta_at
   const crids = { ...draft.crids };
   const steps: Step[] = [];
   const note = draft.note.trim();
-  if (draft.status && draft.status !== view.status) {
+  const moves = !!draft.status && draft.status !== view.status;
+  if (moves && draft.status) {
     crids.status = crids.status ?? newId();
-    steps.push({ kind: 'status', status: draft.status, note: note || null, crid: crids.status });
-  } else if (note) {
+    steps.push({ kind: 'status', status: draft.status, note: draft.ask ? null : note || null, crid: crids.status });
+  }
+  if (note && (draft.ask || !moves)) {
     crids.note = crids.note ?? newId();
-    steps.push({ kind: 'note', text: note, crid: crids.note });
+    steps.push(draft.ask ? { kind: 'note', text: note, crid: crids.note, ask: true } : { kind: 'note', text: note, crid: crids.note });
   }
   if (draft.eta !== undefined && draft.eta !== (view.eta_at ?? null)) {
     crids.eta = crids.eta ?? newId();
@@ -169,7 +173,7 @@ export function afterStep(draft: Draft, step: Step): Draft {
   }
   if (step.kind === 'note') {
     delete crids.note;
-    return { ...draft, note: '', crids };
+    return { ...draft, note: '', ask: undefined, crids };
   }
   delete crids.eta;
   return { ...draft, eta: undefined, crids };
@@ -185,6 +189,7 @@ export function parseDraft(raw: string | null): Draft {
     return {
       status: typeof v.status === 'string' ? v.status : null,
       note: typeof v.note === 'string' ? v.note.slice(0, 4000) : '',
+      ...(v.ask === true ? { ask: true } : {}),
       eta: v.eta === null || typeof v.eta === 'string' ? v.eta : undefined,
       crids: { status: crid(c.status), note: crid(c.note), eta: crid(c.eta) },
     };
