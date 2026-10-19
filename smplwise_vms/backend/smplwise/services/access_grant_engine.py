@@ -199,6 +199,61 @@ def _redacted(raw: Any) -> tuple[bool, bool]:
     return bool(names & _ACCESS_FIELDS), bool(names & _CREDENTIAL_FIELDS)
 
 
+@dataclass(frozen=True)
+class AccessShape:
+    """R8-A1 / R6-A4 (ARX-N03): the ONE strict completeness verdict over a WisKey person record's access fields, shared by the grant
+    engine (`person_from_raw`) and every authorization projection (`intercom_sync.person_scope` -> `project_person`,
+    `intercom_adapter.project_person`, `intercom_authority.person_station_ids`). Shape only: redaction markers are judged by
+    `person_scope`, not here.
+
+    `missing`: the access containers that are absent / null (`assignments`, `permission_overrides`, `group_ids`) - unreadable, the map
+    is UNKNOWN but nothing is malformed. `malformed`: the fields present in a shape WisKey does not send - a container of the wrong
+    type, an assignment row with a non-string / blank key, a non-object row, a non-boolean `enabled` (disabled rows too), a lock list
+    that is not a list of supported relays (`RELAYS`), a present bookkeeping revision that is not a positive int, a blank or
+    non-string group id, a blank override key or a value other than allow / deny, and a missing / non-boolean `active`.
+    `complete` = nothing missing and nothing malformed. A malformed record is never an empty complete map: no consumer may filter the
+    bad rows out and present the rest as the full set."""
+
+    complete: bool
+    missing: tuple[str, ...]
+    malformed: tuple[str, ...]
+
+
+def _row_ok(sid: Any, row: Any) -> bool:
+    if not isinstance(sid, str) or not sid.strip() or not isinstance(row, dict) or not isinstance(row.get("enabled"), bool):
+        return False
+    locks = row.get("allowed_locks")
+    if not isinstance(locks, list) or not all(_strict_int(r) and r in RELAYS for r in locks):
+        return False
+    return all(v is None or _positive_int(v) for v in (row.get("desired_revision"), row.get("applied_revision")))
+
+
+def access_shape(raw: Any) -> AccessShape:
+    """The strict verdict (see `AccessShape`). A non-object record is all-missing and malformed (`record`)."""
+    if not isinstance(raw, dict):
+        return AccessShape(False, ("assignments", "permission_overrides", "group_ids"), ("record",))
+    missing: list[str] = []
+    malformed: list[str] = []
+    assignments = raw.get("assignments")
+    if assignments is None:
+        missing.append("assignments")
+    elif not isinstance(assignments, dict) or not all(_row_ok(sid, row) for sid, row in assignments.items()):
+        malformed.append("assignments")
+    overrides = raw.get("permission_overrides")
+    if overrides is None:
+        missing.append("permission_overrides")
+    elif not isinstance(overrides, dict) or not all(isinstance(k, str) and k.strip() and v in ("allow", "deny") for k, v in overrides.items()):
+        malformed.append("permission_overrides")
+    groups = raw.get("group_ids")
+    if groups is None:
+        missing.append("group_ids")
+    elif not isinstance(groups, list) or not all(isinstance(g, str) and g.strip() for g in groups):
+        malformed.append("group_ids")
+    if not isinstance(raw.get("active"), bool):
+        malformed.append("active")
+    return AccessShape(not missing and not malformed, tuple(missing), tuple(malformed))
+
+
 def person_from_raw(raw: Any) -> EnginePerson:
     """A WisKey person record (users/get or a save's answer: `ManagedUser.public`, WisKey-stated) -> EnginePerson. Raises ValueError
     on anything that is not a person record (after a write that is "outcome unknown").
@@ -216,9 +271,13 @@ def person_from_raw(raw: Any) -> EnginePerson:
     R6-A4 / ACR6-03 (the remaining malformed shapes, all -> door map UNKNOWN, never dropped): the record revision must be a positive int
     (else not a person); `active` must be an explicit boolean; EVERY assignment row - disabled ones too - needs an explicit boolean
     `enabled`, a lock list of supported relays (`RELAYS`) and, when present (null = not applied yet), positive int bookkeeping revisions;
-    group ids and override keys must be non-blank strings."""
+    group ids and override keys must be non-blank strings.
+
+    R8-A1 (ARX-N03): "malformed" is the shared `access_shape` verdict - the same one the authorization projections use - so the engine
+    and the people / scope views can never disagree about whether a record's access fields are complete."""
     if (not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or not _positive_int(raw.get("revision"))):
         raise ValueError("unexpected person record")
+    shape = access_shape(raw)
     access_redacted, credential_redacted = _redacted(raw.get("redacted_fields"))
     # WisKey round 3 (R3-03): WisKey names the withheld CATEGORIES (`access`, `credentials`), and a record projected for a restricted
     # caller (`redacted_fields` or `operator_editable` present, even with nothing listed) may hold only the stations that caller sees -
@@ -233,25 +292,18 @@ def person_from_raw(raw: Any) -> EnginePerson:
     groups = raw.get("group_ids")
     doors: dict[str, list[int]] = {}
     stations: set[str] = set()
-    malformed = False
+    # R5-A7 / R6-A4 / R8-A1: EVERY row is validated by `access_shape`, a disabled one too - `enabled` must be an explicit boolean (a
+    # missing key is not "disabled"), the lock list a list of supported relays, a present bookkeeping revision a positive int (null = not
+    # applied yet). Never skipped: a malformed row makes the whole map unknown (the loop below only builds the map of a valid record).
+    malformed = bool(shape.malformed)
     enabled_rows = 0
     synced: bool | None = True
     if isinstance(assignments, dict):
         for sid, row in assignments.items():
-            # R5-A7 / R6-A4: EVERY row is validated, a disabled one too - `enabled` must be an explicit boolean (a missing key is not
-            # "disabled"), the lock list a list of supported relays, a present bookkeeping revision a positive int. Never skipped: a
-            # malformed row makes the whole map unknown.
-            if not isinstance(sid, str) or not sid.strip() or not isinstance(row, dict) or not isinstance(row.get("enabled"), bool):
-                malformed = True
+            if not _row_ok(sid, row):
                 continue
-            locks = row.get("allowed_locks")
-            if not isinstance(locks, list) or not all(_strict_int(r) and r in RELAYS for r in locks):
-                malformed = True
-                continue
+            locks = row["allowed_locks"]
             desired, applied = row.get("desired_revision"), row.get("applied_revision")
-            if any(v is not None and not _positive_int(v) for v in (desired, applied)):
-                malformed = True  # R6-A4: a bool / 0 / negative / non-int revision is malformed (null = not applied yet)
-                continue
             stations.add(sid)
             if row["enabled"] is True:
                 enabled_rows += 1
@@ -265,16 +317,14 @@ def person_from_raw(raw: Any) -> EnginePerson:
     overrides: dict[str, str] = {}
     if isinstance(overrides_raw, dict):
         overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and k.strip() and v in ("allow", "deny")}
-        malformed = malformed or len(overrides) != len(overrides_raw)
         stations |= set(overrides)
-    if isinstance(groups, list) and not all(isinstance(g, str) and g.strip() for g in groups):
-        malformed = True  # R6-A4: a blank group id is not an identifier
+    # R6-A4: a blank group id / override key and a missing / non-boolean `active` are in `shape.malformed` (an unreadable `active` is
+    # unknown, never "inactive" - it could otherwise read as revoked)
     active = raw.get("active")
     if not isinstance(active, bool):
-        malformed = True  # R6-A4: a missing / non-boolean `active` is unknown, never "inactive" (it could otherwise read as revoked)
         active = False
     overrides_known = isinstance(overrides_raw, dict) and not access_redacted and not malformed
-    doors_known = isinstance(assignments, dict) and overrides_known and isinstance(groups, list) and not access_redacted and not malformed
+    doors_known = shape.complete and not access_redacted
     if not doors_known:
         doors = {}
         synced = None
@@ -309,8 +359,9 @@ RELAYS = frozenset({1, 2})  # R6-A4: the lock relays Arx knows (the same domain 
 def _policy_of(raw: Any) -> dict[str, Any] | None:
     """R5-A2: the timing policy as WisKey returned it - mode, schedule and bindings, each only when it was present (an absent key stays
     absent, so it can never compare equal to the requested `{mode: "ha", ..., bindings: {}}`). A non-object policy is kept as a marker
-    that compares unequal to everything Arx requests. No normalisation: WisKey's normaliser is not an accepted contract (ACR5-02), so
-    Arx compares exactly and a reordered equivalent schedule fails closed (never widened, never an invented equivalence)."""
+    that compares unequal to everything Arx requests. No normalisation: WisKey's `normalize_user` (ACR5-02) is a frozen v1 read contract
+    the owner accepted for integration review, but Arx has NOT built or wired a client for it (R8 stale-comment fix, ARX-N05) - so Arx
+    compares exactly and a reordered equivalent schedule fails closed (never widened, never an invented equivalence)."""
     if raw is None:
         return None
     if not isinstance(raw, dict):

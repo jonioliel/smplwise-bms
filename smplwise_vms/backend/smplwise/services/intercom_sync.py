@@ -267,6 +267,13 @@ def _int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _revision(value: Any) -> int | None:
+    """R8-A1: a record revision as the engine reads it - a strict int >= 1, else None (0 / negative is not a revision WisKey issues, so
+    a write gated on it can never match)."""
+    v = _int(value)
+    return v if v is not None and v >= 1 else None
+
+
 def _station(raw: dict[str, Any]) -> dict[str, Any]:
     """One station as the entry center shows it: identity, health and the operational state the door / call / camera
     flows need (call, sync, relays, camera entity). Built field by field. B0 (D-006): never `last_access` (person name,
@@ -364,15 +371,27 @@ def person_scope(raw: Any) -> dict[str, Any]:
     `operator_editable` (WisKey's flag, None when absent), `access_known` (the access fields are readable and well formed),
     `stations_known` (the assignments are the COMPLETE set: readable and not projected for a restricted caller, whose view may
     be filtered by station), `credentials_known` (`pin_configured` is a readable boolean). A `redacted_fields` that is present
-    but not a list of strings blocks everything."""
+    but not a list of strings blocks everything.
+
+    R8-A1 / R6-A4 (ARX-N03): `access_known` also needs the SAME strict shape verdict the grant engine uses
+    (`access_grant_engine.access_shape`): a malformed assignment row (non-boolean `enabled`, an unsupported relay, a bad bookkeeping
+    revision, a non-object row, a blank key), a malformed override / group entry or container, or a missing / non-boolean `active`
+    makes `access_known` / `stations_known` False - the projectors below may still show the well-formed rows, but never as the
+    complete set (every authorization consumer then treats the station set as unknown). `access_malformed` names the fields.
+    Absent `permission_overrides` / `group_ids` alone do not block the people views (they never read them as the station set); the
+    engine's `doors_known` additionally requires them (`AccessShape.complete`)."""
+    from .access_grant_engine import access_shape
+
     raw = raw if isinstance(raw, dict) else {}
     marker = raw.get("redacted_fields")
     restricted = "redacted_fields" in raw or "operator_editable" in raw
     parsable = marker is None or (isinstance(marker, list) and all(isinstance(f, str) for f in marker))
     names = set(marker) if parsable and isinstance(marker, list) else set()
     access_readable = parsable and not (names & ACCESS_REDACTION)
-    access_known = access_readable and isinstance(raw.get("assignments"), dict)
+    malformed = access_shape(raw).malformed
+    access_known = access_readable and isinstance(raw.get("assignments"), dict) and not malformed
     return {
+        "access_malformed": list(malformed),
         "restricted": restricted,
         "redacted_fields": sorted(names) if parsable else None,
         "operator_editable": raw.get("operator_editable") if isinstance(raw.get("operator_editable"), bool) else None,
@@ -405,7 +424,7 @@ def project_person(raw: dict[str, Any]) -> dict[str, Any]:
         "active": bool(raw.get("active")),
         "valid_from": _str(raw.get("valid_from")) if scope["access_readable"] else None,
         "valid_until": _str(raw.get("valid_until")) if scope["access_readable"] else None,
-        "revision": _int(raw.get("revision")),
+        "revision": _revision(raw.get("revision")),
         "access_category": category if scope["access_readable"] and category in ACCESS_CATEGORIES else None,
         "access_known": scope["access_known"],
         "stations_known": scope["stations_known"],

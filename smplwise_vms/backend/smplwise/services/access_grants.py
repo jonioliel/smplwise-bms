@@ -1288,6 +1288,11 @@ def _attach_recovered_person(db: Database, grant_id: str, op_id: str, wiskey_per
     workflow must exist before anything calls it. The WisKey person that ONE lost users/create (`op_id`) of THIS grant produced has been
     identified from separately obtained evidence; the helper records that claim, it does not establish it.
 
+    R8-A2 (ARX-N04): the helper itself now also refuses an actor whose Arx user row is missing or inactive (`actor_inactive`) and audits
+    the exact original create beside the proof decision. Still the FUTURE CALLER's duty before any route exists: an authenticated,
+    interactive, ACTIVE session of that administrator; VALIDATION of the evidence contents for this one operation (a well-formed
+    reference is not proof); an audited refusal path. No caller exists (tests/test_wiskey_final3_281.py pins that per exact path).
+
     Required: `actor` an authenticated Arx system administrator (`is_system_admin`; never a system / contact actor), `evidence_ref` a
     per-operation reference to the audited evidence (ticket, signed export, readback capture id - 8..128 safe characters), `op_id` the
     create record being reconciled. Refused: the grant's create is not unresolved, the subject already has a link, the person is
@@ -1307,6 +1312,12 @@ def _attach_recovered_person(db: Database, grant_id: str, op_id: str, wiskey_per
     with db.connection(label="access_grants.recover_create") as conn:
         if not is_system_admin(conn, actor.user_id):
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשייך אדם ששוחזר.")
+        # R6-A5 / R8-A2 (ARX-N04): `is_system_admin` leaves the user's active flag to its caller - checked HERE too, so no future caller
+        # can forget it: a disabled (or unknown) Arx user is refused even with a live system_admin binding. This does not authenticate a
+        # session (the future route's job) and does not validate the evidence contents (still the caller's duty, see the docstring).
+        user = conn.execute("SELECT active FROM users WHERE id = ?", (actor.user_id,)).fetchone()
+        if user is None or not user["active"]:
+            raise ApiError(403, "actor_inactive", "רק מנהל מערכת פעיל יכול לשייך אדם ששוחזר.")
         g = grant_row(conn, grant_id)
         if g is None:
             raise _not_found()
@@ -1327,8 +1338,14 @@ def _attach_recovered_person(db: Database, grant_id: str, op_id: str, wiskey_per
         if n != 1:
             raise _conflict("access_create_not_unresolved", "רשומת היצירה אינה פתוחה.")
         link = Worker._link_recovered(conn, g, wiskey_person_id)
+        # R8-A2 (ARX-N04): the audit row carries the proof decision AND the exact original create it settles (ids, references and
+        # timestamps of that journal row as it was before the reconcile - never a person field)
+        original = open_ops[0]
         _audit(conn, actor, "access.grant.create_recovered", grant_id, request_id=request_id, wiskey_person_id=wiskey_person_id, link_id=link["id"],
-               op_id=op_id, evidence_ref=evidence_ref)
+               op_id=op_id, evidence_ref=evidence_ref, proof_decision="attached_on_recorded_evidence",
+               original_create={"state": original["state"], "code": original.get("code"), "purpose_ref": original.get("purpose_ref"),
+                                "subject_kind": original.get("subject_kind"), "subject_id": original.get("subject_id"),
+                                "boot_id": original.get("boot_id"), "started_ts": original.get("started_ts"), "finished_ts": original.get("finished_ts")})
     WORKER.wake()
     return link
 
@@ -1366,7 +1383,8 @@ _NO_POLICY = object()
 def _policy_is(readback: EnginePerson, timing: dict[str, Any] | None) -> bool:
     """R5-A2: the readback carries EXACTLY the timing policy a grant push writes - `{mode: "ha", schedule, bindings: {}}`, or no policy at
     all when the grant has no timing. A native-mode policy or bindings with the same schedule is not the requested policy. The schedule
-    is compared exactly (no Arx-side normalisation: WisKey's normaliser is not an accepted contract, ACR5-02), so an equivalent but
+    is compared exactly (no Arx-side normalisation: WisKey's `normalize_user` (ACR5-02) is accepted for integration review as a frozen
+    v1 read contract but is NOT built or called by Arx), so an equivalent but
     reordered schedule fails closed. A record without the policy field (`timing_policy` absent) proves nothing."""
     held = getattr(readback, "timing_policy", _NO_POLICY)
     return held is not _NO_POLICY and held == requested_policy(timing or None)
