@@ -14,7 +14,7 @@ import { boardApi, type BoardResponse, type StuckKind } from '../api/tickets-boa
 import { ticketsRfqApi, type RfqDetail, type RfqSummary } from '../api/tickets-rfq';
 import { ticketsS4Api } from '../api/tickets-s4';
 import { ticketCostsApi } from '../api/tickets-costs';
-import { dashboardApi, DASH_PERIODS, type DashboardResponse, type DashPeriod, type SecondApproval, type TicketApproval } from '../api/tickets-dashboard';
+import { dashboardApi, DASH_PERIODS, type DashboardResponse, type DashPeriod, type PayClaim, type PayInstalment, type PaymentsResponse, type SecondApproval, type TicketApproval } from '../api/tickets-dashboard';
 import { boardHref, fmtDur, waitingLabel } from '../tickets/board-model';
 import { rfqHref } from '../tickets/rfq-model';
 import { listHref, NO_FILTERS, relTime } from '../tickets/model';
@@ -28,7 +28,7 @@ import { asHandledDays, HANDLED_DEFAULT, installationHandledDays, readStoredPeri
 import { ot, type OverviewTextKey } from '../tickets/overview-text';
 import {
   agenda, APPROVALS_SHOWN, approvalsTotal, dailyTotals, dayKey, daysOfPeriod, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS,
-  overdueRows, OVERDUE_SHOWN, overviewSettingsOf, parseKpiStore, paymentDates, periodOfDays, rfqStageOf, rollKpis, shortDay, signed, sortDepartments, splitVendors,
+  overdueRows, OVERDUE_SHOWN, overviewSettingsOf, parseKpiStore, paymentDates, paymentOverdueRows, paymentsTotal, payWhen, periodOfDays, rfqStageOf, rollKpis, serverPaymentDates, shortDay, signed, sortDepartments, splitVendors,
   STUCK_REASONS, stuckPlaces, stuckReasonCounts,
   type AgendaEntry, type CardKey, type HandlerRow, type KpiKey, type Kpis, type OverviewSettings,
 } from '../tickets/overview-model';
@@ -102,6 +102,9 @@ export class TicketsOverview extends LitElement {
   /** the period of "כמה טופל" - the viewer's remembered handled period (shared with the handler cards), else the installation default */
   @state() private period: DashPeriod | null = null;
   @state() private expanded: Set<CardKey> = new Set();
+  /** phase 4: the payments board (GET /tickets/dashboard/payments) - only for a manager who may pay somewhere; null = not read / not shown */
+  @state() private payments: PaymentsResponse | null = null;
+  @state() private paymentsFailed = false;
   private seq = 0;
   private sumSeq = 0;
   private slowAt = 0;
@@ -263,6 +266,10 @@ export class TicketsOverview extends LitElement {
     .closedrows .cr .tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
     .closedrows .cr .tags .chip .ic { font-size: var(--sw-fs-xs); }
     .dcard.total { background: transparent; }
+    /* phase 4: an instalment row - the title takes the line, the due chip and the amount the line under it (the card is a third wide) */
+    .closedrows .cr[data-pay-row='instalment'] { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .closedrows .cr[data-pay-row='instalment'] .tags { grid-column: 2; grid-row: 2; justify-content: flex-start; align-items: center; gap: 8px; }
+    .closedrows .cr[data-pay-row='instalment'] .back { grid-column: 3; grid-row: 1 / span 2; }
     .vh { position: absolute !important; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     @media (max-width: 1180px) {
       .wgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -304,6 +311,7 @@ export class TicketsOverview extends LitElement {
       .closedrows .cr.ap .back, .closedrows .cr.rq .back { display: none; }
       .closedrows .cr.rq { grid-template-columns: auto minmax(0, 1fr); }
       .closedrows .cr.rq .tags { grid-column: 2; justify-content: flex-start; }
+      .closedrows .cr[data-pay-row] .back { display: none; }
       .w > header .pseg button { min-block-size: 36px; }
     }
     @media (pointer: coarse) {
@@ -466,6 +474,50 @@ export class TicketsOverview extends LitElement {
     } else {
       this.approval = null;
     }
+    void this.loadPayments();
+  }
+
+  /** Phase 4: who may pay (tickets.costs + view somewhere) reads the payments board with the ten-minute part; a refusal = not shown. */
+  private mayPay(): boolean {
+    return canAnywhere('tickets.costs.view') && canAnywhere('tickets.costs');
+  }
+
+  private async loadPayments(): Promise<void> {
+    if (!this.mayPay()) {
+      this.payments = null;
+      this.paymentsFailed = false;
+      return;
+    }
+    const dept = this.dept;
+    try {
+      const p = await dashboardApi().payments({ department_id: dept || undefined });
+      if (dept !== this.dept) return;
+      this.payments = p;
+      this.paymentsFailed = false;
+      if (this.data) this.rememberKpis();
+    } catch (e) {
+      if (dept !== this.dept) return;
+      if (e instanceof ApiError && e.status === 403) {
+        this.payments = null;
+        this.paymentsFailed = false;
+      } else if (!this.payments) {
+        this.paymentsFailed = true;
+      }
+    }
+  }
+
+  private retryPayments = () => {
+    this.paymentsFailed = false;
+    void this.loadPayments();
+  };
+
+  /** Card 9: the board's and the requests' rows, plus the instalments past their day (phase 4, when the payments board answered). */
+  private allOverdueRows() {
+    const d = this.data as BoardResponse;
+    const rows = overdueRows(d.items, this.rfqs ?? [], this.now);
+    if (!this.payments?.overdue.items.length) return rows;
+    return [...rows, ...paymentOverdueRows(this.payments.overdue.items, this.now)]
+      .sort((a, b) => Number(b.tone === 'bad') - Number(a.tone === 'bad') || b.late - a.late);
   }
 
   /** The period shown by "כמה טופל": the viewer's choice (remembered with the handler cards' period), else the installation default. */
@@ -512,7 +564,7 @@ export class TicketsOverview extends LitElement {
   private kpis(): Kpis {
     const d = this.data as BoardResponse;
     const approval = this.summary ? approvalsTotal(this.summary.approvals) : this.approval;
-    return { open: d.counts.all, stuck: d.counts.stuck, waiting: d.counts.waiting, overdue: overdueRows(d.items, this.rfqs ?? [], this.now).length, approval };
+    return { open: d.counts.all, stuck: d.counts.stuck, waiting: d.counts.waiting, overdue: this.allOverdueRows().length, approval };
   }
 
   /** The arrow against yesterday: the last numbers of each day, kept in this browser per view (all / one department). */
@@ -538,6 +590,8 @@ export class TicketsOverview extends LitElement {
     this.allOverdue = false;
     this.summary = null;
     this.summaryFailed = false;
+    this.payments = null;
+    this.paymentsFailed = false;
     this.expanded = new Set();
     void this.load(false);
   }
@@ -705,10 +759,10 @@ export class TicketsOverview extends LitElement {
   // card 9
   private overdueCard(): { body: TemplateResult; count: number } {
     const d = this.data as BoardResponse;
-    const rows = overdueRows(d.items, this.rfqs ?? [], this.now);
+    const rows = this.allOverdueRows();
     if (!rows.length) return { body: this.quiet(ot('odNone')), count: 0 };
     const shown = this.allOverdue ? rows : rows.slice(0, OVERDUE_SHOWN);
-    const what: Record<string, OverviewTextKey> = { sla: 'odSla', eta: 'odEta', rfq: 'odRfq' };
+    const what: Record<string, OverviewTextKey> = { sla: 'odSla', eta: 'odEta', rfq: 'odRfq', pay: 'odPay' };
     return {
       count: rows.length,
       body: html`<div class="body"><div class="closedrows" data-overdue>${shown.map((r) => html`<a class="cr" href=${r.rfq ? rfqHref({ id: r.id }) : this.href({}, r.id)} data-overdue-row=${r.kind}>
@@ -723,7 +777,7 @@ export class TicketsOverview extends LitElement {
   // card 10
   private agendaCard(): TemplateResult {
     const d = this.data as BoardResponse;
-    const pays = paymentDates([...this.details.values()]);
+    const pays = this.payments ? serverPaymentDates(this.payments.upcoming.items) : paymentDates([...this.details.values()]);
     const days = agenda(d.items, this.rfqs ?? [], this.details, pays, this.vendorIds, this.now);
     const label: Record<AgendaEntry['kind'], OverviewTextKey> = { visit_vendor: 'agVisitVendor', visit_staff: 'agVisitStaff', work_start: 'agWorkStart', rfq_due: 'agRfqDue', payment: 'agPayment' };
     const dot: Record<AgendaEntry['kind'], string> = { visit_vendor: 'acc', visit_staff: 'acc', work_start: 'ok', rfq_due: 'pur', payment: 'warn' };
@@ -842,6 +896,41 @@ export class TicketsOverview extends LitElement {
     </div>`;
   }
 
+  // phase 4: the payments board - instalments past their day, the next two weeks' instalments, approved demands not paid
+  private paymentsCard(): TemplateResult {
+    if (!this.payments) {
+      if (this.paymentsFailed) return html`<div class="body"><div class="unavail" data-unavailable>${ot('unavailable')}<button type="button" class="btn sm" data-retry-payments @click=${this.retryPayments}>${tIcon('refresh')}${ot('retry')}</button></div></div>`;
+      return this.skeleton(3, 44);
+    }
+    const p = this.payments;
+    if (!paymentsTotal(p)) return this.quiet(ot('pyNone'));
+    const all = this.expanded.has('payments');
+    const lang = ticketsLang();
+    const money = (minor: number | null, cur: string | null) => (minor !== null && cur ? html`<span class="amt n" data-amount>${formatMoney(minor, cur, lang)}</span>` : html`<span></span>`);
+    const instRow = (x: PayInstalment) => {
+      const w = payWhen(x.days);
+      const tone = x.days < 0 ? (x.days <= -2 ? 'bad' : 'warn') : x.days <= 1 ? 'warn' : 'info';
+      return html`<a class="cr ap" href=${rfqHref({ id: x.rfq.id })} data-pay-row="instalment" data-days=${x.days}>
+        <span class="num">${x.rfq.ref}</span><b>${bidi(x.rfq.title)}<small>${[x.vendor ? bidi(x.vendor) : '', ot(`pyKind_${x.instalment_kind}` as OverviewTextKey), ot(x.demand === 'open' ? 'pyDemandOpen' : 'pyDemandNone')].filter(Boolean).join(' · ')}</small></b>
+        <span class="tags"><span class=${`chip xs ${tone}`} data-when>${tIcon('clock')}${ot(w.key, { n: w.n })}</span>${money(x.amount_minor, x.currency)}</span>
+        <span class="back">${tIcon('back')}</span></a>`;
+    };
+    const claimRow = (x: PayClaim) => html`<a class="cr ap" href=${`${this.href({}, x.ticket.id)}&tab=costs`} data-pay-row="claim">
+      <span class="num">#${x.ticket.number}</span><b>${bidi(x.ticket.title)}<small>${[x.vendor ? bidi(x.vendor) : '', x.since ? ot('pyApproved', { age: fmtDur(this.now.getTime() - Date.parse(x.since)) }) : ''].filter(Boolean).join(' · ')}</small></b>
+      ${money(x.amount_minor, x.currency)}<span class="back">${tIcon('back')}</span></a>`;
+    const group = <T,>(key: string, title: string, g: { count: number; items: T[] }, row: (x: T) => TemplateResult) => (g.count ? html`<div class="sect" data-payments=${key}>
+      <h4>${title} <span class="n">· ${g.count}</span></h4>
+      <div class="closedrows">${(all ? g.items : g.items.slice(0, APPROVALS_SHOWN)).map(row)}</div>
+      ${all && g.count > g.items.length ? html`<div class="note" data-truncated>${ot('truncated', { n: g.items.length })}</div>` : nothing}</div>` : nothing);
+    const more = [p.overdue, p.upcoming, p.claims].some((g) => g.count > APPROVALS_SHOWN);
+    return html`<div class="body">
+      ${group('overdue', ot('pyOverdue'), p.overdue, instRow)}
+      ${group('upcoming', ot('pyUpcoming'), p.upcoming, instRow)}
+      ${group('claims', ot('pyClaims'), p.claims, claimRow)}
+      ${more ? this.moreButton('payments', paymentsTotal(p)) : nothing}
+    </div>`;
+  }
+
   // card 8
   private rfqsCard(): TemplateResult {
     const pending = this.summaryPending(4, 44);
@@ -924,6 +1013,7 @@ export class TicketsOverview extends LitElement {
     const sum = this.summary;
     const apN = sum ? approvalsTotal(sum.approvals) : 0;
     const rqN = sum ? sum.rfqs.count : 0;
+    const pyN = paymentsTotal(this.payments);
     const daily = sum ? dailyTotals(sum.daily.days) : null;
     return html`
       ${s.compare === 'top' ? html`<div class="wgrid">${compare}</div>` : nothing}
@@ -935,6 +1025,7 @@ export class TicketsOverview extends LitElement {
         ${this.widget('load', ot('ldTitle'), ot('ldQ'), load.body, { cls: 'wide', badge: load.busy ? html` <span class="cnt bad" data-count>${ot('ldBusyCount', { n: load.busy })}</span>` : nothing })}
         ${this.widget('overdue', ot('odTitle'), ot('odQ'), od.body, { badge: od.count ? html` <span class="cnt bad" data-count>${od.count}</span>` : nothing })}
         ${this.widget('approvals', ot('apTitle'), ot('apQ'), this.approvalsCard(), { badge: apN ? html` <span class="cnt" data-count>${apN}</span>` : nothing })}
+        ${this.payments || this.paymentsFailed ? this.widget('payments', ot('pyTitle'), ot('pyQ'), this.paymentsCard(), { badge: pyN ? html` <span class=${`cnt${this.payments?.overdue.count ? ' bad' : ''}`} data-count>${pyN}</span>` : nothing }) : nothing}
         ${this.widget('rfqs', ot('rqTitle'), ot('rqQ'), this.rfqsCard(), { badge: rqN ? html` <span class="cnt info" data-count>${rqN}</span>` : nothing })}
         ${this.widget('upcoming', ot('agTitle'), ot('agQ'), this.agendaCard())}
         ${this.widget('throughput', ot('thTitle'), ot('thQ'), this.throughputCard(), { cls: 'wide', extra: this.periodSeg() })}

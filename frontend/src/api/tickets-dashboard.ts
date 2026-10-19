@@ -70,8 +70,53 @@ export interface DashboardResponse {
 
 export interface DashboardQuery { department_id?: string; period?: DashPeriod }
 
+/** MGRDASH phase 4: one approved instalment of a payment schedule (CR-RFQ-PAYMENT-SCHEDULE), not marked paid */
+export interface PayInstalment {
+  id: string;
+  kind: 'instalment';
+  award_id: string;
+  index: number;
+  instalment_kind: 'advance' | 'progress' | 'final';
+  rfq: { id: string; number: number; ref: string; title: string };
+  department_id: string;
+  vendor?: string;
+  /** the installation's local day (YYYY-MM-DD) */
+  due_date: string;
+  /** days from today (negative = late) */
+  days: number;
+  /** the instalment's payment demand: none made yet, or open (made, not paid) */
+  demand: 'none' | 'open' | 'cancelled';
+  moved: boolean;
+  amount_minor: number;
+  currency: string;
+}
+/** MGRDASH phase 4: a service request's payment demand that was approved and not marked paid */
+export interface PayClaim {
+  id: string;
+  kind: 'claim';
+  ticket: { id: string; number: number; title: string };
+  department_id: string;
+  vendor?: string;
+  since: string | null;
+  instalment_index: number | null;
+  amount_minor: number | null;
+  currency: string;
+}
+export interface PaymentsResponse {
+  /** the payment-schedule switch of the installation (off: no instalments at all) */
+  schedule_on: boolean;
+  today: string;
+  department_id: string | null;
+  overdue: ApprovalGroup<PayInstalment>;
+  upcoming: ApprovalGroup<PayInstalment> & { tomorrow: number };
+  claims: ApprovalGroup<PayClaim>;
+  generated_at?: string;
+}
+
 export interface DashboardBackend {
   summary(q: DashboardQuery): Promise<DashboardResponse>;
+  /** phase 4: GET /tickets/dashboard/payments - only for a manager holding tickets.costs + tickets.costs.view somewhere (else 403) */
+  payments(q: { department_id?: string }): Promise<PaymentsResponse>;
 }
 
 const rest: DashboardBackend = {
@@ -82,6 +127,7 @@ const rest: DashboardBackend = {
     const s = p.toString();
     return get<DashboardResponse>(`tickets/dashboard${s ? `?${s}` : ''}`);
   },
+  payments: (q) => get<PaymentsResponse>(`tickets/dashboard/payments${q.department_id ? `?${new URLSearchParams({ department_id: q.department_id }).toString()}` : ''}`),
 };
 
 const DAY = 86_400_000;
@@ -123,6 +169,10 @@ const demo: DashboardBackend = {
       rfqs: { count: 0, decide: 0, questions: 0, items: [] },
       departments: null, all_departments: false, truncated: false,
     };
+  },
+  async payments(q) {
+    const today = localKey(new Date());
+    return { schedule_on: false, today, department_id: q.department_id ?? null, overdue: { count: 0, items: [] }, upcoming: { count: 0, tomorrow: 0, items: [] }, claims: { count: 0, items: [] } };
   },
 };
 
