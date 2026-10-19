@@ -295,7 +295,7 @@ def _rfqs(conn, viewer: Viewer, department_id: str | None, now: dt.datetime) -> 
     pending = store_dash.pending_second_rfqs(conn, [s.row["id"] for s, _ in mine])
     items = []
     for seen, state in mine:
-        s = rfq.summary(conn, viewer, seen, now)
+        s = rfq.summary(conn, viewer, seen, now, areas={})  # the dashboard rows carry no map link: skip its reads
         k = s["kpis"]
         questions = int((s.get("questions") or {}).get("pending") or 0)
         if seen.row["id"] in pending:

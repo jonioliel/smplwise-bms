@@ -253,7 +253,7 @@ export class TicketsRfqBoard extends LitElement {
 
   /** ORGPLAN2-291: "show on map" - the server sends `plan_area` only to a viewer who may read that floor on the map. */
   private mapLink(d: RfqDetail): TemplateResult | typeof nothing {
-    const href = showOnMapHref(d.location?.plan_area);
+    const href = showOnMapHref(d.plan_area);
     return href ? html`<a class="chip info" href=${href} data-rfq-on-map>${tIcon('link')}${lt('showOnMap')}</a>` : nothing;
   }
 

@@ -98,7 +98,8 @@ def list_rfqs(state: str = Query("open", pattern=STATE_FILTER), department_id: s
     _need_view(conn, viewer)
     page, nxt = rfq.visible_page(viewer, state=state, department_id=department_id, query=q, cursor=cursor, limit=limit)
     now = rfq.now_utc()
-    return {"items": [rfq.summary(conn, viewer, s, now) for s in page], "next_cursor": nxt}
+    areas = rfq.plan_areas(conn, viewer, page)  # ORGPLAN2-291: the whole page's map links in a fixed number of reads
+    return {"items": [rfq.summary(conn, viewer, s, now, areas) for s in page], "next_cursor": nxt}
 
 
 Channel = Literal["auto", "whatsapp", "email", "manual"]

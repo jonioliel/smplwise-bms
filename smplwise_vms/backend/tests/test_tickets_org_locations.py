@@ -554,16 +554,20 @@ def test_the_map_link_is_shown_only_to_a_viewer_who_may_read_that_floor_and_neve
     assert detail_location(s4, t2["id"], "mona")["plan_area"] is None
 
 
-def rfq_location(s4, rid: str, user: str) -> dict:
+def rfq_detail(s4, rid: str, user: str) -> dict:
     r = s4.c.get(f"{API}/tickets/rfqs/{rid}", headers=s4.h(user))
     assert r.status_code == 200, (user, r.text)
-    return r.json()["location"]
+    return r.json()
 
 
-def rfq_row_location(s4, rid: str, user: str) -> dict:
+def rfq_row(s4, rid: str, user: str) -> dict:
     r = s4.c.get(f"{API}/tickets/rfqs", headers=s4.h(user))
     assert r.status_code == 200, (user, r.text)
-    return next(x for x in r.json()["items"] if x["id"] == rid)["location"]
+    return next(x for x in r.json()["items"] if x["id"] == rid)
+
+
+def both(s4, rid: str, user: str) -> list:
+    return [rfq_detail(s4, rid, user)["plan_area"], rfq_row(s4, rid, user)["plan_area"]]
 
 
 def test_the_rfq_detail_and_board_card_show_the_map_link_by_the_same_rule_as_a_ticket(s4):
@@ -572,15 +576,71 @@ def test_the_rfq_detail_and_board_card_show_the_map_link_by_the_same_rule_as_a_t
     bind(s4.c, s4.w.settings, "gil", "tickets_external", "installation", "*")  # may see RFQs; his map access is floor 3 only
     z = room(s4, "floor2")
     d = rfq(s4, location_id=loc_id(s4, plan_zone_id=z))
-    want = {"zone_id": z, "floor_id": s4.w.floors["floor2"], "name": "חדר שרתים", "floor_name": "קומה 2"}
-    assert rfq_location(s4, d["id"], "mona")["plan_area"] == want
-    assert rfq_row_location(s4, d["id"], "mona")["plan_area"] == want
-    for get in (rfq_location, rfq_row_location):
-        gil = get(s4, d["id"], "gil")
-        assert gil["name"] == HQ["name"] and gil["plan_area"] is None
-        assert z not in json.dumps(gil) and "plan_zone_id" not in gil
-    # no link on the location, or the room deleted: null on both
-    d2 = rfq(s4, location_id=loc_id(s4, name="אחר"))
-    assert rfq_location(s4, d2["id"], "mona")["plan_area"] is None and rfq_row_location(s4, d2["id"], "mona")["plan_area"] is None
-    assert s4.c.delete(f"{API}/zones/{z}", headers=s4.h("joni")).status_code == 204
-    assert rfq_location(s4, d["id"], "mona")["plan_area"] is None and rfq_row_location(s4, d["id"], "mona")["plan_area"] is None
+    want = {"zone_id": z, "floor_id": s4.w.floors["floor2"], "name": "חדר שרתים", "floor_name": "קומה 2", "source": "location"}
+    assert both(s4, d["id"], "mona") == [want, want]
+    for got in (rfq_detail(s4, d["id"], "gil"), rfq_row(s4, d["id"], "gil")):
+        assert got["plan_area"] is None and got["location"]["name"] == HQ["name"]
+        assert z not in json.dumps(got) and "plan_zone_id" not in json.dumps(got)
+    d2 = rfq(s4, location_id=loc_id(s4, name="אחר"))  # no link on the location
+    assert both(s4, d2["id"], "mona") == [None, None]
+    assert s4.c.delete(f"{API}/zones/{z}", headers=s4.h("joni")).status_code == 204  # room deleted: gone on both
+    assert both(s4, d["id"], "mona") == [None, None]
+
+
+def test_the_rfq_map_link_falls_back_to_the_source_ticket_location_and_stops_there(s4):
+    z_own, z_tk = room(s4, "floor2", "חדר א"), room(s4, "floor2", "חדר ב")
+    own = loc_id(s4, name="של הבקשה", plan_zone_id=z_own)
+    linked = loc_id(s4, name="של הקריאה", plan_zone_id=z_tk)
+    bare = loc_id(s4, name="בלי קישור")
+    t_linked = s4.ticket(user="mona", location_id=linked)
+    # 1) the RFQ's own linked room wins over the ticket's
+    d = rfq(s4, location_id=own, source_ticket_id=t_linked["id"])
+    assert [a["zone_id"] for a in both(s4, d["id"], "mona")] == [z_own, z_own]
+    # 2) the RFQ's location has no link -> the source ticket's location's room, marked as coming from the ticket
+    d = rfq(s4, location_id=bare, source_ticket_id=t_linked["id"])
+    got = both(s4, d["id"], "mona")
+    assert got[0] == got[1] and got[0]["zone_id"] == z_tk and got[0]["source"] == "ticket"
+    # 3) no location on the RFQ at all -> still the ticket's
+    d = rfq(s4, source_ticket_id=t_linked["id"])
+    assert [a["zone_id"] for a in both(s4, d["id"], "mona")] == [z_tk, z_tk]
+    # 4) the ticket's location is not linked either -> nothing (no site / building level exists to fall back to)
+    d = rfq(s4, source_ticket_id=s4.ticket(user="mona", location_id=bare)["id"])
+    assert both(s4, d["id"], "mona") == [None, None]
+    assert both(s4, rfq(s4)["id"], "mona") == [None, None]
+
+
+def test_the_rfq_map_link_fallback_obeys_the_floor_rule(s4):
+    bind(s4.c, s4.w.settings, "gil", "tickets_external", "installation", "*")  # RFQ viewer with map access to floor 3 only
+    z2, z3 = room(s4, "floor2"), room(s4, "floor3", "מחסן")
+    t2 = s4.ticket(user="mona", location_id=loc_id(s4, name="קומה 2", plan_zone_id=z2))
+    t3 = s4.ticket(user="mona", location_id=loc_id(s4, name="קומה 3", plan_zone_id=z3))
+    d2 = rfq(s4, source_ticket_id=t2["id"])
+    d3 = rfq(s4, source_ticket_id=t3["id"])
+    assert both(s4, d2["id"], "gil") == [None, None]  # floor 2 via the ticket: no map.read, no hint
+    assert [a["zone_id"] for a in both(s4, d3["id"], "gil")] == [z3, z3]
+    assert z2 not in json.dumps([rfq_detail(s4, d2["id"], "gil"), rfq_row(s4, d2["id"], "gil")])
+
+
+def test_the_page_of_rfqs_resolves_its_map_links_in_a_fixed_number_of_queries(s4):
+    from smplwise.db import Database
+    from smplwise.services.notify_visibility import principal_of
+    from smplwise.services.tickets.access import Viewer
+
+    z = room(s4, "floor2")
+
+    def statements(n: int) -> int:
+        ids = [rfq(s4, location_id=loc_id(s4, name=f"מיקום {n}-{k}", plan_zone_id=z), source_ticket_id=s4.ticket(user="mona")["id"])["id"] for k in range(n)]
+        db = Database(s4.w.settings.db_path)
+        with db.connection(mode="read") as conn:
+            viewer = Viewer(conn, principal_of(conn, "dev-mona"))
+            page = [x for x in rfq_mod.visible_page(viewer, state="all", limit=200)[0] if x.row["id"] in ids]
+            assert len(page) == n
+            seen: list[str] = []
+            conn.set_trace_callback(seen.append)
+            areas = rfq_mod.plan_areas(conn, viewer, page)
+            conn.set_trace_callback(None)
+        assert all(areas[i]["zone_id"] == z for i in ids)
+        return len(seen)
+
+    few = statements(2)
+    assert statements(12) == few  # twelve more rows, the same number of reads

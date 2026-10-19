@@ -242,7 +242,7 @@ export class TicketsRfqsPage extends LitElement {
 
   /** ORGPLAN2-291: "show on map" under the row (a sibling of the row link: anchors do not nest); only when the server sent `plan_area`. */
   private mapLink(i: RfqSummary): TemplateResult | typeof nothing {
-    const href = showOnMapHref(i.location?.plan_area);
+    const href = showOnMapHref(i.plan_area);
     return href ? html`<a class="rmap" href=${href} data-rfq-row-on-map=${i.id}>${tIcon('link')}${lt('showOnMap')}</a>` : nothing;
   }
 

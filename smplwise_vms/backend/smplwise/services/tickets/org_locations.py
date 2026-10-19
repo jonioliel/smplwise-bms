@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.parse import quote
 
 from ...rbac import authorize
@@ -132,16 +132,47 @@ def check_plan_zone(conn: sqlite3.Connection, principal: Any, body: Mapping[str,
     return zone["id"]
 
 
+def _links(conn: sqlite3.Connection, location_ids: Any) -> dict[str, dict[str, Any]]:
+    """ONE read for many locations: location id -> its live linked room {id, name, floor_id, floor_name}; a location without a link, or
+    whose room is deleted, is absent."""
+    ids = list(dict.fromkeys(i for i in location_ids if isinstance(i, str) and i))
+    out: dict[str, dict[str, Any]] = {}
+    for k in range(0, len(ids), 500):  # well under SQLite's bound-variable limit
+        chunk = ids[k:k + 500]
+        for r in conn.execute(
+                "SELECT l.id AS location_id, z.id, z.name, z.floor_id, f.name AS floor_name FROM ticket_org_locations l "  # noqa: S608 - placeholders only
+                "JOIN spatial_zones z ON z.id = l.plan_zone_id AND z.deleted_at IS NULL JOIN floors f ON f.id = z.floor_id "
+                f"WHERE l.id IN ({','.join('?' * len(chunk))})", chunk):
+            out[r["location_id"]] = dict(r)
+    return out
+
+
+def plan_areas_for_chains(conn: sqlite3.Connection, principal: Any, chains: Mapping[Any, Sequence[tuple[str, Any]]]) -> dict[Any, dict[str, Any] | None]:
+    """The batch form of `plan_area_for` (ORGPLAN2-291): for each key a priority list of (source label, location id); the FIRST location that
+    has a live linked room decides, then the viewer's `map.read` on that floor (decided once per distinct floor, not per row). The answer is
+    {zone_id, floor_id, name, floor_name, source} or None - None for no link AND for an unreadable floor, with no difference between them.
+    Queries: one for all the links, plus one authorize per distinct floor, however many rows are asked."""
+    links = _links(conn, (lid for chain in chains.values() for _, lid in chain))
+    floors: dict[str, bool] = {}
+    out: dict[Any, dict[str, Any] | None] = {}
+    for key, chain in chains.items():
+        hit = next(((src, links[lid]) for src, lid in chain if isinstance(lid, str) and lid in links), None)
+        if hit is None:
+            out[key] = None
+            continue
+        src, zone = hit
+        if zone["floor_id"] not in floors:
+            floors[zone["floor_id"]] = may_view_floor(conn, principal, zone["floor_id"])
+        out[key] = ({"zone_id": zone["id"], "floor_id": zone["floor_id"], "name": zone["name"], "floor_name": zone["floor_name"], "source": src}
+                    if floors[zone["floor_id"]] else None)
+    return out
+
+
 def plan_area_for(conn: sqlite3.Connection, principal: Any, location_id: Any) -> dict[str, Any] | None:
     """What a request's detail shows next to its location: {zone_id, floor_id, name, floor_name} of the CURRENT location's linked room,
     only when that room is live and this viewer may read its floor on the map; otherwise None (no hint that a link exists)."""
-    if not isinstance(location_id, str) or not location_id:
-        return None
-    loc = store_locations.location(conn, location_id)
-    zone = live_zone(conn, loc.get("plan_zone_id")) if loc else None
-    if zone is None or not may_view_floor(conn, principal, zone["floor_id"]):
-        return None
-    return {"zone_id": zone["id"], "floor_id": zone["floor_id"], "name": zone["name"], "floor_name": zone["floor_name"]}
+    area = plan_areas_for_chains(conn, principal, {0: [("location", location_id)]})[0]
+    return {k: v for k, v in area.items() if k != "source"} if area else None
 
 
 def selectable_areas(conn: sqlite3.Connection, principal: Any) -> list[dict[str, Any]]:
@@ -232,15 +263,6 @@ def present_request(row: Mapping[str, Any]) -> dict[str, Any] | None:
     return {"id": row.get("location_id"), "name": snap["name"], "address": address_line(snap), "details": snap.get("details") or "",
             "text": display_text(snap), "has_coordinates": snap.get("lat") is not None,
             "message": message_text(snap), "map_url": nav_url(snap.get("lat"), snap.get("lng"))}
-
-
-def present_request_with_area(conn: sqlite3.Connection, principal: Any, row: Mapping[str, Any]) -> dict[str, Any] | None:
-    """`present_request` plus ORGPLAN2-291's display-only `plan_area` ("show on map"): set only for a viewer who may read the linked
-    room's floor on the map, None otherwise (no hint that a link exists). Used by a ticket's and an RFQ's detail / board card."""
-    out = present_request(row)
-    if out is not None:
-        out["plan_area"] = plan_area_for(conn, principal, row.get("location_id"))
-    return out
 
 
 def present_request_with_area(conn: sqlite3.Connection, principal: Any, row: Mapping[str, Any]) -> dict[str, Any] | None:
