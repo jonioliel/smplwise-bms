@@ -13,6 +13,7 @@
 import type { BoardItem, StuckKind, TreeNode } from '../api/tickets-board';
 import type { RfqDetail, RfqSummary } from '../api/tickets-rfq';
 import type { TicketItem } from '../api/tickets';
+import type { DailyRow, DashboardResponse, DashDepartment, DashPeriod, DashRfq } from '../api/tickets-dashboard';
 
 // ---------------------------------------------------------------- the settings
 
@@ -491,9 +492,52 @@ export function deptComparison(items: readonly BoardItem[], departments: readonl
   return rows.sort((a, b) => b.stuck + b.overdue - (a.stuck + a.overdue) || b.open - a.open || a.name.localeCompare(b.name));
 }
 
+// ---------------------------------------------------------------- phase 3: the cards of the summary route (GET /tickets/dashboard)
+
+/** The summary's period of a handled-days choice (the handler cards and "כמה טופל" share the viewer's remembered period). */
+export const periodOfDays = (d: 1 | 7 | 30): DashPeriod => (d === 1 ? 'today' : d === 30 ? '30d' : '7d');
+export const daysOfPeriod = (p: DashPeriod): 1 | 7 | 30 => (p === 'today' ? 1 : p === '30d' ? 30 : 7);
+
+/** Card 7: everything waiting for the viewer's decision (quotes on requests, payment demands, second approvals) - counts, never amounts. */
+export function approvalsTotal(a: DashboardResponse['approvals'] | null | undefined): number | null {
+  return a ? a.quotes.count + a.claims.count + a.second.count : null;
+}
+
+/** Card 8: the state of an open request in words - which text, its tone and its numbers (the server decided the stage). */
+export type RfqStageText = 'rq_second' | 'rq_due' | 'rq_decide' | 'rq_received' | 'rq_collecting';
+export function rfqStageOf(r: Pick<DashRfq, 'stage' | 'state' | 'quoted' | 'invited'>): { text: RfqStageText; tone: 'warn' | 'info' | '' } {
+  if (r.stage === 'second') return { text: 'rq_second', tone: 'info' };
+  if (r.stage === 'decide') return r.state === 'due_passed' ? { text: 'rq_due', tone: 'warn' } : { text: 'rq_decide', tone: 'warn' };
+  return r.quoted > 0 ? { text: 'rq_received', tone: 'info' } : { text: 'rq_collecting', tone: '' };
+}
+
+/** Card 6: the totals of the 14 days and the bar scale (the highest day, at least 1). */
+export function dailyTotals(days: readonly DailyRow[]): { opened: number; closed: number; net: number; max: number } {
+  const opened = days.reduce((s, d) => s + d.opened, 0);
+  const closed = days.reduce((s, d) => s + d.closed, 0);
+  return { opened, closed, net: opened - closed, max: Math.max(1, ...days.map((d) => Math.max(d.opened, d.closed))) };
+}
+
+/** "17.10" of a "YYYY-MM-DD" day (no year: the card covers two weeks). */
+export function shortDay(date: string): string {
+  const [, m, d] = date.split('-').map(Number);
+  return m && d ? `${d}.${m}` : date;
+}
+
+/** The net change with its sign ("+6", "-2", "0"). */
+export const signed = (n: number): string => (n > 0 ? `+${n}` : String(n));
+
+/** Card 11 from the summary route: worst first (stuck + overdue, then open), as the phase-1 comparison sorts. */
+export function sortDepartments(rows: readonly DashDepartment[]): DashDepartment[] {
+  return [...rows].sort((a, b) => b.stuck + b.overdue - (a.stuck + a.overdue) || b.open - a.open || a.name.localeCompare(b.name));
+}
+
+/** Card 7 rows: up to `n` per group unless all are asked for (the server sends at most 50 per group, the count is always complete). */
+export const APPROVALS_SHOWN = 5;
+
 // ---------------------------------------------------------------- folding
 
-export type CardKey = 'departments' | 'stuck' | 'waits' | 'load' | 'overdue' | 'upcoming' | 'throughput' | 'daily';
+export type CardKey = 'departments' | 'stuck' | 'waits' | 'load' | 'overdue' | 'upcoming' | 'throughput' | 'daily' | 'approvals' | 'rfqs';
 /** Spec 8 / owner decision: on a phone the cards 5, 6 and 11 start folded (5 and 6 arrive in phase 3). */
 export const PHONE_FOLDED: readonly CardKey[] = ['throughput', 'daily', 'departments'];
 export const FOLD_STORAGE_KEY = 'sw.tickets.overview.folded';

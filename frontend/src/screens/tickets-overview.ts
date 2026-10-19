@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { LitElement, html, svg, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
@@ -14,19 +14,22 @@ import { boardApi, type BoardResponse, type StuckKind } from '../api/tickets-boa
 import { ticketsRfqApi, type RfqDetail, type RfqSummary } from '../api/tickets-rfq';
 import { ticketsS4Api } from '../api/tickets-s4';
 import { ticketCostsApi } from '../api/tickets-costs';
+import { dashboardApi, DASH_PERIODS, type DashboardResponse, type DashPeriod, type SecondApproval, type TicketApproval } from '../api/tickets-dashboard';
 import { boardHref, fmtDur, waitingLabel } from '../tickets/board-model';
 import { rfqHref } from '../tickets/rfq-model';
 import { listHref, NO_FILTERS, relTime } from '../tickets/model';
 import { bt, type BoardTextKey } from '../tickets/board-text';
-import { tt } from '../tickets/text';
+import { tt, ticketsLang } from '../tickets/text';
 import { tIcon } from '../tickets/icons';
 import { onTicketNames, setTicketNames } from '../tickets/naming';
 import { LiveRefresh } from '../tickets/live-refresh';
-import { asHandledDays, HANDLED_DEFAULT, readStoredPeriod, type HandledDays } from '../tickets/handler-load';
+import { formatMoney } from '../tickets/cost-model';
+import { asHandledDays, HANDLED_DEFAULT, installationHandledDays, readStoredPeriod, storePeriod, type HandledDays } from '../tickets/handler-load';
 import { ot, type OverviewTextKey } from '../tickets/overview-text';
 import {
-  agenda, dayKey, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS, overdueRows, OVERDUE_SHOWN, overviewSettingsOf,
-  parseKpiStore, paymentDates, rollKpis, splitVendors, STUCK_REASONS, stuckPlaces, stuckReasonCounts,
+  agenda, APPROVALS_SHOWN, approvalsTotal, dailyTotals, dayKey, daysOfPeriod, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS,
+  overdueRows, OVERDUE_SHOWN, overviewSettingsOf, parseKpiStore, paymentDates, periodOfDays, rfqStageOf, rollKpis, shortDay, signed, sortDepartments, splitVendors,
+  STUCK_REASONS, stuckPlaces, stuckReasonCounts,
   type AgendaEntry, type CardKey, type HandlerRow, type KpiKey, type Kpis, type OverviewSettings,
 } from '../tickets/overview-model';
 
@@ -61,8 +64,11 @@ const writeStore = (key: string, value: string): void => {
  * docs/design/mockups/manager-dashboard-v2.html): the first tab of the service area, for managers only. Built on existing routes only (the
  * spec's phase 1 - no new data route): the manager board (cards 1-4, 9, 10 and the department comparison), the requests for quotation
  * (deadlines, work starts, payment-schedule dates), the handler load route ("handled" = marked done), the cost claims (tickets.costs.view).
- * The server's single visibility rule decides every row of every answer; nothing here filters for security. Phase 2-3 add the summary
- * route (throughput, opened vs closed, approvals, RFQ decisions) and its cards.
+ * The server's single visibility rule decides every row of every answer; nothing here filters for security. Phase 3 (DASH3-290) reads the
+ * phase-2 summary route GET /tickets/dashboard with the board every minute and draws its cards: 5 how much was handled (the period shared
+ * with the handler cards), 6 opened vs closed (bars + a table for screen readers), 7 waiting for my approval (amounts only as the server
+ * sends them), 8 the requests for quotation to decide, 11 the department comparison; the "waiting for my approval" number of the numbers
+ * row counts the summary's three groups. A failed summary leaves the board's cards and says "not available" on its own cards only.
  * States: loading (skeletons of the same size), ready, all fine (a quiet green line per card), empty (no requests at all), partial (the RFQ
  * part failed: its rows say "not available"), offline (the last numbers stay, greyed, with the time), forbidden, error, the module off.
  */
@@ -90,7 +96,14 @@ export class TicketsOverview extends LitElement {
   @state() private phone = window.matchMedia('(max-width: 767px)').matches;
   @state() private compactHeader = false;
   @state() private yesterday: Kpis | null = null;
+  /** phase 3: the summary route (cards 5-8 and 11); null until the first answer */
+  @state() private summary: DashboardResponse | null = null;
+  @state() private summaryFailed = false;
+  /** the period of "כמה טופל" - the viewer's remembered handled period (shared with the handler cards), else the installation default */
+  @state() private period: DashPeriod | null = null;
+  @state() private expanded: Set<CardKey> = new Set();
   private seq = 0;
+  private sumSeq = 0;
   private slowAt = 0;
   private slowKey = '';
   private phoneMq = window.matchMedia('(max-width: 767px)');
@@ -227,6 +240,29 @@ export class TicketsOverview extends LitElement {
     .tl { display: inline-flex; align-items: center; gap: 5px; color: var(--dv-accent-text); font-weight: 600; text-decoration: none; min-block-size: 32px; }
     .tl:hover { text-decoration: underline; }
     .dcards { display: none; }
+    /* phase 3: how much was handled, opened vs closed, waiting for my approval, requests for quotation */
+    .w > header .pseg { margin-inline-start: auto; flex: none; }
+    .w > header .pseg + .fold { margin-inline-start: 4px; }
+    .rtbl.tp td.who { font-weight: 600; max-inline-size: 0; inline-size: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rtbl.tp td.mut { color: var(--dv-text-2); font-size: var(--sw-fs-sm); }
+    .rtbl tfoot td { font-weight: 700; border-block-start: 1px solid var(--dv-border-strong, var(--dv-border)); border-block-end: 0; }
+    .net { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
+    .bars { display: grid; gap: 6px; }
+    .bars svg { inline-size: 100%; block-size: 132px; display: block; overflow: visible; }
+    .bars .bo { fill: var(--dv-accent); }
+    .bars .bc { fill: var(--dv-success, var(--sw-success)); }
+    .bars .bl { font-size: 8.5px; text-anchor: middle; fill: var(--dv-text-3); }
+    .bars .ax { font-size: 9px; text-anchor: middle; fill: var(--dv-text-3); }
+    .bars .base { stroke: var(--dv-border); }
+    .bars .lg { display: flex; gap: 14px; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
+    .bars .lg span { display: inline-flex; align-items: center; gap: 5px; }
+    .bars .lg i { inline-size: 10px; block-size: 10px; border-radius: 3px; display: inline-block; }
+    .bars .lg i.o { background: var(--dv-accent); }
+    .bars .lg i.c { background: var(--dv-success, var(--sw-success)); }
+    .closedrows .cr .amt { font-weight: 700; color: var(--dv-text); white-space: nowrap; }
+    .closedrows .cr .tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+    .closedrows .cr .tags .chip .ic { font-size: var(--sw-fs-xs); }
+    .dcard.total { background: transparent; }
     .vh { position: absolute !important; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     @media (max-width: 1180px) {
       .wgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -263,6 +299,12 @@ export class TicketsOverview extends LitElement {
       .dcard { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--sw-r-lg); background: var(--dv-surface); border: 1px solid var(--dv-border); color: inherit; text-decoration: none; min-block-size: 44px; }
       .dcard .nums { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
       .dcard .nums em { font-style: normal; font-weight: 700; color: var(--dv-text); font-variant-numeric: tabular-nums; }
+      .bars svg { block-size: 110px; }
+      .closedrows .cr.ap { grid-template-columns: auto minmax(0, 1fr) auto; }
+      .closedrows .cr.ap .back, .closedrows .cr.rq .back { display: none; }
+      .closedrows .cr.rq { grid-template-columns: auto minmax(0, 1fr); }
+      .closedrows .cr.rq .tags { grid-column: 2; justify-content: flex-start; }
+      .w > header .pseg button { min-block-size: 36px; }
     }
     @media (pointer: coarse) {
       .tree .row, .closedrows .cr, .tl { min-block-size: 44px; }
@@ -318,6 +360,8 @@ export class TicketsOverview extends LitElement {
         this.dept = next;
         this.reason = '';
         this.allOverdue = false;
+        this.summary = null;
+        this.summaryFailed = false;
         if (this.screen === 'ready') void this.load(false);
       }
     }
@@ -369,6 +413,7 @@ export class TicketsOverview extends LitElement {
       this.offline = false;
       this.screen = 'ready';
       this.rememberKpis();
+      void this.loadSummary(quiet);
       const key = this.dept;
       if (!quiet || key !== this.slowKey || Date.now() - this.slowAt >= SLOW_REFRESH_MS) {
         this.slowKey = key;
@@ -423,9 +468,51 @@ export class TicketsOverview extends LitElement {
     }
   }
 
+  /** The period shown by "כמה טופל": the viewer's choice (remembered with the handler cards' period), else the installation default. */
+  private chosenPeriod(): DashPeriod {
+    return this.period ?? periodOfDays(readStoredPeriod() ?? installationHandledDays(this.module?.ui as { handled_days?: unknown } | undefined));
+  }
+
+  /**
+   * Phase 3: the summary route, read with the board (every minute while visible; the server keeps the answer 30 seconds per caller). A
+   * failure keeps the last answer on a quiet refresh; without one the cards of this route say "not available" (the board's cards stay).
+   */
+  private async loadSummary(quiet: boolean): Promise<void> {
+    const seq = ++this.sumSeq;
+    const dept = this.dept;
+    const period = this.chosenPeriod();
+    try {
+      const s = await dashboardApi().summary({ department_id: dept || undefined, period });
+      if (seq !== this.sumSeq) return;
+      this.summary = s;
+      this.summaryFailed = false;
+      if (this.data) this.rememberKpis();
+    } catch {
+      if (seq !== this.sumSeq) return;
+      if (quiet && this.summary && this.summary.department_id === (dept || null)) return;
+      this.summary = null;
+      this.summaryFailed = true;
+    }
+  }
+
+  private setPeriod(p: DashPeriod): void {
+    if (p === this.chosenPeriod() && this.summary?.period === p) return;
+    this.period = p;
+    storePeriod(daysOfPeriod(p));
+    void this.loadSummary(false);
+    // the handler cards' "handled" number follows the same remembered period
+    void boardApi().handlerLoad(daysOfPeriod(p)).then((r) => (this.handled = { days: asHandledDays(r.days) ?? HANDLED_DEFAULT, counts: r.handled })).catch(() => (this.handled = null));
+  }
+
+  private retrySummary = () => {
+    this.summaryFailed = false;
+    void this.loadSummary(false);
+  };
+
   private kpis(): Kpis {
     const d = this.data as BoardResponse;
-    return { open: d.counts.all, stuck: d.counts.stuck, waiting: d.counts.waiting, overdue: overdueRows(d.items, this.rfqs ?? [], this.now).length, approval: this.approval };
+    const approval = this.summary ? approvalsTotal(this.summary.approvals) : this.approval;
+    return { open: d.counts.all, stuck: d.counts.stuck, waiting: d.counts.waiting, overdue: overdueRows(d.items, this.rfqs ?? [], this.now).length, approval };
   }
 
   /** The arrow against yesterday: the last numbers of each day, kept in this browser per view (all / one department). */
@@ -449,6 +536,9 @@ export class TicketsOverview extends LitElement {
     this.dept = id;
     this.reason = '';
     this.allOverdue = false;
+    this.summary = null;
+    this.summaryFailed = false;
+    this.expanded = new Set();
     void this.load(false);
   }
 
@@ -463,10 +553,10 @@ export class TicketsOverview extends LitElement {
     return boardHref({ dept: this.dept, ...patch }, t ? { t } : {});
   }
 
-  private widget(key: CardKey, title: string, q: string, body: TemplateResult, opts: { cls?: string; badge?: TemplateResult | typeof nothing } = {}): TemplateResult {
+  private widget(key: CardKey, title: string, q: string, body: TemplateResult, opts: { cls?: string; badge?: TemplateResult | typeof nothing; extra?: TemplateResult } = {}): TemplateResult {
     const folded = this.folded.has(key);
     return html`<section class=${`glass w ${opts.cls ?? ''}${folded ? ' folded' : ''}`} data-widget=${key} id=${`w-${key}`}>
-      <header><h2>${title}${opts.badge ?? nothing}</h2>${q ? html`<span class="q">${q}</span>` : nothing}
+      <header><h2>${title}${opts.badge ?? nothing}</h2>${q ? html`<span class="q">${q}</span>` : nothing}${opts.extra && !folded ? opts.extra : nothing}
         <button type="button" class="fold" data-fold=${key} aria-expanded=${String(!folded)} aria-label=${ot(folded ? 'unfold' : 'fold', { name: title })} @click=${() => this.toggleFold(key)}>${tIcon('chevronDown')}</button></header>
       ${body}
     </section>`;
@@ -505,20 +595,20 @@ export class TicketsOverview extends LitElement {
     const k = this.kpis();
     const deltas = kpiDeltas(k, this.yesterday);
     const truncated = this.data.truncated;
-    const tile = (key: KpiKey, label: OverviewTextKey, tone: 'warn' | 'bad' | '', href: string | null, value: number, least = false) => {
+    const tile = (key: KpiKey, label: OverviewTextKey, tone: 'warn' | 'bad' | '', href: string | null, value: number, least = false, reveal: CardKey = 'overdue') => {
       const dv = deltas[key];
       const inner = html`<small>${ot(label)}</small><b>${least && value ? html`<span class="least" data-at-least>${ot('atLeast', { n: '' }).trim()}</span>` : nothing}<span class="n">${value}</span>${dv ? html`<span class=${`d ${dv > 0 ? 'up' : 'down'}`} title=${ot(dv > 0 ? 'yesterdayUp' : 'yesterdayDown', { n: Math.abs(dv) })} data-delta=${dv}>${tIcon(dv > 0 ? 'up' : 'down')}<span class="n">${Math.abs(dv)}</span><span class="vh">${ot(dv > 0 ? 'yesterdayUp' : 'yesterdayDown', { n: Math.abs(dv) })}</span></span>` : nothing}</b>`;
       const cls = `kpi ${value ? tone : ''}`;
       return href
         ? html`<a class=${cls} href=${href} data-kpi=${key}>${inner}</a>`
-        : html`<button type="button" class=${cls} data-kpi=${key} @click=${() => this.reveal('overdue')}>${inner}</button>`;
+        : html`<button type="button" class=${cls} data-kpi=${key} @click=${() => this.reveal(reveal)}>${inner}</button>`;
     };
     return html`<div class="kpis" data-kpis>
       ${tile('open', 'kOpen', '', this.href(), k.open)}
       ${tile('stuck', 'kStuck', 'warn', this.href({ state: 'stuck' }), k.stuck)}
       ${tile('waiting', 'kWaiting', '', this.href({ state: 'waiting' }), k.waiting)}
       ${tile('overdue', 'kOverdue', 'bad', null, k.overdue, truncated)}
-      ${k.approval !== null ? tile('approval', 'kApproval', '', '#/tickets/accounts', k.approval) : nothing}
+      ${k.approval !== null ? (this.summary ? tile('approval', 'kApproval', '', null, k.approval, false, 'approvals') : tile('approval', 'kApproval', '', '#/tickets/accounts', k.approval)) : nothing}
     </div>`;
   }
 
@@ -651,8 +741,145 @@ export class TicketsOverview extends LitElement {
         <span></span><span class="back">${tIcon('back')}</span></a>`)}</div></div>`)}</div>`;
   }
 
-  // card 11 (phase 1, from the board)
+  // ---------------------------------------------------------------- phase 3: the cards of the summary route
+
+  /** The body of a summary card before its answer: a skeleton the first time, "not available · try again" after a failure. */
+  private summaryPending(rows: number, h: number): TemplateResult | null {
+    if (this.summaryFailed) return html`<div class="body"><div class="unavail" data-unavailable>${ot('unavailable')}<button type="button" class="btn sm" data-retry-summary @click=${this.retrySummary}>${tIcon('refresh')}${ot('retry')}</button></div></div>`;
+    if (!this.summary) return this.skeleton(rows, h);
+    return null;
+  }
+
+  private moreButton(key: CardKey, total: number): TemplateResult {
+    const open = this.expanded.has(key);
+    const flip = () => {
+      const next = new Set(this.expanded);
+      if (open) next.delete(key);
+      else next.add(key);
+      this.expanded = next;
+    };
+    return html`<div><button type="button" class="btn sm" aria-expanded=${String(open)} data-more=${key} @click=${flip}>${open ? ot('showLess') : ot('showAll')}<small class="mut">· ${total}</small></button></div>`;
+  }
+
+  private sinceText(since: string | null): string {
+    const t = since ? Date.parse(since) : NaN;
+    return Number.isNaN(t) ? '' : ot('apWaits', { age: fmtDur(this.now.getTime() - t) });
+  }
+
+  // card 5
+  private periodSeg(): TemplateResult {
+    const p = this.chosenPeriod();
+    return html`<div class="seg sm pseg" role="radiogroup" aria-label=${ot('thPeriod')} data-period-seg>${DASH_PERIODS.map((x) => html`<button type="button" role="radio" aria-checked=${String(p === x)} data-period=${x} @click=${() => this.setPeriod(x)}>${ot(`pd_${x}` as OverviewTextKey)}</button>`)}</div>`;
+  }
+
+  private throughputCard(): TemplateResult {
+    const pending = this.summaryPending(4, 40);
+    if (pending) return pending;
+    const s = this.summary as DashboardResponse;
+    if (s.period !== this.chosenPeriod()) return this.skeleton(4, 40);
+    const rows = s.throughput.rows;
+    if (!rows.length) return this.quiet(ot('thNone'));
+    const med = (sec: number | null) => (sec === null ? '-' : fmtDur(sec * 1000));
+    const name = (n: string) => (n ? bidi(n) : '-');
+    const t = s.throughput.total;
+    return html`<div class="body" data-throughput=${s.period}>
+      <table class="rtbl tp"><thead><tr><th>${ot('thHandler')}</th><th class="num">${ot('thDone')}</th><th class="num">${ot('thClosed')}</th><th class="num">${ot('thReturned')}</th><th class="num">${ot('thMedian')}</th></tr></thead>
+        <tbody>${rows.map((r) => html`<tr data-tp-row=${r.key}><td class="who">${name(r.name)}</td><td class="num"><span class="n">${r.done}</span></td><td class="num"><span class="n">${r.closed}</span></td><td class="num"><span class="n">${r.returned}</span></td><td class="num mut">${med(r.median_seconds)}</td></tr>`)}</tbody>
+        <tfoot><tr data-tp-total><td>${ot('thTotal')}</td><td class="num"><span class="n">${t.done}</span></td><td class="num"><span class="n">${t.closed}</span></td><td class="num"><span class="n">${t.returned}</span></td><td class="num mut">${med(t.median_seconds)}</td></tr></tfoot></table>
+      <div class="dcards">${rows.map((r) => html`<div class="dcard" data-tp-card=${r.key}><b>${name(r.name)}</b><span class="nums"><span>${ot('thDone')} <em>${r.done}</em></span><span>${ot('thClosed')} <em>${r.closed}</em></span><span>${ot('thReturned')} <em>${r.returned}</em></span><span>${ot('thMedian')} <em>${med(r.median_seconds)}</em></span></span></div>`)}
+        <div class="dcard total"><b>${ot('thTotal')}</b><span class="nums"><span>${ot('thDone')} <em>${t.done}</em></span><span>${ot('thClosed')} <em>${t.closed}</em></span><span>${ot('thReturned')} <em>${t.returned}</em></span></span></div></div>
+    </div>`;
+  }
+
+  // card 6
+  private dailyCard(): TemplateResult {
+    const pending = this.summaryPending(1, 150);
+    if (pending) return pending;
+    const days = (this.summary as DashboardResponse).daily.days;
+    const tot = dailyTotals(days);
+    if (!tot.opened && !tot.closed) return this.quiet(ot('dyNone'));
+    const W = 420, H = 110, pad = 14, bw = 9;
+    const gap = (W - pad * 2) / Math.max(1, days.length);
+    const bars = days.map((d, i) => {
+      const x = pad + i * gap + gap / 2;
+      const ho = (d.opened / tot.max) * H, hc = (d.closed / tot.max) * H;
+      return svg`<rect x=${x - bw - 1} y=${H - ho} width=${bw} height=${ho} rx="2.5" class="bo"></rect><rect x=${x + 1} y=${H - hc} width=${bw} height=${hc} rx="2.5" class="bc"></rect>
+        ${d.opened ? svg`<text x=${x - bw / 2 - 1} y=${H - ho - 3} class="bl">${d.opened}</text>` : nothing}${d.closed ? svg`<text x=${x + bw / 2 + 1} y=${H - hc - 3} class="bl">${d.closed}</text>` : nothing}
+        ${i % 2 === days.length % 2 ? svg`<text x=${x} y=${H + 12} class="ax">${shortDay(d.date)}</text>` : nothing}`;
+    });
+    return html`<div class="body" data-daily>
+      <div class="net" data-net=${tot.net}>${ot('dyNetLabel', { n: signed(tot.net) })} · ${ot('dyOpened')} <span class="n">${tot.opened}</span> · ${ot('dyClosed')} <span class="n">${tot.closed}</span></div>
+      <div class="bars" aria-hidden="true"><svg viewBox=${`0 0 ${W} ${H + 16}`}><line x1=${pad} x2=${W - pad} y1=${H + 0.5} y2=${H + 0.5} class="base"></line>${bars}</svg>
+        <div class="lg"><span><i class="o"></i>${ot('dyOpened')}</span><span><i class="c"></i>${ot('dyClosed')}</span></div></div>
+      <table class="vh" data-daily-table><caption>${ot('dyChart')}</caption><thead><tr><th>${ot('dyDay')}</th><th>${ot('dyOpened')}</th><th>${ot('dyClosed')}</th></tr></thead>
+        <tbody>${days.map((d) => html`<tr><td>${shortDay(d.date)}</td><td>${d.opened}</td><td>${d.closed}</td></tr>`)}</tbody></table>
+    </div>`;
+  }
+
+  // card 7
+  private approvalsCard(): TemplateResult {
+    const pending = this.summaryPending(4, 44);
+    if (pending) return pending;
+    const a = (this.summary as DashboardResponse).approvals;
+    if (!approvalsTotal(a)) return this.quiet(ot('apNone'));
+    const all = this.expanded.has('approvals');
+    const lang = ticketsLang();
+    const amount = (x: { amount_minor: number | null; currency: string | null }) => (x.amount_minor !== null && x.currency ? html`<span class="amt n" data-amount>${formatMoney(x.amount_minor, x.currency, lang)}</span>` : html`<span></span>`);
+    const ticketRow = (kind: 'quote' | 'claim', x: TicketApproval) => html`<a class="cr ap" href=${`${this.href({}, x.ticket.id)}&tab=costs`} data-approval-row=${kind}>
+      <span class="num">#${x.ticket.number}</span><b>${bidi(x.ticket.title)}<small>${[x.vendor ? bidi(x.vendor) : '', this.sinceText(x.since)].filter(Boolean).join(' · ')}</small></b>${amount(x)}<span class="back">${tIcon('back')}</span></a>`;
+    const secondRow = (x: SecondApproval) => html`<a class="cr ap" href=${rfqHref({ id: x.rfq.id })} data-approval-row="second">
+      <span class="num">${x.rfq.ref}</span><b>${bidi(x.rfq.title)}<small>${[x.vendor ? bidi(x.vendor) : '', this.sinceText(x.since)].filter(Boolean).join(' · ')}</small></b>${amount(x)}<span class="back">${tIcon('back')}</span></a>`;
+    const group = <T,>(key: string, title: string, g: { count: number; items: T[] }, row: (x: T) => TemplateResult) => (g.count ? html`<div class="sect" data-approvals=${key}>
+      <h4>${title} <span class="n">· ${g.count}</span></h4>
+      <div class="closedrows">${(all ? g.items : g.items.slice(0, APPROVALS_SHOWN)).map(row)}</div>
+      ${all && g.count > g.items.length ? html`<div class="note" data-truncated>${ot('truncated', { n: g.items.length })}</div>` : nothing}</div>` : nothing);
+    const more = [a.quotes, a.claims, a.second].some((g) => g.count > APPROVALS_SHOWN);
+    return html`<div class="body">
+      ${group('quotes', ot('apQuotes'), a.quotes, (x: TicketApproval) => ticketRow('quote', x))}
+      ${group('claims', ot('apClaims'), a.claims, (x: TicketApproval) => ticketRow('claim', x))}
+      ${group('second', ot('apSecond'), a.second, secondRow)}
+      ${more ? this.moreButton('approvals', approvalsTotal(a) ?? 0) : nothing}
+    </div>`;
+  }
+
+  // card 8
+  private rfqsCard(): TemplateResult {
+    const pending = this.summaryPending(4, 44);
+    if (pending) return pending;
+    const r = (this.summary as DashboardResponse).rfqs;
+    if (!r.items.length) return this.quiet(ot('rqNone'));
+    const all = this.expanded.has('rfqs');
+    const shown = all ? r.items : r.items.slice(0, OVERDUE_SHOWN);
+    const due = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'numeric' }) : '');
+    return html`<div class="body"><div class="closedrows" data-rfqs>${shown.map((x) => {
+      const st = rfqStageOf(x);
+      return html`<a class="cr rq" href=${rfqHref({ id: x.id })} data-rfq-row=${x.stage}>
+        <span class="num">${x.ref}</span><b>${bidi(x.title)}${x.due_at ? html`<small>${ot('rqDue', { date: due(x.due_at) })}</small>` : nothing}</b>
+        <span class="tags"><span class=${`chip xs ${st.tone}`} data-stage>${ot(st.text, { quoted: x.quoted, invited: x.invited })}</span>${x.questions ? html`<span class="chip warn xs" data-question>${tIcon('note')}${x.questions > 1 ? ot('rqQuestions', { n: x.questions }) : ot('rqQuestion')}</span>` : nothing}</span>
+        <span class="back">${tIcon('back')}</span></a>`;
+    })}</div>
+      ${r.items.length > OVERDUE_SHOWN ? this.moreButton('rfqs', r.count) : nothing}
+      ${all && r.count > r.items.length ? html`<div class="note" data-truncated>${ot('truncated', { n: r.items.length })}</div>` : nothing}
+    </div>`;
+  }
+
+  // card 11: the summary route's comparison (phase 3); the board's own count (phase 1) never mixes in
   private departmentsCard(): TemplateResult {
+    const pending = this.summaryPending(3, 40);
+    if (pending) return pending;
+    const rows = sortDepartments(this.summary?.departments ?? []);
+    if (!this.summary?.departments) return this.departmentsFromBoard();
+    const go = (id: string) => `#/tickets/overview?${new URLSearchParams({ dept: id }).toString()}`;
+    const bad = (n: number) => (n > 2 ? ' bad' : '');
+    return html`<div class="body" data-compare="summary">
+      <table class="rtbl"><thead><tr><th>${ot('cmpDept')}</th><th class="num">${ot('cmpOpen')}</th><th class="num">${ot('cmpStuck')}</th><th class="num">${ot('cmpOverdue')}</th><th class="num">${ot('cmpDecide')}</th><th class="num">${ot('cmpDone7')}</th><th class="num">${ot('cmpBusy')}</th></tr></thead>
+        <tbody>${rows.map((r) => html`<tr data-dept-row=${r.id}><td><a class="tl" href=${go(r.id)}>${bidi(r.name)}</a></td><td class="num"><span class="n">${r.open}</span></td><td class=${`num${bad(r.stuck)}`}><span class="n">${r.stuck}</span></td><td class=${`num${bad(r.overdue)}`}><span class="n">${r.overdue}</span></td><td class="num"><span class="n">${r.waiting}</span></td><td class="num"><span class="n">${r.done_7d}</span></td><td class="num"><span class="n">${r.busy_handlers}</span></td></tr>`)}</tbody></table>
+      <div class="dcards">${rows.map((r) => html`<a class="dcard" href=${go(r.id)} data-dept-card=${r.id}><b>${bidi(r.name)}</b><span class="nums"><span>${ot('cmpOpen')} <em>${r.open}</em></span><span>${ot('cmpStuck')} <em>${r.stuck}</em></span><span>${ot('cmpOverdue')} <em>${r.overdue}</em></span><span>${ot('cmpDecide')} <em>${r.waiting}</em></span><span>${ot('cmpDone7')} <em>${r.done_7d}</em></span><span>${ot('cmpBusy')} <em>${r.busy_handlers}</em></span></span></a>`)}</div>
+    </div>`;
+  }
+
+  // card 11 (phase 1, from the board) - only when the summary answered without a comparison (an older server)
+  private departmentsFromBoard(): TemplateResult {
     const d = this.data as BoardResponse;
     const rows = deptComparison(d.items, d.departments, this.vendorIds, this.settings(), this.now);
     const go = (id: string) => `#/tickets/overview?${new URLSearchParams({ dept: id }).toString()}`;
@@ -669,7 +896,7 @@ export class TicketsOverview extends LitElement {
 
   private loadingGrid(): TemplateResult {
     const card = (cls: string, rows: number, h: number) => html`<section class=${`glass w ${cls}`}><header><span class="skl" style="block-size:20px;inline-size:40%"></span></header>${this.skeleton(rows, h)}</section>`;
-    return html`<div class="wgrid" data-overview-state="loading">${card('wide', 5, 40)}${card('', 3, 56)}${card('wide', 5, 52)}${card('', 4, 44)}${card('full', 4, 44)}</div>`;
+    return html`<div class="wgrid" data-overview-state="loading">${card('wide', 5, 40)}${card('', 3, 56)}${card('wide', 5, 52)}${card('', 4, 44)}${card('', 4, 44)}${card('', 4, 44)}${card('', 4, 44)}${card('wide', 4, 40)}${card('', 1, 150)}</div>`;
   }
 
   private body(): TemplateResult {
@@ -694,6 +921,10 @@ export class TicketsOverview extends LitElement {
     const load = this.loadCard();
     const od = this.overdueCard();
     const stuckN = d.counts.stuck;
+    const sum = this.summary;
+    const apN = sum ? approvalsTotal(sum.approvals) : 0;
+    const rqN = sum ? sum.rfqs.count : 0;
+    const daily = sum ? dailyTotals(sum.daily.days) : null;
     return html`
       ${s.compare === 'top' ? html`<div class="wgrid">${compare}</div>` : nothing}
       ${this.kpiRow()}
@@ -703,7 +934,11 @@ export class TicketsOverview extends LitElement {
         ${this.widget('waits', ot('wwTitle'), ot('wwQ'), this.whoWaits())}
         ${this.widget('load', ot('ldTitle'), ot('ldQ'), load.body, { cls: 'wide', badge: load.busy ? html` <span class="cnt bad" data-count>${ot('ldBusyCount', { n: load.busy })}</span>` : nothing })}
         ${this.widget('overdue', ot('odTitle'), ot('odQ'), od.body, { badge: od.count ? html` <span class="cnt bad" data-count>${od.count}</span>` : nothing })}
-        ${this.widget('upcoming', ot('agTitle'), ot('agQ'), this.agendaCard(), { cls: 'full' })}
+        ${this.widget('approvals', ot('apTitle'), ot('apQ'), this.approvalsCard(), { badge: apN ? html` <span class="cnt" data-count>${apN}</span>` : nothing })}
+        ${this.widget('rfqs', ot('rqTitle'), ot('rqQ'), this.rfqsCard(), { badge: rqN ? html` <span class="cnt info" data-count>${rqN}</span>` : nothing })}
+        ${this.widget('upcoming', ot('agTitle'), ot('agQ'), this.agendaCard())}
+        ${this.widget('throughput', ot('thTitle'), ot('thQ'), this.throughputCard(), { cls: 'wide', extra: this.periodSeg() })}
+        ${this.widget('daily', ot('dyTitle'), ot('dyQ'), this.dailyCard(), { badge: daily && (daily.opened || daily.closed) ? html` <span class=${`cnt${daily.net > 0 ? '' : ' info'}`} data-count data-net-badge>${ot('dyNet', { n: signed(daily.net) })}</span>` : nothing })}
         ${s.compare === 'bottom' ? compare : nothing}
       </div>`;
   }

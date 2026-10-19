@@ -286,3 +286,30 @@ Definitions live in `smplwise_vms/backend/smplwise/services/tickets/dashboard.py
 * Migration **0120** (built as provisional 0121, renumbered at the 2.8.0 integration): `idx_ticket_events_status_at (to_status, at)` partial, `idx_tickets_done_at (done_at)` partial.
 * Not in phase 2: `upcoming` / `overdue` (phase 1 computes them on the client from existing routes; payment dates are phase 4),
   `dashboard.digest_hour` and the notifications (phase 5), the performance run with 20,000 tickets / 200,000 events (open).
+
+## Phase 3 as built (2026-10-19, branch pilot/DASH3-290)
+
+Screen only (`frontend/src/screens/tickets-overview.ts`, client `frontend/src/api/tickets-dashboard.ts`). The summary route is read with
+the board every minute (the server's 30-second cache absorbs it). Cards: 5 "כמה טופל" (period chips in the card title, the period is the
+viewer's remembered handled period shared with the handler cards; table on desktop, card rows on a phone; names are plain text - see the
+open question), 6 "נפתחו מול נסגרו" (paired bars, the net in the title, a visually hidden table for screen readers), 7 "ממתין לאישורי"
+(three groups, 5 rows each + "show all", amounts only when the answer carries them; a ticket row opens the board drawer on the costs tab,
+a second approval opens the request), 8 "בקשות להצעת מחיר" (state in words from the server stage, a "שאלה מספק" chip with no text), 11 the
+comparison from the summary (adds "מחכות להחלטה" = waiting for a manager, and "טופלו ב-7 ימים"). The numbers row's "ממתינות לאישורי" counts
+the summary's three groups (counts only, so every manager sees it). A failed summary marks only cards 5-8 and 11 "לא זמין כרגע · נסה שוב".
+Evidence: `docs/design/evidence/dash3/` (`frontend/tests/evidence-tickets-overview-p3.spec.ts`).
+
+**Speed check** (`smplwise_vms/backend/tests/test_tickets_mgrdash_perf.py`, opt-in `SW_DASH_PERF=1`; 20,001 requests, 200,002 timeline
+rows, two departments, cold route through the ASGI client, median of 7, workstation 2026-10-19): department manager today 265 ms / 7d
+204 ms / 30d 446 ms; all-departments manager today 482 ms / 7d 431 ms / 30d 636 ms (worst single call 1,144 ms). **The 150 ms ceiling is
+not met.** Profile: about 80 % of the time is `access.visible_by_id` once per ticket touched in the window (one SELECT + row build each,
+~0.2 ms x ~1,000 tickets in 30 days); `_departments` (board scan) adds ~60 ms. A batched visibility read for the window's ticket ids is the
+likely fix (server, phase 2 code) - not done here.
+
+Open questions (not guessed):
+1. Card 5 "לחיצה פותחת רשימת הקריאות של המטפל בתקופה": the tickets table has no address for "this handler, completed in this period".
+   a. add such a filter to the table (server + client) · b. open the board filtered to the handler (shows his open work, not the period) ·
+   c. no link (as built).
+2. Card 11 "מחכות להחלטה": built from the server's `waiting` (requests waiting for a manager). Should it also count the approvals and
+   RFQ decisions of the department? a. as built · b. add them (server change).
+3. The speed ceiling: a. fix the server before 2.9.0 · b. release with the measured numbers and fix in 2.9.x.
