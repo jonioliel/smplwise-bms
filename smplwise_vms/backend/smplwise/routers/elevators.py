@@ -45,6 +45,7 @@ class ElevatorIn(_Body):
     name: str = Field(min_length=1, max_length=60)
     area_id: str | None = Field(default=None, max_length=128)
     enabled: bool = True
+    show_travel: bool = False
     sensors: dict[str, str | None] = Field(default_factory=dict)
     extras: list[ExtraIn] = Field(default_factory=list)
     revision: int | None = None
@@ -111,7 +112,7 @@ def _with_history(conn: sqlite3.Connection, items: list[dict[str, Any]], whole: 
 
 
 def _operator_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite3.Row], connected: bool) -> dict[str, Any]:
-    return {"id": r["id"], "name": r["name"], "area_id": r["area_id"], "area_name": _area_name(conn, r["area_id"]), **el.live_of(sensors, connected=connected)}
+    return {"id": r["id"], "name": r["name"], "area_id": r["area_id"], "area_name": _area_name(conn, r["area_id"]), **el.live_of(sensors, connected=connected, travel=bool(r["show_travel"])), "uses_travel": bool(r["show_travel"])}
 
 
 @router.get("/infra/elevators")
@@ -139,8 +140,8 @@ def _manage_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite3.
     fixed = {s["role"]: {"entity_id": s["entity_id"], "entity_name": _entity_name(s), "missing": s["domain"] is None or bool(s["removed_at"])} for s in sensors if s["role"] != "extra"}
     extras = [{"entity_id": s["entity_id"], "label": s["label"] or "", "entity_name": _entity_name(s), "missing": s["domain"] is None or bool(s["removed_at"])} for s in sensors if s["role"] == "extra"]
     # the live fields first: the manage listing's `extras` is the mapping (entity id + label), not the live on / off
-    return {**el.live_of(sensors, connected=connected), "id": r["id"], "name": r["name"], "area_id": r["area_id"], "area_name": _area_name(conn, r["area_id"]),
-            "enabled": bool(r["enabled"]), "sort_order": r["sort_order"], "revision": r["revision"], "sensors": fixed, "extras": extras}
+    return {**el.live_of(sensors, connected=connected, travel=bool(r["show_travel"])), "id": r["id"], "name": r["name"], "area_id": r["area_id"], "area_name": _area_name(conn, r["area_id"]),
+            "enabled": bool(r["enabled"]), "show_travel": bool(r["show_travel"]), "sort_order": r["sort_order"], "revision": r["revision"], "sensors": fixed, "extras": extras}
 
 
 @router.get("/infra/elevators/manage")
@@ -286,8 +287,8 @@ def create(body: ElevatorIn, principal: Principal = Depends(_manage_w), conn: sq
         raise _err(409, "duplicate_name", fields=["name"])
     eid, at = new_id(), now_iso()
     nxt = conn.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM infra_elevators").fetchone()[0]
-    conn.execute("INSERT INTO infra_elevators (id, name, name_key, area_id, sort_order, enabled, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
-                 (eid, name, el.name_key(name), body.area_id or None, nxt, 1 if body.enabled else 0, at, at))
+    conn.execute("INSERT INTO infra_elevators (id, name, name_key, area_id, sort_order, enabled, show_travel, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                 (eid, name, el.name_key(name), body.area_id or None, nxt, 1 if body.enabled else 0, 1 if body.show_travel else 0, at, at))
     _write_sensors(conn, eid, sensors)
     audit(conn, actor=principal, action="infra.elevator.create", decision="allowed", resource_type="infra_elevator", resource_id=eid)
     return _manage_one(conn, eid)
@@ -314,8 +315,8 @@ def update(elevator_id: str, body: ElevatorIn, principal: Principal = Depends(_m
     sensors = _validate(conn, principal, body)
     if _name_taken(conn, name, elevator_id):
         raise _err(409, "duplicate_name", fields=["name"])
-    conn.execute("UPDATE infra_elevators SET name = ?, name_key = ?, area_id = ?, enabled = ?, revision = revision + 1, updated_at = ? WHERE id = ?",
-                 (name, el.name_key(name), body.area_id or None, 1 if body.enabled else 0, now_iso(), elevator_id))
+    conn.execute("UPDATE infra_elevators SET name = ?, name_key = ?, area_id = ?, enabled = ?, show_travel = ?, revision = revision + 1, updated_at = ? WHERE id = ?",
+                 (name, el.name_key(name), body.area_id or None, 1 if body.enabled else 0, 1 if body.show_travel else 0, now_iso(), elevator_id))
     _write_sensors(conn, elevator_id, sensors)
     audit(conn, actor=principal, action="infra.elevator.update", decision="allowed", resource_type="infra_elevator", resource_id=elevator_id)
     return _manage_one(conn, elevator_id)

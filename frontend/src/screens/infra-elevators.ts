@@ -174,7 +174,7 @@ export class InfraElevators extends LitElement {
     const k = kpisOf(list, stale);
     const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
     return html`<div class="kpis" role="group" aria-label=${elt('title')}>
-      ${cell('unk', k.total, 'title', 'total')}${cell('wait', k.ok, 'kpiOk', 'ok')}${cell('fault', k.fault, 'kpiFault', 'fault')}${cell('off', k.off, 'kpiOff', 'off')}${cell('fire', k.fire, 'kpiFire', 'fire')}
+      ${cell('unk', k.total, 'title', 'total')}${cell('wait', k.ok, 'kpiOk', 'ok')}${cell('fault', k.fault, 'kpiFault', 'fault')}${cell('off', k.off, 'kpiOff', 'off')}${cell('fire', k.fire, 'kpiFire', 'fire')}${k.usesTravel ? cell('trav', k.travel, 'kpiTravel', 'travel') : nothing}
     </div>`;
   }
 

@@ -7,7 +7,7 @@ import { del, get, post, put } from './client';
 /** The closed list of roles in the settings dialog's order (out_of_service = the owner's shutdown, "השבתה"); mirrors services/elevators.py ROLES. */
 export const ELEVATOR_ROLES = ['waiting', 'fault', 'fire_service', 'out_of_service', 'moving_up', 'moving_down', 'door_open'] as const;
 export type ElevatorRole = (typeof ELEVATOR_ROLES)[number];
-export type ElevatorState = 'fire_service' | 'fault' | 'out_of_service' | 'active' | 'moving_up' | 'moving_down' | 'door_open' | 'waiting' | 'unknown';
+export type ElevatorState = 'fire_service' | 'fault' | 'out_of_service' | 'active' | 'moving_up' | 'moving_down' | 'door_open' | 'waiting' | 'travelling' | 'unknown';
 export const MAX_EXTRAS = 4;
 
 export interface ElevatorLive {
@@ -32,6 +32,8 @@ export interface Elevator extends ElevatorLive {
   name: string;
   area_id: string | null;
   area_name: string | null;
+  /** ELEVTRAVEL-291: this elevator uses the "show travelling" option (absent on an older server = false). */
+  uses_travel?: boolean;
   history?: HistorySegment[] | null;
 }
 export interface ElevatorsResponse {
@@ -48,6 +50,8 @@ export interface ManagedSensor {
 /** The manage listing: the live fields plus the mapping. Its `extras` are the mapping (entity id, label), not the live on / off. */
 export interface ManagedElevator extends Omit<Elevator, 'extras'> {
   enabled: boolean;
+  /** ELEVTRAVEL-291: the option "show travelling when not on standby and without a fault" (default off). */
+  show_travel?: boolean;
   sort_order: number;
   revision: number;
   sensors: Partial<Record<ElevatorRole, ManagedSensor>>;
@@ -63,6 +67,7 @@ export interface ElevatorBody {
   name: string;
   area_id?: string | null;
   enabled?: boolean;
+  show_travel?: boolean;
   sensors: Partial<Record<ElevatorRole, string | null>>;
   extras: { entity_id: string; label: string }[];
   revision?: number;

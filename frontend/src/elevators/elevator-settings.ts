@@ -143,6 +143,8 @@ export class ElevatorSettings extends LitElement {
       <div class="col" style="gap:12px">
         <div class="fld"><label for="elname">${elt('name')}</label><input id="elname" maxlength="60" .value=${d.name} @input=${(e: Event) => this.setDraft({ name: (e.target as HTMLInputElement).value })} /></div>
         <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${(e: Event) => this.setDraft({ enabled: (e.target as HTMLInputElement).checked })} /> ${elt('enabled')}</label>
+        <label class="row" data-travel-option><input type="checkbox" data-travel-toggle .checked=${d.showTravel} @change=${(e: Event) => this.setDraft({ showTravel: (e.target as HTMLInputElement).checked })} /> ${elt('travelOption')}</label>
+        <div class="mut">${elt('travelOptionHint')}</div>
         <div class="map" data-roles>${ELEVATOR_ROLES.filter((r) => SHOWN_ROLES.includes(r) || !!d.sensors[r]).map((r) => html`<label for=${`el-${r}`}>${elt(ROLE_LABEL[r])}</label>
           <select id=${`el-${r}`} data-role=${r} @change=${(e: Event) => this.setDraft({ sensors: { ...d.sensors, [r]: (e.target as HTMLSelectElement).value } })}>${this.options(d.sensors[r])}</select>`)}
           <span class="mut">${elt('futureRoles')}</span><span class="mut" data-roles-future>${elt('futureNone')}</span></div>

@@ -19,6 +19,7 @@ export const elevatorCss = css`
     --sw-el-off: #c2410c;
     --sw-el-fire: #881337;
     --sw-el-unk: #667085;
+    --sw-el-trav: #0e7490; /* travelling: teal, apart from the in-operation blue and the waiting green (white text 5.4:1) */
   }
   [data-look='wait'] { --el-c: var(--sw-el-wait); }
   [data-look='act'] { --el-c: var(--sw-el-act); }
@@ -26,6 +27,7 @@ export const elevatorCss = css`
   [data-look='off'] { --el-c: var(--sw-el-off); }
   [data-look='fire'] { --el-c: var(--sw-el-fire); }
   [data-look='unk'] { --el-c: var(--sw-el-unk); }
+  [data-look='trav'] { --el-c: var(--sw-el-trav); }
 
   /* the solid state badge */
   .el-badge {
@@ -149,4 +151,4 @@ export function stateBadge(chip: Pick<Chip, 'look' | 'icon' | 'label' | 'state'>
   return html`<span class=${small ? 'el-badge sm' : 'el-badge'} data-look=${chip.look} data-elevator-state=${chip.state} data-elevator-badge=${attrs.id ?? nothing}><sw-icon name=${chip.icon} size=${small ? 12 : 14}></sw-icon>${chip.label}</span>`;
 }
 
-export const looks: readonly Look[] = ['wait', 'act', 'fault', 'off', 'fire', 'unk'];
+export const looks: readonly Look[] = ['wait', 'act', 'fault', 'off', 'fire', 'unk', 'trav'];
