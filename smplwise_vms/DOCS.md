@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.9.0: what is on, off and locked
+## Releases 2.6.4 to 2.9.1: what is on, off and locked
 
-Written from the release notes and the code of `integ/280` and `integ/290` (2.8.0 and 2.9.0 are released). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280`, `integ/290` and `integ/291` (2.8.0, 2.9.0 and 2.9.1 are released). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1530,6 +1530,13 @@ threshold `ui.dash_dept_stuck`, default 10) and the vendor payment due tomorrow 
 notification settings. Also in 2.9.0, on without a switch: the monthly counts CSV (table toolbar, managers), the location change of a
 request, "ask the manager" on the vendor page, the elevator add only in page edit mode. The WisKey door writes stay locked.
 
+**2.9.1.** On without a switch: the work order Costs tab lists the whole instalment schedule (due day, status, timing; amounts and
+"mark paid" only with `tickets.costs.view`, a viewer without it sees dates and status only); an organisation location may link to a plan
+room (`ticket_org_locations.plan_zone_id`, picker `GET /api/v1/tickets/admin/locations/plan-areas`; the ticket shows "show on map" only to
+viewers with `map.read` on that floor); automatic messages on the vendor RFQ page read "System"; an add-on stop is recorded as "unknown"
+in the elevator history (heartbeat). Per elevator and off by default: "show travelling" (migration 0122, the elevator edit dialog).
+Organisation-level privacy documents (he + en, templates; statements marked REQUIRES COUNSEL REVIEW) are in `docs/privacy/`.
+
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
 installed web app once after each update.
