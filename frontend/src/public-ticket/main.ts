@@ -77,6 +77,8 @@ class Page {
   private mapAsked = false;
   /** TKRFQVP: the request-for-quotation mode (`#q.<token>` or a redeem answer of kind "rfq") hands the page to the lazy RFQ chunk */
   private mode: 'ticket' | 'rfq' = 'ticket';
+  /** vendor-portal-leftovers: the item was opened from the portal list - the header offers "back to the list" (the portal session lives). */
+  private fromPortal = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -133,6 +135,7 @@ class Page {
   }
 
   private forget(): void {
+    this.fromPortal = false;
     this.setToken(null);
     this.creds.session = null;
     store(STORE.session, null);
@@ -196,6 +199,7 @@ class Page {
   /** VPORTAL: the portal handed over one item's handler token - the ordinary handler page takes it (its own code / grace rules). */
   private openFromPortal(token: string): void {
     this.forget();
+    this.fromPortal = true;
     this.setToken(token); // "סיום" ends at the finished screen as for any link; /support again shows the list while the session lives
     void this.load();
   }
@@ -491,7 +495,13 @@ class Page {
         h('div', { class: 'who' },
           org ? h('div', { class: 'org' }, org) : null,
           v ? h('div', { class: 'sub' }, this.t('number', { number: v.number }), v.department ? ` · ${v.department}` : '') : null)),
-      h('div', { class: 'tools' }, this.themeToggle(), this.langPicker()));
+      h('div', { class: 'tools' }, this.fromPortal ? this.backToListButton() : null, this.themeToggle(), this.langPicker()));
+  }
+
+  /** vendor-portal-leftovers: back to the portal list; the item's token is forgotten like any other hand-off, the portal re-reads its own session. */
+  private backToListButton(): HTMLElement {
+    return h('button', { class: 'icon-btn back-btn', attrs: { type: 'button', 'data-portal-back': true, 'aria-label': this.t('backToList') },
+      on: { click: () => { this.forget(); this.tryPortal(); } } }, this.t('backToList'));
   }
 
   /** TK259: one tap flips light / dark and is remembered in this browser (theme.ts). */

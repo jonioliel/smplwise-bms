@@ -150,3 +150,13 @@ test('items split into open and finished; money lines say amount and paid / not 
   expect(isView({ items: [], expires_in_s: 10 })).toBe(true);
   expect(isView({ items: 'x' })).toBe(false);
 });
+
+test('vendor-portal-leftovers: an item opened from the portal offers "back to the list" in every language; a direct link never does', () => {
+  const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/public-ticket/main.ts'), 'utf8');
+  const strings = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/public-ticket/strings.ts'), 'utf8');
+  expect(strings.match(/^ {2}backToList: /gm)?.length).toBe(LANGS.length);
+  expect(src).toContain('this.fromPortal ? this.backToListButton() : null');
+  expect(src).toMatch(/openFromPortal[\s\S]{0,200}this\.forget\(\);\s+this\.fromPortal = true;/);
+  expect(src).toMatch(/private forget\(\): void \{\s+this\.fromPortal = false;/);
+  expect(src).not.toMatch(/fromPortal = true[\s\S]*fromPortal = true/);
+});
