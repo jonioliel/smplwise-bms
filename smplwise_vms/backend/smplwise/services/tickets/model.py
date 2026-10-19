@@ -39,7 +39,9 @@ STATUS_MOVES: dict[str, frozenset[tuple[str, str]]] = {
     "assignee": _ASSIGNEE_MOVES,  # the current internal assignee
     "link": _ASSIGNEE_MOVES,  # the external assignee through a handler link (slice 4)
     "inbound": frozenset({("assigned", "acknowledged"), ("assigned", "in_progress"), ("acknowledged", "in_progress")}),  # advisory only
-    "system": frozenset({("done", "closed")}),  # the department's automatic close after N days (slice 6)
+    # the department's automatic close after N days (slice 6); TKRULES-291: a rule ticket nobody took yet, when its alert ended and the
+    # rule says "close on clear" (services/tickets/rule_engine.py checks: status new, no assignment)
+    "system": frozenset({("done", "closed"), ("new", "closed")}),
 }
 
 NOTE_MAX = 2000

@@ -535,6 +535,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import tickets_detail as tickets_detail_router  # TKDETAILBE: owner, timeline, quotes, vendor messages, drafts
 
     app.include_router(tickets_detail_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
+    from .routers import tickets_rules as tickets_rules_router  # TKRULES-291: tickets opened from alerts (system.configure)
+
+    app.include_router(tickets_rules_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}
     from .routers import tickets_map as tickets_map_router  # TKMAP1: the map element of a request
 
     app.include_router(tickets_map_router.router, prefix=api, tags=["tickets"])  # BEFORE /tickets/{ticket_id}

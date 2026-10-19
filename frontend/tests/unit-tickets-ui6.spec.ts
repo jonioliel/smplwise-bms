@@ -31,11 +31,11 @@ test('only a manager of the person\'s department sees the load (owner decision)'
 });
 
 test('the eight tabs of the settings, in the mock-up\'s order; what a viewer is offered', () => {
-  expect(SETTINGS_TABS).toEqual(['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'permissions']);
+  expect(SETTINGS_TABS).toEqual(['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'rules', 'permissions']);
   expect(visibleTabs({ api: false, can: () => false })).toEqual([...SETTINGS_TABS]);
   expect(visibleTabs({ api: true, can: () => false })).toEqual(['general', 'departments', 'permissions']);
   expect(visibleTabs({ api: true, can: (p) => p === 'tickets.configure' })).toEqual(['general', 'departments', 'locations', 'messages', 'permissions']);
-  expect(visibleTabs({ api: true, can: (p) => p === 'system.configure' })).toEqual(['general', 'departments', 'display', 'channel', 'costs', 'permissions']);
+  expect(visibleTabs({ api: true, can: (p) => p === 'system.configure' })).toEqual(['general', 'departments', 'display', 'channel', 'costs', 'rules', 'permissions']);
   expect(isSettingsTab('display')).toBe(true);
   expect(isSettingsTab('contacts')).toBe(false);
 });
