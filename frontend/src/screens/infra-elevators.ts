@@ -4,11 +4,13 @@ import '../components/sw-tabs';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-dialog';
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listElevators, type Elevator, type ElevatorsResponse } from '../api/elevators';
 import { elevatorsAccess, onElevatorsAccess, type ElevatorsAccess } from '../elevators/access';
-import { ELEVATORS_SETTINGS_HREF, agoText, barOf, barSummary, chipOf, kpisOf, ledText, ledsOf, type Look } from '../elevators/model';
+import { ELEVATORS_SETTINGS_HREF, agoText, barOf, barSummary, chipOf, durationText, historyRows, kpisOf, ledText, ledsOf, type Look } from '../elevators/model';
+import { ElevatorHistoryPress } from '../elevators/history-press';
 import { doorIcon, elevatorCss, stateBadge } from '../elevators/styles';
 import { elt, type EltKey } from '../i18n/elevators';
 import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
@@ -34,6 +36,10 @@ export class InfraElevators extends LitElement {
   @state() private access: ElevatorsAccess = elevatorsAccess();
   @state() private data: ElevatorsResponse | null = null;
   @state() private error = '';
+  @state() private historyId: string | null = null;
+  private historyOpener: HTMLElement | null = null;
+  /** 2.9.0: the long press (and its keyboard / menu alternatives) on a card opens that elevator's history, like on the devices screen. */
+  readonly press = new ElevatorHistoryPress(this, (id, opener) => this.openHistory(id, opener));
   private timer?: number;
   private stop?: () => void;
 
@@ -66,6 +72,7 @@ export class InfraElevators extends LitElement {
     .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .ecard {
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
       background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
     }
@@ -79,6 +86,15 @@ export class InfraElevators extends LitElement {
     .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
     .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); }
     .ext { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ecard:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .hbtn { border: 0; background: transparent; color: var(--sw-text-2); border-radius: 999px; padding: 6px; display: inline-grid; place-items: center; cursor: pointer; }
+    .hbtn:hover { color: var(--sw-accent); }
+    .hbtn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-block-size: 60vh; overflow: auto; }
+    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--sw-border); }
+    .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; }
+    .hist .t { flex: 1; min-inline-size: 0; }
+    .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }
     .add {
       display: grid; place-items: center; min-block-size: 200px; border-radius: var(--sw-r-lg, 26px); border: 2px dashed var(--sw-border);
       color: var(--sw-text-2); text-decoration: none; text-align: center; padding: 16px;
@@ -120,6 +136,30 @@ export class InfraElevators extends LitElement {
     }
   }
 
+  private openHistory(id: string, opener: HTMLElement | null) {
+    this.historyOpener = opener;
+    this.historyId = id;
+  }
+
+  private closeHistory() {
+    this.historyId = null;
+    const o = this.historyOpener;
+    this.historyOpener = null;
+    if (o?.isConnected) void this.updateComplete.then(() => o.focus());
+  }
+
+  private historyDialog(list: Elevator[], now: number) {
+    const e = list.find((x) => x.id === this.historyId);
+    if (!e) return nothing;
+    const rows = historyRows(e.history, now);
+    const t = (iso: string) => new Date(iso).toLocaleString(document.documentElement.lang || 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return html`<sw-dialog open heading=${elt('historyTitle', { name: e.name })} subheading=${elt('last24')} data-elevator-history-dialog @close=${() => this.closeHistory()}>
+      ${rows.length
+        ? html`<ol class="hist" data-history-rows>${rows.map((r) => html`<li data-look=${r.look} data-history-state=${r.state}><span class="dot" aria-hidden="true"></span><span class="t">${r.label}</span><span class="w">${t(r.from)} - ${t(r.to)} · ${durationText(r.minutes)}</span></li>`)}</ol>`
+        : html`<p>${elt('noHistory')}</p>`}
+    </sw-dialog>`;
+  }
+
   private kpis(list: Elevator[], stale: boolean) {
     const k = kpisOf(list, stale);
     const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
@@ -133,8 +173,8 @@ export class InfraElevators extends LitElement {
     const ago = c.state === 'unknown' ? '' : agoText(e.since, new Date(now));
     const bar = barOf(e.history, now - DAY_MS, now);
     const extras = e.extras.filter((x) => x.on !== null);
-    return html`<article class="ecard" data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
-      <div class="head"><h3>${e.name}${e.area_name ? html`<small>${e.area_name}</small>` : nothing}</h3>${stateBadge(c)}</div>
+    return html`<article class="ecard" tabindex="0" data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
+      <div class="head"><h3>${e.name}${e.area_name ? html`<small>${e.area_name}</small>` : nothing}</h3>${stateBadge(c)}<button type="button" class="hbtn" data-elevator-history aria-label=${elt('historyOpen', { name: e.name })} title=${elt('historyOpen', { name: e.name })} @click=${(ev: Event) => this.openHistory(e.id, ev.currentTarget as HTMLElement)}><sw-icon name="clock" size="16"></sw-icon></button></div>
       <div class="body">${doorIcon(c, 74)}
         <div class="meta">
           <div class="leds" role="list" aria-label=${elt('sensorsLit')}>${ledsOf(e, stale || e.stale).map((l) => html`<span class="led" role="listitem" data-look=${l.look} data-on=${String(l.on)} ?data-na=${l.na} data-led=${l.role} aria-label=${ledText(l)} title=${ledText(l)}><i aria-hidden="true"></i>${l.label}</span>`)}</div>
@@ -173,7 +213,8 @@ export class InfraElevators extends LitElement {
       <div class="grid" data-elevators>
         ${list.map((e) => this.card(e, stale, now))}
         ${manage ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}
-      </div>`;
+      </div>
+      ${this.historyDialog(list, now)}`;
   }
 }
 

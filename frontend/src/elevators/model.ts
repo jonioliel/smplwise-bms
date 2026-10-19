@@ -256,3 +256,37 @@ export function homeTiles(list: readonly Elevator[], stale = false): HomeTile[] 
     icon: fire ? 'flame' : faults ? 'warning' : 'elevator', tone, href: ELEVATORS_HREF,
   }];
 }
+
+// ------------------------------------------------------------------------------------------------ 2.9.0 the history popup
+
+export interface HistoryRow {
+  state: ElevatorState;
+  look: Look;
+  label: string;
+  from: string;
+  to: string;
+  /** whole minutes of the stretch (at least 1) */
+  minutes: number;
+}
+
+/** The state history as rows, newest first, clipped to the last 24 hours; a stretch of zero length is dropped. Pure. */
+export function historyRows(history: readonly HistorySegment[] | null | undefined, now: number, windowMs = 24 * 3600_000): HistoryRow[] {
+  const lo = now - windowMs;
+  const rows: HistoryRow[] = [];
+  for (const s of history ?? []) {
+    const a = Math.max(lo, Date.parse(s.from));
+    const b = Math.min(now, Date.parse(s.to));
+    if (!(b > a)) continue;
+    const c = chipOf({ state: s.state, stale: false });
+    rows.push({ state: s.state, look: c.look, label: c.label, from: new Date(a).toISOString(), to: new Date(b).toISOString(), minutes: Math.max(1, Math.round((b - a) / 60_000)) });
+  }
+  return rows.sort((x, y) => Date.parse(y.from) - Date.parse(x.from));
+}
+
+/** "45 דק׳" / "3 שע׳" / "2 שע׳ 10 דק׳". */
+export function durationText(minutes: number): string {
+  if (minutes < 60) return elt('durMin', { n: minutes });
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${elt('hours', { n: h })} ${elt('durMin', { n: m })}` : elt('hours', { n: h });
+}
