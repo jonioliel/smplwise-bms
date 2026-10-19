@@ -264,15 +264,32 @@ def _set_lang(a, lang):
         conn.execute("UPDATE ticket_contacts SET lang = ? WHERE id IN (SELECT contact_id FROM ticket_assignments WHERE id = ?)", (lang, a.assignment))
 
 
+def _set_org(a, name):
+    """PRIVORG-291: the fixed notice is served as is only while no organisation name / privacy contact is set (the test world starts with a name)."""
+    from smplwise.services.tickets import settings_doc
+
+    with a.db.connection() as conn:
+        settings_doc.apply_patch(conn, {"organization_name": name})
+
+
 @pytest.mark.parametrize("lang", ["he", "en", "ar", "ru"])
 def test_the_notice_is_served_in_the_vendors_language(arr, lang):
+    _set_org(arr, "")
     _set_lang(arr, lang)
     n = _view(arr)
     assert n == {"version": "n2", "text": ag.NOTICE_TEXT[lang], "attest": ag.NOTICE_ATTEST[lang], "lang": lang}
 
 
+def test_the_notice_names_the_organisation_when_one_is_set(arr):
+    _set_org(arr, "Hadar Towers")
+    _set_lang(arr, "en")
+    text = _view(arr)["text"]
+    assert text.endswith("contact Hadar Towers.") and text.startswith(ag.NOTICE_TEXT["en"][:-len("contact the building manager.")])
+
+
 def test_an_arabic_vendor_no_longer_gets_hebrew(arr):
     import re
+    _set_org(arr, "")
     _set_lang(arr, "ar")
     text = _view(arr)["text"]
     assert re.search("[֐-׿]", text) is None and re.search("[؀-ۿ]", text)
