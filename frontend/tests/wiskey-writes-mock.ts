@@ -113,6 +113,12 @@ export function editorPerson(st: PeopleMock, w: WritesMock, p: RawPerson): Recor
     timing_draft: timing.draft,
     timing_policy: timing.policy,
     level: sensitive ? 'sensitive' : 'names',
+    // WisKey rounds 4-6: the completeness markers of the read side (intercom_sync / intercom_authority) - a mock person is complete
+    access_known: true,
+    stations_known: true,
+    credentials_known: sensitive,
+    redacted_fields: [],
+    operator_editable: true,
   };
 }
 

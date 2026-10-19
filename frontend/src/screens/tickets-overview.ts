@@ -255,7 +255,7 @@ export class TicketsOverview extends LitElement {
     .bars .bo { fill: var(--dv-accent); }
     .bars .bc { fill: var(--dv-success, var(--sw-success)); }
     .bars .bl { font-size: 8.5px; text-anchor: middle; fill: var(--dv-text-3); }
-    .bars .ax { font-size: 9px; text-anchor: middle; fill: var(--dv-text-3); }
+    .bars .ax { font-size: var(--sw-fs-2xs); text-anchor: middle; fill: var(--dv-text-3); }
     .bars .base { stroke: var(--dv-border); }
     .bars .lg { display: flex; gap: 14px; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
     .bars .lg span { display: inline-flex; align-items: center; gap: 5px; }

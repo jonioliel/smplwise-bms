@@ -96,7 +96,7 @@ export class InfraElevators extends LitElement {
     .hbtn:hover { color: var(--sw-accent); }
     .hbtn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
     .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-block-size: 60vh; overflow: auto; }
-    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--sw-border); }
+    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); }
     .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; }
     .hist .t { flex: 1; min-inline-size: 0; }
     .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }

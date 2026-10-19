@@ -52,7 +52,12 @@
         "schedule": { "mode": "dates", "timezone": "Asia/Jerusalem", "days": [], "dates": ["2026-12-01", "2026-12-02", "2026-12-05"], "periods": [{ "start": "08:00", "end": "24:00" }] },
         "bindings": { "gate": { "template": 5, "weekly": 6, "holiday_group": 7, "holidays": [8, 9] } }
       },
-      "level": "sensitive"
+      "level": "sensitive",
+      "access_known": true,
+      "stations_known": true,
+      "credentials_known": true,
+      "redacted_fields": [],
+      "operator_editable": true
     }
   },
   "editor_person_names": {
@@ -83,7 +88,12 @@
       "photo_configured": null,
       "timing_draft": null,
       "timing_policy": null,
-      "level": "names"
+      "level": "names",
+      "access_known": true,
+      "stations_known": true,
+      "credentials_known": false,
+      "redacted_fields": [],
+      "operator_editable": true
     }
   },
   "write_reply": {
@@ -114,7 +124,12 @@
       "photo_configured": false,
       "timing_draft": null,
       "timing_policy": null,
-      "level": "sensitive"
+      "level": "sensitive",
+      "access_known": true,
+      "stations_known": true,
+      "credentials_known": true,
+      "redacted_fields": [],
+      "operator_editable": true
     },
     "command_id": "0b6c1d2e3f4a4b5c8d9e0f1a2b3c4d5e",
     "effect": "sync",
@@ -148,7 +163,12 @@
       "photo_configured": false,
       "timing_draft": null,
       "timing_policy": null,
-      "level": "sensitive"
+      "level": "sensitive",
+      "access_known": true,
+      "stations_known": true,
+      "credentials_known": true,
+      "redacted_fields": [],
+      "operator_editable": true
     },
     "command_id": "1c7d2e3f4a5b4c6d9e0f1a2b3c4d5e6f",
     "note": "נשמר. הסנכרון לעמדות מתבצע בנפרד.",
