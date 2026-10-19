@@ -452,6 +452,14 @@ def terms(conn: sqlite3.Connection, award_id: str | None) -> dict[str, Any] | No
     return _dict(conn.execute("SELECT * FROM ticket_rfq_award_terms WHERE award_id = ?", (award_id,)).fetchone())
 
 
+def approved_terms_of_quote(conn: sqlite3.Connection, quote_id: str | None) -> dict[str, Any] | None:
+    """The terms of the FINAL (approved) award that selected this quote - the payment schedule a work order's Costs tab shows."""
+    if not quote_id:
+        return None
+    return _dict(conn.execute("SELECT t.* FROM ticket_rfq_award_terms t JOIN ticket_rfq_awards a ON a.id = t.award_id "
+                              "WHERE a.quote_id = ? AND a.state = 'approved' ORDER BY a.created_at, a.rowid LIMIT 1", (quote_id,)).fetchone())
+
+
 def update_terms(conn: sqlite3.Connection, award_id: str, fields: Mapping[str, Any], *, expect_revision: int | None = None) -> bool:
     cols = [c for c in fields if c in TERMS_COLUMNS]
     sql = f"UPDATE ticket_rfq_award_terms SET {', '.join([f'{c} = ?' for c in cols] + ['revision = revision + 1'])} WHERE award_id = ?"

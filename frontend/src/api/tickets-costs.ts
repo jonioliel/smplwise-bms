@@ -192,18 +192,25 @@ export interface TicketCosts {
   instalment_demands?: InstalmentDemandRow[];
 }
 
-/** HARDEN271 (RFQPAY2 follow-up): one instalment demand as the work order's Costs tab lists it. */
+/** HARDEN271 + COSTINST: one instalment of the award's payment schedule as the work order's Costs tab lists it (`none` = no demand yet). */
 export interface InstalmentDemandRow {
   id: string;
   index: number;
   kind: 'advance' | 'progress' | 'final';
-  status: 'open' | 'paid' | 'cancelled';
+  status: 'none' | 'open' | 'paid' | 'cancelled';
   amount_minor: number;
   currency: string;
   due_date: string | null;
-  created_at: string;
+  created_at: string | null;
   paid_at: string | null;
   cancelled_at: string | null;
+  /** COSTINST (absent on an older server): the award / request the "mark paid" route needs, where the instalment stands, and whether
+   * this viewer may mark it paid (the dashboard payments card's rule) */
+  award_id?: string | null;
+  rfq_id?: string | null;
+  timing?: 'paid' | 'late' | 'soon' | 'later';
+  can_pay?: boolean;
+  moved?: boolean;
 }
 
 /** TKDETAILBE (contract 4.4): `GET tickets/{id}/costs` also carries the quotes block (amounts only with tickets.costs.view). */

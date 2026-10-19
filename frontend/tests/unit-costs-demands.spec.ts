@@ -4,7 +4,7 @@ import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import type { InstalmentDemandRow } from '../src/api/tickets-costs';
-import { demandLines, dueText } from '../src/tickets/costs-demands-model';
+import { demandLines, dueText, payPlan, demandsText } from '../src/tickets/costs-demands-model';
 
 // HARDEN271 (owner 2026-10-17, RFQPAY2 follow-up): the read-only instalment demands of a work order in its Costs tab.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -33,12 +33,12 @@ test.describe('instalment demands in the Costs tab', () => {
     expect(dueText('not-a-date', 'en')).toBe('On completion');
   });
 
-  test('budget: the lazy chunk keeps its own 3 KB cap (gzip) in the built add-on UI', () => {
+  test('budget: the lazy chunk keeps its own 5 KB cap (gzip) in the built add-on UI', () => {
     const dir = path.resolve(HERE, '../../smplwise_vms/www/assets');
     const files = existsSync(dir) ? readdirSync(dir).filter((f) => /^costs-demands-.*\.js$/.test(f)) : [];
     test.skip(files.length === 0, 'smplwise_vms/www is not rebuilt with this change yet (npm run build:addon on the runner)');
     const n = files.reduce((sum, f) => sum + gzipSync(readFileSync(path.join(dir, f))).length, 0);
-    expect(n).toBeLessThanOrEqual(3 * 1024);
+    expect(n).toBeLessThanOrEqual(5 * 1024); // COSTINST: 3 KB -> 5 KB (timing words, the mark-paid action)
   });
 
   test('the list is a lazy chunk: the Costs tab never imports it statically', () => {
@@ -46,5 +46,45 @@ test.describe('instalment demands in the Costs tab', () => {
     expect(tab).not.toMatch(/^import\s+['"]\.\/costs-demands['"]/m);
     expect(tab).not.toMatch(/^import\s[^;]*from\s+['"]\.\/costs-demands['"]/m);
     expect(tab).toContain("import('./costs-demands')");
+  });
+
+  test('COSTINST: instalments with no demand yet are listed, with their timing (paid / late / soon / not due)', () => {
+    const lines = demandLines([
+      row({ id: 'a:1', index: 1, status: 'none', timing: 'soon', created_at: null }),
+      row({ id: 'a:0', index: 0, status: 'none', timing: 'late', due_date: '2026-10-01', created_at: null }),
+      row({ id: 'd2', index: 2, status: 'paid', timing: 'paid', paid_at: '2026-10-20T08:00:00Z' }),
+      row({ id: 'a:3', index: 3, status: 'cancelled', timing: 'later' }),
+    ], 'he');
+    expect(lines.map((l) => [l.index, l.status, l.statusText, l.timing, l.timingText])).toEqual([
+      [0, 'none', 'טרם נדרש', 'late', 'באיחור'], [1, 'none', 'טרם נדרש', 'soon', 'בקרוב'], [2, 'paid', 'שולם', 'paid', 'שולם'],
+      [3, 'cancelled', 'בוטל', 'later', 'טרם הגיע המועד'],
+    ]);
+    expect(demandLines([row({ status: 'none', timing: 'late' })], 'en')[0]).toMatchObject({ statusText: 'Not demanded yet', timingText: 'Late' });
+    // an older server (no timing field): never a guess about dates - "not due yet"
+    expect(demandLines([row()], 'en')[0].timing).toBe('later');
+    expect(demandLines([row({ status: 'paid', timing: undefined })], 'en')[0].timing).toBe('paid');
+  });
+
+  test('COSTINST: mark paid only where the server said can_pay (never widened) and the plan makes the demand first when there is none', () => {
+    const ids = { award_id: 'aw1', rfq_id: 'rq1' };
+    const l = (over: Partial<InstalmentDemandRow>) => demandLines([row({ ...ids, ...over })], 'he')[0];
+    expect(l({}).canPay).toBe(false); // no flag
+    expect(l({ can_pay: false }).canPay).toBe(false);
+    expect(l({ can_pay: true, award_id: null }).canPay).toBe(false); // nothing to call
+    expect(l({ can_pay: true, status: 'paid' }).canPay).toBe(false);
+    expect(payPlan(l({}))).toEqual([]);
+    expect(payPlan(l({ can_pay: true, status: 'open' }))).toEqual(['paid']);
+    expect(payPlan(l({ can_pay: true, status: 'none' }))).toEqual(['create', 'paid']);
+    expect(payPlan(l({ can_pay: true, status: 'cancelled' }))).toEqual(['create', 'paid']);
+    expect(payPlan(l({ can_pay: true, status: 'paid' }))).toEqual([]);
+  });
+
+  test('COSTINST: Hebrew and English words exist for every key, and the tab reloads after a payment', () => {
+    for (const key of ['title', 'none', 'late', 'soon', 'later', 'markPaid', 'confirm', 'yes', 'no', 'failed'] as const) {
+      expect(demandsText('he', key)).not.toBe('');
+      expect(demandsText('en', key)).not.toBe('');
+    }
+    const tab = readFileSync(path.resolve(HERE, '../src/tickets/costs-tab.ts'), 'utf8');
+    expect(tab).toMatch(/<ticket-costs-demands[^>]*@cost-reload=/);
   });
 });

@@ -110,7 +110,7 @@ def _answer(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[st
     out.update(quotes.answer(conn, seen.row, full=full, can_decide=full and viewer.holds(costs.COSTS, seen.row)))
     from ..services.tickets import rfq_terms  # HARDEN271: the RFQ instalment demands, read-only, under the tab's own rule (amounts: `full`)
 
-    out["instalment_demands"] = rfq_terms.ticket_demands(conn, seen.row) if full else []
+    out["instalment_demands"] = rfq_terms.ticket_demands(conn, seen.row, viewer) if full else []
     return out
 
 

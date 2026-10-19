@@ -32,6 +32,8 @@ def test_a_costs_viewer_sees_each_demand_with_status_amount_and_due_date(s4):  #
     assert demand(s4, d["id"], a["id"], 2).status_code == 200  # the final instalment: no due day yet
     tid = _order(s4, d, a, send=False)
     got = costs(s4, tid, "kim").json()["instalment_demands"]
-    assert [(x["index"], x["kind"], x["status"]) for x in got] == [(0, "advance", "paid"), (2, "final", "open")]
+    # COSTINST: the whole approved schedule is listed; an instalment with no demand yet has status `none`
+    assert [(x["index"], x["kind"], x["status"]) for x in got] == [(0, "advance", "paid"), (1, "progress", "none"), (2, "final", "open")]
+    got = [x for x in got if x["status"] != "none"]
     assert got[0]["amount_minor"] == first["amount_minor"] > 0 and got[0]["due_date"] == _day(6) and got[0]["paid_at"]
     assert got[1]["due_date"] is None and got[0]["currency"]
