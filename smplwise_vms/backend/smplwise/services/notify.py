@@ -398,7 +398,7 @@ def serialize(conn: sqlite3.Connection, row: sqlite3.Row, principal: Principal, 
         {"channel": d["channel"], "status": d["status"], "reason": d["reason"], "at": d["sent_at"] or d["created_at"]}
         for d in conn.execute("SELECT channel, status, reason, sent_at, created_at FROM notification_deliveries WHERE notification_id = ? AND user_id = ? ORDER BY created_at, id", (n["id"], principal.user_id)).fetchall()
     ]
-    return {
+    out = {
         "id": n["id"], "source": n["source"], "category": n["category"], "severity": n["severity"], "title": n["title"], "body": n["body"], "place_name": n["place"],
         "subject": {"kind": n["subject_kind"], "id": n["subject_id"], "area_id": n["area_id"]}, "link": n["link"], "count": n["count"],
         "first_at": n["first_at"], "last_at": n["last_at"], "state": n["state"], "acked_at": n["acked_at"], "acked_by_display": _display(conn, n["acked_by"]), "resolved_at": n["resolved_at"],
@@ -406,6 +406,14 @@ def serialize(conn: sqlite3.Connection, row: sqlite3.Row, principal: Principal, 
         "can_ack": n["state"] != "resolved" and reach.can_ack(n), "has_snapshot": _snapshot_ready(conn, n, data_dir), "door": reach.door(n),
         "timeline": _timeline(conn, n["id"]), "my_deliveries": mine,
     }
+    if n["source"] == "ticket.digest":  # TKNOTIFMATRIX: the digest's ticket list, rendered for THIS reader now (never stored, never pushed)
+        try:
+            from .tickets import notify_matrix
+
+            out["digest"] = notify_matrix.detail_for(conn, principal, n["params"])
+        except Exception:  # noqa: BLE001 - the row itself still reads
+            log.warning("digest detail failed for %s", n["id"], exc_info=True)
+    return out
 
 
 def get_row(conn: sqlite3.Connection, principal: Principal, nid: str) -> tuple[sqlite3.Row, sqlite3.Row, Reach] | None:

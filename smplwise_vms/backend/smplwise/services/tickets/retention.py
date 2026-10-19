@@ -20,6 +20,7 @@ _LAST: dict[str, float] = {}
 
 def janitor(db: Database, *, force: bool = False) -> int:
     """Returns the number of rows removed (0 when the step was throttled)."""
+    _digest(db)  # TKNOTIFMATRIX: the daily digest (own throttle, off by default)
     _sla_monitor(db)  # slice 6: the SLA monitor rides on this janitor step with its own once-a-minute throttle (monitor.py)
     key = str(db.path)
     now = time.monotonic()
@@ -33,6 +34,15 @@ def janitor(db: Database, *, force: bool = False) -> int:
     except Exception:  # noqa: BLE001 - a housekeeping step never fails the tick
         log.warning("tickets retention step failed", exc_info=True)
         return 0
+
+
+def _digest(db: Database) -> None:
+    try:
+        from . import notify_matrix
+
+        notify_matrix.tick(db)
+    except Exception:  # noqa: BLE001
+        log.warning("tickets digest step failed", exc_info=True)
 
 
 def _sla_monitor(db: Database) -> None:
