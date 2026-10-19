@@ -261,7 +261,7 @@ export interface RfqView {
     allowed_line_kinds: RfqKind[]; attachments: RfqFileRef[] };
   quote?: RfqQuote | null;
   declined?: { at: string; reason: string | null } | null;
-  messages?: { id: string; mine: boolean; text: string; at: string; answered?: boolean }[];
+  messages?: { id: string; mine: boolean; text: string; at: string; answered?: boolean; /** rfq-thread-system-author: an automatic message (a reminder) */ system?: boolean }[];
   form?: { currencies: string[]; allowed_kinds: RfqKind[]; vat: { exempt: boolean; rate_bp: number; default: 'excluded' | 'included' | 'none' }; labor_rate_minor: number | null;
     limits: { lines: number; description: number; note: number; vendor_ref: number; message: number; decline_reason: number; max_total_minor: number };
     payment?: null | { max_items: number; days_max: number; horizon_days: number } };

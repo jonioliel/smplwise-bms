@@ -710,3 +710,21 @@ def test_the_reminder_message_has_a_distinct_system_author(s4):
                                                "author_kind": "user", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})
         shown = rfq.present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v1) if m["id"] == sysm))
     assert shown["system"] is True and shown["by"] == "מערכת"
+
+
+def test_the_vendor_page_marks_the_system_message_without_naming_an_author(s4):
+    """rfq-thread-system-author: the vendor's own thread flags the reminder `system` and carries no author id or name; a manager's message stays unflagged."""
+    from smplwise.services.tickets import rfq_vendor
+
+    switch(s4, hours=24)
+    d = sent_rfq(s4)
+    v1 = vid(d, s4.vendor["id"])
+    with s4.db.connection() as conn:
+        at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+        base = {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "source_kind": "award", "source_id": None, "created_at": at}
+        store_rfq.insert_message(conn, {**base, "body": "reminder", "author_kind": "user", "author_id": "system"})
+        store_rfq.insert_message(conn, {**base, "body": "from a person", "author_kind": "user", "author_id": "mona"})
+        shown = rfq_vendor.present_messages(conn, {"id": v1})
+    by_text = {m["text"]: m for m in shown}
+    assert by_text["reminder"]["system"] is True and "system" not in by_text["from a person"]
+    assert all(set(m) <= {"id", "mine", "text", "at", "answered", "system"} for m in shown)

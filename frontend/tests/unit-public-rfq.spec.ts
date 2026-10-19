@@ -294,3 +294,13 @@ test('board code switch: the demo store follows 15.6 - on / off, the directory\'
   expect(board).toContain('vendorOptions(');
   expect(board).toMatch(/vendor_options/);
 });
+
+// rfq-thread-system-author: an automatic message (a reminder) reads "System" on the vendor page, in every language, with a distinct style.
+test('the vendor page labels an automatic message "System" in all four languages and styles it apart', () => {
+  for (const lang of LANGS) expect(RFQ_TEXT[lang].systemAuthor, lang).toBeTruthy();
+  expect(RFQ_TEXT.he.systemAuthor).toBe('מערכת');
+  const page = readFileSync(path.resolve(SRC, 'rfq-page.ts'), 'utf8');
+  expect(page).toContain("'systemAuthor'");
+  expect(page).toContain("'data-rfq-msg': sys ? 'system'");
+  expect(readFileSync(path.resolve(HERE, '../src/public-ticket/styles.css'), 'utf8')).toContain('.timeline li.system');
+});

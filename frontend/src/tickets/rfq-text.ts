@@ -191,6 +191,7 @@ const he = {
   writeSend: 'שמירת ההודעה',
   writeDone: 'ההודעה נשמרה',
   writeDoneNotified: 'ההודעה נשמרה והספק קיבל התראה',
+  systemAuthor: 'מערכת', // rfq-thread-system-author: the author label of an automatic message (a reminder)
   viaWhatsapp: 'בוואטסאפ · שולח לא מאומת', // TKRFQ5: a WhatsApp reply matched to the thread (never shown on the vendor page)
   thread: 'השרשור',
   threadEmpty: 'אין הודעות',
@@ -847,6 +848,7 @@ const en: Partial<Record<RfqTextKey, string>> = {
   writeSend: 'Save the message',
   writeDone: 'The message was saved',
   writeDoneNotified: 'The message was saved and the vendor was notified',
+  systemAuthor: 'System',
   viaWhatsapp: 'via WhatsApp · unverified sender',
   thread: 'Thread',
   threadEmpty: 'No messages',

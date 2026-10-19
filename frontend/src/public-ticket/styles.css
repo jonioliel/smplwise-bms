@@ -912,6 +912,13 @@ body {
   border-start-end-radius: 4px;
 }
 
+.timeline li.system {
+  background: transparent;
+  border: 1px dashed var(--sw-border, currentColor);
+  border-start-start-radius: 18px;
+  font-style: italic;
+}
+
 .timeline .meta {
   display: flex;
   justify-content: space-between;
