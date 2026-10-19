@@ -68,6 +68,18 @@ def send_hours(v: Any) -> dict[str, str]:
     return {"from": a, "to": b}
 
 
+def _calendar_default() -> dict[str, Any]:
+    from .work_calendar import DEFAULT_DOC
+
+    return DEFAULT_DOC
+
+
+def _calendar(v: Any) -> dict[str, Any]:
+    from .work_calendar import validate_doc
+
+    return validate_doc(v)
+
+
 def _org_name(v: Any) -> str:
     """Slice 4: the organisation name the handler page shows at the top - plain text, controls / bidi marks stripped."""
     from .text_hygiene import clean_text
@@ -210,6 +222,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("staff_links", "grace_hours"): (1, int_range(*GRACE_HOURS)),
     ("staff_links", "require_code"): (True, boolean),  # R8: raise only - a staff member's row (require_code) still raises it when off
     ("send_hours",): ({"from": "07:00", "to": "21:00"}, send_hours),  # D4
+    # SLACAL (2.9.1): the working-hours calendar of the ticket timers (services/tickets/work_calendar.py). Default = OFF (24x7, the old
+    # wall-clock behaviour); one document, replaced as a whole by a save (the screen sends all of it); the zone is `time.zone`
+    ("calendar",): (copy.deepcopy(_calendar_default()), _calendar),
     ("urgent_is_critical",): (True, boolean),  # D28
     # slice 4: the handler page (section 10 / 14.1)
     ("organization_name",): ("", _org_name),

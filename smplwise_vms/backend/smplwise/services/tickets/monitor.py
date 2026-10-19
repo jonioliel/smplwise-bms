@@ -25,7 +25,7 @@ from typing import Any, Callable
 
 from ...audit import audit
 from ...db import Database, get_setting
-from . import notify_bridge, policy, settings_doc, sla, store, stuck
+from . import notify_bridge, policy, settings_doc, sla, store, stuck, work_calendar
 
 log = logging.getLogger("smplwise.tickets.monitor")
 
@@ -119,7 +119,7 @@ def evaluate(conn, row: dict[str, Any], now: dt.datetime) -> stuck.Evaluation:
     """The crossing of one ticket now (also used by the board for its SLA cell)."""
     rule = store.sla_rule(conn, row["department_id"], row["priority_id"])
     since = store.unassigned_since(conn, row) if row["status"] in ("new", "returned") else None
-    return stuck.evaluate(row, rule, now, unassigned_since=since, link=_link_info(conn, row))
+    return stuck.evaluate(row, rule, now, unassigned_since=since, link=_link_info(conn, row), cal=work_calendar.load(conn, row["department_id"]))
 
 
 def look(conn, ticket_id: str, now: dt.datetime) -> stuck.Plan | None:
@@ -130,7 +130,8 @@ def look(conn, ticket_id: str, now: dt.datetime) -> stuck.Plan | None:
     rule = store.sla_rule(conn, row["department_id"], row["priority_id"])
     link = _link_info(conn, row)
     since = store.unassigned_since(conn, row) if row["status"] in ("new", "returned") else None
-    ev = stuck.evaluate(row, rule, now, unassigned_since=since, link=link)
+    cal = work_calendar.load(conn, row["department_id"])  # SLACAL: wall-clock unless the installation set working hours
+    ev = stuck.evaluate(row, rule, now, unassigned_since=since, link=link, cal=cal)
     _link_expiry(conn, row, link, now)
     marks, last_rem = store.ladder_marks(conn, ticket_id)
     state = stuck.LadderState()
@@ -144,7 +145,7 @@ def look(conn, ticket_id: str, now: dt.datetime) -> stuck.Plan | None:
     window_open, next_window = (True, None)
     if assignee == "contact":
         window_open, next_window = _window(conn, row, now)
-    p = stuck.plan(state, ev, rule, now, assignee=assignee, can_remind=can_remind, window_open=window_open, next_window=next_window)
+    p = stuck.plan(state, ev, rule, now, assignee=assignee, can_remind=can_remind, window_open=window_open, next_window=next_window, cal=cal)
     if p.ended_kind:
         notify_bridge.resolve_stuck(conn, ticket_id)
     if p.started is not None:

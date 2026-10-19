@@ -9,6 +9,7 @@ import '../components/sw-state-panel';
 import { drawerSettingsRows } from '../tickets/settings-drawer'; // TKUI1: the request drawer's display rows
 import '../tickets/settings-dept';
 import '../tickets/public-settings';
+import '../tickets/work-calendar-card'; // SLACAL: the working-hours calendar of the ticket timers
 import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
 import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
 import '../tickets/settings-costs'; // slice 9b: costs (11A.14)
@@ -711,6 +712,7 @@ export class SystemTickets extends LitElement {
       <div class="col">
         ${this.linksCard(this.doc)}
         ${this.hoursCard(this.doc)}
+        <tickets-work-calendar-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}></tickets-work-calendar-card>
         ${this.rfqTermsCard(this.doc)}
         ${this.vendorUploadsCard(this.doc)}
       </div>

@@ -50,6 +50,7 @@ const SLA_DEFAULTS: Record<PriorityKey, number[]> = {
   urgent: [15, 1440, 30, 60, 1440, 480, 30], high: [60, 1440, 120, 480, 4320, 2880, 240],
   normal: [240, 1440, 1440, 4320, 10080, 10080, 1440], low: [1440, 1440, 4320, 10080, 20160, 43200, 4320],
 };
+let calendarDoc: SettingsDoc['calendar'] | undefined; // SLACAL: undefined = the default (off)
 let installation: InstallationDefaults = { links: { sliding_days: 14, cap_days: 90, grace_hours: 24 }, send_hours: { from: '07:00', to: '21:00' }, urgent_is_critical: true };
 
 function slaRows(dept: string): SlaRow[] {
@@ -407,8 +408,9 @@ export const mockBackend: TicketsBackend = {
     };
     publicDoc = { organization_name: patch.organization_name ?? publicDoc.organization_name, public: { ...publicDoc.public!, ...(patch.public ?? {}) } }; // slice 4
     if (patch.device_long_press) longPress = patch.device_long_press; // slice 3: D17
+    if (patch.calendar) calendarDoc = clone(patch.calendar); // SLACAL
     settingsRevision += 1;
-    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation), ...clone(publicDoc), device_long_press: longPress };
+    return { revision: settingsRevision, ui: { ...ui }, ...clone(installation), ...clone(publicDoc), device_long_press: longPress, ...(calendarDoc ? { calendar: clone(calendarDoc) } : {}) };
   },
   async byEntity(entityId: string): Promise<EntityTickets> {
     // slice 3, the demo store: the device's tickets by entity id, and a synthetic history preview (no person names)

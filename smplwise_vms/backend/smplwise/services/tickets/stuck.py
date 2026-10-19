@@ -2,7 +2,7 @@
 monitor must look at it next, and what the reminder / escalation ladder does now. No SQL, no clock of its own: every function takes
 the ticket row, its department x priority rule and `now`, so the unit tests drive it with a fake clock row by row.
 
-Thresholds (section 13.1, every one per department x priority, an empty cell = off; calendar time, D7):
+Thresholds (section 13.1, every one per department x priority, an empty cell = off; calendar time, D7 - or working minutes when the installation set a working-hours calendar, SLACAL: work_calendar.py):
 
     kind        applies while                                   crossed at
     unassigned  new / returned (nobody holds the ticket)        unassigned_since + unassigned_after_min
@@ -28,6 +28,8 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any, Iterable
+
+from . import work_calendar
 
 KINDS: tuple[str, ...] = ("unassigned", "overdue", "unopened", "ack", "stuck", "waiting")
 OPEN_STATUSES = frozenset({"new", "assigned", "acknowledged", "in_progress", "waiting_part", "done", "returned"})
@@ -71,6 +73,13 @@ def _count(rule: dict[str, Any] | None, key: str, default: int) -> int:
         return default
 
 
+def _after(base: dt.datetime, span: dt.timedelta, cal: "work_calendar.Calendar | None") -> dt.datetime:
+    """SLACAL: `span` after `base` - in working time when the installation set a working-hours calendar, else wall-clock (the default)."""
+    if cal is None or cal.is_24x7:
+        return base + span
+    return work_calendar.add_working_time(base, span.total_seconds() / 60.0, cal)
+
+
 @dataclass(frozen=True)
 class LinkInfo:
     """The current handler link of an external assignment (slice 4's `ticket_links`), as far as the monitor needs it."""
@@ -101,10 +110,11 @@ class Evaluation:
 
 
 def evaluate(row: dict[str, Any], rule: dict[str, Any] | None, now: dt.datetime, *, unassigned_since: str | None = None,
-             link: LinkInfo | None = None) -> Evaluation:
+             link: LinkInfo | None = None, cal: "work_calendar.Calendar | None" = None) -> Evaluation:
     """Which thresholds apply to the ticket now and which one is crossed. `row` is a ticket row with its current assignment
     (`asg_kind`, `asg_at`, `asg_ended_at` - store._TICKET_SELECT); `unassigned_since` = when nobody holds it any more (creation,
-    the return, the reopen); `link` = the external assignment's live link (None for internal users / no link)."""
+    the return, the reopen); `link` = the external assignment's live link (None for internal users / no link); `cal` = the working-hours calendar of the ticket's
+    department (SLACAL; None or disabled = wall-clock minutes, exactly as before)."""
     status = row.get("status")
     dues: dict[str, dt.datetime] = {}
     if status not in OPEN_STATUSES:
@@ -117,30 +127,30 @@ def evaluate(row: dict[str, Any], rule: dict[str, Any] | None, now: dt.datetime,
         since = parse(unassigned_since) or created
         d = _mins(rule, "unassigned_after_min")
         if since and d:
-            dues["unassigned"] = since + d
+            dues["unassigned"] = _after(since, d, cal)
     if status != "done" and created:
         d = _mins(rule, "resolve_within_min")
         if d:
-            dues["overdue"] = created + d
+            dues["overdue"] = _after(created, d, cal)
     if status == "assigned" and held:
         if row.get("asg_kind") == "contact" and link is not None and not link.revoked and not link.first_opened_at:
             sent = parse(link.sent_at) or parse(row.get("asg_at"))
             d = _mins(rule, "link_unopened_min")
             if sent and d:
-                dues["unopened"] = sent + d
+                dues["unopened"] = _after(sent, d, cal)
         at = parse(row.get("asg_at"))
         d = _mins(rule, "ack_within_min")
         if at and d:
-            dues["ack"] = at + d
+            dues["ack"] = _after(at, d, cal)
     if status in ("acknowledged", "in_progress") and last:
         d = _mins(rule, "stuck_after_min")
         if d:
-            due = last + d
+            due = _after(last, d, cal)
             dues["stuck"] = max(due, eta) if eta and eta > due else due  # 13.2: a promised ETA suppresses "stuck" until it passes
     if status == "waiting_part" and last:
         d = _mins(rule, "stuck_waiting_min")
         if d:
-            due = last + d
+            due = _after(last, d, cal)
             dues["waiting"] = max(due, eta) if eta and eta > due else due
     crossed = None
     for kind in KINDS:
@@ -180,7 +190,8 @@ class Plan:
 
 
 def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: dt.datetime, *, assignee: str | None,
-         can_remind: bool = True, window_open: bool = True, next_window: dt.datetime | None = None) -> Plan:
+         can_remind: bool = True, window_open: bool = True, next_window: dt.datetime | None = None,
+         cal: "work_calendar.Calendar | None" = None) -> Plan:
     """The ladder step for one look at a ticket. `assignee`: 'user' | 'contact' | None (nobody holds it); `can_remind`: whether a
     reminder can reach that assignee at all (an outside contact needs the message channel of slice 5b); `window_open` /
     `next_window`: the vendor send window of the ticket's department (D4) - used for outside contacts only."""
@@ -215,7 +226,7 @@ def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: d
     last_rem = parse(st.last_reminder_at)
     # 1. a reminder
     if reminders < max_rem:
-        due_at = cross.due if reminders == 0 or last_rem is None else max(cross.due, last_rem + (every or dt.timedelta(0)))
+        due_at = cross.due if reminders == 0 or last_rem is None else max(cross.due, _after(last_rem, every or dt.timedelta(0), cal))
         if now >= due_at:
             if assignee == "contact" and not window_open:
                 p.remind_held_until = next_window
@@ -232,7 +243,7 @@ def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: d
         # on the NOMINAL ladder (13.1: "an urgent reminder due at 02:00 leaves at 07:00 while the manager alert at 02:00 is not
         # delayed"): `need` reminders, one cadence apart, then the managers - whether or not a held reminder has left yet
         need = min(steps, max_rem)
-        alert_at = cross.due + (every or dt.timedelta(0)) * need
+        alert_at = _after(cross.due, (every or dt.timedelta(0)) * need, cal)
         if now >= alert_at:
             p.alert = True
             level = 2
@@ -242,7 +253,7 @@ def plan(state: LadderState, ev: Evaluation, rule: dict[str, Any] | None, now: d
     if level < 2 and reminders > 0:
         level = 1
     if reminders < max_rem and last_rem is not None and every is not None and reminders > 0:
-        checks.append(last_rem + every)
+        checks.append(_after(last_rem, every, cal))
     p.state = LadderState(kind=cross.kind, level=level, reminders=reminders, due=iso(cross.due), last_reminder_at=iso(last_rem))
     future = [c for c in checks if c > now]
     p.next_check = min(future) if future else now + dt.timedelta(minutes=1)
