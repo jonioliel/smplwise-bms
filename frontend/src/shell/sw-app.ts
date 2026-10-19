@@ -1124,7 +1124,7 @@ export class SwApp extends LitElement {
       :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head]:not([data-dd-place='1'])) .tabpair:not(.single) {
         position: relative;
-        z-index: 4;
+        z-index: 16; /* above the pages' sticky page header (.dh, z-index 15 in styles/media-page.ts), which otherwise swallows the clicks on a chip hanging over it */
         flex: none;
         align-items: flex-start;
         block-size: 0;
