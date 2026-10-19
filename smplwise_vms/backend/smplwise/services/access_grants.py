@@ -42,6 +42,10 @@ How it is built:
   approval, provisioning, narrowing, revocation and code delivery all check the link's origin (F3, R4-05); ONE process runs the
   worker - precondition "workers=1", enforced by an exclusive OS lock beside the database that every pass must hold and that is
   never given up while a pass may still be writing (F4, R4-06).
+- WISKEYFINAL2-281 (WisKey round 5): every users/create is journaled before dispatch and a grant with no link is decided by that journal -
+  an unresolved create keeps it `revoking` (never `failed` / `revoked`, hourly alerts, no second create) (R5-A1); the scope proof needs
+  the whole timing policy (R5-A2); views say whether the scope is proven (R5-A3); an incomplete person record never decides an
+  approval or a match per station (R5-A4).
 """
 from __future__ import annotations
 
@@ -61,7 +65,8 @@ from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia
-from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, plan_overrides
+from . import intercom_write_journal as wj
+from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, plan_overrides, requested_policy
 
 log = logging.getLogger("smplwise.access_grants")
 
@@ -669,9 +674,24 @@ def _visible_or_404(conn: sqlite3.Connection, principal: Principal, grant_id: st
     raise _not_found()
 
 
-def _person_stations(db: Any, g: dict[str, Any]) -> list[str]:
+def _complete_stations(person: EnginePerson) -> list[str] | None:
+    """R5-A4: the person's stations when the record is COMPLETE, else None (unknown). A restricted projection (`doors_known` /
+    `overrides_known` False: redacted access fields, or a record projected for a restricted caller that may hold only the stations
+    that caller sees) is never evaluated as the complete station set."""
+    if not (person.doors_known and person.overrides_known):
+        return None
+    return list(person.stations)
+
+
+def _unrestricted_lacks(conn: sqlite3.Connection, principal: Principal, perms: Iterable[str]) -> list[tuple[str, str]]:
+    """R5-A4: with the person's station set unknown, every involved permission must be held unrestricted (installation-wide)."""
+    return [(p, "*") for p in perms if not authorize(conn, principal, p, INSTALLATION).allowed]
+
+
+def _person_stations(db: Any, g: dict[str, Any]) -> list[str] | None:
     """The stations of the linked WisKey person besides the grant's own (CR 3.2: the approver needs people.manage + sensitive on
-    every station of the person). No link yet: none. WisKey unreachable: the approval is refused (fail closed)."""
+    every station of the person). No link yet: none. WisKey unreachable: the approval is refused (fail closed). R5-A4: None = the
+    record is incomplete (the station set is unknown) - the approver must then hold the permissions unrestricted."""
     with db.connection(mode="read", label="access_grants.person_stations") as conn:
         link = link_of_grant(conn, g)
     if link is None:
@@ -685,7 +705,7 @@ def _person_stations(db: Any, g: dict[str, Any]) -> list[str]:
             raise ApiError(409, "access_person_missing", "רשומת האדם לא נמצאה במערכת הכניסה, ולכן האישור לא נשמר.", details={"outcome": "not_sent"}) from None
         raise ApiError(503, "access_grant_engine_unavailable", "לא ניתן לקרוא כעת את רשומת האדם במערכת הכניסה, ולכן האישור לא נשמר.",
                        details={"outcome": "not_sent"}) from None
-    return list(person.stations)
+    return _complete_stations(person)
 
 
 def approve(db: Database, principal: Principal, grant_id: str, revision: int, *, doors: Any = None, valid_from: Any = None, valid_until: Any = None,
@@ -747,7 +767,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
             raise deny("card", _conflict("access_grant_card_not_built", "גישה בכרטיס לאדם חיצוני עדיין אינה זמינה (שלב מאוחר יותר)."))
         stations = stations_of(chosen.doors)
         missing = missing_on(conn, principal, (PERMISSION,), stations) + missing_on(
-            conn, principal, approve_permissions(chosen.credential)[1:], sorted(set(stations) | set(person_stations)))
+            conn, principal, approve_permissions(chosen.credential)[1:], sorted(set(stations) | set(person_stations or [])))
+        if person_stations is None:  # R5-A4: the person's station set is unknown - the permissions over the person must be unrestricted
+            missing += _unrestricted_lacks(conn, principal, approve_permissions(chosen.credential)[1:])
         if missing:
             perm, sid = missing[0]
             _audit(conn, principal, "access.grant.approve", grant_id, decision="denied", reason="no_binding", request_id=request_id, permission=perm, station=sid)
@@ -903,9 +925,8 @@ def match_link(db: Database, principal: Principal, contact_id: str, wiskey_perso
         if not authorize(conn, principal, "tickets.configure", INSTALLATION).allowed:
             _audit(conn, principal, "access.person_link.match", contact_id, decision="denied", reason="no_binding", resource_type="contact", request_id=request_id)
             raise forbidden(permission="tickets.configure", target_type="installation", target_id="*", reason="no_binding")
-        stations = list(person.stations)
-        lacks = missing_on(conn, principal, (ia.PEOPLE_MANAGE,), stations) if stations else (
-            [] if authorize(conn, principal, ia.PEOPLE_MANAGE, INSTALLATION).allowed else [(ia.PEOPLE_MANAGE, "*")])
+        stations = _complete_stations(person)  # R5-A4: None = an incomplete record - people.manage must be unrestricted
+        lacks = missing_on(conn, principal, (ia.PEOPLE_MANAGE,), stations) if stations else _unrestricted_lacks(conn, principal, (ia.PEOPLE_MANAGE,))
         if lacks:
             _audit(conn, principal, "access.person_link.match", contact_id, decision="denied", reason="no_binding", resource_type="contact", request_id=request_id)
             raise forbidden(permission=lacks[0][0], target_type=STATION, target_id=lacks[0][1], reason="no_binding")
@@ -1042,7 +1063,14 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         attention = "code_" + g["code_state"]
     elif g["state"] in ("failed", "unknown"):
         attention = g["state"]
+    elif g["state"] == "active" and g.get("needs_push"):
+        attention = "sync_pending"
+    sync = sync_status(g)
     return {
+        # R5-A3: the grant's own state and whether WisKey's central record is PROVEN to carry the doors / window below. `doors_state`
+        # "desired" = what Arx asked for and has not yet read back (a narrowing still to push, an unknown outcome, a provisioning in
+        # flight); "verified_central" = a fresh read proved it (central desired state only - never a station-sync claim).
+        "grant_state": g["state"], **sync,
         "id": g["id"], "revision": g["revision"], "state": g["state"], "end_reason": g["end_reason"], "source": g["source_kind"], "source_ref": g["source_ref"],
         "person": {"contact_id": g["subject_id"], "name": (contact or {}).get("display_name"), "pending": bool(contact and pending_contact(conn, contact["id"])),
                    "number": mask_number(contact) if sensitive else None},
@@ -1056,6 +1084,18 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
     }
+
+
+def sync_status(g: dict[str, Any]) -> dict[str, Any]:
+    """R5-A3: approval is not a verified central scope. `scope_verified` only for an `active` grant with no push outstanding (its scope
+    was proven by a fresh read of WisKey's central record); `pending_sync` for a decided grant whose scope is not proven yet (approved,
+    provisioning, unknown, or active with a narrowing still to push). Neither is a claim about the stations (WisKey applies later)."""
+    state = g["state"]
+    needs_push = bool(g.get("needs_push"))
+    verified = state == "active" and not needs_push
+    pending = state in ("approved", "provisioning", "unknown") or (state == "active" and needs_push)
+    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": verified,
+            "doors_state": "verified_central" if verified else "desired" if state in LIVE else None}
 
 
 def _station_name(station_id: str) -> str:
@@ -1163,6 +1203,40 @@ def send_code(db: Any, msg: CodeMessage) -> str:
 
 # ---------------------------------------------------------------- the worker
 
+def _purpose_ref(g: dict[str, Any]) -> str:
+    """The reference a users/create carries in `access_purpose` (`Arx external access <ref>`) and the journal keeps, so a person whose
+    create answer was lost can be recognised later (ids only)."""
+    return f"{g['source_kind']}:{(g.get('source_ref') or g['id'])[:12]}"
+
+
+def attach_recovered_person(db: Database, grant_id: str, wiskey_person_id: str, *, actor: Any = None, request_id: str | None = None) -> dict[str, Any]:
+    """R5-A1 hook (service level, no HTTP route in this build): the WisKey person a lost users/create of THIS grant produced has been
+    identified (by an operator from the access-purpose reference, or later by an accepted WisKey contract such as the proposed
+    users/access_state - ACR5-01, NOT built). Allowed only while the grant's create is UNRESOLVED in the journal and the subject has no
+    link; the person becomes the grant's Arx-created link and the worker's normal revoke (read, strip, readback, sync status) runs on it.
+    Nothing is written to WisKey here."""
+    if not ia.valid_id(wiskey_person_id):
+        raise _invalid("wiskey_person_id", "format")
+    with db.connection(label="access_grants.recover_create") as conn:
+        g = grant_row(conn, grant_id)
+        if g is None:
+            raise _not_found()
+        ops = wj.create_ops(conn, grant_id=grant_id)
+        verdict, _ = wj.create_verdict(ops)
+        if verdict != "unresolved" or link_of_grant(conn, g) is not None:
+            raise _conflict("access_create_not_unresolved", "אין לגישה זו יצירת אדם שתוצאתה לא ידועה.")
+        if conn.execute("SELECT 1 FROM access_person_links WHERE wiskey_person_id = ?", (wiskey_person_id,)).fetchone():
+            raise _conflict("access_link_exists", "האדם במערכת הכניסה כבר מקושר לאיש קשר אחר.")
+        at = now().timestamp()
+        for op in ops:
+            if op["state"] in wj.OPEN:
+                conn.execute("UPDATE intercom_write_ops SET state = 'reconciled', result_ref = ?, reconciled_ts = ? WHERE id = ?", (wiskey_person_id, at, op["id"]))
+        link = Worker._link_recovered(conn, g, wiskey_person_id)
+        _audit(conn, actor, "access.grant.create_recovered", grant_id, request_id=request_id, wiskey_person_id=wiskey_person_id, link_id=link["id"])
+    WORKER.wake()
+    return link
+
+
 def push_scope(engine: Engine, person: EnginePerson, scope: "Scope", *, pin: Any = KEEP) -> EnginePerson:
     """One revision-checked users/update that makes the person's stations the grant's. Dropping a station from the door map would NOT revoke it
     (WisKey-stated, source-derived, NOT_RUN), so the COMPLETE permission_overrides replacement (drop = "deny", add = "allow", other personal
@@ -1187,7 +1261,19 @@ def scope_proven(readback: EnginePerson, scope: Scope) -> bool:
         return False
     return (readback.active is True and _relays(readback.doors) == _relays(scope.doors) and not readback.group_ids
             and readback.valid_from == scope.valid_from and readback.valid_until == scope.valid_until
-            and (readback.timing or None) == (scope.timing or None))
+            and _policy_is(readback, scope.timing))
+
+
+_NO_POLICY = object()
+
+
+def _policy_is(readback: EnginePerson, timing: dict[str, Any] | None) -> bool:
+    """R5-A2: the readback carries EXACTLY the timing policy a grant push writes - `{mode: "ha", schedule, bindings: {}}`, or no policy at
+    all when the grant has no timing. A native-mode policy or bindings with the same schedule is not the requested policy. The schedule
+    is compared exactly (no Arx-side normalisation: WisKey's normaliser is not an accepted contract, ACR5-02), so an equivalent but
+    reordered schedule fails closed. A record without the policy field (`timing_policy` absent) proves nothing."""
+    held = getattr(readback, "timing_policy", _NO_POLICY)
+    return held is not _NO_POLICY and held == requested_policy(timing or None)
 
 
 narrowing_proven = scope_proven  # the GRANTS-FIX280 name
@@ -1200,6 +1286,8 @@ def readback_covers(readback: EnginePerson, scope: Scope) -> bool:
     if getattr(readback, "doors_known", False) is not True or readback.active is not True or readback.group_ids:
         return False
     if not readback.valid_from or not readback.valid_until:
+        return False
+    if not _policy_is(readback, readback.timing):  # R5-A2: only a policy of the form Arx writes (mode "ha", no bindings) can be compared
         return False
     held = Scope(_relays(readback.doors), readback.valid_from, readback.valid_until, readback.timing, scope.credential)
     return covers(held, scope)
@@ -1419,7 +1507,8 @@ class Worker:
             return None
         try:
             if g["state"] == "revoking":
-                return "revoked" if self.strip(db, g) else None
+                # R5-A1: only a verified strip counts as `revoked`; a grant closed because provably nothing was created is not one
+                return "revoked" if self.strip(db, g) == "revoked" else None
             if g["state"] == "unknown":
                 return self.resolve_unknown(db, g)
             if g["state"] == "approved":
@@ -1553,23 +1642,41 @@ class Worker:
 
     # ---- provisioning (no PIN: the code is generated at its due time)
 
-    def _ensure_link(self, db: Database, engine: Engine, g: dict[str, Any]) -> dict[str, Any]:
+    def _ensure_link(self, db: Database, engine: Engine, g: dict[str, Any], op_id: str | None = None) -> dict[str, Any]:
+        """The grant's link; with none yet, ONE users/create. R5-A1: the create is journaled - its intent (`op_id`, recorded with the
+        `pushed` mark) is moved to `dispatched` and committed BEFORE the call, its outcome after; the link and the `ok` outcome (with the
+        returned person id) are one transaction. A create whose answer is lost stays `unknown` in the journal: never re-sent blindly."""
         with db.connection(mode="read", label="access_grants.link.read") as conn:
             link = link_of_grant(conn, g)
             contact = contact_row(conn, g["subject_id"])
             approver = conn.execute("SELECT display_name FROM users WHERE id = ?", (g.get("approved_by"),)).fetchone()
         if link is None:
             category = "contractor" if (contact or {}).get("vendor_id") else "visitor"
-            ref = f"{g['source_kind']}:{(g.get('source_ref') or g['id'])[:12]}"
-            # employee_no is omitted: WisKey generates one (nine digits) and returns it - stored as returned, never sent on update
-            person = engine.create_person(display_name=((contact or {}).get("display_name") or "אורח")[:32], category=category,
-                                          responsible_person=((approver["display_name"] if approver else "") or "Arx")[:64],
-                                          access_purpose=f"Arx external access {ref}")
+            ref = _purpose_ref(g)
+            with db.connection(label="access_grants.link.dispatch") as conn:
+                if op_id is None:
+                    op_id = wj.create_intent(conn, g["id"], g["subject_kind"], g["subject_id"], ref)
+                wj.create_dispatched(conn, op_id)
+            try:
+                # employee_no is omitted: WisKey generates one (nine digits) and returns it - stored as returned, never sent on update
+                person = engine.create_person(display_name=((contact or {}).get("display_name") or "אורח")[:32], category=category,
+                                              responsible_person=((approver["display_name"] if approver else "") or "Arx")[:64],
+                                              access_purpose=f"Arx external access {ref}")
+            except EngineError as exc:
+                outcome = {"not_sent": "not_sent", "not_permitted": "not_sent", "unknown": "unknown"}.get(exc.kind, "refused")
+                with db.connection(label="access_grants.link.create_failed") as conn:
+                    wj.create_finished(conn, op_id, outcome, code=exc.code or exc.kind)
+                raise
+            except Exception:
+                with db.connection(label="access_grants.link.create_failed") as conn:
+                    wj.create_finished(conn, op_id, "unknown", code="error")
+                raise
             with db.connection(label="access_grants.link.create") as conn:
                 lid = uuid.uuid4().hex
                 conn.execute("""INSERT INTO access_person_links(id, subject_kind, subject_id, wiskey_person_id, origin, employee_no, linked_by, linked_at, last_pushed_rev)
                                 VALUES (?, ?, ?, ?, 'created_from_arx', ?, ?, ?, ?)""",
                              (lid, g["subject_kind"], g["subject_id"], person.id, person.employee_no, g.get("approved_by") or "system", iso(now()), person.revision))
+                wj.create_finished(conn, op_id, "ok", person_id=person.id)
                 _audit(conn, None, "access.person_link.create", lid, resource_type="access_person_link", wiskey_person_id=person.id, grant_id=g["id"])
                 link = link_row(conn, lid)
         if g.get("link_id") != link["id"]:
@@ -1587,13 +1694,27 @@ class Worker:
                 if cur is not None and cur["revision"] == g["revision"] and cur["state"] == "approved":
                     self._refuse_not_ours(conn, cur, int(g["pushed"]))
                 return False
+            op_id = None
+            if link_of_grant(conn, g) is None:
+                # R5-A1: a users/create for this person may have landed earlier without a link (its answer lost). Never a second create
+                # for the subject: a recovered target is linked; an unresolved one holds the provisioning (the managers are alerted
+                # through the grant that owns it).
+                verdict, recovered = wj.create_verdict(wj.create_ops(conn, subject=(g["subject_kind"], g["subject_id"])))
+                if verdict == "unresolved":
+                    _touch(conn, g["id"], {"provision_after": iso(now() + timedelta(seconds=PROVISION_RETRY_S))}, expect_revision=g["revision"])
+                    _audit(conn, None, "access.grant.provision_held", g["id"], reason="create_unresolved")
+                    return False
+                if verdict == "created" and recovered:
+                    self._link_recovered(conn, g, recovered)
             if not _touch(conn, g["id"], {"state": "provisioning", "pushed": 1}, expect_revision=g["revision"]):
                 return False
+            if link_of_grant(conn, g) is None:
+                op_id = wj.create_intent(conn, g["id"], g["subject_kind"], g["subject_id"], _purpose_ref(g))  # R5-A1: durable, before dispatch
             _audit(conn, None, "access.grant.provision", g["id"], attempt=int(g["provision_attempts"]) + 1)
         engine = engine_for(db)
         scope = Scope.of_row(g)
         try:
-            link = self._ensure_link(db, engine, g)
+            link = self._ensure_link(db, engine, g, op_id)
             if not person_is_ours(link):  # a match that landed between the check above and here: nothing was written yet
                 with db.connection(label="access_grants.provision.not_ours") as conn:
                     cur = grant_row(conn, g["id"])
@@ -1627,6 +1748,22 @@ class Worker:
                                    "needs_push": 1 if moved else cur["needs_push"]})
             _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, stations=stations_of(scope.doors))
         return True
+
+    @staticmethod
+    def _link_recovered(conn: sqlite3.Connection, g: dict[str, Any], person_id: str) -> dict[str, Any]:
+        """R5-A1: a users/create whose answer (or whose link) was lost, and whose person id is now known (the create's own recorded
+        answer, or a target recovered and attached by `attach_recovered_person`): the link Arx should have written. Inside the caller's
+        transaction; an existing link of the subject is returned unchanged."""
+        link = link_of_subject(conn, g["subject_kind"], g["subject_id"])
+        if link is None:
+            lid = uuid.uuid4().hex
+            conn.execute("""INSERT INTO access_person_links(id, subject_kind, subject_id, wiskey_person_id, origin, employee_no, linked_by, linked_at, last_pushed_rev)
+                            VALUES (?, ?, ?, ?, 'created_from_arx', NULL, ?, ?, NULL)""",
+                         (lid, g["subject_kind"], g["subject_id"], person_id, g.get("approved_by") or "system", iso(now())))
+            _audit(conn, None, "access.person_link.create", lid, resource_type="access_person_link", wiskey_person_id=person_id, grant_id=g["id"], recovered=True)
+            link = link_row(conn, lid)
+        conn.execute("UPDATE access_grants SET link_id = ? WHERE id = ?", (link["id"], g["id"]))
+        return link
 
     @staticmethod
     def _refuse_not_ours(conn: sqlite3.Connection, cur: dict[str, Any], pushed_before: int) -> None:
@@ -1676,7 +1813,11 @@ class Worker:
                                        "pushed": g["pushed"]})
                 _audit(conn, None, "access.grant.fail", g["id"], reason=exc.kind, code=exc.code, attempt=attempts, retry=True)
             else:
-                _touch(conn, g["id"], {"provision_attempts": attempts})
+                fields: dict[str, Any] = {"provision_attempts": attempts}
+                if link_of_grant(conn, current) is None and wj.create_verdict(wj.create_ops(conn, grant_id=g["id"]))[0] == "none":
+                    # R5-A1: the journal proves no users/create of this grant landed (refused / not sent): nothing reached WisKey
+                    fields["pushed"] = g["pushed"]
+                _touch(conn, g["id"], fields)
                 fresh = grant_row(conn, g["id"])
                 mark_revoking(conn, fresh, "failed")
                 _audit(conn, None, "access.grant.fail", g["id"], reason=exc.kind, code=exc.code, attempt=attempts)
@@ -1697,11 +1838,21 @@ class Worker:
             return None
         scope = Scope.of_row(g)
         if link is None:
+            # R5-A1: no link - the create's journal decides. A create that answered (or a target recovered for it) is linked and read like
+            # any other person; otherwise the authority is withdrawn in Arx (`revoking`), and the strip keeps the grant UNRESOLVED (never
+            # `failed` / `revoked`, hourly alerts) while the create may have landed somewhere nobody can name.
             with db.connection(label="access_grants.unknown.nolink") as conn:
                 cur = grant_row(conn, g["id"])
-                if cur is not None and cur["revision"] == g["revision"] and cur["state"] == "unknown":
+                if cur is None or cur["revision"] != g["revision"] or cur["state"] != "unknown":
+                    return None
+                verdict, recovered = wj.create_verdict(wj.create_ops(conn, grant_id=g["id"]))
+                if verdict == "created" and recovered:
+                    link = self._link_recovered(conn, cur, recovered)
+                else:
+                    if verdict in ("unresolved", "no_record"):
+                        _audit(conn, None, "access.grant.unknown", g["id"], reason="create_unresolved")
                     mark_revoking(conn, cur, "failed")
-            return None
+                    return None
         try:
             person = engine_for(db).get_person(link["wiskey_person_id"])
         except EngineError as exc:
@@ -1807,14 +1958,37 @@ class Worker:
             return bool(person.doors or person.group_ids or person.overrides)
         return int(attempts) == 0
 
-    def strip(self, db: Database, g: dict[str, Any]) -> bool:
+    def strip(self, db: Database, g: dict[str, Any]) -> str | None:
+        """`revoked` (a verified strip - the only outcome counted and audited as a revocation), `closed` (R5-A1: the create journal proves
+        no WisKey person was ever created for this grant), or None (not done yet: retried with backoff, the managers alerted hourly)."""
         attempts = int(g.get("revoke_attempts") or 0)
         if attempts > 0:  # F1: no hammering - wait out the backoff (no WisKey call at all)
             last = parse_iso(g.get("updated_at"))
             if last is not None and (now() - last).total_seconds() < self.revoke_backoff_s(attempts):
-                return False
-        with db.connection(mode="read", label="access_grants.strip.read") as conn:
+                return None
+        with db.connection(mode="read", label="access_grants.strip.read") as conn:  # (R5-A1: the no-link case is decided below)
             link = link_of_grant(conn, g)
+        if link is None:
+            # R5-A1: a grant that may have reached WisKey (`pushed`) but has no link: a users/create may have landed with its answer lost.
+            # `link is None` is NOT "ours and empty": the journal decides - a create that answered (or a recovered target) is linked and
+            # stripped like any other; one that provably never landed closes the grant WITHOUT a revocation claim; anything else
+            # (unresolved, or no record at all) stays `revoking` with no WisKey call - never a blind recreate, never `revoked`.
+            with db.connection(label="access_grants.strip.nolink") as conn:
+                cur = grant_row(conn, g["id"])
+                if cur is None or cur["state"] != "revoking":
+                    return None
+                verdict, recovered = wj.create_verdict(wj.create_ops(conn, grant_id=g["id"]))
+                if verdict == "created" and recovered:
+                    link = self._link_recovered(conn, cur, recovered)
+                elif verdict == "none":
+                    state = final_state_for(cur["end_reason"] or "manual")
+                    _touch(conn, g["id"], {"state": state, "ended_at": iso(now()), "needs_push": 0})
+                    _audit(conn, None, "access.grant.closed", g["id"], reason=cur["end_reason"], outcome="no_person_created", state=state)
+                    return "closed"
+                else:
+                    conn.execute("UPDATE access_grants SET revoke_attempts = revoke_attempts + 1, updated_at = ? WHERE id = ?", (iso(now()), g["id"]))
+                    _audit(conn, None, "access.grant.revoke_retry", g["id"], code="create_unresolved", verdict=verdict)
+                    return None
         if not person_is_ours(link):
             # R4-05: a revoke-all would wipe the matched person's WisKey-native access (its PIN, staff doors). Arx's authority is already
             # withdrawn; the WisKey side is NOT written: the grant stays `revoking` (no WisKey call at all, backoff) and the managers are
@@ -1822,10 +1996,10 @@ class Worker:
             with db.connection(label="access_grants.strip.not_ours") as conn:
                 conn.execute("UPDATE access_grants SET revoke_attempts = revoke_attempts + 1, updated_at = ? WHERE id = ?", (iso(now()), g["id"]))
                 _audit(conn, None, "access.grant.revoke_retry", g["id"], code="person_not_ours", link_id=(link or {}).get("id"))
-            return False
+            return None
         engine = engine_for(db)
         outcome = "stripped"
-        if link is not None:
+        if link is not None:  # always, since R5-A1 (a missing link is decided above): never a "done" without the readback
             try:
                 person = engine.get_person(link["wiskey_person_id"])
                 if self._needs_revoke_write(person, attempts):
@@ -1855,15 +2029,15 @@ class Worker:
                         conn.execute("UPDATE access_person_links SET state = 'wiskey_missing', revision = revision + 1 WHERE id = ?", (link["id"],))
                         _audit(conn, None, "access.person_link.missing", link["id"], resource_type="access_person_link")
                     _audit(conn, None, "access.grant.revoke_retry", g["id"], code=exc.kind)
-                return False
+                return None
         with db.connection(label="access_grants.strip.done") as conn:
             cur = grant_row(conn, g["id"])
             if cur is None or cur["state"] != "revoking":
-                return False
+                return None
             state = final_state_for(cur["end_reason"] or "manual")
             _touch(conn, g["id"], {"state": state, "ended_at": iso(now()), "needs_push": 0})
             _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome)
-        return True
+        return "revoked"
 
     # ---- the code (owner answers 3, 4, 11)
 

@@ -275,5 +275,9 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
                                      assignment_id=assignment["id"], at=at, data={"outcome": outcome, "outside_window": outside}, visible_external=True)
     audit_link(conn, link, "access.grant.request", outcome=outcome, outside_window=outside)
     ag.notify_request(conn, g["id"])
-    answer = {"ok": True, "state": "waiting" if g["state"] == "requested" else "approved", "outcome": outcome, "outside_window": outside}
+    # R5-A3: "approved" is a human decision, never a claim that WisKey holds the scope: the grant's own state and whether the scope is
+    # proven (a fresh central readback) travel with it, so a pending narrowing or an unknown outcome is not read as applied
+    sync = ag.sync_status(g)
+    answer = {"ok": True, "state": "waiting" if g["state"] == "requested" else "approved", "outcome": outcome, "outside_window": outside,
+              "grant_state": g["state"], "pending_sync": sync["pending_sync"], "scope_verified": sync["scope_verified"]}
     return handler_actions._finish(conn, link, crid, 200, answer)
