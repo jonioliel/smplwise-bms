@@ -269,3 +269,12 @@ test('navigation: "בקשות הצעת מחיר" is a tab of the area before the
   expect(TAB_PERMISSIONS[TICKETS_RFQS_HREF]).toEqual(['tickets.external', 'tickets.costs']);
   expect(activeAreaTab({ path: '/tickets/rfqs', mode: 'tickets', segments: ['tickets', 'rfqs'], params: new URLSearchParams('rfq=r1') } as never)).toBe('rfqs');
 });
+
+// rfq-thread-system-author: the manager's thread shows an automatic message under the localized "System" label, styled apart from a person's.
+test('the manager thread uses the System label and a distinct style for an automatic message', () => {
+  expect(RFQ_TEXT_HE.systemAuthor).toBe('מערכת');
+  expect(RFQ_TEXT_EN_KEYS).toContain('systemAuthor');
+  const dlg = readFileSync(path.resolve(SRC, 'tickets/rfq-message-dialog.ts'), 'utf8');
+  expect(dlg).toContain("m.system ? rt('systemAuthor') : m.by");
+  expect(readFileSync(path.resolve(SRC, 'tickets/rfq-styles.ts'), 'utf8')).toContain('.thread .m[data-rfq-system]');
+});

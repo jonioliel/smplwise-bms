@@ -991,6 +991,11 @@ export const rfqStyles = css`
     align-self: flex-end;
     background: var(--dv-accent-soft);
   }
+  .thread .m[data-rfq-system] {
+    background: transparent;
+    border: 1px dashed var(--dv-text-2);
+    font-style: italic;
+  }
   .thread small {
     display: block;
     color: var(--dv-text-2);

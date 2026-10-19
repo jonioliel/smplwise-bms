@@ -156,6 +156,8 @@ def present_messages(conn, v: Mapping[str, Any]) -> list[dict[str, Any]]:
         if str(m.get("source_id") or "").startswith("whatsapp:"):
             continue
         item: dict[str, Any] = {"id": m["id"], "mine": m["direction"] == "in", "text": m["body"], "at": m["created_at"]}
+        if rfq.is_system_message(m):  # rfq-thread-system-author: an automatic message (a reminder); no author id or name leaves the server
+            item["system"] = True
         if m["direction"] == "in":  # RFQQUESTIONS: his question got an answer in this thread (a question handled by phone shows nothing)
             item["answered"] = bool(m.get("answer_id"))
         out.append(item)

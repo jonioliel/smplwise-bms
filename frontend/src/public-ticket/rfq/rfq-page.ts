@@ -833,8 +833,9 @@ class RfqPage {
     if (!items.length && !canAsk) return null;
     const list = h('ol', { class: 'timeline', attrs: { 'data-rfq-thread': items.length } });
     for (const m of items) {
-      list.appendChild(h('li', { class: m.mine ? 'mine' : 'theirs', attrs: { 'data-rfq-msg': m.mine ? 'mine' : 'theirs' } },
-        h('div', { class: 'meta' }, h('span', { class: 'who' }, this.t(m.mine ? 'you' : 'org')), h('span', { class: 'when' }, this.when(m.at)),
+      const sys = !m.mine && m.system === true; // rfq-thread-system-author: an automatic message reads "System", with no person's look
+      list.appendChild(h('li', { class: sys ? 'theirs system' : m.mine ? 'mine' : 'theirs', attrs: { 'data-rfq-msg': sys ? 'system' : m.mine ? 'mine' : 'theirs' } },
+        h('div', { class: 'meta' }, h('span', { class: 'who' }, this.t(sys ? 'systemAuthor' : m.mine ? 'you' : 'org')), h('span', { class: 'when' }, this.when(m.at)),
           m.mine && typeof m.answered === 'boolean' ? h('span', { class: `chip ${m.answered ? 'st-done' : 'st-waiting_part'}`, attrs: { 'data-rfq-q-state': m.answered ? 'answered' : 'waiting' } }, this.t(m.answered ? 'qAnswered' : 'qWaiting')) : null),
         h('div', { class: 'body', attrs: { dir: 'auto' } }, m.text)));
     }
