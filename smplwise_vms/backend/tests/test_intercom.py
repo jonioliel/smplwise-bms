@@ -3855,6 +3855,12 @@ def test_capture_cancel_and_confirm_refused_vs_unknown(feed, fast_capture, monke
         assert r.json()["details"]["capture"]["state"] == after, code
         if outcome == "unknown":
             assert "טענו מחדש" in r.json()["user_message"]
+            # WisKey R4-07: the confirm is a people write on the person's target - after an unknown outcome the next write to that
+            # person waits for a fresh readback (409 intercom_outcome_pending otherwise); this stands in for the reload the user is told to do
+            blocked = [t for t in list(intercom_sync.SYNC._unsettled) if t.startswith("person:")]
+            assert blocked and all(intercom_sync.SYNC.write_gate(t) == "readback_required" for t in blocked), code
+            for t in blocked:
+                intercom_sync.SYNC.note_readback(t, intercom_sync.SYNC._tick())
         if after != "captured":
             with fake.lock:
                 fake.sessions.pop(current, None)  # WisKey dropped it
