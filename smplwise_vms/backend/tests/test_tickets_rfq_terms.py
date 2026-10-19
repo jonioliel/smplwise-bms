@@ -695,3 +695,18 @@ def test_an_unconfirmed_arrival_after_both_reminders_is_escalated_once_and_the_o
     assert r.status_code == 201, r.text  # never blocked
     assert arrival(c, tok).status_code == 200
     assert all(x["state"] == "resolved" for x in _rows(s4, "SELECT state FROM notifications WHERE dedupe_key = ?", key))
+
+
+def test_the_reminder_message_has_a_distinct_system_author(s4):
+    """rfq-thread-system-author: the manager's thread shows the system's own message under a 'System' author, not a user id."""
+    from smplwise.services.tickets import rfq
+
+    switch(s4, hours=24)
+    d = sent_rfq(s4)
+    v1 = vid(d, s4.vendor["id"])
+    with s4.db.connection() as conn:
+        at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+        sysm = store_rfq.insert_message(conn, {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "body": "reminder",
+                                               "author_kind": "user", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})
+        shown = rfq.present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v1) if m["id"] == sysm))
+    assert shown["system"] is True and shown["by"] == "מערכת"

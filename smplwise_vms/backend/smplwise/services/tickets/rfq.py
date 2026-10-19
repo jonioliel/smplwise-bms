@@ -1309,12 +1309,24 @@ def store_out_message(conn, viewer: Viewer, seen: RfqSeen, v: Mapping[str, Any],
     return mid, notified
 
 
+SYSTEM_AUTHOR_ID = "system"  # rfq-thread-system-author: the system's own messages (reminders) are stored as author_kind "user" / author_id "system"
+
+
+def is_system_message(m: Mapping[str, Any]) -> bool:
+    """D21 without a table rebuild: the 0089 CHECK allows only user | contact, so the system author is the reserved user id."""
+    return m.get("author_kind") == "user" and m.get("author_id") == SYSTEM_AUTHOR_ID
+
+
 def present_message(conn, m: Mapping[str, Any]) -> dict[str, Any]:
-    by = store.display_name(conn, m["author_id"]) if m["author_kind"] == "user" else (store_links.contact(conn, m["author_id"]) or {}).get("display_name", "")
+    system = is_system_message(m)
+    if system:
+        by = text(conn, "מערכת")
+    else:
+        by = store.display_name(conn, m["author_id"]) if m["author_kind"] == "user" else (store_links.contact(conn, m["author_id"]) or {}).get("display_name", "")
     whatsapp = str(m.get("source_id") or "").startswith("whatsapp:")  # TKRFQ5: a WhatsApp reply matched to the thread (unverified sender)
     out = {"id": m["id"], "direction": m["direction"], "text": m["body"], "at": m["created_at"], "by": by,
            "source": None if whatsapp else ({"kind": m["source_kind"], "id": m["source_id"]} if m.get("source_kind") else None),
-           "notified": bool(m["notified"]), "via": "whatsapp" if whatsapp else None, "unverified": whatsapp}
+           "notified": bool(m["notified"]), "via": "whatsapp" if whatsapp else None, "unverified": whatsapp, "system": system}
     if m["direction"] == "in":  # RFQQUESTIONS: every inbound message is a question with a state
         out["question"] = {"state": "answered" if m.get("answered_at") else "pending", "read": bool(m.get("read_at")),
                            "answered_at": m.get("answered_at"), "answer_id": m.get("answer_id"), "quote_id": m.get("quote_id")}
