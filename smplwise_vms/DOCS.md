@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.8.0: what is on, off and locked
+## Releases 2.6.4 to 2.9.0: what is on, off and locked
 
-Written from the release notes and the code of `integ/280` (2.8.0 is not released yet). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280` and `integ/290` (2.8.0 and 2.9.0 are released). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1523,8 +1523,13 @@ and external-person door grants (`access_grants.GO_LIVE_PERMITTED`, permission `
 privacy notice (version n2, four languages) shown on the arrival page. Enabling any of them needs the owner's separate permit, the
 fixes listed in `docs/release/2.7.3-INTEGRATION-NOTES.md` ("Fix before enabling") and a full gate.
 
-**Server only.** The manager dashboard phase 2 route `GET /api/v1/tickets/dashboard` (2.8.0) has no screen yet.
+**Manager overview (2.9.0).** The overview tab shows the cards of the phase 2 route `GET /api/v1/tickets/dashboard` and a payments
+card (`GET /api/v1/tickets/dashboard/payments`, cost permission). Its three alerts are **off by default**: the morning summary
+(`ticket.dash_digest`, hour `ui.dash_digest_hour`, default 08:00, Sunday - Thursday), the busy department (`ticket.dash_busy_department`,
+threshold `ui.dash_dept_stuck`, default 10) and the vendor payment due tomorrow (`rfq.instalment_due_tomorrow`); switch them on in the
+notification settings. Also in 2.9.0, on without a switch: the monthly counts CSV (table toolbar, managers), the location change of a
+request, "ask the manager" on the vendor page, the elevator add only in page edit mode. The WisKey door writes stay locked.
 
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
 installed web app once after each update.
