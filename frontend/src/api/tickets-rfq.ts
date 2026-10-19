@@ -76,6 +76,8 @@ export interface RfqSummary {
   title: string;
   department: { id: string; name: string };
   place_text: string | null;
+  /** ORGPLAN2-291: the organisation location (with `plan_area` for a viewer who may read that floor on the map) */
+  location?: RequestLocation | null;
   due_at: string | null;
   work_from: string | null;
   work_to: string | null;

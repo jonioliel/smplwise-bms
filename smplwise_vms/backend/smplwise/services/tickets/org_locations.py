@@ -234,6 +234,24 @@ def present_request(row: Mapping[str, Any]) -> dict[str, Any] | None:
             "message": message_text(snap), "map_url": nav_url(snap.get("lat"), snap.get("lng"))}
 
 
+def present_request_with_area(conn: sqlite3.Connection, principal: Any, row: Mapping[str, Any]) -> dict[str, Any] | None:
+    """`present_request` plus ORGPLAN2-291's display-only `plan_area` ("show on map"): set only for a viewer who may read the linked
+    room's floor on the map, None otherwise (no hint that a link exists). Used by a ticket's and an RFQ's detail / board card."""
+    out = present_request(row)
+    if out is not None:
+        out["plan_area"] = plan_area_for(conn, principal, row.get("location_id"))
+    return out
+
+
+def present_request_with_area(conn: sqlite3.Connection, principal: Any, row: Mapping[str, Any]) -> dict[str, Any] | None:
+    """`present_request` plus ORGPLAN2-291's display-only `plan_area` ("show on map"): set only for a viewer who may read the linked
+    room's floor on the map, None otherwise (no hint that a link exists). Used by a ticket's and an RFQ's detail / board card."""
+    out = present_request(row)
+    if out is not None:
+        out["plan_area"] = plan_area_for(conn, principal, row.get("location_id"))
+    return out
+
+
 # ---------------------------------------------------------------- presenters
 
 def present_reader(loc: Mapping[str, Any]) -> dict[str, Any]:

@@ -285,6 +285,21 @@ export const rfqStyles = css`
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
   }
+  .rmap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-block-start: 4px;
+    padding-inline: 18px;
+    min-block-size: 32px;
+    font-size: var(--sw-fs-sm);
+    color: var(--dv-text-2);
+    text-decoration: none;
+  }
+  .rmap:hover {
+    color: var(--dv-text);
+    text-decoration: underline;
+  }
   .rrow .end {
     display: flex;
     flex-direction: column;

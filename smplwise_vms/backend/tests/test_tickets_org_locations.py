@@ -552,3 +552,35 @@ def test_the_map_link_is_shown_only_to_a_viewer_who_may_read_that_floor_and_neve
     # a ticket whose location has no link: plan_area is null
     t2 = s4.ticket(user="mona", location_id=loc_id(s4, name="אחר"))
     assert detail_location(s4, t2["id"], "mona")["plan_area"] is None
+
+
+def rfq_location(s4, rid: str, user: str) -> dict:
+    r = s4.c.get(f"{API}/tickets/rfqs/{rid}", headers=s4.h(user))
+    assert r.status_code == 200, (user, r.text)
+    return r.json()["location"]
+
+
+def rfq_row_location(s4, rid: str, user: str) -> dict:
+    r = s4.c.get(f"{API}/tickets/rfqs", headers=s4.h(user))
+    assert r.status_code == 200, (user, r.text)
+    return next(x for x in r.json()["items"] if x["id"] == rid)["location"]
+
+
+def test_the_rfq_detail_and_board_card_show_the_map_link_by_the_same_rule_as_a_ticket(s4):
+    """ORGPLAN2-291: an RFQ naming a location with a linked room carries `plan_area` for a viewer who may read that floor on the map,
+    on the detail and on the board row; a viewer without map.read on that floor gets the same request with no hint of the link."""
+    bind(s4.c, s4.w.settings, "gil", "tickets_external", "installation", "*")  # may see RFQs; his map access is floor 3 only
+    z = room(s4, "floor2")
+    d = rfq(s4, location_id=loc_id(s4, plan_zone_id=z))
+    want = {"zone_id": z, "floor_id": s4.w.floors["floor2"], "name": "חדר שרתים", "floor_name": "קומה 2"}
+    assert rfq_location(s4, d["id"], "mona")["plan_area"] == want
+    assert rfq_row_location(s4, d["id"], "mona")["plan_area"] == want
+    for get in (rfq_location, rfq_row_location):
+        gil = get(s4, d["id"], "gil")
+        assert gil["name"] == HQ["name"] and gil["plan_area"] is None
+        assert z not in json.dumps(gil) and "plan_zone_id" not in gil
+    # no link on the location, or the room deleted: null on both
+    d2 = rfq(s4, location_id=loc_id(s4, name="אחר"))
+    assert rfq_location(s4, d2["id"], "mona")["plan_area"] is None and rfq_row_location(s4, d2["id"], "mona")["plan_area"] is None
+    assert s4.c.delete(f"{API}/zones/{z}", headers=s4.h("joni")).status_code == 204
+    assert rfq_location(s4, d["id"], "mona")["plan_area"] is None and rfq_row_location(s4, d["id"], "mona")["plan_area"] is None

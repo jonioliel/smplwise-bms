@@ -36,6 +36,7 @@ import { pendingQuestions, questionBadge } from './rfq-questions';
 import { refreshRfqQuestions } from './rfq-questions-store';
 import { tt, ticketsLang } from './text';
 import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS: the navigation-link switch
+import { showOnMapHref } from './org-locations-model'; // ORGPLAN2-291
 import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
 import { locationPicker } from './location-picker';
 import { editLocationBody, editStartPick } from './org-locations-model';
@@ -250,6 +251,12 @@ export class TicketsRfqBoard extends LitElement {
     return v ? v.contact.company || v.contact.name : '';
   }
 
+  /** ORGPLAN2-291: "show on map" - the server sends `plan_area` only to a viewer who may read that floor on the map. */
+  private mapLink(d: RfqDetail): TemplateResult | typeof nothing {
+    const href = showOnMapHref(d.location?.plan_area);
+    return href ? html`<a class="chip info" href=${href} data-rfq-on-map>${tIcon('link')}${lt('showOnMap')}</a>` : nothing;
+  }
+
   private header(d: RfqDetail): TemplateResult {
     const quotes = liveQuotes(d);
     const sub = [d.ref, d.place.text || d.location?.name, d.department.name].filter(Boolean).join(' · ');
@@ -268,6 +275,7 @@ export class TicketsRfqBoard extends LitElement {
         <span class=${`chip ${rfqStateTone(d.state)}`} data-rfq-state=${d.state}>${rt(`st_${d.state}` as RfqTextKey)}</span>
         ${this.qBadge(questionBadge(d.questions), 'header')}
         ${d.source_ticket ? html`<a class="chip info" href=${`#/tickets/${d.source_ticket.id}`} data-rfq-source>${tIcon('ticket')}${rt('sourceTicket', { number: d.source_ticket.number })}</a>` : nothing}
+        ${this.mapLink(d)}
         <span class="grow"></span>
         ${d.can.see_amounts && quotes ? html`<a class="btn" href=${rfqHref({ id: d.id, view: 'compare' })} data-rfq-to-compare>${rIcon('columns')}${rt('compareN', { n: quotes })}</a>` : nothing}
         ${d.can.send ? html`<button type="button" class="btn primary" data-rfq-send @click=${() => { this.sendMode = this.meta?.vendor_page === false || !d.vendor_page ? 'manual' : 'auto'; this.sendNav = !!d.location_nav; this.open({ kind: 'send' }); }}>${tIcon('send')}${rt('sendTo', { n: d.vendors.filter((v) => v.state === 'draft').length })}</button>` : nothing}

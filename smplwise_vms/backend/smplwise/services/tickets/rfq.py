@@ -1596,7 +1596,7 @@ def summary(conn, viewer: Viewer, seen: RfqSeen, now: dt.datetime) -> dict[str, 
     dept = store.department_any(conn, row["department_id"]) or {}
     return {"id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": effective_state(row, now), "title": row["title"],
             "department": {"id": row["department_id"], "name": dept.get("name") or ""}, "place_text": row.get("place_text"),
-            "location": org_locations.present_request(row), "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
+            "location": org_locations.present_request_with_area(conn, viewer.principal, row), "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
             "updated_at": row["updated_at"], "internal_owner": {"id": row.get("internal_owner_user_id"),
                                                                  "name": store.display_name(conn, row.get("internal_owner_user_id"))},
             "kpis": kpis(conn, row, vendors, live, now, amounts), "questions": _questions().counts(conn, row, now)[0]}
@@ -1667,7 +1667,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         "id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": state, "title": row["title"], "description": row["description"],
         "department": {"id": row["department_id"], "name": dept.get("name") or ""},
         "place": {"site_id": row.get("site_id"), "building_id": row.get("building_id"), "floor_id": row.get("floor_id"), "text": row.get("place_text")},
-        "location": org_locations.present_request(row), "location_nav": bool(row.get("location_nav")),  # CR-ORG-LOCATIONS
+        "location": org_locations.present_request_with_area(conn, viewer.principal, row), "location_nav": bool(row.get("location_nav")),  # CR-ORG-LOCATIONS
         "source_ticket": source, "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"),
         "allowed_line_kinds": allowed_kinds(row),
         "internal_owner": {"id": row.get("internal_owner_user_id"), "name": store.display_name(conn, row.get("internal_owner_user_id")),

@@ -24,6 +24,8 @@ import { rfqError } from '../tickets/rfq-new';
 import { questionBadge } from '../tickets/rfq-questions';
 import { rIcon } from '../tickets/rfq-icons';
 import { tt, ticketsLang } from '../tickets/text';
+import { lt } from '../tickets/org-locations-text';
+import { showOnMapHref } from '../tickets/org-locations-model'; // ORGPLAN2-291
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off' | 'unavailable';
 
@@ -235,7 +237,13 @@ export class TicketsRfqsPage extends LitElement {
       ${this.bar(i)}
       <div class="end">${i.kpis.lowest_total_minor !== null ? html`<span class="num" data-rfq-lowest><b>${rt('lowestLine', { amount: this.money(i.kpis.lowest_total_minor, i.kpis.currency) })}</b></span>` : nothing}
         <span class="chip">${rt('vs_quoted')} ${i.kpis.quoted}</span></div>
-    </a></li>`;
+    </a>${this.mapLink(i)}</li>`;
+  }
+
+  /** ORGPLAN2-291: "show on map" under the row (a sibling of the row link: anchors do not nest); only when the server sent `plan_area`. */
+  private mapLink(i: RfqSummary): TemplateResult | typeof nothing {
+    const href = showOnMapHref(i.location?.plan_area);
+    return href ? html`<a class="rmap" href=${href} data-rfq-row-on-map=${i.id}>${tIcon('link')}${lt('showOnMap')}</a>` : nothing;
   }
 
   /** RFQQUESTIONS: the row's "N questions waiting" badge (red while one is new). */

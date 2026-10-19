@@ -208,9 +208,8 @@ def ticket_detail(conn: sqlite3.Connection, viewer: Viewer, seen: Seen, lk: Look
     out = ticket_item(conn, seen, lk)
     out["description"] = row.get("description") or ""
     out.pop("excerpt", None)
-    out["location"] = org_locations.present_request(row)  # CR-ORG-LOCATIONS: the snapshot taken at creation (None: no location)
-    if out["location"] is not None:  # ORGPLAN-291: display-only "show on map" for a viewer who may read the linked room's floor
-        out["location"]["plan_area"] = org_locations.plan_area_for(conn, viewer.principal, row.get("location_id"))
+    # CR-ORG-LOCATIONS: the snapshot taken at creation (None: no location); ORGPLAN-291: display-only "show on map" for a viewer who may read the linked room's floor
+    out["location"] = org_locations.present_request_with_area(conn, viewer.principal, row)
     now = dt.datetime.now(dt.timezone.utc)
     events = [_event(conn, e, uid) for e in store.events(conn, row["id"]) if event_visible(seen, e, uid)]
     atts = [_attachment(seen, a, uid, now) for a in store.attachments(conn, row["id"]) if attachment_visible(seen, a, uid)]
