@@ -914,7 +914,7 @@ body {
 
 .timeline li.system {
   background: transparent;
-  border: 1px dashed var(--sw-border, currentColor);
+  border: 1px dashed var(--sw-border);
   border-start-start-radius: 18px;
   font-style: italic;
 }
