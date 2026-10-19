@@ -314,7 +314,7 @@ Base: pilot/WISKEYFINAL2-281 (15cb9f6b8). Source: `private/planning/wiskey_reply
 `ARX_CHANGE_REQUESTS_R6.json` (WisKey's STATIC review, PROPOSED, NOT_RUN). Scope: only the Arx-side changes that need no new WisKey
 protocol (ACR6-01, ACR6-03, ACR6-04). Fakes only: `tests/test_wiskey_final3_281.py`. Nothing ran against a WisKey, Home Assistant, a
 station or a door. `GO_LIVE_PERMITTED` stays False; the extended service identity stays locked (`EXTENDED_GO_LIVE_PERMITTED` False).
-Migration `0119_intercom_write_ops.sql` is unchanged (still PROVISIONAL - renumbered at integration); no new migration.
+Migration `0121_intercom_write_ops.sql` (provisional 0119 on the branch, renumbered at integ/281) is unchanged; no new migration.
 
 - **R6-A2 / ACR6-01 atomic admission.** `WriteJournal.admit(target, op, lane)` is ONE write transaction (`BEGIN IMMEDIATE`, SQLite's
   single write lock, which also excludes other processes): it reads every unresolved (`dispatched` / `unknown`) row of the target and
