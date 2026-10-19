@@ -26,6 +26,17 @@ def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row is not None else None
 
 
+def _dicts(cur: sqlite3.Cursor) -> list[dict[str, Any]]:
+    """[dict(row) for row in cur.fetchall()], built in one pass: dict(sqlite3.Row) looks every name up linearly (quadratic in the ~60
+    columns of a ticket row), zip over the cursor's names gives the same dict. A repeated name (case-insensitively) keeps dict(row)'s
+    first-match rule."""
+    rows = cur.fetchall()
+    names = [d[0] for d in cur.description or ()]
+    if len({n.lower() for n in names}) != len(names):
+        return [dict(r) for r in rows]
+    return [dict(zip(names, r)) for r in rows]
+
+
 # ---------------------------------------------------------------- people (names only; identity comes from Home Assistant)
 
 def display_name(conn: sqlite3.Connection, user_id: str | None) -> str:
@@ -443,15 +454,13 @@ def ticket_row_unchecked(conn: sqlite3.Connection, ticket_id: str) -> dict[str, 
     return _dict(conn.execute(_TICKET_SELECT + " WHERE t.id = ?", (ticket_id,)).fetchone())
 
 
-def ticket_rows_by_ids_unchecked(conn: sqlite3.Connection, ticket_ids: Iterable[str]) -> list[dict[str, Any]]:
-    """MGRDASH phases 4-5: the raw rows of many tickets in a few reads (chunks of 500 ids). Visibility is NOT checked here: only
-    services/tickets/access.py may call it (access.visible_by_ids decides every row)."""
-    ids = list(dict.fromkeys(i for i in ticket_ids if i))
-    out: list[dict[str, Any]] = []
-    for i in range(0, len(ids), 500):
-        chunk = ids[i:i + 500]
-        out.extend(dict(r) for r in conn.execute(_TICKET_SELECT + f" WHERE t.id IN ({', '.join('?' * len(chunk))})", chunk).fetchall())
-    return out
+def ticket_rows_unchecked(conn: sqlite3.Connection, ticket_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """ticket_row_unchecked() for many ids (one IN read, the same SELECT and row shape): id -> row for the ids that exist. Visibility
+    is NOT checked here: only services/tickets/access.py may call it (tests/test_tickets_visibility.py enforces that)."""
+    if not ticket_ids:
+        return {}
+    marks = ", ".join("?" * len(ticket_ids))
+    return {r["id"]: r for r in _dicts(conn.execute(_TICKET_SELECT + f" WHERE t.id IN ({marks})", tuple(ticket_ids)))}
 
 
 def ticket_by_number_unchecked(conn: sqlite3.Connection, number: int) -> dict[str, Any] | None:
@@ -541,7 +550,7 @@ def candidate_rows(
         args.extend([after[0], after[0], after[1]])
     sql = _TICKET_SELECT + " WHERE " + " AND ".join(where) + " ORDER BY t.last_activity_at DESC, t.id DESC LIMIT ?"
     args.append(int(limit))
-    return [dict(r) for r in conn.execute(sql, args).fetchall()]
+    return _dicts(conn.execute(sql, args))
 
 
 def update_ticket(conn: sqlite3.Connection, ticket_id: str, fields: dict[str, Any], *, expect_revision: int | None = None, bump: bool = True) -> bool:

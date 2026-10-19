@@ -175,7 +175,7 @@ def visible(viewer: Viewer, row: dict[str, Any] | None) -> Seen | None:
 
 
 def _decide(viewer: Viewer, row: dict[str, Any]) -> Seen | None:
-    """visible() once the module switch was read (a batch reads it once, not per row)."""
+    """visible() after the module switch: the place, the department roles, the creator and the current assignee."""
     if not viewer.holds(VIEW, row):
         return None
     reasons: set[str] = set()
@@ -202,18 +202,27 @@ def visible_by_id(viewer: Viewer, ticket_id: str | None) -> Seen | None:
     return visible(viewer, store.ticket_row_unchecked(viewer.conn, ticket_id))
 
 
-def visible_by_ids(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen]:
-    """MGRDASH phases 4-5: many tickets by id in a few reads - the SAME rule as visible_by_id() for each row (`visible()`; the Viewer
-    caches every permission per place target, so a thousand rows ask the permission tables a handful of times). Only the tickets the
-    caller may see are in the answer (an absent id says nothing about why)."""
-    out: dict[str, Seen] = {}
+BATCH_IDS = 500  # ids per IN (...) read of visible_many (well under SQLite's bound-variable limit)
+
+
+def visible_many(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen | None]:
+    """visible_by_id() for many ids at once (MGRDASH speed fix): the rows are read in batches of BATCH_IDS with the same SELECT as
+    the single read and the module switch is read once; every row is then decided by the SAME rule as visible(). The answer maps
+    every non-empty id asked for to its Seen or None (unknown, foreign or invisible - never says which)."""
+    ids = list(dict.fromkeys(i for i in ticket_ids if i))
+    if not ids:
+        return {}
     if not module_on(viewer.conn):
-        return out
-    for row in store.ticket_rows_by_ids_unchecked(viewer.conn, ticket_ids):
-        seen = _decide(viewer, row)
-        if seen is not None:
-            out[row["id"]] = seen
-    return out
+        return dict.fromkeys(ids)
+    rows: dict[str, dict[str, Any]] = {}
+    for k in range(0, len(ids), BATCH_IDS):
+        rows.update(store.ticket_rows_unchecked(viewer.conn, ids[k:k + BATCH_IDS]))
+    return {i: (_decide(viewer, rows[i]) if i in rows else None) for i in ids}
+
+
+def visible_by_ids(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen]:
+    """MGRDASH phases 4-5: visible_many() keeping only the tickets the caller may see (an absent id says nothing about why)."""
+    return {i: s for i, s in visible_many(viewer, ticket_ids).items() if s is not None}
 
 
 def require_visible(viewer: Viewer, ticket_id: str) -> Seen:

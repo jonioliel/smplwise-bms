@@ -21,9 +21,10 @@ GET /tickets/dashboard - what the manager board cannot say on its own:
 
 VISIBILITY (section 4): every ticket number passes access.visible() and must be MANAGED by the caller (`Seen.manager`, the board's rule);
 every request passes rfq.visible(). A department filter the caller does not manage is refused by the route (never an empty answer). The
-timeline is read by status and time (migration 0120), each ticket it names is checked once per request.
+timeline is read by status and time (migration 0120), each ticket it names is checked once per request - in batches
+(access.visible_many: one IN read of the rows, then the same rule per row; _Managed.prefetch).
 
-COST (section 5): at most a few range reads on indexes plus one visibility check per ticket touched in the window; the result is kept 30
+COST (section 5): at most a few range reads on indexes plus one batched visibility read for the tickets touched in the window; the result is kept 30
 seconds per caller, department, period and permission revision (ten managers opening together do not run ten heavy reads)."""
 from __future__ import annotations
 
@@ -46,6 +47,7 @@ CACHE_SECONDS = 30.0
 CACHE_MAX = 256
 AUDIT_EVERY = 600.0  # an allowed open is audited at most once per caller per 10 minutes (the screen polls every minute)
 RETURN_TO = ("new", "assigned", "acknowledged", "in_progress")
+RETURN_FROM = ("done", "closed")  # finished work that came back
 CLOSED_KINDS = frozenset({"closed", "auto_closed"})
 
 
@@ -81,35 +83,82 @@ def _contact_label(conn, contact_id: str | None) -> str:
 
 class _Managed:
     """One visibility decision per ticket per request: the ticket when the caller sees AND manages it (and it is in the filtered
-    department), else None."""
+    department), else None. `decided` (optional) is the raw visibility per id shared by the _Managed objects of one request (same
+    viewer): a ticket row is read and decided once even when two filters ask about it."""
 
-    def __init__(self, viewer: Viewer, department_id: str | None):
+    def __init__(self, viewer: Viewer, department_id: str | None, decided: dict[str, Seen | None] | None = None):
         self.viewer = viewer
         self.department_id = department_id
         self._seen: dict[str, Seen | None] = {}
+        self._decided: dict[str, Seen | None] = {} if decided is None else decided
+
+    def _raw(self, ticket_id: str) -> Seen | None:
+        if ticket_id not in self._decided:
+            self._decided[ticket_id] = access.visible_by_id(self.viewer, ticket_id)
+        return self._decided[ticket_id]
+
+    def _keep(self, s: Seen | None) -> Seen | None:
+        ok = s is not None and s.manager and (not self.department_id or s.row["department_id"] == self.department_id)
+        return s if ok else None
+
+    def prefetch(self, ticket_ids: Any) -> None:
+        """Decide every id not decided yet in one batched read (access.visible_many: the same rule as visible_by_id, the rows read
+        in IN batches) - the speed fix of section 5; get() answers the same either way."""
+        todo = [i for i in dict.fromkeys(ticket_ids) if i and i not in self._seen]
+        unread = [i for i in todo if i not in self._decided]
+        if unread:
+            self._decided.update(access.visible_many(self.viewer, unread))
+        for i in todo:
+            self._seen[i] = self._keep(self._decided[i])
 
     def get(self, ticket_id: str | None) -> Seen | None:
         if not ticket_id:
             return None
         if ticket_id not in self._seen:
-            s = access.visible_by_id(self.viewer, ticket_id)
-            ok = s is not None and s.manager and (not self.department_id or s.row["department_id"] == self.department_id)
-            self._seen[ticket_id] = s if ok else None
+            self._seen[ticket_id] = self._keep(self._raw(ticket_id))
         return self._seen[ticket_id]
+
+
+class _Assignments:
+    """store_dash.assignment_at() for one answer, batched: prefetch() reads every assignment of the given tickets at once and at()
+    picks the one that held the ticket at that instant in Python (store_dash.pick_assignment - the same rule as the SQL); a ticket
+    nobody prefetched, or a value that is not text, is asked of assignment_at() itself."""
+
+    def __init__(self, conn):
+        self.conn = conn
+        self._rows: dict[str, list[dict[str, Any]]] = {}
+
+    def prefetch(self, ticket_ids: Any) -> None:
+        todo = [i for i in dict.fromkeys(ticket_ids) if i and i not in self._rows]
+        if todo:
+            got = store_dash.assignments_of(self.conn, todo)
+            for i in todo:
+                self._rows[i] = got.get(i, [])
+
+    def at(self, ticket_id: str, at: Any) -> dict[str, Any] | None:
+        rows = self._rows.get(ticket_id)
+        if rows is not None:
+            try:
+                return store_dash.pick_assignment(rows, at)
+            except store_dash.NotComparable:
+                pass
+        return store_dash.assignment_at(self.conn, ticket_id, at)
 
 
 # ---------------------------------------------------------------- throughput and the 14 days
 
-def _done_rows(conn, managed: _Managed, since: str, until: str) -> list[tuple[Seen, dict[str, Any] | None, str]]:
+def _done_rows(conn, managed: _Managed, asgs: _Assignments, since: str, until: str) -> list[tuple[Seen, dict[str, Any] | None, str]]:
     out = []
-    for r in store_dash.done_between(conn, since, until):
-        s = managed.get(r["id"])
-        if s is not None:
-            out.append((s, store_dash.assignment_at(conn, r["id"], r["done_at"]), r["done_at"]))
+    done = store_dash.done_between(conn, since, until)
+    managed.prefetch(r["id"] for r in done)
+    kept = [(r, s) for r in done if (s := managed.get(r["id"])) is not None]
+    asgs.prefetch(r["id"] for r, _s in kept)
+    for r, s in kept:
+        out.append((s, asgs.at(r["id"], r["done_at"]), r["done_at"]))
     return out
 
 
-def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: list[dict[str, Any]]) -> dict[str, Any]:
+def _throughput(conn, managed: _Managed, asgs: _Assignments, since: str, until: str, closed_moves: list[dict[str, Any]]) -> dict[str, Any]:
     rows: dict[str, dict[str, Any]] = {}
     spans: dict[str, list[float]] = {}
     total = {"done": 0, "closed": 0, "returned": 0}
@@ -122,7 +171,7 @@ def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: l
             r["name"] = asg["assignee_name"]  # the latest name the period knows
         return r
 
-    for s, asg, done_at in _done_rows(conn, managed, since, until):
+    for s, asg, done_at in _done_rows(conn, managed, asgs, since, until):
         total["done"] += 1
         if asg is None:
             continue
@@ -131,10 +180,11 @@ def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: l
         if a is not None and b is not None and b >= a:
             spans.setdefault(_key(asg) or "none", []).append((b - a).total_seconds())
     seen_closed: set[tuple[str, str]] = set()
+    asgs.prefetch(ev["ticket_id"] for ev in closed_moves if since <= ev["at"] <= until and managed.get(ev["ticket_id"]) is not None)
     for ev in closed_moves:
         if not since <= ev["at"] <= until or managed.get(ev["ticket_id"]) is None:
             continue
-        asg = store_dash.assignment_at(conn, ev["ticket_id"], ev["at"])
+        asg = asgs.at(ev["ticket_id"], ev["at"])
         k = (_key(asg) or "none", ev["ticket_id"])
         if k in seen_closed:
             continue
@@ -143,11 +193,14 @@ def _throughput(conn, managed: _Managed, since: str, until: str, closed_moves: l
         if asg is not None:
             row(asg)["closed"] += 1
     seen_returned: set[tuple[str, str]] = set()
-    for ev in store_dash.status_moves(conn, RETURN_TO, since, until):
-        if ev["from_status"] not in ("done", "closed") or managed.get(ev["ticket_id"]) is None:
+    returns = store_dash.status_moves(conn, RETURN_TO, since, until, from_statuses=RETURN_FROM)
+    managed.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in RETURN_FROM)
+    asgs.prefetch(ev["ticket_id"] for ev in returns if ev["from_status"] in RETURN_FROM and managed.get(ev["ticket_id"]) is not None)
+    for ev in returns:
+        if ev["from_status"] not in RETURN_FROM or managed.get(ev["ticket_id"]) is None:
             continue
         done_at = store_dash.last_done_before(conn, ev["ticket_id"], ev["id"])
-        asg = store_dash.assignment_at(conn, ev["ticket_id"], done_at) if done_at else None
+        asg = asgs.at(ev["ticket_id"], done_at) if done_at else None
         k = (_key(asg) or "none", ev["ticket_id"])
         if k in seen_returned:
             continue
@@ -169,7 +222,9 @@ def _daily(conn, managed: _Managed, now: dt.datetime, tz: dt.tzinfo, closed_move
     since, until = stuck.iso(start) or "", stuck.iso(now) or ""
     first = now.astimezone(tz).date() - dt.timedelta(days=DAILY_DAYS - 1)
     days = {(first + dt.timedelta(days=i)).isoformat(): {"opened": 0, "closed": 0} for i in range(DAILY_DAYS)}
-    for ev in store_dash.status_moves(conn, ("new",), since, until):
+    opened = store_dash.status_moves(conn, ("new",), since, until, kinds=("created",))
+    managed.prefetch(ev["ticket_id"] for ev in opened if ev["kind"] == "created")
+    for ev in opened:
         if ev["kind"] != "created" or managed.get(ev["ticket_id"]) is None:
             continue
         d = _local_date(ev["at"], tz)
@@ -196,10 +251,12 @@ def _approvals(conn, viewer: Viewer, managed: _Managed, department_id: str | Non
                 "department_id": s.row["department_id"], "vendor": _contact_label(conn, contact_id), "since": since,
                 "amount_minor": int(total) if (amounts and total is not None) else None, "currency": currency if amounts else None}
 
+    q_rows, c_rows = store_dash.submitted_ticket_quotes(conn), store_dash.submitted_claims(conn)
+    managed.prefetch([q["ticket_id"] for q in q_rows] + [c["ticket_id"] for c in c_rows])
     quotes = [ticket_item(s, q["id"], q["contact_id"], q["created_at"], q["total_minor"], q["currency"])
-              for q in store_dash.submitted_ticket_quotes(conn) if (s := managed.get(q["ticket_id"])) is not None]
+              for q in q_rows if (s := managed.get(q["ticket_id"])) is not None]
     claims = [ticket_item(s, c["id"], c["contact_id"], c["updated_at"], c["total_minor"], c["currency"])
-              for c in store_dash.submitted_claims(conn) if (s := managed.get(c["ticket_id"])) is not None]
+              for c in c_rows if (s := managed.get(c["ticket_id"])) is not None]
     second = []
     from .store_quotes import quote as quote_row
     from .store_rfq import vendor as rfq_vendor
@@ -304,20 +361,24 @@ def _departments(conn, viewer: Viewer, now: dt.datetime, done7: list[tuple[Seen,
 
 def summary(conn, viewer: Viewer, *, department_id: str | None, period: str, now: dt.datetime, tz: dt.tzinfo) -> dict[str, Any]:
     days = PERIODS[period]
-    managed = _Managed(viewer, department_id)
+    decided: dict[str, Seen | None] = {}  # one read and one decision per ticket for the whole answer
+    managed = _Managed(viewer, department_id, decided)
+    asgs = _Assignments(conn)  # one batched assignment read per answer
     since = stuck.iso(handler_load.period_start(now, days, tz)) or ""
     since14 = stuck.iso(handler_load.period_start(now, DAILY_DAYS, tz)) or ""
     until = stuck.iso(now) or ""
-    closed_moves = [e for e in store_dash.status_moves(conn, ("closed",), min(since, since14), until) if e["kind"] in CLOSED_KINDS]
+    closed_moves = [e for e in store_dash.status_moves(conn, ("closed",), min(since, since14), until, kinds=sorted(CLOSED_KINDS))
+                    if e["kind"] in CLOSED_KINDS]
+    managed.prefetch(e["ticket_id"] for e in closed_moves)
     all_depts = access.ALL_DEPARTMENTS in viewer.anywhere
     departments, truncated = None, False
     if all_depts:
         since7 = stuck.iso(handler_load.period_start(now, 7, tz)) or ""
-        everywhere = _Managed(viewer, None)
-        departments, truncated = _departments(conn, viewer, now, _done_rows(conn, everywhere, since7, until))
+        everywhere = _Managed(viewer, None, decided)
+        departments, truncated = _departments(conn, viewer, now, _done_rows(conn, everywhere, asgs, since7, until))
     return {
         "period": period, "days": days, "since": since, "now": until, "department_id": department_id,
-        "throughput": _throughput(conn, managed, since, until, closed_moves),
+        "throughput": _throughput(conn, managed, asgs, since, until, closed_moves),
         "daily": _daily(conn, managed, now, tz, closed_moves),
         "approvals": _approvals(conn, viewer, managed, department_id),
         "rfqs": _rfqs(conn, viewer, department_id, now),

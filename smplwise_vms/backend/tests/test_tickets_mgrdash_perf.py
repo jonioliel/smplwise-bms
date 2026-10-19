@@ -143,3 +143,49 @@ def test_the_summary_answers_within_150_ms_on_20000_requests(settings, monkeypat
     print(f"ceiling {CEILING_MS} ms x load factor {factor:.2f}; worst median {worst_median:.1f} ms")
     for label, period, med, _w in results:
         assert med <= CEILING_MS * factor, f"{label} {period}: median {med:.1f} ms over the spec's {CEILING_MS} ms"
+
+
+def test_batched_visibility_against_the_per_ticket_path(settings, monkeypatch):
+    """The speed fix (docs/design/evidence/dash3/speed_fix.md): the same seed answered by the fixed path and by the path it replaced
+    (every change switched off: visibility and assignments one ticket at a time, rows built by dict(row), the whole timeline read), the
+    two interleaved call by call so a busy workstation slows both alike. The answers must be identical; the medians are printed."""
+    s4 = build_s4(settings, monkeypatch)
+    bind(s4.c, settings, "mona", "tickets_external", "installation", "*")
+    _seed(s4)
+    from smplwise.services.tickets import store, store_dash
+
+    def per_ticket(self, ticket_ids):  # the path before the fix: one read per ticket (get() / at() fall back to the single reads)
+        return None
+
+    full_moves = store_dash.status_moves
+    fixed = {"vis": dashboard._Managed.prefetch, "asg": dashboard._Assignments.prefetch, "dicts": store._dicts, "moves": full_moves}
+    before = {"vis": per_ticket, "asg": per_ticket, "dicts": lambda cur: [dict(r) for r in cur.fetchall()],
+              "moves": lambda conn, st, since, until, **_kw: full_moves(conn, st, since, until)}
+
+    def use(impl):
+        monkeypatch.setattr(dashboard._Managed, "prefetch", impl["vis"])
+        monkeypatch.setattr(dashboard._Assignments, "prefetch", impl["asg"])
+        monkeypatch.setattr(store, "_dicts", impl["dicts"])
+        monkeypatch.setattr(store_dash, "status_moves", impl["moves"])
+
+    for user, label in (("mona", "department manager"), ("joni", "all-departments manager")):
+        for period in ("today", "7d", "30d"):
+            t_old, t_new, bodies = [], [], {}
+            for _ in range(RUNS):
+                for name, impl, times in (("old", before, t_old), ("new", fixed, t_new)):
+                    use(impl)
+                    dashboard.CACHE.clear()
+                    t = time.perf_counter()
+                    r = s4.c.get(f"{API}/tickets/dashboard", params={"period": period}, headers=s4.h(user))
+                    times.append((time.perf_counter() - t) * 1000)
+                    assert r.status_code == 200, r.text
+                    body = r.json()
+                    for k in ("generated_at", "now", "since"):  # the clock moves between calls; everything else must not
+                        body.pop(k, None)
+                    body["daily"].pop("since", None)
+                    bodies.setdefault(name, body)
+                    assert body == bodies[name], "the same seed must answer the same every call"
+            assert bodies["new"] == bodies["old"], f"{label} {period}: the batched read changed the answer"
+            mo, mn = statistics.median(t_old), statistics.median(t_new)
+            print(f"{label:24} {period:5}  per-ticket median {mo:7.1f} ms (worst {max(t_old):7.1f})  batched median {mn:7.1f} ms "
+                  f"(worst {max(t_new):7.1f})  x{mo / mn:4.2f}")
