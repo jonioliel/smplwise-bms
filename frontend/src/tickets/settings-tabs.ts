@@ -3,9 +3,10 @@
  * session's permission check in, the ids out. The ids of the old tabs are unchanged (`messages` is the templates tab), so every
  * address that points into the settings keeps working; `display` is the new one.
  */
-export type SettingsTab = 'general' | 'departments' | 'locations' | 'display' | 'channel' | 'messages' | 'costs' | 'permissions';
+export type SettingsTab = 'general' | 'departments' | 'locations' | 'display' | 'channel' | 'messages' | 'costs' | 'rules' | 'permissions';
 /** CR-ORG-LOCATIONS: `locations` ("מיקומים", the organisation's locations) sits next to the departments (tickets.configure). */
-export const SETTINGS_TABS: readonly SettingsTab[] = ['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'permissions'];
+/** TKRULES-291: `rules` ("פתיחה אוטומטית", tickets opened from alerts) is the installation's (system.configure). */
+export const SETTINGS_TABS: readonly SettingsTab[] = ['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'rules', 'permissions'];
 
 export function isSettingsTab(v: string | null | undefined): v is SettingsTab {
   return !!v && (SETTINGS_TABS as readonly string[]).includes(v);
@@ -16,7 +17,7 @@ export function isSettingsTab(v: string | null | undefined): v is SettingsTab {
 export function visibleTabs(o: { api: boolean; can: (perm: string) => boolean }): SettingsTab[] {
   const system = !o.api || o.can('system.configure');
   const configure = !o.api || o.can('tickets.configure');
-  return SETTINGS_TABS.filter((t) => (t === 'display' || t === 'channel' || t === 'costs' ? system : t === 'messages' || t === 'locations' ? configure : true));
+  return SETTINGS_TABS.filter((t) => (t === 'display' || t === 'channel' || t === 'costs' || t === 'rules' ? system : t === 'messages' || t === 'locations' ? configure : true));
 }
 
 /** The next tab index for an arrow key in a tab list (the visual order follows the text direction: in RTL the first tab is at the right,

@@ -262,7 +262,8 @@ def test_an_external_assignee_without_a_message_channel_escalates_at_the_crossin
 # ---------------------------------------------------------------- guards
 
 def test_only_the_monitor_and_the_bridge_read_tickets_as_the_system():
-    allowed = {"services/tickets/store.py", "services/tickets/monitor.py", "services/tickets/notify_bridge.py"}
+    allowed = {"services/tickets/store.py", "services/tickets/monitor.py", "services/tickets/notify_bridge.py",
+               "services/tickets/rule_engine.py"}  # TKRULES-291: the rule engine's clear pass (a system author, never a person's read)
     offenders = []
     for path in SMPLWISE.rglob("*.py"):
         rel = path.relative_to(SMPLWISE).as_posix()

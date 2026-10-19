@@ -52,3 +52,9 @@ def _sla_monitor(db: Database) -> None:
         monitor.tick(db)
     except Exception:  # noqa: BLE001 - the monitor never fails the retention step (it logs its own problems)
         log.warning("tickets SLA monitor failed", exc_info=True)
+    try:
+        from . import rule_engine  # TKRULES-291: tickets from alerts - the same ride, its own once-a-minute throttle and kill switch
+
+        rule_engine.tick(db)
+    except Exception:  # noqa: BLE001
+        log.warning("tickets rule engine failed", exc_info=True)

@@ -47,6 +47,28 @@ class CreateResult:
     number: int
 
 
+def _category_priority(conn, dept: dict[str, Any], spec: TicketSpec) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """The category (optional, of the department, active) and the priority (explicit id / key, else the category's, else the
+    department's default) of a new ticket - the same rule for a person and for a rule. Raises the 422 of the field."""
+    category = None
+    if spec.category_id:
+        category = store.category(conn, spec.category_id)
+        if category is None or category["department_id"] != dept["id"] or not category["active"]:
+            raise service.invalid(conn, model.Invalid([model.Problem("category_id", "unknown")]))
+    priority = None
+    if spec.priority_id:
+        priority = store.priority(conn, spec.priority_id)
+    elif spec.priority_key:
+        priority = store.priority_by_key(conn, dept["id"], spec.priority_key)
+    elif category and category.get("default_priority_id"):
+        priority = store.priority(conn, category["default_priority_id"])
+    else:
+        priority = store.default_priority(conn, dept["id"])
+    if priority is None or priority["department_id"] != dept["id"] or not priority["active"]:
+        raise service.invalid(conn, model.Invalid([model.Problem("priority_id", "unknown")]))
+    return category, priority
+
+
 def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = None) -> CreateResult:
     """Validate and create one ticket as `viewer` (a signed-in person in slice 1). Raises ApiError (403 audited, 422 field problems)."""
     dept = store.department(conn, spec.department_id) if spec.department_id else None
@@ -86,22 +108,7 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
         except org_locations.Invalid as exc:
             raise service.invalid(conn, model.Invalid([model.Problem(exc.field, exc.code)])) from None
         location = {"location_id": lid, "location_snapshot": snap}
-    category = None
-    if spec.category_id:
-        category = store.category(conn, spec.category_id)
-        if category is None or category["department_id"] != dept["id"] or not category["active"]:
-            raise service.invalid(conn, model.Invalid([model.Problem("category_id", "unknown")]))
-    priority = None
-    if spec.priority_id:
-        priority = store.priority(conn, spec.priority_id)
-    elif spec.priority_key:
-        priority = store.priority_by_key(conn, dept["id"], spec.priority_key)
-    elif category and category.get("default_priority_id"):
-        priority = store.priority(conn, category["default_priority_id"])
-    else:
-        priority = store.default_priority(conn, dept["id"])
-    if priority is None or priority["department_id"] != dept["id"] or not priority["active"]:
-        raise service.invalid(conn, model.Invalid([model.Problem("priority_id", "unknown")]))
+    category, priority = _category_priority(conn, dept, spec)
     if spec.assign_to is not None:
         # everything the assignment needs is checked BEFORE anything is written: an API error commits the request's transaction
         # (the audit row of a refusal survives), so a refused assignment must not leave a half-made ticket behind
@@ -158,4 +165,58 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
     if spec.assign_to is not None:
         seen = access.require_visible(viewer, ticket_id)  # checked above: the manager holds tickets.view and the ticket is placeless
         service.assign(conn, viewer, seen, spec.assign_to.kind, spec.assign_to.id, assign_note, spec.assign_note_external, seen.row["revision"], rid)
+    return CreateResult("created", ticket_id, number)
+
+
+# ---------------------------------------------------------------- CR-038 phase 2 (TKRULES-291): the system author
+
+SYSTEM_AUTHOR = "system"  # `tickets.created_by` of a rule ticket: never a user id, so nobody gains the "creator" reason of access.visible
+SYSTEM_NAME = "מערכת"
+
+
+def create_by_rule(conn, spec: TicketSpec, *, source_note: str, absorb_note: str, data: dict[str, Any] | None = None) -> CreateResult:
+    """The system branch of the one creation path (phase 2, docs/changes/CR-038-TKRULES-NOTES.md): a rule of the installation opens a
+    PLACELESS, UNASSIGNED ticket in its department. Same department / category / priority / text rules as a person's ticket; the author
+    is the system (created_by "system", timeline actor `system`, audit actor None with origin `rule`); no device history is captured and
+    nothing is assigned or sent. An OPEN ticket with the same `dedupe_key` absorbs the repeat (a system note `absorb_note`).
+    `source_note` (the alert the ticket came from) is the first internal note. Raises ApiError 422 like the person path."""
+    if spec.origin != "rule" or not spec.dedupe_key or not spec.rule_ref or spec.assign_to is not None or spec.entity_id or spec.location_id:
+        raise ValueError("a rule ticket is placeless and unassigned and carries its rule and its key")
+    dept = store.department(conn, spec.department_id) if spec.department_id else None
+    if dept is None or not dept["active"]:
+        raise service.invalid(conn, model.Invalid([model.Problem("department_id", "unknown")]))
+    try:
+        title = model.text_field(spec.title, "title", required=True, max_len=model.TITLE_MAX)
+        description = model.text_field(spec.description, "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
+        note = model.text_field(source_note, "text", required=False, max_len=model.NOTE_MAX, multiline=True)
+        again = model.text_field(absorb_note, "text", required=False, max_len=model.NOTE_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise service.invalid(conn, exc) from None
+    category, priority = _category_priority(conn, dept, spec)
+    now = now_iso()
+    existing = access.open_by_dedupe_key_system(conn, spec.dedupe_key)
+    if existing is not None:
+        store.insert_event(conn, existing["id"], "note", actor_kind="system", actor_name=SYSTEM_NAME, via="system", body=again or None,
+                           data={"absorbed": True, "rule_ref": spec.rule_ref, **(data or {})}, at=now)
+        store.update_ticket(conn, existing["id"], {"last_activity_at": now}, bump=False)
+        return CreateResult("absorbed", existing["id"], existing["number"])
+    ticket_id = new_id()
+    number = store.next_number(conn)
+    waiting_on, waiting_reason = model.waiting_for("new")
+    store.insert_ticket(conn, {
+        "id": ticket_id, "number": number, "department_id": dept["id"], "category_id": category["id"] if category else None,
+        "priority_id": priority["id"], "title": title, "description": description, "status": "new", "origin": "rule",
+        "place_text": "", "created_by": SYSTEM_AUTHOR, "created_by_name": SYSTEM_NAME, "last_activity_at": now,
+        "waiting_on": waiting_on, "waiting_reason": waiting_reason, "rule_ref": spec.rule_ref, "dedupe_key": spec.dedupe_key,
+        "revision": 1, "created_at": now, "updated_at": now,
+    })
+    store.insert_event(conn, ticket_id, "created", actor_kind="system", actor_name=SYSTEM_NAME, via="system", to_status="new",
+                       data={"origin": "rule", "rule_ref": spec.rule_ref, **(data or {})}, at=now)
+    if note:
+        store.insert_event(conn, ticket_id, "note", actor_kind="system", actor_name=SYSTEM_NAME, via="system", body=note,
+                           data={"rule_ref": spec.rule_ref, "source": True, **(data or {})}, at=now)
+    audit(conn, actor=None, action="ticket.create", decision="allowed", resource_type="ticket", resource_id=ticket_id,
+          details={"number": number, "department_id": dept["id"], "origin": "rule", "rule_ref": spec.rule_ref, "actor": "system", **(data or {})})
+    sla.refresh(conn, ticket_id)
+    notify_bridge.ticket_created(conn, ticket_id)
     return CreateResult("created", ticket_id, number)
