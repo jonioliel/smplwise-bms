@@ -1,10 +1,5 @@
 # Changelog
 
-## 2.8.0 (unreleased) - technician privacy notice n2
-- Privacy notice for external technicians, version n2 (he/en/ar/ru; the vendor attests he told the technician); Arabic and Russian notice and code message - ar/ru technicians no longer receive the English message. A stale page posting `notice_version` n1 is refused (422 `notice_ack`) and must re-read the view. The audit of the notice carries `acknowledged_for`.
-- Feature stays OFF (`GO_LIVE_PERMITTED` False). Owner sign-off of the wording is required before go-live.
-- English/Hebrew: no migration; no frontend change.
-
 ## 0.1.0-dev.1 — 2026-09-14 (first application segment)
 - Add-on skeleton (`repository.yaml`, `smplwise_vms/`): Ingress-only FastAPI backend, SQLite in /data with
   versioned migrations, identity from Supervisor headers with a trusted-proxy check, explicit bootstrap of

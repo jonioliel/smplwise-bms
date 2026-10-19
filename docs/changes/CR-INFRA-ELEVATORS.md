@@ -131,7 +131,9 @@ glyphs are product icons; the door LED is shown faded ("not linked") as in the m
   refusal and partial-visibility hiding, flags); `tests/test_home_config.py` (widget validation, personal override).
 - Frontend node-only: `tests/unit-elevators.spec.ts` (looks, no direction, KPIs, lights, bar, relative times, widget view, config, personal).
 - `tests/evidence-elevators.spec.ts` (desktop + mobile, light + dark) run against a local Vite dev server with mocked routes; screenshots in
-  `docs/evidence/elevators/`. The home widget has no committed browser spec yet (checked once in a throwaway harness).
+  `docs/evidence/elevators/`. The home widget: `tests/evidence-elevators-home.spec.ts` (2.8.0 integration; the real build against the bubble
+  mock layer: mode "both" = the combined card followed by one card per elevator with a hidden elevator left out, mode "cards", and no widget
+  at all without elevators; desktop / tablet / mobile; screenshots `home-both-*.png`).
 ### 9.4 Elevator alerts: off by default, recipients, channels (owner decision 2026-10-18)
 
 - Settings › תשתיות › מעליות › "התראות מעליות" (`elevators/elevator-alerts.ts`; `GET/PUT /api/v1/infra/elevators/alerts`; read: elevator managers
@@ -174,5 +176,5 @@ glyphs are product icons; the door LED is shown faded ("not linked") as in the m
 | Nit | `device.battery_low` line restored to its original formatting. | - |
 
 Not changed: L1 (the tick keeps the IMMEDIATE transaction, like the generator runner); L7 (`both` mode renders a second section next to the widget
-shell - a browser evidence spec for the home widget is still to be written before release); the downtime heartbeat suggested under M2 (the last
+shell - covered since the 2.8.0 integration by `tests/evidence-elevators-home.spec.ts`); the downtime heartbeat suggested under M2 (the last
 state before an add-on stop still spans the outage until the first tick after the start writes the new state).
