@@ -169,7 +169,7 @@ def hhmm(v: Any) -> str:
 
 def notify_matrix(v: Any) -> dict[str, dict[str, str]]:
     """TKNOTIFMATRIX: {department id | "*": {ticket source key: "now" | "digest" | "off"}}. Only the department-scoped ticket sources
-    (notify_matrix.MATRIX_SOURCES); "digest" only for a source whose audience is the managers (assignee reminders are never held)."""
+    (notify_matrix.MATRIX_SOURCES); since 2.9.1 every one of them may be digested (an assignee's reminder too - owner decision 4)."""
     from . import notify_matrix as nm
 
     if not isinstance(v, dict) or len(v) > BUSY_MAP_MAX + 1:
@@ -188,6 +188,74 @@ def notify_matrix(v: Any) -> dict[str, dict[str, str]]:
                 clean[src] = mode
         if clean:
             out[dept] = clean
+    return out
+
+
+_PRINCIPAL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$")  # a user id or a role id (built-in or custom)
+NOTIFY_PICK_MAX = 50  # users / roles named per department for the digest
+NOTIFY_CHANNEL_GROUPS = ("push", "email", "whatsapp")  # in-app is the inbox row itself: always on (turn an event off in the matrix)
+SLA_URGENT_MAX = 2000
+
+
+def _ids(v: Any) -> list[str]:
+    if not isinstance(v, list) or len(v) > NOTIFY_PICK_MAX or not all(isinstance(x, str) and _PRINCIPAL_ID.match(x) for x in v):
+        raise ValueError("invalid")
+    return list(dict.fromkeys(v))
+
+
+def notify_departments(v: Any) -> dict[str, dict[str, Any]]:
+    """TKNOTIFMATRIX 2.9.1: the per-department digest and channel settings, {department id | "*": {
+         "digest_time": "HH:MM"                    the department's own digest time (absent = the installation's notify.digest_time;
+                                                   not allowed under "*": the installation value IS the "all departments" time),
+         "recipients": {"managers": bool,         the department's managers (default true)
+                        "users": [user id],       plus named users
+                        "roles": [role id]},      plus the holders of named roles (each still only for the tickets he may see)
+         "channels": {"push" | "email" | "whatsapp": "on" | "off"}   absent = the source's own channel policy (inherit)
+       }}. A department inherits each field it does not set from "*" (decision 8, like the matrix)."""
+    if not isinstance(v, dict) or len(v) > BUSY_MAP_MAX + 1:
+        raise ValueError("invalid")
+    out: dict[str, dict[str, Any]] = {}
+    for dept, cfg in v.items():
+        if not isinstance(dept, str) or not (dept == "*" or _DEPT_ID.match(dept)) or not isinstance(cfg, dict):
+            raise ValueError("invalid")
+        if set(cfg) - {"digest_time", "recipients", "channels"}:
+            raise ValueError("invalid")
+        clean: dict[str, Any] = {}
+        if cfg.get("digest_time") is not None:
+            if dept == "*":
+                raise ValueError("star_time")
+            clean["digest_time"] = hhmm(cfg["digest_time"])
+        rec = cfg.get("recipients")
+        if rec is not None:
+            if not isinstance(rec, dict) or set(rec) - {"managers", "users", "roles"}:
+                raise ValueError("invalid")
+            clean["recipients"] = {"managers": boolean(rec.get("managers", True)), "users": _ids(rec.get("users", [])),
+                                   "roles": _ids(rec.get("roles", []))}
+        ch = cfg.get("channels")
+        if ch is not None:
+            if not isinstance(ch, dict) or set(ch) - set(NOTIFY_CHANNEL_GROUPS) or any(x not in ("on", "off", "inherit") for x in ch.values()):
+                raise ValueError("invalid")
+            chans = {k: x for k, x in ch.items() if x != "inherit"}
+            if chans:
+                clean["channels"] = chans
+        if clean:
+            out[dept] = clean
+    return out
+
+
+def sla_urgent(v: Any) -> dict[str, str]:
+    """TKNOTIFMATRIX 2.9.1 (owner decision 5): per SLA policy (department x priority, key "<department id>/<priority id>") whether
+    its urgent events (a high / urgent priority, an SLA crossing) go at once whatever the matrix says ("immediate") or follow the
+    matrix ("matrix"). Absent = the installation's `notify.urgent_immediate`."""
+    if not isinstance(v, dict) or len(v) > SLA_URGENT_MAX:
+        raise ValueError("invalid")
+    out: dict[str, str] = {}
+    for k, x in v.items():
+        parts = k.split("/") if isinstance(k, str) else []
+        if len(parts) != 2 or not all(_DEPT_ID.match(p) for p in parts) or x not in ("immediate", "matrix", "inherit"):
+            raise ValueError("invalid")
+        if x != "inherit":
+            out[k] = x
     return out
 
 
@@ -227,11 +295,17 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     #   matrix_enabled  the matrix below applies (off: every event notifies as before)
     #   matrix          {department id | "*": {source: "digest" | "off"}}  (a missing cell = "now", as today)
     #   digest_enabled  events marked "digest" are held and sent once a day as ONE grouped notification per department (off: they go now)
-    #   digest_time     the local time of day the digest goes (installation time zone)
+    #   digest_time     the local time of day the digest goes (installation time zone) - the default of every department
+    #   departments     per department (and "*"): its own digest time, the digest's recipients, a channel override (notify_departments)
+    #   urgent_immediate  a high / urgent priority event or an SLA crossing goes at once whatever the matrix says (default on)
+    #   sla_urgent      the same choice per SLA policy {"<dept>/<priority>": "immediate" | "matrix"} (absent = urgent_immediate)
     ("notify", "matrix_enabled"): (False, boolean),
     ("notify", "matrix"): ({}, notify_matrix),
     ("notify", "digest_enabled"): (False, boolean),
     ("notify", "digest_time"): ("08:00", hhmm),
+    ("notify", "departments"): ({}, notify_departments),
+    ("notify", "urgent_immediate"): (True, boolean),
+    ("notify", "sla_urgent"): ({}, sla_urgent),
     ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5

@@ -52,6 +52,12 @@ T_UNMATCHED = ("תשובה שלא שויכה ל{ticket}", "לבדיקה בלוח
 T_COST_SUBMITTED = ("הוגשה דרישת תשלום ל{ticket} #{number}", "{place}")
 T_COST_MISSING = ("לא הוגשה דרישת תשלום ל{ticket} #{number}", "{place} · חלון ההגשה נסגר")
 T_CHANNEL = ("חשבון וואטסאפ מנותק", "{account} · הודעות {tickets} ממתינות")
+# TKNOTIFMATRIX: the template of each matrix source, to send a held event at once when its digest fails (emit_held)
+TEMPLATES: dict[str, tuple[str, str]] = {
+    "ticket.new_unassigned": T_NEW, "ticket.assigned": T_ASSIGNED, "ticket.reminder": T_REMINDER, "ticket.stuck": T_STUCK,
+    "ticket.returned": T_RETURNED, "ticket.done": T_DONE, "ticket.send_failed": T_SEND_FAILED, "ticket.contact_changed": T_CONTACT,
+    "ticket.reply_unmatched": T_UNMATCHED, "ticket.cost_submitted": T_COST_SUBMITTED, "ticket.cost_missing": T_COST_MISSING,
+}
 
 
 # ---------------------------------------------------------------- engine callbacks
@@ -100,6 +106,9 @@ def recipient_users(conn: sqlite3.Connection, rule: str, n: dict[str, Any]) -> l
     if rule == RULE_ASSIGNEE:
         uid = origin.get("user_id")
         return [uid] if isinstance(uid, str) and uid else []
+    if rule == RULE_MANAGERS and origin.get("audience") == "digest":  # TKNOTIFMATRIX: one digest row per recipient (notify_matrix)
+        uid = origin.get("user_id")
+        return [uid] if isinstance(uid, str) and uid else []
     if rule == RULE_MANAGERS:
         managers = department_managers(conn, row, notify_new_only=origin.get("audience") == "notify_new")
         if origin.get("audience") == "costs":  # S9b: only the managers who may see the costs where the ticket lies
@@ -111,9 +120,50 @@ def recipient_users(conn: sqlite3.Connection, rule: str, n: dict[str, Any]) -> l
 # ---------------------------------------------------------------- texts and severity
 
 def open_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
-    """The ticket row while it is still open (not closed / cancelled), else None - for the digest (notify_matrix.flush)."""
+    """The ticket row while it is still open (not closed / cancelled), else None - for the digest (notify_matrix.run)."""
     row = store.ticket_row_system(conn, ticket_id)
     return None if row is None or row["status"] in ("closed", "cancelled") else row
+
+
+def digest_audience(conn: sqlite3.Connection, entry: dict[str, Any], row: dict[str, Any], *, managers: bool, extra: list[str]) -> list[str]:
+    """TKNOTIFMATRIX: whose digest one held event goes into. An assignee source: its assignee. A managers' source: the department's
+    managers (when the department's digest keeps them, the default) plus the named users / role holders; the `costs` audience keeps
+    only who may see the costs there. Everyone must see the ticket (access.visible). When that leaves nobody, the source's own
+    audience stands in (an event never vanishes because a digest list was narrowed)."""
+    from . import access, notify_matrix
+
+    origin = entry.get("o") if isinstance(entry.get("o"), dict) else {}
+
+    def visible(uids: list[str]) -> list[str]:
+        out = []
+        for uid in dict.fromkeys(u for u in uids if isinstance(u, str) and u):
+            if store.user_is_active(conn, uid) and access.visible(_viewer(conn, uid), row) is not None:
+                out.append(uid)
+        return out
+
+    if entry["s"] in notify_matrix.ASSIGNEE_SOURCES:
+        return visible([origin.get("user_id")])  # type: ignore[list-item]
+    cands = (department_managers(conn, row) if managers else []) + list(extra)
+    if origin.get("audience") == "costs":
+        cands = [uid for uid in cands if _viewer(conn, uid).holds("tickets.costs.view", row)]
+    out = visible(cands)
+    if out:
+        return out
+    return visible(recipient_users(conn, RULE_MANAGERS, {"origin": {**origin, "ticket_id": row["id"]}}))
+
+
+def emit_held(conn: sqlite3.Connection, entry: dict[str, Any]) -> bool:
+    """TKNOTIFMATRIX (decision 4): send one held event at once, as it would have gone - the fallback when its digest could not be
+    created. Bypasses the matrix. True when the engine took it (or there is nothing left to tell: the ticket closed)."""
+    row = open_ticket(conn, entry["t"])
+    tpl = TEMPLATES.get(entry["s"])
+    if row is None or tpl is None:
+        return True
+    origin = entry.get("o") if isinstance(entry.get("o"), dict) else {}
+    values = entry.get("v") if isinstance(entry.get("v"), dict) else {}
+    action = _emit(conn, entry["s"], row, tpl, dedupe=str(entry.get("k") or f"ticket:{row['id']}:held:{entry['s']}"),
+                   severity=entry.get("sev") if isinstance(entry.get("sev"), str) else None, origin=origin, matrix=False, **values)
+    return action is not None
 
 
 def place_of(conn: sqlite3.Connection, row: dict[str, Any]) -> str:
@@ -150,17 +200,19 @@ def _module_on(conn: sqlite3.Connection) -> bool:
 
 
 def _emit(conn: sqlite3.Connection, source: str, row: dict[str, Any], tpl: tuple[str, str], *, dedupe: str, severity: str | None = None,
-          origin: dict[str, Any] | None = None, **values: Any) -> str | None:
-    """One ticket signal (never raises). Returns the engine's action ('created', 'folded', ... or None on a failure / module off)."""
+          origin: dict[str, Any] | None = None, matrix: bool = True, **values: Any) -> str | None:
+    """One ticket signal (never raises). Returns the engine's action ('created', 'folded', ... or None on a failure / module off);
+    'digested' when the department's matrix holds it for the digest. `matrix=False`: a held event sent at once (emit_held)."""
     if not _module_on(conn):
         return None
-    from . import notify_matrix
+    if matrix:
+        from . import notify_matrix
 
-    mode = notify_matrix.decide(conn, row.get("department_id"), source)  # TKNOTIFMATRIX: "now" unless an administrator turned the matrix on
-    if mode == "off":
-        return None
-    if mode == "digest" and notify_matrix.enqueue(conn, row["id"], row["department_id"], source):
-        return "digested"
+        mode = notify_matrix.decide(conn, row, source)  # TKNOTIFMATRIX: "now" unless an administrator turned the matrix on
+        if mode == "off":
+            return None
+        if mode == "digest" and notify_matrix.enqueue(conn, row, source, dedupe=dedupe, severity=severity, origin=origin, values=values):
+            return "digested"
     from .. import notify
 
     vals = {"number": row["number"], "place": place_of(conn, row), **values}

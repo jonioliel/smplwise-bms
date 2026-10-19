@@ -17,6 +17,7 @@ import { lt } from '../tickets/org-locations-text';
 import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
 import '../tickets/notify-matrix'; // TKNOTIFMATRIX: the notification matrix and the daily digest
 import type { NotifyDoc } from '../tickets/notify-matrix-model';
+import { nmt } from '../i18n/notify-matrix';
 import { ct } from '../tickets/cost-text';
 import { qst } from '../tickets/rfq-settings-text'; // RFQQSET
 import { mtt } from '../tickets/messages-text';
@@ -249,6 +250,39 @@ export class SystemTickets extends LitElement {
       .sgrid.one {
         grid-template-columns: minmax(0, 1fr);
       }
+    }
+    /* TKNOTIFMATRIX: the picked users / roles of a department's digest (tickets/notify-matrix.ts, light DOM) */
+    .nm-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .nm-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding-inline: 10px 4px;
+      min-block-size: 32px;
+      border-radius: 999px;
+      background: var(--dv-surface-3);
+      color: var(--dv-text);
+      font-size: var(--sw-fs-sm);
+    }
+    .nm-x {
+      inline-size: 28px;
+      block-size: 28px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--dv-text-2);
+      font: inherit;
+      cursor: pointer;
+    }
+    .nm-x:hover {
+      background: var(--dv-surface-2);
+      color: var(--dv-text);
     }
     details[data-dept-deleted] summary {
       cursor: pointer;
@@ -713,7 +747,7 @@ export class SystemTickets extends LitElement {
       <div class="col">
         ${this.linksCard(this.doc)}
         ${this.hoursCard(this.doc)}
-        ${isApi() && mayConfigure ? html`<sw-card heading="התראות לפי מחלקה ותקציר" data-card="notify-matrix">
+        ${isApi() && mayConfigure ? html`<sw-card heading=${nmt('card')} data-card="notify-matrix">
           <ticket-notify-matrix .doc=${this.doc as unknown as { revision: number; notify?: NotifyDoc }} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<SettingsDoc>) => { this.doc = e.detail; this.say(tt('setSaved')); }}></ticket-notify-matrix>
         </sw-card>` : nothing}
         ${this.rfqTermsCard(this.doc)}

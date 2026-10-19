@@ -72,10 +72,23 @@ def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn
     """TKNOTIFMATRIX: what the matrix screen needs - the sources a department can be tuned for (key, label, whether "digest" is
     allowed), the departments, and how many events wait for the next digest. `system.configure`, like the document itself."""
     require(conn, principal, "system.configure", INSTALLATION)
+    from ..rbac import ROLE_NAMES_HE
+    from ..services import notify_channels
     from ..services.tickets import notify_matrix
 
-    return {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE} for k in notify_matrix.MATRIX_SOURCES],
-            "departments": [{"id": d["id"], "name": d["name"]} for d in store.departments(conn)],
+    by_dept = notify_matrix.pending_by_department(conn)
+    custom = {r["id"]: r["name_he"] for r in conn.execute("SELECT id, name_he FROM custom_roles WHERE deleted_at IS NULL").fetchall()}
+    return {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE,
+                         "assignee": k in notify_matrix.ASSIGNEE_SOURCES, "sla": k in notify_matrix.SLA_SOURCES} for k in notify_matrix.MATRIX_SOURCES],
+            # 2.9.1: each department's priorities (the SLA policies are department x priority) and its held events
+            "departments": [{"id": d["id"], "name": d["name"], "pending": by_dept.get(d["id"], 0),
+                             "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"]} for p in store.priorities(conn, d["id"]) if p["active"]]}
+                            for d in store.departments(conn)],
+            "users": [{"id": r["id"], "name": r["display_name"] or r["username"]}
+                      for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY display_name, username").fetchall()],
+            "roles": [{"id": rid, "name": ROLE_NAMES_HE.get(rid) or custom.get(rid) or rid} for rid in all_roles(conn)],
+            # the channel groups this installation can deliver (push = web push / the phone app); in-app is always on
+            "channels": [g for g, names in notify_matrix.CHANNEL_GROUPS.items() if any(n in notify_channels.CHANNELS for n in names)],
             "pending": notify_matrix.pending(conn)}
 
 
@@ -223,6 +236,10 @@ class NotifyPatch(BaseModel):
     matrix: dict[str, dict[str, str]] | None = Field(default=None, max_length=201)
     digest_enabled: StrictBool | None = None
     digest_time: str | None = Field(default=None, max_length=5)
+    # 2.9.1: per department digest time / recipients / channel override, the urgent rule and its per-SLA override (settings_doc validates)
+    departments: dict[str, dict[str, Any]] | None = Field(default=None, max_length=201)
+    urgent_immediate: StrictBool | None = None
+    sla_urgent: dict[str, str] | None = Field(default=None, max_length=2000)
 
 
 class SettingsBody(BaseModel):
