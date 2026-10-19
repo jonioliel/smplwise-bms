@@ -9,12 +9,18 @@ import '../components/sw-state-panel';
 import { drawerSettingsRows } from '../tickets/settings-drawer'; // TKUI1: the request drawer's display rows
 import '../tickets/settings-dept';
 import '../tickets/public-settings';
+import '../tickets/work-calendar-card'; // SLACAL: the working-hours calendar of the ticket timers
 import '../tickets/settings-channel'; // slice 5b: ערוץ הודעות
 import '../tickets/settings-message-templates'; // slice 5b: תבניות הודעה (D26)
 import '../tickets/settings-costs'; // slice 9b: costs (11A.14)
 import '../tickets/settings-locations'; // CR-ORG-LOCATIONS: the organisation's locations
+import '../tickets/settings-rules'; // TKRULES-291: tickets opened automatically from alerts
+import { rlt } from '../tickets/rules-text';
 import { lt } from '../tickets/org-locations-text';
 import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
+import '../tickets/notify-matrix'; // TKNOTIFMATRIX: the notification matrix and the daily digest
+import type { NotifyDoc } from '../tickets/notify-matrix-model';
+import { nmt } from '../i18n/notify-matrix';
 import { ct } from '../tickets/cost-text';
 import { qst } from '../tickets/rfq-settings-text'; // RFQQSET
 import { mtt } from '../tickets/messages-text';
@@ -248,6 +254,39 @@ export class SystemTickets extends LitElement {
         grid-template-columns: minmax(0, 1fr);
       }
     }
+    /* TKNOTIFMATRIX: the picked users / roles of a department's digest (tickets/notify-matrix.ts, light DOM) */
+    .nm-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .nm-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding-inline: 10px 4px;
+      min-block-size: 32px;
+      border-radius: 999px;
+      background: var(--dv-surface-3);
+      color: var(--dv-text);
+      font-size: var(--sw-fs-sm);
+    }
+    .nm-x {
+      inline-size: 28px;
+      block-size: 28px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--dv-text-2);
+      font: inherit;
+      cursor: pointer;
+    }
+    .nm-x:hover {
+      background: var(--dv-surface-2);
+      color: var(--dv-text);
+    }
     details[data-dept-deleted] summary {
       cursor: pointer;
       min-block-size: 44px;
@@ -419,7 +458,7 @@ export class SystemTickets extends LitElement {
         if (!this.directory) this.directory = await ticketsApi().directory();
       } else if (this.tab === 'display') {
         if (!isApi() || can('system.configure')) this.doc = await ticketsApi().settings();
-      } else if (this.tab === 'channel' || this.tab === 'messages' || this.tab === 'costs' || this.tab === 'locations') {
+      } else if (this.tab === 'channel' || this.tab === 'messages' || this.tab === 'costs' || this.tab === 'locations' || this.tab === 'rules') {
         // slice 5b: the components load their own data (tickets/settings-channel.ts, tickets/settings-message-templates.ts)
       } else {
         this.permsFailed = false;
@@ -711,6 +750,10 @@ export class SystemTickets extends LitElement {
       <div class="col">
         ${this.linksCard(this.doc)}
         ${this.hoursCard(this.doc)}
+        ${isApi() && mayConfigure ? html`<sw-card heading=${nmt('card')} data-card="notify-matrix">
+          <ticket-notify-matrix .doc=${this.doc as unknown as { revision: number; notify?: NotifyDoc }} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<SettingsDoc>) => { this.doc = e.detail; this.say(tt('setSaved')); }}></ticket-notify-matrix>
+        </sw-card>` : nothing}
+        <tickets-work-calendar-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}></tickets-work-calendar-card>
         ${this.rfqTermsCard(this.doc)}
         ${this.vendorUploadsCard(this.doc)}
       </div>
@@ -997,7 +1040,7 @@ export class SystemTickets extends LitElement {
   render() {
     const heading = tt('area');
     if (this.enabled === null) return html`<div class="page" data-tickets-settings><div class="ttl lead-head"><div class="crumbs">הגדרות</div><h1>${heading}</h1></div><sw-state-panel state="loading"></sw-state-panel></div>`;
-    const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: lt('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), permissions: tt('setTabPermissions') };
+    const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: lt('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), rules: rlt('tab'), permissions: tt('setTabPermissions') };
     const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
     const tabs = this.enabled ? html`<div class="stabs"><div class="seg sm" role="tablist" aria-label=${heading} data-tickets-settings-tabs @keydown=${(e: KeyboardEvent) => this.onTabKey(e, items.map((x) => x.id))}>${items.map((i) => html`<button type="button" role="tab"
       aria-selected=${String(this.tab === i.id)} tabindex=${this.tab === i.id ? '0' : '-1'} data-settings-tab=${i.id} @click=${() => this.setTab(i.id)}>${i.label}</button>`)}</div></div>` : nothing;
@@ -1007,6 +1050,7 @@ export class SystemTickets extends LitElement {
       : this.tab === 'messages' ? html`<tickets-message-templates @notice=${this.onNotice}></tickets-message-templates>` // slice 5b
       : this.tab === 'costs' ? html`<tickets-costs-settings @notice=${this.onNotice}></tickets-costs-settings>` // slice 9b
       : this.tab === 'locations' ? html`<tickets-locations-settings @notice=${this.onNotice}></tickets-locations-settings>` // CR-ORG-LOCATIONS
+      : this.tab === 'rules' ? html`<tickets-rules-settings @notice=${this.onNotice}></tickets-rules-settings>` // TKRULES-291
       : this.permissionsTab();
     return html`<div class="page" data-tickets-settings data-tab=${this.tab}>
       ${tabs}

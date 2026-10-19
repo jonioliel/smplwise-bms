@@ -152,6 +152,35 @@ TEMPLATES = {  # owner answers 3 / 9 / 11: fixed, code-owned, never editable, no
           "Входы регистрируются (имя, время и дверь) только в целях безопасности; по вопросам обращайтесь к управляющему зданием. "
           "Справочный номер: {ref}.",
 }
+# PRIVORG-291: the last sentence of the notice names who to contact. Unset (no organisation name, no contact point): exactly the text above.
+# Set: the organisation name replaces "the building manager" and the contact point / link follow in brackets. (lead, default target,
+# target with the organisation name). The wording is a mechanical substitution - no new legal text; counsel reviews it with the notice.
+NOTICE_CONTACT = {
+    "he": ("יש לפנות", " למנהל המבנה", " אל {org}"),
+    "en": ("contact", " the building manager", " {org}"),
+    "ar": ("يُرجى التواصل مع", " مدير المبنى", " {org}"),
+    "ru": ("обращайтесь", " к управляющему зданием", ": {org}"),
+}
+CODE_MESSAGE_SENDER = "SmplWise Arx"  # the name the code message starts with when no organisation name is set
+
+
+def notice_text(conn: sqlite3.Connection, lang: str) -> str:
+    """The n2 notice in `lang` with the organisation name / contact point from the installation's privacy settings (services/privacy_org)."""
+    from .privacy_org import identity
+
+    base = NOTICE_TEXT[lang]
+    who = identity(conn)
+    if not who.any:
+        return base
+    lead, default_target, org_target = NOTICE_CONTACT[lang]
+    tail = lead + default_target + "."
+    if not base.endswith(tail):  # the fixed text and its tail drifted apart: keep the fixed text rather than guess
+        return base
+    target = org_target.format(org=who.organization) if who.organization else default_target
+    extras = ", ".join(p for p in (who.contact, who.link) if p)
+    return base[:-len(tail)] + lead + target + (f" ({extras})" if extras else "") + "."
+
+
 HOURS_PHRASE = {"he": "משעה {start} עד {end}", "en": "{start}-{end}", "ar": "من {start} حتى {end}", "ru": "с {start} до {end}"}
 END_REASONS = ("ended", "manual", "contact_inactive", "contact_erased", "contact_changed", "vendor_inactive", "ticket_ended", "ticket_reassigned",
                "rfq_ended", "approver_lost_authority", "unlinked", "wiskey_missing", "station_changed", "feature_off", "emergency", "person_deleted",
@@ -656,7 +685,7 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
              json.dumps(scope.doors, sort_keys=True), scope.valid_from, scope.valid_until, json.dumps(scope.timing, sort_keys=True) if scope.timing else None,
              scope.credential, requested_by, "not_needed" if scope.credential == "none" else "pending", at, at))
         _audit(conn, actor, "access.grant.request", gid, request_id=request_id, source=source_kind, source_ref=source_ref, window=[scope.valid_from, scope.valid_until],
-               stations=stations_of(scope.doors), outside_window=bool(outside_window))
+               stations=stations_of(scope.doors), outside_window=bool(outside_window), technician_id=contact_id)
         return grant_row(conn, gid), "created"
     if live["state"] == "revoking":
         raise _conflict("access_grant_revoking", "הגישה הקודמת עדיין מבוטלת. נסו שוב בעוד רגע.")
@@ -822,7 +851,7 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         if not noticed and told:
             conn.execute("INSERT OR IGNORE INTO access_grant_notices(grant_id, version, via, by_ref, at) VALUES (?, ?, 'approver', ?, ?)",
                          (grant_id, NOTICE_VERSION, principal.user_id, iso(at)))
-            _audit(conn, principal, "access.grant.notice_ack", grant_id, request_id=request_id, via="approver", version=NOTICE_VERSION, acknowledged_for=g["subject_id"])
+            _audit(conn, principal, "access.grant.notice_ack", grant_id, request_id=request_id, via="approver", version=NOTICE_VERSION, acknowledged_for=g["subject_id"], technician_id=g["subject_id"])
         fields: dict[str, Any] = {"doors_json": json.dumps(chosen.doors, sort_keys=True), "valid_from": vf, "valid_until": vu, "pending_json": None,
                                   "approved_by": principal.user_id, "approved_at": iso(at), "approval_revision": permission_revision(conn),
                                   "phone_confirmed_at": (contact or {}).get("phone_confirmed_at")}
@@ -838,7 +867,7 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         if not _touch(conn, grant_id, fields, expect_revision=revision):
             raise deny("stale", _conflict("stale_revision", "הגישה השתנתה מאז שנטענה. טענו מחדש."))
         _audit(conn, principal, action, grant_id, request_id=request_id, stations=stations, window=[vf, vu], credential=chosen.credential,
-               approval_revision=fields["approval_revision"], kind="widening_approved" if amendment else None)
+               approval_revision=fields["approval_revision"], kind="widening_approved" if amendment else None, technician_id=g["subject_id"])
         out = grant_row(conn, grant_id)
     WORKER.wake()
     return out
@@ -1217,6 +1246,11 @@ def render_code_message(conn: sqlite3.Connection, g: dict[str, Any], contact: di
     else:
         hours = HOURS_PHRASE[lang].format(start=vf.strftime("%H:%M"), end=vu.strftime("%H:%M"))
     text = TEMPLATES[lang].format(code=pin, doors=_door_names(json.loads(g["doors_json"])), dates=dates, hours=hours, ref=g["id"][:8])
+    from .privacy_org import identity
+
+    org = identity(conn).organization
+    if org:  # PRIVORG-291: the organisation, not the product, is the sender; unset = today's text
+        text = text.replace(CODE_MESSAGE_SENDER, org, 1)
     from .tickets.channel import phone_digits
 
     return CodeMessage(grant_id=g["id"], lang=lang, digits=phone_digits(contact.get("phone_e164") or "") or "", text=text)

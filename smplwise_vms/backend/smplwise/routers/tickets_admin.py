@@ -67,6 +67,31 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
     return settings_doc.read(conn)
 
 
+@router.get("/tickets/settings/notify-matrix")
+def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """TKNOTIFMATRIX: what the matrix screen needs - the sources a department can be tuned for (key, label, whether "digest" is
+    allowed), the departments, and how many events wait for the next digest. `system.configure`, like the document itself."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    from ..rbac import ROLE_NAMES_HE
+    from ..services import notify_channels
+    from ..services.tickets import notify_matrix
+
+    by_dept = notify_matrix.pending_by_department(conn)
+    custom = {r["id"]: r["name_he"] for r in conn.execute("SELECT id, name_he FROM custom_roles WHERE deleted_at IS NULL").fetchall()}
+    return {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE,
+                         "assignee": k in notify_matrix.ASSIGNEE_SOURCES, "sla": k in notify_matrix.SLA_SOURCES} for k in notify_matrix.MATRIX_SOURCES],
+            # 2.9.1: each department's priorities (the SLA policies are department x priority) and its held events
+            "departments": [{"id": d["id"], "name": d["name"], "pending": by_dept.get(d["id"], 0),
+                             "priorities": [{"id": p["id"], "key": p["key"], "name": p["name"]} for p in store.priorities(conn, d["id"]) if p["active"]]}
+                            for d in store.departments(conn)],
+            "users": [{"id": r["id"], "name": r["display_name"] or r["username"]}
+                      for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY display_name, username").fetchall()],
+            "roles": [{"id": rid, "name": ROLE_NAMES_HE.get(rid) or custom.get(rid) or rid} for rid in all_roles(conn)],
+            # the channel groups this installation can deliver (push = web push / the phone app); in-app is always on
+            "channels": [g for g, names in notify_matrix.CHANNEL_GROUPS.items() if any(n in notify_channels.CHANNELS for n in names)],
+            "pending": notify_matrix.pending(conn)}
+
+
 class UiPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     detail: Literal["drawer", "fullscreen", "drawer_fullscreen"] | None = None
@@ -155,6 +180,14 @@ class DirectoryPatch(BaseModel):
     review_idle_months: StrictInt | None = None
 
 
+class PrivacyPatch(BaseModel):
+    """PRIVORG-291: the contact point for privacy requests (e-mail or phone) and an optional https link (settings_doc `privacy.*`);
+    the organisation name is the existing `organization_name`. settings_doc validates both values again."""
+    model_config = ConfigDict(extra="forbid")
+    contact: str | None = Field(default=None, max_length=200)
+    link: str | None = Field(default=None, max_length=400)
+
+
 class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attachments on requests for quotation (OFF by default)
     model_config = ConfigDict(extra="forbid")
     allow_office: StrictBool | None = None
@@ -205,6 +238,20 @@ class VendorPortalPatch(BaseModel):
     technician_requests: StrictBool | None = None  # VPORTALRFQ: "company technician requests" (default OFF)
 
 
+class NotifyPatch(BaseModel):
+    """TKNOTIFMATRIX: the per-department notification matrix and the daily digest (both OFF by default = today's behaviour).
+    `matrix` is {department id | "*": {source: "now" | "digest" | "off"}}; settings_doc validates every cell again."""
+    model_config = ConfigDict(extra="forbid")
+    matrix_enabled: StrictBool | None = None
+    matrix: dict[str, dict[str, str]] | None = Field(default=None, max_length=201)
+    digest_enabled: StrictBool | None = None
+    digest_time: str | None = Field(default=None, max_length=5)
+    # 2.9.1: per department digest time / recipients / channel override, the urgent rule and its per-SLA override (settings_doc validates)
+    departments: dict[str, dict[str, Any]] | None = Field(default=None, max_length=201)
+    urgent_immediate: StrictBool | None = None
+    sla_urgent: dict[str, str] | None = Field(default=None, max_length=2000)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -212,6 +259,7 @@ class SettingsBody(BaseModel):
     device_long_press: Literal["sheet", "menu"] | None = None  # D17 (slice 3)
     links: LinksPatch | None = None  # slice 2
     send_hours: HoursBody | None = None  # slice 2
+    calendar: dict[str, Any] | None = None  # SLACAL: the working-hours calendar, validated whole by services/tickets/work_calendar.validate_doc
     urgent_is_critical: StrictBool | None = None  # slice 2
     organization_name: str | None = Field(default=None, max_length=400)  # slice 4
     public: PublicPatch | None = None  # slice 4
@@ -221,6 +269,8 @@ class SettingsBody(BaseModel):
     directory: DirectoryPatch | None = None  # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17)
     rfq: RfqPatch | None = None  # RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE + RFQATT review (attachments.allow_office)
     vendor_portal: VendorPortalPatch | None = None  # VPORTAL
+    notify: NotifyPatch | None = None  # TKNOTIFMATRIX
+    privacy: PrivacyPatch | None = None  # PRIVORG-291
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -275,7 +325,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value
@@ -293,6 +343,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch.setdefault("rfq", {})["vendor_uploads"] = vu
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
+    if body.calendar is not None:
+        patch["calendar"] = body.calendar
     if body.urgent_is_critical is not None:
         patch["urgent_is_critical"] = body.urgent_is_critical
     if body.organization_name is not None:
@@ -301,6 +353,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
         raise _invalid(conn, *_problem(exc)) from None
+    if "calendar" in changed:  # SLACAL: the dues of every open ticket follow the new working hours at once
+        sla.refresh_all_open(conn)
     pulled = 0
     if doc["links"]["cap_days"] < current["links"]["cap_days"]:  # D5 (slice 4): a LOWER cap shrinks the exposure of live links at once
         from ..services.tickets import handler_links

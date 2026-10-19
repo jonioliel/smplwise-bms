@@ -91,6 +91,9 @@ export interface Notification {
   door: { id: string; name: string; can_open: boolean } | null;
   timeline: TimelineEntry[];
   my_deliveries: { channel: Channel; status: Delivery['status']; reason: string | null; at: string }[];
+  /** TKNOTIFMATRIX: a `ticket.digest` row only - the tickets it summarises that the READER may see now (rendered per request, never
+   *  pushed); `hidden` = listed tickets he may not see (not named). */
+  digest?: { total: number; hidden: number; items: { ticket_id: string; number: number | null; title: string; event: string; event_label: string }[] };
 }
 
 export interface QuietHours {

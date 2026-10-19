@@ -28,7 +28,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...db import new_id
-from . import rfq, rfq_notify, settings_doc, store_links, store_quotes, store_rfq
+from . import rfq, rfq_notify, settings_doc, store_links, store_quotes, store_rfq, work_calendar
 from .access import ALL_DEPARTMENTS, Viewer, text
 from .costs import iso, now_utc
 from .text_hygiene import clean_text
@@ -271,8 +271,16 @@ def remind(conn, now: dt.datetime) -> int:
         return 0
     n = 0
     at = iso(now)
-    for m in store_rfq.questions_due_for_reminder(conn, iso(now - dt.timedelta(hours=hours)), rfq.OPEN):
+    cals: dict[str, work_calendar.Calendar] = {}
+    # SLACAL: working time only ever elapses slower than the wall clock, so the wall-clock query is a safe superset; the calendar then
+    # holds back a question that has not yet waited `hours` of WORKING time (it stays unreminded and is looked at again next tick)
+    for m in store_rfq.questions_due_for_reminder(conn, iso(now - dt.timedelta(hours=hours)), rfq.OPEN, limit=1000):
         row = rfq.system_row(conn, m["rfq_id"])
+        if row is not None:
+            cal = cals.get(row["department_id"]) or cals.setdefault(row["department_id"], work_calendar.load(conn, row["department_id"]))
+            asked = rfq.parse(m["created_at"])
+            if not cal.is_24x7 and asked is not None and work_calendar.working_minutes_between(asked, now, cal) < hours * 60:
+                continue
         store_rfq.set_question_reminded(conn, m["id"], at)
         if row is None or not badge_open(row, now):
             continue

@@ -348,8 +348,13 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
             users = [r[0] for r in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ? ORDER BY added_at, user_id", (nid,)).fetchall()]
         d = Dispatch(nid, mode, n, policy, st, tz, now, nsettings.in_quiet_hours(st["quiet"], now, tz), list(dict.fromkeys(users)), item)
         d._conn = conn
+        channels = policy["channels"]
+        if str(n["source"]).startswith("ticket."):  # TKNOTIFMATRIX: a department's channel override (only while its matrix is on)
+            from .tickets import notify_matrix
+
+            channels = notify_matrix.channels_for(conn, n, channels, frozenset(CHANNELS))
         for name in ("webpush", "email", "app", "announce", "whatsapp"):  # the channels, in the order they are shown; the reserved one (ha_mobile) is never planned
-            if not policy["channels"].get(name):
+            if not channels.get(name):
                 continue
             ch = CHANNELS.get(name)
             if ch is None:

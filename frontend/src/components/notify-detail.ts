@@ -6,6 +6,7 @@ import {
   type EscalationSettings, type Notification,
 } from '../api/notifications';
 import { mediaGlassControls } from '../styles/media-glass';
+import { nmt, sourceLabel } from '../i18n/notify-matrix';
 import { nIcon } from './notify-icons';
 import { notifyControls } from './notify-css';
 import { detailDelivery, iconOf, placeText, severityText, whereText } from './notify-logic';
@@ -52,6 +53,49 @@ export class NotifyDetail extends LitElement {
       }
       .ndet > * {
         flex-shrink: 0;
+      }
+      /* TKNOTIFMATRIX: the digest's ticket list, folded until asked for */
+      .dg summary {
+        cursor: pointer;
+        min-block-size: 44px;
+        display: flex;
+        align-items: center;
+        font-weight: var(--sw-fw-medium);
+      }
+      .dg ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .dg a {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 2px 10px;
+        padding: 8px 6px;
+        border-radius: var(--sw-r-sm);
+        color: var(--dv-text);
+        text-decoration: none;
+      }
+      .dg a:hover {
+        background: var(--dv-surface-2);
+      }
+      .dg .no {
+        font-variant-numeric: tabular-nums;
+        color: var(--dv-text-2);
+      }
+      .dg .tt {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .dg .ev,
+      .dg .more {
+        grid-column: 2;
+        font-size: var(--sw-fs-sm);
+        color: var(--dv-text-2);
       }
       .ndet.s-info {
         --sev: var(--nt-sev-info);
@@ -259,6 +303,17 @@ export class NotifyDetail extends LitElement {
     return html`<b class="n">${clockText(n.last_at, this.tz)}</b> · ${day}`;
   }
 
+  /** TKNOTIFMATRIX: the tickets of a digest (only those the reader may see, rendered by the server for him), folded by default. */
+  private renderDigest(d: NonNullable<Notification['digest']>) {
+    return html`<section class="glass dcard dg" data-detail-digest>
+      <details><summary data-digest-toggle>${d.items.length ? nmt('digestList', { n: d.items.length }) : nmt('digestNone')}</summary>
+        <ul>${d.items.map((i) => html`<li><a href=${`#/tickets/${encodeURIComponent(i.ticket_id)}`} data-digest-item=${i.ticket_id}>
+          <span class="no">${i.number != null ? `#${i.number}` : ''}</span><span class="tt">${i.title}</span>
+          <span class="ev">${sourceLabel(i.event, i.event_label)}</span></a></li>`)}</ul>
+        ${d.hidden ? html`<div class="more" data-digest-hidden>${nmt('digestHidden', { n: d.hidden })}</div>` : nothing}
+      </details></section>`;
+  }
+
   private renderTimeline(n: Notification) {
     const lines = escalationTimeline(n, this.esc, this.now, this.tz);
     return html`<section class="glass dcard" data-detail-timeline>
@@ -289,6 +344,7 @@ export class NotifyDetail extends LitElement {
         <span class="k">איפה</span><span class="v">${a.open ? html`<button type="button" class="lnk" data-detail-where @click=${() => this.act('open')}>${nIcon(n.subject.kind === 'door' ? 'door' : n.subject.kind === 'camera' ? 'cam' : iconOf(n))}${whereText(n, this.areas)}${nIcon('chevronBack')}</button>` : whereText(n, this.areas)}</span>
         <span class="k">מתי</span><span class="v">${this.renderWhen(n)}</span>
       </div>${line ? html`<div class="dline ${line.tone === 'ok' ? '' : line.tone}" data-detail-delivery=${line.tone}>${nIcon(line.tone === 'bad' ? 'warning' : line.tone === 'held' ? 'moon' : line.tone === 'pending' ? 'clock' : 'check')}<span>${line.text}</span></div>` : nothing}</section>
+      ${n.digest ? this.renderDigest(n.digest) : nothing}
       ${showsTimeline(n) ? this.renderTimeline(n) : nothing}
       <div class="dacts" data-detail-actions>
         <button type="button" class=${classMap({ btn: true, primary: true, span2: !hasMain })} data-detail-act="open" @click=${() => this.act('open')}>${nIcon('open')}פתח</button>

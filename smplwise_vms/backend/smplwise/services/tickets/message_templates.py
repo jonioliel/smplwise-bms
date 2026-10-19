@@ -31,7 +31,9 @@ PLACEHOLDERS = ("name", "number", "department", "title", "place", "device", "pri
                 "location",  # CR-ORG-LOCATIONS: the request's organisation location (name · street, city; + the map link when switched on)
                 "files")  # RFQATT: "N files are attached (see the link)" in the vendor's language - a count only, never a name or a URL
 SECRET_PLACEHOLDERS = frozenset({"link", "code"})  # never in params_json; passed at send time only
-PARAM_KEYS = frozenset(PLACEHOLDERS) - SECRET_PLACEHOLDERS - {"module_name", "module_name_plural"}
+# PRIVORG-291: a param only the code-owned fixed starters use (never a placeholder an editor may type into a stored template)
+FIXED_ONLY_PARAMS = frozenset({"privacy_contact"})
+PARAM_KEYS = (frozenset(PLACEHOLDERS) - SECRET_PLACEHOLDERS - {"module_name", "module_name_plural"}) | FIXED_ONLY_PARAMS
 CODE_FORBIDDEN = frozenset({"link", "title", "place", "device", "location"})
 RENDERED_MAX = 1000
 BODY_MAX = 1500
@@ -39,7 +41,7 @@ BODY_MAX = 1500
 # per-placeholder caps: worst-case values at save time, hard caps at send time
 VALUE_MAX = {"name": 80, "number": 7, "department": 60, "title": 120, "place": 200, "device": 80, "priority": 30,
              "organization": 60, "link": 120, "code": 6, "manager": 80, "eta": 24, "module_name": 30, "module_name_plural": 30,
-             "due": 24, "window": 40, "location": 200, "files": 60}
+             "due": 24, "window": 40, "location": 200, "files": 60, "privacy_contact": 80}
 SECRET_MAX = {"link": 400, "code": 6}  # send time (slice 5b): the real URL is system-made and never cut (a cut link is a dead link)
 
 # 14.3 defaults - ONE source (slice 5b unified the two naming schemes): slice 1's naming.DEFAULTS (`tickets.name`, tokens {ticket} /
@@ -197,8 +199,17 @@ FIXED_STARTERS: dict[str, dict[str, str]] = {
         "ar": "{organization}\nرمز الدخول إلى منطقة الموردين: {code}\nصالح لمدة 10 دقائق.\nلن نسألكم عن هذا الرمز أبدًا، ولا حتى عبر الهاتف. لا تشاركوه مع أي شخص.\nإذا لم تحاولوا الدخول، تجاهلوا هذه الرسالة.",
         "ru": "{organization}\nКод входа в кабинет поставщика: {code}\nДействует 10 минут.\nМы никогда не попросим вас сообщить этот код, даже по телефону. Никому его не сообщайте.\nЕсли вы не пытались войти, проигнорируйте это сообщение.",
     },
+    # PRIVORG-291: the number-verification code to a directory person (a technician) once the installation set a privacy contact point:
+    # the fixed text plus ONE neutral privacy line (the organisation line is dropped when no name is set). No legal wording.
+    # ar / ru need a native review.
+    "verify_privacy": {
+        "he": "{organization}\nקוד לאימות מספר הטלפון: {code}\nהקוד בתוקף 10 דקות. אין למסור אותו לאחרים. אם לא ביקשתם אימות, התעלמו מההודעה.\nשאלות בנושא פרטיות: {privacy_contact}",
+        "en": "{organization}\nPhone number verification code: {code}\nValid for 10 minutes. Do not share it. If you did not ask for this, ignore this message.\nPrivacy questions: {privacy_contact}",
+        "ar": "{organization}\nرمز التحقق من رقم الهاتف: {code}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد. إذا لم تكن أنت من بادر بالتحقق، تجاهل هذه الرسالة.\nلأسئلة الخصوصية: {privacy_contact}",
+        "ru": "{organization}\nКод подтверждения номера телефона: {code}\nДействует 10 минут. Никому его не сообщайте. Если вы не запрашивали код, проигнорируйте это сообщение.\nВопросы о конфиденциальности: {privacy_contact}",
+    },
 }
-FIXED_VARIANTS = {"phone_verify": frozenset({"portal_code"})}  # the fixed purpose each variant belongs to
+FIXED_VARIANTS = {"phone_verify": frozenset({"portal_code", "verify_privacy"})}  # the fixed purpose each variant belongs to
 
 
 def fixed_starter(purpose: str, template_id: str | None, lang: str) -> TemplateText | None:

@@ -242,6 +242,13 @@ def visible_open_by_dedupe_key(viewer: Viewer, key: str) -> Seen | None:
     return visible(viewer, store.open_by_dedupe_key_unchecked(viewer.conn, key))
 
 
+def open_by_dedupe_key_system(conn: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """CR-038 phase 2 (TKRULES-291): the OPEN ticket carrying a dedupe key, for the SYSTEM author only (the rule engine absorbing a
+    repeat in services/tickets/create.create_by_rule). No person is behind this read and the row is never shown to one - every person's
+    read keeps going through visible()."""
+    return store.open_by_dedupe_key_unchecked(conn, key)
+
+
 ENTITY_SCAN = 200  # a device tab scans at most this many of the device's tickets (open first, newest first)
 
 

@@ -41,6 +41,9 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     {"key": "ticket.channel_down", "label": "חשבון וואטסאפ מנותק", "severity": "alert", "who": "managers", "resolves": True, "subject": "system"},
     {"key": "ticket.cost_submitted", "label": "הוגשה דרישת תשלום", "severity": "info", "who": RULE_MANAGERS, "resolves": True},  # S9b: audience `costs`
     {"key": "ticket.cost_missing", "label": "לא הוגשה דרישת תשלום", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},  # S9b: audience `costs`
+    # TKNOTIFMATRIX: the grouped summary of the events a department's matrix sends "in the digest" (services/tickets/notify_matrix.py);
+    # counts and the department only, never a title or a text. Created only while `notify.digest_enabled` is on
+    {"key": "ticket.digest", "label": "תקציר אירועים", "severity": "info", "who": RULE_MANAGERS, "resolves": False, "push": False},
     # TKSTAFF1 (security review F3): the user's own mobile for no-login work links was set / changed by someone else - told to that user
     # only (subject `session` = the user), never the number
     {"key": "ticket.staff_mobile", "label": "הנייד שלי לקישורי עבודה השתנה", "severity": "info", "who": "initiator", "resolves": False,

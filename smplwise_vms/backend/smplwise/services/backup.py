@@ -95,6 +95,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # project backup and never restored from one. The module's tables are not project tables either (slice 1 notes,
                  # docs/changes/CR-038-S1-NOTES.md: a replace restore must not delete departments that open tickets reference).
                  "tickets.enabled", "tickets.settings", "tickets.name", "messaging.whatsapp",
+                 # TKRULES-291: the rules that open tickets from alerts - a restore never switches a rule on or re-routes one
+                 "tickets.rules",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
                  "notify.whatsapp",
                  # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on
