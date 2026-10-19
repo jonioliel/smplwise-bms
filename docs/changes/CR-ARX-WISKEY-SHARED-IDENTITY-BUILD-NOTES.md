@@ -302,7 +302,62 @@ integ/281 to **`0121_intercom_write_ops.sql`**: 2.8.0 shipped 0119 (elevator his
 `scripts/release_check.py` (contiguous 0001..N) passes with 0001..0121. The content does not depend on the number.
 
 **Hooks left for the proposed WisKey contracts (NOT built - ACR5-01..04 are proposals, not accepted on the wire):** ACR5-01
-`users/access_state` -> a reader that feeds `attach_recovered_person` / `create_verdict` and `Engine.revocation_pending` (still None);
+`users/access_state` -> `Engine.revocation_pending` (still None) only. CORRECTED in WISKEYFINAL3-281 (R6-A5): access_state carries no
+purpose / correlation / ownership evidence and can never feed create recovery (`_attach_recovered_person`) or `create_verdict`;
 ACR5-02 `schedules/normalize_user` -> `access_grants._policy_is` (today exact equality); ACR5-03 presence diagnostics -> the open
 "externally deleted person" acknowledgement (decision (a), still open: `revoking` with hourly alerts); ACR5-04 feature dry-plans -> nothing
 consumes them yet.
+
+## WISKEYFINAL3-281 (2026-10-19) - WisKey round 6 (Part A, R6-A2..R6-A5), branch pilot/WISKEYFINAL3-281
+
+Base: pilot/WISKEYFINAL2-281 (15cb9f6b8). Source: `private/planning/wiskey_reply6_answer_2026-10-19/PART_A_STATIC_REVIEW.txt` and
+`ARX_CHANGE_REQUESTS_R6.json` (WisKey's STATIC review, PROPOSED, NOT_RUN). Scope: only the Arx-side changes that need no new WisKey
+protocol (ACR6-01, ACR6-03, ACR6-04). Fakes only: `tests/test_wiskey_final3_281.py`. Nothing ran against a WisKey, Home Assistant, a
+station or a door. `GO_LIVE_PERMITTED` stays False; the extended service identity stays locked (`EXTENDED_GO_LIVE_PERMITTED` False).
+Migration `0119_intercom_write_ops.sql` is unchanged (still PROVISIONAL - renumbered at integration); no new migration.
+
+- **R6-A2 / ACR6-01 atomic admission.** `WriteJournal.admit(target, op, lane)` is ONE write transaction (`BEGIN IMMEDIATE`, SQLite's
+  single write lock, which also excludes other processes): it reads every unresolved (`dispatched` / `unknown`) row of the target and
+  inserts exactly one `dispatched` intent only when none blocks; else it answers `outcome_pending` / `readback_required` with nothing
+  inserted (the caller refuses `intercom_outcome_pending`, outcome `not_sent`); a journal that cannot be opened answers
+  `journal_unavailable` (fail closed, nothing sent). `IntercomSync._journal_admit` (editor writes, grant engine writes, the signed
+  capture confirm via `begin_external`) uses only `admit`; the split `blocking()` + `begin()` shape is gone from the product path
+  (`begin` stays as an unchecked helper for tests). Tests: a deterministic two-instance counterexample (two `Database` objects on one
+  file, a barrier between check and insert) shows the old shape admits both; the same barrier with `admit` admits exactly one and the
+  other is refused with no row; two `IntercomSync` instances on one database send exactly one frame; an unresolved row refuses with no
+  side effect; a source check that `_journal_admit` no longer splits. Open risks: the grant worker's `users/create` intents
+  (`create_intent`, keyed by grant) are already written in the grant's own transaction and are not changed here; the per-write DB cost
+  (one write transaction per admission) was not measured.
+- **R6-A4 / ACR6-03 parser.** `person_from_raw` now requires a positive non-bool record revision (0 / -1 -> not a person), an explicit
+  boolean `active` (missing / non-bool -> map UNKNOWN, and never "inactive" revoke proof), and validates EVERY assignment row, disabled
+  ones too: explicit boolean `enabled` (missing is no longer "disabled"), a lock list of supported relays only (`RELAYS` = {1, 2}; 0 / 3
+  -> unknown), present bookkeeping revisions positive ints (null still = not applied yet); group ids and override keys must be non-blank
+  strings. Any malformed field makes the door map UNKNOWN (`doors_known` / `overrides_known` False, `stations_synced` None) - never
+  dropped. Tests: missing enabled (alone and next to a valid row), disabled with bad / missing / relay-3 locks, revision 0 / -1 (record
+  and bookkeeping), relay 0 / 3, blank station / group / override ids, missing / non-boolean `active` (never `_revoked`), plus valid
+  shapes that stay known. Open risk: the authorization projectors in `intercom_sync` (`person_scope` / station projection, R6-A4's
+  "equivalent completeness" note) were not changed in this round.
+- **R6-A3 / ACR6-03 label - chosen option: never label verified.** The simpler, safer of the two options: no proof revision is
+  recorded anywhere (that needs a schema column and a fresh post-write read on the provisioning path), so `sync_status` now answers
+  `scope_verified: false` for every grant and `doors_state` is `accepted` for an active grant with no push outstanding (WisKey accepted
+  the central write; not re-read) and `desired` for the other live states; `verified_central` is no longer served. This covers normal
+  provisioning and legacy active rows alike. The arrival reply now carries the same five fields as `present()` (`grant_state`,
+  `needs_push`, `pending_sync`, `scope_verified`, `doors_state`) from the one `sync_status`. Tests: the label table, a provisioned grant
+  is `accepted`, the arrival reply shape; the round-5 narrowing test now expects `accepted`. Open: recording a proof revision after a
+  complete fresh post-write read that satisfies `scope_proven` at the current grant revision (invalidated on any scope change, legacy rows
+  unknown until read) is the later, stronger option; no UI consumes `doors_state` yet.
+- **R6-A5 / ACR6-04 recovery helper.** Renamed to the private `access_grants._attach_recovered_person(db, grant_id, op_id,
+  wiskey_person_id, *, actor, evidence_ref, request_id=None)`; no public name, no route, no product caller (test-enforced). It requires an
+  Arx system administrator (`is_system_admin`; None / system / contact actors -> 403), a per-operation evidence reference (8..128 safe
+  characters, audited with the op id), and the `op_id` of THIS grant's one unresolved create; it refuses `access_create_ambiguous` when
+  more than one create of the grant is unresolved (several lost creates are never collapsed onto one person) and reconciles only that
+  operation. It reads nothing from WisKey and never infers from presence. The misleading comments that named `users/access_state` as a
+  future recovery feed (the helper's docstring and the hooks paragraph above) are corrected: access_state carries no purpose /
+  correlation / ownership evidence. Open: the helper records an administrator's claim, it cannot verify the evidence itself; a reviewed
+  recovery workflow is still required before anything calls it.
+
+**Not in scope (WisKey designs these next round):** R6-A1 / ACR6-02 remote-completion fence, reading `users/access_state`, schedule
+normalisation, any new WisKey command. **Open risk, unchanged on purpose: the 75 s hold (`HOLD_S`).** A local call end or the 75 s
+timer is still what lets a fresh readback settle a row of a process that is gone; it is NOT proof that the remote handler ended, and a
+wall-clock jump can expire it early (forward) or hold it indefinitely (backward). Until ACR6-02 is designed, an unknown write settled after
+the hold is not an exactly-once or completion proof.

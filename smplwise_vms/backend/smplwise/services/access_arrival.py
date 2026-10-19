@@ -277,7 +277,9 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
     ag.notify_request(conn, g["id"])
     # R5-A3: "approved" is a human decision, never a claim that WisKey holds the scope: the grant's own state and whether the scope is
     # proven (a fresh central readback) travel with it, so a pending narrowing or an unknown outcome is not read as applied
+    # R6-A3: the same five fields as `present()` (one `sync_status`), so the page and the manager views can never disagree
     sync = ag.sync_status(g)
     answer = {"ok": True, "state": "waiting" if g["state"] == "requested" else "approved", "outcome": outcome, "outside_window": outside,
-              "grant_state": g["state"], "pending_sync": sync["pending_sync"], "scope_verified": sync["scope_verified"]}
+              "grant_state": g["state"], "needs_push": sync["needs_push"], "pending_sync": sync["pending_sync"],
+              "scope_verified": sync["scope_verified"], "doors_state": sync["doors_state"]}
     return handler_actions._finish(conn, link, crid, 200, answer)

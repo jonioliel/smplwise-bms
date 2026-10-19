@@ -1132,9 +1132,9 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         attention = "sync_pending"
     sync = sync_status(g)
     return {
-        # R5-A3: the grant's own state and whether WisKey's central record is PROVEN to carry the doors / window below. `doors_state`
-        # "desired" = what Arx asked for and has not yet read back (a narrowing still to push, an unknown outcome, a provisioning in
-        # flight); "verified_central" = a fresh read proved it (central desired state only - never a station-sync claim).
+        # R5-A3 / R6-A3: the grant's own state and how far WisKey's central record carries the doors / window below. `doors_state`
+        # "desired" = what Arx asked for and WisKey has not accepted yet (a narrowing still to push, an unknown outcome, a provisioning
+        # in flight); "accepted" = the central write was accepted (not re-read: never "verified", never a station-sync claim).
         "grant_state": g["state"], **sync,
         "id": g["id"], "revision": g["revision"], "state": g["state"], "end_reason": g["end_reason"], "source": g["source_kind"], "source_ref": g["source_ref"],
         "person": {"contact_id": g["subject_id"], "name": (contact or {}).get("display_name"), "pending": bool(contact and pending_contact(conn, contact["id"])),
@@ -1152,15 +1152,20 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
 
 
 def sync_status(g: dict[str, Any]) -> dict[str, Any]:
-    """R5-A3: approval is not a verified central scope. `scope_verified` only for an `active` grant with no push outstanding (its scope
-    was proven by a fresh read of WisKey's central record); `pending_sync` for a decided grant whose scope is not proven yet (approved,
-    provisioning, unknown, or active with a narrowing still to push). Neither is a claim about the stations (WisKey applies later)."""
+    """R5-A3: approval is not a verified central scope. `pending_sync` for a decided grant whose scope is not accepted yet (approved,
+    provisioning, unknown, or active with a narrowing still to push). Neither is a claim about the stations (WisKey applies later).
+
+    R6-A3 / ACR6-03: `scope_verified` is ALWAYS False in this build and `doors_state` is never `verified_central`. A normal provisioning
+    sets `active` from the write's own answer (no fresh post-write read, no `scope_proven`), and legacy active rows carry no proof at
+    all; no proof revision is recorded anywhere, so nothing may present the scope as verified. An active grant with no push outstanding
+    is `accepted` (WisKey's central record accepted the write; not re-read). Recording a proof revision after a complete fresh post-write
+    read (invalidated on any scope change, legacy rows unknown until read) is the later, stronger option - it needs a schema column."""
     state = g["state"]
     needs_push = bool(g.get("needs_push"))
-    verified = state == "active" and not needs_push
+    accepted = state == "active" and not needs_push
     pending = state in ("approved", "provisioning", "unknown") or (state == "active" and needs_push)
-    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": verified,
-            "doors_state": "verified_central" if verified else "desired" if state in LIVE else None}
+    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": False,
+            "doors_state": "accepted" if accepted else "desired" if state in LIVE else None}
 
 
 def _station_name(station_id: str) -> str:
@@ -1274,15 +1279,34 @@ def _purpose_ref(g: dict[str, Any]) -> str:
     return f"{g['source_kind']}:{(g.get('source_ref') or g['id'])[:12]}"
 
 
-def attach_recovered_person(db: Database, grant_id: str, wiskey_person_id: str, *, actor: Any = None, request_id: str | None = None) -> dict[str, Any]:
-    """R5-A1 hook (service level, no HTTP route in this build): the WisKey person a lost users/create of THIS grant produced has been
-    identified (by an operator from the access-purpose reference, or later by an accepted WisKey contract such as the proposed
-    users/access_state - ACR5-01, NOT built). Allowed only while the grant's create is UNRESOLVED in the journal and the subject has no
-    link; the person becomes the grant's Arx-created link and the worker's normal revoke (read, strip, readback, sync status) runs on it.
-    Nothing is written to WisKey here."""
+_EVIDENCE_REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9:._/-]{7,127}")
+
+
+def _attach_recovered_person(db: Database, grant_id: str, op_id: str, wiskey_person_id: str, *, actor: Principal, evidence_ref: str,
+                             request_id: str | None = None) -> dict[str, Any]:
+    """R5-A1 hook, R6-A5 / ACR6-04 hardened. PRIVATE service helper: no HTTP route, no caller in the product - a reviewed recovery
+    workflow must exist before anything calls it. The WisKey person that ONE lost users/create (`op_id`) of THIS grant produced has been
+    identified from separately obtained evidence; the helper records that claim, it does not establish it.
+
+    Required: `actor` an authenticated Arx system administrator (`is_system_admin`; never a system / contact actor), `evidence_ref` a
+    per-operation reference to the audited evidence (ticket, signed export, readback capture id - 8..128 safe characters), `op_id` the
+    create record being reconciled. Refused: the grant's create is not unresolved, the subject already has a link, the person is
+    already linked, `op_id` is not an unresolved create of this grant, or MORE THAN ONE create of this grant is unresolved (several lost
+    creates are never collapsed onto one person without individual proof - each needs its own evidence, which this helper cannot tell
+    apart). Never inferred from presence: nothing here reads WisKey, and `users/access_state` (ACR5-01) carries no purpose /
+    correlation / ownership evidence, so it can never feed this helper. Only `op_id` is reconciled; the person becomes the grant's
+    Arx-created link and the worker's normal revoke (read, strip, readback, sync status) runs on it. Nothing is written to WisKey here."""
     if not ia.valid_id(wiskey_person_id):
         raise _invalid("wiskey_person_id", "format")
+    if not isinstance(evidence_ref, str) or not _EVIDENCE_REF.fullmatch(evidence_ref):
+        raise _invalid("evidence_ref", "format")
+    if not isinstance(op_id, str) or not op_id:
+        raise _invalid("op_id", "format")
+    if not isinstance(actor, Principal) or not actor.user_id:
+        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשייך אדם ששוחזר.")
     with db.connection(label="access_grants.recover_create") as conn:
+        if not is_system_admin(conn, actor.user_id):
+            raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשייך אדם ששוחזר.")
         g = grant_row(conn, grant_id)
         if g is None:
             raise _not_found()
@@ -1290,14 +1314,21 @@ def attach_recovered_person(db: Database, grant_id: str, wiskey_person_id: str, 
         verdict, _ = wj.create_verdict(ops)
         if verdict != "unresolved" or link_of_grant(conn, g) is not None:
             raise _conflict("access_create_not_unresolved", "אין לגישה זו יצירת אדם שתוצאתה לא ידועה.")
+        open_ops = [op for op in ops if op["state"] in wj.OPEN]
+        if len(open_ops) != 1:
+            raise _conflict("access_create_ambiguous", "לגישה זו כמה יצירות שתוצאתן לא ידועה; כל אחת דורשת ראיה נפרדת.")
+        if open_ops[0]["id"] != op_id:
+            raise _conflict("access_create_not_unresolved", "רשומת היצירה אינה של גישה זו או שאינה פתוחה.")
         if conn.execute("SELECT 1 FROM access_person_links WHERE wiskey_person_id = ?", (wiskey_person_id,)).fetchone():
             raise _conflict("access_link_exists", "האדם במערכת הכניסה כבר מקושר לאיש קשר אחר.")
         at = now().timestamp()
-        for op in ops:
-            if op["state"] in wj.OPEN:
-                conn.execute("UPDATE intercom_write_ops SET state = 'reconciled', result_ref = ?, reconciled_ts = ? WHERE id = ?", (wiskey_person_id, at, op["id"]))
+        n = conn.execute("UPDATE intercom_write_ops SET state = 'reconciled', result_ref = ?, reconciled_ts = ? WHERE id = ? AND state IN ('dispatched', 'unknown')",
+                         (wiskey_person_id, at, op_id)).rowcount
+        if n != 1:
+            raise _conflict("access_create_not_unresolved", "רשומת היצירה אינה פתוחה.")
         link = Worker._link_recovered(conn, g, wiskey_person_id)
-        _audit(conn, actor, "access.grant.create_recovered", grant_id, request_id=request_id, wiskey_person_id=wiskey_person_id, link_id=link["id"])
+        _audit(conn, actor, "access.grant.create_recovered", grant_id, request_id=request_id, wiskey_person_id=wiskey_person_id, link_id=link["id"],
+               op_id=op_id, evidence_ref=evidence_ref)
     WORKER.wake()
     return link
 
@@ -1817,7 +1848,8 @@ class Worker:
     @staticmethod
     def _link_recovered(conn: sqlite3.Connection, g: dict[str, Any], person_id: str) -> dict[str, Any]:
         """R5-A1: a users/create whose answer (or whose link) was lost, and whose person id is now known (the create's own recorded
-        answer, or a target recovered and attached by `attach_recovered_person`): the link Arx should have written. Inside the caller's
+        answer, or - R6-A5 - a target an administrator attached with per-operation evidence through the private
+        `_attach_recovered_person`; never one inferred from presence): the link Arx should have written. Inside the caller's
         transaction; an existing link of the subject is returned unchanged."""
         link = link_of_subject(conn, g["subject_kind"], g["subject_id"])
         if link is None:

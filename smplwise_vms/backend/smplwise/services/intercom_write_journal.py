@@ -52,7 +52,34 @@ class WriteJournal:
         self.clock = clock or time.time
 
     # -- the write side (intercom_sync._execute)
+    def admit(self, target: str, op: str, lane: str, *, _between: Any = None) -> tuple[str | None, str | None]:
+        """R6-A2 / ACR6-01: the ATOMIC durable admission - (blocked, op id). ONE write transaction (`BEGIN IMMEDIATE`: SQLite's single write
+        lock, held across processes) reads every unresolved row of `target` and, only when none blocks, inserts exactly one `dispatched`
+        intent; the check and the claim can no longer be split across two connections, so two instances (two processes, a standby, an
+        editor write next to a worker write) sharing the database can never both admit a write to the same person. Refused:
+        (`outcome_pending` | `readback_required`, None) with nothing inserted and nothing sent; a journal that cannot be read or written:
+        (`journal_unavailable`, None) - fail closed, no side effect. `_between` is a test hook only (runs between the check and the insert,
+        inside the transaction)."""
+        op_id = uuid.uuid4().hex
+        try:
+            with self.db.connection(label="intercom_write_journal.admit") as conn:
+                rows = [dict(r) for r in conn.execute(
+                    "SELECT * FROM intercom_write_ops WHERE target = ? AND state IN ('dispatched', 'unknown') ORDER BY started_ts", (target,)).fetchall()]
+                blocked = self._verdict(rows)
+                if blocked is not None:
+                    return blocked, None
+                if _between is not None:
+                    _between()
+                at = self.clock()
+                conn.execute("""INSERT INTO intercom_write_ops(id, target, op, lane, boot_id, state, started_ts, created_at)
+                                VALUES (?, ?, ?, ?, ?, 'dispatched', ?, ?)""", (op_id, target, str(op)[:32], str(lane)[:16], self.boot_id, at, _iso(at)))
+        except (sqlite3.Error, OSError) as exc:
+            log.error("intercom write journal: the admission could not be recorded (%s) - the write is not sent", type(exc).__name__)
+            return "journal_unavailable", None
+        return None, op_id
+
     def begin(self, target: str, op: str, lane: str) -> str:
+        """An UNCHECKED intent record (tests and recovery tooling only). Every product write path goes through `admit` (R6-A2)."""
         op_id = uuid.uuid4().hex
         at = self.clock()
         try:
@@ -104,6 +131,9 @@ class WriteJournal:
             rows = self.open_rows(target)
         except (sqlite3.Error, OSError):
             return "readback_required"
+        return self._verdict(rows)
+
+    def _verdict(self, rows: list[dict[str, Any]]) -> str | None:
         if not rows:
             return None
         now = self.clock()

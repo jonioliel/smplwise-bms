@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 import threading
 import time
 from types import SimpleNamespace
@@ -30,6 +31,9 @@ from smplwise.services import intercom_sync
 from smplwise.services import intercom_write_journal as wj
 from smplwise.services import intercom_writes as iw
 from smplwise.services.access_grant_engine import EngineError, EnginePerson
+from smplwise.rbac import Principal
+
+ADMIN = Principal("dev-joni", "joni", "joni", "ha")  # the test installation's system administrator (R6-A5: a privileged actor)
 
 
 @pytest.fixture()
@@ -132,7 +136,9 @@ def test_r5_a1_a_recovered_target_is_matched_and_then_cleaned_up(env):
     env.run()
     env.run()
     assert env.grant(gid)["state"] == "revoking"
-    ag.attach_recovered_person(env.db, gid, created[0])  # e.g. found by its access purpose reference; matched to THIS grant's intent
+    op = [o for o in ops_of(env.db, gid) if o["state"] in wj.OPEN][0]
+    # R6-A5: an administrator, with per-operation evidence, names THIS grant's one unresolved create
+    ag._attach_recovered_person(env.db, gid, op["id"], created[0], actor=ADMIN, evidence_ref="case:recovery-0001")
     assert env.grant(gid)["link_id"] is not None
     _later(env, minutes=10)
     env.run()
@@ -144,7 +150,7 @@ def test_r5_a1_a_recovered_target_is_matched_and_then_cleaned_up(env):
 def test_r5_a1_a_recovered_target_is_never_attached_to_a_settled_or_foreign_create(env):
     gid = env.active_grant()
     with pytest.raises(ApiError) as e:
-        ag.attach_recovered_person(env.db, gid, "wk-0099")
+        ag._attach_recovered_person(env.db, gid, "op-x", "wk-0099", actor=ADMIN, evidence_ref="case:recovery-0001")
     assert e.value.code == "access_create_not_unresolved"
 
 
@@ -264,7 +270,8 @@ def ag_api() -> str:
 def test_r5_a3_a_pending_narrowing_is_never_presented_as_applied(env):
     gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
     v = _view(env, gid)
-    assert (v["grant_state"], v["needs_push"], v["pending_sync"], v["scope_verified"]) == ("active", False, False, True)
+    # R6-A3: provisioning trusted the write's answer (no post-write proof is recorded): accepted, never verified
+    assert (v["grant_state"], v["needs_push"], v["pending_sync"], v["scope_verified"], v["doors_state"]) == ("active", False, False, False, "accepted")
     env.engine.offline = True  # the push cannot happen now
     env.request(doors={"st-a": [1]})
     env.run()
@@ -274,7 +281,7 @@ def test_r5_a3_a_pending_narrowing_is_never_presented_as_applied(env):
     env.engine.offline = False
     env.run()
     v = _view(env, gid)
-    assert (v["needs_push"], v["pending_sync"], v["scope_verified"], v["doors_state"]) == (False, False, True, "verified_central")
+    assert (v["needs_push"], v["pending_sync"], v["scope_verified"], v["doors_state"]) == (False, False, False, "accepted")
 
 
 def test_r5_a3_an_unknown_or_approved_grant_is_not_a_verified_scope(env):
@@ -553,7 +560,11 @@ def test_r5_a6_no_write_is_sent_when_the_intent_cannot_be_recorded(make_sync, jd
         sent.append(1)
         return {"id": "u4", "revision": 2}
 
-    monkeypatch.setattr(s.journal, "begin", lambda *a, **kw: (_ for _ in ()).throw(wj.JournalUnavailable()))
+    class _Broken:  # R6-A2: the admission transaction itself cannot be opened
+        def connection(self, *a, **kw):
+            raise sqlite3.OperationalError("database is locked")
+
+    s.journal = wj.WriteJournal(_Broken(), boot_id="boot-1")
     with pytest.raises(ApiError) as e:
         s.action(None, "person", write, lambda raw: raw, "w", lane="config", target=intercom_sync.person_target("u4"), free=True)
     assert e.value.details["outcome"] == "not_sent" and sent == []
