@@ -148,6 +148,13 @@ def _emit(conn: sqlite3.Connection, source: str, row: dict[str, Any], tpl: tuple
     """One ticket signal (never raises). Returns the engine's action ('created', 'folded', ... or None on a failure / module off)."""
     if not _module_on(conn):
         return None
+    from . import notify_matrix
+
+    mode = notify_matrix.decide(conn, row.get("department_id"), source)  # TKNOTIFMATRIX: "now" unless an administrator turned the matrix on
+    if mode == "off":
+        return None
+    if mode == "digest" and notify_matrix.enqueue(conn, row["id"], row["department_id"], source):
+        return "digested"
     from .. import notify
 
     vals = {"number": row["number"], "place": place_of(conn, row), **values}

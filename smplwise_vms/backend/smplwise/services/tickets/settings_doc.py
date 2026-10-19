@@ -160,6 +160,37 @@ def busy_map(v: Any) -> dict[str, int]:
     return out
 
 
+def hhmm(v: Any) -> str:
+    """A local time of day `HH:MM`."""
+    if not isinstance(v, str) or not _HHMM.match(v):
+        raise ValueError("time")
+    return v
+
+
+def notify_matrix(v: Any) -> dict[str, dict[str, str]]:
+    """TKNOTIFMATRIX: {department id | "*": {ticket source key: "now" | "digest" | "off"}}. Only the department-scoped ticket sources
+    (notify_matrix.MATRIX_SOURCES); "digest" only for a source whose audience is the managers (assignee reminders are never held)."""
+    from . import notify_matrix as nm
+
+    if not isinstance(v, dict) or len(v) > BUSY_MAP_MAX + 1:
+        raise ValueError("invalid")
+    out: dict[str, dict[str, str]] = {}
+    for dept, cells in v.items():
+        if not isinstance(dept, str) or not (dept == "*" or _DEPT_ID.match(dept)) or not isinstance(cells, dict):
+            raise ValueError("invalid")
+        clean: dict[str, str] = {}
+        for src, mode in cells.items():
+            if src not in nm.MATRIX_SOURCES or mode not in nm.MODES:
+                raise ValueError("invalid")
+            if mode == "digest" and src not in nm.DIGESTABLE:
+                raise ValueError("digest_not_allowed")
+            if mode != "now" or dept != "*":  # under "*" "now" is the default (not stored); on a department it overrides a "*" value
+                clean[src] = mode
+        if clean:
+            out[dept] = clean
+    return out
+
+
 # section 14.1 / D5: link lifetime ranges (shared with the per-department overrides, services/tickets/policy.py)
 SLIDING_DAYS = (1, 90)
 CAP_DAYS = (7, 365)
@@ -192,6 +223,15 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "dash_busy"): (8, int_range(1, 99)),
     ("ui", "dash_busy_departments"): ({}, busy_map),
     ("ui", "dash_compare"): ("below_numbers", _choice("top", "below_numbers", "bottom")),
+    # TKNOTIFMATRIX (2.9.1): the per-department notification matrix and the digest. BOTH OFF by default = today's behaviour exactly.
+    #   matrix_enabled  the matrix below applies (off: every event notifies as before)
+    #   matrix          {department id | "*": {source: "digest" | "off"}}  (a missing cell = "now", as today)
+    #   digest_enabled  events marked "digest" are held and sent once a day as ONE grouped notification per department (off: they go now)
+    #   digest_time     the local time of day the digest goes (installation time zone)
+    ("notify", "matrix_enabled"): (False, boolean),
+    ("notify", "matrix"): ({}, notify_matrix),
+    ("notify", "digest_enabled"): (False, boolean),
+    ("notify", "digest_time"): ("08:00", hhmm),
     ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5

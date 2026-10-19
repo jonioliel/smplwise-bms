@@ -67,6 +67,18 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
     return settings_doc.read(conn)
 
 
+@router.get("/tickets/settings/notify-matrix")
+def get_notify_matrix(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """TKNOTIFMATRIX: what the matrix screen needs - the sources a department can be tuned for (key, label, whether "digest" is
+    allowed), the departments, and how many events wait for the next digest. `system.configure`, like the document itself."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    from ..services.tickets import notify_matrix
+
+    return {"sources": [{"key": k, "label": notify_matrix.LABELS.get(k, k), "digest": k in notify_matrix.DIGESTABLE} for k in notify_matrix.MATRIX_SOURCES],
+            "departments": [{"id": d["id"], "name": d["name"]} for d in store.departments(conn)],
+            "pending": notify_matrix.pending(conn)}
+
+
 class UiPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     detail: Literal["drawer", "fullscreen", "drawer_fullscreen"] | None = None
@@ -203,6 +215,16 @@ class VendorPortalPatch(BaseModel):
     technician_requests: StrictBool | None = None  # VPORTALRFQ: "company technician requests" (default OFF)
 
 
+class NotifyPatch(BaseModel):
+    """TKNOTIFMATRIX: the per-department notification matrix and the daily digest (both OFF by default = today's behaviour).
+    `matrix` is {department id | "*": {source: "now" | "digest" | "off"}}; settings_doc validates every cell again."""
+    model_config = ConfigDict(extra="forbid")
+    matrix_enabled: StrictBool | None = None
+    matrix: dict[str, dict[str, str]] | None = Field(default=None, max_length=201)
+    digest_enabled: StrictBool | None = None
+    digest_time: str | None = Field(default=None, max_length=5)
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision: int = Field(ge=0)
@@ -219,6 +241,7 @@ class SettingsBody(BaseModel):
     directory: DirectoryPatch | None = None  # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17)
     rfq: RfqPatch | None = None  # RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE + RFQATT review (attachments.allow_office)
     vendor_portal: VendorPortalPatch | None = None  # VPORTAL
+    notify: NotifyPatch | None = None  # TKNOTIFMATRIX
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -273,7 +296,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify"):  # TKNOTIFMATRIX / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

@@ -15,6 +15,8 @@ import '../tickets/settings-costs'; // slice 9b: costs (11A.14)
 import '../tickets/settings-locations'; // CR-ORG-LOCATIONS: the organisation's locations
 import { lt } from '../tickets/org-locations-text';
 import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
+import '../tickets/notify-matrix'; // TKNOTIFMATRIX: the notification matrix and the daily digest
+import type { NotifyDoc } from '../tickets/notify-matrix-model';
 import { ct } from '../tickets/cost-text';
 import { qst } from '../tickets/rfq-settings-text'; // RFQQSET
 import { mtt } from '../tickets/messages-text';
@@ -711,6 +713,9 @@ export class SystemTickets extends LitElement {
       <div class="col">
         ${this.linksCard(this.doc)}
         ${this.hoursCard(this.doc)}
+        ${isApi() && mayConfigure ? html`<sw-card heading="התראות לפי מחלקה ותקציר" data-card="notify-matrix">
+          <ticket-notify-matrix .doc=${this.doc as unknown as { revision: number; notify?: NotifyDoc }} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<SettingsDoc>) => { this.doc = e.detail; this.say(tt('setSaved')); }}></ticket-notify-matrix>
+        </sw-card>` : nothing}
         ${this.rfqTermsCard(this.doc)}
         ${this.vendorUploadsCard(this.doc)}
       </div>
