@@ -29,7 +29,7 @@ from pydantic import ConfigDict, Field, StrictBool, StrictInt, model_validator
 from ..auth import get_conn, settings_of
 from ..errors import ApiError
 from ..services import intercom_authority as ia
-from ..services import intercom_client
+from ..services import intercom_client, intercom_sync
 from ..services import intercom_writes as iw
 from .access_control import (
     IDENTIFIER,
@@ -115,7 +115,7 @@ def _write(
     settings = settings_of(request)
     gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, sensitive=sensitive, revision=body.revision))
     not_after = _envelope(act, body)
-    reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary)
+    reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary, target=intercom_sync.person_target(user_id))
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply.update(iw.effect_fields(command))
     return reply

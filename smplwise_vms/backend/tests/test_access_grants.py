@@ -22,6 +22,7 @@ from tickets_world import API, build as build_world
 from smplwise.db import Database, bump_permission_revision, new_id, set_setting
 from smplwise.rbac import Principal
 from smplwise.services import access_grants as ag
+from smplwise.services import access_grant_engine as age
 from smplwise.services.access_grant_engine import EngineError, WiskeyServiceEngine
 
 UTC = timezone.utc
@@ -69,6 +70,10 @@ class Env:
     def sql(self, statement: str, *args) -> None:
         with self.db.connection() as conn:
             conn.execute(statement, args)
+
+    def sql_count(self, statement: str) -> int:
+        with self.db.connection(mode="read") as conn:
+            return conn.execute(statement).fetchone()[0]
 
     def grant(self, gid: str) -> dict:
         with self.db.connection(mode="read") as conn:
@@ -265,7 +270,7 @@ def test_happy_path_provisions_without_a_pin_and_sends_the_code_the_evening_befo
     assert g["state"] == "active" and g["code_state"] == "pending" and g["code_due_at"] == "2026-10-21T15:00:00Z"
     p = env.person_of(gid)
     assert p["doors"] == {"st-a": [1]} and (p["valid_from"], p["valid_until"]) == (VF, VU) and p["active"] is True
-    assert p["pin"] is None and p["category"] == "contractor" and p["employee_no"].startswith("x") and len(p["employee_no"]) == 13
+    assert p["pin"] is None and p["category"] == "contractor" and p["employee_no"].isdigit() and len(p["employee_no"]) == 9, "WisKey generated the number; Arx did not send one"
     env.clock[0] = DUE - timedelta(minutes=1)
     env.run()
     assert env.transport.sent == [], "not before the due time"
@@ -493,6 +498,7 @@ def test_a_revoke_wiskey_does_not_acknowledge_stays_pending_and_is_retried(env):
     with env.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM notifications WHERE source = 'access.grant_attention'").fetchone()[0] >= 1, "managers told after 2 min"
     env.engine.offline = False
+    env.clock[0] = T0 + timedelta(minutes=10)  # past the retry backoff
     env.run()
     assert env.grant(gid)["state"] == "revoked" and env.person_of(gid)["active"] is False
 
@@ -557,13 +563,17 @@ def test_a_matched_persons_other_stations_need_the_approvers_authority_too(env):
     assert r.status_code == 403 and r.json()["details"]["target_id"] == "st-z"
 
 
-def test_the_wiskey_person_deleted_elsewhere_revokes(env):
+def test_the_wiskey_person_deleted_elsewhere_stays_revoking(env):
+    """WisKey round 3 (R3-03 / handoff item 2): `user_not_found` may mean "outside the service user's scope" and a delete leaves a
+    tombstone whose station removals are pending - it is never proof of revocation. The grant stays `revoking` (authority withdrawn
+    in Arx, retried, the managers alerted) and the link is marked missing; it is never reported `revoked` on that answer."""
     gid = env.active_grant()
     pid = env.person_of(gid)["id"]
     del env.engine.people[pid]
     env.post(f"/access-grants/{gid}/revoke")
     g = env.grant(gid)
-    assert g["state"] == "revoked"
+    assert g["state"] == "revoking"
+    assert int(g["revoke_attempts"]) >= 1
     with env.db.connection(mode="read") as conn:
         assert ag.link_row(conn, g["link_id"])["state"] == "wiskey_missing"
 
@@ -694,3 +704,283 @@ def test_the_code_message_is_rendered_in_the_contacts_language(env, lang, phrase
     assert "http" not in text
     if lang != "en":
         assert "your personal entry code" not in text
+
+
+# ================================================================ WisKey adapter findings (static source reading, 2.8.0)
+
+def _is_utc_z(value: str) -> datetime:
+    parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    return parsed.replace(tzinfo=UTC)
+
+
+@pytest.mark.parametrize("category", ["contractor", "visitor"])
+def test_create_payload_always_carries_a_valid_aware_validity_pair(category):
+    data = age.create_payload(display_name="x", employee_no="x1", category=category, responsible_person="r", access_purpose="p", at=T0)
+    vf, vu = _is_utc_z(data["valid_from"]), _is_utc_z(data["valid_until"])
+    assert vf < vu and datetime(1970, 1, 1, tzinfo=UTC) <= vf and vu <= datetime(2037, 12, 31, 23, 59, 59, tzinfo=UTC)
+    assert data["active"] is False and "." not in data["valid_from"] + data["valid_until"]
+    edge = age.create_payload(display_name="x", employee_no="x1", category=category, responsible_person="r", access_purpose="p",
+                              at=datetime(2040, 1, 1, 0, 0, 0, 123456, tzinfo=UTC))
+    assert _is_utc_z(edge["valid_from"]) < _is_utc_z(edge["valid_until"]) <= datetime(2037, 12, 31, 23, 59, 59, tzinfo=UTC)
+    low = age.create_payload(display_name="x", employee_no="x1", category=category, responsible_person="r", access_purpose="p",
+                             at=datetime(1960, 1, 1, tzinfo=UTC))
+    assert _is_utc_z(low["valid_from"]) >= datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def test_create_payload_never_sends_null_and_normalises_text():
+    data = age.create_payload(display_name="  " + "א" * 40 + "  ", employee_no="x-1_A", category="visitor", responsible_person="   ", access_purpose=None)  # type: ignore[arg-type]
+    assert data["responsible_person"] == "Arx" and data["access_purpose"] == "" and "phone" not in data
+    assert len(data["display_name"]) == 32 and data["display_name"] == "א" * 32
+    assert all(v is not None for v in data.values())
+    assert age.create_payload(display_name="   ", employee_no="a", category="visitor", responsible_person="r", access_purpose="")["display_name"] == "Guest"
+    assert age.create_payload(display_name="😀" * 40, employee_no="a", category="visitor", responsible_person="r", access_purpose="")["display_name"] == "😀" * 32
+    for bad in ("", "a" * 33, "יוסי", "a b", "a.b"):
+        with pytest.raises(ValueError):
+            age.create_payload(display_name="x", employee_no=bad, category="visitor", responsible_person="r", access_purpose="")
+
+
+def test_the_arx_employee_numbers_fit_wiskeys_pattern(env):
+    gid = env.active_grant()
+    assert age._EMPLOYEE_NO.fullmatch(env.person_of(gid)["employee_no"])
+
+
+def test_the_strip_payload_is_the_documented_revoke_all_with_the_one_allowed_null():
+    # WisKey-stated (reply 2, source-derived, NOT_RUN): group_ids [] + permission_overrides {} + active false + pin null; NOT door_permissions {}
+    assert age.strip_payload() == {"group_ids": [], "permission_overrides": {}, "active": False, "pin": None}
+    assert "door_permissions" not in age.strip_payload() and "employee_no" not in age.strip_payload()
+    created = age.create_payload(display_name="x", category="visitor", responsible_person="r", access_purpose="")
+    assert "employee_no" not in created and all(v is not None for v in created.values())
+    assert "employee_no" not in age.apply_payload(doors={"st-a": [1]}, valid_from=VF, valid_until=VU, timing=None, active=True)
+
+
+def _public(**over):
+    base = {"id": "u1", "revision": 3, "display_name": "x", "active": True, "employee_no": "123456789", "pin_configured": True, "group_ids": [],
+            "permission_overrides": {}, "assignments": {}}
+    return {**base, **over}
+
+
+def test_person_from_raw_projects_the_enabled_assignments_and_reads_a_restricted_view_as_unknown():
+    row = lambda en, locks: {"config_entry_id": "c", "enabled": en, "allowed_locks": locks, "desired_revision": 3, "applied_revision": 3,
+                             "sync_state": "synced", "last_error": None}
+    p = age.person_from_raw(_public(assignments={"st-a": row(True, [2, 1]), "st-b": row(False, [1])}, permission_overrides={"st-b": "deny"}))
+    assert p.doors_known and p.doors == {"st-a": [1, 2]}, "disabled rows keep historical locks and are skipped"
+    assert p.stations == ("st-a", "st-b") and p.overrides == {"st-b": "deny"} and p.employee_no == "123456789"
+    assert age.person_from_raw(_public()).doors_known and age.person_from_raw(_public()).doors == {}, "a complete empty projection is known-empty"
+    for bad in ({"assignments": None}, {"permission_overrides": None}, {"group_ids": None}, {"redacted_fields": ["assignments"]},
+                {"redacted_fields": "x"}, {"redacted_fields": [1]}):
+        q = age.person_from_raw(_public(**bad))
+        assert q.doors_known is False and q.doors == {}, bad
+    cred = age.person_from_raw(_public(pin_configured=False, redacted_fields=["pin_configured"]))
+    # R3-03 (round 3): any restriction marker means a projection for a restricted caller, whose assignments may be filtered by station
+    assert cred.doors_known is False and cred.pin_known is False
+    assert age.person_from_raw(_public(pin_configured=False)).pin_known is True
+    assert age.person_from_raw({"id": "u", "revision": 1, "door_permissions": {"st-a": [1]}}).doors_known is False, "door_permissions is not read"
+
+
+def test_plan_overrides_replaces_the_complete_dict_and_refuses_a_restricted_view():
+    p = age.EnginePerson(id="u", revision=1, doors={"st-a": [1], "st-b": [1]}, overrides={"st-c": "deny", "st-a": "allow"}, stations=("st-a", "st-b", "st-c"))
+    assert age.plan_overrides(p, {"st-a": [1]}) == {"st-c": "deny", "st-a": "allow", "st-b": "deny"}, "other personal entries retained"
+    assert age.plan_overrides(p, {"st-a": [1], "st-b": [2]}) is None
+    assert age.plan_overrides(p, {"st-a": [1], "st-b": [1], "st-d": [1]}) == {"st-c": "deny", "st-a": "allow", "st-d": "allow"}
+    for restricted in (age.EnginePerson(id="u", revision=1, doors_known=False), age.EnginePerson(id="u", revision=1, overrides_known=False)):
+        with pytest.raises(EngineError) as e:
+            age.plan_overrides(restricted, {"st-a": [1]})
+        assert e.value.kind == "not_sent"
+
+
+def test_narrowing_sends_the_complete_overrides_with_a_deny_and_keeps_the_personal_entries(env):
+    gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
+    p = env.person_of(gid)
+    p["overrides"]["st-z"] = "deny"  # an unrelated personal exception set in WisKey
+    env.engine.edit_elsewhere(p["id"])
+    env.request(doors={"st-a": [1]})
+    env.run()
+    assert env.grant(gid)["needs_push"] == 0 and p["doors"] == {"st-a": [1]}
+    last = env.engine.updates[-1]
+    assert last["method"] == "apply" and last["doors"] == ["st-a"]
+    assert last["overrides"] == {"st-a": "allow", "st-b": "deny", "st-z": "deny"}, "complete replacement: allow kept, st-b denied, st-z retained"
+
+
+def test_dropping_a_station_from_the_door_map_alone_does_not_revoke_it_in_the_fake(env):
+    gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
+    p = env.person_of(gid)
+    person = env.engine.get_person(p["id"])
+    env.engine.apply(person.id, person.revision, doors={"st-a": [1]}, valid_from=VF, valid_until=VU, timing=None, active=True)
+    assert set(p["doors"]) == {"st-a", "st-b"}, "WisKey-stated: omission is not revocation"
+    with pytest.raises(EngineError):  # a key outside the resolved stations, and an empty lock list, are refused
+        person = env.engine.get_person(p["id"])
+        env.engine.apply(person.id, person.revision, doors={"st-q": [1]}, valid_from=VF, valid_until=VU, timing=None, active=True)
+    with pytest.raises(EngineError):
+        person = env.engine.get_person(p["id"])
+        env.engine.apply(person.id, person.revision, doors={"st-a": []}, valid_from=VF, valid_until=VU, timing=None, active=True)
+
+
+def test_a_narrowing_on_a_restricted_projection_sends_nothing(env):
+    gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
+    env.engine.hide_doors = True
+    before = env.engine.calls.count("apply")
+    env.request(doors={"st-a": [1]})
+    env.run()
+    assert env.engine.calls.count("apply") == before, "no replacement is built on a partial view"
+    assert env.grant(gid)["needs_push"] == 1
+    env.engine.hide_doors = False
+    env.run()
+    assert env.person_of(gid)["doors"] == {"st-a": [1]}
+
+
+def test_the_revoke_is_one_update_and_is_done_only_after_readback_and_no_pending_revocation(env):
+    gid = env.active_grant()
+    env.engine.sync_lag = True
+    env.post(f"/access-grants/{gid}/revoke")
+    p = env.person_of(gid)
+    assert p["doors"] == {} and p["overrides"] == {} and p["group_ids"] == [] and p["active"] is False and p["pin"] is None
+    assert env.grant(gid)["state"] == "revoking", "the update result is not proof: the central sync status still shows a pending revocation"
+    strips = [u for u in env.engine.updates if u["method"] == "strip"]
+    assert len(strips) == 1
+    env.clock[0] = T0 + timedelta(minutes=10)
+    env.run()
+    assert env.grant(gid)["state"] == "revoking" and len([u for u in env.engine.updates if u["method"] == "strip"]) == 1, "retries are reads only"
+    env.engine.settle_revocations()
+    env.clock[0] = T0 + timedelta(minutes=20)
+    env.run()
+    assert env.grant(gid)["state"] == "revoked"
+
+
+def test_an_unknown_sync_status_keeps_the_revoke_pending(env):
+    gid = env.active_grant()
+    env.engine.status_unknown = True
+    env.post(f"/access-grants/{gid}/revoke")
+    env.clock[0] = T0 + timedelta(minutes=10)
+    env.run()
+    assert env.grant(gid)["state"] == "revoking"
+    env.engine.status_unknown = False
+    env.clock[0] = T0 + timedelta(minutes=20)
+    env.run()
+    assert env.grant(gid)["state"] == "revoked"
+
+
+def test_a_revoke_is_not_reported_done_while_the_projection_is_restricted_and_never_hammers(env):
+    gid = env.active_grant()
+    env.engine.restricted_projection = True
+    env.post(f"/access-grants/{gid}/revoke")
+    assert env.grant(gid)["state"] == "revoking"
+    assert env.person_of(gid)["active"] is False and env.grant(gid)["revoke_attempts"] >= 1
+    writes = lambda: len([u for u in env.engine.updates if u["method"] == "strip"])
+    reads = env.engine.calls.count("get_person")
+    for _ in range(10):  # ten passes inside the first backoff window: no WisKey call at all
+        env.run()
+    assert writes() == 1 and env.engine.calls.count("get_person") == reads
+    for minutes in (1, 3, 8, 20, 40, 70):
+        env.clock[0] = T0 + timedelta(minutes=minutes)
+        env.run()
+    assert env.grant(gid)["state"] == "revoking" and writes() == 1, "after the one write the retries are reads only"
+    assert env.grant(gid)["revoke_attempts"] <= 8, "exponential backoff, capped at 5 minutes"
+    env.engine.restricted_projection = False
+    env.clock[0] = T0 + timedelta(minutes=80)
+    env.run()
+    assert env.grant(gid)["state"] == "revoked"
+
+
+def test_a_revoke_that_stays_pending_alerts_the_managers_again_every_hour(env):
+    gid = env.active_grant()
+    env.engine.hide_doors = True
+    env.post(f"/access-grants/{gid}/revoke")
+    count = lambda: env.sql_count("SELECT COUNT(*) FROM notifications WHERE source = 'access.grant_attention'")
+    env.clock[0] = T0 + timedelta(minutes=3)
+    env.run()
+    first = count()
+    assert first >= 1
+    env.clock[0] = T0 + timedelta(minutes=30)
+    env.run()
+    assert count() == first, "not before the hour"
+    env.clock[0] = T0 + timedelta(minutes=70)
+    env.run()
+    assert count() > first, "re-alerted after an hour in revoking"
+
+
+def test_an_unknown_door_map_stays_unknown_and_delivers_no_code(env):
+    env.engine.unknown_after_apply = True
+    gid = env.request().json()["grant"]["id"]
+    env.approve(gid)
+    env.run()
+    assert env.grant(gid)["state"] == "unknown"
+    env.engine.hide_doors = True
+    for _ in range(3):
+        env.run()
+    assert env.grant(gid)["state"] == "unknown", "a restricted view neither confirms nor revokes (F5)"
+    env.engine.hide_doors = False
+    env.run()
+    assert env.grant(gid)["state"] == "active"
+    env.engine.hide_doors = True
+    env.clock[0] = DUE
+    env.run()
+    assert env.transport.sent == [] and env.grant(gid)["code_state"] == "not_delivered"
+
+
+def test_the_code_is_delivered_against_the_projected_door_map(env):
+    gid = env.active_grant(doors={"st-a": [1, 2]})
+    env.clock[0] = DUE
+    env.run()
+    assert len(env.transport.sent) == 1 and env.grant(gid)["code_state"] == "sent"
+
+
+# ================================================================ WisKey round 3 (R3-03 / R3-06, handoff item 2) - fakes only, NOT_RUN on WisKey
+
+def _always_missing(env):
+    def missing(person_id):
+        env.engine.calls.append("get_person")
+        raise EngineError("not_found", "user_not_found")
+    env.engine.get_person = missing
+
+
+def test_r3_a_person_missing_at_provisioning_is_revoking_never_revoked(env):
+    """`user_not_found` may mean "outside the service user's scope": a grant whose person WisKey does not show is withdrawn in Arx
+    (`revoking`, authority gone, the managers alerted) but never reported `revoked` on that answer alone."""
+    gid = env.request().json()["grant"]["id"]
+    env.approve(gid)
+    _always_missing(env)
+    for minutes in (0, 5, 30, 90):
+        env.clock[0] = T0 + timedelta(minutes=minutes)
+        env.run()
+        g = env.grant(gid)
+        assert (g["state"], g["end_reason"]) == ("revoking", "wiskey_missing"), (minutes, g["state"])
+    with env.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notifications WHERE source = 'access.grant_attention'").fetchone()[0] >= 1, "managers told"
+
+
+def test_r3_an_active_grant_whose_person_is_not_found_on_revoke_keeps_retrying(env):
+    gid = env.active_grant()
+    _always_missing(env)
+    env.post(f"/access-grants/{gid}/revoke")
+    for minutes in (1, 10, 60):
+        env.clock[0] = T0 + timedelta(minutes=minutes)
+        env.run()
+    g = env.grant(gid)
+    assert g["state"] == "revoking" and int(g["revoke_attempts"]) >= 2, "never ended on user_not_found"
+
+
+def test_r3_approval_is_refused_when_the_linked_person_is_not_found(env):
+    """The approver's authority over the person's other stations cannot be checked against a `user_not_found`: refused, nothing sent."""
+    env.engine.add_person("wk-out", stations=["st-z"])
+    assert env.post("/access-grants/links", {"contact_id": env.tech, "wiskey_person_id": "wk-out"}).status_code == 200
+    gid = env.request(doors={"st-a": [1]}).json()["grant"]["id"]
+    del env.engine.people["wk-out"]  # out of the service user's scope, or gone - WisKey answers the same
+    r = env.approve(gid)
+    assert r.status_code == 409 and r.json()["code"] == "access_person_missing", r.text
+    assert env.grant(gid)["state"] == "requested" and "apply" not in env.engine.calls
+
+
+def test_r3_an_unknown_outcome_is_decided_only_by_a_readback_that_answered(env):
+    """R3-06: after an unknown provisioning write the next step is a fresh read; while no read answers (the write may still be out),
+    nothing is decided and nothing is written again."""
+    env.engine.unknown_after_apply = True
+    gid = env.request().json()["grant"]["id"]
+    env.approve(gid)
+    env.run()
+    assert env.grant(gid)["state"] == "unknown"
+    for _ in range(3):
+        env.engine.fail["get_person"] = "not_sent"  # e.g. `outcome_pending`: the earlier write's call is still out
+        env.run()
+        assert env.grant(gid)["state"] == "unknown"
+    env.run()
+    assert env.grant(gid)["state"] == "active" and env.engine.calls.count("apply") == 1, "decided by the readback, never replayed"

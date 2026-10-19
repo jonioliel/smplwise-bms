@@ -657,8 +657,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # resumes ends and revokes). SW_ACCESS_GRANTS_WORKER=0 keeps the thread off (tests call WORKER.run_once explicitly).
         if os.environ.get("SW_ACCESS_GRANTS_WORKER", "1") != "0":
             await run_in_threadpool(access_grants_svc.WORKER.start, app.state.db, settings)
-        from .services import intercom_sync
+        from .services import intercom_sync, intercom_write_journal
 
+        # WisKey round 5 R5-A6: the durable journal of person writes (intent before dispatch, outcome after; an unresolved write of an
+        # earlier process holds the next write to that person until a fresh readback) - installed before the feed can send anything
+        intercom_sync.SYNC.journal = intercom_write_journal.WriteJournal(app.state.db)
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
         from .services import energy_sampler
 
@@ -764,6 +767,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
         intercom_sync.SYNC.shutdown()
+        intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.shutdown()

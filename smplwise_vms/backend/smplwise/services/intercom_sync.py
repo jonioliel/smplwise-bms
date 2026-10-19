@@ -132,6 +132,11 @@ CONFIG_USER_BURST, CONFIG_USER_RATE = 6.0, 0.5
 CONFIG_GLOBAL_BURST, CONFIG_GLOBAL_RATE = 6.0, 0.5
 # a people write is WisKey storage only (no device I/O): well within ha_client's 60 s limit
 CONFIG_TIMEOUT_S = 35.0
+# R3-06 (WisKey round 3, static reading, NOT_RUN): a write this side stopped waiting for is NOT cancelled - WisKey may still save it
+# after the 504. Until a fresh read of the same person has answered (sent after the write's call was over), another write to that
+# person is refused here, nothing sent: `outcome_pending` while the call is still out, `readback_required` once it is over.
+UNSETTLED_CODES = ("outcome_pending", "readback_required")
+LATE_KEEP = 50  # how many late answers are kept for diagnostics (ids and codes only)
 # card capture (CR-005 phase 2 slice A2) has a fourth lane: ONE slot and its own buckets for `cards/capture_start`,
 # `cards/capture_cancel` and the capture poller's `cards/capture_status` (services/intercom_capture.py). WisKey answers
 # all three from memory (start registers a session and returns; the reader is driven by WisKey's own background task),
@@ -342,18 +347,70 @@ def _str(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
 
+# WisKey round 3 (R3-03; operator_scope.project_person in WisKey's pinned source c0b2d94c, static reading, NOT_RUN): for a
+# restricted caller WisKey adds `operator_editable` and `redacted_fields` (the CATEGORY names: `access`, `credentials`, `phone`,
+# `photo`, `profile`) and then blanks what is withheld - `access` -> assignments {}, permission_overrides {}, group_ids [],
+# validity null, access_category "staff"; `credentials` -> cards [], pin_configured false; `phone` -> "". A station-scoped caller
+# also gets assignments / permission_overrides filtered to the stations it may see, with `redacted_fields` possibly EMPTY. An
+# unrestricted caller gets the record unchanged and neither key. So an empty map or a false flag is only evidence when neither
+# marker is present and the field itself is well formed; otherwise it is UNKNOWN, never "none".
+ACCESS_REDACTION = frozenset({"access", "assignments", "group_ids", "permission_overrides", "door_permissions"})
+CREDENTIAL_REDACTION = frozenset({"credentials", "pin", "pin_configured", "cards"})
+
+
+def person_scope(raw: Any) -> dict[str, Any]:
+    """What a WisKey person record can prove about its own completeness (R3-03): `restricted` (WisKey marked the record as
+    projected for a restricted caller: either marker present), `redacted_fields` (the names WisKey sent; strings only),
+    `operator_editable` (WisKey's flag, None when absent), `access_known` (the access fields are readable and well formed),
+    `stations_known` (the assignments are the COMPLETE set: readable and not projected for a restricted caller, whose view may
+    be filtered by station), `credentials_known` (`pin_configured` is a readable boolean). A `redacted_fields` that is present
+    but not a list of strings blocks everything."""
+    raw = raw if isinstance(raw, dict) else {}
+    marker = raw.get("redacted_fields")
+    restricted = "redacted_fields" in raw or "operator_editable" in raw
+    parsable = marker is None or (isinstance(marker, list) and all(isinstance(f, str) for f in marker))
+    names = set(marker) if parsable and isinstance(marker, list) else set()
+    access_readable = parsable and not (names & ACCESS_REDACTION)
+    access_known = access_readable and isinstance(raw.get("assignments"), dict)
+    return {
+        "restricted": restricted,
+        "redacted_fields": sorted(names) if parsable else None,
+        "operator_editable": raw.get("operator_editable") if isinstance(raw.get("operator_editable"), bool) else None,
+        "access_readable": access_readable,
+        "access_known": access_known,
+        "stations_known": access_known and not restricted,
+        "credentials_known": parsable and not (names & CREDENTIAL_REDACTION) and isinstance(raw.get("pin_configured"), bool),
+        "phone_known": parsable and "phone" not in names,
+    }
+
+
+ACCESS_CATEGORIES = ("staff", "visitor", "contractor")
+
+
 def project_person(raw: dict[str, Any]) -> dict[str, Any]:
     """One WisKey person as the read-only people screens show them: identity, status, validity window, groups, and which
     stations they are assigned to (with WisKey's sync state and door numbers). Never phones, cards, PIN flags, profile
-    values or photos - the editing phase adds what it needs deliberately."""
+    values or photos - the editing phase adds what it needs deliberately.
+
+    R3-03: missing or redacted access data stays distinguishable from "none" - `access_known` / `stations_known` say whether
+    `stations` / `group_ids` / the validity are real evidence (an empty list with `stations_known: false` means "not shown",
+    never "no stations"), `access_category` is null when withheld, and WisKey's own `redacted_fields` / `operator_editable`
+    are passed on. Nothing here (or anywhere downstream) may infer a revocation from `stations: []` unless `stations_known`."""
+    scope = person_scope(raw)
     assignments = raw.get("assignments") if isinstance(raw.get("assignments"), dict) else {}
     groups = raw.get("group_ids") if isinstance(raw.get("group_ids"), list) else []
+    category = raw.get("access_category")
     return {
         **{k: str(raw.get(k) or "") for k in PERSON_KEYS},
         "active": bool(raw.get("active")),
-        "valid_from": _str(raw.get("valid_from")),
-        "valid_until": _str(raw.get("valid_until")),
+        "valid_from": _str(raw.get("valid_from")) if scope["access_readable"] else None,
+        "valid_until": _str(raw.get("valid_until")) if scope["access_readable"] else None,
         "revision": _int(raw.get("revision")),
+        "access_category": category if scope["access_readable"] and category in ACCESS_CATEGORIES else None,
+        "access_known": scope["access_known"],
+        "stations_known": scope["stations_known"],
+        "redacted_fields": scope["redacted_fields"],
+        "operator_editable": scope["operator_editable"],
         "group_ids": [g for g in groups if isinstance(g, str)],
         "stations": [
             {
@@ -410,14 +467,17 @@ def project_person_editor(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or _int(raw.get("revision")) is None:
         raise ValueError("unexpected person record")
     person = project_person(raw)
+    scope = person_scope(raw)
     assignments = raw.get("assignments") if isinstance(raw.get("assignments"), dict) else {}
     cards = raw.get("cards") if isinstance(raw.get("cards"), list) else []
     overrides = raw.get("permission_overrides") if isinstance(raw.get("permission_overrides"), dict) else {}
     return {
         **person,
-        "phone": _str(raw.get("phone")) or "",
+        # R3-03: a withheld field is null ("not shown"), never the blank WisKey puts in its place ("" phone, false PIN flag)
+        "phone": (_str(raw.get("phone")) or "") if scope["phone_known"] else None,
         "identity_locked": bool(raw.get("identity_locked")),
-        "pin_configured": bool(raw.get("pin_configured")),
+        "pin_configured": raw["pin_configured"] if scope["credentials_known"] else None,
+        "credentials_known": scope["credentials_known"],
         "cards": [
             {
                 "id": str(card.get("id")),
@@ -595,6 +655,10 @@ WRITE_REFUSALS: dict[str, tuple[int, str, str]] = {
     "user_archived": (409, "intercom_person_archived", "האדם בארכיון. יש לשחזר אותו מהארכיון לפני שמפעילים אותו."),
     "guest_responsible_required": (422, "intercom_responsible_required", "לאורח או לקבלן נדרשים אחראי ותאריך סיום."),
     "photo_disabled": (409, "intercom_photo_disabled", "קליטת התמונות כבויה בבקרת הכניסה, ולכן התמונה לא נשמרה. טענו מחדש את ההגדרות."),
+    # WisKey round 3 (R3-04): the profile checks, all before WisKey's save (intercom_client._USER_WRITE_REFUSED) - the caller's to fix
+    "profile_required": (422, "intercom_profile_required", "חסר ערך בשדה פרופיל חובה, ולכן השינוי לא נשמר."),
+    "profile_value_invalid": (422, "intercom_profile_invalid", "ערך באחד משדות הפרופיל אינו תקין, ולכן השינוי לא נשמר."),
+    "profile_value_not_unique": (422, "intercom_profile_not_unique", "ערך באחד משדות הפרופיל כבר משויך לאדם אחר, ולכן השינוי לא נשמר."),
 }
 # WisKey's refusals of the card-capture commands (lane "capture" for start / cancel; a confirm is a people write in the
 # config lane and gets WRITE_REFUSALS first): (HTTP status, SMPLWISE code, message)
@@ -634,6 +698,9 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
             return ApiError(429, "intercom_rate_limited", "יותר מדי פקודות ל־WisKey בזמן קצר. הפקודה לא נשלחה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
         if code == "busy":
             return ApiError(429, "intercom_busy", "WisKey עסוק בבקשות אחרות. הפקודה לא נשלחה - נסו שוב בעוד רגע.", retryable=True, details=details)
+        if code in UNSETTLED_CODES:  # R3-06: a fresh read of the person must come first (IntercomSync.write_gate)
+            return ApiError(409, "intercom_outcome_pending", "לשמירה קודמת של האדם הזה עדיין אין תוצאה ברורה. הפקודה לא נשלחה - טענו מחדש את הרשומה ובדקו את הגרסה שלה לפני שמנסים שוב.",
+                            details=details)
         reason = NOT_SENT_REASONS.get(str(state), "WisKey אינו זמין")
         return ApiError(503, "intercom_unavailable", f"הפקודה לא נשלחה: {reason}.", details=details)
     if outcome == "unknown":
@@ -661,6 +728,33 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
     if config and code and code.startswith(WRITE_INVALID_PREFIXES):
         return ApiError(422, "intercom_invalid_request", f"WisKey דחה את פרטי האדם ({code}), ולכן השינוי לא נשמר.", details=details)
     return ApiError(502, "intercom_action_refused", f"WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", details=details)
+
+
+def person_target(user_id: str) -> str:
+    """The `target` of a people write / readback of one WisKey person (R3-06)."""
+    return f"person:{user_id}"
+
+
+def _late_outcome(future: Any, project: Callable[[Any], Any]) -> tuple[str, str | None]:
+    """R3-06: what a call this side stopped waiting for finally said, read the way `_settle` reads an answer in time: `ok` (an
+    acceptance whose answer the projection accepts), `refused` (a proven pre-effect refusal, intercom_client.PRE_EFFECT),
+    `not_sent`, or `unknown` (an unclear code, an answer of an unexpected shape, the session gone, cancelled)."""
+    if future.cancelled():
+        return "unknown", "cancelled"
+    exc = future.exception()
+    if exc is None:
+        try:
+            project(future.result())
+        except Exception:  # noqa: BLE001 - a committed save whose answer cannot be used is still not "refused"
+            return "unknown", "invalid_response"
+        return "ok", None
+    if isinstance(exc, (_NotReady, _Expired)):
+        return "not_sent", type(exc).__name__
+    if isinstance(exc, intercom_client.UnclearAnswer):
+        return "unknown", exc.code
+    if isinstance(exc, IntercomError):
+        return "refused", exc.code
+    return "unknown", type(exc).__name__
 
 
 # ---------------------------------------------------------------- the session
@@ -695,6 +789,20 @@ class IntercomSync:
         self._message_inflight = threading.BoundedSemaphore(MESSAGE_INFLIGHT)  # WhatsApp sends: a fifth lane (one slot)
         self._bucket_lock = threading.Lock()
         self._tts_status: dict[str, dict[str, Any]] = {}  # station id -> its latest announcement's progress
+        # R3-06: people writes whose outcome is unknown, by target (e.g. "person:<id>"), until a read SENT AFTER the write's own
+        # call was over has answered (write_gate / note_readback). Kept across sessions: a write may have landed before a
+        # session ended. `_late`: the late answers of writes this side stopped waiting for (newest last; ids and codes only).
+        self._unsettled_lock = threading.Lock()
+        self._unsettled: dict[str, dict[str, Any]] = {}
+        # R4-07: targets with a write ADMITTED and not yet over (checked and registered in one step under `_unsettled_lock`, so a second
+        # write to the same person can never pass the gate while the first is being sent)
+        self._writing: set[str] = set()
+        self._seq = 0
+        self._late: deque[dict[str, Any]] = deque(maxlen=LATE_KEEP)
+        # R5-A6: the DURABLE side of the gate (intercom_write_journal.WriteJournal over the database; installed by main.py at start-up,
+        # None in a process without one): every targeted person write is recorded before it is sent and its outcome after, and an
+        # unresolved write of an earlier process (restart / standby takeover) holds the next write to that person until a readback.
+        self.journal: Any = None
         self._buckets_reset()
         self._session_reset()
 
@@ -793,6 +901,11 @@ class IntercomSync:
         self._capture_inflight = threading.BoundedSemaphore(CAPTURE_INFLIGHT)
         self._message_inflight = threading.BoundedSemaphore(MESSAGE_INFLIGHT)
         self._tts_status = {}
+        with self._unsettled_lock:
+            self._unsettled = {}
+            self._writing = set()
+            self._late = deque(maxlen=LATE_KEEP)
+        self.journal = None
         self._buckets_reset()
         self._session_reset()
         STATE.reset()
@@ -871,6 +984,7 @@ class IntercomSync:
         timeout: float | None = None,
         channel: str = "service",
         slot_wait: float = 0.0,
+        target: str | None = None,
     ) -> dict[str, Any]:
         """Run one read-only WisKey command over the feed's live session and serve its projection under `key`:
         `{state, configured, last_error, fetched_at, <key>, sync}`. `<key>` is null whenever the command did not run or
@@ -886,8 +1000,160 @@ class IntercomSync:
         loop remain the only judges of the connection. `timeout` replaces COMMAND_TIMEOUT_S for a read WisKey itself
         allows longer (`cards/reader_capabilities` reaches the device: READERS_TIMEOUT_S). `channel`: the guard the frame
         goes through (see `_one_off`); the adapter's reads pass `read` or `technical`. `slot_wait`: how long a free read
-        slot may be waited for (the adapter's continuation pages of one scan; everything else answers `busy` at once)."""
-        return self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S if timeout is None else timeout, channel=channel, slot_wait=slot_wait)[0]
+        slot may be waited for (the adapter's continuation pages of one scan; everything else answers `busy` at once).
+        `target` (R3-06, e.g. `person:<id>`): this read is a fresh readback of that target - once it has answered (a record, or
+        WisKey's `user_not_found`) and it was sent after an unknown write's call was over, writes to the target are allowed again."""
+        started = self._tick()
+        journal = self.journal
+        started_wall = journal.clock() if journal is not None else None
+        try:
+            reply, outcome = self._execute(settings, key, send, project, who, COMMAND_TIMEOUT_S if timeout is None else timeout, channel=channel, slot_wait=slot_wait)
+        except ApiError as exc:
+            if target is not None and isinstance(exc.details, dict) and exc.details.get("wiskey_code") == "user_not_found":
+                self.note_readback(target, started, started_wall)  # an answer about the target, too (it is gone, or out of this caller's scope)
+            raise
+        if target is not None and outcome == "ok":
+            self.note_readback(target, started, started_wall)
+        return reply
+
+    # -- R3-06: unknown people writes are reconciled by a fresh read before the next write to the same target
+    def write_gate(self, target: str) -> str | None:
+        """None when a write to `target` may be sent; else why not: `outcome_pending` (an earlier write's call is still out - it
+        may yet be saved, or R4-07: another write to the target is being sent right now), `readback_required` (it is over, but no fresh
+        read has answered since)."""
+        with self._unsettled_lock:
+            blocked = self._gate_locked(target)
+        if blocked is None and self.journal is not None:
+            return self.journal.blocking(target)  # R5-A6: an unresolved write recorded by this or an earlier process
+        return blocked
+
+    def _journal_admit(self, target: str, key: str, lane: str) -> tuple[str | None, str | None]:
+        """R5-A6: after the in-memory admission, the durable side: (blocked, op id). An unresolved journal row holds the write
+        (`outcome_pending` / `readback_required`); otherwise the intent is recorded BEFORE dispatch - a journal that cannot record it
+        refuses the write (`journal_unavailable`, nothing sent). No journal installed: (None, None)."""
+        journal = self.journal
+        if journal is None:
+            return None, None
+        blocked = journal.blocking(target)
+        if blocked is not None:
+            return blocked, None
+        from .intercom_write_journal import JournalUnavailable
+
+        try:
+            return None, journal.begin(target, key, lane)
+        except JournalUnavailable:
+            return "journal_unavailable", None
+
+    def begin_external(self, target: str, key: str) -> tuple[str | None, str | None]:
+        """R5-A5: a people write that does NOT travel through `action` (the signed capture-lease confirm) takes the same per-person
+        admission: (blocked, op id). None = admitted - the caller MUST call `end_external` exactly once, whatever happens."""
+        blocked = self._admit(target)
+        if blocked is not None:
+            return blocked, None
+        blocked, op_id = self._journal_admit(target, key, "config")
+        if blocked is not None:
+            self._release(target)
+        return blocked, op_id
+
+    def end_external(self, target: str, op_id: str | None, outcome: str, code: str | None = None) -> None:
+        """R5-A5: the outcome of an externally sent people write. `unknown` keeps the target blocked until a fresh readback (the call
+        is over from this side when this is called; a later commit by the remote handler is what the readback is for)."""
+        try:
+            if outcome not in ("ok", "refused", "not_sent"):
+                with self._unsettled_lock:
+                    self._seq += 1
+                    self._unsettled[target] = {"since": time.monotonic(), "done_at": self._seq, "late": None}
+            if op_id is not None and self.journal is not None:
+                self.journal.finish(op_id, outcome if outcome in ("ok", "refused", "not_sent") else "unknown", code)
+        finally:
+            self._release(target)
+
+    def _gate_locked(self, target: str) -> str | None:
+        entry = self._unsettled.get(target)
+        if entry is None:
+            return "outcome_pending" if target in self._writing else None
+        return "outcome_pending" if entry["done_at"] is None else "readback_required"
+
+    def _admit(self, target: str) -> str | None:
+        """R4-07: check the target's gate AND register this write as in flight, atomically. None = admitted (the caller must `_release`)."""
+        with self._unsettled_lock:
+            blocked = self._gate_locked(target)
+            if blocked is None:
+                self._writing.add(target)
+            return blocked
+
+    def _release(self, target: str) -> None:
+        with self._unsettled_lock:
+            self._writing.discard(target)
+
+    def _tick(self) -> int:
+        """A strictly increasing sequence number (the wall and monotonic clocks tick in ~15.6 ms steps on Windows: two events in one
+        step would compare equal, and "read sent after the call was over" must be exact)."""
+        with self._unsettled_lock:
+            self._seq += 1
+            return self._seq
+
+    def note_readback(self, target: str, started: int, started_wall: float | None = None) -> None:
+        """A read of `target` that started at `started` (a `_tick`) has answered: it settles an unknown write whose call was over by then.
+        R5-A6: the journal's rows too - this process's own by the same sequence decision, an earlier process's by the wall clock
+        (`started_wall`) after the row's call was over (or its hold ran out)."""
+        memory = "absent"
+        with self._unsettled_lock:
+            entry = self._unsettled.get(target)
+            if entry is not None:
+                memory = "pending"
+                if entry["done_at"] is not None and started > entry["done_at"]:
+                    del self._unsettled[target]
+                    memory = "settled"
+        if self.journal is not None and started_wall is not None:
+            self.journal.readback(target, started_wall, memory)
+
+    def late_results(self) -> list[dict[str, Any]]:
+        """The late answers of writes this side stopped waiting for (newest last): key, lane, target, outcome, code, at."""
+        with self._unsettled_lock:
+            return [dict(r) for r in self._late]
+
+    def _follow_unknown(self, future: Any, key: str, lane: str, project: Callable[[Any], Any], target: str | None, waited_out: bool,
+                        on_late: Callable[[dict[str, Any]], None] | None, op_id: str | None = None) -> None:
+        """An `unknown` outcome: with a `target`, block further writes to it until a fresh read (write_gate); when this side stopped
+        waiting before the call was over (`waited_out`), classify the call's late answer once it comes (`_late`, `on_late`) - the
+        caller's reconciliation still reads the target fresh, a late answer is never taken as the state."""
+        entry: dict[str, Any] | None = None
+        if target is not None:
+            entry = {"since": time.monotonic(), "done_at": None, "late": None}  # done_at: the `_tick` at which the call was over
+            with self._unsettled_lock:
+                self._unsettled[target] = entry
+
+        def finished(f: Any) -> None:
+            record = None
+            if waited_out:
+                outcome, code = _late_outcome(f, project)
+                record = {"key": key, "lane": lane, "target": target, "outcome": outcome, "code": code, "at": now_iso()}
+                log.info("intercom: late answer to a %s command (%s) this side stopped waiting for: %s (%s)", lane, key, outcome, code)
+            with self._unsettled_lock:
+                if entry is not None:
+                    self._seq += 1
+                    entry["done_at"] = self._seq
+                    entry["late"] = record
+                if record is not None:
+                    self._late.append(record)
+            journal = self.journal
+            if op_id is not None and journal is not None:
+                # R5-A6: from now on a readback that STARTS later can settle the durable row too. A database write never runs on the
+                # feed's event loop (a busy database would stall the WisKey session): a call that ended later is recorded by a thread.
+                if inline[0]:
+                    journal.call_over(op_id)
+                else:
+                    threading.Thread(target=journal.call_over, args=(op_id,), name="intercom-journal", daemon=True).start()
+            if record is not None and on_late is not None:
+                try:
+                    on_late(dict(record))
+                except Exception:  # noqa: BLE001 - the caller's record of a late answer never breaks the loop
+                    log.warning("intercom: on_late callback failed")
+
+        inline = [True]
+        future.add_done_callback(finished)  # runs at once (in this thread) when the call is already over
+        inline[0] = False
 
     def action(
         self,
@@ -902,6 +1168,8 @@ class IntercomSync:
         slot_wait: float = 0.0,
         free: bool = False,
         on_result: Callable[[dict[str, Any], str], None] | None = None,
+        target: str | None = None,
+        on_late: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
         session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
@@ -918,10 +1186,15 @@ class IntercomSync:
         scheduled, else when WisKey answered, the session ended, or ha_client's own call limit expired - which can be
         well after this method gave up waiting (ACTION_TIMEOUT_S). `on_result(reply, outcome)`: see `_execute` - the
         caller's own record of the outcome, made before the lane's slot can go to anyone else. Returns the
-        `command`-shaped reply on success."""
+        `command`-shaped reply on success.
+
+        R3-06: `target` (a people write's person, `person:<id>`): after an `unknown` outcome no further write to that target is
+        sent (409 `intercom_outcome_pending`, nothing sent) until a fresh `command(..., target=)` read has answered - the next
+        decision is made on the readback, never by replaying. `on_late(record)`: called once with the classified late answer
+        (`ok` / `refused` / `unknown`) when this side stopped waiting (the local timeout) and the call ends later."""
         timeout = {"config": CONFIG_TIMEOUT_S, "capture": CAPTURE_TIMEOUT_S}.get(lane, ACTION_TIMEOUT_S)
         reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait, free=free,
-                                       on_result=on_result)
+                                       on_result=on_result, target=target, on_late=on_late)
         if outcome != "ok":
             raise action_error(reply, outcome, lane)
         return reply
@@ -942,6 +1215,8 @@ class IntercomSync:
         bucket: str | None = None,
         on_result: Callable[[dict[str, Any], str], None] | None = None,
         channel: str = "service",
+        target: str | None = None,
+        on_late: Callable[[dict[str, Any]], None] | None = None,
     ) -> tuple[dict[str, Any], str]:
         """`command`'s body. Also returns what is known about the command itself: `not_sent` (nothing reached WisKey),
         `refused` (WisKey answered with an error: a genuine refusal), `unknown` (sent, but no usable answer: timeout,
@@ -964,16 +1239,53 @@ class IntercomSync:
             reply["sync"] = STATE.as_dict()
             settled()
             return reply, "not_sent"
+        # R3-06 / R4-07: an earlier write to this target has no clear outcome yet (read it fresh first), or another write to it is being
+        # sent: refused, nothing sent. The check and this write's registration are ONE step (`_admit`), so two callers can never both pass.
+        blocked = self._admit(target) if target is not None else None
+        op_id: str | None = None
+        if blocked is None and target is not None and lane != "read":
+            blocked, op_id = self._journal_admit(target, key, lane)  # R5-A6: durable intent BEFORE dispatch (or the durable hold)
+            if blocked is not None:
+                self._release(target)
+        if blocked is not None:
+            reply.update(state="error", last_error=blocked, sync=STATE.as_dict())
+            settled()
+            return reply, "not_sent"
+        recorded = False
+        try:
+            reply, outcome = self._execute_admitted(settings, reply, loop, key, send, project, who, timeout, lane, not_after, settled, slot_wait, free, bucket,
+                                                    on_result, channel, target, on_late, op_id)
+            recorded = True
+            return reply, outcome
+        finally:
+            if op_id is not None and not recorded:
+                self.journal.finish(op_id, "unknown", "error")  # an unexpected failure after admission: unresolved, never "not sent"
+            if target is not None:
+                self._release(target)  # after an `unknown` outcome `_follow_unknown` has already registered the target as unsettled
+
+    def _execute_admitted(self, settings: Settings, reply: dict[str, Any], loop: Any, key: str, send: Callable[[intercom_client.Call], Awaitable[Any]],
+                          project: Callable[[Any], dict[str, Any]], who: str, timeout: float, lane: str, not_after: datetime.datetime | None,
+                          settled: Callable[[], None], slot_wait: float, free: bool, bucket: str | None,
+                          on_result: Callable[[dict[str, Any], str], None] | None, channel: str, target: str | None,
+                          on_late: Callable[[dict[str, Any]], None] | None, op_id: str | None = None) -> tuple[dict[str, Any], str]:
+        journal = self.journal if op_id is not None else None
+
+        def record(outcome: str, code: Any) -> None:
+            if journal is not None:  # R5-A6: the outcome as this side knows it (`unknown`: the call's end is recorded by _follow_unknown)
+                journal.finish(op_id, outcome, code, over=outcome != "unknown")
+
         slot = {"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight, "message": self._message_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
         acquired = slot.acquire(timeout=slot_wait) if slot_wait > 0 else slot.acquire(blocking=False)
         if not acquired:  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
             settled()
+            record("not_sent", "busy")
             return reply, "not_sent"
         if not free and not self._spend_token(who, bucket or lane):
             slot.release()
             reply.update(state="error", last_error=RATE_LIMITED, sync=STATE.as_dict())
             settled()
+            record("not_sent", RATE_LIMITED)
             return reply, "not_sent"
         coro = self._one_off(send, not_after, channel)
         try:
@@ -983,6 +1295,7 @@ class IntercomSync:
             slot.release()
             reply.update(state="ha_unavailable", last_error=type(exc).__name__, sync=STATE.as_dict())
             settled()
+            record("not_sent", type(exc).__name__)
             return reply, "not_sent"
 
         # the slot is freed when BOTH are through: the call itself (answer, session end, or ha_client's own 60 s limit -
@@ -1007,7 +1320,17 @@ class IntercomSync:
 
         future.add_done_callback(done)
         try:
-            return self._settle(future, reply, key, project, timeout, lane, on_result)
+            try:
+                reply, outcome = self._settle(future, reply, key, project, timeout, lane, on_result)
+            except BaseException:
+                record("unknown", "error")
+                if journal is not None:
+                    future.add_done_callback(lambda _f: threading.Thread(target=journal.call_over, args=(op_id,), daemon=True).start())
+                raise
+            record(outcome, reply.get("last_error"))  # before _follow_unknown: its callback records the call's end
+            if outcome == "unknown" and lane != "read":
+                self._follow_unknown(future, key, lane, project, target, reply.get("last_error") == "timeout", on_late, op_id=op_id)
+            return reply, outcome
         finally:
             let_go()
 

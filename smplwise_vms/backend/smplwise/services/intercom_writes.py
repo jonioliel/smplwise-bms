@@ -154,7 +154,7 @@ def read_person(settings: Settings, auth: ia.Authority, user_id: str) -> dict[st
     (intercom_adapter.project_person). Not found is the uniform answer; a feed that cannot answer refuses the write (nothing sent)."""
     try:
         reply = intercom_sync.SYNC.command(settings, "person", lambda call: intercom_client.users_get(call, user_id), intercom_adapter.project_one_person,
-                                           who=auth.principal.user_id)
+                                           who=auth.principal.user_id, target=intercom_sync.person_target(user_id))
     except ApiError as exc:
         if exc.code == "intercom_person_not_found":
             raise uniform_not_found() from None
@@ -297,12 +297,17 @@ def project_editor_extras(raw: Any) -> dict[str, Any]:
             },
         }
     category = raw.get("access_category")
+    # WisKey round 3 (R3-03): a withheld `access` category arrives as access_category "staff" and "" responsible / purpose, a
+    # withheld photo as false - WisKey's blanks, not the person's values: unknown here
+    scope = intercom_sync.person_scope(raw)
+    access = scope["access_readable"]
+    photo_known = scope["redacted_fields"] is not None and "photo" not in scope["redacted_fields"]
     return {
         "archived": raw.get("archived_at") is not None,
-        "access_category": category if category in ("staff", "visitor", "contractor") else "unknown",
-        "responsible_person": _str(raw.get("responsible_person"), 64),
-        "access_purpose": _str(raw.get("access_purpose"), 128),
-        "photo_configured": raw.get("photo_configured") if isinstance(raw.get("photo_configured"), bool) else None,
+        "access_category": category if access and category in ("staff", "visitor", "contractor") else "unknown",
+        "responsible_person": _str(raw.get("responsible_person"), 64) if access else None,
+        "access_purpose": _str(raw.get("access_purpose"), 128) if access else None,
+        "photo_configured": raw.get("photo_configured") if photo_known and isinstance(raw.get("photo_configured"), bool) else None,
         "timing_draft": draft,
         "timing_policy": policy_view,
     }

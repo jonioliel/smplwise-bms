@@ -214,6 +214,14 @@ def suggested_doors(conn, ticket: dict[str, Any]) -> dict[str, list[int]]:
     return out
 
 
+def _same_ticket(live: dict[str, Any], ticket: dict[str, Any], assignment: dict[str, Any]) -> bool:
+    """Does the person's live grant belong to the ticket / assignment of this page? A grant carrying an assignment must carry THIS
+    assignment; a grant without one (a manager's ticket-level request) must name this ticket. A manual grant (no ticket) never does."""
+    if live.get("assignment_id"):
+        return live["assignment_id"] == assignment["id"]
+    return live.get("source_ref") is not None and live.get("source_ref") == ticket["id"]
+
+
 def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetime, client_key: str = "") -> tuple[int, dict[str, Any]]:
     from .tickets import handler_actions, store_links
     from .tickets.public_store import audit_link
@@ -244,6 +252,10 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
     if other is not None:  # T8: one live request per assignment - a change of technician goes through the manager
         raise Refused(409, "arrival_other_person")
     live = ag.live_grant_of(conn, "contact", person_id)
+    if live is not None and not _same_ticket(live, ticket, assignment):
+        # F6 (grants-worker review M7): the person's one live grant belongs to another ticket / assignment (or to no ticket at all). The
+        # page of THIS ticket never amends it - not a narrowing, not a widening request; a multi-ticket technician is the manager's case.
+        raise Refused(409, "arrival_other_ticket")
     doors = json.loads(live["doors_json"]) if live is not None and live["state"] in ag.DECIDED else suggested_doors(conn, ticket)
     if not doors:  # HARDEN271 K1: nothing to suggest = a request no approver could approve; the transaction rolls back
         raise Refused(409, "no_doors_suggested")
@@ -263,5 +275,9 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
                                      assignment_id=assignment["id"], at=at, data={"outcome": outcome, "outside_window": outside}, visible_external=True)
     audit_link(conn, link, "access.grant.request", outcome=outcome, outside_window=outside)
     ag.notify_request(conn, g["id"])
-    answer = {"ok": True, "state": "waiting" if g["state"] == "requested" else "approved", "outcome": outcome, "outside_window": outside}
+    # R5-A3: "approved" is a human decision, never a claim that WisKey holds the scope: the grant's own state and whether the scope is
+    # proven (a fresh central readback) travel with it, so a pending narrowing or an unknown outcome is not read as applied
+    sync = ag.sync_status(g)
+    answer = {"ok": True, "state": "waiting" if g["state"] == "requested" else "approved", "outcome": outcome, "outside_window": outside,
+              "grant_state": g["state"], "pending_sync": sync["pending_sync"], "scope_verified": sync["scope_verified"]}
     return handler_actions._finish(conn, link, crid, 200, answer)

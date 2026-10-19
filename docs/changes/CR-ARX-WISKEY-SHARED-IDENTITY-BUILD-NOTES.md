@@ -116,3 +116,193 @@ Review: `private/planning/RELEASE_270_REVIEW_CONSOLIDATED.md` section 2. Negativ
 - K5 (2.8.0, branch pilot/TECHPRIVACY280): notice version `n2` - third-person notice in he/en/ar/ru, vendor attestation (`NOTICE_ATTEST`), ar/ru code messages (no more English for ar/ru), `acknowledged_for` in the notice audit details. Wording adopted by the lead under the owner's delegation on 2026-10-18; owner sign-off still required before go-live (`GO_LIVE_PERMITTED` stays False).
 - Not changed: K7 (optional). Backups: `access.external_grants` and every `access.external.*` limit are in
   `backup.SETTINGS_KEEP` (never exported, never restored).
+
+## WisKey answers (static source reading, 2.8.0 adapter fixes)
+
+Statements WisKey gave for the access engine port (`services/access_grant_engine.py`). They come from WisKey reading its own source, not from a run against a live WisKey (NOT_RUN).
+
+- After a write is dispatched, its state on the Arx side is `sent_unknown` until a fresh read says otherwise. Cancelling is not a rollback: a cancelled write may still have landed.
+- Sync completion is known only from the `desired_revision` / `applied_revision` readback, never from the write's acknowledgement.
+- `users/delete` answers `accepted` and leaves a `delete_pending` tombstone; the person and its station removals are not gone at that point.
+- `users/create` for category contractor/visitor needs a valid timezone-aware `valid_from` < `valid_until` (1970-01-01 .. 2037-12-31T23:59:59Z, normalised to UTC, fractional seconds dropped) even when `active` is false (`invalid_validity` otherwise). `phone`, `responsible_person` and `access_purpose` are never sent as null (`access_purpose` may be an empty string; `responsible_person` is non-empty after strip). Name: at most 32 Unicode code points. `employee_no`: ASCII `[A-Za-z0-9_-]`, 1..32.
+- `door_permissions: {}` does NOT remove existing grants, and the person result (`ManagedUser.public`) carries no `door_permissions`.
+
+Arx adapter behaviour that follows: the create payload always carries a validity pair; the revoke write (`strip_payload`) no longer sends `door_permissions: {}` and a revoke is reported done only when a readback shows the person inactive, PIN cleared and the door map known and empty; a person record without a door map is `doors_known=False` (unknown, never "no doors"), so the revoke stays `revoking` and is retried.
+
+Open questions for WisKey: which call really removes a person's door grants (and whether `door_permissions` on update replaces or merges per station, which also decides whether a narrowing `apply` removes a dropped station); whether any read returns the door map (without it the live revoke cannot complete).
+
+## WisKey answers, round 2 (2026-10-18) - WisKey-stated, source-derived, NOT_RUN on hardware
+
+Source: `private/planning/wiskey_reply2_answer_2026-10-18/` (WisKey's static reading of its pinned code, c0b2d94c; no command was sent, no
+response captured). The Arx service-channel wrapper (`intercom_client` / `intercom_sync`) was NOT reviewed by WisKey. Everything below is
+implemented against the fake engine only (`tests/fake_wiskey.py`); nothing ran against a WisKey, a station or a door.
+
+- **Revoke-all** is one revision-checked `users/update` with `sync_now` and `data = {group_ids: [], permission_overrides: {}, active: false, pin: null}`.
+  `door_permissions: {}` does not remove grants; `permission_overrides` is never combined with legacy `assignments`. `pin: null` is the explicit PIN
+  clear (omitting `pin` keeps it, `""` is invalid) - the ONE allowed null; `phone`, `responsible_person`, `access_purpose` are never null. A successful
+  update answers the public person object directly (revision + 1). `strip_payload()` sends exactly this.
+- **Narrowing** replaces the COMPLETE `permission_overrides` dict: the dropped station is set to `"deny"`, every other personal entry is kept (a one-entry
+  dict is not a merge). Dropping a station from `door_permissions` does not revoke it; `door_permissions` replaces the lock list of each supplied station
+  only; an empty lock list (`unmanaged_lock`) and a key outside the resolved stations (`invalid_assignments`) are rejected. `plan_overrides()` /
+  `push_scope()` build the replacement (new stations get `"allow"`); on a restricted projection nothing is sent (`not_sent projection_restricted`).
+- **Reading the door map**: `users/get` returns `ManagedUser.public` with `assignments` (config_entry_id, enabled, allowed_locks, desired_revision,
+  applied_revision, sync_state, last_error), `group_ids`, `permission_overrides`; there is no `door_permissions` key. Arx projects enabled assignments ->
+  `allowed_locks` (disabled rows keep historical locks and are skipped). The result is UNKNOWN (`doors_known=False`, never known-empty) when
+  `redacted_fields` names an access field or `assignments` / `permission_overrides` / `group_ids` are missing; `pin_known=False` when credential fields may be
+  unreadable (then `pin_configured=false` proves nothing). A person missing from a scoped list is not proof of absence (open question below).
+- **After a revoke there is no revision row**, so an empty `assignments` map is not proof of physical removal. The worker keeps the grant `revoking` until a
+  fresh central readback shows the expected state (door map known and empty, no groups, no overrides, inactive, PIN known cleared) AND
+  `Engine.revocation_pending()` (central sync status) reports no pending revocation. It never reports revoked from the update result. The live engine
+  returns UNKNOWN for the sync status (no confirmation endpoint is asserted; Arx's overview projection drops revocations), so a live revoke stays `revoking`
+  until the pinned service-channel source shows where it can be read.
+- **employee_no** is server-generated (nine digits) when omitted on create and retained when omitted on update; it can change before `identity_locked`.
+  Arx omits it on create, stores what the server returns (`EnginePerson.employee_no`) and never sends it on update; it is not assumed immutable.
+- **Revoke loop (Fable review H2/F1)**: after one successful write, retries are reads only (no repeated `users/update` while the readback shows nothing left
+  to remove or the projection is restricted); exponential backoff 15 s ... capped 5 min using `revoke_attempts` / `updated_at`; the managers are alerted at
+  2 minutes and again each hour in `revoking`.
+- **F5**: `deliver_code` and `resolve_unknown` honour `doors_known` (unknown stays unknown: no code, no verdict); with the assignments projection a real WisKey
+  yields a known door map.
+
+Open questions for WisKey: where the central sync status / pending revocations can be read through the service channel (and its pinned `intercom_client` /
+`intercom_sync` source); whether `users/get` of a person outside the caller's scope answers `user_not_found` (Arx maps that to "WisKey person missing").
+
+## WisKey round 3 (2026-10-18) - R3-03..R3-08, branch pilot/WISKEYR3-280
+
+Source: `private/planning/wiskey_reply3_answer_2026-10-18/` (WisKey's static review of `intercom_client.py` / `intercom_sync.py` at 2.7.2 and its own pinned
+source c0b2d94c; PROPOSED, NOT_RUN). Implemented against fakes only; nothing ran against a WisKey, a station or a door.
+
+- **R3-03 scope through the projection.** `intercom_sync.person_scope` reads WisKey's `redacted_fields` (category names `access`, `credentials`, `phone`, `photo`,
+  `profile`) and `operator_editable`. Either marker means a projection for a restricted caller whose assignments may be station-filtered (even with an empty
+  `redacted_fields`), so `stations_known` is false. `project_person` / `project_person_editor` keep `stations: []` but add `access_known`, `stations_known`,
+  `credentials_known`, `redacted_fields`, `operator_editable`, `access_category` (null when withheld); a withheld PIN flag / phone is null, never false / "";
+  the editor extras show category "unknown" and null responsible person / purpose when `access` is withheld (WisKey's blank "staff" is not the person's).
+  `person_from_raw` uses the same reading, so `Worker._revoked` never counts a restricted or redacted readback.
+- **R3-04 profile codes.** `profile_required`, `profile_value_invalid`, `profile_value_not_unique` are pre-storage refusals of every `_USER_WRITE_REFUSED`
+  command (not users/delete): 422 `intercom_profile_required` / `intercom_profile_invalid` / `intercom_profile_not_unique`. `profile_issue` stays unknown.
+- **R3-08 strict reads.** `intercom_client._result` and `intercom_adapter._ask` accept only `success: true` / `false`; anything else is `invalid_response`.
+  A committed write whose answer the projection rejects stays `unknown` (unchanged, now tested, also for late answers).
+- **R3-06 / R3-07 no retry without a fresh readback.** `IntercomSync.action(..., target=person:<id>)`: after an `unknown` outcome the next write to that
+  person is refused here, nothing sent (409 `intercom_outcome_pending`, `details.wiskey_code` `outcome_pending` while the call is still out,
+  `readback_required` once it is over) until a `command(..., target=)` read that STARTED after the call was over has answered (a record or `user_not_found`).
+  Wired into the editor writes (update, delete, archive / unarchive / set_active / temporary_cancel / cards) and their reads, and the grants engine
+  (`get_person` refuses `not_sent outcome_pending` while the write is out, so `resolve_unknown` decides nothing on such a read).
+- **R3-06 late results.** When the 35 s local wait runs out, the call is still not cancelled; its eventual answer is classified (`ok` / `refused` /
+  `unknown`) into `IntercomSync.late_results()` (ids and codes only, last 50) and an optional `on_late` callback. It is diagnostics: the HTTP 504 is never
+  rewritten and the state is still taken from the fresh readback.
+- **users/get `user_not_found` is not proof of absence.** The worker no longer ends a grant on it: provisioning moves the grant to `revoking`
+  (reason `wiskey_missing`, link marked) instead of `revoked`; the revoke path stays `revoking` (backoff, hourly manager alerts) instead of finishing; an
+  approval whose linked person is not found is refused 409 `access_person_missing` (the approver's authority over the person's other stations cannot be
+  checked). Consequence: a person really deleted outside Arx leaves its grant `revoking` with hourly alerts (no automatic end; a manual "confirmed gone" path is NOT built - open item).
+
+## WISKEYFINAL-280 (2026-10-19) - the composed worker: round 3 + GRANTS-FIX280 intent + WisKey round 4, branch pilot/WISKEYFINAL-280
+
+Base: pilot/WISKEYR3-280 (275c3a008). pilot/GRANTS-FIX280 (f8a17cb79) was cut from 2.7.3 and is NOT merged: its intent (F2, F3, F4, F6)
+is ported onto the round-3 worker, so the round-3 protections stay (user_not_found never ends a grant, revoke only on a complete readback AND
+the sync status, backoff and hourly re-alerts, 409 `access_person_missing`, server-generated employee_no). Source of the round-4 findings:
+`private/planning/wiskey_reply4_answer_2026-10-19/` (WisKey's STATIC review, PROPOSED, NOT_RUN). Everything below runs against fakes only
+(`tests/test_wiskey_final280.py`, 41 cases; 36 of them red on 275c3a008). Nothing ran against a WisKey, a station, a door or WhatsApp.
+
+- **F2 / R4-04 narrowing proof.** `access_grants.scope_proven(readback, scope)`: the COMPLETE scope - door map KNOWN (fail closed: an absent
+  `doors_known` is not "carried"), active, enabled stations and relays equal to the grant's, no group, the validity window AND the timing
+  schedule. `push_narrowing` reads first (a scope already there - a write whose readback failed - is proven without a second write), writes, reads
+  again, and clears `needs_push` only by a compare-and-set on the row revision the pass read (`push_superseded` otherwise). An unprovable readback
+  revokes the grant (`station_changed`). `pushed` means the CENTRAL desired state was read back (`central_only: true`); `EnginePerson.stations_synced`
+  (every enabled assignment `synced` with applied_revision == desired_revision) is recorded beside it, never taken as physical completion.
+  `deliver_code` uses the same predicate before a PIN is generated.
+- **R4-03 unknown settlement.** `resolve_unknown` writes its verdict only by a compare-and-set on the row revision it read; a narrowing that landed
+  while the read was out leaves the grant `unknown` (audit `scope_moved`) for a fresh read against the CURRENT scope. `request_grant` and the
+  re-decision set `needs_push` for an `unknown` row too; a fresh read that shows the earlier, broader scope of such a row activates it only with
+  `needs_push` kept, so the narrowing is written and proven on the next pass. Anything else fails the grant.
+- **F3 / R4-05 origin guard at every write.** Approval (after the caller's authority) and provisioning refuse a person Arx did not create
+  (409 `access_person_not_ours`; a link matched after approval fails the grant with `pushed` restored - nothing written). `resolve_unknown`,
+  `push_narrowing`, `strip` and `deliver_code` re-read the grant's link and never write through a matched one: the authority is withdrawn in Arx
+  (`failed`), a grant that may have reached WisKey stays `revoking` with no WisKey call (audit `revoke_retry code=person_not_ours`, hourly alerts) -
+  the matched person is reconciled by hand; no automatic "done" (open item, see R4-10).
+- **F4 / R4-06 one process, never two writers.** Precondition "workers=1" (`python -m smplwise` hands uvicorn an app object). Checked by an exclusive
+  non-blocking OS lock on ONE canonical path, `<db dir>/.<db name>.access-grants.lock` (hidden so no `<db name>*` sweep reads it while locked).
+  Every entry point (`run_once`, `run_grant`) needs the lease (taken when free; a standby process takes over once the owner is gone and only then
+  runs the start-up rewrite). `stop()` gives the lease up only when no pass can still be writing: a pass that outlives the bounded wait keeps it and
+  drops it itself when it ends. The lock does not cover API-triggered work outside the worker (`delete_person_now`, editor writes) - those are
+  guarded per person by R4-07.
+- **F6 vendor page.** `access_arrival.request` refuses 409 `arrival_other_ticket` when the person's live grant belongs to another ticket /
+  assignment or to no ticket; nothing is written (the public transaction rolls back).
+- **R4-07 per-person write gate.** `IntercomSync._admit` checks the target's gate AND registers the write as in flight in one step under the gate's
+  lock, before the lane slot is waited for; a second write to the same person (or the engine's readback, or a PIN generation) while one is out is
+  refused 409 `intercom_outcome_pending`, nothing sent. Targets: every people write with a person id (editor update / delete / archive / set_active /
+  temporary_cancel / cards, card-capture confirm - added - and the grant engine's apply / strip / delete), the readbacks (`users/get` of the editor,
+  of the grant engine and - added - of the read adapter's person pages). `users/pin_generate` is a read in WisKey: it carries no target (it must not
+  count as the settling readback) but both the editor route and the engine refuse it while the person's gate is closed. `users/create` has no person
+  yet and is not idempotent (a wire id is not a business key) - unchanged, stated.
+- **R4-08 reserved frame keys.** `wiskey_channels.guard` refuses a keyword `type` / `id` (IntercomError `reserved_frame_key`, nothing sent) and
+  `ha_client.call` refuses them too and serialises its own `id` / `type` last (`{**kw, "id": mid, "type": msg_type}`).
+- **R4-09 read adapter completeness.** `intercom_adapter.project_person` uses `intercom_sync.person_scope`: `access_known`, `stations_known`,
+  `redacted_fields` are served; a field-named access redaction (`assignments`, `group_ids` ...) or a malformed marker withholds the category
+  (assignments null, never an empty list). `intercom_authority.view_person` adds `stations_known`, false whenever WisKey's record is restricted or the
+  principal does not see every assignment.
+- **R4-13 employee_no.** Unchanged from round 2 and now tested: create omits it, the link stores the value the engine returns, update never sends it.
+- **R4-01 / R4-02.** The composed worker is the ONE worker (`services/access_grants.py`, imported by the router); the engine port
+  (`services/access_grant_engine.py`) and the editor callers (`routers/access_control.py`, `routers/access_control_writes.py`,
+  `services/intercom_writes.py`, `services/intercom_adapter.py`) are in the same tree for the round-5 review.
+
+Open items (not built): an administrative acknowledgement for a grant stuck in `revoking` (person gone outside Arx, or a matched person reached
+by an older build) that never claims physical removal; a readable central sync status for `revocation_pending` (the live engine answers UNKNOWN,
+so a live revoke stays `revoking`); persistence of the in-memory write gate across a restart (a restart forgets an unsettled write - the worker's
+own start-up rewrite moves a cut provisioning to `unknown`, editor writes have no such record).
+
+## WISKEYFINAL2-281 (2026-10-19) - WisKey round 5 (Part A, R5-A1..R5-A7), branch pilot/WISKEYFINAL2-281
+
+Base: pilot/WISKEYFINAL-280 (f1ef57d5). Source: `private/planning/wiskey_reply5_answer_2026-10-19/PART_A_STATIC_REVIEW.txt` (WisKey's STATIC
+review, PROPOSED, NOT_RUN). Owner/lead decision: accept R5-A1..A7. Fakes only: `tests/test_wiskey_final281.py` (50 cases, 44 red on f1ef57d5).
+Nothing ran against a WisKey, Home Assistant, a station, a door, a reader or WhatsApp. `GO_LIVE_PERMITTED` stays False.
+
+- **R5-A0** (delivery: flattened worker/router name collision) - nothing to build on the Arx side.
+- **R5-A1 unknown create without a link.** Every worker `users/create` is journaled (`intercom_write_ops`, target `create:grant:<id>`): an
+  `intent` row is written in the SAME transaction that marks the grant `pushed`, moved to `dispatched` and committed before the call, and
+  closed `ok` (with the returned person id, in the link's transaction) / `refused` / `not_sent` / `unknown`. A grant with no link is decided
+  by that journal (`create_verdict`): a create that answered (or a recovered target) is linked and handled like any other person; one that
+  provably never landed (refused / not sent / never dispatched) closes the grant WITHOUT a revocation claim (audit `access.grant.closed`
+  `no_person_created`, not counted as `revoked`; a refused create at provisioning restores `pushed`, so it ends at once); anything else -
+  an unresolved create, or a legacy `pushed` grant with no record at all - stays `revoking` with NO WisKey call (`revoke_retry`
+  `create_unresolved`, backoff, hourly manager alerts): never `failed` / `revoked`, never audited `access.grant.revoked`. No second create for
+  a subject while one is unresolved (`access.grant.provision_held`). Hook: `access_grants.attach_recovered_person(db, grant_id, person_id)`
+  (service level, no route) links a recovered target to an UNRESOLVED create of that grant, after which the normal revoke (read, strip,
+  readback, sync status) runs. No WisKey idempotency key or employee/PIN workaround is assumed.
+- **R5-A2 the whole timing policy.** `EnginePerson.timing_policy` keeps mode / schedule / bindings as returned (an absent key stays absent);
+  `scope_proven` requires exactly the policy a grant push writes (`requested_policy`: `{mode: "ha", schedule, bindings: {}}`, or no policy
+  without timing) and `readback_covers` only compares a policy of that form. A native-mode policy or bindings with the same schedule is
+  NOT proven (fail closed). The schedule is compared EXACTLY: the requested one is already in `intercom_writes.timing_draft` normal form, but
+  WisKey's stored-policy normaliser is not an accepted contract (ACR5-02 is a proposal), so Arx does not re-normalise the readback - an
+  equivalent but reordered schedule fails closed (never widened).
+- **R5-A3 presentation.** `present()` serves `grant_state`, `needs_push`, `pending_sync`, `scope_verified`, `doors_state` (`desired` until a
+  fresh central readback proved the scope, then `verified_central` - never a station-sync claim) and the attention `sync_pending` for an
+  active grant with a narrowing still to push. The arrival reply keeps `state: approved` (a human decision) and adds `grant_state`,
+  `pending_sync`, `scope_verified`.
+- **R5-A4 incomplete before-scope.** `intercom_authority.person_station_ids` answers None (unknown) when the record says `stations_known` /
+  `access_known` false, so `check_person`, the messaging caps and the people views require an unrestricted grant (or refuse / hide);
+  the grant approval and the manual match use the linked person's stations only when the record is complete (`doors_known` and
+  `overrides_known`), else every involved permission must be held installation-wide. A record WITHOUT the marker keeps the old reading
+  (every projection Arx builds carries it).
+- **R5-A5 signed capture-lease confirm.** `_lease_confirm` checks the person's gate before signing, then takes the same atomic per-person
+  admission (`IntercomSync.begin_external`, after the attempt row's commit) and records the outcome (`end_external`; `unknown` keeps the
+  person blocked until a fresh readback). The capture DTO, lease duration, authority and transport are unchanged.
+- **R5-A6 durable intent and recovery hold.** New table `intercom_write_ops` (migration **0121**, provisional 0119 on the branch, see below) and
+  `services/intercom_write_journal.py`. `IntercomSync` records every targeted person write before dispatch (`dispatched`) and its outcome
+  after; a journal that cannot record refuses the write (nothing sent). An unresolved row (an `unknown` outcome, or a `dispatched` row of
+  another process - restart or standby takeover) blocks the next write to that person (409 `intercom_outcome_pending`) and also PIN
+  generation; a fresh targeted readback settles it only when it STARTED after the row's call was over - for a row of a process that is
+  gone, after `HOLD_S` (75 s, the transport's own call limit) past its start; until then the gate answers `outcome_pending` and the grant
+  engine does not read. No PIN, hash, card number, name or phone is stored. Installed in `main.py` at start-up (None in tests that do not
+  start the app). Limit: a fresh snapshot after the hold is still not a distributed exactly-once proof.
+- **R5-A7 malformed input.** `person_from_raw`: the id must be a non-empty string and the revision an int that is not a bool (else not a
+  person); a malformed assignment row / lock list / `enabled` / override value / group id makes the door map UNKNOWN (never skipped, so it
+  cannot shrink a known map); bool bookkeeping revisions are missing; no enabled assignment gives `stations_synced` None (no evidence).
+
+**Migration number.** Provisional `0119_intercom_write_ops.sql` on the branch (then the next free number after 0118). Renumbered at
+integ/281 to **`0121_intercom_write_ops.sql`**: 2.8.0 shipped 0119 (elevator history / alerts) and 0120 (manager-dashboard indexes), so
+`scripts/release_check.py` (contiguous 0001..N) passes with 0001..0121. The content does not depend on the number.
+
+**Hooks left for the proposed WisKey contracts (NOT built - ACR5-01..04 are proposals, not accepted on the wire):** ACR5-01
+`users/access_state` -> a reader that feeds `attach_recovered_person` / `create_verdict` and `Engine.revocation_pending` (still None);
+ACR5-02 `schedules/normalize_user` -> `access_grants._policy_is` (today exact equality); ACR5-03 presence diagnostics -> the open
+"externally deleted person" acknowledgement (decision (a), still open: `revoking` with hourly alerts); ACR5-04 feature dry-plans -> nothing
+consumes them yet.

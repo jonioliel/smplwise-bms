@@ -997,7 +997,16 @@ class FakeAccessEngine:
 
     Switches: `offline` (every call -> not_sent), `pin_conflicts` (the next N PIN writes -> pin_conflict), `fail` ({method: kind},
     one-shot), `unknown_after_apply` (the next apply LANDS and then answers unknown), `unknown_before_apply` (the next apply does
-    NOT land and answers unknown). `calls` records method names only (never a PIN)."""
+    NOT land and answers unknown). `calls` records method names only (never a PIN).
+
+    WisKey-stated semantics (reply 2, 2026-10-18; source-derived, NOT_RUN on hardware) that the fake models: the person view is built from a
+    `ManagedUser.public`-shaped dict by the REAL `person_from_raw` (no `door_permissions`; the door map is the enabled `assignments`);
+    `door_permissions` replaces the lock list of each supplied station only and a key outside the resolved stations is refused; a station is
+    dropped only through the COMPLETE `permission_overrides` replacement ("deny"); revoke-all = group_ids [] + overrides {} + inactive + PIN
+    cleared; employee_no is server-generated (nine digits) when omitted. More switches: `hide_doors` (access fields redacted ->
+    assignments {} + redacted_fields), `restricted_projection` (access AND credential fields redacted: pin_configured False proves nothing),
+    `sync_lag` (a strip leaves a pending revocation until `settle_revocations()`), `status_unknown` (revocation_pending -> None).
+    `updates` records the (method, overrides, door keys) of every write, never a PIN."""
 
     PIN_SENTINELS = ("913377", "913378", "913379", "913380", "913381", "913382", "913383", "913384")
 
@@ -1010,6 +1019,12 @@ class FakeAccessEngine:
         self.fail: dict[str, str] = {}
         self.unknown_after_apply = False
         self.unknown_before_apply = False
+        self.hide_doors = False  # access fields redacted: every view reports doors_known=False (assignments {} + redacted_fields)
+        self.restricted_projection = False  # access AND credential fields redacted (pin_configured False is not proof)
+        self.sync_lag = False  # a strip leaves a pending revocation until settle_revocations()
+        self.status_unknown = False  # revocation_pending answers None
+        self.pending_revocations: set[str] = set()
+        self.updates: list[dict[str, Any]] = []
         self.calls: list[str] = []
         self.deleted: list[str] = []
         self._pins = list(self.PIN_SENTINELS)
@@ -1028,13 +1043,35 @@ class FakeAccessEngine:
         if method in self.fail:
             raise self._err(self.fail.pop(method))
 
-    def _view(self, p: dict[str, Any]):
-        from smplwise.services.access_grant_engine import EnginePerson
+    def _raw(self, p: dict[str, Any]) -> dict[str, Any]:
+        """The ManagedUser.public shape (no door_permissions) the real parser reads."""
+        rows: dict[str, Any] = {}
+        for sid, locks in p["doors"].items():
+            rows[sid] = {"config_entry_id": sid, "enabled": True, "allowed_locks": list(locks), "desired_revision": p["revision"],
+                         "applied_revision": p["revision"], "sync_state": "synced", "last_error": None}
+        for sid in sorted(set(p["overrides"]) - set(p["doors"])) + [x for x in p.get("other_stations", ()) if x not in p["doors"]]:
+            rows.setdefault(sid, {"config_entry_id": sid, "enabled": False, "allowed_locks": [1], "desired_revision": p["revision"],
+                                  "applied_revision": p["revision"], "sync_state": "synced", "last_error": None})
+        raw: dict[str, Any] = {"id": p["id"], "revision": p["revision"], "display_name": p["display_name"], "employee_no": p["employee_no"],
+                               "active": p["active"], "valid_from": p["valid_from"], "valid_until": p["valid_until"], "assignments": rows,
+                               "group_ids": list(p["group_ids"]), "permission_overrides": dict(p["overrides"]), "pin_configured": p["pin"] is not None,
+                               "access_category": p["category"],
+                               "access_timing_policy": {"mode": "ha", "schedule": copy.deepcopy(p["timing"]), "bindings": {}} if p["timing"] else None}
+        redacted: list[str] = []
+        if self.hide_doors or self.restricted_projection:
+            raw.update({"assignments": {}, "group_ids": [], "permission_overrides": {}})
+            redacted += ["assignments", "group_ids", "permission_overrides"]
+        if self.restricted_projection:
+            raw["pin_configured"] = False
+            redacted += ["pin_configured", "cards"]
+        if redacted:
+            raw["redacted_fields"] = redacted
+        return raw
 
-        return EnginePerson(id=p["id"], revision=p["revision"], display_name=p["display_name"], active=p["active"], valid_from=p["valid_from"],
-                            valid_until=p["valid_until"], doors={k: list(v) for k, v in p["doors"].items()},
-                            stations=tuple(sorted(set(p["doors"]) | set(p.get("other_stations", ())))), pin_configured=p["pin"] is not None,
-                            timing=copy.deepcopy(p["timing"]), category=p["category"])
+    def _view(self, p: dict[str, Any]):
+        from smplwise.services.access_grant_engine import person_from_raw
+
+        return person_from_raw(self._raw(p))
 
     def _get(self, person_id: str) -> dict[str, Any]:
         p = self.people.get(person_id)
@@ -1046,7 +1083,7 @@ class FakeAccessEngine:
     def add_person(self, person_id: str, *, stations: Iterable[str] = (), doors: dict[str, list[int]] | None = None, category: str = "contractor") -> None:
         self.people[person_id] = {"id": person_id, "revision": 1, "display_name": person_id, "employee_no": "e-" + person_id, "active": True,
                                   "valid_from": None, "valid_until": None, "doors": dict(doors or {}), "other_stations": tuple(stations), "pin": None,
-                                  "timing": None, "category": category}
+                                  "timing": None, "category": category, "overrides": {}, "group_ids": []}
 
     def edit_elsewhere(self, person_id: str) -> None:
         """Someone edited the person in WisKey's own panel: the revision moves (T12)."""
@@ -1057,20 +1094,22 @@ class FakeAccessEngine:
         return self._get(person_id)["pin"]
 
     # -- the port
-    def create_person(self, *, display_name: str, employee_no: str, category: str, responsible_person: str, access_purpose: str):
+    def create_person(self, *, display_name: str, category: str, responsible_person: str, access_purpose: str, employee_no: str | None = None):
         self._gate("create_person")
         self._seq += 1
         pid = f"wk-{self._seq:04d}"
+        if employee_no is None:
+            employee_no = str(100000000 + self._seq * 7919)  # WisKey generates nine digits when it is omitted
         self.people[pid] = {"id": pid, "revision": 1, "display_name": display_name[:32], "employee_no": employee_no, "active": False, "valid_from": None,
                             "valid_until": None, "doors": {}, "other_stations": (), "pin": None, "timing": None, "category": category,
-                            "responsible_person": responsible_person, "access_purpose": access_purpose}
+                            "overrides": {}, "group_ids": [], "responsible_person": responsible_person, "access_purpose": access_purpose}
         return self._view(self.people[pid])
 
     def get_person(self, person_id: str):
         self._gate("get_person")
         return self._view(self._get(person_id))
 
-    def apply(self, person_id: str, revision: int, *, doors, valid_from, valid_until, timing, active, pin=None):
+    def apply(self, person_id: str, revision: int, *, doors, valid_from, valid_until, timing, active, pin=None, overrides=None):
         from smplwise.services.access_grant_engine import KEEP
 
         self._gate("apply")
@@ -1083,7 +1122,24 @@ class FakeAccessEngine:
         if pin is not KEEP and pin is not None and self.pin_conflicts > 0:
             self.pin_conflicts -= 1
             raise self._err("pin_conflict")
-        p.update({"doors": {k: list(v) for k, v in doors.items()}, "valid_from": valid_from, "valid_until": valid_until, "timing": copy.deepcopy(timing),
+        # validate first (a rejected update changes nothing): the complete overrides replacement, then door_permissions per supplied station
+        new_doors = {k: list(v) for k, v in p["doors"].items()}
+        new_overrides = dict(p["overrides"])
+        if overrides is not None:
+            new_overrides = dict(overrides)
+            for sid, mode in new_overrides.items():
+                if mode == "deny":
+                    new_doors.pop(sid, None)
+                elif sid not in new_doors:
+                    new_doors[sid] = [1]
+        for sid, locks in doors.items():
+            if sid not in new_doors:
+                raise self._err("refused")  # invalid_assignments: a door_permissions key outside the resolved stations
+            if not locks:
+                raise self._err("refused")  # unmanaged_lock: an empty lock list is rejected
+            new_doors[sid] = list(locks)  # REPLACES this station's list; stations not supplied are untouched (dropping one does not revoke it)
+        self.updates.append({"method": "apply", "overrides": copy.deepcopy(overrides), "doors": sorted(doors)})
+        p.update({"doors": new_doors, "overrides": new_overrides, "valid_from": valid_from, "valid_until": valid_until, "timing": copy.deepcopy(timing),
                   "active": bool(active)})
         if pin is not KEEP:
             p["pin"] = pin
@@ -1094,13 +1150,27 @@ class FakeAccessEngine:
         return self._view(p)
 
     def strip(self, person_id: str, revision: int):
+        """Revoke-all: group_ids [] + permission_overrides {} + active false + pin null (door_permissions {} would do nothing)."""
         self._gate("strip")
         p = self._get(person_id)
         if p["revision"] != revision:
             raise self._err("revision_conflict")
-        p.update({"doors": {}, "active": False, "pin": None, "timing": None})
+        self.updates.append({"method": "strip", "overrides": {}, "doors": []})
+        p.update({"doors": {}, "overrides": {}, "group_ids": [], "active": False, "pin": None, "timing": None})
         p["revision"] += 1
+        if self.sync_lag:
+            self.pending_revocations.add(person_id)
         return self._view(p)
+
+    def revocation_pending(self, person_id: str):
+        self._gate("revocation_pending")
+        if self.status_unknown:
+            return None
+        return person_id in self.pending_revocations
+
+    def settle_revocations(self) -> None:
+        """The stations took the removals: the central sync status shows no pending revocation any more."""
+        self.pending_revocations.clear()
 
     def pin_generate(self, person_id: str) -> str:
         self._gate("pin_generate")
