@@ -110,7 +110,7 @@ def _digest_text(conn: sqlite3.Connection, dept_name: str, counts: dict[str, int
 def flush(conn: sqlite3.Connection, *, local_date: str) -> int:
     """Send one `ticket.digest` per department with held events and clear them. Returns how many digests were created."""
     from .. import notify
-    from . import store
+    from . import notify_bridge, store
 
     q = _queue(conn)
     if not q:
@@ -124,8 +124,8 @@ def flush(conn: sqlite3.Connection, *, local_date: str) -> int:
         live: list[dict[str, str]] = []
         first = None
         for e in items:
-            row = store.ticket_row_system(conn, e["t"])
-            if row is None or row["status"] in ("closed", "cancelled"):
+            row = notify_bridge.open_ticket(conn, e["t"])
+            if row is None:
                 continue  # over meanwhile: nothing to summarise
             live.append(e)
             first = first or row

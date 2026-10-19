@@ -110,6 +110,12 @@ def recipient_users(conn: sqlite3.Connection, rule: str, n: dict[str, Any]) -> l
 
 # ---------------------------------------------------------------- texts and severity
 
+def open_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
+    """The ticket row while it is still open (not closed / cancelled), else None - for the digest (notify_matrix.flush)."""
+    row = store.ticket_row_system(conn, ticket_id)
+    return None if row is None or row["status"] in ("closed", "cancelled") else row
+
+
 def place_of(conn: sqlite3.Connection, row: dict[str, Any]) -> str:
     if row.get("place_text"):
         return str(row["place_text"])
