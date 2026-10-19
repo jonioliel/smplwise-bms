@@ -661,3 +661,36 @@ def test_audit_rows_carry_ids_only(env):
             "access.grant.code_sent", "access.person_link.create", "access.grant.notice_ack"} <= actions, actions
     text = " ".join(r["details_json"] or "" for r in rows)
     assert "יוסי" not in text and PHONE not in text and "pk-" not in text
+
+
+# ---- n2 privacy notice and four-language code message (technician privacy pack, 2026-10-18)
+def test_templates_are_well_formed():
+    import string
+    import unicodedata
+    langs = {"he", "en", "ar", "ru"}
+    for table in (ag.NOTICE_TEXT, ag.NOTICE_ATTEST, ag.TEMPLATES, ag.HOURS_PHRASE):
+        assert set(table) == langs
+        for text in table.values():
+            assert not [c for c in text if unicodedata.category(c) in ("Cc", "Cf")]
+            assert unicodedata.normalize("NFC", text) == text
+    for text in ag.TEMPLATES.values():
+        names = [f for _, f, _, _ in string.Formatter().parse(text) if f is not None]
+        assert sorted(names) == ["code", "dates", "doors", "hours", "ref"]
+        assert "http" not in text and "www" not in text and "/" not in text
+
+
+@pytest.mark.parametrize("lang,phrase", [("he", "משעה"), ("en", "08:00-17:00"), ("ar", "من 08:00 حتى 17:00"), ("ru", "с 08:00 до 17:00")])
+def test_the_code_message_is_rendered_in_the_contacts_language(env, lang, phrase):
+    env.sql("UPDATE ticket_contacts SET lang = ? WHERE id = ?", lang, env.tech)
+    gid = env.request().json()["grant"]["id"]
+    assert env.approve(gid).status_code == 200
+    env.run()
+    env.clock[0] = DUE
+    env.run()
+    assert len(env.transport.sent) == 1
+    _number, text = env.transport.sent[0]
+    pin = env.person_of(gid)["pin"]
+    assert phrase in text and gid[:8] in text and text.count(pin) == 1
+    assert "http" not in text
+    if lang != "en":
+        assert "your personal entry code" not in text

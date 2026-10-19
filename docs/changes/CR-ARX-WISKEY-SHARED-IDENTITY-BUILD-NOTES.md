@@ -113,5 +113,6 @@ Review: `private/planning/RELEASE_270_REVIEW_CONSOLIDATED.md` section 2. Negativ
   row's scope moved while its write was out; the next pass pushes the row's scope.
 - **K6** - `access_arrival._order()` reads only the RFQ's own `order_created` rows (`ticket_rfq_events WHERE rfq_id = ?`, index
   `idx_ticket_rfq_events_rfq`), found through the quote's `rfq_vendor_id`.
-- Not changed: K5 (wording, counsel), K7 (optional). Backups: `access.external_grants` and every `access.external.*` limit are in
+- K5 (2.8.0, branch pilot/TECHPRIVACY280): notice version `n2` - third-person notice in he/en/ar/ru, vendor attestation (`NOTICE_ATTEST`), ar/ru code messages (no more English for ar/ru), `acknowledged_for` in the notice audit details. Wording adopted by the lead under the owner's delegation on 2026-10-18; owner sign-off still required before go-live (`GO_LIVE_PERMITTED` stays False).
+- Not changed: K7 (optional). Backups: `access.external_grants` and every `access.external.*` limit are in
   `backup.SETTINGS_KEEP` (never exported, never restored).
