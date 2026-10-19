@@ -171,6 +171,11 @@ def visible(viewer: Viewer, row: dict[str, Any] | None) -> Seen | None:
     """THE rule (module docstring). None = the caller may not know the ticket exists."""
     if row is None or not module_on(viewer.conn):
         return None
+    return _decide(viewer, row)
+
+
+def _decide(viewer: Viewer, row: dict[str, Any]) -> Seen | None:
+    """visible() after the module switch: the place, the department roles, the creator and the current assignee."""
     if not viewer.holds(VIEW, row):
         return None
     reasons: set[str] = set()
@@ -195,6 +200,24 @@ def visible_by_id(viewer: Viewer, ticket_id: str | None) -> Seen | None:
     if not ticket_id:
         return None
     return visible(viewer, store.ticket_row_unchecked(viewer.conn, ticket_id))
+
+
+BATCH_IDS = 500  # ids per IN (...) read of visible_many (well under SQLite's bound-variable limit)
+
+
+def visible_many(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen | None]:
+    """visible_by_id() for many ids at once (MGRDASH speed fix): the rows are read in batches of BATCH_IDS with the same SELECT as
+    the single read and the module switch is read once; every row is then decided by the SAME rule as visible(). The answer maps
+    every non-empty id asked for to its Seen or None (unknown, foreign or invisible - never says which)."""
+    ids = list(dict.fromkeys(i for i in ticket_ids if i))
+    if not ids:
+        return {}
+    if not module_on(viewer.conn):
+        return dict.fromkeys(ids)
+    rows: dict[str, dict[str, Any]] = {}
+    for k in range(0, len(ids), BATCH_IDS):
+        rows.update(store.ticket_rows_unchecked(viewer.conn, ids[k:k + BATCH_IDS]))
+    return {i: (_decide(viewer, rows[i]) if i in rows else None) for i in ids}
 
 
 def require_visible(viewer: Viewer, ticket_id: str) -> Seen:
