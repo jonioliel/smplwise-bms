@@ -56,7 +56,7 @@ T_CHANNEL = ("חשבון וואטסאפ מנותק", "{account} · הודעות 
 # TKNOTIFMATRIX: the template of each matrix source, to send a held event at once when its digest fails (emit_held)
 TEMPLATES: dict[str, tuple[str, str]] = {
     "ticket.new_unassigned": T_NEW, "ticket.assigned": T_ASSIGNED, "ticket.reminder": T_REMINDER, "ticket.stuck": T_STUCK,
-    "ticket.returned": T_RETURNED, "ticket.done": T_DONE, "ticket.send_failed": T_SEND_FAILED, "ticket.contact_changed": T_CONTACT,
+    "ticket.returned": T_RETURNED, "ticket.question": T_QUESTION, "ticket.done": T_DONE, "ticket.send_failed": T_SEND_FAILED, "ticket.contact_changed": T_CONTACT,
     "ticket.reply_unmatched": T_UNMATCHED, "ticket.cost_submitted": T_COST_SUBMITTED, "ticket.cost_missing": T_COST_MISSING,
 }
 
