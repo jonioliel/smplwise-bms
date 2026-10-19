@@ -19,6 +19,7 @@ from ..services import plan_area_links
 from ..services import plan_geometry as pg
 from ..services import plan_zones
 from ..services import shared_spaces
+from ..services.tickets import store_locations
 from .anchors import _editor_version
 from .catalog import get_floor
 
@@ -511,6 +512,7 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
     group = shared_spaces.zone_in_share(conn, zone_id)
     if group is None:
         conn.execute("UPDATE spatial_zones SET deleted_at = ? WHERE id = ?", (now_iso(), zone_id))
+        store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291: an organisation location's optional link to this room
         audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request), details={"name": z["name"]})
         return
     # the refusal names the home floor only to a caller who may read it (review L1): otherwise "קומה אחרת" and no ids
@@ -529,6 +531,7 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
             audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid,
                   details={"home_floor_id": group.home_floor_id, "floor_id": s.floor_id, "reason": "zone_deleted"})
     conn.execute("UPDATE spatial_zones SET deleted_at = ? WHERE id = ?", (now, zone_id))
+    store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid, details={"name": z["name"], "unshared_floors": [s.floor_id for s in group.shares]})
     _revoke(background, _all_users(conn))
 
@@ -564,6 +567,7 @@ def accept_zones(floor_id: str, body: AcceptIn, request: Request, principal: Pri
         # review M4: a room that is part of a shared space is kept (un-share it first to replace it)
         keep = {r["id"] for r in conn.execute("SELECT id FROM spatial_zones WHERE floor_id = ? AND source = 'auto' AND deleted_at IS NULL", (floor_id,)).fetchall() if shared_spaces.zone_in_share(conn, r["id"]) is not None}
         conn.execute(f"UPDATE spatial_zones SET deleted_at = ? WHERE floor_id = ? AND source = 'auto' AND deleted_at IS NULL AND id NOT IN ({','.join('?' * len(keep)) or "''"})", (now_iso(), floor_id, *sorted(keep)))
+        store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     ids = []
     for i, cnd in enumerate(body.candidates):
         name = cnd.name.strip() or f"חדר {i + 1}"

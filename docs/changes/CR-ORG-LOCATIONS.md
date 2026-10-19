@@ -47,7 +47,7 @@ managed in an organised way.
 8. **Text hygiene.** Plain text only: controls / bidi / zero-width characters stripped, URLs refused in every text field (a WhatsApp
    message would turn them into links), lengths capped server-side; SQL and markup are stored literally and rendered as text
    (parameterised SQL, Lit / DOM text nodes).
-9. **Plan / map areas** (owner answer (a)). Not built. `ticket_org_locations.plan_zone_id` (nullable, unused) is reserved for a later
+9. **Plan / map areas** (ORGPLAN-291, release 2.9.1; owner answer (a)). A location may optionally name ONE plan room (`spatial_zones`) in the reserved `ticket_org_locations.plan_zone_id` (no migration). Validated live and readable by the editor (`422 plan_zone_id/unknown` otherwise), picker from `GET /tickets/admin/locations/plan-areas`, cleared when the room is deleted (`store_locations.clear_dead_plan_zones`), a dangling id reads as no link. A ticket detail carries `location.plan_area` only for a viewer holding `map.read` on that floor; the UI shows "show on map" (`#/explore/floors/<floor>?zone=<room>`). Display-only: no visibility rule changes.
    OPTIONAL link from a location to a plan area / room (e.g. an air-conditioner RFQ referencing the room on the map).
 
 ## 3. Data (migration `0101_org_locations.sql`; the provisional number was kept at the integ/264 integration)

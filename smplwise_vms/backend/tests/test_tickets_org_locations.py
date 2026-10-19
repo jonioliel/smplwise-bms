@@ -458,3 +458,97 @@ def test_message_text_fits_the_placeholder_cap_at_the_field_limits():
     assert len(org_locations.message_text(snap, nav=True)) <= 200
     assert org_locations.message_text(None) == "" and org_locations.display_text(None) == ""
     assert org_locations.parse_snapshot("not json") is None and org_locations.parse_snapshot('{"name": ""}') is None
+
+
+# ---------------------------------------------------------------- ORGPLAN-291: the optional link to a plan area (room)
+# `plan_zone_id` is the column reserved by migration 0101 (no new migration). Display-only: it never changes who sees a request.
+
+SQUARE = [{"x": 0.1, "y": 0.1}, {"x": 0.4, "y": 0.1}, {"x": 0.4, "y": 0.4}, {"x": 0.1, "y": 0.4}]
+
+
+def room(s4, floor: str = "floor2", name: str = "חדר שרתים") -> str:
+    r = s4.c.post(f"{API}/floors/{s4.w.floors[floor]}/zones", json={"name": name, "polygon": SQUARE}, headers=s4.h("joni"))
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def detail_location(s4, tid: str, user: str) -> dict:
+    r = s4.w.get(user, tid)
+    assert r.status_code == 200, (user, r.text)
+    return r.json()["location"]
+
+
+def test_a_location_may_link_one_live_room_and_the_link_can_be_cleared(s4):
+    z = room(s4)
+    lid = loc_id(s4, plan_zone_id=z)
+    assert one(s4, lid)["plan_zone_id"] == z
+    assert patch(s4, lid, plan_zone_id=None).status_code == 200
+    assert one(s4, lid)["plan_zone_id"] is None
+    assert patch(s4, lid, plan_zone_id=z).status_code == 200 and one(s4, lid)["plan_zone_id"] == z
+    assert patch(s4, lid, city="חיפה").status_code == 200 and one(s4, lid)["plan_zone_id"] == z  # an unrelated edit keeps the link
+    areas = s4.c.get(f"{API}/tickets/admin/locations/plan-areas").json()["areas"]
+    assert {"zone_id": z, "name": "חדר שרתים", "floor_id": s4.w.floors["floor2"], "floor_name": "קומה 2"} in areas
+
+
+def test_an_unknown_or_deleted_room_is_refused_and_a_location_without_a_link_is_unchanged(s4):
+    r = add_loc(s4, plan_zone_id="nope00000000")
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "plan_zone_id", "code": "unknown"}]
+    assert add_loc(s4, plan_zone_id="x" * 80).status_code == 422  # over the id length
+    z = room(s4)
+    assert s4.c.delete(f"{API}/zones/{z}", headers=s4.h("joni")).status_code == 204
+    r = add_loc(s4, plan_zone_id=z)
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "plan_zone_id", "code": "unknown"}]
+    assert one(s4, loc_id(s4, name="ללא קישור"))["plan_zone_id"] is None
+
+
+def test_the_editor_cannot_link_a_room_of_a_floor_they_may_not_read(s4):
+    bind(s4.c, s4.w.settings, "ori", "tickets_configure", "installation", "*")
+    bind(s4.c, s4.w.settings, "ori", "operator", "floor", s4.w.floors["floor3"])
+    z2 = room(s4, "floor2")
+    z3 = room(s4, "floor3", "מחסן")
+    r = add_loc(s4, "ori", name="שלישית", plan_zone_id=z3)
+    assert r.status_code == 201, r.text
+    r = add_loc(s4, "ori", name="שנייה", plan_zone_id=z2)  # same answer as an unknown room: the field cannot probe the plan
+    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "plan_zone_id", "code": "unknown"}]
+    areas = s4.c.get(f"{API}/tickets/admin/locations/plan-areas", headers=s4.h("ori")).json()["areas"]
+    assert [a["zone_id"] for a in areas] == [z3]
+
+
+def test_deleting_the_room_clears_the_link_and_the_ticket_shows_no_map_link(s4):
+    z = room(s4)
+    lid = loc_id(s4, plan_zone_id=z)
+    t = s4.ticket(user="mona", location_id=lid)
+    assert detail_location(s4, t["id"], "mona")["plan_area"]["zone_id"] == z
+    assert s4.c.delete(f"{API}/zones/{z}", headers=s4.h("joni")).status_code == 204
+    assert one(s4, lid)["plan_zone_id"] is None
+    assert detail_location(s4, t["id"], "mona")["plan_area"] is None
+    assert detail_location(s4, t["id"], "mona")["name"] == HQ["name"]  # the snapshot is untouched
+
+
+def test_a_dangling_link_reads_as_no_link(s4):
+    z = room(s4)
+    lid = loc_id(s4, plan_zone_id=z)
+    t = s4.ticket(user="mona", location_id=lid)
+    with s4.db.connection() as conn:  # a room removed behind the route's back (restore, hand edit)
+        conn.execute("UPDATE spatial_zones SET deleted_at = '2026-01-01T00:00:00Z' WHERE id = ?", (z,))
+    assert detail_location(s4, t["id"], "mona")["plan_area"] is None
+
+
+def test_the_map_link_is_shown_only_to_a_viewer_who_may_read_that_floor_and_never_changes_who_sees_the_request(s4):
+    z = room(s4, "floor2")
+    lid = loc_id(s4, plan_zone_id=z)
+    t = s4.ticket(user="mona", location_id=lid)
+    area = detail_location(s4, t["id"], "mona")["plan_area"]
+    assert area == {"zone_id": z, "floor_id": s4.w.floors["floor2"], "name": "חדר שרתים", "floor_name": "קומה 2"}
+    assert detail_location(s4, t["id"], "joni")["plan_area"]["zone_id"] == z
+    # gil is on the maintenance team but reads only floor 3 on the map: the request is the same, the link is gone, no hint of it
+    gil = detail_location(s4, t["id"], "gil")
+    assert gil["name"] == HQ["name"] and gil["plan_area"] is None
+    assert "plan_zone_id" not in gil and z not in json.dumps(gil)
+    # a viewer who may not see the request still may not, whatever the link says
+    assert s4.w.get("dina", t["id"]).status_code in (403, 404)
+    # the list the creation forms read never carries the link
+    assert "plan_zone_id" not in json.dumps(s4.c.get(f"{API}/tickets/locations", headers=s4.h("mona")).json())
+    # a ticket whose location has no link: plan_area is null
+    t2 = s4.ticket(user="mona", location_id=loc_id(s4, name="אחר"))
+    assert detail_location(s4, t2["id"], "mona")["plan_area"] is None

@@ -2,7 +2,8 @@
  * CR-ORG-LOCATIONS: the pure rules of the location picker and of the Settings editor (no DOM, unit-tested in
  * tests/unit-tickets-org-locations.spec.ts). They mirror services/tickets/org_locations.py; the server checks everything again.
  */
-import type { LocationInput, LocationsAnswer, OrgLocation, OrgLocationAdmin } from '../api/tickets-locations';
+import type { LocationInput, LocationsAnswer, OrgLocation, OrgLocationAdmin, PlanAreaOption, RequestPlanArea } from '../api/tickets-locations';
+import { mapHrefForArea } from '../api/plan-links';
 
 export const NAME_MAX = 40;
 export const STREET_MAX = 60;
@@ -127,18 +128,20 @@ export interface LocationDraft {
   sort_order: string;
   active: boolean;
   is_default: boolean;
+  /** ORGPLAN-291: the linked plan room's zone id, '' = none */
+  plan_zone_id: string;
 }
 
-export type LocationField = 'name' | 'street' | 'city' | 'details' | 'coords' | 'default';
-export type LocationProblem = 'required' | 'too_long' | 'duplicate' | 'address' | 'url' | 'coords' | 'inactive_default';
+export type LocationField = 'name' | 'street' | 'city' | 'details' | 'coords' | 'default' | 'plan_zone_id';
+export type LocationProblem = 'required' | 'too_long' | 'duplicate' | 'address' | 'url' | 'coords' | 'inactive_default' | 'area';
 
 export function blankDraft(order = 0): LocationDraft {
-  return { name: '', street: '', city: '', details: '', lat: '', lng: '', sort_order: String(order), active: true, is_default: false };
+  return { name: '', street: '', city: '', details: '', lat: '', lng: '', sort_order: String(order), active: true, is_default: false, plan_zone_id: '' };
 }
 
 export function draftOf(l: OrgLocationAdmin): LocationDraft {
   return { name: l.name, street: l.street, city: l.city, details: l.details, lat: l.lat == null ? '' : String(l.lat), lng: l.lng == null ? '' : String(l.lng),
-    sort_order: String(l.sort_order), active: l.active, is_default: l.is_default };
+    sort_order: String(l.sort_order), active: l.active, is_default: l.is_default, plan_zone_id: l.plan_zone_id ?? '' };
 }
 
 function coord(v: string, limit: number): number | null | undefined {
@@ -175,6 +178,7 @@ export function draftBody(d: LocationDraft, revision?: number): LocationInput {
   const order = Number.parseInt(d.sort_order, 10);
   return { name: d.name.trim(), street: d.street.trim(), city: d.city.trim(), details: d.details.trim(), lat: lat ?? null, lng: lng ?? null,
     sort_order: Number.isFinite(order) && order >= 0 ? Math.min(order, 9999) : 0, active: d.active, is_default: d.is_default && d.active,
+    plan_zone_id: d.plan_zone_id || null,
     ...(revision ? { revision } : {}) };
 }
 
@@ -187,6 +191,29 @@ export function serverProblem(code: string): LocationProblem | null {
     case 'url_not_allowed': return 'url';
     case 'range': case 'pair': return 'coords';
     case 'inactive': return 'inactive_default';
+    case 'unknown': return 'area';
     default: return null;
   }
+}
+
+// ---------------------------------------------------------------- ORGPLAN-291: the optional plan-area link
+
+/** The editor picker's rooms, grouped by floor in the server's order; "floor · room" is the label. */
+export function areaLabel(a: Pick<PlanAreaOption, 'name' | 'floor_name'>): string {
+  return [a.floor_name, a.name].filter(Boolean).join(SEP);
+}
+
+/**
+ * The picker's options for a draft: every room the editor may link, plus - when the location already links a room the list does not
+ * carry (a floor the editor may not read, or a list that failed to load) - that id as a placeholder so saving keeps the link.
+ */
+export function areaChoices(areas: readonly PlanAreaOption[] | null, current: string): { id: string; label: string; missing: boolean }[] {
+  const out = (areas ?? []).map((a) => ({ id: a.zone_id, label: areaLabel(a), missing: false }));
+  if (current && !out.some((o) => o.id === current)) out.push({ id: current, label: '', missing: true });
+  return out;
+}
+
+/** The map route of a request's linked room ("show on map"), or null when the viewer has no link (the server decides who gets one). */
+export function showOnMapHref(area: Pick<RequestPlanArea, 'floor_id' | 'zone_id'> | null | undefined): string | null {
+  return area?.floor_id && area.zone_id ? mapHrefForArea({ floor_id: area.floor_id, zone_id: area.zone_id }) : null;
 }

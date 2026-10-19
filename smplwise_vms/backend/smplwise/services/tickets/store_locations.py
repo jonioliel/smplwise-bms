@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from ...db import new_id, now_iso
 
-FIELDS = ("name", "street", "city", "details", "lat", "lng", "active", "is_default", "sort_order")
+FIELDS = ("name", "street", "city", "details", "lat", "lng", "active", "is_default", "sort_order", "plan_zone_id")
 
 
 def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -85,3 +85,10 @@ def set_department_default(conn: sqlite3.Connection, department_id: str, locatio
 
 def clear_department_defaults_of(conn: sqlite3.Connection, location_id: str) -> int:
     return conn.execute("UPDATE ticket_departments SET default_location_id = NULL WHERE default_location_id = ?", (location_id,)).rowcount
+
+
+def clear_dead_plan_zones(conn: sqlite3.Connection) -> int:
+    """ORGPLAN-291: a location's plan-area link is cleared once its room is deleted (soft or hard). Called after every room delete."""
+    return conn.execute(
+        "UPDATE ticket_org_locations SET plan_zone_id = NULL WHERE plan_zone_id IS NOT NULL AND NOT EXISTS "
+        "(SELECT 1 FROM spatial_zones z WHERE z.id = ticket_org_locations.plan_zone_id AND z.deleted_at IS NULL)").rowcount

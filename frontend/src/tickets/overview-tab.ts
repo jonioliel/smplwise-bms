@@ -12,6 +12,7 @@ import { initials } from './status-block';
 import { etaText, slaState } from './status-sentence';
 import { ticketsLang } from './text';
 import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS
+import { showOnMapHref } from './org-locations-model'; // ORGPLAN-291
 
 /**
  * TKUI1 (release 2.6.0): the Overview tab (סקירה) of the request - IA §4.1 / wireframe §6.1, mock-up v5 `tabOverview()`:
@@ -136,6 +137,13 @@ export function nowSection(t: TicketDetail, ctx: OverviewCtx): TemplateResult | 
   return nowRows(t, ctx);
 }
 
+/** ORGPLAN-291: "show on map" under the location - the server sends `plan_area` only to a viewer who may read that floor on the map. */
+function showOnMapLink(t: TicketDetail): TemplateResult | typeof nothing {
+  const href = showOnMapHref(t.location?.plan_area);
+  if (!href) return nothing;
+  return html`<div class="f wide" data-fact="location-map"><a href=${href} data-location-on-map>${tIcon('link')}${lt('showOnMap')}</a></div>`;
+}
+
 function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
   const f = (key: string, label: string, value: string, wide = false) => (value ? html`<div class=${`f${wide ? ' wide' : ''}`} data-fact=${key}><small>${label}</small><span>${bidi(value)}</span></div>` : nothing);
   const dc = [t.department?.name, t.category?.name].filter(Boolean).join(' · ');
@@ -144,6 +152,7 @@ function facts(t: TicketDetail, ctx: OverviewCtx): TemplateResult {
     <h4><span class="tag t2">${tIcon('layers')}</span>${dwt('ovFacts')}${ctx.onEdit ? html`<button type="button" class="btn sm quiet act" data-edit ?disabled=${ctx.busy} @click=${ctx.onEdit}>${tIcon('edit')}${dwt('a_edit')}</button>` : nothing}</h4>
     <div class="facts">
       ${f('location', lt('fLocation'), t.location?.text ?? '', true)}
+      ${showOnMapLink(t)}
       ${f('place', dwt('fPlace'), t.place_text)}
       ${f('device', dwt('fDevice'), t.device_name)}
       ${f('dept', dwt('fDept'), dc)}

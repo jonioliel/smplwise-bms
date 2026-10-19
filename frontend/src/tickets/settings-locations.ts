@@ -10,17 +10,17 @@ import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { ticketsApi } from '../api/tickets';
-import { ticketsLocationsApi, type LocationsAdminAnswer, type OrgLocationAdmin } from '../api/tickets-locations';
+import { ticketsLocationsApi, type LocationsAdminAnswer, type OrgLocationAdmin, type PlanAreaOption } from '../api/tickets-locations';
 import { ticketSettingsCss } from './settings-styles';
 import {
-  CITY_MAX, DETAILS_MAX, NAME_MAX, STREET_MAX, addressLine, blankDraft, draftBody, draftOf, locationProblems, serverProblem,
+  CITY_MAX, DETAILS_MAX, NAME_MAX, STREET_MAX, addressLine, areaChoices, areaLabel, blankDraft, draftBody, draftOf, locationProblems, serverProblem,
   type LocationDraft, type LocationField, type LocationProblem,
 } from './org-locations-model';
 import { lt, type LocTextKey } from './org-locations-text';
 
 const PROBLEM_TEXT: Record<LocationProblem, LocTextKey> = {
   required: 'err_required', too_long: 'err_too_long', duplicate: 'err_duplicate', address: 'err_address', url: 'err_url', coords: 'err_coords',
-  inactive_default: 'err_inactive_default',
+  inactive_default: 'err_inactive_default', area: 'err_area',
 };
 
 /**
@@ -35,6 +35,8 @@ export class TicketsLocationsSettings extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @state() private data: LocationsAdminAnswer | null = null;
   @state() private depts: { id: string; name: string }[] = [];
+  /** ORGPLAN-291: the rooms the editor may link (null while loading / unavailable: the current link is kept as is) */
+  @state() private areas: PlanAreaOption[] | null = null;
   @state() private failed = '';
   @state() private forbidden = false;
   @state() private busy = false;
@@ -145,6 +147,11 @@ export class TicketsLocationsSettings extends LitElement {
       return;
     }
     try {
+      this.areas = await ticketsLocationsApi().planAreas();
+    } catch {
+      this.areas = null;
+    }
+    try {
       const r = await ticketsApi().departments();
       this.depts = r.departments.filter((d) => d.active).map((d) => ({ id: d.id, name: d.name }));
     } catch {
@@ -248,6 +255,22 @@ export class TicketsLocationsSettings extends LitElement {
     return (this.tried || this.serverErr[f]) && code ? html`<span class="err" role="alert" data-location-err=${f}>${lt(PROBLEM_TEXT[code])}</span>` : nothing;
   }
 
+  /** ORGPLAN-291: the optional plan-room picker (display-only link: it never changes who may see a request or a floor) */
+  private areaField(p: Partial<Record<LocationField, LocationProblem>>): TemplateResult | typeof nothing {
+    if (this.areas === null && !this.draft.plan_zone_id) return nothing;
+    const cur = this.draft.plan_zone_id;
+    return html`<label class="fld wide">${lt('fArea')}
+      <select class="in" data-location-field="plan_zone_id" ?disabled=${this.busy} @change=${(e: Event) => this.set('plan_zone_id', (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${!cur}>${lt('areaNone')}</option>
+        ${areaChoices(this.areas, cur).map((o) => html`<option value=${o.id} ?selected=${o.id === cur}>${o.missing ? lt('areaMissing') : bidi(o.label)}</option>`)}
+      </select>${this.err(p, 'plan_zone_id')}</label>`;
+  }
+
+  private areaName(l: OrgLocationAdmin): string {
+    const a = this.areas?.find((x) => x.zone_id === l.plan_zone_id);
+    return a ? areaLabel(a) : '';
+  }
+
   private editor(): TemplateResult {
     const d = this.draft;
     const p = this.problems();
@@ -267,6 +290,7 @@ export class TicketsLocationsSettings extends LitElement {
           @input=${(e: Event) => this.set('lat', (e.target as HTMLInputElement).value)} />
         <input class="in" inputmode="decimal" dir="ltr" data-location-field="lng" aria-label=${lt('fLng')} placeholder=${lt('fLng')} aria-invalid=${inv('coords')} .value=${d.lng}
           @input=${(e: Event) => this.set('lng', (e.target as HTMLInputElement).value)} /></div>${this.err(p, 'coords')}</div>
+      ${this.areaField(p)}
       <div class="checks wide">
         <label><input type="checkbox" data-location-field="active" .checked=${d.active} @change=${(e: Event) => this.set('active', (e.target as HTMLInputElement).checked)} /> ${lt('fActive')}</label>
         <label><input type="checkbox" data-location-field="is_default" .checked=${d.is_default} @change=${(e: Event) => this.set('is_default', (e.target as HTMLInputElement).checked)} /> ${lt('fDefault')}</label>
@@ -285,6 +309,7 @@ export class TicketsLocationsSettings extends LitElement {
       <span class="txt"><b>${bidi(l.name)} ${l.is_default ? html`<span class="chip" data-location-default>${lt('defaultChip')}</span>` : nothing}
         ${!l.active ? html`<span class="chip" data-location-inactive>${lt('inactiveChip')}</span>` : nothing}</b>
         <small>${bidi([addressLine(l), l.details].filter(Boolean).join(' · '))}</small>
+        ${l.plan_zone_id && this.areaName(l) ? html`<small data-location-area>${bidi(lt('areaLinked', { name: this.areaName(l) }))}</small>` : nothing}
         ${l.references ? html`<small data-location-refs>${lt('inUse', { n: l.references })}</small>` : nothing}</span>
       ${l.nav_url ? html`<a class="nav" href=${l.nav_url} target="_blank" rel="noopener noreferrer" data-location-nav>${lt('navigate')}</a>` : nothing}
       <span class="acts">
