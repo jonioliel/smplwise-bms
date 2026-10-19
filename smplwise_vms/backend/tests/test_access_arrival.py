@@ -174,6 +174,56 @@ def test_a_new_technician_is_pending_until_a_manager_accepts_him_and_he_confirms
     assert c.post(f"{API}/access-grants/{g['id']}/approve", json={"revision": rev}).status_code == 200
 
 
+def _pending(arr):
+    r = arr.post(person_id=None, new_person={"name": "אבי חדש", "phone": "050-000-0057"})
+    assert r.status_code == 200, r.text
+    (g,) = arr.grants()
+    return g, g["subject_id"]
+
+
+def test_reject_and_delete_erases_the_pending_technician_and_ends_his_request(arr):
+    """Lead decision 6 (2026-10-18): a manager rejects a technician nobody accepted; the vendor-typed name and phone go."""
+    g, new = _pending(arr)
+    r = arr.s4.c.post(f"{API}/access-grants/pending-contacts/{new}/reject")
+    assert r.status_code == 200 and r.json() == {"contact_id": new, "rejected": True, "deleted": True, "requests_ended": 1}, r.text
+    with arr.db.connection(mode="read") as conn:
+        c = conn.execute("SELECT display_name, phone_e164, phone_key, active, erased_at FROM ticket_contacts WHERE id = ?", (new,)).fetchone()
+        assert c["phone_e164"] is None and c["phone_key"] is None and c["active"] == 0 and c["erased_at"] and "אבי" not in c["display_name"]
+        assert conn.execute("SELECT rejected_at FROM access_pending_contacts WHERE contact_id = ?", (new,)).fetchone()[0]
+        st = conn.execute("SELECT state FROM access_grants WHERE id = ?", (g["id"],)).fetchone()[0]
+        assert st == "revoked"
+        audit = conn.execute("SELECT details_json FROM audit_log WHERE action = 'access.pending_contact.reject'").fetchall()
+        assert len(audit) == 1 and "אבי" not in str(audit[0][0]) and "0057" not in str(audit[0][0])
+
+
+def test_reject_is_refused_for_a_second_time_an_accepted_or_an_unknown_technician(arr):
+    _g, new = _pending(arr)
+    c = arr.s4.c
+    assert c.post(f"{API}/access-grants/pending-contacts/{new}/reject").status_code == 200
+    assert c.post(f"{API}/access-grants/pending-contacts/{new}/reject").status_code == 404, "already rejected"
+    assert c.post(f"{API}/access-grants/pending-contacts/{new}/accept").status_code == 404, "and cannot be accepted afterwards"
+    assert c.post(f"{API}/access-grants/pending-contacts/{arr.tech}/reject").status_code == 404, "an established technician is not pending"
+    with arr.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT erased_at FROM ticket_contacts WHERE id = ?", (arr.tech,)).fetchone()[0] is None
+
+
+def test_reject_needs_the_same_authority_as_accept(arr):
+    from conftest import as_user
+
+    _g, new = _pending(arr)
+    r = arr.s4.c.post(f"{API}/access-grants/pending-contacts/{new}/reject", headers=as_user("otto"))
+    assert r.status_code == 403, r.text
+    with arr.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT erased_at FROM ticket_contacts WHERE id = ?", (new,)).fetchone()[0] is None
+
+
+def test_an_accepted_technician_cannot_be_rejected(arr):
+    _g, new = _pending(arr)
+    c = arr.s4.c
+    assert c.post(f"{API}/access-grants/pending-contacts/{new}/accept").status_code == 200
+    assert c.post(f"{API}/access-grants/pending-contacts/{new}/reject").status_code == 404
+
+
 def test_validation_of_the_page_body(arr):
     assert arr.post(notice_ack=False).status_code == 422, "the notice must be acknowledged"
     assert arr.post(hours="06:00-23:00").status_code == 422, "hours from the fixed list only"

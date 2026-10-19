@@ -13,6 +13,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | access | DELETE | `/api/v1/access-grants/links/{link_id}` |  |
 | access | POST | `/api/v1/access-grants/links/{link_id}/delete-person` |  |
 | access | POST | `/api/v1/access-grants/pending-contacts/{contact_id}/accept` |  |
+| access | POST | `/api/v1/access-grants/pending-contacts/{contact_id}/reject` |  |
 | access | POST | `/api/v1/access-grants/revoke-all` |  |
 | access | GET | `/api/v1/access-grants/settings` |  |
 | access | PUT | `/api/v1/access-grants/settings` |  |
