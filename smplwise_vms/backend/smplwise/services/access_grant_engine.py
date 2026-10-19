@@ -211,9 +211,13 @@ def person_from_raw(raw: Any) -> EnginePerson:
     R5-A7 (fail closed on malformed input): the id is a non-empty string and the revision an int that is not a bool (else ValueError); a
     malformed assignment row (a non-string key, a row that is not an object, `enabled` that is not a boolean, `allowed_locks` that is not
     a list of ints) or a malformed `permission_overrides` / `group_ids` entry makes the door map UNKNOWN - it is never skipped, so a
-    malformed row cannot shrink a known map; bookkeeping revisions that are bools are missing; no enabled assignment is `stations_synced`
-    None (no evidence), never True."""
-    if (not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or not _strict_int(raw.get("revision"))):
+    malformed row cannot shrink a known map; no enabled assignment is `stations_synced` None (no evidence), never True.
+
+    R6-A4 / ACR6-03 (the remaining malformed shapes, all -> door map UNKNOWN, never dropped): the record revision must be a positive int
+    (else not a person); `active` must be an explicit boolean; EVERY assignment row - disabled ones too - needs an explicit boolean
+    `enabled`, a lock list of supported relays (`RELAYS`) and, when present (null = not applied yet), positive int bookkeeping revisions;
+    group ids and override keys must be non-blank strings."""
+    if (not isinstance(raw, dict) or not isinstance(raw.get("id"), str) or not raw["id"] or not _positive_int(raw.get("revision"))):
         raise ValueError("unexpected person record")
     access_redacted, credential_redacted = _redacted(raw.get("redacted_fields"))
     # WisKey round 3 (R3-03): WisKey names the withheld CATEGORIES (`access`, `credentials`), and a record projected for a restricted
@@ -234,19 +238,25 @@ def person_from_raw(raw: Any) -> EnginePerson:
     synced: bool | None = True
     if isinstance(assignments, dict):
         for sid, row in assignments.items():
-            if not isinstance(sid, str) or not sid or not isinstance(row, dict) or not isinstance(row.get("enabled", False), bool):
-                malformed = True  # R5-A7: never skipped - a malformed row makes the whole map unknown
+            # R5-A7 / R6-A4: EVERY row is validated, a disabled one too - `enabled` must be an explicit boolean (a missing key is not
+            # "disabled"), the lock list a list of supported relays, a present bookkeeping revision a positive int. Never skipped: a
+            # malformed row makes the whole map unknown.
+            if not isinstance(sid, str) or not sid.strip() or not isinstance(row, dict) or not isinstance(row.get("enabled"), bool):
+                malformed = True
+                continue
+            locks = row.get("allowed_locks")
+            if not isinstance(locks, list) or not all(_strict_int(r) and r in RELAYS for r in locks):
+                malformed = True
+                continue
+            desired, applied = row.get("desired_revision"), row.get("applied_revision")
+            if any(v is not None and not _positive_int(v) for v in (desired, applied)):
+                malformed = True  # R6-A4: a bool / 0 / negative / non-int revision is malformed (null = not applied yet)
                 continue
             stations.add(sid)
-            if row.get("enabled") is True:
-                locks = row.get("allowed_locks")
-                if not isinstance(locks, list) or not all(_strict_int(r) for r in locks):
-                    malformed = True
-                    continue
+            if row["enabled"] is True:
                 enabled_rows += 1
                 doors[sid] = sorted(set(locks))
-                desired, applied = row.get("desired_revision"), row.get("applied_revision")
-                if not (_strict_int(desired) and _strict_int(applied)):
+                if desired is None or applied is None:
                     synced = None if synced is not False else False
                 elif row.get("sync_state") != "synced" or applied != desired:
                     synced = False
@@ -254,11 +264,15 @@ def person_from_raw(raw: Any) -> EnginePerson:
         synced = None  # R5-A7: nothing enabled is no evidence of application, not a vacuous "synced"
     overrides: dict[str, str] = {}
     if isinstance(overrides_raw, dict):
-        overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and v in ("allow", "deny")}
+        overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and k.strip() and v in ("allow", "deny")}
         malformed = malformed or len(overrides) != len(overrides_raw)
         stations |= set(overrides)
-    if isinstance(groups, list) and not all(isinstance(g, str) for g in groups):
-        malformed = True
+    if isinstance(groups, list) and not all(isinstance(g, str) and g.strip() for g in groups):
+        malformed = True  # R6-A4: a blank group id is not an identifier
+    active = raw.get("active")
+    if not isinstance(active, bool):
+        malformed = True  # R6-A4: a missing / non-boolean `active` is unknown, never "inactive" (it could otherwise read as revoked)
+        active = False
     overrides_known = isinstance(overrides_raw, dict) and not access_redacted and not malformed
     doors_known = isinstance(assignments, dict) and overrides_known and isinstance(groups, list) and not access_redacted and not malformed
     if not doors_known:
@@ -266,7 +280,7 @@ def person_from_raw(raw: Any) -> EnginePerson:
         synced = None
     policy = raw.get("access_timing_policy") if isinstance(raw.get("access_timing_policy"), dict) else None
     return EnginePerson(
-        id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=bool(raw.get("active")),
+        id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=active,
         valid_from=raw.get("valid_from") if isinstance(raw.get("valid_from"), str) else None,
         valid_until=raw.get("valid_until") if isinstance(raw.get("valid_until"), str) else None,
         doors=doors, doors_known=doors_known, stations=tuple(sorted(stations)),
@@ -282,6 +296,14 @@ def person_from_raw(raw: Any) -> EnginePerson:
 def _strict_int(value: Any) -> bool:
     """R5-A7: an int that is not a bool (True / False are ints in Python, never a revision or a lock number)."""
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _positive_int(value: Any) -> bool:
+    """R6-A4: a revision is a strict int >= 1 (0 / negative is not a revision WisKey issues)."""
+    return _strict_int(value) and value >= 1
+
+
+RELAYS = frozenset({1, 2})  # R6-A4: the lock relays Arx knows (the same domain as intercom_adapter's door projection); anything else is malformed
 
 
 def _policy_of(raw: Any) -> dict[str, Any] | None:

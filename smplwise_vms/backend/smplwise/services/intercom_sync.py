@@ -1030,19 +1030,13 @@ class IntercomSync:
     def _journal_admit(self, target: str, key: str, lane: str) -> tuple[str | None, str | None]:
         """R5-A6: after the in-memory admission, the durable side: (blocked, op id). An unresolved journal row holds the write
         (`outcome_pending` / `readback_required`); otherwise the intent is recorded BEFORE dispatch - a journal that cannot record it
-        refuses the write (`journal_unavailable`, nothing sent). No journal installed: (None, None)."""
+        refuses the write (`journal_unavailable`, nothing sent). No journal installed: (None, None).
+        R6-A2 / ACR6-01: the check and the insert are ONE database write transaction (`WriteJournal.admit`), never a read on one
+        connection followed by an insert on another - another IntercomSync instance on the same database cannot slip in between."""
         journal = self.journal
         if journal is None:
             return None, None
-        blocked = journal.blocking(target)
-        if blocked is not None:
-            return blocked, None
-        from .intercom_write_journal import JournalUnavailable
-
-        try:
-            return None, journal.begin(target, key, lane)
-        except JournalUnavailable:
-            return "journal_unavailable", None
+        return journal.admit(target, key, lane)
 
     def begin_external(self, target: str, key: str) -> tuple[str | None, str | None]:
         """R5-A5: a people write that does NOT travel through `action` (the signed capture-lease confirm) takes the same per-person
