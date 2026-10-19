@@ -181,7 +181,7 @@ def test_r5_a1_no_new_create_for_a_subject_with_an_unresolved_create(env):
 # ================================================================ R5-A2: the whole intended timing policy is proven
 
 
-TIMING = {"mode": "weekly", "timezone": "Asia/Jerusalem", "days": ["Thursday"], "periods": [{"start": "08:00", "end": "12:00"}]}
+TIMING = {"mode": "weekly", "timezone": "Asia/Jerusalem", "days": ["Thursday"], "dates": [], "periods": [{"start": "08:00", "end": "12:00"}]}
 
 
 def _raw_person(policy: Any) -> dict:
@@ -212,7 +212,8 @@ def test_r5_a2_the_engine_person_keeps_mode_schedule_and_bindings():
 def test_r5_a2_scope_proof_needs_the_whole_requested_policy(policy, proven):
     p = age.person_from_raw(_raw_person(policy))
     assert ag.scope_proven(p, _scope(timing=TIMING)) is proven
-    assert ag.readback_covers(p, _scope(timing=TIMING)) is proven
+    # no policy at all = no time restriction: BROADER than the requested schedule (R4-03 may activate it with the narrowing still to push)
+    assert ag.readback_covers(p, _scope(timing=TIMING)) is (proven or policy is None)
 
 
 def test_r5_a2_no_timing_requested_means_no_policy_at_all():
@@ -368,7 +369,7 @@ def test_r5_a4_matching_a_partially_projected_person_needs_unrestricted_people_m
     env.engine.hide_doors = True
     rid = env.role("מקשר", ["access.people.manage"])
     bind(env.c, env.settings, "linker", rid, "access_control_station", "st-a")
-    cfg = env.c.post(f"{ag_api()}/access/roles", json={"name": "עורך קריאות", "description": "t", "permissions": ["tickets.configure"], "sensitive": []})
+    cfg = env.c.post(f"{ag_api()}/access/roles", json={"name": "עורך קריאות", "description": "t", "permissions": [], "sensitive": ["tickets.configure"]})
     assert cfg.status_code == 201, cfg.text
     bind(env.c, env.settings, "linker", cfg.json()["id"], "installation", "*")
     env.engine.hide_doors = False
