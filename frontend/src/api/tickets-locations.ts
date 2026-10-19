@@ -30,6 +30,8 @@ export interface OrgLocationAdmin extends OrgLocation {
   lng: number | null;
   active: boolean;
   nav_url: string;
+  /** ORGPLAN-291: the optional linked plan room (a spatial zone id); null when none or when the room was deleted */
+  plan_zone_id: string | null;
   references: number;
   revision: number;
   updated_at: string;
@@ -49,6 +51,17 @@ export interface LocationsAdminAnswer {
   id?: string;
 }
 
+/** ORGPLAN-291: a room of a plan floor the location editor may link (floors the editor may read on the map). */
+export interface PlanAreaOption {
+  zone_id: string;
+  name: string;
+  floor_id: string;
+  floor_name: string;
+}
+
+/** The linked room as a request's detail carries it - present only for a viewer who may read that floor on the map. */
+export interface RequestPlanArea extends PlanAreaOption {}
+
 /** The location of a request as the server presents it (the snapshot taken at creation). */
 export interface RequestLocation {
   id: string | null;
@@ -60,6 +73,8 @@ export interface RequestLocation {
   /** the `{location}` text of a vendor message (name · street, city) and the map link ('' without coordinates) */
   message?: string;
   map_url?: string;
+  /** ORGPLAN-291: display-only "show on map" target; null/absent when no link or the viewer may not read that floor */
+  plan_area?: RequestPlanArea | null;
 }
 
 export interface LocationInput {
@@ -72,12 +87,15 @@ export interface LocationInput {
   active?: boolean;
   is_default?: boolean;
   sort_order?: number;
+  /** ORGPLAN-291: a room id links it, null clears */
+  plan_zone_id?: string | null;
   revision?: number;
 }
 
 export interface LocationsBackend {
   list(): Promise<LocationsAnswer>;
   admin(): Promise<LocationsAdminAnswer>;
+  planAreas(): Promise<PlanAreaOption[]>;
   create(body: LocationInput): Promise<LocationsAdminAnswer>;
   update(id: string, body: LocationInput): Promise<LocationsAdminAnswer>;
   remove(id: string): Promise<LocationsAdminAnswer>;
@@ -90,6 +108,7 @@ const enc = encodeURIComponent;
 const rest: LocationsBackend = {
   list: () => get<LocationsAnswer>('tickets/locations'),
   admin: () => get<LocationsAdminAnswer>(A),
+  planAreas: async () => (await get<{ areas: PlanAreaOption[] }>(`${A}/plan-areas`)).areas,
   create: (body) => post<LocationsAdminAnswer>(A, body),
   update: (id, body) => patch<LocationsAdminAnswer>(`${A}/${enc(id)}`, body),
   remove: (id) => api<LocationsAdminAnswer>(`${A}/${enc(id)}`, { method: 'DELETE' }),
@@ -101,16 +120,21 @@ const rest: LocationsBackend = {
 const demo: { items: OrgLocationAdmin[]; depts: Record<string, string>; refs: Record<string, number>; seq: number } = {
   items: [
     { id: 'loc-hq', name: 'מטה ראשי', street: 'הרצל 5', city: 'תל אביב', details: 'בניין B, קומה 3, כניסה מהחניון', is_default: true, sort_order: 0, map_url: 'https://maps.google.com/?q=32.08530,34.78180',
-      has_coordinates: true, lat: 32.0853, lng: 34.7818, active: true, nav_url: 'https://maps.google.com/?q=32.08530,34.78180', references: 2, revision: 1,
+      has_coordinates: true, lat: 32.0853, lng: 34.7818, active: true, nav_url: 'https://maps.google.com/?q=32.08530,34.78180', plan_zone_id: 'zone-demo-1', references: 2, revision: 1,
       updated_at: '2026-10-17T08:00:00Z' },
     { id: 'loc-wh', name: 'מחסן צפון', street: 'האומן 12', city: 'חיפה', details: 'שער 2', is_default: false, sort_order: 1, map_url: '', has_coordinates: false, lat: null,
-      lng: null, active: true, nav_url: 'https://www.google.com/maps/search/?api=1&query=%D7%94%D7%90%D7%95%D7%9E%D7%9F%2012%2C%20%D7%97%D7%99%D7%A4%D7%94', references: 0,
+      lng: null, active: true, nav_url: 'https://www.google.com/maps/search/?api=1&query=%D7%94%D7%90%D7%95%D7%9E%D7%9F%2012%2C%20%D7%97%D7%99%D7%A4%D7%94', plan_zone_id: null, references: 0,
       revision: 1, updated_at: '2026-10-17T08:00:00Z' },
   ],
   depts: {},
   refs: { 'loc-hq': 2 },
   seq: 1,
 };
+
+const DEMO_AREAS: PlanAreaOption[] = [
+  { zone_id: 'zone-demo-1', name: 'חדר שרתים', floor_id: 'floor-demo-2', floor_name: 'קומה 2' },
+  { zone_id: 'zone-demo-2', name: 'לובי', floor_id: 'floor-demo-1', floor_name: 'קומה 1' },
+];
 
 function demoErr(status: number, code: string, message: string): ApiError {
   return new ApiError(status, { code, user_message: message, retryable: false, correlation_id: 'demo', details: {} });
@@ -142,13 +166,14 @@ const mock: LocationsBackend = {
       default_id: a.default_id, department_defaults: Object.fromEntries(Object.entries(demo.depts).filter(([, l]) => active.some((x) => x.id === l))) };
   },
   admin: async () => demoAdmin(),
+  planAreas: async () => structuredClone(DEMO_AREAS),
   create: async (body) => {
     demoCheck(body, null);
     const id = `loc-demo-${demo.seq++}`;
     if (body.is_default) demo.items.forEach((x) => (x.is_default = false));
     const x: OrgLocationAdmin = { id, name: body.name?.trim() ?? '', street: body.street ?? '', city: body.city ?? '', details: body.details ?? '', is_default: !!body.is_default,
       sort_order: body.sort_order ?? demo.items.length, map_url: '', lat: body.lat ?? null, lng: body.lng ?? null, has_coordinates: body.lat != null, active: body.active ?? true,
-      nav_url: '', references: 0, revision: 1, updated_at: new Date().toISOString() };
+      nav_url: '', plan_zone_id: body.plan_zone_id ?? null, references: 0, revision: 1, updated_at: new Date().toISOString() };
     x.nav_url = demoNav(x);
     x.map_url = x.has_coordinates ? x.nav_url : '';
     demo.items.push(x);

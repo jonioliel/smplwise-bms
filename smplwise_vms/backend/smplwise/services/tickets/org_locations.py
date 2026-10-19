@@ -20,6 +20,7 @@ import sqlite3
 from typing import Any, Mapping
 from urllib.parse import quote
 
+from ...rbac import authorize
 from . import model, store_locations
 from .access import ALL_DEPARTMENTS, CONFIGURE, CREATE, EXTERNAL, VIEW, Viewer
 from .message_templates import _URL
@@ -96,6 +97,61 @@ def clean_fields(conn: sqlite3.Connection, body: Mapping[str, Any], *, current: 
         raise Invalid("street", "required")  # an address-level location: at least a street or a city
     if not creating and ("street" in out or "city" in out) and not (street or city):
         raise Invalid("street", "required")
+    return out
+
+
+# ---------------------------------------------------------------- the optional plan-area link (ORGPLAN-291)
+# A location may name ONE plan area (a room of a plan floor, `spatial_zones`) in the reserved `plan_zone_id` column (migration 0101, no
+# new migration). Display-only: it never widens who sees a request, a floor or a room. The link is shown ("show on map") only to a
+# viewer who may read that floor on the map; a deleted room reads as "no link" and is cleared on the delete.
+
+def live_zone(conn: sqlite3.Connection, zone_id: Any) -> dict[str, Any] | None:
+    """The live (not deleted) room with its floor name, or None."""
+    if not isinstance(zone_id, str) or not zone_id:
+        return None
+    row = conn.execute(
+        "SELECT z.id, z.name, z.floor_id, f.name AS floor_name FROM spatial_zones z JOIN floors f ON f.id = z.floor_id "
+        "WHERE z.id = ? AND z.deleted_at IS NULL", (zone_id,)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def may_view_floor(conn: sqlite3.Connection, principal: Any, floor_id: str) -> bool:
+    return authorize(conn, principal, "map.read", ("floor", floor_id)).allowed
+
+
+def check_plan_zone(conn: sqlite3.Connection, principal: Any, body: Mapping[str, Any]) -> str | None:
+    """The `plan_zone_id` a create / patch writes: None clears; a value must be a live room on a floor the editor may read on the
+    map (an unknown, deleted or unreadable room all answer the same 422, so the field cannot probe the plan). Only call when the key
+    is in the body."""
+    zone_id = body.get("plan_zone_id")
+    if zone_id is None or zone_id == "":
+        return None
+    zone = live_zone(conn, zone_id)
+    if zone is None or not may_view_floor(conn, principal, zone["floor_id"]):
+        raise Invalid("plan_zone_id", "unknown")
+    return zone["id"]
+
+
+def plan_area_for(conn: sqlite3.Connection, principal: Any, location_id: Any) -> dict[str, Any] | None:
+    """What a request's detail shows next to its location: {zone_id, floor_id, name, floor_name} of the CURRENT location's linked room,
+    only when that room is live and this viewer may read its floor on the map; otherwise None (no hint that a link exists)."""
+    if not isinstance(location_id, str) or not location_id:
+        return None
+    loc = store_locations.location(conn, location_id)
+    zone = live_zone(conn, loc.get("plan_zone_id")) if loc else None
+    if zone is None or not may_view_floor(conn, principal, zone["floor_id"]):
+        return None
+    return {"zone_id": zone["id"], "floor_id": zone["floor_id"], "name": zone["name"], "floor_name": zone["floor_name"]}
+
+
+def selectable_areas(conn: sqlite3.Connection, principal: Any) -> list[dict[str, Any]]:
+    """The rooms the editor's picker offers: live rooms of floors the editor may read on the map, with the floor name."""
+    out: list[dict[str, Any]] = []
+    for r in conn.execute(
+            "SELECT z.id, z.name, z.floor_id, f.name AS floor_name FROM spatial_zones z JOIN floors f ON f.id = z.floor_id "
+            "WHERE z.deleted_at IS NULL ORDER BY f.level, f.name, z.name, z.id"):
+        if may_view_floor(conn, principal, r["floor_id"]):
+            out.append({"zone_id": r["id"], "name": r["name"], "floor_id": r["floor_id"], "floor_name": r["floor_name"]})
     return out
 
 
@@ -189,7 +245,7 @@ def present_reader(loc: Mapping[str, Any]) -> dict[str, Any]:
 
 def present_admin(loc: Mapping[str, Any], refs: int) -> dict[str, Any]:
     return {**present_reader(loc), "lat": loc.get("lat"), "lng": loc.get("lng"), "active": bool(loc["active"]),
-            "nav_url": search_url(loc), "references": refs, "revision": loc["revision"], "updated_at": loc["updated_at"]}
+            "nav_url": search_url(loc), "plan_zone_id": loc.get("plan_zone_id"), "references": refs, "revision": loc["revision"], "updated_at": loc["updated_at"]}
 
 
 def reader_list(conn: sqlite3.Connection) -> dict[str, Any]:

@@ -80,7 +80,7 @@ test('the editor refuses a missing / long / duplicate name, links, a missing add
 
 test('the editor body trims, parses the coordinates and never sends an inactive default', () => {
   const b = draftBody({ ...blankDraft(), name: ' מחסן ', street: ' האומן 12 ', lat: ' 32.5 ', lng: '34.9', sort_order: 'x', active: false, is_default: true }, 3);
-  expect(b).toEqual({ name: 'מחסן', street: 'האומן 12', city: '', details: '', lat: 32.5, lng: 34.9, sort_order: 0, active: false, is_default: false, revision: 3 });
+  expect(b).toEqual({ name: 'מחסן', street: 'האומן 12', city: '', details: '', lat: 32.5, lng: 34.9, sort_order: 0, active: false, is_default: false, plan_zone_id: null, revision: 3 });
   expect(draftBody({ ...blankDraft(), name: 'a', city: 'b' }).lat).toBeNull();
 });
 
@@ -123,4 +123,44 @@ test('the draft editor sends the new reference, or the free text, clearing the o
   expect(editLocationBody('a', '', OTHER, ' מחסן ')).toEqual({ location_id: null, place_text: 'מחסן', location_nav: false });
   expect(editLocationBody(OTHER, 'חדר', OTHER, 'מחסן')).toEqual({ location_id: null, place_text: 'מחסן', location_nav: false });
   expect(editLocationBody('a', '', '', '')).toEqual({ location_id: null, place_text: '', location_nav: false });
+});
+
+// ORGPLAN-291: the optional link from a location to a plan area (room)
+
+test('the draft carries the linked room: loaded from the location, sent as an id or null', async () => {
+  const { draftOf } = await import('../src/tickets/org-locations-model');
+  const admin = { ...loc('a'), lat: null, lng: null, active: true, nav_url: '', plan_zone_id: 'z1', references: 0, revision: 2, updated_at: '' };
+  expect(draftOf(admin).plan_zone_id).toBe('z1');
+  expect(draftOf({ ...admin, plan_zone_id: null }).plan_zone_id).toBe('');
+  const ok = { ...blankDraft(), name: 'מחסן', street: 'האומן 12' };
+  expect(draftBody({ ...ok, plan_zone_id: 'z1' }).plan_zone_id).toBe('z1');
+  expect(draftBody(ok).plan_zone_id).toBeNull(); // clearing the picker clears the link
+});
+
+test('the area picker lists the rooms by floor and keeps a link the editor cannot see', async () => {
+  const { areaChoices, areaLabel } = await import('../src/tickets/org-locations-model');
+  const areas = [{ zone_id: 'z1', name: 'חדר שרתים', floor_id: 'f2', floor_name: 'קומה 2' }, { zone_id: 'z2', name: 'לובי', floor_id: 'f1', floor_name: 'קומה 1' }];
+  expect(areaLabel(areas[0])).toBe('קומה 2 · חדר שרתים');
+  expect(areaChoices(areas, 'z2').map((o) => o.id)).toEqual(['z1', 'z2']);
+  expect(areaChoices(areas, '').some((o) => o.missing)).toBe(false);
+  // a link to a floor the editor may not read, or a list that failed to load: kept as a placeholder, so a save does not drop it
+  expect(areaChoices(areas, 'z9').at(-1)).toEqual({ id: 'z9', label: '', missing: true });
+  expect(areaChoices(null, 'z9')).toEqual([{ id: 'z9', label: '', missing: true }]);
+  expect(areaChoices(null, '')).toEqual([]);
+});
+
+test('"show on map" uses the existing explore deep link and only exists when the server sent a room', async () => {
+  const { showOnMapHref } = await import('../src/tickets/org-locations-model');
+  const area = { zone_id: 'z 1', floor_id: 'f/2', name: 'חדר', floor_name: 'קומה 2' };
+  expect(showOnMapHref(area)).toBe('#/explore/floors/f%2F2?zone=z%201');
+  expect(showOnMapHref(null)).toBeNull();
+  expect(showOnMapHref(undefined)).toBeNull();
+});
+
+test('the server code for an unknown room maps to the editor vocabulary and the new words exist in both languages', () => {
+  expect(serverProblem('unknown')).toBe('area');
+  for (const k of ['fArea', 'areaNone', 'areaMissing', 'areaLinked', 'showOnMap', 'err_area'] as const) {
+    expect(LOC_TEXT_HE[k]).toBeTruthy();
+    expect(LOC_TEXT_EN[k]).toBeTruthy();
+  }
 });

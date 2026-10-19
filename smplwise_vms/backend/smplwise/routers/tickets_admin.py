@@ -1128,6 +1128,7 @@ class LocationBody(BaseModel):
     active: StrictBool | None = None
     is_default: StrictBool | None = None
     sort_order: StrictInt | None = None
+    plan_zone_id: str | None = Field(default=None, max_length=64)  # ORGPLAN-291: the optional plan room; null clears
     revision: StrictInt | None = Field(default=None, ge=1)  # optional optimistic check on a patch
 
 
@@ -1166,6 +1167,13 @@ def admin_locations(principal: Principal = Depends(current_principal_ro), conn: 
     return org_locations.admin_list(conn)
 
 
+@router.get("/tickets/admin/locations/plan-areas")
+def location_plan_areas(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """ORGPLAN-291: the rooms the location editor's picker offers (only floors the editor may read on the map)."""
+    _configurer(conn, principal)
+    return {"areas": org_locations.selectable_areas(conn, principal)}
+
+
 @router.post("/tickets/admin/locations", status_code=201)
 def create_location(body: LocationBody, request: Request, principal: Principal = Depends(current_principal),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
@@ -1173,7 +1181,10 @@ def create_location(body: LocationBody, request: Request, principal: Principal =
     if len(store_locations.locations(conn, active_only=False)) >= org_locations.LOCATIONS_MAX:
         raise ApiError(409, "locations_limit", text(conn, "הגעתם למספר המיקומים המרבי."))
     try:
-        fields = org_locations.clean_fields(conn, body.model_dump(exclude={"revision"}, exclude_unset=True), current=None)
+        data = body.model_dump(exclude={"revision"}, exclude_unset=True)
+        fields = org_locations.clean_fields(conn, data, current=None)
+        if "plan_zone_id" in data:
+            fields["plan_zone_id"] = org_locations.check_plan_zone(conn, principal, data)
     except org_locations.Invalid as exc:
         raise _loc_invalid(conn, exc) from None
     if fields.get("is_default"):
@@ -1194,7 +1205,10 @@ def patch_location(body: LocationBody, request: Request, location_id: str = Path
     if body.revision is not None and body.revision != loc["revision"]:
         raise ApiError(409, "stale", text(conn, "המיקום עודכן בינתיים. רעננו ונסו שוב."), details={"revision": loc["revision"]})
     try:
-        fields = org_locations.clean_fields(conn, body.model_dump(exclude={"revision"}, exclude_unset=True), current=loc)
+        data = body.model_dump(exclude={"revision"}, exclude_unset=True)
+        fields = org_locations.clean_fields(conn, data, current=loc)
+        if "plan_zone_id" in data:
+            fields["plan_zone_id"] = org_locations.check_plan_zone(conn, principal, data)
     except org_locations.Invalid as exc:
         raise _loc_invalid(conn, exc) from None
     if fields.get("is_default"):
