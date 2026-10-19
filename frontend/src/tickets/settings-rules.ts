@@ -91,8 +91,8 @@ export class TicketsRulesSettings extends LitElement {
       white-space: nowrap;
     }
     .chip.warn {
-      background: var(--sw-warning-soft, var(--sw-surface-2));
-      color: var(--sw-warning-text, var(--sw-warning, var(--sw-text)));
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
     }
     .chip.bad {
       color: var(--sw-danger);
@@ -134,7 +134,7 @@ export class TicketsRulesSettings extends LitElement {
       min-inline-size: 0;
     }
     .dry b[data-dry-would] {
-      font-size: var(--sw-fs-md, var(--sw-fs-sm));
+      font-size: var(--sw-fs-md);
     }
     .dry .pv {
       padding: 8px 10px;

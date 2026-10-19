@@ -55,7 +55,7 @@ export class TicketsWorkCalendarCard extends LitElement {
       cursor: pointer;
     }
     .days button[aria-pressed='true'] {
-      background: var(--sw-accent-soft, var(--sw-surface-2));
+      background: var(--sw-accent-soft);
       border-color: var(--sw-accent);
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
@@ -101,7 +101,7 @@ export class TicketsWorkCalendarCard extends LitElement {
       color: var(--sw-text-3);
     }
     .field-error {
-      color: var(--sw-danger-text, var(--sw-danger));
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
   `, bubbleChrome];
