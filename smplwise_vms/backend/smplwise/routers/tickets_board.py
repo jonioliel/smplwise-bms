@@ -24,7 +24,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, board, dashboard, handler_load, messaging, model, settings_doc, store
+from ..services.tickets import access, board, dashboard, dashboard_pay, handler_load, messaging, model, settings_doc, store
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, STATUS_FILTER, module_gate
 
@@ -134,4 +134,32 @@ def get_dashboard(
     if dashboard.CACHE.audit_due(dashboard.db_key(conn), viewer.uid):
         audit(conn, actor=principal, action="ticket.dashboard", decision="allowed", resource_type="installation", resource_id="*",
               details={"department_id": department_id, "period": chosen})
+    return out
+
+
+@router.get("/tickets/dashboard/payments")
+def get_dashboard_payments(
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    department_id: str | None = Query(None, pattern=ID),
+) -> dict[str, Any]:
+    """MGRDASH phase 4: the payments board (services/tickets/dashboard_pay.py has the definitions) - overdue / upcoming instalments of the
+    approved payment schedules and approved claims not marked paid, each only where the caller may act on it. The board's manager gate
+    + tickets.costs and tickets.costs.view at some scope (an audited 403 otherwise); a department the caller does not manage is an audited
+    403 (never an empty answer)."""
+    viewer = Viewer(conn, principal)
+    _manager_gate(conn, viewer)
+    if not dashboard_pay.may_pay_somewhere(viewer):
+        audit(conn, actor=principal, action="ticket.dashboard.payments", decision="denied", resource_type="installation", resource_id="*",
+              reason="costs_permission_missing")
+        raise ApiError(403, "forbidden", text(conn, "אין הרשאה לתשלומים."), details={"permission": "tickets.costs"})
+    if department_id and not viewer.manages_department(department_id):
+        audit(conn, actor=principal, action="ticket.dashboard.payments", decision="denied", resource_type="ticket_department",
+              resource_id=department_id, reason="department_not_managed")
+        raise ApiError(403, "forbidden", text(conn, "הסקירה פתוחה רק למחלקות שבניהולך."), details={"permission": access.MANAGE})
+    out = dashboard_pay.cached_payments(conn, viewer, department_id=department_id or None, now=dt.datetime.now(dt.timezone.utc),
+                                        tz=messaging.time_zone(conn))
+    if dashboard_pay.CACHE.audit_due(dashboard.db_key(conn), viewer.uid):
+        audit(conn, actor=principal, action="ticket.dashboard.payments", decision="allowed", resource_type="installation", resource_id="*",
+              details={"department_id": department_id})
     return out

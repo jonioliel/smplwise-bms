@@ -53,6 +53,13 @@ def janitor(db: Database, root: Path, *, force: bool = False, now: dt.datetime |
             out["rfq"] = rfq.retention(conn, at)
         except Exception as exc:  # noqa: BLE001 - never stops the tick
             log.warning("rfq retention failed (%s)", type(exc).__name__)
+    try:  # MGRDASH phases 4-5: the manager overview's alerts (all off by default) - a transaction of their own
+        from . import dashboard_alerts
+
+        with db.connection(label="tickets.dashboard.alerts") as conn:
+            out["dashboard_alerts"] = dashboard_alerts.tick(conn, at)
+    except Exception as exc:  # noqa: BLE001 - never stops the tick
+        log.warning("dashboard alerts failed (%s)", type(exc).__name__)
     for rel in doomed:
         try:
             cost_storage.remove(root, rel)

@@ -13,7 +13,7 @@
 import type { BoardItem, StuckKind, TreeNode } from '../api/tickets-board';
 import type { RfqDetail, RfqSummary } from '../api/tickets-rfq';
 import type { TicketItem } from '../api/tickets';
-import type { DailyRow, DashboardResponse, DashDepartment, DashPeriod, DashRfq } from '../api/tickets-dashboard';
+import type { DailyRow, DashboardResponse, DashDepartment, DashPeriod, DashRfq, PayInstalment, PaymentsResponse } from '../api/tickets-dashboard';
 
 // ---------------------------------------------------------------- the settings
 
@@ -27,9 +27,13 @@ export interface OverviewSettings {
   busy: number;
   busyByDept: Readonly<Record<string, number>>;
   compare: ComparePlace;
+  /** phase 5: the local hour of the managers' morning summary (0-23, default 8) */
+  digestHour: number;
+  /** phase 5: the busy-department alert's threshold of stuck requests (1-999, default 10) */
+  deptStuck: number;
 }
 
-export const OVERVIEW_DEFAULTS: OverviewSettings = { handlerNumbers: 'own', vendors: 'tagged', busy: 8, busyByDept: {}, compare: 'below_numbers' };
+export const OVERVIEW_DEFAULTS: OverviewSettings = { handlerNumbers: 'own', vendors: 'tagged', busy: 8, busyByDept: {}, compare: 'below_numbers', digestHour: 8, deptStuck: 10 };
 export const HANDLER_NUMBERS: readonly HandlerNumbers[] = ['managers', 'own', 'everyone'];
 export const VENDOR_MODES: readonly VendorMode[] = ['tagged', 'separate', 'hidden'];
 export const COMPARE_PLACES: readonly ComparePlace[] = ['top', 'below_numbers', 'bottom'];
@@ -49,7 +53,19 @@ export function overviewSettingsOf(ui: Readonly<Record<string, unknown>> | null 
     busy: isBusyN(u.dash_busy) ? u.dash_busy : OVERVIEW_DEFAULTS.busy,
     busyByDept: map,
     compare: pick(u.dash_compare, COMPARE_PLACES, OVERVIEW_DEFAULTS.compare),
+    digestHour: isInt(u.dash_digest_hour, 0, 23) ? u.dash_digest_hour : OVERVIEW_DEFAULTS.digestHour,
+    deptStuck: isInt(u.dash_dept_stuck, 1, 999) ? u.dash_dept_stuck : OVERVIEW_DEFAULTS.deptStuck,
   };
+}
+
+const isInt = (v: unknown, lo: number, hi: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
+
+/** Phase 5: the busy-department threshold typed into its field - an integer 1-999, anything else (an empty field too) invalid. */
+export function parseDeptStuckInput(text: string): number | undefined {
+  const t = text.trim();
+  if (!/^\d{1,3}$/.test(t)) return undefined;
+  const n = Number(t);
+  return isInt(n, 1, 999) ? n : undefined;
 }
 
 /** The "busy" threshold of a department (its own value, else the installation default). */
@@ -281,7 +297,7 @@ export function lanes(items: readonly BoardItem[], vendorIds: ReadonlySet<string
 
 // ---------------------------------------------------------------- card 9: overdue
 
-export type OverdueKind = 'sla' | 'eta' | 'rfq';
+export type OverdueKind = 'sla' | 'eta' | 'rfq' | 'pay';
 export interface OverdueRow {
   kind: OverdueKind;
   id: string;
@@ -535,9 +551,42 @@ export function sortDepartments(rows: readonly DashDepartment[]): DashDepartment
 /** Card 7 rows: up to `n` per group unless all are asked for (the server sends at most 50 per group, the count is always complete). */
 export const APPROVALS_SHOWN = 5;
 
+// ---------------------------------------------------------------- phase 4: the payments board (GET /tickets/dashboard/payments)
+
+/** The payments card's number: everything waiting for the viewer's payment decision (counts only). */
+export function paymentsTotal(p: PaymentsResponse | null | undefined): number {
+  return p ? p.overdue.count + p.upcoming.count + p.claims.count : 0;
+}
+
+/** Card 9 rows of the instalments past their day (the server decided which; the late time counts from the end of the due day). */
+export function paymentOverdueRows(items: readonly PayInstalment[], now: Date): OverdueRow[] {
+  const t = now.getTime();
+  return items.map((x) => {
+    const since = localDay(x.due_date) + DAY;
+    return { kind: 'pay' as const, id: x.rfq.id, ref: x.rfq.ref, title: x.rfq.title, since: x.due_date, late: Math.max(0, t - since), who: x.vendor ?? '',
+      tone: x.days <= -2 ? 'bad' as const : 'warn' as const, rfq: true };
+  });
+}
+
+/** Card 10's payment dates from the server (every approved schedule the viewer may pay, no detail cap) - replaces the phase-1 reading of
+ * the awarded requests' details when the payments answer is there. */
+export function serverPaymentDates(items: readonly PayInstalment[]): PaymentDate[] {
+  return items.map((x) => ({ rfqId: x.rfq.id, ref: x.rfq.ref, title: x.rfq.title, vendor: x.vendor ?? '', date: x.due_date }));
+}
+
+/** When an instalment is due, in words: late by n days / today / tomorrow / in n days. */
+export type PayWhen = { key: 'pyLateDays' | 'pyLateDay' | 'pyDueToday' | 'pyDueTomorrow' | 'pyDueIn'; n: number };
+export function payWhen(days: number): PayWhen {
+  if (days < -1) return { key: 'pyLateDays', n: -days };
+  if (days === -1) return { key: 'pyLateDay', n: 1 };
+  if (days === 0) return { key: 'pyDueToday', n: 0 };
+  if (days === 1) return { key: 'pyDueTomorrow', n: 1 };
+  return { key: 'pyDueIn', n: days };
+}
+
 // ---------------------------------------------------------------- folding
 
-export type CardKey = 'departments' | 'stuck' | 'waits' | 'load' | 'overdue' | 'upcoming' | 'throughput' | 'daily' | 'approvals' | 'rfqs';
+export type CardKey = 'departments' | 'stuck' | 'waits' | 'load' | 'overdue' | 'upcoming' | 'throughput' | 'daily' | 'approvals' | 'rfqs' | 'payments';
 /** Spec 8 / owner decision: on a phone the cards 5, 6 and 11 start folded (5 and 6 arrive in phase 3). */
 export const PHONE_FOLDED: readonly CardKey[] = ['throughput', 'daily', 'departments'];
 export const FOLD_STORAGE_KEY = 'sw.tickets.overview.folded';

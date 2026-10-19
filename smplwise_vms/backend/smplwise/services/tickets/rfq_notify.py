@@ -52,6 +52,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_proposed": ("{ref}: ספק הציע מועד הגעה אחר", "{place} · ממתין להחלטה"),
         "arrival_unconfirmed": ("{ref}: ספק לא אישר את מועד ההגעה", "{place} · נשלחו שתי תזכורות · הזמנת העבודה אינה נחסמת"),
         "instalment_overdue": ("{ref}: מועד תשלום לספק עבר", "{place} · {count} תשלומים שמועדם עבר ולא סומנו כשולמו"),
+        "instalment_due_tomorrow": ("{ref}: מועד תשלום לספק מחר", "{place} · {count} תשלומים שטרם סומנו כשולמו"),
         "vendor_postponement": ("{ref}: ספק הודיע על דחיית העבודה", "{place}"),
         "vendor_postponement_late": ("{ref}: ספק הודיע על דחיית העבודה", "{place} · באיחור"),
     },
@@ -68,6 +69,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "arrival_proposed": ("{ref}: a vendor proposed another arrival date", "{place} · waiting for a decision"),
         "arrival_unconfirmed": ("{ref}: a vendor did not confirm the arrival date", "{place} · two reminders sent · the work order is not blocked"),
         "instalment_overdue": ("{ref}: a vendor payment is past its date", "{place} · {count} instalments past their date and not marked paid"),
+        "instalment_due_tomorrow": ("{ref}: a vendor payment is due tomorrow", "{place} · {count} instalments not marked paid yet"),
         "vendor_postponement": ("{ref}: a vendor gave notice of postponing the work", "{place}"),
         "vendor_postponement_late": ("{ref}: a vendor gave notice of postponing the work", "{place} · late"),
     },
@@ -138,6 +140,12 @@ def recipient_users(conn: sqlite3.Connection, n: Mapping[str, Any]) -> list[str]
         from .rfq import _user_viewer
 
         managers = [uid for uid in managers if _user_viewer(conn, uid).holds(COSTS_VIEW, dict(row))]
+    elif origin.get("audience") == "pay":  # MGRDASH phase 4: only those who may mark the payment (tickets.costs + view, the act's rule)
+        from .costs import COSTS, COSTS_VIEW
+        from .rfq import _user_viewer
+
+        managers = [uid for uid in managers
+                    if (v := _user_viewer(conn, uid)).holds(COSTS_VIEW, dict(row)) and v.holds(COSTS, dict(row))]
     return managers
 
 
@@ -283,6 +291,24 @@ def payments_ended(conn: sqlite3.Connection, rfq_id: str) -> None:
     """The request was cancelled, deleted or purged: every overdue-instalment row of it is over."""
     for key in store.open_notification_keys(conn, f"{PAY_PREFIX}:{rfq_id}:"):
         resolve(conn, "rfq.instalment_overdue", key)
+
+
+# MGRDASH phase 4: "payment due tomorrow" - keyed OUTSIDE `rfq:<id>:` like the overdue rows (`rfqpaydue:<rfq_id>:<award_id>:<day>`)
+DUE_PREFIX = "rfqpaydue"
+
+
+def instalment_due_tomorrow(conn: sqlite3.Connection, row: Mapping[str, Any], award_id: str, rfq_vendor_id: str, *, count: int,
+                            day: str) -> str | None:
+    """MGRDASH phase 4 (spec section 9): approved instalments of one award are due TOMORROW and not marked paid (the janitor, once per
+    award and day - services/tickets/dashboard_alerts.py). Audience `pay`: the RFQ managers who may mark the payment. The reference,
+    the place and a COUNT - never an amount, a date, the vendor's name or a text. Off by default (its policy row)."""
+    return _emit(conn, "rfq.instalment_due_tomorrow", row, "instalment_due_tomorrow", dedupe=f"{DUE_PREFIX}:{row['id']}:{award_id}:{day}",
+                 origin={"rfq_vendor_id": rfq_vendor_id, "award_id": award_id, "audience": "pay"}, count=int(count))
+
+
+def instalment_due_over(conn: sqlite3.Connection, dedupe: str) -> None:
+    """The instalments of that row were paid, moved, or their day came: the row is over."""
+    resolve(conn, "rfq.instalment_due_tomorrow", dedupe)
 
 
 def postponement(conn: sqlite3.Connection, row: Mapping[str, Any], award_id: str, rfq_vendor_id: str, *, late: bool = False) -> str | None:

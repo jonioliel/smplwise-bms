@@ -230,7 +230,8 @@ def test_ticket_sql_lives_in_the_store():
                          "map_element.py", "phone_verify.py", "vendor_portal.py",  # + VPORTAL (its own 0105 tables), same recorded exception
                          "dept_handlers.py", "handler_load.py",  # integ/264: DEPTMGR / HANDLERLOAD read-only queries in place - recorded, a follow-up may move them
                          "portal_more.py", "rfq_vendor_files.py",  # integ/270: VPORTALRFQ (0112) / RFQ-VENDOR-UPLOAD (0109) SQL in place - recorded exceptions
-                         "store_dash.py"):  # MGRDASH phase 2: the summary route's read-only SQL (a store module of its own)
+                         "store_dash.py",  # MGRDASH phase 2: the summary route's read-only SQL (a store module of its own)
+                         "store_dash_extra.py"):  # MGRDASH phases 4-5: the payments board and the alerts (read-only, a store module of its own)
             continue
         if re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", path.read_text(encoding="utf-8")):
             offenders.append(path.name)

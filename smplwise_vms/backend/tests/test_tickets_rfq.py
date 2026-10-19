@@ -728,7 +728,7 @@ def test_only_the_rfq_module_reads_requests_unchecked():
         rel = path.relative_to(SMPLWISE).as_posix()
         if rel in ("services/tickets/rfq.py", "services/tickets/store_rfq.py"):
             continue
-        if re.search(r"\b(rfq_row_unchecked|rfq_candidates_unchecked)\b", path.read_text(encoding="utf-8")):
+        if re.search(r"\b(rfq_row_unchecked|rfq_rows_by_ids_unchecked|rfq_candidates_unchecked)\b", path.read_text(encoding="utf-8")):
             offenders.append(rel)
     assert offenders == [], f"a request read around rfq.visible(): {offenders}"
 

@@ -220,6 +220,11 @@ def visible_many(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen | None]:
     return {i: (_decide(viewer, rows[i]) if i in rows else None) for i in ids}
 
 
+def visible_by_ids(viewer: Viewer, ticket_ids: Any) -> dict[str, Seen]:
+    """MGRDASH phases 4-5: visible_many() keeping only the tickets the caller may see (an absent id says nothing about why)."""
+    return {i: s for i, s in visible_many(viewer, ticket_ids).items() if s is not None}
+
+
 def require_visible(viewer: Viewer, ticket_id: str) -> Seen:
     """One ticket for a route: the uniform 404 for an id that is unknown, foreign or invisible to this caller."""
     seen = visible_by_id(viewer, ticket_id)
