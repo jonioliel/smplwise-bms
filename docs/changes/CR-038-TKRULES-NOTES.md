@@ -1,7 +1,7 @@
 # CR-038 phase 2 (TKRULES-291): tickets opened automatically from alerts - design note
 
 Backlog item `tickets-rule-based-creation` ("פתיחת קריאות אוטומטית מכללים והתראות (שלב 2)"). Branch `pilot/TKRULES-291`, cut from
-`integ/290`; target 2.9.1 / 2.10 (not the 2.9.0 gate). Migration **0122** (`ticket_rule_fires`). This note is the smallest safe
+`integ/290`; target 2.9.1 / 2.10 (not the 2.9.0 gate). Migration **0123** (built as 0122; renumbered at integ/291) (`ticket_rule_fires`). This note is the smallest safe
 phase 2; section 18 of `CR-038-TICKETS-MODULE.md` was the hook (`TicketSpec.origin = 'rule'`, `rule_ref`, `dedupe_key`).
 
 ## 1. What it does
@@ -52,7 +52,7 @@ happens):
   installation-wide alerts flow into which department). Every save is audited (`tickets.rules.update`, rule ids + changed fields,
   never free text).
 
-## 3. Data: migration 0122 `ticket_rule_fires`
+## 3. Data: migration 0123 `ticket_rule_fires`
 
 One row per (rule, notification row): `outcome` `created | absorbed | suppressed | refused`, `ticket_id`, `day` (local date),
 `at`, `cleared_at`. `UNIQUE(rule_id, notification_id)` = **idempotency**: a notification occurrence is acted on at most once per

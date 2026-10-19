@@ -1,4 +1,4 @@
-"""CR-038 phase 2 (TKRULES-291): the SQL of the rule engine - its own table `ticket_rule_fires` (migration 0122) and the read-only
+"""CR-038 phase 2 (TKRULES-291): the SQL of the rule engine - its own table `ticket_rule_fires` (migration 0123) and the read-only
 look at the notification core's open conditions (`notifications`, CR-018). A store module of its own (the tests' SQL-in-the-store rule).
 Nothing here decides visibility: the engine is a system caller and never hands these rows to a person; the dry-run filters every
 notification row through notify_visibility.Reach before showing it."""
