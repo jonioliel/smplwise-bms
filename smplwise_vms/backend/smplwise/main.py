@@ -115,6 +115,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         elevators_runtime.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("elevators janitor failed", exc_info=True)
+    try:  # CR-INFRA-TEMPERATURE 2.9.1: the temperature history and alert log past their retention (hourly inside; no Home Assistant call)
+        from .services import temperature_runtime
+
+        temperature_runtime.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("temperature janitor failed", exc_info=True)
     try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
         from .services import update_runs
 
@@ -475,6 +481,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from .routers import elevators as elevators_router
 
+    from .routers import temperature as temperature_router
+
+    app.include_router(temperature_router.router, prefix=api, tags=["infra"])  # CR-INFRA-TEMPERATURE 2.9.1: טמפרטורות - units, history, alert log, routing (read-only)
     app.include_router(elevators_router.router, prefix=api, tags=["infra"])  # CR-INFRA-ELEVATORS: מעליות - definitions, sensor mapping, derived live state (view only)
     app.include_router(generator_router.router, prefix=api, tags=["generator"])  # CR-031: גנרטור - devices, live values, history, alerts, routing (view and alerts only)
     app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
@@ -672,6 +681,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import elevators_runtime
 
         elevators_runtime.RUNNER.start(app.state.db)  # CR-INFRA-ELEVATORS 2.8.0: elevator state history and notifications from the state mirror (read-only)
+        from .services import temperature_runtime
+
+        temperature_runtime.RUNNER.start(app.state.db)  # CR-INFRA-TEMPERATURE 2.9.1: temperature history, status and alerts from the state mirror (read-only)
         if os.environ.get("SW_BILL_PDF_SELFCHECK", "1") != "0":  # CR-023: log and expose which bill PDF engine really works here
             from .services import bill_pdf
 
@@ -777,6 +789,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import elevators_runtime as _elr
 
         _elr.RUNNER.shutdown()
+        from .services import temperature_runtime as _tmr
+
+        _tmr.RUNNER.shutdown()
         from .services import wiskey_background_feed as _wbf
 
         _wbf.FEED.shutdown()

@@ -108,6 +108,9 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   mail: svg`<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>`,
   /* CR-038: the tickets area (a ticket with its perforation) */
   ticket: svg`<path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/>`,
+  // CR-INFRA-TEMPERATURE 2.9.1: an open door (the leaf swung out) and a muted bell
+  doorOpen: svg`<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.6v16.8a.5.5 0 0 1-.6.5L5 20V5.3a.5.5 0 0 1 .4-.5z"/>`,
+  bellOff: svg`<path d="M8.7 3A6 6 0 0 1 18 8v3.5l1.5 2.5"/><path d="M6.3 6.3A6 6 0 0 0 6 8v8l-1.5 2H17"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

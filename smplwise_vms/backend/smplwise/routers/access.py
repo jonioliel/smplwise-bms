@@ -290,6 +290,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # CR-INFRA-ELEVATORS: define elevators and link their state sensors (site_admin, system_admin; installation scope). Viewing the
     # elevators needs no permission of its own: devices.read, scoped by the floors of the linked sensors (routers/elevators.py).
     "infra.elevators.manage": "ניהול מעליות: הגדרה וקישור חיישני מצב",
+    # CR-INFRA-TEMPERATURE 2.9.1: viewing the temperature units needs devices.read (scoped by the unit's sensors, routers/temperature.py).
+    # ack = acknowledge a unit's alerts and mute its WARNINGS for a while (operator, site_admin, system_admin); manage = define units, link
+    # sensors, thresholds, rules, the installation defaults and the learned defrost windows (site_admin, system_admin; installation scope).
+    "infra.temperature.ack": "טמפרטורות: אישור התראות והשתקת אזהרות",
+    "infra.temperature.manage": "ניהול טמפרטורות: יחידות, חיישנים, ספים וכללים",
     # CR-038 (the optional tickets module, docs/changes/CR-038-TICKETS-MODULE.md section 8; owner decisions D15 / D25): WHAT a person
     # may do with tickets - WHERE is the ticket's place AND department membership (services/tickets/access.py visible()). view: see
     # tickets (own, assigned to me, my departments') and be assignable in a department one is a member of (operator, site_admin,

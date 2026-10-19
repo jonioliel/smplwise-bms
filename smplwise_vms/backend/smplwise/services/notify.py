@@ -179,6 +179,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from . import elevator_alerts
 
         candidates = elevator_alerts.recipient_users(conn, n)
+    elif rule == "temperature":  # CR-INFRA-TEMPERATURE 2.9.1: the unit's own list, else the installation's recipients of the alert kind
+        from . import temperature_alerts
+
+        candidates = temperature_alerts.recipient_users(conn, n)
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
         from .tickets import rfq_notify
 
