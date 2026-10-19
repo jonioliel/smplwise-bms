@@ -5,6 +5,7 @@ import '../components/sw-button';
 import { describeError } from '../api/client';
 import { portalRequestsApi, type PortalTechRequest } from '../api/tickets-portal-requests';
 import { tt } from './text';
+import { groupByVendor } from './portal-requests-model';
 
 /**
  * VPORTALRFQ: "בקשות טכנאים מספקים" - the pending company technician requests vendors sent from the portal, on "מטפלים וספקים" ›
@@ -36,6 +37,11 @@ export class TicketsPortalRequests extends LitElement {
     .who {
       flex: 1 1 220px;
       min-inline-size: 0;
+    }
+    .vendor {
+      margin-block: 8px 0;
+      font-size: var(--sw-fs-sm);
+      font-weight: 600;
     }
     .sub {
       font-size: var(--sw-fs-xs);
@@ -78,13 +84,15 @@ export class TicketsPortalRequests extends LitElement {
   render() {
     if (!this.requests.length) return nothing;
     return html`<sw-card heading=${tt('ptrTitle')} data-portal-requests>
-      ${this.requests.map((r) => html`<div class="req" data-portal-request=${r.id}>
+      ${groupByVendor(this.requests).map((g) => html`<section data-portal-vendor=${g.vendor.id}>
+        <h3 class="vendor" dir="auto">${g.vendor.name} (${g.requests.length})</h3>
+        ${g.requests.map((r) => html`<div class="req" data-portal-request=${r.id}>
         <div class="who"><div dir="auto">${r.display_name} <bdi dir="ltr">${r.phone ?? ''}</bdi></div>
-          <div class="sub" dir="auto">${r.vendor.name} · ${r.action === 'add' ? tt('ptrAdd') : tt('ptrReplace', { name: r.replaces?.name ?? '' })}</div>
+          <div class="sub" dir="auto">${r.action === 'add' ? tt('ptrAdd') : tt('ptrReplace', { name: r.replaces?.name ?? '' })}</div>
           ${r.phone_known ? html`<div class="tag" data-portal-request-known>${tt('ptrKnown')}</div>` : nothing}</div>
         <sw-button size="sm" variant="primary" data-portal-request-approve ?disabled=${!!this.busy} @click=${() => void this.decide(r, true)}>${tt('ptrApprove')}</sw-button>
         <sw-button size="sm" data-portal-request-reject ?disabled=${!!this.busy} @click=${() => void this.decide(r, false)}>${tt('ptrReject')}</sw-button>
-      </div>`)}
+      </div>`)}</section>`)}
     </sw-card>`;
   }
 }
