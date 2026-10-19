@@ -115,3 +115,32 @@ Review: `private/planning/RELEASE_270_REVIEW_CONSOLIDATED.md` section 2. Negativ
   `idx_ticket_rfq_events_rfq`), found through the quote's `rfq_vendor_id`.
 - Not changed: K5 (wording, counsel), K7 (optional). Backups: `access.external_grants` and every `access.external.*` limit are in
   `backup.SETTINGS_KEEP` (never exported, never restored).
+
+## GRANTS-FIX280 (2.8.0, `pilot/GRANTS-FIX280` from `main` 2.7.3) - grants-worker review F2, F3, F4, F6; still `GO_LIVE_PERMITTED = False`
+
+Review: the grants-worker readiness review of 2026-10-18 (private planning, verdict "SAFE AFTER FIXES"). F1 and F5 are on
+`pilot/WISKEYADAPT280`. Tests: `tests/test_grants_fix280.py` (fakes only; 12 of its 14 cases red on 2.7.3, the two that stay green guard
+the ordering of the 403 before the new 409 and the vendor page's own-ticket path).
+
+- **F2 (H3)** - `Worker.push_narrowing` re-reads the person after the write and reports `access.grant.amend kind=pushed` only when the
+  read shows the person active with EXACTLY the grant's door map and validity window (`narrowing_proven`; a record without a door map -
+  `doors_known` False on WISKEYADAPT280, or an empty map - proves nothing). Anything else revokes the whole grant (`station_changed`,
+  audit `kind=push_unproven`): fail closed; the narrowed access is requested and approved again (no automatic re-provisioning - the
+  re-provisioned write would be equally unprovable). `needs_push` is cleared by a compare-and-set on the revision the pass read; a
+  narrowing or amendment that committed while the push was out leaves `needs_push = 1` (audit `kind=push_superseded`) and the next pass
+  pushes the row's current scope. A failed readback leaves `needs_push = 1` too.
+- **F3 (H4)** - `approve` (after the caller's authority checks, so a non-holder learns nothing new) and `Worker.provision` (before the
+  `provisioning` transition, and again after `_ensure_link`) refuse a link whose `origin != 'created_from_arx'`: 409
+  `access_person_not_ours`; an approved grant whose contact was matched afterwards ends `failed` (managers alerted, audit
+  `access.grant.fail reason=person_not_ours`) with `pushed` restored, so the matched person is never written or stripped.
+- **F4 (M6)** - **lab precondition: one API process (`workers=1`).** `python -m smplwise` (run.sh) hands uvicorn an app object, which cannot
+  fork workers; the worker now checks it: `Worker.start` takes an exclusive non-blocking OS lock on `<db>.access-grants.lock` for the life
+  of the process (fcntl on Linux, msvcrt on Windows). A process that cannot take it stays in standby: no start-up rewrite, no thread, and
+  `run_once` / `run_grant` (also called from the revoke, provision-now, unlink, revoke-all and delete routes) do nothing - the owning
+  process picks the rows up on its next pass (<= 15 s). `stop()` releases the lock.
+- **F6 (M7)** - `access_arrival.request` refuses (409 `arrival_other_ticket`, the public transaction rolls back) when the person's live
+  grant belongs to another assignment, or - for a grant without an assignment - names another ticket or no ticket at all. Deviation from
+  the review's wording (`assignment_id not in (None, this)`): a manager's ticket-level or manual grant has `assignment_id` NULL, and
+  letting the page of ticket B amend such a grant of ticket A (or a manual one) is the same authority confusion, so the NULL case is
+  decided by `source_ref`.
+- No migration. Rollback: revert the branch's commit.
