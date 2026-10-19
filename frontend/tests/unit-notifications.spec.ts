@@ -621,6 +621,7 @@ test.describe('notifications client: scope-aware visibility', () => {
     expect(VISIBILITY_PERMISSION).toEqual({
       camera: 'events.read', entity: 'devices.read', area: 'devices.read', alarm_panel: 'alarm.view', door: 'access.read', schedule: 'schedule.view', automation: 'schedule.view',
       bulk_job: null, system: 'system.configure', session: null, generator: 'generator.view', ticket: 'tickets.view', rfq: 'tickets.view', // rfq: TKRFQ5
+      elevator: 'devices.read', // CR-INFRA-ELEVATORS 2.8.0
     });
     const v = viewerWith({ 'events.read': ['parking'], 'devices.read': ['kitchen'], 'alarm.view': '*' });
     expect(canSeeNotification(subj('camera', 'parking'), v)).toBe(true);

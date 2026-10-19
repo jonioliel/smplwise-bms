@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { chipOf, homeTiles, shownState, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
+import { agoText, alertActive, barOf, barSummary, effectiveHidden, ledText, personalHidden, chipOf, recipientChoices, toggled, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
+import { configOf, defaultConfig, moveAmong, resolveWidgets, type HomeData } from '../src/api/home-config';
+import { personalOf } from '../src/api/home';
 import { bodyOf, draftOf, moved, newDraft, problemOf } from '../src/elevators/draft';
 import { ELT_DEV_MARKED, ELT_KEYS, ELT_TABLES, elt } from '../src/i18n/elevators';
 import { INFRA_TABS, applyInfraElevators, visibleTabs, activeAreaTab } from '../src/shell/nav';
@@ -12,22 +14,27 @@ const el = (id: string, state: ElevatorState, extra: Partial<Elevator> = {}): El
   id, name: `מעלית ${id}`, area_id: null, area_name: null, state, reason: state, partial: false, stale: false, since: null, roles: [], extras: [], ...extra,
 });
 
-test('every state has its chip: fault is the error tone, moving is live, unknown is grey', () => {
-  const expected: Record<ElevatorState, [string, string, string]> = {
-    fire_service: ['error', 'flame', 'פיקוד כבאים'],
-    fault: ['error', 'warning', 'תקלה'],
-    out_of_service: ['stale', 'pause', 'בהשבתה'],
-    moving_up: ['live', 'arrowUp', 'עולה'],
-    moving_down: ['live', 'arrowDown', 'יורדת'],
-    door_open: ['neutral', 'door', 'דלת פתוחה'],
-    waiting: ['neutral', 'elevator', 'ממתינה'],
-    active: ['live', 'activity', 'פעילה'],
-    unknown: ['unknown', 'elevator', 'לא ידוע'],
+test('every state has its chip and look; out of service has its own look, apart from fault and fire service (9a)', () => {
+  const expected: Record<ElevatorState, [string, string, string, string]> = {
+    fire_service: ['error', 'flame', 'פיקוד כבאים', 'fire'],
+    fault: ['error', 'warning', 'תקלה', 'fault'],
+    out_of_service: ['stale', 'stopSquare', 'בהשבתה', 'off'],
+    // no direction anywhere (owner 2026-10-18): a movement state is shown as "in operation", never an arrow
+    moving_up: ['live', 'play', 'פעילה', 'act'],
+    moving_down: ['live', 'play', 'פעילה', 'act'],
+    door_open: ['neutral', 'door', 'דלת פתוחה', 'wait'],
+    waiting: ['neutral', 'pause', 'ממתינה', 'wait'],
+    active: ['live', 'play', 'פעילה', 'act'],
+    unknown: ['unknown', 'help', 'לא ידוע', 'unk'],
   };
-  for (const [state, [tone, icon, label]] of Object.entries(expected)) {
+  for (const [state, [tone, icon, label, look]] of Object.entries(expected)) {
     const c = chipOf({ state: state as ElevatorState, stale: false });
-    expect([c.tone, c.icon, c.label], state).toEqual([tone, icon, label]);
+    expect([c.tone, c.icon, c.label, c.look], state).toEqual([tone, icon, label, look]);
+    expect(c.icon).not.toMatch(/arrow/);
   }
+  const looks = new Set(['fire_service', 'fault', 'out_of_service'].map((s) => chipOf({ state: s as ElevatorState, stale: false }).look));
+  expect(looks.size).toBe(3);
+  expect(shownState({ state: 'moving_down', stale: false })).toBe('active');
 });
 
 test('a stale list is unknown, never an old state (not even an old fault)', () => {
@@ -51,7 +58,7 @@ test('home: a fire-service tile is loud and distinct from a fault', () => {
 test('home: one tile per elevator up to four, in the given order, each linking to the infrastructure screen', () => {
   const list = [el('a', 'waiting'), el('b', 'fault'), el('c', 'moving_up'), el('d', 'unknown')];
   const tiles = homeTiles(list);
-  expect(tiles.map((t) => (t.kind === 'elevator' ? [t.id, t.chip.state] : null))).toEqual([['a', 'waiting'], ['b', 'fault'], ['c', 'moving_up'], ['d', 'unknown']]);
+  expect(tiles.map((t) => (t.kind === 'elevator' ? [t.id, t.chip.state] : null))).toEqual([['a', 'waiting'], ['b', 'fault'], ['c', 'active'], ['d', 'unknown']]);
   expect(tiles.every((t) => t.href === ELEVATORS_HREF)).toBe(true);
   expect(HOME_CHIP_MAX).toBe(4);
 });
@@ -139,4 +146,133 @@ test('tab gate: the elevators tab is hidden until an elevator exists, needs devi
   applyInfraElevators(false);
   expect(visibleTabs(INFRA_TABS, true, can).some((t) => t.id === 'elevators')).toBe(false);
   expect(activeAreaTab({ path: '/infra/elevators', mode: 'infra', segments: ['infra', 'elevators'], params: new URLSearchParams() })).toBe('elevators');
+});
+
+
+// ---------------------------------------------------------------- 2.8.0: the designed screen, the home widget, the display settings
+
+test('KPI counts as shown: a stale list counts only the total', () => {
+  const list = [el('a', 'waiting'), el('b', 'active'), el('c', 'fault'), el('d', 'out_of_service'), el('e', 'fire_service'), el('f', 'unknown'), el('g', 'moving_up')];
+  expect(kpisOf(list)).toEqual({ total: 7, ok: 3, fault: 1, off: 1, fire: 1 });
+  expect(kpisOf(list, true)).toEqual({ total: 7, ok: 0, fault: 0, off: 0, fire: 0 });
+});
+
+test('sensor lights: the five roles in order, never a direction; unlinked roles are faded, dead ones are no value', () => {
+  const leds = ledsOf({ roles: ['fault', 'waiting', 'moving_up'], flags: { fault: true, waiting: null, moving_up: true } });
+  expect(leds.map((l) => l.role)).toEqual(['fire_service', 'fault', 'out_of_service', 'waiting', 'door_open']);
+  expect(leds.map((l) => [l.on, l.na])).toEqual([[null, true], [true, false], [null, true], [null, false], [null, true]]);
+  expect(ledsOf({ roles: ['fault'], flags: { fault: true } }, true)[1].on).toBeNull(); // stale: nothing is lit
+});
+
+test('the 24-hour bar: shares of the window, the unknown start left empty, segments outside clipped', () => {
+  const lo = Date.parse('2027-01-15T00:00:00Z');
+  const hi = lo + 24 * 3600_000;
+  const b = barOf([
+    { state: 'waiting', from: '2027-01-14T20:00:00Z', to: '2027-01-15T06:00:00Z' },
+    { state: 'fault', from: '2027-01-15T06:00:00Z', to: '2027-01-15T12:00:00Z' },
+    { state: 'moving_up', from: '2027-01-15T12:00:00Z', to: '2027-01-16T00:00:00Z' },
+  ], lo, hi);
+  expect(b.lead).toBe(0);
+  expect(b.parts.map((p) => [p.look, Math.round(p.pct)])).toEqual([['wait', 25], ['fault', 25], ['act', 50]]);
+  const late = barOf([{ state: 'out_of_service', from: '2027-01-15T18:00:00Z', to: '2027-01-16T00:00:00Z' }], lo, hi);
+  expect([Math.round(late.lead), late.parts[0].look]).toEqual([75, 'off']);
+  expect(barOf(null, lo, hi)).toEqual({ lead: 100, parts: [] });
+  expect(barOf([], lo, hi).parts).toEqual([]);
+});
+
+test('relative times like the mockup ("מלפני 2 דק׳", "מאתמול")', () => {
+  const now = new Date('2027-01-15T12:00:00Z');
+  expect(agoText(null, now)).toBe('');
+  expect(agoText('2027-01-15T11:59:40Z', now)).toBe('עכשיו');
+  expect(agoText('2027-01-15T11:58:00Z', now)).toBe('מלפני 2 דק׳');
+  expect(agoText('2027-01-15T09:00:00Z', now)).toBe('מלפני 3 שע׳');
+  expect(agoText('2027-01-14T10:00:00Z', now)).toBe('מאתמול');
+  expect(agoText('2027-01-11T10:00:00Z', now)).toBe('מלפני 4 ימים');
+});
+
+test('home widget: hidden elevators are out, the alerts filter lists only fire / fault / shutdown, the loudest leads', () => {
+  const list = [el('a', 'waiting'), el('b', 'out_of_service'), el('c', 'fault'), el('d', 'fire_service')];
+  const all = widgetView(list, { hidden: [], filter: 'all' });
+  expect(all.items.map((x) => x.e.id)).toEqual(['a', 'b', 'c', 'd']);
+  expect(all.loudest?.e.id).toBe('d');
+  const hid = widgetView(list, { hidden: ['d', 'c'], filter: 'all' });
+  expect(hid.items.map((x) => x.e.id)).toEqual(['a', 'b']);
+  expect(hid.loudest?.chip.look).toBe('off');
+  expect(summaryLine(hid.kpis)).toBe('2 מעליות · 1 בהשבתה');
+  const alerts = widgetView(list, { hidden: ['b'], filter: 'alerts' });
+  expect(alerts.items.map((x) => x.e.id)).toEqual(['c', 'd']);
+  expect(alerts.included.map((x) => x.e.id)).toEqual(['a', 'c', 'd']);
+  expect(widgetView(list, { hidden: ['a', 'b', 'c', 'd'], filter: 'all' }).loudest).toBeNull();
+  expect(summaryLine(kpisOf([el('a', 'waiting')]))).toBe('מעלית אחת');
+});
+
+test('home config: the elevators widget is appended last, tolerant parsing, absent unless the viewer sees an elevator', () => {
+  const d = defaultConfig();
+  expect(d.order[d.order.length - 1]).toBe('elevators');
+  expect(d.elevators).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null, mode: 'combined', hidden: [], filter: 'all' });
+  const c = configOf({ elevators: { mode: 'both', hidden: ['e1', 'e1', 'bad id', 7], filter: 'nope' } });
+  expect([c.elevators.mode, c.elevators.hidden, c.elevators.filter]).toEqual(['both', ['e1'], 'all']);
+  expect(configOf({ elevators: { mode: 'tiles' } }).elevators.mode).toBe('combined');
+  const NO: HomeData = { weather: null, sensors: {}, alarm: null, agenda: null, names: {} };
+  const ids = (opts: Parameters<typeof resolveWidgets>[3]) => resolveWidgets(d, 'a', NO, opts).map((i) => i.id);
+  expect(ids({ editing: true })).not.toContain('elevators'); // not read yet / none: absent, no ghost even in edit mode
+  expect(ids({ editing: true, elevatorsAvailable: false })).not.toContain('elevators');
+  expect(ids({ elevatorsAvailable: true })).toContain('elevators');
+  const off = { ...d, elevators: { ...d.elevators, on: false } };
+  expect(resolveWidgets(off, 'a', NO, { elevatorsAvailable: true }).some((i) => i.id === 'elevators')).toBe(false);
+  expect(resolveWidgets(off, 'a', NO, { elevatorsAvailable: true, editing: true }).find((i) => i.id === 'elevators')?.avail).toBe('off');
+});
+
+test('personal override: mode and hidden only for the elevators widget', () => {
+  const p = personalOf({ widgets: { elevators: { mode: 'cards', hidden: ['e2', 'e2'], size: 'l' }, clock: { mode: 'cards', on: false } } });
+  expect(p.widgets.elevators).toEqual({ mode: 'cards', hidden: ['e2'], size: 'l' });
+  expect(p.widgets.clock).toEqual({ on: false });
+  expect(personalOf({ widgets: { elevators: { mode: 'x' } } }).widgets.elevators).toBeUndefined();
+});
+
+test('the new strings exist in English and never name the home platform', () => {
+  for (const k of ['kpiOk', 'modeCombined', 'modeCards', 'modeBoth', 'filterAlerts', 'noAlerts', 'futureNone', 'displayTitle'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
+});
+
+test('alert settings helpers: master AND state, recipient count, toggling', () => {
+  const st = (enabled: boolean) => ({ enabled, recipients: { roles: [], users: [], groups: [] }, channels: [] as ('push' | 'app')[] });
+  const s = { enabled: false, states: { fire_service: st(true), fault: st(false), out_of_service: st(true) } };
+  expect(alertActive(s, 'fire_service')).toBe(false); // the master switch is off (the owner's default)
+  expect(alertActive({ ...s, enabled: true }, 'fire_service')).toBe(true);
+  expect(alertActive({ ...s, enabled: true }, 'fault')).toBe(false);
+  expect(recipientChoices({ roles: [], users: [], groups: [] })).toBe(0); // nothing selected = nobody
+  expect(recipientChoices({ roles: ['operator'], users: ['u1', 'u2'], groups: ['g'] })).toBe(4);
+  expect(toggled(['a'], 'b', true)).toEqual(['a', 'b']);
+  expect(toggled(['a', 'b'], 'b', true)).toEqual(['a', 'b']);
+  expect(toggled(['a', 'b'], 'a', false)).toEqual(['b']);
+  for (const k of ['alertsMaster', 'alertsOff', 'alertsRule', 'noRecipients', 'chNote'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
+});
+
+// ---------------------------------------------------------------- independent review 2026-10-19 (frontend regression tests)
+
+test('review L5: a user hides elevators in ADDITION to the installation list', () => {
+  expect(personalHidden([], 'e2', false)).toEqual(['e2']);
+  expect(personalHidden(['e2'], 'e2', true)).toEqual([]);
+  expect(effectiveHidden(['e1'], ['e2', 'e1'])).toEqual(['e1', 'e2']);
+  expect(effectiveHidden(['e1'], undefined)).toEqual(['e1']);
+});
+
+test('review L6: moves count only the listed widgets (the elevators widget left out without elevators)', () => {
+  const order = defaultConfig().order; // ... 'agenda', 'launcher', 'elevators'
+  const listed = order.filter((id) => id !== 'elevators');
+  // "move down" of the last LISTED widget: nothing to move past (the hidden elevators widget is not a neighbour)
+  expect(moveAmong(order, listed, 'launcher', listed.length)).toEqual(order);
+  expect(moveAmong(order, listed, 'agenda', listed.indexOf('launcher')).slice(-3)).toEqual(['launcher', 'agenda', 'elevators']);
+  const mid: typeof order = ['clock', 'elevators', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher'];
+  const listedMid = mid.filter((id) => id !== 'elevators');
+  expect(moveAmong(mid, listedMid, 'weather', 0).slice(0, 3)).toEqual(['weather', 'clock', 'elevators']);
+});
+
+test('review L8: the lights and the 24-hour bar say their state in words', () => {
+  const [fire, fault, off, wait, door] = ledsOf({ roles: ['fault', 'waiting', 'fire_service'], flags: { fault: true, waiting: null, fire_service: false } });
+  expect([ledText(fire), ledText(fault), ledText(off), ledText(wait), ledText(door)]).toEqual(['פיקוד כבאים: כבוי', 'תקלה: פעיל', 'השבתה: לא מקושר', 'ממתינה: אין נתון', 'דלת: לא מקושר']);
+  const lo = Date.parse('2027-01-15T00:00:00Z');
+  const bar = barOf([{ state: 'waiting', from: '2027-01-15T00:00:00Z', to: '2027-01-15T18:00:00Z' }, { state: 'fault', from: '2027-01-15T18:00:00Z', to: '2027-01-16T00:00:00Z' }], lo, lo + 24 * 3600_000);
+  expect(barSummary(bar)).toBe('24 שעות אחרונות: תקלה 6 שע׳, ממתינה 18 שע׳');
+  expect(barSummary({ parts: [] })).toBe('24 שעות אחרונות: אין עדיין היסטוריה');
 });

@@ -181,6 +181,12 @@ class Reach:
             return rfq_notify.can_see(self.conn, self.principal, sid)
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
+        if kind == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: devices.read on the sensor of THIS notification's own state (D3, review H1)
+            from . import elevators
+
+            src = str(n.get("source") or "")
+            role = src.split(".", 1)[1] if src.startswith("elevator.") else None
+            return elevators.visible_to(self.conn, lambda eid: self._entity("devices.read", eid), sid, role)
         if kind == "session":
             if str(n.get("source") or "") == "security.lockout":
                 return self._allowed("system.configure")  # administrators ONLY: the locked-out account is not told (and cannot acknowledge it)

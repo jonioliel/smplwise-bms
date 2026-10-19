@@ -19,7 +19,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import new_id, now_iso
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import elevators as el
 from ..services import ha_scope
 
@@ -71,18 +71,43 @@ def _area_name(conn: sqlite3.Connection, area_id: str | None) -> str | None:
     return r["name"] if r else None
 
 
-def _visible_rows(conn: sqlite3.Connection, principal: Principal) -> tuple[list[sqlite3.Row], dict[str, list[sqlite3.Row]]]:
-    """The enabled elevators the caller may see, each with only the sensors he may see (raises the audited 403 without devices.read)."""
+def _visible_rows(conn: sqlite3.Connection, principal: Principal, whole: set[str] | None = None) -> tuple[list[sqlite3.Row], dict[str, list[sqlite3.Row]]]:
+    """The enabled elevators the caller may see, each with only the sensors he may see (raises the audited 403 without devices.read).
+    `whole`, when given, receives the ids of the elevators whose sensors he sees ALL of (the history is derived from every sensor, so only those
+    elevators may show it - a floor-scoped viewer never learns a state through the bar that his own sensors could not give him)."""
     wide, floors = ha_scope.visible_floors(conn, principal, READ)
     if not wide and not floors:
         require(conn, principal, READ, INSTALLATION)
     rows = conn.execute("SELECT * FROM infra_elevators WHERE enabled = 1 ORDER BY sort_order, name_key, id").fetchall()
-    sensors = el.sensors_of(conn, [r["id"] for r in rows])
+    every = el.sensors_of(conn, [r["id"] for r in rows])
+    sensors = every
     if not wide:
         placed = ha_scope.placements(conn)
-        sensors = {k: [s for s in v if ha_scope.entity_visible(False, floors, placed, s["entity_id"])] for k, v in sensors.items()}
+        sensors = {k: [s for s in v if ha_scope.entity_visible(False, floors, placed, s["entity_id"])] for k, v in every.items()}
     sensors = {k: v for k, v in sensors.items() if v}
+    if whole is not None:
+        whole.update(k for k, v in sensors.items() if len(v) == len(every.get(k, [])))
     return [r for r in rows if r["id"] in sensors], sensors
+
+
+def _window(hours: int) -> tuple[str, str]:
+    import datetime as dt
+
+    from ..services.timeutil import iso_utc
+
+    hi = dt.datetime.now(dt.timezone.utc)
+    return iso_utc(hi - dt.timedelta(hours=hours)), iso_utc(hi)
+
+
+def _with_history(conn: sqlite3.Connection, items: list[dict[str, Any]], whole: set[str], hours: int) -> None:
+    """Adds `history` (segments, 2.8.0) to the items the caller may see whole; None for the others (the screen draws no bar)."""
+    lo, hi = _window(hours)
+    try:
+        hist = el.history(conn, [i["id"] for i in items if i["id"] in whole], lo, hi)
+    except sqlite3.Error:  # before migration 0120
+        hist = {}
+    for i in items:
+        i["history"] = hist.get(i["id"]) if i["id"] in whole else None
 
 
 def _operator_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite3.Row], connected: bool) -> dict[str, Any]:
@@ -90,11 +115,17 @@ def _operator_out(conn: sqlite3.Connection, r: sqlite3.Row, sensors: list[sqlite
 
 
 @router.get("/infra/elevators")
-def list_elevators(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """Every enabled elevator the caller may see with its derived live state, plus a summary for the home tile. Empty = feature absent."""
-    rows, sensors = _visible_rows(conn, principal)
+def list_elevators(history: int = Query(0, ge=0, le=24), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every enabled elevator the caller may see with its derived live state, plus a summary for the home tile. Empty = feature absent.
+    `history=24` (2.8.0) adds each elevator's state segments of the last 24 hours (only 24 is offered; 0 = none)."""
+    whole: set[str] = set()
+    rows, sensors = _visible_rows(conn, principal, whole)
     connected = el.mirror_connected()
     items = [_operator_out(conn, r, sensors[r["id"]], connected) for r in rows]
+    if history:
+        if history not in el.HISTORY_HOURS:
+            raise ApiError(422, "validation", "טווח היסטוריה לא נתמך.", details={"fields": ["history"], "message_en": "Unsupported history range."})
+        _with_history(conn, items, whole, history)
     return {"elevators": items, "summary": el.summary([i["state"] for i in items]), "stale": not connected, "at": now_iso()}
 
 
@@ -131,6 +162,62 @@ def candidates(q: str = Query("", max_length=80), principal: Principal = Depends
     if needle:
         items = [i for i in items if needle in i["name"].casefold() or needle in i["entity_id"].casefold()]
     return {"items": items[:500]}
+
+
+# ---------------------------------------------------------------- 2.8.0: alert settings (owner decision 2026-10-18; services/elevator_alerts.py)
+
+CONFIGURE = "system.configure"
+
+
+class AlertRecipientsIn(_Body):
+    roles: list[str] = Field(default_factory=list, max_length=10)
+    users: list[str] = Field(default_factory=list, max_length=100)
+    groups: list[str] = Field(default_factory=list, max_length=20)
+
+
+class AlertStateIn(_Body):
+    enabled: bool | None = None
+    recipients: AlertRecipientsIn | None = None
+    channels: list[str] | None = Field(default=None, max_length=5)
+
+
+class AlertsIn(_Body):
+    enabled: bool | None = None
+    states: dict[str, AlertStateIn] | None = None
+    row_version: int | None = None
+
+
+def _alerts_reader(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """Reading the alert settings: the elevator managers and the system configurators (who may change them)."""
+    if not authorize(conn, principal, MANAGE, INSTALLATION).allowed:
+        require(conn, principal, CONFIGURE, INSTALLATION)
+    return principal
+
+
+def _alerts_writer(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    require(conn, principal, CONFIGURE, INSTALLATION)  # owner: changing the elevator alerts needs the system-settings permission
+    return principal
+
+
+@router.get("/infra/elevators/alerts")
+def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The elevator alert settings: master switch, per-state switches (all default off), recipients (roles / users / groups) and channels."""
+    from ..services import elevator_alerts
+
+    return {**elevator_alerts.view(conn), "can_edit": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed}
+
+
+@router.put("/infra/elevators/alerts")
+def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Saves the alert settings (system.configure; audited, ids only). Turning a state off closes its open elevator notifications with the visible
+    resolution "התראות המעליות כובו"; turning one on notifies only transitions that happen from now on."""
+    from ..services import elevator_alerts
+
+    try:
+        out = elevator_alerts.save(conn, principal, body.model_dump(exclude_none=True))
+    except elevator_alerts.AlertsInvalid as e:
+        raise ApiError(409 if e.code == "revision_conflict" else 422, e.code, e.message, details={**e.details, "message_en": e.message_en}) from None
+    return {**out, "can_edit": True}
 
 
 def _validate(conn: sqlite3.Connection, principal: Principal, body: ElevatorIn) -> list[tuple[str, int, str, str | None]]:
@@ -237,6 +324,13 @@ def update(elevator_id: str, body: ElevatorIn, principal: Principal = Depends(_m
 @router.delete("/infra/elevators/{elevator_id}", status_code=204)
 def delete(elevator_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     _one(conn, elevator_id)
+    from ..services import elevators_runtime
+
+    elevators_runtime.resolve_all(conn, elevator_id)  # 2.8.0: its open notifications end with it (the memory rows would cascade anyway)
+    try:
+        conn.execute("DELETE FROM infra_elevator_states WHERE elevator_id = ?", (elevator_id,))
+    except sqlite3.Error:  # before migration 0120
+        pass
     conn.execute("DELETE FROM infra_elevator_sensors WHERE elevator_id = ?", (elevator_id,))
     conn.execute("DELETE FROM infra_elevators WHERE id = ?", (elevator_id,))
     audit(conn, actor=principal, action="infra.elevator.delete", decision="allowed", resource_type="infra_elevator", resource_id=elevator_id)

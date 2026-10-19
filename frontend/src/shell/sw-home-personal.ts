@@ -3,8 +3,12 @@ import { customElement, state } from 'lit/decorators.js';
 import { describeError } from '../api/client';
 import {
   DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, HOME_PERSONAL_EVENT, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, loadHomeSettings, loadPersonal, moveWidget, PERSONAL_EMPTY, personalIsEmpty, savePersonal, SIZE_LABEL, SIZES, WIDGET_NAME,
-  type Direction, type HomeConfig, type HomePersonal, type PhoneLayout, type Size, type WidgetId,
+  type Direction, type ElevatorMode, type HomeConfig, type HomePersonal, type PersonalWidget, type PhoneLayout, type Size, type WidgetId, ELEVATOR_MODES,
 } from '../api/home';
+import { listElevators, type Elevator } from '../api/elevators';
+import { elevatorsAccess } from '../elevators/access';
+import { MODE_KEY, personalHidden } from '../elevators/model';
+import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
 import { productSettings } from '../api/prefs';
 import { devicesPrefsOf } from '../screens/devices-style';
@@ -29,6 +33,8 @@ export class SwHomePersonal extends LitElement {
   @state() private row: AreaRowPersonal = {};
   @state() private rowBase: ReturnType<typeof devicesPrefsOf> | null = null;
   @state() private failed = '';
+  /** CR-INFRA-ELEVATORS 2.8.0: the elevators this user sees (empty = the elevators widget is not offered here at all). */
+  @state() private elevators: Elevator[] = [];
 
   static styles = css`
     :host {
@@ -135,6 +141,44 @@ export class SwHomePersonal extends LitElement {
       this.row = r;
       this.rowBase = devicesPrefsOf(s);
     });
+    if (elevatorsAccess().view) void listElevators().then((r) => (this.elevators = r.elevators)).catch(() => (this.elevators = []));
+  }
+
+  /** The elevators widget's own choices: how they appear (null = the installation's) and which are left out (null = the installation's list). */
+  private setElevators(patch: { mode?: ElevatorMode | null; hidden?: string[] | null }) {
+    const cur: PersonalWidget = { ...(this.personal.widgets.elevators ?? {}) };
+    if (patch.mode !== undefined) {
+      if (patch.mode === null) delete cur.mode;
+      else cur.mode = patch.mode;
+    }
+    if (patch.hidden !== undefined) {
+      if (patch.hidden === null) delete cur.hidden;
+      else cur.hidden = patch.hidden;
+    }
+    this.setWidget('elevators', cur);
+  }
+
+  private elevatorChoices() {
+    const base = this.base!.config.elevators;
+    const own = this.personal.widgets.elevators ?? {};
+    // review L5: the user's own list ADDS to the installation's - an elevator the administrator hid stays hidden (its box is disabled)
+    const mine = own.hidden ?? [];
+    return html`<div class="row" data-home-personal-elevators-mode>
+        <span class="seg" role="group" aria-label=${elt('displayMode')}>
+          <button type="button" data-home-personal-elevators-mode="" aria-pressed=${String(own.mode === undefined)} ?disabled=${this.busy} @click=${() => this.setElevators({ mode: null })}>${elt('personalDefault')}</button>
+          ${ELEVATOR_MODES.map((m) => html`<button type="button" data-home-personal-elevators-mode=${m} aria-pressed=${String(own.mode === m)} ?disabled=${this.busy} @click=${() => this.setElevators({ mode: m })}>${elt(MODE_KEY[m])}</button>`)}
+        </span>
+      </div>
+      <div class="row" role="group" aria-label=${elt('include')} data-home-personal-elevators-include>
+        ${this.elevators.map((e) => {
+          const byAdmin = base.hidden.includes(e.id);
+          return html`<label class="check"><input type="checkbox" data-home-personal-elevator=${e.id} .checked=${!byAdmin && !mine.includes(e.id)} ?disabled=${this.busy || byAdmin}
+          @change=${(ev: Event) => {
+            const next = personalHidden(mine, e.id, (ev.target as HTMLInputElement).checked);
+            this.setElevators({ hidden: next.length ? next : null });
+          }} />${e.name}</label>`;
+        })}
+      </div>`;
   }
 
   /** The direction that ends up shown, and the order the widgets are listed in. */
@@ -203,7 +247,7 @@ export class SwHomePersonal extends LitElement {
     this.setWidget(id, cur);
   }
 
-  private setWidget(id: WidgetId, entry: { on?: boolean; size?: Size }) {
+  private setWidget(id: WidgetId, entry: PersonalWidget) {
     const widgets = { ...this.personal.widgets };
     if (Object.keys(entry).length) widgets[id] = entry;
     else delete widgets[id];
@@ -219,7 +263,8 @@ export class SwHomePersonal extends LitElement {
   render() {
     if (!this.base) return nothing;
     const d = this.direction;
-    const order = this.order;
+    // the elevators widget is offered only to a user who sees at least one elevator (no elevators = the module is never named)
+    const order = this.order.filter((id) => id !== 'elevators' || this.elevators.length > 0);
     return html`
       <div class="row" data-home-personal-direction>
         <span class="lbl" id="hp-dir">כיוון</span>
@@ -253,6 +298,7 @@ export class SwHomePersonal extends LitElement {
               ${SIZES.map((s) => html`<button type="button" data-home-personal-size=${`${id}:${s}`} aria-pressed=${String(size === s)} ?disabled=${this.busy || !on} @click=${() => this.setSize(id, s)}>${SIZE_LABEL[s]}</button>`)}
             </span>
           </div>
+          ${id === 'elevators' && on ? this.elevatorChoices() : nothing}
         </div>`;
       })}
       ${this.rowBase

@@ -31,7 +31,7 @@ export type Severity = 'info' | 'alert' | 'critical';
 export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets'; // tickets: CR-038
 /** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on). Reserved (enum value only): ha_mobile (Companion step). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
-export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq'; // rfq: TKRFQ5
+export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator'; // rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
@@ -165,7 +165,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers'; user_ids?: string[] };
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -1008,10 +1008,12 @@ export async function runDoorOpen(adapter: Pick<NotifyAdapter, 'openDoor'>, stat
 export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string> = {
   scope: 'כל מי שרואה', managers: 'מנהלים', initiator: 'היוזם / בעל החשבון', users: 'משתמשים נבחרים',
   generator: 'לפי הגדרות הגנרטור', ticket_managers: 'מנהלי השירות', ticket_assignee: 'הגורם המטפל בבקשה', rfq_managers: 'מנהלי בקשות הצעת מחיר',
+  elevator: 'לפי הגדרות המעליות', // CR-INFRA-ELEVATORS 2.8.0: chosen in Settings > Infrastructure > Elevators
 };
 export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
   scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
   generator: 'As set on the generator screen', ticket_managers: 'Service managers', ticket_assignee: 'The person handling the request', rfq_managers: 'Quote request managers',
+  elevator: 'As set on the elevators settings',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 export interface ChannelCell {
@@ -1122,6 +1124,7 @@ export const VISIBILITY_PERMISSION: Record<SubjectKind, string | null> = {
   camera: 'events.read', entity: 'devices.read', area: 'devices.read', alarm_panel: 'alarm.view', door: 'access.read', schedule: 'schedule.view', automation: 'schedule.view',
   bulk_job: null, system: 'system.configure', session: null, generator: 'generator.view', ticket: 'tickets.view', // CR-038: the server's access.visible decides
   rfq: 'tickets.view', // TKRFQ5: the server's rfq.visible decides
+  elevator: 'devices.read', // CR-INFRA-ELEVATORS 2.8.0: the server's rule - devices.read on at least one of the elevator's sensors
 };
 /** Whether a row may be shown to this viewer NOW (the server re-checks at every read; this mirrors it for a permission change that arrives before the
  * next fetch). Owner-only kinds (bulk_job, session) are trusted: the server only returns the caller's own rows - except an account lockout, which

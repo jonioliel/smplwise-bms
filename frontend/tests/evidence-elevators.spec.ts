@@ -12,10 +12,18 @@ const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../do
 const NOW = '2026-10-18T09:00:00Z';
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-const live = (state: string) => ({ state, reason: state, partial: false, stale: false, since: state === 'unknown' ? null : NOW, roles: ['fault', 'moving_up', 'moving_down'], extras: [] });
+// 2.8.0: the owner's sensor set (waiting / fault / fire service / shutdown - no up / down), the lights and the 24-hour history
+const ROLES = ['fault', 'fire_service', 'out_of_service', 'waiting'];
+const live = (state: string) => ({
+  state, reason: state, partial: false, stale: false, since: state === 'unknown' ? null : NOW, roles: ROLES, extras: [],
+  flags: { fault: state === 'fault', fire_service: state === 'fire_service', out_of_service: state === 'out_of_service', waiting: state === 'waiting' },
+  history: [{ state: 'waiting', from: '2026-10-17T09:00:00Z', to: '2026-10-18T06:00:00Z' }, { state, from: '2026-10-18T06:00:00Z', to: NOW }],
+});
 const ELEVATORS = [
-  { id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: 'לובי', ...live('moving_up') },
+  { id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: 'לובי', ...live('active') },
   { id: 'e2', name: 'מעלית דרומית', area_id: null, area_name: 'לובי', ...live('fault') },
+  { id: 'e4', name: 'מעלית משא', area_id: null, area_name: 'בניין B', ...live('out_of_service') },
+  { id: 'e5', name: 'מעלית דרום', area_id: null, area_name: 'בניין A', ...live('fire_service') },
   { id: 'e3', name: 'מעלית שירות', area_id: null, area_name: null, ...live('unknown') },
 ];
 
@@ -41,9 +49,13 @@ test.describe('elevators evidence', () => {
       await page.goto('about:blank');
       await page.goto(url('/infra/elevators', 'classic', scheme));
       const rows = page.locator('sw-app infra-elevators [data-elevator]');
-      await expect(rows).toHaveCount(3);
+      await expect(rows).toHaveCount(5);
       await expect(page.locator('sw-app infra-elevators [data-elevator="e2"]')).toHaveAttribute('data-state', 'fault');
       await expect(page.locator('sw-app infra-elevators [data-elevator="e3"]')).toHaveAttribute('data-state', 'unknown');
+      await expect(page.locator('sw-app infra-elevators [data-elevator="e4"]')).toHaveAttribute('data-look', 'off'); // shutdown: its own colour (9a)
+      await expect(page.locator('sw-app infra-elevators [data-elevators-kpi="fire"] b')).toHaveText('1');
+      await expect(page.locator('sw-app infra-elevators [data-elevator-bar]')).toHaveCount(5);
+      await expect(page.locator('sw-app infra-elevators sw-icon[name^="arrow"]')).toHaveCount(0); // never a direction
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow).toBeLessThanOrEqual(1);
       await page.screenshot({ path: path.join(OUT, `infra-${test.info().project.name}-${scheme}.png`) });
@@ -54,9 +66,10 @@ test.describe('elevators evidence', () => {
     await install(page, ELEVATORS);
     await page.goto('about:blank');
     await page.goto(url('/system/infra/elevators'));
-    await expect(page.locator('sw-app elevator-settings [data-elevator]')).toHaveCount(3);
+    await expect(page.locator('sw-app elevator-settings [data-elevator]')).toHaveCount(5);
     await page.locator('sw-app elevator-settings [data-elevator-add]').click();
-    await expect(page.locator('sw-app elevator-settings [data-roles] select')).toHaveCount(7);
+    await expect(page.locator('sw-app elevator-settings [data-roles] select')).toHaveCount(4); // waiting, fault, fire service, shutdown
+    await expect(page.locator('sw-app elevator-settings [data-roles-future]')).toBeVisible();
     await expect(page.locator('sw-app elevator-settings [data-elevator-save]')).toBeDisabled(); // no name, no sensor
     await page.screenshot({ path: path.join(OUT, `settings-dialog-${test.info().project.name}.png`) });
   });

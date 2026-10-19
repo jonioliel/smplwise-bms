@@ -175,6 +175,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from .tickets import notify_bridge
 
         candidates = notify_bridge.recipient_users(conn, rule, n)
+    elif rule == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: the recipients chosen per elevator state; nobody until an administrator chooses
+        from . import elevator_alerts
+
+        candidates = elevator_alerts.recipient_users(conn, n)
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
         from .tickets import rfq_notify
 

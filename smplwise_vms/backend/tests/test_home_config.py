@@ -9,16 +9,16 @@ from smplwise.services import home_config
 
 
 def test_media_is_a_known_widget_appended_last_with_the_common_defaults():
-    assert home_config.WIDGET_IDS[5] == "media" and home_config.WIDGET_IDS[-2:] == ("agenda", "launcher")  # BV1 appended two after it
+    assert home_config.WIDGET_IDS[5] == "media" and home_config.WIDGET_IDS[-3:] == ("agenda", "launcher", "elevators")  # BV1 appended two after it
     cfg = home_config.default_config()
-    assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher"]
+    assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators"]
     assert cfg["media"] == {"on": True, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None}
 
 
 def test_a_config_saved_before_the_widget_existed_gains_it_last_and_keeps_its_order():
     old = {"order": ["quick", "clock", "weather", "shabbat", "alarm"], "clock": {"on": False}}
     cfg = home_config.normalise(old)
-    assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media", "agenda", "launcher"]
+    assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media", "agenda", "launcher", "elevators"]
     assert cfg["clock"]["on"] is False and cfg["media"]["on"] is True
 
 
@@ -32,7 +32,7 @@ def test_media_accepts_the_common_keys_and_nothing_else():
 
 def test_order_may_move_media_and_an_unknown_widget_is_still_refused():
     cfg = home_config.normalise({"order": ["media", "clock"]})
-    assert cfg["order"] == ["media", "clock", "weather", "shabbat", "alarm", "quick", "agenda", "launcher"]
+    assert cfg["order"] == ["media", "clock", "weather", "shabbat", "alarm", "quick", "agenda", "launcher", "elevators"]
     with pytest.raises(ValueError):
         home_config.normalise({"order": ["media", "tv"]})
 
@@ -51,4 +51,34 @@ def test_suggestions_and_the_legacy_keys_leave_the_media_widget_untouched():
     cfg = home_config.with_suggestions(home_config.default_config(), ["weather.home"], [])
     assert cfg["media"] == home_config.default_config()["media"]
     legacy = home_config.from_legacy(lambda k, d: {"home.clock": "time"}.get(k, d))
-    assert legacy is not None and legacy["media"]["on"] is True and legacy["order"][5] == "media" and legacy["order"][-2:] == ["agenda", "launcher"]
+    assert legacy is not None and legacy["media"]["on"] is True and legacy["order"][5] == "media" and legacy["order"][-3:] == ["agenda", "launcher", "elevators"]
+
+
+# ---------------------------------------------------------------- CR-INFRA-ELEVATORS 2.8.0: the elevators widget (owner decision 10b + feedback 2026-10-18)
+
+def test_elevators_widget_defaults_and_validation():
+    cfg = home_config.default_config()
+    assert cfg["order"][-1] == "elevators"
+    assert cfg["elevators"] == {"on": True, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None, "mode": "combined", "hidden": [], "filter": "all"}
+    ok = home_config.normalise({"elevators": {"mode": "both", "hidden": ["e1", "e1", "e-2"], "filter": "alerts", "sizes": {"a": "l"}}})["elevators"]
+    assert (ok["mode"], ok["hidden"], ok["filter"], ok["sizes"]["a"]) == ("both", ["e1", "e-2"], "alerts", "l")
+    for bad in ({"mode": "tiles"}, {"filter": "faults"}, {"hidden": "e1"}, {"hidden": ["bad id!"]}, {"hidden": [f"e{i}" for i in range(51)]}, {"entity": "x"}, {"pin": "e1"}):
+        with pytest.raises(ValueError):
+            home_config.normalise({"elevators": bad})
+    # the elevator keys belong to the elevators widget only
+    with pytest.raises(ValueError):
+        home_config.normalise({"media": {"mode": "both"}})
+
+
+def test_elevators_personal_override_mode_and_hidden():
+    with pytest.raises(ValueError):
+        home_config.normalise_personal({"widgets": {"clock": {"mode": "cards"}}})
+    with pytest.raises(ValueError):
+        home_config.normalise_personal({"widgets": {"elevators": {"mode": "x"}}})
+    p = home_config.normalise_personal({"widgets": {"elevators": {"mode": "cards", "hidden": ["e2"], "size": "l"}}})
+    assert p["widgets"] == {"elevators": {"mode": "cards", "hidden": ["e2"], "size": "l"}}
+    cfg = home_config.normalise({"elevators": {"mode": "combined", "hidden": ["e1"]}})
+    out, d = home_config.apply_personal(cfg, "a", p)
+    # review L5: the user's own list ADDS to the installation's
+    assert (out["elevators"]["mode"], out["elevators"]["hidden"], out["elevators"]["sizes"]["a"]) == ("cards", ["e1", "e2"], "l")
+    assert cfg["elevators"]["hidden"] == ["e1"]  # the installation config is untouched

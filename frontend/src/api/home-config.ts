@@ -20,11 +20,18 @@ export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
 export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
 
-export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher';
+export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
  * BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way. */
-export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר' };
+// CR-INFRA-ELEVATORS 2.8.0 (decision 10b): `elevators` is appended the same way; it is drawn only once the viewer sees at least one elevator.
+export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators'];
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות' };
+/** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
+export type ElevatorMode = 'combined' | 'cards' | 'both';
+export type ElevatorFilter = 'all' | 'alerts';
+export const ELEVATOR_MODES: ElevatorMode[] = ['combined', 'cards', 'both'];
+export const ELEVATOR_FILTERS: ElevatorFilter[] = ['all', 'alerts'];
+export const ELEVATOR_HIDDEN_MAX = 50;
 
 /** BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card). */
 export type TileStyle = 'card' | 'tile';
@@ -152,7 +159,14 @@ export interface HomeConfig {
   media: MediaCfg;
   agenda: AgendaCfg;
   launcher: LauncherCfg;
+  elevators: ElevatorsCfg;
   calendar: CalendarCfg;
+}
+export interface ElevatorsCfg extends CommonCfg {
+  mode: ElevatorMode;
+  /** elevator ids left out of the home screen */
+  hidden: string[];
+  filter: ElevatorFilter;
 }
 
 export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
@@ -164,6 +178,7 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
   media: { a: 'm', b: 's', c: 'm' },
   agenda: { a: 'm', b: 'm', c: 'm' },
   launcher: { a: 'm', b: 's', c: 'm' },
+  elevators: { a: 'm', b: 's', c: 'm' },
 };
 
 export function defaultConfig(): HomeConfig {
@@ -179,6 +194,7 @@ export function defaultConfig(): HomeConfig {
     media: base('media'),
     agenda: { ...base('agenda'), calendars: [], days: 7 },
     launcher: { ...base('launcher'), items: [] },
+    elevators: { ...base('elevators'), mode: 'combined', hidden: [], filter: 'all' },
     calendar: { date: '', parsha: '', candles: '', havdalah: '', holiday: '', extras: [] },
   };
 }
@@ -219,6 +235,7 @@ export function configOf(raw: unknown): HomeConfig {
   const quick = isObj(o.quick) ? o.quick : {};
   const agenda = isObj(o.agenda) ? o.agenda : {};
   const launcher = isObj(o.launcher) ? o.launcher : {};
+  const elev = isObj(o.elevators) ? o.elevators : {};
   const cal = isObj(o.calendar) ? o.calendar : {};
   const sources: Partial<Record<WeatherField, string>> = {};
   if (isObj(weather.sources)) for (const f of WEATHER_SOURCE_FIELDS) if (typeof weather.sources[f] === 'string' && weather.sources[f]) sources[f] = weather.sources[f] as string;
@@ -243,6 +260,7 @@ export function configOf(raw: unknown): HomeConfig {
     media: commonOf(o.media, 'media'),
     agenda: { ...commonOf(o.agenda, 'agenda'), calendars, days: AGENDA_DAYS.includes(agenda.days as AgendaDays) ? (agenda.days as AgendaDays) : 7 },
     launcher: { ...commonOf(o.launcher, 'launcher'), items },
+    elevators: { ...commonOf(o.elevators, 'elevators'), mode: pick(elev.mode, ELEVATOR_MODES, 'combined'), hidden: elevatorIds(elev.hidden), filter: pick(elev.filter, ELEVATOR_FILTERS, 'all') },
     calendar: {
       date: str(cal.date),
       parsha: str(cal.parsha),
@@ -252,6 +270,13 @@ export function configOf(raw: unknown): HomeConfig {
       extras: Array.isArray(cal.extras) ? cal.extras.filter(isObj).map((e) => ({ entity_id: str(e.entity_id), label: str(e.label) })).filter((e) => e.entity_id).slice(0, EXTRAS_MAX) : [],
     },
   };
+}
+
+/** The elevators left out, tolerant: distinct id-shaped strings, at most ELEVATOR_HIDDEN_MAX (the server validates the same). */
+export function elevatorIds(v: unknown): string[] {
+  const out: string[] = [];
+  if (Array.isArray(v)) for (const x of v) if (typeof x === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x) && !out.includes(x) && out.length < ELEVATOR_HIDDEN_MAX) out.push(x);
+  return out;
 }
 
 export function sameConfig(a: HomeConfig, b: HomeConfig): boolean {
@@ -481,6 +506,9 @@ export interface ResolveOpts {
   mediaAvailable?: boolean;
   /** BV1: whether this user may press a launcher item (api/launcher.ts launchAllowed); unset = every configured item counts. */
   launchAllowed?: (item: LaunchItemCfg) => boolean;
+  /** CR-INFRA-ELEVATORS 2.8.0: the viewer sees at least one elevator. Anything but `true` (none, no permission, not read yet) = the elevators
+   * widget is ABSENT, in edit mode too (no ghost: an installation without elevators never hears of the module). */
+  elevatorsAvailable?: boolean;
 }
 
 /** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
@@ -501,6 +529,7 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
   const out: WidgetItem[] = [];
   for (const id of cfg.order) {
     const w = cfg[id];
+    if (id === 'elevators' && opts.elevatorsAvailable !== true) continue;
     let avail: Avail = 'ok';
     if (!widgetOn(w, !!opts.phone)) avail = 'off';
     else if (id === 'weather') {
@@ -538,6 +567,15 @@ export function moveWidget(order: WidgetId[], id: WidgetId, to: number): WidgetI
   out.splice(from, 1);
   out.splice(dest, 0, id);
   return out;
+}
+
+/** Review L6: a move among the widgets the editor LISTS (a widget left out of the list - the elevators one without elevators - is skipped): `to`
+ * is a place in `visible`; the widget lands where that visible neighbour is in the full order. */
+export function moveAmong(order: WidgetId[], visible: readonly WidgetId[], id: WidgetId, to: number): WidgetId[] {
+  const t = Math.max(0, Math.min(visible.length - 1, to));
+  const target = visible[t];
+  if (target === undefined || target === id) return order;
+  return moveWidget(order, id, order.indexOf(target));
 }
 
 /** The forecast the card draws: `len` entries ("max" = all the entity carries, up to FORECAST_MAX_SHOWN), only those with a time. */

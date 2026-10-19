@@ -88,6 +88,7 @@ const LINK: Record<SubjectKind, (id: string | null) => string> = {
   schedule: (id) => `#/devices/schedules/${id}`, automation: (id) => `#/devices/automations/${id}`, bulk_job: (id) => `#/devices/actions/${id}`, system: () => '#/system/diagnostics', session: () => '#/system/remote', generator: () => '#/infra/generator/alerts',
   ticket: (id) => `#/tickets/${id}`, // CR-038
   rfq: (id) => `#/tickets/rfqs?rfq=${id}`, // TKRFQ5
+  elevator: () => '#/infra/elevators', // CR-INFRA-ELEVATORS 2.8.0
 };
 /** The mockup's notifications plus one row for each remaining v1 source (the sources that are off by default - alarm.state and the rule-only camera events - have none). */
 const SEEDS: Seed[] = [
