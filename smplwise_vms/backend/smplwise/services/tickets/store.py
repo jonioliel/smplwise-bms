@@ -443,6 +443,21 @@ def ticket_row_unchecked(conn: sqlite3.Connection, ticket_id: str) -> dict[str, 
     return _dict(conn.execute(_TICKET_SELECT + " WHERE t.id = ?", (ticket_id,)).fetchone())
 
 
+def ticket_rows_unchecked(conn: sqlite3.Connection, ticket_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """ticket_row_unchecked() for many ids (one IN read, the same SELECT and row shape): id -> row for the ids that exist. Visibility
+    is NOT checked here: only services/tickets/access.py may call it (tests/test_tickets_visibility.py enforces that)."""
+    if not ticket_ids:
+        return {}
+    marks = ", ".join("?" * len(ticket_ids))
+    cur = conn.execute(_TICKET_SELECT + f" WHERE t.id IN ({marks})", tuple(ticket_ids))
+    rows = cur.fetchall()
+    names = [d[0] for d in cur.description or ()]
+    if len({n.lower() for n in names}) != len(names):  # a repeated name: dict(row)'s first-match rule, exactly as the single read
+        return {r["id"]: dict(r) for r in rows}
+    # dict(sqlite3.Row) looks every name up linearly (quadratic in the ~60 columns); zip builds the same dict in one pass
+    return {r["id"]: dict(zip(names, r)) for r in rows}
+
+
 def ticket_by_number_unchecked(conn: sqlite3.Connection, number: int) -> dict[str, Any] | None:
     return _dict(conn.execute(_TICKET_SELECT + " WHERE t.number = ?", (number,)).fetchone())
 
