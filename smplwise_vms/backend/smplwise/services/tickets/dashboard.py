@@ -339,7 +339,7 @@ def _departments(conn, viewer: Viewer, now: dt.datetime, done7: list[tuple[Seen,
         if r.get("waiting_on") == "manager":
             c["waiting"] += 1
         since = store.unassigned_since(conn, r) if r["status"] in ("new", "returned") else None
-        cell = stuck.nearest_due(stuck.evaluate(r, lk.rule(r["department_id"], r["priority_id"]), now, unassigned_since=since), now)
+        cell = stuck.nearest_due(stuck.evaluate(r, lk.rule(r["department_id"], r["priority_id"]), now, unassigned_since=since, cal=lk.calendar(r["department_id"])), now)
         if cell and cell.get("over"):
             c["overdue"] += 1
         k = board.assignee_key(r)

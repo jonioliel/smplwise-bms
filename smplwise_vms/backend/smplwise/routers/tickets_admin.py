@@ -259,6 +259,7 @@ class SettingsBody(BaseModel):
     device_long_press: Literal["sheet", "menu"] | None = None  # D17 (slice 3)
     links: LinksPatch | None = None  # slice 2
     send_hours: HoursBody | None = None  # slice 2
+    calendar: dict[str, Any] | None = None  # SLACAL: the working-hours calendar, validated whole by services/tickets/work_calendar.validate_doc
     urgent_is_critical: StrictBool | None = None  # slice 2
     organization_name: str | None = Field(default=None, max_length=400)  # slice 4
     public: PublicPatch | None = None  # slice 4
@@ -342,6 +343,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch.setdefault("rfq", {})["vendor_uploads"] = vu
     if body.send_hours is not None:
         patch["send_hours"] = body.send_hours.window()
+    if body.calendar is not None:
+        patch["calendar"] = body.calendar
     if body.urgent_is_critical is not None:
         patch["urgent_is_critical"] = body.urgent_is_critical
     if body.organization_name is not None:
@@ -350,6 +353,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
         raise _invalid(conn, *_problem(exc)) from None
+    if "calendar" in changed:  # SLACAL: the dues of every open ticket follow the new working hours at once
+        sla.refresh_all_open(conn)
     pulled = 0
     if doc["links"]["cap_days"] < current["links"]["cap_days"]:  # D5 (slice 4): a LOWER cap shrinks the exposure of live links at once
         from ..services.tickets import handler_links

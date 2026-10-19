@@ -16,7 +16,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from . import access, model, present, store, stuck
+from . import access, model, present, store, stuck, work_calendar
 from .access import Seen, Viewer
 
 SCAN_CAP = 2000
@@ -106,12 +106,19 @@ class Lookups(present.Lookups):
     def __init__(self, conn):
         super().__init__(conn)
         self._rule: dict[tuple[str, str], dict[str, Any] | None] = {}
+        self._cal: dict[str, Any] = {}
 
     def rule(self, dept_id: str, prio_id: str) -> dict[str, Any] | None:
         k = (dept_id, prio_id)
         if k not in self._rule:
             self._rule[k] = store.sla_rule(self.conn, dept_id, prio_id)
         return self._rule[k]
+
+    def calendar(self, dept_id: str):
+        """SLACAL: the working-hours calendar of a department (the 24x7 wall clock unless the installation set one)."""
+        if dept_id not in self._cal:
+            self._cal[dept_id] = work_calendar.load(self.conn, dept_id)
+        return self._cal[dept_id]
 
     def prio_key(self, pid: str) -> str | None:
         p = self.priority(pid)
@@ -124,7 +131,7 @@ def board_item(conn, seen: Seen, lk: Lookups, now: dt.datetime) -> dict[str, Any
     row = seen.row
     item = present.ticket_item(conn, seen, lk)
     since = store.unassigned_since(conn, row) if row["status"] in ("new", "returned") else None
-    ev = stuck.evaluate(row, lk.rule(row["department_id"], row["priority_id"]), now, unassigned_since=since)
+    ev = stuck.evaluate(row, lk.rule(row["department_id"], row["priority_id"]), now, unassigned_since=since, cal=lk.calendar(row["department_id"]))
     reason = stuck.reason(row)
     if reason is not None:
         due = ev.dues.get(reason["kind"])
@@ -134,7 +141,7 @@ def board_item(conn, seen: Seen, lk: Lookups, now: dt.datetime) -> dict[str, Any
     if row["status"] == "done" and row.get("done_at") and dept.get("auto_close_after_days"):
         d = stuck.parse(row["done_at"])
         if d is not None:
-            auto_close_at = stuck.iso(d + dt.timedelta(days=int(dept["auto_close_after_days"])))
+            auto_close_at = stuck.iso(work_calendar.auto_close_at(d, int(dept["auto_close_after_days"]), lk.calendar(row["department_id"])))
     item.update({
         "group": group_of(row) if row["status"] in stuck.OPEN_STATUSES else "closed",
         # TK251: the stuck reason and the SLA cell are management information (the board shows managed rows only - belt and braces)

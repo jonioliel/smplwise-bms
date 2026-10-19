@@ -15,7 +15,7 @@ The four columns of `tickets` (one row = one ticket; NULL = no threshold applies
 
 `due_kind()` names the threshold each column carries for a status. "Link not opened" (`link_unopened_min`) applies only to an
 external assignment (a handler link, slice 4): slice 6's monitor measures it from the link's send time, which this slice does not
-have. Calendar time (D7). Every threshold is editable per department x priority; NULL turns it off (13.1)."""
+have. Calendar time (D7) unless the installation set a working-hours calendar (SLACAL: work_calendar.py - the thresholds then count working minutes; the auto-close days stay calendar days unless the calendar says `auto_close: working`). Every threshold is editable per department x priority; NULL turns it off (13.1)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -23,7 +23,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from . import model, policy, store
+from . import model, policy, store, work_calendar
 
 THRESHOLDS: tuple[str, ...] = (
     "unassigned_after_min", "link_unopened_min", "ack_within_min", "stuck_after_min", "stuck_waiting_min", "resolve_within_min",
@@ -61,10 +61,12 @@ def _iso(at: dt.datetime | None) -> str | None:
     return None if at is None else at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _plus(at: str | None, minutes: Any) -> dt.datetime | None:
+def _plus(at: str | None, minutes: Any, cal: work_calendar.Calendar | None = None) -> dt.datetime | None:
     base = _parse(at)
     if base is None or minutes is None:
         return None
+    if cal is not None and not cal.is_24x7:  # SLACAL: the threshold counts working minutes
+        return work_calendar.add_working_time(base, int(minutes), cal)
     return base + dt.timedelta(minutes=int(minutes))
 
 
@@ -80,24 +82,27 @@ def due_kind(status: str, column: str) -> str | None:
 
 
 def compute(*, status: str, created_at: str, last_activity_at: str, unassigned_since: str | None, assigned_at: str | None,
-            eta_at: str | None, done_at: str | None, rule: dict[str, Any] | None, auto_close_after_days: int | None) -> Dues:
+            eta_at: str | None, done_at: str | None, rule: dict[str, Any] | None, auto_close_after_days: int | None,
+            cal: work_calendar.Calendar | None = None) -> Dues:
     """The dues of one ticket (pure). `unassigned_since`: when the ticket last became unassigned (creation, a return, a reopen)."""
     if status in model.FINAL:
         return NONE
     r = rule or {}
     ack = stuck = resolve = None
     if status in ("new", "returned"):
-        ack = _plus(unassigned_since or created_at, r.get("unassigned_after_min"))
+        ack = _plus(unassigned_since or created_at, r.get("unassigned_after_min"), cal)
     elif status == "assigned":
-        ack = _plus(assigned_at or last_activity_at, r.get("ack_within_min"))
+        ack = _plus(assigned_at or last_activity_at, r.get("ack_within_min"), cal)
     if status in ("acknowledged", "in_progress", "waiting_part"):
-        stuck = _plus(last_activity_at, r.get("stuck_waiting_min" if status == "waiting_part" else "stuck_after_min"))
+        stuck = _plus(last_activity_at, r.get("stuck_waiting_min" if status == "waiting_part" else "stuck_after_min"), cal)
         eta = _parse(eta_at)
         if stuck is not None and eta is not None and eta > stuck:
             stuck = eta
     if status != "done":
-        resolve = _plus(created_at, r.get("resolve_within_min"))
-    auto_close = _plus(done_at, auto_close_after_days * 1440) if status == "done" and auto_close_after_days else None
+        resolve = _plus(created_at, r.get("resolve_within_min"), cal)
+    auto_close = None
+    if status == "done" and auto_close_after_days and (d0 := _parse(done_at)) is not None:
+        auto_close = work_calendar.auto_close_at(d0, auto_close_after_days, cal)  # calendar days unless calendar.auto_close = "working"
     candidates = [x for x in (ack, stuck, resolve, auto_close) if x is not None]
     return Dues(_iso(ack), _iso(stuck), _iso(resolve), _iso(min(candidates)) if candidates else None)
 
@@ -114,9 +119,16 @@ def refresh(conn: sqlite3.Connection, ticket_id: str) -> Dues:
         status=inputs["status"], created_at=inputs["created_at"], last_activity_at=inputs["last_activity_at"],
         unassigned_since=inputs["unassigned_since"], assigned_at=inputs["assigned_at"], eta_at=inputs["eta_at"], done_at=inputs["done_at"],
         rule=rule, auto_close_after_days=policy.effective(conn, dept).auto_close_after_days if dept else None,
+        cal=work_calendar.load(conn, inputs["department_id"]),
     )
     store.set_sla_dues(conn, ticket_id, dues.as_dict())
     return dues
+
+
+def refresh_all_open(conn: sqlite3.Connection) -> int:
+    """SLACAL: the working-hours calendar changed - recompute the dues of every open ticket (inside the caller's write transaction)."""
+    ids = [r[0] for r in conn.execute("SELECT id FROM tickets WHERE status NOT IN ('closed', 'cancelled')").fetchall()]
+    return refresh_many(conn, ids)
 
 
 def refresh_many(conn: sqlite3.Connection, ticket_ids: list[str]) -> int:

@@ -25,7 +25,7 @@ from typing import Any, Callable
 
 from ...audit import audit
 from ...db import Database, get_setting
-from . import notify_bridge, policy, settings_doc, sla, store, stuck
+from . import notify_bridge, policy, settings_doc, sla, store, stuck, work_calendar
 
 log = logging.getLogger("smplwise.tickets.monitor")
 
@@ -119,7 +119,7 @@ def evaluate(conn, row: dict[str, Any], now: dt.datetime) -> stuck.Evaluation:
     """The crossing of one ticket now (also used by the board for its SLA cell)."""
     rule = store.sla_rule(conn, row["department_id"], row["priority_id"])
     since = store.unassigned_since(conn, row) if row["status"] in ("new", "returned") else None
-    return stuck.evaluate(row, rule, now, unassigned_since=since, link=_link_info(conn, row))
+    return stuck.evaluate(row, rule, now, unassigned_since=since, link=_link_info(conn, row), cal=work_calendar.load(conn, row["department_id"]))
 
 
 def look(conn, ticket_id: str, now: dt.datetime) -> stuck.Plan | None:
@@ -130,7 +130,8 @@ def look(conn, ticket_id: str, now: dt.datetime) -> stuck.Plan | None:
     rule = store.sla_rule(conn, row["department_id"], row["priority_id"])
     link = _link_info(conn, row)
     since = store.unassigned_since(conn, row) if row["status"] in ("new", "returned") else None
-    ev = stuck.evaluate(row, rule, now, unassigned_since=since, link=link)
+    cal = work_calendar.load(conn, row["department_id"])  # SLACAL: wall-clock unless the installation set working hours
+    ev = stuck.evaluate(row, rule, now, unassigned_since=since, link=link, cal=cal)
     _link_expiry(conn, row, link, now)
     marks, last_rem = store.ladder_marks(conn, ticket_id)
     state = stuck.LadderState()
@@ -144,7 +145,7 @@ def look(conn, ticket_id: str, now: dt.datetime) -> stuck.Plan | None:
     window_open, next_window = (True, None)
     if assignee == "contact":
         window_open, next_window = _window(conn, row, now)
-    p = stuck.plan(state, ev, rule, now, assignee=assignee, can_remind=can_remind, window_open=window_open, next_window=next_window)
+    p = stuck.plan(state, ev, rule, now, assignee=assignee, can_remind=can_remind, window_open=window_open, next_window=next_window, cal=cal)
     if p.ended_kind:
         notify_bridge.resolve_stuck(conn, ticket_id)
     if p.started is not None:
@@ -189,7 +190,7 @@ def auto_close(conn, ticket_id: str, now: dt.datetime) -> bool:
     dept = store.department_any(conn, row["department_id"]) or {}
     days = policy.effective(conn, dept).auto_close_after_days  # slice 2's policy: 1-30 days or None (two-step)
     done_at = stuck.parse(row["done_at"])
-    if not days or int(days) <= 0 or done_at is None or done_at + dt.timedelta(days=int(days)) > now:
+    if not days or int(days) <= 0 or done_at is None or work_calendar.auto_close_at(done_at, int(days), work_calendar.load(conn, row["department_id"])) > now:
         return False
     from . import costs  # slice 9 (11A.3): a REQUIRED cost claim not yet approved keeps the ticket open (it stays "waiting for me")
 
