@@ -499,6 +499,8 @@ export interface RfqAwardAnswer { rfq: RfqDetail; award: RfqAward; message_draft
 export interface RfqMessage { id: string; direction: 'in' | 'out'; text: string; at: string; by: string; source: { kind: string; id: string | null } | null; notified: boolean;
   /** TKRFQ5: a vendor's WhatsApp reply matched to the thread - an unverified sender (the vendor page never shows it). */
   via?: 'whatsapp' | null; unverified?: boolean;
+  /** rfq-thread-system-author: written by the system (a reminder); `by` carries the localized "System" label. */
+  system?: boolean;
   /** RFQQUESTIONS: an inbound message is a question with a state */
   question?: { state: 'pending' | 'answered'; read: boolean; answered_at: string | null; answer_id: string | null; quote_id: string | null };
   /** RFQQUESTIONS: an outbound message that answers a question / one copy of an answer to every vendor */

@@ -109,3 +109,16 @@ def test_property_next_opening_is_the_first_instant_inside():
         if opening > now:
             assert not hours.in_window(opening - dt.timedelta(seconds=1), window, tz) or opening - dt.timedelta(seconds=1) < now
             assert opening - now <= dt.timedelta(days=1, hours=1)
+
+
+@pytest.mark.parametrize("purpose", ["rfq_invite", "rfq_update", "update", "reminder", "assign"])
+def test_every_vendor_message_purpose_waits_for_the_installation_window_and_a_changed_window_applies(purpose):
+    """TICKETS-POLISH3 item 1: the installation's send hours (default 07:00-21:00) hold every non-code message until the opening, and an
+    administrator's changed window (a stored setting) is what `effective_window` returns - a corrupt value never widens it."""
+    night = local(2026, 10, 13, 23, 0)
+    held = hours.decide(purpose, night, W, TZ)
+    assert not held.send and held.not_before == local(2026, 10, 14, 7, 0)
+    assert hours.effective_window(None).as_doc() == {"from": "07:00", "to": "21:00"}
+    wide = hours.effective_window({"from": "06:00", "to": "22:00"})
+    assert hours.decide(purpose, night, wide, TZ).send is False and hours.decide(purpose, local(2026, 10, 13, 21, 30), wide, TZ).send
+    assert hours.effective_window({"from": "bad"}).as_doc() == {"from": "07:00", "to": "21:00"}
