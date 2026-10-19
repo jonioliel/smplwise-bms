@@ -253,6 +253,23 @@ def test_the_rfq_snapshot_is_frozen_after_the_draft_and_its_location_is_locked_o
     assert r.status_code == 409 and r.json()["code"] == "rfq_field_locked"
 
 
+def test_a_draft_editor_can_switch_between_a_location_free_text_and_none(s4):
+    """TICKETS-POLISH-282: the RFQ board's draft editor sends exactly these bodies (null clears the reference, '' clears the free text)."""
+    lid = loc_id(s4)
+    d = rfq(s4, place_text="חדר שרתים")
+    url = f"{API}/tickets/rfqs/{d['id']}"
+    r = s4.c.patch(url, json={"revision": d["revision"], "location_id": lid, "place_text": "", "location_nav": False}, headers=s4.h("mona"))
+    assert r.status_code == 200, r.text
+    got = r.json()
+    assert got["location"]["name"] == HQ["name"] and not got["place"]["text"]
+    r = s4.c.patch(url, json={"revision": got["revision"], "location_id": None, "place_text": "מחסן", "location_nav": False}, headers=s4.h("mona"))
+    assert r.status_code == 200, r.text
+    got = r.json()
+    assert got["location"] is None and got["place"]["text"] == "מחסן"
+    r = s4.c.patch(url, json={"revision": got["revision"], "location_id": None, "place_text": ""}, headers=s4.h("mona"))
+    assert r.status_code == 200 and r.json()["location"] is None and not r.json()["place"]["text"]
+
+
 # ---------------------------------------------------------------- vendors
 
 def test_the_invitation_names_the_location_and_the_map_link_only_when_switched_on(s4):

@@ -36,6 +36,9 @@ import { pendingQuestions, questionBadge } from './rfq-questions';
 import { refreshRfqQuestions } from './rfq-questions-store';
 import { tt, ticketsLang } from './text';
 import { lt } from './org-locations-text'; // CR-ORG-LOCATIONS: the navigation-link switch
+import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
+import { locationPicker } from './location-picker';
+import { editLocationBody, editStartPick } from './org-locations-model';
 
 type Dlg =
   | { kind: 'answer' | 'resolve'; q: RfqQuestion }
@@ -79,7 +82,9 @@ export class TicketsRfqBoard extends LitElement {
   /** TKRFQVP: vendors whose code the directory demands (the server answered 409 vendor_code_locked): the off-switch is disabled */
   @state() private codeLocked = new Set<string>();
   @state() private codeBusy = '';
-  @state() private edit = { title: '', description: '', place: '', dueDate: '', dueTime: '', from: '', to: '', kinds: [] as LineKind[] };
+  @state() private edit = { title: '', description: '', place: '', dueDate: '', dueTime: '', from: '', to: '', kinds: [] as LineKind[], pick: '', startPick: '', startPlace: '' };
+  /** CR-ORG-LOCATIONS: the active locations for the draft editor's picker (null while loading / unavailable: the free-text field stays) */
+  @state() private locs: LocationsAnswer | null = null;
   private seq = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, rfqStyles];
@@ -190,8 +195,11 @@ export class TicketsRfqBoard extends LitElement {
     const d = this.d as RfqDetail;
     const due = isoToLocal(d.due_at);
     this.edit = { title: d.title, description: d.description, place: d.place.text ?? '', dueDate: due.date, dueTime: due.time, from: isoToLocal(d.work_from).date,
-      to: isoToLocal(d.work_to).date, kinds: [...d.allowed_line_kinds] };
+      to: isoToLocal(d.work_to).date, kinds: [...d.allowed_line_kinds], pick: editStartPick(d.location?.id, d.place.text),
+      startPick: editStartPick(d.location?.id, d.place.text), startPlace: d.place.text ?? '' };
     this.open({ kind: 'edit' });
+    this.locs = null;
+    if (d.state === 'draft') void ticketsLocationsApi().list().then((a) => { this.locs = a; }).catch(() => { this.locs = null; });
   }
 
   private saveEdit(): Promise<boolean> {
@@ -200,7 +208,8 @@ export class TicketsRfqBoard extends LitElement {
     const draft = d.state === 'draft';
     const body = {
       revision: d.revision,
-      ...(draft ? { title: e.title.trim(), description: e.description.trim(), place_text: e.place.trim(), allowed_line_kinds: e.kinds } : {}),
+      ...(draft ? { title: e.title.trim(), description: e.description.trim(), place_text: e.place.trim(), allowed_line_kinds: e.kinds,
+        ...(this.locs?.locations.length ? editLocationBody(e.startPick, e.startPlace, e.pick, e.place) : {}) } : {}),
       due_at: localToIso(e.dueDate, e.dueTime || '12:00') || undefined,
       work_from: e.from ? dayToIso(e.from) : undefined, work_to: e.to ? dayToIso(e.to) : undefined,
     };
@@ -635,7 +644,7 @@ export class TicketsRfqBoard extends LitElement {
         return dlg(rt('editTitle'), 'edit', html`${draft ? html`
             <label class="fld">${rt('fTitle')}<input class="inp" maxlength="120" .value=${e.title} data-edit-title @input=${(x: Event) => set({ title: (x.target as HTMLInputElement).value })} /></label>
             <label class="fld">${rt('fDescription')}<textarea class="inp" style="min-block-size:88px;padding-block:10px" maxlength="4000" .value=${e.description} @input=${(x: Event) => set({ description: (x.target as HTMLTextAreaElement).value })}></textarea></label>
-            <label class="fld">${rt('fPlace')}<input class="inp" maxlength="200" .value=${e.place} @input=${(x: Event) => set({ place: (x.target as HTMLInputElement).value })} /></label>
+            ${locationPicker({ ans: this.locs, pick: e.pick, other: e.place, disabled: this.busy, label: rt('fPlace'), onPick: (v) => set({ pick: v }), onOther: (v) => set({ place: v }) })}
             <div class="kinds" role="group" aria-label=${rt('fKinds')}>${(['labor', 'parts', 'travel', 'other'] as LineKind[]).map((k) => html`<button type="button" class="rc" aria-pressed=${String(e.kinds.includes(k) || k === 'labor')}
               ?disabled=${k === 'labor'} @click=${() => set({ kinds: toggleKind(e.kinds, k) })}>${ct(`k_${k}` as CostTextKey)}</button>`)}</div>` : html`<p class="note">${rt('editLocked')}</p>`}
           <div class="frm">

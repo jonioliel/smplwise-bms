@@ -77,7 +77,9 @@ change-log entry in `docs/tickets/RFQ_BACKEND_CONTRACT.md`.
 
 ## 5. Not built / limits
 
-- The RFQ board's draft editor still edits only the free-text place (the location is chosen in the new-RFQ sheet).
+- The RFQ board's draft editor changes the location of a draft with the same picker as the new-RFQ sheet (release 2.8.2; a new
+  snapshot is taken, the map-link switch goes back off; nothing is sent when the person did not touch the field). After the send it
+  stays locked.
 - Changing a ticket's location after creation is not offered (the snapshot is the creation-time record).
 - The locations do not feed the plan / map (section 2.9).
 - Nothing here was tested against real WhatsApp, a real phone or the lab.
