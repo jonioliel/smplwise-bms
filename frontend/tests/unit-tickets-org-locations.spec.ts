@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { LocationsAnswer, OrgLocation } from '../src/api/tickets-locations';
 import {
-  OTHER, blankDraft, defaultPick, draftBody, fullText, locationBody, locationProblems, messageText, navAvailable, otherTooLong, pickPreview, pickerOptions,
+  OTHER, blankDraft, defaultPick, draftBody, editLocationBody, editStartPick, fullText, locationBody, locationProblems, messageText, navAvailable, otherTooLong, pickPreview, pickerOptions,
   serverProblem,
 } from '../src/tickets/org-locations-model';
 import { LOC_TEXT_EN, LOC_TEXT_HE } from '../src/tickets/org-locations-text';
@@ -102,4 +102,25 @@ test('the vendor page follows only the short maps link the server builds', () =>
 test('every Hebrew string has an English one and no internal task code is shown', () => {
   expect(Object.keys(LOC_TEXT_EN).sort()).toEqual(Object.keys(LOC_TEXT_HE).sort());
   for (const s of Object.values(LOC_TEXT_HE)) expect(s).not.toMatch(/CR-|ORG-?LOC|TK[A-Z0-9]{2,}/);
+});
+
+// TICKETS-POLISH-282: the RFQ board's draft editor changes the location of a draft
+test('the draft editor starts from the location, else the free text, else none', () => {
+  expect(editStartPick('a', 'x')).toBe('a');
+  expect(editStartPick(null, ' חדר ')).toBe(OTHER);
+  expect(editStartPick(undefined, '  ')).toBe('');
+});
+
+test('the draft editor sends nothing for the location when the person changed nothing', () => {
+  expect(editLocationBody('a', '', 'a', '')).toEqual({});
+  expect(editLocationBody(OTHER, 'חדר', OTHER, ' חדר ')).toEqual({});
+  expect(editLocationBody('', '', '', '')).toEqual({});
+});
+
+test('the draft editor sends the new reference, or the free text, clearing the other side and the map-link switch', () => {
+  expect(editLocationBody('', '', 'b', '')).toEqual({ location_id: 'b', place_text: '', location_nav: false });
+  expect(editLocationBody('a', '', 'b', 'ignored')).toEqual({ location_id: 'b', place_text: '', location_nav: false });
+  expect(editLocationBody('a', '', OTHER, ' מחסן ')).toEqual({ location_id: null, place_text: 'מחסן', location_nav: false });
+  expect(editLocationBody(OTHER, 'חדר', OTHER, 'מחסן')).toEqual({ location_id: null, place_text: 'מחסן', location_nav: false });
+  expect(editLocationBody('a', '', '', '')).toEqual({ location_id: null, place_text: '', location_nav: false });
 });

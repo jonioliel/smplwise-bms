@@ -64,6 +64,25 @@ export function locationBody(pick: string, other: string): { location_id?: strin
   return pick ? { location_id: pick } : {};
 }
 
+/** The picker's starting value when a draft is edited: its location reference, else "other" when it has a free-text place, else "no location". */
+export function editStartPick(locationId: string | null | undefined, placeText: string | null | undefined): string {
+  if (locationId) return locationId;
+  return (placeText ?? '').trim() ? OTHER : '';
+}
+
+/**
+ * The PATCH body's location part for a draft edit (RFQ board). Nothing when the person changed nothing (so a location that was
+ * deactivated since the draft was made is not dropped by an unrelated edit); otherwise the new reference (the server takes a new
+ * snapshot) or the free text, clearing the other side, and the navigation-link switch back off.
+ */
+export function editLocationBody(startPick: string, startOther: string, pick: string, other: string):
+  { location_id?: string | null; place_text?: string; location_nav?: boolean } {
+  const text = other.trim();
+  if (pick === startPick && (pick !== OTHER || text === startOther.trim())) return {};
+  if (pick === OTHER) return { location_id: null, place_text: text, location_nav: false };
+  return { location_id: pick || null, place_text: '', location_nav: false };
+}
+
 export function otherTooLong(pick: string, other: string): boolean {
   return pick === OTHER && len(other.trim()) > OTHER_MAX;
 }

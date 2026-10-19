@@ -457,6 +457,9 @@ export interface RfqEditBody {
   title?: string;
   description?: string;
   place_text?: string;
+  /** CR-ORG-LOCATIONS: a draft's location (null = none); the server takes a new snapshot */
+  location_id?: string | null;
+  location_nav?: boolean;
   due_at?: string;
   work_from?: string;
   work_to?: string;
