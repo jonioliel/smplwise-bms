@@ -247,7 +247,8 @@ test.describe('TKUI5: the public page in the approved look', () => {
     test.info().annotations.push({ type: 'gzip-bytes', description: `${gz} (rfq-page ${rfq}, rfq-terms ${rfqTerms}, rfq-upload ${rfqUpload}, portal ${portal}, portal-more ${portalMore}, consent ${consent}, claim-prefill ${claimPrefill})` });
     // 2.9.0: 61 -> 62 KB (the "ask the manager" switch and "back to the list" on the handler page: 62,858 B measured; see unit-public-ticket)
     expect(gz).toBeLessThanOrEqual(62 * 1024);
-    expect(rfq).toBeLessThanOrEqual(20 * 1024);
+    // 2.9.1: rfq-page 20 -> 21 KB (the System author on the vendor thread, four languages: 20,519 B measured; see unit-public-ticket)
+    expect(rfq).toBeLessThanOrEqual(21 * 1024);
     expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
     expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
     expect(portal).toBeLessThanOrEqual(12 * 1024);

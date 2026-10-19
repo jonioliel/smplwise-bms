@@ -240,7 +240,10 @@ test('a built bundle is outside www, script- and style-file only, and within the
   // 2.9.0 release: 61 -> 62 KB. The "ask the manager" switch and "back to the list" (four languages each) grew the ticket page to
   // 62,858 B gzip (394 B over 61 KB); no dead code to trim, the growth is the feature. Headroom now 630 B.
   expect(gz).toBeLessThanOrEqual(62 * 1024);
-  expect(rfq).toBeLessThanOrEqual(20 * 1024);
+  // 2.9.1 integration: the vendor RFQ page chunk 20 -> 21 KB. RFQSYS-291 (the System author and its style on the vendor thread, four
+  // languages) grew rfq-page + rfq-files to 20,519 B gzip (39 B over 20 KB); the growth is the feature. Headroom now 985 B.
+  // Measured from a local build:public of integ/291: ticket page 62,884 B (cap 63,488 B, headroom 604 B).
+  expect(rfq).toBeLessThanOrEqual(21 * 1024);
   expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
   expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
   expect(portal).toBeLessThanOrEqual(12 * 1024);
