@@ -77,6 +77,13 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # audience `pay`); one row per award and day, resolved when it is paid / moved or the day comes
     {"key": "rfq.instalment_due_tomorrow", "label": "מועד תשלום לספק מחר", "label_en": "Vendor payment due tomorrow", "severity": "info",
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ, "enabled": False},
+    # phase 5: the morning summary of each manager (working days, at `ui.dash_digest_hour`) - his own numbers, to him only (subject
+    # `session` = the user); and a department whose stuck requests reached `ui.dash_dept_stuck` - to each of its managers (his own
+    # count of it), once until the number drops below the threshold
+    {"key": "ticket.dash_digest", "label": "סיכום בוקר למנהלים", "severity": "info",
+     "who": "initiator", "resolves": False, "subject": "session", "enabled": False},
+    {"key": "ticket.dash_busy_department", "label": "מחלקה עמוסה", "severity": "alert",
+     "who": "initiator", "resolves": True, "subject": "session", "enabled": False},
 )
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}

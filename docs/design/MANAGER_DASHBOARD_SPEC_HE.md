@@ -313,3 +313,32 @@ Open questions (not guessed):
 2. Card 11 "מחכות להחלטה": built from the server's `waiting` (requests waiting for a manager). Should it also count the approvals and
    RFQ decisions of the department? a. as built · b. add them (server change).
 3. The speed ceiling: a. fix the server before 2.9.0 · b. release with the measured numbers and fix in 2.9.x.
+
+## Phases 4 and 5 as built (2026-10-19, branch pilot/DASH45-290)
+
+**Phase 4 - payments.** Server: `GET /api/v1/tickets/dashboard/payments?department_id=` (`services/tickets/dashboard_pay.py`, SQL in
+`store_dash_extra.py`). The board's manager gate plus `tickets.costs` and `tickets.costs.view` at some scope (an audited 403 otherwise);
+a department the caller does not manage is an audited 403. Three lists, each row only where the caller may act on it: `overdue` (approved
+instalments past their day and not marked paid - the rule of `rfq.instalment_overdue`), `upcoming` (instalments due today .. +13 days),
+`claims` (payment demands approved and not marked paid - owner question 10 b). An instalment needs the request visible + costs + view
+there (the rule of the demand / paid routes); a claim needs the ticket managed + costs + view. Visibility is read in one batch per answer
+(`access.visible_by_ids`, `rfq.visible_by_ids`; the module switch read once); cached 30 seconds like the summary. Screen: a card
+"תשלומים" after "ממתין לאישורי" (only for a viewer who may pay; a refused route = no card), the instalments past their day in card 9,
+card 10's payment dates from the server (the phase 1 detail reading stays as the fallback). The numbers row's "ממתינות לאישורי" is
+unchanged (owner decision). Alert `rfq.instalment_due_tomorrow` (off by default): one row per award and day, raised once, to the RFQ
+managers holding costs + view, no amount in the text; resolved when paid / moved / the day comes. Evidence: `docs/design/evidence/dash4/`.
+
+**Phase 5 - alerts.** `services/tickets/dashboard_alerts.py`, run by the cost janitor every 10 minutes; both sources OFF by default in the
+notification settings (the installation has no per-user notification preferences - owner decision 4b - so "switched on by the user"
+is the policy matrix). `ticket.dash_digest`: each manager's morning summary, Sunday - Thursday from `ui.dash_digest_hour` (default 8)
+within 3 hours, one line "N תקועות · N לאישורך · N הגעות היום" from what he manages, to him only, once a day, not sent when all three are
+0. `ticket.dash_busy_department`: a department's stuck requests (counted from what each manager manages there) reached `ui.dash_dept_stuck`
+(default 10) - to its manager members, once until the number drops below (then resolved). The vendor-question reminder already exists
+(`rfq.question_unanswered`, RFQQUESTIONS, `rfq.question_reminder_hours` default 24) and was not rebuilt. Settings rows in Settings >
+the module > display > "סקירת מנהל". No migration in either phase. Evidence: `docs/design/evidence/dash5/`.
+
+Open questions (not guessed):
+1. Working days of the morning summary are fixed Sunday - Thursday: a. keep · b. a setting.
+2. A morning with nothing to report sends nothing: a. keep · b. send a quiet "הכול בסדר".
+3. The vendor-question reminder (existing) is ON by default, unlike the spec's "all off": a. keep · b. switch its default off.
+4. The busy-department alert goes to manager members only (not to an all-departments manager): a. keep · b. include them.

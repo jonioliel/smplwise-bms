@@ -27,9 +27,13 @@ export interface OverviewSettings {
   busy: number;
   busyByDept: Readonly<Record<string, number>>;
   compare: ComparePlace;
+  /** phase 5: the local hour of the managers' morning summary (0-23, default 8) */
+  digestHour: number;
+  /** phase 5: the busy-department alert's threshold of stuck requests (1-999, default 10) */
+  deptStuck: number;
 }
 
-export const OVERVIEW_DEFAULTS: OverviewSettings = { handlerNumbers: 'own', vendors: 'tagged', busy: 8, busyByDept: {}, compare: 'below_numbers' };
+export const OVERVIEW_DEFAULTS: OverviewSettings = { handlerNumbers: 'own', vendors: 'tagged', busy: 8, busyByDept: {}, compare: 'below_numbers', digestHour: 8, deptStuck: 10 };
 export const HANDLER_NUMBERS: readonly HandlerNumbers[] = ['managers', 'own', 'everyone'];
 export const VENDOR_MODES: readonly VendorMode[] = ['tagged', 'separate', 'hidden'];
 export const COMPARE_PLACES: readonly ComparePlace[] = ['top', 'below_numbers', 'bottom'];
@@ -49,7 +53,19 @@ export function overviewSettingsOf(ui: Readonly<Record<string, unknown>> | null 
     busy: isBusyN(u.dash_busy) ? u.dash_busy : OVERVIEW_DEFAULTS.busy,
     busyByDept: map,
     compare: pick(u.dash_compare, COMPARE_PLACES, OVERVIEW_DEFAULTS.compare),
+    digestHour: isInt(u.dash_digest_hour, 0, 23) ? u.dash_digest_hour : OVERVIEW_DEFAULTS.digestHour,
+    deptStuck: isInt(u.dash_dept_stuck, 1, 999) ? u.dash_dept_stuck : OVERVIEW_DEFAULTS.deptStuck,
   };
+}
+
+const isInt = (v: unknown, lo: number, hi: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
+
+/** Phase 5: the busy-department threshold typed into its field - an integer 1-999, anything else (an empty field too) invalid. */
+export function parseDeptStuckInput(text: string): number | undefined {
+  const t = text.trim();
+  if (!/^\d{1,3}$/.test(t)) return undefined;
+  const n = Number(t);
+  return isInt(n, 1, 999) ? n : undefined;
 }
 
 /** The "busy" threshold of a department (its own value, else the installation default). */

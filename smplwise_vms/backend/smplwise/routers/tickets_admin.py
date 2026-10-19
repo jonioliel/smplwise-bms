@@ -84,6 +84,8 @@ class UiPatch(BaseModel):
     dash_busy: StrictInt | None = None
     dash_busy_departments: dict[str, StrictInt] | None = Field(default=None, max_length=200)
     dash_compare: Literal["top", "below_numbers", "bottom"] | None = None
+    dash_digest_hour: StrictInt | None = None  # MGRDASH phase 5: the morning summary's hour (settings_doc validates 0..23)
+    dash_dept_stuck: StrictInt | None = None  # MGRDASH phase 5: the busy-department alert's threshold (1..999)
 
 
 class PublicPatch(BaseModel):  # slice 4: the handler page's address and the peers whose client-address header is believed

@@ -4,7 +4,7 @@ import { ApiError, describeError } from '../api/client';
 import { boardApi, type BoardSettingsDoc } from '../api/tickets-board';
 import { ticketsApi } from '../api/tickets';
 import { bidi } from '../i18n/bidi';
-import { COMPARE_PLACES, HANDLER_NUMBERS, overviewSettingsOf, parseBusyInput, VENDOR_MODES } from './overview-model';
+import { COMPARE_PLACES, HANDLER_NUMBERS, overviewSettingsOf, parseBusyInput, parseDeptStuckInput, VENDOR_MODES } from './overview-model';
 import { ot, type OverviewTextKey } from './overview-text';
 
 /**
@@ -12,7 +12,7 @@ import { ot, type OverviewTextKey } from './overview-text';
  * numbers, where vendors go in the load card, the "busy" threshold (the default and one per department) and where the department
  * comparison sits. Rows of the display card of screens/system-tickets.ts (light DOM: the card's `.row` / `.lbl` / `.seg` styles reach
  * them), saved through PUT /tickets/settings with the card's document revision like ticket-board-settings; the new document goes back
- * up as `doc-changed`. The morning summary's settings arrive with its sender (phase 5) - no switch is drawn before it does anything.
+ * up as `doc-changed`. Phase 5 adds the alerts' two values: the morning summary's hour and the busy-department threshold (the alerts themselves are\n * switched on in the notification settings, off by default).
  */
 @customElement('ticket-overview-settings')
 export class TicketOverviewSettings extends LitElement {
@@ -73,6 +73,30 @@ export class TicketOverviewSettings extends LitElement {
     if (JSON.stringify(next) !== JSON.stringify(s.busyByDept)) void this.save({ dash_busy_departments: next });
   }
 
+  /** Phase 5: the morning summary's hour (a list of the 24 hours) and the busy-department threshold (1-999). */
+  private alertRows(): TemplateResult {
+    const s = overviewSettingsOf(this.doc?.ui);
+    const hh = (h: number) => `${String(h).padStart(2, '0')}:00`;
+    const onStuck = (e: Event) => {
+      const v = parseDeptStuckInput((e.target as HTMLInputElement).value);
+      if (v === undefined) {
+        this.bad = 'stuck';
+        return;
+      }
+      this.bad = '';
+      if (v !== s.deptStuck) void this.save({ dash_dept_stuck: v });
+    };
+    return html`<div class="row"><span class="lbl">${ot('setDigestHour')}<span class="muted">${ot('setDigestHourSub')}</span></span>
+        <select class="num-in" style="inline-size:auto;min-inline-size:104px;text-align:start" aria-label=${ot('setDigestHour')} data-digest-hour ?disabled=${this.disabled || this.busy}
+          @change=${(e: Event) => void this.save({ dash_digest_hour: Number((e.target as HTMLSelectElement).value) })}>
+          ${Array.from({ length: 24 }, (_, h) => html`<option value=${h} ?selected=${h === s.digestHour}>${hh(h)}</option>`)}
+        </select></div>
+      <div class="row"><span class="lbl">${ot('setDeptStuck')}<span class="muted">${ot('setDeptStuckSub')}</span></span>
+        <input type="text" inputmode="numeric" maxlength="3" size="4" class="num-in" .value=${String(s.deptStuck)} aria-label=${ot('setDeptStuck')}
+          aria-invalid=${String(this.bad === 'stuck')} data-dept-stuck ?disabled=${this.disabled || this.busy} @change=${onStuck} /></div>
+      ${this.bad === 'stuck' ? html`<div class="row"><span class="field-error" role="alert" data-dept-stuck-error>${ot('setDeptStuckInvalid')}</span></div>` : nothing}`;
+  }
+
   private busyRows(): TemplateResult {
     const s = overviewSettingsOf(this.doc?.ui);
     const field = (dept: string | null, value: string, label: string) => html`<input type="text" inputmode="numeric" maxlength="2" size="3" class="num-in" .value=${value}
@@ -81,7 +105,7 @@ export class TicketOverviewSettings extends LitElement {
     return html`<div class="row"><span class="lbl">${ot('setBusy')}<span class="muted">${ot('setBusySub')}</span></span>${field(null, String(s.busy), ot('setBusy'))}</div>
       ${this.departments.length ? html`<div class="row" data-busy-departments><span class="lbl">${ot('setBusyDept')}<span class="muted">${ot('setBusyDeptSub')}</span></span>
         <span class="busy-depts">${this.departments.map((d) => html`<label class="busy-dept"><span>${bidi(d.name)}</span>${field(d.id, s.busyByDept[d.id] ? String(s.busyByDept[d.id]) : '', `${ot('setBusyDept')} · ${d.name}`)}</label>`)}</span></div>` : nothing}
-      ${this.bad ? html`<div class="row"><span class="field-error" role="alert" data-busy-error>${ot('setBusyInvalid')}</span></div>` : nothing}`;
+      ${this.bad && this.bad !== 'stuck' ? html`<div class="row"><span class="field-error" role="alert" data-busy-error>${ot('setBusyInvalid')}</span></div>` : nothing}`;
   }
 
   render() {
@@ -91,6 +115,7 @@ export class TicketOverviewSettings extends LitElement {
       ${this.seg('dash_vendors', 'setVendors', 'setVendorsSub', VENDOR_MODES, s.vendors, 'vd_')}
       ${this.busyRows()}
       ${this.seg('dash_compare', 'setCompare', 'setCompareSub', COMPARE_PLACES, s.compare, 'cp_')}
+      ${this.alertRows()}
       ${this.error ? html`<div class="row"><span class="field-error" role="alert" data-overview-settings-error>${this.error}</span></div>` : nothing}`;
   }
 }

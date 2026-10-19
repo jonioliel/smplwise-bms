@@ -217,6 +217,11 @@ const he = {
   cp_below_numbers: 'מתחת למספרים',
   cp_bottom: 'בתחתית',
   setBusyInvalid: 'מספר בין 1 ל-99',
+  setDigestHour: 'שעת סיכום הבוקר',
+  setDigestHourSub: 'ימים א׳-ה׳ · ההתראה עצמה נדלקת בהגדרות ההתראות',
+  setDeptStuck: 'סף "מחלקה עמוסה"',
+  setDeptStuckSub: '{f:תקועות|m:תקועים} במחלקה · להתראה למנהלי המחלקה',
+  setDeptStuckInvalid: 'מספר בין 1 ל-999',
 };
 
 export type OverviewTextKey = keyof typeof he;
@@ -405,6 +410,11 @@ const en: Partial<Record<OverviewTextKey, string>> = {
   cp_below_numbers: 'Under the numbers',
   cp_bottom: 'At the bottom',
   setBusyInvalid: 'A number from 1 to 99',
+  setDigestHour: 'Morning summary hour',
+  setDigestHourSub: 'Sunday to Thursday · the alert itself is switched on in the notification settings',
+  setDeptStuck: 'Busy department threshold',
+  setDeptStuckSub: 'stuck {tickets} in a department · for the alert to its managers',
+  setDeptStuckInvalid: 'A number from 1 to 999',
 };
 
 /** The raw template of a key (the unit tests read it). */

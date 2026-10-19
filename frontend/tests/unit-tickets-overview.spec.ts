@@ -40,9 +40,9 @@ const stuck = (kind: NonNullable<BoardItem['stuck']>['kind']) => ({ kind, level:
 
 test('the settings: the owner\'s defaults, a bad value reads as its default, per-department thresholds', () => {
   expect(overviewSettingsOf(null)).toEqual(OVERVIEW_DEFAULTS);
-  expect(OVERVIEW_DEFAULTS).toEqual({ handlerNumbers: 'own', vendors: 'tagged', busy: 8, busyByDept: {}, compare: 'below_numbers' });
+  expect(OVERVIEW_DEFAULTS).toEqual({ handlerNumbers: 'own', vendors: 'tagged', busy: 8, busyByDept: {}, compare: 'below_numbers', digestHour: 8, deptStuck: 10 });
   const s = overviewSettingsOf({ dash_handler_numbers: 'all', dash_vendors: 'separate', dash_busy: 0, dash_busy_departments: { maint: 3, clean: 120, x: '4' }, dash_compare: 'top' });
-  expect(s).toEqual({ handlerNumbers: 'own', vendors: 'separate', busy: 8, busyByDept: { maint: 3 }, compare: 'top' });
+  expect(s).toEqual({ handlerNumbers: 'own', vendors: 'separate', busy: 8, busyByDept: { maint: 3 }, compare: 'top', digestHour: 8, deptStuck: 10 });
   expect(busyThreshold(s, 'maint')).toBe(3);
   expect(busyThreshold(s, 'clean')).toBe(8);
   expect(busyThreshold(s, '')).toBe(8);

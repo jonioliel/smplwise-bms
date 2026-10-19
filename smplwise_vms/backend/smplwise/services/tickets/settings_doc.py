@@ -192,6 +192,11 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "dash_busy"): (8, int_range(1, 99)),
     ("ui", "dash_busy_departments"): ({}, busy_map),
     ("ui", "dash_compare"): ("below_numbers", _choice("top", "below_numbers", "bottom")),
+    # MGRDASH phase 5 (spec section 9): the alerts' settings (the alerts themselves are off by default in the notification settings)
+    #   dash_digest_hour  the local hour of the managers' morning summary on working days (default 8 = 08:00)
+    #   dash_dept_stuck   a department is "busy" for its managers' alert when its stuck requests reach this number (default 10)
+    ("ui", "dash_digest_hour"): (8, int_range(0, 23)),
+    ("ui", "dash_dept_stuck"): (10, int_range(1, 999)),
     ("device_long_press",): ("sheet", _choice("sheet", "menu")),  # D17 (slice 3): the device window (default) | the short opaque menu
     # slice 2 (CR-038 section 14.1): the installation values the department overrides fall back to
     ("links", "sliding_days"): (14, int_range(*SLIDING_DAYS)),  # D5
