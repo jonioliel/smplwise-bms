@@ -155,6 +155,14 @@ class DirectoryPatch(BaseModel):
     review_idle_months: StrictInt | None = None
 
 
+class PrivacyPatch(BaseModel):
+    """PRIVORG-291: the contact point for privacy requests (e-mail or phone) and an optional https link (settings_doc `privacy.*`);
+    the organisation name is the existing `organization_name`. settings_doc validates both values again."""
+    model_config = ConfigDict(extra="forbid")
+    contact: str | None = Field(default=None, max_length=200)
+    link: str | None = Field(default=None, max_length=400)
+
+
 class RfqAttachmentsPatch(BaseModel):  # RFQATT review 2.6.4: Word / Excel attachments on requests for quotation (OFF by default)
     model_config = ConfigDict(extra="forbid")
     allow_office: StrictBool | None = None
@@ -221,6 +229,7 @@ class SettingsBody(BaseModel):
     directory: DirectoryPatch | None = None  # CR-DEPT-MANAGER-HANDLERS (owner 2026-10-17)
     rfq: RfqPatch | None = None  # RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE + RFQATT review (attachments.allow_office)
     vendor_portal: VendorPortalPatch | None = None  # VPORTAL
+    privacy: PrivacyPatch | None = None  # PRIVORG-291
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -275,7 +284,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "privacy"):  # slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

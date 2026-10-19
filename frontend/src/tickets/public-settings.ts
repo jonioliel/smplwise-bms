@@ -11,6 +11,7 @@ import { ticketsS4Api, type ProbeAnswer, type TicketsHealth } from '../api/ticke
 import { ticketSettingsCss } from './settings-styles';
 import { TICKET_TEXT_KEYS, tt, type TicketTextKey } from './text';
 import { sampleLink } from './public-address';
+import { privacyPatch, validPrivacyContact, validPrivacyLink } from './privacy-contact';
 
 const DEFAULT_PUBLIC: PublicSettings = { base_url: '', trusted_proxy_cidrs: ['172.30.32.0/23'], client_ip_header: 'cf-connecting-ip', theme: 'light', path_prefix: 'support', legacy_t_paths: true };
 const THEMES: PublicSettings['theme'][] = ['light', 'dark', 'auto'];
@@ -35,6 +36,8 @@ export class TicketsPublicCard extends LitElement {
   @property({ attribute: false }) saveError = '';
   @state() private health: TicketsHealth | null = null;
   @state() private org: string | null = null;
+  @state() private privContact: string | null = null;
+  @state() private privLink: string | null = null;
   @state() private address: string | null = null;
   @state() private cidrs: string | null = null;
   @state() private pathPrefix: string | null = null;
@@ -209,6 +212,11 @@ export class TicketsPublicCard extends LitElement {
     const p = this.pub;
     const org = this.org ?? this.doc?.organization_name ?? '';
     const address = this.address ?? p.base_url;
+    const privStored = this.doc?.privacy;
+    const privContact = this.privContact ?? privStored?.contact ?? '';
+    const privLink = this.privLink ?? privStored?.link ?? '';
+    const privOk = validPrivacyContact(privContact) && validPrivacyLink(privLink);
+    const privChange = privacyPatch(privStored, { contact: privContact, link: privLink });
     const prefix = this.pathPrefix ?? p.path_prefix ?? 'support';
     const addressHasPath = /^https:\/\/[^/]+\/[^/]/.test(address.trim());
     const liveLinks = this.health?.links.live ?? 0;
@@ -223,6 +231,16 @@ export class TicketsPublicCard extends LitElement {
         <div class="line"><input class="in" maxlength="80" data-public-org aria-label=${tt('pubOrg')} .value=${org} @input=${(e: Event) => (this.org = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-public-org-save ?disabled=${this.busy || org.trim() === (this.doc?.organization_name ?? '')}
             @click=${() => this.save({ organization_name: org.trim() })}>${tt('save')}</sw-button></div></div>
+      <div class="row stack"><span class="lbl">${tt('pubPrivContact')}</span>
+        <div class="line"><input class="in" dir="ltr" maxlength="80" autocomplete="off" data-public-priv-contact aria-label=${tt('pubPrivContact')} .value=${privContact}
+          @input=${(e: Event) => (this.privContact = (e.target as HTMLInputElement).value)} /></div>
+        <span class="lbl">${tt('pubPrivLink')}</span>
+        <div class="line"><input class="in" type="url" dir="ltr" maxlength="200" inputmode="url" autocomplete="off" data-public-priv-link aria-label=${tt('pubPrivLink')} .value=${privLink}
+          @input=${(e: Event) => (this.privLink = (e.target as HTMLInputElement).value)} />
+          <sw-button size="sm" variant="primary" data-public-priv-save ?disabled=${this.busy || !privOk || privChange === null}
+            @click=${() => { if (privChange) this.save({ privacy: privChange }); }}>${tt('save')}</sw-button></div>
+        <div class="hint" data-public-priv-note>${tt('pubPrivNote')}</div>
+        ${privOk ? nothing : html`<div class="probe bad" role="alert" data-public-priv-bad>${tt('pubPrivBad')}</div>`}</div>
       <div class="row"><span class="lbl">${tt('pubTheme')}</span>
         <span class="seg" role="radiogroup" aria-label=${tt('pubTheme')}>${THEMES.map((m) => html`<button type="button" role="radio"
           aria-checked=${String(p.theme === m)} aria-pressed=${String(p.theme === m)} data-public-theme=${m} ?disabled=${this.busy}
