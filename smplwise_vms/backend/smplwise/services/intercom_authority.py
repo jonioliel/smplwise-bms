@@ -384,6 +384,9 @@ def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False
     out["employee_no"] = employee_no
     out["group_ids"] = _copy(person.get("group_ids"))
     out["stations"] = visible
+    # R4-09: the station list is the COMPLETE set only when WisKey's record is complete (no restricted projection) AND this principal
+    # sees every assignment of it; otherwise an empty or short list means "not shown", never "no stations"
+    out["stations_known"] = bool(person.get("stations_known", False)) and visible is not None and len(visible) == len(assignments or [])
     out["timing"] = _copy(person.get("timing")) if detail else None
     out["level"] = level
     wiskey_editable = person.get("operator_editable")

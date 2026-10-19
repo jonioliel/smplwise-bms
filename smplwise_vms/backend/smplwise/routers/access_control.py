@@ -1353,6 +1353,11 @@ def person_pin_generate(request: Request, response: Response, auth: ia.Authority
     settings = settings_of(request)
     if body.user_id:
         gated(act, conn, lambda: iw.gate_person_write(settings, auth, body.user_id, permissions=(MANAGE, PIN_GENERATE), sensitive=True))
+        # R4-07: a PIN for a person whose earlier write has no clear outcome could only be saved after a fresh read - refused here, nothing
+        # sent (pin_generate is a read in WisKey, so it carries no `target` of its own and never counts as that fresh read)
+        blocked = intercom_sync.SYNC.write_gate(intercom_sync.person_target(body.user_id))
+        if blocked is not None:
+            raise act.refuse(intercom_sync.action_error({"state": "error", "last_error": blocked}, "not_sent", "config"))
     elif not auth.anywhere(ia.PEOPLE_SENSITIVE):
         raise act.refuse(iw.field_refusal())
     act.attempt()
@@ -1949,8 +1954,9 @@ def card_capture_confirm(request: Request, session_id: str, auth: ia.Authority =
         return _lease_confirm(request, act, auth, capture, body.label, not_after)
     label = body.label
     try:
+        # R4-07: the confirm writes a card to the person - the same per-person gate as every other people write
         reply = _perform(act, "person", lambda call: intercom_client.capture_confirm(call, capture.session_id, label), iw.project_editor, not_after,
-                         lane="config", summary=_person_summary)
+                         lane="config", summary=_person_summary, target=intercom_sync.person_target(capture.person_id))
     except ApiError as exc:
         outcome, code = exc.details.get("outcome"), str(exc.details.get("wiskey_code") or "")
         if outcome == "not_sent" or (outcome == "refused" and (code in intercom_client.PRE_DISPATCH or code in ("capture_not_ready", "invalid_text"))):

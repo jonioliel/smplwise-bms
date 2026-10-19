@@ -411,6 +411,16 @@ def project_person(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict) or not _id(raw.get("id")):
         return None
     redacted = {f for f in (raw.get("redacted_fields") or []) if isinstance(f, str)} if isinstance(raw.get("redacted_fields"), list) else set()
+    # R4-09: the SAME completeness reading as intercom_sync.person_scope (and the grant engine's person_from_raw): a record projected for a
+    # restricted caller (`redacted_fields` or `operator_editable` present - even empty / true) may hold a station-filtered assignments
+    # map, so `stations_known` is false and an empty list is "not shown", never "no stations". A malformed marker blocks everything.
+    scope = intercom_sync.person_scope(raw)
+    if scope["redacted_fields"] is None:
+        redacted |= {"access", "credentials", "phone", "photo", "profile"}
+    if not scope["access_readable"]:  # a field name (`assignments`, `group_ids` ...) withholds the access category too
+        redacted.add("access")
+    if redacted & intercom_sync.CREDENTIAL_REDACTION:
+        redacted.add("credentials")
     assignments: list[dict[str, Any]] | None = None
     if "access" not in redacted and isinstance(raw.get("assignments"), dict):
         assignments = []
@@ -440,6 +450,9 @@ def project_person(raw: Any) -> dict[str, Any] | None:
         "identity_locked": bool(raw.get("identity_locked")),
         "group_ids": None if "access" in redacted else _ids(raw.get("group_ids"), 64),
         "assignments": assignments,
+        "access_known": scope["access_known"] and assignments is not None,
+        "stations_known": scope["stations_known"] and assignments is not None,
+        "redacted_fields": scope["redacted_fields"],
         "timing": None if "access" in redacted else _timing(raw),
         "operator_editable": _bool(raw.get("operator_editable")),
         "phone": None if "phone" in redacted else _text(raw.get("phone"), 32),
@@ -1303,14 +1316,16 @@ class IntercomAdapter:
 
     # -- plumbing
     def _read(self, settings: Settings, who: str, key: str, send: Callable[[intercom_client.Call], Awaitable[Any]], project: Callable[[Any], Any],
-              *, command: str, timeout: float | None = None, slot_wait: float = 0.0) -> dict[str, Any]:
+              *, command: str, timeout: float | None = None, slot_wait: float = 0.0, target: str | None = None) -> dict[str, Any]:
         try:
-            return self._read_raw(settings, who, key, send, project, command=command, timeout=timeout, slot_wait=slot_wait)
+            return self._read_raw(settings, who, key, send, project, command=command, timeout=timeout, slot_wait=slot_wait, target=target)
         except ApiError as exc:
             raise uniform(exc) from None
 
     def _read_raw(self, settings: Settings, who: str, key: str, send: Callable[[intercom_client.Call], Awaitable[Any]], project: Callable[[Any], Any],
-                  *, command: str, timeout: float | None = None, slot_wait: float = 0.0) -> dict[str, Any]:
+                  *, command: str, timeout: float | None = None, slot_wait: float = 0.0, target: str | None = None) -> dict[str, Any]:
+        """`target` (R4-07): a `users/get` of ONE person is a fresh readback of `person:<id>` - after an editor or grant write to that
+        person had no clear outcome, this reload is the read that settles it (only when it started after that write's call was over)."""
         channel = CHANNEL_OF[command]
         if channel == "technical":
             if not self._technical.acquire(blocking=False):
@@ -1320,7 +1335,7 @@ class IntercomAdapter:
             finally:
                 self._technical.release()
         return intercom_sync.SYNC.command(settings, key, send, project, who=who, timeout=timeout if timeout is not None else intercom_sync.COMMAND_TIMEOUT_S,
-                                          channel=channel, slot_wait=slot_wait)
+                                          channel=channel, slot_wait=slot_wait, target=target)
 
     def _feature(self, settings: Settings, key: str, feature: str) -> dict[str, Any] | None:
         """None when the feature may be asked for; else the `unsupported` reply (nothing is sent to WisKey)."""
@@ -1635,7 +1650,8 @@ class IntercomAdapter:
         """One person; 404 when WisKey has no such person OR the caller may not see them (the same answer)."""
         if not legacy and (unsupported := self._feature(settings, "person", "person")):
             return unsupported
-        reply = self._read(settings, auth.principal.user_id, "person", lambda call: users_get(call, user_id), project_one_person, command="users/get")
+        reply = self._read(settings, auth.principal.user_id, "person", lambda call: users_get(call, user_id), project_one_person, command="users/get",
+                           target=intercom_sync.person_target(user_id))
         if reply.get("person") is not None:
             view = ia.view_person(auth, reply["person"], legacy=legacy, detail=True)
             if view is None:
@@ -1648,7 +1664,8 @@ class IntercomAdapter:
         2026-10-12). Two WisKey reads (the person, for the rule; then the photo). Every view is audited (person id only)."""
         if (unsupported := self._feature(settings, "photo", "person_photo")):
             raise _unsupported(unsupported)
-        reply = self._read(settings, auth.principal.user_id, "person", lambda call: users_get(call, user_id), project_one_person, command="users/get")
+        reply = self._read(settings, auth.principal.user_id, "person", lambda call: users_get(call, user_id), project_one_person, command="users/get",
+                           target=intercom_sync.person_target(user_id))
         person = reply.get("person")
         if person is None:
             raise _unavailable(reply)

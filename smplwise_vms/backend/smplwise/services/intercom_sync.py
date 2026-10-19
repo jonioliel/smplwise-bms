@@ -794,6 +794,9 @@ class IntercomSync:
         # session ended. `_late`: the late answers of writes this side stopped waiting for (newest last; ids and codes only).
         self._unsettled_lock = threading.Lock()
         self._unsettled: dict[str, dict[str, Any]] = {}
+        # R4-07: targets with a write ADMITTED and not yet over (checked and registered in one step under `_unsettled_lock`, so a second
+        # write to the same person can never pass the gate while the first is being sent)
+        self._writing: set[str] = set()
         self._seq = 0
         self._late: deque[dict[str, Any]] = deque(maxlen=LATE_KEEP)
         self._buckets_reset()
@@ -896,6 +899,7 @@ class IntercomSync:
         self._tts_status = {}
         with self._unsettled_lock:
             self._unsettled = {}
+            self._writing = set()
             self._late = deque(maxlen=LATE_KEEP)
         self._buckets_reset()
         self._session_reset()
@@ -1008,12 +1012,28 @@ class IntercomSync:
     # -- R3-06: unknown people writes are reconciled by a fresh read before the next write to the same target
     def write_gate(self, target: str) -> str | None:
         """None when a write to `target` may be sent; else why not: `outcome_pending` (an earlier write's call is still out - it
-        may yet be saved), `readback_required` (it is over, but no fresh read has answered since)."""
+        may yet be saved, or R4-07: another write to the target is being sent right now), `readback_required` (it is over, but no fresh
+        read has answered since)."""
         with self._unsettled_lock:
-            entry = self._unsettled.get(target)
+            return self._gate_locked(target)
+
+    def _gate_locked(self, target: str) -> str | None:
+        entry = self._unsettled.get(target)
         if entry is None:
-            return None
+            return "outcome_pending" if target in self._writing else None
         return "outcome_pending" if entry["done_at"] is None else "readback_required"
+
+    def _admit(self, target: str) -> str | None:
+        """R4-07: check the target's gate AND register this write as in flight, atomically. None = admitted (the caller must `_release`)."""
+        with self._unsettled_lock:
+            blocked = self._gate_locked(target)
+            if blocked is None:
+                self._writing.add(target)
+            return blocked
+
+    def _release(self, target: str) -> None:
+        with self._unsettled_lock:
+            self._writing.discard(target)
 
     def _tick(self) -> int:
         """A strictly increasing sequence number (the wall and monotonic clocks tick in ~15.6 ms steps on Windows: two events in one
@@ -1150,12 +1170,26 @@ class IntercomSync:
             reply["sync"] = STATE.as_dict()
             settled()
             return reply, "not_sent"
-        blocked = self.write_gate(target) if target is not None else None
-        if blocked is not None:  # R3-06: an earlier write to this target has no clear outcome yet - read it fresh first
+        # R3-06 / R4-07: an earlier write to this target has no clear outcome yet (read it fresh first), or another write to it is being
+        # sent: refused, nothing sent. The check and this write's registration are ONE step (`_admit`), so two callers can never both pass.
+        blocked = self._admit(target) if target is not None else None
+        if blocked is not None:
             reply.update(state="error", last_error=blocked, sync=STATE.as_dict())
             settled()
             return reply, "not_sent"
-        slot ={"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight, "message": self._message_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
+        try:
+            return self._execute_admitted(settings, reply, loop, key, send, project, who, timeout, lane, not_after, settled, slot_wait, free, bucket, on_result,
+                                          channel, target, on_late)
+        finally:
+            if target is not None:
+                self._release(target)  # after an `unknown` outcome `_follow_unknown` has already registered the target as unsettled
+
+    def _execute_admitted(self, settings: Settings, reply: dict[str, Any], loop: Any, key: str, send: Callable[[intercom_client.Call], Awaitable[Any]],
+                          project: Callable[[Any], dict[str, Any]], who: str, timeout: float, lane: str, not_after: datetime.datetime | None,
+                          settled: Callable[[], None], slot_wait: float, free: bool, bucket: str | None,
+                          on_result: Callable[[dict[str, Any], str], None] | None, channel: str, target: str | None,
+                          on_late: Callable[[dict[str, Any]], None] | None) -> tuple[dict[str, Any], str]:
+        slot = {"action": self._action_inflight, "config": self._config_inflight, "capture": self._capture_inflight, "message": self._message_inflight}.get(lane, self._inflight)  # (reset() may swap in a new one)
         acquired = slot.acquire(timeout=slot_wait) if slot_wait > 0 else slot.acquire(blocking=False)
         if not acquired:  # checked first: a `busy` refusal costs the caller no rate token
             reply.update(state="error", last_error="busy", sync=STATE.as_dict())
