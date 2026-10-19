@@ -27,7 +27,7 @@ export function demandsText(lang: DemandsLang, key: keyof (typeof TEXT)['he']): 
 export type Timing = 'paid' | 'late' | 'soon' | 'later';
 export type PayStep = 'create' | 'paid';
 export interface DemandLine {
-  id: string; label: string; kind: string; status: InstalmentDemandRow['status']; statusText: string; due: string; amount_minor: number; currency: string;
+  id: string; label: string; kind: string; status: InstalmentDemandRow['status']; statusText: string; due: string; amount_minor: number | null; currency: string | null;
   timing: Timing; timingText: string; awardId: string; rfqId: string; index: number; canPay: boolean;
 }
 
@@ -53,9 +53,9 @@ export function demandLines(items: readonly InstalmentDemandRow[] | null | undef
       return {
         id: d.id, label: demandsText(lang, 'n').replace('{n}', String(d.index + 1)),
         kind: d.kind === 'advance' || d.kind === 'progress' || d.kind === 'final' ? demandsText(lang, d.kind) : '',
-        status: d.status, statusText: demandsText(lang, d.status), due: dueText(d.due_date, lang), amount_minor: d.amount_minor, currency: d.currency,
+        status: d.status, statusText: demandsText(lang, d.status), due: dueText(d.due_date, lang), amount_minor: typeof d.amount_minor === 'number' ? d.amount_minor : null, currency: d.currency ?? null,
         timing, timingText: demandsText(lang, timing === 'paid' ? 'paid' : timing), index: d.index, awardId: d.award_id ?? '', rfqId: d.rfq_id ?? '',
-        canPay: d.can_pay === true && d.status !== 'paid' && !!d.award_id && !!d.rfq_id,
+        canPay: d.can_pay === true && typeof d.amount_minor === 'number' && d.status !== 'paid' && !!d.award_id && !!d.rfq_id,
       };
     });
 }

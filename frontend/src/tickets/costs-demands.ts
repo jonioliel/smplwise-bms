@@ -12,8 +12,8 @@ import { demandLines, demandsText, payPlan, type DemandLine } from './costs-dema
 /**
  * HARDEN271 + COSTINST (2.9.1) `<ticket-costs-demands .items>`: the work order's payment schedule in instalments (each row: the
  * instalment, its kind, amount, due day, where it stands - paid / late / due soon / not due - and the demand status). A lazy chunk: the
- * Costs tab imports it only when the server sent a non-empty list - which it does only for a caller who may see the tab's amounts
- * (tickets.costs.view). "Mark paid" appears only on rows the server flagged `can_pay` (the dashboard payments card's rule: the request is
+ * Costs tab imports it only when the server sent a non-empty list - dates and status for the ticket's full view, amounts and
+ * `can_pay` only with tickets.costs.view. "Mark paid" appears only on rows the server flagged `can_pay` (the dashboard payments card's rule: the request is
  * visible to the caller and he holds tickets.costs + view there); it records the payment through the request-for-quotation route (an
  * instalment with no demand yet gets its demand made first) and never executes a payment. After it, the tab reloads (`cost-reload`).
  */
@@ -78,7 +78,7 @@ export class TicketCostsDemands extends LitElement {
         <span class="what">${l.label}${l.kind ? html` · <span class="muted">${l.kind}</span>` : nothing}</span>
         <span class="chip" data-timing=${l.timing}>${l.timingText}</span>
         <span class="st" data-status=${l.status}>${l.statusText}</span>
-        <span class="amt">${formatMoney(l.amount_minor, l.currency, lang)}</span>
+        <span class="amt">${l.amount_minor === null ? html`<span class="muted" data-demand-no-amount>-</span>` : formatMoney(l.amount_minor, l.currency, lang)}</span>
         <span class="due"><span class="muted">${demandsText(lang, 'due')}</span> ${l.due}</span>
         ${this.action(l, lang)}
       </li>`)}</ul>

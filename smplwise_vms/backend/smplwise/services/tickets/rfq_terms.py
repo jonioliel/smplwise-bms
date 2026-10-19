@@ -457,12 +457,12 @@ def timing(due: dt.date | None, paid: bool, today_: dt.date) -> str:
     return "soon" if due < today_ + dt.timedelta(days=SOON_DAYS) else "later"
 
 
-def ticket_demands(conn, ticket_row: Mapping[str, Any], viewer: Any = None, now: dt.datetime | None = None) -> list[dict[str, Any]]:
+def ticket_demands(conn, ticket_row: Mapping[str, Any], viewer: Any = None, now: dt.datetime | None = None, *, amounts: bool = True) -> list[dict[str, Any]]:
     """HARDEN271 + COSTINST (backlog tickets-costs-tab-instalments): the instalments of the award a work order came from, for the ticket's
     Costs tab: every non-zero instalment of the approved schedule (status `none` until a demand exists, else the demand's `open` / `paid`
     / `cancelled`) with its due day, amount, `timing` (paid / late / soon / later) and `can_pay`. The caller decides who may see it: the
-    Costs tab's own rule (routers/tickets_costs `full`: the ticket's full view + tickets.costs.view on it), so amounts are always shown to
-    the caller. `can_pay` = the dashboard payments card's rule: the request passes rfq.visible() and the viewer holds tickets.costs +
+    ticket's full view. `amounts` = the caller holds tickets.costs.view on it; without it the rows carry dates, kinds, status and timing but
+    NO amount, currency, ids or pay flag (owner decision 2026-10-19). `can_pay` = the dashboard payments card's rule: the request passes rfq.visible() and the viewer holds tickets.costs +
     view there (rfq.can_decide), the award is final and the request awarded / ordered / closed - read in ONE batch, never per row.
     [] for a ticket that is not an RFQ work order. Without schedule terms (switch off / none) only the existing demands are listed."""
     q = store_rfq.rfq_quote_of_ticket(conn, ticket_row["id"])
@@ -472,15 +472,16 @@ def ticket_demands(conn, ticket_row: Mapping[str, Any], viewer: Any = None, now:
     today_ = today(conn, now or now_utc())
     t = store_rfq.approved_terms_of_quote(conn, q["id"]) if enabled(conn) else None
     if t is None:
-        return [{"id": d["id"], "index": i, "kind": d["kind"], "status": d["status"], "amount_minor": d["amount_minor"], "currency": d["currency"],
+        return [{"id": d["id"], "index": i, "kind": d["kind"], "status": d["status"], "amount_minor": d["amount_minor"] if amounts else None,
+                 "currency": d["currency"] if amounts else None,
                  "due_date": d.get("due_date"), "created_at": d["created_at"], "paid_at": d.get("paid_at"), "cancelled_at": d.get("cancelled_at"),
-                 "award_id": d.get("award_id"), "rfq_id": d.get("rfq_id"), "moved": False, "can_pay": False,
+                 "award_id": d.get("award_id") if amounts else None, "rfq_id": d.get("rfq_id") if amounts else None, "moved": False, "can_pay": False,
                  "timing": timing(dt.date.fromisoformat(d["due_date"]) if d.get("due_date") else None, d["status"] == "paid", today_)}
                 for i, d in sorted(demands.items())]
     sched = schedule_of(t)
     completed = _completed(conn, q)
     can_pay = False
-    if viewer is not None:
+    if viewer is not None and amounts:
         from . import rfq
 
         seen = rfq.visible_by_ids(viewer, [t["rfq_id"]]).get(t["rfq_id"])
@@ -494,10 +495,12 @@ def ticket_demands(conn, ticket_row: Mapping[str, Any], viewer: Any = None, now:
         day = _due_day(None, it, completed)
         paid = d is not None and d["status"] == "paid"
         out.append({"id": d["id"] if d else f"{t['award_id']}:{i}", "index": i, "kind": it["kind"], "status": d["status"] if d else "none",
-                    "amount_minor": int(it["amount_minor"]), "currency": sched.get("currency") or t["currency"],
+                    "amount_minor": int(it["amount_minor"]) if amounts else None,
+                    "currency": (sched.get("currency") or t["currency"]) if amounts else None,
                     "due_date": day.isoformat() if day else None, "created_at": d["created_at"] if d else None,
                     "paid_at": d.get("paid_at") if d else None, "cancelled_at": d.get("cancelled_at") if d else None,
-                    "award_id": t["award_id"], "rfq_id": t["rfq_id"], "moved": bool(it.get("date_changed_at")), "can_pay": can_pay and not paid,
+                    "award_id": t["award_id"] if amounts else None, "rfq_id": t["rfq_id"] if amounts else None,
+                    "moved": bool(it.get("date_changed_at")), "can_pay": can_pay and not paid,
                     "timing": timing(day, paid, today_)})
     return out
 

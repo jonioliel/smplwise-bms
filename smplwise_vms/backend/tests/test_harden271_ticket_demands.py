@@ -13,13 +13,15 @@ def costs(s4, tid: str, user: str):
     return s4.c.get(f"{API}/tickets/{tid}/costs", headers=s4.h(user))
 
 
-def test_without_costs_view_or_without_an_rfq_the_list_is_empty(s4):  # noqa: F811
+def test_without_costs_view_no_amount_and_without_an_rfq_the_list_is_empty(s4):  # noqa: F811
     d, _v1, _tok, _c, a = _awarded(s4)
     assert demand(s4, d["id"], a["id"], 0).status_code == 200
     tid = _order(s4, d, a, send=False)
     r = costs(s4, tid, "mona")  # sees the work order, holds no tickets.costs.view
     assert r.status_code == 200, r.text
-    assert r.json()["instalment_demands"] == []
+    # COSTINST (owner 2026-10-19): dates and status, never an amount
+    got = r.json()["instalment_demands"]
+    assert got and all(x["amount_minor"] is None and x["currency"] is None and x["can_pay"] is False for x in got)
     assert costs(s4, tid, "cleo").status_code == 404, "another department: the uniform 404 of the ticket"
     plain = s4.ticket(title="קריאה רגילה")
     assert costs(s4, plain["id"], "kim").json()["instalment_demands"] == []

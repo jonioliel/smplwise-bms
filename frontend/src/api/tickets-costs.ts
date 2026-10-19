@@ -198,8 +198,9 @@ export interface InstalmentDemandRow {
   index: number;
   kind: 'advance' | 'progress' | 'final';
   status: 'none' | 'open' | 'paid' | 'cancelled';
-  amount_minor: number;
-  currency: string;
+  /** null / absent without tickets.costs.view: dates and status only (owner decision 2026-10-19) */
+  amount_minor: number | null;
+  currency: string | null;
   due_date: string | null;
   created_at: string | null;
   paid_at: string | null;

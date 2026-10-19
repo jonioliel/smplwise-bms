@@ -87,4 +87,12 @@ test.describe('instalment demands in the Costs tab', () => {
     const tab = readFileSync(path.resolve(HERE, '../src/tickets/costs-tab.ts'), 'utf8');
     expect(tab).toMatch(/<ticket-costs-demands[^>]*@cost-reload=/);
   });
+
+  test('COSTINST: without tickets.costs.view the rows have dates and status but no amount and no action', () => {
+    const l = demandLines([row({ amount_minor: null, currency: null, can_pay: true, award_id: 'aw1', rfq_id: 'rq1', timing: 'late' })], 'he')[0];
+    expect(l).toMatchObject({ amount_minor: null, currency: null, canPay: false, timing: 'late', due: '03.11.2026' });
+    expect(payPlan(l)).toEqual([]);
+    const el = readFileSync(path.resolve(HERE, '../src/tickets/costs-demands.ts'), 'utf8');
+    expect(el).toContain('l.amount_minor === null');
+  });
 });

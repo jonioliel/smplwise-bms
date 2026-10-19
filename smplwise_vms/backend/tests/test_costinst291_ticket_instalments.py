@@ -1,11 +1,9 @@
 """2.9.1 COSTINST (backlog tickets-costs-tab-instalments): a work order's Costs tab lists the whole approved payment schedule of the award it
 came from - each instalment with its day, amount, status (`none` / `open` / `paid` / `cancelled`), `timing` (paid / late / soon / later)
-and `can_pay` (the manager dashboard payments card's rule). Negative first: a caller without tickets.costs.view gets an empty list, so no
-amount and no date leaves; a viewer of costs who may not pay gets `can_pay: false`; another department the uniform 404. Every name and
+and `can_pay` (the manager dashboard payments card's rule). Negative first: a caller without tickets.costs.view gets dates and status but no
+amount, currency, id or pay flag (owner decision 2026-10-19); a viewer of costs who may not pay gets `can_pay: false`; another department the uniform 404. Every name and
 number here is invented."""
 from __future__ import annotations
-
-import json
 
 from conftest import bind
 
@@ -25,12 +23,20 @@ def rows(s4, tid: str, user: str = "kim") -> list[dict]:
     return r.json()["instalment_demands"]
 
 
-def test_no_costs_view_means_no_instalment_leaves_not_even_a_date(s4):  # noqa: F811
+def test_no_costs_view_means_dates_and_status_but_never_an_amount(s4):  # noqa: F811
     d, _v1, _tok, _c, a = _awarded(s4)
+    assert demand(s4, d["id"], a["id"], 0).status_code == 200
     tid = _order(s4, d, a, send=False)
-    r = costs(s4, tid, "mona")
-    assert r.status_code == 200 and r.json()["instalment_demands"] == []
-    assert _day(6) not in r.text and '"amount_minor": 0' not in r.text
+    full = rows(s4, tid, "kim")
+    r = costs(s4, tid, "mona")  # sees the work order, holds no tickets.costs.view (owner decision 2026-10-19)
+    assert r.status_code == 200, r.text
+    got = r.json()["instalment_demands"]
+    assert [(x["index"], x["kind"], x["status"], x["timing"], x["due_date"]) for x in got] == [
+        (x["index"], x["kind"], x["status"], x["timing"], x["due_date"]) for x in full]
+    assert got[0]["due_date"] == _day(6)
+    for x in got:
+        assert x["amount_minor"] is None and x["currency"] is None and x["can_pay"] is False
+        assert x["award_id"] is None and x["rfq_id"] is None
     assert costs(s4, tid, "cleo").status_code == 404, "another department: the uniform 404"
 
 
@@ -71,4 +77,6 @@ def test_a_zero_instalment_is_not_listed_and_the_marking_still_goes_through_the_
     assert demand(s4, d["id"], a["id"], 0, "create").status_code == 200
     assert demand(s4, d["id"], a["id"], 0, "paid").status_code == 200
     assert rows(s4, tid)[0]["status"] == "paid"
-    json.dumps(rows(s4, tid))
+    with s4.db.connection(mode="read") as conn:  # both steps (create, then paid) are audited
+        n = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ticket.rfq.instalment_demand'").fetchone()[0]
+    assert n >= 2
