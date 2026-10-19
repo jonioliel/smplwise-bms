@@ -3,6 +3,7 @@
  *
  *   GET    tickets/table          a page: server-side sort / filters / keyset cursor; every row passed the server's visible()
  *   GET    tickets/export.csv     the table's rows as CSV (managers; 5,000 rows; one a minute)
+ *   GET    tickets/reports/monthly.csv   monthly counts per department / vendor as CSV (managers; from + to required)
  *   POST   tickets/bulk           assign / remind / priority / close, one result per ticket (never all-or-nothing)
  *   GET|POST tickets/views, PATCH|DELETE tickets/views/<id>   the user's saved filters / layouts
  *   GET|PUT  me/prefs `tickets.board`                          the user's view / columns / sort / density / page size / default view
@@ -83,6 +84,8 @@ export interface TableBackend {
   page(params: Record<string, string>): Promise<TablePage>;
   bulk(body: BulkBody): Promise<BulkAnswer>;
   exportCsv(params: Record<string, string>): Promise<ExportResult>;
+  /** monthly counts per department / vendor (tickets/reports/monthly.csv; from + to required) */
+  monthlyReport(params: Record<string, string>): Promise<ExportResult>;
   views(): Promise<{ items: SavedView[]; max: number }>;
   createView(name: string, view: ViewDoc): Promise<SavedView>;
   patchView(id: string, body: { name?: string; view?: ViewDoc }): Promise<SavedView>;
@@ -123,6 +126,12 @@ const rest: TableBackend = {
     const rows = headers.get('X-Export-Rows');
     const name = /filename="?([^";]+)"?/.exec(headers.get('Content-Disposition') ?? '')?.[1];
     return { blob, rows: rows === null ? null : Number(rows), filename: name || 'export.csv' };
+  },
+  monthlyReport: async (params) => {
+    const { blob, headers } = await blobOf(`${T}/reports/monthly.csv${qs(params)}`);
+    const rows = headers.get('X-Export-Rows');
+    const name = /filename="?([^";]+)"?/.exec(headers.get('Content-Disposition') ?? '')?.[1];
+    return { blob, rows: rows === null ? null : Number(rows), filename: name || 'monthly.csv' };
   },
   views: () => get<{ items: SavedView[]; max: number }>(`${T}/views`),
   createView: (name, view) => post<SavedView>(`${T}/views`, { name, view }),
@@ -224,6 +233,9 @@ const mock: TableBackend = {
   },
   async exportCsv() {
     return { blob: new Blob(['﻿'], { type: 'text/csv' }), rows: 0, filename: 'export.csv' };
+  },
+  async monthlyReport() {
+    return { blob: new Blob(['﻿'], { type: 'text/csv' }), rows: 0, filename: 'monthly.csv' };
   },
   async views() {
     return { items: demoViews.map((v) => ({ ...v })), max: 20 };

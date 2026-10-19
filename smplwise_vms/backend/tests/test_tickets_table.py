@@ -429,3 +429,57 @@ def test_the_table_router_does_not_hardcode_the_module_name_and_holds_no_sql():
     code = "\n".join(line.split("#", 1)[0] for line in code.splitlines())
     assert not re.search(r"קריא(ה|ות|ת)|בקש(ה|ת|ות) שירות|ניהול השירות|\bTickets?\b", code)
     assert not re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", src)
+
+
+# ---------------------------------------------------------------- monthly counts CSV (section 18A backlog item)
+
+MONTHLY = f"{API}/tickets/reports/monthly.csv"
+
+
+def test_monthly_report_gate_range_bom_visibility_and_audit(w):
+    a = w.create("tom", "מזגן")
+    b = w.create("tom", "מעלית")
+    c = w.create("cleo", "של ניקיון", dept=w.cleaning)
+    _set(w, c["id"], created_at="2026-07-05T09:30:00Z")
+    _set(w, a["id"], created_at="2026-07-01T09:30:00Z")
+    _set(w, b["id"], created_at="2026-07-20T09:30:00Z", status="closed")
+    q = "?from=2026-07-01&to=2026-07-31"
+    assert w.c.get(MONTHLY + q, headers=w.h("tom")).status_code == 403, "a member without manager rights"
+    assert w.c.get(MONTHLY + q, headers=w.h("alda")).status_code == 403, "all departments without tickets.manage"
+    for bad in ("", "?from=2026-07-01", "?to=2026-07-31", "?from=x&to=2026-07-31", "?from=2026-08-01&to=2026-07-01", "?from=2025-01-01&to=2026-07-31"):
+        r = w.c.get(MONTHLY + bad, headers=w.h("mona"))
+        assert r.status_code == 422, (bad, r.status_code)
+    r = w.c.get(MONTHLY + q, headers=w.h("mona"))
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv") and "attachment" in r.headers["content-disposition"]
+    assert _csv(r) == [["חודש", "מחלקה", "נפתחו", "מתוכן סגורות"], ["2026-07", "אחזקה", "2", "1"]], "mona does not see the cleaning ticket"
+    audit = _audit(w, "ticket.report_export")
+    assert audit[-1]["decision"] == "allowed" and json.loads(audit[-1]["details_json"])["tickets"] == 2
+    assert "מזגן" not in audit[-1]["details_json"]
+    assert _audit(w, "ticket.report_export")[0]["decision"] == "denied"
+    assert w.c.get(MONTHLY + q, headers=w.h("mona")).status_code == 429, "one per minute per user"
+    r = w.c.get(MONTHLY + q + "&lang=en", headers=w.h("joni"))
+    assert _csv(r)[0] == ["Month", "Department", "Opened", "Of them closed"] and len(_csv(r)) == 3, "joni sees both departments"
+    export.reset_rate()
+    assert len(_csv(w.c.get(MONTHLY + "?from=2026-08-01&to=2026-08-31", headers=w.h("mona")))) == 1, "outside the range: header only"
+
+
+def test_monthly_report_vendor_group_and_formula_guard(w):
+    a = w.create("tom", "אחד")
+    b = w.create("tom", "שניים")
+    assert w.assign("joni", a["id"], "tom").status_code == 200
+    _set(w, a["id"], created_at="2026-07-03T09:30:00Z")
+    _set(w, b["id"], created_at="2026-07-04T09:30:00Z")
+    with _db(w).connection() as conn:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("UPDATE ticket_assignments SET assignee_kind = 'contact', contact_id = 'c-fake', assignee_name = '=ספק' WHERE ticket_id = ?", (a["id"],))
+    rows = _csv(w.c.get(MONTHLY + "?from=2026-07-01&to=2026-07-31&group=vendor", headers=w.h("mona")))
+    assert rows == [["חודש", "ספק", "נפתחו", "מתוכן סגורות"], ["2026-07", "'=ספק", "1", "0"], ["2026-07", "ללא ספק חיצוני", "1", "0"]]
+
+
+def test_monthly_report_cap_returns_413(w, monkeypatch):
+    for i in range(3):
+        w.create("tom", f"t{i}")
+    monkeypatch.setattr(access, "EXPORT_MAX_ROWS", 2)
+    day = __import__("datetime").date.today().isoformat()
+    r = w.c.get(f"{MONTHLY}?from={day}&to={day}", headers=w.h("mona"))
+    assert r.status_code == 413 and r.json()["code"] == "export_too_large"

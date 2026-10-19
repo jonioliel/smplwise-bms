@@ -2,6 +2,7 @@
 
     GET    /tickets/table          a visibility-filtered page with server-side sort, filters and keyset pagination (tickets.view)
     GET    /tickets/export.csv     the table's rows as CSV (tickets.manage in at least one department; 5,000 rows; 1 per minute)
+    GET    /tickets/reports/monthly.csv  monthly counts per department or vendor (same gate; date range required, <= 366 days; audited)
     POST   /tickets/bulk           assign / remind / change priority / close up to 50 tickets, each checked and saved on its own
     POST   /tickets/bulk-delete    owner 14.10: full deletion of up to 50 tickets (tickets.delete; services/tickets/deletion.py)
     GET    /tickets/views          the caller's saved filters / layouts (tickets.view; own rows only)
@@ -30,7 +31,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import Principal
-from ..services.tickets import access, bulk, export, model, present, store, table, table_present, views
+from ..services.tickets import access, bulk, export, model, monthly_report, present, store, table, table_present, views
 from ..services.tickets.access import Viewer, text
 from .tickets import ID, module_gate
 
@@ -167,6 +168,49 @@ def export_csv(
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
         "X-Export-Rows": str(len(rows)),
+    })
+
+
+@router.get("/tickets/reports/monthly.csv")
+def monthly_report_csv(
+    request: Request,
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    date_from: str | None = Query(None, alias="from", max_length=10),
+    date_to: str | None = Query(None, alias="to", max_length=10),
+    group: Literal["department", "vendor"] = Query("department"),
+    lang: Literal["he", "en"] = Query("he"),
+) -> StreamingResponse:
+    """Backlog item of section 18A: opened / closed counts per month and department or vendor over the caller's VISIBLE tickets."""
+    from ..db import get_setting
+
+    viewer = Viewer(conn, principal)
+    rid = _rid(request)
+    if not _manages_some_department(viewer):
+        audit(conn, actor=principal, action="ticket.report_export", decision="denied", resource_type="installation", resource_id="*", reason="not_manager", request_id=rid)
+        raise ApiError(403, "forbidden", text(conn, "ייצוא זמין למנהלי מחלקות."), details={"permission": access.MANAGE})
+    try:
+        d_from, d_to, start, end = monthly_report.parse_range(date_from, date_to, get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
+    except monthly_report.RangeError as exc:
+        raise ApiError(422, "validation", text(conn, "טווח תאריכים לא תקין."), details={"fields": [{"field": exc.field, "code": exc.code}]}) from None
+    key = monthly_report.RATE_PREFIX + principal.user_id
+    wait = export.rate_check(key)
+    if wait > 0:
+        raise ApiError(429, "export_rate", text(conn, "אפשר לייצא פעם בדקה. נסו שוב בעוד רגע."), retryable=True, details={"retry_after_s": int(wait) + 1})
+    query, _limit, _after = _query(conn, {"scope": "visible", "status": "all", "created_from": start, "created_to": end}, viewer)
+    try:
+        rows = access.visible_export_rows(viewer, query)
+    except access.ExportTooLarge:
+        raise ApiError(413, "export_too_large", text(conn, "יותר מדי שורות לייצוא. צמצמו את הסינון."), details={"max_rows": access.EXPORT_MAX_ROWS}) from None
+    cells = monthly_report.build(conn, rows, group, lang)
+    audit(conn, actor=principal, action="ticket.report_export", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
+          details={"report": "monthly", "group": group, "from": d_from.isoformat(), "to": d_to.isoformat(), "tickets": len(rows), "lines": len(cells) - 1})
+    export.mark(key)
+    return StreamingResponse(export.stream(cells), media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="{monthly_report.filename(conn, group, d_from, d_to)}"',
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "X-Export-Rows": str(len(cells) - 1),
     })
 
 

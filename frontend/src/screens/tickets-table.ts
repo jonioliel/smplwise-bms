@@ -34,7 +34,7 @@ import { ticketsLang } from '../tickets/text';
 import { dlt } from '../tickets/delete-text';
 import { openOverlay, menuKey } from '../tickets/overlay-menu';
 import { can, isApi } from '../api/session';
-import { setCostColumns } from '../tickets/table-model';
+import { setCostColumns, monthlyParams, type MonthlyGroup } from '../tickets/table-model';
 import { costCell, costStatusTone } from '../tickets/cost-model';
 import { ct, type CostTextKey } from '../tickets/cost-text';
 
@@ -309,17 +309,35 @@ export class TicketsTable extends LitElement {
     this.reloadIfNeeded(true);
   }
 
+  private download(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
+
+  private async monthlyReport(d: { from: string; to: string; group: MonthlyGroup }): Promise<void> {
+    this.exporting = true;
+    try {
+      const res = await tableApi().monthlyReport(monthlyParams(d.from, d.to, d.group, ticketsLang()));
+      this.download(res.blob, res.filename);
+      this.say(tbt('monthlyDone', { n: res.rows ?? 0 }));
+    } catch (e) {
+      const code = e instanceof ApiError ? e.body.code : '';
+      this.say(code === 'export_too_large' ? tbt('exportTooLarge') : code === 'export_rate' ? tbt('exportRate') : describeError(e), undefined, 'bad');
+    } finally {
+      this.exporting = false;
+    }
+  }
+
   private async exportCsv(): Promise<void> {
     this.exporting = true;
     try {
       const res = await tableApi().exportCsv(queryParams(this.filters(), this.layout.sort, { columns: this.layout.columns, lang: ticketsLang() }));
-      const url = URL.createObjectURL(res.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = res.filename;
-      a.rel = 'noopener';
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      this.download(res.blob, res.filename);
       this.say(tbt('exported', { n: res.rows ?? 0 }));
     } catch (e) {
       const code = e instanceof ApiError ? e.body.code : '';
@@ -680,7 +698,7 @@ export class TicketsTable extends LitElement {
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}
             .sentence=${this.sentenceOn} @sentence-change=${this.onSentenceToggle}
-            @export-csv=${() => void this.exportCsv()}></tickets-table-toolbar>`}
+            @export-csv=${() => void this.exportCsv()} @monthly-report=${(e: CustomEvent<{ from: string; to: string; group: MonthlyGroup }>) => void this.monthlyReport(e.detail)}></tickets-table-toolbar>`}
       ${this.toast ? html`<div class=${`banner toast ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-table-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div><b>${this.toast.head}</b>${this.toast.rest ? html`<small>${this.toast.rest}</small>` : nothing}</div></div>` : nothing}
       ${this.body()}
       ${showBulk ? html`<tickets-table-bulk .rows=${picked} .meta=${this.meta} @bulk-done=${this.onBulkDone} @ticket-deleted=${this.onOneDeleted} @bulk-clear=${() => (this.selected = new Set())}></tickets-table-bulk>` : nothing}

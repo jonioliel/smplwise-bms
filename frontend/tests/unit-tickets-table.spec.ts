@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, chooserOrder, COLUMN_KEYS, DEFAULT_COLUMNS, keepAfterBulk, layoutFromPrefs, moveColumn, nextIndex,
   NO_TABLE_FILTERS, normalizeColumns, pageState, parseSort, queryParams, rangeSelect, slaText, sortMark, sortText, spanText, stuckText, tableFilters, toggleColumn,
-  toggleOne, togglePage, toggleSort, viewDoc,
+  toggleOne, togglePage, toggleSort, viewDoc, monthlyRangeError, monthlyParams,
 } from '../src/tickets/table-model';
 import { TABLE_TEXT_EN_KEYS, TABLE_TEXT_KEYS, tableTemplate, tbt } from '../src/tickets/table-text';
 import { setTicketNames, ticketNames } from '../src/tickets/naming';
@@ -176,4 +176,33 @@ test('every menu of the table is opaque: no popover without the menu surface', (
   }
   const row = { kind: 'stuck', level: 0, since: null, reminders: 0 } as TableRow['stuck'];
   expect(stuckText(row, NOW)).toBe('אין עדכון');
+});
+
+// Backlog item (section 18A): the monthly-counts CSV report - the range is required, the request parameters, the toolbar wiring and
+// the text in both languages. The server side is tested in smplwise_vms/backend/tests/test_tickets_table.py (monthly_report).
+test('monthly report: both dates required, order, one-year limit, request parameters', () => {
+  expect(monthlyRangeError('', '2026-07-31')).toBe('required');
+  expect(monthlyRangeError('2026-07-01', '')).toBe('required');
+  expect(monthlyRangeError('2026-07-01', 'x')).toBe('required');
+  expect(monthlyRangeError('2026-08-01', '2026-07-01')).toBe('order');
+  expect(monthlyRangeError('2025-01-01', '2026-07-01')).toBe('tooLong');
+  expect(monthlyRangeError('2026-01-01', '2026-12-31')).toBe('');
+  expect(monthlyParams('2026-07-01', '2026-07-31', 'vendor', 'he')).toEqual({ from: '2026-07-01', to: '2026-07-31', group: 'vendor', lang: 'he' });
+  expect(monthlyParams('2026-07-01', '2026-07-31', 'department')).toEqual({ from: '2026-07-01', to: '2026-07-31', group: 'department' });
+});
+
+test('monthly report: toolbar button is manager-only, validates before emitting, the host downloads; text is bilingual', () => {
+  const bar = readFileSync(path.join(SRC, 'tickets/table-toolbar.ts'), 'utf8');
+  expect(bar).toContain("data-open=\"report\"");
+  expect(bar).toMatch(/this\.canExport \? html`<span class="anchor">[\s\S]*?data-open="report"/);
+  expect(bar).toContain('monthlyRangeError(this.repFrom, this.repTo)');
+  expect(bar).toContain("this.emit('monthly-report'");
+  const host = readFileSync(path.join(SRC, 'screens/tickets-table.ts'), 'utf8');
+  expect(host).toContain('@monthly-report=');
+  const api = readFileSync(path.join(SRC, 'api/tickets-table.ts'), 'utf8');
+  expect(api).toContain('${T}/reports/monthly.csv');
+  for (const k of ['monthly', 'monthlyRequired', 'monthlyOrder', 'monthlyTooLong', 'monthlyDone'] as const) {
+    expect(TABLE_TEXT_KEYS).toContain(k);
+    expect(TABLE_TEXT_EN_KEYS).toContain(k);
+  }
 });
