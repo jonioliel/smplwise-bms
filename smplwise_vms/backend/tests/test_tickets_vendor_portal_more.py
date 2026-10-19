@@ -594,3 +594,81 @@ def test_grant_and_revoke_take_effect_at_once(env):
     # a binding scoped to a site is not the installation-wide grant the approval needs
     floor_binding = grant(env, "mona", "floor", env.s4.w.floors["floor2"])
     assert floor_binding and requests_of(env, user="mona").status_code == 403
+
+
+# ---------------------------------------------------------------- 7. V2 (owner decision 6a, 2026-10-19): the department-scoped approver works on the
+# INTERSECTION of the vendor's departments and the departments he manages
+
+
+def manages(env, user: str, dept: str) -> None:
+    r = env.c.put(f"{API}/tickets/admin/departments/{dept}/members/user/dev-{user}", json={"role": "manager"})
+    assert r.status_code == 200, r.text
+
+
+def raw_replace(env, vendor_id: str, old_id: str) -> str:
+    import uuid
+
+    rid = uuid.uuid4().hex
+    with env.s4.db.connection() as conn:
+        conn.execute("INSERT INTO ticket_portal_tech_requests(id, vendor_id, sender_contact_id, action, replaces_contact_id, display_name, "
+                     "phone_e164, state, created_at) VALUES (?,?,?, 'replace', ?, 'יוסי כהן', ?, 'pending', '2026-10-17T08:00:00Z')",
+                     (rid, vendor_id, vendor_id, old_id, NEW_TECH_E164))
+    return rid
+
+
+def test_v2_overlap_the_new_technician_gets_only_the_approvers_departments(env):
+    set_departments(env, env.s4.vendor["id"], ["dept-maintenance", env.s4.w.cleaning])  # the vendor serves two departments
+    rid = raw_request(env, env.s4.vendor["id"])
+    grant(env, "mona")  # mona manages maintenance only
+    r = decide(env, rid, "mona")
+    assert r.status_code == 200, r.text
+    new = env.c.get(f"{API}/tickets/contacts/{r.json()['contact_id']}").json()
+    assert new["departments"] == ["dept-maintenance"], "never attached to the cleaning department mona does not manage"
+
+
+def test_v2_no_overlap_the_request_is_not_listed_and_not_decided(env):
+    set_departments(env, env.s4.vendor["id"], [env.s4.w.cleaning])
+    rid = raw_request(env, env.s4.vendor["id"])
+    grant(env, "mona")
+    assert requests_of(env, "pending", user="mona").json()["requests"] == []
+    r = decide(env, rid, "mona")
+    assert r.status_code == 404 and r.json()["code"] == "tech_request_not_found"
+
+
+def test_v2_an_approver_of_several_departments_gets_the_whole_intersection(env):
+    set_departments(env, env.s4.vendor["id"], ["dept-maintenance", env.s4.w.cleaning])
+    manages(env, "mona", env.s4.w.cleaning)  # mona now manages maintenance AND cleaning
+    rid = raw_request(env, env.s4.vendor["id"])
+    grant(env, "mona")
+    r = decide(env, rid, "mona")
+    assert r.status_code == 200, r.text
+    new = env.c.get(f"{API}/tickets/contacts/{r.json()['contact_id']}").json()
+    assert sorted(new["departments"]) == sorted(["dept-maintenance", env.s4.w.cleaning])
+
+
+def test_v2_an_installation_wide_approver_keeps_every_vendor_department(env):
+    set_departments(env, env.s4.vendor["id"], ["dept-maintenance", env.s4.w.cleaning])
+    rid = raw_request(env, env.s4.vendor["id"])
+    grant(env, "alda")  # tickets_all_departments
+    r = decide(env, rid, "alda")
+    assert r.status_code == 200, r.text
+    new = env.c.get(f"{API}/tickets/contacts/{r.json()['contact_id']}").json()
+    assert sorted(new["departments"]) == sorted(["dept-maintenance", env.s4.w.cleaning])
+
+
+def test_v2_a_replacement_never_deactivates_a_technician_of_another_department(env):
+    set_departments(env, env.s4.vendor["id"], ["dept-maintenance", env.s4.w.cleaning])
+    old = tech(env)
+    set_departments(env, old["id"], ["dept-maintenance", env.s4.w.cleaning])  # the old technician also works for cleaning
+    rid = raw_replace(env, env.s4.vendor["id"], old["id"])
+    grant(env, "mona")
+    r = decide(env, rid, "mona")
+    assert r.status_code == 409 and r.json()["code"] == "tech_request_replace_out_of_scope", r.text
+    assert env.c.get(f"{API}/tickets/contacts/{old['id']}").json()["active"] is True, "nothing changed"
+    assert requests_of(env, "pending").json()["requests"][0]["state"] == "pending"
+    # an old technician of mona's departments only: the replacement goes through
+    set_departments(env, old["id"], ["dept-maintenance"])
+    r = decide(env, rid, "mona")
+    assert r.status_code == 200, r.text
+    assert env.c.get(f"{API}/tickets/contacts/{old['id']}").json()["active"] is False
+    # joni (tickets.configure) is not limited

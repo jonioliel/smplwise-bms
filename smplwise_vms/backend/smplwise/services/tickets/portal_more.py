@@ -350,6 +350,14 @@ def _in_scope(conn, scope: set[str] | None, vendor_id: str) -> bool:
     return scope is None or bool(scope & set(store_links.contact_departments(conn, vendor_id)))
 
 
+def _within_scope(conn, scope: set[str] | None, contact_id: str) -> bool:
+    """Every department of the row is one the approver decides for (a row of no department - shared with every department - is not)."""
+    if scope is None:
+        return True
+    depts = set(store_links.contact_departments(conn, contact_id))
+    return bool(depts) and depts <= scope
+
+
 def _known_elsewhere(conn, phone: str) -> bool:
     from .contacts import phone_key_for
 
@@ -418,9 +426,18 @@ def approve(conn, viewer, request_id: str, revision: int, rid: str | None = None
         old = store_links.contact(conn, r["replaces_contact_id"])
         if old is None or old.get("erased_at") or not old["active"] or old.get("vendor_id") != vendor["id"]:
             raise ApiError(409, "tech_request_replaced_gone", text(conn, "הטכנאי שהספק ביקש להחליף כבר לא פעיל אצל הספק."))
+        if not _within_scope(conn, scope, old["id"]):
+            # V2 (owner 2026-10-19, decision 6a): a department-scoped approver never deactivates a technician who also works for a
+            # department outside his own (or for every department); an approver of wider scope decides that replacement
+            raise ApiError(409, "tech_request_replace_out_of_scope",
+                           text(conn, "הטכנאי שהספק ביקש להחליף משויך גם למחלקות שאינן באחריותך. ההחלפה תאושר על ידי מנהל בעל הרשאה רחבה יותר."))
     body: dict[str, Any] = {"kind": "person", "display_name": r["display_name"], "phone": r["phone_e164"], "vendor_id": vendor["id"],
                             "lang": vendor.get("lang") or "he", "preferred_channel": "whatsapp"}
     depts = store_links.contact_departments(conn, vendor["id"])
+    if scope is not None:
+        # V2 (owner decision 6a): the new technician is attached to the INTERSECTION of the vendor's departments and the departments the
+        # approver manages - never to another manager's department (the vendor is in scope, so the intersection is never empty)
+        depts = [d for d in depts if d in scope]
     if depts:
         body["departments"] = depts
     # the directory's own write path once THIS approver's authority was checked above (contacts.create / update demand
