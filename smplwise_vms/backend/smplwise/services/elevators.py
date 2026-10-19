@@ -14,6 +14,9 @@ Derived state, highest priority first (docs/changes/CR-INFRA-ELEVATORS.md sectio
 * `waiting` is stated by the waiting sensor, or inferred when both movement sensors are live and `off` (and no higher role is on).
 * `active` (in operation, owner 2026-10-18): the waiting sensor is live `off`, nothing higher is on and NO movement sensor is mapped (an
   integration without up / down sensors). With movement sensors mapped the inference above applies instead.
+* `travelling` (ELEVTRAVEL-291, per-elevator option `show_travel`, default off = unchanged): with the option on, a derived `active` / moving state
+  becomes `travelling` ("בנסיעה") - but only when no higher role is dead (`partial` false: an unknown fire / fault / shutdown sensor never allows
+  it) and the waiting sensor is not `on`. Fire, fault, shutdown, door open, waiting and unknown keep their priority and meaning.
 * Roles are stored as keys (`infra_elevator_sensors.role`, no CHECK): a new role (e.g. a future numeric `floor`) is a code change only.
 * `partial` is true when a higher-priority role is mapped but has no live value while a lower one decided the state.
 * No live sensor at all (or none mapped / visible) = `unknown`. There is no `ok` state: the module never claims health it cannot see.
@@ -30,7 +33,9 @@ ROLES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up"
 MAX_EXTRAS = 4
 # 2.8.0: the roles that raise a notification while their sensor is live `on` (sources elevator.<role>, services/elevators_runtime.py)
 ALERT_ROLES: tuple[str, ...] = ("fire_service", "fault", "out_of_service")
-STATES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting", "active", "unknown")
+STATES: tuple[str, ...] = ("fire_service", "fault", "out_of_service", "moving_up", "moving_down", "door_open", "waiting", "active", "travelling", "unknown")
+# the states an elevator's "show travelling" option turns into `travelling`: not on standby, nothing higher (fire / fault / shutdown) active
+TRAVEL_FROM: frozenset[str] = frozenset({"active", "moving_up", "moving_down"})
 DEAD = {"", "unknown", "unavailable", "none", "null"}
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -66,9 +71,16 @@ def bool_of(raw: Any, *, available: Any = 1, removed: Any = None, disabled: Any 
     return None
 
 
-def derive(values: dict[str, bool | None]) -> dict[str, Any]:
+def derive(values: dict[str, bool | None], travel: bool = False) -> dict[str, Any]:
     """The documented priority over role -> True / False / None (None = mapped but no live value; a role that is not mapped is absent).
-    Returns {state, reason, partial}. Pure: the unit tests drive it directly."""
+    Returns {state, reason, partial}. Pure: the unit tests drive it directly. `travel` = the elevator's "show travelling" option."""
+    d = _derive(values)
+    if travel and d["state"] in TRAVEL_FROM and not d["partial"] and values.get("waiting") is not True:
+        return {**d, "state": "travelling"}  # the reason stays the underlying one (inferred_active / moving_*)
+    return d
+
+
+def _derive(values: dict[str, bool | None]) -> dict[str, Any]:
     mapped = set(values)
     if not mapped or all(v is None for v in values.values()):
         return {"state": "unknown", "reason": "no_live_sensor", "partial": False}
@@ -126,7 +138,7 @@ def sensors_of(conn: sqlite3.Connection, elevator_ids: Iterable[str] | None = No
     return out
 
 
-def live_of(rows: list[sqlite3.Row], *, connected: bool) -> dict[str, Any]:
+def live_of(rows: list[sqlite3.Row], *, connected: bool, travel: bool = False) -> dict[str, Any]:
     """The derived state of ONE elevator from its (already visibility-filtered) sensor rows."""
     values: dict[str, bool | None] = {}
     changed: dict[str, str | None] = {}
@@ -138,14 +150,14 @@ def live_of(rows: list[sqlite3.Row], *, connected: bool) -> dict[str, Any]:
             continue
         values[r["role"]] = v
         changed[r["role"]] = r["last_changed"] if v is not None else None
-    d = derive(values)
+    d = derive(values, travel)
     st, reason = d["state"], d["reason"]
     if reason == "inferred_active":
         stamps = [changed.get("waiting")]
     elif reason == "inferred_idle":
         stamps = [changed.get("moving_up"), changed.get("moving_down")]
     elif st != "unknown":
-        stamps = [changed.get(st if st in values else reason)]
+        stamps = [changed.get("waiting" if reason == "inferred_active" else reason) if st == "travelling" else changed.get(st if st in values else reason)]
     else:
         stamps = []
     since = max((s for s in stamps if s), default=None)

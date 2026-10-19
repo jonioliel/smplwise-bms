@@ -134,7 +134,7 @@ def resolve_all(conn: sqlite3.Connection, elevator_id: str) -> int:
 def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dict[str, int]:
     """One pass: history rows and condition transitions. Returns {recorded, tracked (new conditions), raised (notifications), cleared, closed}."""
     now = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc).replace(microsecond=0))
-    rows = conn.execute("SELECT id, name, area_id, enabled FROM infra_elevators ORDER BY sort_order, id").fetchall()
+    rows = conn.execute("SELECT id, name, area_id, enabled, show_travel FROM infra_elevators ORDER BY sort_order, id").fetchall()
     sensors = el.sensors_of(conn, [r["id"] for r in rows])
     raised = {(r["elevator_id"], r["role"]): r for r in conn.execute("SELECT * FROM infra_elevator_alerts").fetchall()}
     areas: dict[str, str] | None = None
@@ -147,7 +147,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
             _DEAD.clear()
     for e in rows:
         rows_e = sensors.get(e["id"], [])
-        live = el.live_of(rows_e, connected=connected)
+        live = el.live_of(rows_e, connected=connected, travel=bool(e["show_travel"]))
         # review M2: while disabled the elevator is not observed - its history says unknown, never the last state carried on
         if el.record_state(conn, e["id"], live["state"] if e["enabled"] else "unknown", now, live["since"] if e["enabled"] else None):
             out["recorded"] += 1

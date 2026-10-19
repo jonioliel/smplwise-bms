@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addAffordances, agoText, alertActive, barOf, barSummary, effectiveHidden, ledText, personalHidden, chipOf, recipientChoices, toggled, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
+import { historyRows, addAffordances, agoText, alertActive, barOf, barSummary, effectiveHidden, ledText, personalHidden, chipOf, recipientChoices, toggled, homeTiles, kpisOf, ledsOf, shownState, summaryLine, widgetView, HOME_CHIP_MAX, ELEVATORS_HREF } from '../src/elevators/model';
 import { configOf, defaultConfig, moveAmong, resolveWidgets, type HomeData } from '../src/api/home-config';
 import { personalOf } from '../src/api/home';
 import { bodyOf, draftOf, moved, newDraft, problemOf } from '../src/elevators/draft';
@@ -28,6 +28,7 @@ test('every state has its chip and look; out of service has its own look, apart 
     door_open: ['neutral', 'door', 'דלת פתוחה', 'wait'],
     waiting: ['neutral', 'pause', 'ממתינה', 'wait'],
     active: ['live', 'play', 'פעילה', 'act'],
+    travelling: ['live', 'move', 'בנסיעה', 'trav'],
     unknown: ['unknown', 'help', 'לא ידוע', 'unk'],
   };
   for (const [state, [tone, icon, label, look]] of Object.entries(expected)) {
@@ -156,8 +157,8 @@ test('tab gate: the elevators tab is hidden until an elevator exists, needs devi
 
 test('KPI counts as shown: a stale list counts only the total', () => {
   const list = [el('a', 'waiting'), el('b', 'active'), el('c', 'fault'), el('d', 'out_of_service'), el('e', 'fire_service'), el('f', 'unknown'), el('g', 'moving_up')];
-  expect(kpisOf(list)).toEqual({ total: 7, ok: 3, fault: 1, off: 1, fire: 1 });
-  expect(kpisOf(list, true)).toEqual({ total: 7, ok: 0, fault: 0, off: 0, fire: 0 });
+  expect(kpisOf(list)).toEqual({ total: 7, ok: 3, fault: 1, off: 1, fire: 1, travel: 0, usesTravel: false });
+  expect(kpisOf(list, true)).toEqual({ total: 7, ok: 0, fault: 0, off: 0, fire: 0, travel: 0, usesTravel: false });
 });
 
 test('sensor lights: the five roles in order, never a direction; unlinked roles are faded, dead ones are no value', () => {
@@ -293,4 +294,61 @@ test('the elevators screen registers its page edit mode with the user menu and g
   expect(src).toMatch(/registerScreenEdit\(\{ id: 'elevators-edit'/);
   expect(src).toMatch(/can: \(\) => this\.access\.manage && !this\.editing/);
   expect(src).not.toMatch(/\$\{manage \?/);
+});
+
+
+// ELEVTRAVEL-291: the "travelling" state (per-elevator option, server-derived). The client never invents it.
+test('travelling: its own chip and colour, apart from every other look; an old client/stale list never shows it', () => {
+  const c = chipOf({ state: 'travelling', stale: false });
+  expect([c.label, c.look, c.icon]).toEqual(['בנסיעה', 'trav', 'move']);
+  const looks = (['waiting', 'active', 'fault', 'out_of_service', 'fire_service', 'unknown', 'travelling'] as ElevatorState[]).map((s) => chipOf({ state: s, stale: false }).look);
+  expect(new Set(looks).size).toBe(7); // seven states, seven distinct colour families
+  expect(chipOf({ state: 'travelling', stale: true }).state).toBe('unknown'); // stale list: unknown, never travelling
+  expect(chipOf({ state: 'bogus' as ElevatorState, stale: false }).state).toBe('unknown');
+});
+
+test('travelling: priority matrix as shown - fire / fault / shutdown / waiting / unknown keep their chips, rank and counts', () => {
+  const shown = (s: ElevatorState) => chipOf({ state: s, stale: false }).state;
+  for (const s of ['fire_service', 'fault', 'out_of_service', 'waiting', 'door_open', 'unknown'] as ElevatorState[]) expect(shown(s)).toBe(s);
+  const list = [el('a', 'travelling', { uses_travel: true }), el('b', 'fault', { uses_travel: true }), el('c', 'fire_service'), el('d', 'waiting', { uses_travel: true }), el('e', 'unknown')];
+  const k = kpisOf(list);
+  expect(k).toEqual({ total: 5, ok: 1, fault: 1, off: 0, fire: 1, travel: 1, usesTravel: true });
+  expect(kpisOf(list, true)).toMatchObject({ ok: 0, travel: 0, fault: 0, fire: 0 }); // stale: nothing counted but the total
+  const v = widgetView(list, { hidden: [], filter: 'all' });
+  expect(v.loudest?.e.id).toBe('c'); // fire still the loudest
+  expect(widgetView(list, { hidden: [], filter: 'alerts' }).items.map((x) => x.e.id)).toEqual(['b', 'c']); // travelling is not an alert state
+  expect(summaryLine(k)).toBe('5 מעליות · 1 בתקלה · 1 פיקוד כבאים · 1 בנסיעה');
+});
+
+test('travelling: the KPI card exists only when an elevator uses the option (even with none travelling right now)', () => {
+  expect(kpisOf([el('a', 'waiting'), el('b', 'active')]).usesTravel).toBe(false);
+  const k = kpisOf([el('a', 'waiting', { uses_travel: true }), el('b', 'active')]);
+  expect(k.usesTravel).toBe(true);
+  expect(k.travel).toBe(0);
+  expect(summaryLine(k)).toBe('2 מעליות'); // zero travelling adds no part
+});
+
+test('travelling: the 24-hour bar and its text carry the state; the popup rows label it', () => {
+  const lo = Date.parse('2026-10-19T00:00:00Z');
+  const hi = lo + 24 * 3600_000;
+  const hist = [
+    { state: 'waiting' as ElevatorState, from: new Date(lo).toISOString(), to: new Date(lo + 12 * 3600_000).toISOString() },
+    { state: 'travelling' as ElevatorState, from: new Date(lo + 12 * 3600_000).toISOString(), to: new Date(hi).toISOString() },
+  ];
+  const bar = barOf(hist, lo, hi);
+  expect(bar.parts.map((p) => [p.state, p.look])).toEqual([['waiting', 'wait'], ['travelling', 'trav']]);
+  expect(barSummary(bar)).toContain('בנסיעה 12 שע׳');
+  expect(historyRows(hist, hi).map((r) => [r.label, r.look])).toEqual([['בנסיעה', 'trav'], ['ממתינה', 'wait']]);
+});
+
+test('travelling: the option round-trips through the dialog draft (default off) and the strings exist in English', () => {
+  const m = { id: 'x', name: 'A', area_id: null, area_name: null, enabled: true, sort_order: 0, revision: 3, sensors: { waiting: { entity_id: 'binary_sensor.w', entity_name: 'w', missing: false } }, extras: [],
+    state: 'waiting', reason: 'waiting', partial: false, stale: false, since: null, roles: ['waiting'] } as unknown as ManagedElevator;
+  expect(newDraft().showTravel).toBe(false);
+  expect(draftOf(m).showTravel).toBe(false);
+  expect(bodyOf(draftOf(m)).show_travel).toBeUndefined(); // off is the server default (a PUT replaces): the body stays as before
+  expect(bodyOf({ ...draftOf(m), showTravel: true }).show_travel).toBe(true);
+  expect(draftOf({ ...m, show_travel: true }).showTravel).toBe(true);
+  for (const k of ['stateTravelling', 'kpiTravel', 'summaryTravel', 'travelOption', 'travelOptionHint'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
+  expect(elt('travelOption')).toBe('הצג נסיעה כשאינה ממתינה וללא תקלה');
 });

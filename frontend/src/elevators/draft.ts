@@ -9,6 +9,7 @@ export interface Draft {
   id: string | null;
   name: string;
   enabled: boolean;
+  showTravel: boolean;
   sensors: Record<ElevatorRole, string>;
   extras: { entity_id: string; label: string }[];
   revision?: number;
@@ -19,13 +20,13 @@ export type DraftProblem = 'name' | 'no_sensor' | 'duplicate_sensor' | 'too_many
 const emptySensors = (): Record<ElevatorRole, string> => Object.fromEntries(ELEVATOR_ROLES.map((r) => [r, ''])) as Record<ElevatorRole, string>;
 
 export function newDraft(): Draft {
-  return { id: null, name: '', enabled: true, sensors: emptySensors(), extras: [] };
+  return { id: null, name: '', enabled: true, showTravel: false, sensors: emptySensors(), extras: [] };
 }
 
 export function draftOf(e: ManagedElevator): Draft {
   const sensors = emptySensors();
   for (const r of ELEVATOR_ROLES) sensors[r] = e.sensors[r]?.entity_id ?? '';
-  return { id: e.id, name: e.name, enabled: e.enabled, sensors, extras: e.extras.map((x) => ({ entity_id: x.entity_id, label: x.label })), revision: e.revision };
+  return { id: e.id, name: e.name, enabled: e.enabled, showTravel: !!e.show_travel, sensors, extras: e.extras.map((x) => ({ entity_id: x.entity_id, label: x.label })), revision: e.revision };
 }
 
 export function problemOf(d: Draft): DraftProblem {
@@ -42,7 +43,7 @@ export function bodyOf(d: Draft): ElevatorBody {
   const sensors: Partial<Record<ElevatorRole, string | null>> = {};
   for (const r of ELEVATOR_ROLES) if (d.sensors[r]) sensors[r] = d.sensors[r];
   return {
-    name: d.name.trim(), enabled: d.enabled, sensors,
+    name: d.name.trim(), enabled: d.enabled, ...(d.showTravel ? { show_travel: true } : {}), sensors,
     extras: d.extras.filter((x) => x.entity_id).map((x) => ({ entity_id: x.entity_id, label: x.label.trim() })),
     ...(d.revision !== undefined ? { revision: d.revision } : {}),
   };

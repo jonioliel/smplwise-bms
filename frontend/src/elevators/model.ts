@@ -22,7 +22,7 @@ export const HOME_EDIT_HREF = '#/devices/building?edit=1';
 export const HOME_CHIP_MAX = 4;
 
 /** The colour family of a state (styles.ts maps each to a token): wait green, act blue, fault red, off strong orange, fire crimson, unk grey. */
-export type Look = 'wait' | 'act' | 'fault' | 'off' | 'fire' | 'unk';
+export type Look = 'wait' | 'act' | 'fault' | 'off' | 'fire' | 'unk' | 'trav';
 
 export interface Chip {
   state: ElevatorState;
@@ -42,6 +42,8 @@ const CHIPS: Record<ElevatorState, { key: EltKey; icon: IconName; tone: StateKin
   moving_down: ACTIVE,
   door_open: { key: 'stateDoorOpen', icon: 'door', tone: 'neutral', look: 'wait' },
   waiting: { key: 'stateWaiting', icon: 'pause', tone: 'neutral', look: 'wait' },
+  // ELEVTRAVEL-291: only ever sent by the server for an elevator whose "show travelling" option is on
+  travelling: { key: 'stateTravelling', icon: 'move', tone: 'live', look: 'trav' },
   active: ACTIVE,
   unknown: { key: 'stateUnknown', icon: 'help', tone: 'unknown', look: 'unk' },
 };
@@ -62,7 +64,7 @@ export function chipOf(e: Pick<Elevator, 'state' | 'stale'>): Chip {
 export const lookOf = (state: ElevatorState): Look => (CHIPS[state] ?? CHIPS.unknown).look;
 
 /** Loudest first: fire service, fault, out of service, unknown, then the calm states. */
-export const RANK: Record<ElevatorState, number> = { fire_service: 0, fault: 1, out_of_service: 2, unknown: 3, moving_up: 4, moving_down: 4, active: 4, door_open: 5, waiting: 6 };
+export const RANK: Record<ElevatorState, number> = { fire_service: 0, fault: 1, out_of_service: 2, unknown: 3, moving_up: 4, moving_down: 4, active: 4, travelling: 4, door_open: 5, waiting: 6 };
 export const ALERT_STATES: readonly ElevatorState[] = ['fire_service', 'fault', 'out_of_service'];
 
 // ------------------------------------------------------------------------------------------------ the Infrastructure screen
@@ -73,16 +75,20 @@ export interface Kpis {
   fault: number;
   off: number;
   fire: number;
+  /** ELEVTRAVEL-291: elevators shown as travelling, and whether any elevator uses the option (the KPI card exists only then). */
+  travel: number;
+  usesTravel: boolean;
 }
 
 /** The KPI row: all, waiting or in operation, in fault, out of service, fire service (as shown: a stale list counts nothing but the total). */
 export function kpisOf(list: readonly Elevator[], stale = false): Kpis {
-  const k: Kpis = { total: list.length, ok: 0, fault: 0, off: 0, fire: 0 };
+  const k: Kpis = { total: list.length, ok: 0, fault: 0, off: 0, fire: 0, travel: 0, usesTravel: list.some((e) => !!e.uses_travel) };
   for (const e of list) {
     const s = shownState({ state: e.state, stale: stale || e.stale });
     if (s === 'fire_service') k.fire++;
     else if (s === 'fault') k.fault++;
     else if (s === 'out_of_service') k.off++;
+    else if (s === 'travelling') k.travel++;
     else if (s === 'waiting' || s === 'active' || s === 'door_open') k.ok++;
   }
   return k;
@@ -207,7 +213,7 @@ export function widgetView(list: readonly Elevator[], cfg: { hidden: readonly st
 /** The combined card's one-line summary: "5 מעליות · 1 בתקלה · 1 בהשבתה · 1 פיקוד כבאים" (only the parts that are not zero). */
 export function summaryLine(k: Kpis): string {
   return [k.total === 1 ? elt('countOne') : elt('summary', { n: k.total }), k.fault ? elt('summaryFault', { f: k.fault }) : '', k.off ? `${k.off} ${elt('kpiOff')}` : '',
-    k.fire ? elt('summaryFire', { k: k.fire }) : ''].filter(Boolean).join(' · ');
+    k.fire ? elt('summaryFire', { k: k.fire }) : '', k.travel ? elt('summaryTravel', { n: k.travel }) : ''].filter(Boolean).join(' · ');
 }
 
 // ------------------------------------------------------------------------------------------------ the alert settings (owner decision 2026-10-18)
