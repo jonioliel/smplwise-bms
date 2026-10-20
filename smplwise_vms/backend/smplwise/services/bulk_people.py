@@ -94,6 +94,7 @@ HEADER_ALIASES: dict[str, str] = {
 SECRET_HEADER = re.compile(r"(pin|card|code|photo|password|secret|token|קוד|כרטיס|תמונה|סיסמ)", re.IGNORECASE)
 FORMULA_STARTERS = ("=", "+", "-", "@", "\t", "\r", "＝", "＋", "－", "＠")
 TEXT_FIELDS = ("employee_no", "display_name", "responsible_person", "access_purpose")
+KNOWN_FIELDS = frozenset(COLUMNS) | {"door_permissions", "permission_overrides", "group_ids"}
 MASK = "····"
 TRUE_WORDS = {"true", "yes", "1", "on", "כן", "פעיל", "active"}
 FALSE_WORDS = {"false", "no", "0", "off", "לא", "לא פעיל", "inactive"}
@@ -214,8 +215,16 @@ def _person_data_check(data: dict[str, Any]) -> list[str]:
     try:
         PersonData.model_validate({k: v for k, v in data.items() if k != "group_ids"})
     except ValidationError as exc:
-        fields = sorted({str(e["loc"][0]) for e in exc.errors() if e.get("loc")})
-        return fields or ["invalid_row"]
+        fields: set[str] = set()
+        for e in exc.errors():
+            if e.get("loc"):
+                fields.add(str(e["loc"][0]))
+                continue
+            # a model-level rule names its field first ("Value error, phone", "Value error, validity"): the name only, never the value
+            m = re.match(r"(?:Value error, )?([a-z_]+)", str(e.get("msg") or ""))
+            word = m.group(1) if m else ""
+            fields.add({"validity": "valid_from", "text": "responsible_person"}.get(word, word) if word in KNOWN_FIELDS or word in ("validity", "text") else "invalid_row")
+        return sorted(fields) or ["invalid_row"]
     return []
 
 
