@@ -61,6 +61,8 @@ export interface ProductSettings {
   'media.wall_profile': 'sub' | 'main';
   /** Owner 2026-10-01: 'true' shows the live player's notes about how it plays (banner, remote-policy hint, "מנגן דרך" line); default 'false'. */
   'media.video_notices'?: 'true' | 'false';
+  /** NVRMASK-295: privacy-mask preview / write to the NVR; off by default. */
+  'nvr.privacy_mask_write'?: 'true' | 'false';
   'snapshots.max_age_s': number;
   'plan.estimates'?: 'true' | 'false';
   /** Default levels view on every map (0.1.89): 'all' shows every level together, 'default' opens on the floor's
@@ -328,7 +330,8 @@ export interface CameraZones {
   fetched_at: string;
   cached: boolean;
   motion: ZoneMotion | null;
-  privacy_mask: { enabled: boolean; normalized: ZoneFrame; regions: ZonePolygon[] } | null;
+  /** NVRMASK-295: a region's `enabled` is the parser's verdict (master on + polygon); `device_enabled` is the device's own flag (reads false while masking on V4.84). */
+  privacy_mask: { enabled: boolean; normalized: ZoneFrame; regions: (ZonePolygon & { device_enabled?: boolean | null })[]; active_regions?: number } | null;
   intrusion: { enabled: boolean; normalized: ZoneFrame; regions: ZonePolygon[] } | null;
   line_crossing: { enabled: boolean; normalized: ZoneFrame; lines: ZoneLine[] } | null;
   unsupported: Record<string, string>;
