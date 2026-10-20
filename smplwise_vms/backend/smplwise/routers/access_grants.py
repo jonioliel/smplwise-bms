@@ -153,7 +153,18 @@ def list_grants(principal: Principal = Depends(current_principal_ro), conn: sqli
     return {"grants": ag.list_for(conn, principal, live_only=not all), "enabled": ag.enabled(conn),
             "rules": {k: rules[k] for k in ("external_grants", "go_live_permitted", "max_days", "max_doors", "phone_fresh_days", "code_hour", "local_approvers")},
             "screen": ax.settings_view(conn), "system_admin": is_system_admin(conn, principal.user_id),
-            "may_request": ar.may_request(conn, principal)}  # ACCESSREQ-293: the "request access" button
+            "may_request": ar.may_request(conn, principal),  # ACCESSREQ-293: the "request access" button
+            # SHAREDUI-295: the served WisKey copy's freshness (the form's own signal), so the screen can say "no connection to WisKey since
+            # HH:MM" instead of showing last-known states as current. Read-only; it grants nothing and names no station or person.
+            "wiskey": _freshness()}
+
+
+def _freshness() -> dict[str, Any]:
+    """The WisKey copy's freshness for the list; when it cannot be read the screen says "no connection" (never "connected")."""
+    try:
+        return ar.freshness()
+    except Exception:  # noqa: BLE001 - the list itself never fails on this signal
+        return {"as_of": None, "reachable": False, "has_copy": False}
 
 
 @router.get("/access-grants/digest")

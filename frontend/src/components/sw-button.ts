@@ -111,25 +111,26 @@ export class SwButton extends LitElement {
     :host([round]) button {
       border-radius: 50%;
     }
-    /* touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px */
+    /* touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px. SHAREDUI-295: never
+       below the host's own control height, so a screen that asks for 44 px targets (--sw-ctl-h-*) keeps them on a phone too */
     @media (max-width: 767px) and (pointer: coarse) {
       button {
-        min-block-size: 40px;
+        min-block-size: max(40px, var(--sw-ctl-h-md));
       }
       :host([size='sm']) button {
-        min-block-size: 36px;
+        min-block-size: max(36px, var(--sw-ctl-h-sm));
       }
       :host([size='lg']) button {
-        min-block-size: 44px;
+        min-block-size: max(44px, var(--sw-ctl-h-lg));
       }
       :host([icononly]) button {
-        inline-size: 40px;
+        inline-size: max(40px, var(--sw-ctl-h-md));
       }
       :host([icononly][size='sm']) button {
-        inline-size: 36px;
+        inline-size: max(36px, var(--sw-ctl-h-sm));
       }
       :host([icononly][size='lg']) button {
-        inline-size: 44px;
+        inline-size: max(44px, var(--sw-ctl-h-lg));
       }
     }
   `;

@@ -282,5 +282,33 @@ export function timeline(g: Grant): { at: string; key: string; tone: Tone; vars?
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
 
+// ---------------------------------------------------------------- SHAREDUI-295: the read-back wait, without a number
+
+/**
+ * Whether the drawer shows "waiting for a read-back" - an outcome that is not known yet (unknown) or a revocation that is not proven yet.
+ * Deliberately NO countdown: the server's 75 s hold (`HOLD_S`, services/intercom_write_journal.py) applies only to a write of a process
+ * that is gone (a restart or a standby takeover), is measured on the server's wall clock from a start the screen never sees, and in the
+ * normal case a read settles as soon as the call is over. A number here would be wrong most of the time, restart on every poll and drift
+ * with the browser's clock. The screen says what it knows: waiting, Arx reads by itself, "read back now" gives a terminal answer.
+ */
+export function readbackView(g: Grant, wiskeyOffline: boolean): 'pending' | 'offline' | null {
+  const s = uiState(g);
+  if (s !== 'unknown' && s !== 'revoking') return null;
+  return wiskeyOffline ? 'offline' : 'pending';
+}
+
+/** The answer of a "read back now": the i18n key of the line the drawer keeps (`still`) or the toast (`changed`). */
+export function readOutcome(before: Grant, after: Grant | null): { kind: 'still' | 'changed'; key: string } {
+  const a = after ? uiState(after) : uiState(before);
+  if (after && a !== uiState(before)) return { kind: 'changed', key: `st_${a}` };
+  const still: Partial<Record<UiState, string>> = { unknown: 'rb_still_unknown', revoking: 'rb_still_revoking', accepted: 'rb_still_accepted', verified: 'rb_still_verified' };
+  return { kind: 'still', key: still[a] ?? 'rb_still_unknown' };
+}
+
+/** The list's WisKey signal: offline only when the server says so (an older server without the field is not called offline). */
+export function wiskeyOffline(reply: { enabled: boolean; wiskey?: { reachable: boolean } } | null): boolean {
+  return !!reply?.enabled && !!reply.wiskey && !reply.wiskey.reachable;
+}
+
 /** The weekday names start on Sunday (0), the installation's digest day. */
 export const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;

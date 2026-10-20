@@ -120,6 +120,8 @@ export interface ExternalMock {
   settingsPuts: Record<string, unknown>[];
   /** GRANTSMIN-295: the CSV requests (their query strings) */
   exports: string[];
+  /** SHAREDUI-295: how many times the screen asked for the list */
+  listCalls: number;
 }
 
 export interface ExternalOptions {
@@ -134,12 +136,20 @@ export interface ExternalOptions {
   noDrift?: boolean;
   /** GRANTSMIN-295: the CSV answers 429 export_rate */
   exportRate?: boolean;
+  /** SHAREDUI-295: WisKey does not answer (the list's `wiskey` freshness); `noCopy`: and Arx holds no copy either */
+  wiskeyOffline?: boolean | 'noCopy';
+  /** SHAREDUI-295: GET /access-grants fails - always (the first load), or after the first answer (a poll that fails: stale) */
+  listFails?: 'always' | 'after-first';
+  /** SHAREDUI-295: the identity card's GET fails with a server error (not a 404) */
+  identityFails?: boolean;
+  /** SHAREDUI-295: what POST /read-now answers: the same unknown grant (default), a now-active grant, or a refusal */
+  readNow?: 'still' | 'settled' | 'error';
 }
 
 export async function installExternalMock(page: Page, o: ExternalOptions = {}): Promise<ExternalMock> {
   const persona = o.persona ?? 'admin';
   const access = await installAccessMock(page, { persona });
-  const st: ExternalMock = { access, posts: [], settingsPuts: [], exports: [] };
+  const st: ExternalMock = { access, posts: [], settingsPuts: [], exports: [], listCalls: 0 };
   const screen = { digest_channel: 'app', digest_day: 0, digest_hour: 8, name_sync: 'manual', placement: 'access' };
   const enabled = o.enabled ?? true;
   const admin = o.systemAdmin ?? true;
@@ -160,8 +170,15 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
     const p = url.pathname.replace(/^.*\/api\/v1\//, '');
     const method = req.method();
     if (method === 'GET' && p === 'access-grants') {
+      st.listCalls += 1;
+      if (o.listFails === 'always' || (o.listFails === 'after-first' && st.listCalls > 1)) {
+        return json(route, { code: 'service_unavailable', user_message: 'השרת לא זמין כרגע.', retryable: true, correlation_id: 'mock', details: {} }, 503);
+      }
+      const wiskey = o.wiskeyOffline
+        ? { reachable: false, as_of: o.wiskeyOffline === 'noCopy' ? null : '2026-10-20T07:14:00Z', has_copy: o.wiskeyOffline !== 'noCopy' }
+        : { reachable: true, as_of: '2026-10-20T07:19:00Z', has_copy: true };
       return json(route, {
-        grants, enabled, system_admin: admin, screen, may_request: o.mayRequest ?? true,
+        grants, enabled, system_admin: admin, screen, may_request: o.mayRequest ?? true, wiskey,
         rules: { external_grants: enabled ? 'on' : 'off', go_live_permitted: enabled, max_days: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off' },
       });
     }
@@ -182,6 +199,7 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
       return json(route, { external_grants: 'off', go_live_permitted: false, max_days: 14, max_days_cap: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off', ...screen });
     }
     const ident = /^access-grants\/contacts\/([^/]+)\/identity$/.exec(p);
+    if (ident && o.identityFails) return json(route, { code: 'service_unavailable', user_message: 'השרת לא זמין כרגע.', retryable: true, correlation_id: 'mock', details: {} }, 503);
     if (ident) {
       const g = grants.find((x) => (x.person as { contact_id: string }).contact_id === ident[1]) as Record<string, any> | undefined;
       if (!g) return json(route, { code: 'access_identity_not_found', user_message: 'לא נמצא.', retryable: false, correlation_id: 'mock', details: {} }, 404);
@@ -209,6 +227,11 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
       const m = /^access-grants\/([^/]+)\//.exec(p);
       const g = m ? grants.find((x) => x.id === m[1]) : undefined;
       if (p === 'access-grants/revoke-all') return json(route, { revoked: 9 });
+      if (g && p.endsWith('/read-now')) {
+        if (o.readNow === 'error') return json(route, { code: 'access_grant_read_failed', user_message: 'WisKey לא ענה.', retryable: true, correlation_id: 'mock', details: {} }, 502);
+        if (o.readNow === 'settled') Object.assign(g, { state: 'active', grant_state: 'active', pending_sync: false, doors_state: 'accepted' });
+        return json(route, { grant: g });
+      }
       return json(route, { grant: g ?? null, link: { id: 'l-new', origin: 'created_from_arx', state: 'linked' }, outcome: 'pushed', drift: false });
     }
     return json(route, { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }, 404);

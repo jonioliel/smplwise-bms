@@ -534,3 +534,47 @@ contacts WisKey, a station, a door or WhatsApp.
   employee number, a PIN (Arx holds none) or the closure's free-text reference. A person without access: `{"link": null, "grants": []}`.
 - **Not built:** the denied-attempt alert (needs WisKey W-c, out of scope by instruction). The CSV is not offered on the contact
   directory screen (the per-person JSON export already is). Arabic / Russian CSV headers (English is served for them).
+
+## SHAREDUI-295 - review of the shipped screens (pilot/SHAREDUI-295, on integ/293)
+
+Owner, 2026-10-20: "fix everything you think needs fixing; the 75-second counter looks problematic to me". Reviewed the external-access
+screen, the identity card and the request form (2.9.3) against the two approved mockups and the design rules (clean operator screens,
+no platform branding, "WisKey", RTL, he/en/ar/ru, 44 px targets, 4.5:1 text contrast). No security behaviour changed: Arx RBAC stays the
+authority, extended identity stays LOCKED, `GO_LIVE_PERMITTED` stays False, nothing calls WisKey; no migration.
+
+**The 75 s counter: not built, on purpose.** The mockup's unknown state showed a ring "a fresh read is allowed in 0:52 (75 s after the
+call)" and kept "read back" disabled until it reached zero. The shipped screen never had it (see "Not built in this slice" above); the
+owner's doubt is right and it stays out. What the 75 s is: `HOLD_S` in `services/intercom_write_journal.py`, the transport's own call
+limit plus a margin. It only matters for a journal row of a process that is GONE (a restart or a standby takeover): such a row may be
+settled by a readback that starts after `started_ts + HOLD_S`. In the normal case (this process sent the write) a readback settles the
+row as soon as the call is over - no 75 s at all. So a visible countdown would be (1) wrong in the common case, (2) uncomputable by the
+browser (the server never sends `started_ts`; the hold is on the server's wall clock, which the build notes already flag as able to jump),
+(3) restarted on every poll / render, and (4) frozen or late in a background tab. It would also invite the operator to wait for a number
+instead of reading the state. Instead: an indeterminate "waiting for a read-back from WisKey" (a pulsing mark, still under reduced
+motion), "Arx reads again on its own", and "read back now" that always ends in a terminal answer - the new state (a toast), "checked at
+HH:MM: still not known / the revocation is not proven yet / not verified yet" kept in the drawer, or "the read did not succeed (HH:MM):
+why" - after which the button reads "read again". The server keeps every hold itself (`read_now` decides nothing while a write may still
+land), so pressing early is harmless. Pinned by `unit-access-external.spec.ts` (no `75`, no `0:ss`, no seconds in any read-back text)
+and `evidence-sharedui-295.spec.ts` (no countdown in the drawer, before and after a read).
+
+**Every state now has plain text and a safe action:**
+- WisKey offline: `GET /access-grants` carries `wiskey: {as_of, reachable, has_copy}` (the request form's existing freshness signal,
+  `access_request.freshness()`; read-only, fails closed to "not reachable", never fails the list). Banner "no connection to WisKey since
+  HH:MM - the states shown are the last known; approvals are kept and sent when it returns" + "check again"; read back / retry wait
+  for the connection (as in the mockup). An older server without the field is not called offline.
+- Stale: a poll that fails keeps the list and says "the list has not refreshed since HH:MM" + "try again" (it was a raw error line).
+  A background tab refreshes at once when shown again or when the network returns; the drawer's "open since · duration" ages with the
+  shared CLOCK-293 ticker.
+- First load failed: the error panel with "try again" (unchanged). Empty: "new request" when the caller may ask.
+- Identity card: "loading the identity", and a load that fails for another reason than 403 / 404 says so with "try again" (it used to
+  vanish silently); times in the installation zone.
+- Request form: a load error has "try again" and "close" (it had neither, only the corner X); the offline banner is a warning with
+  "check again" (it was red, with no action).
+
+**Clean operator screens:** the explanations of a state (what Arx does meanwhile, the revocation notes, "no step proves every station
+applied it") moved behind one "how Arx decides" disclosure in the drawer; the facts (what is known / unknown, reason, open since) stay.
+
+**Accessibility:** white text on the solid state colours measured 1.8-3.8:1 - badges are now the soft fill with tone text and a ring; tone
+text is the `-text` token pulled 40% to the heading colour (>= 5.2:1 light, >= 7.3:1 dark); notes, hints, small print and the legend
+moved from `--sw-text-3` (2.95:1) to `--sw-text-2`; error text uses the danger text tone. Every button, segmented control, day pill,
+disclosure and filter dropdown is a 44 px target (the system-access screens' `--sw-ctl-h-*` pattern). The no-permission dialog has a name.
