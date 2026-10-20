@@ -112,6 +112,36 @@ export const WALK_ACT_M = 3.5;
 const WALK_TOAST_MS = 2600;
 const NO_STARTS: WalkStart[] = [];
 
+const ORIGIN: Vec3 = [0, 0, 0];
+/** The strip's levels as it draws them (id, name, elevation, in order). */
+export function sameLevels(a: readonly StripLevel[], b: readonly StripLevel[] | undefined): boolean {
+  if (a === b) return true;
+  if (!b || a.length !== b.length) return false;
+  return a.every((l, i) => l.id === b[i].id && l.name === b[i].name && l.elevation_m === b[i].elevation_m);
+}
+/** The strip's state dots as it draws them (per level: the presence fade, an open opening, a lit room). */
+export function sameDots(a: Record<string, LevelDots>, b: Record<string, LevelDots> | undefined): boolean {
+  if (a === b) return true;
+  if (!b) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every((k) => {
+    const x = a[k];
+    const y = b[k];
+    return !!y && x.presence === y.presence && x.open === y.open && x.lit === y.lit;
+  });
+}
+/** The last value this module wrote to an element's inline style property: a write only when it changes (PERF3D-295 - the
+ * per-frame label layout rewrote every label's display and transform on every drawn frame). */
+const written = new WeakMap<HTMLElement, { display?: string; transform?: string }>();
+function setStyle(el: HTMLElement, prop: 'display' | 'transform', value: string): void {
+  let w = written.get(el);
+  if (!w) written.set(el, (w = {}));
+  if (w[prop] === value && el.style[prop] === value) return;
+  w[prop] = value;
+  el.style[prop] = value;
+}
+
 /** A download name without whitespace or path characters (Hebrew letters stay): "plan-3d-אולם 3D" -> "plan-3d-אולם-3D". */
 function safeFileName(name: string): string {
   return name.replace(/[\s/\\:*?"<>|]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '') || 'plan-3d';
@@ -181,14 +211,16 @@ export class SwPlan3d extends LitElement {
   @property({ attribute: false }) cameras: { id: string; label: string }[] = [];
   @property({ attribute: false }) labels: Record<string, string> = {};
   @property() exportName = 'plan-3d';
-  /** The levels of the strip (every level of the floor, whatever the filter) and the one the screen shows (null = all). */
-  @property({ attribute: false }) levels: StripLevel[] = [];
+  /** The levels of the strip (every level of the floor, whatever the filter) and the one the screen shows (null = all).
+   * Compared by value (PERF3D-295): the floor map hands a new array on every render of its own (a push, a fade tick), which
+   * re-rendered this element - its labels, its strip - for nothing. */
+  @property({ attribute: false, hasChanged: (a: StripLevel[], b: StripLevel[] | undefined) => !sameLevels(a, b) }) levels: StripLevel[] = [];
   @property() activeLevel: string | null = null;
   /** The description the thumbnails draw from: every level of the floor (the screen's filtered one when it shows all). */
   @property({ attribute: false }) thumbnailScene: SceneDescription | null = null;
   /** The state dots of the strip (CR-006 1b, room-state.ts): per level, the presence fade, an open opening, a lit room -
    * drawn over the cached thumbnail, never into it (a state push redraws no thumbnail). */
-  @property({ attribute: false }) levelDots: Record<string, LevelDots> = {};
+  @property({ attribute: false, hasChanged: (a: Record<string, LevelDots>, b: Record<string, LevelDots> | undefined) => !sameDots(a, b) }) levelDots: Record<string, LevelDots> = {};
   /** The installation default when the viewer has not chosen (the host may pass it - a mode, or a level 1 / 2 read as
    * schematic / full; else the element asks the settings). */
   @property({ attribute: false }) qualityDefault: QualityMode | QualityLevel | null = null;
@@ -1051,6 +1083,7 @@ export class SwPlan3d extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>): void {
+    this.overlayEls = null; // the render may have replaced label elements
     this.syncCorner();
     if (changed.has('sunAt')) this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
     this.syncKiosk(changed);
@@ -1081,17 +1114,20 @@ export class SwPlan3d extends LitElement {
   private layoutOverlays(): void {
     const view = this.view;
     if (!view || !this.overlays.length) return;
-    const els = this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-part]');
+    // PERF3D-295: the label elements are listed once per Lit render (updated() drops the list), projected in one batch (no box
+    // read per point), and a style is written only when its value changed - a frame used to read the mount's box between label
+    // writes (a forced style + layout pass per label) and rewrite every label's display and transform
+    const els = (this.overlayEls ??= [...this.renderRoot.querySelectorAll<HTMLElement>('[data-3d-part]')].map((el) => ({ el, p: this.overlayById.get(el.getAttribute('data-3d-part') ?? '') ?? null })));
+    const at = view.projectPoints(els.map(({ p }) => p?.position ?? ORIGIN));
     const shown: { el: HTMLElement; p: ScenePart; x: number; y: number }[] = [];
-    els.forEach((el) => {
-      const p = this.overlayById.get(el.getAttribute('data-3d-part') ?? '');
-      const at = p ? view.projectPoint(p.position) : null;
-      if (!p || !at) {
-        el.style.display = 'none';
+    els.forEach(({ el, p }, i) => {
+      const pt = p ? at[i] : null;
+      if (!p || !pt) {
+        setStyle(el, 'display', 'none');
         return;
       }
-      el.style.display = 'block';
-      shown.push({ el, p, x: Math.round(at.x), y: Math.round(at.y) });
+      setStyle(el, 'display', 'block');
+      shown.push({ el, p, x: Math.round(pt.x), y: Math.round(pt.y) });
     });
     // ST7-odd: two pills whose points project close together never cover one another - the upper one is raised to a stack
     // (pill-layout.ts). A pill's size is read once per text (one layout read for a new pill, none per frame).
@@ -1109,9 +1145,11 @@ export class SwPlan3d extends LitElement {
     const raised = boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : null;
     for (const { el, p, x, y } of shown) {
       // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
-      el.style.transform = p.kind === 'chip' ? `translate(${x}px, ${y}px) translate(-50%, -50%)` : `translate(${x}px, ${y - PILL_GAP_PX + Math.round(raised?.get(p.id) ?? 0)}px) translate(-50%, -100%)`;
+      setStyle(el, 'transform', p.kind === 'chip' ? `translate(${x}px, ${y}px) translate(-50%, -50%)` : `translate(${x}px, ${y - PILL_GAP_PX + Math.round(raised?.get(p.id) ?? 0)}px) translate(-50%, -100%)`);
     }
   }
+  /** The label elements of the last render with their parts (layoutOverlays; dropped by every update). */
+  private overlayEls: { el: HTMLElement; p: ScenePart | null }[] | null = null;
 
   private apply(desc: SceneDescription): void {
     if (desc === this.applied) return;
@@ -1137,6 +1175,7 @@ export class SwPlan3d extends LitElement {
   private watchTheme(): void {
     if (this.themeObserver || typeof MutationObserver === 'undefined') return;
     this.themeObserver = new MutationObserver(() => {
+      this.minimapPalette = null; // the walk's minimap takes the new tokens
       this.view?.setRealSettings({ style: this.realSettings().style });
       this.applySun();
       this.requestUpdate();
@@ -1379,6 +1418,7 @@ export class SwPlan3d extends LitElement {
   /** The props that drive the kiosk changed: the idle time, the plan-change signature, the walk (a hold: it draws on purpose). */
   private syncKiosk(changed: PropertyValues<this>): void {
     if (changed.has('idleS')) this.setupIdle();
+    if (changed.has('themeForce')) this.minimapPalette = null;
     if (changed.has('themeForce') && changed.get('themeForce') !== undefined && this.view) {
       this.view.setRealSettings({ style: this.realSettings().style }); // the page's theme observer does the same when the scheme flips
       this.applySun();
@@ -1571,6 +1611,7 @@ export class SwPlan3d extends LitElement {
       return;
     }
     this.walk?.dispose();
+    this.minimapPalette = null;
     const first = start ?? world.starts.find((s) => s.id === world.defaultStart) ?? world.starts[0] ?? null;
     const fov = this.walkFov();
     this.walk = new WalkSession(world, {
@@ -1602,6 +1643,7 @@ export class SwPlan3d extends LitElement {
     this.walkAim = null;
     this.crossFloor = null;
     this.minimapFrame = null;
+    this.minimapPalette = null;
     this.ui.reset();
     this.removeAttribute('data-walk');
     this.removeAttribute('data-walk-pos');
@@ -1716,14 +1758,21 @@ export class SwPlan3d extends LitElement {
     const ctx = cv.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.minimapFrame = drawMinimap(ctx, world, w.ctrl.pose(), w.ctrl.path, size, (this.minimapPalette ??= this.readMinimapPalette()));
+  }
+
+  /** The minimap's colours from the theme tokens, read once per walk and theme (PERF3D-295: they were read from the computed
+   * style on every pose - every frame of a walk - which forces a style pass after the frame's own attribute writes). */
+  private minimapPalette: Parameters<typeof drawMinimap>[5] | null = null;
+  private readMinimapPalette(): Parameters<typeof drawMinimap>[5] {
     const css = getComputedStyle(this);
     const tok = (t: string, fallback: string): string => css.getPropertyValue(`--sw-${t}`).trim() || fallback;
     const accent = tok('accent', '#2767ed');
-    this.minimapFrame = drawMinimap(ctx, world, w.ctrl.pose(), w.ctrl.path, size, {
+    return {
       bg: tok('surface-solid', '#ffffff'), wall: tok('map-structure', '#56617a'), low: tok('map-wall', '#9aa3b5'), window: tok('map-glass', '#7fb2ff'),
       doorOpen: tok('live', '#22c55e'), doorClosed: tok('danger', '#ef4444'), object: tok('text-3', '#9aa3b5'), stair: tok('text-2', '#6b7f99'),
       room: withAlpha(accent, 0.07), path: tok('live', '#22c55e'), me: accent, meRing: withAlpha(accent, 0.25),
-    });
+    };
   }
 
   private renderWalk() {
