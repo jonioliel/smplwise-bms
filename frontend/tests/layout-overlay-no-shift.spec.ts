@@ -46,6 +46,12 @@ function expectSame(a: Snap, b: Snap, label: string) {
   });
 }
 
+/** SW_SHOTS_DIR: evidence screenshots of the home case (before / open / after), taken before the assertions so a red run shows them too. */
+async function shot(page: Page, name: string) {
+  const dir = process.env.SW_SHOTS_DIR;
+  if (dir) await page.screenshot({ path: `${dir}/${name}.png` });
+}
+
 async function openHome(page: Page) {
   await installBubbleMock(page, { perms: ['devices.read', 'devices.control', 'devices.control_bulk', 'map.read'] });
   await page.goto('about:blank');
@@ -125,15 +131,18 @@ test.describe('overlays never move the page behind them', () => {
     const fit = await body.getAttribute('data-fit');
     expect(Number(fit), 'the home screen is packed at this height').toBeGreaterThan(0);
     const before = await snap(page, 'home');
+    await shot(page, 'home-lights-0-closed');
     await page.locator('sw-app devices-building sw-kpi[data-tile-kind="lights"] .hit').click();
     await expect(page.locator('sw-app devices-building devices-tiles-panel sw-drawer')).toHaveAttribute('open', '');
     await page.waitForTimeout(500);
     await expect(body, 'the packing is frozen while the panel is open').toHaveAttribute('data-fit', fit!);
+    await shot(page, 'home-lights-1-open');
     expectSame(before, await snap(page, 'home'), 'lights panel open');
     await page.keyboard.press('Escape');
     await expect(page.locator('sw-app devices-building devices-tiles-panel sw-drawer')).not.toHaveAttribute('open', '');
     await page.waitForTimeout(500);
     await expect(body).toHaveAttribute('data-fit', fit!);
+    await shot(page, 'home-lights-2-closed');
     expectSame(before, await snap(page, 'home'), 'lights panel closed');
   });
 });
