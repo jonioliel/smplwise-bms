@@ -337,7 +337,7 @@ export class SwOffboxBackup extends LitElement {
     .ret { display: flex; flex-wrap: wrap; gap: 10px; }
     .ret label { display: inline-flex; align-items: center; gap: 4px; }
     .ret input { inline-size: 64px; }
-    input.ctl, textarea.ctl, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
+    input.ctl, textarea.ctl, .ret input, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
     textarea.ctl, .keybox { inline-size: 100%; box-sizing: border-box; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-sm); }
     [data-ltr] { direction: ltr; text-align: start; }
