@@ -13,6 +13,7 @@ import zlib
 
 import pytest
 from conftest import bind
+from hygiene import installation_day
 from PIL import Image
 
 from smplwise.services.tickets import costs, costs_report, costs_retention
@@ -268,7 +269,7 @@ def test_approve_mark_paid_unmark_and_the_payment_hook(s4):
         c = _claim(s4, t["id"])
         assert c["status"] == "approved" and c["approved_total_minor"] == 138709 and c["high_amount"] is False
         assert s4.w.detail(t["id"])["cost"]["status"] == "approved"
-        r = decide(s4, t["id"], "mark-paid", payment_ref="העברה 7781", payment_date=dt.date.today().isoformat())
+        r = decide(s4, t["id"], "mark-paid", payment_ref="העברה 7781", payment_date=installation_day())
         assert r.status_code == 200 and _claim(s4, t["id"])["status"] == "paid"
         assert decide(s4, t["id"], "unmark-paid").status_code == 422, "a reason is required"
         assert decide(s4, t["id"], "unmark-paid", reason="סומן בטעות").status_code == 200

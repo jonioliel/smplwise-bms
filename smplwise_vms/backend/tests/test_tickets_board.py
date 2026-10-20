@@ -15,7 +15,8 @@ import datetime as dt
 import pytest
 
 from smplwise.db import Database
-from smplwise.services.tickets import monitor, stuck
+from hygiene import assert_defaults, schema_defaults
+from smplwise.services.tickets import monitor, settings_doc, stuck
 from tickets_world import API, MAINT, build
 
 
@@ -162,12 +163,12 @@ def test_facets_count_the_visible_set_of_each_caller(w, scene):
 
 def test_display_settings_d19_d21_and_d28(w):
     m = w.c.get(f"{API}/tickets/module", headers=w.h("tom")).json()
-    assert m["ui"] == {"detail": "drawer_fullscreen", "new_ticket": "sheet", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all",
-                       "detail_tab": "overview", "drawer_size": "wide", "phone_sheet": "full", "handled_days": 7,
-                       # MGRDASH phase 1: the manager overview's display choices (owner defaults)
-                       "dash_handler_numbers": "own", "dash_vendors": "tagged", "dash_busy": 8, "dash_busy_departments": {}, "dash_compare": "below_numbers",
-                       # MGRDASH phase 5: the morning summary's hour and the busy-department threshold (the alerts are off by default)
-                       "dash_digest_hour": 8, "dash_dept_stuck": 10}
+    # GATEHYGIENE (2.9.0 gate red): the served `ui` block is exactly settings_doc.SCHEMA's ui defaults - derived, so a setting another
+    # feature adds (MGRDASH phase 5 added dash_digest_hour / dash_dept_stuck) cannot break this test; only the decisions THIS test is about
+    # are pinned by hand (D18 detail, D19 floors tree, D20 grouping, D21 closed strip, D22 new ticket). The other keys' owner defaults are
+    # pinned by their own tests (test_tickets_mgrdash_settings, test_tickets_mgrdash_alerts, test_tickets_handler_load).
+    assert_defaults(m["ui"], schema_defaults(settings_doc.SCHEMA, "ui"), what="tickets ui",
+                    pinned={"detail": "drawer_fullscreen", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all", "new_ticket": "sheet"})
     doc = w.c.get(f"{API}/tickets/settings").json()
     assert doc["urgent_is_critical"] is True
     body = {"revision": doc["revision"], "ui": {"board_floors": "chips", "grouping": "never", "closed_strip": "week"}, "urgent_is_critical": False}

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import os
+import sqlite3 as _sqlite3  # noqa: F401 - imported BEFORE the swap below: its default adapters must bind the real date types
 import time as _time
 from zoneinfo import ZoneInfo
 
@@ -59,6 +60,12 @@ if _raw:
 
     _dt.datetime = FakeDateTime  # type: ignore[misc]
     _dt.date = FakeDate  # type: ignore[misc]
+    # GATEHYGIENE: sqlite3 picks its adapters by EXACT type. sqlite3 is imported at the top of this module, BEFORE the swap, so its
+    # default adapters stay registered for the REAL date / datetime (imported after the swap, it registered them for the fakes only and
+    # every real `date` bound as a parameter raised "type 'datetime.date' is not supported" - a false failure of the tool, e.g.
+    # energy_billing's due date); the fakes get the same ISO-text adapters here.
+    _sqlite3.register_adapter(FakeDate, lambda v: v.isoformat())
+    _sqlite3.register_adapter(FakeDateTime, lambda v: v.isoformat(" "))
     _time.time = lambda: _REAL_TIME() + _OFFSET.total_seconds()  # type: ignore[assignment]
 
 

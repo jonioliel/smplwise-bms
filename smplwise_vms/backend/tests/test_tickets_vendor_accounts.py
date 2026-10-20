@@ -4,11 +4,11 @@ the CSV export, and POST /tickets/costs/mark-paid (a result per item, idempotent
 audit). Every name, number and address here is invented."""
 from __future__ import annotations
 
-import datetime as dt
 import json
 
 import pytest
 from conftest import bind
+from hygiene import installation_day
 from test_tickets_costs import _claim, decide, done, submit
 from tickets_s4_world import API, build_s4
 
@@ -21,7 +21,7 @@ def s4(settings, monkeypatch):
     return build_s4(settings, monkeypatch)
 
 
-TODAY = dt.date.today().isoformat()
+TODAY = installation_day()  # GATEHYGIENE: the installation's day, never the machine's (tests/hygiene.py)
 
 
 def _two_currencies(s4):
@@ -158,7 +158,7 @@ def test_bulk_mark_paid_permissions_and_validation(s4):
     assert _claim(s4, a["id"])["status"] == "approved"
     # the shared fields once: a missing reference, a future date, too many items
     assert mark(s4, [it], ref="  ").status_code == 422
-    future = (dt.date.today() + dt.timedelta(days=5)).isoformat()
+    future = installation_day(5)
     assert mark(s4, [it], day=future).status_code == 422
     assert mark(s4, [it] * 201).status_code == 422
     assert mark(s4, []).status_code == 422

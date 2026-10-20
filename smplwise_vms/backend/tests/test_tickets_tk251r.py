@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 from conftest import bind
+from hygiene import installation_day
 from PIL import Image
 
 from smplwise.services.tickets import attachments, costs_report, costs_retention, export, image_intake, table
@@ -95,7 +96,7 @@ def test_csv_the_costs_export_guards_every_text_cell_claim_and_line_rows(s4):
     r = submit(client, token, lines=hostile, vendor_ref="+972-INV")
     assert r.status_code == 201, r.text
     assert decide(s4, t["id"], "approve").status_code == 200
-    r = decide(s4, t["id"], "mark-paid", payment_ref="-1+2 העברה", payment_date=dt.date.today().isoformat())
+    r = decide(s4, t["id"], "mark-paid", payment_ref="-1+2 העברה", payment_date=installation_day())
     assert r.status_code == 200, r.text
     for rows in ("claim", "line"):
         costs_report.reset_rate()

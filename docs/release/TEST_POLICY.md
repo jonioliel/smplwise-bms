@@ -18,6 +18,15 @@ A release takes the highest tier any of its changes needs. When in doubt, go one
 - Security-relevant changes (permissions, auth, request bodies, secrets, destructive actions) get a review before release.
 - A nightly full run of backend + Playwright on the integration branch (when the machine is idle) keeps a current full-suite number, so a small release is never based on a stale full result.
 - Known time-of-day-dependent tests (quiet hours) are run in daytime, or fixed with a frozen clock.
+- Tests never ask the machine for "today" (the runner is Etc/UTC, the product counts by the installation zone): backend tests use
+  `tests/hygiene.py` (`installation_today()` / `installation_day()`) or a fixed instant - `tests/test_gate_hygiene.py` fails on
+  `date.today()`, zone-less `datetime.now()`, `utcnow()` and a day read through a fixed +03:00; the Playwright configs run the Node
+  side in Asia/Jerusalem like the browser. A "defaults are served" test derives its expectation from the product's schema
+  (`hygiene.schema_defaults` + `assert_defaults`) and pins by hand only the decisions it is about.
+- After an action in a spec, assert with a web-first assertion or `expect.poll`, never a one-shot `expect(await ...)`, and never a
+  negative check (`not.toContain`, `toHaveCount(0)`) that an undrawn page already satisfies.
+- A red gate whose failures are stale and whose fix is test-only may be closed by a targeted run: the rule and
+  `scripts/gate/targeted_plan.py` are in `docs/changes/GATE-TEST-HYGIENE.md` section 6.
 - Specs that import `/src/...` need the Vite dev server; the camera-card spec needs its fixture backend.
 - On the Linux test machine `~/release_gate.sh <branch> [--tier S|M|L]` runs the whole tier-L routine by itself (backend in shards, tsc, build, the dist-preview specs, the dev-server specs, the camera-card fixture spec, the `-linux.png` pixel baselines when they exist, `release_check.py`), re-runs each failure once alone (a pass is reported FLAKY, not a failure), reads the allowlist `~/known_issues.json` (KNOWN) and writes a pass/fail verdict to `~/smplwise-results/gate_<branch>_<sha>.md|json` and `gate_status.json`. Fixture-backed specs other than the camera card are not part of it yet (they self-skip and are listed in the report).
 - Evidence screenshots overwritten by a run are restored (`git checkout -- docs/...`) unless the change is intended.
