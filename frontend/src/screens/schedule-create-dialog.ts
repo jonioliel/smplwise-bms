@@ -364,7 +364,7 @@ export class ScheduleCreateDialog extends LitElement {
 
   private renderPresets() {
     if (!this.sensor) {
-      return this.status?.can.configure ? html`<div class="hint" data-preset-hint>בחרו חיישן שבת וחג בהגדרות › תזמונים כדי לקבל תנאים מוכנים.</div>` : nothing;
+      return this.status?.can.configure ? html`<div class="hint" data-preset-hint>בחרו חיישן שבת וחג בהגדרות ‹ תזמונים כדי לקבל תנאים מוכנים.</div>` : nothing;
     }
     return html`<div class="sec"><span class="lbl">תנאי</span><div class="chips" role="group" aria-label="תנאי שבת וחג">
       ${PRESET_CHOICES.map((p) => html`<button type="button" class="chip" data-create-preset=${p.id ?? 'none'} aria-pressed=${this.preset === p.id} @click=${() => (this.preset = p.id)}>${p.label}</button>`)}

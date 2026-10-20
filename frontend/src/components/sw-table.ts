@@ -128,7 +128,15 @@ export class SwTable extends LitElement {
     tr.clickable {
       cursor: pointer;
     }
+    /* UXFIX-RTL: a span.ltr inside any cell (a raw JSON payload, a code, an id) is its own left-to-right isolate; the braces no longer
+       mirror and a "{" never lands at the line end of an RTL row. */
+    td .ltr {
+      direction: ltr;
+      unicode-bidi: isolate;
+      text-align: start;
+    }
     td.ltr {
+      unicode-bidi: isolate;
       direction: ltr;
       text-align: left;
       font-family: var(--sw-font-mono);

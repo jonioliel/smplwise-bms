@@ -160,7 +160,7 @@ export function renderNorthCard(v: NorthView, a: NorthActions): TemplateResult {
       <div class="northctl">
         <sw-field label="כיוון הצפון (°)" hint="כמה מעלות הצפון סוטה מלמעלה בתוכנית, עם כיוון השעון"><input type="number" min="0" max="359.9" step="0.5" inputmode="decimal" data-ltr data-north-deg .value=${v.northDeg === null ? '' : String(deg)} ?disabled=${v.disabled}
           @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); if (!raw) return a.set(null); const x = parseFloat(raw); if (Number.isFinite(x)) a.set(x); }} /></sw-field>
-        <div class="note" data-north-sun-note>${up ? `השמש עכשיו ב${windName(sun.azimuth)}, ${Math.round(sun.elevation)}° מעל האופק` : 'השמש מתחת לאופק עכשיו'}${v.site.known ? '' : ' · מיקום האתר לא הוגדר: מרכז הארץ (הגדרות › מפה)'}</div>
+        <div class="note" data-north-sun-note>${up ? `השמש עכשיו ב${windName(sun.azimuth)}, ${Math.round(sun.elevation)}° מעל האופק` : 'השמש מתחת לאופק עכשיו'}${v.site.known ? '' : ' · מיקום האתר לא הוגדר: מרכז הארץ (הגדרות ‹ מפה)'}</div>
         <div class="btns"><button type="button" class="tbtn ghost" data-north-reset ?disabled=${v.disabled || v.northDeg === null} @click=${() => a.set(null)}>למעלה = צפון</button></div>
       </div>
     </div>

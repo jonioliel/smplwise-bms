@@ -560,7 +560,7 @@ export class DevicesArea extends LitElement {
   private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
     id: () => this.areaId,
-    screenName: () => `מסך האזור › ${this.detail?.area.name ?? ''}`,
+    screenName: () => `מסך האזור ‹ ${this.detail?.area.name ?? ''}`,
     measure: () => this.measureCards(),
     defaultH: () => 30,
     label: (key: string): string => (key.startsWith('card:c-') ? this.lay.customTitle(key) : key.startsWith('camera:') ? this.lay.item(key)?.title || 'מצלמה' : this.detail ? (this.detail.cards[key.slice(5) as CardId]?.label ?? key) : key),

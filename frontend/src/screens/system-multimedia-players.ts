@@ -514,7 +514,7 @@ export class SystemMultimediaPlayers extends LitElement {
   private form(d: AdminDevice): TemplateResult {
     const amps = this.devices.filter((x) => x.key !== d.key && x.kind === 'receiver');
     const night = d.volume_night ?? null;
-    const place = [d.floor_name, d.area_name].filter(Boolean).join(' › ');
+    const place = [d.floor_name, d.area_name].filter(Boolean).join(' ‹ ');
     const unplaced = (d.area_id ?? null) === null && !d.area_name;
     const nightPatch = (patch: Partial<NonNullable<AdminDevice['volume_night']>>) => {
       const cur = night ?? DEFAULT_NIGHT;
@@ -674,7 +674,7 @@ export class SystemMultimediaPlayers extends LitElement {
   private permissionsCard(): TemplateResult {
     return html`<sw-card heading="הרשאות" data-mm-permissions>
       <div class="row"><span class="lbl">קיבוץ רמקולים וקבוצות שמורות<span class="muted"><span class="mono">media.group</span> · מפעיל, מנהל אתר, מנהל מערכת · קבוצה של 4 חדרים ומעלה או יותר מקומה אחת מבקשת אישור; כל הבניין רק למנהל</span></span>
-        <a class="link" href="#/system/access">תפקידים והרשאות ›</a></div>
+        <a class="link" href="#/system/access">תפקידים והרשאות ‹</a></div>
       <div class="row"><span class="lbl">שליטה בניגון ובעוצמה<span class="muted"><span class="mono">media.control</span> · כולל דילוג, ערבוב, חזרה, מועדפים והעברת מוזיקה</span></span></div>
       <div class="row"><span class="lbl">עיון וחיפוש בספריית המוזיקה<span class="muted"><span class="mono">media.browse</span> · מפעיל, מנהל אתר, מנהל מערכת · הפעלת פריט דורשת גם שליטה בניגון</span></span></div>
       <div class="row"><span class="lbl">עריכת תור הניגון<span class="muted"><span class="mono">media.queue</span> · מנהל מערכת בלבד כברירת מחדל · גרירה, מחיקה, נגן הבא, ניקוי התור</span></span></div>

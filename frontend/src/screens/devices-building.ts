@@ -1073,7 +1073,7 @@ export class DevicesBuilding extends LitElement {
   private lay = new DevicesLayoutController(this, {
     scope: 'building',
     id: () => 'main',
-    screenName: () => (this.layout === 'cards' ? 'מסך המבנה › כרטיסי קומה' : 'מסך המבנה › אריחי אזורים'),
+    screenName: () => (this.layout === 'cards' ? 'מסך המבנה ‹ כרטיסי קומה' : 'מסך המבנה ‹ אריחי אזורים'),
     measure: () => this.measureGrids(),
     defaultH: (key) => (key.startsWith('floor:') ? 30 : 14),
     label: (key) => this.layLabel(key),

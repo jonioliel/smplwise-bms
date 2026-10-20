@@ -1237,7 +1237,7 @@ export class TicketDetailView extends LitElement {
     return html`<div class="page" data-ticket-page=${t.id}>
       <div class="phead lead-head">
         <a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a>
-        <div class="tt"><h1 data-ticket-title>${t.title}</h1><div class="hsub">${this.subLine(t)}</div></div>
+        <div class="tt"><h1 dir="auto" data-ticket-title title=${t.title}>${bidi(t.title)}</h1><div class="hsub">${this.subLine(t)}</div></div>
         <div class="acts">
           ${this.detailMode === 'drawer_fullscreen' ? html`<a class="btn sm quiet" href=${listHref(this.scope, undefined, { t: t.id })} data-to-drawer>${tIcon('shrink')}${dwt('a_toDrawer')}</a>` : nothing}
           ${this.moreButton()}

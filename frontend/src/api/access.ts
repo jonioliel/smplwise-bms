@@ -3,6 +3,7 @@
  * trail (chapters 8/40). Identity is Home Assistant's; assignments live only inside SMPLWISE.
  */
 import { del, get, patch, post, put } from './client';
+import { ltrIsolate } from '../i18n/bidi';
 
 export interface AccessBinding {
   id: string;
@@ -238,7 +239,7 @@ export function fmtWhen(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  return ltrIsolate(d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }));
 }
 
 export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles', body);

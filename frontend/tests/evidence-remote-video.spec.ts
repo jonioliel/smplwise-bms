@@ -25,7 +25,7 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Page }
 // What it does not prove: real go2rtc WebRTC / MSE media (the lab check).
 
 const CONTROL = process.env.SW_SETUP_CONTROL || 'http://127.0.0.1:8359';
-const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו';
+const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ‹ וידאו';
 
 type RtcMode = 'ok' | 'fail' | 'nodecode' | 'slow' | 'flap' | 'down' | 'slowoffer' | 'noplay';
 interface SocketEntry {

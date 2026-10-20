@@ -157,7 +157,7 @@ export const S4_HE = {
   asgSearch: 'חיפוש לפי שם',
   asgNoContacts: 'אין אנשי קשר שמורשים למחלקה הזו',
   asgExternalLocked: 'שליחה לגורם חיצוני דורשת את ההרשאה "שליחה לגורם חיצוני"',
-  asgPublicNotReady: 'דף המטפלים אינו מוגדר בהתקנה זו (הגדרות › כללי)',
+  asgPublicNotReady: 'דף המטפלים אינו מוגדר בהתקנה זו (הגדרות ‹ כללי)',
   asgRequireCode: 'לדרוש קוד אימות (6 ספרות)',
   asgRequireCodeLocked: 'ברירת המחדל של איש הקשר: נדרש',
   asgRequireCodeNote: 'הקוד יישלח לטלפון של איש הקשר',

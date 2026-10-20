@@ -1418,7 +1418,7 @@ export class InvestigatePlayback extends LitElement {
           })}
           <span class="sep"></span>
           <button class="q" data-frame-step="-1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד אחורה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(-1)}>‹ פריים</button>
-          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד קדימה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(1)}>פריים ›</button>
+          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד קדימה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(1)}>פריים ‹</button>
           <span class="sep"></span>
           <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>

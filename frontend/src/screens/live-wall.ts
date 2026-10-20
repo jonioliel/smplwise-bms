@@ -705,7 +705,7 @@ export class LiveWall extends LitElement {
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!cams.length && hiddenCount) return html`<sw-state-panel state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
-    if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי ה־NVR בהגדרות › חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי ה־NVR בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
     // a selection from the map is an explicit choice: it still shows a camera hidden in the wall
     const pool = wanted.length ? enabled.filter((c) => wanted.includes(c.id)) : cams;
@@ -790,7 +790,7 @@ export class LiveWall extends LitElement {
         })}
       </div>
       ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a>${this.fromMap ? html` · <a href="#" data-back-to-map @click=${(e: Event) => { e.preventDefault(); history.back(); }}>חזרה למפה</a>` : nothing}</div>` : nothing}
-      <div class="note">${wallFooterCount(shown.length, cams.length)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
+      <div class="note">${wallFooterCount(shown.length, cams.length)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות ‹ ${this.capNote.where}</span>` : nothing}</div>
     `;
   }
 
@@ -854,7 +854,7 @@ export class LiveWall extends LitElement {
         ${api || this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
         ${this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
         ${api && !this.phone.matches ? this.recorderSelect(false) : nothing}
-        ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}
+        ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות ‹ ${this.capNote.where}</span>` : nothing}
         ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה" data-wall-count>
           ${countLadder(total).map((n) => html`<button class=${String(n) === choice && !this.cameras ? 'on' : ''} data-count=${n} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${String(n) === choice && !this.cameras}>${n}</button>`)}
           <button class=${choice === COUNT_ALL_ID && !this.cameras ? 'on' : ''} data-count=${COUNT_ALL_ID} @click=${() => { this.setCount(COUNT_ALL); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${choice === COUNT_ALL_ID && !this.cameras}>הכול</button>

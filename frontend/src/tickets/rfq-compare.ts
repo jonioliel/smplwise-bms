@@ -543,7 +543,7 @@ export class TicketsRfqCompare extends LitElement {
     return html`<div class="page" data-rfq-compare data-phase="ready">
       <header class="dh">
         <div class="dh-row"><div class="titles">
-          <div class="crumbs"><a href="#/tickets">${tt('area')}</a> › <a href=${rfqHref({})}>${rt('navTitle')}</a> › <a href=${rfqHref({ id: d.id })} data-cmp-back>${d.ref}</a></div>
+          <div class="crumbs"><a href="#/tickets">${tt('area')}</a> ‹ <a href=${rfqHref({})}>${rt('navTitle')}</a> ‹ <a href=${rfqHref({ id: d.id })} data-cmp-back>${d.ref}</a></div>
           <h1>${rt('cmpTitle')}</h1>
           <div class="subline"><span>${bidi(d.title)}</span><span>${rt('cmpSub', { ref: d.ref, n: c.quotes.length, m: invited })}</span></div>
         </div><span class="grow"></span></div>

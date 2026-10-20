@@ -337,7 +337,7 @@ export class SystemNav extends LitElement {
   private where(group: SettingsGroup, entry: SettingsEntry): string {
     if (!entry.sub) return group.label;
     const parent = this.parentOf(group, entry);
-    return parent ? `${group.label} › ${parent.label}` : group.label;
+    return parent ? `${group.label} ‹ ${parent.label}` : group.label;
   }
 }
 

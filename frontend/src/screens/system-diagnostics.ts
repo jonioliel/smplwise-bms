@@ -777,7 +777,7 @@ export class SystemDiagnostics extends LitElement {
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
-      <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות › חיבורים.</div>
+      <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות ‹ חיבורים.</div>
     </sw-card>`;
   }
 
@@ -894,7 +894,7 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-wall-display ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ wall_display: (e.target as HTMLSelectElement).value as 'live' | 'stills' })}>
             <option value="live" ?selected=${this.viewValue('wall_display', 'live') !== 'stills'}>תלת־ממד חי</option><option value="stills" ?selected=${this.viewValue('wall_display', 'live') === 'stills'}>תמונות מוכנות</option>
           </select></sw-field></div>
-        <div class="row" data-set-kiosk-idle-row><span class="lbl">מסך קיר — מעבר לתמונה מוכנה<span class="muted">אחרי הזמן הזה בלי נגיעה ובלי שינוי בתוכנית, מסך קיר עובר לתמונה המוכנה ומפסיק לצייר פריימים; נגיעה או שינוי מחזירים את התלת־ממד. כל מסך קיר יכול לקבוע זאת בעצמו (הגדרות › מסכי קיר)</span></span>
+        <div class="row" data-set-kiosk-idle-row><span class="lbl">מסך קיר — מעבר לתמונה מוכנה<span class="muted">אחרי הזמן הזה בלי נגיעה ובלי שינוי בתוכנית, מסך קיר עובר לתמונה המוכנה ומפסיק לצייר פריימים; נגיעה או שינוי מחזירים את התלת־ממד. כל מסך קיר יכול לקבוע זאת בעצמו (הגדרות ‹ מסכי קיר)</span></span>
           <sw-field class="ctl"><select data-set-kiosk-idle ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ kiosk_idle_s: Number((e.target as HTMLSelectElement).value) as 0 | 10 | 30 | 120 | 600 })}>
             ${([[0, 'לעולם לא'], [10, '10 שניות'], [30, '30 שניות'], [120, '2 דקות'], [600, '10 דקות']] as const).map(([v, l]) => html`<option value=${v} ?selected=${this.viewValue('kiosk_idle_s', 30) === v}>${l}</option>`)}
           </select></sw-field></div>
@@ -979,7 +979,7 @@ export class SystemDiagnostics extends LitElement {
    * read the chosen floor gets their own first floor (the setting never grants access); deleting the floor clears it. */
   private renderDefaultFloor(api: boolean) {
     const current = String(this.value('map.default_floor') ?? '');
-    const groups = this.floorTree.flatMap((s) => (s.buildings ?? []).map((b) => ({ label: `${s.name} › ${b.name}`, floors: b.floors ?? [] }))).filter((g) => g.floors.length);
+    const groups = this.floorTree.flatMap((s) => (s.buildings ?? []).map((b) => ({ label: `${s.name} ‹ ${b.name}`, floors: b.floors ?? [] }))).filter((g) => g.floors.length);
     return html`<div class="row"><span class="lbl">קומת ברירת מחדל במפה<span class="muted">הקומה שנפתחת ראשונה כשנכנסים ללשונית "מפת קומה"; אוטומטי: הקומה הראשונה שהמשתמש רשאי לראות. משתמש שאינו רשאי לראות את הקומה שנבחרה מקבל את הקומה הראשונה שלו</span></span>
       <sw-field class="ctl"><select data-set-default-floor ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('map.default_floor', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${current === ''}>אוטומטי</option>
@@ -1028,7 +1028,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<sw-card data-skins heading="סקינים מרונדרים (AI)" subheading="תמונה פוטוריאליסטית של קומה מספק רינדור חיצוני — נשלחת רק אחרי אישור, פעם אחת לקומה, ונשמרת לשימוש חוזר">
       <div class="row"><span class="lbl">ספק ומודל<span class="muted">OpenAI (עריכת תמונה לפי תמונת בקרה). המודל ניתן לשינוי כשיוצא מודל חדש</span></span>
         <sw-field class="ctl"><input type="text" data-ltr data-set-skins-model ?disabled=${!api || !this.canEdit} .value=${String(this.value('skins.model') ?? 'gpt-image-1.5')} @change=${(e: Event) => this.set('skins.model', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
-      <div class="row" data-skins-key><span class="lbl">מפתח API<span class="muted">מוזן בהגדרות › חיבורים › סודות ונשמר מוצפן; לא ביומנים, והמסך יודע רק אם הוגדר</span></span>
+      <div class="row" data-skins-key><span class="lbl">מפתח API<span class="muted">מוזן בהגדרות ‹ חיבורים ‹ סודות ונשמר מוצפן; לא ביומנים, והמסך יודע רק אם הוגדר</span></span>
         <sw-badge kind=${st?.key_configured ? 'live' : 'unknown'} label=${!st ? '—' : st.key_configured ? 'מוגדר' : 'לא מוגדר'}></sw-badge></div>
       <div class="row" data-skins-leaves style="flex-direction:column;align-items:stretch"><span class="lbl">מה יוצא מהמתקן לספק כשנשלח רינדור</span>
         <ul class="steps">${(st?.leaves ?? []).map((x) => html`<li>${x}</li>`)}</ul>

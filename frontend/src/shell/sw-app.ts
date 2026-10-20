@@ -2321,7 +2321,7 @@ export class SwApp extends LitElement {
         // available" panel a missing access.read permission shows (wiskey-*.ts `data-wiskey-state="no_permission"`),
         // not the embed or either SMPLWISE screen; the per-screen choice does not apply while the area is hidden.
         if (this.session.mode === 'api' && WISKEY_HIDDEN) {
-          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
+          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
         }
         // SHAREDID-293: "גישת חוץ" - an Arx-only screen under the access-control area (owner decision 6: or under service management)
         if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`;

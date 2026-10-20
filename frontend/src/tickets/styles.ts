@@ -60,9 +60,15 @@ export const ticketCardStyles = css`
     font-weight: 700;
     letter-spacing: -0.015em;
     line-height: 1.25;
+    /* UXFIX-RTL: two lines, then an ellipsis; the title text carries dir="auto" so a Latin / Cyrillic title keeps its beginning
+       (a one-line ellipsis in an RTL box cut the start of it) and the full text is the link's title attribute. */
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+    text-align: start;
   }
   a.name {
     color: inherit;

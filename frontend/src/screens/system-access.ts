@@ -819,7 +819,7 @@ export class SystemAccess extends LitElement {
                     ${dir.delegated ? nothing : html`<dt>גישה מרחוק</dt><dd data-remote-access>${can('system.configure')
                       ? html`<sw-toggle label="SmplWise Arx" .checked=${live(!!u.remote_access && this.remoteOff?.userId !== u.id)} ?disabled=${this.busy || u.remote_access_basis === 'admin_default'} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => this.requestRemote(u, e.detail.checked)}></sw-toggle>`
                       : u.remote_access_basis === 'admin_default' ? 'ברירת מחדל (מנהל)' : u.remote_access ? 'מופעלת' : 'כבויה'}
-                      ${u.remote_access_basis === 'admin_default' ? html`<div class="sub" data-remote-admin-default>ברירת מחדל (מנהל) · משתנה בהגדרות › גישה מרחוק</div>` : nothing}
+                      ${u.remote_access_basis === 'admin_default' ? html`<div class="sub" data-remote-admin-default>ברירת מחדל (מנהל) · משתנה בהגדרות ‹ גישה מרחוק</div>` : nothing}
                       <div class="sub" data-remote-stats>${this.remoteStats(u)}</div>
                       ${this.remoteOff?.userId === u.id
                         ? html`<div class="remote-off" role="alert" data-remote-off-impact>

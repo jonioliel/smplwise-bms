@@ -488,8 +488,8 @@ export class SystemTickets extends LitElement {
       for (const s of tree.sites) {
         out.push({ type: 'site', id: s.id, label: s.name });
         for (const b of s.buildings ?? []) {
-          out.push({ type: 'building', id: b.id, label: `${s.name} › ${b.name}` });
-          for (const f of b.floors ?? []) out.push({ type: 'floor', id: f.id, label: `${s.name} › ${b.name} › ${f.name}` });
+          out.push({ type: 'building', id: b.id, label: `${s.name} ‹ ${b.name}` });
+          for (const f of b.floors ?? []) out.push({ type: 'floor', id: f.id, label: `${s.name} ‹ ${b.name} ‹ ${f.name}` });
         }
       }
     } catch {

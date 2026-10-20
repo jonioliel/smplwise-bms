@@ -346,7 +346,7 @@ export class ScheduleConditions extends LitElement {
             <button type="button" class="preset" data-preset="motzash" ?disabled=${this.readOnly} @click=${() => this.dispatchEvent(new CustomEvent('preset-motzash', { bubbles: true, composed: true }))}>מוצאי שבת</button>
           </div>`
         : this.canConfigure
-          ? html`<div class="hint" data-preset-hint>בחרו חיישן שבת וחג בהגדרות › תזמונים כדי לקבל תנאים מוכנים.</div>`
+          ? html`<div class="hint" data-preset-hint>בחרו חיישן שבת וחג בהגדרות ‹ תזמונים כדי לקבל תנאים מוכנים.</div>`
           : nothing}
       <div class="list">${c.items.map((it, i) => this.renderCondition(it, i))}</div>
       ${c.items.length > 1

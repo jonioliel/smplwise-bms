@@ -35,7 +35,7 @@ export class ExploreSites extends LitElement {
   static styles = css`
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
       gap: 14px;
     }
     .pic {
@@ -58,17 +58,41 @@ export class ExploreSites extends LitElement {
       border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
+    /* UXFIX-RTL: the text column may shrink (min-inline-size 0), so a long name or address wraps by words instead of one word per line,
+       the name and the address are clamped to two lines (the full text is the title attribute) and the action buttons sit at the top end
+       of every card, at the same height. */
     .info {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
       gap: 8px;
       padding: 10px 12px 12px;
+    }
+    .info .txt {
+      min-inline-size: 0;
+    }
+    .info .acts {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .info .clamp2 {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      text-align: start;
     }
     .info b {
       display: block;
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-semibold);
+      min-block-size: 2.6em;
+    }
+    .info small.clamp2 {
+      min-block-size: 2.6em;
     }
     .info small {
       color: var(--sw-text-3);
@@ -125,8 +149,17 @@ export class ExploreSites extends LitElement {
       border-radius: var(--sw-r-xs);
       flex-shrink: 0;
     }
+    .brow > div {
+      min-inline-size: 0;
+      flex: 1;
+    }
     .brow b {
-      display: block;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
       font-weight: var(--sw-fw-semibold);
     }
     .brow small {
@@ -297,9 +330,11 @@ export class ExploreSites extends LitElement {
         return html`<sw-card flush interactive data-site-card=${s.id} @click=${() => this.openSite(s)}>
           <div class="pic">${s.image_url ? html`<img class="photo" src=${imageSrc(s.image_url)} alt="" />` : html`<sw-scene kind=${SITE_SCENE[i % 3]}></sw-scene>${tree.source === 'demo' ? html`<span class="demo">דמו</span>` : html`<span class="demo">איור</span>`}`}</div>
           <div class="info">
-            <div><b>${s.name}</b><small>${buildings.length} ${buildings.length === 1 ? 'מבנה' : 'מבנים'} · ${cams} מצלמות${s.address ? ` · ${s.address}` : ''}</small></div>
-            ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('site', s) : nothing}
-            ${this.phone.restricted('structure') ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>`}
+            <div class="txt"><b class="clamp2" dir="auto" title=${s.name} data-site-name>${s.name}</b><small>${buildings.length} ${buildings.length === 1 ? 'מבנה' : 'מבנים'} · ${cams} מצלמות</small>${s.address ? html`<small class="clamp2" dir="auto" title=${s.address} data-site-address>${s.address}</small>` : html`<small class="clamp2"></small>`}</div>
+            <div class="acts">
+              ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('site', s) : nothing}
+              ${this.phone.restricted('structure') ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="plus" label="מבנה חדש" @click=${(e: Event) => { e.stopPropagation(); this.open({ kind: 'building', site: s }); }}></sw-button>`}
+            </div>
           </div>
         </sw-card>`;
       })}
@@ -315,7 +350,7 @@ export class ExploreSites extends LitElement {
       ${rows.map(
         ({ s, b }, i) => html`<sw-card class="brow" data-building-card=${b.id} @click=${() => navigate(`/explore/buildings/${b.id}/floors`)}>
           ${b.image_url ? html`<img class="photo small" src=${imageSrc(b.image_url)} alt="" />` : html`<sw-scene kind=${i % 2 ? 'house' : 'building'}></sw-scene>`}
-          <div><b>${b.name}</b><small>${s.name} · ${(b.floors ?? []).length} קומות · ${(b.floors ?? []).reduce((n, f) => n + f.camera_count, 0)} מצלמות</small></div>
+          <div><b dir="auto" title=${b.name}>${b.name}</b><small>${s.name} · ${(b.floors ?? []).length} קומות · ${(b.floors ?? []).reduce((n, f) => n + f.camera_count, 0)} מצלמות</small></div>
           ${tree.source === 'api' && !this.phone.restricted('structure') ? this.renderMenu('building', s, b) : nothing}
           <sw-icon name="chevron" size=${14}></sw-icon>
         </sw-card>`,

@@ -205,7 +205,7 @@ const he = {
   fld_location: 'מיקום',
 
   // Settings › the module
-  setTitle: 'הגדרות › {module}',
+  setTitle: 'הגדרות ‹ {module}',
   setSub: 'כל האפשרויות של המודול {module}',
   setTabGeneral: 'כללי',
   setTabDepartments: 'מחלקות',

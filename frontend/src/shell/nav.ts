@@ -960,7 +960,7 @@ export function pageTargets(q: string, api: boolean, can?: Can): PageTarget[] {
   if (!needle) return [];
   const sections = visibleSections(api, can);
   const all: PageTarget[] = sections.map((s) => ({
-    label: `אבטחה › ${s.label}`,
+    label: `אבטחה ‹ ${s.label}`,
     subtitle: s.id === 'alarm' ? 'מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה' : s.id === 'live' ? 'תמונת מצב ומצלמות' : 'אירועים, הקלטות ותיקים',
     href: s.href,
     keywords: s.id === 'alarm' ? ['אזעקה', 'דריכה', 'נטרול', 'עקיפה', 'חיישנים', 'alarm'] : s.id === 'live' ? ['לייב', 'מצלמות', 'live'] : ['חקירה', 'אירועים', 'הקלטות'],

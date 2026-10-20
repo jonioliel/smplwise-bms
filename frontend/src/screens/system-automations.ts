@@ -391,7 +391,7 @@ export class SystemAutomations extends LitElement {
     const delegated = this.review.filter((r) => r.issue === 'delegated_write').length;
     return html`<sw-card heading="האצלה לבני בית שאינם מנהלי Home Assistant" data-card="delegation">
       ${this.row('מתג ההאצלה ברכיב החיבור', `${d.label}${changed ? ` · שונה ${changed}` : ''} · מאפשר שמירה של תוכן העורך הפשוט בלבד`, html`<span class=${`tag ${d.state === 'on' ? 'ok' : ''}`} data-delegation-state=${d.state}>${d.label}</span>`)}
-      ${this.row('איפה משנים', 'Home Assistant › הגדרות › התקנים ושירותים › Arx Bridge › אפשרויות. לא ניתן לשינוי מכאן.', html`<span class="tag" data-delegation-readonly><sw-icon name="lock" size=${12}></sw-icon>לקריאה בלבד</span>`)}
+      ${this.row('איפה משנים', 'Home Assistant ‹ הגדרות ‹ התקנים ושירותים ‹ Arx Bridge ‹ אפשרויות. לא ניתן לשינוי מכאן.', html`<span class="tag" data-delegation-readonly><sw-icon name="lock" size=${12}></sw-icon>לקריאה בלבד</span>`)}
       ${this.row('כתיבות מואצלות', `${delegated} ברשימת הסקירה`, delegated ? html`<a class="link" href="#review" data-link-review @click=${(e: Event) => { e.preventDefault(); this.renderRoot.querySelector('[data-card="review"]')?.scrollIntoView({ block: 'center' }); }}>לסקירה</a>` : nothing)}
     </sw-card>`;
   }
