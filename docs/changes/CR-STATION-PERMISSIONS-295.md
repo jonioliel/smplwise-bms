@@ -4,7 +4,7 @@
 **Status:** BUILT behind a switch that is OFF and cannot be turned on in this build (branch `pilot/STATIONPERM-295` from
 `origin/main` @ 61ddf6a91). Owner decision 2026-10-20 night, round 4 item 7 ("Station permissions: build"); backlog id
 `wiskey-station-permissions` (origin: archived WisKey task W5, "a permission type per access-control station in Arx").
-**Migration:** `0142_access_station_permissions.sql` - **PROVISIONAL number** (the lead renumbers at integration; last on main = 0127,
+**Migration:** `0134_access_station_permissions.sql` (built as PROVISIONAL 0142; renumbered at the 2.10.0 integration, integ/2100; last on main = 0127,
 0140 is taken provisionally by GRANTS3-295).
 **Nothing here is an approval to switch anything on.** `GO_LIVE_PERMITTED` stays False, the eight WisKey switches stay OFF, no real
 WisKey, station, door or reader was contacted; every test uses fakes (`tests/fake_wiskey.FakeAccessEngine`).

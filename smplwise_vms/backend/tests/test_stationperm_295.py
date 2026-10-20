@@ -132,9 +132,9 @@ def test_the_permission_is_catalogued_station_scoped_sensitive_and_held_by_both_
     assert sp.PERMISSION in roles["sensitive_permissions_not_implied"] and sp.PERMISSION in rbac.STATION_PERMISSIONS
 
 
-def test_the_migration_is_provisional_and_ids_only(env):
-    sql = (Path(sp.__file__).parents[1] / "migrations" / "0142_access_station_permissions.sql").read_text(encoding="utf-8")
-    assert sql.splitlines()[0].startswith("-- PROVISIONAL number 0142")
+def test_the_migration_carries_its_final_number_and_ids_only(env):
+    sql = (Path(sp.__file__).parents[1] / "migrations" / "0134_access_station_permissions.sql").read_text(encoding="utf-8")
+    assert sql.splitlines()[0].startswith("-- Final number 0134")
     with env.db.connection(mode="read") as conn:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(access_station_permissions)").fetchall()}
     assert {"wiskey_person_id", "station_id", "effect", "relays_json", "sync_state", "request_effect", "revision"} <= cols

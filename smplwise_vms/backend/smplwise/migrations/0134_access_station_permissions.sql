@@ -1,4 +1,4 @@
--- PROVISIONAL number 0142 (STATIONPERM-295, built on pilot/STATIONPERM-295 from main @ 61ddf6a91); the lead renumbers at integration.
+-- Final number 0134 (STATIONPERM-295; built as PROVISIONAL 0142 on pilot/STATIONPERM-295 from main @ 61ddf6a91; renumbered at the 2.10.0 integration, integ/2100).
 -- The content does not depend on the number.
 --
 -- CR-STATION-PERMISSIONS-295 section 2: a person's personal decision per access-control station (WisKey), as a first-class Arx record.

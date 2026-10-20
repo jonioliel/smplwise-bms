@@ -1,7 +1,7 @@
 """STATIONPERM-295 (docs/changes/CR-STATION-PERMISSIONS-295.md): a person's access per access-control station (WisKey) as a
 first-class, auditable Arx decision.
 
-One row per (WisKey person, station) in `access_station_permissions` (migration 0142, PROVISIONAL number): the person's PERSONAL
+One row per (WisKey person, station) in `access_station_permissions` (migration 0134, built as PROVISIONAL 0142): the person's PERSONAL
 decision for that station - `allow` (with its relays), `deny` (blocked, beats any group) or `inherit` (no personal entry: the station
 follows the person's WisKey groups). Arx RBAC is the only authority; WisKey executes.
 
