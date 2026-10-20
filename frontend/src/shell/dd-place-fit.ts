@@ -32,6 +32,24 @@ export const DD_PLACE_DECLINED: Readonly<Record<string, readonly DdPlace[]>> = {
   infra: ['2', '3', '4'],
 };
 
+/**
+ * Placements a single SCREEN (hash path, without the query) declines on top of its area's (same rule, same reason duty).
+ * tests/layout-dd-place.spec.ts holds the same table.
+ */
+export const DD_PLACE_DECLINED_SCREENS: Readonly<Record<string, readonly DdPlace[]>> = {
+  // Service-management settings (2.9.1, integ/291): the page's own tab strip is centred on the first row; with the ninth tab ("automatic
+  // opening", TKRULES-291) it reaches the far end at 1440 px, so placement 2 collided with it (layout-dd-place, data-dd-fallback=
+  // "collision"). Declared up front, the chip draws on its own row from the first frame.
+  '/system/tickets': ['2', '3', '4'],
+};
+
+/** Whether the asked placement draws as 1 on this area / screen (the declared fallback). */
+export function ddPlaceDeclined(area: string, hash: string, asked: DdPlace): boolean {
+  if (asked === '1') return false;
+  const path = hash.replace(/^#/, '').split('?')[0];
+  return !!DD_PLACE_DECLINED[area]?.includes(asked) || !!DD_PLACE_DECLINED_SCREENS[path]?.includes(asked);
+}
+
 export interface DdBox {
   left: number;
   right: number;

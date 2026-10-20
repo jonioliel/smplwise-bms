@@ -3,7 +3,7 @@ import { installAccessMock } from './access-control-mocks';
 import { installBubbleMock } from './bubble-mocks';
 import { ADMIN as MEDIA_ADMIN, fresh as freshMedia, install as installMedia } from './media-players-harness';
 import { installTicketsMock } from './tickets-mocks';
-import { DD_PLACE_DECLINED } from '../src/shell/dd-place-fit';
+import { DD_PLACE_DECLINED, DD_PLACE_DECLINED_SCREENS } from '../src/shell/dd-place-fit';
 
 // 2.7.2: the header dropdown placement (`ui.dd_place` 1..4, shell/sw-app.ts) swept for real: every screen below x the four placements x
 // desktop 1440 / tablet 1024 / phone 390, each on a MOCKED backend that guarantees the dropdown chips are present (`ui.tabs_mode` =
@@ -48,7 +48,9 @@ const SCREENS: readonly Screen[] = [
 /** Deliberate fallbacks to placement 1 (shell/dd-place-fit.ts DD_PLACE_DECLINED, docs/release/2.7.2-DROPDOWN-NOTES.md): the settings pages have
  * their menu column at the start edge and the title under their own tab row, so 3 and 4 draw as 1 there (data-dd-fallback="declared").
  * Every other combination must be the real placement: a fallback by collision (data-dd-fallback="collision") on a swept screen is a bug. */
-const FALLBACK: Record<string, readonly Place[]> = { settings: ['3', '4'] };
+// 2.9.1 (integ/291): the service-management settings screen also declines 2 (its nine-tab strip reaches the far end at 1440 px;
+// DD_PLACE_DECLINED_SCREENS).
+const FALLBACK: Record<string, readonly Place[]> = { settings: ['2', '3', '4'] };
 /** 2.9.2: the infrastructure screens decline 2, 3 and 4 (no title on their first row, a per-page toolbar there): not swept here (no h1),
  * tests/evidence-infra-tabs.spec.ts covers them. */
 const DECLINED_UNSWEPT: Record<string, readonly Place[]> = { infra: ['2', '3', '4'] };
@@ -254,9 +256,10 @@ for (const s of SCREENS) {
   }
 }
 
-test('the declared fallbacks are the shell table (DD_PLACE_DECLINED): settings declines 3 and 4, infrastructure 2-4, nothing else is declined', () => {
+test('the declared fallbacks are the shell tables (DD_PLACE_DECLINED + _SCREENS): settings declines 3 and 4, the tickets settings screen 2-4, infrastructure 2-4, nothing else is declined', () => {
   expect(DD_PLACE_DECLINED).toEqual({ system: ['3', '4'], ...DECLINED_UNSWEPT });
-  expect(FALLBACK).toEqual({ settings: DD_PLACE_DECLINED.system });
+  expect(DD_PLACE_DECLINED_SCREENS).toEqual({ '/system/tickets': ['2', '3', '4'] });
+  expect(FALLBACK).toEqual({ settings: [...new Set([...DD_PLACE_DECLINED.system, ...DD_PLACE_DECLINED_SCREENS['/system/tickets']])].sort() });
 });
 
 test('a personal placement overrides the installation default (1): placement 4 on the WisKey center', async ({ page }) => {
