@@ -36,6 +36,8 @@ STATION_PERMISSIONS = frozenset({
     "access.pin.generate", "access.people.message", "access.call",
     # CR-ARX-WISKEY-SHARED-IDENTITY D5 (owner answer 2): approving an external person's temporary door grant, per station
     "access.external.grant",
+    # CR-AUTODOORS-295: arming an automation's "open a door" block, per station
+    "access.doors.automate",
 })
 
 # WXPERM (owner decision 2026-10-13): legacy permission names and the permission each one now stands for. A role that lists
