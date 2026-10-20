@@ -41,6 +41,7 @@ import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEn
 import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
+import { sameScene } from '../map/scene-equal';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import { modeFromWire, type QualityMode } from '../map/quality-mode';
 import type { FloorRequestDetail, HudCornerDetail, LevelSelectDetail, PartSelectDetail, RealisticChangeDetail, WalkChangeDetail } from '../map/sw-plan-3d';
@@ -1914,7 +1915,10 @@ export class ExploreFloorMap extends LitElement {
     }
     if (!base) return null;
     const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
-    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d, realistic: this.real3d, materialsCatalog: this.materials3d });
+    const built = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d, realistic: this.real3d, materialsCatalog: this.materials3d });
+    // PERF3D-295: a push the 3D does not draw (a meter's reading) builds an equal description: the shown object stays, so the
+    // 3D view neither realises its scene again nor re-lays its labels
+    const desc = memo && same && sameScene(memo.desc, built) ? memo.desc : built;
     // the strip draws every level from a description keyed on the structure only (without the level filter and without
     // the state layer): a live state push or a level switch keeps the memo's object, so the element's thumbnail cache
     // (keyed on it) is not redrawn - the state dots are drawn over the cached pictures (CR-006 1b)
