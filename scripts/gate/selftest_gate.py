@@ -255,6 +255,31 @@ check("the committed gate_baselines.json loads and has the eight tier-L categori
       set(rb["tiers"]["L"]) == {"tsc", "build", "preview", "pixel", "dev", "fixture", "backend", "release_check"}, rb["tiers"])
 g._COSTS = None
 
+# ---- GATESPEED-293 v2 schedule: v1 stays the default; the pool keeps every false-green guard (settled after the pool)
+check("schedule: v1 is the default (GATE_SCHEDULE unset)", os.environ.get("GATE_SCHEDULE") or g.SCHEDULE == "v1", g.SCHEDULE)
+reset()
+pl = TMP / "logs_pool"
+pl.mkdir()
+pjobs = [{"label": "pool_ok", "mode": "ok", "workers": 2, "est": 5.0}, {"label": "pool_crash", "mode": "load_crash", "workers": 2, "est": 4.0},
+         {"label": "pool_zero", "mode": "zero_rc0", "workers": 1, "est": 1.0}]
+pres = g.run_pool(pjobs, 3, lambda j: g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", pl, j["label"],
+                                                env={"FAKE_PW_MODE": j["mode"]}, timeout=60), min_free_mb=0)
+for j in g._order(pjobs):
+    rows, rc, to = pres[j["label"]][0]
+    g.settle("preview", rows, rc, to, TMP, pl, "http://127.0.0.1:1/", {"FAKE_PW_MODE": j["mode"]}, j["label"])
+ids = [i["id"] for i in g.ITEMS]
+check("v2 pool: a load crash and a zero-test job in the pool still FAIL; the healthy job's 5 passes count",
+      g.compute_verdict([]) == "fail" and g.COUNTS["preview"]["pass"] == 5 and any("load error" in i for i in ids) and any("zero tests" in i for i in ids), (g.COUNTS, ids))
+shm = TMP / "shm"
+(shm / "smplwise-gate-stale-1").mkdir(parents=True)
+os.environ["GATE_TMPFS_DIR"], os.environ["GATE_TMPFS_MIN_GB"] = str(shm), "0"
+d = g.tmpfs_root("selftest")
+check("v2 tmpfs: a fresh scratch dir, the stale one swept", d is not None and d.is_dir() and not (shm / "smplwise-gate-stale-1").exists(), d)
+os.environ["GATE_TMPFS_MIN_GB"] = "1000000"
+check("v2 tmpfs: under the free-space floor it falls back to disk (None)", g.tmpfs_root("selftest") is None)
+for k in ("GATE_TMPFS_DIR", "GATE_TMPFS_MIN_GB"):
+    os.environ.pop(k, None)
+
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)

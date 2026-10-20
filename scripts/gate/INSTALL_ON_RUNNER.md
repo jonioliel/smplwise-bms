@@ -7,7 +7,7 @@ Files (keep them together in one directory, the runner convention is `~/`):
 | `release_gate.sh` | entry point: locks (gate + nightly), total timeout, hands over to the Python engine |
 | `release_gate.py` | the engine: worktree, backend shards, Playwright groups, retries, verdict, reports, false-green guards |
 | `gate_baselines.json` | per-category passed counts of the previous accepted release (used when the branch under test has none of its own in `scripts/gate/`) |
-| `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); optional, the engine runs without it |
+| `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); since GATESPEED-293 also `backend_seconds` (per backend test file, v2 shard split), `backend_shard_seconds_total` and `pixel_phase_seconds` (`--plan` estimates); optional, the engine runs without it |
 | `selftest_gate.py` | self-test with a fake suite; proves the gate fails on a crash and on zero tests |
 | `runner_cleanup.sh` | disk housekeeping by the retention rules below (dry run by default) |
 
@@ -28,6 +28,21 @@ scp scripts/gate/selftest_gate.py runner:~/ && ssh runner 'python3 ~/selftest_ga
 ```
 
 Expected last line: `SELFTEST PASSED`.
+
+## v2 schedule (GATESPEED-293, opt-in)
+
+The same three files carry an opt-in faster schedule (see `docs/release/GATE_SPEED.md`): `~/release_gate.sh <branch> --schedule v2`
+(or `GATE_SCHEDULE=v2`). Without the flag the engine is the 2.9.2 gate. Runner notes:
+- v2 puts the backend shards' scratch (basetemp + `TMPDIR`) on `/dev/shm` when at least `GATE_TMPFS_MIN_GB` (4) GB are free, and
+  removes it at the end. A gate killed by `timeout -k` leaves `/dev/shm/smplwise-gate-*`, and the next v2 gate sweeps it at start.
+  To check by hand: `ls -d /dev/shm/smplwise-gate-* 2>/dev/null` (empty when no gate runs).
+- v2 writes `backend_sN.xml` (junit) next to each shard log. The next v2 gate reads the last 10 gates' XML to balance the shards.
+  Keep them like the `pw_*.json` (small, the retention table below keeps the `.logs/` files).
+- Estimates without running anything: `python3 ~/release_gate.py --plan --root ~/work/gate-<branch>` (any checkout).
+- After a green v2 gate, refresh the seed:
+  `python3 ~/release_gate.py --seed-from ~/smplwise-results/gate_<branch>_<sha>.logs "gate <branch> @ <sha> (...)" > gate_durations.json`.
+  Copy that file into `scripts/gate/` and commit it.
+- The selftest has v2 cases (pool + tmpfs scratch in its own temp directory). They need no browser and no lock.
 
 ## Nightly run (cron 02:00 Asia/Jerusalem)
 
