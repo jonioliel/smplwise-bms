@@ -721,3 +721,14 @@ def test_the_defrost_chip_time_on_the_fall_back_night(app):
            defrost_windows=[{"start": "03:00", "minutes": 30}])
     clk["ts"] = _utc(2026, 10, 24, 21, 30)  # 00:30 local on 25.10
     assert c.get(API).json()["units"][0]["defrost"]["next_at"] == "2026-10-25T01:00:00Z"
+
+
+def test_friendly_never_returns_an_entity_id():
+    """TEMPFIX 2026-10-20: the operator-facing sensor name is the friendly name, then the original name, then the unit's name - never a raw id."""
+    row = lambda name, orig: {"name": name, "original_name": orig}  # noqa: E731 - a dict has the same item access as a sqlite3.Row
+    assert t.friendly(row("מקרר מטבח", None), "יחידה") == "מקרר מטבח"
+    assert t.friendly(row(None, "Fridge temperature"), "יחידה") == "Fridge temperature"
+    assert t.friendly(row("sensor.shellyplusuni_a0dd6c4b8e54_temperature", None), "חדר קירור") == "חדר קירור"
+    assert t.friendly(row("", "binary_sensor.x_input_0"), "חדר קירור") == "חדר קירור"
+    assert t.friendly(None, "חדר קירור") == "חדר קירור"
+    assert t.friendly(None) == ""

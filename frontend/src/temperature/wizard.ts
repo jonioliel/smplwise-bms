@@ -4,7 +4,7 @@ import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { createUnit, deleteUnit, listCandidates, listManaged, updateUnit, type Candidate, type ManageResponse, type UnitKind } from '../api/temperature';
 import { listGroups, listUsers, type AccessGroup, type DirectoryUser } from '../api/access';
-import { KIND_KEY, bodyOf, deg, draftOf, fmt1, newDraft, problemOf, ruleOf, setRule, type Draft } from './model';
+import { KIND_KEY, bodyOf, deg, draftOf, fmt1, friendlyName, newDraft, problemOf, ruleOf, setRule, type Draft } from './model';
 import { gauge } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
@@ -218,7 +218,7 @@ export class TempWizard extends LitElement {
   private pickTemp(c: Candidate) {
     const climate = c.group === 'climate';
     const p: Partial<Draft> = { temp_entity_id: c.entity_id };
-    if (!this.d.name.trim()) p.name = c.name;
+    if (!this.d.name.trim()) p.name = friendlyName(c.name, '');
     if (climate && !this.d.id) {
       p.band_mode = 'setpoint';
       p.kind = 'room';
@@ -238,7 +238,7 @@ export class TempWizard extends LitElement {
     const opt = (c: Candidate) => html`<button type="button" class="sopt" role="option" aria-selected=${String(cur === c.entity_id)} data-cand=${c.entity_id}
         @click=${() => (kind === 'temp' ? this.pickTemp(c) : this.patch({ door_entity_id: c.entity_id }))}>
       <sw-icon name=${kind === 'door' ? 'door' : c.group === 'climate' ? 'fan' : 'thermometer'} size="16"></sw-icon>
-      <span class="tx"><span class="nm">${c.name}${c.area_name ? html` <span class="def">· ${c.area_name}</span>` : nothing}</span><span class="mono ltr">${c.entity_id}</span></span>
+      <span class="tx"><span class="nm">${friendlyName(c.name, c.area_name ?? '')}${c.area_name ? html` <span class="def">· ${c.area_name}</span>` : nothing}</span></span>
       <span class="lv">${kind === 'door' ? (c.state === 'on' ? tt('doorOpenWord') : c.state === 'off' ? tt('doorClosedWord') : '') : c.value === null ? tt('disconnected') : `${fmt1(c.value)}°${c.setpoint !== null ? ` → ${fmt1(c.setpoint)}°` : ''}`}</span></button>`;
     if (kind === 'door') {
       return html`<div class="slist" role="listbox" aria-label=${tt('doorSensor')} data-door-list>
@@ -288,7 +288,7 @@ export class TempWizard extends LitElement {
         <button type="button" class="sopt" role="option" aria-selected=${String(!cur)} data-cand="" @click=${() => this.patch({ power_entity_id: null })}>
           <sw-icon name="close" size="16"></sw-icon><span class="tx"><span class="nm">${tt('noPowerSensor')}</span></span></button>
         ${list.map((c) => html`<button type="button" class="sopt" role="option" aria-selected=${String(cur === c.entity_id)} data-cand=${c.entity_id} @click=${() => this.patch({ power_entity_id: c.entity_id })}>
-          <sw-icon name="power" size="16"></sw-icon><span class="tx"><span class="nm">${c.name}${c.area_name ? html` <span class="def">· ${c.area_name}</span>` : nothing}</span><span class="mono ltr">${c.entity_id}</span></span>
+          <sw-icon name="power" size="16"></sw-icon><span class="tx"><span class="nm">${friendlyName(c.name, c.area_name ?? '')}${c.area_name ? html` <span class="def">· ${c.area_name}</span>` : nothing}</span></span>
           <span class="lv">${c.watts === null || c.watts === undefined ? tt('disconnected') : `${Math.round(c.watts)} W`}</span></button>`)}</div>
       <span class="hint">${tt('powerHint')}</span>
       ${cur ? html`<label class="sw">${tt('compressorOnW')}<input class="in n" type="number" step="1" min="0.5" max="5000" .value=${String(this.rule<number>('compressor_on_w'))}
@@ -413,9 +413,9 @@ export class TempWizard extends LitElement {
     const defrost = d.defrost_mode === 'learn' ? tt('modeLearn') : d.defrost_mode === 'none' ? tt('modeNone') : d.defrost_windows.map((w) => `${w.start} · ${w.minutes}′`).join(', ');
     return html`<div class="gprev">${gauge(preview, 'ok', null, 130)}<div class="summ" data-w-summary>
         <div><span>${tt('name')}</span><b>${d.name || '—'}</b></div>
-        <div><span>${tt('tempSensor')}</span><b>${temp?.name ?? d.temp_entity_id}</b></div>
-        <div><span>${tt('doorSensor')}</span><b>${door?.name ?? tt('none')}${door && d.door_invert ? ' ⇄' : ''}</b></div>
-        ${d.power_entity_id ? html`<div><span>${tt('powerSensor')}</span><b>${this.powers.find((c) => c.entity_id === d.power_entity_id)?.name ?? d.power_entity_id}</b></div>` : nothing}
+        <div><span>${tt('tempSensor')}</span><b>${friendlyName(temp?.name, d.name)}</b></div>
+        <div><span>${tt('doorSensor')}</span><b>${door ? friendlyName(door.name, d.name) : tt('none')}${door && d.door_invert ? ' ⇄' : ''}</b></div>
+        ${d.power_entity_id ? html`<div><span>${tt('powerSensor')}</span><b>${this.powers.find((c) => c.entity_id === d.power_entity_id)?.name ?? d.name}</b></div>` : nothing}
         <div><span>${tt('bandMode')}</span><b dir="ltr">${this.isClimate && d.band_mode === 'setpoint' ? `${tt('bandSetpoint')} ±${this.rule<number>('setpoint_tolerance')}°` : `${deg(d.low)} – ${deg(d.high)}`}</b></div>
         <div><span>${tt('rulesTitle')}</span><b>${[this.rule<boolean>('high_alarm') ? `↑ ${this.rule<number>('high_alarm_min')}′` : '', this.rule<boolean>('low_alarm') ? `↓ ${this.rule<number>('low_alarm_min')}′` : '', d.door_entity_id && this.rule<boolean>('door_alarm') ? `${tt('kDoor')} ${this.rule<number>('door_alarm_min')}′` : ''].filter(Boolean).join(' · ')}</b></div>
         <div><span>${tt('who')}</span><b>${d.ownRecipients ? tt('whoOwn') : tt('whoDefault')}</b></div>

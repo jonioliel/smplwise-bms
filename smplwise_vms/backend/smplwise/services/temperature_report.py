@@ -115,7 +115,7 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
         item: dict[str, Any] = {
             "id": u["id"], "name": u["name"], "area": areas.get(u["area_id"] or ""), "low": u["low"], "high": u["high"], "band_mode": u["band_mode"],
             "tolerance": rules.get("setpoint_tolerance"), "source": "climate" if str(u["temp_entity_id"]).startswith("climate.") else "sensor",
-            "sensor": t.friendly(ents.get(u["temp_entity_id"])), "door": t.friendly(ents.get(u["door_entity_id"] or "")) if dv else None,
+            "sensor": t.friendly(ents.get(u["temp_entity_id"]), u["name"]), "door": t.friendly(ents.get(u["door_entity_id"] or ""), u["name"]) if dv else None,
             "excl_defrost": bool(rules.get("exclude_defrost_stats", True)), "stats": {k: st[k] for k in ("min", "max", "avg", "out_min", "out_min_raw", "door_opens",
                                                                                                       "door_total_min", "door_longest_min", "alarms", "warnings")},
         }

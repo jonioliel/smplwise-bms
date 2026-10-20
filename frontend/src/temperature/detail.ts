@@ -3,7 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { ackUnit, clearLearned, decideWindow, endMaintenance, getHistory, listEvents, muteUnit, startMaintenance, unmuteUnit, type HistoryResponse, type RangeKey, type TempEvent, type TempUnit } from '../api/temperature';
-import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorRuns, durationText, eventText, fmt1, hhmm, hvacText, normalize, stateRuns, windowText, type Run } from './model';
+import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorRuns, durationText, eventText, fmt1, hhmm, friendlyName, hvacText, normalize, stateRuns, windowText, type Run } from './model';
 import { bigChart, bigFrame, gauge, ring, spark, type BigChartData } from './charts';
 import { tempCss } from './styles';
 import './ticket-dialog';
@@ -65,30 +65,37 @@ export class TempDetail extends LitElement {
     .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
     .drawer {
       position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: min(560px, 100vw); background: var(--sw-bg); box-shadow: var(--sw-shadow-3);
-      display: flex; flex-direction: column; min-block-size: 0;
+      display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; max-inline-size: 100vw; overflow: hidden;
     }
     .drawer.wide { inline-size: min(1240px, 100vw); }
     .dh { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--sw-border); background: var(--sw-surface); }
     .dh h2 { margin: 0; font-size: var(--sw-fs-xl); }
     .dh small { color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
-    .dh .t { flex: 1; min-inline-size: 0; }
+    .dh .t { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
+    .dh .badge { flex: none; }
     .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
-    .db { flex: 1; overflow: auto; padding: 14px 16px; display: grid; gap: 12px; align-content: start; }
+    .db { flex: 1; min-inline-size: 0; overflow-x: hidden; overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
     .wide .db { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
     .col { display: grid; gap: 12px; align-content: start; min-inline-size: 0; }
     .df { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); position: relative; }
     .df .sp { flex: 1; }
-    .headrow { display: flex; gap: 16px; align-items: center; }
+    .df { flex: none; min-inline-size: 0; }
+    .df .err { flex: 1 1 100%; overflow-wrap: anywhere; }
+    .headrow { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
+    .headrow > * { min-inline-size: 0; }
+    .headrow > .gauge { flex: none; }
     .summ { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
     .summ > div { display: flex; gap: 10px; justify-content: space-between; border-block-end: 1px solid var(--sw-border); padding-block: 5px; }
     .summ > div > span { color: var(--sw-text-2); flex: none; }
-    .summ b { font-weight: var(--sw-fw-medium); text-align: end; min-inline-size: 0; }
+    .summ b { font-weight: var(--sw-fw-medium); text-align: end; min-inline-size: 0; overflow-wrap: anywhere; }
+    .summ > div > span { overflow-wrap: anywhere; }
+    .sname { overflow-wrap: anywhere; word-break: break-word; }
     .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; }
     .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
     .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
     .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-block-end: 8px; }
     .ph h4 { flex: 1; }
-    .bigchart { position: relative; block-size: 250px; touch-action: pan-y; }
+    .bigchart { position: relative; block-size: 250px; touch-action: pan-y; min-inline-size: 0; max-inline-size: 100%; overflow: hidden; }
     .bigchart svg { inline-size: 100%; block-size: 100%; display: block; }
     .tip {
       position: absolute; pointer-events: none; transform: translate(-50%, -115%); background: var(--sw-surface-solid); border: 1px solid var(--sw-border);
@@ -96,7 +103,7 @@ export class TempDetail extends LitElement {
     }
     .tip b { font-size: var(--sw-fs-md); }
     .stat4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-block-start: 10px; }
-    .stat4 > div { background: var(--sw-surface-2); border-radius: var(--sw-r-sm); padding: 8px 10px; display: grid; gap: 2px; }
+    .stat4 > div { min-inline-size: 0; overflow-wrap: anywhere; background: var(--sw-surface-2); border-radius: var(--sw-r-sm); padding: 8px 10px; display: grid; gap: 2px; }
     .stat4 span { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
     .stat4 b { font-size: var(--sw-fs-lg); }
     .stat4 small { font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
@@ -105,14 +112,19 @@ export class TempDetail extends LitElement {
     .cmp { display: grid; gap: 8px; }
     .ci { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: var(--sw-r-sm); border: 0; background: transparent; font: inherit; color: inherit; text-align: start; cursor: pointer; }
     .ci:hover { background: var(--sw-hover-wash); }
+    .ci > div { min-inline-size: 0; overflow-wrap: anywhere; }
     .ci small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-2xs); }
     .ci .spark { block-size: 30px; }
     .ci .o { font-size: var(--sw-fs-xs); color: var(--sw-text-2); white-space: nowrap; }
-    .ringrow { display: flex; gap: 16px; align-items: center; }
+    .ringrow { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
+    .ringrow > div:not(.ring) { min-inline-size: 0; }
     .ring { inline-size: 150px; block-size: 150px; flex: none; }
     .ring svg { inline-size: 100%; block-size: 100%; }
     .events { display: grid; }
     .ev { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding-block: 8px; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); }
+    .ev > div { min-inline-size: 0; overflow-wrap: anywhere; }
+    .win, .ph, .legend, .cmpbar { min-inline-size: 0; }
+    .legend span { overflow-wrap: anywhere; }
     .ev time { color: var(--sw-text-2); font-variant-numeric: tabular-nums; }
     .ev i { display: inline-block; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c, var(--sw-accent)); margin-inline-end: 6px; }
     .wins { display: grid; gap: 6px; }
@@ -120,7 +132,7 @@ export class TempDetail extends LitElement {
     .win .w { font-variant-numeric: tabular-nums; direction: ltr; }
     .pop {
       position: absolute; inset-block-end: calc(100% + 6px); inset-inline-start: 16px; background: var(--sw-menu-surface); border: 1px solid var(--sw-menu-border);
-      border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-3); padding: 6px; display: grid; min-inline-size: 220px; z-index: 1;
+      border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-3); padding: 6px; display: grid; min-inline-size: min(220px, calc(100vw - 32px)); max-inline-size: calc(100vw - 32px); z-index: 1;
     }
     .pop .hd { padding: 6px 10px; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
     .pop .nt { padding: 0 10px 6px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
@@ -467,13 +479,14 @@ export class TempDetail extends LitElement {
     const dt = this.chartData();
     const s = this.hist?.stats ?? u.stats_24h;
     const ackable = u.events.some((e) => (e.severity === 'alarm' || e.severity === 'warning') && !e.ack_at);
-    const sensorLine = (name: string, id: string | null | undefined) => html`${name || '—'}${this.canManage && id ? html` <span class="mono ltr" title=${id}>${id}</span>` : nothing}`;
+    /* owner 2026-10-20: the sensor row is the friendly name only (never the technical id); the unit's own name is the fallback */
+    const sensorLine = (name: string | null | undefined) => html`<span class="sname">${friendlyName(name, u.name)}</span>`;
     const others = this.units.filter((x) => x.id !== u.id);
     const sevC: Record<string, string> = { alarm: 'var(--tc-alarm)', warning: 'var(--tc-warn)', info: 'var(--tc-acc)' };
     const openAlert = [...u.events].sort((a, b) => (a.severity === 'alarm' ? -1 : 0) - (b.severity === 'alarm' ? -1 : 0)).find((e) => e.severity === 'alarm' || e.severity === 'warning');
     return html`<div class="ovl" @click=${() => this.close()}></div>
       <aside class="drawer ${this.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="d-title" data-temp-detail=${u.id}>
-        <div class="dh"><div class="t"><h2 id="d-title">${u.name}</h2><small>${[u.area_name, u.temp_sensor_name].filter(Boolean).join(' · ')}</small></div>
+        <div class="dh"><div class="t"><h2 id="d-title">${u.name}</h2><small>${[u.area_name, friendlyName(u.temp_sensor_name, '')].filter(Boolean).join(' · ')}</small></div>
           <span class="badge" data-look=${look}><sw-icon name=${STATUS_ICON[st]} size="14"></sw-icon>${tt(STATUS_KEY[st])}</span>
           <button type="button" class="btn icb" aria-label=${tt('expand')} title=${tt('expand')} aria-pressed=${String(this.wide)} data-temp-wide @click=${() => this.toggleWide()}><sw-icon name="grid" size="16"></sw-icon></button>
           <button type="button" class="btn icb" aria-label=${tt('close')} data-temp-close @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></div>
@@ -483,10 +496,10 @@ export class TempDetail extends LitElement {
               <div style="flex:1;display:grid;gap:8px;min-inline-size:0">
                 <div class="chips" style="justify-content:flex-start">${chips.map((c) => html`<span class="chip" data-tone=${c.tone}><sw-icon name=${c.icon} size="12"></sw-icon>${c.text}</span>`)}</div>
                 <div class="summ">
-                  <div><span>${tt('sensorTemp')}</span><b>${sensorLine(u.temp_sensor_name, u.temp_entity_id)}</b></div>
+                  <div><span>${tt('sensorTemp')}</span><b>${sensorLine(u.temp_sensor_name)}</b></div>
                   ${u.hvac ? html`<div><span>${tt('lgSetpoint')}</span><b>${deg(u.hvac.setpoint)} · ${hvacText(u.hvac.hvac_mode, u.hvac.hvac_action)}</b></div>` : nothing}
-                  <div><span>${tt('sensorDoor')}</span><b>${u.door ? sensorLine(u.door.sensor_name, u.door_entity_id) : tt('none')}</b></div>
-                  ${u.power ? html`<div><span>${tt('powerSensor')}</span><b>${sensorLine(u.power.sensor_name, u.power_entity_id)}${u.power.w !== null ? html` · <span class="num ltr">${Math.round(u.power.w)} W</span>` : nothing}</b></div>` : nothing}
+                  <div><span>${tt('sensorDoor')}</span><b>${u.door ? sensorLine(u.door.sensor_name) : tt('none')}</b></div>
+                  ${u.power ? html`<div><span>${tt('powerSensor')}</span><b>${sensorLine(u.power.sensor_name)}${u.power.w !== null ? html` · <span class="num ltr">${Math.round(u.power.w)} W</span>` : nothing}</b></div>` : nothing}
                   ${u.rules.predict_enabled !== false && !this.stale && u.status !== 'offline' ? html`<div data-temp-predict><span>${tt('predictRow')}</span><b>${u.prediction ? tt('predictChip', { t: deg(u.prediction.threshold), m: u.prediction.eta_min }) : tt('predictNone')}</b></div>` : nothing}
                   ${u.maintenance ? html`<div data-temp-maint><span>${tt('maintBtn')}</span><b>${tt('maintChip', { t: hhmm(Date.parse(u.maintenance.until), lang) })} · ${u.maintenance.reason}${u.maintenance.by_name ? ` · ${u.maintenance.by_name}` : ''}</b></div>` : nothing}
                   <div><span>${tt('rulesLbl')}</span><b>${this.rulesLine(u)}</b></div>

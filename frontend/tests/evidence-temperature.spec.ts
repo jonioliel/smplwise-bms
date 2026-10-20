@@ -370,4 +370,60 @@ test.describe('temperature evidence', () => {
     await expect(r.locator('[data-rep-paper] .sig > div')).toHaveCount(3); // manager name, signature, date
     await page.screenshot({ path: path.join(OUT, `p3-report-haccp-${test.info().project.name}.png`) });
   });
+
+  // owner 2026-10-20 (TEMPFIX): the detail drawer shows friendly sensor names only and never scrolls sideways, whatever the name lengths.
+  const LONG_HE = 'טמפרטורה חדר קירור קרוב לדלת האחורית של המטבח המרכזי ליד מחסן הירקות הקפואים בקומת המרתף';
+  const LONG_EN = 'ShellyPlusUni-A0DD6C4B8E54-Temperature-Cold-Room-Near-The-Back-Door-Of-The-Main-Kitchen-Unbroken-String-Without-Spaces';
+  const RAW = /(^|[\s(])(sensor|binary_sensor|climate|switch)\.[a-z0-9_]+/;
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`the drawer: friendly names only, no horizontal overflow at 390 / 768 / 1024 / 1440 (${scheme})`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'desktop', 'sets its own viewports');
+      test.setTimeout(240_000);
+      const list = phase3Units().map((u) => u.id === 'u2' ? {
+        ...u, name: `${LONG_HE} - מקפיא`, temp_sensor_name: LONG_EN, door: { open: false, since: iso(38), sensor_name: LONG_HE },
+        power: { w: 182, on: true, sensor_name: LONG_EN },
+        temp_entity_id: 'sensor.shellyplusuni_a0dd6c4b8e54_tmprtvrt_khdr_qyrvr_temperature', door_entity_id: 'binary_sensor.shellyplusuni_a0dd6c4b8e54_input_0', power_entity_id: 'switch.shellyplusuni_a0dd6c4b8e54_power',
+      } : u);
+      await install(page, list as never);
+      await page.goto('about:blank');
+      for (const width of [390, 768, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(url('/infra/temperature', 'classic', scheme));
+        await page.locator('sw-app infra-temperature [data-temp-unit="u2"]').click();
+        const d = page.locator('sw-app infra-temperature temp-detail');
+        await expect(d.locator('[data-temp-detail="u2"]')).toBeVisible();
+        await expect(d.locator('[data-temp-chart] svg')).toBeVisible();
+        for (const wide of width >= 768 ? [false, true] : [false]) {
+          if (wide) await d.locator('[data-temp-wide]').click();
+          const m = await d.evaluate((host) => {
+            const root = (host as HTMLElement).shadowRoot!;
+            const drawer = root.querySelector('.drawer') as HTMLElement;
+            const body = root.querySelector('.db') as HTMLElement;
+            const dr = drawer.getBoundingClientRect();
+            const clipped = Array.from(root.querySelectorAll('.drawer *')).filter((el) => {
+              const r = el.getBoundingClientRect();
+              if (!r.width || el.closest('svg')) return false;
+              const dir = getComputedStyle(drawer).direction;
+              return dir === 'rtl' ? r.left < dr.left - 1 || r.right > dr.right + 1 : r.left < dr.left - 1 || r.right > dr.right + 1;
+            }).map((el) => el.className || el.tagName).slice(0, 5);
+            const texts: string[] = [];
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) texts.push((n.textContent ?? '').trim());
+            const attrs = Array.from(root.querySelectorAll('[title],[aria-label],[data-cand]')).flatMap((el) => [el.getAttribute('title') ?? '', el.getAttribute('aria-label') ?? '']);
+            return { doc: document.documentElement.scrollWidth - document.documentElement.clientWidth, drawer: drawer.scrollWidth - drawer.clientWidth, body: body.scrollWidth - body.clientWidth, clipped,
+              text: texts.concat(attrs).filter(Boolean) };
+          });
+          expect(m.doc, `document scrollWidth @${width}${wide ? ' wide' : ''}`).toBeLessThanOrEqual(1);
+          expect(m.drawer, `drawer scrollWidth @${width}${wide ? ' wide' : ''}`).toBeLessThanOrEqual(1);
+          expect(m.body, `drawer body scrollWidth @${width}${wide ? ' wide' : ''}`).toBeLessThanOrEqual(1);
+          expect(m.clipped, `children outside the drawer @${width}${wide ? ' wide' : ''}`).toEqual([]);
+          expect(m.text.filter((t) => RAW.test(t) || /^(sensor|binary_sensor|climate|switch)\./.test(t))).toEqual([]);
+          expect(await d.getByText(LONG_EN).count()).toBeGreaterThan(0); // the friendly name is there
+          if (scheme === 'light' && !process.env.SW_NO_SHOTS) await page.screenshot({ path: path.join(OUT, `drawer-longnames-${width}${wide ? '-wide' : ''}.png`) });
+        }
+        await page.keyboard.press('Escape');
+        await expect(d).toHaveCount(0);
+      }
+    });
+  }
 });

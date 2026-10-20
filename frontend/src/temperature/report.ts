@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { downloadReportPdf, getReportPreview, type ReportModel, type ReportParams, type TempUnit } from '../api/temperature';
-import { REPORT_RANGES, deg, durationText, eventText, localInput } from './model';
+import { REPORT_RANGES, deg, durationText, eventText, friendlyName, localInput } from './model';
 import { bigChart } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
@@ -169,7 +169,7 @@ export class TempReport extends LitElement {
       ['tlDoor', u.door ? `${s.door_opens} · ${durationText(s.door_total_min)}` : '—'], ['alertsTitle', String(s.alarms + s.warnings)]];
     const pts = (u.points ?? []).map((p) => [p[0], p[1]] as [number, number]);
     return html`<div class="paper" dir=${lang === 'he' ? 'rtl' : 'ltr'} lang=${lang} data-rep-paper>
-      <div class="ph"><div><h3>${m.layout === 'haccp' ? T('repHaccp') : T('repTitle').replace(' (PDF)', '')} · ${u.name}</h3><small>${[u.area, u.sensor].filter(Boolean).join(' · ')} · ${T('lgBand', )
+      <div class="ph"><div><h3>${m.layout === 'haccp' ? T('repHaccp') : T('repTitle').replace(' (PDF)', '')} · ${u.name}</h3><small>${[u.area, friendlyName(u.sensor, '')].filter(Boolean).join(' · ')} · ${T('lgBand', )
         .replace('{lo}', deg(u.low)).replace('{hi}', deg(u.high))}</small><small dir="ltr">${m.range_text}</small></div><b>SmplWise</b></div>
       <div class="st">${stats.map(([k, v]) => html`<div><span>${T(k)}</span><b class="num" dir="ltr">${v}</b></div>`)}</div>
       ${m.chart && pts.length ? html`<div class="chart">${bigChart({ points: pts, setpoints: u.source === 'climate' ? (u.points ?? []).map((p) => [p[0], p[2]] as [number, number | null]) : undefined,

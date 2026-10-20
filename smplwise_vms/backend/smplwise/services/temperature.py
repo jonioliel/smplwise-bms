@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import math
 import sqlite3
 from typing import Any, Iterable
@@ -514,8 +515,22 @@ def entity_rows(conn: sqlite3.Connection, ids: Iterable[str]) -> dict[str, sqlit
     return {r["entity_id"]: r for r in rows}
 
 
-def friendly(r: sqlite3.Row | None) -> str:
-    return (r["name"] or r["original_name"] or "") if r is not None else ""
+_ENTITY_ID_RE = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
+
+
+def is_entity_id_like(text: str | None) -> bool:
+    return bool(text) and bool(_ENTITY_ID_RE.match(str(text).strip()))
+
+
+def friendly(r: sqlite3.Row | None, fallback: str = "") -> str:
+    """The operator-facing sensor name (owner 2026-10-20): the entity's friendly name, else its original name, else `fallback` (the unit's name);
+    never a raw entity id - a name that is itself an id counts as missing."""
+    if r is not None:
+        for k in ("name", "original_name"):
+            v = (r[k] or "").strip()
+            if v and not is_entity_id_like(v):
+                return v
+    return fallback
 
 
 def learned_of(conn: sqlite3.Connection, unit_ids: Iterable[str] | None = None) -> dict[str, list[dict[str, Any]]]:
