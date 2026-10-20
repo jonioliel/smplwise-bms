@@ -20,7 +20,7 @@ const M = JSON.parse(fs.readFileSync(path.join(HERE, 'visual', 'matrix.json'), '
   skin: string;
   fixedTime: string;
   mask?: string[];
-  screens: { id: string; hash: string; layout?: string; states: string[]; threshold?: number; maxDiffPixelRatio?: number; mask?: string[] }[];
+  screens: { id: string; hash: string; layout?: string; scrollTo?: string; states: string[]; threshold?: number; maxDiffPixelRatio?: number; mask?: string[] }[];
 };
 const only = (process.env.SW_VISUAL_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
 const schemesEnv = (process.env.SW_VISUAL_SCHEMES || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -122,6 +122,11 @@ test.describe('visual matrix', () => {
           test.skip(noBaseline(info, name), `no ${process.platform} baseline yet (visual.mjs --accept)`);
           await open(page, s.hash, scheme, s.layout);
           await applyState(page, state);
+          if (s.scrollTo) {
+            // the screen's own part sits below the shared top of the page (devices-building: under the home widgets)
+            await page.locator(s.scrollTo).first().evaluate((el) => el.scrollIntoView({ block: 'start' }));
+            await page.waitForTimeout(300);
+          }
           const twin = duplicateOf(info, await page.screenshot({ animations: 'disabled' }), s.id, state, scheme);
           expect(twin, `${s.id} shows the same picture as ${twin}: its route in matrix.json does not reach its own screen`).toBeNull();
           await expect(page).toHaveScreenshot(name, {
