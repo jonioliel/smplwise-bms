@@ -209,7 +209,26 @@ FIXED_STARTERS: dict[str, dict[str, str]] = {
         "ru": "{organization}\nКод подтверждения номера телефона: {code}\nДействует 10 минут. Никому его не сообщайте. Если вы не запрашивали код, проигнорируйте это сообщение.\nВопросы о конфиденциальности: {privacy_contact}",
     },
 }
-FIXED_VARIANTS = {"phone_verify": frozenset({"portal_code", "verify_privacy"})}  # the fixed purpose each variant belongs to
+# PRIVTEXT-293: the number-verification code to a TECHNICIAN (access_grants.is_technician) - the fixed text plus the short technician notice
+# (access_grants.NOTICE_SHORT, kept word for word: a test compares them) and, when the installation set one, the privacy contact line.
+# Chosen only by phone_verify._privacy_variant; never for a vendor contact. ar / ru need a native review; wording pending legal review.
+FIXED_STARTERS["verify_technician"] = {
+    "he": "{organization}\nקוד לאימות מספר הטלפון: {code}\nהקוד בתוקף 10 דקות. אין למסור אותו לאחרים. אם לא ביקשתם אימות, התעלמו מההודעה.\n"
+          "שמך, מספר הטלפון שלך ורישומי הכניסה שלך (שעה ודלת) נשמרים לצורך אבטחת המבנה בלבד, עד שהארגון מוחק אותם. לעיון, לתיקון או למחיקה: מנהל המבנה.",
+    "en": "{organization}\nPhone number verification code: {code}\nValid for 10 minutes. Do not share it. If you did not ask for this, ignore this message.\n"
+          "Your name, phone number and entry records (time and door) are kept for building security only, until the organisation deletes them. "
+          "To see, correct or delete them: the building manager.",
+    "ar": "{organization}\nرمز التحقق من رقم الهاتف: {code}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد. إذا لم تكن أنت من بادر بالتحقق، تجاهل هذه الرسالة.\n"
+          "يُحفظ اسمك ورقم هاتفك وسجلّ عمليات دخولك (الوقت والباب) لأغراض أمن المبنى فقط، إلى أن تحذفها المؤسسة. "
+          "للاطلاع عليها أو تصحيحها أو حذفها: مدير المبنى.",
+    "ru": "{organization}\nКод подтверждения номера телефона: {code}\nДействует 10 минут. Никому его не сообщайте. Если вы не запрашивали код, проигнорируйте это сообщение.\n"
+          "Ваше имя, номер телефона и данные о ваших входах (время и дверь) хранятся только для обеспечения безопасности здания "
+          "до их удаления организацией. Ознакомление, исправление или удаление — через управляющего зданием.",
+}
+# the same plus the installation's privacy contact line (the verify_privacy last line, so that wording stays in one place); chosen when a contact is set
+FIXED_STARTERS["verify_technician_contact"] = {lang: body + "\n" + FIXED_STARTERS["verify_privacy"][lang].rsplit("\n", 1)[1]
+                                               for lang, body in FIXED_STARTERS["verify_technician"].items()}
+FIXED_VARIANTS = {"phone_verify": frozenset({"portal_code", "verify_privacy", "verify_technician", "verify_technician_contact"})}  # the fixed purpose each variant belongs to
 
 
 def fixed_starter(purpose: str, template_id: str | None, lang: str) -> TemplateText | None:

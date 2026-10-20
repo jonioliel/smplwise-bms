@@ -18,6 +18,8 @@ The lawyer-bound analysis stays in the internal legal pack and is not copied her
 | 05 | Database definition document template + incident-procedure line | [en/05](en/05-database-definition-and-incident-line-template.md) | [he/05](he/05-database-definition-and-incident-line-template.md) |
 | 06 | Retention policy template | [en/06](en/06-retention-policy-template.md) | [he/06](he/06-retention-policy-template.md) |
 
+Technician notice, final wording in he / en / ar / ru (pending legal review): [technician-notice-final.md](technician-notice-final.md).
+
 01-03 are factual. 04-06 are templates the organisation fills in and sends to its counsel. The English files are the exact source; the Hebrew files follow them section by section.
 Related security material: `docs/security/` (identity and RBAC, dependency and secrets audit, tickets public-surface checklist).
 
