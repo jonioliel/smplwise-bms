@@ -223,6 +223,9 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     };
     await open(page, '/security');
     await expect.poll(() => hashOf(page)).toBe('#/investigate/search'); // חקירה first, its first visible tab
+    // GATEHYGIENE (flaky in the 2.4.6 gate, "cases tab still listed"): the row is drawn before ui.tabs is applied, so a single read right
+    // after the navigation can see the unconfigured row under load - wait (retrying) for the configured row, then read it once
+    await expect.poll(async () => (await rowTabs(page)).slice(0, 3)).toEqual(['חיפוש', 'מרכז אירועים', 'הקלטות']);
     const tabs = await rowTabs(page);
     expect(tabs.slice(0, 3)).toEqual(['חיפוש', 'מרכז אירועים', 'הקלטות']);
     expect(tabs).not.toContain('תיקים');
@@ -240,11 +243,12 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     // לייב opens on all cameras (the overview is hidden here)
     await page.goto('about:blank');
     await open(page, '/live/wall');
-    expect(await rowTabs(page)).toEqual(['כל המצלמות', 'תצוגות שמורות']);
+    await expect.poll(() => rowTabs(page)).toEqual(['כל המצלמות', 'תצוגות שמורות']);
     // a hidden tab's address still works for someone with its permission
     await open(page, '/investigate/cases');
     await expect(page.locator('sw-app investigate-cases')).toHaveCount(1);
-    expect(await rowTabs(page)).not.toContain('תיקים');
+    // retrying, and never satisfied by a row that is not drawn yet (an empty row "does not contain" anything)
+    await expect.poll(async () => { const t = await rowTabs(page); return t.includes('חיפוש') && !t.includes('תיקים'); }).toBe(true);
   });
 
   test('permissions still gate first; a section is never left without a tab; the user own order wins over the admin order', async ({ page }, info) => {

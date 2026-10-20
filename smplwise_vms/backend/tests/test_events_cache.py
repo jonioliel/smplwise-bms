@@ -7,6 +7,7 @@ import time
 
 from conftest import as_user, bind, png_bytes, seed_tree
 from fastapi.testclient import TestClient
+from hygiene import installation_day, installation_today, installation_zone
 from test_events import alert
 
 from smplwise.db import Database
@@ -183,14 +184,18 @@ def test_timeline_is_cached_and_invalidated(settings):
     c = TestClient(app)
     cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()
     db: Database = app.state.db
-    now = dt.datetime.now(UTC)
-    local_day = now.astimezone(dt.timezone(dt.timedelta(hours=3))).date().isoformat()
-    _store(db, 1, now - dt.timedelta(minutes=5))
+    # GATEHYGIENE: the installation's YESTERDAY at 12:00 instead of "now - 5 min" with a fixed +03:00 day. The old form failed in the
+    # first minutes after the installation's midnight (the -5 min event fell on the previous day) and, from the end of DST (+02:00),
+    # every evening 21:00-22:00 UTC (the +03:00 day was already tomorrow).
+    local_day = installation_day(-1)
+    base = dt.datetime.combine(installation_today(-1), dt.time(12, 0), installation_zone()).astimezone(UTC)
+    _store(db, 1, base)
     events_cache.CACHE.reset_stats()
     m1 = c.get(f"/api/v1/cameras/{cam['id']}/events?date={local_day}").json()
     m2 = c.get(f"/api/v1/cameras/{cam['id']}/events?date={local_day}").json()
+    assert m1["events"], "the event is inside the asked day"
     assert events_cache.CACHE.stats()["hits"] == 1 and m1 == m2
-    _store(db, 1, now - dt.timedelta(minutes=1), et="linedetection")
+    _store(db, 1, base + dt.timedelta(minutes=4), et="linedetection")
     assert len(c.get(f"/api/v1/cameras/{cam['id']}/events?date={local_day}").json()["events"]) == len(m1["events"]) + 1
 
 

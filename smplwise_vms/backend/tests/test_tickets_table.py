@@ -478,11 +478,12 @@ def test_monthly_report_vendor_group_and_formula_guard(w):
 
 def test_monthly_report_cap_returns_413(w, monkeypatch):
     for i in range(3):
-        w.create("tom", f"t{i}")
+        t = w.create("tom", f"t{i}")
+        # GATEHYGIENE: a FIXED instant instead of the wall clock (2.9.0 gate red: the test asked for the machine's date.today() while the
+        # report counts by the installation's day; on the UTC runner at 22:xx the two differed and the range held 0 rows -> 200, not 413).
+        # 2026-07-03T21:30Z is 2026-07-04 00:30 in Asia/Jerusalem: the rows belong to the installation's 4 July, never the UTC 3 July.
+        _set(w, t["id"], created_at="2026-07-03T21:30:00Z")
     monkeypatch.setattr(access, "EXPORT_MAX_ROWS", 2)
-    # yesterday..tomorrow: the report counts by the INSTALLATION's day, which differs from the machine's local date near midnight
-    # (2.9.0 gate: a runner on UTC at 22:xx while the installation zone was already on the next day -> 0 rows, 200 instead of 413)
-    today = __import__("datetime").date.today()
-    one = __import__("datetime").timedelta(days=1)
-    r = w.c.get(f"{MONTHLY}?from={(today - one).isoformat()}&to={(today + one).isoformat()}", headers=w.h("mona"))
+    r = w.c.get(f"{MONTHLY}?from=2026-07-04&to=2026-07-04", headers=w.h("mona"))
     assert r.status_code == 413 and r.json()["code"] == "export_too_large"
+    assert w.c.get(f"{MONTHLY}?from=2026-07-03&to=2026-07-03", headers=w.h("mona")).status_code == 200, "the UTC day is not the installation's day"
