@@ -456,7 +456,7 @@ export class SystemSchedules extends LitElement {
         ? html`<ol data-help>
             <li>מתקינים את האינטגרציה המותאמת "Scheduler" (ב־HACS: "scheduler component"), או מעתיקים ידנית את התיקייה <code>custom_components/scheduler</code>.</li>
             <li>מפעילים מחדש את Home Assistant.</li>
-            <li>בהגדרות › מכשירים ושירותים › הוספת אינטגרציה, בוחרים "Scheduler".</li>
+            <li>בהגדרות ‹ מכשירים ושירותים ‹ הוספת אינטגרציה, בוחרים "Scheduler".</li>
             <li>דרושה גרסת Home Assistant 2024.11.0 ומעלה. אחרי ההתקנה לוחצים "בדיקה מחדש".</li>
           </ol>`
         : nothing}

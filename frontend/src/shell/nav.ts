@@ -926,7 +926,7 @@ export function pageTargets(q: string, api: boolean, can?: Can): PageTarget[] {
   if (!needle) return [];
   const sections = visibleSections(api, can);
   const all: PageTarget[] = sections.map((s) => ({
-    label: `אבטחה › ${s.label}`,
+    label: `אבטחה ‹ ${s.label}`,
     subtitle: s.id === 'alarm' ? 'מצב האזעקה, דריכה ונטרול, חיישנים ועקיפה' : s.id === 'live' ? 'תמונת מצב ומצלמות' : 'אירועים, הקלטות ותיקים',
     href: s.href,
     keywords: s.id === 'alarm' ? ['אזעקה', 'דריכה', 'נטרול', 'עקיפה', 'חיישנים', 'alarm'] : s.id === 'live' ? ['לייב', 'מצלמות', 'live'] : ['חקירה', 'אירועים', 'הקלטות'],
@@ -1316,12 +1316,12 @@ export const TAB_SECTIONS: TabSectionDef[] = [
   { id: 'areas', label: 'ניווט ראשי', where: 'סרגל הצד ופס הניווט התחתון', tabs: () => plain(NAV_A), level: 1, bar: false },
   { id: 'devices', label: 'ראשי', where: 'לשוניות המסך הראשי', tabs: () => plain(DEVICES_TABS), level: 1 },
   { id: 'security', label: 'אבטחה', where: 'הבחירה בראש אזור האבטחה', tabs: () => plain(SECURITY_SECTIONS), level: 1 },
-  { id: 'security.live', label: 'אבטחה › לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live), level: 2 },
-  { id: 'security.investigate', label: 'אבטחה › חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate), level: 2 },
+  { id: 'security.live', label: 'אבטחה ‹ לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live), level: 2 },
+  { id: 'security.investigate', label: 'אבטחה ‹ חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate), level: 2 },
   { id: 'explore', label: 'מפה', where: 'לשוניות המפה', tabs: () => plain(EXPLORE_TABS), level: 1 },
   { id: 'wiskey', label: 'WisKey', where: 'לשוניות WisKey', tabs: () => plain(WISKEY_TABS), level: 1 },
   { id: 'system', label: 'הגדרות', where: 'לשוניות ההגדרות', tabs: () => plain(AREA_TABS.system), level: 1 },
-  { id: 'system.security', label: 'הגדרות › אבטחה', where: 'לשוניות אבטחה בהגדרות', tabs: () => plain(SECURITY_SETTINGS_TABS), level: 2 },
+  { id: 'system.security', label: 'הגדרות ‹ אבטחה', where: 'לשוניות אבטחה בהגדרות', tabs: () => plain(SECURITY_SETTINGS_TABS), level: 2 },
 ];
 
 /** The `ui.tabs` section of the tab row the shell draws under an area's head: in the security area the row is the current

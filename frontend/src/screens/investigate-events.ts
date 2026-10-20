@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { ingestReason } from '../i18n/ingest-reason';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-table';
@@ -945,7 +946,7 @@ export class InvestigateEvents extends LitElement {
     return html`
       <div class="banner ${ing && !ing.connected ? 'warn' : ''}">
         <span class="dot ${ing?.connected ? 'on' : ''}"></span>
-        <span>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ing.last_error})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה ${this.fmt(ing.last_heartbeat_at)}` : ''}</span>
+        <span data-ingest-line title=${ing?.last_error ?? ''}>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ingestReason(ing.last_error)})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה ${this.fmt(ing.last_heartbeat_at)}` : ''}</span>
         <span>· עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'}</span>
         <span>· אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה (inferred), לא התראה שנמדדה</span>
         ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning-text);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}

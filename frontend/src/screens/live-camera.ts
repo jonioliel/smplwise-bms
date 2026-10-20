@@ -140,7 +140,7 @@ export class LiveCamera extends LitElement {
       const rec = e.kind === 'record'
         ? await setRecordSchedule(this.cam.id, { days: e.days, ...(e.schedule_enabled !== null && e.schedule_enabled !== this.sched?.record?.schedule_enabled ? { schedule_enabled: e.schedule_enabled ?? undefined } : {}) })
         : await setArming(this.cam.id, e.kind, e.days);
-      this.schedMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב ל־NVR ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות › חיבורים).';
+      this.schedMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב ל־NVR ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).';
       this.schedEdit = null;
       await this.loadSchedules();
     } catch (err) {
@@ -252,7 +252,7 @@ export class LiveCamera extends LitElement {
         ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.'
         : refused
           ? 'הצורות והפרמטרים נכתבו ל־NVR ונרשמו, אבל ה־NVR סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק ה־NVR / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.'
-          : 'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות › חיבורים › התראות מה־NVR).';
+          : 'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מה־NVR).';
       this.smartEdit = null;
       await Promise.all([this.loadSchedules(), this.loadZones(true)]);
     } catch (err) {
@@ -924,7 +924,7 @@ export class LiveCamera extends LitElement {
     this.motionBusy = true;
     try {
       const rec = await setMotion(cam.id, { ...(d.added || d.removed ? { cells: e.cells } : {}), ...(d.sensitivity ? { sensitivity: e.sensitivity } : {}), ...(d.enabled ? { enabled: e.enabled } : {}) });
-      this.motionMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה, לא נכתב דבר.' : `נכתב ל־NVR (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות › חיבורים › שינויים אחרונים.`;
+      this.motionMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה, לא נכתב דבר.' : `נכתב ל־NVR (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.`;
       this.motionEdit = null;
       this.motionConfirm = false;
       await this.loadZones(true);

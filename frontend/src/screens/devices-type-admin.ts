@@ -255,7 +255,7 @@ export class DevicesTypeAdmin extends LitElement {
     const page = list.slice(0, this.shown);
     const floors = [...new Map(rows.filter((r) => r.floor_id).map((r) => [r.floor_id!, r.floor_name ?? r.floor_id!])).entries()];
     const areas = [...new Map(rows.filter((r) => r.area_id && (!f.floor || r.floor_id === f.floor)).map((r) => [r.area_id!, r.area_name ?? r.area_id!])).entries()];
-    const place = (r: DeviceTypeRow) => [r.floor_name, r.area_name].filter(Boolean).join(' › ') || 'ללא שיוך';
+    const place = (r: DeviceTypeRow) => [r.floor_name, r.area_name].filter(Boolean).join(' ‹ ') || 'ללא שיוך';
     const source = (r: DeviceTypeRow) => {
       if (r.set === null) return html`<span class="muted" data-type-source="auto">אוטומטי</span>`;
       const when = r.set_at ? new Date(r.set_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
@@ -286,7 +286,7 @@ export class DevicesTypeAdmin extends LitElement {
         : nothing}
       ${list.length
         ? html`<table>
-              <thead><tr><th><span class="muted">בחירה</span></th><th>שם</th><th>קומה › אזור</th><th>סוג</th><th>מקור</th></tr></thead>
+              <thead><tr><th><span class="muted">בחירה</span></th><th>שם</th><th>קומה ‹ אזור</th><th>סוג</th><th>מקור</th></tr></thead>
               <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${this.typeSelect(r)}${this.bulkOn(r)}</td><td>${source(r)}</td></tr>`)}</tbody>
             </table>
             <div class="cards">${page.map((r) => html`<div class="card" data-entity=${r.entity_id}>${box(r)}<span>${bidi(r.name)}</span><span class="sub">${place(r)} · ${source(r)}</span>${this.typeSelect(r)}${this.bulkOn(r)}</div>`)}</div>`

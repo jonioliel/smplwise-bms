@@ -123,7 +123,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await install(page, st);
     await open(page, '/system/multimedia');
     await expandAll(page);
-    await expect(row(page, 'mp-liv').locator('[data-mm-place="mp-liv"]')).toHaveText('קומת קרקע › סלון');
+    await expect(row(page, 'mp-liv').locator('[data-mm-place="mp-liv"]')).toHaveText('קומת קרקע ‹ סלון');
     await expect(row(page, 'mp-liv').locator('[data-mm-area]')).toHaveCount(0);
     await expect(row(page, 'mp-balc').locator('[data-mm-area]')).toHaveCount(1);
     await row(page, 'mp-balc').locator('[data-mm-area]').selectOption('balcony');

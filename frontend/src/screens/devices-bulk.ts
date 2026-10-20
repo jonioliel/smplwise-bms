@@ -483,8 +483,8 @@ export class DevicesBulkMenu extends LitElement {
             })}
             <div class="foot">כל פעולה נפתחת בחלון אישור. מנעולים ואזעקה אינם נכללים.</div>`
         : nothing}
-      ${this.openHref ? html`<a class="open" href=${this.openHref} data-open-area role="menuitem" @click=${() => (this.open = false)}>פתח אזור<span aria-hidden="true">›</span></a>` : nothing}
-      ${this.mapHref ? html`<a class="open" href=${this.mapHref} data-open-map role="menuitem" @click=${() => (this.open = false)}>הצג על המפה<span aria-hidden="true">›</span></a>` : nothing}
+      ${this.openHref ? html`<a class="open" href=${this.openHref} data-open-area role="menuitem" @click=${() => (this.open = false)}>פתח אזור<span aria-hidden="true">‹</span></a>` : nothing}
+      ${this.mapHref ? html`<a class="open" href=${this.mapHref} data-open-map role="menuitem" @click=${() => (this.open = false)}>הצג על המפה<span aria-hidden="true">‹</span></a>` : nothing}
     </div>`;
   }
 

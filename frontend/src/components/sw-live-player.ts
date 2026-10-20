@@ -61,7 +61,7 @@ const RETRY_MAX_MS = 30000;
 
 /** The remote live cap (`remote_live_cap`, WebSocket close 4429): what the tile says, and who may raise it. Never a retry. */
 export const liveCapTitle = (max: number) => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''}`;
-export const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות › מערכת › גישה מרחוק';
+export const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק';
 export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
 /** Recorded playback: how much media may wait ahead of a paused or slowed playhead before fragments are dropped. */
@@ -680,7 +680,7 @@ export class SwLivePlayer extends LitElement {
     const preferredSkipped = !first || first.profile !== pref || first.transport !== 'webrtc';
     const decode = preferredSkipped || this.decodeFailed || !this.steps().length;
     // decoding: the owner's wording; never connected: UDP to go2rtc is likely blocked, and MSE (the tunnel) is off
-    const why = this.mode === 'webrtc' ? 'הוגדר WebRTC בלבד' : 'MSE דרך המנהרה כבוי בהגדרות › גישה מרחוק';
+    const why = this.mode === 'webrtc' ? 'הוגדר WebRTC בלבד' : 'MSE דרך המנהרה כבוי בהגדרות ‹ גישה מרחוק';
     const message = decode ? undecodableMessage(pref) : `${reason || 'WebRTC לא התחבר (ייתכן ש-UDP חסום)'} · ${why}`;
     this.fail(message, !decode);
   }

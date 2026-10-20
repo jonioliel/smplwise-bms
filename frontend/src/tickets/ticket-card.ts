@@ -114,7 +114,7 @@ export class TicketCard extends LitElement {
     return html`<article class=${`tcard${m.urgent ? ' urgent' : ''}${m.stuck ? ' stuck' : ''}${closed ? ' closed' : ''}`} data-ticket=${t.id} data-status=${t.status} aria-label=${t.title}>
       <header>
         <div class="ttl">
-          <h3><a class="name" href=${this.href || '#'} data-card-open>${t.title}</a></h3>
+          <h3 dir="auto" data-card-title><a class="name" href=${this.href || '#'} title=${t.title} data-card-open>${bidi(t.title)}</a></h3>
           ${where.strong || where.rest ? html`<div class="where">${tIcon('layers')}${where.strong ? html`<b>${bidi(where.strong)}</b>` : nothing}${where.rest ? html`<span>${bidi(where.rest)}</span>` : nothing}</div>` : nothing}
         </div>
         <div class="ctl">

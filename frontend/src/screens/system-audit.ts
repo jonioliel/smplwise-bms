@@ -104,7 +104,7 @@ const apiColumns: TableColumn[] = [
   { key: 'decision', label: 'החלטה', render: (r) => { const d = DECISION[String(r.decision)] ?? { kind: 'neutral' as const, label: String(r.decision) }; return html`<sw-badge kind=${d.kind} label=${d.label}></sw-badge>`; } },
   { key: 'resource', label: 'משאב', render: (r) => html`${r.resource_type ? html`<span style="color:var(--sw-text-3)">${String(r.resource_type)}</span> ` : nothing}<span class="ltr">${String(r.resource_id ?? '')}</span>` },
   { key: 'channel', label: 'ערוץ', render: (r) => html`<span data-audit-channel style="font-size:var(--sw-fs-xs)">${channelOf(r.details as Record<string, unknown>, String(r.action))}</span>` },
-  { key: 'reason', label: 'סיבה / פרטים', render: (r) => html`${REMOTE_REASON[String(r.reason ?? '')] ? html`${REMOTE_REASON[String(r.reason)]} <span class="ltr" style="color:var(--sw-text-3)">(${String(r.reason)})</span>` : String(r.reason ?? '')}${Object.keys((r.details as Record<string, unknown>) ?? {}).length ? html` <span style="color:var(--sw-text-3)" class="ltr">${JSON.stringify(r.details).slice(0, 120)}</span>` : nothing}` },
+  { key: 'reason', label: 'סיבה / פרטים', render: (r) => html`${REMOTE_REASON[String(r.reason ?? '')] ? html`${REMOTE_REASON[String(r.reason)]} <span class="ltr" style="color:var(--sw-text-3)">(${String(r.reason)})</span>` : String(r.reason ?? '')}${Object.keys((r.details as Record<string, unknown>) ?? {}).length ? html` <span style="color:var(--sw-text-3);display:inline-block;max-inline-size:100%;overflow-wrap:anywhere;direction:ltr;unicode-bidi:isolate;text-align:left" class="ltr" dir="ltr" data-audit-json>${JSON.stringify(r.details).slice(0, 120)}</span>` : nothing}` },
   { key: 'permission_revision', label: 'rev', ltr: true },
 ];
 

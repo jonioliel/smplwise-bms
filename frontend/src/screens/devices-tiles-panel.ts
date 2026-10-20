@@ -681,7 +681,7 @@ export class DevicesTilesPanel extends LitElement {
     const shown = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
     const narrowed = this.filter !== 'all' || !!q;
     return html`<div class="top">
-        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ›</a>` : nothing}
+        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ‹</a>` : nothing}
         <div class="ctlbar">
           <div class="seg" role="group" aria-label="סינון">
             ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
@@ -728,7 +728,7 @@ export class DevicesTilesPanel extends LitElement {
     const avail = shown.filter((r) => rowState(r) !== 'unavailable' && r.can_control && !r.bulk_excluded);
     const on = avail.filter((r) => rowState(r) === 'active').length;
     // owner 2026-09-30: nothing about eligibility on the screen - the reason lives in the disabled button's tooltip only
-    const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות › חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות › חשמל';
+    const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות ‹ חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות ‹ חשמל';
     const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only });
     if ('open' in master) {
       return html`<div class="master-group" data-panel-master="covers">

@@ -14,6 +14,7 @@ import { isApi, session } from '../api/session';
 import { ApiError, get } from '../api/client';
 import { listCameras } from '../api/maps';
 import { eventsSummary, listEvents, thumbnailUrl, EVENT_LABEL, EVENT_TONE as API_EVENT_TONE, type EventsSummary, type VmsEvent } from '../api/events';
+import { bidi } from '../i18n/bidi';
 import { getStorage, fmtMb, type StorageReport } from '../api/storage';
 import { healthSummary, STATUS_LABEL, type HealthSummary } from '../api/health';
 import { productSettings } from '../api/prefs';
@@ -539,7 +540,7 @@ export class LiveOverview extends LitElement {
                 <text x="42" y="47" text-anchor="middle" font-size="15" font-weight="700" fill="var(--sw-text)" font-family="var(--sw-font)">68%</text>`}
               </svg>
               <div class="txt">
-                <div class="big">1.3 TB מתוך 1.9 TB</div>
+                <div class="big">${bidi('1.3 TB מתוך 1.9 TB')}</div>
                 <div class="bar"><i></i></div>
                 <div class="muted">הקלטה ישנה ביותר ≈ 11 ימים (נמדד) · overwrite פעיל</div>
               </div>

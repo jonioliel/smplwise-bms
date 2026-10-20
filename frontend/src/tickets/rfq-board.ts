@@ -263,7 +263,7 @@ export class TicketsRfqBoard extends LitElement {
     return html`<header class="dh" data-rfq-board-header>
       <div class="dh-row">
         <div class="titles">
-          <div class="crumbs"><a href="#/tickets">${tt('area')}</a> › <a href=${rfqHref({})} data-rfq-crumb>${rt('navTitle')}</a> › <b>${d.ref}</b></div>
+          <div class="crumbs"><a href="#/tickets">${tt('area')}</a> ‹ <a href=${rfqHref({})} data-rfq-crumb>${rt('navTitle')}</a> ‹ <b>${d.ref}</b></div>
           <h1 data-rfq-title>${bidi(d.title)}</h1>
           <div class="subline"><span>${bidi(sub)}</span><span>${rt('createdBy', { when: dateTime(d.sent_at ?? d.created_at), who: d.created_by.name })}</span>
             ${d.due_at ? html`<span>${rt('fDue')}: <b>${dateTime(d.due_at)}</b></span>` : nothing}

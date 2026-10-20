@@ -14,6 +14,7 @@ import { productSettings } from '../api/prefs';
 import { fmtMb, getStorage, getStorageLocal, resumeExports, type StorageLocal, type StorageReport } from '../api/storage';
 import { getSigning, rotateSigning, type SigningInfo } from '../api/cases';
 import { formatBytes } from '../api/exports';
+import { bidi } from '../i18n/bidi';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -269,7 +270,7 @@ export class SystemStorage extends LitElement {
     return html`<sw-card heading="הדיסק של התוסף" subheading=${`ייצואים, תמונות אירועים וגיבויים נשמרים כאן · ייצוא חדש נדחה מתחת ל־${fmtMb(d.min_free_mb)} פנויים, וייצוא שרץ מושהה עד שיתפנה מקום`} data-storage-disk-guard>
       ${this.localError ? html`<div class="err">${this.localError}</div>` : nothing}
       <div class="ret">
-        <div><div class="v" data-local-free>${fmtMb(d.free_mb)}</div><div class="l">פנויים מתוך ${fmtMb(d.total_mb)} · מינימום ${fmtMb(d.min_free_mb)}</div></div>
+        <div><div class="v" data-local-free>${bidi(fmtMb(d.free_mb))}</div><div class="l">${bidi(`פנויים מתוך ${fmtMb(d.total_mb)} · מינימום ${fmtMb(d.min_free_mb)}`)}</div></div>
         <div>
           <div><sw-badge kind=${d.low ? 'error' : paused ? 'stale' : 'recorded'} label=${d.low ? 'מתחת למינימום · ייצוא חדש נדחה' : paused ? `${paused} ייצואים מושהים` : 'תקין'} data-local-state></sw-badge></div>
           <div class="l">בתור ${l.exports.waiting} מתוך ${l.exports.max_waiting} · נדחו בגלל מקום ${c.refused_disk} · הושהו ${c.paused_disk_full} · חודשו ${c.resumed}${c.refused_queue_full ? ` · נדחו בתור מלא ${c.refused_queue_full}` : ''}</div>
@@ -330,7 +331,7 @@ export class SystemStorage extends LitElement {
     const mb = formatBytes;
     return html`<sw-card heading="אחסון התוסף (/data)" subheading="נמדד בכל טעינה · הקבצים שהמערכת שומרת אצלה, לא ב־NVR" data-storage-local>
       <div class="kv">
-        <div><span>פנוי</span><strong>${mb(l.free_bytes)} מתוך ${mb(l.total_bytes)}</strong></div>
+        <div><span>פנוי</span><strong>${bidi(`${mb(l.free_bytes)} מתוך ${mb(l.total_bytes)}`)}</strong></div>
         <div><span>ייצוא קטעים</span><strong>${mb(l.exports_bytes)}</strong></div>
         <div><span>תיקים (תמונות וחבילות)</span><strong>${mb(l.cases_bytes)}</strong></div>
         <div><span>ראיות מיובאות</span><strong data-storage-imported data-bytes=${String(l.imported.bytes)}>${mb(l.imported.bytes)} · ${l.imported.cases} תיקים מיובאים</strong></div>

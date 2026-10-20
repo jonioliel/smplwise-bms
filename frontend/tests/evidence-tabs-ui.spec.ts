@@ -192,7 +192,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     const sel = page.locator('sw-app system-diagnostics [data-set-default-floor]');
     await expect(sel).toBeVisible();
     await expect(sel.locator('optgroup')).toHaveCount(2);
-    await expect(sel.locator('optgroup').first()).toHaveAttribute('label', 'אפרת › בניין א');
+    await expect(sel.locator('optgroup').first()).toHaveAttribute('label', 'אפרת ‹ בניין א');
     await expect(sel.locator('option').first()).toHaveText('אוטומטי');
     await sel.selectOption('f-b1');
     if (info.project.name === 'desktop') await shot(page, 'settings-map-default-floor-desktop');

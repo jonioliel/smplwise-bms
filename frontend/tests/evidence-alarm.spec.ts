@@ -153,7 +153,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     await page.keyboard.press('Control+k');
     await page.keyboard.type('אזעקה');
     const row = page.locator('sw-app .results .row').first();
-    await expect(row).toContainText('אבטחה › אזעקה');
+    await expect(row).toContainText('אבטחה ‹ אזעקה');
     await page.keyboard.press('Enter');
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/security/alarm');
   });

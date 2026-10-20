@@ -189,7 +189,7 @@ export const needsRollbackGuidance = (run: Pick<RunView, 'kind' | 'state' | 'err
 
 /** The rollback guidance (CR-021 section 3.3 / design section 6): text only, no restore button (owner decision). */
 const GUIDE_PLATFORM_BACKUP = 'בדפי הגיבויים של תשתית המערכת, בחרו את הגיבוי "לפני העדכון" ושחזרו ממנו את התוסף SmplWise Arx. השחזור מחזיר יחד את הגרסה והנתונים.';
-const GUIDE_ARX_COPY = 'התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות › גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".';
+const GUIDE_ARX_COPY = 'התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות ‹ גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".';
 const GUIDE_NOT_UP = 'אם Arx אינו עולה: בדפי התוספים של תשתית המערכת הפעילו אותו.';
 
 /** Restoring from the infrastructure's backup is offered only when that backup was CONFIRMED (`backup_state: 'confirmed'`); a backup that was only asked for is said so. */

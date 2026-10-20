@@ -253,7 +253,7 @@ test.describe('camera wall under the remote live cap (mocked API, fake relay)', 
         return { title: root.querySelector('[data-player-error]')?.textContent, hint: root.querySelector('[data-live-cap-hint]')?.textContent, badge: root.querySelectorAll('[data-video-badge]').length };
       });
       expect(text.title).toBe('הגעת למכסת הזרמים החיים בחיבור הזה (1)');
-      expect(text.hint).toBe(admin ? 'אפשר להגדיל בהגדרות › מערכת › גישה מרחוק' : 'פנה למנהל המערכת');
+      expect(text.hint).toBe(admin ? 'אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק' : 'פנה למנהל המערכת');
       expect(text.badge).toBe(0);
       await page.waitForTimeout(4000);
       const cx = (await socks(page)).filter((s) => s.camera === 'cx');
@@ -275,7 +275,7 @@ test.describe('camera wall under the remote live cap (mocked API, fake relay)', 
 
   test('the budget note: 11 cameras under a cap of 8 say how many are live and which setting binds', async ({ page }) => {
     await openWall(page, { cams: 11, remoteCap: 16, mediaCap: 8 });
-    await expect(page.locator('live-wall [data-wall-cap-note]')).toHaveText('מוצגות 8 מצלמות חיות מתוך 11 · המכסה: הגדרות › מדיה', { timeout: 15000 });
+    await expect(page.locator('live-wall [data-wall-cap-note]')).toHaveText('מוצגות 8 מצלמות חיות מתוך 11 · המכסה: הגדרות ‹ מדיה', { timeout: 15000 });
     await expect(page.locator('live-wall [data-snapshot-label]')).toHaveCount(3);
   });
 

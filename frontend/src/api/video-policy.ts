@@ -31,8 +31,8 @@ export interface RemoteVideo {
 }
 
 /** The owner's wording (CR-008 step 6). */
-export const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו';
-export const SUB_UNDECODABLE = 'הזרם המשני אינו ניתן לפענוח ב-WebRTC - ראה הגדרות › וידאו';
+export const MAIN_UNDECODABLE = 'הזרם הראשי אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ‹ וידאו';
+export const SUB_UNDECODABLE = 'הזרם המשני אינו ניתן לפענוח ב-WebRTC - ראה הגדרות ‹ וידאו';
 
 export function undecodableMessage(profile: Profile): string {
   return profile === 'main' ? MAIN_UNDECODABLE : SUB_UNDECODABLE;

@@ -221,7 +221,7 @@ export class SystemWizard extends LitElement {
               <b>${b(s.problem.message)}</b>
               <span data-step-action>מה עושים: ${b(s.problem.action)}</span>
               ${s.problem.link || (s.id === 'floor' && NO_PLAN.has(s.problem.code))
-                ? html`<span class="links">${s.problem.link ? html`<a href=${s.problem.link.href} data-step-link>${s.problem.link.label} ›</a>` : nothing}${s.id === 'floor' && NO_PLAN.has(s.problem.code) ? html`<button type="button" class="linkbtn" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל ›</button>` : nothing}</span>`
+                ? html`<span class="links">${s.problem.link ? html`<a href=${s.problem.link.href} data-step-link>${s.problem.link.label} ‹</a>` : nothing}${s.id === 'floor' && NO_PLAN.has(s.problem.code) ? html`<button type="button" class="linkbtn" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל ‹</button>` : nothing}</span>`
                 : nothing}
             </div>
           </div>`
@@ -231,19 +231,19 @@ export class SystemWizard extends LitElement {
         ? html`<div class="conn" data-wizard-nvr-form><nvr-connection-form context="wizard" @nvr-connection-saved=${() => void this.load(false)} @nvr-connection-removed=${() => void this.load(false)}></nvr-connection-form></div>`
         : nothing}
       ${s.warnings.length
-        ? html`<ul class="warnings" data-step-warnings>${s.warnings.map((w) => html`<li data-warning=${w.code}><sw-icon name="info" size=${13}></sw-icon><span>${b(w.message)}${w.link ? html` <a href=${w.link.href}>${w.link.label} ›</a>` : nothing}</span></li>`)}</ul>`
+        ? html`<ul class="warnings" data-step-warnings>${s.warnings.map((w) => html`<li data-warning=${w.code}><sw-icon name="info" size=${13}></sw-icon><span>${b(w.message)}${w.link ? html` <a href=${w.link.href}>${w.link.label} ‹</a>` : nothing}</span></li>`)}</ul>`
         : nothing}
       ${s.facts.length
         ? html`<dl class="facts" data-step-facts>${s.facts.map((f) => html`<div class="fact"><dt>${f.label}</dt><dd class=${f.tone}>${b(f.value)}</dd></div>`)}</dl>`
         : nothing}
-      <div class="foot"><a href=${s.settings_link.href} data-settings-link>${s.settings_link.label} ›</a></div>
+      <div class="foot"><a href=${s.settings_link.href} data-settings-link>${s.settings_link.label} ‹</a></div>
     </section>`;
   }
 
   render() {
     const d = this.data;
     const anyBusy = this.busy.size > 0;
-    const sub = d?.mode === 'ha_only' ? 'מצב ללא NVR · התקנה › NVR › תשתית המערכת › go2rtc › קומה · שלב המצלמה מדולג' : 'התקנה › NVR › תשתית המערכת › go2rtc › קומה › מצלמה';
+    const sub = d?.mode === 'ha_only' ? 'מצב ללא NVR · התקנה ‹ NVR ‹ תשתית המערכת ‹ go2rtc ‹ קומה · שלב המצלמה מדולג' : 'התקנה ‹ NVR ‹ תשתית המערכת ‹ go2rtc ‹ קומה ‹ מצלמה';
     return html`<sw-page heading="אשף התקנה" subheading=${`${sub} · הבדיקות קוראות בלבד מהמכשירים${isApi() ? '' : ' · נתוני הדגמה'}`}>
       <sw-button slot="actions" icon="refresh" ?disabled=${!d || anyBusy} data-check-all @click=${() => this.checkAll()}>${anyBusy ? 'בודק…' : 'בדוק הכול'}</sw-button>
       ${this.error ? html`<sw-state-panel state="error" heading="מצב ההתקנה לא נטען" hint=${this.error}></sw-state-panel>` : nothing}

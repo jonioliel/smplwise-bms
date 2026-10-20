@@ -49,7 +49,7 @@ function keepRun(id: string): void {
 
 /** The one-time manual step while the add-on's role is still the default (CR-021 section 4; text only). */
 const MANUAL_STEPS = [
-  'בתשתית המערכת: הגדרות › תוספים › SmplWise Arx › בדיקת עדכונים.',
+  'בתשתית המערכת: הגדרות ‹ תוספים ‹ SmplWise Arx ‹ בדיקת עדכונים.',
   'סמנו "גיבוי לפני העדכון" ולחצו על עדכון. ההתקנה נמשכת כמה דקות.',
   'חזרו לכאן ולחצו "בדוק אם יש עדכון". מכאן והלאה העדכונים יתבצעו מתוך Arx.',
 ];
