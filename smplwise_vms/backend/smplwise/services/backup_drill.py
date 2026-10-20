@@ -49,6 +49,7 @@ log = logging.getLogger("smplwise.backup.drill")
 SCHEDULE_KEY = "backup.drill.monthly"
 DRILL_DIR = "backup_drill"
 LAST_FILE = "last.json"
+LAST_OFFBOX_FILE = "last_offbox.json"  # phase 2: the drill of the newest encrypted copy at an off-box target
 HISTORY_FILE = "history.json"
 HISTORY_KEEP = 12
 MONTHLY_S = 30 * 24 * 3600
@@ -106,8 +107,8 @@ def latest_archive(settings: Settings) -> Path | None:
 # ---------------------------------------------------------------- result store
 
 
-def read_last(settings: Settings) -> dict[str, Any] | None:
-    p = Path(settings.data_dir) / DRILL_DIR / LAST_FILE
+def read_last(settings: Settings, name: str = LAST_FILE) -> dict[str, Any] | None:
+    p = Path(settings.data_dir) / DRILL_DIR / name
     try:
         out = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -133,6 +134,8 @@ def _write_json(path: Path, value: Any) -> None:
 def summary_of(result: dict[str, Any]) -> dict[str, Any]:
     return {k: result.get(k) for k in ("result", "trigger", "started_at", "finished_at")} | {
         "archive": (result.get("archive") or {}).get("name"),
+        "source": (result.get("source") or {}).get("kind", "local"),
+        "target_id": (result.get("source") or {}).get("target_id"),
         "total_ms": (result.get("timings_ms") or {}).get("total"),
         "failed": [c["name"] for c in result.get("checks", []) if c.get("severity") == "fail" and not c.get("ok")],
     }
@@ -140,7 +143,8 @@ def summary_of(result: dict[str, Any]) -> dict[str, Any]:
 
 def record(settings: Settings, result: dict[str, Any]) -> None:
     d = drill_dir(settings)
-    _write_json(d / LAST_FILE, result)
+    offbox = (result.get("source") or {}).get("kind") == "offbox"
+    _write_json(d / (LAST_OFFBOX_FILE if offbox else LAST_FILE), result)
     history = [summary_of(result), *read_history(settings)][:HISTORY_KEEP]
     _write_json(d / HISTORY_FILE, history)
 
@@ -206,17 +210,72 @@ def running() -> bool:
     return _LOCK.locked()
 
 
-def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_scratch: bool, write_result: bool) -> dict[str, Any]:
-    run = _Run()
+def run_offbox_drill(db: Database, settings: Settings, target_id: str, *, trigger: str = "manual", keep_scratch: bool = False,
+                     write_result: bool = True) -> dict[str, Any]:
+    """Phase 2: the same drill on the newest ENCRYPTED copy at an off-box target - downloaded, decrypted with the keyring (the key
+    the copy's header names; a rotated-out key still opens its copies), then restored and verified like a local archive. Recorded in
+    `last_offbox.json` and as a `drill` run of the target. A copy that cannot be fetched or opened is a FAIL naming `offbox_fetch`."""
+    from . import offbox_runtime
+    from .backup_offbox import OffboxError
+
+    if not _LOCK.acquire(blocking=False):
+        raise DrillBusy("a restore drill is already running")
+    fetch_dir = drill_dir(settings) / f"offbox-{_now().strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+    try:
+        for stale in drill_dir(settings).glob("offbox-*"):
+            shutil.rmtree(stale, ignore_errors=True)
+        fetch_dir.mkdir(parents=True)
+        t_total = time.monotonic()
+        run = _Run()
+        source: dict[str, Any] = {"kind": "offbox", "target_id": target_id}
+        zip_path: Path | None = None
+        t = time.monotonic()
+        try:
+            got = offbox_runtime.fetch_latest_copy(db, settings, target_id, fetch_dir)
+        except OffboxError as exc:
+            run.check("offbox_fetch", False, {"error": exc.code})
+        except Exception as exc:  # noqa: BLE001
+            run.check("offbox_fetch", False, {"error": "transport_error", "type": type(exc).__name__})
+        else:
+            zip_path = got["zip"]
+            source.update({"object": got["object"], "key_id": got["key_id"], "sealed_bytes": got["sealed_bytes"]})
+            run.check("offbox_fetch", True)
+            run.check("offbox_decrypt", True, {"key_id": got["key_id"]})
+        run.timed("fetch", t)
+        result = _run_locked(settings, zip_path, trigger=trigger, keep_scratch=keep_scratch, write_result=write_result, source=source,
+                             prelude=run, t_total=t_total)
+    finally:
+        shutil.rmtree(fetch_dir, ignore_errors=True)
+        _LOCK.release()
+    try:
+        with db.write_aside(label="offbox.drill") as conn:
+            from . import offbox_store
+
+            run_id = offbox_store.start_run(conn, target_id, "drill", trigger)
+            failed = [c["name"] for c in result["checks"] if not c["ok"] and c["severity"] == "fail"]
+            offbox_store.finish_run(conn, run_id, {"ok": result["result"] == "PASS", "error": failed[0] if failed else None,
+                                                   "object": source.get("object"), "verified": result["result"] == "PASS",
+                                                   "sealed": {"key_id": source.get("key_id"), "sealed_bytes": source.get("sealed_bytes")},
+                                                   "timings_ms": result.get("timings_ms"), "drill_result": result["result"]})
+    except Exception:  # noqa: BLE001 - the drill result file is the record; the run row is a convenience
+        log.warning("off-box drill run could not be recorded", exc_info=True)
+    return result
+
+
+def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_scratch: bool, write_result: bool,
+                source: dict[str, Any] | None = None, prelude: _Run | None = None, t_total: float | None = None) -> dict[str, Any]:
+    run = prelude or _Run()
     started_at = _now()
-    t_total = time.monotonic()
+    t_total = t_total if t_total is not None else time.monotonic()
     result: dict[str, Any] = {"result": "FAIL", "trigger": trigger, "started_at": _iso(started_at), "archive": None, "schema": None,
-                              "tables": {}, "restore": None, "error": None}
+                              "tables": {}, "restore": None, "error": None, "source": source or {"kind": "local"}}
     scratch: Path | None = None
     try:
         base = drill_dir(settings)
         for stale in base.glob("scratch-*"):  # a drill that died midway (power cut) left its scratch copy behind
             shutil.rmtree(stale, ignore_errors=True)
+        if any(not c["ok"] and c["severity"] == "fail" for c in run.checks):
+            return result  # the off-box fetch / decrypt already failed (named in the prelude)
         path = Path(archive) if archive is not None else latest_archive(settings)
         if not run.check("archive_present", path is not None and path.is_file(), None if path else "no valid archive in backups/"):
             return result
@@ -366,14 +425,19 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
 # ---------------------------------------------------------------- background run and the monthly schedule
 
 
-def start_background(settings: Settings, archive: Path | None = None, trigger: str = "manual") -> bool:
-    """Start a drill on a thread of its own (the API answers 202 at once). False when one is running already."""
+def start_background(settings: Settings, archive: Path | None = None, trigger: str = "manual", *, db: Database | None = None,
+                     offbox_target: str | None = None) -> bool:
+    """Start a drill on a thread of its own (the API answers 202 at once). False when one is running already. `offbox_target`
+    (with `db`): drill the newest encrypted copy at that target instead of a local archive."""
     if running():
         return False
 
     def _go() -> None:
         try:
-            run_drill(settings, archive, trigger=trigger)
+            if offbox_target and db is not None:
+                run_offbox_drill(db, settings, offbox_target, trigger=trigger)
+            else:
+                run_drill(settings, archive, trigger=trigger)
         except DrillBusy:
             pass
 
@@ -403,16 +467,36 @@ def due(enabled: bool, last: dict[str, Any] | None, now: dt.datetime) -> bool:
     return nxt is None or now >= nxt
 
 
+def offbox_drill_targets(db: Database, settings: Settings) -> list[str]:
+    """Phase 2: the enabled off-box targets whose copies this installation can open (the keyring holds a key)."""
+    from . import offbox_keys, offbox_store
+
+    try:
+        if not offbox_keys.load(Path(settings.data_dir)).keys:
+            return []
+        with db.connection(mode="read", label="backup_drill.offbox_targets") as conn:
+            return [t["id"] for t in offbox_store.list_targets(conn, enabled_only=True)]
+    except Exception:  # noqa: BLE001 - a database before migration 0132 / an unreadable keyring: no off-box drill
+        return []
+
+
 def monthly_tick(db: Database, settings: Settings, now: dt.datetime | None = None) -> dict[str, Any] | None:
-    """One check of the schedule: runs the drill (blocking) when it is switched on and due. Returns the result or None."""
+    """One check of the schedule: runs the drill (blocking) when it is switched on and due - the local archive, then (phase 2) the
+    newest encrypted copy of every enabled off-box target, when the keyring holds a key. Returns the local result or None."""
     with db.connection(mode="read", label="backup_drill.schedule") as conn:
         enabled = schedule_enabled(conn)
     if not due(enabled, read_last(settings), now or _now()):
         return None
     try:
-        return run_drill(settings, trigger="monthly")
+        local = run_drill(settings, trigger="monthly")
     except DrillBusy:
         return None
+    for target_id in offbox_drill_targets(db, settings):
+        try:
+            run_offbox_drill(db, settings, target_id, trigger="monthly")
+        except DrillBusy:
+            break
+    return local
 
 
 async def monthly_loop(db: Database, settings: Settings, interval_s: int = CHECK_EVERY_S) -> None:

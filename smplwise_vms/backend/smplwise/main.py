@@ -427,6 +427,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(floor_images_router.router, prefix=api, tags=["plans"])  # K88: own floor images (off / on) and their alignment
     app.include_router(plan_bakes_router.router, prefix=api, tags=["plans"])  # CR-029 S3: stills, room masks and lightmaps rendered by an editor browser
     app.include_router(search.router, prefix=api, tags=["search"])
+    from .routers import backup_offbox as backup_offbox_router
+
+    app.include_router(backup_offbox_router.router, prefix=api, tags=["backup"])  # DATASTORE-295 phase 2: before /backups/{name}
     app.include_router(backup.router, prefix=api, tags=["backup"])
     app.include_router(system_update.router, prefix=api, tags=["system-update"])  # CR-021 S1: self-update check and settings (system.update)
     app.include_router(frames.router, prefix=api, tags=["recordings"])

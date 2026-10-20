@@ -778,6 +778,9 @@ async def daily_loop(db: Database, settings: Settings, interval_s: int = DAILY_S
             e = await run_in_threadpool(create_standalone, settings, db, "auto-daily", "daily")
             removed = await run_in_threadpool(prune, settings)
             log.info("daily backup %s (%d bytes); pruned %s", e["name"], e["bytes"], removed or "nothing")
+            from . import offbox_runtime  # DATASTORE-295 phase 2: the encrypted off-box copies of this backup (enabled targets only)
+
+            await run_in_threadpool(offbox_runtime.after_backup, db, settings, e["name"])
         except Exception as exc:  # noqa: BLE001 - keep the loop alive
             log.warning("daily backup failed: %s", exc)
             from . import notify_sources  # CR-018: the administrators hear about a failed automatic backup (resolved by the next good one)

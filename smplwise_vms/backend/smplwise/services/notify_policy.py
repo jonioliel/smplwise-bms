@@ -104,6 +104,10 @@ SOURCES: tuple[Source, ...] = (
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
     _s("backup.stale", "גיבוי ישן", "system", "info", "הגיבוי ישן", "{name}.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
+    # DATASTORE-295 phase 2 (services/offbox_runtime.py): an off-box copy of the daily backup failed or did not verify; one row per target
+    # (subject `offbox:<target id>`), resolved by that target's next verified copy. Never a credential, a host or an endpoint in it.
+    _s("backup.offbox_failed", "עותק גיבוי מחוץ למכונה נכשל", "system", "alert", "העותק מחוץ למכונה נכשל", "{name}: {detail}.", window_s=86400,
+       who="managers", push=False, email=True, subject="system", resolve_text="העותק הבא הצליח"),
     _s("update.available", "עדכון זמין", "system", "info", "עדכון זמין", "גרסה {version} מוכנה להתקנה.", who="managers", push=False, email=True, subject="system", resolve_text="הגרסה הותקנה"),
     _s("notify.channel", "ערוץ התראות לא פועל", "system", "alert", "ערוץ התראות לא פועל", "{name}.", who="managers", push=False, subject="system", resolve_text="הערוץ חזר"),
     # ---- doors
