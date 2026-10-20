@@ -38,6 +38,9 @@ test('the document chunk builds DOM from text nodes only, never stores the token
   expect(page.match(/createElement\('a'\)/g)?.length).toBe(1);
   expect(page).toContain("a.setAttribute('href', url)");
   expect(page).toContain('const url = URL.createObjectURL(blob)');
+  // FABLEFIX-295 D-02: the blob is always opaque bytes, never the answer's own (possibly text/html) type
+  expect(page).toContain("new Blob([buf], { type: 'application/octet-stream' })");
+  expect(page).not.toMatch(/res\.blob\(\)/);
   expect(page).toContain('URL.revokeObjectURL(url)');
   expect(page).toContain("a.setAttribute('download', safeName(");
 });

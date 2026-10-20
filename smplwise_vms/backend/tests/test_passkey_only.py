@@ -1,14 +1,15 @@
 """usr2-passkeys-only-mode: the optional per-user "passkeys only" sign-in mode of Arx-only identities (migration 0130, built as provisional 0140).
 
 Fake authenticator only (tests/webauthn_fake.py): no real device. Covered: default off, the owner switch and a working passkey are
-required, self and administrator switches, the password refused with the uniform 401 (and never counted towards a lock) while a
-passkey signs in, the last usable passkey cannot be removed, the administrator recovery (switch off), the never-a-lock-out gates
+required, self and administrator switches, the password refused with the uniform 401 while a
+passkey signs in, a correct password booked exactly like a wrong one (FABLEFIX-295 P-01), the last usable passkey cannot be removed, the administrator recovery (switch off), the never-a-lock-out gates
 (owner switch off, public address changed), the administrative user's recovery-path rule, passkey-first cannot be switched off under
 the mode, and the audit trail."""
 from __future__ import annotations
 
 
-from test_local_identity import GOOD, _cookie
+from smplwise.services import local_identity as li
+from test_local_identity import GOOD, _cookie, _net
 from test_local_passkeys import PL, PL_OPTS, _with_passkey, px  # noqa: F401 - px is the fixture
 from webauthn_fake import FakeAuthenticator
 
@@ -59,7 +60,9 @@ def test_self_needs_a_fresh_sign_in(px):
     assert r.status_code == 403 and r.json()["code"] == "reauth_required"
 
 
-def test_on_refuses_the_password_uniformly_and_only_a_passkey_signs_in(px):
+def test_on_refuses_the_password_uniformly_and_only_a_passkey_signs_in(px, monkeypatch):
+    monkeypatch.setattr(li, "ACCOUNT_CEILING", 8)
+    monkeypatch.setattr(li, "ACCOUNT_CEILING_WINDOW_S", 10 ** 9)  # one window for the whole test (no clock-boundary flake)
     px.configure(first=True)
     uid, c, auth = _with_passkey(px)
     r = c.put(ONLY, json={"on": True})
@@ -71,10 +74,15 @@ def test_on_refuses_the_password_uniformly_and_only_a_passkey_signs_in(px):
     strip = lambda r_: {k: v for k, v in r_.json().items() if k != "correlation_id"}  # noqa: E731
     assert strip(good) == strip(bad) and "arx_session" not in _cookie(good)
     assert px.audit("auth.local.sign_in.failed")[-1]["reason"] == "password"
-    # a correct password is never counted towards a lock
-    for _ in range(12):
-        assert px.sign_in(px.remote(), "maria", GOOD).status_code == 401
-    assert px.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,)) == [{"failed_count": 1, "delay_until": None}]  # only the one deliberate wrong password counted
+    # FABLEFIX-295 P-01: a correct password is booked exactly like a wrong one (ceiling count, lock, audit, notice) - the side effects
+    # never tell a guesser that the password is right; the lock is password-only, so the passkey still signs in below
+    for i in range(6):
+        assert px.sign_in(px.remote(**_net(40 + i)), "maria", GOOD).status_code == 401
+    row = px.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,))[0]
+    assert row["failed_count"] == 8 and row["delay_until"]  # 2 wrong-or-right attempts above + 6 here reach the (patched) ceiling
+    locked = px.audit("auth.local.account_locked")
+    assert len(locked) == 1 and locked[0]["reason"] == "ceiling"
+    assert px.sign_in(px.remote(**_net(60)), "maria", GOOD).status_code == 401
     c2, r = _pk_sign_in(px, auth)
     assert r.status_code == 200 and "arx_session=l." in _cookie(r)
     assert c2.get("/arx/api/v1/me").json()["user"]["id"] == uid

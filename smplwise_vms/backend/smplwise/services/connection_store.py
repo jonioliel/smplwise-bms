@@ -249,6 +249,24 @@ def open_station_secret(data_dir: Path, station_id: str, blob: str) -> str:
     return _open(_Home(data_dir), _station_aad(station_id), blob)
 
 
+# ---------------------------------------------------------------- bridge HMAC keys (CR-WISKEY-HMAC-ROTATION-295, services/bridge_keys.py)
+# The same key file and `v1:` format; associated data `"bridge_key|<kid>|hmac"` - a blob moved to another kid, store or NVR row does
+# not decrypt. The kid is checked against the key-id pattern of services/bridge_keys (lower-case letters, digits, '-').
+
+def _bridge_key_aad(kid: str) -> bytes:
+    if not isinstance(kid, str) or not 4 <= len(kid) <= 40 or not all(ch.islower() or ch.isdigit() or ch == "-" for ch in kid):
+        raise SecretError("not a secret field")
+    return f"bridge_key|{kid}|hmac".encode("utf-8")
+
+
+def seal_bridge_key(data_dir: Path, kid: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _bridge_key_aad(kid), plaintext)
+
+
+def open_bridge_key(data_dir: Path, kid: str, blob: str) -> str:
+    return _open(_Home(data_dir), _bridge_key_aad(kid), blob)
+
+
 # ---------------------------------------------------------------- rows
 
 def get_row(conn: sqlite3.Connection, recorder_id: str = DEFAULT_RECORDER) -> sqlite3.Row | None:

@@ -69,7 +69,9 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 # The archive format is an allow-list (PROJECT_TABLES / ACCESS_TABLES / OPTIONAL_TABLES); this set is the guard that none of them
 # is ever added to it, checked at import and again by `snapshot`.
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
-                                   "auth_local_reset_codes", "auth_local_reset_sends"})
+                                   "auth_local_reset_codes", "auth_local_reset_sends",
+                                   # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
+                                   "bridge_keys", "bridge_rotations"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -135,7 +137,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # SECFIX2-295 / PUB-03: the retention period and the per-vendor cap of vendor-typed technicians (privacy policy)
                  "access.external.pending_retention_days", "access.external.pending_max_per_vendor",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
-                 "bridge.local_identity_extended"}
+                 "bridge.local_identity_extended",
+                # CR-WISKEY-HMAC-ROTATION-295: the key rotation switch and its reminder are this installation's policy - never from an archive
+                "bridge.key_rotation", "bridge.key_rotation.reminder_days"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
@@ -645,6 +649,11 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     if process_hooks:
         capture_lease.on_authority_change("restore", all=True)
         lease_events.WORKER.request_reset("restore")
+        # CR-WISKEY-HMAC-ROTATION-295 section 9: the key tables are not in any archive (the live keys stay); a rotation in flight is
+        # resolved by the engine's next round as a restore (rolled back before its switch)
+        from . import bridge_rotation
+
+        bridge_rotation.on_restore()
     lease_settings = _lease_settings_report(conn, data)
     # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
     from .skins import store as skins_store

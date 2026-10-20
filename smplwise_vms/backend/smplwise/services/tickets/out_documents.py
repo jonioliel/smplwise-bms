@@ -38,11 +38,43 @@ MEDIA_TYPES = {"application/pdf": ".pdf", "text/html": ".html"}
 REVOKE_REASONS = ("manual", "contact_changed", "contact_erased", "module_key", "send_failed", "source_cancelled")
 _FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,75}\.(?:pdf|html)")
 _MODULE = re.compile(r"[a-z_]{1,32}")
-# an HTML report must be self-contained and inert: no script, no frame / object, no form, no meta refresh, nothing fetched from the network
+# an HTML report must be self-contained and inert: no script, no frame / object, no form, no meta refresh, nothing fetched from the network.
+# FABLEFIX-295 D-01 (Fable review 2026-10-21): this is a TRIPWIRE, not a sanitizer. Every HTML producer escapes every interpolated
+# value with `escape_text` (which also encodes `=`, `:`, `(`, `&`, `<` ... so escaped text never trips these rules) and ships a unit
+# test with hostile names; the file is handed over as application/octet-stream (public_documents.FILE_MEDIA_TYPE). Hardened against:
+# inline event handlers, entity-encoded / whitespace-split schemes, data:image/svg+xml, formaction, srcdoc, any <meta> but charset /
+# viewport, CSS expression() / behavior / -moz-binding / escapes in url(), SVG animation of attributes.
+_WS = r"[\s\x00]*"
+_COLON = r"(?::|&#0*58;?|&#x0*3a;?|&colon;)"
+_URL_ATTRS = r"(?:src|href|action|formaction|poster|srcset|background|data|codebase|cite|longdesc|manifest|ping|to|from|values|by)"
+_SAFE_DATA_IMAGE = r"data:image/(?:png|jpe?g|gif|webp|bmp)[;,]"
 _HTML_FORBIDDEN = re.compile(
-    r"(?is)<\s*(?:script|iframe|frame|object|embed|form|base|link)\b|javascript\s*:|<\s*meta[^>]+http-equiv"
-    r"|\b(?:src|href|action|poster|srcset|background)\s*=\s*[\"']?\s*(?!data:image/)(?:[a-z][a-z0-9+.-]*:|//)"
-    r"|url\(\s*[\"']?\s*(?!data:image/)(?:[a-z][a-z0-9+.-]*:|//)|@import")
+    r"(?is)<\s*/?\s*(?:script|iframe|frame|frameset|object|embed|applet|form|base|link|portal|noscript|template|math|animate\w*|set|handler|listener)\b"
+    # a scheme that runs code, its letters possibly split by whitespace / NUL (an entity-encoded colon is caught inside a URL attribute
+    # below; in text content `escape_text` output such as `javascript&#58;` is inert and must stay acceptable)
+    + r"|(?:j" + _WS + "a" + _WS + "v" + _WS + "a|v" + _WS + "b)" + _WS
+    + "s" + _WS + "c" + _WS + "r" + _WS + "i" + _WS + "p" + _WS + "t" + _WS + ":"
+    # inline event handlers (`<img onerror=`, `<svg/onload=`, `"onfocus=`)
+    + r"|[\s/\"'`;]on[a-z]+[\s\x00]*="
+    + r"|\b(?:formaction|srcdoc|attributename|xlink:actuate)\s*="
+    # a <meta> other than `<meta charset="utf-8">` / `<meta name="viewport" content="...">`
+    + r"|<\s*meta\b(?!\s+charset\s*=\s*[\"']?utf-8[\"']?\s*/?>)(?!\s+name\s*=\s*[\"']?viewport[\"']?\s+content\s*=\s*\"[^\"<>&]*\"\s*/?>)"
+    # a URL attribute: any scheme but a raster data: image, a protocol-relative address, or any entity / backslash in the value
+    + r"|\b" + _URL_ATTRS + r"\s*=\s*[\"'`]?\s*(?!" + _SAFE_DATA_IMAGE + r")(?:[a-z][a-z0-9+.\s-]*" + _COLON + r"|[/\\]{2})"
+    + r"|\b" + _URL_ATTRS + r"\s*=\s*[\"'`]?[^\"'`>\s]*?(?:&#|&[a-z]+;|\\)"
+    # CSS: a fetched or scripted value
+    + r"|url\(\s*[\"']?\s*(?!" + _SAFE_DATA_IMAGE + r")(?:[a-z][a-z0-9+.-]*:|[/\\]{2})|url\(\s*[\"']?\s*\\"
+    + r"|@import|expression\s*\(|behavior\s*:|-moz-binding|image-set\s*\(")
+
+_ESCAPE_KEEP = re.compile(r"[A-Za-z0-9 ]")
+
+
+def escape_text(value: Any) -> str:
+    """FABLEFIX-295 D-01 (a): the ONLY way an HTML producer interpolates operator / vendor / sensor text into a report. Every ASCII
+    character other than a letter, a digit or a space becomes a numeric entity (so `<`, `>`, `&`, quotes, `=`, `:`, `(`, `/`, a
+    backslash, tabs and newlines are all inert and can never trip `_HTML_FORBIDDEN`); non-ASCII text (Hebrew, Arabic, Russian) is kept."""
+    text = "" if value is None else str(value)
+    return "".join(ch if ord(ch) > 127 or _ESCAPE_KEEP.fullmatch(ch) else f"&#{ord(ch)};" for ch in text)
 
 # PAGE_READY: the public page's `#d.` mode (frontend/src/public-ticket/doc/, a lazy chunk like the consent page) exists - minting is
 # allowed once `reports.documents` is switched on (OFF by default; a Fable public-surface review is required before that in a release).
