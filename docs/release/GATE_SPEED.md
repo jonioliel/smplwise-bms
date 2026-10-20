@@ -147,21 +147,28 @@ every pool job (workers / files / estimate / start / wall) and the resource line
   - the switch works.
 - **Not compared, with reason**: `PRAGMA schema_version`, SQLite's internal change counter. A backup copy sets it to 1, while
   the real path ends at about 790. A test proves that no product code reads it.
-- **Saving, measured on the runner** (2026-10-20, `~/light_run.sh`, nice/ionice idle, head 29f938da5):
+- **Saving, measured on the runner** (2026-10-20, through `~/light_run.sh`, nice/ionice idle, other jobs running, load ~9):
+  - **In-process A/B benchmark** (the reliable number; template on and off alternate in one process, 16 rounds each, the first
+    dropped). One fresh `create_app` plus the first request:
 
-  | Test file | Template off | Template on | Saved |
-  |---|---|---|---|
-  | `test_tickets_detail.py`, 36 tests | 175.9 s | 121.7 s | -31% (4.9 -> 3.4 s per test) |
-  | `test_health_summary.py`, 1 test (dominated by the one template build) | 5.9 s | 6.0 s | 0 |
+    | Template | median | mean | min |
+    |---|---|---|---|
+    | off | 2.79 s | 3.77 s | 2.14 s |
+    | on | 0.65 s | 0.91 s | 0.50 s |
 
-  Scaled to the suite, that is about 30 percent of the 439 shard-minutes, roughly 130 shard-minutes.
-  - **v1** (3 shards): the backend track goes from ~146 to ~100 min. The v1 Playwright track (~148 min) stays the critical path,
-    so on its own the template does NOT shorten a v1 gate.
-  - **v2** (6 shards): the backend goes from ~73 to ~50 min, well under the ~75-90 min pool.
+    That is **about 2.1 s saved per fresh test app (-77%)**.
+  - **Whole-file runs of `test_tickets_detail.py`** (36 tests) contradicted each other:
+    - run 1: 175.9 s off vs 121.7 s on;
+    - run 2: 115.5 s off vs 188.3 s on.
+
+    The runner load during those idle-priority runs swamps the effect, so they are NOT evidence either way.
+  - **Suite estimate**: most API tests start one app per test. At 2.1 s for an estimated 4,000-8,000 app starts, the saving is
+    about 140-280 of the 439 shard-minutes (35-65 percent). To be confirmed by the next full backend run: compare the shard
+    seconds in its logs.
+  - **v1** (3 shards): the backend track goes from ~146 to ~55-95 min. The v1 Playwright track (~148 min) stays the critical
+    path, so on its own the template does NOT shorten a v1 gate.
+  - **v2** (6 shards): the backend goes from ~73 to ~30-50 min.
   - The template matters for every targeted or selection run, and for the nightly, whose backend was cut by its budget.
-
-  Only one multi-test file was measured, so the 30 percent is an extrapolation. The rest of the per-test cost is app start-up
-  (seeding, policies, routers) and the tests' own work.
 
 ### 5.2 Diff-based selection (`--select-base <ref>`, opt-in)
 `scripts/gate/select_tests.py` (installed next to `release_gate.py`) maps `base...HEAD` to tests:
