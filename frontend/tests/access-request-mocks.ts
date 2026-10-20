@@ -39,7 +39,20 @@ function stations(o: RequestOptions): S[] {
   return base;
 }
 
-const CONTACTS = [
+interface C {
+  id: string;
+  display_name: string;
+  vendor_name: string | null;
+  phone: string | null;
+  confirmed: string | null;
+  lang: string;
+  kind?: string;
+  company?: string;
+  user_linked?: boolean;
+  active?: boolean;
+}
+
+const CONTACTS: C[] = [
   { id: 'c1', display_name: 'יוסי אברהם', vendor_name: 'קר־טק מיזוג', phone: '····42', confirmed: 'code', lang: 'he' },
   { id: 'c2', display_name: 'מוחמד חסן', vendor_name: 'אלקום חשמל', phone: '····08', confirmed: null, lang: 'ar' },
   { id: 'c3', display_name: 'אלכס פטרוב', vendor_name: 'פ.א. מערכות כיבוי', phone: '····71', confirmed: 'user', lang: 'ru' },
@@ -48,7 +61,7 @@ const CONTACTS = [
   { id: 'c6', display_name: 'רוני כהן', vendor_name: 'אלקום חשמל', phone: '····90', confirmed: null, active: false, lang: 'he' },
 ];
 
-function contact(c: (typeof CONTACTS)[number] & { kind?: string; company?: string; user_linked?: boolean; active?: boolean }, long = false) {
+function contact(c: C, long = false) {
   return {
     id: c.id, kind: c.kind ?? 'person', vendor_id: c.vendor_name ? 'c4' : null, vendor_name: c.vendor_name, user_linked: !!c.user_linked,
     display_name: long && c.id === 'c1' ? 'אלכסנדרה-מריה ואן דר הוחנבורג-שטיינמץ' : c.display_name, company: long && c.id === 'c1' ? 'חברת השירותים הטכניים המאוחדים לתחזוקת מבנים ומערכות בע״מ' : c.company ?? '',
