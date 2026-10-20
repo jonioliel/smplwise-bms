@@ -124,7 +124,7 @@ for BR in "${BRANCHES[@]}"; do
   SHA=$(git -C "$DIR" rev-parse --short "origin/$BR" 2>/dev/null)
   REP="$NRES/gate_$(echo "$BR" | sed 's/[^A-Za-z0-9._-]/-/g')_$SHA"
   rm -f "$REP.json" "$REP.md"   # a crash must not leave last night's report (same sha) looking like tonight's
-  GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
+  GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L --no-visual > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)

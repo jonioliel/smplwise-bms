@@ -390,10 +390,26 @@ def backend_finish(procs, wt, logd):
 DEV_HDR = re.compile(r"needs? the vite dev|on the vite dev|drives the app on the vite dev", re.I)
 SRC_IMPORT = re.compile(r"""['"`]/src['"`/]""")
 ALL_PROJECTS = ["desktop", "tablet", "mobile"]
+TABLET_ALLOWLIST_NAME = "gate_tablet_allowlist.json"   # in frontend/tests of the tested branch (E4): evidence specs reviewed as not needing 1024
+TABLET_FULL = os.environ.get("GATE_TABLET_FULL") == "1"   # nightly: every project for every spec, the allowlist is ignored
+
+
+def tablet_skip_set(fe):
+    """Names of evidence specs reviewed as 'desktop + mobile is enough' (E4). Empty when the file is missing/invalid or in a
+    GATE_TABLET_FULL run (the nightly): then nothing changes, every spec keeps the tablet project."""
+    if TABLET_FULL:
+        return set()
+    try:
+        d = json.loads((fe / "tests" / TABLET_ALLOWLIST_NAME).read_text(encoding="utf-8"))
+        keep = set(d.get("tablet", []))
+        return {n for n in d.get("desktop_mobile", []) if n.startswith("evidence-") and n not in keep}
+    except (OSError, ValueError, AttributeError):
+        return set()
 
 
 def classify(fe, tier):
-    out = {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "fixture_other": {}}
+    out = {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "fixture_other": {}, "tablet_dropped": []}
+    no_tablet = tablet_skip_set(fe)
     for f in sorted((fe / "tests").glob("*.spec.ts")):
         if tier == "S" and not f.name.startswith("unit-"):
             continue
@@ -413,6 +429,9 @@ def classify(fe, tier):
         else:
             kind = "rest"
             projs = (flags[:1] or ["desktop"]) if one else ALL_PROJECTS
+            if f.name in no_tablet and not flags and not one:   # E4: reviewed, desktop + mobile is enough (a header --project= wins)
+                projs = [p for p in ALL_PROJECTS if p != "tablet"]
+                out["tablet_dropped"].append(f.name)
         if fixtures and f.name not in FIXTURE_SPECS:
             out["fixture_other"][f.name] = fixtures[0]
         if "toHaveScreenshot(" in text and not (VISUAL and f.name == "visual-matrix.spec.ts"):  # the visual step owns that spec
@@ -876,6 +895,7 @@ def main():
             "dev": f"{len(cls['dev'])} on the Vite dev server: " + ", ".join(f"{k}({'/'.join(v['projects'])})" for k, v in cls["dev"].items()),
             "fixture": f"{len(cls['fixture'])}: " + ", ".join(cls["fixture"]),
             "pixel": ", ".join(cls["pixel"]) or "-",
+            "evidence specs without the tablet project (E4, gate_tablet_allowlist.json; the nightly runs them on tablet too)": str(len(cls["tablet_dropped"])),
             "fixture needed but not in the gate routine (self-skip in the preview run)": ", ".join(f"{k}->{v}" for k, v in cls["fixture_other"].items()) or "-",
         }
         dead = free_port()   # nothing listens here: the app falls back to demo mode, as the specs' headers require
