@@ -58,8 +58,9 @@ scope proof covers the whole door map): every station decision for that person i
 ## 3. RBAC (D2)
 
 New permission **`access.people.stations`** - "access control: allow or block a person's access per station". Sensitive, station-scoped
-(added to `rbac.STATION_PERMISSIONS`), never implied, built-in holder `system_admin` only (the owner hands it out per station through a
-custom role, like `access.external.grant`).
+(added to `rbac.STATION_PERMISSIONS`), never implied. Built-in holders: `system_admin` and `site_admin` (owner decision 2026-10-21). The
+assignment stays editable like every other sensitive permission: an administrator grants or removes it per role and per station
+(custom roles, station-scope bindings, deny bindings).
 
 | Action | Required (each judged on the ONE station being changed) |
 |---|---|
@@ -137,13 +138,20 @@ actions the server allows (Allow / Block / Follow groups; Approve / Refuse for a
 Words in he / en / ar / ru (`i18n/station-permissions.ts`; ar / ru dev-marked for native review). The product name is "WisKey"; no
 platform branding. No hint paragraphs.
 
-## 10. Open owner questions
+## 10. Owner decisions and UNPROVEN WisKey behaviour
 
-1. Should a station decision be revoked when the person who made it loses `access.people.stations`? (Built: no.)
-2. Should request-only managers be able to request at all, or only holders decide? (Built: requests allowed, ACCESSREQ (b) pattern.)
-3. Default holders: `system_admin` only - or also `site_admin`?
-4. WisKey questions (NOT_RUN): does removing a personal `allow` with no group fall back to "no access" on the device, and is a
-   `native` binding for a denied station accepted unchanged?
+Decided (owner, 2026-10-21):
+1. A station decision STANDS when the person who made it later loses `access.people.stations` (no re-decision; built so).
+2. A manager with `access.people.manage` on a station (without `access.people.stations`) may REQUEST a widening; a holder decides
+   (built so).
+3. Default holders of `access.people.stations`: `system_admin` AND `site_admin`; editable per role / per station by an administrator.
+
+UNPROVEN (needs a real station; NOT tested, only fakes were used - the fake models the answers below as assumptions):
+4a. When Arx removes a person's personal `allow` entry for a station and none of the person's groups grants that station, does WisKey
+    (and the station device) then deny the person at that station - or does the station keep its previous assignment?
+4b. For a person whose `access_timing_policy` is in `native` mode, when Arx writes `deny` for a station that still has a binding in the
+    policy's `bindings`, does WisKey accept the update and keep that binding unchanged (without rejecting the write or dropping the
+    binding)?
 
 ## 11. Rollback
 

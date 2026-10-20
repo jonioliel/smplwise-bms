@@ -6,7 +6,7 @@ decision for that station - `allow` (with its relays), `deny` (blocked, beats an
 follows the person's WisKey groups). Arx RBAC is the only authority; WisKey executes.
 
 Rules (CR sections 2-5):
-- Permission `access.people.stations` (sensitive, station-scoped, system_admin by default) is judged on the ONE station being changed,
+- Permission `access.people.stations` (sensitive, station-scoped; system_admin and site_admin by default - owner decision 2026-10-21) is judged on the ONE station being changed,
   never on every station of the person. A widening (allow, more relays, inherit from deny) needs it; a holder of
   `access.people.manage` on the station without it may only REQUEST the widening (the ACCESSREQ decision (b) pattern), and the
   requester never approves his own request unless he is a system administrator (decision (a)). A narrowing (deny, fewer relays, inherit

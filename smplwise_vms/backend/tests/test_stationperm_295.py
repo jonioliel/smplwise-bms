@@ -125,10 +125,10 @@ def test_the_live_engine_refuses_and_writes_only_the_two_access_fields(monkeypat
             station_access_payload(**bad)
 
 
-def test_the_permission_is_catalogued_station_scoped_sensitive_and_system_admin_only():
+def test_the_permission_is_catalogued_station_scoped_sensitive_and_held_by_both_admin_roles():
     roles = json.loads((Path(rbac.__file__).parent / "roles.json").read_text(encoding="utf-8"))
     holders = {r["id"] for r in roles["roles"] if sp.PERMISSION in r["permissions"]}
-    assert holders == {"system_admin"}
+    assert holders == {"system_admin", "site_admin"}  # owner decision 2026-10-21
     assert sp.PERMISSION in roles["sensitive_permissions_not_implied"] and sp.PERMISSION in rbac.STATION_PERMISSIONS
 
 
