@@ -21,11 +21,6 @@ smplwise_vms/backend/tests/test_tickets_public_app.py         # public-app clien
 smplwise_vms/backend/tests/test_tickets_s4_wiring.py          # client-address and SSRF cases
 frontend/tests/unit-video-conn-test.spec.ts                   # address-class unit test (private/cgnat/link-local)
 
-# --- TODO: single values that should become neutral placeholders (RFC 5737) in a follow-up ---
-frontend/tests/evidence-video-conn-test.spec.ts               # TODO placeholder
-frontend/tests/fixtures/media_fake_ha.py                      # TODO placeholder
-smplwise_vms/backend/tests/test_ha_camera_live.py             # TODO placeholder
-smplwise_vms/backend/tests/test_local_reset.py                # TODO placeholder
-smplwise_vms/backend/tests/test_notify_whatsapp.py            # TODO placeholder
-smplwise_vms/backend/tests/test_tickets_s4_assign.py          # TODO placeholder
-smplwise_vms/backend/tests/test_upstream_watch.py             # TODO placeholder
+# --- Fixtures that must look like a LAN/link-local address for a guard under test ---
+frontend/tests/fixtures/media_fake_ha.py                      # fake music server must resolve to a private LAN address (ma_direct LAN-only check)
+smplwise_vms/backend/tests/test_ha_camera_live.py             # DNS-rebind guard: a name resolving to the well-known link-local metadata address must be refused

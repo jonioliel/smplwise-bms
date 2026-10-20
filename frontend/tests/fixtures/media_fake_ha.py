@@ -1748,7 +1748,7 @@ def install() -> None:
 
     real_resolve = connection_probe.RESOLVE
     # the address check (CR-016 section 18) wants a private LAN address: the fake music server lives at a documentation-style LAN address, no DNS is asked
-    connection_probe.RESOLVE = lambda host: ["192.168.1.50"] if host == FAKE_MA_HOST else real_resolve(host)  # type: ignore[assignment]
+    connection_probe.RESOLVE = lambda host: ["192.168.250.50"] if host == FAKE_MA_HOST else real_resolve(host)  # type: ignore[assignment]
 
     def connect(url: str, **_kw: Any) -> Any:
         if threading.current_thread().name == "ha-sync":  # only the HA sync gets the fake Home Assistant
