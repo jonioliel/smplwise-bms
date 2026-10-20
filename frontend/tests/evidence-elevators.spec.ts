@@ -62,6 +62,25 @@ test.describe('elevators evidence', () => {
     });
   }
 
+  test('door picture: active = shut doors, waiting = open doors (ELEVDOORS-293)', async ({ page }) => {
+    await install(page, [
+      { id: 'a1', name: 'מעלית צפון 4', area_id: null, area_name: null, ...live('active') },
+      { id: 'w1', name: 'מעלית צפון 3', area_id: null, area_name: null, ...live('waiting') },
+    ]);
+    await page.goto('about:blank');
+    await page.goto(url('/infra/elevators', 'classic', 'light'));
+    await expect(page.locator('sw-app infra-elevators [data-elevator]')).toHaveCount(2);
+    const gap = (id: string) => page.locator(`sw-app infra-elevators [data-elevator="${id}"] .eicon`).evaluate((el) => {
+      const [a, b] = Array.from(el.querySelectorAll('u')).map((u) => u.getBoundingClientRect());
+      return Math.abs(Math.min(a.left, b.left) === a.left ? b.left - a.right : a.left - b.right);
+    });
+    await expect(page.locator('sw-app infra-elevators [data-elevator="a1"] .eicon')).toHaveAttribute('data-doors', 'closed');
+    await expect(page.locator('sw-app infra-elevators [data-elevator="w1"] .eicon')).toHaveAttribute('data-doors', 'open');
+    expect(await gap('a1')).toBeLessThan(4);
+    expect(await gap('w1')).toBeGreaterThan(6);
+    await page.screenshot({ path: path.join(OUT, `doors-${test.info().project.name}.png`) });
+  });
+
   test('settings: list and the add dialog with one select per role', async ({ page }) => {
     await install(page, ELEVATORS);
     await page.goto('about:blank');
