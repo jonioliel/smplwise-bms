@@ -111,11 +111,11 @@ class ArrivalCard {
     const cur = v.current;
     if (cur && !this.editing) {
       this.element.dataset.arrival = cur.state;
-      this.element.replaceChildren(head, ...this.status(v));
+      this.element.replaceChildren(head, ...this.status(v).filter((n): n is Node => n !== null));
       return;
     }
     this.element.dataset.arrival = 'form';
-    this.element.replaceChildren(head, ...this.form(v));
+    this.element.replaceChildren(head, ...this.form(v).filter((n): n is Node => n !== null));
   }
 
   private status(v: ArrivalView): (Node | null)[] {
