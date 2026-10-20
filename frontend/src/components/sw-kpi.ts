@@ -113,8 +113,8 @@ export class SwKpi extends LitElement {
       position: absolute;
       inset-inline-end: 10px;
       inset-block-start: 10px;
-      background: var(--sw-danger);
-      color: var(--sw-text-inverse);
+      background: var(--sw-badge-bg, var(--sw-danger));
+      color: var(--sw-badge-fg, var(--sw-text-inverse));
       font-size: var(--sw-fs-2xs);
       font-weight: var(--sw-fw-semibold);
       border-radius: var(--sw-r-pill);
