@@ -588,6 +588,10 @@ def revoke_contact_links(conn, contact_id: str, reason: str, now, *, rid: str | 
     from . import rfq_links  # TKRFQ1: the contact's live RFQ vendor links die with the change / erase too
 
     n += rfq_links.revoke_contact_links(conn, contact_id, reason, now)
+    if reason in ("contact_changed", "contact_erased"):
+        from . import out_documents  # CR-VENDORQ-294: a document sent to the old number / a person who was erased dies at once
+
+        out_documents.revoke_recipient(conn, "contact", contact_id, reason, now)
     return n
 
 

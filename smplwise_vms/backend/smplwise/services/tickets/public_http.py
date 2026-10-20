@@ -208,6 +208,11 @@ ROUTES: tuple[RouteRule, ...] = (
     # hour, spent only once an answer is stored) and the failure caps (20 unknown tokens / minute per network, 300 installation-wide)
     RouteRule("GET", r"/t/api/consent", "/t/api/consent", "token_read"),
     _json("/t/api/consent", "token_write", 1024),
+    # CR-VENDORQ-294 (services/tickets/out_documents.py, public_documents.py): a document sent by a temporary link (`#d.<token>` in the
+    # fragment, the token in X-Ticket-Token): the metadata as a token read, the bytes as a file read (its own per-token window); both the
+    # uniform 404 for every token that is not live (documents switched off included)
+    RouteRule("GET", r"/t/api/doc", "/t/api/doc", "token_read"),
+    RouteRule("GET", r"/t/api/doc/file", "/t/api/doc/file", "file_read"),
 )
 # VPORTAL: the portal session cookie. `__Secure-` (the browser keeps it only from an HTTPS answer and sends it only over HTTPS),
 # HttpOnly (no script reads it), SameSite=Strict (no cross-site request carries it), Path = the portal's API path under the public

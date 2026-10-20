@@ -37,7 +37,7 @@ export function rfqFragment(hash: string, mark = 'q.'): string | null {
   return f.startsWith(mark) && TOKEN_RE.test(f.slice(2)) ? f.slice(2) : null;
 }
 
-export type Mode = 'rfq' | 'ticket' | 'consent';
+export type Mode = 'rfq' | 'ticket' | 'consent' | 'document';
 
 /**
  * TKRFQVP: which link the tab opens. A fragment wins and decides the mode (`#q.<token>` = RFQ, `#<token>` = ticket), then an e-mail
@@ -50,6 +50,9 @@ export function pickMode(hash: string, path: string, storedTicket: string | null
   // WA-CONSENT-LINK: `#c.<token>` is a WhatsApp consent link (single use; never kept in this tab's storage)
   const c = rfqFragment(hash, 'c.');
   if (c) return { mode: 'consent', token: c, rid: null, fromFragment: true };
+  // CR-VENDORQ-294: `#d.<token>` is a document sent by a temporary link (never kept in this tab's storage)
+  const d = rfqFragment(hash, 'd.');
+  if (d) return { mode: 'document', token: d, rid: null, fromFragment: true };
   const boot = bootFrom(hash, path, storedTicket);
   if (boot.fromFragment || boot.rid) return { mode: 'ticket', ...boot };
   if (storedRfq && TOKEN_RE.test(storedRfq)) return { mode: 'rfq', token: storedRfq, rid: null, fromFragment: false };

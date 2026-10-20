@@ -181,6 +181,16 @@ class DirectoryPatch(BaseModel):
     review_idle_months: StrictInt | None = None
 
 
+class ReportsPatch(BaseModel):
+    """CR-VENDORQ-294: reports to external contacts through the message queue and their documents by a temporary link (settings_doc
+    `reports.*`; both switches OFF by default; settings_doc validates the ranges again)."""
+    model_config = ConfigDict(extra="forbid")
+    to_contacts: StrictBool | None = None
+    documents: StrictBool | None = None
+    document_hours: StrictInt | None = None
+    document_max_opens: StrictInt | None = None
+
+
 class PrivacyPatch(BaseModel):
     """PRIVORG-291: the contact point for privacy requests (e-mail or phone) and an optional https link (settings_doc `privacy.*`);
     the organisation name is the existing `organization_name`. settings_doc validates both values again."""
@@ -272,6 +282,7 @@ class SettingsBody(BaseModel):
     vendor_portal: VendorPortalPatch | None = None  # VPORTAL
     notify: NotifyPatch | None = None  # TKNOTIFMATRIX
     privacy: PrivacyPatch | None = None  # PRIVORG-291
+    reports: ReportsPatch | None = None  # CR-VENDORQ-294
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -326,7 +337,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

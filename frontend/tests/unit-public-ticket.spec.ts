@@ -213,6 +213,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let portal = 0;
   let portalMore = 0;
   let consent = 0;
+  let doc = 0;
   let claimPrefill = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
@@ -233,6 +234,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
       else if (/^portal-more[-.]/.test(f)) portalMore += n;
       else if (/^portal-page[-.]/.test(f)) portal += n;
       else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK: the consent page's lazy chunk + stylesheet, its own cap
+      else if (/^doc-(page|text)[-.]/.test(f)) doc += n; // CR-VENDORQ-294: the document page's lazy chunk (it shares the consent stylesheet), its own cap
       else gz += n;
     }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule
@@ -251,6 +253,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(portal).toBeLessThanOrEqual(12 * 1024);
   expect(portalMore).toBeLessThanOrEqual(6 * 1024);
   expect(consent).toBeLessThanOrEqual(5 * 1024);
+  expect(doc).toBeLessThanOrEqual(4 * 1024);
   expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
 });
 
