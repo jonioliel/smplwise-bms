@@ -2,35 +2,17 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elapsedView, type ElapsedInput } from './elapsed-model';
 import { lt } from './list-text';
+import { subscribeClock } from '../api/clock-ticker';
 
 /**
- * TKUI4: ONE shared minute ticker for every running clock on the screen - no per-second timers, no timer per element. It runs only while
- * a clock is connected, skips ticks while the tab is hidden (and ticks at once when it is visible again), and stops with the last clock.
+ * TKUI4: ONE shared minute ticker for every running clock on the screen - no per-second timers, no timer per element. CLOCK-293: it is now the
+ * page-wide wall-clock ticker (api/clock-ticker.ts): aligned to the minute, resumes on visibility / focus / wake from sleep, stops with the
+ * last clock.
  */
-const subs = new Set<() => void>();
-let timer = 0;
-function tickAll(): void {
-  if (document.visibilityState === 'hidden') return;
-  subs.forEach((f) => f());
-}
-function subscribe(f: () => void): () => void {
-  subs.add(f);
-  if (!timer) {
-    timer = window.setInterval(tickAll, 60_000);
-    document.addEventListener('visibilitychange', tickAll);
-  }
-  return () => {
-    subs.delete(f);
-    if (!subs.size && timer) {
-      window.clearInterval(timer);
-      timer = 0;
-      document.removeEventListener('visibilitychange', tickAll);
-    }
-  };
-}
+let running = 0;
 /** the number of running clocks (the tests read it) */
 export function runningClocks(): number {
-  return subs.size;
+  return running;
 }
 
 /**
@@ -71,7 +53,12 @@ export class TicketElapsed extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.now = new Date();
-    this.off = subscribe(() => (this.now = new Date()));
+    running++;
+    const off = subscribeClock((now) => (this.now = now));
+    this.off = () => {
+      running--;
+      off();
+    };
   }
 
   disconnectedCallback() {

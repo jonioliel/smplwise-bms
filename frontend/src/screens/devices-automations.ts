@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { subscribeClock } from '../api/clock-ticker';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { keyed } from 'lit/directives/keyed.js';
@@ -83,6 +84,7 @@ export class DevicesAutomations extends LitElement {
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private offRoute: (() => void) | null = null;
   private offPush: (() => void) | null = null;
+  private offClock: (() => void) | null = null;
   private offEdit: (() => void) | null = null;
   private noteTimer = 0;
   private urlTimer = 0;
@@ -238,6 +240,8 @@ export class DevicesAutomations extends LitElement {
     this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
     this.offRoute = onRouteChange((r) => this.onRoute(r));
     void this.load();
+    // CLOCK-293: "next run" / "last run" labels age while the page stays open (the demo clock is fixed and is read through autoNow)
+    this.offClock = subscribeClock(() => (this.now = autoNow()));
     if (isApi()) {
       this.offPush = subscribeHa((m) => {
         if (m.type !== 'automations_changed') return;
@@ -253,6 +257,8 @@ export class DevicesAutomations extends LitElement {
     this.removeEventListener('scroll', this.onScroll);
     this.offRoute?.();
     this.offPush?.();
+    this.offClock?.();
+    this.offClock = null;
     this.offEdit?.();
     window.clearTimeout(this.noteTimer);
     window.clearTimeout(this.urlTimer);
