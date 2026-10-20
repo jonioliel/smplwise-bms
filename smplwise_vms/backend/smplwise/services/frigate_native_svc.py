@@ -28,7 +28,7 @@ from . import frigate_control_svc as cs
 from .recorders import frigate_control as fc
 from .recorders.frigate import FrigateAdapter
 
-SUPERVISED_KINDS = ("export_create", "export_rename", "export_delete", "case_create", "case_rename", "case_delete", "event_create", "event_end", "profile_auto", "clip_read",
+SUPERVISED_KINDS = ("export_create", "export_rename", "export_delete", "export_assign", "case_create", "case_rename", "case_delete", "event_create", "event_end", "profile_auto", "clip_read",
                    "config_zone", "config_settings")   # FRGS: zones and camera settings (config class)
 CONFIGURE = "system.configure"
 NOW = time.time   # tests replace it
@@ -101,7 +101,7 @@ def _find_export(ctl: fc.FrigateControl, export_id: str) -> dict[str, Any] | Non
 
 
 def create_export(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, cam: sqlite3.Row, start: float, end: float, name: str, *, supervised: bool,
-                  request_id: str | None) -> dict[str, Any]:
+                  request_id: str | None, case_id: str | None = None) -> dict[str, Any]:
     rid = adapter.recorder_id
     require_camera(conn, principal, cam["id"], "video.export")
     cs._gate(conn, principal, rid, "exports", cam["id"], confirm=False, request_id=request_id, what="export_create", needs_confirm=False)
@@ -110,11 +110,13 @@ def create_export(conn: sqlite3.Connection, principal: Principal, adapter: Friga
         raise ApiError(422, "frigate_export_range_invalid", "טווח הייצוא אינו תקין.")
     ctl = fc.FrigateControl(adapter)
     want = ctl._name(name)
+    if case_id is not None and _find_case(ctl, ctl._object(case_id)) is None:
+        raise ApiError(404, "not_found", "התיק לא נמצא ב־Frigate.")
     base = dict(recorder_id=rid, camera_id=cam["id"], camera_key=cam["source_ref"], cls="exports", kind="export_create", request_id=request_id)
-    after = {"name": want, "camera": cam["source_ref"], "start": start, "end": end}
+    after = {"name": want, "camera": cam["source_ref"], "start": start, "end": end, **({"case_id": case_id} if case_id is not None else {})}
     known = {x["id"] for x in ctl.list_exports()}
     try:
-        eid = ctl.create_export(cam["source_ref"], start, end, want)
+        eid = ctl.create_export(cam["source_ref"], start, end, want, case_id)
     except ApiError as exc:
         raise cs._failed(conn, principal, exc, target=want[:60], before=None, after=after, state_hash=None, **base) from None
     verified = False
@@ -192,6 +194,37 @@ def delete_export(conn: sqlite3.Connection, principal: Principal, adapter: Friga
     _forget(conn, rid, "export", export_id)
     mark_first_write(conn, principal, rid, "export_delete")
     return {"deleted": True, "export_id": export_id, "verified": verified, "change_id": cid}
+
+
+def assign_export(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, export_id: str, case_id: str | None, *, supervised: bool,
+                  request_id: str | None) -> dict[str, Any]:
+    """FRIGATE-295 (0.18 `POST /api/exports/reassign`): put an export Arx created into a Frigate case (any existing case, also one made in
+    Frigate: only the export changes), or take it out (`case_id=None`). Read back from the export list; undone by assigning it back."""
+    rid = adapter.recorder_id
+    own = _owned(conn, rid, "export", export_id)
+    cs._gate(conn, principal, rid, "exports", own["camera_id"], confirm=False, request_id=request_id, what="export_assign", needs_confirm=False)
+    check_supervised(conn, principal, rid, "export_assign", supervised, request_id)
+    ctl = fc.FrigateControl(adapter)
+    if case_id is not None and _find_case(ctl, ctl._object(case_id)) is None:
+        raise ApiError(404, "not_found", "התיק לא נמצא ב־Frigate.")
+    cur = _find_export(ctl, export_id)
+    if cur is None:
+        raise ApiError(404, "not_found", "הייצוא לא נמצא ב־Frigate (ייתכן שעדיין בתור).")
+    base = dict(recorder_id=rid, camera_id=own["camera_id"], camera_key=own["camera_key"], cls="exports", kind="export_assign", target=export_id, request_id=request_id)
+    if cur["case_id"] == case_id:
+        return {"changed": False, "export_id": export_id, "case_id": case_id, "verified": True, "change_id": None}
+    try:
+        ctl.assign_export(export_id, case_id)
+    except ApiError as exc:
+        raise cs._failed(conn, principal, exc, before={"case_id": cur["case_id"]}, after={"case_id": case_id}, state_hash=None, **base) from None
+    try:
+        now = _find_export(ctl, export_id)
+        verified = now is not None and now["case_id"] == case_id
+    except ApiError:
+        verified = False
+    cid = cs._log(conn, principal, before={"case_id": cur["case_id"]}, after={"case_id": case_id}, state_hash=None, status="applied" if verified else "unverified", **base)
+    mark_first_write(conn, principal, rid, "export_assign")
+    return {"changed": True, "export_id": export_id, "case_id": case_id, "verified": verified, "change_id": cid}
 
 
 # ---------------------------------------------------------------------------------------------- cases
@@ -353,7 +386,7 @@ def end_event(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAd
 
 # ---------------------------------------------------------------------------------------------- undo of the new kinds
 
-INVERSE_KIND = {"export_create": "export_delete", "export_rename": "export_rename", "case_create": "case_delete", "case_rename": "case_rename", "event_create": "event_end"}
+INVERSE_KIND = {"export_create": "export_delete", "export_rename": "export_rename", "export_assign": "export_assign", "case_create": "case_delete", "case_rename": "case_rename", "event_create": "event_end"}
 UNDO_CONFIRMS = frozenset({"export_create", "case_create"})   # their inverse deletes something
 
 
@@ -382,6 +415,17 @@ def revert_kind(conn: sqlite3.Connection, adapter: FrigateAdapter, row: sqlite3.
         conn.execute("UPDATE frigate_native_objects SET name = ? WHERE recorder_id = ? AND kind = 'export' AND object_id = ?", (before["name"], rid, target))
         now = _find_export(ctl, target)
         return now is not None and now["name"] == before["name"]
+    if kind == "export_assign":
+        _owned(conn, rid, "export", target)
+        cur = _find_export(ctl, target)
+        if cur is None or cur["case_id"] != after["case_id"]:
+            raise stale()
+        back = before["case_id"]
+        if back is not None and _find_case(ctl, back) is None:
+            raise stale()   # the case it came from is gone
+        ctl.assign_export(target, back)
+        now = _find_export(ctl, target)
+        return now is not None and now["case_id"] == back
     if kind == "case_create":
         _owned(conn, rid, "case", target)
         if _find_case(ctl, target) is None:

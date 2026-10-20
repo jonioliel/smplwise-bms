@@ -560,6 +560,13 @@ class FrigateAdapter:
 
         return self.http.open_clip(f"/api/events/{q(event_id)}/clip.mp4")
 
+    def open_review_clip(self, review_id: str):
+        """FRIGATE-295: the clip of one review item (0.18 `GET /api/review/{id}/clip.mp4`: Frigate concatenates the recordings of the item's
+        camera from its start to its end; an open item runs to "now", so the caller refuses open or over-long items first)."""
+        from .frigate_http import q
+
+        return self.http.open_clip(f"/api/review/{q(review_id)}/clip.mp4")
+
 
 # ---------------------------------------------------------------------------------------------- registration
 

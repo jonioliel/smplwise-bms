@@ -46,6 +46,12 @@ class ExportIn(_In):
     start: float = Field(gt=0)
     end: float = Field(gt=0)
     name: str = Field(min_length=1, max_length=fc.NAME_MAX)
+    case_id: str | None = Field(default=None, min_length=1, max_length=80)   # FRIGATE-295: straight into a Frigate case
+    supervised: bool = False
+
+
+class AssignIn(_In):
+    case_id: str | None = Field(default=None, min_length=1, max_length=80)  # null = out of its case
     supervised: bool = False
 
 
@@ -141,13 +147,20 @@ def export_create(recorder_id: str, body: ExportIn, request: Request, principal:
     cam = _camera_row(conn, principal, recorder_id, body.camera_id, svc.PERMISSION["exports"])
     a = _adapter(conn, request, recorder_id)
     return {"recorder_id": recorder_id, "camera_id": body.camera_id,
-            **native.create_export(conn, principal, a, cam, body.start, body.end, body.name, supervised=body.supervised, request_id=_rq(request))}
+            **native.create_export(conn, principal, a, cam, body.start, body.end, body.name, supervised=body.supervised, request_id=_rq(request), case_id=body.case_id)}
 
 
 @router.patch("/frigate/{recorder_id}/exports/{export_id}")
 def export_rename(recorder_id: str, export_id: str, body: RenameIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     a = _adapter(conn, request, recorder_id)
     return {"recorder_id": recorder_id, **native.rename_export(conn, principal, a, export_id, body.name, supervised=body.supervised, request_id=_rq(request))}
+
+
+@router.post("/frigate/{recorder_id}/exports/{export_id}/case")
+def export_assign(recorder_id: str, export_id: str, body: AssignIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Put an export Arx created into a Frigate case, or take it out (`case_id: null`). Class `exports`; undone from the change log."""
+    a = _adapter(conn, request, recorder_id)
+    return {"recorder_id": recorder_id, **native.assign_export(conn, principal, a, export_id, body.case_id, supervised=body.supervised, request_id=_rq(request))}
 
 
 @router.post("/frigate/{recorder_id}/exports/{export_id}/delete")

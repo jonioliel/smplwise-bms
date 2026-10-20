@@ -132,6 +132,9 @@ def camera_control(recorder_id: str, camera_id: str, request: Request, principal
     state = svc.camera_state(a, cam["source_ref"])
     return {"recorder_id": recorder_id, "camera_id": camera_id,
             "features": [{"feature": f, "class": fc.FEATURE_CLASS[f], "value": state.get(f)} for f in list(fc.FEATURE_CLASS)],
+            # FRIGATE-295: the camera's named zones / masks as runtime switches ("<kind>:<name>", class analytics)
+            "named": [{"feature": f, "kind": f.split(":", 1)[0], "name": f.split(":", 1)[1], "class": "analytics", "value": v}
+                      for f, v in state.items() if ":" in f],
             "writable": _writable(conn, principal, recorder_id, camera_id)}
 
 

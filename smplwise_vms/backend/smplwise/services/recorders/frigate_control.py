@@ -23,7 +23,7 @@ from typing import Any
 
 from ...errors import ApiError
 from .frigate import CAMERA_KEY, FrigateAdapter
-from .frigate_http import ANALYTICS_FEATURES, RECORD_FEATURES, ID, LABEL, OBJ, q
+from .frigate_http import ANALYTICS_FEATURES, RECORD_FEATURES, SUB_FEATURES, ID, LABEL, OBJ, q
 
 # feature -> where its switch lives in a camera's section of the effective config
 FEATURE_PATHS: dict[str, tuple[str, ...]] = {
@@ -41,6 +41,10 @@ FEATURE_PATHS: dict[str, tuple[str, ...]] = {
     "snapshots": ("snapshots", "enabled"),
 }
 FEATURE_CLASS = {**{f: "analytics" for f in ANALYTICS_FEATURES}, **{f: "record" for f in RECORD_FEATURES}}
+# FRIGATE-295: a named zone / mask switch is the feature "<kind>:<name>" (kind in SUB_FEATURES), class analytics; where its state lives:
+SUB_PATHS: dict[str, tuple[str, ...]] = {"zone": ("zones",), "motion_mask": ("motion", "mask"), "object_mask": ("objects", "mask")}
+SUB_NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+SUB_MAX = 40   # named items read per kind and camera
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 EVENT_ID = re.compile(rf"^{ID}$")
 SUB_LABEL_MAX = 60
@@ -70,7 +74,20 @@ def normalize_ptz(command: str) -> str:
     raise ApiError(422, "ptz_command_invalid", "פקודת PTZ אינה מותרת (צעד בודד, זום, עצירה או נקודה שמורה בלבד).", details={"allowed": list(PTZ_STEPS) + ["preset_<name>"]})
 
 
+def split_feature(feature: str) -> tuple[str, str | None]:
+    """"zone:front_path" -> ("zone", "front_path"); a plain feature -> (feature, None). A malformed name is refused (422)."""
+    kind, sep, name = (feature or "").partition(":")
+    if not sep:
+        return feature, None
+    if kind not in SUB_FEATURES or not SUB_NAME.fullmatch(name):
+        raise ApiError(422, "frigate_feature_unknown", "המתג אינו מוכר.", details={"feature": (feature or "")[:40]})
+    return kind, name
+
+
 def feature_class(feature: str) -> str:
+    kind, name = split_feature(feature)
+    if name is not None:
+        return "analytics"
     cls = FEATURE_CLASS.get(feature)
     if cls is None:
         raise ApiError(422, "frigate_feature_unknown", "המתג אינו מוכר.", details={"feature": feature[:40]})
@@ -107,7 +124,25 @@ class FrigateControl:
         cam = cams.get(camera) if isinstance(cams, dict) else None
         if not isinstance(cam, dict):
             raise ApiError(404, "not_found", "המצלמה לא נמצאה ב־Frigate.", details={"op": "config"})
-        return {f: _dig(cam, p) for f, p in FEATURE_PATHS.items()}
+        out: dict[str, bool | None] = {f: _dig(cam, p) for f, p in FEATURE_PATHS.items()}
+        out.update(self._named_switches(cam))
+        return out
+
+    @staticmethod
+    def _named_switches(cam: dict[str, Any]) -> dict[str, bool | None]:
+        """0.18: zones / motion masks / object masks are mappings name -> {enabled, ...}; each becomes the switch "<kind>:<name>"."""
+        out: dict[str, bool | None] = {}
+        for kind, path in SUB_PATHS.items():
+            node: Any = cam
+            for key in path:
+                node = node.get(key) if isinstance(node, dict) else None
+            if not isinstance(node, dict):
+                continue
+            for name in sorted(node)[:SUB_MAX]:
+                item = node[name]
+                if isinstance(name, str) and SUB_NAME.fullmatch(name) and isinstance(item, dict) and isinstance(item.get("enabled"), bool):
+                    out[f"{kind}:{name}"] = item["enabled"]
+        return out
 
     def active_profile(self) -> dict[str, Any]:
         """{"names": [...], "active": str | None}; a Frigate without profiles answers an empty list.
@@ -218,7 +253,9 @@ class FrigateControl:
         """W1 / W2: one runtime switch of ONE camera (`*` is not a camera key and is refused by the allow-list)."""
         FrigateAdapter._camera(camera)
         klass = feature_class(feature)
-        self.http.write(klass, "PUT", f"/api/camera/{camera}/set/{feature}", {"value": "ON" if on else "OFF"})
+        kind, name = split_feature(feature)
+        path = f"/api/camera/{camera}/set/{kind}/{name}" if name is not None else f"/api/camera/{camera}/set/{feature}"
+        self.http.write(klass, "PUT", path, {"value": "ON" if on else "OFF"})
 
     def set_profile(self, name: str | None) -> None:
         """W3: the active profile for the whole Frigate (`None` = no profile). Frigate clears the runtime toggles on a switch."""
@@ -377,4 +414,4 @@ class FrigateControl:
             raise ApiError(503, "frigate_write_unknown", "לא ידוע אם פקודת ה־PTZ בוצעה. בדקו במצלמה לפני ניסיון נוסף.", details={"op": "ptz", "error": type(exc).__name__}) from exc
 
 
-__all__ = ["FrigateControl", "FEATURE_PATHS", "FEATURE_CLASS", "PTZ_STEPS", "normalize_ptz", "state_hash", "feature_class", "CAMERA_KEY"]
+__all__ = ["FrigateControl", "FEATURE_PATHS", "FEATURE_CLASS", "SUB_PATHS", "PTZ_STEPS", "normalize_ptz", "state_hash", "feature_class", "split_feature", "CAMERA_KEY"]

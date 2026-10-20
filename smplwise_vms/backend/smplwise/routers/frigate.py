@@ -546,6 +546,23 @@ def event_clip(recorder_id: str, event_id: str, request: Request, supervised: bo
     return _clip_response(conn, principal, a, recorder_id, "event", supervised, request, lambda: a.open_event_clip(event_id), scope["camera_id"])
 
 
+@router.get("/frigate/{recorder_id}/reviews/{review_id}/clip.mp4")
+def review_clip(recorder_id: str, review_id: str, request: Request, supervised: bool = Query(False), principal: Principal = Depends(current_principal_ro),
+                conn: sqlite3.Connection = Depends(get_read_conn)) -> StreamingResponse:
+    """FRIGATE-295: the clip of ONE review item (start to end of the item, as Frigate cuts it), streamed through Arx. `events.read` on the
+    item's camera (it must be visible) AND `video.playback` on it. An item still open, or longer than an hour, is refused before anything is
+    asked of Frigate (Frigate would cut up to "now"). Same first-supervised-read gate as the other clip routes."""
+    a = _adapter(conn, request, recorder_id)
+    row = _review_row(conn, principal, recorder_id, review_id)
+    if row["camera_id"]:
+        require_camera(conn, principal, row["camera_id"], "video.playback")
+    else:
+        require(conn, principal, "video.playback", INSTALLATION)
+    if row["end_ts"] is None or not 0 < row["end_ts"] - row["start_ts"] <= fp.EXPORT_PLAN_MAX_WINDOW_S:
+        raise ApiError(409, "frigate_clip_window", "לפריט הזה אין עדיין קטע סגור שאפשר לחתוך (פתוח או ארוך משעה).", details={"max_s": int(fp.EXPORT_PLAN_MAX_WINDOW_S)})
+    return _clip_response(conn, principal, a, recorder_id, "review", supervised, request, lambda: a.open_review_clip(review_id), row["camera_id"])
+
+
 @router.get("/frigate/{recorder_id}/cameras/{camera_id}/export-plan")
 def export_plan(recorder_id: str, camera_id: str, request: Request, start: str = Query(...), end: str = Query(...), principal: Principal = Depends(current_principal_ro),
                 conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:

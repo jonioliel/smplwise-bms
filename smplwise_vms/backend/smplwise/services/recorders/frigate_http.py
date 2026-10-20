@@ -80,8 +80,13 @@ CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz
 # /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
 ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
 RECORD_FEATURES = ("enabled", "recordings", "snapshots")
+# FRIGATE-295 (0.18 `PUT /api/camera/{cam}/set/{feature}/{sub_command}`): runtime switches of ONE named zone / motion mask / object mask of ONE
+# camera. Frigate refuses ON for an item disabled in its YAML (logged, answered 200), so the read-back decides.
+SUB_FEATURES = ("zone", "motion_mask", "object_mask")
+SUB = r"[A-Za-z0-9_-]{1,64}"
 WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
-    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),),
+    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),
+                  ("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(SUB_FEATURES)})/{SUB}"))),
     "record": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(RECORD_FEATURES)})")),),
     "profile": (("PUT", re.compile(r"/api/camera/\*/set/profile")),),
     "review": (("POST", re.compile(r"/api/reviews/viewed")), ("DELETE", re.compile(rf"/api/review/{ID}/viewed"))),
@@ -104,7 +109,8 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
 # F2b: the clip read. Read-only GET, streamed, kept OFF `GET_ALLOWED` (no F1 read path can reach it) and reachable only through `open_clip`,
 # which the Arx clip routes alone call, after permission and the first-supervised-read gate. UNVERIFIED wire shape: Frigate cuts the clip on the
 # server (`/api/{camera}/start/{s}/end/{e}/clip.mp4`, `/api/events/{id}/clip.mp4`); nothing has been read from a real instance yet.
-CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"))
+CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"),
+                                             re.compile(rf"/api/review/{ID}/clip\.mp4"))   # FRIGATE-295: a review item's clip (0.18)
 CLIP_MAX_BYTES = 400_000_000
 CLIP_TIMEOUT_S = 30.0           # per network read; the total is bounded by CLIP_TOTAL_S
 CLIP_TOTAL_S = 300.0

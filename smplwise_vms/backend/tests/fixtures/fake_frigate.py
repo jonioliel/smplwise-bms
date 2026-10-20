@@ -212,6 +212,20 @@ class FakeFrigate:
             body = json.loads(request.content) if request.content else None
         except ValueError:
             return httpx.Response(400, json={"message": "bad body"})
+        mm = re.fullmatch(r"/api/camera/([^/]+)/set/(zone|motion_mask|object_mask)/([^/]+)", path)
+        if m == "PUT" and mm:
+            # 0.18.2 (frigate/api/camera.py camera_set + comms/dispatcher.py): the handler runs after the 200; an unknown name or ON for an
+            # item disabled in the YAML is only logged, the answer is still {"success": true}
+            cam, kind, name = mm.groups()
+            val = (body or {}).get("value")
+            if cam not in self.cameras or val not in ("ON", "OFF"):
+                return httpx.Response(404 if cam not in self.cameras else 400, json={"success": False})
+            node = self.cameras[cam].get("zones") if kind == "zone" else (self.cameras[cam].get("motion" if kind == "motion_mask" else "objects") or {}).get("mask")
+            item = node.get(name) if isinstance(node, dict) else None
+            if isinstance(item, dict) and not (val == "ON" and item.get("enabled_in_config") is False):
+                item["enabled"] = val == "ON"
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
         mm = re.fullmatch(r"/api/camera/([^/]+)/set/([a-z_]+)", path)
         if m == "PUT" and mm:
             cam, feat = mm.groups()
@@ -448,7 +462,7 @@ class FakeFrigate:
         if path == "/api/review/activity/motion":
             a, b = float(q["after"]), float(q["before"])
             return self._json([{"start_time": T0 - 600 + 30 * i, "motion": 10.5 + i, "camera": "cam_front,cam_yard"} for i in range(10) if a <= T0 - 600 + 30 * i <= b])
-        if path.endswith("/clip.mp4") and (path.startswith("/api/events/") or "/start/" in path):
+        if path.endswith("/clip.mp4") and (path.startswith("/api/events/") or path.startswith("/api/review/") or "/start/" in path):
             self.clip_hits.append(path)
             if self.clip_status != 200:
                 return httpx.Response(self.clip_status, json={"message": "no clip"})

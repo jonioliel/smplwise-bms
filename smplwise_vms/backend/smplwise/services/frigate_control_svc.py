@@ -129,6 +129,9 @@ def set_feature(conn: sqlite3.Connection, principal: Principal, adapter: Frigate
     ctl = fc.FrigateControl(adapter)
     base = dict(recorder_id=rid, camera_id=cam["id"], camera_key=cam["source_ref"], cls=cls, kind="feature", target=feature, request_id=request_id)
     before_all = ctl.read_features(cam["source_ref"])
+    if fc.split_feature(feature)[1] is not None and feature not in before_all:
+        # a named zone / mask Frigate does not show: Frigate would answer 200 and ignore it, so nothing is sent
+        raise ApiError(404, "frigate_feature_unknown", "האזור או המסכה לא נמצאו במצלמה ב־Frigate.", details={"feature": feature[:80]})
     before = before_all.get(feature)
     if before is value:
         return {"changed": False, "feature": feature, "value": value, "verified": True, "change_id": None}

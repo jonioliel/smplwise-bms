@@ -44,6 +44,8 @@ CALLS = [
     ("control", "GET", "/api/config/schema.json"), ("control", "GET", "/api/jobs/export/front_door_ab12cd"),
     ("clip", "GET", "/api/front_door/start/1791228000/end/1791228060/clip.mp4"), ("clip", "GET", f"/api/events/{EV}/clip.mp4"),
     ("analytics", "PUT", "/api/camera/front_door/set/improve_contrast"), ("analytics", "PUT", "/api/camera/front_door/set/detect"),
+    ("analytics", "PUT", "/api/camera/front_door/set/zone/porch"), ("analytics", "PUT", "/api/camera/front_door/set/motion_mask/tree"),
+    ("clip", "GET", "/api/review/1791228116.185418-be2uit/clip.mp4"),
     ("record", "PUT", "/api/camera/front_door/set/snapshots"), ("profile", "PUT", "/api/camera/*/set/profile"),
     ("review", "POST", "/api/reviews/viewed"), ("review", "DELETE", f"/api/review/{RV}/viewed"),
     ("events", "POST", f"/api/events/{EV}/retain"), ("events", "DELETE", f"/api/events/{EV}/retain"), ("events", "POST", f"/api/events/{EV}/sub_label"),
