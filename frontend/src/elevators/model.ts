@@ -30,6 +30,8 @@ export interface Chip {
   icon: IconName;
   tone: StateKind;
   look: Look;
+  /** The door picture (ELEVDOORS-293): waiting = open, in operation = closed, unless a linked door sensor reports. */
+  doors: 'open' | 'closed';
 }
 
 const ACTIVE = { key: 'stateActive', icon: 'play', tone: 'live', look: 'act' } as const;
@@ -55,10 +57,13 @@ export function shownState(e: Pick<Elevator, 'state' | 'stale'>): ElevatorState 
   return e.state === 'moving_up' || e.state === 'moving_down' ? 'active' : e.state;
 }
 
-export function chipOf(e: Pick<Elevator, 'state' | 'stale'>): Chip {
+export function chipOf(e: Pick<Elevator, 'state' | 'stale'> & Partial<Pick<Elevator, 'roles' | 'flags'>>): Chip {
   const state = shownState(e);
   const c = CHIPS[state];
-  return { state, label: elt(c.key), icon: c.icon, tone: c.tone, look: c.look };
+  // a linked door sensor with a live value wins (not while stale); else waiting / door open = open doors, everything else shut
+  const door = !e.stale && e.roles?.includes('door_open') ? e.flags?.door_open : null;
+  const doors = typeof door === 'boolean' ? (door ? 'open' : 'closed') : state === 'waiting' || state === 'door_open' ? 'open' : 'closed';
+  return { state, label: elt(c.key), icon: c.icon, tone: c.tone, look: c.look, doors };
 }
 
 export const lookOf = (state: ElevatorState): Look => (CHIPS[state] ?? CHIPS.unknown).look;
@@ -204,7 +209,7 @@ export interface WidgetView {
 /** What the home widget shows: the list without the hidden elevators, filtered by state when the setting says so. */
 export function widgetView(list: readonly Elevator[], cfg: { hidden: readonly string[]; filter: ElevatorFilter }, stale = false): WidgetView {
   const hidden = new Set(cfg.hidden);
-  const included = list.filter((e) => !hidden.has(e.id)).map((e) => ({ e, chip: chipOf({ state: e.state, stale: stale || e.stale }) }));
+  const included = list.filter((e) => !hidden.has(e.id)).map((e) => ({ e, chip: chipOf({ state: e.state, stale: stale || e.stale, roles: e.roles, flags: e.flags }) }));
   const items = cfg.filter === 'alerts' ? included.filter((x) => ALERT_STATES.includes(x.chip.state)) : included;
   const loudest = included.length ? [...included].sort((a, b) => RANK[a.chip.state] - RANK[b.chip.state])[0] : null;
   return { items, included, loudest, kpis: kpisOf(included.map((x) => x.e), stale) };
@@ -250,7 +255,7 @@ export type HomeTile =
  */
 export function homeTiles(list: readonly Elevator[], stale = false): HomeTile[] {
   if (!list.length) return [];
-  const items = list.map((e) => ({ e, chip: chipOf({ state: e.state, stale: stale || e.stale }) }));
+  const items = list.map((e) => ({ e, chip: chipOf({ state: e.state, stale: stale || e.stale, roles: e.roles, flags: e.flags }) }));
   if (items.length <= HOME_CHIP_MAX) return items.map(({ e, chip }) => ({ kind: 'elevator', id: e.id, name: e.name, chip, href: ELEVATORS_HREF }));
   const faults = items.filter((i) => i.chip.state === 'fault').length;
   const fire = items.filter((i) => i.chip.state === 'fire_service').length;

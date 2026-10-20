@@ -352,3 +352,22 @@ test('travelling: the option round-trips through the dialog draft (default off) 
   for (const k of ['stateTravelling', 'kpiTravel', 'summaryTravel', 'travelOption', 'travelOptionHint'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
   expect(elt('travelOption')).toBe('הצג נסיעה כשאינה ממתינה וללא תקלה');
 });
+
+// ELEVDOORS-293 (owner 2026-10-20): in operation the doors are drawn CLOSED, waiting they are drawn OPEN - the default when no sensor reports;
+// a real door sensor that reports wins; fault / fire / out of service / unknown / travelling keep the doors shut.
+test('door picture: active closed, waiting open by default; a reporting door sensor overrides', () => {
+  const d = (state: ElevatorState, extra: Partial<Elevator> = {}) => chipOf({ state, stale: false, roles: [], ...extra }).doors;
+  expect(d('active')).toBe('closed');
+  expect(d('moving_up')).toBe('closed');
+  expect(d('travelling')).toBe('closed');
+  expect(d('waiting')).toBe('open');
+  expect(d('door_open')).toBe('open');
+  for (const s of ['fault', 'fire_service', 'out_of_service', 'unknown'] as ElevatorState[]) expect(d(s), s).toBe('closed');
+  expect(chipOf({ state: 'waiting', stale: true }).doors).toBe('closed');
+  // a linked door sensor that reports wins over the state's default
+  expect(d('waiting', { roles: ['door_open'], flags: { door_open: false } })).toBe('closed');
+  expect(d('active', { roles: ['door_open'], flags: { door_open: true } })).toBe('open');
+  // linked but no value, or not linked: the default
+  expect(d('waiting', { roles: ['door_open'], flags: { door_open: null } })).toBe('open');
+  expect(d('active', { roles: [], flags: { door_open: true } })).toBe('closed');
+});

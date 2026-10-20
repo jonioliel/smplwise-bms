@@ -5,7 +5,7 @@ import type { Chip, Look } from './model';
 /**
  * CR-INFRA-ELEVATORS 2.8.0: the elevators' visual language, shared by תשתיות › מעליות, the home widget and the settings list (the owner-approved
  * mockup `elevators-full-mockup.html`): the door icon (stylised elevator doors in the state colour - no shaft and no car position, there is no
- * floor sensor; the doors stand slightly open while in operation; fire service pulses), the solid state badge, the sensor lights and the 24-hour bar.
+ * floor sensor; the doors stand open while waiting and shut in operation; fire service pulses), the solid state badge, the sensor lights and the 24-hour bar.
  *
  * State colours are `--sw-el-*` custom properties (a skin may override them). They are solid fills under white text, chosen for at least 4.5:1
  * contrast in both themes, so they do not follow the lighter status tokens: the out-of-service colour is a strong orange of its own, apart
@@ -90,9 +90,9 @@ export const elevatorCss = css`
     display: grid;
     place-items: center;
   }
-  /* in operation: the doors stand a little open (a physical direction-free cue) */
-  /* a gap between the two panels (logical margin: the same picture in RTL and LTR) */
-  .eicon[data-look='act'] u:first-of-type { margin-inline-end: calc(var(--ei) * 0.14); }
+  /* waiting (or a door sensor says open): the doors stand open - a gap between the two panels (logical margin: the same picture in RTL and LTR);
+     in operation they are shut (ELEVDOORS-293) */
+  .eicon[data-doors='open'] u:first-of-type { margin-inline-end: calc(var(--ei) * 0.14); }
   .eicon[data-look='off'] u {
     background: repeating-linear-gradient(-45deg, #d7dce6 0 6px, color-mix(in srgb, var(--sw-el-off) 30%, #d7dce6) 6px 10px);
   }
@@ -143,8 +143,8 @@ export const elevatorCss = css`
 `;
 
 /** The door icon of one state (`size` in px; the cap carries the state's icon). */
-export function doorIcon(chip: Pick<Chip, 'look' | 'icon' | 'label'>, size = 78): TemplateResult {
-  return html`<span class="eicon" data-look=${chip.look} style=${`--ei:${size}px`} role="img" aria-label=${chip.label}><u></u><u></u><span class="cap"><sw-icon name=${chip.icon} size=${Math.max(10, Math.round(size * 0.17))}></sw-icon></span></span>`;
+export function doorIcon(chip: Pick<Chip, 'look' | 'icon' | 'label' | 'doors'>, size = 78): TemplateResult {
+  return html`<span class="eicon" data-look=${chip.look} data-doors=${chip.doors} style=${`--ei:${size}px`} role="img" aria-label=${chip.label}><u></u><u></u><span class="cap"><sw-icon name=${chip.icon} size=${Math.max(10, Math.round(size * 0.17))}></sw-icon></span></span>`;
 }
 
 export function stateBadge(chip: Pick<Chip, 'look' | 'icon' | 'label' | 'state'>, small = false, attrs: { id?: string } = {}): TemplateResult {

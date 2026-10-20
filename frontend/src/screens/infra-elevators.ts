@@ -179,7 +179,7 @@ export class InfraElevators extends LitElement {
   }
 
   private card(e: Elevator, stale: boolean, now: number) {
-    const c = chipOf({ state: e.state, stale: stale || e.stale });
+    const c = chipOf({ state: e.state, stale: stale || e.stale, roles: e.roles, flags: e.flags });
     const ago = c.state === 'unknown' ? '' : agoText(e.since, new Date(now));
     const bar = barOf(e.history, now - DAY_MS, now);
     const extras = e.extras.filter((x) => x.on !== null);
