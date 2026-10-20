@@ -5,6 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
 import '../components/sw-button';
 import { bidi } from '../i18n/bidi';
+import { entityLabel } from '../i18n/entity-label';
 import {
   CALENDAR_FIELD_LABEL, CALENDAR_FIELDS, CLOCK_MODE_LABEL, CLOCK_MODES, DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, EXTRAS_MAX, FORECAST_LENS, forecastCount, HOME_TITLE_DEFAULT, HOME_TITLE_MAX, LABEL_MAX, moveId,
   moveAmong, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, previewData, widgetOn, widgetSize, QUICK_ACTION_LABEL, QUICK_ACTIONS, SIDE_LABEL, SIDES, SIZE_LABEL, SIZES, WEATHER_FIELD_LABEL, WEATHER_FIELDS, WEATHER_SOURCE_FIELDS, WIDGET_NAME,
@@ -536,10 +537,10 @@ export class HomeEditPanel extends LitElement {
     const groups = (current: string, blank: string, sug?: { entity_id: string; name: string }) => {
       const suggested = sensors.filter((s) => s.suggested);
       const others = sensors.filter((s) => !s.suggested);
-      const opt = (x: { entity_id: string; name: string }) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`;
+      const opt = (x: { entity_id: string; name: string }) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${entityLabel(x)}</option>`;
       return html`<option value="" ?selected=${!current}>${blank}</option>
-        ${sug && !current ? html`<option value=${sug.entity_id}>הצעה: ${sug.name} · ${sug.entity_id}</option>` : nothing}
-        ${current && !sensors.some((x) => x.entity_id === current) ? html`<option value=${current} selected>${current}</option>` : nothing}
+        ${sug && !current ? html`<option value=${sug.entity_id}>הצעה: ${entityLabel(sug)}</option>` : nothing}
+        ${current && !sensors.some((x) => x.entity_id === current) ? html`<option value=${current} selected>${entityLabel({ entity_id: current }, 'חיישן שנבחר (אינו זמין כעת)')}</option>` : nothing}
         ${suggested.length ? html`<optgroup label="לוח שנה עברי">${suggested.map(opt)}</optgroup>` : nothing}
         <optgroup label="כל החיישנים">${others.map(opt)}</optgroup>`;
     };

@@ -49,7 +49,7 @@ test.describe('editors: environment and scope', () => {
     const env = buildEnv(await store.status(), EMPTY_CATALOG);
     expect(env.catalog.entities).toEqual([]);
     expect(deriveScope(EMPTY_CATALOG)).toEqual({ floors: null, areas: null });
-    expect(env.ctx.names!('light.hall')).toBe('light.hall');
+    expect(env.ctx.names!('light.hall')).toBe('תאורה ללא שם'); // never the raw entity id (owner 2026-10-20)
   });
 
   test('the sensitive chip colour and visibility come from the status echo (settings automations.sensitive_chip / sensitive_warning)', async () => {

@@ -16,6 +16,7 @@ import {
   type ActionBlock, type AnyDraft, type AutomationCatalog, type AutomationDraft, type AutomationsStatus, type Block, type CatalogEntity, type ConditionBlock, type Issue, type ItemDetail,
   type ItemKind, type LockedBlock, type ModelContext, type SceneDraft, type SceneMember, type ScriptDraft, type SensitiveChip, type TriggerBlock, type UserScope, type Weekday,
 } from '../api/automations';
+import { entityLabel } from '../i18n/entity-label';
 
 export type Section = 'trigger' | 'condition' | 'action';
 type Raw = Record<string, unknown>;
@@ -59,7 +60,7 @@ export function buildEnv(status: AutomationsStatus, catalog: AutomationCatalog):
     status, catalog, scope, byId,
     scoped: catalog.entities.length > 0 && scope.floors !== null,
     ctx: {
-      names: (id) => byId.get(id)?.name ?? scenes.get(id) ?? scripts.get(id) ?? id,
+      names: (id) => entityLabel({ entity_id: id, name: byId.get(id)?.name ?? scenes.get(id) ?? scripts.get(id) }),
       notifyName: (a) => notify.get(a) ?? null,
       shabbatSensor: catalog.shabbat_sensor,
       ...(catalog.allowed_actions ? { allowedActions: catalog.allowed_actions } : {}),
@@ -584,7 +585,7 @@ export function diffDrafts(kind: ItemKind, mine: AnyDraft, theirs: AnyDraft, ctx
   } else {
     const x = mine as SceneDraft; const y = theirs as SceneDraft;
     field('שם', x.name, y.name);
-    const label = (m: SceneMember) => `${ctx.names?.(m.entity_id) ?? m.entity_id} · ${m.state}${Object.keys(m.attributes).length ? ` ${JSON.stringify(m.attributes)}` : ''}`;
+    const label = (m: SceneMember) => `${ctx.names?.(m.entity_id) ?? entityLabel(m)} · ${m.state}${Object.keys(m.attributes).length ? ` ${JSON.stringify(m.attributes)}` : ''}`;
     const ya = new Map(y.members.map((m) => [m.entity_id, m]));
     for (const m of x.members) {
       const o = ya.get(m.entity_id);
