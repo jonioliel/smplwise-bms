@@ -1536,7 +1536,13 @@ room (`ticket_org_locations.plan_zone_id`, picker `GET /api/v1/tickets/admin/loc
 viewers with `map.read` on that floor); automatic messages on the vendor RFQ page read "System"; an add-on stop is recorded as "unknown"
 in the elevator history (heartbeat). Per elevator and off by default: "show travelling" (migration 0122, the elevator edit dialog).
 Organisation-level privacy documents (he + en, templates; statements marked REQUIRES COUNSEL REVIEW) are in `docs/privacy/`.
+Also 2.9.1, **off by default** (Settings > service management, `system.configure`): the notification matrix per department and source
+(now / digest / off) with a daily digest per department (`notify.matrix_enabled`, `notify.digest_enabled`; urgent priorities and SLA
+crossings still go at once, `notify.urgent_immediate`), the working-hours calendar for the request timers (`calendar.enabled`), and
+automatic opening of requests from alerts (the "Automatic opening" tab, `tickets.rules`; no rule by default, kill switch, daily limit 20,
+migration 0123). The organisation name and a privacy contact (`privacy.contact`, `privacy.link`) appear in the technician notice, the
+entry-code message and directory phone verification once set; empty = unchanged.
 
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
 installed web app once after each update.
