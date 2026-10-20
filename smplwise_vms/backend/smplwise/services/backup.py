@@ -114,6 +114,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.capture_lease", "access.capture_lease_seconds", "access.lookup_scope",
                  # BACKUP-HASH-ENC: the backup password's minimum length is this installation's policy - never loosened by an archive
                  "backup.password_min",
+                 # DATASTORE-295: the monthly restore drill's switch is this installation's own schedule - never exported or restored
+                 "backup.drill.monthly",
                  # HARDEN271 item 1 (2.7.0 integration notes, open risk 9): what 2.7.0 added that describes THIS installation.
                  # WA-SEND-FIX: the HMAC key of the phone hashes - restored, every number-based opt-out stops matching; exported,
                  # the key sits in the archive in the clear.
@@ -509,8 +511,10 @@ def _fill_missing_hashes(data: dict[str, list[dict[str, Any]]], current: dict[st
 
 
 def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None,
-            backup_password: str | None = None, skip_sensitive: bool = False) -> dict[str, Any]:
-    """Load a backup into the current database inside the caller's transaction. `replace` empties every table of
+            backup_password: str | None = None, skip_sensitive: bool = False, process_hooks: bool = True) -> dict[str, Any]:
+    """Load a backup into the current database inside the caller's transaction. `process_hooks=False` (DATASTORE-295, the
+    restore drill into a scratch directory): the process-wide capture-lease revocation and stream reset are NOT triggered - the
+    live installation's database was not touched, so its live leases stay valid. `replace` empties every table of
     the scope first, also one the archive does not have (a backup older than the table): the restored project equals
     the backup, and no row is left pointing at a parent row being replaced (R-T7-1) - except KEEP_WHEN_ABSENT (CR-019's
     switch protection): an archive without them keeps the current rows (`kept_current` in the answer). Identity rows of
@@ -620,13 +624,19 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             allowed = {r[0] for r in conn.execute("SELECT id FROM energy_meters").fetchall()}
             energy = energy_backup.restore_from_zip(settings, z, names, allowed_meters=allowed, replace=(mode == "replace"))
     if scope == "project+access":
-        bump_permission_revision(conn)
+        if process_hooks:
+            bump_permission_revision(conn)
+        else:  # the drill's scratch database: the same revision move, without the process-wide lease / grant hooks
+            from ..db import permission_revision
+
+            set_setting(conn, "permission_revision", str(permission_revision(conn) + 1))
     # CR-WISKEY-LEASE-REVOCATION-EVENT 2.3: a restored database gets a fresh revocation stream (never the archive's counter - the
     # lease tables are not backup tables) and no capture lease survives a restore
     from . import capture_lease, lease_events
 
-    capture_lease.on_authority_change("restore", all=True)
-    lease_events.WORKER.request_reset("restore")
+    if process_hooks:
+        capture_lease.on_authority_change("restore", all=True)
+        lease_events.WORKER.request_reset("restore")
     lease_settings = _lease_settings_report(conn, data)
     # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
     from .skins import store as skins_store

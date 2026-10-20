@@ -16,7 +16,9 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
+from ..db import set_setting
 from ..services import backup as svc
+from ..services import backup_drill as drill
 from ..services import backup_sensitive as sens
 
 router = APIRouter()
@@ -93,6 +95,52 @@ def create_backup(body: CreateIn, request: Request, principal: Principal = Depen
     audit(conn, actor=principal, action="backup.create", decision="allowed", resource_type="backup", resource_id=e["name"], request_id=_rid(request),
           details={"bytes": e["bytes"], "tables": e["tables"], "files": e["files"], "sensitive": (e.get("sensitive") or {}).get("state")})
     return e
+
+
+# ---- DATASTORE-295: the restore drill (declared before /backups/{name}, which would otherwise match `drill`)
+
+
+class DrillRunIn(BaseModel):
+    name: str | None = Field(default=None, max_length=160)  # an archive of the list; default: the newest valid one
+
+
+class DrillScheduleIn(BaseModel):
+    monthly: bool
+
+
+def _drill_status(request: Request, conn: sqlite3.Connection) -> dict[str, Any]:
+    st = settings_of(request)
+    last = drill.read_last(st)
+    enabled = drill.schedule_enabled(conn)
+    nxt = drill.next_due(last) if enabled else None
+    return {"running": drill.running(), "last": last, "history": drill.read_history(st),
+            "schedule": {"monthly": enabled, "next_due_at": nxt.replace(microsecond=0).isoformat().replace("+00:00", "Z") if nxt else None,
+                         "due_now": enabled and nxt is None}}
+
+
+@router.get("/backups/drill")
+def drill_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "backup.manage", INSTALLATION)
+    return _drill_status(request, conn)
+
+
+@router.post("/backups/drill", status_code=202)
+def drill_run(body: DrillRunIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "backup.manage", INSTALLATION)
+    archive = _path(request, body.name) if body.name else None
+    if not drill.start_background(settings_of(request), archive, trigger="manual"):
+        raise ApiError(409, "drill_running", "בדיקת שחזור כבר רצה.")
+    audit(conn, actor=principal, action="backup.drill.run", decision="allowed", resource_type="backup", resource_id=body.name or "latest", request_id=_rid(request))
+    return {"started": True, "archive": body.name}
+
+
+@router.put("/backups/drill/schedule")
+def drill_schedule(body: DrillScheduleIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "backup.manage", INSTALLATION)
+    set_setting(conn, drill.SCHEDULE_KEY, "true" if body.monthly else "false")
+    audit(conn, actor=principal, action="backup.drill.schedule", decision="allowed", resource_type="installation", resource_id="backup_drill",
+          request_id=_rid(request), details={"monthly": body.monthly})
+    return _drill_status(request, conn)
 
 
 @router.get("/backups/{name}")
