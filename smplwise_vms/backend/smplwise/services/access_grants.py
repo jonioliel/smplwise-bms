@@ -84,10 +84,11 @@ MAX_DOORS_KEY = "access.external.max_doors"
 FRESH_KEY = "access.external.phone_fresh_days"
 CODE_HOUR_KEY = "access.external.code_hour"
 LOCAL_KEY = "access.external.local_approvers"
-KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY)
+CARDS_KEY = "access.external.cards"  # GRANTS3-295 (X5): card grants for a vendor's technicians; off by default, on only with the go-live permit
+KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY, CARDS_KEY)
 MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
-DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off"}
+DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off"}
 REVOKE_ALL_WORD = "בטל הכל"
 DELETE_WORD = "מחק"
 
@@ -315,10 +316,23 @@ def zone_of(conn: sqlite3.Connection):
         return zone("Asia/Jerusalem")
 
 
+def cards_enabled(conn: sqlite3.Connection) -> bool:
+    """GRANTS3-295 (X5): card grants - `on` only when the setting says exactly `on`, the feature is on AND the go-live permit is in the
+    build (services/access_cards.py holds the card rules; capture stays off on its own constant)."""
+    try:
+        return (get_setting(conn, CARDS_KEY) or "off") == "on" and enabled(conn)
+    except sqlite3.Error:
+        return False
+
+
 def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    from .access_cards import CAPTURE_PERMITTED
+
     return {"external_grants": "on" if enabled(conn) else "off", "go_live_permitted": go_live_permitted(), "max_days": max_days(conn),
             "max_days_cap": MAX_DAYS_CAP, "max_doors": max_doors(conn), "phone_fresh_days": fresh_days(conn), "code_hour": code_hour(conn),
-            "local_approvers": "on" if local_approvers(conn) else "off"}
+            "local_approvers": "on" if local_approvers(conn) else "off",
+            # GRANTS3-295 (X5): cards, and card capture - which stays off until the owner releases the lease route
+            "cards": "on" if cards_enabled(conn) else "off", "card_capture": "on" if CAPTURE_PERMITTED else "off"}
 
 
 # ---------------------------------------------------------------- errors
@@ -468,7 +482,7 @@ def covers(old: Scope, new: Scope) -> bool:
             return False
     if new.valid_from < old.valid_from or new.valid_until > old.valid_until:
         return False
-    if old.credential == "none" and new.credential == "pin":
+    if old.credential == "none" and new.credential in ("pin", "card"):
         return False
     return _timing_covers(old.timing, new.timing)
 
@@ -732,8 +746,16 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     problem = subject_problem(conn, contact)
     if problem and not (problem == "contact_pending" and str(requested_by).startswith("contact:")):
         raise _conflict("access_grant_subject", "אי אפשר לבקש גישה עבור איש הקשר הזה.", reason=problem)
+    if scope.credential == "card":  # GRANTS3-295 (X5): the switch and "a vendor's technician only"
+        from .access_cards import check_request
+
+        check_request(conn, contact)
     at = iso(now())
     live = live_grant_of(conn, "contact", contact_id)
+    if live is not None and live["state"] in DECIDED and "card" in (live["credential"], scope.credential) and live["credential"] != scope.credential:
+        # GRANTS3-295: a decided grant never changes between a card and another credential (a PIN on a carded person, or a card left on a
+        # PIN person, would outlive what was approved) - the access is ended and a new one requested
+        raise _conflict("access_grant_credential_change", "אי אפשר להחליף כרטיס בקוד (או להפך) בגישה שאושרה. בטלו אותה ובקשו גישה חדשה.")
     if live is None:
         gid = uuid.uuid4().hex
         conn.execute(
@@ -914,8 +936,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         chosen = Scope(chosen_doors, vf, vu, requested.timing, requested.credential)
         if not covers(requested, chosen):
             raise deny("widened", _invalid("doors", "wider_than_requested", "המאשר יכול רק לצמצם את מה שהתבקש."))
-        if requested.credential == "card":
-            raise deny("card", _conflict("access_grant_card_not_built", "גישה בכרטיס לאדם חיצוני עדיין אינה זמינה (שלב מאוחר יותר)."))
+        if requested.credential == "card" and not cards_enabled(conn):
+            # GRANTS3-295 (X5): built; still refused while the cards switch is off (it cannot be on without the go-live permit)
+            raise deny("cards_off", _conflict("access_grant_cards_off", "גישה בכרטיס לאדם חיצוני כבויה."))
         stations = stations_of(chosen.doors)
         missing = missing_on(conn, principal, (PERMISSION,), stations) + missing_on(
             conn, principal, approve_permissions(chosen.credential)[1:], sorted(set(stations) | set(person_stations or [])))
@@ -953,7 +976,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         else:
             fields.update({"state": "approved", "provision_after": None, "provision_attempts": 0,
                            "code_state": "pending" if chosen.credential == "pin" else "not_needed",
-                           "code_due_at": code_due(conn, vf, at) if chosen.credential == "pin" else None})
+                           "code_due_at": code_due(conn, vf, at) if chosen.credential == "pin" else None,
+                           # GRANTS3-295 (X5): a card grant waits for its card (typed by number by an approver once the grant is active)
+                           "card_state": "awaiting" if chosen.credential == "card" else None})
             action = "access.grant.approve"
         if not _touch(conn, grant_id, fields, expect_revision=revision):
             raise deny("stale", _conflict("stale_revision", "הגישה השתנתה מאז שנטענה. טענו מחדש."))
@@ -1266,6 +1291,7 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "approved_by": g["approved_by"], "approved_at": g["approved_at"],
         "code_state": g["code_state"] if sensitive else None, "code_due_at": g["code_due_at"] if sensitive else None,
         "code_sends": g["code_sends"] if sensitive else None,
+        "card_state": g.get("card_state") if sensitive else None,  # GRANTS3-295 (X5): never a number, not even masked
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
         **_screen_fields(conn, g),
@@ -2316,8 +2342,13 @@ class Worker:
                 # empty, inactive, PIN known cleared) AND the central sync status must show no pending revocation. After a revoke there is no
                 # revision row, so an empty `assignments` map by itself proves nothing about the stations.
                 person = engine.get_person(link["wiskey_person_id"])
+                # GRANTS3-295 (X5, CR 4.5 "card removal at grant end is part of R1"): WisKey's revoke-all keeps the cards, so every card
+                # of the person Arx created is removed by its id (cards/remove), then read again
+                person = self._remove_cards(engine, person)
                 if not self._revoked(person) or engine.revocation_pending(person.id) is not False:
                     raise EngineError("unknown", "revoke_unverified")
+                if g["credential"] == "card" and not (person.cards_known and not person.card_ids):
+                    raise EngineError("unknown", "card_unverified")  # a card grant ends only on a readback that shows no card
             except EngineError as exc:
                 # WisKey round 3: `user_not_found` (users/get or the write) is NOT proof that the person and their station grants are
                 # gone - it may mean "outside the service user's scope", and a delete leaves a tombstone whose station removals are
@@ -2335,9 +2366,29 @@ class Worker:
             if cur is None or cur["state"] != "revoking":
                 return None
             state = final_state_for(cur["end_reason"] or "manual")
-            _touch(conn, g["id"], {"state": state, "ended_at": iso(now()), "needs_push": 0})
+            done: dict[str, Any] = {"state": state, "ended_at": iso(now()), "needs_push": 0}
+            if cur["credential"] == "card":
+                done["card_state"] = "removed"
+            _touch(conn, g["id"], done)
             _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome)
         return "revoked"
+
+    @staticmethod
+    def _remove_cards(engine: Engine, person: EnginePerson) -> EnginePerson:
+        """GRANTS3-295 (X5): remove every card of a person Arx created (the caller checked the origin), one revision-checked cards/remove
+        per card id (a conflict re-reads once), and answer a FRESH readback. An unreadable card list is left to the caller's verdict."""
+        if not person.cards_known or not person.card_ids:
+            return person
+        for card_id in person.card_ids:
+            try:
+                person = engine.card_remove(person.id, person.revision, card_id)
+            except EngineError as exc:
+                if exc.kind != "revision_conflict":
+                    raise
+                person = engine.get_person(person.id)
+                if card_id in person.card_ids:
+                    person = engine.card_remove(person.id, person.revision, card_id)
+        return engine.get_person(person.id)
 
     # ---- the code (owner answers 3, 4, 11)
 

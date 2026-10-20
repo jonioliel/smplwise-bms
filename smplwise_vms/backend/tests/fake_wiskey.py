@@ -1055,6 +1055,9 @@ class FakeAccessEngine:
         raw: dict[str, Any] = {"id": p["id"], "revision": p["revision"], "display_name": p["display_name"], "employee_no": p["employee_no"],
                                "active": p["active"], "valid_from": p["valid_from"], "valid_until": p["valid_until"], "assignments": rows,
                                "group_ids": list(p["group_ids"]), "permission_overrides": dict(p["overrides"]), "pin_configured": p["pin"] is not None,
+                               # GRANTS3-295: WisKey's public record carries the cards MASKED (`•••• 1234`), never the number
+                               "cards": [{"id": c["id"], "masked_number": "•••• " + c["no"][-4:], "label": c["label"], "card_type": "normalCard",
+                                          "enabled": True} for c in p.setdefault("cards", [])],
                                "access_category": p["category"],
                                "access_timing_policy": {"mode": "ha", "schedule": copy.deepcopy(p["timing"]), "bindings": {}} if p["timing"] else None}
         redacted: list[str] = []
@@ -1063,6 +1066,7 @@ class FakeAccessEngine:
             redacted += ["assignments", "group_ids", "permission_overrides"]
         if self.restricted_projection:
             raw["pin_configured"] = False
+            raw["cards"] = []
             redacted += ["pin_configured", "cards"]
         if redacted:
             raw["redacted_fields"] = redacted
@@ -1193,6 +1197,42 @@ class FakeAccessEngine:
             raise self._err("revision_conflict")
         del self.people[person_id]
         self.deleted.append(person_id)
+
+    # -- GRANTS3-295 (X5): cards. WisKey's revoke-all (strip) keeps them - Arx removes each one by its id. `unknown_after_card`: the next
+    # card_add LANDS and then answers unknown. `calls` records the method name only (never a card number).
+    unknown_after_card = False
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = ""):
+        self._gate("card_add")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        for other in self.people.values():
+            if any(c["no"] == card_no for c in other.setdefault("cards", [])):
+                from smplwise.services.access_grant_engine import EngineError
+
+                raise EngineError("refused", "card_conflict")
+        self._seq += 1
+        p.setdefault("cards", []).append({"id": f"card-{self._seq:04d}", "no": card_no, "label": label})
+        p["revision"] += 1
+        self.updates.append({"method": "card_add", "overrides": None, "doors": []})
+        if self.unknown_after_card:
+            self.unknown_after_card = False
+            raise self._err("unknown")
+        return self._view(p)
+
+    def card_remove(self, person_id: str, revision: int, card_id: str):
+        self._gate("card_remove")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        before = len(p.setdefault("cards", []))
+        p["cards"] = [c for c in p["cards"] if c["id"] != card_id]
+        if len(p["cards"]) == before:
+            raise self._err("refused")  # card_not_found
+        p["revision"] += 1
+        self.updates.append({"method": "card_remove", "overrides": None, "doors": []})
+        return self._view(p)
 
 
 class FakeCodeTransport:

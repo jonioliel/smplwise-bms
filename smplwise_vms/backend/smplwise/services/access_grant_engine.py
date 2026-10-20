@@ -73,6 +73,10 @@ class EnginePerson:
     # R5-A2: the COMPLETE `access_timing_policy` as WisKey returned it ({mode, schedule, bindings}, each key only when it was present;
     # None = no policy). `timing` above is its schedule only; a scope proof compares the whole policy (mode and bindings included).
     timing_policy: dict[str, Any] | None = None
+    # GRANTS3-295 (X5): the ids of the person's saved cards (WisKey's card ids - never a number, not even the masked form) and whether
+    # the card list was readable (`cards` a list of objects with an id, credentials not redacted). False = unknown, never "no card".
+    card_ids: tuple[str, ...] = ()
+    cards_known: bool = False
 
 
 class Engine(Protocol):
@@ -95,6 +99,14 @@ class Engine(Protocol):
     def rename(self, person_id: str, revision: int, display_name: str) -> EnginePerson: ...
 
     def delete(self, person_id: str, revision: int) -> None: ...
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
+        """GRANTS3-295 (X5): one card typed by number (WisKey `cards/add`). The number exists only in this call's frame."""
+        ...
+
+    def card_remove(self, person_id: str, revision: int, card_id: str) -> EnginePerson:
+        """GRANTS3-295 (X5): one saved card by its id (WisKey `cards/remove`)."""
+        ...
 
 
 # ---------------------------------------------------------------- the live engine (refused in this build)
@@ -329,7 +341,12 @@ def person_from_raw(raw: Any) -> EnginePerson:
         doors = {}
         synced = None
     policy = raw.get("access_timing_policy") if isinstance(raw.get("access_timing_policy"), dict) else None
+    # GRANTS3-295 (X5): card ids only; a list that is not a list of objects with a non-blank string id is unknown (never "no card")
+    cards = raw.get("cards")
+    cards_known = (isinstance(cards, list) and not credential_redacted
+                   and all(isinstance(c, dict) and isinstance(c.get("id"), str) and c["id"].strip() for c in cards))
     return EnginePerson(
+        card_ids=tuple(c["id"] for c in cards) if cards_known else (), cards_known=cards_known,
         id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=active,
         valid_from=raw.get("valid_from") if isinstance(raw.get("valid_from"), str) else None,
         valid_until=raw.get("valid_until") if isinstance(raw.get("valid_until"), str) else None,
@@ -504,6 +521,26 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True), person_id)
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
+        """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/add` answers the person's public record (cards masked). The number
+        is in the command frame only - never in a log, an audit row, the journal or an exception text (the mapped error carries WisKey's
+        code, e.g. `card_conflict`)."""
+        self._guard()
+        from . import intercom_client
+
+        card = {"card_no": card_no, "label": _clean_name(label, ""), "card_type": "normalCard", "enabled": True}
+        try:
+            return self._write(lambda call: intercom_client.cards_add(call, person_id, revision, card), person_id)
+        finally:
+            card.clear()
+
+    def card_remove(self, person_id: str, revision: int, card_id: str) -> EnginePerson:
+        """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/remove` by the card's id; the stations follow WisKey's own sync."""
+        self._guard()
+        from . import intercom_client
+
+        return self._write(lambda call: intercom_client.cards_remove(call, person_id, revision, card_id), person_id)
 
     def delete(self, person_id: str, revision: int) -> None:
         self._guard()
