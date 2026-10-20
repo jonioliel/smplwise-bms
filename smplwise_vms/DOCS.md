@@ -1460,7 +1460,7 @@ user's control check in the bridge, a live create / edit / delete through Arx) a
 
 **Tabs (הגדרות › לשוניות, `ui.tabs`).** For every navigation section - the main navigation, the home area, security and
 its live / investigation pages, the map, WisKey, the settings and its security pages - an administrator shows or hides
-each tab and sets its order; a section lands on its first visible tab, at least one tab stays visible, and the settings
+each tab and sets its order (2.9.3 adds the cards for multimedia, infrastructure with its generator and electricity page rows, and service requests while that area is on - before it their order and hiding were ignored; no backend change); a section lands on its first visible tab, at least one tab stays visible, and the settings
 entry that leads to the editor is locked. Hiding is presentation only: permissions gate first, the address of a hidden tab
 keeps working for those who hold the permission. The administrator's order of the main navigation is the default; a user's
 own order (user menu › "סדר הלשוניות", stored per user) wins, and a user without one follows the administrator's.
@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.9.2: what is on, off and locked
+## Releases 2.6.4 to 2.9.3: what is on, off and locked
 
-Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291` and `integ/292` (2.8.0, 2.9.0 and 2.9.1 are released; 2.9.2 is the release candidate). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291`, `integ/292` and `integ/293` (2.8.0, 2.9.0 and 2.9.1 are released; 2.9.2 is the release candidate; 2.9.3 is the development line `integ/293` plus three branches not merged yet, see below). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1550,6 +1550,37 @@ text summary for managers (use `infra.temperature.reports`, the notifications ac
 "show on map" on quote requests (own location room, else the source request's; `map.read` on the floor), the technician-request card
 grouped by vendor company, WisKey round-9 strictness (a malformed person record is unknown, fail closed). WisKey writes stay locked.
 
+**2.9.3 (development, not released).** Nothing here was verified against a live installation; the Arabic and Russian texts are first translations that need a
+native review. In `integ/293`:
+- *Temperature control, phase 3* (migration 0125, CR-INFRA-TEMPERATURE section 11; the numbers are the integration numbers): door recovery, time to
+  threshold, optional early warning (**off**, `predict_warn_min` default 20, range 5-240), compressor duty cycle from an optional power sensor (read only),
+  area / floor grouping, sensor health (battery, signal, frozen value), a maintenance window (operators with `infra.temperature.ack`, reason required; holds
+  warnings only, alarms still go out unless `maintenance_includes_alarms`, **off**), unit comparison, an escalation chain for unacknowledged alarms (on: 15 min
+  to site + system admins, 45 min to system admins), a service request from an alarm (opened as the person, two-way link, optional 24 h chart picture), a monthly
+  HACCP PDF layout (`layout=haccp`, produced on demand, no automatic archive) and a home-screen widget. Every capability is a setting (installation default and
+  per-unit override). The recovery-slow and duty-rise alerts are **off**.
+- *Elevators:* the door picture is open while waiting / door open and closed otherwise; a linked door sensor with a live value decides (ELEVDOORS-293).
+- *Generator home widget* (GENWIDGET): supply line (mains / generator / no mains / unknown) and state per generator; absent without `generator.view` or without a
+  complete generator; no migration (`GET /generator/devices/live` carries the extra roles).
+- *Tabs:* the Settings > General > Tabs editor lists multimedia, infrastructure (with generator and electricity page rows) and service requests (TABSET-293).
+- *Shared Arx + WisKey identity:* the "external access" screen, the contact identity card, the weekly digest and the manual "request access" form (migrations
+  0126 and 0127; a second person approves, a system administrator may approve his own request; a manager who may only request chooses "entrance for external
+  people" stations and the ticket building's stations). **Writes to WisKey stay locked in code** (`access_grants.GO_LIVE_PERMITTED`).
+- *Permission overrides:* a person's personal overrides count as stations of the person in the WisKey write gate; an unknown or malformed overrides map refuses
+  everyone but an unrestricted writer (PERMOVR-293). Visibility is unchanged.
+- *Privacy:* the technician phone-verification message carries the short notice (fixed he / en / ar / ru texts, no links); other people's messages are unchanged.
+- *Public surface hardening* (PUB-01, PUB-02, PUB-05): the remote channel trusts `CF-Connecting-IP` / `X-Forwarded-For` only from a trusted proxy peer, a pre-code
+  open of a code-protected ticket link records no opened line, source maps answer 404 on the remote channel.
+- *Fixes:* the home clock no longer freezes, relative times in the notification settings age, the page behind an overlay no longer moves, one page background on
+  every screen.
+
+Branches **not yet in `integ/293`**: `pilot/SMALL-294` (`tickets.directory`: the contact and vendor directory without `tickets.configure`; sensitive, system
+administrator only, not delegable; no migration), `pilot/CAMVF-295` (**off by default** `ui.camera_viewfinder` in the service-request settings document: a live
+in-page camera for request photos; the camera starts only from a click, every exit stops every track, nothing is sent before "use photo", no
+`Permissions-Policy` change; the public vendor page is unchanged) and `pilot/GRANTSMIN-295` (external-access drift view `GET /access-grants/drift`, CSV
+`GET /access-grants/export.csv` once a minute per user, the contact export gains the person's access; no migration).
+User guide: `docs/user-guide/he/14-whats-new-293_HE.md`; screenshots still to take: `docs/guide/SCREENSHOTS_TODO_29x.md`.
+
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control), 2.9.3 adds 0125 (temperature phase 3), 0126 (external-access identity) and 0127 (access request form) as numbered on `integ/293`. Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
 installed web app once after each update.
