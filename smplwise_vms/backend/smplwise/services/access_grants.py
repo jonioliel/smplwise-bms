@@ -1284,7 +1284,7 @@ def _screen_fields(conn: sqlite3.Connection, g: dict[str, Any]) -> dict[str, Any
     approver = conn.execute("SELECT display_name FROM users WHERE id = ?", (g["approved_by"],)).fetchone() if g.get("approved_by") else None
     try:
         closure = conn.execute("SELECT kind, closed_by, closed_at, reappeared_at FROM access_grant_closures WHERE grant_id = ?", (g["id"],)).fetchone()
-    except sqlite3.OperationalError:  # a database before 0128
+    except sqlite3.OperationalError:  # a database before 0126
         closure = None
     unresolved = False
     if link is None and g.get("pushed"):

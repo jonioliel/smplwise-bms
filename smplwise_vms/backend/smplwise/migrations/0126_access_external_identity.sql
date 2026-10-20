@@ -1,5 +1,5 @@
--- PROVISIONAL NUMBER 0128 (pilot/SHAREDID-293). Renumber at integration to the next free number: the 2.9.2 integration
--- takes 0124-0125, pilot/TEMPCTL3-293 0126 and pilot/PERMOVR 0127. The content does not depend on the number.
+-- Final number 0126 (built as PROVISIONAL 0128 on pilot/SHAREDID-293; renumbered at the 2.9.3 integration, integ/293: 0124 is 2.9.2,
+-- 0125 the temperature phase 3). The content does not depend on the number.
 --
 -- SHAREDID-293 (owner decisions 2026-10-20, "Shared Arx + WisKey identity UI"): the server side of the external-access screen.
 --  2  "Active - verified" only when the server stores READ-BACK PROOF: the digest of the scope a fresh WisKey read proved

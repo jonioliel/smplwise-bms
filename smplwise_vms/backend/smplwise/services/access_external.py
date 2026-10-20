@@ -173,7 +173,7 @@ def name_digest(name: Any) -> str:
 
 def name_drift(conn: sqlite3.Connection, link: dict[str, Any]) -> bool:
     """True when WisKey's name at the last read differs from the name Arx would write now (WisKey edited it, or the directory name
-    changed). A link never read since 0128 has no drift (unknown is not a gap)."""
+    changed). A link never read since 0126 has no drift (unknown is not a gap)."""
     if link.get("origin") != "created_from_arx" or not link.get("name_seen") or link.get("subject_kind") != "contact":
         return False
     return link["name_seen"] != name_digest(arx_name(ag.contact_row(conn, link["subject_id"])))

@@ -143,7 +143,7 @@ routing: `GET|PUT /alerts`.
 Owner decisions (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md): all twelve ideas of the mockup panel accepted; alerts on by default;
 a mute silences warnings only, alarms are never silenced; every capability exists AND is a setting (installation default + per unit
 override, Settings > Infrastructure > Temperatures and wizard step 3 "יכולות נוספות"). Storage: migration
-`0126_infra_temperature_phase3_PROVISIONAL.sql` (PROVISIONAL - the 2.9.2 integration uses 0124-0125; renumber at integration; ALTERs on the
+`0125_infra_temperature_phase3.sql` (built as PROVISIONAL 0126; renumbered at the 2.9.3 integration; ALTERs on the
 0125 tables + `infra_temp_insights` + `infra_temp_tickets`). Rollback: drop the two tables; the added columns are ignored by older code.
 
 | # | Idea | Built | Settings (default) |

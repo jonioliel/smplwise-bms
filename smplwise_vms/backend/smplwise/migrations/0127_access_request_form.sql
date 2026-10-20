@@ -1,5 +1,5 @@
--- PROVISIONAL NUMBER 0130 (pilot/ACCESSREQ-293). Renumber at integration to the next free number: 0124 is 2.9.2,
--- pilot/TEMPCTL3-293 takes 0126, 0127 is unused, pilot/SHAREDID-293 takes 0128 (this branch builds on it). The content does not
+-- Final number 0127 (built as PROVISIONAL 0130 on pilot/ACCESSREQ-293; renumbered at the 2.9.3 integration, integ/293: 0125 is the
+-- temperature phase 3, 0126 the external-access identity of SHAREDID-293, which this branch builds on). The content does not
 -- depend on the number.
 --
 -- ACCESSREQ-293 (owner-approved mockup private/planning/mockup_access_request_2026-10-20, owner decisions 2026-10-20): the manual

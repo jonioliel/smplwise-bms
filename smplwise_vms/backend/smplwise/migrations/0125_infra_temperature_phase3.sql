@@ -1,7 +1,7 @@
 -- CR-INFRA-TEMPERATURE phase 3 (2.9.3): the accepted improvement ideas (docs/changes/CR-INFRA-TEMPERATURE.md section 11).
--- NUMBERING: PROVISIONAL 0126 on pilot/TEMPCTL3-293 (2.9.2 integration uses 0124-0125; the phase 1-2 file is 0125_infra_temperature_PROVISIONAL);
--- the lead renumbers this file at integration to keep the sequence contiguous. Nothing in the code refers to the number. It needs the
--- tables of 0125_infra_temperature_PROVISIONAL (ALTERs only + two new tables).
+-- NUMBERING: built as PROVISIONAL 0126 on pilot/TEMPCTL3-293; final number 0125 (renumbered at the 2.9.3 integration, integ/293, to keep
+-- the sequence contiguous). Nothing in the code refers to the number. It needs the tables of 0124_infra_temperature (ALTERs only + two
+-- new tables).
 --
 -- Everything is still read-only against the infrastructure: the power reading of a smart plug / current meter is READ, never switched.
 

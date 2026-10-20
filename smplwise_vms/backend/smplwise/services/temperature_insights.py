@@ -9,7 +9,7 @@
   percentage / a battery-low binary sensor, a signal strength in dBm or a link quality), the age of the reading, and a FROZEN reading (the
   same value for `frozen_min` minutes while the sensor reports - a stuck sensor looks "fine" otherwise).
 
-The door and duty figures are recomputed hourly (services/temperature_runtime.py) into `infra_temp_insights` (migration 0126); the health is
+The door and duty figures are recomputed hourly (services/temperature_runtime.py) into `infra_temp_insights` (migration 0125); the health is
 cheap and computed live. Pure functions first (the unit tests drive them with synthetic series), storage after."""
 from __future__ import annotations
 

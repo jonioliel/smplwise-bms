@@ -433,7 +433,7 @@ Runtime status: everything above ran against fakes only; lab / WisKey interopera
 
 Server (`services/access_external.py`, hooks in `services/access_grants.py`, routes in `routers/access_grants.py`) and the screen
 (`frontend/src/screens/access-external.ts`, `frontend/src/access-external/`). Mockup: private/planning/mockup_shared_identity_2026-10-20.
-PROVISIONAL migration **0128_access_external_identity** (renumber at integration: 0124-0125 2.9.2 integration, 0126 TEMPCTL3, 0127 PERMOVR).
+Migration **0126_access_external_identity** (built as PROVISIONAL 0128; renumbered at the 2.9.3 integration, integ/293).
 
 - **Decision 1 - "WisKey" in the UI.** Every text of the screen and the identity card names WisKey, never "the intercom system" (a unit test
   scans the four languages).
@@ -494,7 +494,7 @@ owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERM
   again) and `approve_now` (checked BEFORE anything is stored: interactive, local rule, decision (a), the approve permissions, the notice
   tick, a confirmed number for a code; then the existing approve runs - a refusal at that point keeps the request, tells the approvers
   and answers `approval: {approved: false, code, message}`). `GET /access-grants` gains `may_request`.
-- Migration `0130_access_request_form.sql` - **PROVISIONAL number** (renumber at integration): three nullable columns on
+- Migration `0127_access_request_form.sql` (built as PROVISIONAL 0130; renumbered at the 2.9.3 integration, integ/293): three nullable columns on
   `access_grants` (`purpose`, `notes`, `scope_requested_by`) and `access_grant_notices` rebuilt with `via IN ('page', 'approver',
   'requester')` (rows copied). Rollback: older code ignores the columns; a `requester` row reads as "a notice exists".
 - UI: `access-external/request-dialog.ts` (the form), `request-model.ts` (pure logic, unit-tested), `i18n/access-request.ts`

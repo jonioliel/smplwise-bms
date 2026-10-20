@@ -10,7 +10,7 @@ on inside each test by the Env (monkeypatch). Nothing here reaches WisKey, a sta
  (b) a manager who may only request chooses the "entrance for external people" stations plus the stations of the ticket's building -
      in the form's door list AND where the request is stored (`access_grant_station_not_allowed`);
  (c) writing the name to WisKey stays manual by default;
- plus the purpose / notes fields, the approver list, the requester's notice tick, the notice route, migration 0130 (PROVISIONAL)."""
+ plus the purpose / notes fields, the approver list, the requester's notice tick, the notice route, migration 0127 (built as PROVISIONAL 0130)."""
 from __future__ import annotations
 
 import json
@@ -90,12 +90,12 @@ def _ticket_in_building(env: Env, station_id: str) -> str:
     return t["id"]
 
 
-# ================================================================ migration 0130 (PROVISIONAL)
+# ================================================================ migration 0127 (built as PROVISIONAL 0130; renumbered at integ/293)
 
 
-def test_migration_0130_adds_the_columns_and_lets_a_requester_tick_the_notice(env):
-    assert sorted(p.name for p in (Path(ag.__file__).parents[1] / "migrations").glob("0130_*.sql")) == ["0130_access_request_form.sql"]
-    assert "PROVISIONAL" in (Path(ag.__file__).parents[1] / "migrations" / "0130_access_request_form.sql").read_text(encoding="utf-8").splitlines()[0]
+def test_migration_0127_adds_the_columns_and_lets_a_requester_tick_the_notice(env):
+    assert sorted(p.name for p in (Path(ag.__file__).parents[1] / "migrations").glob("0127_*.sql")) == ["0127_access_request_form.sql"]
+    assert "Final number 0127" in (Path(ag.__file__).parents[1] / "migrations" / "0127_access_request_form.sql").read_text(encoding="utf-8").splitlines()[0]
     with env.db.connection(mode="read") as conn:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(access_grants)")}
         assert {"purpose", "notes", "scope_requested_by"} <= cols
