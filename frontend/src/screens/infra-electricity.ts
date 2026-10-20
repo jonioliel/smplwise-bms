@@ -8,6 +8,10 @@ import type { RouteState } from '../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../electricity/access';
 import { tabStyleOf, INFRA_TABS, visibleTabs } from '../shell/nav';
 import { canNav, isApi } from '../api/session';
+import { navigate } from '../router';
+import { TabsModeController } from '../shell/tabs-mode';
+import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
+import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -49,6 +53,9 @@ export class InfraElectricity extends LitElement {
   @property({ attribute: false }) route: RouteState | null = null;
   @state() private access: EnergyAccess = energyAccess();
   private stop?: () => void;
+  private readonly tabsMode = new TabsModeController(this, 'area');
+  /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
+  private pagesChip: PairChip | null = null;
 
   static styles = [css`
     :host {
@@ -82,6 +89,8 @@ export class InfraElectricity extends LitElement {
 
   disconnectedCallback() {
     this.stop?.();
+    clearPairChip(this);
+    this.pagesChip = null;
     super.disconnectedCallback();
   }
 
@@ -105,7 +114,16 @@ export class InfraElectricity extends LitElement {
       const tag = unsafeStatic(def.tag);
       body = shtml`<${tag} .segments=${(r?.segments ?? []).slice(3)} .params=${r?.params ?? new URLSearchParams()}></${tag}>`;
     }
-    return html`<div class="rows" data-elec-shell>${l1}<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf(null, 2)} data-infra-pages></sw-tabs></div><div class="body" data-page=${page}>${body}</div>`;
+    // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
+    const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
+    this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
+    const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf(null, 2)} data-infra-pages></sw-tabs>`;
+    return html`<div class="rows" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
+  }
+
+  protected updated() {
+    if (this.pagesChip) publishPairChip(this, this.pagesChip);
+    else clearPairChip(this);
   }
 }
 
