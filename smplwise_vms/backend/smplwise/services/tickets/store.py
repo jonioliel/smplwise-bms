@@ -363,6 +363,11 @@ def open_ticket_ids(conn: sqlite3.Connection, dept_id: str, *, priority_id: str 
     return [r[0] for r in conn.execute(sql, args).fetchall()]
 
 
+def all_open_ticket_ids(conn: sqlite3.Connection) -> list[str]:
+    """SLACAL: ids of every open ticket in the installation (the working-hours calendar changed - recompute their dues). Ids only."""
+    return [r[0] for r in conn.execute("SELECT id FROM tickets WHERE status NOT IN ('closed', 'cancelled')").fetchall()]
+
+
 def sla_inputs(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
     """The clock columns of one ticket for services/tickets/sla.py - no title, description or person: nothing to show, so not a
     visibility bypass (the visibility guard lists the readers that return ticket content)."""
