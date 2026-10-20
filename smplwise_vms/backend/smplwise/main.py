@@ -91,7 +91,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         needs_review.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("needs-review janitor failed", exc_info=True)
-    try:  # SECFIX2-295 / PUB-03: erase undecided vendor-typed technicians past access.external.pending_retention_days (0 = off, the default)
+    try:  # SECFIX2-295 / PUB-03: erase undecided vendor-typed technicians past access.external.pending_retention_days (default 90, owner 2026-10-21; a saved 0 = off)
         from .services import pending_retention
 
         pending_retention.janitor(db)

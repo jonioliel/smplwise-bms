@@ -63,6 +63,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'security', label: 'אבטחה', href: '#/system/security', keywords: 'אזעקה alarm לוח קוד NVR מצלמות' },
       { tab: 'security', label: 'ניהול אזעקה', href: '#/system/security/manage', sub: true, keywords: 'לוחות קוד חיישנים עקיפה' },
       { tab: 'security', label: 'מצלמות', href: '#/system/security/cameras', sub: true, keywords: 'קידוד codec רזולוציה bitrate' },
+      { tab: 'security', label: 'ממשק ציבורי', href: '#/system/security/public', sub: true, keywords: 'טכנאים ספקים מחיקה אוטומטית פורטל 404' },
       { tab: 'audit', label: 'אודיט', href: '#/system/audit', keywords: 'יומן מי עשה מה request_id' },
     ],
   },

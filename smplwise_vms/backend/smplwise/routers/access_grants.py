@@ -16,7 +16,9 @@ access-control station chain, deny-overrides); refusals are audited there. Nothi
 - POST   /access-grants/links                   match an existing WisKey person to a contact (manual only)
 - DELETE /access-grants/links/{id}              unlink (live grants revoked first)
 - POST   /access-grants/links/{id}/delete-person   owner answer 10: "delete now" in WisKey (a person Arx created)
+- GET    /access-grants/pending-contacts            SECFIX2-295: the undecided vendor-typed technicians (accept / reject authority)
 - POST   /access-grants/pending-contacts/{id}/accept   owner answer 7: a technician the vendor added
+- POST   /access-grants/pending-contacts/{id}/reject   lead decision 6: reject and delete
 - PUT    /access-grants/entrances/{station_id}  the "entrance for external people" flag
 - GET|PUT /access-grants/settings               system administrator only
 - POST   /access-grants/revoke-all              R10, system administrator, typed confirmation
@@ -116,7 +118,7 @@ class SettingsIn(BaseModel):
     phone_fresh_days: int | None = Field(default=None, ge=30, le=365)
     code_hour: int | None = Field(default=None, ge=0, le=23)
     local_approvers: Literal["off", "on"] | None = None
-    # SECFIX2-295 / PUB-03 (owner decision pending; 0 = off): erase an undecided vendor-typed technician after N days (7-365), and a cap
+    # SECFIX2-295 / PUB-03 (owner 2026-10-21: defaults 90 / 10; 0 = off): erase an undecided vendor-typed technician after N days (7-365), and a cap
     # of undecided technicians per vendor (1-100)
     pending_retention_days: int | None = Field(default=None, ge=0, le=ag.PENDING_RETENTION_MAX)
     pending_max_per_vendor: int | None = Field(default=None, ge=0, le=ag.PENDING_CAP_MAX)
@@ -287,6 +289,13 @@ def unlink(request: Request, link_id: str = Path(..., pattern=_ID), principal: P
 @router.post("/access-grants/links/{link_id}/delete-person")
 def delete_person(body: ConfirmIn, request: Request, link_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return ag.delete_person_now(_db(request), principal, link_id, body.confirm, _rid(request))
+
+
+@router.get("/access-grants/pending-contacts")
+def pending_contacts(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """SECFIX2-295 (owner 2026-10-21): the technicians vendors typed on the arrival page that nobody decided yet - for the holders of
+    the accept / reject authority only (the same check; 403 otherwise). No phone number; the ticket number only while tickets are on."""
+    return ag.pending_list(conn, principal)
 
 
 @router.post("/access-grants/pending-contacts/{contact_id}/accept")

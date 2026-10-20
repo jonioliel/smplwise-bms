@@ -2,8 +2,8 @@
 option A): retention of the technicians a vendor typed on the arrival page (services/access_arrival._new_technician) that no manager
 accepted or rejected.
 
-While `access.external.pending_retention_days` is 0 (the default: the owner has not chosen the period yet) nothing happens - today's
-behaviour. Set to N (7-365), a janitor step erases every undecided row older than N days exactly as the manager's "reject and delete"
+The period is `access.external.pending_retention_days`: 90 days by default (owner decision 2026-10-21), 7-365, or a saved 0 = off
+(nothing happens). With a period N, a janitor step erases every undecided row older than N days exactly as the manager's "reject and delete"
 does (access_grants.reject_pending_contact, lead decision 6 of 2026-10-18): the directory erase (the name becomes the tombstone, the
 phone and its keyed index are cleared, the contact's links revoked, the phone-verification rows forgotten), `rejected_at` written, the
 open request for that technician ended (`refused`; nothing reached WisKey for a pending person). A row is never touched when it was
