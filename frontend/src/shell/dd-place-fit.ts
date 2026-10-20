@@ -24,6 +24,12 @@ export const DD_PLACE_DECLINED: Readonly<Record<string, readonly DdPlace[]>> = {
   // the page title sits under the section's own tab row, never on the first row: placement 4 (start edge) would cover the menu's
   // search and placement 3 (after the title) has no title on that row to follow. Placement 2 (far end) is real there.
   system: ['3', '4'],
+  // Infrastructure (2.9.2, owner 2026-10-20): the screens have no page title on their first row; that row is the page's own toolbar
+  // (the generator picker, the charts range and CSV buttons, the meters' filters), different on every page. Placement 3 has no title to
+  // follow and 2 / 4 land on that toolbar, so the measured safety net sent the route back to 1 after DD_COLLIDE_MS: the page row drew
+  // under the header first and then jumped down a row. Declared up front, the own row is drawn from the first frame: the area's chip and
+  // the page chip (shell/infra-pages.ts) side by side in it, nothing moves.
+  infra: ['2', '3', '4'],
 };
 
 export interface DdBox {

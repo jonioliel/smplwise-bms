@@ -49,6 +49,9 @@ const SCREENS: readonly Screen[] = [
  * their menu column at the start edge and the title under their own tab row, so 3 and 4 draw as 1 there (data-dd-fallback="declared").
  * Every other combination must be the real placement: a fallback by collision (data-dd-fallback="collision") on a swept screen is a bug. */
 const FALLBACK: Record<string, readonly Place[]> = { settings: ['3', '4'] };
+/** 2.9.2: the infrastructure screens decline 2, 3 and 4 (no title on their first row, a per-page toolbar there): not swept here (no h1),
+ * tests/evidence-infra-tabs.spec.ts covers them. */
+const DECLINED_UNSWEPT: Record<string, readonly Place[]> = { infra: ['2', '3', '4'] };
 const DD_GAP = 12;
 
 /** The mocked product settings / own prefs get the dropdown mode and the placement merged in (whatever else the screen's mock answers). */
@@ -251,8 +254,8 @@ for (const s of SCREENS) {
   }
 }
 
-test('the declared fallbacks are the shell table (DD_PLACE_DECLINED): settings declines 3 and 4, nothing else is declined', () => {
-  expect(DD_PLACE_DECLINED).toEqual({ system: ['3', '4'] });
+test('the declared fallbacks are the shell table (DD_PLACE_DECLINED): settings declines 3 and 4, infrastructure 2-4, nothing else is declined', () => {
+  expect(DD_PLACE_DECLINED).toEqual({ system: ['3', '4'], ...DECLINED_UNSWEPT });
   expect(FALLBACK).toEqual({ settings: DD_PLACE_DECLINED.system });
 });
 

@@ -16,6 +16,9 @@ import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
 import { fill, fmtDateTime } from '../generator/gen-logic';
 import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
+import { TabsModeController } from '../shell/tabs-mode';
+import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
+import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { canNav, isApi } from '../api/session';
 import { he } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
@@ -49,6 +52,9 @@ export class InfraGenerator extends LitElement {
   @state() private detecting = false;
   private stop?: () => void;
   private timer = 0;
+  private readonly tabsMode = new TabsModeController(this, 'area');
+  /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
+  private pagesChip: PairChip | null = null;
 
   static styles = [elecCss, genCss, css`
     :host { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
@@ -68,9 +74,13 @@ export class InfraGenerator extends LitElement {
   disconnectedCallback() {
     this.stop?.();
     window.clearInterval(this.timer);
+    clearPairChip(this);
+    this.pagesChip = null;
     super.disconnectedCallback();
   }
   protected updated(c: Map<string, unknown>) {
+    if (this.pagesChip) publishPairChip(this, this.pagesChip);
+    else clearPairChip(this);
     if (c.has('route')) {
       const id = this.selectedId();
       if (id && id !== this.device?.id) void this.loadDevice(id);
@@ -139,7 +149,8 @@ export class InfraGenerator extends LitElement {
   }
 
   render() {
-    const l1 = isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
+    this.pagesChip = null;
+    const l1 =isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'error' && !this.list) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => this.loadList()} data-state="error"></sw-state-panel>`;
     if (this.phase === 'loading' && !this.list) return html`<div class="col" data-state="loading"><div class="skl" style="inline-size:320px;block-size:22px"></div><div class="hero"><div class="card"><div class="skl" style="block-size:280px"></div></div><div class="card"><div class="skl"></div><div class="skl" style="margin-block-start:12px"></div></div></div></div>`;
@@ -159,7 +170,11 @@ export class InfraGenerator extends LitElement {
     else if (page === 'live') body = html`<gen-live-page .device=${d} ?manage=${this.access.manage}></gen-live-page>`;
     else if (page === 'charts') body = html`<gen-charts-page .device=${d} .params=${this.route?.params ?? new URLSearchParams()}></gen-charts-page>`;
     else body = html`<gen-alerts-page .device=${d} .mode=${page} .alertId=${this.route?.segments[3] ? decodeURIComponent(this.route.segments[3]) : ''} ?manage=${this.access.manage} @alerts-changed=${() => void this.loadDevice(d.id)}></gen-alerts-page>`;
-    return html`<div class="rows" data-gen-shell>${l1}<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf(null, 2)} data-infra-pages></sw-tabs>${pick}</div><div class="body" data-page=${page}>${body}</div>`;
+    // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
+    const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
+    this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
+    const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf(null, 2)} data-infra-pages></sw-tabs>`;
+    return html`<div class="rows" data-gen-shell>${l1}${row}${pick}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 }
 
