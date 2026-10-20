@@ -126,7 +126,7 @@ test('pending technicians: reject and delete goes through the existing route aft
   const s = page.locator(SCREEN);
   await s.locator('[data-pending="pc-2"] [data-pending-reject]').click();
   const dlg = s.locator('sw-dialog[data-confirm-dialog]');
-  await expect(dlg).toBeVisible();
+  await expect(dlg.locator('[data-confirm-ok]')).toBeVisible(); // the host is display: contents; its content is what shows
   await shot(page, info, '02-pending-reject-confirm');
   await dlg.locator('[data-confirm-ok]').click();
   await expect.poll(() => calls.posts).toEqual(['access-grants/pending-contacts/pc-2/reject']);
