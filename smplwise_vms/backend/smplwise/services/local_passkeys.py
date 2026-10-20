@@ -27,6 +27,18 @@ Verification: services/webauthn.py (own minimal implementation on `cryptography`
   (the authenticator's biometric / PIN is the second factor). It NEVER removes the password: password sign-in, the manager's links
   and the self-service reset keep working; removing the last passkey switches the mode off. A "password removed" mode is not built
   (it would need an administrator-approved recovery path - CR-USR2 section 10).
+- Passkeys only (usr2-passkeys-only-mode; per user, default OFF for everyone; migration 0140 is provisional):
+  `auth_local_credentials.passkey_only`. While it is on AND effective, password sign-in of that user is refused (li.sign_in answers
+  the same uniform 401 as a wrong password - never counted towards a lock - and audits `auth.local.sign_in.failed` with tier
+  `passkey_only`); only a passkey signs the user in. Effective = the flag AND the owner switch `security.local_passkey_first` is on
+  AND a usable passkey exists, so a changed public address or a switched-off owner switch can never lock a user out (the password
+  simply works again). Who: a system administrator (identity.local.manage) for any local user, or the user for themself after a
+  fresh sign-in; it needs a usable passkey and the owner switch; a user holding an administrative permission also needs another
+  way back in (`recovery_path_exists`: another active administrator who signs in some other way - an infrastructure account, or a
+  local one still using the password). The last usable passkey of a user with the mode on cannot be removed (the mode is switched
+  off first - by the user, or by an administrator as the recovery). System administrators are infrastructure accounts, never local
+  identities (role_refusal), so this mode never touches their break-glass password.
+  Audit: `auth.local.passkey.only_enabled|only_disabled|only_refused`, plus `identity.local.user.passkey_only_*` on the admin route.
 - Counter: a regression refuses the assertion and writes `auth.local.passkey.counter_regression` (clone suspicion).
 - Audit: `auth.local.passkey.registered|removed|used|refused|counter_regression|first_enabled|first_disabled` - the credential's public
   `pk_` id, never the credential id, a public key, a challenge or a signature.
@@ -63,7 +75,11 @@ REAUTH_HE = "לפעולה הזו צריך כניסה טרייה: צא והיכנ
 FIRST_OFF_HE = "כניסה במפתח גישה בלבד אינה מופעלת במערכת הזו."
 LIMIT_HE = "אפשר לשמור עד 10 מפתחות גישה לחשבון."
 NO_PASSKEY_HE = "כדי להפעיל כניסה במפתח גישה, הוסף קודם מפתח גישה."
-BUSY_HE = "יותר מדי בקשות כניסה במפתח גישה כרגע. נסה שוב בעוד דקה."
+ONLY_OFF_HE = "כדי להפעיל כניסה במפתח גישה בלבד, מנהל המערכת צריך קודם להפעיל במערכת את הכניסה במפתח גישה."
+ONLY_LAST_HE = "אי אפשר להסיר את מפתח הגישה האחרון כשהכניסה במפתח גישה בלבד פעילה. כבה קודם את המצב."
+ONLY_ON_HE = "הכניסה במפתח גישה בלבד פעילה. כבה אותה קודם."
+ONLY_RECOVERY_HE = "אי אפשר להפעיל את המצב למשתמש הזה: אין מנהל פעיל אחר שנכנס בדרך אחרת ויכול להחזיר לו גישה."
+BUSY_HE ="יותר מדי בקשות כניסה במפתח גישה כרגע. נסה שוב בעוד דקה."
 NOT_FOUND_HE = "מפתח הגישה לא נמצא."
 
 
@@ -151,6 +167,36 @@ def user_first_on(conn: Any, user_id: str) -> bool:
     return bool(r and r["passkey_first"])
 
 
+def user_only_on(conn: Any, user_id: str) -> bool:
+    try:
+        r = conn.execute("SELECT passkey_only FROM auth_local_credentials WHERE user_id = ?", (user_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - an older schema: off
+        return False
+    return bool(r and r["passkey_only"])
+
+
+def only_effective(conn: Any, user_id: str) -> bool:
+    """Is password sign-in of this user refused right now? The flag AND the owner switch AND a usable passkey (never a lock-out)."""
+    return user_only_on(conn, user_id) and first_enabled(conn) and usable(conn, user_id)
+
+
+def recovery_path_exists(conn: Any, user_id: str) -> bool:
+    """Is there another active administrator (identity.local.manage) who signs in some way other than a passkey-only local account -
+    an infrastructure account, or a local one whose password sign-in is not refused? That administrator can switch the mode off."""
+    from ..rbac import permissions_anywhere
+    from .local_identity import _internal
+
+    for u in conn.execute("SELECT id, source FROM users WHERE active = 1 AND deleted_at IS NULL AND id != ?", (user_id,)).fetchall():
+        if "identity.local.manage" not in permissions_anywhere(conn, _internal(u["id"])):
+            continue
+        if u["source"] != "local":
+            return True
+        c = conn.execute("SELECT passkey_only, password_hash FROM auth_local_credentials WHERE user_id = ?", (u["id"],)).fetchone()
+        if c is not None and c["password_hash"] and not c["passkey_only"]:
+            return True
+    return False
+
+
 def view(row: Any, rp_id: str | None, admin: bool = False) -> dict[str, Any]:
     """What the lists show: never the credential id or the public key."""
     return {"id": row["id"], "label": row["label"], "created_at": row["created_at"], "last_used_at": row["last_used_at"],
@@ -166,6 +212,7 @@ def summary(conn: Any, user_id: str) -> dict[str, Any]:
     admin = bool(found) and holds_admin(conn, user_id)
     return {"available": r is not None, "rp_id": r[0] if r else None, "origin": r[1] if r else None,
             "first_allowed": first_enabled(conn), "first_on": user_first_on(conn, user_id),
+            "only_on": user_only_on(conn, user_id), "only_effective": only_effective(conn, user_id),
             "credentials": [view(x, r[0] if r else None, admin) for x in found]}
 
 
@@ -394,6 +441,10 @@ def remove(conn: Any, user_id: str, pk_id: str, *, actor: Any, by: str, keep_cha
     row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ? AND user_id = ?", (pk_id, user_id)).fetchone() if isinstance(pk_id, str) and len(pk_id) <= 40 else None
     if row is None:
         raise ApiError(404, "passkey_not_found", NOT_FOUND_HE)
+    if user_only_on(conn, user_id):  # usr2-passkeys-only-mode: the last usable passkey of a user with the mode on stays
+        usable_ids = [r["id"] for r in usable_rows(conn, user_id)]
+        if pk_id in usable_ids and len(usable_ids) == 1:
+            raise ApiError(409, "passkey_only_last", ONLY_LAST_HE)
     li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6: a passkey removed (by the user or an administrator)
     conn.execute("DELETE FROM auth_webauthn_credentials WHERE id = ?", (pk_id,))
     first_off = False
@@ -419,11 +470,42 @@ def set_first(conn: Any, s: Any, on: bool, request_id: str | None) -> dict[str, 
             raise ApiError(409, "no_passkey", NO_PASSKEY_HE)
         if not recent_auth(conn, s):
             raise ApiError(403, "reauth_required", REAUTH_HE)
+    if not on and user_only_on(conn, s.user_id):
+        raise ApiError(409, "passkey_only_on", ONLY_ON_HE)
     if user_first_on(conn, s.user_id) != on:
         _set_first(conn, s.user_id, on)
         _audit(conn, actor=s.principal, action="auth.local.passkey.first_enabled" if on else "auth.local.passkey.first_disabled", decision="allowed",
                resource_id=s.user_id, reason=None if on else "self", request_id=request_id)
     return summary(conn, s.user_id)
+
+
+def set_only(conn: Any, user_id: str, on: bool, *, actor: Any, by: str, request_id: str | None, s: Any = None) -> dict[str, Any]:
+    """Switch the passkeys-only mode of a local user (`by`: "self" with the caller's session `s`, or "admin"). 409 with a plain reason:
+    `passkey_first_off` (owner switch), `no_passkey` (no working passkey), `no_recovery_path` (an administrative user with no other
+    administrator who can bring them back); 403 `reauth_required` (self: a fresh sign-in). Switching on also turns passkey-first on
+    (the passwordless route needs it); switching off leaves it as it was. Audited both ways."""
+    from . import local_identity as li
+
+    if on:
+        if not first_enabled(conn):
+            raise ApiError(409, "passkey_first_off", ONLY_OFF_HE)
+        if not usable(conn, user_id):
+            raise ApiError(409, "no_passkey", NO_PASSKEY_HE)
+        if by == "self" and not recent_auth(conn, s):
+            raise ApiError(403, "reauth_required", REAUTH_HE)
+        if li.holds_admin(conn, user_id) and not recovery_path_exists(conn, user_id):
+            _audit(conn, actor=actor, action="auth.local.passkey.only_refused", decision="denied", resource_id=user_id, reason="no_recovery_path",
+                   details={"by": by}, request_id=request_id)
+            raise ApiError(409, "no_recovery_path", ONLY_RECOVERY_HE)
+    elif by == "self" and user_only_on(conn, user_id) and not recent_auth(conn, s):
+        raise ApiError(403, "reauth_required", REAUTH_HE)
+    if user_only_on(conn, user_id) != on:
+        li.lease_hook("second_factor_changed", user_ids=[user_id])  # the sign-in mode changed
+        conn.execute("UPDATE auth_local_credentials SET passkey_only = ?, passkey_first = CASE WHEN ? = 1 THEN 1 ELSE passkey_first END, updated_at = ? WHERE user_id = ?",
+                     (1 if on else 0, 1 if on else 0, _now_iso(), user_id))
+        _audit(conn, actor=actor, action="auth.local.passkey.only_enabled" if on else "auth.local.passkey.only_disabled", decision="allowed",
+               resource_id=user_id, reason=by, request_id=request_id)
+    return summary(conn, user_id)
 
 
 # ---------------------------------------------------------------- assertions
@@ -585,14 +667,14 @@ def passwordless_sign_in(db: Any, settings: Any, conn_like: Any, body: Any, requ
             reason = "challenge_mismatch"
         else:
             row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE credential_id = ?", (wa.b64url(cred.raw_id),)).fetchone()
-            user = conn.execute("""SELECT u.id, u.username, u.display_name, u.active, u.deleted_at, u.source, c.passkey_first, c.must_change
+            user = conn.execute("""SELECT u.id, u.username, u.display_name, u.active, u.deleted_at, u.source, c.passkey_first, c.passkey_only, c.must_change
                                    FROM users u JOIN auth_local_credentials c ON c.user_id = u.id WHERE u.id = ?""",
                                 (row["user_id"],)).fetchone() if row is not None else None
             if row is None or user is None:
                 reason = "credential_unknown"
             elif user["source"] != "local" or not user["active"] or user["deleted_at"]:
                 reason = "user_inactive"
-            elif not user["passkey_first"]:
+            elif not (user["passkey_first"] or user["passkey_only"]):
                 reason = "user_not_opted_in"
             elif cred.user_handle is None or cred.user_handle != user_handle(user["id"]):
                 reason = "user_handle_mismatch"

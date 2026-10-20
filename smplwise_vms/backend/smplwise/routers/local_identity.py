@@ -396,7 +396,7 @@ def _user_dict(conn: sqlite3.Connection, row: sqlite3.Row, live: dict[str, int] 
 
     passkeys = lpk.rows(conn, row["id"])  # USR2 phase 4: how many (never a credential id or a key); the list is its own route
     return {
-        "passkeys": len(passkeys), "passkey_first": lpk.user_first_on(conn, row["id"]),
+        "passkeys": len(passkeys), "passkey_first": lpk.user_first_on(conn, row["id"]), "passkey_only": lpk.user_only_on(conn, row["id"]),
         "id": row["id"], "username": row["username"], "display_name": row["display_name"], "email": row["email"], "notes": row["notes"],
         "status": _status(row), "active": bool(row["active"]), "created_at": row["first_seen_at"], "created_by": row["created_by"],
         "last_sign_in_at": row["last_sign_in_at"], "last_sign_in_from": row["last_sign_in_from"],
@@ -613,6 +613,8 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
 
         if fields["passkey_first"]:
             raise ApiError(422, "passkey_first_self_only", "רק המשתמש עצמו מפעיל כניסה במפתח גישה (עם מפתח הגישה שלו); מנהל יכול רק לכבות אותה.")
+        if lpk.user_only_on(conn, user_id):
+            raise ApiError(409, "passkey_only_on", lpk.ONLY_ON_HE)  # usr2-passkeys-only-mode needs passkey-first: switch the mode off first
         if lpk.user_first_on(conn, user_id):
             li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6: the sign-in factor mode changed
             conn.execute("UPDATE auth_local_credentials SET passkey_first = 0, updated_at = ? WHERE user_id = ?", (now_iso(), user_id))
