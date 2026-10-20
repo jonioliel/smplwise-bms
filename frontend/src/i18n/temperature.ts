@@ -481,6 +481,7 @@ const he = {
   predictEnabled: 'הצגת הזמן המשוער עד חציית הסף',
   predictWarn: 'אזהרה מוקדמת לפני שהחריגה מתחילה',
   predictHorizon: 'אופק התחזית (דק׳)',
+  predictWarnMin: 'אזהרה מוקדמת כשהחציה צפויה בתוך (דק׳)',
   maintAlarms: 'חלון תחזוקה משהה גם אזעקות',
   maintMax: 'אורך מרבי לחלון תחזוקה (דק׳)',
   escalationUnit: 'הסלמת אזעקות שלא אושרו (לפי שרשרת ההתקנה)',
@@ -1003,6 +1004,7 @@ const en: Partial<Record<Key, string>> = {
   predictEnabled: 'Show the estimated time to the threshold',
   predictWarn: 'An early warning before the excursion starts',
   predictHorizon: 'Forecast horizon (min)',
+  predictWarnMin: 'Early warning when the crossing is due within (min)',
   maintAlarms: 'A maintenance window also holds alarms',
   maintMax: 'Longest maintenance window (min)',
   escalationUnit: 'Escalate unacknowledged alarms (the installation’s chain)',
@@ -1118,6 +1120,8 @@ const ar: Partial<Record<Key, string>> = {
   repHaccp: 'تقرير امتثال HACCP',
   widgetName: 'درجات الحرارة',
   escTitle: 'سلسلة التصعيد',
+  predictWarn: 'تحذير مبكر قبل بدء الخروج عن النطاق',
+  predictWarnMin: 'تحذير مبكر عندما يُتوقع التجاوز خلال (دقائق)',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -1181,6 +1185,8 @@ const ru: Partial<Record<Key, string>> = {
   repHaccp: 'Отчёт соответствия HACCP',
   widgetName: 'Температуры',
   escTitle: 'Цепочка эскалации',
+  predictWarn: 'Раннее предупреждение до выхода за диапазон',
+  predictWarnMin: 'Раннее предупреждение, если выход ожидается в течение (мин)',
 };
 
 export type TtKey = Key;

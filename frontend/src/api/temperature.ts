@@ -88,6 +88,8 @@ export interface UnitRules {
   predict_enabled?: boolean;
   predict_horizon_min?: number;
   predict_warn?: boolean;
+  /** owner 2026-10-20: the early warning's lead time (minutes before the projected crossing) */
+  predict_warn_min?: number;
   maintenance_includes_alarms?: boolean;
   maintenance_max_min?: number;
   escalation_enabled?: boolean;

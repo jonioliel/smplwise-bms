@@ -311,7 +311,7 @@ def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sql
         "muted_until": u["muted_until"] if u["muted_until"] and u["muted_until"] > _iso(ts) else None,
         "rules": {k: rules[k] for k in ("warn_on_excursion", "high_alarm", "high_alarm_min", "low_alarm", "low_alarm_min", "door_alarm", "door_alarm_min", "offline_warn",
                                          "offline_min", "quiet_enabled", "quiet_from", "quiet_to", "exclude_defrost_stats", "setpoint_tolerance", "alert_when_off", "learn_min_repeats", "learn_days", "alerts_enabled", "quiet_includes_alarms", "mute_includes_alarms",
-                                         "predict_enabled", "predict_horizon_min", "predict_warn", "maintenance_includes_alarms", "maintenance_max_min", "escalation_enabled",
+                                         "predict_enabled", "predict_horizon_min", "predict_warn", "predict_warn_min", "maintenance_includes_alarms", "maintenance_max_min", "escalation_enabled",
                                          "health_warn", "battery_low_pct", "frozen_min", "recovery_slow_min", "recovery_alert", "compressor_on_w", "duty_rise_pts", "duty_alert")},
         "stats_24h": {k: st24[k] for k in ("min", "max", "avg", "out_min", "out_min_raw", "door_opens", "door_total_min", "door_longest_min", "alarms", "warnings")},
         "stale": not ctx.connected,

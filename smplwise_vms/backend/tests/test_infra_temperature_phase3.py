@@ -453,3 +453,40 @@ def test_phase3_notification_sources():
     assert health.severity == "alert" and esc.severity == "critical"
     assert notify_policy.default_row(health)["recipients"] == {"rule": "temperature"} and notify_policy.default_row(esc)["recipients"] == {"rule": "temperature"}
     assert notify_policy.default_row(esc)["channels"]["app"] is True  # an escalation reaches the phone app like an alarm
+
+
+# ---------------------------------------------------------------- owner 2026-10-20: the early warning's switch and lead time are settings
+
+def test_early_warning_settings_defaults_and_validation(app):
+    c, *_ = app
+    s = c.get(f"{API}/settings").json()
+    assert s["rules"]["predict_warn"] is False and s["rules"]["predict_warn_min"] == 20  # OFF by default, 20 minutes lead time
+    assert s["rule_specs"]["predict_warn_min"] == {"type": "int", "min": 5, "max": 240}
+    for bad in (4, 241, 12.5, "20", True):
+        r = c.put(f"{API}/settings", json={"rules": {"predict_warn_min": bad}})
+        assert r.status_code == 422 and r.json()["code"] == "rule_invalid", bad
+        assert c.post(API, json=body(rules={"predict_warn_min": bad})).json()["code"] == "rule_invalid"
+    assert c.put(f"{API}/settings", json={"rules": {"predict_warn": True, "predict_warn_min": 45}}).status_code == 200
+    s = c.get(f"{API}/settings").json()["rules"]
+    assert (s["predict_warn"], s["predict_warn_min"]) == (True, 45)
+    uid = create(c, door_entity_id=None, rules={"predict_warn": False, "predict_warn_min": 10})
+    m = next(u for u in c.get(f"{API}/manage").json()["units"] if u["id"] == uid)
+    assert m["rules"] == {"predict_warn": False, "predict_warn_min": 10}  # a per-unit override of both
+    assert c.get(f"{API}/{uid}").json()["rules"]["predict_warn_min"] == 10
+
+
+@pytest.mark.parametrize("lead,expect", [(10, False), (30, True)])
+def test_early_warning_fires_at_the_lead_time(app, lead, expect):
+    c, db, *_ = app
+    # +0.1 degrees a minute from 3.0: after 10 ticks the reading is 3.9, the crossing of 6 is ~21 minutes away
+    uid = create(c, door_entity_id=None, rules={"predict_warn": True, "predict_warn_min": lead})
+    run(db, "sensor.fridge_temp", [round(3.0 + 0.1 * i, 2) for i in range(10)], T0)
+    assert ("predict" in ev_kinds(db, uid)) is expect
+    assert (len(notes(db, "temperature.warning")) == 1) is expect
+
+
+def test_early_warning_stays_off_by_default_even_with_a_lead_time(app):
+    c, db, *_ = app
+    uid = create(c, door_entity_id=None, rules={"predict_warn_min": 240})
+    run(db, "sensor.fridge_temp", [round(3.0 + 0.1 * i, 2) for i in range(12)], T0)
+    assert "predict" not in ev_kinds(db, uid)

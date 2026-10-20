@@ -70,8 +70,9 @@ RULES: dict[str, tuple[str, Any, float | None, float | None]] = {
     # ---- phase 3 (owner 2026-10-20: every accepted idea, every capability a setting; alerts on by default, alarms never silenced)
     # time-to-threshold (idea 5): the card shows "the threshold is crossed in ~N min" from the slope of the last 30 minutes
     "predict_enabled": ("bool", True, None, None),
-    "predict_horizon_min": ("int", 60, 5, 240),           # shown / warned only when the crossing is this close
-    "predict_warn": ("bool", False, None, None),          # an EARLY warning notification before the excursion starts (off: display only)
+    "predict_horizon_min": ("int", 60, 5, 240),           # the card / detail show the projection when the crossing is this close
+    "predict_warn": ("bool", False, None, None),          # an EARLY warning notification before the excursion starts (owner 2026-10-20: OFF by default)
+    "predict_warn_min": ("int", 20, 5, 240),              # owner 2026-10-20: the lead time - the early warning fires when the crossing is this many minutes away
     # maintenance window (idea 9): holds the unit's WARNINGS; alarms only when this is turned on (owner: alarms are never silenced)
     "maintenance_includes_alarms": ("bool", False, None, None),
     "maintenance_max_min": ("int", 240, 15, 1440),

@@ -422,7 +422,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
         pev = evs.get("predict")
         calm = v is not None and not switched_off and not door and not defrost and "high" not in evs and "low" not in evs
         if calm and rules["predict_enabled"] and rules["predict_warn"]:
-            horizon = int(rules["predict_horizon_min"])
+            horizon = int(rules["predict_warn_min"])  # the early warning's own lead time (owner 2026-10-20), not the display horizon
             rate = t.rate_per_min(conn, u["id"], now_ts)
             # a row opens inside the horizon and stays while the crossing is within 1.5x of it (no flapping on the edge)
             pr = t.predict(v, rate, low, high, horizon if pev is None else int(horizon * 1.5) + 5)

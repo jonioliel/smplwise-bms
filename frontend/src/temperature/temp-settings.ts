@@ -15,7 +15,7 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
     ['learn_min_repeats', 'learnRepeats'], ['defrost_max_min', 'defrostMax']] },
   { title: 'groupClimate', keys: [['setpoint_tolerance', 'tolerance'], ['alert_when_off', 'alertWhenOff']] },
   // phase 3 (owner 2026-10-20: every capability a setting)
-  { title: 'setPredict', keys: [['predict_enabled', 'predictEnabled'], ['predict_warn', 'predictWarn'], ['predict_horizon_min', 'predictHorizon']] },
+  { title: 'setPredict', keys: [['predict_enabled', 'predictEnabled'], ['predict_horizon_min', 'predictHorizon'], ['predict_warn', 'predictWarn'], ['predict_warn_min', 'predictWarnMin']] },
   { title: 'setMaint', keys: [['maintenance_includes_alarms', 'maintAlarms'], ['maintenance_max_min', 'maintMax'], ['escalation_enabled', 'escalationUnit']] },
   { title: 'setHealth', keys: [['health_warn', 'healthWarn'], ['battery_low_pct', 'batteryLow'], ['frozen_min', 'frozenMin'], ['signal_weak_dbm', 'signalWeak'],
     ['recovery_slow_min', 'recoverySlow'], ['recovery_alert', 'recoveryAlert'], ['compressor_on_w', 'compressorOnW'], ['duty_rise_pts', 'dutyRise'], ['duty_alert', 'dutyAlert']] },

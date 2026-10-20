@@ -312,7 +312,7 @@ export class TempWizard extends LitElement {
     const d = this.d;
     return html`<details class="field more" data-w-phase3><summary class="lbl">${tt('phase3Title')}</summary><div style="display:grid;gap:8px;padding-block-start:8px">
       ${this.check('predict_enabled', 'predictEnabled')}
-      ${this.rule<boolean>('predict_enabled') ? html`${this.check('predict_warn', 'predictWarn')}${this.numRule('predict_horizon_min', 'predictHorizon', 5, 240)}` : nothing}
+      ${this.rule<boolean>('predict_enabled') ? html`${this.numRule('predict_horizon_min', 'predictHorizon', 5, 240)}${this.check('predict_warn', 'predictWarn')}${this.rule<boolean>('predict_warn') ? this.numRule('predict_warn_min', 'predictWarnMin', 5, 240) : nothing}` : nothing}
       ${this.check('escalation_enabled', 'escalationUnit')}
       ${this.check('maintenance_includes_alarms', 'maintAlarms')}
       ${this.numRule('maintenance_max_min', 'maintMax', 15, 1440)}

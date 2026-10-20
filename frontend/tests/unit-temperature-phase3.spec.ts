@@ -4,7 +4,7 @@ import { temperatureView } from '../src/temperature/home-widget';
 import { bigFrame } from '../src/temperature/charts';
 import { configOf, defaultConfig, resolveWidgets, WIDGET_IDS } from '../src/api/home-config';
 import { personalOf } from '../src/api/home';
-import { tt } from '../src/i18n/temperature';
+import { TT_TABLES, tt } from '../src/i18n/temperature';
 import type { Health, TempEvent, TempUnit } from '../src/api/temperature';
 
 // CR-INFRA-TEMPERATURE phase 3 (the accepted improvement ideas, owner 2026-10-20): the presentation of the projection, the maintenance window,
@@ -116,4 +116,11 @@ test('the home widget: appended last, absent without units, hidden units and the
   expect(v.counts).toEqual({ n: 2, alarm: 1, warning: 0 });
   expect(temperatureView(units, { ...cfg.temperature, filter: 'alerts' }, false).items.map((u) => u.id)).toEqual(['u2', 'u3']); // a sensor problem counts as an alert
   expect(temperatureView(units, { ...cfg.temperature, filter: 'alerts' }, true).items).toEqual([]); // stale: nothing is claimed
+});
+
+test('owner 2026-10-20: the early warning has its own switch and lead time, with words in he / en / ar / ru', () => {
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    expect(tt('predictWarn', undefined, lang)).not.toBe('predictWarn');
+    expect(TT_TABLES[lang].predictWarnMin).toBeTruthy();
+  }
 });
