@@ -9,6 +9,7 @@ import type { IconName } from '../components/sw-icon';
 import { ALARM_HE, climateRange, HVAC_ACTION_HE, HVAC_HE, type CardId, type DeviceRow } from '../api/devices';
 import { fmtTime } from '../api/ha';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { entityLabel } from '../i18n/entity-label';
 import { activityTag } from '../components/device-activity-press';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { deg, EQUIPMENT_DOMAINS, rowLabel, type DeviceControls } from './devices-controls';
@@ -498,7 +499,7 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
   if (card === 'switches' && EQUIPMENT_DOMAINS.has(r.domain)) {
     // CARD1: a vacuum / valve / water heater pill is read-only here - the long press opens its card with the controls
     return html`<sw-pill variant="plain" icon="bolt" .label=${bidi(r.name)} .state=${stateOf(h, r, rowLabel(r))} ?on=${r.active && !unavailable} .hue=${hue} ?unavailable=${unavailable} readonly
-      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active && !unavailable)} data-equipment=${r.domain} title=${r.entity_id} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active && !unavailable)} data-equipment=${r.domain} title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
   }
   if (card === 'lighting' || card === 'switches') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
@@ -508,18 +509,18 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
     const alarm = r.alarm_managed ? html`<button slot="subs" type="button" class="chip" aria-label=${r.managed_label ?? 'נשלט ממסך האזעקה'} data-alarm-managed @click=${() => navigate('/security/alarm')}><sw-icon name="shield" size=${14}></sw-icon></button>` : nothing;
     if (dimmable) {
       return html`<sw-pill variant="slider" icon="light" .label=${bidi(r.name)} .state=${stateOf(h, r, label)} .value=${Math.max(0, Math.min(1, pct / 100))} ?on=${on} .hue=${hue} ?unavailable=${unavailable} ?readonly=${!r.can_control}
-        data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id}
+        data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)}
         @toggle=${(e: CustomEvent<{ on: boolean }>) => can && ctl.power(r, e.detail.on)}
         @input=${(e: CustomEvent<{ value: number }>) => can && ctl.brightness(r, Math.round(e.detail.value * 100))}
         @icon-click=${open}>${alarm}${h.assignButton(r)}</sw-pill>`;
     }
     return html`<sw-pill variant="toggle" .icon=${card === 'lighting' ? 'light' : 'bolt'} .label=${bidi(r.name)} .state=${stateOf(h, r, label)} ?on=${on} ?accent=${on && card === 'switches'} .hue=${hue} ?unavailable=${unavailable} ?readonly=${!r.can_control}
-      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id}
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)}
       @toggle=${(e: CustomEvent<{ on: boolean }>) => can && ctl.power(r, e.detail.on)} @icon-click=${open}>${alarm}${h.assignButton(r)}</sw-pill>`;
   }
   if (card === 'covers') {
     if (r.door_class) {
-      return html`<sw-pill variant="plain" icon="door" .label=${bidi(r.name)} .state=${rowLabel(r)} .hue=${hue} ?unavailable=${unavailable} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} data-door-class="true" title=${r.entity_id} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
+      return html`<sw-pill variant="plain" icon="door" .label=${bidi(r.name)} .state=${rowLabel(r)} .hue=${hue} ?unavailable=${unavailable} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} data-door-class="true" title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
     }
     const hasPos = r.position !== null && r.position !== undefined;
     const shown = ctl.coverShown(r);
@@ -534,7 +535,7 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
       : nothing;
     const armedAny = ctl.coverArmed(r, 'open') || ctl.coverArmed(r, 'close');
     return html`<sw-pill variant=${hasPos && can ? 'slider' : 'plain'} icon="layers" .label=${bidi(r.name)} .state=${stateOf(h, r, armedAny ? 'לחיצה נוספת מאשרת' : posLabel)} .value=${Math.max(0, Math.min(1, shown / 100))} ?on=${hasPos && shown > 0 && !unavailable} fill-color="var(--sw-accent-soft)" keep-text .hue=${hue} ?unavailable=${unavailable}
-      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} data-door-class="false" title=${r.entity_id}
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} data-door-class="false" title=${entityLabel(r)}
       @toggle=${() => (hasPos && can ? ctl.coverStage(r, shown > 0 ? 0 : 100) : open())} @change=${(e: CustomEvent<{ value: number }>) => can && ctl.coverStage(r, Math.round(e.detail.value * 100))} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
   }
   if (card === 'climate' || card === 'heating') {
@@ -551,14 +552,14 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
             <button slot="subs" type="button" class="sb" aria-label="הגבה" data-control="temp-up" ?disabled=${target >= max} @click=${() => ctl.climateTemp(r, target + step)}><sw-icon name="plus" size=${18}></sw-icon></button>`
         : nothing;
       return html`<sw-pill variant="plain" .icon=${heat ? 'flame' : 'snow'} .label=${bidi(r.name)} .state=${stateOf(h, r, state)} ?on=${active} fill-color=${heat ? 'var(--sw-heat)' : 'var(--sw-cool)'} .hue=${hue} ?unavailable=${unavailable}
-        data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
+        data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
     }
     // a fan or a humidifier: its power on the pill, the rest in the sheet
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
     const fan = r.domain === 'fan';
     const pct = ctl.live<number>(r.entity_id, 'percentage') ?? r.percentage;
     return html`<sw-pill variant=${fan && can && pct !== null && pct !== undefined ? 'slider' : 'plain'} .icon=${fan ? 'fan' : 'activity'} .label=${bidi(r.name)} .state=${stateOf(h, r, rowLabel(r))} .value=${Math.max(0, Math.min(1, (pct ?? 0) / 100))} ?on=${on} fill-color="var(--sw-accent-soft)" keep-text .hue=${hue} ?unavailable=${unavailable}
-      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id}
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)}
       @toggle=${(e: CustomEvent<{ on: boolean }>) => can && fan && ctl.power(r, e.detail.on)} @input=${(e: CustomEvent<{ value: number }>) => can && fan && ctl.fanPercentage(r, Math.round(e.detail.value * 100))} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
   }
   if (card === 'security') {
@@ -566,7 +567,7 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
     const state = unavailable ? 'לא זמין' : r.kind === 'lock' ? (r.locked ? 'נעול' : rowLabel(r)) : r.kind === 'camera' ? 'מצלמת התקן' : rowLabel(r);
     const go = r.kind === 'alarm' ? () => navigate('/security/alarm') : open;
     return html`<sw-pill variant="plain" .icon=${icon} .label=${bidi(r.name)} .state=${state} .hue=${hue} ?on=${r.kind === 'alarm' ? r.state === 'triggered' : r.kind === 'binary_sensor' ? r.state === 'on' : false} fill-color="var(--sw-warning-soft)" keep-text ?unavailable=${unavailable}
-      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-kind=${r.kind ?? ''} title=${r.entity_id} @activate=${go} @icon-click=${go}>${h.assignButton(r)}</sw-pill>`;
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-kind=${r.kind ?? ''} title=${entityLabel(r)} @activate=${go} @icon-click=${go}>${h.assignButton(r)}</sw-pill>`;
   }
   if (card === 'media') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
@@ -579,17 +580,17 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
           <button slot="subs" type="button" class=${classMap({ sb: true, on })} role="switch" aria-checked=${String(on)} aria-label=${on ? 'כבה' : 'הדלק'} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon></button>`
       : nothing;
     return html`<sw-pill variant="plain" icon="play" .label=${bidi(r.name)} .state=${stateOf(h, r, state)} ?on=${playing && !unavailable} fill-color="var(--sw-lit)" .hue=${hue} ?unavailable=${unavailable}
-      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${r.entity_id} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${can} ?data-pending=${pending} title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${subs}${h.assignButton(r)}</sw-pill>`;
   }
   // sensors
   return html`<sw-pill variant="plain" .icon=${sensorIcon(r)} .label=${bidi(r.name)} .state=${sensorValue(r)} .hue=${hue} ?on=${r.domain === 'binary_sensor' && r.state === 'on'} fill-color="var(--sw-warning-soft)" keep-text ?unavailable=${unavailable}
-    data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} title=${r.entity_id} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
+    data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} title=${entityLabel(r)} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
 }
 
 /** A main-strip sensor as a value tile. */
 export function renderBubbleSensorTile(r: DeviceRow, slot: string | null): TemplateResult {
   const unavailable = unavailableOf(r);
-  return html`<div class=${classMap({ unavailable, hot: r.domain === 'binary_sensor' && r.state === 'on' })} data-main-sensor=${r.entity_id} data-slot=${slot ?? ''} title=${r.entity_id}>
+  return html`<div class=${classMap({ unavailable, hot: r.domain === 'binary_sensor' && r.state === 'on' })} data-main-sensor=${r.entity_id} data-slot=${slot ?? ''} title=${entityLabel(r)}>
     <span class="k">${bidi(r.name)}</span><div class="v">${sensorValue(r)}</div>
   </div>`;
 }

@@ -4,6 +4,7 @@ import '../components/sw-card';
 import '../components/sw-state-panel';
 import { get, put, describeError } from '../api/client';
 import { bidi } from '../i18n/bidi';
+import { entityLabel, TECH_ID_ATTR } from '../i18n/entity-label';
 
 export type ClimateKindSetting = 'auto' | 'ac' | 'heating';
 
@@ -62,6 +63,11 @@ export class DevicesClimateKindAdmin extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
+    .tech {
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      user-select: all;
+      overflow-wrap: anywhere;
+    }
     .err {
       color: var(--sw-danger);
     }
@@ -104,9 +110,9 @@ export class DevicesClimateKindAdmin extends LitElement {
         <thead><tr><th>שם</th><th>אזור</th><th>סוג</th></tr></thead>
         <tbody>${this.rows.map(
           (r) => html`<tr data-entity=${r.entity_id}>
-            <td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td>
+            <td>${bidi(entityLabel(r))}<div class="muted tech" ${TECH_ID_ATTR} dir="ltr" title="מזהה טכני (להעתקה)">${r.entity_id}</div></td>
             <td>${r.area_name ?? 'ללא שיוך'}</td>
-            <td><select data-climate-kind=${r.entity_id} aria-label=${`סוג ${r.name}`} ?disabled=${this.busyId === r.entity_id} @change=${(e: Event) => void this.choose(r, (e.target as HTMLSelectElement).value as ClimateKindSetting)}>
+            <td><select data-climate-kind=${r.entity_id} aria-label=${`סוג ${entityLabel(r)}`} ?disabled=${this.busyId === r.entity_id} @change=${(e: Event) => void this.choose(r, (e.target as HTMLSelectElement).value as ClimateKindSetting)}>
               <option value="auto" ?selected=${r.set === null}>אוטומטי (${KIND_HE[r.auto]})</option>
               <option value="ac" ?selected=${r.set === 'ac'}>מיזוג</option>
               <option value="heating" ?selected=${r.set === 'heating'}>חימום</option>

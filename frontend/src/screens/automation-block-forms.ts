@@ -91,7 +91,7 @@ function entityChips(fc: FormCtx, ids: string[], o: { filter: PickerFilter; wher
   return html`<div class="entpick" data-entity-chips>
     ${ids.map((id) => {
       const e = fc.env.byId.get(id);
-      return html`<span class="ent ${e?.class ? 'sens' : ''}" title=${id} data-entity=${id}>${icon(entityIcon(id))}<span>${names(id)}</span>${e?.area ? html`<small>${e.area.name}</small>` : nothing}${e?.missing ? html`<small class="bad">לא נמצא</small>` : nothing}
+      return html`<span class="ent ${e?.class ? 'sens' : ''}" title=${names(id)} data-entity=${id}>${icon(entityIcon(id))}<span>${names(id)}</span>${e?.area ? html`<small>${e.area.name}</small>` : nothing}${e?.missing ? html`<small class="bad">לא נמצא</small>` : nothing}
         <button class="rm" type="button" aria-label=${`הסרת ${names(id)}`} data-entity-remove=${id} @click=${() => o.apply(ids.filter((x) => x !== id))}>${icon('close')}</button></span>`;
     })}
     <button class="ent add" type="button" data-entity-add @click=${() => fc.pick({ uid: fc.block.uid, filter: o.filter, where: o.where, selected: ids, multi: o.multi ?? true, apply: o.apply })}>${icon('plus')}${ids.length ? 'עוד' : o.add ?? 'בחרו מכשיר'}</button>
