@@ -7,7 +7,7 @@
  * and to which number (····NN) - never the code itself (the page never has it; the server does not hold it either). The privacy notice is
  * the server's text in the vendor's language. Text only through dom.ts `h` (text nodes); no link is ever built.
  */
-import './arrival.css';
+import cssUrl from './arrival-card.css?url'; // its own stylesheet file (cssCodeSplit is off: an import would grow the ticket page's CSS)
 import { h, icon } from '../dom';
 import type { Lang } from '../strings';
 import { at, type ArrivalKey } from './arrival-text';
@@ -196,6 +196,13 @@ class ArrivalCard {
 }
 
 export function mountArrival(host: ArrivalHost): ArrivalHandle {
+  if (!document.querySelector('link[data-arrival-css]')) {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.setAttribute('href', cssUrl); // a file of this page's own origin (CSP style-src 'self')
+    css.setAttribute('data-arrival-css', '');
+    document.head.appendChild(css);
+  }
   const card = new ArrivalCard(host);
   void card.refresh();
   return { element: card.element, refresh: () => card.refresh(), setLang: (l) => card.setLang(l) };
