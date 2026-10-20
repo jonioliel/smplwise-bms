@@ -48,6 +48,10 @@ PINNED = frozenset({
     ("smplwise/services/intercom_client.py", "stations/test_unlock"),  # the release_door wrapper itself
     ("smplwise/services/trusted_door.py", "door_open"),  # the signed transport behind open_door
     ("smplwise/services/wiskey_channels.py", "stations/test_unlock"),  # the channel allowlist (a list of names, not a send)
+    # DOORWIN-295 re-pin on integ/293 (sites added after 2.4.10, reviewed - neither sends anything):
+    ("smplwise/services/elevators.py", "door_open"),  # CR-INFRA-ELEVATORS: an elevator's binary-sensor ROLE name (read only)
+    ("smplwise/services/intercom_authority.py", "door_open"),  # the command -> scope classification table (a lookup, not a send)
+    ("smplwise/services/intercom_authority.py", "stations/test_unlock"),  # same table
 })
 PINNED_HA_LOCK = frozenset({
     ("smplwise/routers/automations.py", "lock.unlock"),

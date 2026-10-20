@@ -29,6 +29,8 @@ os.environ.setdefault("SW_RELEASE_MARKER", "0")
 os.environ.setdefault("SW_TICKETS_OUTBOX", "0")
 # CR-ARX-WISKEY-SHARED-IDENTITY: the external-grant worker thread stays off; tests call access_grants.WORKER.run_once explicitly
 os.environ.setdefault("SW_ACCESS_GRANTS_WORKER", "0")
+# CR-039 DOORWIN-295: the door-windows watchdog thread stays off; tests call door_windows.WORKER.run_once / sync / watch with explicit instants
+os.environ.setdefault("SW_DOORWIN_WORKER", "0")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402

@@ -109,6 +109,22 @@ SOURCES: tuple[Source, ...] = (
     # ---- doors
     _s("opening.left_open", "דלת / חלון נשארו פתוחים", "doors", "alert", "פתוח זמן רב", "{name} פתוח יותר מ־{minutes} דקות.", after_s=600, resolve_text="נסגר"),
     _s("door.ring", "צלצול בדלת", "doors", "alert", "צלצול בדלת", "מישהו מצלצל ב{name}.", window_s=60, subject="door", resolve_text="הצלצול הסתיים"),
+    # CR-039 / DOORWIN-295: door windows and emergency door controls (all shipped OFF; nothing fires while the switches are off, except
+    # drills, which notify by the inbox only). Never a person's name: `{name}` is the door, `{actor}` is never filled (the audit carries who).
+    _s("door.relock_unconfirmed", "חלון פתיחה: חזרה למצב רגיל לא אושרה", "doors", "critical", "דלת אולי פתוחה",
+       "{name}: החלון הסתיים ולא אושרה חזרה למצב רגיל.", who="managers", subject="door", resolve_text="חזרה למצב רגיל אושרה", resolve_notice=True),
+    _s("door.window_not_started", "חלון פתיחה לא התחיל", "doors", "alert", "חלון פתיחה לא התחיל", "{name}: המערכת לא אישרה את הפתיחה.",
+       who="managers", subject="door", resolves=False),
+    _s("door.window_overridden", "חלון פתיחה הופסק ידנית", "doors", "info", "חלון הופסק", "{name}: החלון הופסק לפני הזמן.", who="managers",
+       push=False, subject="door", resolves=False),
+    _s("door.emergency.started", "מצב חירום בדלתות", "doors", "critical", "מצב חירום: {kind}", "{kind} ל־{count} דלתות ({scope}).",
+       who="managers", subject="door", resolve_text="מצב החירום הסתיים", app=True),
+    _s("door.emergency.partial", "חירום: לא כל הדלתות אישרו", "doors", "critical", "חירום: לא כל הדלתות אישרו",
+       "{failed} מתוך {count} דלתות לא אישרו.", who="managers", subject="door", resolve_text="מצב החירום הסתיים"),
+    _s("door.emergency.released", "מצב חירום הסתיים", "doors", "alert", "מצב החירום הסתיים", "{kind} שוחרר ({scope}).", who="managers",
+       subject="door", resolves=False),
+    _s("door.emergency.drill", "תרגיל חירום בדלתות", "doors", "info", "תרגיל חירום", "תרגיל {kind} ({scope}) - ללא פעולה אמיתית.",
+       who="managers", push=False, subject="door", resolves=False),
     # ---- automations
     _s("schedule.not_confirmed", "תזמון לא בוצע", "automations", "alert", "תזמון לא בוצע", "{name}: {detail}.", window_s=3600, who="managers", subject="schedule", resolve_text="הריצה הבאה אושרה"),
     _s("automation.failed", "אוטומציה נכשלה", "automations", "alert", "אוטומציה נכשלה", "{name}: {detail}.", window_s=600, who="managers", subject="automation", resolves=False),

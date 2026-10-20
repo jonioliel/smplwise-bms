@@ -1,0 +1,515 @@
+"""CR-039 / DOORWIN-295: door windows and emergency door controls - the HTTP surface (Arx RBAC is the only authority).
+
+Door windows (`/doors/windows/...`): reads need `access.stations.read` (filtered per station); rule writes need `access.windows.manage` on
+EVERY door of the rule; the override and the manual relock check need `access.windows.cancel` or `.manage` on the door; settings, the
+exterior flag need `system.configure`. Every write needs `confirmed: true` from the client's confirmation step and an identified interactive
+person (never a wall / kiosk account, never a bearer-token client).
+
+Emergency (`/doors/emergency/...`): the state (the red strip) is readable with `access.read` anywhere; `prepare` -> `incidents` (start) /
+`incidents/{id}/release` are the two server-side steps (services/door_emergency.py); `access.emergency.lock` / `.open` at a scope covering
+the request. Drills go through the same two steps with `drill: true` and never reach an engine.
+
+Shipped OFF (`doors.windows.enabled`, `doors.emergency.enabled` = off) and refused live (door_windows_engine.GO_LIVE_PERMITTED = False)."""
+from __future__ import annotations
+
+import datetime as dt
+import re
+import sqlite3
+from typing import Any, Literal
+
+from fastapi import APIRouter, Depends, Path, Query, Request
+from pydantic import BaseModel, Field
+
+from ..audit import audit
+from ..auth import current_principal, get_conn, get_read_conn, settings_of
+from ..db import commit_now
+from ..errors import ApiError
+from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..services import door_emergency as de
+from ..services import door_windows as dw
+from ..services import door_windows_engine as dwe
+from ..services import door_windows_watch as dww
+
+router = APIRouter()
+
+CONFIGURE = "system.configure"
+REQUEST_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+UTC = dt.timezone.utc
+
+
+def now_utc() -> dt.datetime:
+    """The clock of these routes (tests replace it)."""
+    return dt.datetime.now(UTC)
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
+def _dev(request: Request) -> bool:
+    return bool(settings_of(request).dev_user)
+
+
+def _confirmed(value: Any) -> None:
+    if value is not True:
+        raise ApiError(409, "confirmation_required", "הפעולה דורשת אישור מפורש.")
+
+
+def _today(conn: sqlite3.Connection, now: dt.datetime) -> dt.date:
+    from zoneinfo import ZoneInfo
+
+    return dw.local_date(now, ZoneInfo(dw.installation_zone(conn)))
+
+
+# ================================================================ door windows
+
+def _rule_view(conn: sqlite3.Connection, row: sqlite3.Row, labels: dict[str, dw.Door], visible: set[str]) -> dict[str, Any]:
+    doc = dw._rule_doc(conn, row)
+    return {
+        "id": row["id"], "name": row["name"], "kind": row["kind"], "state": row["state"], "calendar_policy": row["calendar_policy"],
+        "notes": row["notes"] or "", "revision": row["revision"], "updated_at": row["updated_at"], "approved": bool(row["approved_by"]),
+        "doors": [{"station_id": s, "relay": r, "key": dw.door_key(s, r), "label": labels[dw.door_key(s, r)].label if dw.door_key(s, r) in labels else dw.door_key(s, r),
+                   "visible": dw.door_key(s, r) in visible} for s, r in doc.doors],
+        "periods": [{"weekday": p.weekday, "on_date": p.on_date, "start": p.start, "end": p.end} for p in doc.periods],
+    }
+
+
+def _occ_view(r: sqlite3.Row, labels: dict[str, dw.Door], rule_names: dict[str, str]) -> dict[str, Any]:
+    key = dw.door_key(r["station_id"], r["relay"])
+    return {"id": r["id"], "door": key, "label": labels[key].label if key in labels else key, "rule_id": r["rule_id"], "rule_name": rule_names.get(r["rule_id"] or "", ""),
+            "start_at": r["start_at"], "end_at": r["end_at"], "zone": r["zone"], "state": r["state"], "tier": r["tier"], "retries": r["retries"],
+            "unconfirmed_at": r["unconfirmed_at"], "last_reason": r["last_reason"], "resolution": r["resolution"], "resolved_at": r["resolved_at"]}
+
+
+@router.get("/doors/windows/state")
+def windows_state(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Everything the door-windows screen shows to this person: the switch and tier, the doors they may see (and which they may manage or
+    override), the rules touching those doors, and the occurrences of the next 7 days plus every open alarm on them."""
+    visible = dw.visible_doors(conn, principal)
+    manage = {d.key for d in dw.visible_doors(conn, principal, dw.MANAGE)}
+    cancel = {d.key for d in dw.visible_doors(conn, principal, dw.CANCEL)} | manage
+    vis_keys = {d.key for d in visible} | manage
+    labels = dw.doors_by_key(conn)
+    ext = dw.exterior_doors(conn)
+    rules = []
+    rule_names: dict[str, str] = {}
+    for row in conn.execute("SELECT * FROM door_window_rules WHERE state <> 'retired' ORDER BY name, id").fetchall():
+        rule_names[row["id"]] = row["name"]
+        view = _rule_view(conn, row, labels, vis_keys)
+        if any(d["visible"] for d in view["doors"]):
+            view["manageable"] = all(d["key"] in manage for d in view["doors"])
+            rules.append(view)
+    now = now_utc()
+    horizon = dw.iso(now + dt.timedelta(days=7))
+    occ = [o for o in (_occ_view(r, labels, rule_names) for r in conn.execute(
+        """SELECT * FROM door_window_occurrences WHERE (end_at >= ? AND start_at <= ? AND state NOT IN ('cancelled'))
+           OR state IN ('relock_unconfirmed','ending','active','starting') ORDER BY start_at LIMIT 500""", (dw.iso(now - dt.timedelta(hours=12)), horizon)).fetchall())
+        if o["door"] in vis_keys]
+    engine_tier = dwe.window_engine(settings_of(request)).tier
+    return {
+        "enabled": dw.enabled(conn), "tier": engine_tier if dw.enabled(conn) else "prepared", "go_live_permitted": dwe.go_live_permitted(),
+        "settings": {k.split(".")[-1]: v for k, v in dw.settings_view(conn).items()},
+        "can": {"manage": bool(manage), "cancel": bool(cancel), "configure": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed},
+        "doors": [{"key": d.key, "station_id": d.station_id, "relay": d.relay, "label": d.label, "station_name": d.station_name, "name": d.name, "zone": d.zone,
+                   "manage": d.key in manage, "cancel": d.key in cancel, "exterior": d.key in ext} for d in sorted(visible, key=lambda d: d.label)],
+        "rules": rules, "occurrences": occ, "now": dw.iso(now),
+    }
+
+
+class RuleBody(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    kind: Literal["weekly", "once"]
+    calendar_policy: Literal["skip_holidays", "holidays_like_friday", "ignore_calendar"] = "skip_holidays"
+    notes: str = Field(default="", max_length=300)
+    doors: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    periods: list[dict[str, Any]] = Field(min_length=1, max_length=56)
+    revision: int | None = None
+    enable: bool = False
+    confirmed: Any = None
+
+
+def _body_doors(body: RuleBody) -> list[tuple[str, int]]:
+    out = []
+    for d in body.doors:
+        sid, relay = d.get("station_id"), d.get("relay")
+        if isinstance(sid, str) and isinstance(relay, int) and not isinstance(relay, bool):
+            out.append((sid, relay))
+    return out
+
+
+@router.post("/doors/windows/rules/preview")
+def preview_rule(body: RuleBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The compiled occurrences of the next 7 days per door, without saving (no engine call)."""
+    dw.require_doors(conn, principal, _body_doors(body), dw.MANAGE, "door.window.preview")
+    return dw.preview(conn, body.model_dump(), now_utc())
+
+
+def _after_write(request: Request, conn: sqlite3.Connection) -> None:
+    commit_now(conn)
+    dw.WORKER.wake()
+
+
+def _save(request: Request, principal: Principal, conn: sqlite3.Connection, body: RuleBody, rule_id: str | None) -> dict[str, Any]:
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.rule_saved", dev_mode=_dev(request))
+    if rule_id is not None:
+        row = dw.rule_row(conn, rule_id)
+        if row is None:
+            raise ApiError(404, "not_found", "החלון לא נמצא.")
+        dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.rule_saved")  # the old scope too
+    dw.require_doors(conn, principal, _body_doors(body), dw.MANAGE, "door.window.rule_saved")
+    rid = dw.save_rule(conn, principal, body.model_dump(), rule_id=rule_id, today=_today(conn, now_utc()))
+    row = dw.rule_row(conn, rid)
+    audit(conn, actor=principal, action="door.window.rule_saved", decision="allowed", resource_type="door_window_rule", resource_id=rid, request_id=_rid(request),
+          details={"revision": row["revision"], "kind": row["kind"], "doors": len(body.doors), "periods": len(body.periods), "created": rule_id is None})
+    if body.enable and row["state"] != "enabled":
+        row = dw.set_rule_state(conn, principal, rid, "enabled")
+        audit(conn, actor=principal, action="door.window.rule_enabled", decision="allowed", resource_type="door_window_rule", resource_id=rid, request_id=_rid(request),
+              details={"revision": row["revision"]})
+    view = _rule_view(conn, row, dw.doors_by_key(conn), {d.key for d in dw.visible_doors(conn, principal)})
+    _after_write(request, conn)
+    return {"rule": view}
+
+
+@router.post("/doors/windows/rules", status_code=201)
+def create_rule(body: RuleBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return _save(request, principal, conn, body, None)
+
+
+@router.put("/doors/windows/rules/{rule_id}")
+def update_rule(body: RuleBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return _save(request, principal, conn, body, rule_id)
+
+
+class ConfirmBody(BaseModel):
+    confirmed: Any = None
+
+
+@router.post("/doors/windows/rules/{rule_id}/{action}")
+def rule_action(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), action: Literal["enable", "pause", "retire"] = Path(),
+                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _confirmed(body.confirmed)
+    name = {"enable": "door.window.rule_enabled", "pause": "door.window.rule_paused", "retire": "door.window.rule_retired"}[action]
+    dw.require_person(conn, principal, name, dev_mode=_dev(request))
+    row = dw.rule_row(conn, rule_id)
+    if row is None or row["state"] == "retired":
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, name)
+    row = dw.set_rule_state(conn, principal, rule_id, {"enable": "enabled", "pause": "paused", "retire": "retired"}[action])
+    audit(conn, actor=principal, action=name, decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request),
+          details={"revision": row["revision"]})
+    view = _rule_view(conn, row, dw.doors_by_key(conn), {d.key for d in dw.visible_doors(conn, principal)})
+    _after_write(request, conn)
+    return {"rule": view}
+
+
+@router.post("/doors/windows/occurrences/{occ_id}/end-now")
+def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The guard override (CR-039 2 / 7.1): end a running window of one door now. The engine is told to pause the door's program (the close
+    direction) and the occurrence is watched to its relock like any end. The program stays paused until the overridden window's end."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.override", dev_mode=_dev(request))
+    occ = dw.occurrence_row(conn, occ_id)
+    if occ is None:
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    if not (dw.may(conn, principal, dw.CANCEL, occ["station_id"]) or dw.may(conn, principal, dw.MANAGE, occ["station_id"])):
+        audit(conn, actor=principal, action="door.window.override", decision="denied", resource_type="door", resource_id=dw.door_key(occ["station_id"], occ["relay"]), reason="no_permission")
+        raise ApiError(403, "forbidden", "אין הרשאה להפסיק חלון בדלת זו.")
+    if occ["state"] == "superseded":
+        raise ApiError(409, "under_incident", "הדלת במצב חירום - רק שחרור החירום מסיים אותו.")
+    now = now_utc()
+    at = dw.iso(now)
+    if occ["state"] in ("prepared", "planned", "armed") and occ["start_at"] > at:
+        conn.execute("UPDATE door_window_occurrences SET state = 'cancelled', resolution = 'override', resolved_by = ?, resolved_at = ?, updated_at = ? WHERE id = ?",
+                     (principal.user_id, at, at, occ_id))
+        outcome = "cancelled"
+    elif occ["state"] in ("starting", "active", "not_started", "prepared", "armed", "planned"):
+        conn.execute("""UPDATE door_window_occurrences SET state = CASE WHEN tier = 'prepared' THEN 'elapsed' ELSE 'ending' END, end_at = ?, last_reason = 'override',
+                        resolved_by = ?, updated_at = ? WHERE id = ?""", (at, principal.user_id, at, occ_id))
+        outcome = "ending"
+    else:
+        raise ApiError(409, "not_running", "החלון אינו פעיל.")
+    audit(conn, actor=principal, action="door.window.override", decision="allowed", resource_type="door", resource_id=dw.door_key(occ["station_id"], occ["relay"]),
+          request_id=_rid(request), details={"occurrence_id": occ_id, "outcome": outcome, "planned_end": occ["end_at"]})
+    from ..services import notify
+
+    notify.emit(conn, notify.Signal("door.window_overridden", "door", dw.door_key(occ["station_id"], occ["relay"]), dedupe_key=f"door.window_overridden:{occ_id}",
+                                    params={"name": (dw.doors_by_key(conn).get(dw.door_key(occ["station_id"], occ["relay"])) or dw.Door("", 0, "", "", "")).label}))
+    commit_now(conn)
+    if outcome == "ending":
+        dw.pause_door(request.app.state.db, settings_of(request), occ["station_id"], occ["relay"], occ["end_at"], why="override")
+    dw.WORKER.wake(sync=False)
+    with request.app.state.db.connection(mode="read") as rconn:
+        return {"occurrence": _occ_view(dw.occurrence_row(rconn, occ_id), dw.doors_by_key(rconn), {})}
+
+
+class CheckedBody(BaseModel):
+    checked: Literal["camera", "door"]
+    confirmed: Any = None
+
+
+@router.post("/doors/windows/occurrences/{occ_id}/confirm-closed")
+def confirm_closed(body: CheckedBody, request: Request, occ_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The manual relock check (CR-039 4.4 step 4): a person looked at the door or its camera. Only an unconfirmed relock can be confirmed."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.confirm_closed", dev_mode=_dev(request))
+    occ = dw.occurrence_row(conn, occ_id)
+    if occ is None:
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    key = dw.door_key(occ["station_id"], occ["relay"])
+    if not (dw.may(conn, principal, dw.CANCEL, occ["station_id"]) or dw.may(conn, principal, dw.MANAGE, occ["station_id"])):
+        audit(conn, actor=principal, action="door.window.confirm_closed", decision="denied", resource_type="door", resource_id=key, reason="no_permission")
+        raise ApiError(403, "forbidden", "אין הרשאה לאשר דלת זו.")
+    if occ["state"] != "relock_unconfirmed":
+        raise ApiError(409, "not_unconfirmed", "אין מה לאשר בדלת זו.")
+    dww.confirm_closed(conn, occ, principal.user_id, body.checked, now_utc())
+    audit(conn, actor=principal, action="door.window.confirm_closed", decision="allowed", resource_type="door", resource_id=key, request_id=_rid(request),
+          details={"occurrence_id": occ_id, "checked": body.checked, "retries": occ["retries"]})
+    view = _occ_view(dw.occurrence_row(conn, occ_id), dw.doors_by_key(conn), {})
+    _after_write(request, conn)
+    return {"occurrence": view}
+
+
+@router.get("/doors/windows/calendar")
+def get_calendar(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:
+        raise ApiError(403, "forbidden", "אין הרשאה.")
+    rows = conn.execute("SELECT on_date, scope_key, day_type, label FROM door_window_calendar WHERE on_date >= ? ORDER BY on_date",
+                        ((now_utc() - dt.timedelta(days=1)).date().isoformat(),)).fetchall()
+    return {"days": [dict(r) for r in rows]}
+
+
+class CalendarDay(BaseModel):
+    on_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    day_type: Literal["holiday", "holiday_eve", "regular", "closed", "none"]
+    label: str = Field(default="", max_length=60)
+
+
+class CalendarBody(BaseModel):
+    days: list[CalendarDay] = Field(max_length=120)
+    confirmed: Any = None
+
+
+@router.put("/doors/windows/calendar")
+def put_calendar(body: CalendarBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Installation-wide special days (`none` removes one). `access.windows.manage` at the installation (CR-039 10.4)."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.calendar", dev_mode=_dev(request))
+    require(conn, principal, dw.MANAGE, INSTALLATION)
+    at = dw.iso(now_utc())
+    for d in body.days:
+        try:
+            dt.date.fromisoformat(d.on_date)
+        except ValueError:
+            raise ApiError(422, "invalid_date", "תאריך לא תקין.") from None
+        if d.day_type == "none":
+            conn.execute("DELETE FROM door_window_calendar WHERE on_date = ? AND scope_key = '*'", (d.on_date,))
+        else:
+            conn.execute("""INSERT INTO door_window_calendar(on_date, scope_key, day_type, label, set_by, set_at) VALUES (?, '*', ?, ?, ?, ?)
+                            ON CONFLICT(on_date, scope_key) DO UPDATE SET day_type = excluded.day_type, label = excluded.label, set_by = excluded.set_by,
+                            set_at = excluded.set_at""", (d.on_date, d.day_type, d.label.strip() or None, principal.user_id, at))
+    audit(conn, actor=principal, action="door.window.calendar", decision="allowed", resource_type="door_window_calendar", request_id=_rid(request),
+          details={"days": [[d.on_date, d.day_type] for d in body.days][:60]})
+    _after_write(request, conn)
+    return {"saved": len(body.days)}
+
+
+@router.get("/doors/windows/settings")
+def get_window_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    return {"settings": dw.settings_view(conn), "go_live_permitted": dwe.go_live_permitted()}
+
+
+class SettingsBody(BaseModel):
+    changes: dict[str, str] = Field(max_length=20)
+    confirmed: Any = None
+
+
+@router.put("/doors/windows/settings")
+def put_window_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "settings.changed", dev_mode=_dev(request))
+    changed = dw.update_settings(conn, body.changes)
+    for key, (before, after) in changed.items():
+        audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="setting", resource_id=key, request_id=_rid(request),
+              details={"key": key, "before": before, "after": after})
+    out = {"settings": dw.settings_view(conn), "changed": sorted(changed)}
+    _after_write(request, conn)
+    return out
+
+
+class FlagsBody(BaseModel):
+    exterior: bool
+    confirmed: Any = None
+
+
+@router.put("/doors/windows/doors/{station_id}/{relay}/flags")
+def put_door_flags(body: FlagsBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
+                   principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Mark a door exterior (owner decision 2026-10-13: interior doors first). System administrator."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.door_flags", dev_mode=_dev(request))
+    conn.execute("""INSERT INTO door_window_door_flags(station_id, relay, exterior, set_by, set_at) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(station_id, relay) DO UPDATE SET exterior = excluded.exterior, set_by = excluded.set_by, set_at = excluded.set_at""",
+                 (station_id, relay, 1 if body.exterior else 0, principal.user_id, dw.iso(now_utc())))
+    audit(conn, actor=principal, action="door.window.door_flags", decision="allowed", resource_type="door", resource_id=dw.door_key(station_id, relay),
+          request_id=_rid(request), details={"exterior": body.exterior})
+    return {"door": dw.door_key(station_id, relay), "exterior": body.exterior}
+
+
+# ================================================================ emergency
+
+def _any(conn: sqlite3.Connection, principal: Principal, permission: str) -> bool:
+    return permission in permissions_anywhere(conn, principal)
+
+
+@router.get("/doors/emergency/state")
+def emergency_state(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The visible state (CR-039 8.1): the active incident (the red strip) for everyone who sees doors, and - for the holders of an
+    emergency permission - the switches, the scopes they may press in and the recent history."""
+    perms = permissions_anywhere(conn, principal)
+    if "access.read" not in perms and de.LOCK not in perms and de.OPEN not in perms:
+        raise ApiError(403, "forbidden", "אין הרשאה.")
+    settings = settings_of(request)
+    can_lock, can_open = de.LOCK in perms, de.OPEN in perms
+    active = de.active_incident(conn)
+    drill = de.active_incident(conn, drill=True)
+    out: dict[str, Any] = {
+        "enabled": de.enabled(conn), "open_enabled": de.open_enabled(conn, settings), "hold_ms": int(de.setting(conn, de.HOLD_MS)),
+        "can": {"lock": can_lock, "open": can_open},
+        "active": de.incident_view(conn, active, with_doors=can_lock or can_open) | {"can_release": authorize(conn, principal, de.PERMISSION[active["kind"]],
+                                                                                                                de.scope_target(active["scope_type"], active["scope_id"])).allowed}
+        if active is not None else None,
+    }
+    if can_lock or can_open:
+        out["scopes"] = {"lock_secure": de.scopes_for(conn, principal, "lock_secure") if can_lock else [],
+                         "open": de.scopes_for(conn, principal, "open") if can_open else []}
+        out["drill"] = de.incident_view(conn, drill) if drill is not None and drill["requested_by"] == principal.user_id else None
+        out["recent"] = [de.incident_view(conn, r, with_doors=False) for r in conn.execute(
+            "SELECT * FROM door_emergency_incidents ORDER BY requested_at DESC LIMIT 10").fetchall()]
+    return out
+
+
+class PrepareBody(BaseModel):
+    action: Literal["start", "release"] = "start"
+    kind: Literal["lock_secure", "open"]
+    scope_type: Literal["installation", "site", "building"] = "installation"
+    scope_id: str = Field(default="*", min_length=1, max_length=128)
+    incident_id: str | None = Field(default=None, max_length=64)
+    drill: bool = False
+
+
+@router.post("/doors/emergency/prepare")
+def emergency_prepare(body: PrepareBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return de.prepare(conn, settings_of(request), principal, action=body.action, kind=body.kind, scope_type=body.scope_type, scope_id=body.scope_id,
+                      incident_id=body.incident_id, drill=body.drill, now=now_utc(), dev_mode=_dev(request))
+
+
+class StartBody(BaseModel):
+    confirm_token: str = Field(min_length=16, max_length=64)
+    confirmed: Any = None
+    reason: str = Field(default="", max_length=200)
+    client_request_id: str = Field(min_length=8, max_length=64)
+
+
+def _request_id(value: str) -> str:
+    if not REQUEST_ID.match(value):
+        raise ApiError(422, "invalid_request_id", "מזהה בקשה לא תקין.")
+    return value
+
+
+@router.post("/doors/emergency/incidents", status_code=201)
+def emergency_start(body: StartBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    rid = _request_id(body.client_request_id)
+    if conn.execute("SELECT id FROM door_emergency_incidents WHERE request_id = ?", (rid,)).fetchone():
+        raise ApiError(409, "duplicate_request", "הבקשה כבר התקבלה.")
+    settings = settings_of(request)
+    iid = de.start(conn, settings, principal, token=body.confirm_token, confirmed=body.confirmed, reason=body.reason, client_request_id=rid, now=now_utc(),
+                   dev_mode=_dev(request))
+    commit_now(conn)
+    db = request.app.state.db
+    de.submit(db, settings, iid, "apply")
+    de.pause_windows_for_lock(db, settings, iid)
+    with db.connection(mode="read") as rconn:
+        return {"incident": de.incident_view(rconn, de.incident_row(rconn, iid))}
+
+
+class ReleaseBody(BaseModel):
+    confirm_token: str = Field(min_length=16, max_length=64)
+    confirmed: Any = None
+    client_request_id: str = Field(min_length=8, max_length=64)
+
+
+@router.post("/doors/emergency/incidents/{incident_id}/release")
+def emergency_release(body: ReleaseBody, request: Request, incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    rid = _request_id(body.client_request_id)
+    settings = settings_of(request)
+    released = de.release(conn, settings, principal, token=body.confirm_token, confirmed=body.confirmed, client_request_id=rid, now=now_utc(), dev_mode=_dev(request))
+    if released != incident_id:
+        raise ApiError(409, "confirmation_invalid", "האישור אינו תקף.")
+    commit_now(conn)
+    db = request.app.state.db
+    de.submit(db, settings, incident_id, "release")
+    with db.connection(mode="read") as rconn:
+        return {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))}
+
+
+@router.get("/doors/emergency/incidents/{incident_id}")
+def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    perms = permissions_anywhere(conn, principal)
+    if de.LOCK not in perms and de.OPEN not in perms:
+        raise ApiError(403, "forbidden", "אין הרשאה.")
+    row = de.incident_row(conn, incident_id)
+    if row is None or (row["drill"] and row["requested_by"] != principal.user_id and not authorize(conn, principal, CONFIGURE, INSTALLATION).allowed):
+        raise ApiError(404, "not_found", "לא נמצא.")
+    return {"incident": de.incident_view(conn, row)}
+
+
+@router.get("/doors/emergency/settings")
+def get_emergency_settings(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    return {"settings": de.settings_view(conn, settings_of(request))}
+
+
+@router.put("/doors/emergency/settings")
+def put_emergency_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "settings.changed", dev_mode=_dev(request))
+    try:
+        changed = de.update_settings(conn, settings_of(request), body.changes)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="setting", reason=exc.code, request_id=_rid(request),
+              details={"keys": sorted(body.changes)[:8]})
+        raise
+    for key, (before, after) in changed.items():
+        audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="setting", resource_id=key, request_id=_rid(request),
+              details={"key": key, "before": before, "after": after})
+    return {"settings": de.settings_view(conn, settings_of(request)), "changed": sorted(changed)}
+
+
+class AttestBody(BaseModel):
+    version: int
+    accepted: bool
+    confirmed: Any = None
+
+
+@router.post("/doors/emergency/attestation")
+def post_attestation(body: AttestBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-039 8.9: the life-safety acknowledgement (read, then accepted), recorded by hash and version, audited with the person."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.emergency.attested", dev_mode=_dev(request))
+    if body.accepted is not True:
+        raise ApiError(422, "not_accepted", "יש לאשר את ההצהרה.")
+    de.attest(conn, principal.user_id, body.version, now_utc())
+    audit(conn, actor=principal, action="door.emergency.attested", decision="allowed", resource_type="door_emergency", request_id=_rid(request),
+          details={"version": de.ATTESTATION_VERSION, "text_sha": de.ATTESTATION_SHA[:16]})
+    return {"attested": True, "version": de.ATTESTATION_VERSION}

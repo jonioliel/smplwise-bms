@@ -36,6 +36,8 @@ STATION_PERMISSIONS = frozenset({
     "access.pin.generate", "access.people.message", "access.call",
     # CR-ARX-WISKEY-SHARED-IDENTITY D5 (owner answer 2): approving an external person's temporary door grant, per station
     "access.external.grant",
+    # CR-039 7.1 (DOORWIN-295): door windows and emergency controls are judged on the station chain too
+    "access.windows.manage", "access.windows.cancel", "access.emergency.lock", "access.emergency.open",
 })
 
 # WXPERM (owner decision 2026-10-13): legacy permission names and the permission each one now stands for. A role that lists
