@@ -18,8 +18,9 @@ import {
 } from '../api/access-grants';
 import {
   BUCKETS, DAYS, STATE_ICON, STATE_TONE, actionsOf, codeOf, counts, datesText, doorState, durationText, goneReferenceOk, hoursText, ladder, lastDay, localDate,
-  narrowWindow, stationsOf, timeline, uiState, visible, whyKey, type Bucket, type Filter, type Query,
+  narrowWindow, readOutcome, readbackView, stationsOf, timeline, uiState, visible, whyKey, wiskeyOffline, type Bucket, type Filter, type Query,
 } from '../access-external/model';
+import { subscribeClock } from '../api/clock-ticker';
 import { xCss } from '../access-external/styles';
 import { xt, xtDynamic, xtLang, type XtKey } from '../i18n/access-external';
 import { rt } from '../i18n/access-request';
@@ -83,7 +84,16 @@ export class AccessExternalScreen extends LitElement {
   @state() private word = '';
   // the settings dialog
   @state() private draft: ScreenSettings | null = null;
+  // SHAREDUI-295: when the list shown was read (a failed poll keeps it, marked stale), and the last "read back now" answer per grant
+  @state() private loadedAt = 0;
+  @state() private stale = false;
+  @state() private reading: string | null = null;
+  @state() private rb: { id: string; at: string; kind: 'still' | 'error'; key: string; why?: string } | null = null;
   private timer?: number;
+  private unclock?: () => void;
+  private readonly onResume = () => {
+    if (document.visibilityState === 'visible') void this.load();
+  };
   private toastSeq = 0;
   private routed = false;
 
@@ -91,7 +101,9 @@ export class AccessExternalScreen extends LitElement {
     xCss,
     leadReserveStyles,
     css`
-      :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
+      :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box;
+        /* SHAREDUI-295: every button of the screen, its drawer and dialogs is a 44 px target (the system-access screens do the same) */
+        --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px)); --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px)); }
       .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; color: var(--sw-heading); }
       .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
@@ -119,13 +131,25 @@ export class AccessExternalScreen extends LitElement {
       .gl-r[aria-current='true'] { background: var(--sw-accent-soft); }
       .gl-r:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: -2px; }
       .pn b { display: block; color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .pn small, .win small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pn small, .win small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pn .sr { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-2); margin-block-start: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .st { display: grid; gap: 5px; min-inline-size: 0; }
       .st .why { font-size: var(--sw-fs-sm); color: var(--sw-text-2); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .code { display: grid; gap: 4px; justify-items: start; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .chev { color: var(--sw-text-3); align-self: center; }
-      .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); border-block-start: 1px solid var(--sw-border-strong); }
+      /* SHAREDUI-295: the read-back wait - an indeterminate mark (still under reduced motion), never a number */
+      .rb { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px; border-radius: var(--sw-r-md); background: var(--cs); }
+      .rb-mark { inline-size: 28px; block-size: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-surface-solid); }
+      .rb-mark i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c); animation: rbpulse 1.8s ease-in-out infinite; }
+      .rb[data-readback='offline'] .rb-mark i { animation: none; }
+      @keyframes rbpulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+      @media (prefers-reduced-motion: reduce) { .rb-mark i { animation: none; } }
+      .rb-t { display: grid; gap: 2px; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text); }
+      .rb-t b { color: var(--sw-heading); }
+      .rb-line { display: flex; gap: 6px; align-items: center; margin: 4px 0 0; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text); }
+      .rb-line[data-tone='err'] { color: var(--x-err-t); }
+      @media (max-width: 600px) { .rb { grid-template-columns: auto minmax(0, 1fr); } .rb > sw-button { grid-column: 1 / -1; } }
+      .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-block-start: 1px solid var(--sw-border-strong); }
       .legend span { display: inline-flex; gap: 6px; align-items: center; }
       .panel { border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); padding: 16px; display: grid; gap: 12px; align-content: start; min-inline-size: 0; }
       .panel h3 { margin: 0; font-size: var(--sw-fs-md); color: var(--sw-heading); font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -194,10 +218,20 @@ export class AccessExternalScreen extends LitElement {
     this.timer = window.setInterval(() => {
       if (document.visibilityState === 'visible' && !this.dialog) void this.load();
     }, POLL_MS);
+    // a background tab skips the polls: it refreshes at once when it is shown again or the network returns
+    document.addEventListener('visibilitychange', this.onResume);
+    window.addEventListener('online', this.onResume);
+    // the open drawer's "open since · duration" ages with the shared wall-clock ticker (CLOCK-293), never with a timer of its own
+    this.unclock = subscribeClock(() => {
+      if (this.sel) this.requestUpdate();
+    });
   }
 
   disconnectedCallback(): void {
     window.clearInterval(this.timer);
+    document.removeEventListener('visibilitychange', this.onResume);
+    window.removeEventListener('online', this.onResume);
+    this.unclock?.();
     super.disconnectedCallback();
   }
 
@@ -218,13 +252,17 @@ export class AccessExternalScreen extends LitElement {
     try {
       this.data = await listGrants(true);
       this.error = '';
+      this.stale = false;
+      this.loadedAt = Date.now();
       if (!this.routed) this.applyRoute();
       if (this.sel && !this.dialog) {
         const g = this.data.grants.find((x) => x.id === this.sel);
         if (g) this.detail = { ...g, closure: g.closure ? { ...g.closure, reference: this.detail?.closure?.reference } : null };
       }
     } catch (e) {
+      // with a list on the screen, a failed poll keeps it and says how old it is (stale); without one, the error panel
       this.error = describeError(e);
+      this.stale = !!this.data;
     }
   }
 
@@ -273,6 +311,7 @@ export class AccessExternalScreen extends LitElement {
   private closeDrawer(): void {
     this.sel = null;
     this.detail = null;
+    this.rb = null;
   }
 
   private async act(fn: () => Promise<unknown>, done: XtKey, vars?: Record<string, string | number>): Promise<boolean> {
@@ -292,6 +331,53 @@ export class AccessExternalScreen extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * SHAREDUI-295: "read back now" with a terminal answer. The worker keeps its own holds (a read while an earlier write may still land
+   * decides nothing), so the screen never counts down: it asks, then says what came back - the new state (a toast), or "checked at HH:MM:
+   * still ..." (kept in the drawer), or why the read failed - and the button is ready again.
+   */
+  private async readBack(id: string): Promise<void> {
+    const before = this.data?.grants.find((g) => g.id === id) ?? (this.detail?.id === id ? this.detail : null);
+    this.reading = id;
+    this.rb = null;
+    try {
+      const r = await readNow(id);
+      const at = new Date().toISOString();
+      await this.load();
+      const after = this.data?.grants.find((g) => g.id === id) ?? r?.grant ?? null;
+      if (this.sel === id) await this.openDrawer(id);
+      void this.loadDigest();
+      if (!before) return;
+      const o = readOutcome(before, after);
+      if (o.kind === 'changed') this.toast('rb_changed', { state: xt(o.key as XtKey) });
+      else {
+        this.rb = { id, at, kind: 'still', key: o.key };
+        if (this.sel !== id) this.toast(o.key as XtKey, { t: this.fmt(at, false) }); // from the digest: no drawer to keep the line in
+      }
+    } catch (e) {
+      this.rb = { id, at: new Date().toISOString(), kind: 'error', key: 'rb_failed', why: describeError(e) };
+      if (this.sel !== id) this.toast('failed');
+    } finally {
+      this.reading = null;
+    }
+  }
+
+  private rbLine(g: Grant): TemplateResult | typeof nothing {
+    const r = this.rb;
+    if (!r || r.id !== g.id) return nothing;
+    const t = this.fmt(r.at, false);
+    return r.kind === 'error'
+      ? html`<p class="rb-line" data-tone="err" role="alert" data-readback-result="error"><sw-icon name="warning" size="14"></sw-icon>${xt('rb_failed', { t, why: r.why ?? '' })}</p>`
+      : html`<p class="rb-line" role="status" data-readback-result="still"><sw-icon name="clock" size="14"></sw-icon>${xt(r.key as XtKey, { t })}</p>`;
+  }
+
+  private readBtn(g: Grant, primary: boolean, offline: boolean): TemplateResult {
+    const busy = this.reading === g.id;
+    const again = this.rb?.id === g.id;
+    return html`<sw-button variant=${primary ? 'primary' : 'secondary'} icon="refresh" data-action="read" aria-busy=${String(busy)} ?disabled=${busy || offline || this.busy}
+      @click=${() => this.readBack(g.id)}>${busy ? xt('rb_reading') : again ? xt('a_readAgain') : xt('a_readNow')}</sw-button>`;
   }
 
   private confirm(c: Confirm): void {
@@ -343,14 +429,16 @@ export class AccessExternalScreen extends LitElement {
     const sub = [g.company, xt(g.category === 'contractor' ? 'contractor' : 'visitor'), g.source_ref ? `${xt(SRC_KEY[g.source] ?? 'srcManual')} ${g.source_ref}` : xt(SRC_KEY[g.source] ?? 'srcManual')].filter(Boolean).join(' · ');
     const since = g.revoking_since ? Math.max(0, (Date.now() - Date.parse(g.revoking_since)) / 60000) : 0;
     const missing = g.link?.state === 'wiskey_missing';
+    const offline = wiskeyOffline(this.data);
+    const rbv = readbackView(g, offline);
     return html`<sw-drawer modal .open=${true} heading=${this.name(g)} subheading=${sub} data-grant-drawer=${g.id} @close=${() => this.closeDrawer()}>
       <div class="db">
         <div class="dhead">${this.badge(g, true)}${g.pending_amendment ? html`<span class="chip" data-tone="acc">${xt('widening')}</span>` : nothing}</div>
         <div class="callout" data-tone=${tone}><sw-icon name=${STATE_ICON[s]} size="18"></sw-icon><div><b>${xt(`st_${s}` as XtKey)}</b>${xtDynamic(whyKey(g), 'why_pending')}</div></div>
         ${s === 'revoking'
-          ? html`<div class="callout" data-tone="off" data-revoke-box><sw-icon name="bell" size="18"></sw-icon><div><b>${xt('openSince', { t: this.fmt(g.revoking_since), d: durationText(since, xtLang()) })}</b>${this.reasonText(g.end_reason)}
-              <ul>${missing ? html`<li>${xt('rv_missing1')}</li><li>${xt('rv_missing2')}</li>` : html`<li>${xt('rv_note1')}</li><li>${xt('rv_note2')}</li>`}</ul></div></div>`
+          ? html`<div class="callout" data-tone="off" data-revoke-box><sw-icon name="bell" size="18"></sw-icon><div><b>${xt('openSince', { t: this.fmt(g.revoking_since), d: durationText(since, xtLang()) })}</b>${this.reasonText(g.end_reason)}</div></div>`
           : nothing}
+        ${rbv ? this.readbackBox(g, rbv, a.readNow) : nothing}
         ${g.pending_amendment
           ? html`<section class="sec"><h4><sw-icon name="plus" size="14"></sw-icon>${xt('amendTitle')}</h4><div class="diff"><span class="h"></span><span class="h">${xt('amendNow')}</span><span class="h">${xt('amendAsked')}</span>
               <span>${xt('doorsTitle')}</span><span class="chips">${g.doors.map((d) => html`<span class="chip door" data-tone="acc">${d.name}</span>`)}</span><span class="chips">${g.doors.map((d) => html`<span class="chip door" data-tone="acc">${d.name}</span>`)}${this.amendAdds(g).map((d) => html`<span class="chip door add">${d}</span>`)}</span>
@@ -359,12 +447,11 @@ export class AccessExternalScreen extends LitElement {
         ${s === 'sync' ? html`<div class="callout" data-tone="warn"><sw-icon name="refresh" size="18"></sw-icon><div><b>${xt('syncTitle')}</b>${xt('syncText')}</div></div>` : nothing}
         ${s === 'unknown'
           ? html`<div class="ku"><div><h4><sw-icon name="check" size="14"></sw-icon>${xt('un_known')}</h4><ul><li>${xt('un_k1')}</li><li>${xt('un_k2')}</li></ul></div>
-              <div class="unk"><h4><sw-icon name="help" size="14"></sw-icon>${xt('un_unknown')}</h4><ul><li>${xt('un_u1')}</li><li>${xt('un_u2')}</li><li>${xt('un_u3')}</li></ul></div></div>
-              <div class="callout" data-tone="acc"><sw-icon name="shield" size="18"></sw-icon><div><b>${xt('un_arx')}</b><ul><li>${xt('un_a1')}</li><li>${xt('un_a2')}</li><li>${xt('un_a3')}</li><li>${xt('un_a4')}</li></ul></div></div>`
+              <div class="unk"><h4><sw-icon name="help" size="14"></sw-icon>${xt('un_unknown')}</h4><ul><li>${xt('un_u1')}</li><li>${xt('un_u2')}</li><li>${xt('un_u3')}</li></ul></div></div>`
           : nothing}
         <section class="sec"><h4><sw-icon name="layers" size="14"></sw-icon>${xt(lad.revoke ? 'ladderRevokeTitle' : 'ladderTitle')}</h4>
           <div class="ladder" style=${`--n:${lad.steps.length}`} role="list" data-ladder>${lad.steps.map((st) => html`<div class="stp" role="listitem" data-s=${st.mark}><i aria-hidden="true">${{ done: '✓', cur: '•', unk: '?', stop: '!', no: '' }[st.mark]}</i>${xt(st.key as XtKey)}</div>`)}</div>
-          <p class="note"><sw-icon name="info" size="14"></sw-icon>${xt('ladNote')}</p></section>
+          ${this.howBlock(s, missing)}</section>
         <section class="sec"><h4><sw-icon name="door" size="14"></sw-icon>${xt('doorsTitle')}${s === 'unknown' ? html`<span class="chip" data-tone="warn">${xt('mapUnknown')}</span>` : nothing}</h4>
           <div class="dtable">${g.doors.flatMap((d) => d.relays.map((r) => html`<div data-door=${`${d.station_id}:${r}`}><span><b>${d.name}</b><small>${xt('doorN', { n: r })}</small></span><span class="chip" data-tone=${ds.tone}>${xt(ds.key as XtKey)}</span></div>`))}</div></section>
         <section class="sec"><h4><sw-icon name="calendar" size="14"></sw-icon>${xt('windowTitle')}</h4><div class="kv">
@@ -378,11 +465,35 @@ export class AccessExternalScreen extends LitElement {
               <div><span>${xt('theCode')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('neverShown')}</b></div></div></section>`
           : nothing}
         ${g.closure?.reference ? html`<section class="sec"><h4><sw-icon name="info" size="14"></sw-icon>${xt('gone_ref_label')}</h4><p style="margin:0" data-closure-reference>${g.closure.reference}</p></section>` : nothing}
-        <section class="sec" data-grant-identity><access-identity-card compact contact-id=${g.person.contact_id} name=${this.name(g)} @changed=${() => this.load()}></access-identity-card></section>
+        <section class="sec" data-grant-identity><access-identity-card compact contact-id=${g.person.contact_id} name=${this.name(g)} .tz=${this.tz} @changed=${() => this.load()}></access-identity-card></section>
         ${this.timelineBlock(g)}
-        <div class="dfoot">${this.drawerActions(g, a)}</div>
+        ${rbv ? nothing : this.rbLine(g)}
+        <div class="dfoot">${this.drawerActions(g, a, !!rbv, offline)}</div>
       </div>
     </sw-drawer>`;
+  }
+
+  /** The explanations of the state (how Arx decides) sit behind one disclosure: the drawer itself stays facts and actions. */
+  private howBlock(s: string, missing: boolean): TemplateResult {
+    const items: XtKey[] = [
+      ...(s === 'unknown' ? (['un_a1', 'un_a2', 'un_a3', 'un_a4'] as XtKey[]) : []),
+      ...(s === 'revoking' ? ((missing ? ['rv_missing1', 'rv_missing2'] : ['rv_note1', 'rv_note2']) as XtKey[]) : []),
+      'ladNote',
+    ];
+    return html`<details class="more" data-how><summary><sw-icon name="info" size="14"></sw-icon>${xt('moreWhy')}</summary><ul>${items.map((k) => html`<li>${xt(k)}</li>`)}</ul></details>`;
+  }
+
+  /**
+   * SHAREDUI-295: the read-back wait - no number (see model.readbackView): an indeterminate mark, what Arx does by itself, "read back
+   * now" with its terminal answer under it. With WisKey offline it says so and the read waits for the connection.
+   */
+  private readbackBox(g: Grant, v: 'pending' | 'offline', canRead: boolean): TemplateResult {
+    const off = v === 'offline';
+    return html`<div class="rb" data-readback=${v} data-tone=${off ? 'off' : 'warn'}>
+      <span class="rb-mark" aria-hidden="true"><i></i></span>
+      <div class="rb-t"><b>${xt('rb_waitTitle')}</b><span>${off ? xt('rb_offline') : xt('rb_waitText')}</span>${this.rbLine(g)}</div>
+      ${canRead ? this.readBtn(g, uiState(g) === 'unknown', off) : nothing}
+    </div>`;
   }
 
   private timelineBlock(g: Grant): TemplateResult | typeof nothing {
@@ -393,7 +504,7 @@ export class AccessExternalScreen extends LitElement {
     )}</ol></section>`;
   }
 
-  private drawerActions(g: Grant, a: ReturnType<typeof actionsOf>): TemplateResult {
+  private drawerActions(g: Grant, a: ReturnType<typeof actionsOf>, inBox = false, offline = false): TemplateResult {
     const out: TemplateResult[] = [];
     const name = this.name(g);
     if (a.accept)
@@ -401,10 +512,10 @@ export class AccessExternalScreen extends LitElement {
     if (a.approve) out.push(html`<sw-button variant="primary" icon="check" data-action="approve" ?disabled=${this.busy} @click=${() => this.openApprove(g)}>${g.pending_amendment ? xt('a_reviewWidening') : xt('a_approve')}</sw-button>`);
     if (a.refuse)
       out.push(html`<sw-button variant="danger" data-action="refuse" ?disabled=${this.busy} @click=${() => this.confirm({ title: xt('refuseQ'), body: html`<p>${g.pending_amendment && g.state !== 'requested' ? xt('refuseWidenText') : xt('refuseText')}</p>`, btn: xt('a_refuse'), danger: true, run: () => refuseGrant(g.id, g.revision), done: 'refuseDone' })}>${xt('a_refuse')}</sw-button>`);
-    if (a.retry) out.push(html`<sw-button icon="refresh" data-action="retry" ?disabled=${this.busy} @click=${() => this.act(() => provisionNow(g.id), 'retryDone')}>${xt('a_retry')}</sw-button>`);
+    if (a.retry) out.push(html`<sw-button icon="refresh" data-action="retry" ?disabled=${this.busy || offline} @click=${() => this.act(() => provisionNow(g.id), 'retryDone')}>${xt('a_retry')}</sw-button>`);
     if (a.rotate)
       out.push(html`<sw-button icon="refresh" data-action="rotate" ?disabled=${this.busy} @click=${() => this.confirm({ title: xt('rotateQ'), body: html`<p>${xt('rotateText', { n: g.person.number ?? '', left: Math.max(0, 3 - (g.code_sends ?? 0)) })}</p>`, btn: xt('a_rotate'), run: () => rotateCode(g.id, g.revision), done: 'rotateDone' })}>${xt('a_rotate')}</sw-button>`);
-    if (a.readNow) out.push(html`<sw-button icon="refresh" data-action="read" ?disabled=${this.busy} @click=${() => this.act(() => readNow(g.id), 'readDone')}>${xt('a_readNow')}</sw-button>`);
+    if (a.readNow && !inBox) out.push(this.readBtn(g, false, offline));
     out.push(html`<span class="sp"></span>`);
     if (a.gone) out.push(html`<sw-button variant="danger" icon="user" data-action="gone" ?disabled=${this.busy} @click=${() => this.openGone(g)}>${xt('a_gone')}</sw-button>`);
     if (a.revoke)
@@ -573,7 +684,7 @@ export class AccessExternalScreen extends LitElement {
                       const t = x.kind === 'name' ? 'gap_nameText' : x.kind === 'scope' ? 'gap_scopeText' : 'gap_idleText';
                       return html`<div class="gap" data-gap=${x.kind} data-tone=${x.kind === 'idle_person' ? 'acc' : 'warn'}><span class="ik"><sw-icon name=${x.kind === 'idle_person' ? 'user' : 'warning'} size="15"></sw-icon></span>
                         <div><b>${xt(k as XtKey, { name: x.name ?? '—' })}</b>${xt(t as XtKey)}${x.since ? ` ${xt('gap_since', { t: this.fmt(x.since) })}` : ''}
-                        ${x.kind === 'scope' && x.grant_id ? html`<div class="row" style="margin-block-start:6px"><sw-button size="sm" @click=${() => this.act(() => readNow(x.grant_id!), 'readDone')}>${xt('readBack')}</sw-button></div>` : nothing}</div></div>`;
+                        ${x.kind === 'scope' && x.grant_id ? html`<div class="row" style="margin-block-start:6px"><sw-button size="sm" ?disabled=${this.reading === x.grant_id || wiskeyOffline(this.data)} @click=${() => this.readBack(x.grant_id!)}>${this.reading === x.grant_id ? xt('rb_reading') : xt('readBack')}</sw-button></div>` : nothing}</div></div>`;
                     })}</div>`
                   : html`<p class="note">${xt('dg_noGaps')}</p>`}</section>
             </div>
@@ -692,6 +803,27 @@ export class AccessExternalScreen extends LitElement {
     </aside>`;
   }
 
+  /**
+   * SHAREDUI-295: what the list can and cannot tell right now - WisKey offline (the server's freshness of its copy: the states are the
+   * last known) and a list that could not be refreshed (stale: the server did not answer the last poll). Each with its time and a safe
+   * action that only reads again.
+   */
+  private statusBanners(data: GrantsReply): TemplateResult {
+    const wk = data.wiskey;
+    const offline = wiskeyOffline(data);
+    const at = (iso: string | null) => (iso ? this.fmt(iso, localDate(iso, this.tz) !== localDate(new Date().toISOString(), this.tz)) : '');
+    return html`${offline
+      ? html`<div class="banner" data-tone="warn" data-banner="wiskey-offline" role="status"><sw-icon name="offline" size="18"></sw-icon>
+          <span><b>${wk?.as_of && wk.has_copy ? xt('wk_offTitle', { t: at(wk.as_of) }) : xt('wk_offTitleNoTime')}</b> ${xt('wk_offText')}</span><span class="sp"></span>
+          <sw-button size="sm" icon="refresh" @click=${() => this.load()}>${xt('checkAgain')}</sw-button></div>`
+      : nothing}
+      ${this.stale
+        ? html`<div class="banner" data-tone="warn" data-banner="stale" role="alert"><sw-icon name="warning" size="18"></sw-icon>
+            <span><b>${xt('stale_title', { t: at(new Date(this.loadedAt).toISOString()) })}</b> ${xt('stale_text')}</span><span class="sp"></span>
+            <sw-button size="sm" icon="refresh" @click=${() => this.load()}>${xt('retry')}</sw-button></div>`
+        : nothing}`;
+  }
+
   private list(grants: Grant[]): TemplateResult {
     const off = !this.data?.enabled;
     const rows = visible(grants, this.query);
@@ -701,7 +833,10 @@ export class AccessExternalScreen extends LitElement {
     if (!rows.length) {
       const empty = !grants.length;
       const [h, p] = off && empty ? ['emptyOffTitle', 'emptyOffText'] : empty ? ['emptyTitle', 'emptyText'] : ['noMatchTitle', 'noMatchText'];
-      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)} actionLabel=${!empty ? xt('showAllOpen') : ''} @action=${() => (this.query = { filter: 'live', q: '', station: '', source: '' })}></sw-state-panel></div>`;
+      // the empty list offers the one useful next step: a new request (when the caller may ask), or clearing the filter
+      const canAsk = empty && !off && !!this.data?.may_request;
+      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)}
+        actionLabel=${!empty ? xt('showAllOpen') : canAsk ? rt('newBtn') : ''} @action=${() => (canAsk ? this.openRequest() : (this.query = { filter: 'live', q: '', station: '', source: '' }))}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>
         <div role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
@@ -715,8 +850,8 @@ export class AccessExternalScreen extends LitElement {
     return html`<div class="tcard">
       <div class="filters">
         <input class="in" type="search" aria-label=${xt('search')} placeholder=${xt('search')} .value=${this.query.q} @input=${(e: Event) => (this.query = { ...this.query, q: (e.target as HTMLInputElement).value })} />
-        <sw-dropdown .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>
-        <sw-dropdown .items=${sources} .value=${this.query.source} label=${xt('source')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, source: e.detail.id })}></sw-dropdown>
+        <sw-dropdown tall .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>
+        <sw-dropdown tall .items=${sources} .value=${this.query.source} label=${xt('source')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, source: e.detail.id })}></sw-dropdown>
         <span class="chip" data-tone="acc" data-shown>${xt('shown', { n: rows.length })}</span>
       </div>
       ${body}
@@ -747,7 +882,7 @@ export class AccessExternalScreen extends LitElement {
       ${revoking.length
         ? html`<div class="banner" data-tone="err" data-banner="revoking"><sw-icon name="bell" size="18"></sw-icon><span><b>${xt('revokingBanner', { n: revoking.length })}</b> · ${xt('revokingBannerText')}</span><span class="sp"></span><sw-button size="sm" @click=${() => this.openDrawer(revoking[0].id)}>${xt('open')}</sw-button></div>`
         : nothing}
-      ${this.error ? html`<p class="err-line" role="alert">${this.error}</p>` : nothing}
+      ${this.statusBanners(data)}
       <div class="cols">
         <div class="main">
           <div class="kpis" role="group" aria-label=${xt('filterLabel')}>${BUCKETS.map(

@@ -112,6 +112,14 @@ export interface GrantsReply {
   system_admin: boolean;
   /** ACCESSREQ-293: the caller may open the manual request form */
   may_request?: boolean;
+  /** SHAREDUI-295: the served WisKey copy - when it was read and whether WisKey answers now (absent from an older server: unknown) */
+  wiskey?: WiskeyFreshness;
+}
+
+export interface WiskeyFreshness {
+  as_of: string | null;
+  reachable: boolean;
+  has_copy: boolean;
 }
 
 export interface DigestGap {

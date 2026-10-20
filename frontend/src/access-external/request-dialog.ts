@@ -56,13 +56,13 @@ export class AccessRequestDialog extends LitElement {
   static styles = [
     xCss,
     css`
-      :host { display: contents; }
+      :host { display: contents; --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px)); --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px)); }
       .ap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
       .col { display: grid; gap: 20px; min-inline-size: 0; }
       .sec > h4 .sp { flex: 1; }
       .seg { display: flex; gap: 4px; padding: 3px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
       .seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; color: var(--sw-text-2);
-        min-block-size: 36px; border-radius: var(--sw-r-sm); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; padding: 0 10px; }
+        min-block-size: var(--sw-touch-desktop, 44px); border-radius: var(--sw-r-sm); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; padding: 0 10px; }
       .seg button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-heading); font-weight: 600; box-shadow: var(--sw-shadow-1); }
       .seg button:disabled { opacity: .5; cursor: not-allowed; }
       .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
@@ -81,7 +81,7 @@ export class AccessRequestDialog extends LitElement {
       .av { inline-size: 34px; block-size: 34px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); display: grid; place-items: center; font-size: var(--sw-fs-xs); font-weight: 700; flex: none; }
       .nm { min-inline-size: 0; }
       .nm b, .who b { display: block; color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .nm small, .who small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .nm small, .who small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .who { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
       .who .acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
       .who b { white-space: normal; overflow-wrap: anywhere; }
@@ -94,10 +94,10 @@ export class AccessRequestDialog extends LitElement {
       .stgrp label.cb:has(input:checked) { background: var(--sw-accent-soft); border-color: var(--sw-accent); }
       .stgrp label.cb:has(input:disabled) { opacity: .6; cursor: not-allowed; }
       .stgrp b { display: block; font-weight: 600; color: var(--sw-heading); overflow-wrap: anywhere; }
-      details.locked summary { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 6px 2px; list-style: none; }
+      details.locked summary { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 0 2px; min-block-size: var(--sw-touch-desktop, 44px); list-style: none; }
       details.locked summary::-webkit-details-marker { display: none; }
       .pills { display: flex; flex-wrap: wrap; gap: 6px; }
-      .pill { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); border-radius: var(--sw-r-pill); min-block-size: 34px; min-inline-size: 44px;
+      .pill { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop, 44px); min-inline-size: 44px;
         padding: 0 12px; font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; }
       .pill[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
       .pill:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
@@ -115,8 +115,10 @@ export class AccessRequestDialog extends LitElement {
       .ntext { padding: 12px 14px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); line-height: 1.6; color: var(--sw-text); max-block-size: 160px; overflow: auto; }
       .bubble { padding: 12px 14px; border-radius: var(--sw-r-md); background: var(--sw-success-soft); color: var(--sw-text); font-size: var(--sw-fs-sm); line-height: 1.6; max-inline-size: 440px; }
       .pin { display: inline-flex; gap: 3px; align-items: center; padding: 0 6px; border-radius: var(--sw-r-xs); background: var(--sw-surface-3); letter-spacing: 2px; direction: ltr; }
-      .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--cs); color: var(--ct); font-weight: 600; font-size: var(--sw-fs-sm); }
-      .hint.e { color: var(--sw-danger-text); font-weight: 600; font-size: var(--sw-fs-xs); }
+      .banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--cs); color: var(--ct); font-weight: 600; font-size: var(--sw-fs-sm); }
+      .banner .sp { flex: 1; }
+      .loadstate { display: grid; justify-items: center; gap: 12px; text-align: center; padding: 24px 8px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+      .hint.e { color: var(--x-err-t); font-weight: 600; font-size: var(--sw-fs-xs); }
       .in[aria-invalid='true'], label.cb[data-invalid] { border-color: var(--sw-danger); }
       .foot { display: flex; gap: 8px; align-items: center; inline-size: 100%; flex-wrap: wrap; }
       .foot .sp { flex: 1; }
@@ -152,12 +154,14 @@ export class AccessRequestDialog extends LitElement {
   }
 
   private async load(): Promise<void> {
+    this.loadError = '';
     try {
-      this.g = await grantableDoors(null);
+      this.g = await grantableDoors(this.f.ticketId || null);
     } catch (e) {
       this.loadError = describeError(e);
       return;
     }
+    if (this.contacts !== null && !this.dirError) return; // "check again": only the door list and its freshness
     void ticketsS4Api().contacts({}).then(
       (p) => {
         const rows = p.contacts.filter((c) => !c.erased);
@@ -495,21 +499,30 @@ export class AccessRequestDialog extends LitElement {
 
   render() {
     if (this.noPerm) {
-      return html`<sw-dialog open heading="" data-request-noperm @close=${() => this.close()}>
+      return html`<sw-dialog open heading=${rt('title')} data-request-noperm @close=${() => this.close()}>
         <div class="nop"><div class="art"><sw-icon name="lock" size="26"></sw-icon></div><h3>${rt('noperm_title')}</h3><p>${rt('noperm_text')}</p></div>
         <div slot="footer" class="foot"><span class="sp"></span><sw-button @click=${() => this.close()}>${rt('close')}</sw-button></div></sw-dialog>`;
     }
     const g = this.g;
     if (!g) {
+      // SHAREDUI-295: a load that failed says so in plain words, with a retry and a way out (the dialog had neither)
       return html`<sw-dialog open xl heading=${rt('title')} data-request-dialog @close=${() => this.close()}>
-        ${this.loadError ? html`<p class="err-line" role="alert">${rt('loadError')} · ${this.loadError}</p>` : html`<p class="note">${rt('loading')}</p>`}</sw-dialog>`;
+        ${this.loadError
+          ? html`<div class="loadstate" role="alert" data-request-load-error><sw-icon name="warning" size="22"></sw-icon><b class="err-line">${rt('loadError')}</b><span>${this.loadError}</span></div>`
+          : html`<div class="loadstate" role="status" data-request-loading>${rt('loading')}</div>`}
+        <div slot="footer" class="foot" ?data-request-load-error=${!!this.loadError}><span class="sp"></span>
+          <sw-button variant="ghost" data-close @click=${() => this.close()}>${rt('close')}</sw-button>
+          ${this.loadError ? html`<sw-button variant="primary" icon="refresh" data-retry @click=${() => this.load()}>${rt('retry')}</sw-button>` : nothing}</div></sw-dialog>`;
     }
     const e = this.f.tried ? validate(this.f, this.ctx()) : {};
     const n = Object.keys(e).length;
     const offline = !g.reachable;
     const asOf = g.as_of ? new Date(g.as_of).toLocaleTimeString(document.documentElement.lang || 'he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
     return html`<sw-dialog open xl heading=${rt('title')} data-request-dialog @close=${() => this.close()}>
-      ${offline ? html`<div class="banner" data-tone="err" data-offline><sw-icon name="offline" size="16"></sw-icon><span>${g.has_copy && asOf ? rt('offline', { t: asOf }) : rt('offlineNoCopy')}</span></div>` : nothing}
+      ${offline
+        ? html`<div class="banner" data-tone="warn" data-offline role="status"><sw-icon name="offline" size="16"></sw-icon><span>${g.has_copy && asOf ? rt('offline', { t: asOf }) : rt('offlineNoCopy')}</span><span class="sp"></span>
+            <sw-button size="sm" icon="refresh" @click=${() => this.load()}>${rt('checkAgain')}</sw-button></div>`
+        : nothing}
       <div class="ap">
         <div class="col">${this.whoSection(e)}${this.purposeSection(e)}${this.doorsSection(e)}${this.whenSection(e)}${this.credSection()}${this.notesSection()}</div>
         <div class="col">${this.pathSection(e)}${this.noticeSection(e)}${this.previewSection()}</div>

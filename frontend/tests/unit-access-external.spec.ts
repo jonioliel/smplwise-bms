@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { actionsOf, bucketOf, counts, datesText, evidenceRefOk, goneReferenceOk, ladder, narrowWindow, uiState, visible, whyKey } from '../src/access-external/model';
+import { actionsOf, bucketOf, counts, datesText, evidenceRefOk, goneReferenceOk, ladder, narrowWindow, readOutcome, readbackView, uiState, visible, whyKey, wiskeyOffline } from '../src/access-external/model';
 import { XT_KEYS, XT_TABLES, xt } from '../src/i18n/access-external';
 import type { Grant } from '../src/api/access-grants';
 import { grantOf } from './access-external-mocks';
@@ -94,4 +94,37 @@ test('the words: every key in all four languages, placeholders kept, and the pro
   }
   expect(xt('st_verified', undefined, 'he')).toBe('פעיל · אומת');
   expect(xt('revokingBanner', { n: 2 }, 'en')).toBe('Revocations not yet proven: 2');
+});
+
+// SHAREDUI-295: the read-back wait has no number (the owner: "the 75-second counter looks problematic")
+test('the read-back wait: shown for an unknown outcome and an unproven revocation, never as a countdown', () => {
+  expect(readbackView(base({ state: 'unknown' }), false)).toBe('pending');
+  expect(readbackView(base({ state: 'revoking' }), false)).toBe('pending');
+  expect(readbackView(base({ state: 'unknown' }), true)).toBe('offline');
+  for (const st of ['active', 'requested', 'approved', 'revoked', 'ended', 'refused']) expect(readbackView(base({ state: st }), false)).toBeNull();
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    for (const k of XT_KEYS.filter((x) => x.startsWith('rb_'))) {
+      const v = XT_TABLES[lang][k];
+      expect(v, `${lang}.${k}`).not.toMatch(/\b75\b|0:\d\d|\d+\s*(?:s|sec|שניות|ثانية|сек)\b/);
+    }
+  }
+});
+
+test('"read back now" ends in a terminal answer: the same state says when it was checked, a new state is named', () => {
+  const u = base({ state: 'unknown' });
+  expect(readOutcome(u, u)).toEqual({ kind: 'still', key: 'rb_still_unknown' });
+  expect(readOutcome(u, null)).toEqual({ kind: 'still', key: 'rb_still_unknown' });
+  expect(readOutcome(u, base())).toEqual({ kind: 'changed', key: 'st_accepted' });
+  expect(readOutcome(base({ state: 'revoking' }), base({ state: 'revoked' }))).toEqual({ kind: 'changed', key: 'st_revoked' });
+  expect(readOutcome(base({ state: 'revoking' }), base({ state: 'revoking' }))).toEqual({ kind: 'still', key: 'rb_still_revoking' });
+  expect(readOutcome(base(), { ...base(), scope_verified: true })).toEqual({ kind: 'changed', key: 'st_verified' });
+  expect(xt('rb_still_unknown', { t: '10:20' }, 'en')).toBe('Checked at 10:20: still not known.');
+});
+
+test('WisKey is called offline only when the server says so, and only while the feature is on', () => {
+  expect(wiskeyOffline({ enabled: true, wiskey: { reachable: false } })).toBe(true);
+  expect(wiskeyOffline({ enabled: true, wiskey: { reachable: true } })).toBe(false);
+  expect(wiskeyOffline({ enabled: false, wiskey: { reachable: false } })).toBe(false);
+  expect(wiskeyOffline({ enabled: true })).toBe(false); // an older server without the field: not claimed
+  expect(wiskeyOffline(null)).toBe(false);
 });
