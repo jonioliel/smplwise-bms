@@ -111,6 +111,9 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   // CR-INFRA-TEMPERATURE 2.9.1: an open door (the leaf swung out) and a muted bell
   doorOpen: svg`<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.6v16.8a.5.5 0 0 1-.6.5L5 20V5.3a.5.5 0 0 1 .4-.5z"/>`,
   bellOff: svg`<path d="M8.7 3A6 6 0 0 1 18 8v3.5l1.5 2.5"/><path d="M6.3 6.3A6 6 0 0 0 6 8v8l-1.5 2H17"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/>`,
+  // CR-INFRA-TEMPERATURE phase 3: the maintenance window and the sensor battery
+  wrench: svg`<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.8 1.8 0 0 0 2.6 2.6l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>`,
+  battery: svg`<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

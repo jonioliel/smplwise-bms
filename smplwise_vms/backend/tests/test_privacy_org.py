@@ -238,3 +238,115 @@ def test_identity_reads_unset_as_empty_and_survives_a_broken_document(env):
     with env.db.connection(mode="read") as conn:
         who = identity(conn)
     assert (who.organization, who.contact, who.link) == (ORG, CONTACT, "https://hadar.example.test/privacy")
+
+
+# ---------------------------------------------------------------- PRIVTEXT-293: the technician-only verification message
+
+def _make_technician(db, cid, *, accepted=True):
+    with db.connection() as conn:
+        conn.execute("INSERT INTO access_pending_contacts(contact_id, vendor_id, created_by, created_at, accepted_by, accepted_at) VALUES (?,?,?,?,?,?)",
+                     (cid, "v1", "contact:x", "2026-10-01T08:00:00Z", "u1" if accepted else None, "2026-10-02T08:00:00Z" if accepted else None))
+
+
+def _variant(db, cid, user_id=None):
+    from smplwise.services.tickets import phone_verify
+
+    with db.connection(mode="read") as conn:
+        return phone_verify._privacy_variant(conn, {"id": cid, "user_id": user_id})
+
+
+@pytest.mark.parametrize("contact", ["", CONTACT])
+def test_a_vendor_contact_never_gets_entry_records(pv_env, contact):
+    e = pv_env
+    set_privacy(e.s4.db, organization_name=ORG, contact=contact)
+    text = _verify_text(e, e.s4.contact["id"])
+    assert "רישומי הכניסה" not in text and ag.NOTICE_SHORT["he"] not in text
+    for lang in LANGS:  # whatever variant a non-technician gets, in any language, it never carries the technician notice
+        for body in (mt.STARTERS["phone_verify"][lang], mt.FIXED_STARTERS["portal_code"][lang], mt.FIXED_STARTERS["verify_privacy"][lang]):
+            assert ag.NOTICE_SHORT[lang] not in body
+    assert "technician" not in _variant(e.s4.db, e.s4.contact["id"]).get("template_id", "")
+
+
+def test_a_signed_in_user_never_gets_the_technician_variant(pv_env):
+    e = pv_env
+    _make_technician(e.s4.db, e.s4.contact["id"])
+    assert _variant(e.s4.db, e.s4.contact["id"], user_id="dev-tom") == {}
+
+
+def test_is_technician_follows_the_one_shared_definition(pv_env):
+    import inspect
+
+    from smplwise.services import needs_review
+
+    cid = pv_env.s4.contact["id"]
+    db = pv_env.s4.db
+    with db.connection(mode="read") as conn:
+        assert ag.is_technician(conn, cid) is False and ag.is_technician(conn, "missing") is False
+    _make_technician(db, cid, accepted=False)  # waiting for a manager: not a technician yet
+    with db.connection(mode="read") as conn:
+        assert ag.is_technician(conn, cid) is False
+    with db.connection() as conn:
+        conn.execute("UPDATE access_pending_contacts SET accepted_by = 'u1', accepted_at = '2026-10-02T08:00:00Z' WHERE contact_id = ?", (cid,))
+    with db.connection(mode="read") as conn:
+        assert ag.is_technician(conn, cid) is True
+    with db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET erased_at = '2026-10-03T08:00:00Z' WHERE id = ?", (cid,))
+    with db.connection(mode="read") as conn:
+        assert ag.is_technician(conn, cid) is False
+    assert "ag.TECHNICIAN_SQL" in inspect.getsource(needs_review.idle_rows), "the report and the message share one definition"
+
+
+def test_a_grant_row_makes_a_contact_a_technician(env):  # noqa: F811
+    with env.db.connection(mode="read") as conn:  # a grant row makes a contact one
+        assert ag.is_technician(conn, env.tech) is False
+    assert env.request().status_code == 200
+    with env.db.connection(mode="read") as conn:
+        assert ag.is_technician(conn, env.tech) is True
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_the_technician_variant_renders_in_every_language(lang):
+    import re
+
+    base = mt.fixed_starter("phone_verify", "starter:verify_technician", lang)
+    tpl = mt.fixed_starter("phone_verify", "starter:verify_technician_contact", lang)
+    assert tpl is not None and tpl.lang == lang and "{code}" in tpl.body and "{privacy_contact}" in tpl.body and "{privacy_contact}" not in base.body
+    assert ag.NOTICE_SHORT[lang] in tpl.body and ag.NOTICE_SHORT[lang] in base.body, "the short notice, word for word"
+    full = mt.render(tpl.body, {"organization": ORG, "privacy_contact": CONTACT}, lang=lang, secrets={"code": "123456"})
+    bare = mt.render(base.body, {}, lang=lang, secrets={"code": "123456"})
+    assert "123456" in full and "{" not in full and ORG in full and CONTACT in full
+    assert ORG not in bare and "{" not in bare and len(bare.splitlines()) == len(full.splitlines()) - 2, "organisation and contact lines drop out"
+    assert "http" not in full and "www" not in full and len(full) < mt.RENDERED_MAX
+    assert not [c for c in full if unicodedata.category(c) in ("Cc", "Cf") and c != "\n"]
+    own = {"he": "[\u0590-\u05FF]", "ar": "[\u0600-\u06FF]", "ru": "[\u0400-\u04FF]"}
+    for other, pattern in own.items():
+        assert bool(re.search(pattern, bare)) == (other == lang), (lang, other)
+
+
+def test_the_technician_variant_is_code_owned():
+    for name in ("verify_technician", "verify_technician_contact"):
+        assert set(mt.FIXED_STARTERS[name]) == set(LANGS) and name in mt.FIXED_VARIANTS["phone_verify"] and name not in mt.FIXED_VARIANTS.get("assign", ())
+        for lang, body in mt.FIXED_STARTERS[name].items():
+            assert mt.problems("phone_verify", body.replace("{privacy_contact}", "x")) == [], (name, lang)
+    # a stored/foreign template id never selects it for another purpose
+    assert mt.fixed_starter("assign", "starter:verify_technician", "en").body != mt.FIXED_STARTERS["verify_technician"]["en"]
+
+
+def test_a_name_alone_gives_a_technician_the_notice_without_a_privacy_line(pv_env):
+    e = pv_env
+    _make_technician(e.s4.db, e.s4.contact["id"])
+    set_privacy(e.s4.db, organization_name=ORG, contact="")
+    text = _verify_text(e, e.s4.contact["id"])
+    assert ag.NOTICE_SHORT["he"] in text and ORG in text and "שאלות בנושא פרטיות" not in text and len(text.splitlines()) == 4
+
+
+def test_a_technician_end_to_end_gets_the_notice_and_the_audit_row_has_no_text(pv_env):
+    e = pv_env
+    cid = e.s4.contact["id"]
+    _make_technician(e.s4.db, cid)
+    set_privacy(e.s4.db, organization_name=ORG, contact=CONTACT)
+    text = _verify_text(e, cid)
+    assert ag.NOTICE_SHORT["he"] in text and text.rstrip().endswith(f"שאלות בנושא פרטיות: {CONTACT}")
+    with e.s4.db.connection(mode="read") as conn:
+        rows = [json.loads(r["details_json"]) for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'ticket.contact.phone_verify_send' AND decision = 'allowed'")]
+    assert rows and rows[-1].get("technician_notice") is True and all(ag.NOTICE_SHORT["he"] not in json.dumps(r, ensure_ascii=False) for r in rows)

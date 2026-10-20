@@ -141,6 +141,33 @@ NOTICE_ATTEST = {
     "ar": "أبلغتُ الفني بما ورد أعلاه.",
     "ru": "Подтверждаю: техник уведомлён мною об изложенном выше.",
 }
+# Decision 2 (2026-10-18): the short notice addressed to the technician himself (version B of the legal pack), for the number-confirmation
+# message to a technician. Code-owned wording, kept here beside the notice so the four languages stay in step; the same sentence is in the
+# phone_verify variants verify_technician* (tickets/message_templates.py), chosen by is_technician below; a test compares them.
+NOTICE_SHORT = {
+    "he": "שמך, מספר הטלפון שלך ורישומי הכניסה שלך (שעה ודלת) נשמרים לצורך אבטחת המבנה בלבד, עד שהארגון מוחק אותם. לעיון, לתיקון או למחיקה: מנהל המבנה.",
+    "en": "Your name, phone number and entry records (time and door) are kept for building security only, until the organisation deletes them. "
+          "To see, correct or delete them: the building manager.",
+    "ar": "يُحفظ اسمك ورقم هاتفك وسجلّ عمليات دخولك (الوقت والباب) لأغراض أمن المبنى فقط، إلى أن تحذفها المؤسسة. "
+          "للاطلاع عليها أو تصحيحها أو حذفها: مدير المبنى.",
+    "ru": "Ваше имя, номер телефона и данные о ваших входах (время и дверь) хранятся только для обеспечения безопасности здания "
+          "до их удаления организацией. Ознакомление, исправление или удаление — через управляющего зданием.",
+}
+# PRIVTEXT-293: who is a "technician" - ONE definition for the phone-verification message (tickets/phone_verify) and the needs-review report
+# (needs_review.idle_rows): a directory person (not an internal user, not an employee, not erased) that Arx knows for door access - accepted
+# from the arrival page, linked to a door-system person, or with any grant row - and not a vendor-added person still waiting for a decision.
+# A plain vendor contact, a ticket contact or a signed-in user is never one. Alias `c` is ticket_contacts.
+TECHNICIAN_SQL = ("c.kind = 'person' AND c.user_id IS NULL AND c.erased_at IS NULL AND COALESCE(c.employee, 0) = 0 "
+                  "AND NOT EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NULL AND p.rejected_at IS NULL) "
+                  "AND (EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NOT NULL) "
+                  "  OR EXISTS (SELECT 1 FROM access_person_links l WHERE l.subject_kind = 'contact' AND l.subject_id = c.id) "
+                  "  OR EXISTS (SELECT 1 FROM access_grants g WHERE g.subject_kind = 'contact' AND g.subject_id = c.id))")
+
+
+def is_technician(conn: sqlite3.Connection, contact_id: str) -> bool:
+    return conn.execute("SELECT 1 FROM ticket_contacts c WHERE c.id = ? AND " + TECHNICIAN_SQL, (contact_id,)).fetchone() is not None
+
+
 TEMPLATES = {  # owner answers 3 / 9 / 11: fixed, code-owned, never editable, no link, no username, no ticket text
     "he": "SmplWise Arx: קוד הכניסה האישי שלך הוא {code}. דלתות: {doors}. בתוקף {dates}, {hours}. הקוד אישי - אל תעביר אותו לאיש. "
           "הכניסות נרשמות (שם, שעה ודלת) לצורכי אבטחה בלבד; לשאלות: מנהל המבנה. אסמכתא {ref}.",
@@ -408,6 +435,32 @@ class Scope:
         return Scope(d["doors"], d["valid_from"], d["valid_until"], d.get("timing"), d["credential"])
 
 
+def scope_digest(scope: Scope) -> str:
+    """SHAREDID-293 (owner decision 2): the digest a read-back proof is stored under. Any change of the doors, the window, the timing
+    or the credential gives another digest, so a stored proof never covers a scope it did not prove."""
+    import hashlib
+
+    return hashlib.sha256(scope.as_json().encode("utf-8")).hexdigest()[:32]
+
+
+def proof_fields(scope: Scope) -> dict[str, Any]:
+    """The columns a FRESH read that proved `scope` (scope_proven) writes, in the same transaction as the verdict it backs."""
+    at = iso(now())
+    return {"scope_proof": scope_digest(scope), "scope_proof_at": at, "scope_checked_at": at}
+
+
+def scope_is_proven(g: dict[str, Any]) -> bool:
+    """Owner decision 2: "Active - verified" only when the server holds read-back proof of the row's CURRENT scope: an active grant,
+    no narrowing still to push, and a stored proof digest equal to the digest of its scope now."""
+    proof = g.get("scope_proof")
+    if not proof or g.get("state") != "active" or g.get("needs_push"):
+        return False
+    try:
+        return proof == scope_digest(Scope.of_row(g))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def covers(old: Scope, new: Scope) -> bool:
     """`new` is the same as or narrower than `old` in every dimension (owner answer 12: such a change merges at once)."""
     for sid, relays in new.doors.items():
@@ -659,10 +712,16 @@ def on_permission_change() -> None:
 # ---------------------------------------------------------------- request / amend (owner answer 12)
 
 def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, contact_id: str, source_kind: str, source_ref: str | None,
-                  assignment_id: str | None, scope: Scope, outside_window: bool = False, request_id: str | None = None) -> tuple[dict[str, Any], str]:
+                  assignment_id: str | None, scope: Scope, outside_window: bool = False, request_id: str | None = None,
+                  purpose: str | None = None, notes: str | None = None) -> tuple[dict[str, Any], str]:
     """Create a `requested` grant, or change the person's live one. Returns (grant, outcome): `created`; `replaced` (still
     requested); `merged` (a narrowing or the same scope of a decided grant: applied at once, pushed to WisKey by the worker when
-    active); `widening` (held in `pending_json` for a new approval; the approved scope keeps working meanwhile)."""
+    active); `widening` (held in `pending_json` for a new approval; the approved scope keeps working meanwhile).
+
+    ACCESSREQ-293: `scope_requested_by` names who asked for the scope that now waits for a decision (created, replaced, widening) -
+    owner decision (a): that person may not approve it. `purpose` / `notes` (already cleaned by services/access_request.clean_text)
+    are written when given."""
+    texts = {k: v for k, v in (("purpose", purpose), ("notes", notes)) if v is not None}
     if not enabled(conn):
         raise _off()
     if not scope.doors:
@@ -684,6 +743,7 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
             (gid, contact_id, (link_of_subject(conn, "contact", contact_id) or {}).get("id"), source_kind, source_ref, assignment_id, 1 if outside_window else 0,
              json.dumps(scope.doors, sort_keys=True), scope.valid_from, scope.valid_until, json.dumps(scope.timing, sort_keys=True) if scope.timing else None,
              scope.credential, requested_by, "not_needed" if scope.credential == "none" else "pending", at, at))
+        conn.execute("UPDATE access_grants SET scope_requested_by = ?, purpose = ?, notes = ? WHERE id = ?", (requested_by, purpose, notes, gid))
         _audit(conn, actor, "access.grant.request", gid, request_id=request_id, source=source_kind, source_ref=source_ref, window=[scope.valid_from, scope.valid_until],
                stations=stations_of(scope.doors), outside_window=bool(outside_window), technician_id=contact_id)
         return grant_row(conn, gid), "created"
@@ -692,7 +752,8 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     if live["state"] == "requested":
         _touch(conn, live["id"], {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
-                                  "outside_window": 1 if outside_window else 0, "code_state": "not_needed" if scope.credential == "none" else "pending"})
+                                  "outside_window": 1 if outside_window else 0, "code_state": "not_needed" if scope.credential == "none" else "pending",
+                                  "scope_requested_by": requested_by, **texts})
         _audit(conn, actor, "access.grant.amend", live["id"], request_id=request_id, kind="replaced", window=[scope.valid_from, scope.valid_until],
                stations=stations_of(scope.doors))
         return grant_row(conn, live["id"]), "replaced"
@@ -700,7 +761,7 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     if covers(current, scope):
         fields: dict[str, Any] = {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
-                                  "pending_json": None}
+                                  "pending_json": None, **texts}
         if live["state"] in ("active", "unknown") and scope != current:
             # R4-03: also while an unknown outcome is being settled - the settlement CASes on the row revision (this write moves it), and a
             # readback that still shows the broader scope activates the grant only with this flag set, so the narrowing is pushed next
@@ -712,7 +773,8 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
                stations=stations_of(scope.doors))
         WORKER.wake()
         return grant_row(conn, live["id"]), "merged"
-    _touch(conn, live["id"], {"pending_json": scope.as_json(), "outside_window": 1 if outside_window else live["outside_window"]})
+    _touch(conn, live["id"], {"pending_json": scope.as_json(), "outside_window": 1 if outside_window else live["outside_window"], "scope_requested_by": requested_by,
+                              **texts})
     _audit(conn, actor, "access.grant.amend", live["id"], request_id=request_id, kind="widening_requested", window=[scope.valid_from, scope.valid_until],
            stations=stations_of(scope.doors))
     return grant_row(conn, live["id"]), "widening"
@@ -768,6 +830,31 @@ def _person_stations(db: Any, g: dict[str, Any]) -> list[str] | None:
     return _complete_stations(person)
 
 
+def requesters_of(g: dict[str, Any]) -> set[str]:
+    """ACCESSREQ-293, owner decision (a): who asked for the scope that waits for a decision. A widening of a decided grant: whoever
+    asked for the widening (`scope_requested_by`). A still-requested grant: its creator AND whoever last replaced its scope (a
+    replacement must not let either of them approve). Rows written before the column existed name `requested_by`."""
+    by = g.get("scope_requested_by")
+    if g.get("state") in DECIDED and g.get("pending_json"):
+        return {by or g.get("requested_by") or ""}
+    return {x for x in (g.get("requested_by"), by) if x}
+
+
+def self_approval_refused(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -> bool:
+    """True when the caller asked for the scope awaiting a decision and is not a system administrator (owner decision (a): a system
+    administrator may approve his own request). Fail closed: an unreadable answer refuses."""
+    if str(principal.user_id) not in requesters_of(g):
+        return False
+    try:
+        return not is_system_admin(conn, principal.user_id)
+    except sqlite3.Error:
+        return True
+
+
+def self_approval_error() -> ApiError:
+    return ApiError(403, "access_grant_self_approval", "מי שביקש את הגישה אינו יכול לאשר אותה בעצמו. אדם נוסף צריך לאשר (מנהל מערכת יכול לאשר בקשה שלו).")
+
+
 def approve(db: Database, principal: Principal, grant_id: str, revision: int, *, doors: Any = None, valid_from: Any = None, valid_until: Any = None,
             told: bool = False, request_id: str | None = None) -> dict[str, Any]:
     """CR 3.2: an interactive human holding `access.external.grant` + people.manage + people.sensitive (+ pin.generate for a PIN)
@@ -786,7 +873,11 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
             raise deny("not_interactive", ApiError(403, "access_grant_interactive_only", "אישור גישה אפשרי רק ממסך מחובר של אדם, לא מאפליקציה או סקריפט."))
         if str(principal.user_id).startswith(LOCAL_ID_PREFIX) and not local_approvers(conn):
             raise deny("local_not_allowed", ApiError(403, "access_grant_local_not_allowed", "משתמש Arx מקומי אינו יכול לאשר גישת דלתות."))
-        return _visible_or_404(conn, principal, grant_id)
+        g = _visible_or_404(conn, principal, grant_id)
+        if self_approval_refused(conn, principal, g):
+            # ACCESSREQ-293, owner decision (a): a second person approves; decided after the uniform 404, before any WisKey read
+            raise deny("self_approval", self_approval_error())
+        return g
 
     with db.connection(label="access_grants.approve.check") as conn:
         g = caller_checks(conn)
@@ -1177,6 +1268,42 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "code_sends": g["code_sends"] if sensitive else None,
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
+        **_screen_fields(conn, g),
+        # ACCESSREQ-293: the request form's purpose and internal notes (never in a message to the person), and whether the caller
+        # asked for the scope awaiting a decision (owner decision (a): the screen then offers no approval; the server refuses it anyway)
+        "purpose": g.get("purpose"), "notes": g.get("notes"),
+        "self_requested": str(principal.user_id) in requesters_of(g) if g["state"] == "requested" or g.get("pending_json") else False,
+    }
+
+
+def _screen_fields(conn: sqlite3.Connection, g: dict[str, Any]) -> dict[str, Any]:
+    """SHAREDID-293: what the external-access screen needs beside the grant itself - the instants of its life, the approver's display
+    name, the link's origin and state, whether a lost users/create is unresolved, and a manual closure (owner decision 3). Ids, states
+    and instants; the only name is the approver's (an Arx user)."""
+    link = link_of_grant(conn, g)
+    approver = conn.execute("SELECT display_name FROM users WHERE id = ?", (g["approved_by"],)).fetchone() if g.get("approved_by") else None
+    try:
+        closure = conn.execute("SELECT kind, closed_by, closed_at, reappeared_at FROM access_grant_closures WHERE grant_id = ?", (g["id"],)).fetchone()
+    except sqlite3.OperationalError:  # a database before 0126
+        closure = None
+    unresolved = False
+    if link is None and g.get("pushed"):
+        try:
+            unresolved = wj.create_verdict(wj.create_ops(conn, grant_id=g["id"]))[0] == "unresolved"
+        except sqlite3.Error:
+            unresolved = False
+    closer = conn.execute("SELECT display_name FROM users WHERE id = ?", (closure["closed_by"],)).fetchone() if closure else None
+    contact = contact_row(conn, g["subject_id"]) if g["subject_kind"] == "contact" else None
+    vendor = contact_row(conn, contact.get("vendor_id")) if contact and contact.get("vendor_id") else None
+    return {
+        # the person's company (the vendor's directory name) and kind: a vendor's technician is a contractor, anyone else a visitor
+        "company": (vendor or {}).get("display_name"), "category": "contractor" if contact and contact.get("vendor_id") else "visitor",
+        "created_at": g.get("created_at"), "updated_at": g.get("updated_at"), "ended_at": g.get("ended_at"), "revoking_since": g.get("revoking_since"),
+        "approved_by_name": (approver["display_name"] if approver else None) or None,
+        "link": {"id": link["id"], "origin": link["origin"], "state": link["state"]} if link else None,
+        "create_unresolved": unresolved,
+        "closure": {"kind": closure["kind"], "closed_at": closure["closed_at"], "closed_by_name": (closer["display_name"] if closer else None) or None,
+                    "reappeared_at": closure["reappeared_at"]} if closure else None,
     }
 
 
@@ -1184,17 +1311,19 @@ def sync_status(g: dict[str, Any]) -> dict[str, Any]:
     """R5-A3: approval is not a verified central scope. `pending_sync` for a decided grant whose scope is not accepted yet (approved,
     provisioning, unknown, or active with a narrowing still to push). Neither is a claim about the stations (WisKey applies later).
 
-    R6-A3 / ACR6-03: `scope_verified` is ALWAYS False in this build and `doors_state` is never `verified_central`. A normal provisioning
-    sets `active` from the write's own answer (no fresh post-write read, no `scope_proven`), and legacy active rows carry no proof at
-    all; no proof revision is recorded anywhere, so nothing may present the scope as verified. An active grant with no push outstanding
-    is `accepted` (WisKey's central record accepted the write; not re-read). Recording a proof revision after a complete fresh post-write
-    read (invalidated on any scope change, legacy rows unknown until read) is the later, stronger option - it needs a schema column."""
+    R6-A3 / ACR6-03 + SHAREDID-293 (owner decision 2, 2026-10-20): `scope_verified` is True ONLY when the server stores read-back proof
+    of the row's current scope (`scope_is_proven`: a complete FRESH read after the write matched the doors, the validity, the timing and
+    the active flag - `scope_proven` - and the stored digest equals the scope now; any scope change invalidates it, legacy rows carry
+    none). Then `doors_state` is `verified_central`: WisKey's CENTRAL record, never a claim that a station applied it. An active grant
+    with no push outstanding and no current proof is `accepted` (WisKey's central record accepted the write; not re-read)."""
     state = g["state"]
     needs_push = bool(g.get("needs_push"))
     accepted = state == "active" and not needs_push
+    verified = accepted and scope_is_proven(g)
     pending = state in ("approved", "provisioning", "unknown") or (state == "active" and needs_push)
-    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": False,
-            "doors_state": "accepted" if accepted else "desired" if state in LIVE else None}
+    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": verified,
+            "scope_verified_at": g.get("scope_proof_at") if verified else None,
+            "doors_state": "verified_central" if verified else "accepted" if accepted else "desired" if state in LIVE else None}
 
 
 def _station_name(station_id: str) -> str:
@@ -1633,9 +1762,23 @@ class Worker:
                         summary[kind] = summary.get(kind, 0) + 1
                 self.finish_unlinks(db)
                 self.alert_and_prune(db)
+                self._screen_passes(db)
                 return summary
             finally:
                 self._after_pass()
+
+    @staticmethod
+    def _screen_passes(db: Database) -> None:
+        """SHAREDID-293: the external-access screen's own passes, after the grant work of the pass (services/access_external.py) - the
+        read-back verification of active grants (owner decision 2), the watch for a person confirmed gone that reappears (3), the name
+        sync (5) and the weekly digest (4). Each fails closed on its own: a failure never stops the grant work."""
+        from . import access_external as ax
+
+        for step in (ax.verify_pass, ax.watch_gone, ax.name_pass, ax.digest_due):
+            try:
+                step(db)
+            except Exception:  # noqa: BLE001
+                log.warning("access grants: the %s pass failed", getattr(step, "__name__", "screen"))
 
     def run_grant(self, db: Database, grant_id: str) -> None:
         with self._lock:
@@ -1805,9 +1948,10 @@ class Worker:
                 if op_id is None:
                     op_id = wj.create_intent(conn, g["id"], g["subject_kind"], g["subject_id"], ref)
                 wj.create_dispatched(conn, op_id)
+            sent_name = ((contact or {}).get("display_name") or "אורח")[:32]
             try:
                 # employee_no is omitted: WisKey generates one (nine digits) and returns it - stored as returned, never sent on update
-                person = engine.create_person(display_name=((contact or {}).get("display_name") or "אורח")[:32], category=category,
+                person = engine.create_person(display_name=sent_name, category=category,
                                               responsible_person=((approver["display_name"] if approver else "") or "Arx")[:64],
                                               access_purpose=f"Arx external access {ref}")
             except EngineError as exc:
@@ -1824,6 +1968,11 @@ class Worker:
                 conn.execute("""INSERT INTO access_person_links(id, subject_kind, subject_id, wiskey_person_id, origin, employee_no, linked_by, linked_at, last_pushed_rev)
                                 VALUES (?, ?, ?, ?, 'created_from_arx', ?, ?, ?, ?)""",
                              (lid, g["subject_kind"], g["subject_id"], person.id, person.employee_no, g.get("approved_by") or "system", iso(now()), person.revision))
+                # SHAREDID-293 (owner decision 5): the digests of the name Arx wrote and WisKey answered with (never the name)
+                from .access_external import name_digest
+
+                conn.execute("UPDATE access_person_links SET name_pushed = ?, name_seen = ?, name_checked_at = ? WHERE id = ?",
+                             (name_digest(sent_name), name_digest(person.display_name), iso(now()), lid))
                 wj.create_finished(conn, op_id, "ok", person_id=person.id)
                 _audit(conn, None, "access.person_link.create", lid, resource_type="access_person_link", wiskey_person_id=person.id, grant_id=g["id"])
                 link = link_row(conn, lid)
@@ -2019,7 +2168,8 @@ class Worker:
                 _audit(conn, None, "access.grant.unknown", g["id"], reason="scope_moved")
                 return None
             if scope_proven(person, scope):
-                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "needs_push": 0}, expect_revision=g["revision"])
+                # SHAREDID-293 (owner decision 2): this fresh read proved the complete scope - stored as the read-back proof
+                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "needs_push": 0, **proof_fields(scope)}, expect_revision=g["revision"])
                 _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, after="unknown", stations_synced=person.stations_synced)
                 return "provisioned"
             if cur["needs_push"] and readback_covers(person, scope):
@@ -2077,7 +2227,8 @@ class Worker:
                 return
         with db.connection(label="access_grants.narrow.done") as conn:
             # F2 (review H3 i): compare-and-set on the revision the scan read
-            if _touch(conn, g["id"], {"needs_push": 0, "wiskey_revision": readback.revision}, expect_revision=g["revision"]):
+            # SHAREDID-293 (owner decision 2): the fresh readback proved the complete scope - stored as the read-back proof
+            if _touch(conn, g["id"], {"needs_push": 0, "wiskey_revision": readback.revision, **proof_fields(scope)}, expect_revision=g["revision"]):
                 _audit(conn, None, "access.grant.amend", g["id"], kind="pushed", stations=stations_of(scope.doors), readback=True, written=written,
                        central_only=True, stations_synced=readback.stations_synced)
             else:
@@ -2344,9 +2495,11 @@ def _notify(conn: sqlite3.Connection, source: str, subject_id: str, kind: str, r
     """A content-free notification to the managers (no name, no number, no door). Never raises."""
     try:
         from . import notify
+        from .access_external import screen_href
 
+        # SHAREDID-293: the link opens the external-access screen where the owner placed it (owner decision 6)
         notify.emit(conn, notify.Signal(source=source, subject_kind="system", subject_id=subject_id[:32], dedupe_key=f"{source}:{subject_id[:32]}" + (f":r{repeat}" if repeat else ""),
-                                        params={"kind": kind}, link="#/system/access?tab=external"))
+                                        params={"kind": kind}, link=screen_href(conn, subject_id if len(subject_id) == 32 else None)))
     except Exception:  # noqa: BLE001
         log.warning("access grants notification failed")
 

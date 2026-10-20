@@ -205,7 +205,8 @@ def check_person(
     revision: int | None = None,
 ) -> Target:
     """The rule over a person as read (a closed superset, intercom_adapter.project_person): visible at all (else the uniform
-    404), every permission on every station before and after (else 403 `intercom_person_scope`), the sensitive level when asked
+    404), every permission on every station before and after - before = the assignments AND the stations of the person's own
+    permission overrides (PERMOVR-293; unknown overrides: unrestricted only) - (else 403 `intercom_person_scope`), the sensitive level when asked
     (else 403 `intercom_field_level`), the revision the write carries equal to the one read (else 409)."""
     perms = tuple(dict.fromkeys(permissions))
     after_ids = [s for s in after if isinstance(s, str)]
@@ -218,7 +219,15 @@ def check_person(
         before = []
     knows = any(auth.station(MANAGE, s) or auth.station(ia.PEOPLE_READ, s) for s in before) if before else (auth.unrestricted(MANAGE) or auth.unrestricted(ia.PEOPLE_READ))
     if not knows:
-        raise uniform_not_found()
+        raise uniform_not_found()  # decided on the assignments alone, before the overrides: no existence oracle through them
+    # PERMOVR-293 (WisKey Q2): the stations of the person's own permission overrides (allow and deny) are stations of the person -
+    # each decided per station like an assignment (deny-overrides); unknown overrides refuse anyone not unrestricted (fail closed)
+    gate = ia.person_gate_station_ids(person)
+    if gate is None:
+        if not shortcut_applies(auth, perms, sensitive):
+            raise scope_refusal()
+        gate = before
+    before = list(dict.fromkeys([*before, *gate]))
     covered = list(dict.fromkeys([*before, *after_ids]))
     if not _holds_everywhere(auth, perms, covered) or any(not all(auth.station(p, s) for p in perms) for s in extra_ids) or person.get("operator_editable") is False:
         raise scope_refusal()

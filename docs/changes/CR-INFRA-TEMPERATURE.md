@@ -1,6 +1,6 @@
 # CR-INFRA-TEMPERATURE - temperature control under Infrastructure (2.9.1)
 
-Status: phases 1 and 2 built on `pilot/TEMPCTL-291` (from `integ/290`). Owner-approved mockup and binding decisions:
+Status: phases 1 and 2 built on `pilot/TEMPCTL-291` (from `integ/290`); phase 3 (section 11) on `pilot/TEMPCTL3-293`. Owner-approved mockup and binding decisions:
 `private/planning/mockup_temperature_2026-10-19/` (index.html, OWNER_DECISIONS.md) plus the owner requirements relayed on 2026-10-19
 (optional defrost window with automatic learning; climate entities as a temperature source).
 
@@ -136,4 +136,40 @@ routing: `GET|PUT /alerts`.
   "valid" value is not detected (sensor health is a phase 3 item).
 * The PDF engines (WeasyPrint / fpdf2) are not installed on the development workstation: the PDF route is tested with a fake renderer
   and the HTML builder directly; a real render is verified only where the engines exist (the add-on image / runner).
-* The phase 3 ideas are not built yet.
+* Phase 3 limits: see section 11.
+
+## 11. Phase 3: the accepted improvement ideas (pilot/TEMPCTL3-293, owner 2026-10-20)
+
+Owner decisions (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md): all twelve ideas of the mockup panel accepted; alerts on by default;
+a mute silences warnings only, alarms are never silenced; every capability exists AND is a setting (installation default + per unit
+override, Settings > Infrastructure > Temperatures and wizard step 3 "יכולות נוספות"). Storage: migration
+`0125_infra_temperature_phase3.sql` (built as PROVISIONAL 0126; renumbered at the 2.9.3 integration; ALTERs on the
+0125 tables + `infra_temp_insights` + `infra_temp_tickets`). Rollback: drop the two tables; the added columns are ignored by older code.
+
+| # | Idea | Built | Settings (default) |
+|---|---|---|---|
+| 1 | Defrost learning | phase 1 (learn / fixed / none) | `learn_days`, `learn_min_repeats`, `defrost_max_min`, ... |
+| 2 | Door <-> temperature + recovery | `services/temperature_insights.py` (hourly): per opening the baseline, peak, rise and recovery time; median > `recovery_slow_min` with >= 3 openings = "suspected cooling fault"; detail panel + card chip; optional `temperature.health` warning | `recovery_slow_min` 30, `recovery_alert` off |
+| 3 | Monthly HACCP report | `layout=haccp` on `/report.pdf` and `/report/preview`: a daily table per unit (min / max / avg / out of range / alerts / door openings / data coverage / verdict), manager name + signature + date lines, UTC stamp + digest; dialog "סוג הדוח" (defaults to the previous month) | - |
+| 4 | Escalation chain | an unacknowledged alarm climbs a step after `after_min` (from the moment it became an alarm): source `temperature.escalation` (critical) to the step's tier, a log row `escalate` per step; ended by the acknowledge or the end of the alarm; never held by quiet hours (only when alarms are held by an explicit setting) | chain on, 15 min -> site + system admins, 45 min -> system admins, push + app; per unit `escalation_enabled` on |
+| 5 | Time to threshold | least-squares slope of the last 30 min; shown inside the band when the crossing is within the horizon (never while the door is open / in a defrost window); optional EARLY warning row `predict` (source temperature.warning, held like a warning) | `predict_enabled` on, `predict_horizon_min` 60, `predict_warn` OFF (owner 2026-10-20: keep OFF), `predict_warn_min` 20 (5..240: the early warning fires when the crossing is this many minutes away; owner 2026-10-20) |
+| 6 | Compressor duty cycle | optional power sensor per unit (smart plug / current meter, READ only): `pw` per minute sample, `pw_n` / `on_n` in the rollup; 24 h %, last 3 days vs the 4 before, daily bars; "rising" by `duty_rise_pts` | `compressor_on_w` 15 W, `duty_rise_pts` 15, `duty_alert` off |
+| 7 | Grouping by area / floor | units carry floor id / name / level; collapsible area headers ordered by floor level (collapsed state per browser), floor quick filter | installation `grid_grouping` area |
+| 8 | Sensor health | battery (sibling battery sensor / battery-low binary sensor of the same device), signal (signal_strength dBm or linkquality), age of the reading, frozen value (identical readings for `frozen_min`); KPI "בעיות חיישן"; `battery` / `frozen` warnings (temperature.health) | `health_warn` on, `battery_low_pct` 20, `frozen_min` 360, `signal_weak_dbm` -85 |
+| 9 | Maintenance window | operators+ (`infra.temperature.ack`): minutes + REQUIRED reason, logged with the name (`maint` row) and shown in the report; holds WARNINGS (`suppressed = maintenance`); alarms still go out and say "בתחזוקה: reason" (owner 2026-10-20: as built) | `maintenance_includes_alarms` OFF, `maintenance_max_min` 240 |
+| 10 | Unit comparison | detail: tick up to 2 other units -> their lines over the chart, scale shared (°C) or normalized to each band (0 = low, 1 = high) | - |
+| 11 | Service ticket from an alarm | `POST /{id}/ticket` (and `GET /{id}/ticket/draft`): through `tickets.create.create_ticket` AS the person (device ticket of the temperature sensor: place + frozen 24 h history), prefilled description with the values and the deep link back, the 24 h chart as a picture through the module's one picture pipeline, two-way link (`infra_temp_tickets`, the row's `ticket_id`, a `ticket` log row), a repeat while open is absorbed | installation `ticket_department_id` "", `ticket_attach_chart` on |
+| 12 | Home widget | `temperature` widget (elevators' shape: combined / cards / both, hidden units, alerts only); absent without units or with `home_widget` off; personal on / size / mode / hidden like the elevators | installation `home_widget` on |
+
+Routing: Settings > Infrastructure > Temperatures > alerts gains the `health` kind (on; site + system admins; inbox) and the escalation
+chain editor (system.configure). New routes: `POST|DELETE /{id}/maintenance`, `GET /{id}/ticket/draft`, `POST /{id}/ticket`,
+`GET /candidates?kind=power`; `layout` on the report routes; log kinds `predict|battery|frozen|recovery|duty|maint|escalate|ticket|health`.
+
+Not built / deferred in phase 3:
+* vendor sending through the message queue and WhatsApp document sending stay deferred (section 9, owner);
+* the HACCP report is produced on demand (download) - an automatic monthly archive stored in the system is not built (it needs file storage
+  and retention decisions); the WhatsApp schedule can already send the monthly text summary;
+* the ticket keeps its link back as text in its description (the ticket screens do not render a dedicated "temperature" block);
+* signal strength is shown, never alerted; a climate unit's reading is never judged "frozen" (whole-degree steps);
+* the chart picture uses Pillow's built-in font (numbers and times only; the words are in the ticket's description);
+* personal choices of the temperatures widget are honoured, but the personal screen offers only on / size for it (not mode / hidden).

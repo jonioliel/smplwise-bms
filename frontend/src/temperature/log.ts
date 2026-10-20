@@ -115,7 +115,7 @@ export class TempLog extends LitElement {
             <option value="">${tt('allUnits')}</option>${this.units.map((u) => html`<option value=${u.id} ?selected=${this.q.unit === u.id}>${u.name}</option>`)}</select>
           <select aria-label=${tt('colEvent')} data-f="kind" @change=${(e: Event) => this.set({ kind: (e.target as HTMLSelectElement).value || undefined })}>
             <option value="">${tt('allKinds')}</option><option value="temp">${tt('kTemp')}</option><option value="door">${tt('kDoor')}</option><option value="offline">${tt('kOffline')}</option>
-            <option value="defrost">${tt('kDefrost')}</option><option value="act">${tt('kAct')}</option></select>
+            <option value="defrost">${tt('kDefrost')}</option><option value="health">${tt('kHealth')}</option><option value="maint">${tt('maintBtn')}</option><option value="act">${tt('kAct')}</option></select>
           <select aria-label=${tt('colSev')} data-f="severity" @change=${(e: Event) => this.set({ severity: (e.target as HTMLSelectElement).value || undefined })}>
             <option value="">${tt('allSev')}</option><option value="alarm">${tt('sevAlarm')}</option><option value="warning">${tt('sevWarning')}</option><option value="info">${tt('sevInfo')}</option></select>
           <select aria-label=${tt('colTime')} data-f="range" @change=${(e: Event) => this.set({ range: (e.target as HTMLSelectElement).value as RangeKey })}>

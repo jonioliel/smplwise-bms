@@ -212,7 +212,7 @@ test('home widget: hidden elevators are out, the alerts filter lists only fire /
 
 test('home config: the elevators widget is appended last, tolerant parsing, absent unless the viewer sees an elevator', () => {
   const d = defaultConfig();
-  expect(d.order[d.order.length - 1]).toBe('elevators');
+  expect(d.order.slice(-3)).toEqual(['elevators', 'temperature', 'generators']); // phase 3 temperatures, then GENWIDGET 2.9.3 generators
   expect(d.elevators).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null, mode: 'combined', hidden: [], filter: 'all' });
   const c = configOf({ elevators: { mode: 'both', hidden: ['e1', 'e1', 'bad id', 7], filter: 'nope' } });
   expect([c.elevators.mode, c.elevators.hidden, c.elevators.filter]).toEqual(['both', ['e1'], 'all']);
@@ -262,11 +262,11 @@ test('review L5: a user hides elevators in ADDITION to the installation list', (
 });
 
 test('review L6: moves count only the listed widgets (the elevators widget left out without elevators)', () => {
-  const order = defaultConfig().order; // ... 'agenda', 'launcher', 'elevators'
-  const listed = order.filter((id) => id !== 'elevators');
+  const order = defaultConfig().order; // ... 'agenda', 'launcher', 'elevators', 'temperature', 'generators'
+  const listed = order.filter((id) => id !== 'elevators' && id !== 'temperature' && id !== 'generators'); // phase 3: the temperatures widget is appended after it
   // "move down" of the last LISTED widget: nothing to move past (the hidden elevators widget is not a neighbour)
   expect(moveAmong(order, listed, 'launcher', listed.length)).toEqual(order);
-  expect(moveAmong(order, listed, 'agenda', listed.indexOf('launcher')).slice(-3)).toEqual(['launcher', 'agenda', 'elevators']);
+  expect(moveAmong(order, listed, 'agenda', listed.indexOf('launcher')).slice(-5)).toEqual(['launcher', 'agenda', 'elevators', 'temperature', 'generators']);
   const mid: typeof order = ['clock', 'elevators', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher'];
   const listedMid = mid.filter((id) => id !== 'elevators');
   expect(moveAmong(mid, listedMid, 'weather', 0).slice(0, 3)).toEqual(['weather', 'clock', 'elevators']);
@@ -351,4 +351,23 @@ test('travelling: the option round-trips through the dialog draft (default off) 
   expect(draftOf({ ...m, show_travel: true }).showTravel).toBe(true);
   for (const k of ['stateTravelling', 'kpiTravel', 'summaryTravel', 'travelOption', 'travelOptionHint'] as const) expect(ELT_TABLES.en[k], k).toBeTruthy();
   expect(elt('travelOption')).toBe('הצג נסיעה כשאינה ממתינה וללא תקלה');
+});
+
+// ELEVDOORS-293 (owner 2026-10-20): in operation the doors are drawn CLOSED, waiting they are drawn OPEN - the default when no sensor reports;
+// a real door sensor that reports wins; fault / fire / out of service / unknown / travelling keep the doors shut.
+test('door picture: active closed, waiting open by default; a reporting door sensor overrides', () => {
+  const d = (state: ElevatorState, extra: Partial<Elevator> = {}) => chipOf({ state, stale: false, roles: [], ...extra }).doors;
+  expect(d('active')).toBe('closed');
+  expect(d('moving_up')).toBe('closed');
+  expect(d('travelling')).toBe('closed');
+  expect(d('waiting')).toBe('open');
+  expect(d('door_open')).toBe('open');
+  for (const s of ['fault', 'fire_service', 'out_of_service', 'unknown'] as ElevatorState[]) expect(d(s), s).toBe('closed');
+  expect(chipOf({ state: 'waiting', stale: true }).doors).toBe('closed');
+  // a linked door sensor that reports wins over the state's default
+  expect(d('waiting', { roles: ['door_open'], flags: { door_open: false } })).toBe('closed');
+  expect(d('active', { roles: ['door_open'], flags: { door_open: true } })).toBe('open');
+  // linked but no value, or not linked: the default
+  expect(d('waiting', { roles: ['door_open'], flags: { door_open: null } })).toBe('open');
+  expect(d('active', { roles: [], flags: { door_open: true } })).toBe('closed');
 });

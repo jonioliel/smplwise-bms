@@ -2,14 +2,18 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { ackUnit, clearLearned, decideWindow, getHistory, listEvents, muteUnit, unmuteUnit, type HistoryResponse, type RangeKey, type TempEvent, type TempUnit } from '../api/temperature';
-import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorRuns, durationText, eventText, fmt1, hhmm, hvacText, stateRuns, windowText, type Run } from './model';
+import { ackUnit, clearLearned, decideWindow, endMaintenance, getHistory, listEvents, muteUnit, startMaintenance, unmuteUnit, type HistoryResponse, type RangeKey, type TempEvent, type TempUnit } from '../api/temperature';
+import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorRuns, durationText, eventText, fmt1, hhmm, hvacText, normalize, stateRuns, windowText, type Run } from './model';
 import { bigChart, bigFrame, gauge, ring, spark, type BigChartData } from './charts';
 import { tempCss } from './styles';
+import './ticket-dialog';
 import { tt, type TtKey } from '../i18n/temperature';
 
 const WIDE_KEY = 'sw.temperature.detailWide';
 const MUTES = [15, 30, 60, 120];
+/** phase 3 (idea 9): the maintenance durations offered (those above the unit's `maintenance_max_min` are left out) */
+const MAINT_MIN = [30, 60, 120, 240];
+const COMPARE_MAX = 2;
 
 function readWide(): boolean {
   try {
@@ -44,6 +48,14 @@ export class TempDetail extends LitElement {
   @state() private err = '';
   @state() private chartW = 560;
   @state() private cross: { x: number; y: number | null; i: number } | null = null;
+  /** phase 3: the maintenance popover, the ticket dialog, the compared units and their scale */
+  @state() private maintOpen = false;
+  @state() private maintReason = '';
+  @state() private maintMin = 60;
+  @state() private ticket: { eventId: string | null } | null = null;
+  @state() private cmp: string[] = [];
+  @state() private cmpScale: 'shared' | 'norm' = 'shared';
+  @state() private cmpHist: Record<string, HistoryResponse> = {};
   @query('.bigchart') private chartBox?: HTMLElement;
   private ro?: ResizeObserver;
   private loadedFor = '';
@@ -115,6 +127,25 @@ export class TempDetail extends LitElement {
     .pop button { display: flex; justify-content: space-between; gap: 16px; border: 0; background: transparent; padding: 8px 10px; border-radius: var(--sw-r-sm); font: inherit; color: inherit; cursor: pointer; text-align: start; }
     .pop button:hover { background: var(--sw-hover-wash); }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    /* phase 3 */
+    .summ.hl b[data-bad='true'] { color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
+    .warnline { color: var(--sw-warning-text) !important; }
+    .fx { display: grid; gap: 2px; margin-block-start: 8px; }
+    .fxr { display: grid; grid-template-columns: auto auto 1fr; gap: 12px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
+    .bars { display: flex; align-items: flex-end; gap: 4px; block-size: 46px; margin-block-start: 10px; }
+    .bars span { flex: 1; block-size: 100%; display: flex; align-items: flex-end; background: var(--sw-surface-2); border-radius: var(--sw-r-2xs); overflow: hidden; }
+    .bars i { display: block; inline-size: 100%; background: var(--tc-acc); opacity: 0.7; }
+    .cmpbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-block-end: 8px; }
+    .cirow { display: flex; align-items: center; gap: 4px; }
+    .cirow .ci { flex: 1; min-inline-size: 0; }
+    .cmpck { display: grid; place-items: center; inline-size: 32px; block-size: 32px; flex: none; }
+    .cmpck input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
+    .ev.tk { text-decoration: none; color: inherit; }
+    .pop.maint { min-inline-size: min(320px, calc(100vw - 32px)); gap: 8px; padding: 10px; }
+    .pop .mf { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
+    .pop .in { min-block-size: var(--sw-ctl-h-md); border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; font: inherit; }
+    .pop.maint .seg button { display: inline-block; padding: 4px 10px; }
+    .pop.maint > .btn { justify-self: start; }
     @media (max-width: 900px) {
       .wide .db { grid-template-columns: minmax(0, 1fr); }
     }
@@ -129,7 +160,9 @@ export class TempDetail extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
+      if (this.ticket) return; // the ticket dialog closes itself
       if (this.muteOpen) this.muteOpen = false;
+      else if (this.maintOpen) this.maintOpen = false;
       else this.close();
     }
   };
@@ -151,8 +184,14 @@ export class TempDetail extends LitElement {
 
   updated(changed: Map<string, unknown>) {
     if (this.unit && this.loadedFor !== `${this.unit.id}:${this.range}`) {
+      const unitChanged = !this.loadedFor.startsWith(`${this.unit.id}:`);
       this.loadedFor = `${this.unit.id}:${this.range}`;
+      if (unitChanged) {
+        this.cmp = [];
+        this.cmpHist = {};
+      }
       void this.loadHistory();
+      void this.loadCompare();
       if (changed.has('unit') && (changed.get('unit') as TempUnit | undefined)?.id !== this.unit.id) void this.loadEvents();
     }
     const box = this.chartBox;
@@ -180,6 +219,25 @@ export class TempDetail extends LitElement {
     } catch (e) {
       this.histError = describeError(e);
     }
+  }
+
+  /** phase 3 (idea 10): the compared units' history for the same range (each answer is scoped by the server like the unit itself) */
+  private async loadCompare() {
+    const range = this.range;
+    const out: Record<string, HistoryResponse> = {};
+    await Promise.all(this.cmp.map(async (id) => {
+      try {
+        out[id] = await getHistory(id, range, undefined, undefined, Math.max(200, Math.min(1200, this.chartW)));
+      } catch {
+        /* a unit that can no longer be read simply drops out of the comparison */
+      }
+    }));
+    if (range === this.range) this.cmpHist = out;
+  }
+
+  private toggleCompare(id: string, on: boolean) {
+    this.cmp = on ? [...this.cmp, id].slice(-COMPARE_MAX) : this.cmp.filter((x) => x !== id);
+    void this.loadCompare();
   }
 
   private async loadEvents() {
@@ -220,9 +278,16 @@ export class TempDetail extends LitElement {
   private chartData(): BigChartData | null {
     const h = this.hist;
     if (!h) return null;
+    const u = this.unit;
+    const norm = this.cmp.length > 0 && this.cmpScale === 'norm';
+    const others = this.cmp.map((id) => ({ id, u: this.units.find((x) => x.id === id), h: this.cmpHist[id] })).filter((x) => x.u && x.h);
+    const map = (pts: [number, number][], lo: number, hi: number) => (norm ? pts.map(([t, v]) => [t, normalize(v, lo, hi)] as [number, number]) : pts);
     return {
-      points: h.points.map((p) => [p[0], p[1]] as [number, number]), setpoints: this.unit.source === 'climate' ? h.points.map((p) => [p[0], p[5]] as [number, number | null]) : undefined,
-      low: this.unit.low, high: this.unit.high, doors: h.doors, defrost: h.defrost, t0: h.from, t1: h.to, step: h.step,
+      points: map(h.points.map((p) => [p[0], p[1]] as [number, number]), u.low, u.high),
+      setpoints: u.source === 'climate' && !norm ? h.points.map((p) => [p[0], p[5]] as [number, number | null]) : undefined,
+      low: norm ? 0 : u.low, high: norm ? 1 : u.high, doors: h.doors, defrost: h.defrost, t0: h.from, t1: h.to, step: h.step,
+      overlays: others.map((o) => ({ id: o.id, name: o.u!.name, points: map(o.h!.points.map((p) => [p[0], p[1]] as [number, number]), o.u!.low, o.u!.high) })),
+      axisUnit: norm ? '' : '°',
     };
   }
 
@@ -251,8 +316,14 @@ export class TempDetail extends LitElement {
     const sp = dt.setpoints?.[this.cross.i]?.[1] ?? null;
     const out = p[1] > dt.high || p[1] < dt.low;
     const day = this.range === '24h' ? '' : `${new Date(ms).toLocaleDateString(lang, { day: 'numeric', month: 'numeric' })} · `;
+    const norm = dt.axisUnit === '';
+    const near = (pts: [number, number][]) => pts.reduce<[number, number] | null>((b, q) => (b === null || Math.abs(q[0] - p[0]) < Math.abs(b[0] - p[0]) ? q : b), null);
     return html`<div class="tip" style=${`inset-inline-start:${(this.cross.x / this.chartW) * 100}%;inset-block-start:${((this.cross.y ?? 20) / 250) * 100}%`} data-temp-tip>
-      <div>${day}<span class="num">${hhmm(ms, lang)}</span></div><b class="num">${fmt1(p[1])} °C</b>
+      <div>${day}<span class="num">${hhmm(ms, lang)}</span></div><b class="num">${norm ? p[1].toFixed(2) : `${fmt1(p[1])} °C`}</b>
+      ${(dt.overlays ?? []).map((o) => {
+        const q = near(o.points);
+        return q && Math.abs(q[0] - p[0]) <= dt.step * 2 ? html`<div>${o.name}: <span class="num">${norm ? q[1].toFixed(2) : `${fmt1(q[1])} °C`}</span></div>` : nothing;
+      })}
       ${sp !== null ? html`<div>${tt('lgSetpoint')}: ${deg(sp)}</div>` : nothing}
       ${inDoor ? html`<div>${tt('lgDoor')}</div>` : nothing}${inDef ? html`<div>${tt('lgDefrost')}</div>` : nothing}${out ? html`<div class="err">${tt('lgOut')}</div>` : nothing}
     </div>`;
@@ -282,6 +353,91 @@ export class TempDetail extends LitElement {
         <div class="tl" role="img" aria-label=${tt('tlTemp')} data-temp-statebar>${st.map((r) => html`<span data-k=${r.k} style=${`flex:${r.pct.toFixed(2)}`}></span>`)}</div></div>
       <div class="axis"><span>${hhmm(lo, lang)}</span><span>${hhmm(lo + 6 * 3600_000, lang)}</span><span>${hhmm(lo + 12 * 3600_000, lang)}</span><span>${hhmm(lo + 18 * 3600_000, lang)}</span><span>${tt('now')}</span></div>
       <div class="legend"><span><i data-k="door"></i>${tt('lgDoor')}</span><span><i data-k="ok"></i>${tt('ringOk')}</span><span><i data-k="warn"></i>${tt('ringWarn')}</span><span><i data-k="alarm"></i>${tt('ringAlarm')}</span>${u.defrost.mode !== 'none' ? html`<span><i data-k="defrost"></i>${tt('lgDefrost')}</span>` : nothing}</div>`;
+  }
+
+  // ---------------------------------------------------------------- phase 3 panels
+
+  /** Idea 8: the sensor's own device - battery, signal, the age of the reading, a frozen value. */
+  private healthPanel(u: TempUnit, lang: string) {
+    const h = u.health;
+    if (!h) return nothing;
+    const row = (label: TtKey, value: unknown, bad: boolean) => html`<div><span>${tt(label)}</span><b data-bad=${String(bad)}>${value}</b></div>`;
+    const sig = h.signal === null ? tt('hNotReported') : h.signal_unit === 'dBm' ? html`<span class="num ltr">${h.signal} dBm</span>` : html`<span class="num ltr">LQI ${h.signal}</span>`;
+    return html`<div class="panel" data-temp-health><div class="ph"><h4>${tt('healthTitle')}</h4>
+        ${h.issues.length ? html`<span class="chip" data-tone="warn">${h.issues.length}</span>` : html`<span class="chip" data-tone="ok">${tt('hOk')}</span>`}</div>
+      <div class="summ hl">
+        ${row('hBattery', h.battery === null ? (h.battery_low ? tt('healthBatteryLow') : tt('hNotReported')) : html`<span class="num ltr">${Math.round(h.battery)}%</span>`, h.battery_low)}
+        ${row('hSignal', h.signal_weak ? html`${sig} · ${tt('healthSignal')}` : sig, h.signal_weak)}
+        ${row('hAge', h.age_min === null ? '—' : durationText(h.age_min), false)}
+        ${h.frozen_since ? row('hFrozen', tt('healthFrozen', { t: hhmm(Date.parse(h.frozen_since), lang) }), true) : nothing}
+      </div></div>`;
+  }
+
+  /** Idea 2: what each door opening does to the reading and how long the unit takes to recover. */
+  private doorPanel(u: TempUnit, lang: string) {
+    const d = u.insights?.door;
+    if (!u.door || !d) return nothing;
+    const verdict = d.opens === 0 || d.median_recovery_min === null ? tt('doorFxNone') : d.slow ? tt('doorFxSlow') : tt('doorFxOk');
+    return html`<div class="panel" data-temp-doorfx data-slow=${String(d.slow)}><div class="ph"><h4>${tt('doorFxTitle')}</h4></div>
+      <div class="stat4">
+        <div><span>${tt('doorFxOpens')}</span><b class="num">${d.opens}</b></div>
+        <div><span>${tt('doorFxRise')}</span><b class="num" dir="ltr">${d.avg_rise === null ? '—' : `+${fmt1(d.avg_rise)}°`}</b></div>
+        <div><span>${tt('doorFxMaxRise')}</span><b class="num" dir="ltr">${d.max_rise === null ? '—' : `+${fmt1(d.max_rise)}°`}</b></div>
+        <div><span>${tt('doorFxRecovery')}</span><b class="num">${d.median_recovery_min === null ? '—' : durationText(d.median_recovery_min)}</b></div>
+      </div>
+      <p class="hint ${d.slow ? 'warnline' : ''}" style="margin:8px 0 0">${verdict}</p>
+      ${d.last.length ? html`<div class="fx"><span class="hint">${tt('doorFxLast')}</span>${[...d.last].reverse().map((e) => html`<div class="fxr"><time class="num">${hhmm(e.opened * 1000, lang)}</time>
+        <span class="num ltr">+${fmt1(e.rise)}°</span><span>${e.recovery_min === null ? tt('doorFxNotBack') : durationText(e.recovery_min)}</span></div>`)}</div>` : nothing}
+    </div>`;
+  }
+
+  /** Idea 6: the compressor duty cycle from the optional smart plug / current meter (read only). */
+  private dutyPanel(u: TempUnit) {
+    if (!u.power) return nothing;
+    const d = u.insights?.duty;
+    const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
+    return html`<div class="panel" data-temp-duty data-rising=${String(!!d?.rising)}><div class="ph"><h4>${tt('dutyTitle')}</h4>
+        ${u.power.w !== null ? html`<span class="chip" data-tone=${u.power.on ? 'acc' : 'mut'}><sw-icon name="power" size="12"></sw-icon>${u.power.on ? tt('compressorOn') : tt('compressorOff')} · ${tt('dutyNow', { w: Math.round(u.power.w) })}</span>` : nothing}</div>
+      ${d ? html`<div class="stat4" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+          <div><span>${tt('duty24')}</span><b class="num">${pct(d.pct_24h)}</b></div>
+          <div><span>${tt('dutyRecent')}</span><b class="num">${pct(d.recent)}</b></div>
+          <div><span>${tt('dutyBefore')}</span><b class="num">${pct(d.before)}</b></div></div>
+        ${d.days.length ? html`<div class="bars" role="img" aria-label=${tt('dutyTitle')} dir="ltr">${d.days.map((x) => html`<span title=${`${x.day} · ${pct(x.pct)}`}><i style=${`block-size:${Math.max(2, x.pct ?? 0)}%`}></i></span>`)}</div>` : nothing}
+        <p class="hint ${d.rising ? 'warnline' : ''}" style="margin:8px 0 0">${d.recent === null ? tt('dutyNoData') : d.rising ? tt('dutyRising') : tt('dutyStable')}</p>`
+      : html`<p class="hint" style="margin:0">${tt('dutyNoData')}</p>`}</div>`;
+  }
+
+  /** Idea 11: the tickets opened from this unit (only those the person may see). */
+  private ticketsPanel(u: TempUnit) {
+    const list = u.tickets ?? [];
+    if (!list.length) return nothing;
+    return html`<div class="panel" data-temp-tickets><div class="ph"><h4>${tt('ticketsLinked')}</h4></div>
+      <div class="events">${list.map((x) => html`<a class="ev tk" href=${`#/tickets/${encodeURIComponent(x.ticket_id)}`} data-ticket-link=${x.ticket_id}><sw-icon name="ticket" size="14"></sw-icon>
+        <div>${tt('ticketChip', { n: x.number })}</div><span class="chip">${x.status ?? ''}</span></a>`)}</div></div>`;
+  }
+
+  private maintPop(u: TempUnit, lang: string) {
+    const max = u.rules.maintenance_max_min ?? 240;
+    const opts = MAINT_MIN.filter((m) => m <= max);
+    const go = () => {
+      const r = this.maintReason.trim();
+      if (!r) {
+        this.err = tt('maintNeedReason');
+        return;
+      }
+      this.maintOpen = false;
+      const m = Math.min(this.maintMin, max);
+      void this.act(() => startMaintenance(u.id, m, r), 'maintStarted', { t: hhmm(Date.now() + m * 60_000, lang) });
+      this.maintReason = '';
+    };
+    return html`<div class="pop maint" role="dialog" aria-label=${tt('maintTitle')} data-temp-maintpop><div class="hd">${tt('maintTitle')}</div>
+      <div class="nt">${u.rules.maintenance_includes_alarms ? tt('maintNoteAlarms') : tt('maintNote')}</div>
+      <label class="mf"><span>${tt('maintReason')}</span><input class="in" maxlength="120" .value=${this.maintReason} placeholder=${tt('maintReasonPh')}
+        @input=${(e: Event) => { this.maintReason = (e.target as HTMLInputElement).value; }} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') go(); }} data-maint-reason /></label>
+      <div class="mf"><span>${tt('maintFor')}</span><span class="seg" role="group">${opts.map((m) => html`<button type="button" aria-pressed=${String(this.maintMin === m)} data-maint-min=${m}
+        @click=${() => { this.maintMin = m; }}>${durationText(m)}</button>`)}</span></div>
+      <button type="button" class="btn pri sm" ?disabled=${!this.maintReason.trim()} data-maint-start @click=${go}><sw-icon name="wrench" size="14"></sw-icon>${tt('maintStart')}</button>
+    </div>`;
   }
 
   private defrostPanel(u: TempUnit) {
@@ -314,6 +470,7 @@ export class TempDetail extends LitElement {
     const sensorLine = (name: string, id: string | null | undefined) => html`${name || '—'}${this.canManage && id ? html` <span class="mono ltr" title=${id}>${id}</span>` : nothing}`;
     const others = this.units.filter((x) => x.id !== u.id);
     const sevC: Record<string, string> = { alarm: 'var(--tc-alarm)', warning: 'var(--tc-warn)', info: 'var(--tc-acc)' };
+    const openAlert = [...u.events].sort((a, b) => (a.severity === 'alarm' ? -1 : 0) - (b.severity === 'alarm' ? -1 : 0)).find((e) => e.severity === 'alarm' || e.severity === 'warning');
     return html`<div class="ovl" @click=${() => this.close()}></div>
       <aside class="drawer ${this.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="d-title" data-temp-detail=${u.id}>
         <div class="dh"><div class="t"><h2 id="d-title">${u.name}</h2><small>${[u.area_name, u.temp_sensor_name].filter(Boolean).join(' · ')}</small></div>
@@ -329,6 +486,9 @@ export class TempDetail extends LitElement {
                   <div><span>${tt('sensorTemp')}</span><b>${sensorLine(u.temp_sensor_name, u.temp_entity_id)}</b></div>
                   ${u.hvac ? html`<div><span>${tt('lgSetpoint')}</span><b>${deg(u.hvac.setpoint)} · ${hvacText(u.hvac.hvac_mode, u.hvac.hvac_action)}</b></div>` : nothing}
                   <div><span>${tt('sensorDoor')}</span><b>${u.door ? sensorLine(u.door.sensor_name, u.door_entity_id) : tt('none')}</b></div>
+                  ${u.power ? html`<div><span>${tt('powerSensor')}</span><b>${sensorLine(u.power.sensor_name, u.power_entity_id)}${u.power.w !== null ? html` · <span class="num ltr">${Math.round(u.power.w)} W</span>` : nothing}</b></div>` : nothing}
+                  ${u.rules.predict_enabled !== false && !this.stale && u.status !== 'offline' ? html`<div data-temp-predict><span>${tt('predictRow')}</span><b>${u.prediction ? tt('predictChip', { t: deg(u.prediction.threshold), m: u.prediction.eta_min }) : tt('predictNone')}</b></div>` : nothing}
+                  ${u.maintenance ? html`<div data-temp-maint><span>${tt('maintBtn')}</span><b>${tt('maintChip', { t: hhmm(Date.parse(u.maintenance.until), lang) })} · ${u.maintenance.reason}${u.maintenance.by_name ? ` · ${u.maintenance.by_name}` : ''}</b></div>` : nothing}
                   <div><span>${tt('rulesLbl')}</span><b>${this.rulesLine(u)}</b></div>
                 </div>
               </div></div></div>
@@ -339,7 +499,7 @@ export class TempDetail extends LitElement {
                 ${dt ? bigChart(dt, this.chartW, 250, lang, this.cross) : this.histError ? html`<p class="err">${this.histError}</p>` : html`<div class="skl" style="block-size:100%"></div>`}
                 ${dt ? this.tip(dt, lang) : nothing}
               </div>
-              <div class="legend"><span><i data-k="line"></i>${tt('lgTemp')}</span><span><i data-k="out"></i>${tt('lgOut')}</span><span><i data-k="band"></i>${tt('lgBand', { lo: deg(u.low), hi: deg(u.high) })}</span>
+              <div class="legend"><span><i data-k="line"></i>${this.cmp.length ? u.name : tt('lgTemp')}</span>${(dt?.overlays ?? []).map((o, i) => html`<span><i data-k=${`ov${i}`}></i>${o.name}</span>`)}<span><i data-k="out"></i>${tt('lgOut')}</span><span><i data-k="band"></i>${dt?.axisUnit === '' ? tt('normHint') : tt('lgBand', { lo: deg(u.low), hi: deg(u.high) })}</span>
                 ${u.source === 'climate' ? html`<span><i data-k="sp"></i>${tt('lgSetpoint')}</span>` : nothing}${u.door ? html`<span><i data-k="door"></i>${tt('lgDoor')}</span>` : nothing}${u.defrost.mode !== 'none' ? html`<span><i data-k="defrost"></i>${tt('lgDefrost')}</span>` : nothing}</div>
               <div class="stat4" data-temp-stats>
                 <div><span>${tt('statMin')}</span><b class="num" dir="ltr">${deg(s.min)}</b></div>
@@ -349,14 +509,26 @@ export class TempDetail extends LitElement {
               </div>
             </div>
             <div class="panel"><h4 style="margin-block-end:10px">${tt('timeline')}</h4>${this.bars(u, now)}</div>
-            ${others.length ? html`<div class="panel"><div class="ph"><h4>${tt('compare')}</h4><span class="hint">${tt('compareHint')}</span></div>
-              <div class="cmp">${others.map((x) => html`<button type="button" class="ci" data-compare=${x.id} @click=${() => this.dispatchEvent(new CustomEvent('open-unit', { detail: x.id }))}>
-                <div><b>${x.name}</b><small>${x.area_name ?? ''}</small></div>${spark(x, now, 200, 30)}<div class="o">${x.stats_24h.out_min ? tt('excursion', { d: durationText(x.stats_24h.out_min) }) : tt('inRange')}</div></button>`)}</div></div>` : nothing}
+            ${others.length ? html`<div class="panel" data-temp-compare><div class="ph"><h4>${tt('compare')}</h4><span class="hint">${tt('compareHint')}</span></div>
+              ${this.cmp.length ? html`<div class="cmpbar"><span class="hint">${tt('compareScale')}</span><span class="seg" role="group" aria-label=${tt('compareScale')}>
+                  <button type="button" aria-pressed=${String(this.cmpScale === 'shared')} data-cmp-scale="shared" @click=${() => { this.cmpScale = 'shared'; this.cross = null; }}>${tt('scaleShared')}</button>
+                  <button type="button" aria-pressed=${String(this.cmpScale === 'norm')} data-cmp-scale="norm" @click=${() => { this.cmpScale = 'norm'; this.cross = null; }}>${tt('scaleNorm')}</button></span>
+                <button type="button" class="btn sm ghost" data-cmp-clear @click=${() => { this.cmp = []; this.cmpHist = {}; }}>${tt('compareClear')}</button></div>` : nothing}
+              <div class="cmp">${others.map((x) => html`<div class="cirow"><label class="cmpck" title=${tt('compareChart')}><input type="checkbox" .checked=${this.cmp.includes(x.id)} data-cmp-pick=${x.id}
+                  ?disabled=${!this.cmp.includes(x.id) && this.cmp.length >= COMPARE_MAX} aria-label=${`${tt('compareChart')}: ${x.name}`}
+                  @change=${(e: Event) => this.toggleCompare(x.id, (e.target as HTMLInputElement).checked)} /></label>
+                <button type="button" class="ci" data-compare=${x.id} @click=${() => this.dispatchEvent(new CustomEvent('open-unit', { detail: x.id }))}>
+                <div><b>${x.name}</b><small>${x.area_name ?? ''}</small></div>${spark(x, now, 200, 30)}<div class="o">${x.stats_24h.out_min ? tt('excursion', { d: durationText(x.stats_24h.out_min) }) : tt('inRange')}</div></button></div>`)}</div>
+              <p class="hint" style="margin:6px 0 0">${tt('compareMax')}</p></div>` : nothing}
           </div>
           <div class="col">
             <div class="panel"><div class="ringrow"><div class="ring">${ring(u, now, lang)}</div>
               <div style="flex:1;display:grid;gap:6px"><h4>${tt('ringTitle')}</h4><p class="hint" style="margin:0">${tt('ringHint')}</p>
                 <div class="legend"><span><i data-k="ok"></i>${tt('ringOk')}</span><span><i data-k="warn"></i>${tt('ringWarn')}</span><span><i data-k="alarm"></i>${tt('ringAlarm')}</span><span><i data-k="none"></i>${tt('ringNone')}</span></div></div></div></div>
+            ${this.healthPanel(u, lang)}
+            ${this.doorPanel(u, lang)}
+            ${this.dutyPanel(u)}
+            ${this.ticketsPanel(u)}
             ${this.defrostPanel(u)}
             <div class="panel"><div class="ph"><h4>${tt('recent')}</h4><a class="btn sm ghost" href=${`${TEMPERATURE_HREF}/log?unit=${encodeURIComponent(u.id)}`} data-temp-fulllog>${tt('fullLog')}</a></div>
               <div class="events" data-temp-events>${this.events.length ? this.events.map((e) => html`<div class="ev" style=${`--c:${sevC[e.severity]}`}><time>${hhmm(Date.parse(e.started_at), lang)}</time>
@@ -368,15 +540,22 @@ export class TempDetail extends LitElement {
           ${this.canAck ? html`<button type="button" class="btn pri" ?disabled=${!ackable || this.busy} data-temp-ack @click=${() => this.act(() => ackUnit(u.id), 'acked')}><sw-icon name="check" size="16"></sw-icon>${tt('ack')}</button>
             ${u.muted_until ? html`<button type="button" class="btn" ?disabled=${this.busy} data-temp-unmute @click=${() => this.act(() => unmuteUnit(u.id), 'saved')}><sw-icon name="bell" size="16"></sw-icon>${tt('unmute')}</button>`
               : html`<button type="button" class="btn" ?disabled=${this.busy} aria-expanded=${String(this.muteOpen)} data-temp-mute @click=${() => { this.muteOpen = !this.muteOpen; }}><sw-icon name="bellOff" size="16"></sw-icon>${tt('mute')}</button>`}` : nothing}
+          ${this.canAck ? (u.maintenance
+            ? html`<button type="button" class="btn" ?disabled=${this.busy} data-temp-maint-end @click=${() => this.act(() => endMaintenance(u.id), 'maintEnded')}><sw-icon name="wrench" size="16"></sw-icon>${tt('maintEnd')}</button>`
+            : html`<button type="button" class="btn" ?disabled=${this.busy} aria-expanded=${String(this.maintOpen)} data-temp-maint @click=${() => { this.maintOpen = !this.maintOpen; this.muteOpen = false; }}><sw-icon name="wrench" size="16"></sw-icon>${tt('maintBtn')}</button>`) : nothing}
           <button type="button" class="btn" data-temp-report @click=${() => this.dispatchEvent(new CustomEvent('report', { detail: u.id }))}><sw-icon name="download" size="16"></sw-icon>${tt('report')}</button>
+          ${this.canAck ? html`<button type="button" class="btn" data-temp-ticket-btn @click=${() => { this.ticket = { eventId: openAlert?.id ?? null }; }}><sw-icon name="ticket" size="16"></sw-icon>${tt('ticketBtn')}</button>` : nothing}
           <span class="sp"></span>
           ${this.canManage ? html`<button type="button" class="btn ghost" data-temp-detail-edit @click=${() => this.dispatchEvent(new CustomEvent('edit'))}><sw-icon name="edit" size="16"></sw-icon>${tt('edit')}</button>` : nothing}
           ${this.muteOpen ? html`<div class="pop" role="menu" data-temp-mutepop><div class="hd">${tt('muteTitle')}</div>${u.rules.mute_includes_alarms ? nothing : html`<div class="nt">${tt('muteNote')}</div>`}
             ${MUTES.map((m) => html`<button type="button" role="menuitem" data-mute=${m} @click=${() => { this.muteOpen = false; void this.act(() => muteUnit(u.id, { minutes: m }), 'muted', { t: hhmm(now + m * 60_000, lang) }); }}>${durationText(m)}<span class="num">${hhmm(now + m * 60_000, lang)}</span></button>`)}
             ${u.defrost.windows.some((w) => w.status !== 'rejected') ? html`<button type="button" role="menuitem" data-mute="defrost" @click=${() => { this.muteOpen = false; void this.act(() => muteUnit(u.id, { until_defrost_end: true }), 'saved'); }}>${tt('muteDefrost')}</button>` : nothing}
           </div>` : nothing}
+          ${this.maintOpen ? this.maintPop(u, lang) : nothing}
         </div>
-      </aside>`;
+      </aside>
+      ${this.ticket ? html`<temp-ticket .unitId=${u.id} .eventId=${this.ticket.eventId} @close=${() => { this.ticket = null; }}
+          @done=${(e: CustomEvent<{ message: string }>) => { this.ticket = null; this.dispatchEvent(new CustomEvent('changed', { detail: e.detail.message })); }}></temp-ticket>` : nothing}`;
   }
 }
 

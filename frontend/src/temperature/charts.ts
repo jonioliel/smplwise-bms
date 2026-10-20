@@ -78,11 +78,23 @@ export interface BigChartData {
   t0: number;
   t1: number;
   step: number;
+  /** phase 3 (idea 10): other units drawn over this one (up to 2), in the same axis - shared degrees or normalized to each band */
+  overlays?: { id: string; name: string; points: [number, number][] }[];
+  /** the axis unit: '°' (degrees) or '' (normalized: 0 = low, 1 = high) */
+  axisUnit?: string;
 }
 
 export function bigFrame(dt: BigChartData, w: number, h: number): Frame {
   const sp = (dt.setpoints ?? []).filter((p) => p[1] !== null) as [number, number][];
-  return frameOf([...dt.points, ...sp], dt.low, dt.high, dt.t0, dt.t1, w, h, { ml: 36, mr: 10, mt: 10, mb: 24 });
+  const ov = (dt.overlays ?? []).flatMap((o) => o.points);
+  if (dt.axisUnit === '') {
+    // normalized: a fixed frame around 0..1 (the band), widened only by the data
+    const vs = [...dt.points, ...ov].map((p) => p[1]).filter((v) => Number.isFinite(v));
+    const lo = Math.min(-0.5, ...vs);
+    const hi = Math.max(1.5, ...vs);
+    return { t0: dt.t0, t1: dt.t1, lo: Math.floor(lo * 2) / 2, hi: Math.ceil(hi * 2) / 2, w, h, ml: 36, mr: 10, mt: 10, mb: 24 };
+  }
+  return frameOf([...dt.points, ...sp, ...ov], dt.low, dt.high, dt.t0, dt.t1, w, h, { ml: 36, mr: 10, mt: 10, mb: 24 });
 }
 
 /** The detail chart (hover handled by the caller through `hit`). x labels: hours for <= 1.5 days, else day.month. */
@@ -105,7 +117,7 @@ export function bigChart(dt: BigChartData, w: number, h: number, lang: string, c
   const ph = h - f.mt - f.mb;
   return html`<svg viewBox=${`0 0 ${w} ${h}`} role="img" aria-label=${tt('chartTitle')} dir="ltr">
     <defs><clipPath id=${id}><rect x=${f.ml} y="0" width=${pw} height=${band[0].toFixed(1)}></rect><rect x=${f.ml} y=${band[1].toFixed(1)} width=${pw} height=${h}></rect></clipPath></defs>
-    ${niceTicks(f.lo, f.hi).map((v) => svg`<line x1=${f.ml} x2=${w - f.mr} y1=${yOf(f, v).toFixed(1)} y2=${yOf(f, v).toFixed(1)} class="c-grid"></line><text x=${f.ml - 6} y=${yOf(f, v).toFixed(1)} class="c-ax" text-anchor="end" dominant-baseline="middle">${v}°</text>`)}
+    ${(dt.axisUnit === '' ? [0, 0.5, 1].filter((v) => v >= f.lo && v <= f.hi) : niceTicks(f.lo, f.hi)).map((v) => svg`<line x1=${f.ml} x2=${w - f.mr} y1=${yOf(f, v).toFixed(1)} y2=${yOf(f, v).toFixed(1)} class="c-grid"></line><text x=${f.ml - 6} y=${yOf(f, v).toFixed(1)} class="c-ax" text-anchor="end" dominant-baseline="middle">${v}${dt.axisUnit ?? '°'}</text>`)}
     <rect x=${f.ml} y=${band[0].toFixed(1)} width=${pw} height=${(band[1] - band[0]).toFixed(1)} class="c-band"></rect>
     ${dt.doors.map(([a, b]) => svg`<rect x=${xOf(f, a).toFixed(1)} y=${f.mt} width=${Math.max(2, xOf(f, b) - xOf(f, a)).toFixed(1)} height=${ph} class="c-door"></rect>`)}
     ${dt.defrost.map(([a, b]) => svg`<rect x=${xOf(f, a).toFixed(1)} y=${f.mt} width=${Math.max(1, xOf(f, b) - xOf(f, a)).toFixed(1)} height=${ph} class="c-defrost"></rect>`)}
@@ -113,6 +125,7 @@ export function bigChart(dt: BigChartData, w: number, h: number, lang: string, c
     <line x1=${f.ml} x2=${w - f.mr} y1=${band[1].toFixed(1)} y2=${band[1].toFixed(1)} class="c-edge"></line>
     ${xt.map((x) => svg`<text x=${xOf(f, x.t).toFixed(1)} y=${h - 6} class="c-ax" text-anchor="middle">${x.l}</text>`)}
     ${dt.setpoints?.length ? svg`<path d=${stepPath(dt.setpoints, f, Math.max(900, dt.step * 3))} class="c-sp big" fill="none"></path>` : nothing}
+    ${(dt.overlays ?? []).map((o, i) => svg`<path d=${linePath(o.points, f, Math.max(900, dt.step * 3))} class="c-ov big" data-ov=${i} fill="none"><title>${o.name}</title></path>`)}
     <path d=${d} class="c-line big" fill="none"></path>
     <path d=${d} class="c-out big" fill="none" clip-path=${`url(#${id})`}></path>
     ${cross ? svg`<line x1=${cross.x} x2=${cross.x} y1=${f.mt} y2=${h - f.mb} class="c-cross"></line>${cross.y !== null ? svg`<circle cx=${cross.x} cy=${cross.y} r="5" class="c-crossdot" stroke-width="2"></circle>` : nothing}` : nothing}

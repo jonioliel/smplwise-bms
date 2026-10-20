@@ -16,7 +16,8 @@
 #        fixture specs that need a fake backend (FIXTURE_SPECS: evidence-camera-card = SW_LIVE=1 SW_DEVICES_FIXTURE=1 against
 #                tests/fixtures/devices_fake_ha.py on a free port, its own empty data dir, torn down afterwards)
 #        pixel   toHaveScreenshot specs: the 'pixel-stable' tests run only when a *-linux.png baseline exists, else SKIPPED_NO_BASELINE
-#        rest    dist preview (vite preview on a free port), all three projects
+#        rest    dist preview (vite preview on a free port), all three projects; evidence specs reviewed in
+#                frontend/tests/gate_tablet_allowlist.json as 'desktop_mobile' skip the tablet project (E4; the nightly runs them all)
 #   4. RETRY: every failed test is re-run once alone (workers=1); passes on retry -> FLAKY (not a failure)
 #   5. ~/known_issues.json allowlist: listed failures are KNOWN, not FAIL (a known test is not retried)
 #   6. scripts/release_check.py from the worktree with the repo venv (right after the build; the fixture specs run before the
@@ -36,7 +37,7 @@
 # see scripts/gate/INSTALL_ON_RUNNER.md. The self-test is scripts/gate/selftest_gate.py.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,36p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,37p "$0"; exit 0;; esac
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 [ -f "$DIR/release_gate.py" ] || { echo "release_gate.py must sit next to release_gate.sh ($DIR)"; exit 2; }
 mkdir -p "$HOME/smplwise-results" "$HOME/work"

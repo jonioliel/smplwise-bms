@@ -8,6 +8,11 @@ import '../components/sw-icon';
 import '../components/sw-kpi';
 import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
 import type { Elevator } from '../api/elevators';
+import { refreshTemperatureVisibility } from '../temperature/access'; // CR-INFRA-TEMPERATURE phase 3: the home widget (idea 12)
+import type { TempUnit } from '../api/temperature';
+import { loadHomeGenerators } from '../generator/access'; // GENWIDGET 2.9.3: the home generator widget
+import { generatorsAvailable } from '../generator/home-widget-model';
+import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
 import '../components/sw-button';
 import './devices-bulk';
@@ -994,6 +999,14 @@ export class DevicesBuilding extends LitElement {
   @state() private elevators: Elevator[] | null = null;
   @state() private elevatorsStale = false;
   private elevatorsTimer?: number;
+  /** CR-INFRA-TEMPERATURE phase 3: the temperature units for the home widget (empty = no widget; the installation may switch it off). */
+  @state() private tempUnits: TempUnit[] = [];
+  @state() private tempStale = false;
+  @state() private tempWidget = false;
+  private tempTimer?: number;
+  /** GENWIDGET 2.9.3: the generators the viewer sees (empty = no widget at all). */
+  @state() private generators: LiveSummaryItem[] = [];
+  private generatorsTimer?: number;
   @state() private sync: HaSyncState | null = null;
   private stop: (() => void) | null = null;
   private timer = 0;
@@ -1270,7 +1283,8 @@ export class DevicesBuilding extends LitElement {
   /** The widget cards this render draws (edit mode adds the ghosts that say why a widget is not shown). */
   private widgetItems(t: DeviceTree, h: HomeView): WidgetItem[] {
     return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
-      elevatorsAvailable: !!this.elevators?.length });
+      elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
+      generatorsAvailable: generatorsAvailable(this.generators) });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1304,6 +1318,31 @@ export class DevicesBuilding extends LitElement {
     }
   }
 
+  /** CR-INFRA-TEMPERATURE phase 3 (idea 12): the units for the home widget - read once, then every 30 s only while at least one exists and the
+   * installation offers the widget (an installation without units asks once and never again; a failure shows nothing). */
+  private async loadTemperature() {
+    const r = await refreshTemperatureVisibility();
+    this.tempUnits = r?.units ?? [];
+    this.tempStale = r?.stale ?? false;
+    this.tempWidget = r?.home_widget !== false;
+    if (this.tempUnits.length && this.tempWidget && this.tempTimer === undefined && this.isConnected) {
+      this.tempTimer = window.setInterval(() => {
+        if (document.visibilityState === 'visible') void this.loadTemperature();
+      }, 30_000);
+    }
+  }
+
+  /** GENWIDGET 2.9.3: the generators for the home widget - read once, then every 30 s only while at least one exists (an installation without
+   * a generator, or a viewer without generator.view, asks once and never again; a failure shows nothing). */
+  private async loadGenerators() {
+    this.generators = await loadHomeGenerators();
+    if (generatorsAvailable(this.generators) && this.generatorsTimer === undefined && this.isConnected) {
+      this.generatorsTimer = window.setInterval(() => {
+        if (document.visibilityState === 'visible') void this.loadGenerators();
+      }, 30_000);
+    }
+  }
+
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
   private get isPhone(): boolean {
     return window.innerWidth <= PHONE_MAX_WIDTH;
@@ -1321,7 +1360,7 @@ export class DevicesBuilding extends LitElement {
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
     return html`<home-widgets layout=${layout} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
-      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale}
+      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators}
       @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }
 
@@ -1367,7 +1406,7 @@ export class DevicesBuilding extends LitElement {
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []}
+    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>`;
   }
 
@@ -2361,6 +2400,8 @@ export class DevicesBuilding extends LitElement {
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     void this.loadMediaScreens();
     void this.loadElevators();
+    void this.loadTemperature();
+    void this.loadGenerators();
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
     this.registerView();
     void this.prefsReady.then(() => this.registerView()); // K88: the plan view appears once plan.surfaces says so
@@ -2427,6 +2468,10 @@ export class DevicesBuilding extends LitElement {
     this.noteTimer = this.fitTimer = 0;
     window.removeEventListener('resize', this.onResize);
     window.clearInterval(this.elevatorsTimer);
+    window.clearInterval(this.tempTimer);
+    this.tempTimer = undefined;
+    window.clearInterval(this.generatorsTimer);
+    this.generatorsTimer = undefined;
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     this.offView?.();
     this.offView = null;

@@ -678,7 +678,7 @@ def test_templates_are_well_formed():
     import string
     import unicodedata
     langs = {"he", "en", "ar", "ru"}
-    for table in (ag.NOTICE_TEXT, ag.NOTICE_ATTEST, ag.TEMPLATES, ag.HOURS_PHRASE):
+    for table in (ag.NOTICE_TEXT, ag.NOTICE_ATTEST, ag.NOTICE_SHORT, ag.TEMPLATES, ag.HOURS_PHRASE):
         assert set(table) == langs
         for text in table.values():
             assert not [c for c in text if unicodedata.category(c) in ("Cc", "Cf")]
@@ -687,6 +687,17 @@ def test_templates_are_well_formed():
         names = [f for _, f, _, _ in string.Formatter().parse(text) if f is not None]
         assert sorted(names) == ["code", "dates", "doors", "hours", "ref"]
         assert "http" not in text and "www" not in text and "/" not in text
+
+
+def test_the_notice_texts_are_in_their_own_language_and_link_free():
+    import re
+    for table in (ag.NOTICE_TEXT, ag.NOTICE_ATTEST, ag.NOTICE_SHORT):
+        for lang, text in table.items():
+            assert "http" not in text and "www" not in text and "{" not in text, (lang, text)
+            assert bool(re.search("[֐-׿]", text)) == (lang == "he"), lang  # Hebrew letters only in the Hebrew text
+            assert bool(re.search("[؀-ۿ]", text)) == (lang == "ar"), lang
+            assert bool(re.search("[Ѐ-ӿ]", text)) == (lang == "ru"), lang
+    assert "مدير المبنى" in ag.NOTICE_SHORT["ar"] and "управляющ" in ag.NOTICE_SHORT["ru"]
 
 
 @pytest.mark.parametrize("lang,phrase", [("he", "משעה"), ("en", "08:00-17:00"), ("ar", "من 08:00 حتى 17:00"), ("ru", "с 08:00 до 17:00")])

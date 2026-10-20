@@ -265,7 +265,7 @@ test('navigation: "בקשות הצעת מחיר" is a tab of the area before the
   const tab = TICKETS_TABS.find((t) => t.id === 'rfqs');
   expect(tab?.href).toBe(TICKETS_RFQS_HREF);
   expect(tab?.label).toBe('בקשות הצעת מחיר');
-  expect(TICKETS_TABS.at(-1)?.id).toBe('accounts');
+  expect(TICKETS_TABS.at(-2)?.id).toBe('accounts'); // SHAREDID-293: "גישת חוץ" follows, offered only when the owner places it here
   expect(TAB_PERMISSIONS[TICKETS_RFQS_HREF]).toEqual(['tickets.external', 'tickets.costs']);
   expect(activeAreaTab({ path: '/tickets/rfqs', mode: 'tickets', segments: ['tickets', 'rfqs'], params: new URLSearchParams('rfq=r1') } as never)).toBe('rfqs');
 });

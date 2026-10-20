@@ -12,6 +12,8 @@ export class SwDialog extends LitElement {
   @property({ type: Boolean }) locked = false;
   /** A wider box (up to 720px) for text the person reads and copies. */
   @property({ type: Boolean, reflect: true }) wide = false;
+  /** ACCESSREQ-293: an extra-wide box (up to 1120px) for a two-column form; the body scrolls, the footer stays. */
+  @property({ type: Boolean, reflect: true }) xl = false;
   /** The footer only when something is slotted into it (re-review low). */
   @state() private hasFooter = false;
 
@@ -46,6 +48,13 @@ export class SwDialog extends LitElement {
     }
     :host([wide]) .box {
       inline-size: min(720px, 100%);
+    }
+    :host([xl]) .box {
+      inline-size: min(1120px, 100%);
+    }
+    :host([xl]) .body {
+      padding-inline: 20px;
+      gap: 14px;
     }
     header {
       display: flex;

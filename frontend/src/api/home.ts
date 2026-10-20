@@ -159,7 +159,7 @@ export function personalOf(raw: unknown): HomePersonal {
     const entry: PersonalWidget = {};
     if (typeof x.on === 'boolean') entry.on = x.on;
     if (SIZES.includes(x.size as Size)) entry.size = x.size as Size;
-    if (id === 'elevators') {
+    if (id === 'elevators' || id === 'temperature') { // CR-INFRA-TEMPERATURE phase 3: the temperatures widget has the same choices
       if (ELEVATOR_MODES.includes(x.mode as ElevatorMode)) entry.mode = x.mode as ElevatorMode;
       if (Array.isArray(x.hidden)) entry.hidden = elevatorIds(x.hidden);
     }

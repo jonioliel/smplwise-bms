@@ -17,6 +17,7 @@ import { productSettings } from '../api/prefs';
 import { getDevicesTree } from '../api/devices';
 import { currentSubscription, endpointHash, listSubscriptions, pushSupport, type PushSupport } from '../pwa/push';
 import { applyMediaGlass } from '../styles/media-glass';
+import { applyDevicesScheme } from '../screens/devices-style';
 import { applyLiveEvent, replaceRow } from './notify-logic';
 
 export type StorePhase = 'idle' | 'loading' | 'ready' | 'error';
@@ -68,7 +69,7 @@ export function readScenario(): MockScenario | null {
 export async function applyNotifyGlass(host: HTMLElement): Promise<void> {
   await applyMediaGlass(host);
   const sc = readScenario();
-  if (!isApi() && sc?.scheme && host.isConnected) host.setAttribute('data-devices-scheme', sc.scheme);
+  if (!isApi() && sc?.scheme && host.isConnected) applyDevicesScheme(host, sc.scheme); // BGFIX-293: through the shared setter (scheme + own-backdrop flag)
 }
 
 type Listener = (s: NotifyState) => void;

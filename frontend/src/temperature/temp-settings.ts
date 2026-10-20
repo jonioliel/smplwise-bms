@@ -1,7 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { getAlertSettings, getSettings, putAlertSettings, putSettings, type AlertChannel, type AlertKind, type AlertSettings, type SettingsResponse } from '../api/temperature';
+import { getAlertSettings, getSettings, putAlertSettings, putSettings, type AlertChannel, type AlertKind, type AlertSettings, type Escalation, type SettingsResponse } from '../api/temperature';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 
@@ -13,9 +14,16 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
   { title: 'defrost', keys: [['defrost_suppress', 'defrostSuppress'], ['exclude_defrost_stats', 'excludeStats'], ['defrost_hard_margin', 'hardMargin'], ['learn_days', 'learnDays'],
     ['learn_min_repeats', 'learnRepeats'], ['defrost_max_min', 'defrostMax']] },
   { title: 'groupClimate', keys: [['setpoint_tolerance', 'tolerance'], ['alert_when_off', 'alertWhenOff']] },
+  // phase 3 (owner 2026-10-20: every capability a setting)
+  { title: 'setPredict', keys: [['predict_enabled', 'predictEnabled'], ['predict_horizon_min', 'predictHorizon'], ['predict_warn', 'predictWarn'], ['predict_warn_min', 'predictWarnMin']] },
+  { title: 'setMaint', keys: [['maintenance_includes_alarms', 'maintAlarms'], ['maintenance_max_min', 'maintMax'], ['escalation_enabled', 'escalationUnit']] },
+  { title: 'setHealth', keys: [['health_warn', 'healthWarn'], ['battery_low_pct', 'batteryLow'], ['frozen_min', 'frozenMin'], ['signal_weak_dbm', 'signalWeak'],
+    ['recovery_slow_min', 'recoverySlow'], ['recovery_alert', 'recoveryAlert'], ['compressor_on_w', 'compressorOnW'], ['duty_rise_pts', 'dutyRise'], ['duty_alert', 'dutyAlert']] },
+  { title: 'setScreen', keys: [['grid_grouping', 'gridGrouping'], ['home_widget', 'homeWidgetSet'], ['ticket_department_id', 'ticketDeptSet'], ['ticket_attach_chart', 'ticketChartSet']] },
   { title: 'retention', keys: [['retention_days', 'retention']] },
 ];
-const KIND_LABEL: Record<AlertKind, TtKey> = { alarm: 'kindAlarm', warning: 'kindWarning', offline: 'kindOffline' };
+const KIND_LABEL: Record<AlertKind, TtKey> = { alarm: 'kindAlarm', warning: 'kindWarning', offline: 'kindOffline', health: 'kindHealth' };
+const CHOICE_LABEL: Record<string, TtKey> = { area: 'grpArea', none: 'grpNone' };
 const CH_LABEL: Record<AlertChannel, TtKey> = { push: 'chPush', app: 'chApp', email: 'chEmail', whatsapp: 'chWhatsapp' };
 
 /**
@@ -29,6 +37,8 @@ export class TempSettings extends LitElement {
   @state() private s: SettingsResponse | null = null;
   @state() private draft: Record<string, Val> = {};
   @state() private alerts: AlertSettings | null = null;
+  /** phase 3 (idea 4): the escalation chain being edited (saved as a whole) */
+  @state() private esc: Escalation | null = null;
   @state() private err = '';
   @state() private ok = '';
   @state() private busy = false;
@@ -41,6 +51,10 @@ export class TempSettings extends LitElement {
     .row input[type='number'] { inline-size: 84px; }
     .row input { min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     .row input[type='checkbox'] { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
+    .row select { min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
+    .row input.idin { inline-size: 140px; direction: ltr; }
+    .step { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--sw-fs-sm); }
+    .step input[type='number'] { inline-size: 70px; min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     h4 { margin: 10px 0 4px; }
     .kind { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 8px; }
     .kind[data-on='false'] .body { opacity: 0.55; }
@@ -66,9 +80,50 @@ export class TempSettings extends LitElement {
     }
     try {
       this.alerts = await getAlertSettings();
+      this.esc = this.alerts.escalation ? structuredClone(this.alerts.escalation) : null;
     } catch {
       this.alerts = null;
     }
+  }
+
+  private async saveEscalation() {
+    if (!this.alerts || !this.esc) return;
+    this.err = '';
+    this.ok = '';
+    try {
+      this.alerts = await putAlertSettings({ escalation: this.esc, row_version: this.alerts.row_version });
+      this.esc = this.alerts.escalation ? structuredClone(this.alerts.escalation) : null;
+      this.ok = tt('saved');
+    } catch (e) {
+      this.err = describeError(e);
+    }
+  }
+
+  /** Idea 4: the chain - on / off, its channels, and per step "after N minutes" + the roles of that tier. */
+  private escalationEditor(a: AlertSettings) {
+    const e = this.esc;
+    if (!e) return nothing;
+    const ro = !a.can_edit;
+    const max = a.steps_max ?? 4;
+    const setStep = (i: number, patch: Partial<Escalation['steps'][number]>) => { this.esc = { ...e, steps: e.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }; };
+    return html`<div class="kind" data-on=${String(e.enabled)} data-temp-escalation>
+      <label class="sw"><input type="checkbox" .checked=${e.enabled} ?disabled=${ro} @change=${(ev: Event) => { this.esc = { ...e, enabled: (ev.target as HTMLInputElement).checked }; }} /><b>${tt('escTitle')}</b></label>
+      <p class="hint" style="margin:0">${tt('escIntro')}</p>
+      <div class="body" style="display:grid;gap:8px">
+        ${e.steps.map((s, i) => html`<div class="step" data-esc-step=${i}><span>${tt('escStep', { n: i + 1 })}</span>
+          <input type="number" min="1" max="1440" .value=${String(s.after_min)} ?disabled=${ro} aria-label=${tt('minutes')}
+            @change=${(ev: Event) => setStep(i, { after_min: Math.max(1, Math.min(1440, Math.round(Number((ev.target as HTMLInputElement).value)))) })} /><span>${tt('minutes')}</span>
+          <span class="opts">${a.roles.map((r) => html`<label class="sw"><input type="checkbox" .checked=${s.recipients.roles.includes(r.id)} ?disabled=${ro}
+            @change=${(ev: Event) => setStep(i, { recipients: { ...s.recipients, roles: (ev.target as HTMLInputElement).checked ? [...s.recipients.roles, r.id] : s.recipients.roles.filter((x) => x !== r.id) } })} />${r.label}</label>`)}</span>
+          ${ro ? nothing : html`<button type="button" class="btn sm ghost" aria-label=${tt('escRemove')} @click=${() => { this.esc = { ...e, steps: e.steps.filter((_x, j) => j !== i) }; }}><sw-icon name="close" size="14"></sw-icon></button>`}</div>`)}
+        <div class="opts">${a.channels.map((c) => html`<label class="sw"><input type="checkbox" .checked=${e.channels.includes(c)} ?disabled=${ro}
+          @change=${(ev: Event) => { this.esc = { ...e, channels: (ev.target as HTMLInputElement).checked ? [...e.channels, c] : e.channels.filter((x) => x !== c) }; }} />${tt(CH_LABEL[c])}</label>`)}</div>
+        ${ro ? nothing : html`<div class="bar">${e.steps.length < max ? html`<button type="button" class="btn sm" data-esc-add @click=${() => {
+          const last = e.steps[e.steps.length - 1]?.after_min ?? 0;
+          this.esc = { ...e, steps: [...e.steps, { after_min: Math.min(1440, last + 30), recipients: { roles: ['system_admin'], users: [], groups: [] } }] };
+        }}><sw-icon name="plus" size="14"></sw-icon>${tt('escAdd')}</button>` : nothing}
+          <button type="button" class="btn pri sm" data-esc-save @click=${() => this.saveEscalation()}>${tt('escSave')}</button></div>`}
+      </div></div>`;
   }
 
   private async save() {
@@ -104,6 +159,13 @@ export class TempSettings extends LitElement {
     if (!spec) return nothing;
     if (spec.type === 'bool') return html`<input type="checkbox" .checked=${Boolean(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).checked }; }} />`;
     if (spec.type === 'hhmm') return html`<input type="time" .value=${String(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value }; }} />`;
+    if (spec.type === 'choice') {
+      return html`<select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
+        ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${CHOICE_LABEL[c] ? tt(CHOICE_LABEL[c]) : c}</option>`)}</select>`;
+    }
+    if (spec.type === 'id') {
+      return html`<input type="text" maxlength="64" class="idin" .value=${String(v ?? '')} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value.trim() }; }} />`;
+    }
     return html`<input type="number" .value=${String(v)} min=${spec.min ?? ''} max=${spec.max ?? ''} step=${spec.type === 'float' ? '0.1' : '1'} data-set=${key}
       @change=${(e: Event) => { const n = Number((e.target as HTMLInputElement).value); this.draft = { ...this.draft, [key]: spec.type === 'int' ? Math.round(n) : n }; }} />`;
   }
@@ -124,7 +186,7 @@ export class TempSettings extends LitElement {
               @change=${(e: Event) => this.saveAlert(k, { recipients: { ...s.recipients, roles: (e.target as HTMLInputElement).checked ? [...s.recipients.roles, r.id] : s.recipients.roles.filter((x) => x !== r.id) } })} />${r.label}</label>`)}</div>
             <div class="opts">${a.channels.map((c) => html`<label class="sw"><input type="checkbox" .checked=${s.channels.includes(c)} ?disabled=${!a.can_edit}
               @change=${(e: Event) => this.saveAlert(k, { channels: (e.target as HTMLInputElement).checked ? [...s.channels, c] : s.channels.filter((x) => x !== c) })} />${tt(CH_LABEL[c])}</label>`)}</div></div></div>`;
-        })}</div></div>` : nothing}`;
+        })}${this.escalationEditor(a)}</div></div>` : nothing}`;
   }
 }
 

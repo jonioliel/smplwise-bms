@@ -405,3 +405,102 @@ New test file: `smplwise_vms/backend/tests/test_wiskeyarx_291.py`.
 - **ARX-N08 (joint acceptance test plan) - NOT DONE.** Waits for a separate permit.
 
 Runtime status: everything above ran against fakes only; lab / WisKey interoperability NOT_RUN.
+
+## PERMOVR-293 (2026-10-20) - owner decisions of 2026-10-20 08:10 (WisKey Q1-Q3), branch pilot/PERMOVR-293
+
+- **Q2: per-person permission overrides are stations of the person in the write gate.** Root cause: the closed superset projection
+  (`intercom_adapter.project_person`) dropped `permission_overrides` entirely, so `intercom_writes.check_person` computed "every station of
+  the person before the change" from the assignments alone. A personal override on a station outside the writer's chain - typically a
+  deny, which leaves no assignment there - was never checked; since WisKey's `users/update` replaces the COMPLETE overrides dict, a manager
+  scoped to station A could save a person and silently drop (or rewrite) that person's deny on station B. Fix: the superset carries
+  `override_stations` (the keys only, allow and deny alike; never the values), None when the overrides are withheld, missing, not a map or
+  have any malformed entry. `intercom_authority.person_gate_station_ids` = assignments + override stations (None when either is unknown).
+  `check_person` adds them to the person's stations: each is decided by `Authority.station` (`rbac.authorize`, deny-overrides on the
+  station chain - an explicit deny binding of the writer on that station refuses even with an allow elsewhere); unknown overrides refuse
+  anyone not unrestricted (fail closed). The visibility decision (uniform 404) is still taken on the assignments first, so the overrides
+  give no existence oracle. A people view's `editable` uses the same set, so the UI and the gate agree. No migration.
+- **Q1 kept as built:** visibility still uses `person_station_ids` only; a malformed / incomplete record stays hidden from a restricted
+  operator, and an override never makes a person visible or hidden (test-pinned).
+- **Q3: audit of every rejection of the recovered-person attach helper - not built, by the owner's condition.** `_attach_recovered_person`
+  still has no caller in the product: none on `origin/main` (test-enforced in `test_wiskey_final3_281.py`) and none on any pushed branch
+  (checked 2026-10-20 with `git grep` across every `origin/*` ref). The audit of its rejections is added together with the first caller (the
+  reviewed system-administrator route of owner item 7, 2026-10-20 night).
+- Tests: `tests/test_permovr_293.py` (end to end over the stateful fake WisKey and the station scope double, plus units); the round-5 unit
+  helper `_superset` in `test_wiskey_final281.py` now states `override_stations: []` (a complete superset carries it). NOT_RUN against any
+  WisKey, station or door.
+
+## SHAREDID-293 - the shared identity screen (owner decisions 2026-10-20, pilot/SHAREDID-293)
+
+Server (`services/access_external.py`, hooks in `services/access_grants.py`, routes in `routers/access_grants.py`) and the screen
+(`frontend/src/screens/access-external.ts`, `frontend/src/access-external/`). Mockup: private/planning/mockup_shared_identity_2026-10-20.
+Migration **0126_access_external_identity** (built as PROVISIONAL 0128; renumbered at the 2.9.3 integration, integ/293).
+
+- **Decision 1 - "WisKey" in the UI.** Every text of the screen and the identity card names WisKey, never "the intercom system" (a unit test
+  scans the four languages).
+- **Decision 2 - "Active - verified" only with stored read-back proof.** This supersedes the R6-A3 "never label verified" choice above with
+  its stronger option: `access_grants.scope_proof` (sha256 of the scope) + `scope_proof_at` are written in the same transaction as every
+  verdict a FRESH read that satisfies `scope_proven` backs (an unknown outcome settled, a narrowing pushed) and by the hourly
+  `verify_pass` (a read only, never a write; compare-and-set on the row revision, which the pass does not bump). `scope_is_proven(g)`:
+  active, no push outstanding, stored digest == digest of the scope now - so any scope change invalidates it and legacy rows are unproven
+  until read. Only then `scope_verified: true` and `doors_state: verified_central` (the central record; never a station claim). A mismatch
+  clears the proof and is audited (`access.grant.verify` outcome `mismatch`) - a digest gap. A person not found on the verify read withdraws
+  the authority (`revoking`, `wiskey_missing`), the R3 rule.
+- **Decision 3 - manual "confirmed gone".** `POST /access-grants/{id}/confirm-gone`: an interactive system administrator, a grant in
+  `revoking` whose link is `wiskey_missing`, three ticked checks, the typed word (נמחק) and an 8..128-character reference without a phone
+  number. The grant ends as `ended` (never `revoked`) with an `access_grant_closures` row; the hourly alerts stop; every manager gets
+  `access.grant_closed_manual`. The reference is kept in the closure row only (the audit has ids) and shown to system administrators
+  only. `watch_gone` reads the person once an hour: found again -> `reappeared_at`, an attention notice at once, and the grant goes back to
+  `revoking` (when the subject has no other live grant and the link exists) so the normal strip runs.
+- **Decision 4 - weekly digest.** Source `access.weekly_digest` (managers, content-free: "a new digest is ready"); the channel setting IS
+  that source's notification policy (`app` = app + phone, `app_whatsapp` adds WhatsApp); day/hour settings (default Sunday 08:00, the
+  installation zone, DST-safe); sent once per period, a period more than 6 h late is skipped (audited), never a burst. `GET
+  /access-grants/digest`: the last full period over the grants the caller may see (counts, slow revocations > 2 min, approvers, gaps:
+  name drift, scope mismatch, persons Arx created with no live grant). WisKey's own name values are never stored (digests only), so a
+  name gap says only that the names differ.
+- **Decision 5 - name drift.** `access_person_links.name_seen` / `name_pushed` (digests). `POST /access-grants/links/{id}/push-name`
+  (people.manage on every station of the live grant, installation-wide when none; interactive; a person Arx created only) and the
+  automatic push (`name_sync` = auto; retried after 15 minutes when it did not land). A matched person is never renamed.
+- **Decision 6 - placement.** `access.external.placement` (access | tickets | both), readable by everyone in GET /settings, written only by a
+  system administrator through PUT /access-grants/settings; the tab follows (`shell/nav.ts`), notification links follow.
+- **Decision 7 - attach a recovered person.** `POST /access-grants/{id}/attach-recovered` over the private helper (unchanged guards):
+  system administrators, interactive; every refusal - the helper's included - is audited with its code (owner Q3 of 08:10). The identity
+  card shows the op id to system administrators only. The R6-A5 "no product caller" test now pins this route as the ONE caller.
+- **Extended service identity stays LOCKED** (shown as a locked row; nothing here touches it).
+- Not built in this slice: the manual "request access" form (no approved design for its dialog; requests arrive from the vendor page),
+  an "offline" banner (the list endpoint carries no WisKey connectivity signal), the 75 s hold countdown of the mockup's unknown state
+  (the worker keeps its own holds; "read back now" asks the worker), per-grant audit history (the drawer derives "what happened" from
+  the row's instants).
+
+## ACCESSREQ-293 - the manual "request access" form (pilot/ACCESSREQ-293, on pilot/SHAREDID-293)
+
+Built from the owner-approved mockup `private/planning/mockup_access_request_2026-10-20` (approved as designed, 2026-10-20) and the
+owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERMITTED` stays False; tests use fakes only.
+
+- **Decision (a) - a second person approves.** `access_grants.approve` refuses the person who asked for the scope awaiting a decision
+  (`403 access_grant_self_approval`, audited `self_approval`), before any WisKey read; a system administrator may approve his own request.
+  Who asked: the new column `scope_requested_by` (the request, a replacement of a still-requested scope, a widening); a still-requested
+  grant blocks both its creator and whoever last replaced its scope. Fail closed: an unreadable system-administrator answer refuses. The
+  list carries `self_requested` and the drawer hides the approve action from that person (the server refuses anyway).
+- **Decision (b) - doors for a manager who may only request.** `services/access_request.py` `Rights`: per station `request` = the three
+  approve permissions OR the grant permission on it OR (tickets.manage + tickets.external AND the station is an "entrance for external
+  people" or is placed in the ticket's building). Enforced where the request is stored (`403 access_grant_station_not_allowed`), not
+  only in the form.
+- **Decision (c)** - the name push stays manual by default (`name_sync` default `manual`; unchanged, pinned by a test).
+- Routes: `GET /access-grants/grantable-doors?ticket_id=` (the served WisKey copy's stations and doors, the caller's rights, `as_of` /
+  `reachable`), `GET /access-grants/approvers?stations=&credential=` (display names of who holds the approve permissions on every
+  chosen station; the caller only when a system administrator), `GET /access-grants/notice?lang=` (`notice_text`, so the organisation
+  name stays in sync). `POST /access-grants` gains `purpose` (<= 200, one line), `notes` (internal, <= 1000; never in a message, never
+  audited, never sent to WisKey), `told` (stored as an `access_grant_notices` row `via = 'requester'`, so the approver need not tick
+  again) and `approve_now` (checked BEFORE anything is stored: interactive, local rule, decision (a), the approve permissions, the notice
+  tick, a confirmed number for a code; then the existing approve runs - a refusal at that point keeps the request, tells the approvers
+  and answers `approval: {approved: false, code, message}`). `GET /access-grants` gains `may_request`.
+- Migration `0127_access_request_form.sql` (built as PROVISIONAL 0130; renumbered at the 2.9.3 integration, integ/293): three nullable columns on
+  `access_grants` (`purpose`, `notes`, `scope_requested_by`) and `access_grant_notices` rebuilt with `via IN ('page', 'approver',
+  'requester')` (rows copied). Rollback: older code ignores the columns; a `requester` row reads as "a notice exists".
+- UI: `access-external/request-dialog.ts` (the form), `request-model.ts` (pure logic, unit-tested), `i18n/access-request.ts`
+  (he/en + ar/ru dev-marked, parity test), `sw-dialog` gains `xl`. A new person is created through `POST /tickets/contacts` and gets
+  the existing confirmation code (`phone-verify/send`); the directory and that send keep their own permissions (a pure approver
+  without directory rights sees "you cannot open the directory" and can add a new person only where the contacts route allows it).
+- Not built: auto-approval rules (none exist; shown as "None"), the English/Arabic/Russian evidence screenshots (the screen follows the
+  document language; the evidence set is Hebrew), the 14-day window across a DST change is held at 14 x 24 h (the last day ends an hour
+  early) rather than refused.

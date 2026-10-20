@@ -73,8 +73,8 @@ test('a climate unit shows its mode / action and setpoint; off is its own grey s
 
 test('KPIs count by status; door open now; a stale list counts nothing as healthy; off counts with OK', () => {
   const list = [unit({ id: 'a' }), unit({ id: 'b', status: 'alarm', door: { open: true, since: iso(1), sensor_name: '' } }), unit({ id: 'c', status: 'offline' }), unit({ id: 'd', status: 'off' })];
-  expect(kpisOf(list, false)).toEqual({ total: 4, ok: 2, warning: 0, alarm: 1, door: 1, offline: 1 });
-  expect(kpisOf(list, true)).toEqual({ total: 4, ok: 0, warning: 0, alarm: 0, door: 0, offline: 0 });
+  expect(kpisOf(list, false)).toEqual({ total: 4, ok: 2, warning: 0, alarm: 1, door: 1, offline: 1, health: 0 }); // phase 3: + sensor health
+  expect(kpisOf(list, true)).toEqual({ total: 4, ok: 0, warning: 0, alarm: 0, door: 0, offline: 0, health: 0 });
   expect(list.filter((u) => matchesKpi(u, 'door', false)).map((u) => u.id)).toEqual(['b']);
   expect(list.filter((u) => matchesKpi(u, 'ok', false)).map((u) => u.id)).toEqual(['a', 'd']);
   expect(list.filter((u) => matchesKpi(u, null, false))).toHaveLength(4);

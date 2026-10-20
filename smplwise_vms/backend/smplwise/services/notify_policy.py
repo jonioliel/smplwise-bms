@@ -94,6 +94,12 @@ SOURCES: tuple[Source, ...] = (
        resolve_text="הטמפרטורה חזרה לטווח"),
     _s("temperature.offline", "טמפרטורה: חיישן לא מדווח", "device_faults", "alert", "חיישן טמפרטורה לא מדווח", "{name}: {detail}.", who="temperature", push=False,
        subject="temperature", resolve_text="החיישן חזר לדווח"),
+    # phase 3: sensor health (a low battery, a frozen reading) and a suspected cooling fault (slow recovery, a rising duty cycle) - a WARNING
+    # class; and the escalation chain of an unacknowledged alarm (each step to its own tier; critical, never held by quiet hours)
+    _s("temperature.health", "טמפרטורה: תקינות חיישן ויחידה", "device_faults", "alert", "בעיה ביחידת טמפרטורה", "{name}: {detail}.", who="temperature",
+       push=False, subject="temperature", resolve_text="הבעיה נפתרה"),
+    _s("temperature.escalation", "טמפרטורה: הסלמת אזעקה", "device_faults", "critical", "אזעקת טמפרטורה לא אושרה", "{name}: {detail}.", who="temperature",
+       subject="temperature", resolve_notice=True, resolve_text="האזעקה אושרה או הסתיימה", app=True),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
@@ -143,6 +149,13 @@ SOURCES: tuple[Source, ...] = (
     _s("access.grant_attention", "גישה זמנית דורשת טיפול", "security", "alert", "גישה זמנית דורשת טיפול",
        "קוד לא נמסר, ביטול ממתין לאישור מערכת הכניסה או הפעלה שנכשלה. פרטים במסך הגישות הזמניות.", window_s=600, who="managers", subject="system",
        resolves=False),
+    # SHAREDID-293 (owner decisions 3 and 4, 2026-10-20): the manual "confirmed gone" closure is told to every manager; the weekly digest
+    # is a notice only ("a new digest is ready") - in the app and on the phone by default, WhatsApp when the digest's channel setting says so.
+    # Content-free like the two above: the screen carries the names.
+    _s("access.grant_closed_manual", "ביטול גישה נסגר באישור ידני", "security", "alert", "ביטול גישה נסגר באישור ידני",
+       "מנהל מערכת אישר ידנית שאדם אינו קיים עוד במערכת הכניסה וסגר את הביטול. פרטים במסך גישת חוץ.", who="managers", subject="system", resolves=False),
+    _s("access.weekly_digest", "סיכום שבועי של גישת חוץ", "security", "info", "סיכום שבועי של גישת חוץ",
+       "יש סיכום שבועי חדש. הפרטים במסך גישת חוץ.", who="managers", subject="system", resolves=False, app=True),
     # NEEDSREVIEW (2.8.0, lead decision 6): the yearly privacy reminder - once in January when the "needs review" report is not empty
     # (services/needs_review.py). Content-free: a count only, never a name or a number; the review and every deletion stay manual.
     _s("privacy.needs_review", "תזכורת שנתית: דוח דורש בחינה", "security", "info", "דוח דורש בחינה",

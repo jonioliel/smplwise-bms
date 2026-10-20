@@ -20,12 +20,17 @@ export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
 export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
 
-export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators';
+export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
  * BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way. */
 // CR-INFRA-ELEVATORS 2.8.0 (decision 10b): `elevators` is appended the same way; it is drawn only once the viewer sees at least one elevator.
-export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות' };
+// CR-INFRA-TEMPERATURE phase 3 (idea 12): `temperature` is appended the same way; drawn only once the viewer sees a unit (and the installation
+// setting `home_widget` is on). It has the elevators' shape: how (combined / cards / both), which units are left out, all states or alerts.
+// GENWIDGET 2.9.3: `generators` is appended the same way; it is drawn only once the viewer sees at least one generator (no options of its own).
+export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators'];
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור' };
+/** The infrastructure-list widgets (the same mode / hidden / filter shape). */
+export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
 export type ElevatorMode = 'combined' | 'cards' | 'both';
 export type ElevatorFilter = 'all' | 'alerts';
@@ -160,8 +165,12 @@ export interface HomeConfig {
   agenda: AgendaCfg;
   launcher: LauncherCfg;
   elevators: ElevatorsCfg;
+  temperature: TemperatureCfg;
+  generators: CommonCfg;
   calendar: CalendarCfg;
 }
+/** CR-INFRA-TEMPERATURE phase 3: the temperatures widget (unit ids left out in `hidden`). */
+export type TemperatureCfg = ElevatorsCfg;
 export interface ElevatorsCfg extends CommonCfg {
   mode: ElevatorMode;
   /** elevator ids left out of the home screen */
@@ -179,6 +188,8 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
   agenda: { a: 'm', b: 'm', c: 'm' },
   launcher: { a: 'm', b: 's', c: 'm' },
   elevators: { a: 'm', b: 's', c: 'm' },
+  temperature: { a: 'm', b: 's', c: 'm' },
+  generators: { a: 'm', b: 's', c: 'm' },
 };
 
 export function defaultConfig(): HomeConfig {
@@ -195,6 +206,8 @@ export function defaultConfig(): HomeConfig {
     agenda: { ...base('agenda'), calendars: [], days: 7 },
     launcher: { ...base('launcher'), items: [] },
     elevators: { ...base('elevators'), mode: 'combined', hidden: [], filter: 'all' },
+    temperature: { ...base('temperature'), mode: 'combined', hidden: [], filter: 'all' },
+    generators: base('generators'),
     calendar: { date: '', parsha: '', candles: '', havdalah: '', holiday: '', extras: [] },
   };
 }
@@ -236,6 +249,7 @@ export function configOf(raw: unknown): HomeConfig {
   const agenda = isObj(o.agenda) ? o.agenda : {};
   const launcher = isObj(o.launcher) ? o.launcher : {};
   const elev = isObj(o.elevators) ? o.elevators : {};
+  const temp = isObj(o.temperature) ? o.temperature : {};
   const cal = isObj(o.calendar) ? o.calendar : {};
   const sources: Partial<Record<WeatherField, string>> = {};
   if (isObj(weather.sources)) for (const f of WEATHER_SOURCE_FIELDS) if (typeof weather.sources[f] === 'string' && weather.sources[f]) sources[f] = weather.sources[f] as string;
@@ -261,6 +275,8 @@ export function configOf(raw: unknown): HomeConfig {
     agenda: { ...commonOf(o.agenda, 'agenda'), calendars, days: AGENDA_DAYS.includes(agenda.days as AgendaDays) ? (agenda.days as AgendaDays) : 7 },
     launcher: { ...commonOf(o.launcher, 'launcher'), items },
     elevators: { ...commonOf(o.elevators, 'elevators'), mode: pick(elev.mode, ELEVATOR_MODES, 'combined'), hidden: elevatorIds(elev.hidden), filter: pick(elev.filter, ELEVATOR_FILTERS, 'all') },
+    temperature: { ...commonOf(o.temperature, 'temperature'), mode: pick(temp.mode, ELEVATOR_MODES, 'combined'), hidden: elevatorIds(temp.hidden), filter: pick(temp.filter, ELEVATOR_FILTERS, 'all') },
+    generators: commonOf(o.generators, 'generators'),
     calendar: {
       date: str(cal.date),
       parsha: str(cal.parsha),
@@ -509,6 +525,11 @@ export interface ResolveOpts {
   /** CR-INFRA-ELEVATORS 2.8.0: the viewer sees at least one elevator. Anything but `true` (none, no permission, not read yet) = the elevators
    * widget is ABSENT, in edit mode too (no ghost: an installation without elevators never hears of the module). */
   elevatorsAvailable?: boolean;
+  /** CR-INFRA-TEMPERATURE phase 3: the viewer sees at least one unit and the installation offers the widget; anything else = ABSENT. */
+  temperatureAvailable?: boolean;
+  /** GENWIDGET 2.9.3: the viewer sees at least one generator (generator.view and a detected generator). Anything but `true` = the generators
+   * widget is ABSENT, in edit mode too (no ghost: an installation without a generator never hears of it). */
+  generatorsAvailable?: boolean;
 }
 
 /** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
@@ -530,6 +551,8 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
   for (const id of cfg.order) {
     const w = cfg[id];
     if (id === 'elevators' && opts.elevatorsAvailable !== true) continue;
+    if (id === 'temperature' && opts.temperatureAvailable !== true) continue;
+    if (id === 'generators' && opts.generatorsAvailable !== true) continue;
     let avail: Avail = 'ok';
     if (!widgetOn(w, !!opts.phone)) avail = 'off';
     else if (id === 'weather') {

@@ -249,9 +249,15 @@ def _privacy_variant(conn, target: Mapping[str, Any]) -> dict[str, Any]:
     the fixed text exactly as before."""
     if target.get("user_id"):
         return {}
+    from ..access_grants import is_technician
     from ..privacy_org import identity
 
     who = identity(conn)
+    if is_technician(conn, target["id"]):  # PRIVTEXT-293: the short technician notice; the contact line only when one is set
+        params = {"organization": who.organization} if who.organization else {}
+        if who.contact:
+            params["privacy_contact"] = who.contact
+        return {"template_id": "starter:verify_technician" + ("_contact" if who.contact else ""), "params": params}
     if not who.contact:
         return {}
     params = {"privacy_contact": who.contact}
@@ -304,7 +310,7 @@ def send_code(conn, viewer: Viewer, row: Mapping[str, Any] | None, *, by: str, r
         del code
     conn.execute("UPDATE ticket_phone_verifications SET outbox_id = ? WHERE id = ?", (out.id, vid))
     audit(conn, actor=viewer.principal, action="ticket.contact.phone_verify_send", decision="allowed", resource_type="ticket_contact",
-          resource_id=target["id"], request_id=rid, details={"by": by, "user_linked": bool(target.get("user_id"))})
+          resource_id=target["id"], request_id=rid, details={"by": by, "user_linked": bool(target.get("user_id")), **({"technician_notice": True} if str(extra.get("template_id", "")).startswith("starter:verify_technician") else {})})
     return {"sent": True, "expires_in_s": int(CODE_TTL.total_seconds()), "resend_after_s": int(COOLDOWN.total_seconds())}
 
 

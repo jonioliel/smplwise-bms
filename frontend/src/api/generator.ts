@@ -280,9 +280,12 @@ export interface LiveSummaryItem {
   availability: Availability;
   stale: boolean;
   open_alerts: number;
+  /** GENWIDGET 2.9.3 (additive; absent from an older server): the open critical alerts, and the mapped role keys (capability set, no entity ids). */
+  open_critical?: number;
+  roles?: string[];
   summary: Record<string, { value: number | string | boolean | null; unit: string }>;
 }
-/** One call for the picker of any number of generators: availability, engine state, load, fuel and open alerts of each. */
+/** One call for the picker of any number of generators and the home widget: availability, engine state, supply, mains, load, fuel and open alerts of each. */
 export const listLive = () => get<{ devices: LiveSummaryItem[]; open_alerts: number; at: string }>('generator/devices/live');
 
 /** The message as it would read with sample values; nothing is stored or sent (generator.manage). */

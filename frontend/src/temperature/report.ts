@@ -64,6 +64,8 @@ export class TempReport extends LitElement {
     .chart svg { inline-size: 100%; block-size: 100%; }
     table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-xs); }
     td, th { border-block-end: 1px solid var(--sw-border); padding: 4px; text-align: start; }
+    tr[data-verdict='exc'] td { color: var(--sw-danger-text); }
+    tr[data-verdict='none'] td { color: var(--sw-text-3); }
     th { color: var(--sw-text-2); }
     .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-block-start: 12px; }
     .sig div { border-block-start: 1px solid var(--sw-text); padding-block-start: 4px; font-size: var(--sw-fs-xs); }
@@ -167,16 +169,21 @@ export class TempReport extends LitElement {
       ['tlDoor', u.door ? `${s.door_opens} · ${durationText(s.door_total_min)}` : '—'], ['alertsTitle', String(s.alarms + s.warnings)]];
     const pts = (u.points ?? []).map((p) => [p[0], p[1]] as [number, number]);
     return html`<div class="paper" dir=${lang === 'he' ? 'rtl' : 'ltr'} lang=${lang} data-rep-paper>
-      <div class="ph"><div><h3>${T('repTitle').replace(' (PDF)', '')} · ${u.name}</h3><small>${[u.area, u.sensor].filter(Boolean).join(' · ')} · ${T('lgBand', )
+      <div class="ph"><div><h3>${m.layout === 'haccp' ? T('repHaccp') : T('repTitle').replace(' (PDF)', '')} · ${u.name}</h3><small>${[u.area, u.sensor].filter(Boolean).join(' · ')} · ${T('lgBand', )
         .replace('{lo}', deg(u.low)).replace('{hi}', deg(u.high))}</small><small dir="ltr">${m.range_text}</small></div><b>SmplWise</b></div>
       <div class="st">${stats.map(([k, v]) => html`<div><span>${T(k)}</span><b class="num" dir="ltr">${v}</b></div>`)}</div>
       ${m.chart && pts.length ? html`<div class="chart">${bigChart({ points: pts, setpoints: u.source === 'climate' ? (u.points ?? []).map((p) => [p[0], p[2]] as [number, number | null]) : undefined,
         low: u.low, high: u.high, doors: u.doors ?? [], defrost: u.defrost ?? [], t0: m.from, t1: m.to, step: 300 }, 600, 170, lang === 'he' ? 'he-IL' : 'en-GB', null)}</div>` : nothing}
       ${m.events ? html`<table><thead><tr><th>${T('colTime')}</th><th>${T('colEvent')}</th><th>${T('colValue')}</th></tr></thead><tbody>
         ${(u.events ?? []).slice(0, 6).map((e) => html`<tr><td dir="ltr">${new Date(e.started_at).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-          <td>${eventText({ ...e, id: '', unit_id: '', warned_at: null, alarmed_at: null, suppressed: null, ack_at: null, ack_by_name: null, notified: false, detail: {} })}</td><td dir="ltr">${deg(e.peak ?? e.value)}</td></tr>`)}
+          <td>${eventText({ ...e, id: '', unit_id: '', warned_at: null, alarmed_at: null, suppressed: null, ack_at: null, ack_by_name: e.by_name ?? null, notified: false, detail: { reason: e.reason ?? undefined } })}</td><td dir="ltr">${deg(e.peak ?? e.value)}</td></tr>`)}
       </tbody></table>` : nothing}
-      ${m.signature ? html`<div class="sig"><div>${T('repSign')}</div><div>${T('repDate')}</div></div>` : nothing}
+      ${u.daily ? html`<table data-rep-daily><thead><tr><th>${T('dailyTitle')}</th><th>${T('statMin')}</th><th>${T('statMax')}</th><th>${T('statOut')}</th><th>${T('coverage')}</th><th></th></tr></thead><tbody>
+        ${u.daily.slice(0, 8).map((d) => html`<tr data-verdict=${d.verdict}><td dir="ltr">${d.day.slice(8, 10)}.${d.day.slice(5, 7)}</td><td dir="ltr">${deg(d.min)}</td><td dir="ltr">${deg(d.max)}</td>
+          <td>${d.out_min ? durationText(d.out_min) : '0'}</td><td dir="ltr">${Math.round(d.coverage)}%</td><td>${T(d.verdict === 'ok' ? 'dayOk' : d.verdict === 'exc' ? 'dayExc' : 'dayNone')}</td></tr>`)}
+        ${u.daily.length > 8 ? html`<tr><td colspan="6" class="hint" dir="ltr">+${u.daily.length - 8}</td></tr>` : nothing}
+      </tbody></table>` : nothing}
+      ${m.signature ? html`<div class="sig" style=${m.layout === 'haccp' ? 'grid-template-columns:1fr 1fr 1fr' : ''}>${m.layout === 'haccp' ? html`<div>${T('repSignName')}</div>` : nothing}<div>${T('repSign')}</div><div>${T('repDate')}</div></div>` : nothing}
       <div class="foot" dir="ltr">SmplWise Arx · ${m.zone} · sha256 ${m.digest.slice(0, 16)}${m.units.length > 1 ? ` · +${m.units.length - 1}` : ''}</div>
     </div>`;
   }
@@ -206,6 +213,11 @@ export class TempReport extends LitElement {
                 <label class="sw"><input type="checkbox" .checked=${p.signature !== false} @change=${(e: Event) => this.set({ signature: (e.target as HTMLInputElement).checked })} data-rep-sig />${tt('repSig')}</label>
                 <label class="sw"><input type="checkbox" .checked=${p.events !== false} @change=${(e: Event) => this.set({ events: (e.target as HTMLInputElement).checked })} />${tt('repEvents')}</label></div>
             </div>
+            <div class="field" data-rep-layout><span class="lbl">${tt('repLayout')}</span><span class="seg" role="group">
+              <button type="button" aria-pressed=${String(p.layout !== 'haccp')} data-rep-layout-btn="standard" @click=${() => this.set({ layout: 'standard' })}>${tt('repStandard')}</button>
+              <button type="button" aria-pressed=${String(p.layout === 'haccp')} data-rep-layout-btn="haccp"
+                @click=${() => this.set({ layout: 'haccp', range: p.range === '24h' ? 'prev_month' : p.range, signature: true })}>${tt('repHaccp')}</button></span>
+              ${p.layout === 'haccp' ? html`<span class="hint">${tt('repHaccpHint')}</span>` : nothing}</div>
             <span class="hint">${tt('repEngine')}</span>
           </div>
           ${this.paper()}
