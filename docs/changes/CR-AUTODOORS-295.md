@@ -30,7 +30,7 @@ In scope (this branch):
 1. `services/door_automation.py`: the automation operator principal, the block (policy) model and validation, arm / disarm /
    expiry, the fire path (`handle_trigger`) with every gate in section 5, simulation, loop protection, storm auto-disarm, kill
    switch, feature switch, the sender seam (fake in tests; the live sender refuses).
-2. Migration **0145** (PROVISIONAL number; the lead renumbers at integration): `door_automations`, `door_automation_fires`.
+2. Migration **0133** (built as PROVISIONAL 0145; renumbered at the 2.10.0 integration): `door_automations`, `door_automation_fires`.
 3. `routers/door_automations.py` (`/api/v1/door-automations...`): status, list, get, create, update, arm, disarm, simulate, delete,
    fires, kill switch, settings.
 4. The right to arm (owner decision 2026-10-21, section 12.1): every holder of `automation.manage` at the installation, plus the
@@ -132,7 +132,7 @@ Every fire attempt writes the same two rows as a human opening (attempt committe
 before sending is one `denied` row with the reason. Block life-cycle rows: `door_automation.create|update|arm|disarm|delete|
 simulate|kill|settings|auto_disarm`. Never a signature, key, nonce, body or code.
 
-## 9. Data (migration 0145, PROVISIONAL)
+## 9. Data (migration 0133, built as PROVISIONAL 0145)
 
 `door_automations` (one per automation, soft delete, state `draft|armed|disarmed`, policy JSON, `policy_revision`,
 `bound_item_revision`, armer id / name / source, armed and expiry instants, disarm reason) and `door_automation_fires` (one row per
@@ -204,4 +204,4 @@ Remaining notes:
    inside HA. This step keeps R-17: the door step never enters Home Assistant.
 6. Backup: steps are not backed up (section 9), so a restore never revives an armed step; the definitions are lost on a restore.
    The `doors.automation.*` settings start with `doors.` and are therefore never carried by a backup (CR-033 section 9).
-7. Migration number 0145 is provisional; the lead renumbers at integration.
+7. Migration number 0133 (built as provisional 0145; renumbered at integ/2100).

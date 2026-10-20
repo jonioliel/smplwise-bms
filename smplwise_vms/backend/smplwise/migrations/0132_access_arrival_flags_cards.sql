@@ -1,4 +1,4 @@
--- PROVISIONAL number 0140 (GRANTS3-295, pilot/GRANTS3-295 from integ/293 + pilot/GRANTSMIN-295); the lead renumbers at integration.
+-- Final number 0132 (GRANTS3-295; built as PROVISIONAL 0140 on pilot/GRANTS3-295; renumbered at the 2.10.0 integration, integ/2100).
 -- The content does not depend on the number.
 --
 -- GRANTS3-295, three approved backlog items of the shared Arx + WisKey identity (CR-ARX-WISKEY-SHARED-IDENTITY sections 4.5, 5, 8 X5):

@@ -1,4 +1,4 @@
--- PROVISIONAL number 0145 (pilot/AUTODOORS-295; the lead renumbers at integration - the content does not depend on the number).
+-- Final number 0133 (CR-AUTODOORS-295; built as PROVISIONAL 0145 on pilot/AUTODOORS-295; renumbered at the 2.10.0 integration, integ/2100 - the content does not depend on the number).
 --
 -- CR-AUTODOORS-295: automations that open WisKey doors (Arx side). One "open a door" block per CR-017 automation, stored in Arx
 -- only (never written into the Home Assistant automation, CR-033 R-17), fired by Arx under its own automation operator when Home

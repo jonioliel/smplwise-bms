@@ -582,7 +582,7 @@ disclosure and filter dropdown is a 44 px target (the system-access screens' `--
 
 Branch `pilot/GRANTS3-295` from `integ/293` + `pilot/GRANTSMIN-295` (ACCESSREQ-293 is already in integ/293). Backlog items
 `grants-arrival-step-public`, `rfq-access-code-doors`, `grants-cards-x5` (private/planning/BACKLOG_RECONCILED_2026-10-20.md). Migration
-**0140_access_arrival_flags_cards (PROVISIONAL)** - the lead renumbers at integration. `GO_LIVE_PERMITTED` stays False; the new cards switch
+**0132_access_arrival_flags_cards** (built as PROVISIONAL 0140; renumbered at the 2.10.0 integration, integ/2100). `GO_LIVE_PERMITTED` stays False; the new cards switch
 cannot be turned on without it; card capture is a separate constant (`access_cards.CAPTURE_PERMITTED = False`). Fakes only
 (`tests/test_grants3_295.py`, `tests/fake_wiskey.FakeAccessEngine` gained cards); nothing contacts WisKey, a station, a reader, a door or
 WhatsApp.
