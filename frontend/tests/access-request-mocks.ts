@@ -81,7 +81,7 @@ const NOTICE: Record<string, { text: string; attest: string }> = {
 };
 
 export async function installRequestMock(page: Page, o: RequestOptions = {}): Promise<RequestMock> {
-  const ext = await installExternalMock(page, o);
+  const ext = await installExternalMock(page, { ticketsOn: true, ...o }); // TICKGATE-295: the form's ticket link exists only while the tickets module is on
   const st: RequestMock = { ...ext, requests: [], contactsCreated: [] };
   const admin = o.systemAdmin ?? true;
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });

@@ -43,6 +43,8 @@ for (const p of Object.values(PERMS)) if (!p.any.length) p.any = p.installation;
 
 export interface MockOptions {
   persona?: Persona;
+  /** TICKGATE-295: the tickets module is ON in the session and in the product settings (default off, as shipped) */
+  ticketsOn?: boolean;
   /** The events read: ready (default), empty, error (500), slow (answers after 1.2 s), hold (answers when `release()` is called: a screenshot of the
    * loading state cannot race the answer), rate (not ready: rate_limited), unavailable (ha_unavailable),
    * not_installed, not_configured, unsupported, connecting, gone (403 on the read itself) */
@@ -105,11 +107,12 @@ const json = (route: Route, body: unknown, status = 200, headers: Record<string,
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-function me(persona: Persona) {
+function me(persona: Persona, ticketsOn = false) {
   const p = PERMS[persona];
   return {
     user: { id: `u-${persona}`, username: persona, display_name: persona === 'admin' ? 'מנהל מערכת' : persona === 'siteAdmin' ? 'מנהל אתר' : 'מפעיל', source: 'ingress' },
     channel: 'local', remote: null, bindings: [], permissions_installation: p.installation, permissions_any: p.any, has_access: true, permission_revision: 1, bootstrap_state: 'done',
+    ...(ticketsOn ? { modules: { tickets: true } } : {}), // TICKGATE-295: absent = the tickets module is off
   };
 }
 
@@ -141,6 +144,7 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
   // the product settings the app reads and the Settings page writes (the four access-control policy settings at their defaults)
   const settingsState: Record<string, string> = {
     'ui.design': 'a',
+    ...(opts.ticketsOn ? { 'tickets.enabled': 'true' } : {}),
     'access.ui.overview': 'smplwise',
     'access.ui.events': 'smplwise',
     'access.ui.people': 'smplwise',
@@ -228,7 +232,7 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     const query = Object.fromEntries(q.entries());
     st.calls.push({ method, path: p, query });
 
-    if (p === 'me') return json(route, me(persona()));
+    if (p === 'me') return json(route, me(persona(), !!st.opts.ticketsOn));
     if (p === 'me/prefs') return json(route, { prefs: { 'nav.order': [] }, stored: [], updated_at: null });
     if (p === 'settings') {
       if (method === 'PATCH') {

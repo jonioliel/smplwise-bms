@@ -8,6 +8,7 @@ import {
 import { mediaGlassControls } from '../styles/media-glass';
 import { nmt, sourceLabel } from '../i18n/notify-matrix';
 import { nIcon } from './notify-icons';
+import { ticketsEnabled } from '../tickets/gate';
 import { notifyControls } from './notify-css';
 import { detailDelivery, iconOf, placeText, severityText, whereText } from './notify-logic';
 
@@ -305,6 +306,7 @@ export class NotifyDetail extends LitElement {
 
   /** TKNOTIFMATRIX: the tickets of a digest (only those the reader may see, rendered by the server for him), folded by default. */
   private renderDigest(d: NonNullable<Notification['digest']>) {
+    if (!ticketsEnabled()) return nothing; // owner rule 2026-10-20
     return html`<section class="glass dcard dg" data-detail-digest>
       <details><summary data-digest-toggle>${d.items.length ? nmt('digestList', { n: d.items.length }) : nmt('digestNone')}</summary>
         <ul>${d.items.map((i) => html`<li><a href=${`#/tickets/${encodeURIComponent(i.ticket_id)}`} data-digest-item=${i.ticket_id}>

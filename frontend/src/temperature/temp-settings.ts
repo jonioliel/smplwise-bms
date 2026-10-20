@@ -5,6 +5,7 @@ import { describeError } from '../api/client';
 import { getAlertSettings, getSettings, putAlertSettings, putSettings, type AlertChannel, type AlertKind, type AlertSettings, type Escalation, type SettingsResponse } from '../api/temperature';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
+import { ticketsEnabled } from '../tickets/gate';
 
 type Val = boolean | number | string;
 const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
@@ -174,7 +175,7 @@ export class TempSettings extends LitElement {
     if (!this.s) return this.err ? html`<p class="err">${this.err}</p>` : html`<div class="skl" style="block-size:120px"></div>`;
     const a = this.alerts;
     return html`<div class="panel" data-temp-settings><h3>${tt('setTitle')}</h3><p class="hint">${tt('setIntro')}</p>
-        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.map(([k, label]) => html`<div class="row"><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}</div>`)}
+        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class="row"><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}</div>`)}
         <div class="bar" style="margin-top:12px"><button type="button" class="btn pri" ?disabled=${this.busy} data-temp-settings-save @click=${() => this.save()}>${tt('save')}</button>
           ${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}${this.ok ? html`<span class="okm" role="status">${this.ok}</span>` : nothing}</div></div>
       ${a ? html`<div class="panel" data-temp-alerts><h3>${tt('alertsTitle')}</h3><p class="hint">${tt('alertsIntro')}${a.can_edit ? '' : ` · ${tt('readOnly')}`}</p>
