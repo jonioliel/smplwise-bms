@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Node-only unit specs (tests/unit-*.spec.ts): no browser page of the app, so no preview server is started. Used for the quick local loop and the
 // pre-gate unit run:
@@ -16,7 +17,7 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 // (the same locale / zone / desktop viewport as playwright.config.ts's desktop project; the release gate itself uses playwright.config.ts).
 // A spec counts as a page spec when it navigates to an app-relative address, or names it in a constant (const HOME = '/?design=a#/...').
 const PAGE_SPEC = /goto\(\s*[`'"]\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\/[?#]/;
-const testsDir = path.join(__dirname, 'tests');
+const testsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
 const pageSpecs = fs
   .readdirSync(testsDir)
   .filter((f) => /^unit-.*\.spec\.ts$/.test(f) && PAGE_SPEC.test(fs.readFileSync(path.join(testsDir, f), 'utf8')));
