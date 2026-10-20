@@ -69,7 +69,7 @@ def list_contacts(principal: Principal = Depends(current_principal_ro), conn: sq
                   q: str = Query("", max_length=60), kind: Literal["person", "vendor", "employee"] | None = Query(None),
                   department_id: str | None = Query(None, pattern=ID), include_inactive: bool = Query(True)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
-    if not (contacts.may_configure(viewer) or access.MANAGE in viewer.anywhere):
+    if not (contacts.may_edit_directory(viewer) or access.MANAGE in viewer.anywhere):
         audit(conn, actor=principal, action="ticket.contacts", decision="denied", resource_type="installation", resource_id="*", reason="no_permission")
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
     return contacts.list_for(viewer, query=q, kind=kind, department_id=department_id, include_inactive=include_inactive)
@@ -82,7 +82,7 @@ def get_readiness(principal: Principal = Depends(current_principal_ro), conn: sq
     from ..services.tickets import readiness
 
     viewer = Viewer(conn, principal)
-    if not (contacts.may_configure(viewer) or access.MANAGE in viewer.anywhere):
+    if not (contacts.may_edit_directory(viewer) or access.MANAGE in viewer.anywhere):
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
     return readiness.readiness(conn, department_id)
 
@@ -98,7 +98,7 @@ def create_contact(body: ContactBody, request: Request, principal: Principal = D
 def get_contact(contact_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal_ro),
                 conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
-    if not (contacts.may_configure(viewer) or access.MANAGE in viewer.anywhere):
+    if not (contacts.may_edit_directory(viewer) or access.MANAGE in viewer.anywhere):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
     return contacts.one(conn, viewer, contact_id)
 

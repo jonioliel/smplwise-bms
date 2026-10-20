@@ -35,7 +35,7 @@ COLOR = r"^--sw-[a-z0-9-]{1,40}$"
 DOMAIN = r"^[a-z][a-z0-9_]{0,39}$"
 GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure",
                "tickets_costs_view", "tickets_costs", "tickets_delete",  # + S9 (D31, 11A.8); + full deletion (owner 14.10)
-               "tickets_handlers",  # + department managers' handlers (owner 2026-10-17)
+               "tickets_handlers", "tickets_directory",  # + SMALL-294: the directory without the settings; + department managers' handlers (owner 2026-10-17)
                "tickets_technician_requests")  # + VPORTALRFQ: the portal's technician requests (owner 2026-10-17)
 
 

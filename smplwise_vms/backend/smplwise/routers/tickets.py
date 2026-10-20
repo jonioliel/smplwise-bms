@@ -22,7 +22,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import device_activity
-from ..services.tickets import access, attachments, create, device_context, model, naming, place, present, service, settings_doc, store
+from ..services.tickets import access, attachments, contacts, create, device_context, model, naming, place, present, service, settings_doc, store
 from ..services.tickets.access import Viewer, text
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
@@ -105,6 +105,7 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
             "all_departments": all_depts,
             "external": access.EXTERNAL in viewer.anywhere,
             "configure": viewer.holds_installation(access.CONFIGURE),
+            "directory": contacts.may_edit_directory(viewer),  # SMALL-294: configure or tickets.directory
             "handlers": any(d["can_handlers"] for d in out),  # CR-DEPT-MANAGER-HANDLERS
             # VPORTALRFQ: the vendors' technician requests card (directory editors, or holders of tickets.technician_requests)
             "technician_requests": viewer.holds_installation(access.CONFIGURE) or viewer.holds_installation(access.TECH_REQUESTS),

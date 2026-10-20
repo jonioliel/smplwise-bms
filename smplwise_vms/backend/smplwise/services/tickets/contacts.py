@@ -129,8 +129,16 @@ def phone_key_for(digits: str | None) -> tuple[str | None, str | None]:
 # ---------------------------------------------------------------- permission predicates
 
 
-def may_configure(viewer: Viewer) -> bool:
-    return viewer.holds_installation(access.CONFIGURE)
+def may_edit_directory(viewer: Viewer) -> bool:
+    """The directory's editors (SMALL-294, D15): `tickets.configure` (which always covered the directory) or the narrower `tickets.directory`
+    (installation scope, like configure). Settings, departments and members stay with configure alone."""
+    return viewer.holds_installation(access.CONFIGURE) or viewer.holds_installation(access.DIRECTORY)
+
+
+def require_directory(conn, viewer: Viewer) -> None:
+    """The write gate of the directory: an editor passes; anyone else gets the usual audited refusal naming `tickets.configure`."""
+    if not may_edit_directory(viewer):
+        require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
 
 
 def managed_departments(viewer: Viewer) -> set[str] | None:
@@ -246,7 +254,7 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
 def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, department_id: str | None = None,
              include_inactive: bool = True) -> dict[str, Any]:
     conn = viewer.conn
-    configure = may_configure(viewer)
+    configure = may_edit_directory(viewer)
     managed = None if configure else managed_departments(viewer)
     if not configure and managed is not None and not managed:
         return {"contacts": [], "can_edit": False}
@@ -422,7 +430,7 @@ def _keyed(conn, fields: dict[str, Any]) -> None:
 
 
 def create(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -> dict[str, Any]:
-    require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+    require_directory(conn, viewer)
     try:
         fields = _fields(conn, body, creating=True, current=None)
         depts = _departments(conn, body)
@@ -453,7 +461,7 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
     if row is None:
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
     depts = store_links.contact_departments(conn, contact_id)
-    configure = may_configure(viewer)
+    configure = may_edit_directory(viewer)
     managed = None if configure else managed_departments(viewer)
     if not configure and not readable(viewer, depts, managed):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
@@ -487,7 +495,7 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
 
 
 def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision: int, rid: str | None = None) -> dict[str, Any]:
-    require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+    require_directory(conn, viewer)
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
@@ -584,7 +592,7 @@ def revoke_contact_links(conn, contact_id: str, reason: str, now, *, rid: str | 
 
 
 def erase(conn, viewer: Viewer, contact_id: str, *, history: bool, rid: str | None = None) -> dict[str, Any]:
-    require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+    require_directory(conn, viewer)
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
@@ -615,7 +623,7 @@ def erase_checked(conn, viewer: Viewer, row: dict[str, Any], *, history: bool, r
 
 def export(conn, viewer: Viewer, contact_id: str, rid: str | None = None) -> dict[str, Any]:
     """Section 15.2: the person's data on request - the row and what they wrote through their links."""
-    require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+    require_directory(conn, viewer)
     row = store_links.contact(conn, contact_id)
     if row is None:
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))

@@ -222,23 +222,24 @@ def test_the_grant_roles_and_their_delegation_defaults():
         "tickets_all_departments": ["tickets.all_departments"], "tickets_external": ["tickets.external"], "tickets_configure": ["tickets.configure"],
         "tickets_costs_view": ["tickets.costs.view"], "tickets_costs": ["tickets.costs"],
         "tickets_delete": ["tickets.delete"], "tickets_handlers": ["tickets.handlers"],  # + CR-DEPT-MANAGER-HANDLERS
+        "tickets_directory": ["tickets.directory"],  # + SMALL-294
         "tickets_technician_requests": ["tickets.technician_requests"],  # + VPORTALRFQ
     }
     for sens in ("tickets.all_departments", "tickets.external", "tickets.configure", "tickets.costs.view", "tickets.costs", "tickets.delete", "tickets.handlers",
-                 "tickets.technician_requests", "messaging.accounts.manage"):
+                 "tickets.directory", "tickets.technician_requests", "messaging.accounts.manage"):
         assert sens in SENSITIVE
     for plain in ("tickets.view", "tickets.create", "tickets.manage"):
         assert plain not in SENSITIVE
     assert {"tickets_view", "tickets_create", "tickets_manage"} <= set(DEFAULT_DELEGABLE)
     assert not {"tickets_all_departments", "tickets_external", "tickets_configure", "tickets_costs_view", "tickets_costs", "tickets_delete",
-                "tickets_handlers", "tickets_technician_requests"} & set(DEFAULT_DELEGABLE)
+                "tickets_handlers", "tickets_directory", "tickets_technician_requests"} & set(DEFAULT_DELEGABLE)
     assert {r: [p for p in ROLES[r] if p.startswith("tickets.")] for r in ("viewer", "kiosk", "editor", "door_opener", "operator", "site_admin")} == {
         "viewer": [], "kiosk": [], "editor": [], "door_opener": [], "operator": ["tickets.view", "tickets.create"],
         "site_admin": ["tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.costs.view"],
     }
     assert sorted(p for p in ROLES["system_admin"] if p.startswith(("tickets.", "messaging."))) == sorted([
         "tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.all_departments", "tickets.configure", "tickets.costs.view", "tickets.costs",
-        "tickets.delete", "tickets.handlers", "tickets.technician_requests", "messaging.accounts.manage"])
+        "tickets.delete", "tickets.handlers", "tickets.directory", "tickets.technician_requests", "messaging.accounts.manage"])
 
 
 def test_a_site_admin_may_delegate_the_plain_grants_only(w, settings):
