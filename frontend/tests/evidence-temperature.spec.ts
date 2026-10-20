@@ -101,6 +101,7 @@ async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: 
     }
     if (p === 'infra/temperature/candidates') {
       const kind = new URL(route.request().url()).searchParams.get('kind');
+      if (kind === 'power') return json(route, { items: [{ entity_id: 'sensor.bar_fridge_plug_power', name: 'שקע חכם מקרר בר קפה', area_name: 'לובי', device_class: 'power', value: null, state: null, group: 'power', setpoint: null, hvac_mode: null, watts: 96 }] }); // phase 3
       return json(route, kind === 'door'
         ? { items: [{ entity_id: 'binary_sensor.bar_fridge_door', name: 'דלת מקרר בר קפה', area_name: 'לובי', device_class: 'door', value: null, state: 'off', group: 'door', setpoint: null, hvac_mode: null },
           { entity_id: 'binary_sensor.meat_coldroom_door', name: 'דלת חדר קירור בשר', area_name: 'מטבח', device_class: 'door', value: null, state: 'on', group: 'door', setpoint: null, hvac_mode: null }] }
@@ -232,7 +233,7 @@ test.describe('temperature evidence', () => {
     await page.locator('sw-app infra-temperature [data-temp-new]').click();
     const w = page.locator('sw-app infra-temperature temp-wizard');
     await expect(w.locator('[data-grp="climate"]')).toBeVisible(); // sensors AND climate entities, grouped
-    await w.locator('[data-cand="sensor.bar_fridge_temp"]').click();
+    await w.locator('[data-temp-list] [data-cand="sensor.bar_fridge_temp"]').click();
     await w.locator('[data-door-list] [data-cand="binary_sensor.bar_fridge_door"]').click();
     await page.screenshot({ path: path.join(OUT, `wizard-1-${test.info().project.name}.png`) });
     await w.locator('[data-w-next]').click();
