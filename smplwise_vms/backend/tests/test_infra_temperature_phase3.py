@@ -427,3 +427,29 @@ def test_units_carry_their_floor(app):
     uid = create(c, area_id="kitchen")
     u = next(x for x in c.get(API).json()["units"] if x["id"] == uid)
     assert (u["area_name"], u["floor_name"], u["floor_level"]) == ("מטבח", "קומה 1", 1)
+
+
+# ---------------------------------------------------------------- the home widget (idea 12) and the new notification sources
+
+def test_home_widget_config_has_the_elevators_shape():
+    from smplwise.services import home_config
+
+    cfg = home_config.default_config()
+    assert cfg["order"][-1] == "temperature" and cfg["temperature"]["mode"] == "combined" and cfg["temperature"]["hidden"] == []
+    ok = home_config.normalise({"temperature": {"mode": "cards", "hidden": ["u1", "u1"], "filter": "alerts"}})["temperature"]
+    assert (ok["mode"], ok["hidden"], ok["filter"]) == ("cards", ["u1"], "alerts")
+    for bad in ({"mode": "x"}, {"hidden": ["bad id!"]}, {"filter": "some"}, {"entity": "sensor.x"}):
+        with pytest.raises(ValueError):
+            home_config.normalise({"temperature": bad})
+    p = home_config.normalise_personal({"widgets": {"temperature": {"mode": "both", "hidden": ["u2"]}}})
+    out, _d = home_config.apply_personal(home_config.normalise({"temperature": {"hidden": ["u1"]}}), "a", p)
+    assert out["temperature"]["mode"] == "both" and out["temperature"]["hidden"] == ["u1", "u2"]  # the user's own list ADDS to the installation's
+
+
+def test_phase3_notification_sources():
+    from smplwise.services import notify_policy
+
+    health, esc = notify_policy.BY_KEY["temperature.health"], notify_policy.BY_KEY["temperature.escalation"]
+    assert health.severity == "alert" and esc.severity == "critical"
+    assert notify_policy.default_row(health)["recipients"] == {"rule": "temperature"} and notify_policy.default_row(esc)["recipients"] == {"rule": "temperature"}
+    assert notify_policy.default_row(esc)["channels"]["app"] is True  # an escalation reaches the phone app like an alarm

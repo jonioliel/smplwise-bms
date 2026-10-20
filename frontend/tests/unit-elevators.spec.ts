@@ -211,7 +211,7 @@ test('home widget: hidden elevators are out, the alerts filter lists only fire /
 
 test('home config: the elevators widget is appended last, tolerant parsing, absent unless the viewer sees an elevator', () => {
   const d = defaultConfig();
-  expect(d.order[d.order.length - 1]).toBe('elevators');
+  expect(d.order[d.order.length - 2]).toBe('elevators'); // CR-INFRA-TEMPERATURE phase 3 appends the temperatures widget after it
   expect(d.elevators).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null, mode: 'combined', hidden: [], filter: 'all' });
   const c = configOf({ elevators: { mode: 'both', hidden: ['e1', 'e1', 'bad id', 7], filter: 'nope' } });
   expect([c.elevators.mode, c.elevators.hidden, c.elevators.filter]).toEqual(['both', ['e1'], 'all']);
