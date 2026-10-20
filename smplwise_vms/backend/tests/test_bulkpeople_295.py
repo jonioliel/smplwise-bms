@@ -275,7 +275,7 @@ def test_the_validation_report_names_codes_and_fields_never_values(w):
         {"person_id": "u1", "active": "false"},                                          # 5 duplicate person (row 1 named u1 too)
         {"employee_no": "3001", "display_name": "Guest", "access_category": "visitor"},  # 6 visitor without responsible / end
         {"person_id": "u2", "doors": "entry-b:3"},                                       # 7 a relay that does not exist
-        {"person_id": "u3"},                                                             # 8 nothing to change
+        {"person_id": "u9"},                                                             # 8 nothing to change
         {"employee_no": "3002", "display_name": "New One", "doors": "entry-a:1"},        # 9 fine
     ))
     rep = {e["row"]: e for e in job["report"]}
