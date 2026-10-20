@@ -504,3 +504,28 @@ owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERM
 - Not built: auto-approval rules (none exist; shown as "None"), the English/Arabic/Russian evidence screenshots (the screen follows the
   document language; the evidence set is Hebrew), the 14-day window across a DST change is held at 14 x 24 h (the last day ends an hour
   early) rather than refused.
+
+## STATIONSYNC-295 - WisKey round 11 (R11-I2-01, R11-I1-03 / I1-04), branch pilot/STATIONSYNC-295
+
+Fakes only; NOT_RUN against any WisKey, station or door. GO_LIVE_PERMITTED stays False; no migration.
+
+- R11-I2-01 (`access_grant_engine.person_from_raw` / `_row_synced`): `stations_synced` is the CENTRAL applied bookkeeping, never
+  physical proof. True only when every enabled row has desired_revision == person.revision, applied_revision == desired_revision,
+  sync_state "synced" and a valid (timezone-aware ISO 8601) last_sync_at. False only for a well-formed row explicitly behind (applied
+  null = not applied yet, applied < desired, or a known non-synced state). Everything else is UNKNOWN (None): missing / inconsistent
+  bookkeeping (absent applied key, applied > desired, desired > person.revision, unknown state), a row synced for an older person
+  revision, no valid sync time, no enabled row, an unknown door map. `EnginePerson.physical_proof` is always None (no device-side
+  evidence contract). applied > desired is judged here only; `_row_ok` / `access_shape` are unchanged, so the authorization
+  projections are not affected.
+- R11-I1-03: `Engine.revocation_pending(person_id, revision)` takes the revision of the readback being judged. The Arx side of the
+  PROPOSED ACR5-01 contract is a typed seam (`AccessStateReader`), a strict consumer (`access_state_from_raw`: schema_version int 1,
+  fixed observation / scope, exact user_id, positive int person_revision for a present person, the six pending arrays) and the verdict
+  (`revocation_pending_verdict`): False only for presence=present at exactly that revision with all six arrays empty and WisKey's flag
+  False; a revision mismatch, absence (a scoped 404), `unverified` work or no flag is None; any central queue or delete_pending is True.
+  The worker needs the separate central predicate (`central_revoked`, now also requiring overrides_known) on the same readback
+  (`revocation_proven`). The live `WiskeyServiceEngine` has no reader (no ACR5-01 client is built): UNKNOWN, a live revoke stays
+  `revoking`; with an injected fake reader it refuses while a write to the person is unsettled.
+- R11-I1-04: `AccessState` keeps the five central queues and `unverified` apart; nothing displays station ids from it (any future view
+  filters them through Arx RBAC station scope first).
+- Open: the WisKey client for users/access_state (ACR5-01 delivery + Arx review); reading `stations_synced` from the revision-bound
+  access_state answer instead of users/get once that client exists; scope_proof revision binding (R11-I1-05, SHAREDID).
