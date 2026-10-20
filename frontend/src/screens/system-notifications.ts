@@ -492,7 +492,7 @@ export class SystemNotifications extends LitElement {
         }
       }
       /* release 2.10.0: since every severity level carries its name (finding 13) the three keys did not fit the 15 % column of the
-         desktop / tablet table and ran under the recipient select. The column is wider, the keys are compact there, and as a last
+         desktop table and ran under the recipient select. The column is wider, the keys are compact there, and as a last
          resort the picker wraps inside its cell instead of overlapping the next one. */
       .mx .sevseg {
         flex-wrap: wrap;
