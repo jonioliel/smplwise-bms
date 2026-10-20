@@ -238,6 +238,37 @@ the routers and the API tests behind them. This is deliberate, because the gate 
 **Selection must stay off for release gates until the nightly completes** (v2 schedule via `SW_NIGHTLY_SCHEDULE=v2`, the
 template, or a larger `SW_NIGHTLY_BRANCH_MAX_MIN`) **and its standing reds are fixed or listed.**
 
+The engine enforces this: `--select-base` exits with rc 2 unless `GATE_SELECT_ENABLE=1` is set on purpose.
+
+### 5.2a Making the nightly finish (lead follow-up)
+- **Limits**: `nightly_tests.sh` now defaults to a 240 min hard limit and a 225 min engine budget per branch (was 150 / 120).
+  - The six nightlies of 10-15..10-20 all stopped at 117 min:
+    - Playwright preview took 63-82 min;
+    - the dev phase was cut at 33-49 min, against the gate's 64;
+    - the backend shards never reached their summary (backend-wait 0 s; 10-20: 3,564 of ~12,000 tests).
+  - Expected full nightly on v1: about 160 min. Preview takes ~82 min plus the evidence specs on tablet, the dev server ~64 min
+    and the backend ~146 min in parallel (~100 min with the template).
+  - `SW_NIGHTLY_SCHEDULE=v2` brings it to about 85-95 min after v2's shadow run.
+  - The runner copy (`~/nightly_tests.sh`) must be reinstalled on an idle runner for the new defaults to apply. Until then,
+    the cron line can set `SW_NIGHTLY_MAX_MIN=240 SW_NIGHTLY_BRANCH_MAX_MIN=225`.
+  - Trade-off: a nightly that waited for a gate (up to 3 h lock wait) can now run until about 09:00.
+- **The 28 constant pixel failures** are `visual-matrix.spec.ts` in the nightly's pixel group. The nightly runs `--no-visual`,
+  so the matrix spec lands in the pixel group. The same 28 cases, with identical pixel counts every night and on the retry,
+  failed on main from 10-15 to 10-20. That makes them deterministic, not flaky. Triage:
+  - **All 28 baselines were already re-accepted, after review, on integ/293** (VISMATRIX-FIX-293, `e04019b61`: "32 intended
+    diffs, 9 stale dark baselines, plus devices-building (now the area-tiles view) and settings-diagnostics (now the health
+    tab)"; a follow-up run of all 72 cases passed on the runner there). Every failing file is among the 45 refreshed ones.
+  - The evidence matches that triage:
+    - **stale dark baselines**: the ~0.7-0.8 ratios (devices-schedules, settings-notifications, multimedia-screens dark);
+    - **a wrong-screen capture**: devices-building had the same pixel counts as devices-home (8394 / 8609 desktop,
+      1452 / 1376 mobile). The routing fix `49e3407bb` / `7ab3be9f0` now captures the area-tiles view, with a guard;
+    - **intended UI changes**: small 0.01-0.11 ratios (devices-home, security-alarm, live-wall, map-floor dark,
+      settings-diagnostics light).
+  - **No real regression was found. No baseline was refreshed here** (the 2.9.3 gate is running). The reds should go away when
+    2.9.3 reaches main.
+  - Verification NOT_RUN: Playwright was not allowed while the gate was pending. Check the first nightly after the 2.9.3
+    merge: its pixel line must show 0 visual-matrix failures.
+
 ### 5.3 Quarantine (implemented, report only)
 A test that failed on its first run (FLAKY or FAIL) in two consecutive release gates enters the quarantine. It leaves after two
 consecutive gates without a first-run failure. Quarantine never skips a test: the test still runs, is retried once alone, and

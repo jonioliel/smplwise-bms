@@ -1725,6 +1725,11 @@ def main_cli(argv):
     if plan_root is not None:
         plan(plan_root, TIER)
         return 0
+    if SELECT_BASE and os.environ.get("GATE_SELECT_ENABLE") != "1":
+        # lead 2026-10-20: selection stays OFF for release gates until the full nightly on main finishes reliably (its safety
+        # net); a run that really wants it sets GATE_SELECT_ENABLE=1 on purpose (docs/release/GATE_SPEED.md 5.2)
+        print("--select-base is disabled for release gates (set GATE_SELECT_ENABLE=1 only after the nightly safety net is proven)")
+        return 2
     if not BR:
         print('usage: release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--select-base <ref>] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]\n'
               '       release_gate.py --plan --root <checkout> [--tier L]   (estimates only, runs nothing)')

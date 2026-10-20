@@ -67,8 +67,8 @@ scp scripts/gate/nightly_tests.sh runner:~/ && ssh runner 'chmod +x ~/nightly_te
 
 Never while a nightly or a gate runs (`~/.smplwise-tests.lock` free, no `~/.gate-pending`). Results: the per-branch summary stays
 `~/smplwise-results/<date>_<branch>.md` (the dashboard reads it); the engine's full report, logs and its own `gate_status.json` are
-in `~/smplwise-results/nightly/` (never the release gate's files). Knobs: `SW_NIGHTLY_MAX_MIN` (hard limit, 150),
-`SW_NIGHTLY_BRANCH_MAX_MIN` (engine budget per branch, 120), `GATE_PW_WORKERS` (workers per Playwright process, 3),
+in `~/smplwise-results/nightly/` (never the release gate's files). Knobs: `SW_NIGHTLY_MAX_MIN` (hard limit, 240 since GATESPEED-293; was 150),
+`SW_NIGHTLY_BRANCH_MAX_MIN` (engine budget per branch, 225; was 120, which cut every nightly of 10-15..10-20), `SW_NIGHTLY_SCHEDULE` (v1 or v2), `GATE_PW_WORKERS` (workers per Playwright process, 3),
 `SW_NIGHTLY_ENGINE` (engine path). `--backend-only` keeps the old two-shard backend path; `--frontend-only` / `--no-dev` map to
 the engine's `GATE_SKIP_BACKEND=1` / `GATE_SKIP_DEV=1` (a skipped category is left out of the baseline check).
 

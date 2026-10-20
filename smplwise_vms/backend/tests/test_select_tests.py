@@ -184,6 +184,12 @@ def test_filters_keep_only_selected_files_and_mark_reduced_categories(g):
     assert g.backend_only({"error": "boom"}) is None
 
 
+def test_selection_is_refused_for_a_release_gate_unless_explicitly_enabled(g, monkeypatch):
+    monkeypatch.delenv("GATE_SELECT_ENABLE", raising=False)
+    assert g.main_cli(["integ/293", "--select-base", "v2.9.2"]) == 2
+    assert g.main_cli(["integ/293", "--select-base"]) == 2       # a ref is required as well
+
+
 def test_a_reduced_category_is_reported_not_judged_by_the_baseline(g):
     g.REDUCED_CATS["preview"] = "1 of 2 spec files"
     g.COUNTS["preview"] = {"pass": 10, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
