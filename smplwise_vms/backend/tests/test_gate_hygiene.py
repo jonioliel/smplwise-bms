@@ -27,7 +27,7 @@ TESTS = Path(__file__).resolve().parent
 MACHINE_DAY = re.compile(
     r"\bdate\.today\(\)"
     r"|\bdatetime\.(now|today)\(\)"
-    r"|\butcnow\(\)"
+    r"|\bdatetime\.utcnow\(\)"  # a product helper named utcnow() (aware) is fine
     r"|timedelta\(hours=3\)\)\)?\.date\(\)"
     r"|timedelta\(hours=3\)\)\)?\.strftime\(\"%Y-%m-%d\"\)"
 )
