@@ -8,7 +8,9 @@ missing is never emitted. Event types (mains restored, load transferred, test do
 A re-raise within FOLD_S of its clearing re-opens the same row (count + 1) instead of making a new one.
 
 Routing starts EMPTY (owner 2026-10-05): a policy row exists only after an administrator saved one, with no recipients and no channels
-beyond the notification centre. The recipients rule `generator` of services/notify.recipients_for resolves roles AND scope at emit time
+beyond the notification centre. GENALERT-295: an administrator chooses the recipients per alert type OR per severity (the default of a severity,
+which a type without recipients of its own inherits); a type's escalation and quiet-hours choices are applied by services/notify (`escalation_after_min`,
+`quiet_mode_of`); CRITICAL always escalates to the administrators and is never held by quiet hours. The recipients rule `generator` of services/notify.recipients_for resolves roles AND scope at emit time
 through `recipient_users`. Nothing is sent from here: delivery stays with the CR-018 pipeline.
 
 Not persisted across a restart: the hold timers and the previous values the event types compare against (the first pass after a
@@ -40,6 +42,8 @@ MUTE_MAX_H = 24 * 7
 ROUTABLE_ROLES = ("operator", "site_admin", "system_admin")  # viewers and kiosks are refused (they hold no generator.view)
 CHANNELS = ("push", "app", "email", "whatsapp")  # NOTIFWA: whatsapp mirrors onto the CR-018 policy like the others (it sends only while its master switch is on)
 CHANNELS_RESERVED = ("ha_mobile",)
+SEVERITY_CHANNELS = ("push", "app", "email")  # the per-severity defaults never carry WhatsApp: it is an external, budget-limited channel chosen per alert type (NOTIFWA)
+SEVERITIES = ("critical", "alert", "info")
 QUIET = ("pass", "matrix", "hold")
 SOURCE_PREFIX = "generator."
 
@@ -539,7 +543,7 @@ def _policy_dict(r: sqlite3.Row | None) -> dict[str, Any] | None:
     except ValueError:
         ch = []
     return {"enabled": bool(r["enabled"]), "severity": r["severity"], "recipients": {"roles": list(rec.get("roles") or []), "users": list(rec.get("users") or [])},
-            "channels": [c for c in ch if c in CHANNELS], "quiet_mode": r["quiet_mode"], "escalate": bool(r["escalate"]), "after_s": r["after_s"], "template_he": r["template_he"], "row_version": r["row_version"]}
+            "channels": [c for c in ch if c in CHANNELS], "quiet_mode": r["quiet_mode"], "escalate": bool(r["escalate"]), "after_s": r["after_s"], "escalate_after_s": r["escalate_after_s"], "template_he": r["template_he"], "row_version": r["row_version"]}
 
 
 def list_policies(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
@@ -551,6 +555,7 @@ def list_policies(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
         items.append({"key": t.key, "group": t.group, "title": t.title_he, "title_en": t.title_en, "default_severity": t.severity, "event": t.event, "available": ok,
                       "needs": None if ok else cat.needs_label(t), "message": t.body, "message_sample": render_preview(None, t.key), "policy": _policy_dict(stored.get(t.key))})
     return {"groups": [{"key": k, "title": v} for k, v in cat.GROUPS], "items": items, "available": sum(1 for i in items if i["available"]), "total": len(items),
+            "severity_defaults": severity_defaults(conn, device_id), "severity_channels": list(SEVERITY_CHANNELS), "critical_escalate_after_min": critical_escalate_after_min(conn),
             "channels": list(CHANNELS), "channels_reserved": list(CHANNELS_RESERVED), "quiet_modes": list(QUIET),
             "placeholders": PLACEHOLDERS, "template_max": TEMPLATE_MAX, "note": "ניתוב נשמר כאן; ההתראות תמיד מגיעות למרכז ההתראות, ושליחה בערוצים נוספים נעשית דרכו."}
 
@@ -584,8 +589,36 @@ def render_preview(template: str | None, key: str) -> str:
     return notify_policy.render(SOURCE_PREFIX + key, {**SAMPLE, "type": cat.TYPE_BY_KEY[key].title_he, **({"_template": template} if template else {})})[1]
 
 
+def _validate_recipients(conn: sqlite3.Connection, value: Any) -> dict[str, list[str]]:
+    rec = value or {}
+    roles, users = rec.get("roles") or [], rec.get("users") or []
+    if not isinstance(roles, list) or not isinstance(users, list) or len(roles) > 10 or len(users) > 100:
+        raise RoutingInvalid("validation", "נמענים לא תקינים.", {"field": "recipients"})
+    bad = [r for r in roles if r not in ROUTABLE_ROLES]
+    if bad:
+        raise RoutingInvalid("validation", "תפקיד לא יכול לקבל התראות גנרטור.", {"field": "recipients.roles", "roles": bad})
+    known = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
+    missing = [u for u in users if not isinstance(u, str) or u not in known]
+    if missing:
+        raise RoutingInvalid("validation", "משתמש לא מוכר.", {"field": "recipients.users"})
+    return {"roles": sorted(set(roles)), "users": sorted(set(users))}
+
+
+def _validate_channels(ch: Any, allowed: tuple[str, ...]) -> list[str]:
+    if not isinstance(ch, list):
+        raise RoutingInvalid("validation", "ערוצים לא תקינים.", {"field": "channels"})
+    for c in ch:
+        if c in CHANNELS_RESERVED:
+            raise RoutingInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": c})
+        if c in CHANNELS and c not in allowed:
+            raise RoutingInvalid("channel_unsupported", "הערוץ הזה מוגדר לכל סוג התראה בנפרד.", {"channel": c})
+        if c not in CHANNELS and c != "inbox":
+            raise RoutingInvalid("validation", "ערוץ לא מוכר.", {"field": "channels"})
+    return [c for c in allowed if c in ch]
+
+
 def validate_policy(conn: sqlite3.Connection, body: dict[str, Any], current: dict[str, Any] | None) -> dict[str, Any]:
-    out = dict(current or {"enabled": True, "severity": None, "recipients": {"roles": [], "users": []}, "channels": [], "quiet_mode": "matrix", "escalate": False, "after_s": 0, "template_he": None})
+    out = dict(current or {"enabled": True, "severity": None, "recipients": {"roles": [], "users": []}, "channels": [], "quiet_mode": "matrix", "escalate": False, "after_s": 0, "escalate_after_s": 0, "template_he": None})
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
             raise RoutingInvalid("validation", "הערך חייב להיות כן/לא.", {"field": "enabled"})
@@ -595,28 +628,9 @@ def validate_policy(conn: sqlite3.Connection, body: dict[str, Any], current: dic
             raise RoutingInvalid("validation", "חומרה לא מוכרת.", {"field": "severity"})
         out["severity"] = body["severity"]
     if "recipients" in body:
-        rec = body["recipients"] or {}
-        roles, users = rec.get("roles") or [], rec.get("users") or []
-        if not isinstance(roles, list) or not isinstance(users, list) or len(roles) > 10 or len(users) > 100:
-            raise RoutingInvalid("validation", "נמענים לא תקינים.", {"field": "recipients"})
-        bad = [r for r in roles if r not in ROUTABLE_ROLES]
-        if bad:
-            raise RoutingInvalid("validation", "תפקיד לא יכול לקבל התראות גנרטור.", {"field": "recipients.roles", "roles": bad})
-        known = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-        missing = [u for u in users if not isinstance(u, str) or u not in known]
-        if missing:
-            raise RoutingInvalid("validation", "משתמש לא מוכר.", {"field": "recipients.users"})
-        out["recipients"] = {"roles": sorted(set(roles)), "users": sorted(set(users))}
+        out["recipients"] = _validate_recipients(conn, body["recipients"])
     if "channels" in body:
-        ch = body["channels"]
-        if not isinstance(ch, list):
-            raise RoutingInvalid("validation", "ערוצים לא תקינים.", {"field": "channels"})
-        for c in ch:
-            if c in CHANNELS_RESERVED:
-                raise RoutingInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": c})
-            if c not in CHANNELS and c != "inbox":
-                raise RoutingInvalid("validation", "ערוץ לא מוכר.", {"field": "channels"})
-        out["channels"] = [c for c in CHANNELS if c in ch]
+        out["channels"] = _validate_channels(body["channels"], CHANNELS)
     if "quiet_mode" in body:
         if body["quiet_mode"] not in QUIET:
             raise RoutingInvalid("validation", "מצב שעות שקט לא מוכר.", {"field": "quiet_mode"})
@@ -627,30 +641,38 @@ def validate_policy(conn: sqlite3.Connection, body: dict[str, Any], current: dic
         out["escalate"] = body["escalate"]
     if "template_he" in body:
         out["template_he"] = validate_template(body["template_he"])
-    if "after_s" in body:
-        v = body["after_s"]
-        if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 86400:
-            raise RoutingInvalid("validation", "ערך מספרי מחוץ לטווח.", {"field": "after_s"})
-        out["after_s"] = v
+    for field in ("after_s", "escalate_after_s"):
+        if field in body:
+            v = body[field]
+            if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 86400:
+                raise RoutingInvalid("validation", "ערך מספרי מחוץ לטווח.", {"field": field})
+            out[field] = v
     return out
 
 
-def _bridge(conn: sqlite3.Connection, device_id: str, key: str, pol: dict[str, Any] | None, default_severity: str) -> None:
-    """Mirror the choice onto the CR-018 source policy of THIS generator (`generator.<key>@<device id>`), in the same transaction."""
+def _sync_source(conn: sqlite3.Connection, device_id: str, key: str) -> None:
+    """Mirror the EFFECTIVE choice of one alert type (its own policy over the default of its severity) onto the CR-018 source policy of THIS generator
+    (`generator.<key>@<device id>`), in the same transaction. Nothing chosen at all = the row is removed (the type's defaults, created again on first use)."""
     from . import notify_policy
 
+    t = cat.TYPE_BY_KEY[key]
     src = source_of(device_id, key)
-    if pol is None:
-        conn.execute("DELETE FROM notify_policies WHERE source = ?", (src,))  # back to the type's defaults, created again on first use
+    pol = _policy_dict(_policy_row(conn, device_id, key))
+    severity = (pol["severity"] if pol else None) or t.severity
+    dflt = severity_defaults(conn, device_id).get(severity)
+    if pol is None and (dflt is None or not dflt["channels"]):
+        conn.execute("DELETE FROM notify_policies WHERE source = ?", (src,))
         return
-    ch = {"inbox": True, "webpush": "push" in pol["channels"], "email": "email" in pol["channels"], "app": "app" in pol["channels"], "ha_mobile": False, "whatsapp": "whatsapp" in pol["channels"]}
+    channels = pol["channels"] if pol and pol["channels"] else (dflt["channels"] if dflt else [])
+    enabled = pol["enabled"] if pol else True
+    ch = {"inbox": True, "webpush": "push" in channels, "email": "email" in channels, "app": "app" in channels, "ha_mobile": False, "whatsapp": "whatsapp" in channels}
     base = notify_policy.default_row(notify_policy.BY_KEY[src])
     conn.execute(
         """INSERT INTO notify_policies(source, enabled, severity, category, after_s, dedupe_window_s, resolve_notice, recipients_json, channels_json, revision, updated_at)
            VALUES (?,?,?,?,?,?,?,?,?,1,?)
            ON CONFLICT(source) DO UPDATE SET enabled = excluded.enabled, severity = excluded.severity, after_s = excluded.after_s, recipients_json = excluded.recipients_json,
              channels_json = excluded.channels_json, revision = revision + 1, updated_at = excluded.updated_at""",
-        (src, int(pol["enabled"]), pol["severity"] or default_severity, base["category"], 0, base["dedupe_window_s"], int(base["resolve_notice"]), json.dumps({"rule": "generator"}), json.dumps(ch), now_iso()))
+        (src, int(enabled), severity, base["category"], 0, base["dedupe_window_s"], int(base["resolve_notice"]), json.dumps({"rule": "generator"}), json.dumps(ch), now_iso()))
 
 
 def save_policy(conn: sqlite3.Connection, principal: Any, device_id: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -663,37 +685,129 @@ def save_policy(conn: sqlite3.Connection, principal: Any, device_id: str, key: s
     new = validate_policy(conn, body, _policy_dict(row))
     new["severity"] = new["severity"] or t.severity
     conn.execute(
-        """INSERT INTO generator_alert_policies(device_id, alert_key, enabled, severity, recipients_json, channels_json, quiet_mode, escalate, after_s, template_he, row_version, updated_by, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?)
+        """INSERT INTO generator_alert_policies(device_id, alert_key, enabled, severity, recipients_json, channels_json, quiet_mode, escalate, after_s, escalate_after_s, template_he, row_version, updated_by, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)
            ON CONFLICT(device_id, alert_key) DO UPDATE SET enabled = excluded.enabled, severity = excluded.severity, recipients_json = excluded.recipients_json, channels_json = excluded.channels_json,
-             quiet_mode = excluded.quiet_mode, escalate = excluded.escalate, after_s = excluded.after_s, template_he = excluded.template_he, row_version = row_version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
-        (device_id, key, int(new["enabled"]), new["severity"], json.dumps(new["recipients"]), json.dumps(new["channels"]), new["quiet_mode"], int(new["escalate"]), new["after_s"], new.get("template_he"), principal.user_id, now_iso()))
-    _bridge(conn, device_id, key, new, t.severity)
+             quiet_mode = excluded.quiet_mode, escalate = excluded.escalate, after_s = excluded.after_s, escalate_after_s = excluded.escalate_after_s, template_he = excluded.template_he,
+             row_version = row_version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
+        (device_id, key, int(new["enabled"]), new["severity"], json.dumps(new["recipients"]), json.dumps(new["channels"]), new["quiet_mode"], int(new["escalate"]), new["after_s"], new["escalate_after_s"], new.get("template_he"), principal.user_id, now_iso()))
+    _sync_source(conn, device_id, key)
     audit(conn, actor=principal, action="generator.policy.update", decision="allowed", resource_type="generator_policy", resource_id=f"{device_id}:{key}")
     return _policy_dict(_policy_row(conn, device_id, key)) or {}
 
 
 def reset_policies(conn: sqlite3.Connection, principal: Any, device_id: str) -> int:
     keys = [r["alert_key"] for r in conn.execute("SELECT alert_key FROM generator_alert_policies WHERE device_id = ?", (device_id,)).fetchall()]
+    had_defaults = conn.execute("SELECT 1 FROM generator_severity_routing WHERE device_id = ?", (device_id,)).fetchone() is not None
     conn.execute("DELETE FROM generator_alert_policies WHERE device_id = ?", (device_id,))
-    for k in keys:
-        _bridge(conn, device_id, k, None, cat.TYPE_BY_KEY[k].severity)
+    conn.execute("DELETE FROM generator_severity_routing WHERE device_id = ?", (device_id,))
+    for k in (list(cat.TYPE_BY_KEY) if had_defaults else keys):
+        _sync_source(conn, device_id, k)
     audit(conn, actor=principal, action="generator.policy.reset", decision="allowed", resource_type="generator_device", resource_id=device_id)
     return len(keys)
 
 
+# ---------------------------------------------------------------- the default routing of a severity (GENALERT-295)
+
+def severity_defaults(conn: sqlite3.Connection, device_id: str) -> dict[str, dict[str, Any] | None]:
+    """{severity: {recipients, channels, row_version} | None} - what an alert type inherits when it has no recipients / channels of its own."""
+    out: dict[str, dict[str, Any] | None] = {s: None for s in SEVERITIES}
+    for r in conn.execute("SELECT * FROM generator_severity_routing WHERE device_id = ?", (device_id,)).fetchall():
+        try:
+            rec = json.loads(r["recipients_json"] or "{}")
+        except ValueError:
+            rec = {}
+        try:
+            ch = json.loads(r["channels_json"] or "[]")
+        except ValueError:
+            ch = []
+        out[r["severity"]] = {"recipients": {"roles": list(rec.get("roles") or []), "users": list(rec.get("users") or [])}, "channels": [c for c in SEVERITY_CHANNELS if c in ch], "row_version": r["row_version"]}
+    return out
+
+
+def save_severity_routing(conn: sqlite3.Connection, principal: Any, device_id: str, severity: str, body: dict[str, Any]) -> dict[str, Any]:
+    if severity not in SEVERITIES:
+        raise RoutingInvalid("validation", "חומרה לא מוכרת.", {"field": "severity"})
+    cur = severity_defaults(conn, device_id)[severity]
+    if "row_version" in body and cur is not None and body["row_version"] != cur["row_version"]:
+        raise RoutingInvalid("revision_conflict", "ההגדרה השתנתה בינתיים.", {"row_version": cur["row_version"]})
+    rec = _validate_recipients(conn, body["recipients"]) if "recipients" in body else (cur["recipients"] if cur else {"roles": [], "users": []})
+    ch = _validate_channels(body["channels"], SEVERITY_CHANNELS) if "channels" in body else (cur["channels"] if cur else [])
+    conn.execute(
+        """INSERT INTO generator_severity_routing(device_id, severity, recipients_json, channels_json, row_version, updated_by, updated_at) VALUES (?,?,?,?,1,?,?)
+           ON CONFLICT(device_id, severity) DO UPDATE SET recipients_json = excluded.recipients_json, channels_json = excluded.channels_json, row_version = row_version + 1,
+             updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
+        (device_id, severity, json.dumps(rec), json.dumps(ch), principal.user_id, now_iso()))
+    for k in cat.TYPE_BY_KEY:
+        _sync_source(conn, device_id, k)
+    audit(conn, actor=principal, action="generator.severity_routing.update", decision="allowed", resource_type="generator_severity_routing", resource_id=f"{device_id}:{severity}")
+    return severity_defaults(conn, device_id)[severity] or {}
+
+
+def effective_routing(conn: sqlite3.Connection, device_id: str, key: str, severity: str | None = None) -> dict[str, Any] | None:
+    """The routing an alert of this type reaches today: its own recipients / channels, else the default of the severity it fires with. None = the type is switched off."""
+    pol = _policy_dict(_policy_row(conn, device_id, key))
+    if pol is not None and not pol["enabled"]:
+        return None
+    sev = severity or (pol["severity"] if pol else None) or cat.TYPE_BY_KEY[key].severity
+    dflt = severity_defaults(conn, device_id).get(sev)
+    own = pol["recipients"] if pol and (pol["recipients"]["roles"] or pol["recipients"]["users"]) else None
+    return {"severity": sev, "recipients": own or (dflt["recipients"] if dflt else {"roles": [], "users": []}),
+            "channels": (pol["channels"] if pol and pol["channels"] else (dflt["channels"] if dflt else [])), "inherited": own is None}
+
+
+# ---------------------------------------------------------------- what the notification pipeline asks (escalation, quiet hours, recipients)
+
+def _split_source(source: str) -> tuple[str, str]:
+    """`generator.<key>@<device id>` -> (key, device id); ("", "") for any other source."""
+    if not source.startswith(SOURCE_PREFIX):
+        return "", ""
+    key, _, dev = source[len(SOURCE_PREFIX):].partition("@")
+    return key, dev
+
+
+def critical_escalate_after_min(conn: sqlite3.Connection) -> int:
+    """Minutes before an unacknowledged CRITICAL generator alert goes to the system administrators: the generator setting, else the installation's escalation delay."""
+    from . import notify_settings as nsettings
+
+    try:
+        v = int(core.jget(conn, "generator.critical_escalate_after_min", 0))
+    except (TypeError, ValueError):
+        v = 0
+    return min(max(v, 1), 1440) if v else int(nsettings.load(conn)["escalation"]["after_min"])
+
+
+def escalation_after_min(conn: sqlite3.Connection, source: str, severity: str) -> int | None:
+    """When (minutes after the alert opens) an unacknowledged row of this generator source goes to the administrators; None = it never does.
+    CRITICAL always escalates (GENALERT-295, lead recommendation after the NMC lab check): after the type's own delay when its escalation is on and has
+    one, else after the generator's critical delay. Every other severity escalates only when the type's own escalation is on."""
+    key, dev = _split_source(source)
+    pol = _policy_dict(_policy_row(conn, dev, key)) if key and dev else None
+    own = max(1, round(pol["escalate_after_s"] / 60)) if pol and pol["escalate"] and pol["escalate_after_s"] else None
+    if severity == "critical" or (pol is not None and pol["escalate"]):
+        return own or critical_escalate_after_min(conn)
+    return None
+
+
+def quiet_mode_of(conn: sqlite3.Connection, n: dict[str, Any]) -> str:
+    """The quiet-hours choice of the notification's alert type: pass | matrix | hold. CRITICAL is never held by the caller, whatever this says."""
+    key, dev = _split_source(str(n.get("source") or ""))
+    row = _policy_row(conn, dev, key) if key and dev else None
+    return row["quiet_mode"] if row is not None and row["quiet_mode"] in QUIET else "matrix"
+
+
 def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
-    """The `generator` recipient rule of services/notify.recipients_for: the saved routing of the notification's device and alert type.
-    Roles are resolved against the CURRENT bindings; the caller intersects the result with visibility (generator.view at installation
-    scope), so role AND scope both apply. No policy row = no recipients (routing starts empty)."""
-    source = str(n.get("source") or "")
-    key = source[len(SOURCE_PREFIX):].split("@", 1)[0] if source.startswith(SOURCE_PREFIX) else ""
-    row = _policy_row(conn, str(n.get("subject_id") or ""), key) if key else None
-    pol = _policy_dict(row)
-    if pol is None or not pol["enabled"]:
+    """The `generator` recipient rule of services/notify.recipients_for: the routing of the notification's device and alert type - the type's own
+    recipients, else the default of the severity the alert fired with. Roles are resolved against the CURRENT bindings; the caller intersects the
+    result with visibility (generator.view at installation scope), so role AND scope both apply. Nothing chosen = no recipients (routing starts empty)."""
+    key, _dev = _split_source(str(n.get("source") or ""))
+    if not key or key not in cat.TYPE_BY_KEY:
         return []
-    out: list[str] = list(pol["recipients"]["users"])
-    roles = [r for r in pol["recipients"]["roles"] if r in ROUTABLE_ROLES]
+    eff = effective_routing(conn, str(n.get("subject_id") or ""), key, n.get("severity") if n.get("severity") in SEVERITIES else None)
+    if eff is None:
+        return []
+    out: list[str] = list(eff["recipients"]["users"])
+    roles = [r for r in eff["recipients"]["roles"] if r in ROUTABLE_ROLES]
     if roles:
         marks = ",".join("?" * len(roles))
         out += [r[0] for r in conn.execute(f"SELECT DISTINCT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id IN ({marks}) AND revoked_at IS NULL AND effect = 'allow'", roles).fetchall()]

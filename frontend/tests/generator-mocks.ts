@@ -54,6 +54,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
   const open = alerts.filter((a) => a.state === 'open').length;
   const devs = Array.from({ length: count }, (_, i) => deviceFor(`g${i + 1}`, NAMES[i % NAMES.length] + (i >= NAMES.length ? ` ${i + 1}` : ''), level, sc, i === 0 ? open : 0, false));
   const policies = new Map<string, unknown>();
+  const sevDefaults: Record<string, unknown> = { critical: null, alert: null, info: null };
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -81,7 +82,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
     if (!perms.includes('generator.view')) return err(route, 403, 'forbidden', 'אין הרשאה');
     if (g === 'devices' && method === 'GET') return json(route, { devices: devs, detected: devs.length, partial: 0, open_alerts: open, last_detect_at: '2026-10-05T09:30:00Z' });
     if (g === 'devices/detect') return json(route, { found: [], count: devs.length, last_detect_at: NOW });
-    const m = /^devices\/([^/]+)(?:\/(\w+))?(?:\/(.+))?$/.exec(g);
+    const m = /^devices\/([^/]+)(?:\/([\w-]+))?(?:\/(.+))?$/.exec(g);
     if (m && method === 'GET' && !m[2]) {
       const i = devs.findIndex((d) => d.id === m[1]);
       return i < 0 ? err(route, 404, 'generator_not_found', 'לא נמצא') : json(route, deviceFor(devs[i].id, devs[i].name, level, sc, devs[i].open_alerts));
@@ -113,27 +114,33 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
       if (bad.length) return json(route, { code: 'template_invalid', user_message: 'תבנית לא מוכרת', retryable: false, correlation_id: 'mock', details: { unknown: bad, allowed: ['name', 'detail', 'type', 'severity'] } }, 400);
       return json(route, { text: t.replace('{name}', 'גנרטור ראשי').replace('{detail}', 'מתח מצבר 23.1 V').replace('{type}', 'מתח מצבר נמוך').replace('{severity}', 'התראה') });
     }
+    if (m && m[2] === 'severity-routing' && method === 'PUT') {
+      const next = { recipients: { roles: [], users: [] }, channels: [], ...(body as object), row_version: 1 };
+      sevDefaults[m[3]!] = next;
+      return json(route, next);
+    }
     if (m && m[2] === 'policies') {
       if (method === 'PUT') {
         const key = m[3]!;
         const cur = (policies.get(key) as Record<string, unknown>) ?? {};
-        const next = { enabled: true, severity: 'alert', recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, ...cur, ...(body as object), row_version: 1 };
+        const next = { enabled: true, severity: 'alert', recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, escalate_after_s: 0, ...cur, ...(body as object), row_version: 1 };
         policies.set(key, next);
         return json(route, next);
       }
       if (method === 'POST') {
         policies.clear();
+        for (const k of Object.keys(sevDefaults)) sevDefaults[k] = null;
         return json(route, { reset: 3 });
       }
       const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, message: '{name}: {detail}.', message_sample: 'גנרטור ראשי: מתח מצבר 23.1 V.', policy: policies.get(t.key) ?? null }));
-      return json(route, { groups: GROUPS, items, available: items.filter((i) => i.available).length, total: items.length, channels: ['push', 'app', 'email'], channels_reserved: ['whatsapp', 'ha_mobile'], quiet_modes: ['pass', 'matrix', 'hold'], note: '', template_max: 500, placeholders: { name: 'שם הגנרטור', detail: 'פירוט האירוע', type: 'סוג ההתראה', severity: 'חומרה' }, roles: [{ id: 'operator', label: 'מפעילים' }, { id: 'site_admin', label: 'מנהלי אתר' }, { id: 'system_admin', label: 'מנהלי מערכת' }] });
+      return json(route, { groups: GROUPS, items, available: items.filter((i) => i.available).length, total: items.length, channels: ['push', 'app', 'email'], channels_reserved: ['whatsapp', 'ha_mobile'], quiet_modes: ['pass', 'matrix', 'hold'], severity_defaults: sevDefaults, severity_channels: ['push', 'app', 'email'], critical_escalate_after_min: 5, note: '', template_max: 500, placeholders: { name: 'שם הגנרטור', detail: 'פירוט האירוע', type: 'סוג ההתראה', severity: 'חומרה' }, roles: [{ id: 'operator', label: 'מפעילים' }, { id: 'site_admin', label: 'מנהלי אתר' }, { id: 'system_admin', label: 'מנהלי מערכת' }] });
     }
     if (m && m[2] === 'roles') {
       const names = ['engine_state', 'gen_v_l1', 'fuel_pct', 'battery_v'];
       return json(route, { items: names.map((r, i) => ({ role: r, label: r, kind: 'num', unit: '', core: i < 2, mapped: i !== 2, entity_id: i !== 2 ? `x.${r}` : null, entity_name: i !== 2 ? r : null, mapped_by: 'auto', unmapped_by_user: false, disabled_in_source: false, candidates: [{ entity_id: `x.${r}`, name: r, unit: null, score: 2 }] })) });
     }
     if (g.startsWith('device-candidates')) return json(route, { items: [{ ha_device_id: 'd1', name: 'בקר מבחן', entities: 12, mapped_roles: 7, registered: false }] });
-    if (g === 'settings') return json(route, { integration_domains: [], known_domains: [], thresholds: {}, threshold_defaults: { fuel_low_pct: 25, oil_min_bar: 1 }, threshold_limits: { fuel_low_pct: [1, 90], oil_min_bar: [0, 10] }, thresholds_set: [], alert_retention_days: 365, history_retention_days: 35, stale_after_s: 300, limits: { alert_retention_days: [30, 1825, 365], history_retention_days: [7, 90, 35], stale_after_s: [60, 3600, 300] } });
+    if (g === 'settings') return json(route, { integration_domains: [], known_domains: [], thresholds: {}, threshold_defaults: { fuel_low_pct: 25, oil_min_bar: 1 }, threshold_limits: { fuel_low_pct: [1, 90], oil_min_bar: [0, 10] }, thresholds_set: [], alert_retention_days: 365, history_retention_days: 35, stale_after_s: 300, critical_escalate_after_min: 5, limits: { alert_retention_days: [30, 1825, 365], history_retention_days: [7, 90, 35], stale_after_s: [60, 3600, 300] } });
     if (g.startsWith('alerts') && method === 'GET' && g === 'alerts' || g.startsWith('alerts?')) {
       const state = url.searchParams.get('state');
       const sev = url.searchParams.get('severity');

@@ -217,7 +217,12 @@ def _row_note(row: sqlite3.Row) -> dict[str, Any]:
     return d
 
 
-def _escalate_at(conn: sqlite3.Connection, severity: str, now: dt.datetime) -> str | None:
+def _escalate_at(conn: sqlite3.Connection, severity: str, now: dt.datetime, source: str = "") -> str | None:
+    if source.startswith("generator."):  # GENALERT-295: a generator alert type's own escalation choice; CRITICAL always escalates (not tied to the installation switch)
+        from . import generator_alerts
+
+        after = generator_alerts.escalation_after_min(conn, source, severity)
+        return iso_utc(now + dt.timedelta(minutes=after)) if after else None
     if severity != "critical":
         return None
     esc = nsettings.load(conn)["escalation"]
@@ -296,7 +301,7 @@ def _create(conn: sqlite3.Connection, s: Signal, severity: str, policy: dict[str
                                      origin_json, initiator_user_id, escalation_step, escalate_at, created_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,'open',?,?,0,?,?)""",
         (nid, s.source, category, severity, s.subject_kind, s.subject_id, area, title, body, place, _default_link(s), json.dumps(params, ensure_ascii=False), key, stamp, stamp,
-         json.dumps(s.origin, ensure_ascii=False), s.initiator_user_id, _escalate_at(conn, severity, now), stamp),
+         json.dumps(s.origin, ensure_ascii=False), s.initiator_user_id, _escalate_at(conn, severity, now, s.source), stamp),
     )
     _event(conn, nid, "created", stamp)
     n = _row_note(conn.execute("SELECT * FROM notifications WHERE id = ?", (nid,)).fetchone())
@@ -322,7 +327,7 @@ def _fold(conn: sqlite3.Connection, row: sqlite3.Row, s: Signal, severity: str, 
     if rose:
         sets["severity"] = severity
         if row["state"] == "open" and not escalate:
-            sets["escalate_at"] = _escalate_at(conn, severity, now)
+            sets["escalate_at"] = _escalate_at(conn, severity, now, row["source"])
     conn.execute(f"UPDATE notifications SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", (*sets.values(), nid))
     last = conn.execute("SELECT id, kind FROM notification_events WHERE notification_id = ? ORDER BY id DESC LIMIT 1", (nid,)).fetchone()
     if last is not None and last["kind"] == "folded":  # a burst is one timeline entry that keeps counting
@@ -659,7 +664,7 @@ def redeem_token_ex(conn: sqlite3.Connection, token: str, action: str, tz_name: 
 # ---------------------------------------------------------------- escalation (owner decision 6a)
 
 def escalation_tick(conn: sqlite3.Connection, now: dt.datetime | None = None) -> int:
-    """Re-send every unacknowledged CRITICAL row whose time has come to the administrators (settings: after N minutes, at most
+    """Re-send every unacknowledged row that has an escalation time (CRITICAL rows of every source; a generator alert type may add its own) whose time has come to the administrators (settings: after N minutes, at most
     M steps), bypassing quiet hours; stops at once on acknowledge or resolve (those clear `escalate_at`). Each step is a
     timeline entry and an outbox dispatch. Returns the number of steps taken. Runs in a write transaction."""
     from ..audit import audit
@@ -668,11 +673,12 @@ def escalation_tick(conn: sqlite3.Connection, now: dt.datetime | None = None) ->
     st = nsettings.load(conn)
     esc = st["escalation"]
     stamp = iso_utc(now)
-    due = conn.execute("SELECT * FROM notifications WHERE state = 'open' AND severity = 'critical' AND escalate_at IS NOT NULL AND escalate_at <= ? ORDER BY escalate_at", (stamp,)).fetchall()
+    due = conn.execute("SELECT * FROM notifications WHERE state = 'open' AND escalate_at IS NOT NULL AND escalate_at <= ? ORDER BY escalate_at", (stamp,)).fetchall()
     steps = 0
     for row in due:
         nid = row["id"]
-        if not esc["enabled"] or row["escalation_step"] >= esc["steps"]:
+        own = str(row["source"]).startswith("generator.")  # GENALERT-295: a generator row carries its own escalation decision (set when it opened)
+        if (not esc["enabled"] and not own) or row["escalation_step"] >= max(esc["steps"], 1 if own else 0):
             conn.execute("UPDATE notifications SET escalate_at = NULL WHERE id = ?", (nid,))
             continue
         step = row["escalation_step"] + 1
@@ -680,12 +686,12 @@ def escalation_tick(conn: sqlite3.Connection, now: dt.datetime | None = None) ->
         targets = escalation_targets(conn, esc, n)
         for uid in targets:
             conn.execute("INSERT OR IGNORE INTO notification_recipients(notification_id, user_id, decision, added_at) VALUES (?,?,?,?)", (nid, uid, "escalation", stamp))
-        nxt = iso_utc(now + dt.timedelta(minutes=esc["after_min"])) if step < esc["steps"] else None
+        nxt = iso_utc(now + dt.timedelta(minutes=esc["after_min"])) if step < max(esc["steps"], 1 if own else 0) else None
         conn.execute("UPDATE notifications SET escalation_step = ?, escalate_at = ? WHERE id = ?", (step, nxt, nid))
         _event(conn, nid, "escalated", stamp, step=step, count=len(targets))
         audit(conn, actor=None, action="notify.escalate", decision="allowed", resource_type="notification", resource_id=nid, details={"step": step, "recipients": len(targets), "source": row["source"]})
         _enqueue(conn, "dispatch", nid, {"mode": "escalate", "step": step, "users": targets})
-        _frames(conn, nid, [{"type": "notification", "payload": {"id": nid, "category": row["category"], "severity": "critical", "unread": True}}], targets)
+        _frames(conn, nid, [{"type": "notification", "payload": {"id": nid, "category": row["category"], "severity": row["severity"], "unread": True}}], targets)
         steps += 1
     return steps
 
