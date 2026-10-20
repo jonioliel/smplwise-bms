@@ -134,8 +134,8 @@ def test_0089_creates_the_rfq_tables_and_rebuilds_only_the_outbox(s4):
                 "ticket_rfq_events"} <= tables
         assert "ticket_outbox_new" not in tables
         cols = [r[1] for r in conn.execute("PRAGMA table_info(ticket_outbox)")]
-        # integ/2100: 0128 (CR-VENDORQ-294) rebuilds the outbox again and appends source_module / source_id / document_id after these two
-        assert cols[cols.index("link_generation"):][:2] == ["link_generation", "rfq_id"]
+        # CR-VENDORQ-294: the 0129 (PROVISIONAL) rebuild appends source_module / source_id / document_id after these two
+        assert cols[cols.index("link_generation"):cols.index("rfq_id") + 1] == ["link_generation", "rfq_id"]
         idx = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'ticket_outbox'")}
         assert {"idx_ticket_outbox_queue", "idx_ticket_outbox_ticket", "idx_ticket_outbox_contact_sent", "idx_ticket_outbox_provider",
                 "idx_ticket_outbox_channel_sent", "idx_ticket_outbox_account_sent", "idx_ticket_outbox_updated", "idx_ticket_outbox_idempotency",
@@ -182,8 +182,8 @@ def test_0089_keeps_every_outbox_row_and_widens_only_the_purposes(settings, tmp_
                      "code_id) VALUES ('o5', 'contact', 'c1', 'whatsapp', 'phone_verify', 'tickets.codes', 'queued', 't', 't', 't', 'pv1')")
         assert conn.execute("SELECT count(*) FROM ticket_outbox").fetchone()[0] == 3
     rebuilds = sorted(f.name for f in real.glob("*.sql") if "CREATE TABLE ticket_outbox_new" in f.read_text(encoding="utf-8") and int(f.name[:4]) > 86)
-    # integ/2100: the second, later rebuild is 0128 (CR-VENDORQ-294, purpose `report`); no other one may appear
-    assert rebuilds == ["0089_ticket_rfq.sql", "0128_vendor_queue_documents.sql"], rebuilds
+    # CR-VENDORQ-294: exactly one LATER rebuild exists - the vendor-queue migration (the `report` purpose; renumbered at integration)
+    assert rebuilds[0] == "0089_ticket_rfq.sql" and len(rebuilds) == 2 and "_vendor_queue_documents" in rebuilds[1], rebuilds
 
 
 # ---------------------------------------------------------------- visibility and the permission matrix
