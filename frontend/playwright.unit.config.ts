@@ -15,7 +15,8 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 // They are left out of the default (node-only) run and run with SW_UNIT_PAGES=1 against a running server:
 //   SW_UNIT_PAGES=1 SW_BASE_URL=http://127.0.0.1:5173/ npx playwright test -c playwright.unit.config.ts --workers=2 --reporter=line
 // (the same locale / zone / desktop viewport as playwright.config.ts's desktop project; the release gate itself uses playwright.config.ts).
-// A spec counts as a page spec when it navigates to an app-relative address, or names it in a constant (const HOME = '/?design=a#/...').
+// unit-plan-3d.spec.ts looks for the BUILT chunk (/assets/three-*.js): against the Vite dev server its two page tests fail, against `vite preview` of a
+// build they pass (the gate runs it on the preview). A spec counts as a page spec when it navigates to an app-relative address, or names it in a constant (const HOME = '/?design=a#/...').
 const PAGE_SPEC = /goto\(\s*[`'"]\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\/[?#]/;
 const testsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
 const pageSpecs = fs
