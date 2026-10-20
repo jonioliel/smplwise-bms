@@ -267,7 +267,7 @@ export class LiveWall extends LitElement {
       min-inline-size: 0;
     }
     .pbar select {
-      min-block-size: 40px;
+      min-block-size: 44px; /* UXFIX-A11Y-295: 44 px touch target (was 40) */
       padding-inline: 8px;
       font-size: var(--sw-fs-xs);
     }

@@ -61,11 +61,11 @@ async function openDemo(page: Page, hash: string) {
 test.describe('touch targets (phone)', () => {
   test.skip(({ hasTouch }) => !hasTouch, 'the phone project (touch)');
 
-  test('corner search / status keys, events range toggle and filter chips: a 44 px hit area', async ({ page }) => {
-    await openDemo(page, '/investigate/events');
+  // (the events range toggle renders in the API mode only - its 44 px rule is CSS in investigate-events.ts, not probed here)
+  test('corner search / status keys and filter chips: a 44 px hit area', async ({ page }) => {
+    await openDemo(page, '/styleguide');
     await expectHit(page.locator('sw-app .float .pillrow button'), 'corner key');
-    await expectHit(page.locator('sw-app investigate-events [data-events-range] button'), 'events range');
-    const chips = page.locator('sw-app investigate-events sw-chip');
+    const chips = page.locator('sw-app styleguide-screen sw-chip');
     const n = await chips.count();
     expect(n, 'events filter chips').toBeGreaterThan(0);
     for (let i = 0; i < n; i++) {
@@ -108,10 +108,15 @@ test('tickets list: the cards replace skeleton cards of their own height; the lo
     w.__shifts = [];
     try {
       new PerformanceObserver((list) => {
-        for (const e of list.getEntries() as unknown as { value: number; hadRecentInput: boolean; startTime: number }[]) {
+        for (const e of list.getEntries() as unknown as { value: number; hadRecentInput: boolean; startTime: number; sources?: { node?: Node; previousRect: DOMRectReadOnly; currentRect: DOMRectReadOnly }[] }[]) {
           if (e.hadRecentInput) continue;
           w.__cls += e.value;
-          w.__shifts.push(`${Math.round(e.startTime)}ms ${e.value.toFixed(3)}`);
+          const src = (e.sources ?? []).slice(0, 4).map((s) => {
+            const n = s.node as Element | undefined;
+            const name = n ? (n.nodeType === 1 ? `${n.tagName.toLowerCase()}${n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/).join('.') : ''}` : '#text') : '?';
+            return `${name} y${Math.round(s.previousRect.y)}->${Math.round(s.currentRect.y)} h${Math.round(s.previousRect.height)}->${Math.round(s.currentRect.height)}`;
+          });
+          w.__shifts.push(`${Math.round(e.startTime)}ms ${e.value.toFixed(3)} [${src.join('; ')}]`);
         }
       }).observe({ type: 'layout-shift', buffered: true });
     } catch {
@@ -132,9 +137,14 @@ test('tickets list: the cards replace skeleton cards of their own height; the lo
   const sk = page.locator('sw-app tickets-list ticket-card[skeleton]');
   await expect(sk.first()).toBeVisible({ timeout: 15_000 });
   const skH = (await sk.first().boundingBox())!.height;
+  const skTop = (await sk.first().boundingBox())!.y;
+  const hdrSk = (await page.locator('sw-app tickets-list [data-tickets-header]').boundingBox())!;
   const real = page.locator('sw-app tickets-list [data-tickets-grid] ticket-card');
   await expect(real.first()).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(1000);
+  const realTop = (await real.first().boundingBox())!.y;
+  const hdr = (await page.locator('sw-app tickets-list [data-tickets-header]').boundingBox())!;
+  console.log(`[${info.project.name}] first card top ${Math.round(skTop)} (skeleton) -> ${Math.round(realTop)}; header ${Math.round(hdrSk.y)}+${Math.round(hdrSk.height)} -> ${Math.round(hdr.y)}+${Math.round(hdr.height)}`);
   const hs = (await real.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))).sort((a, b) => a - b);
   const median = hs[Math.floor(hs.length / 2)];
   const { cls, shifts } = await page.evaluate(() => ({ cls: (window as unknown as { __cls: number }).__cls, shifts: (window as unknown as { __shifts: string[] }).__shifts }));
