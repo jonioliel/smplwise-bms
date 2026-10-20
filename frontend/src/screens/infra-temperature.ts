@@ -337,7 +337,7 @@ export class InfraTemperature extends LitElement {
 
   private l1() {
     return isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2
-      ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'temperature')} active="temperature" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>`
+      ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'temperature')} active="temperature" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>`
       : nothing;
   }
 

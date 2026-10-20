@@ -199,7 +199,7 @@ export class InfraElevators extends LitElement {
   }
 
   render() {
-    const l1 = isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'elevators')} active="elevators" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
+    const l1 = isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'elevators')} active="elevators" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (!this.data) {
       return this.error

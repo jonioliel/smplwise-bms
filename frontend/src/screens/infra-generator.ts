@@ -15,7 +15,7 @@ import { describeError } from '../api/client';
 import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type DevicesResponse, type GenDevice } from '../api/generator';
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
 import { fill, fmtDateTime } from '../generator/gen-logic';
-import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
+import { INFRA_TABS, infraPageTabs, tabStyleOf, visibleTabs } from '../shell/nav';
 import { TabsModeController } from '../shell/tabs-mode';
 import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
@@ -150,7 +150,7 @@ export class InfraGenerator extends LitElement {
 
   render() {
     this.pagesChip = null;
-    const l1 =isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
+    const l1 =isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'error' && !this.list) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => this.loadList()} data-state="error"></sw-state-panel>`;
     if (this.phase === 'loading' && !this.list) return html`<div class="col" data-state="loading"><div class="skl" style="inline-size:320px;block-size:22px"></div><div class="hero"><div class="card"><div class="skl" style="block-size:280px"></div></div><div class="card"><div class="skl"></div><div class="skl" style="margin-block-start:12px"></div></div></div></div>`;
@@ -160,7 +160,8 @@ export class InfraGenerator extends LitElement {
     const page = pageOf(this.route?.segments ?? []);
     const q = d ? `?device=${encodeURIComponent(d.id)}` : '';
     const open = d?.open_alerts ?? 0;
-    const items: TabItem[] = PAGES.map((p) => ({ id: p, label: G.pages[p], href: `#/infra/generator/${p}${q}`, ...(p === 'alerts' && open ? { count: open } : {}) }));
+    // TABSET-293: the page row follows ui.tabs (`infra.generator`: order, hidden pages)
+    const items: TabItem[] = infraPageTabs('infra.generator', PAGES.map((p) => ({ id: p, label: G.pages[p], href: `#/infra/generator/${p}${q}`, ...(p === 'alerts' && open ? { count: open } : {}) })), isApi());
     const picker: DropdownItem[] = ds.map((x) => ({ id: x.id, label: `${x.name}${this.summary[x.id] && typeof this.summary[x.id].summary.engine_state?.value === 'string' ? ` · ${(G.engine as Record<string, string>)[String(this.summary[x.id].summary.engine_state.value)] ?? ''}` : ''}`, ...(x.open_alerts ? { alert: true as const } : {}) }));
     const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${G.pickerLabel}</span><sw-dropdown .items=${picker} .value=${d?.id ?? ''} label=${G.pickerLabel} @change=${(e: CustomEvent<DropdownChange>) => this.pick(e)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
     let body;
@@ -173,7 +174,7 @@ export class InfraGenerator extends LitElement {
     // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
-    const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf(null, 2)} data-infra-pages></sw-tabs>`;
+    const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.generator')} data-infra-pages></sw-tabs>`;
     return html`<div class="rows" data-gen-shell>${l1}${row}${pick}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 }
