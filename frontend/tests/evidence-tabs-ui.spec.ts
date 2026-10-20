@@ -270,8 +270,9 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await open(page, '/system/diagnostics?tab=tabs');
     const ed = page.locator('sw-app system-diagnostics system-tabs-config');
     await expect(ed).toBeVisible();
-    await expect(ed.locator('[data-tabs-section]')).toHaveCount(9);
-    expect(await ed.locator('[data-tabs-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tabs-section')))).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'wiskey', 'system', 'system.security']);
+    // TABSET-293: multimedia, infrastructure (+ its two page rows) joined; the tickets card is listed only while that area is switched on (off here)
+    await expect(ed.locator('[data-tabs-section]')).toHaveCount(13);
+    expect(await ed.locator('[data-tabs-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tabs-section')))).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'multimedia', 'wiskey', 'infra', 'infra.electricity', 'infra.generator', 'system', 'system.security']);
     const rows = (sec: string) => ed.locator(`li[data-sec="${sec}"] .name`).allTextContents();
     expect(await rows('explore')).toEqual(['אתרים ומבנים', 'מפת קומה']);
     expect((await rows('security.live')).map((s) => s.trim())).toEqual(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות']);
@@ -360,6 +361,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await ed.locator('li[data-sec="wiskey"][data-tab="people"] sw-toggle button').click();
     await ed.locator('[data-tabs-save]').click();
     await expect.poll(() => st.patches.length).toBe(1);
-    expect(st.patches[0]).toEqual({ 'ui.tabs': { wiskey: { order: ['events', 'overview', 'people', 'devices', 'sync', 'health', 'audit', 'tools', 'zzz'], hidden: ['people', 'zzz'] } } });
+    // SHAREDID-293: "גישת חוץ" closes the WisKey row while it is placed under access control (the default)
+    expect(st.patches[0]).toEqual({ 'ui.tabs': { wiskey: { order: ['events', 'overview', 'people', 'devices', 'sync', 'health', 'audit', 'tools', 'external', 'zzz'], hidden: ['people', 'zzz'] } } });
   });
 });

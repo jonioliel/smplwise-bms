@@ -13,6 +13,8 @@ import { ot } from '../tickets/overview-text'; // MGRDASH: the overview tab's la
 import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
 import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
 import { xt } from '../i18n/access-external'; // SHAREDID-293: the external-access tab's label
+import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab registry's sections (he / en / ar / ru)
+import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -593,6 +595,38 @@ export const INFRA_TABS: TabItem[] = [
   { id: 'temperature', label: 'טמפרטורות', href: INFRA_TEMPERATURE_HREF },
 ];
 
+/** TABSET-293: the page rows inside two infrastructure screens (level 2 of the tab registry): the electricity meters' pages (the
+ * money pages - bills, customers - need energy.bills; the screen also checks it) and the generator's pages. The screens draw these rows
+ * (screens/infra-electricity.ts, screens/infra-generator.ts) through `infraPageTabs`, so `ui.tabs` (`infra.electricity`,
+ * `infra.generator`) orders and hides them like every other row. */
+export const INFRA_ELECTRICITY_PAGES: TabItem[] = [
+  { id: 'meters', label: 'מונים', href: INFRA_METERS_HREF },
+  { id: 'accounts', label: 'חשבונות', href: '#/infra/electricity/accounts' },
+  { id: 'bills', label: 'חיובים', href: '#/infra/electricity/bills' },
+  { id: 'customers', label: 'לקוחות', href: '#/infra/electricity/customers' },
+];
+/** The electricity pages that show money (energy.bills). */
+export const INFRA_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
+export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
+
+/** A screen's page row (`infra.electricity` / `infra.generator`) shaped by `ui.tabs`: the configured order, the hidden pages left out
+ * (never all of them), with a backend only - the static demo shows the defaults, like every other row. The caller passes only the pages
+ * this user may open; the items keep their own shape (a count, a device query). */
+export function infraPageTabs<T extends { id: string }>(section: 'infra.electricity' | 'infra.generator', items: T[], api: boolean): T[] {
+  return api ? configureTabs(section, items) : items;
+}
+
+/** The page an infrastructure tab opens on: the first page of its configured row this user may open; while the row is not configured,
+ * the built-in entry (null). Used for the area's tab row (`permittedTabs`) and the bare #/infra/electricity route. */
+export function infraEntryHref(tabId: string, can?: Can): string | null {
+  if (tabId === 'electricity' && isSectionConfigured('infra.electricity')) {
+    const pages = INFRA_ELECTRICITY_PAGES.filter((p) => !INFRA_MONEY_PAGES.includes(p.id) || !can || can('energy.bills'));
+    return configureTabs('infra.electricity', pages)[0]?.href ?? null;
+  }
+  if (tabId === 'generator' && isSectionConfigured('infra.generator')) return configureTabs('infra.generator', INFRA_GENERATOR_PAGES)[0]?.href ?? null;
+  return null;
+}
+
 /** CR-031: the generator tab is hidden until a generator is detected (generator/access.ts); hidden = true until told otherwise. */
 let INFRA_NO_GENERATOR = true;
 export function applyInfraGenerator(show: boolean): void {
@@ -1109,7 +1143,14 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
+  // decided after the gates above, which key on the built-in href
+  if (!api || source !== INFRA_TABS) return shown;
+  return shown.map((t) => {
+    const entry = infraEntryHref(t.id, can);
+    return entry && entry !== t.href ? { ...t, href: entry } : t;
+  });
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
@@ -1298,30 +1339,52 @@ export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): str
 // ---------------------------------------------------------------------------------------------
 export interface TabSectionDef {
   id: string;
-  label: string;
+  /** The card's name (a getter: read in the document language - i18n/tab-sections.ts). */
+  readonly label: string;
   /** Where the section shows: the surface the owner recognises it by. */
-  where: string;
+  readonly where: string;
   /** Every tab of the section in its default order (not limited by permissions: the editor is for the whole installation). */
   tabs: () => TabItem[];
-  /** The hierarchy level of its bar: 1 = the first bar of an area (the security sections, the tab row of home, map, WisKey and
-   * settings), 2 = the sub-tabs below it (the pages of לייב and חקירה, the pages of הגדרות › אבטחה). */
+  /** The hierarchy level of its bar: 1 = the first bar of an area (the security sections, the tab row of home, map, multimedia, WisKey,
+   * infrastructure, the tickets area and settings), 2 = the sub-tabs below it (the pages of לייב and חקירה, the page rows of the
+   * infrastructure screens, the pages of הגדרות › אבטחה). */
   level: TabLevel;
   /** False for the rail / bottom bar: it has no tab-bar style. */
   bar?: boolean;
+  /** TABSET-293: whether the editor lists the section right now (an optional area that is switched off is not listed; its stored
+   * entry is kept untouched). Absent = always. */
+  available?: () => boolean;
+  /** TABSET-293: some of the section's tabs are offered only once the installation has something of their kind (multimedia players
+   * and groups, the generator, elevators): the editor says so under the card. */
+  offered?: boolean;
 }
 
 const plain = (items: readonly { id: string; label: string; href?: string }[]): TabItem[] => items.map((i) => ({ id: i.id, label: i.label, href: i.href }));
 
+/** TABSET-293: one registry entry; label and where are read at render time (the document language, the tickets module's own name). */
+function tabSection(id: string, label: () => string, where: () => string, tabs: () => TabItem[], level: TabLevel, extra: Partial<Pick<TabSectionDef, 'bar' | 'available' | 'offered'>> = {}): TabSectionDef {
+  return { id, get label() { return label(); }, get where() { return where(); }, tabs, level, ...extra };
+}
+
+/** Every navigation section whose tabs the owner orders and hides (הגדרות › כללי › לשוניות). TABSET-293 (owner 2026-10-20): the
+ * multimedia, infrastructure and tickets areas were missing - their rows never reached the editor nor `configureTabs` (sectionIdOf) -
+ * and the infrastructure screens' page rows (electricity, generator) are level-2 sections now. A new tab added to one of the arrays
+ * above (temperature, elevators, ...) appears here by itself, after the ones a stored order names. */
 export const TAB_SECTIONS: TabSectionDef[] = [
-  { id: 'areas', label: 'ניווט ראשי', where: 'סרגל הצד ופס הניווט התחתון', tabs: () => plain(NAV_A), level: 1, bar: false },
-  { id: 'devices', label: 'ראשי', where: 'לשוניות המסך הראשי', tabs: () => plain(DEVICES_TABS), level: 1 },
-  { id: 'security', label: 'אבטחה', where: 'הבחירה בראש אזור האבטחה', tabs: () => plain(SECURITY_SECTIONS), level: 1 },
-  { id: 'security.live', label: 'אבטחה › לייב', where: 'לשוניות לייב', tabs: () => plain(SECTION_TABS.live), level: 2 },
-  { id: 'security.investigate', label: 'אבטחה › חקירה', where: 'לשוניות חקירה', tabs: () => plain(SECTION_TABS.investigate), level: 2 },
-  { id: 'explore', label: 'מפה', where: 'לשוניות המפה', tabs: () => plain(EXPLORE_TABS), level: 1 },
-  { id: 'wiskey', label: 'WisKey', where: 'לשוניות WisKey', tabs: () => plain(WISKEY_TABS), level: 1 },
-  { id: 'system', label: 'הגדרות', where: 'לשוניות ההגדרות', tabs: () => plain(AREA_TABS.system), level: 1 },
-  { id: 'system.security', label: 'הגדרות › אבטחה', where: 'לשוניות אבטחה בהגדרות', tabs: () => plain(SECURITY_SETTINGS_TABS), level: 2 },
+  tabSection('areas', () => tst('areasLabel'), () => tst('areasWhere'), () => plain(NAV_A), 1, { bar: false }),
+  tabSection('devices', () => tst('devicesLabel'), () => tst('devicesWhere'), () => plain(DEVICES_TABS), 1),
+  tabSection('security', () => tst('securityLabel'), () => tst('securityWhere'), () => plain(SECURITY_SECTIONS), 1),
+  tabSection('security.live', () => tst('securityLiveLabel'), () => tst('securityLiveWhere'), () => plain(SECTION_TABS.live), 2),
+  tabSection('security.investigate', () => tst('securityInvestigateLabel'), () => tst('securityInvestigateWhere'), () => plain(SECTION_TABS.investigate), 2),
+  tabSection('explore', () => tst('exploreLabel'), () => tst('exploreWhere'), () => plain(EXPLORE_TABS), 1),
+  tabSection('multimedia', () => tst('multimediaLabel'), () => tst('multimediaWhere'), () => plain(MULTIMEDIA_TABS), 1, { offered: true }),
+  tabSection('wiskey', () => tst('wiskeyLabel'), () => tst('wiskeyWhere'), () => plain(WISKEY_TABS), 1),
+  tabSection('infra', () => tst('infraLabel'), () => tst('infraWhere'), () => plain(INFRA_TABS), 1, { offered: true }),
+  tabSection('infra.electricity', () => tst('infraElectricityLabel'), () => tst('infraElectricityWhere'), () => plain(INFRA_ELECTRICITY_PAGES), 2),
+  tabSection('infra.generator', () => tst('infraGeneratorLabel'), () => tst('infraGeneratorWhere'), () => plain(INFRA_GENERATOR_PAGES), 2),
+  tabSection('tickets', () => tt('area'), () => tst('ticketsWhere', { name: tt('area') }), () => plain(TICKETS_TABS.filter((t) => t.id !== 'external' || EXTERNAL_PLACEMENT !== 'access')), 1, { available: () => ticketsModuleOn() }), // SHAREDID-293: "גישת חוץ" only while it is placed under service management
+  tabSection('system', () => tst('systemLabel'), () => tst('systemWhere'), () => plain(AREA_TABS.system), 1),
+  tabSection('system.security', () => tst('systemSecurityLabel'), () => tst('systemSecurityWhere'), () => plain(SECURITY_SETTINGS_TABS), 2),
 ];
 
 /** The `ui.tabs` section of the tab row the shell draws under an area's head: in the security area the row is the current
@@ -1354,6 +1417,9 @@ export function sectionIdOf(items: readonly TabItem[]): string | null {
     [SECTION_TABS.investigate, 'security.investigate'],
     [EXPLORE_TABS, 'explore'],
     [WISKEY_TABS, 'wiskey'],
+    [MULTIMEDIA_TABS, 'multimedia'], // TABSET-293: the multimedia, infrastructure and tickets rows follow ui.tabs too
+    [INFRA_TABS, 'infra'],
+    [TICKETS_TABS, 'tickets'],
     [AREA_TABS.system, 'system'],
     [SECURITY_SETTINGS_TABS, 'system.security'],
   ]);

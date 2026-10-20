@@ -14,6 +14,7 @@ import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
 import { LOCKED_TABS, TAB_SECTIONS, TAB_STYLE_DEFAULTS, applyTabsConfig, normalizeTabStyles, normalizeTabsConfig, type TabSectionDef } from '../shell/nav';
 import { SkinController } from '../design/skin';
+import { tst } from '../i18n/tab-sections';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 
@@ -26,7 +27,8 @@ const SAMPLE = [{ id: 'a', label: 'ראשון' }, { id: 'b', label: 'שני' }, 
 
 /**
  * הגדרות › כללי › לשוניות (owner 2026-09-30, setting `ui.tabs`): one card per navigation section that has tabs - the rail,
- * the security sections and their pages, the map, WisKey, the settings - listing that section's tabs from the registry in
+ * the security sections and their pages, the map, multimedia, WisKey, infrastructure and its page rows, the tickets area (while it is
+ * switched on), the settings (TABSET-293 added the multimedia, infrastructure and tickets cards) - listing that section's tabs from the registry in
  * shell/nav.ts (TAB_SECTIONS: the single source of ids, labels and default order; nothing is duplicated here). Per tab: a
  * switch to show or hide it, a drag handle (pointer events: mouse, touch, pen) and ▲/▼ buttons (the arrow keys on the handle
  * work too) to reorder. Rules the editor enforces: at least one tab per section stays visible (the last visible switch is
@@ -442,8 +444,8 @@ export class SystemTabsConfig extends LitElement {
       </div>`;
     };
     return html`<sw-card heading="סגנון סרגל" subheading="איך נראים סרגלי הלשוניות; אפשר לקבוע סגנון אחר לכל מקטע בכרטיס שלו" data-tabs-styles>
-      ${level(1, 'רמה 1: הסרגל הראשון של האזור', 'המסך הראשי, הבחירה באבטחה, המפה, WisKey וההגדרות')}
-      ${level(2, 'רמה 2: תת־לשוניות', 'הדפים של לייב ושל חקירה, ואבטחה בהגדרות')}
+      ${level(1, 'רמה 1: הסרגל הראשון של האזור', tst('level1Hint'))}
+      ${level(2, 'רמה 2: תת־לשוניות', tst('level2Hint'))}
     </sw-card>`;
   }
 
@@ -488,6 +490,7 @@ export class SystemTabsConfig extends LitElement {
         )}
       </ol>
       ${def.id === 'wiskey' ? html`<div class="muted" style="margin-block-start:8px">רשימת הלשוניות נלקחת מ־WisKey; לשונית שעוד לא נטענה בדפדפן הזה שומרת את ההגדרה שלה.</div>` : nothing}
+      ${def.offered ? html`<div class="muted" style="margin-block-start:8px" data-tabs-offered=${def.id}>${tst('noteOffered')}</div>` : nothing}
       <div class="foot">
         <button type="button" class="link" data-tabs-reset=${def.id} ?disabled=${!this.canEdit || !configured} @click=${() => this.resetSection(def)}>אפס לברירת המחדל</button>
       </div>
@@ -501,7 +504,7 @@ export class SystemTabsConfig extends LitElement {
       <p class="intro">בחרו אילו לשוניות מוצגות בכל אזור ובאיזה סדר. השינוי חל על כל המשתמשים והלשונית הראשונה המוצגת היא זו שהאזור נפתח עליה. הסדר של הניווט הראשי הוא ברירת המחדל: כל משתמש יכול לסדר אותו לעצמו. הסתרת לשונית אינה מבטלת הרשאות והכתובת שלה ממשיכה לעבוד למי שמורשה; בכל אזור נשארת לפחות לשונית אחת.</p>
       <system-tabs-mode></system-tabs-mode>
       ${this.renderStyleDefaults()}
-      ${TAB_SECTIONS.map((def) => this.renderSection(def))}
+      ${TAB_SECTIONS.filter((def) => !def.available || def.available()).map((def) => this.renderSection(def))}
       <div class="savebar">
         ${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}

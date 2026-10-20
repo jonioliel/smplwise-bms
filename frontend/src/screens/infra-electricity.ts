@@ -6,7 +6,7 @@ import '../components/sw-state-panel';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../electricity/access';
-import { tabStyleOf, INFRA_TABS, visibleTabs } from '../shell/nav';
+import { tabStyleOf, INFRA_ELECTRICITY_PAGES, INFRA_MONEY_PAGES, INFRA_TABS, infraPageTabs, visibleTabs } from '../shell/nav';
 import { canNav, isApi } from '../api/session';
 import { navigate } from '../router';
 import { TabsModeController } from '../shell/tabs-mode';
@@ -29,12 +29,9 @@ interface PageDef {
   money: boolean;
 }
 
-export const ELECTRICITY_PAGES: PageDef[] = [
-  { id: 'meters', label: 'מונים', tag: 'elec-meters-page', money: false },
-  { id: 'accounts', label: 'חשבונות', tag: 'elec-accounts-page', money: false },
-  { id: 'bills', label: 'חיובים', tag: 'elec-bills-page', money: true },
-  { id: 'customers', label: 'לקוחות', tag: 'elec-customers-page', money: true },
-];
+/** TABSET-293: ids, labels and the money flag come from the tab registry (shell/nav.ts INFRA_ELECTRICITY_PAGES), which the tabs editor
+ * lists as `infra.electricity`; this screen adds the element of each page. */
+export const ELECTRICITY_PAGES: PageDef[] = INFRA_ELECTRICITY_PAGES.map((p) => ({ id: p.id as ElectricityPage, label: p.label, tag: `elec-${p.id}-page`, money: INFRA_MONEY_PAGES.includes(p.id) }));
 
 /** The page a route names (`#/infra/electricity/<page>`); the meters page by default. */
 export function pageOf(segments: readonly string[]): ElectricityPage {
@@ -102,9 +99,10 @@ export class InfraElectricity extends LitElement {
     const r = this.route;
     const page = pageOf(r?.segments ?? []);
     const def = ELECTRICITY_PAGES.find((p) => p.id === page)!;
-    const items: TabItem[] = this.pages().map((p) => ({ id: p.id, label: p.label, href: `#/infra/electricity/${p.id}` }));
+    // TABSET-293: the page row follows ui.tabs (`infra.electricity`: order, hidden pages) after the money gate
+    const items: TabItem[] = infraPageTabs('infra.electricity', this.pages().map((p) => ({ id: p.id, label: p.label, href: `#/infra/electricity/${p.id}` })), isApi());
     // the area row has a single tab until water and generators join: the shell draws it here (a row of one is not drawn by the navigation)
-    const l1 = visibleTabs(INFRA_TABS, isApi(), canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'electricity')} active="electricity" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
+    const l1 = visibleTabs(INFRA_TABS, isApi(), canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'electricity')} active="electricity" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
     let body;
     if (!this.access.view || (def.money && !this.access.bills)) {
       body = html`<sw-state-panel state="forbidden" data-elec=${page} data-state="forbidden"></sw-state-panel>`;
@@ -117,7 +115,7 @@ export class InfraElectricity extends LitElement {
     // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
-    const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf(null, 2)} data-infra-pages></sw-tabs>`;
+    const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.electricity')} data-infra-pages></sw-tabs>`;
     return html`<div class="rows" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 
