@@ -522,7 +522,7 @@ def test_the_export_is_the_callers_view_masked_and_formula_safe(w):
     assert all(r["phone"] == "" for r in names), "below the sensitive level: no phone at all"
     rows_audit = w.audit("access.bulk.export")
     assert [json.loads(a["details_json"])["rows"] for a in rows_audit] == [3, 2, 2]
-    assert "Avi" not in json.dumps(rows_audit) and "1002" not in json.dumps(rows_audit)
+    assert "Avi" not in json.dumps(rows_audit) and PHONE_B not in json.dumps(rows_audit)
 
 
 def test_one_export_a_minute(w):

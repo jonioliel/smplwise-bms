@@ -11,6 +11,9 @@ import './wiskey-person-editor';
 import './wiskey-person-drawer';
 import './wiskey-message-dialog';
 import './wiskey-person-actions';
+import './wiskey-bulk-people';
+import { bt } from '../i18n/bulk-people';
+import { bulkSettings } from '../api/bulk-people';
 import type { ActionKind, ActionResult } from './wiskey-person-actions';
 import { PENDING_CHECKS, PENDING_CHECK_MS, deleteSettled, personActions, type PersonAction } from '../access-control/people-writes-logic';
 import { wt } from '../i18n/access-writes';
@@ -195,6 +198,10 @@ export class WiskeyPeople extends LitElement {
   private pendingTimer = 0;
   /** A delete sent from the actions dialog and not yet confirmed by the read model (the page watches it once the dialog closes). */
   private pendingDelete = '';
+  /** CR-BULKPEOPLE-295: the import / export / bulk edit dialog (null = closed). */
+  @state() private bulk: 'import' | 'edit' | null = null;
+  /** The bulk buttons show only when the switch is on (or to a system administrator, who can switch it on); hidden on any error. */
+  @state() private bulkShown = false;
   @state() private messagesRev = 0; // bumped after a message was sent: the open person's history is read again
 
   private rowsKey = ''; // the query and filters the shown rows answer: "the last known" is only ever the answer to THIS request
@@ -214,6 +221,7 @@ export class WiskeyPeople extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    if (isApi()) void bulkSettings().then((b) => (this.bulkShown = b.enabled === 'on' || b.system_admin === true), () => (this.bulkShown = false));
     this.media = typeof window.matchMedia === 'function' ? window.matchMedia(`(max-width: ${TABLE_MIN_WIDTH - 1}px)`) : null;
     this.phone = !!this.media?.matches;
     this.media?.addEventListener('change', this.onMedia);
@@ -718,7 +726,11 @@ export class WiskeyPeople extends LitElement {
       ${this.editing
         ? html`<wiskey-person-editor .userId=${this.editing === 'new' ? '' : this.editing.id} @editor-saved=${(e: CustomEvent) => this.onSaved(e)} @editor-deleted=${(e: CustomEvent) => this.onDeleted(e)} @editor-close=${() => this.closeEditor()}></wiskey-person-editor>`
         : nothing}
-      ${this.message && !this.message.inDrawer ? this.renderMessage() : nothing}`;
+      ${this.message && !this.message.inDrawer ? this.renderMessage() : nothing}
+      ${this.bulk
+        ? html`<sw-bulk-people-dialog open .mode=${this.bulk} .personIds=${[...this.selected]} .stations=${this.stations.map((st) => ({ id: st.id, name: st.name, locks: [1, 2] }))}
+            .groups=${this.groups.map((g) => ({ id: g.id, label: g.label }))} @close=${() => (this.bulk = null)} @changed=${() => void this.reload()}></sw-bulk-people-dialog>`
+        : nothing}`;
   }
 
   private renderActions(ready: boolean): TemplateResult {
@@ -737,6 +749,9 @@ export class WiskeyPeople extends LitElement {
         : nothing}
       ${ready && this.canManage
         ? html`<sw-button slot="actions" variant="primary" icon="plus" data-wiskey-people-add @click=${() => this.openEditor('new')}>${pt('action.add')}</sw-button>`
+        : nothing}
+      ${ready && isApi() && this.bulkShown
+        ? html`<sw-button slot="actions" variant="secondary" icon="upload" data-people-bulk-open @click=${() => (this.bulk = 'import')}>${bt('open')}</sw-button>`
         : nothing}
       ${isApi() && this.phase !== 'forbidden'
         ? html`<sw-button slot="actions" variant="ghost" icon="refresh" iconOnly data-wiskey-people-refresh label=${pt('action.refresh')} ?disabled=${this.busy} @click=${() => void this.reload()}></sw-button>`
@@ -964,6 +979,7 @@ export class WiskeyPeople extends LitElement {
       <span class="n" data-people-bulk-count=${n}>${pt('bulk.selected', { n })}</span>
       <span class="sp"></span>
       ${this.canMessage ? html`<sw-button icon="mail" data-people-bulk-message ?disabled=${n === 0} @click=${() => this.openMessage([...this.selected], false)}>${pt('action.message_selected')}</sw-button>` : nothing}
+      ${this.canManage && isApi() && this.bulkShown ? html`<sw-button icon="edit" data-people-bulk-edit ?disabled=${n === 0} @click=${() => (this.bulk = 'edit')}>${bt('edit_open')}</sw-button>` : nothing}
       <sw-button variant="ghost" data-people-bulk-clear ?disabled=${n === 0} @click=${() => (this.selected = new Set())}>${pt('action.clear_selection')}</sw-button>
     </div>`;
   }
