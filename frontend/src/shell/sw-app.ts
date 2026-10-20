@@ -698,10 +698,16 @@ export class SwApp extends LitElement {
       border-radius: 50%;
       background: var(--sw-border-strong);
     }
-    /* UXFIX-A11Y-295: 28 px drawn, 44 px hit area on every touch screen (a coarse tablet got 40) */
+    /* UXFIX-A11Y-295 (UX audit 2026-10-20): the two keys were 28 x 28 and sat edge to edge, so their -8 px rings overlapped and the
+       first key kept 28 px of width. On a touch screen each key is 44 px wide (the pill grows sideways; the icons and the 34 px pill
+       height stay) and its ring adds 8 px above and below: 44 x 44 each, no overlap. */
     @media (max-width: 767px), (pointer: coarse) {
+      .float button {
+        inline-size: 44px;
+        border-radius: var(--sw-r-pill);
+      }
       .float button::after {
-        inset: -8px;
+        inset: -8px 0;
       }
     }
     @media (max-width: 767px) {
