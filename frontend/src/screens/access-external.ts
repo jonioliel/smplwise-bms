@@ -7,6 +7,7 @@ import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import '../components/sw-state-panel';
 import '../access-external/identity-card';
+import '../access-external/request-dialog';
 import type { RouteState } from '../router';
 import type { DropdownItem } from '../components/sw-dropdown';
 import { describeError } from '../api/client';
@@ -21,6 +22,7 @@ import {
 } from '../access-external/model';
 import { xCss } from '../access-external/styles';
 import { xt, xtDynamic, xtLang, type XtKey } from '../i18n/access-external';
+import { rt } from '../i18n/access-request';
 import { SkinController } from '../design/skin';
 import { applyExternalPlacement } from '../shell/nav';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -38,7 +40,8 @@ type Dialog =
   | { kind: 'approve'; id: string }
   | { kind: 'gone'; id: string }
   | { kind: 'digest' }
-  | { kind: 'settings' };
+  | { kind: 'settings' }
+  | { kind: 'request'; noPerm: boolean };
 
 /**
  * SHAREDID-293: "גישת חוץ" - the shared Arx + WisKey identity screen, built from the owner-approved mockup
@@ -206,6 +209,7 @@ export class AccessExternalScreen extends LitElement {
     const gid = p?.get('grant');
     if (gid && this.data?.grants.some((g) => g.id === gid)) void this.openDrawer(gid);
     if (p?.get('digest') === '1') this.openDigest();
+    if (p?.get('request') === '1') this.openRequest();
   }
 
   private async load(): Promise<void> {
@@ -231,8 +235,12 @@ export class AccessExternalScreen extends LitElement {
   }
 
   private toast(key: XtKey, vars?: Record<string, string | number>): void {
+    this.toastText(xt(key, vars));
+  }
+
+  private toastText(text: string): void {
     const id = ++this.toastSeq;
-    this.toasts = [...this.toasts, { id, text: xt(key, vars) }];
+    this.toasts = [...this.toasts, { id, text }];
     window.setTimeout(() => (this.toasts = this.toasts.filter((t) => t.id !== id)), 3200);
   }
 
@@ -583,6 +591,22 @@ export class AccessExternalScreen extends LitElement {
     </sw-dialog>`;
   }
 
+  // ---------------------------------------------------------------- ACCESSREQ-293: the manual request form
+
+  private openRequest(): void {
+    this.dialog = { kind: 'request', noPerm: !this.data?.may_request || !this.data?.enabled };
+  }
+
+  private requestDialog(noPerm: boolean): TemplateResult {
+    const live = new Set((this.data?.grants ?? []).filter((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state)).map((g) => g.person.contact_id));
+    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} @close=${() => (this.dialog = null)}
+      @done=${(e: CustomEvent<{ text: string; grant?: Grant }>) => {
+        this.dialog = null;
+        this.toastText(e.detail.text);
+        void this.load().then(() => (e.detail.grant ? this.openDrawer(e.detail.grant.id) : undefined));
+      }}></access-request-dialog>`;
+  }
+
   private openSettings(): void {
     const s = this.data?.screen;
     if (!s) return;
@@ -623,6 +647,7 @@ export class AccessExternalScreen extends LitElement {
     if (dl.kind === 'confirm') return this.confirmDialog(dl.c);
     if (dl.kind === 'digest') return this.digestDialog();
     if (dl.kind === 'settings') return this.draft ? this.settingsDialog() : nothing;
+    if (dl.kind === 'request') return this.requestDialog(dl.noPerm);
     const g = this.data?.grants.find((x) => x.id === dl.id) ?? (this.detail?.id === dl.id ? this.detail : null);
     if (!g) return nothing;
     if (dl.kind === 'approve') return this.approveDialog(g);
@@ -709,6 +734,7 @@ export class AccessExternalScreen extends LitElement {
       <div class="top">
         <div><h1>${xt('title')}</h1><p class="sub">${xt('sub')}</p></div>
         <span class="sp"></span>
+        ${data.may_request && !off ? html`<sw-button variant="primary" icon="plus" data-open-request @click=${() => this.openRequest()}>${rt('newBtn')}</sw-button>` : nothing}
         ${data.system_admin
           ? html`<sw-button icon="system" data-open-settings @click=${() => this.openSettings()}>${xt('settings')}</sw-button>
               <sw-button variant="danger" icon="lock" data-revoke-all ?disabled=${off || !grants.some((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state))}

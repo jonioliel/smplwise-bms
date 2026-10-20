@@ -59,7 +59,7 @@ export interface Grant {
   code_state: CodeState | null;
   code_due_at: string | null;
   code_sends: number | null;
-  notice: { via: 'page' | 'approver'; version: string; at: string }[];
+  notice: { via: 'page' | 'approver' | 'requester'; version: string; at: string }[];
   attention: string | null;
   linked: boolean;
   needs_push: boolean;
@@ -76,6 +76,10 @@ export interface Grant {
   closure: GrantClosure | null;
   company: string | null;
   category: 'contractor' | 'visitor';
+  /** ACCESSREQ-293: the request form's optional purpose and internal notes; whether the caller asked for the scope awaiting a decision */
+  purpose?: string | null;
+  notes?: string | null;
+  self_requested?: boolean;
 }
 
 export interface GrantRules {
@@ -106,6 +110,8 @@ export interface GrantsReply {
   rules: GrantRules;
   screen: ScreenSettings;
   system_admin: boolean;
+  /** ACCESSREQ-293: the caller may open the manual request form */
+  may_request?: boolean;
 }
 
 export interface DigestGap {
@@ -171,6 +177,87 @@ export const matchLink = (contactId: string, wiskeyPersonId: string) => post<{ l
 export const unlinkPerson = (linkId: string) => api_del(`access-grants/links/${enc(linkId)}`);
 export const deletePersonNow = (linkId: string, confirm: string) => post<{ outcome: string; pending: boolean }>(`access-grants/links/${enc(linkId)}/delete-person`, { confirm });
 export const pushName = (linkId: string) => post<{ outcome: string; drift: boolean }>(`access-grants/links/${enc(linkId)}/push-name`);
+
+// ---------------------------------------------------------------- ACCESSREQ-293: the manual request form
+
+export interface GrantableRelay {
+  relay: number;
+  name: string | null;
+}
+
+export interface GrantableStation {
+  station_id: string;
+  name: string | null;
+  online: boolean;
+  relays: GrantableRelay[];
+  /** owner decision (b): an approver's own stations; for a ticket manager the "entrance for external people" stations + the ticket's */
+  may_request: boolean;
+  may_approve: boolean;
+  may_approve_pin: boolean;
+  entrance: boolean;
+  ticket: boolean;
+}
+
+export interface GrantableDoors {
+  stations: GrantableStation[];
+  max_doors: number;
+  max_days: number;
+  tickets_requester: boolean;
+  system_admin: boolean;
+  /** the served WisKey copy: when it was read, and whether WisKey answers now */
+  as_of: string | null;
+  reachable: boolean;
+  has_copy: boolean;
+}
+
+export interface ApproversReply {
+  approvers: { name: string; me: boolean }[];
+  count: number;
+  /** owner decision (a): the caller may approve his own request (a system administrator) */
+  self_approval: boolean;
+}
+
+export interface NoticeReply {
+  lang: 'he' | 'en' | 'ar' | 'ru';
+  version: string;
+  text: string;
+  attest: string;
+}
+
+export interface Timing {
+  mode: 'weekly' | 'dates';
+  timezone: string;
+  days: string[];
+  dates: string[];
+  periods: { start: string; end: string }[];
+}
+
+export interface RequestBody {
+  contact_id: string;
+  ticket_id?: string | null;
+  doors: Record<string, number[]>;
+  valid_from: string;
+  valid_until: string;
+  timing: Timing | null;
+  credential: 'pin' | 'none';
+  purpose?: string | null;
+  notes?: string | null;
+  told: boolean;
+  approve_now: boolean;
+}
+
+export interface RequestReply {
+  grant: Grant;
+  outcome: 'created' | 'replaced' | 'merged' | 'widening';
+  /** "I approve now": null when not asked (or nothing to approve); a refusal after the request was stored says why */
+  approval: { approved: true } | { approved: false; code: string; message: string } | null;
+}
+
+export const grantableDoors = (ticketId?: string | null) => get<GrantableDoors>(`access-grants/grantable-doors${ticketId ? `?ticket_id=${enc(ticketId)}` : ''}`);
+export const listApprovers = (stations: string[], credential: 'pin' | 'none') =>
+  get<ApproversReply>(`access-grants/approvers?stations=${enc(stations.join(','))}&credential=${credential}`);
+export const getNotice = (lang: string) => get<NoticeReply>(`access-grants/notice?lang=${enc(lang)}`);
+export const requestGrant = (body: RequestBody) => post<RequestReply>('access-grants', body);
 
 function api_del(path: string): Promise<void> {
   return del(path);

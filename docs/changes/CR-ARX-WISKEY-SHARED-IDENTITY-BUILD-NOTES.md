@@ -402,3 +402,37 @@ PROVISIONAL migration **0128_access_external_identity** (renumber at integration
   an "offline" banner (the list endpoint carries no WisKey connectivity signal), the 75 s hold countdown of the mockup's unknown state
   (the worker keeps its own holds; "read back now" asks the worker), per-grant audit history (the drawer derives "what happened" from
   the row's instants).
+
+## ACCESSREQ-293 - the manual "request access" form (pilot/ACCESSREQ-293, on pilot/SHAREDID-293)
+
+Built from the owner-approved mockup `private/planning/mockup_access_request_2026-10-20` (approved as designed, 2026-10-20) and the
+owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERMITTED` stays False; tests use fakes only.
+
+- **Decision (a) - a second person approves.** `access_grants.approve` refuses the person who asked for the scope awaiting a decision
+  (`403 access_grant_self_approval`, audited `self_approval`), before any WisKey read; a system administrator may approve his own request.
+  Who asked: the new column `scope_requested_by` (the request, a replacement of a still-requested scope, a widening); a still-requested
+  grant blocks both its creator and whoever last replaced its scope. Fail closed: an unreadable system-administrator answer refuses. The
+  list carries `self_requested` and the drawer hides the approve action from that person (the server refuses anyway).
+- **Decision (b) - doors for a manager who may only request.** `services/access_request.py` `Rights`: per station `request` = the three
+  approve permissions OR the grant permission on it OR (tickets.manage + tickets.external AND the station is an "entrance for external
+  people" or is placed in the ticket's building). Enforced where the request is stored (`403 access_grant_station_not_allowed`), not
+  only in the form.
+- **Decision (c)** - the name push stays manual by default (`name_sync` default `manual`; unchanged, pinned by a test).
+- Routes: `GET /access-grants/grantable-doors?ticket_id=` (the served WisKey copy's stations and doors, the caller's rights, `as_of` /
+  `reachable`), `GET /access-grants/approvers?stations=&credential=` (display names of who holds the approve permissions on every
+  chosen station; the caller only when a system administrator), `GET /access-grants/notice?lang=` (`notice_text`, so the organisation
+  name stays in sync). `POST /access-grants` gains `purpose` (<= 200, one line), `notes` (internal, <= 1000; never in a message, never
+  audited, never sent to WisKey), `told` (stored as an `access_grant_notices` row `via = 'requester'`, so the approver need not tick
+  again) and `approve_now` (checked BEFORE anything is stored: interactive, local rule, decision (a), the approve permissions, the notice
+  tick, a confirmed number for a code; then the existing approve runs - a refusal at that point keeps the request, tells the approvers
+  and answers `approval: {approved: false, code, message}`). `GET /access-grants` gains `may_request`.
+- Migration `0130_access_request_form.sql` - **PROVISIONAL number** (renumber at integration): three nullable columns on
+  `access_grants` (`purpose`, `notes`, `scope_requested_by`) and `access_grant_notices` rebuilt with `via IN ('page', 'approver',
+  'requester')` (rows copied). Rollback: older code ignores the columns; a `requester` row reads as "a notice exists".
+- UI: `access-external/request-dialog.ts` (the form), `request-model.ts` (pure logic, unit-tested), `i18n/access-request.ts`
+  (he/en + ar/ru dev-marked, parity test), `sw-dialog` gains `xl`. A new person is created through `POST /tickets/contacts` and gets
+  the existing confirmation code (`phone-verify/send`); the directory and that send keep their own permissions (a pure approver
+  without directory rights sees "you cannot open the directory" and can add a new person only where the contacts route allows it).
+- Not built: auto-approval rules (none exist; shown as "None"), the English/Arabic/Russian evidence screenshots (the screen follows the
+  document language; the evidence set is Hebrew), the 14-day window across a DST change is held at 14 x 24 h (the last day ends an hour
+  early) rather than refused.
