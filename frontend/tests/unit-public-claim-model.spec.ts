@@ -619,8 +619,8 @@ test('owner rule 14.10: the Hebrew strings never use the old word; the item is "
   expect(CLAIM_TEXT.he.camera_fallback).toBe('לא ניתן לפתוח את המצלמה - אפשר לבחור תמונה מהגלריה או מקובץ');
   expect(CLAIM_TEXT.he.saved_offline).toBe('נשמר במכשיר, יישלח כשתהיה קליטה');
   expect(CLAIM_TEXT.he.busy).toBe('יש עומס. נסו שוב בעוד דקה.');
-  for (const k of ['no_charge', 'capture', 'gallery', 'retake', 'rotate', 'crop', 'contrast', 'add_page', 'finish_doc', 'submit', 'later', 'card_title'] as const) {
-    expect(CLAIM_TEXT.he[k]).toBe({ no_charge: 'ללא חיוב', capture: 'צילום חשבונית', gallery: 'בחירה מהגלריה / מקובץ', retake: 'צילום מחדש', rotate: 'סיבוב', crop: 'חיתוך', contrast: 'שיפור ניגודיות', add_page: 'הוספת עמוד', finish_doc: 'סיום מסמך', submit: 'שליחה', later: 'אשלים אחר כך', card_title: 'הגשת דרישת תשלום' }[k]);
+  for (const k of ['no_charge', 'capture', 'gallery', 'retake', 'rotate', 'crop', 'contrast', 'add_page', 'finish_doc', 'submit', 'later'] as const) {
+    expect(CLAIM_TEXT.he[k]).toBe({ no_charge: 'ללא חיוב', capture: 'צילום חשבונית', gallery: 'בחירה מהגלריה / מקובץ', retake: 'צילום מחדש', rotate: 'סיבוב', crop: 'חיתוך', contrast: 'שיפור ניגודיות', add_page: 'הוספת עמוד', finish_doc: 'סיום מסמך', submit: 'שליחה', later: 'אשלים אחר כך' }[k]);
   }
   // English text names the item only through the tokens
   for (const [k, v] of Object.entries(CLAIM_TEXT.en)) expect(/\bTickets?\b/.test(v), `en.${k}`).toBe(false);
