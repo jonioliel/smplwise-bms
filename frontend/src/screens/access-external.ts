@@ -26,6 +26,7 @@ import { rt } from '../i18n/access-request';
 import { SkinController } from '../design/skin';
 import { applyExternalPlacement } from '../shell/nav';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { leadReserveStyles } from '../styles/lead-reserve'; // header dropdown placement 4: the first row keeps the reserve free (integ/293)
 
 const POLL_MS = 15_000;
 const KPI_KEY: Record<Bucket, XtKey> = { attention: 'kpiAttention', waiting: 'kpiWaiting', moving: 'kpiMoving', active: 'kpiActive', history: 'kpiHistory' };
@@ -88,6 +89,7 @@ export class AccessExternalScreen extends LitElement {
 
   static styles = [
     xCss,
+    leadReserveStyles,
     css`
       :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
       .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -731,7 +733,7 @@ export class AccessExternalScreen extends LitElement {
     const revoking = grants.filter((g) => uiState(g) === 'revoking');
     const off = !data.enabled;
     return html`
-      <div class="top">
+      <div class="top lead-head">
         <div><h1>${xt('title')}</h1><p class="sub">${xt('sub')}</p></div>
         <span class="sp"></span>
         ${data.may_request && !off ? html`<sw-button variant="primary" icon="plus" data-open-request @click=${() => this.openRequest()}>${rt('newBtn')}</sw-button>` : nothing}

@@ -100,8 +100,10 @@ test('the CSV cell guard neutralises formula starters', () => {
 });
 
 test('the tab: sixth entry of the area, tickets.costs.view, active on #/tickets/accounts', () => {
-  expect(TICKETS_TABS.at(-1)?.id).toBe('accounts');
-  expect(TICKETS_TABS.at(-1)?.label).toBe('חשבון ספקים');
+  // SHAREDID-293 appended the external-access tab after it (integ/293): accounts is the last tab before it
+  const accounts = TICKETS_TABS.find((t) => t.id === 'accounts');
+  expect(TICKETS_TABS.map((t) => t.id).slice(-2)).toEqual(['accounts', 'external']);
+  expect(accounts?.label).toBe('חשבון ספקים');
   expect(TAB_PERMISSIONS['#/tickets/accounts']).toEqual(['tickets.costs.view']);
   expect(activeAreaTab({ path: '/tickets/accounts', mode: 'tickets', segments: ['tickets', 'accounts'], params: new URLSearchParams() } as never)).toBe('accounts');
 });
