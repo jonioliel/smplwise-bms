@@ -68,7 +68,7 @@ export interface FrigateControlMock {
 
 const SWITCHES = ['detect', 'motion', 'audio', 'review_alerts', 'review_detections', 'notifications', 'improve_contrast', 'birdseye', 'ptz_autotracker', 'enabled', 'recordings', 'snapshots'];
 const SWITCH_GROUP = (f: string) => (['enabled', 'recordings', 'snapshots'].includes(f) ? 'record' : 'analytics');
-export const F2B_KINDS = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read', 'config_zone', 'config_settings'];
+export const F2B_KINDS = ['export_create', 'export_rename', 'export_delete', 'export_assign', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read', 'config_zone', 'config_settings'];
 export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateControlMock {
   return {
     classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false, exports: false, cases: false, config: false },

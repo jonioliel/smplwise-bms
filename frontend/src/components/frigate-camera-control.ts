@@ -93,7 +93,10 @@ export class FrigateCameraControl extends LitElement {
         if (this.profiles) this.profiles = { ...this.profiles, active: r.active };
       } else {
         const r = await setSwitch(this.recorderId, this.cameraId, p.feature, p.to as boolean, confirm);
-        if (this.data) this.data = { ...this.data, features: this.data.features.map((f) => (f.feature === p.feature ? { ...f, value: p.to as boolean } : f)) };
+        if (this.data) {
+          const set = <T extends { feature: string; value: boolean | null }>(f: T): T => (f.feature === p.feature ? { ...f, value: p.to as boolean } : f);
+          this.data = { ...this.data, features: this.data.features.map(set), named: this.data.named?.map(set) };
+        }
         if (!r.verified) this.flash('ok', he.frigate.control.unverified);
         else this.flash('ok', he.frigate.control.saved);
       }
@@ -187,6 +190,23 @@ export class FrigateCameraControl extends LitElement {
     </div>`;
   }
 
+  /** FRIGATE-295: the camera's named zones / masks (analytics class), only when the caller may switch analytics now. */
+  private named() {
+    const d = this.data!;
+    const rows = (d.named ?? []).filter((n) => n.value !== null);
+    if (!d.writable.analytics || !rows.length) return nothing;
+    const c = he.frigate.control;
+    return html`<div data-fcc-group="named">
+      <h4>${c.named}</h4>
+      <div class="grid">
+        ${rows.map((n) => html`<div class="row" data-fcc-row=${n.feature}>
+          <span><bdi>${featureText(n.feature)}</bdi></span>
+          <sw-toggle .checked=${n.value === true} ?disabled=${this.busy} labelHidden label=${featureText(n.feature)} data-fcc-switch=${n.feature} @change=${(e: Event) => this.onSwitch('analytics', n.feature, e)}></sw-toggle>
+        </div>`)}
+      </div>
+    </div>`;
+  }
+
   private dialog() {
     const p = this.pending;
     if (!p) return nothing;
@@ -206,6 +226,7 @@ export class FrigateCameraControl extends LitElement {
     const pr = this.profiles;
     return html`<div class="box" data-frigate-camera-control>
       ${d ? this.group('analytics', c.analytics, d.writable.analytics) : nothing}
+      ${d ? this.named() : nothing}
       ${d ? this.group('record', c.record, d.writable.record) : nothing}
       ${pr ? html`<div class="row" data-fcc-profile>
         <h4>${c.profile}</h4>

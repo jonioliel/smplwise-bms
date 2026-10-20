@@ -71,6 +71,7 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
 # these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
 CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),
                                                     re.compile(r"/api/exports"), re.compile(r"/api/cases"),  # F2b: read-back of the export / case write classes
+                                                    re.compile(rf"/api/jobs/export/{OBJ}"),  # 0.18: an export is a queued job before its row exists
                                                     re.compile(r"/api/config/schema\.json"))  # FRGS: the instance's config schema (compared, never trusted)
 
 # F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
@@ -79,8 +80,13 @@ CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz
 # /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
 ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
 RECORD_FEATURES = ("enabled", "recordings", "snapshots")
+# FRIGATE-295 (0.18 `PUT /api/camera/{cam}/set/{feature}/{sub_command}`): runtime switches of ONE named zone / motion mask / object mask of ONE
+# camera. Frigate refuses ON for an item disabled in its YAML (logged, answered 200), so the read-back decides.
+SUB_FEATURES = ("zone", "motion_mask", "object_mask")
+SUB = r"[A-Za-z0-9_-]{1,64}"
 WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
-    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),),
+    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),
+                  ("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(SUB_FEATURES)})/{SUB}"))),
     "record": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(RECORD_FEATURES)})")),),
     "profile": (("PUT", re.compile(r"/api/camera/\*/set/profile")),),
     "review": (("POST", re.compile(r"/api/reviews/viewed")), ("DELETE", re.compile(rf"/api/review/{ID}/viewed"))),
@@ -90,8 +96,10 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
                ("POST", re.compile(rf"/api/events/{CAM}/{LABEL}/create")), ("PUT", re.compile(rf"/api/events/{ID}/end"))),
     # F2b: Frigate-native exports and cases. Deletes exist here ONLY for ids the service layer proves Arx created itself; Frigate's
     # export of a camera time range is one camera, one bounded range. UNVERIFIED wire shapes.
+    # Verified against the 0.18.2 OpenAPI (FRIGATE-295): there is no `DELETE /api/export/{id}`; a delete is `POST /api/exports/delete {"ids": [...]}`
+    # (the service sends exactly one id it proved Arx created) and an assignment to a case is `POST /api/exports/reassign`.
     "exports": (("POST", re.compile(rf"/api/export/{CAM}/start/{NUM}/end/{NUM}")), ("PATCH", re.compile(rf"/api/export/{OBJ}/rename")),
-                ("DELETE", re.compile(rf"/api/export/{OBJ}"))),
+                ("POST", re.compile(r"/api/exports/delete")), ("POST", re.compile(r"/api/exports/reassign"))),
     "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
     # FRGS (CR-029 section 13): zones and the curated camera settings. The path is generic, so what may be written is decided by the ONLY
     # caller, `recorders/frigate_config.FrigateConfig._set` (one section of one camera, keys from its allow-listed schema). Never `/api/config/save`
@@ -101,7 +109,8 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
 # F2b: the clip read. Read-only GET, streamed, kept OFF `GET_ALLOWED` (no F1 read path can reach it) and reachable only through `open_clip`,
 # which the Arx clip routes alone call, after permission and the first-supervised-read gate. UNVERIFIED wire shape: Frigate cuts the clip on the
 # server (`/api/{camera}/start/{s}/end/{e}/clip.mp4`, `/api/events/{id}/clip.mp4`); nothing has been read from a real instance yet.
-CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"))
+CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"),
+                                             re.compile(rf"/api/review/{ID}/clip\.mp4"))   # FRIGATE-295: a review item's clip (0.18)
 CLIP_MAX_BYTES = 400_000_000
 CLIP_TIMEOUT_S = 30.0           # per network read; the total is bounded by CLIP_TOTAL_S
 CLIP_TOTAL_S = 300.0
