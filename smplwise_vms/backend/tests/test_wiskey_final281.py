@@ -309,7 +309,9 @@ def test_r5_a3_the_arrival_reply_tells_approval_from_a_verified_scope(arr):
 
 
 def _superset(**over: Any) -> dict:
-    base = {"id": "u1", "revision": 3, "assignments": [{"station_id": "st-a", "enabled": True, "doors": [1]}], "stations_known": True, "access_known": True}
+    # PERMOVR-293: a complete superset states its override stations (none here); without them the write gate fails closed
+    base = {"id": "u1", "revision": 3, "assignments": [{"station_id": "st-a", "enabled": True, "doors": [1]}], "stations_known": True, "access_known": True,
+            "override_stations": []}
     return {**base, **over}
 
 

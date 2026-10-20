@@ -361,3 +361,25 @@ normalisation, any new WisKey command. **Open risk, unchanged on purpose: the 75
 timer is still what lets a fresh readback settle a row of a process that is gone; it is NOT proof that the remote handler ended, and a
 wall-clock jump can expire it early (forward) or hold it indefinitely (backward). Until ACR6-02 is designed, an unknown write settled after
 the hold is not an exactly-once or completion proof.
+## PERMOVR-293 (2026-10-20) - owner decisions of 2026-10-20 08:10 (WisKey Q1-Q3), branch pilot/PERMOVR-293
+
+- **Q2: per-person permission overrides are stations of the person in the write gate.** Root cause: the closed superset projection
+  (`intercom_adapter.project_person`) dropped `permission_overrides` entirely, so `intercom_writes.check_person` computed "every station of
+  the person before the change" from the assignments alone. A personal override on a station outside the writer's chain - typically a
+  deny, which leaves no assignment there - was never checked; since WisKey's `users/update` replaces the COMPLETE overrides dict, a manager
+  scoped to station A could save a person and silently drop (or rewrite) that person's deny on station B. Fix: the superset carries
+  `override_stations` (the keys only, allow and deny alike; never the values), None when the overrides are withheld, missing, not a map or
+  have any malformed entry. `intercom_authority.person_gate_station_ids` = assignments + override stations (None when either is unknown).
+  `check_person` adds them to the person's stations: each is decided by `Authority.station` (`rbac.authorize`, deny-overrides on the
+  station chain - an explicit deny binding of the writer on that station refuses even with an allow elsewhere); unknown overrides refuse
+  anyone not unrestricted (fail closed). The visibility decision (uniform 404) is still taken on the assignments first, so the overrides
+  give no existence oracle. A people view's `editable` uses the same set, so the UI and the gate agree. No migration.
+- **Q1 kept as built:** visibility still uses `person_station_ids` only; a malformed / incomplete record stays hidden from a restricted
+  operator, and an override never makes a person visible or hidden (test-pinned).
+- **Q3: audit of every rejection of the recovered-person attach helper - not built, by the owner's condition.** `_attach_recovered_person`
+  still has no caller in the product: none on `origin/main` (test-enforced in `test_wiskey_final3_281.py`) and none on any pushed branch
+  (checked 2026-10-20 with `git grep` across every `origin/*` ref). The audit of its rejections is added together with the first caller (the
+  reviewed system-administrator route of owner item 7, 2026-10-20 night).
+- Tests: `tests/test_permovr_293.py` (end to end over the stateful fake WisKey and the station scope double, plus units); the round-5 unit
+  helper `_superset` in `test_wiskey_final281.py` now states `override_stations: []` (a complete superset carries it). NOT_RUN against any
+  WisKey, station or door.
