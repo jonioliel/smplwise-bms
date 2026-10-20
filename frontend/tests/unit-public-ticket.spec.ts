@@ -247,6 +247,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
   // Measured from a local build:public of integ/291: ticket page 62,884 B (cap 63,488 B, headroom 604 B).
   // SMALL-294: four catalogue keys no code reads (claim line_total / docs_required, page documentsHint / readOnlyChip, x4 languages) removed:
   // ticket page 62,880 -> 62,583 B (headroom 608 -> 905 B). Measured on a local build:public, same method as this test.
+  // SMALL2-295: the unused `device` icon path and the unread claim `card_title` words (x4 languages) removed; measured on the runner with this
+  // test's method: 62,639 -> 62,558 B (headroom 849 -> 930 B). Nothing else in the page is unreferenced (keys, icons, CSS classes, tokens checked).
   expect(rfq).toBeLessThanOrEqual(21 * 1024);
   expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
   expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
