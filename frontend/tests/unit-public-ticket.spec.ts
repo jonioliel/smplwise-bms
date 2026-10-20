@@ -243,6 +243,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
   // 2.9.1 integration: the vendor RFQ page chunk 20 -> 21 KB. RFQSYS-291 (the System author and its style on the vendor thread, four
   // languages) grew rfq-page + rfq-files to 20,519 B gzip (39 B over 20 KB); the growth is the feature. Headroom now 985 B.
   // Measured from a local build:public of integ/291: ticket page 62,884 B (cap 63,488 B, headroom 604 B).
+  // SMALL-294: four catalogue keys no code reads (claim line_total / docs_required, page documentsHint / readOnlyChip, x4 languages) removed:
+  // ticket page 62,880 -> 62,583 B (headroom 608 -> 905 B). Measured on a local build:public, same method as this test.
   expect(rfq).toBeLessThanOrEqual(21 * 1024);
   expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
   expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
