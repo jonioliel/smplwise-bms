@@ -45,9 +45,11 @@ test.describe('ticket card titles', () => {
       expect(m.sw).toBeLessThanOrEqual(m.cw + 1);
       // the first letter is on screen, inside the card (not cut off the start by an RTL ellipsis)
       const first = await h3.locator('a.name').evaluate((a) => {
+        const walker = document.createTreeWalker(a, NodeFilter.SHOW_TEXT);
+        const node = walker.nextNode() as Text;
         const r = document.createRange();
-        r.setStart(a.firstChild as Text, 0);
-        r.setEnd(a.firstChild as Text, 1);
+        r.setStart(node, 0);
+        r.setEnd(node, 1);
         const b = r.getBoundingClientRect();
         const box = a.closest('article')!.getBoundingClientRect();
         return b.left >= box.left - 1 && b.right <= box.right + 1;

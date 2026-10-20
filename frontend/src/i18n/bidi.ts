@@ -8,10 +8,10 @@ const PDI = '\u2069'; // pop directional isolate
  * the neutral space between date and time takes the paragraph direction and the pair reads reversed, "TB 1.3". */
 const RUNS = new RegExp(
   [
-    '\d{4}-\d{2}-\d{2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?)?',
-    '\d{1,2}[./]\d{1,2}[./]\d{2,4}(?:,? \d{1,2}:\d{2}(?::\d{2})?)?',
-    '\d+(?:[.,]\d+)?\s?(?:[KMGTP]i?B|kWh|kW|[MG]Hz|Hz|ms|fps|[MK]bps|V|A|W)(?![A-Za-z0-9])',
-  ].map((p) => `(?<![\w${LRI}])(?:${p})`).join('|'),
+    String.raw`\d{4}-\d{2}-\d{2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?)?`,
+    String.raw`\d{1,2}[./]\d{1,2}[./]\d{2,4}(?:,? \d{1,2}:\d{2}(?::\d{2})?)?`,
+    String.raw`\d+(?:[.,]\d+)?\s?(?:[KMGTP]i?B|kWh|kW|[MG]Hz|Hz|ms|fps|[MK]bps|V|A|W)(?![A-Za-z0-9])`,
+  ].map((p) => String.raw`(?<![\w${LRI}])(?:${p})`).join('|'),
   'g',
 );
 

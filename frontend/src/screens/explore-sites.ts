@@ -76,7 +76,7 @@ export class ExploreSites extends LitElement {
       align-items: center;
       gap: 2px;
     }
-    .clamp2 {
+    .info .clamp2 {
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
