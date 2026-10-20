@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.9.2: what is on, off and locked
+## Releases 2.6.4 to 2.9.3: what is on, off and locked
 
-Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291` and `integ/292` (2.8.0, 2.9.0 and 2.9.1 are released; 2.9.2 is the release candidate). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291`, `integ/292` and `integ/293` (2.8.0 to 2.9.2 are released; 2.9.3 is the release candidate). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1572,6 +1572,16 @@ text summary for managers (use `infra.temperature.reports`, the notifications ac
 "show on map" on quote requests (own location room, else the source request's; `map.read` on the floor), the technician-request card
 grouped by vendor company, WisKey round-9 strictness (a malformed person record is unknown, fail closed). WisKey writes stay locked.
 
+**2.9.3.** Temperature phase 3 (migration 0125: sensor health, door insight, duty cycle from an optional power sensor, early warning OFF by
+default with `predict_warn_min` 20 min, maintenance windows that pause warnings only, escalation, a service request from a unit, comparison,
+floors, home widget, HACCP report); a generators home widget (only for a viewer who sees a generator); the external-access screen and the
+manual access-request form (migrations 0126 and 0127; nothing reaches WisKey while `access.external_grants` is off, locked in this build;
+a second person approves, 403 `access_grant_self_approval`); personal permission overrides are stations of the person in the WisKey write
+gate; the technician phone-verification message carries the short privacy notice; the tabs settings cover multimedia, infrastructure and
+tickets; fixes: home clock ticker, elevator doors by state, one page background, overlays no longer shift the page, temperature drawer
+names, public-surface hardening (trusted-proxy client address, no source maps on the remote channel, no "opened" record before the ticket
+code). WisKey writes and the extended identity stay locked.
+
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control), 2.9.3 adds 0125 (temperature phase 3), 0126 (external-access identity) and 0127 (access-request form). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
 installed web app once after each update.
