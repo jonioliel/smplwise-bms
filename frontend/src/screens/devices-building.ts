@@ -6,6 +6,7 @@ import '../components/sw-page';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
+import { isScrollLocked } from '../components/scroll-lock';
 import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
 import type { Elevator } from '../api/elevators';
 import { refreshTemperatureVisibility } from '../temperature/access'; // CR-INFRA-TEMPERATURE phase 3: the home widget (idea 12)
@@ -1449,7 +1450,11 @@ export class DevicesBuilding extends LitElement {
     this.fitTimer = 0;
     const t = this.tree;
     if (!t || !this.isConnected) return;
-    const eligible = window.innerWidth >= FIT_MIN_WIDTH && !this.lay.editing && !this.panel;
+    // UIJANK-293: while an overlay covers the page (the tiles' panel, any modal drawer locking the page area) the packing is FROZEN
+    // at its level - it used to fall back to the loosest level the moment the panel opened, so the whole page behind it grew and
+    // jumped down, and stepped back up again on closing. The page behind an overlay never re-flows.
+    if (this.panel || isScrollLocked(document.documentElement)) return;
+    const eligible = window.innerWidth >= FIT_MIN_WIDTH && !this.lay.editing;
     if (!eligible) {
       if (this.fit !== 0) this.fit = 0;
       return;
