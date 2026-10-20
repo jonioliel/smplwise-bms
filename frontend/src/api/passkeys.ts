@@ -20,6 +20,8 @@ export interface PasskeySummary {
   origin: string | null;
   first_allowed: boolean;
   first_on: boolean;
+  only_on?: boolean;
+  only_effective?: boolean;
   credentials: PasskeyView[];
   recent_auth?: boolean;
   recent_auth_left_s?: number;
@@ -42,3 +44,8 @@ export const adminRemovePasskey = (userId: string, id: string, ownCode?: string)
     method: 'DELETE',
     ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
   });
+
+/** usr2-passkeys-only-mode: password sign-in refused for the user. Self: a working passkey + a fresh sign-in; administrator: identity.local.manage (off = the recovery). */
+export const setPasskeyOnly = (on: boolean) => put<PasskeySummary>('auth/passkeys/only', { on });
+export const adminSetPasskeyOnly = (userId: string, on: boolean) =>
+  put<PasskeySummary & { user_id: string }>(`identity/local-users/${encodeURIComponent(userId)}/passkey-only`, { on });

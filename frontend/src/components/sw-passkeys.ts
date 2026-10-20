@@ -2,9 +2,10 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './sw-button';
 import { ApiError, describeError } from '../api/client';
-import { ownPasskeys, registerPasskey, registrationOptions, removePasskey, setPasskeyFirst, type PasskeySummary } from '../api/passkeys';
+import { ownPasskeys, registerPasskey, registrationOptions, removePasskey, setPasskeyFirst, setPasskeyOnly, type PasskeySummary } from '../api/passkeys';
 import { PasskeyCancelled, createPasskey, passkeysSupported } from '../arx/webauthn';
 import { lit } from '../i18n/local-identity';
+import { po } from '../i18n/passkey-only';
 
 function when(iso: string | null): string {
   if (!iso) return '';
@@ -171,6 +172,23 @@ export class SwPasskeys extends LitElement {
     });
   }
 
+  private only(e: Event) {
+    const box = e.target as HTMLInputElement;
+    const on = box.checked;
+    if (on && !window.confirm(po('onlyConfirmOn'))) {
+      box.checked = false;
+      return;
+    }
+    void this.run(async () => {
+      try {
+        this.data = await setPasskeyOnly(on);
+      } catch (err) {
+        box.checked = !on;
+        throw err;
+      }
+    });
+  }
+
   render() {
     if (this.refused) return nothing;
     const d = this.data;
@@ -210,6 +228,10 @@ export class SwPasskeys extends LitElement {
       ${d.first_allowed && d.credentials.some((c) => c.usable)
         ? html`<label class="first"><input type="checkbox" data-pk-first .checked=${d.first_on} ?disabled=${this.busy} @change=${(e: Event) => this.first(e)} />
             <span>${lit('passkeyFirst')}<br /><small>${lit('passkeyFirstHelp')}</small></span></label>`
+        : nothing}
+      ${d.first_allowed && d.credentials.some((c) => c.usable)
+        ? html`<label class="first"><input type="checkbox" data-pk-only .checked=${!!d.only_on} ?disabled=${this.busy} @change=${(e: Event) => this.only(e)} />
+            <span>${po('onlyLabel')}</span></label>`
         : nothing}
       ${this.error ? html`<div class="err" role="alert" data-pk-error>${this.error}</div>` : nothing}
       ${this.message ? html`<div class="ok" role="status" data-pk-message>${this.message}</div>` : nothing}

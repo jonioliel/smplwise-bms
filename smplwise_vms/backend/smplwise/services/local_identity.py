@@ -1157,6 +1157,9 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
                                WHERE u.source = 'local' AND lower(u.username) = ? AND u.deleted_at IS NULL""", (uname,)).fetchone() if uname else None
         mode = lock_mode(conn)
         ctx = _context_words(conn, user) if user is not None else []
+        from . import local_passkeys as _lpk
+
+        passkey_only = user is not None and _lpk.only_effective(conn, user["id"])  # usr2-passkeys-only-mode: the password is refused for this user
     pw_ok_len = isinstance(password, str) and len(lp.normalize(password).encode("utf-8")) <= lp.MAX_BYTES
 
     def fail(tier: str, *, user_id: str | None, sleep_s: float = 0.0, count: bool = True) -> SignInResult:
@@ -1232,6 +1235,10 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
                    details={"failures": net_failures, "ip": masked}, request_id=request_id)
             _notify(db, "security.local_account_delayed", uid)
         return fail("password" if usable else ("disabled" if not user["active"] else "no_password"), user_id=uid)
+    if passkey_only:
+        # a correct password for an account in passkeys-only mode: the same uniform 401 as any failed sign-in (no hint that the password
+        # was right), not counted towards a lock (the person did nothing wrong), recorded for the managers
+        return fail("passkey_only", user_id=uid, count=False)
     # success
     TIERS.acct_clear(uname, ip)
     principal = Principal(user_id=uid, username=user["username"], display_name=user["display_name"] or user["username"], source="local", via="cookie")
