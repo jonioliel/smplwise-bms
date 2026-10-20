@@ -22,7 +22,7 @@ from smplwise.services import temperature_runtime as rt
 from smplwise.services import temperature_whatsapp as twa
 from smplwise.services.tickets import contact_reports as CR
 from smplwise.services.tickets import out_documents, settings_doc
-from test_tickets_s5b_channel import DAY, NIGHT, env  # noqa: F401 - `env` is the fixture of slice 5b
+from test_tickets_s5b_channel import DAY, KEY_A, NIGHT, env  # noqa: F401 - `env` is the fixture of slice 5b
 from tickets_s4_world import BASE_URL
 
 API = "/api/v1/infra/temperature"
@@ -38,6 +38,7 @@ def tw(env, monkeypatch):
 
     ha_sync.STATE.connected = True
     rt.reset()
+    env.mapping({"tickets.messages": KEY_A, twa.USE_KEY: KEY_A})  # the temperature use maps to the account (in production it inherits the notifications one)
     monkeypatch.setattr(tr, "now_ts", lambda: env.clock().timestamp())
     db, c = env.s4.db, env.c
     at = now_iso()
@@ -261,10 +262,10 @@ def test_a_refused_report_is_failed_with_the_outbox_code_and_an_unmapped_account
     _switch(env, to_contacts=True)
     _send(tw)
     _process(env)
-    env.mapping({"tickets.messages": None})
+    env.mapping({"tickets.messages": None, twa.USE_KEY: None})
     env.tick()
     assert _send_rows(env)[0]["status"] == "handed", "held (account unmapped) is not an outcome yet"
-    env.mapping({"tickets.messages": "entry:01JFAKEENTRYA"})
+    env.mapping({"tickets.messages": KEY_A, twa.USE_KEY: KEY_A})
     env.fake.queue("refused")
     env.tick(minutes=1)
     row = _send_rows(env)[0]
@@ -472,7 +473,7 @@ def test_a_document_whose_report_cannot_be_queued_is_revoked(tw, monkeypatch):
 
 # ---------------------------------------------------------------- schedules
 
-def test_a_schedule_with_a_vendor_hands_the_report_on_and_a_deleted_schedule_stops_it(tw):
+def test_a_schedule_with_a_vendor_hands_the_report_on_and_a_deleted_schedule_is_no_longer_relevant(tw):
     env = tw["env"]
     _switch(env, to_contacts=True)
     body = {"units": [tw["u1"]], "range": "24h", "freq": "daily", "at": "08:30", "recipients": [_vendor(tw)]}
@@ -483,9 +484,11 @@ def test_a_schedule_with_a_vendor_hands_the_report_on_and_a_deleted_schedule_sto
     assert out["scheduled"] == 1 and out["handed"] == 1
     row = _send_rows(env)[0]
     assert (row["recipient_kind"], row["schedule_id"], row["status"]) == ("vendor", s.json()["id"], "handed") and row["created_by"]
+    with env.s4.db.connection(mode="read") as conn:
+        assert CR.still_relevant(conn, _reports(env)[0]) is True
     assert env.c.delete(f"{API}/report/schedules/{s.json()['id']}").status_code == 204
-    env.tick()
-    assert env.fake.calls == [] and _reports(env)[0].state != "sent", "withdrawn with the schedule"
+    with env.s4.db.connection(mode="read") as conn:  # the outbox asks this after the module was off and on again (as for every message)
+        assert CR.still_relevant(conn, _reports(env)[0]) is False
     # the next run of another schedule is not affected
     assert env.c.post(f"{API}/report/schedules", json=body).status_code == 201
 

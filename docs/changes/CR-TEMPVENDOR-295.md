@@ -19,7 +19,8 @@ a way around the scope. A schedule uses its creator as the sender.
    `temperature_runtime`, so it exists before any queued report is sent). `body()` rebuilds the text at SEND time from the send row's
    request (`rep.build` + `rep.text_summary(..., external=True)`; no "full report available in the system" note, a vendor has no access);
    `outcome()` mirrors the outbox state on the send row (`sent`; `unknown` -> `failed/unknown_outcome`; `not_sent|refused|cancelled|superseded`
-   -> `failed` with the outbox code); `still_relevant()` is False for a deleted send row or a deleted / disabled schedule.
+   -> `failed` with the outbox code); `still_relevant()` is False for a deleted send row or a deleted / disabled schedule (the outbox asks it when the module was switched off and on
+   again, as for every message; a report already handed to a running outbox is withdrawn with the managers' existing cancel act).
 2. **`recipients()`** - vendors are `selectable` when vendor reports are on (module on + `reports.to_contacts`) and at least one channel can
    carry the report; `channels` gives `ok` or the reason per channel (`no_whatsapp | no_email | reports_email_off | no_contact`), `channel` is the
    first usable one, and `vendor_reports: {enabled, email}`. While off: unchanged (`selectable: false`, `coming_later`). Never a number or address.
