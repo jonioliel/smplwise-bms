@@ -10,11 +10,11 @@ import '../access-external/identity-card';
 import '../access-external/request-dialog';
 import type { RouteState } from '../router';
 import type { DropdownItem } from '../components/sw-dropdown';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import {
-  acceptContact, approveGrant, confirmGone, getDigest, getGrant, listGrants, provisionNow, putScreenSettings, readNow, refuseGrant, revokeAll, revokeGrant, rotateCode,
-  type Digest, type Grant, type GrantsReply, type ScreenSettings,
+  acceptContact, approveGrant, confirmGone, exportGrantsCsv, getDigest, getDrift, getGrant, listGrants, provisionNow, pushName, putScreenSettings, readNow, refuseGrant, revokeAll,
+  revokeGrant, rotateCode, type Digest, type Drift, type DriftKind, type DriftRow, type Grant, type GrantsReply, type ScreenSettings,
 } from '../api/access-grants';
 import {
   BUCKETS, DAYS, STATE_ICON, STATE_TONE, actionsOf, codeOf, counts, datesText, doorState, durationText, goneReferenceOk, hoursText, ladder, lastDay, localDate,
@@ -33,6 +33,24 @@ const KPI_KEY: Record<Bucket, XtKey> = { attention: 'kpiAttention', waiting: 'kp
 const KPI_TONE: Record<Bucket, string> = { attention: 'err', waiting: 'acc', moving: 'acc', active: 'ok', history: 'off' };
 const SRC_KEY: Record<string, XtKey> = { rfq_order: 'srcRfq', ticket: 'srcTicket', manual: 'srcManual' };
 const REVOKE_ALL_WORD = 'בטל הכל';
+// GRANTSMIN-295: the drift view's tone and icon per kind of difference (the server sends them most urgent first)
+const DRIFT_TONE: Record<DriftKind, string> = { missing: 'err', scope: 'err', unknown: 'warn', sync_pending: 'warn', name: 'warn', unverified: 'acc', idle_person: 'off' };
+const DRIFT_ICON: Record<DriftKind, string> = { missing: 'user', scope: 'door', unknown: 'help', sync_pending: 'refresh', name: 'edit', unverified: 'help', idle_person: 'user' };
+const READ_KINDS: DriftKind[] = ['missing', 'scope', 'unknown', 'unverified'];
+
+/** Save a blob under a name through a temporary link (the browser's own download). */
+function saveFile(blob: Blob, name: string): void {
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
+}
 
 type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: string; run: () => Promise<unknown>; done: XtKey };
 type Dialog =
@@ -41,6 +59,7 @@ type Dialog =
   | { kind: 'approve'; id: string }
   | { kind: 'gone'; id: string }
   | { kind: 'digest' }
+  | { kind: 'drift' }
   | { kind: 'settings' }
   | { kind: 'request'; noPerm: boolean };
 
@@ -54,6 +73,9 @@ type Dialog =
  *  5 name drift: the identity card's "push the name", automatic by a setting;
  *  6 the screen sits under access control, service management or both (a setting; shell/nav.ts);
  *  7 attach a recovered person (the identity card, system administrators only).
+ * GRANTSMIN-295: the drift view (a side panel and a dialog: per person, where Arx and WisKey differ, from the server's stored read-back
+ * and name digests - the page never contacts WisKey; "push the name", "read back now", "open the grant") and the CSV export of the
+ * grants the caller may see (the server decides the rows and how much of a number the caller may see).
  * A list with KPI filters, the grant drawer (why, the ladder, doors, window, code, identity, what happened, actions), the approval
  * dialog (narrow only: doors and days), the confirmations. The entry code is never shown anywhere. The server decides every action.
  */
@@ -68,6 +90,8 @@ export class AccessExternalScreen extends LitElement {
   @state() private detail: Grant | null = null;
   @state() private dialog: Dialog = null;
   @state() private digest: Digest | null = null;
+  @state() private drift: Drift | null = null;
+  @state() private exporting = false;
   @state() private busy = false;
   @state() private dlgError = '';
   @state() private toasts: { id: number; text: string }[] = [];
@@ -158,6 +182,18 @@ export class AccessExternalScreen extends LitElement {
       .gap { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 10px; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .gap b { display: block; color: var(--sw-heading); }
       .gap .ik { inline-size: 28px; block-size: 28px; border-radius: var(--sw-r-xs); display: grid; place-items: center; background: var(--cs); color: var(--ct); }
+      .drows { display: grid; gap: 8px; }
+      .drow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; padding: 10px; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); color: var(--sw-text-2); align-items: start; }
+      .drow .ik { inline-size: 28px; block-size: 28px; border-radius: var(--sw-r-xs); display: grid; place-items: center; background: var(--cs); color: var(--ct); }
+      .drow .dmain { display: grid; gap: 6px; min-inline-size: 0; }
+      .drow .dname { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-inline-size: 0; }
+      .drow .dname b { color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 100%; }
+      .drow .dname small, .drow .dwhen { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+      .drow .dk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .drow .dlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+      .drow .dlist li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; line-height: 1.45; }
+      .drow .dlist b { color: var(--sw-text); font-weight: 600; }
+      .drow .dact { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
       .seg { display: flex; flex-wrap: wrap; gap: 6px; }
       .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
       .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
@@ -181,6 +217,8 @@ export class AccessExternalScreen extends LitElement {
         .two { grid-template-columns: 1fr; }
         .minis { grid-template-columns: repeat(2, 1fr); }
         .gl-r .code { justify-items: start; }
+        .drow { grid-template-columns: 28px minmax(0, 1fr); }
+        .drow .dact { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
       }
     `,
     bubbleChrome,
@@ -191,6 +229,7 @@ export class AccessExternalScreen extends LitElement {
     void productSettings().then((ps) => (this.tz = String((ps as unknown as Record<string, unknown>)['time.zone'] || 'Asia/Jerusalem'))).catch(() => undefined);
     void this.load();
     void this.loadDigest();
+    void this.loadDrift();
     this.timer = window.setInterval(() => {
       if (document.visibilityState === 'visible' && !this.dialog) void this.load();
     }, POLL_MS);
@@ -212,6 +251,7 @@ export class AccessExternalScreen extends LitElement {
     if (gid && this.data?.grants.some((g) => g.id === gid)) void this.openDrawer(gid);
     if (p?.get('digest') === '1') this.openDigest();
     if (p?.get('request') === '1') this.openRequest();
+    if (p?.get('drift') === '1') this.openDrift();
   }
 
   private async load(): Promise<void> {
@@ -233,6 +273,31 @@ export class AccessExternalScreen extends LitElement {
       this.digest = (await getDigest()).digest;
     } catch {
       this.digest = null;
+    }
+  }
+
+  private async loadDrift(): Promise<void> {
+    try {
+      this.drift = (await getDrift()).drift;
+    } catch {
+      this.drift = null;
+    }
+  }
+
+  private async exportCsv(): Promise<void> {
+    this.exporting = true;
+    try {
+      const res = await exportGrantsCsv(xtLang() === 'he' ? 'he' : 'en');
+      saveFile(res.blob, res.filename);
+      this.toast('exportDone', { n: res.rows });
+    } catch (e) {
+      if (e instanceof ApiError && e.body.code === 'export_rate') this.toast('exportRate');
+      else {
+        this.error = describeError(e);
+        this.toast('failed');
+      }
+    } finally {
+      this.exporting = false;
     }
   }
 
@@ -284,6 +349,7 @@ export class AccessExternalScreen extends LitElement {
       await this.load();
       if (this.sel) await this.openDrawer(this.sel);
       void this.loadDigest();
+      void this.loadDrift();
       return true;
     } catch (e) {
       this.dlgError = describeError(e);
@@ -609,6 +675,77 @@ export class AccessExternalScreen extends LitElement {
       }}></access-request-dialog>`;
   }
 
+  // ---------------------------------------------------------------- GRANTSMIN-295: the drift view (CR 2.3 / T12)
+
+  private openDrift(): void {
+    void this.loadDrift();
+    this.dlgError = '';
+    this.dialog = { kind: 'drift' };
+  }
+
+  private driftChecked(r: DriftRow): string {
+    const t = [r.scope_checked_at, r.name_checked_at].filter((x): x is string => !!x).sort().at(-1);
+    return t ? xt('drChecked', { t: this.fmt(t) }) : xt('drNotChecked');
+  }
+
+  private driftActions(r: DriftRow): TemplateResult[] {
+    const out: TemplateResult[] = [];
+    const kinds = r.diffs.map((d) => d.kind);
+    const grant = r.grant;
+    if (r.can.push_name && kinds.includes('name'))
+      out.push(html`<sw-button size="sm" icon="refresh" data-drift-push=${r.link_id} ?disabled=${this.busy} @click=${() => this.act(() => pushName(r.link_id), 'act_pushDone')}>${xt('act_pushBtn')}</sw-button>`);
+    if (grant && r.can.read_now && kinds.some((k) => READ_KINDS.includes(k)))
+      out.push(html`<sw-button size="sm" icon="refresh" data-drift-read=${grant.id} ?disabled=${this.busy} @click=${() => this.act(() => readNow(grant.id), 'readDone')}>${xt('readBack')}</sw-button>`);
+    if (grant && this.data?.grants.some((g) => g.id === grant.id))
+      out.push(html`<sw-button size="sm" variant="ghost" data-drift-open=${grant.id} @click=${() => {
+        this.dialog = null;
+        void this.openDrawer(grant.id);
+      }}>${xt('drOpen')}</sw-button>`);
+    return out;
+  }
+
+  private driftRow(r: DriftRow, compact = false): TemplateResult {
+    const head = r.diffs[0];
+    return html`<div class="drow" role="listitem" data-drift-row=${r.contact_id} data-drift-kinds=${r.diffs.map((d) => d.kind).join(' ')} data-tone=${DRIFT_TONE[head.kind]}>
+      <span class="ik" aria-hidden="true"><sw-icon name=${DRIFT_ICON[head.kind]} size="15"></sw-icon></span>
+      <div class="dmain">
+        <div class="dname"><b>${r.name ?? '—'}</b>${r.company ? html`<small>${r.company}</small>` : nothing}${compact ? nothing : html`<span class="chip" data-tone="off">${xt(`rec_${r.origin}` as XtKey)}</span>`}</div>
+        ${compact
+          ? html`<span class="dk">${r.diffs.map((d) => xt(`dk_${d.kind}` as XtKey)).join(' · ')}</span>`
+          : html`<ul class="dlist">${r.diffs.map((d) => html`<li data-drift-kind=${d.kind}><span class="chip" data-tone=${DRIFT_TONE[d.kind]}>${xt(`dk_${d.kind}` as XtKey)}</span><span>${xt(`dkt_${d.kind}` as XtKey)}${d.kind === 'name' && r.name ? html` <b>${xt('drArxName', { name: r.name })}</b>` : nothing}${d.kind === 'idle_person' && d.since ? ` ${xt('gap_since', { t: this.fmt(d.since) })}` : ''}</span></li>`)}</ul>
+              ${r.grant?.doors.length ? html`<span class="chips">${r.grant.doors.map((x) => html`<span class="chip door" data-tone="acc"><sw-icon name="door" size="13"></sw-icon>${x.name}</span>`)}</span>` : nothing}
+              <small class="dwhen">${this.driftChecked(r)}</small>`}
+      </div>
+      ${compact ? nothing : html`<div class="dact">${this.driftActions(r)}</div>`}
+    </div>`;
+  }
+
+  private driftDialog(): TemplateResult {
+    const d = this.drift;
+    return html`<sw-dialog open wide heading=${xt('drTitle')} subheading=${xt('drLead')} data-drift-dialog @close=${() => (this.dialog = null)}>
+      ${!d
+        ? html`<sw-state-panel state="loading"></sw-state-panel>`
+        : html`<div class="stack">
+            <div class="row"><span class="chip" data-tone="ok" data-drift-insync>${xt('drInSync', { n: d.in_sync })}</span>${d.name_sync === 'auto' ? html`<span class="chip" data-tone="acc">${xt('drAuto')}</span>` : nothing}</div>
+            ${d.rows.length
+              ? html`<div class="drows" role="list">${d.rows.map((r) => this.driftRow(r))}</div>`
+              : html`<sw-state-panel state="empty" heading=${xt('drNone')} hint=${xt('drNoneText')}></sw-state-panel>`}
+          </div>`}
+      ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
+      <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button></div>
+    </sw-dialog>`;
+  }
+
+  private driftPanel(): TemplateResult | typeof nothing {
+    const d = this.drift;
+    if (!d || !d.enabled) return nothing;
+    return html`<section class="panel" data-drift-panel>
+      <h3><sw-icon name="layers" size="18"></sw-icon>${xt('drTitle')}<span class="sp"></span><span class="chip num" data-tone=${d.rows.length ? 'warn' : 'ok'}>${d.rows.length}</span></h3>
+      ${d.rows.length ? html`<div class="drows" role="list">${d.rows.slice(0, 3).map((r) => this.driftRow(r, true))}</div>` : html`<p class="lead">${xt('drNoneText')}</p>`}
+      <div class="row"><sw-button size="sm" data-open-drift @click=${() => this.openDrift()}>${xt('drAll', { n: d.rows.length })}</sw-button><span class="note">${xt('drInSync', { n: d.in_sync })}</span></div>
+    </section>`;
+  }
+
   private openSettings(): void {
     const s = this.data?.screen;
     if (!s) return;
@@ -648,6 +785,7 @@ export class AccessExternalScreen extends LitElement {
     if (!dl) return nothing;
     if (dl.kind === 'confirm') return this.confirmDialog(dl.c);
     if (dl.kind === 'digest') return this.digestDialog();
+    if (dl.kind === 'drift') return this.driftDialog();
     if (dl.kind === 'settings') return this.draft ? this.settingsDialog() : nothing;
     if (dl.kind === 'request') return this.requestDialog(dl.noPerm);
     const g = this.data?.grants.find((x) => x.id === dl.id) ?? (this.detail?.id === dl.id ? this.detail : null);
@@ -675,6 +813,7 @@ export class AccessExternalScreen extends LitElement {
             <p class="lead">${xt('weekLead', { day: xt(`day${sch?.digest_day ?? 0}` as XtKey), hour: `${String(sch?.digest_hour ?? 8).padStart(2, '0')}:00` })}</p>
             <div><sw-button size="sm" data-open-digest @click=${() => this.openDigest()}>${xt('fullDigest')}</sw-button></div>
           </section>`}
+      ${off ? nothing : this.driftPanel()}
       <section class="panel" data-rules-panel>
         <h3><sw-icon name="filter" size="18"></sw-icon>${xt('rulesTitle')}</h3>
         <div class="kv">
@@ -737,6 +876,7 @@ export class AccessExternalScreen extends LitElement {
         <div><h1>${xt('title')}</h1><p class="sub">${xt('sub')}</p></div>
         <span class="sp"></span>
         ${data.may_request && !off ? html`<sw-button variant="primary" icon="plus" data-open-request @click=${() => this.openRequest()}>${rt('newBtn')}</sw-button>` : nothing}
+        <sw-button icon="download" data-export-csv ?disabled=${this.exporting || !grants.length} @click=${() => void this.exportCsv()}>${xt('exportCsv')}</sw-button>
         ${data.system_admin
           ? html`<sw-button icon="system" data-open-settings @click=${() => this.openSettings()}>${xt('settings')}</sw-button>
               <sw-button variant="danger" icon="lock" data-revoke-all ?disabled=${off || !grants.some((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state))}

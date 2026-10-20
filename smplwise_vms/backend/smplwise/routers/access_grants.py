@@ -31,13 +31,17 @@ ACCESSREQ-293 (the manual request form; owner decisions 2026-10-20; services/acc
 - GET    /access-grants/grantable-doors?ticket_id=   the stations / doors of the served WisKey copy and the caller's rights on each
 - GET    /access-grants/approvers?stations=&credential=   who could approve the chosen stations (names only; not the caller unless admin)
 - GET    /access-grants/notice?lang=            the privacy notice and the attestation in the person's language
-- POST   /access-grants                         also takes `purpose`, `notes`, `told` and `approve_now`"""
+- POST   /access-grants                         also takes `purpose`, `notes`, `told` and `approve_now`
+GRANTSMIN-295 (the Arx-only leftovers; services/access_external.py):
+- GET    /access-grants/drift                   per person, where Arx and WisKey differ (from stored proof / digests; no WisKey read)
+- GET    /access-grants/export.csv              the grants the caller may see as CSV (number only at the caller's level; one a minute)"""
 from __future__ import annotations
 
 import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
@@ -198,6 +202,36 @@ def ia_valid(station_id: str) -> bool:
     from ..services import intercom_authority as ia
 
     return ia.valid_id(station_id) and station_id not in ("*", "all")
+
+
+@router.get("/access-grants/drift")
+def get_drift(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """GRANTSMIN-295 (CR 2.3 / T12): per person, where Arx and WisKey differ - from what Arx stored; no WisKey read."""
+    return {"drift": ax.drift(conn, principal)}
+
+
+@router.get("/access-grants/export.csv")
+def export_csv(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+               live: bool = False, lang: Literal["he", "en"] = "he") -> StreamingResponse:
+    """GRANTSMIN-295: the grants the caller may see as CSV (one a minute per user, 5,000 rows, audited with the row count only)."""
+    rid = _rid(request)
+    if not ax.may_export(conn, principal):
+        audit(conn, actor=principal, action="access.grant.export", decision="denied", resource_type="installation", resource_id="*", reason="no_binding",
+              request_id=rid)
+        raise forbidden(permission=ag.PERMISSION, target_type="installation", target_id="*", reason="no_binding")
+    wait = ax.export_wait(principal.user_id)
+    if wait > 0:
+        raise ApiError(429, "export_rate", "אפשר לייצא פעם בדקה. נסו שוב בעוד רגע.", retryable=True, details={"retry_after_s": int(wait) + 1})
+    cells = ax.export_rows(conn, principal, live_only=live, lang=lang)
+    audit(conn, actor=principal, action="access.grant.export", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
+          details={"rows": len(cells) - 1, "live_only": live, "lang": lang})
+    ax.export_mark(principal.user_id)
+    return StreamingResponse(ax.export_stream(cells), media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="{ax.export_filename(conn)}"',
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "X-Export-Rows": str(len(cells) - 1),
+    })
 
 
 @router.get("/access-grants/contacts/{contact_id}/identity")

@@ -2,7 +2,7 @@
  * SHAREDID-293: the typed calls of the external-access screen (routers/access_grants.py). The server decides every permission and
  * filters every list; nothing here grants anything. The entry code never appears in any answer (only its delivery state).
  */
-import { get, post, put, del } from './client';
+import { ApiError, apiUrl, get, post, put, del } from './client';
 
 export type GrantState = 'requested' | 'approved' | 'provisioning' | 'active' | 'revoking' | 'ended' | 'revoked' | 'refused' | 'failed' | 'unknown';
 export type CodeState = 'not_needed' | 'pending' | 'queued' | 'sent' | 'not_delivered' | 'unknown';
@@ -142,6 +142,31 @@ export interface Digest {
   gaps: DigestGap[];
 }
 
+/** GRANTSMIN-295: one kind of difference between Arx and WisKey (most urgent first, the server's order). */
+export type DriftKind = 'missing' | 'scope' | 'unknown' | 'sync_pending' | 'name' | 'unverified' | 'idle_person';
+
+export interface DriftRow {
+  link_id: string;
+  contact_id: string;
+  subject_kind: 'contact' | 'user';
+  name: string | null;
+  company: string | null;
+  origin: 'created_from_arx' | 'matched';
+  link_state: 'linked' | 'wiskey_missing';
+  grant: { id: string; state: GrantState; doors: { station_id: string; name: string }[] } | null;
+  diffs: { kind: DriftKind; grant_id?: string | null; since?: string | null }[];
+  name_checked_at: string | null;
+  scope_checked_at: string | null;
+  can: { push_name: boolean; read_now: boolean };
+}
+
+export interface Drift {
+  enabled: boolean;
+  name_sync: NameSync;
+  rows: DriftRow[];
+  in_sync: number;
+}
+
 export interface Identity {
   contact_id: string;
   link: (GrantLink & { linked_at: string; name_drift: boolean }) | null;
@@ -158,6 +183,24 @@ export const listGrants = (all = true) => get<GrantsReply>(`access-grants${all ?
 export const getGrant = (id: string) => get<{ grant: Grant }>(`access-grants/${enc(id)}`);
 export const getDigest = () => get<{ digest: Digest }>('access-grants/digest');
 export const getIdentity = (contactId: string) => get<{ identity: Identity }>(`access-grants/contacts/${enc(contactId)}/identity`);
+export const getDrift = () => get<{ drift: Drift }>('access-grants/drift');
+
+/** GRANTSMIN-295: the grants the caller may see as a CSV file (the server filters the rows and the numbers; one a minute). */
+export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Promise<{ blob: Blob; rows: number; filename: string }> {
+  const q = new URLSearchParams({ lang, ...(liveOnly ? { live: 'true' } : {}) });
+  const res = await fetch(apiUrl(`access-grants/export.csv?${q}`), { credentials: 'same-origin' });
+  if (!res.ok) {
+    let body: Partial<ApiError['body']> = {};
+    try {
+      body = (await res.json()) as typeof body;
+    } catch {
+      body = {};
+    }
+    throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: body.retryable ?? false, correlation_id: body.correlation_id ?? '', details: body.details ?? {} });
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'external-access.csv';
+  return { blob: await res.blob(), rows: Number(res.headers.get('X-Export-Rows') ?? 0), filename: name };
+}
 export const getScreenSettings = () => get<GrantRules & ScreenSettings>('access-grants/settings');
 export const putScreenSettings = (body: Partial<ScreenSettings>) => put<GrantRules & ScreenSettings>('access-grants/settings', body);
 
