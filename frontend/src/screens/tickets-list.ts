@@ -407,13 +407,18 @@ export class TicketsList extends LitElement {
     const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
     const cards = this.view !== 'table' || this.cal; // the card filters (priority, handler, flags) also narrow the calendar
     const active = activeCardFilters(this.filters);
+    // UXFIX-A11Y-295 (UX audit finding 7): the department row and the "new" key arrive with the meta, after the skeleton is on screen -
+    // the header grew by 50 px and pushed the whole skeleton grid down (most of the measured CLS). While the meta is on its way their
+    // places are held by invisible twins of the usual case (several departments, may create); an installation with one department or
+    // without the create right gives the place back once.
+    const pending = !this.meta && this.screen === 'loading';
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-tickets-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
         ${showDepts ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')}>
           <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${Object.keys(c.departments).length ? withDept(total) : nothing}</button>
           ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${Object.keys(c.departments).length ? withDept(c.departments[d.id] ?? 0) : nothing}</button>`)}
-        </div>` : html`<span class="grow"></span>`}
+        </div>` : pending ? html`<div class="rooms" aria-hidden="true" data-rooms-pending style="visibility:hidden"><span class="rc">${tt('allDepartments')}</span></div>` : html`<span class="grow"></span>`}
       </div>
       ${tools ? html`<div class="dh-det">
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
@@ -426,6 +431,7 @@ export class TicketsList extends LitElement {
         ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
+        ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}${tt('newShort')}</span>` : nothing}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
         ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
       </div>
