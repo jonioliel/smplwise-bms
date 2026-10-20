@@ -168,7 +168,8 @@ def test_display_settings_d19_d21_and_d28(w):
     # are pinned by hand (D18 detail, D19 floors tree, D20 grouping, D21 closed strip, D22 new ticket). The other keys' owner defaults are
     # pinned by their own tests (test_tickets_mgrdash_settings, test_tickets_mgrdash_alerts, test_tickets_handler_load).
     assert_defaults(m["ui"], schema_defaults(settings_doc.SCHEMA, "ui"), what="tickets ui",
-                    pinned={"detail": "drawer_fullscreen", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all", "new_ticket": "sheet"})
+                    pinned={"detail": "drawer_fullscreen", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all", "new_ticket": "sheet",
+                            "camera_viewfinder": False})  # CR-CAMVF-295: the live in-page camera, off by default
     doc = w.c.get(f"{API}/tickets/settings").json()
     assert doc["urgent_is_critical"] is True
     body = {"revision": doc["revision"], "ui": {"board_floors": "chips", "grouping": "never", "closed_strip": "week"}, "urgent_is_critical": False}

@@ -331,6 +331,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # HANDLERLOAD (owner 2026-10-17): the period of the "handled" number on the handler cards, in days (1 = today, 7, 30); each viewer's
     # own choice (kept in the browser) wins over this installation default
     ("ui", "handled_days"): (7, int_choice(1, 7, 30)),
+    # CR-CAMVF-295 (docs/changes/CR-CAMVF-295-SECURITY.md): the live in-page camera viewfinder in a request's photos (the authenticated
+    # app only; the public page keeps its file input and `camera=()`). OFF by default - the kill switch; no header follows it
+    ("ui", "camera_viewfinder"): (False, boolean),
     # MGRDASH phase 1 (owner decisions 2026-10-17, docs/design/MANAGER_DASHBOARD_SPEC_HE.md): the manager overview's display choices.
     # In `ui` because the screens read them from GET /tickets/module and GET /tickets/board; none of them widens what anybody may see
     # (every number is still counted from the rows the server lets the viewer manage).

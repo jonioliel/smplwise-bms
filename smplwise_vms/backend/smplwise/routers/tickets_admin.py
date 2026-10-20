@@ -103,6 +103,7 @@ class UiPatch(BaseModel):
     drawer_size: Literal["drawer", "wide", "full"] | None = None  # TKUI1
     phone_sheet: Literal["full", "half"] | None = None  # TKUI1
     handled_days: StrictInt | None = None  # HANDLERLOAD: the default period of the "handled" number (days)
+    camera_viewfinder: StrictBool | None = None  # CR-CAMVF-295: the live in-page camera viewfinder (default off)
     # MGRDASH phase 1: the manager overview's display choices (settings_doc validates every value again)
     dash_handler_numbers: Literal["managers", "own", "everyone"] | None = None
     dash_vendors: Literal["tagged", "separate", "hidden"] | None = None
