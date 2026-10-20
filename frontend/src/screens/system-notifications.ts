@@ -491,6 +491,17 @@ export class SystemNotifications extends LitElement {
           block-size: 44px;
         }
       }
+      /* release 2.10.0: since every severity level carries its name (finding 13) the three keys did not fit the 15 % column of the
+         desktop / tablet table and ran under the recipient select. The column is wider, the keys are compact there, and as a last
+         resort the picker wraps inside its cell instead of overlapping the next one. */
+      .mx .sevseg {
+        flex-wrap: wrap;
+        max-inline-size: 100%;
+      }
+      .mx .sevseg button {
+        padding: 0 6px;
+        gap: 4px;
+      }
       /* quiet hours matrix */
       .qmx {
         inline-size: 100%;
@@ -1206,7 +1217,7 @@ export class SystemNotifications extends LitElement {
     const s = this.settings as NotifySettings;
     let body: TemplateResult;
     if (!this.phone) {
-      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:25%"><col style="width:8%"><col style="width:15%"><col style="width:18%"><col></colgroup>
+      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:20%"><col style="width:7%"><col style="width:24%"><col style="width:18%"><col></colgroup>
         <thead><tr><th>מקור</th><th class="c">פעיל</th><th>חומרה</th><th>מי מקבל</th><th>ערוצים</th></tr></thead>
         <tbody>${groups.map((g: MatrixGroup) => html`<tr class="cat"><td colspan="5">${nIcon(g.icon)}${g.label}</td></tr>${g.rows.map(({ info, policy: p }) => html`<tr class=${p.enabled ? '' : 'off'} data-pol-row=${p.source}>
           <td class="keep"><span class="nm"><span class="ring">${nIcon(info.icon)}</span><b>${info.label}</b></span></td>

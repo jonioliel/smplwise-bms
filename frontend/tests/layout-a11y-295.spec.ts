@@ -217,3 +217,26 @@ test.describe('phone headers', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 'no sideways page scroll').toBeLessThanOrEqual(0);
   });
 });
+
+test.describe('notification rules table (desktop / tablet)', () => {
+  test.skip(({ hasTouch }) => hasTouch, 'the table layout (no touch)');
+
+  test('every severity picker stays inside its cell and clear of the recipient select', async ({ page }) => {
+    await openDemo(page, '/system/notifications');
+    const sys = page.locator('sw-app system-notifications');
+    await expect(sys.locator('.mx')).toBeVisible();
+    const rows = sys.locator('.mx tbody tr[data-pol-row]').filter({ has: page.locator('.sevseg') });
+    expect(await rows.count()).toBeGreaterThan(3);
+    for (const row of (await rows.all()).slice(0, 6)) {
+      await row.scrollIntoViewIfNeeded();
+      const seg = (await row.locator('.sevseg').boundingBox())!;
+      const cell = (await row.locator('td').nth(2).boundingBox())!;
+      const who = (await row.locator('[data-pol-who]').boundingBox())!;
+      expect(seg.x, 'picker inside its cell (left)').toBeGreaterThanOrEqual(cell.x - 0.5);
+      expect(seg.x + seg.width, 'picker inside its cell (right)').toBeLessThanOrEqual(cell.x + cell.width + 0.5);
+      const overlap = Math.min(seg.x + seg.width, who.x + who.width) - Math.max(seg.x, who.x);
+      expect(overlap, 'picker clear of the recipient select').toBeLessThanOrEqual(0);
+      for (const k of await row.locator('.sevseg button').all()) expect(((await k.textContent()) ?? '').trim().length).toBeGreaterThan(1);
+    }
+  });
+});
