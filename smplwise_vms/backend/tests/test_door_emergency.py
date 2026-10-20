@@ -205,7 +205,8 @@ def test_the_release_needs_the_same_permission_at_the_incident_scope(pw):
 
 # ---------------------------------------------------------------- abuse: rate limits, automations, non-interactive clients
 
-def test_rate_limits_per_person_and_per_hour(pw):
+def test_rate_limits_per_person_and_per_hour(pw, monkeypatch):
+    monkeypatch.setitem(de.LIMITS, "prepare_per_min", 100)  # the per-minute `prepare` limiter (real time) has its own test
     first = pw.press().json()["incident"]
     pw.release(first["id"])
     r = pw.press()
