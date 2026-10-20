@@ -79,6 +79,12 @@ def _code(w, msg, now=None) -> str:
     return exc.value.code
 
 
+def _refusal(w, msg, now=None) -> tuple[str, str]:
+    with pytest.raises(bk.VerifyError) as exc:
+        _verify(w, msg, now)
+    return exc.value.code, exc.value.detail
+
+
 def _k1(db: Database) -> None:
     """Invariant K1: exactly one current key, with material; wiped rows carry no material."""
     ks = _keys(db).values()
@@ -135,12 +141,49 @@ def test_verify_refusals_wrong_unknown_pending_kid_stale_replay_and_cross_key_re
     forged = bk.sign_with("g0-legacy", LEGACY, {"x": 2}, ts=now)
     forged["kid"] = "g2-0000abcd"
     assert _code(w, forged) == "bad_signature"
-    assert _code(w, bk.sign_with("g7-deadbeef", LEGACY, {"x": 3}, ts=now)) == "key_unknown"
+    assert _refusal(w, bk.sign_with("g7-deadbeef", LEGACY, {"x": 3}, ts=now)) == ("bad_signature", "key_unknown")  # H-02
     assert _code(w, bk.sign_with("g1-0000abcd", "k-pending", {"x": 4}, ts=now)) == "key_not_active"
     assert _code(w, bk.sign_with("g0-legacy", LEGACY, {"x": 5}, ts=now - 61)) == "stale"
     assert _code(w, {**bk.sign_with("g0-legacy", LEGACY, {"x": 6}, ts=now), "nonce": "short"}) == "bad_format"
     assert _code(w, "not a message") == "bad_format"
     assert _code(w, {**bk.sign_with("g0-legacy", LEGACY, {"x": 7}, ts=now), "ts": True}) == "bad_format"
+
+
+def test_h02_every_refusal_before_the_mac_answers_one_wire_code(world):
+    """FABLEFIX-295 H-02 (Fable review 2026-10-21): a sender without the key cannot tell an unknown kid from a pending, retired,
+    expired or unreadable one, nor a stale message from a forged one - the MAC is checked first and every unauthenticated refusal
+    is `bad_signature` on the wire; the precise reason is kept in `detail` and the process-local counter only."""
+    w = world
+    bk.REFUSALS.clear()
+    with w["db"].write_aside() as conn:
+        bk.adopt_legacy(conn, w["settings"].data_dir)
+        bk.insert(conn, w["settings"].data_dir, kid="g1-0000abcd", generation=1, state="pending", material="k-pending", rotation_id=None)
+        bk.insert(conn, w["settings"].data_dir, kid="g2-0000abcd", generation=2, state="next", material="k-next", rotation_id=None)
+        bk.insert(conn, w["settings"].data_dir, kid="g3-0000abcd", generation=3, state="retiring", material="k-old", rotation_id=None)
+        bk.set_state(conn, "g3-0000abcd", "retiring", verify_until=bk.iso_at(w["clock"]() - 3600))
+        bk.insert(conn, w["settings"].data_dir, kid="g4-0000abcd", generation=4, state="next", material="k-gone", rotation_id=None)
+        bk.set_state(conn, "g4-0000abcd", "retired")
+    now = int(w["clock"]())
+    wrong = "not-the-key"
+    forged = {
+        "unknown": bk.sign_with("g7-deadbeef", wrong, {"x": 1}, ts=now),
+        "pending": bk.sign_with("g1-0000abcd", wrong, {"x": 2}, ts=now),
+        "next": bk.sign_with("g2-0000abcd", wrong, {"x": 3}, ts=now),
+        "expired": bk.sign_with("g3-0000abcd", wrong, {"x": 4}, ts=now),
+        "retired": bk.sign_with("g4-0000abcd", wrong, {"x": 5}, ts=now),
+        "stale": bk.sign_with("g0-legacy", wrong, {"x": 6}, ts=now - 3600),
+    }
+    codes = {name: _code(w, msg) for name, msg in forged.items()}
+    assert set(codes.values()) == {"bad_signature"}, codes
+    seen = bk.REFUSALS.snapshot()
+    assert seen.get("key_unknown") == 1 and seen.get("key_retired") == 1 and seen.get("bad_signature") == 4
+    # a retired key's real material no longer verifies either - and still says nothing more than a forgery
+    assert _code(w, bk.sign_with("g4-0000abcd", "k-gone", {"x": 7}, ts=now)) == "bad_signature"
+    # once the MAC proves the sender holds the key, the precise reason is answered
+    assert _code(w, bk.sign_with("g1-0000abcd", "k-pending", {"x": 8}, ts=now)) == "key_not_active"
+    assert _code(w, bk.sign_with("g3-0000abcd", "k-old", {"x": 9}, ts=now)) == "key_expired"
+    assert _code(w, bk.sign_with("g0-legacy", LEGACY, {"x": 10}, ts=now - 3600)) == "stale"
+    assert all(isinstance(v, int) for v in bk.REFUSALS.snapshot().values())  # counts only: no input text, no material
 
 
 def test_kidless_v1_messages_verify_only_under_the_legacy_key_and_never_after_it_retires(world):
@@ -153,7 +196,7 @@ def test_kidless_v1_messages_verify_only_under_the_legacy_key_and_never_after_it
     assert _verify(w, v1) == "g0-legacy"
     w["engine"].start(None, "hard_cut")
     v1b = ha_bridge.sign(LEGACY, {"op": "y"}, ts=int(w["clock"]()))
-    assert _code(w, v1b) == "kidless_refused"  # downgrade guard: no key a kid-less message could use
+    assert _refusal(w, v1b) == ("bad_signature", "kidless_refused")  # downgrade guard: no key a kid-less message could use (H-02 wire code)
 
 
 def test_sealing_is_bound_to_the_kid_and_the_install_key(world, tmp_path):
@@ -183,7 +226,7 @@ def test_a_database_moved_to_another_machine_fails_closed(world, tmp_path):
         assert exc.value.code == "key_unreadable"
         with pytest.raises(bk.VerifyError) as vexc:
             bk.verify(conn, other, bk.sign_with("g0-legacy", LEGACY, {"x": 1}, ts=int(time.time())))
-        assert vexc.value.code == "key_unreadable"
+        assert vexc.value.code == "bad_signature" and vexc.value.detail == "key_unreadable"  # H-02: one wire code
         assert bk.status(conn, other)["current"]["readable"] is False
 
 

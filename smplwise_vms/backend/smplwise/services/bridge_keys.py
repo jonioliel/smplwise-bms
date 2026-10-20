@@ -7,7 +7,10 @@
 - Signature v2: `HMAC-SHA256(key, "v2.<kid>.<ts>.<nonce>.<sha256_hex(canonical body)>")`; the wire is the body plus `kid`, `ts`,
   `nonce` (32 hex) and `sig`. A kid-less (v1) message verifies only against `g0-legacy` while that key is current or inside its
   retiring window - after the first completed rotation no kid-less message verifies (downgrade guard, section 4.3).
-- Verify order: format, kid state, time window, constant-time compare, replay (ONE nonce cache across every key).
+- Verify order (FABLEFIX-295 H-02): format, constant-time compare FIRST (a dummy key when the kid is unknown, unreadable or has no
+  material), then kid state, time window and replay (ONE nonce cache across every key). Every refusal before the MAC proves the
+  sender holds the key answers the one wire code `bad_signature`; the precise reason stays in `VerifyError.detail` and the
+  process-local `REFUSALS` counter, never on the wire.
 
 Nothing here logs, audits, raises or returns key material, a salt, a proof, a nonce or a signature in an error: refusals are closed
 codes (`VerifyError.code`). Not wired to `ha_bridge.sign/verify` in this slice (activation slice, design section 13 item 3)."""
@@ -45,11 +48,37 @@ PROOF_LABEL = "rotation-ack|"
 
 
 class VerifyError(Exception):
-    """A refused message. `code` is a closed value; the exception never carries input text or key material."""
+    """A refused message. `code` is the closed wire value; `detail` the closed internal reason (equal to `code` unless the refusal
+    was collapsed to `bad_signature` for an unauthenticated message). The exception never carries input text or key material."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, detail: str | None = None) -> None:
         super().__init__(code)
         self.code = code
+        self.detail = detail or code
+
+
+class RefusalCounter:
+    """Process-local count of verify refusals by internal reason (H-02: the reason is kept here, not on the wire)."""
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def add(self, detail: str) -> None:
+        with self._lock:
+            self._counts[detail] = self._counts.get(detail, 0) + 1
+
+    def snapshot(self) -> dict[str, int]:
+        with self._lock:
+            return dict(self._counts)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._counts.clear()
+
+
+REFUSALS = RefusalCounter()
+_DUMMY_MATERIAL = secrets.token_urlsafe(32)  # never a real key; only keeps the compare's cost the same when no key can be used
 
 
 class KeySetError(Exception):
@@ -156,6 +185,7 @@ NONCES = NonceCache()
 
 def reset_for_tests() -> None:
     NONCES.clear()
+    REFUSALS.clear()
 
 
 # ---------------------------------------------------------------- rows
@@ -269,32 +299,43 @@ def verify(conn: sqlite3.Connection, data_dir: Path, message: Any, now: float | 
         raise VerifyError("bad_format")
     if kidless and not nonce:
         raise VerifyError("bad_format")
+    body = {k: v for k, v in message.items() if k not in WIRE_FIELDS}
+    # H-02: compute the MAC before looking at the key's state, with a dummy key when no material can be used, so an unauthenticated
+    # sender learns nothing about which kids exist or in which state (one wire code, one compare, whatever stopped it)
+    pre: str | None = None
     try:
         key = load(conn, data_dir, kid)
     except KeySetError as exc:
-        raise VerifyError(exc.code) from None
-    if key is None:
-        raise VerifyError("kidless_refused" if kidless else "key_unknown")
+        key, pre = None, exc.code
+    if key is None and pre is None:
+        pre = "kidless_refused" if kidless else "key_unknown"
+    elif key is not None and key.material is None:
+        pre = "kidless_refused" if kidless else "key_retired"
+    material = key.material if key is not None and key.material is not None else _DUMMY_MATERIAL
+    expected = _v1_sig(material, body, ts, nonce) if kidless else _mac(material, hmac_input(kid, ts, nonce, body))
+    mac_ok = hmac.compare_digest(expected, sig)
+    if pre is not None or not mac_ok:
+        _refuse("bad_signature", pre or "bad_signature")
+    assert key is not None
+    # authenticated: the sender holds this key, so the precise reason may be answered
     if key.state == "pending":
-        raise VerifyError("key_not_active")
-    if key.state in ("retired", "discarded"):
-        raise VerifyError("kidless_refused" if kidless else "key_retired")
+        _refuse("key_not_active")
     if key.state == "retiring":
         until = _epoch(key.verify_until)
         if until is None or now >= until:  # a hard cut sets `verify_until` to the switch instant: refused from that instant on
-            raise VerifyError("key_expired")
+            _refuse("key_expired")
     if kidless and key.state == "next":
-        raise VerifyError("kidless_refused")
+        _refuse("kidless_refused")
     if abs(now - ts) > WINDOW_S:
-        raise VerifyError("stale")
-    body = {k: v for k, v in message.items() if k not in WIRE_FIELDS}
-    assert key.material is not None
-    expected = _v1_sig(key.material, body, ts, nonce) if kidless else _mac(key.material, hmac_input(kid, ts, nonce, body))
-    if not hmac.compare_digest(expected, sig):
-        raise VerifyError("bad_signature")
+        _refuse("stale")
     if not nonces.check_and_add(nonce, now):
-        raise VerifyError("replay")
+        _refuse("replay")
     return kid
+
+
+def _refuse(code: str, detail: str | None = None) -> None:
+    REFUSALS.add(detail or code)
+    raise VerifyError(code, detail)
 
 
 def status(conn: sqlite3.Connection, data_dir: Path, limit: int = 10) -> dict[str, Any]:
