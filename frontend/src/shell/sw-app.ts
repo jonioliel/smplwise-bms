@@ -109,7 +109,7 @@ import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../a
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
-import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, DD_PLACE_DECLINED, ddHeader, type DdBox } from './dd-place-fit';
+import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
@@ -1859,7 +1859,7 @@ export class SwApp extends LitElement {
       this.ddMissSince = 0; // a collision seen on the previous screen does not count here
     }
     const asked = ddPlaceOf();
-    const declined = asked !== '1' && !!DD_PLACE_DECLINED[areaOf(this.route) ?? '']?.includes(asked);
+    const declined = ddPlaceDeclined(areaOf(this.route) ?? '', route, asked); // the area's table + the screen's (dd-place-fit.ts)
     const place = declined || this.ddCollideRoute ? '1' : asked;
     const fallback = declined ? 'declared' : this.ddCollideRoute ? 'collision' : null;
     if (this.getAttribute('data-dd-place') !== place) this.setAttribute('data-dd-place', place);

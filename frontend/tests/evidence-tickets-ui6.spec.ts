@@ -226,7 +226,8 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
     const tabs = ['general', 'departments', 'locations', 'display', 'channel', 'messages', 'costs', 'rules', 'permissions'];
     const waits: Record<string, string> = {
       general: `${S} [data-name-editor]`, departments: `${S} tickets-dept-editor`, locations: `${S} tickets-locations-settings [data-card="locations"]`, display: `${S} ticket-board-settings [data-ui-board]`, channel: `${S} tickets-channel-settings [data-channel-settings]`,
-      messages: `${S} tickets-message-templates [data-message-templates]`, costs: `${S} tickets-costs-settings [data-costs-settings]`, permissions: `${S} [data-holder]`,
+      messages: `${S} tickets-message-templates [data-message-templates]`, costs: `${S} tickets-costs-settings [data-costs-settings]`,
+      rules: `${S} tickets-rules-settings` /* integ/291: TKRULES-291 added the tab; the mock serves no rules document, so the element is the proof */, permissions: `${S} [data-holder]`,
     };
     for (const scheme of ['light', 'dark'] as const) {
       await go(page, '/system/tickets', {}, scheme);
