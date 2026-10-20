@@ -31,7 +31,7 @@ The task card assumed the authenticated app is served with `camera=()`. The code
 too. The scoping therefore lives in the application (section 4), and the header tests pin the current values so that a
 later change cannot widen them silently (section 8).
 
-Defense-in-depth option, NOT done (owner question 1): the remote channel's `camera=(self)` predates this CR (CR-008) and
+Defense-in-depth option, NOT done (decision 1 in section 10): the remote channel's `camera=(self)` predates this CR (CR-008) and
 is granted even while nothing in the product uses the camera. It could follow the setting (`camera=()` while
 `ui.camera_viewfinder` is off). It was left unchanged because (a) CR-008 section 3e is an approved header set that ranks
 above a task card, and (b) the same-origin WisKey panel (`frame-src 'self'`, `/hikvision-intercom`) inherits the remote
@@ -92,7 +92,7 @@ Bundle budget: the initial public page is 23.9 KB gzip of its 60 KB budget and t
 2. The public page is internet-facing and unauthenticated; widening to `camera=(self)` there should be scoped to the
    document routes (`/t/`, `/t/r/{rid}`, `/support/...`) only, with the JSON routes kept at `camera=()`, and reviewed
    with the in-app-browser matrix (WhatsApp / Facebook WebViews often refuse `getUserMedia`).
-Follow-up item recorded in section 10.
+Decision 2 in section 10: not now.
 
 ## 8. Tests that hold the line
 
@@ -114,10 +114,11 @@ Follow-up item recorded in section 10.
 Set `ui.camera_viewfinder` to off (Settings -> service requests -> display), or revert the branch. No migration (the
 settings document takes the new key with its default); no header changed, so nothing to restore at the edge.
 
-## 10. Open items
+## 10. Decisions and open items
 
-1. Owner: should the remote channel's `camera=(self)` follow the setting (`camera=()` while off)? Needs a check of the
-   WisKey panel's camera use first.
-2. Owner: approve (or not) the public vendor page viewfinder as a CR-038 amendment (section 7).
-3. Real-device evidence: Android Chrome and iOS Safari over the remote channel; HA Companion app through Ingress.
-4. Other capture places (the new-request sheet, the conversation composer, RFQ files) - not in this slice.
+Decided by the lead on the owner's delegation (2026-10-20):
+1. The remote channel's `camera=(self)` stays as CR-008 set it (it does not follow the setting).
+2. No viewfinder on the public vendor page now (CR-038 unchanged; section 7 stays the follow-up record).
+3. Other capture places (the new-request sheet, the conversation composer, RFQ files) - a later slice.
+
+Open: real-device evidence - Android Chrome and iOS Safari over the remote channel; the HA Companion app through Ingress.
