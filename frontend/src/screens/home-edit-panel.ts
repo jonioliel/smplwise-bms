@@ -29,9 +29,9 @@ function optionsOf(list: { entity_id: string; name: string }[], current: string,
   const known = list.some((x) => x.entity_id === current);
   return [
     html`<option value="" ?selected=${!current}>${blank}</option>`,
-    ...(suggestion && !current && list.some((x) => x.entity_id === suggestion.entity_id) ? [html`<option value=${suggestion.entity_id}>הצעה: ${suggestion.name} · ${suggestion.entity_id}</option>`] : []),
-    ...(current && !known ? [html`<option value=${current} selected>${current}</option>`] : []),
-    ...list.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${x.name} · ${x.entity_id}</option>`),
+    ...(suggestion && !current && list.some((x) => x.entity_id === suggestion.entity_id) ? [html`<option value=${suggestion.entity_id}>הצעה: ${entityLabel(suggestion)}</option>`] : []),
+    ...(current && !known ? [html`<option value=${current} selected>${entityLabel({ entity_id: current }, 'חיישן שנבחר (אינו זמין כעת)')}</option>`] : []),
+    ...list.map((x) => html`<option value=${x.entity_id} ?selected=${x.entity_id === current}>${entityLabel(x)}</option>`),
   ];
 }
 
