@@ -97,6 +97,8 @@ test('the approval dialog narrows only and sends the doors and the window it sho
   await shot(page, info, '04-approve');
   await dlg.locator('[data-approve-door="base:1"]').uncheck();
   await dlg.locator('[data-approve-ok]').click();
+  // the POST is answered asynchronously: wait for it instead of reading the list at once (flaked under load on the runner)
+  await expect.poll(() => mock.posts.some((p) => p.path.endsWith('/approve'))).toBe(true);
   const post = mock.posts.find((p) => p.path.endsWith('/approve'));
   expect(post?.body).toMatchObject({ doors: { lobby: [1] }, valid_from: '2026-10-21T04:00:00Z', valid_until: '2026-10-22T13:00:00Z' });
 });
