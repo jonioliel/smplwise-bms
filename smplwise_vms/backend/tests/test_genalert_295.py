@@ -105,7 +105,7 @@ def test_a_type_with_its_own_recipients_wins_and_an_empty_one_inherits(app):
     with db.connection(mode="read") as conn:
         eff = alerts.effective_routing(conn, g, "low_fuel")
         assert eff["recipients"]["roles"] == ["site_admin"] and eff["inherited"] is False
-        assert alerts.effective_routing(conn, g, "fuel_empty") is not None  # another type still inherits
+        assert alerts.effective_routing(conn, g, "fuel_shutdown") is not None  # another type still inherits
     _fire(db, ("fuel", "10"))
     n = _note(db, "generator.low_fuel@%")
     assert _recipients(db, n["id"]) == {_uid(db, "sam")}
@@ -221,7 +221,7 @@ def test_quiet_hours_choice_is_applied_and_critical_is_never_held(app):
         d._conn = conn
         assert d.held("webpush") is True  # no choice: the severity x channel matrix (alert is held at night by default)
     assert c.put(f"{API}/devices/{g}/policies/low_fuel", json={"quiet_mode": "pass"}).status_code == 200
-    assert c.put(f"{API}/devices/{g}/policies/fuel_empty", json={"quiet_mode": "hold", "severity": "critical"}).status_code == 200
+    assert c.put(f"{API}/devices/{g}/policies/fuel_shutdown", json={"quiet_mode": "hold", "severity": "critical"}).status_code == 200
     with db.connection(mode="read") as conn:
         base = nsettings.load(conn)
         base["pass_through"]["critical"]["webpush"] = False  # even an administrator's matrix cannot hold a critical generator alert
@@ -233,14 +233,14 @@ def test_quiet_hours_choice_is_applied_and_critical_is_never_held(app):
 
         assert held("low_fuel", "alert") is False  # pass
         assert held("low_fuel", "alert", quiet=False) is False
-        assert held("fuel_empty", "critical") is False  # hold, but critical
+        assert held("fuel_shutdown", "critical") is False  # hold, but critical
         assert held("battery_low", "critical") is False
         assert held("low_fuel", "alert", mode="escalate") is False
         d_other = nch.Dispatch("n1", "new", {"source": "camera.offline", "subject_id": "x", "severity": "alert"}, {}, base, "UTC", notify.now_utc(), True, [], {})
         d_other._conn = conn
         assert d_other.held("webpush") is True  # other sources keep the matrix
     with db.connection(mode="read") as conn:
-        pol = conn.execute("SELECT quiet_mode FROM generator_alert_policies WHERE alert_key = 'fuel_empty'").fetchone()
+        pol = conn.execute("SELECT quiet_mode FROM generator_alert_policies WHERE alert_key = 'fuel_shutdown'").fetchone()
         assert pol["quiet_mode"] == "hold"  # stored as chosen, ignored while the alert is critical
 
 
