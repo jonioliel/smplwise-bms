@@ -225,6 +225,10 @@ def _new_technician(conn, link: Any, vendor_root: str, body: dict[str, Any], at:
         key, key_id = contacts.phone_key_for(digits)
     except Exception:  # noqa: BLE001 - no module key: no keyed index (the per-number cap falls back to the contact)
         key, key_id = None, None
+    cap = ag.pending_cap(conn)
+    if cap and ag.pending_count(conn, vendor_root) >= cap:
+        # SECFIX2-295 / PUB-03: a link holder cannot plant unbounded third-party names and numbers between decisions / janitor runs
+        raise Refused(429, "rate_limited", retry_after_s=3600)
     vendor = ag.contact_row(conn, vendor_root) or {}
     cid = new_id()
     conn.execute("""INSERT INTO ticket_contacts(id, kind, vendor_id, display_name, company, phone_e164, phone_key, phone_key_id, lang, active,

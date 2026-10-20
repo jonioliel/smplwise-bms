@@ -85,10 +85,19 @@ FRESH_KEY = "access.external.phone_fresh_days"
 CODE_HOUR_KEY = "access.external.code_hour"
 LOCAL_KEY = "access.external.local_approvers"
 CARDS_KEY = "access.external.cards"  # GRANTS3-295 (X5): card grants for a vendor's technicians; off by default, on only with the go-live permit
-KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY, CARDS_KEY)
+# SECFIX2-295 / PUB-03 (docs/security/PROPOSAL_PUB03_PENDING_TECHNICIAN_RETENTION.md, option A; owner decision pending): a technician a
+# vendor typed on the arrival page and nobody decided is erased after N days (services/pending_retention.py), and a vendor holds at most
+# M undecided technicians. Owner decision 2026-10-21: the recommendation is the default - 90 days, 10 per vendor (a value an administrator
+# saved, including "0" = off, wins; an installation that never saved one gets these at upgrade). Never in a project backup.
+PENDING_RETENTION_KEY = "access.external.pending_retention_days"
+PENDING_CAP_KEY = "access.external.pending_max_per_vendor"
+PENDING_RETENTION_MIN, PENDING_RETENTION_MAX = 7, 365
+PENDING_CAP_MAX = 100
+KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY, CARDS_KEY, PENDING_RETENTION_KEY, PENDING_CAP_KEY)
 MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
-DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off"}
+DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off",
+            PENDING_RETENTION_KEY: "90", PENDING_CAP_KEY: "10"}
 REVOKE_ALL_WORD = "בטל הכל"
 DELETE_WORD = "מחק"
 
@@ -306,6 +315,33 @@ def local_approvers(conn: sqlite3.Connection) -> bool:
         return False
 
 
+def pending_retention_days(conn: sqlite3.Connection) -> int:
+    """PUB-03: default 90 (owner 2026-10-21); a saved 0 = off (an undecided vendor-typed technician is kept until a manager decides); otherwise 7-365 days (a stored
+    value below the floor reads as the floor, so a slip never erases a request the same week). Unreadable -> 0 (nothing is erased)."""
+    try:
+        value = int(get_setting(conn, PENDING_RETENTION_KEY) or DEFAULTS[PENDING_RETENTION_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    if value <= 0:
+        return 0
+    return max(PENDING_RETENTION_MIN, min(PENDING_RETENTION_MAX, value))
+
+
+def pending_cap(conn: sqlite3.Connection) -> int:
+    """PUB-03: at most this many undecided vendor-typed technicians per vendor (default 10, owner 2026-10-21; a saved 0 = no cap). Unreadable -> no cap (the arrival
+    page's own per-link budgets still hold)."""
+    try:
+        value = int(get_setting(conn, PENDING_CAP_KEY) or DEFAULTS[PENDING_CAP_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    return max(0, min(PENDING_CAP_MAX, value))
+
+
+def pending_count(conn: sqlite3.Connection, vendor_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM access_pending_contacts WHERE vendor_id = ? AND accepted_at IS NULL AND rejected_at IS NULL",
+                            (vendor_id,)).fetchone()[0])
+
+
 def zone_of(conn: sqlite3.Connection):
     from ..routers.settings import read_settings
     from .timeutil import zone
@@ -332,7 +368,8 @@ def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
             "max_days_cap": MAX_DAYS_CAP, "max_doors": max_doors(conn), "phone_fresh_days": fresh_days(conn), "code_hour": code_hour(conn),
             "local_approvers": "on" if local_approvers(conn) else "off",
             # GRANTS3-295 (X5): cards, and card capture - which stays off until the owner releases the lease route
-            "cards": "on" if cards_enabled(conn) else "off", "card_capture": "on" if CAPTURE_PERMITTED else "off"}
+            "cards": "on" if cards_enabled(conn) else "off", "card_capture": "on" if CAPTURE_PERMITTED else "off",
+            "pending_retention_days": pending_retention_days(conn), "pending_max_per_vendor": pending_cap(conn)}
 
 
 # ---------------------------------------------------------------- errors
@@ -1216,6 +1253,45 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
         _audit(conn, principal, "access.person_link.delete", link_id, resource_type="access_person_link", request_id=request_id,
                wiskey_person_id=link["wiskey_person_id"], outcome=outcome)
     return {"link_id": link_id, "outcome": outcome, "pending": outcome == "accepted"}
+
+
+def may_decide_pending(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """The authority of accept_pending_contact / reject_pending_contact (one rule for the list and both decisions)."""
+    return PERMISSION in permissions_anywhere(conn, principal) or authorize(conn, principal, "tickets.configure", INSTALLATION).allowed
+
+
+def pending_list(conn: sqlite3.Connection, principal: Principal, at: datetime | None = None) -> dict[str, Any]:
+    """SECFIX2-295 (owner 2026-10-21): every technician a vendor typed on the arrival page that no manager accepted or rejected - the
+    name, the vendor, the ticket number (only while the tickets module is on), since when, and the days left before the retention
+    janitor erases him (None while retention is off). Never a phone number. Oldest first. Refused (403) to anyone who may not decide."""
+    if not may_decide_pending(conn, principal):
+        raise forbidden(permission=PERMISSION, target_type="installation", target_id="*", reason="no_binding")
+    from .tickets.access import module_on
+
+    now_at = at or now()
+    days_keep = pending_retention_days(conn)
+    try:
+        tickets_on = module_on(conn)
+    except Exception:  # noqa: BLE001 - an unreadable module switch hides the ticket reference (fail closed)
+        tickets_on = False
+    rows = conn.execute(
+        "SELECT p.contact_id, p.vendor_id, p.assignment_id, p.created_at, c.display_name, v.display_name AS vendor_name "
+        "FROM access_pending_contacts p JOIN ticket_contacts c ON c.id = p.contact_id LEFT JOIN ticket_contacts v ON v.id = p.vendor_id "
+        "WHERE p.accepted_at IS NULL AND p.rejected_at IS NULL AND c.erased_at IS NULL ORDER BY p.created_at, p.contact_id").fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        since = _parse_any(r["created_at"])
+        days = max(0, (now_at - since).days) if since else 0
+        number = None
+        if tickets_on and r["assignment_id"]:
+            try:
+                t = conn.execute("SELECT t.number FROM ticket_assignments a JOIN tickets t ON t.id = a.ticket_id WHERE a.id = ?", (r["assignment_id"],)).fetchone()
+                number = t[0] if t else None
+            except sqlite3.Error:
+                number = None
+        out.append({"contact_id": r["contact_id"], "name": r["display_name"] or "", "vendor": r["vendor_name"] or "", "ticket_number": number,
+                    "since": r["created_at"], "days": days, "days_left": max(0, days_keep - days) if days_keep else None})
+    return {"pending": out, "retention_days": days_keep, "max_per_vendor": pending_cap(conn), "tickets_on": tickets_on}
 
 
 def accept_pending_contact(db: Database, principal: Principal, contact_id: str, request_id: str | None = None) -> dict[str, Any]:

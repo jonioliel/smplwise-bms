@@ -105,6 +105,7 @@ SAFE_DEFAULTS = {
     ("vendor_portal", "require_confirmed_number"): True,
     ("vendor_portal", "rfqs"): False,
     ("vendor_portal", "technician_requests"): False,
+    ("vendor_portal", "start_worker"): False,  # SECFIX2-295 / PUB-04: today's background task until the owner decides
     ("rfq", "vendor_uploads", "enabled"): False,
     ("rfq", "attachments", "allow_office"): False,
     ("directory", "managers_full_phones"): False,
