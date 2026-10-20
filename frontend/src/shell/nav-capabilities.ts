@@ -10,7 +10,8 @@
 import type { RouteState } from '../router';
 import { ALL_CAPABILITIES, type Capabilities, type CapabilityName } from '../api/capabilities';
 
-export type Need = CapabilityName | 'supported';
+/** `events_any` (NVRLESS-295): an events source of either kind - the recorder's alert stream, or the sensors the home system reports. */
+export type Need = CapabilityName | 'supported' | 'events_any';
 
 let CAPS: Capabilities = ALL_CAPABILITIES;
 
@@ -34,6 +35,9 @@ export function needsOfSegments(s: string[]): Need[] {
       return s[1] === 'cameras' ? NVR : NVR_VIDEO; // the camera page needs the NVR; overview, wall and saved views need video as well
     case 'investigate':
       if (s[1] === 'health') return NVR; // camera health
+      // NVRLESS-295: the events LIST also serves an installation with no recorder (the sensor events list); its detail page, the
+      // review windows, rules, search, cases and exports stay recorder-only.
+      if (s[1] === 'events' && !s[2]) return ['events_any'];
       if (EVENT_SEGMENTS.has(s[1] ?? '')) return ['events_recorder']; // events, reviews, rules, search, cases, exports
       return ['playback']; // playback, synchronised playback, the historical map (and the bare #/investigate, which opens playback)
     case 'system':
@@ -49,7 +53,10 @@ export function segmentsOfHref(href: string): string[] {
   return href.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
 }
 
-const has = (n: Need): boolean => (n === 'supported' ? CAPS.supported : CAPS[n]);
+const has = (n: Need): boolean => (n === 'supported' ? CAPS.supported : n === 'events_any' ? CAPS.events_recorder || CAPS.events_ha : CAPS[n]);
+
+/** The events list of an installation with no recorder events: it shows the sensor events instead (investigate-ha-events). */
+export const sensorEventsOnly = (): boolean => !CAPS.events_recorder && CAPS.events_ha;
 
 /** The needs of `needs` this installation lacks. */
 export function missing(needs: Need[]): Need[] {
@@ -70,5 +77,5 @@ export type BlockKind = 'no_nvr' | 'no_media';
 
 /** Which neutral panel a blocked route gets: no recorder at all, or a recorder installation without its media server. */
 export function blockKind(m: Need[]): BlockKind {
-  return !CAPS.nvr || m.some((n) => n === 'nvr' || n === 'events_recorder') ? 'no_nvr' : 'no_media';
+  return !CAPS.nvr || m.some((n) => n === 'nvr' || n === 'events_recorder' || n === 'events_any') ? 'no_nvr' : 'no_media';
 }
