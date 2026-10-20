@@ -277,7 +277,7 @@ export class SwOffboxBackup extends LitElement {
           ? html`<code data-ltr>${active.id}</code> <sw-badge kind=${active.exported ? 'live' : 'partial'} label=${active.exported ? obt('keyExported') : obt('keyNotExported')}></sw-badge>`
           : html`<span class="muted">${obt('keyNone')}</span>`}</span></div>
       <div class="actions">
-        <sw-button size="sm" icon="lock"?disabled=${!!this.busy || !!active?.exported} data-offbox-export @click=${() => { this.dialog = 'export'; }}>${obt('keyExport')}</sw-button>
+        <sw-button size="sm" icon="lock" ?disabled=${!!this.busy || !!active?.exported} data-offbox-export @click=${() => { this.dialog = 'export'; }}>${obt('keyExport')}</sw-button>
         <sw-button size="sm" variant="ghost" ?disabled=${!!this.busy || !active} data-offbox-rotate @click=${() => { this.dialog = 'rotate'; }}>${obt('keyRotate')}</sw-button>
       </div>
       <div class="row"><span class="lbl">${obt('keyImport')}<span class="muted">${obt('keyImportHint')}</span></span>
