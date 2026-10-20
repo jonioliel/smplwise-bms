@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.9.1: what is on, off and locked
+## Releases 2.6.4 to 2.9.2: what is on, off and locked
 
-Written from the release notes and the code of `integ/280`, `integ/290` and `integ/291` (2.8.0, 2.9.0 and 2.9.1 are released). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291` and `integ/292` (2.8.0, 2.9.0 and 2.9.1 are released; 2.9.2 is the release candidate). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1543,6 +1543,13 @@ automatic opening of requests from alerts (the "Automatic opening" tab, `tickets
 migration 0123). The organisation name and a privacy contact (`privacy.contact`, `privacy.link`) appear in the technician notice, the
 entry-code message and directory phone verification once set; empty = unchanged.
 
+**2.9.2.** Temperature control under Infrastructure (tab "Temperatures", migration 0124, CR-INFRA-TEMPERATURE): starts empty; a
+manager adds units in page edit mode (`infra.temperature.manage`, new); acknowledge / mute with `infra.temperature.ack` (new); alerts ON per
+unit by default, quiet hours and mute hold warnings only; defaults in Settings > Infrastructure > Temperatures; PDF report and a WhatsApp
+text summary for managers (use `infra.temperature.reports`, the notifications account). Read-only towards devices. On without a switch:
+"show on map" on quote requests (own location room, else the source request's; `map.read` on the floor), the technician-request card
+grouped by vendor company, WisKey round-9 strictness (a malformed person record is unknown, fail closed). WisKey writes stay locked.
+
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
 installed web app once after each update.
