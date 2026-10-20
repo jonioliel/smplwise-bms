@@ -351,7 +351,7 @@ def test_the_settings_are_product_settings(settings, app_client):
     body = app_client.get("/api/v1/settings").json()["settings"]
     assert {k: body[k] for k in ia.POLICY_DEFAULTS} == {
         "access.employee_no_sensitive": "false", "access.event_portrait_sensitive": "false", "access.event_portrait_audit": "true", "access.sync_errors_everyone": "false",
-        "access.unknown_person_uniform_404": "false",  # SECFIX2-295 (owner decision pending: today's 403)
+        "access.unknown_person_uniform_404": "true",  # SECFIX2-295, default on since the owner decision 2026-10-21 (FABLEFIX-295)
     }
     r = app_client.patch("/api/v1/settings", json={"access.employee_no_sensitive": "true", "access.event_portrait_audit": "false"})
     assert r.status_code == 200 and r.json()["settings"]["access.employee_no_sensitive"] == "true"

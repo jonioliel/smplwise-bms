@@ -46,14 +46,15 @@ person record of a person he cannot see). Every new behaviour that a user could 
 ## 4. Unknown person record: 404 instead of 403
 
 - Setting: `access.unknown_person_uniform_404` (`PATCH /api/v1/settings`, system.configure; `true` / `false`).
-- Off (today): a writer limited to some stations gets 403 "the person is linked to a station you do not manage" for a person whose WisKey
+- Off: a writer limited to some stations gets 403 "the person is linked to a station you do not manage" for a person whose WisKey
   record is malformed, even when he cannot see that person - he learns that the id exists.
 - On: such a writer gets exactly the answer of an id WisKey does not know (404). A caller who can see the person (unrestricted read or
   manage) still gets the 403 with its reason. An unrestricted writer is unaffected.
 - Visible difference when on: a restricted operator who tries to change a person of his own station whose WisKey record is malformed sees
   "not found" instead of the 403 - consistent with the people list, which already hides such a record from him.
-- Recommendation: on (it removes the oracle and agrees with the read side). **Owner decision 2026-10-21:** stays OFF until the Fable
-  review of the public surfaces (docs/security/FABLE_REVIEW_PACKAGE_2026-10-20.md, question Q20).
+- Recommendation: on (it removes the oracle and agrees with the read side). **Owner decision 2026-10-21 (after the Fable review,
+  FABLEFIX-295):** the default is ON - new installations and installations that never saved a value get the uniform 404; a value an
+  installation stored (`false`) stays as stored. An unreadable value also reads as on.
 
 ## 5. Screens (owner 2026-10-21)
 

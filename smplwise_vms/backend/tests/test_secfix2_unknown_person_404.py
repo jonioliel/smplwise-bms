@@ -6,7 +6,8 @@ writer who is not unrestricted with 403 `intercom_person_scope` - BEFORE the vis
 person (the read side hides a malformed record from a restricted operator: WisKey Q1) therefore tells "exists but malformed" (403) from
 "does not exist" (404): an existence oracle for ids he may not see.
 
-The switch `access.unknown_person_uniform_404` (default "false" = today's 403, owner decision pending) answers such a caller the uniform
+The switch `access.unknown_person_uniform_404` (default "true" since the owner decision 2026-10-21 - FABLEFIX-295; "false" = the former
+403; a value an installation stored stays) answers such a caller the uniform
 404 instead - the same bytes as an id WisKey does not know. A caller who CAN see the person (unrestricted `access.people.read` or
 `access.people.manage`) keeps the 403: for him the person exists, and the 403 says why he may not change it. Fakes only (tests/fake_wiskey.py)."""
 from __future__ import annotations
@@ -54,22 +55,32 @@ def _strip(r) -> str:
 MALFORMS = ("overrides", "assignment_row", "active")
 
 
-# ---------------------------------------------------------------- default: today's answer, unchanged
+# ---------------------------------------------------------------- default (owner 2026-10-21): the uniform 404; a stored "false" stays
 
 
 @pytest.mark.parametrize("how", MALFORMS)
-def test_default_a_restricted_writer_still_gets_the_403_for_a_malformed_record(wx, how):
+def test_default_a_restricted_writer_gets_the_404_for_a_malformed_record(wx, how):
     fake, c, _s = wx
-    _malform(fake, "u2", how)  # u2: entry-b only, not mia's to see
+    _malform(fake, "u2", how)  # u2: entry-b only, not mia's to see; the switch was never saved
+    r = post(c, "/people/u2/active", "mia", active=False, revision=3)
+    assert r.status_code == 404, r.text
+    assert not sent(fake, "users/set_active")
+
+
+@pytest.mark.parametrize("how", MALFORMS)
+def test_a_stored_false_keeps_the_former_403(wx, how):
+    fake, c, _s = wx
+    _switch(c, False)
+    _malform(fake, "u2", how)
     r = post(c, "/people/u2/active", "mia", active=False, revision=3)
     assert r.status_code == 403 and r.json()["code"] == "intercom_person_scope", r.text
     assert not sent(fake, "users/set_active")
 
 
-def test_the_switch_is_off_by_default_and_validated(wx):
+def test_the_switch_is_on_by_default_and_validated(wx):
     _fake, c, _s = wx
     got = c.get("/api/v1/settings", headers=as_user("root")).json()["settings"]
-    assert got[KEY] == "false"
+    assert got[KEY] == "true"
     assert c.patch("/api/v1/settings", json={KEY: "maybe"}, headers=as_user("root")).status_code == 422
     assert c.patch("/api/v1/settings", json={KEY: "true"}, headers=as_user("mia")).status_code == 403, "system.configure only"
 
@@ -188,13 +199,13 @@ def test_unit_a_caller_with_unrestricted_read_keeps_the_403_when_on():
     assert e.value.status == 403 and e.value.code == "intercom_person_scope"
 
 
-def test_unit_an_unreadable_switch_reads_as_todays_answer():
-    """No database (the policy read fails): the switch reads "false" - today's 403. Both answers refuse; the fallback keeps behaviour
-    predictable until the owner decides."""
+def test_unit_an_unreadable_switch_reads_as_the_uniform_404():
+    """No database (the policy read fails): the switch reads "true" - the uniform 404 (the safe choice: no existence oracle). Both
+    answers refuse the write."""
     with pytest.raises(ApiError) as e:
         iw.check_person(_Auth({"st-a"}, uniform=None), _unknown_person())
-    assert e.value.status == 403
+    assert e.value.status == 404
 
 
 def test_the_switch_is_a_policy_key_with_the_current_default():
-    assert ia.POLICY_DEFAULTS[ia.UNKNOWN_PERSON_UNIFORM_404] == "false"
+    assert ia.POLICY_DEFAULTS[ia.UNKNOWN_PERSON_UNIFORM_404] == "true" and ia.POLICY_ON_ERROR[ia.UNKNOWN_PERSON_UNIFORM_404] is True
