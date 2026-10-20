@@ -86,7 +86,7 @@ test('the editor: doors the person may manage, days and hours, preview, save ask
   await expect(s.locator('[data-dw-preview] li')).toHaveCount(4);
   await shot(page, info, '04-editor-preview');
   await s.locator('[data-dw-save-enable]').click();
-  await expect(s.locator('[data-dw-confirm]')).toBeVisible();
+  await expect(s.locator('[data-dw-confirm-btn]')).toBeVisible(); // sw-dialog's host has no box (its <dialog> is in the top layer)
   await s.locator('[data-dw-confirm-btn]').click();
   await expect.poll(() => mock.posts.find((p) => p.path === 'doors/windows/rules')?.body).toMatchObject({
     name: 'פתיחת בוקר', kind: 'weekly', enable: true, confirmed: true, doors: [{ station_id: 'st-lobby', relay: 1 }] });
