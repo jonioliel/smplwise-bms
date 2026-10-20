@@ -321,3 +321,16 @@ Root cause of "no events" on the owner's install is not proven: the new `events`
 
 **Rollback.** Run the previous version (no migration); or set `restream` to `off` on the recorder (the next stream sync removes Arx's
 Frigate streams by exact name); Frigate itself is never changed.
+
+## 15. FRIGATE-295 - wire shapes checked against Frigate 0.18.2, three more abilities (branch pilot/FRIGATE-295, no migration)
+
+Full detail and the area-by-area matrix: `docs/changes/CR-FRIGATE-CAPABILITY-MATRIX.md`. In short:
+- **Fixed against Frigate's own OpenAPI and source at v0.18.2** (route sets of 0.18.0 / 0.18.1 / 0.18.2 identical): sub-label clear sends `""`
+  (null is a 422) and its read-back waits for the asynchronous update; export delete is `POST /api/exports/delete`; an export is a queued job
+  (202) read back from `/api/jobs/export/{id}`; the profile documents are `{profiles[], active_profile, last_activated}` /
+  `{active_profile}` (before the fix the active profile was never seen). The fake Frigate now answers with these shapes and
+  `test_frigate_wire_0182.py` checks every call Arx sends against the 0.18.2 route list.
+- **New**: runtime switches of one named zone / motion mask / object mask (class `analytics`), an Arx export into / out of a Frigate case
+  (class `exports`, kind `export_assign`) and a case on export creation, the clip of a closed review item of at most an hour.
+- Sections 7 and 10-11 "NOT VERIFIED" lines still stand for the LIVE instance: this phase verified shapes against the published API and
+  source, not by writing to the owner's Frigate (the supervised session was blocked on access, see the task report).
