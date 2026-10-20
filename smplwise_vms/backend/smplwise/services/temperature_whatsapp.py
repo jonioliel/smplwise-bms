@@ -22,10 +22,13 @@ DEFERRED by the owner (docs/changes/CR-INFRA-TEMPERATURE.md section 9, open item
   transport supports one): `attachment_for()` is the single seam that will return the document for a send, and `process()` already passes
   its result to `_send()`; turning a mode on needs the transport capability + the mode added to ATTACHMENT_MODES - no rework of the queue,
   schedules or dialog.
-* VENDORS - sending to an external contact goes through the tickets message queue (`ticket_outbox`), whose `purpose` CHECK needs a
-  table-rebuild migration. Until that is approved, vendors are listed in the dialog DISABLED with the reason `coming_later` and the API
-  refuses them (422 `vendor_coming_later`). The rows and schedules already carry `recipient_kind`, so vendors (one-off AND scheduled,
-  chosen per recipient - owner decision 6) need no schema change here."""
+* VENDORS (TEMPVENDOR-295, CR-VENDORQ2-295 section 3): an external contact is reached ONLY through the tickets message queue
+  (`contact_reports.queue`, outbox purpose `report`; services/temperature_vendor_reports.py is the registered provider). OFF by default behind
+  `reports.to_contacts` (+ `reports.email` for e-mail, `reports.documents` for the link). The channel (WhatsApp or e-mail) is chosen per vendor
+  and per report - NEVER switched automatically. A vendor receives exactly the units the sender selected, and the send is refused at queue time
+  for any unit the sender may not see himself (a report is never a way around the scope); the text is rebuilt at send time from the data the
+  sender may see. The outbox owns hours, pacing, retries and the audit row; `infra_temp_report_sends.status` becomes `handed` and the provider
+  closes it."""
 from __future__ import annotations
 
 import datetime as dt
@@ -46,11 +49,12 @@ log = logging.getLogger("smplwise.temperature.whatsapp")
 USE_KEY = "infra.temperature.reports"
 MODULE = "temperature"
 CHANNEL = "whatsapp"
-ATTACHMENT_MODES: tuple[str, ...] = ("none",)          # future: "pdf" | "link" | "html" (owner TODO, see the module docstring)
+ATTACHMENT_MODES: tuple[str, ...] = ("none", "link")    # "link" (TEMPVENDOR-295): a vendor gets the PDF by a temporary link; future: "pdf" | "html" (owner TODO)
 RANGE_KEYS: tuple[str, ...] = ("24h", "7d", "30d", "week", "month", "prev_week", "prev_month")
 FREQS: tuple[str, ...] = ("daily", "weekly", "monthly")
 PER_PASS = 5                                            # sends tried per 60 s pass (the account pacing holds the rest)
 MAX_RECIPIENTS = 30
+VENDOR_CHANNELS: tuple[str, ...] = ("whatsapp", "email")
 
 
 def _uses(conn: sqlite3.Connection) -> tuple[ma.UseSpec, ...]:
@@ -91,10 +95,26 @@ def range_of(key: str, now_ts: float, tz: Any) -> tuple[int, int]:
 
 # ---------------------------------------------------------------- recipients (the dialog's list)
 
+def vendor_reports_reason(conn: sqlite3.Connection) -> str | None:
+    """None when a report may be queued to an external contact now; else the stable reason. Needs the service module (the directory and the
+    queue belong to it) AND `reports.to_contacts` - both off by default."""
+    from .tickets import access, contact_reports
+
+    try:
+        if not access.module_on(conn):
+            return "module_off"
+        return None if contact_reports.enabled(conn) else "reports_off"
+    except Exception:  # noqa: BLE001 - an unreadable settings document or a database before the migrations: off (fail closed)
+        return "reports_off"
+
+
 def recipients(conn: sqlite3.Connection) -> dict[str, Any]:
     """System users (selectable; `reach` says whether the summary can reach them: ok | no_address | no_consent - the owner: warn, but allow
-    the selection) and vendors (listed, NOT selectable yet: `coming_later`). Never a number."""
+    the selection) and vendors. A vendor is `selectable` only while vendor reports are on AND at least one channel can carry the report now;
+    `channels` says per channel `ok` or the reason (no_whatsapp | no_email | reports_email_off | no_contact). While vendor reports are off the
+    vendor stays listed, disabled, with `coming_later`. Never a number or an address."""
     from .notify_whatsapp import raw_number, resolve_number
+    from .tickets import contact_reports
 
     users = []
     for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 AND (deleted_at IS NULL) ORDER BY display_name, username").fetchall():
@@ -107,46 +127,113 @@ def recipients(conn: sqlite3.Connection) -> dict[str, Any]:
                                ORDER BY display_name""").fetchall()
     except sqlite3.Error:
         rows = []
+    on = vendor_reports_reason(conn) is None
     for r in rows:
-        vendors.append({"id": r["id"], "name": r["display_name"], "company": r["company"], "has_phone": bool(r["phone_e164"]),
-                        "selectable": False, "reason": "coming_later"})
-    return {"users": users, "vendors": vendors, "attachment": "none", "attachment_modes": list(ATTACHMENT_MODES)}
+        v: dict[str, Any] = {"id": r["id"], "name": r["display_name"], "company": r["company"], "has_phone": bool(r["phone_e164"]), "selectable": False, "reason": "coming_later"}
+        if on:
+            ch = {c: contact_reports.reach(conn, r["id"], c) for c in VENDOR_CHANNELS}
+            first = next((c for c in VENDOR_CHANNELS if ch[c] == "ok"), None)
+            v.update(channels=ch, selectable=first is not None, channel=first or "whatsapp", reason=None if first else ch["whatsapp"])
+        vendors.append(v)
+    link = on and t.load_defaults(conn).get("report_attachment") == "link" and _documents_on(conn)
+    return {"users": users, "vendors": vendors, "attachment": "link" if link else "none", "attachment_modes": list(ATTACHMENT_MODES),
+            "vendor_reports": {"enabled": on, "email": on and contact_reports.email_enabled(conn)}}
+
+
+def _documents_on(conn: sqlite3.Connection) -> bool:
+    from .tickets import out_documents
+
+    try:
+        return bool(out_documents.config(conn)["enabled"])
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _check_recipients(conn: sqlite3.Connection, items: list[dict[str, Any]]) -> list[dict[str, str]]:
     if not items or len(items) > MAX_RECIPIENTS:
         raise SendInvalid("validation", "יש לבחור נמענים.", "Choose recipients.", ["recipients"])
+    from .tickets import contact_reports, store_links
+
     active = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
     out: list[dict[str, str]] = []
     for i, it in enumerate(items):
         kind, rid = it.get("kind"), it.get("id")
         if kind == "vendor":
-            raise SendInvalid("vendor_coming_later", "שליחה לספקים תתאפשר בהמשך.", "Sending to vendors comes later.", [f"recipients.{i}"])
+            if vendor_reports_reason(conn) is not None:
+                raise SendInvalid("vendor_coming_later", "שליחה לספקים תתאפשר בהמשך.", "Sending to vendors comes later.", [f"recipients.{i}"])
+            channel = it.get("channel") or "whatsapp"
+            if channel not in VENDOR_CHANNELS:
+                raise SendInvalid("validation", "ערוץ שליחה לא תקין.", "Invalid delivery channel.", [f"recipients.{i}.channel"])
+            if channel == "email" and not contact_reports.email_enabled(conn):
+                raise SendInvalid("reports_email_off", "שליחת דוחות בדוא״ל כבויה.", "Sending reports by e-mail is off.", [f"recipients.{i}.channel"])
+            c = store_links.contact(conn, rid if isinstance(rid, str) else None)
+            if c is None or c.get("kind") != "vendor" or c.get("erased_at") or not c.get("active", 1):
+                raise SendInvalid("recipient_vendor", "ספק לא מוכר.", "Unknown vendor.", [f"recipients.{i}"])
+            if not any(o["kind"] == "vendor" and o["id"] == rid for o in out):
+                out.append({"kind": "vendor", "id": rid, "channel": channel})
+            continue
         if kind != "user" or rid not in active:
             raise SendInvalid("recipient_user", "משתמש לא מוכר.", "Unknown user.", [f"recipients.{i}"])
-        if not any(o["id"] == rid for o in out):
+        if not any(o["kind"] == "user" and o["id"] == rid for o in out):
             out.append({"kind": "user", "id": rid})
     return out
 
 
+def _sender_may_see(conn: sqlite3.Connection, principal: Any, sender_id: str | None, unit_ids: list[str]) -> bool:
+    """TEMPVENDOR-295 (owner decision, the lead's recommendation): a vendor has no Arx scope, so he receives exactly the units the sender chose,
+    and every one of them must be visible to the sender himself (devices.read on the unit's sensor) - else the whole send is refused."""
+    from . import temperature_access as ta
+    from .notify_visibility import principal_of
+
+    p = principal if getattr(principal, "user_id", None) else (principal_of(conn, sender_id) if sender_id else None)
+    if p is None:
+        return False
+    try:
+        scope = ta.Scope(conn, p)
+    except Exception:  # noqa: BLE001 - no devices.read at all
+        return False
+    seen = {u["id"] for u, _d in scope.filter([u for u in t.units(conn, enabled_only=True) if u["id"] in unit_ids])}
+    return bool(unit_ids) and all(i in seen for i in unit_ids)
+
+
 def queue_send(conn: sqlite3.Connection, principal: Any, unit_ids: list[str], lo: int, hi: int, lang: str, items: list[dict[str, Any]], now_ts: float,
-               schedule_id: str | None = None) -> dict[str, Any]:
-    """One send row per recipient (not before now; the send hours and the pacing decide when it really leaves)."""
+               schedule_id: str | None = None, sender_id: str | None = None) -> dict[str, Any]:
+    """One send row per recipient (not before now; the send hours and the pacing decide when it really leaves). `sender_id` is the person the
+    send is made on behalf of: the principal's user, or - for a schedule run - the schedule's creator. A vendor needs the sender to see every
+    unit (`vendor_scope`, refused here, at queue time); the row records the sender and the chosen channel."""
     rec = _check_recipients(conn, items)
+    sender = sender_id or getattr(principal, "user_id", None)
+    if any(r["kind"] == "vendor" for r in rec) and not _sender_may_see(conn, principal, sender, unit_ids):
+        raise SendInvalid("vendor_scope", "אי אפשר לשלוח לספק יחידה שאינך רשאי לראות.", "A vendor cannot receive a unit you may not see.", ["units"])
     batch = new_id()
-    req = json.dumps({"units": unit_ids, "from": lo, "to": hi, "lang": lang if lang in ("he", "en") else "he"})
+    base = {"units": unit_ids, "from": lo, "to": hi, "lang": lang if lang in ("he", "en") else "he"}
     stamp = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
     for r in rec:
-        conn.execute("""INSERT INTO infra_temp_report_sends(id, batch_id, schedule_id, recipient_kind, user_id, request_json, status, not_before, created_by, created_at)
-                        VALUES (?,?,?,?,?,?, 'queued', ?, ?, ?)""", (new_id(), batch, schedule_id, r["kind"], r["id"], req, stamp, getattr(principal, "user_id", None), stamp))
-    return {"batch_id": batch, "queued": len(rec)}
+        req = json.dumps({**base, "channel": r["channel"]} if r["kind"] == "vendor" else base)
+        vendor = r["kind"] == "vendor"
+        conn.execute("""INSERT INTO infra_temp_report_sends(id, batch_id, schedule_id, recipient_kind, user_id, contact_id, request_json, status, not_before, created_by, created_at)
+                        VALUES (?,?,?,?,?,?,?, 'queued', ?, ?, ?)""",
+                     (new_id(), batch, schedule_id, r["kind"], None if vendor else r["id"], r["id"] if vendor else None, req, stamp, sender, stamp))
+    return {"batch_id": batch, "queued": len(rec), "vendors": sum(1 for r in rec if r["kind"] == "vendor")}
 
 
 def batch_view(conn: sqlite3.Connection, batch_id: str) -> list[dict[str, Any]]:
-    rows = conn.execute("""SELECT s.id, s.user_id, s.status, s.reason, s.not_before, s.finished_at, u.display_name, u.username FROM infra_temp_report_sends s
-                           LEFT JOIN users u ON u.id = s.user_id WHERE s.batch_id = ? ORDER BY s.created_at""", (batch_id,)).fetchall()
-    return [{"id": r["id"], "name": r["display_name"] or r["username"] or "", "status": r["status"], "reason": r["reason"], "not_before": r["not_before"],
-             "finished_at": r["finished_at"]} for r in rows]
+    rows = conn.execute("""SELECT s.id, s.user_id, s.contact_id, s.recipient_kind, s.request_json, s.status, s.reason, s.not_before, s.finished_at,
+                                  u.display_name, u.username, c.display_name AS contact_name
+                           FROM infra_temp_report_sends s LEFT JOIN users u ON u.id = s.user_id LEFT JOIN ticket_contacts c ON c.id = s.contact_id
+                           WHERE s.batch_id = ? ORDER BY s.created_at""", (batch_id,)).fetchall()
+    out = []
+    for r in rows:
+        item = {"id": r["id"], "name": (r["contact_name"] if r["recipient_kind"] == "vendor" else r["display_name"] or r["username"]) or "", "status": r["status"],
+                "reason": r["reason"], "not_before": r["not_before"], "finished_at": r["finished_at"]}
+        if r["recipient_kind"] == "vendor":
+            item["kind"] = "vendor"
+            try:
+                item["channel"] = json.loads(r["request_json"]).get("channel")
+            except ValueError:
+                item["channel"] = None
+        out.append(item)
+    return out
 
 
 # ---------------------------------------------------------------- schedules
@@ -186,6 +273,8 @@ def validate_schedule(conn: sqlite3.Connection, body: dict[str, Any]) -> dict[st
 
 def save_schedule(conn: sqlite3.Connection, principal: Any, unit_ids: list[str], lang: str, body: dict[str, Any], now_ts: float, sched_id: str | None = None) -> str:
     v = validate_schedule(conn, body)
+    if any(r["kind"] == "vendor" for r in v["recipients"]) and not _sender_may_see(conn, principal, getattr(principal, "user_id", None), unit_ids):
+        raise SendInvalid("vendor_scope", "אי אפשר לשלוח לספק יחידה שאינך רשאי לראות.", "A vendor cannot receive a unit you may not see.", ["units"])
     tz = t.site_zone(conn)
     nxt = iso_utc(dt.datetime.fromtimestamp(next_run(v, now_ts, tz), dt.timezone.utc))
     stamp = now_iso()
@@ -213,14 +302,25 @@ def schedules(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- the worker pass (called from the temperature runtime every 60 s)
 
-def attachment_for(conn: sqlite3.Connection, row: dict[str, Any], model: dict[str, Any]) -> Any:
-    """THE seam of the deferred document sending (owner TODO): returns what to attach to this send - today always None (mode "none").
-    A future mode ("pdf" via a media-capable transport, "link" = a short-lived signed download link, "html") returns its payload here;
-    `_send` passes it on. Nothing else changes."""
-    mode = t.load_defaults(conn).get("report_attachment", "none")
-    if mode not in ATTACHMENT_MODES or mode == "none":
+def wants_document(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
+    """TEMPVENDOR-295: mode "link" (installation setting `report_attachment`) AND `reports.documents` (the temporary-link switch of the tickets
+    module) - and only for a vendor: a system user has the PDF in the system."""
+    return (row.get("recipient_kind") == "vendor" and t.load_defaults(conn).get("report_attachment", "none") == "link" and _documents_on(conn))
+
+
+def attachment_for(conn: sqlite3.Connection, row: dict[str, Any], model: dict[str, Any], *, pdf: bytes | None = None, now: dt.datetime | None = None) -> Any:
+    """THE seam of document sending. Mode "none" (default) and every system-user send: None. Mode "link" + a vendor row + `pdf` (the rendered
+    report): the PDF is minted as a snapshot in `outbound_documents` for THIS contact (a temporary link, hours / opens from `reports.*`) and its
+    id is returned for the queue (`document_id`). The caller holds the write transaction. Refusals raise `out_documents.DocumentRefused`.
+    The "html" / attached-file modes wait for CONTRACT-WHATSAPP-DOCUMENT-SEND-295.md."""
+    if pdf is None or not row or not wants_document(conn, row):
         return None
-    return None  # pragma: no cover - no other mode exists yet
+    from . import temperature_report as rep
+    from .tickets import out_documents
+
+    doc = out_documents.mint(conn, module=MODULE, source_id=row["id"], recipient_kind="contact", recipient_id=row["contact_id"], media_type="application/pdf",
+                             filename=rep.filename(model), content=pdf, created_by=row.get("created_by"), now=now or dt.datetime.now(dt.timezone.utc))
+    return doc["id"]
 
 
 def _finish(db: Database, sid: str, status: str, reason: str | None, now_ts: float, *, attempts: int | None = None, not_before: str | None = None) -> None:
@@ -287,16 +387,21 @@ def _send(db: Database, row: dict[str, Any], digits: str, text: str, attachment:
 
 
 def run_schedules(conn: sqlite3.Connection, now_ts: float) -> int:
+    from ..audit import audit
+
     tz = t.site_zone(conn)
     stamp = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
     n = 0
     for s in conn.execute("SELECT * FROM infra_temp_report_schedules WHERE enabled = 1 AND next_run_at <= ?", (stamp,)).fetchall():
         d = dict(s)
         lo, hi = range_of(d["range_key"], now_ts, tz)
-        try:
-            queue_send(conn, None, json.loads(d["units_json"]), lo, hi, d["lang"], json.loads(d["recipients_json"]), now_ts, schedule_id=d["id"])
-        except SendInvalid as e:  # a recipient left: the schedule records why and keeps its cadence
-            log.warning("temperature report schedule skipped: %s", e.code)
+        for rcp in json.loads(d["recipients_json"]):  # one at a time: a vendor that can no longer be reached never blocks the others
+            try:
+                queue_send(conn, None, json.loads(d["units_json"]), lo, hi, d["lang"], [rcp], now_ts, schedule_id=d["id"], sender_id=d["created_by"])
+            except SendInvalid as e:  # a recipient left / the scope changed: the schedule records why and keeps its cadence
+                log.warning("temperature report schedule skipped: %s", e.code)
+                audit(conn, actor=None, action="infra.temperature.report.schedule_skip", decision="denied", resource_type="infra_temp_report_schedule", resource_id=d["id"],
+                      reason=e.code, details={"kind": rcp.get("kind")})
         nxt = next_run({"freq": d["freq"], "at": d["at"], "dow": d["dow"], "dom": d["dom"]}, now_ts, tz)
         conn.execute("UPDATE infra_temp_report_schedules SET last_run_at = ?, next_run_at = ? WHERE id = ?",
                      (stamp, iso_utc(dt.datetime.fromtimestamp(nxt, dt.timezone.utc)), d["id"]))
@@ -304,8 +409,74 @@ def run_schedules(conn: sqlite3.Connection, now_ts: float) -> int:
     return n
 
 
+def _hand_off_vendor(db: Database, r: dict[str, Any], ts: float, now: dt.datetime, out: dict[str, int]) -> None:
+    """A vendor row does NOT go through `_send` / `resolve_number` (those are for system users and their own consent): it is handed to the
+    tickets message queue (`contact_reports.queue`), which owns the send hours, the pacing, the retries, the number / address rules and the
+    outcome; the provider (temperature_vendor_reports) closes the row. The document (mode "link") is rendered first - outside any write
+    transaction - and minted in the SAME transaction as the queue row, so no link exists without its message."""
+    from ..audit import audit
+    from . import temperature_pdf, temperature_report as rep
+    from .tickets import contact_reports as cr
+    from .tickets import out_documents
+
+    req = json.loads(r["request_json"])
+    channel = req.get("channel") or "whatsapp"
+    attempts = int(r["attempts"] or 0) + 1
+    why: str | None = None
+    model: dict[str, Any] | None = None
+    with db.connection(mode="read", label="temperature.wa.vendor") as conn:
+        why = vendor_reports_reason(conn)
+        if why is None:
+            reach = cr.reach(conn, r["contact_id"], channel)
+            why = None if reach == "ok" else reach
+        if why is None:
+            units, doors = _visible_units(conn, r["created_by"], req["units"]) if r["created_by"] else ([], set())  # only what the SENDER may see
+            if not units:
+                why = "no_reach"
+            elif wants_document(conn, r):
+                model = rep.build(conn, units, doors, int(req["from"]), int(req["to"]), req.get("lang") or "he", ts, chart=True, events=True, signature=False)
+    pdf: bytes | None = None
+    if why is None and model is not None:
+        try:
+            pdf = temperature_pdf.render(model)
+        except temperature_pdf.PdfError as e:
+            if e.code in ("pdf_page_limit", "pdf_too_large"):
+                why = "document_too_large"
+            elif attempts < 4:  # the engine is busy / unavailable: another try in a few minutes (the text is NOT sent without the document the sender asked for)
+                with db.connection(label="temperature.wa.retry") as conn:
+                    conn.execute("UPDATE infra_temp_report_sends SET status = 'retry', reason = ?, attempts = ?, not_before = ? WHERE id = ?",
+                                 (e.code, attempts, iso_utc(now + dt.timedelta(minutes=5 * attempts)), r["id"]))
+                out["retry"] += 1
+                return
+            else:
+                why = e.code
+    if why is None:
+        with db.connection(label="temperature.wa.handoff") as conn:
+            doc_id: str | None = None
+            try:
+                doc_id = attachment_for(conn, r, model or {}, pdf=pdf, now=now)
+                cr.queue(conn, module=MODULE, source_id=r["id"], contact_id=r["contact_id"], requested_by=r["created_by"], idempotency_key=f"{MODULE}:{r['id']}",
+                         use_key=USE_KEY, document_id=doc_id, channel=channel)
+            except (cr.ReportRefused, out_documents.DocumentRefused) as e:
+                why = e.code
+                if doc_id:
+                    out_documents.revoke(conn, doc_id, "send_failed", now)
+            if why is None:
+                conn.execute("UPDATE infra_temp_report_sends SET status = 'handed', reason = NULL, attempts = ? WHERE id = ?", (attempts, r["id"]))
+                audit(conn, actor=None, action="infra.temperature.report.handoff", decision="allowed", resource_type="infra_temp_report_send", resource_id=r["id"],
+                      details={"channel": channel, "units": len(req["units"]), "document": bool(doc_id)})
+                out["handed"] += 1
+                return
+    with db.connection(label="temperature.wa.vendor_skip") as conn:
+        audit(conn, actor=None, action="infra.temperature.report.handoff", decision="denied", resource_type="infra_temp_report_send", resource_id=r["id"],
+              reason=why, details={"channel": channel})
+    _finish(db, r["id"], "skipped", why, ts, attempts=attempts)
+    out["skipped"] += 1
+
+
 def process(db: Database, now_ts: float | None = None) -> dict[str, int]:
-    """One pass: due schedules become send rows; due rows are sent inside the send hours (else held until the next opening)."""
+    """One pass: due schedules become send rows; due rows are sent inside the send hours (else held until the next opening). A system user's row is sent
+    here; a vendor's row is handed to the tickets message queue (`_hand_off_vendor`) and closed later by the provider."""
     from . import temperature_report as rep
     from .notify_whatsapp import resolve_number
     from .tickets import hours
@@ -314,7 +485,7 @@ def process(db: Database, now_ts: float | None = None) -> dict[str, int]:
     ts = float(now_ts if now_ts is not None else time.time())
     now = dt.datetime.fromtimestamp(ts, dt.timezone.utc)
     stamp = iso_utc(now)
-    out = {"scheduled": 0, "sent": 0, "held": 0, "skipped": 0, "failed": 0, "retry": 0}
+    out = {"scheduled": 0, "sent": 0, "held": 0, "handed": 0, "skipped": 0, "failed": 0, "retry": 0}
     with db.connection(label="temperature.wa.plan") as conn:
         try:
             out["scheduled"] = run_schedules(conn, ts)
@@ -332,6 +503,9 @@ def process(db: Database, now_ts: float | None = None) -> dict[str, int]:
             out["held"] += 1
         return out
     for r in due:
+        if r["recipient_kind"] == "vendor":
+            _hand_off_vendor(db, r, ts, now, out)
+            continue
         req = json.loads(r["request_json"])
         with db.connection(mode="read", label="temperature.wa.build") as conn:
             found = resolve_number(conn, r["user_id"]) if r["user_id"] else None
@@ -364,5 +538,7 @@ def prune(conn: sqlite3.Connection, now_ts: float) -> int:
     cutoff = iso_utc(dt.datetime.fromtimestamp(now_ts - 90 * 86400, dt.timezone.utc))
     return conn.execute("DELETE FROM infra_temp_report_sends WHERE finished_at IS NOT NULL AND finished_at < ?", (cutoff,)).rowcount
 
+
+from . import temperature_vendor_reports  # noqa: E402,F401 - registers the provider `temperature` of the vendor-report queue (once, at import)
 
 __all__ = ["USE_KEY", "ATTACHMENT_MODES", "recipients", "queue_send", "process", "range_of", "next_run", "save_schedule", "schedules", "attachment_for", "parse_utc"]

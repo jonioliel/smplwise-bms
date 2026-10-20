@@ -437,15 +437,16 @@ def _wa_error(e: Any) -> ApiError:
 def report_preview(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
                    end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
                    events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
-                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """The report MODEL (what the PDF and the WhatsApp text are made from) - the dialog's preview. devices.read, scoped like the units."""
+                   external: int = Query(0, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The report MODEL (what the PDF and the WhatsApp text are made from) - the dialog's preview. devices.read, scoped like the units.
+    `external=1` (TEMPVENDOR-295): the text as a vendor gets it (no "available in the system" note)."""
     from ..services import temperature_report as rep
 
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
     model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout)
-    return {**model, "range_text": rep.range_text(model), "text_summary": rep.text_summary(model), "filename": rep.filename(model)}
+    return {**model, "range_text": rep.range_text(model), "text_summary": rep.text_summary(model, external=bool(external)), "filename": rep.filename(model)}
 
 
 @router.get(f"{API}/report.pdf")
@@ -475,8 +476,8 @@ def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h
 
 @router.get(f"{API}/report/recipients")
 def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """The WhatsApp dialog's people: system users (with whether the summary can reach them) and vendors (listed, not selectable yet), plus
-    the installation's send hours. Never a phone number."""
+    """The report dialog's people: system users (with whether the summary can reach them) and vendors (selectable while vendor reports are on,
+    with the reason per channel), plus the installation's send hours. Never a phone number or an address."""
     from ..services import temperature_whatsapp as twa
     from ..services.tickets import messaging as tmsg
 
@@ -487,7 +488,8 @@ def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.
 @router.post(f"{API}/report/send", status_code=202)
 def report_send(body: ReportSendIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Queues the text summary to each recipient (one-off). It leaves inside the installation's send hours (else it waits for the next
-    opening, logged), through the shared account and pacing, only to a number the user opted in for."""
+    opening, logged), through the shared account and pacing, only to a number the user opted in for. A vendor (TEMPVENDOR-295) goes through
+    the tickets message queue by the chosen channel (WhatsApp or e-mail, never switched automatically); every unit must be visible to the sender."""
     from ..services import temperature_whatsapp as twa
 
     ts = now_ts()
@@ -498,7 +500,7 @@ def report_send(body: ReportSendIn, principal: Principal = Depends(_manage_w), c
     except twa.SendInvalid as e:
         raise _wa_error(e) from None
     audit(conn, actor=principal, action="infra.temperature.report.send", decision="allowed", resource_type="infra_temp_report", resource_id=out["batch_id"],
-          details={"recipients": out["queued"], "units": len(body.units)})
+          details={"recipients": out["queued"], "vendors": out["vendors"], "units": len(body.units)})
     return {**out, "sends": twa.batch_view(conn, out["batch_id"])}
 
 

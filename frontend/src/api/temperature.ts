@@ -465,6 +465,8 @@ export interface ReportParams {
   signature?: boolean;
   /** phase 3 (idea 3): the HACCP compliance layout - a daily table per unit */
   layout?: 'standard' | 'haccp';
+  /** TEMPVENDOR-295: the text as a vendor gets it (no "available in the system" note) */
+  external?: boolean;
 }
 export interface ReportUnit {
   id: string;
@@ -513,8 +515,19 @@ export interface ReportRecipient {
   company?: string | null;
   has_phone?: boolean;
   selectable: boolean;
-  /** vendors: `coming_later` until the message-queue migration is approved */
-  reason?: string;
+  /** vendors: `coming_later` while vendor reports are off; else why no channel can carry the report (no_whatsapp | no_email | no_contact) */
+  reason?: string | null;
+  /** vendors, while vendor reports are on: per channel `ok` or the reason (no_whatsapp | no_email | reports_email_off | no_contact) */
+  channels?: Partial<Record<VendorChannel, string>>;
+  /** vendors: the channel offered first */
+  channel?: VendorChannel;
+}
+export type VendorChannel = 'whatsapp' | 'email';
+export interface RecipientPick {
+  kind: 'user' | 'vendor';
+  id: string;
+  /** vendors only: the channel chosen for this report (never switched automatically) */
+  channel?: VendorChannel;
 }
 export interface RecipientsResponse {
   users: ReportRecipient[];
@@ -522,12 +535,16 @@ export interface RecipientsResponse {
   send_hours: { from: string; to: string };
   attachment: string;
   attachment_modes: string[];
+  /** TEMPVENDOR-295: vendor reports on / e-mail on (both off by default) */
+  vendor_reports?: { enabled: boolean; email: boolean };
 }
 export interface SendRow {
   id: string;
   name: string;
-  status: 'queued' | 'held' | 'retry' | 'sent' | 'failed' | 'skipped';
+  status: 'queued' | 'held' | 'retry' | 'handed' | 'sent' | 'failed' | 'skipped';
   reason: string | null;
+  kind?: 'vendor';
+  channel?: VendorChannel | null;
   not_before: string;
   finished_at: string | null;
 }
@@ -540,7 +557,7 @@ export interface Schedule {
   dow: number | null;
   dom: number | null;
   at: string;
-  recipients: { kind: 'user' | 'vendor'; id: string }[];
+  recipients: RecipientPick[];
   enabled: boolean;
   next_run_at: string;
   last_run_at: string | null;
@@ -556,16 +573,17 @@ export function reportQs(p: ReportParams): string {
   if (p.events === false) q.set('events', '0');
   if (p.signature === false) q.set('signature', '0');
   if (p.layout === 'haccp') q.set('layout', 'haccp');
+  if (p.external) q.set('external', '1');
   return `?${q.toString()}`;
 }
 
 export const getReportPreview = (p: ReportParams) => get<ReportModel>(`${B}/report/preview${reportQs(p)}`);
 export const getReportRecipients = () => get<RecipientsResponse>(`${B}/report/recipients`);
-export const sendReport = (body: { units: string[]; range: ReportRange; from?: string; to?: string; lang: 'he' | 'en'; recipients: { kind: 'user' | 'vendor'; id: string }[] }) =>
+export const sendReport = (body: { units: string[]; range: ReportRange; from?: string; to?: string; lang: 'he' | 'en'; recipients: RecipientPick[] }) =>
   post<{ batch_id: string; queued: number; sends: SendRow[] }>(`${B}/report/send`, body);
 export const getSends = (batch: string) => get<{ sends: SendRow[] }>(`${B}/report/sends/${enc(batch)}`);
 export const listSchedules = () => get<{ schedules: Schedule[] }>(`${B}/report/schedules`);
-export const createSchedule = (body: { units: string[]; range: ReportRange; lang: 'he' | 'en'; freq: string; at: string; dow?: number | null; dom?: number | null; recipients: { kind: 'user' | 'vendor'; id: string }[] }) =>
+export const createSchedule = (body: { units: string[]; range: ReportRange; lang: 'he' | 'en'; freq: string; at: string; dow?: number | null; dom?: number | null; recipients: RecipientPick[] }) =>
   post<Schedule>(`${B}/report/schedules`, body);
 export const deleteSchedule = (id: string) => del(`${B}/report/schedules/${enc(id)}`);
 
