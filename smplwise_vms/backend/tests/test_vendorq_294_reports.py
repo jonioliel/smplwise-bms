@@ -63,7 +63,7 @@ def _reports(env):
 
 def test_reports_to_contacts_are_off_by_default(env, mod):
     with env.s4.db.connection(mode="read") as conn:
-        assert settings_doc.read(conn)["reports"] == {"to_contacts": False, "documents": False, "document_hours": 72, "document_max_opens": 5}
+        assert settings_doc.read(conn)["reports"] == {"to_contacts": False, "documents": False, "email": False, "document_hours": 72, "document_max_opens": 5}
     with pytest.raises(CR.ReportRefused) as exc:
         _queue(env)
     assert exc.value.code == "reports_to_contacts_off"
@@ -149,8 +149,11 @@ def test_the_outbox_keeps_report_fields_to_report_rows(env, mod):
             messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="whatsapp")
         assert exc.value.code == "report_invalid"
         with pytest.raises(OutboxError) as exc:
-            messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="email", source_module="fakemod", source_id="s1")
-        assert exc.value.code == "report_invalid", "WhatsApp only"
+            messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="email")
+        assert exc.value.code == "report_invalid", "a report row always names its source (the e-mail channel is allowed: VENDORQ2-295)"
+        with pytest.raises(OutboxError) as exc:
+            messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="sms", source_module="fakemod", source_id="s1")
+        assert exc.value.code == "channel_unknown"
         with pytest.raises(OutboxError) as exc:
             messaging.RUNTIME.enqueue(conn, purpose="closed", contact_id=env.s4.contact["id"], channel="whatsapp", source_module="fakemod", source_id="s1")
         assert exc.value.code == "source_not_allowed"
@@ -236,3 +239,130 @@ def test_a_dead_document_stops_the_message_and_a_failed_report_revokes_its_docum
     assert next(r for r in env.rows() if r.id == row2.id).outcome_code == "report_unsafe"
     with env.s4.db.connection(mode="read") as conn:
         assert out_documents.row(conn, doc2["id"])["revoked_reason"] == "send_failed", "a document whose report never left dies with it"
+
+
+# ---------------------------------------------------------------- VENDORQ2-295: e-mail as the second delivery channel
+
+MAIL = "dana@example.test"
+
+
+def _mail_ready(env, email=True):
+    env.smtp()
+    if email:
+        with env.s4.db.connection() as conn:
+            conn.execute("UPDATE ticket_contacts SET email = ? WHERE id = ?", (MAIL, env.s4.contact["id"]))
+
+
+def test_the_email_channel_is_off_by_default_and_needs_its_own_switch(env, mod):
+    _mail_ready(env)
+    _switch(env, to_contacts=True)
+    with pytest.raises(CR.ReportRefused) as exc:
+        _queue(env, channel="email")
+    assert exc.value.code == "reports_email_off"
+    with pytest.raises(CR.ReportRefused) as exc:
+        _queue(env, channel="pigeon")
+    assert exc.value.code == "report_channel"
+    _switch(env, to_contacts=False, email=True)
+    with pytest.raises(CR.ReportRefused) as exc:
+        _queue(env, channel="email")
+    assert exc.value.code == "reports_to_contacts_off", "the e-mail switch never opens the master switch"
+    assert _reports(env) == []
+
+
+def test_email_refusals_name_the_reason(env, mod):
+    _switch(env, to_contacts=True, email=True)
+    with pytest.raises(CR.ReportRefused) as exc:
+        _queue(env, channel="email")  # no SMTP, no address
+    assert exc.value.code == "no_email"
+    env.smtp()
+    with pytest.raises(CR.ReportRefused) as exc:
+        _queue(env, channel="email")  # SMTP but the contact has no address
+    assert exc.value.code == "no_email"
+    with env.s4.db.connection(mode="read") as conn:
+        assert CR.reach(conn, "no-such-contact", "email") == "no_contact"
+    assert _reports(env) == []
+
+
+def test_a_report_leaves_by_email_with_the_text_built_at_send_time(env, mod, caplog):
+    caplog.set_level(logging.DEBUG)
+    _mail_ready(env)
+    _switch(env, to_contacts=True, email=True)
+    row = _queue(env, channel="email", idempotency_key="fakemod:s1:mail")
+    assert (row.purpose, row.channel, row.use_key, row.state) == ("report", "email", "email", "queued")
+    with env.s4.db.connection(mode="read") as conn:
+        stored = json.dumps(dict(conn.execute("SELECT * FROM ticket_outbox WHERE id = ?", (row.id,)).fetchone()), ensure_ascii=False)
+    assert TEXT not in stored and MAIL not in stored and PHONE_A_E164 not in stored
+    mod.text = TEXT + " (rebuilt)"
+    assert env.tick() == 1
+    assert env.fake.calls == [], "e-mail never touches WhatsApp"
+    to, rendered = env.mails[0]
+    assert to == MAIL and rendered.subject == "דוח"
+    assert rendered.text == "מגדלי הדר\n" + TEXT + " (rebuilt)"
+    done = next(r for r in env.rows() if r.id == row.id)
+    assert (done.state, done.channel) == ("sent", "email")
+    assert mod.outcomes == [("s1", "sent", None)]
+    assert TEXT not in caplog.text and MAIL not in caplog.text and PHONE_A_E164 not in caplog.text
+    assert _queue(env, channel="email", idempotency_key="fakemod:s1:mail").id == row.id
+
+
+def test_an_email_report_waits_for_the_send_hours_like_a_whatsapp_one(env, mod):
+    _mail_ready(env)
+    _switch(env, to_contacts=True, email=True)
+    env.clock.t = NIGHT
+    row = _queue(env, channel="email")
+    assert env.tick() == 0
+    held = next(r for r in env.rows() if r.id == row.id)
+    assert (held.state, held.held_reason) == ("held", "send_hours") and env.mails == []
+    env.clock.t = DAY + dt.timedelta(days=1)
+    assert env.tick() == 1 and next(r for r in env.rows() if r.id == row.id).state == "sent" and len(env.mails) == 1
+
+
+@pytest.mark.parametrize("text,code", [("See https://evil.example/x", "report_unsafe"), (None, "report_unavailable")])
+def test_an_unusable_text_ends_an_email_report_not_sent_and_never_switches_channel(env, mod, text, code):
+    _mail_ready(env)
+    _switch(env, to_contacts=True, email=True)
+    row = _queue(env, channel="email")
+    mod.text = text
+    assert env.tick() == 0
+    done = next(r for r in env.rows() if r.id == row.id)
+    assert (done.state, done.outcome_code) == ("not_sent", code)
+    assert env.mails == [] and env.fake.calls == [] and len(_reports(env)) == 1
+
+
+def test_an_smtp_failure_after_the_handover_is_unknown_and_final(env, mod, monkeypatch):
+    _mail_ready(env)
+    _switch(env, to_contacts=True, email=True)
+    row = _queue(env, channel="email")
+
+    def boom(cfg, to, rendered):
+        from smplwise.services import notify_email
+
+        raise notify_email.MailError("timeout")
+
+    monkeypatch.setattr(messaging.RUNTIME, "email_sender", boom)
+    assert env.tick() == 1
+    assert next(r for r in env.rows() if r.id == row.id).state == "unknown"
+    assert env.tick(minutes=30) == 0 and mod.outcomes == [("s1", "unknown", "smtp_timeout")]
+
+
+def test_a_contact_erased_after_queuing_gets_no_email_report(env, mod):
+    _mail_ready(env)
+    _switch(env, to_contacts=True, email=True)
+    row = _queue(env, channel="email")
+    with env.s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_contacts SET erased_at = ? WHERE id = ?", (env.clock().isoformat(), env.s4.contact["id"]))
+    env.tick()
+    done = next(r for r in env.rows() if r.id == row.id)
+    assert (done.state, done.outcome_code) == ("not_sent", "contact_missing") and env.mails == []
+
+
+def test_an_email_report_with_a_live_document_carries_the_same_temporary_link(env, mod, monkeypatch):
+    _mail_ready(env)
+    _switch(env, to_contacts=True, documents=True, email=True)
+    doc = _doc(env, monkeypatch)
+    _queue(env, channel="email", document_id=doc["id"])
+    with env.s4.db.connection(mode="read") as conn:
+        token = out_documents.token_of(out_documents.row(conn, doc["id"]))
+    assert env.tick() == 1
+    text = env.mails[0][1].text
+    assert text.startswith("מגדלי הדר\n" + TEXT + "\nהדוח המלא (זמין עד ") and text.endswith(f"{BASE_URL}/support/#d.{token}")

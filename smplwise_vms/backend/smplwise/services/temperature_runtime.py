@@ -37,6 +37,7 @@ from ..db import Database, new_id
 from . import notify
 from . import temperature as t
 from . import temperature_defrost as learner
+from . import temperature_vendor_reports  # noqa: F401 - registers the vendor-report provider `temperature` (TEMPVENDOR-295) at startup, before any queued report is sent
 from .timeutil import iso_utc, parse_utc
 
 log = logging.getLogger("smplwise.temperature")

@@ -497,6 +497,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # is required before `documents` is switched on in a release.
     ("reports", "to_contacts"): (False, boolean),
     ("reports", "documents"): (False, boolean),
+    # VENDORQ2-295: e-mail as the second delivery channel of a report (same queue, same send hours, same link rules) - OFF by default;
+    # it also needs the installation's SMTP and an address on the contact
+    ("reports", "email"): (False, boolean),
     ("reports", "document_hours"): (72, int_range(1, 168)),
     ("reports", "document_max_opens"): (5, int_range(1, 20)),
 }

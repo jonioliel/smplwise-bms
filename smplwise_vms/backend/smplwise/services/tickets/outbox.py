@@ -64,6 +64,10 @@ NON_RETRYABLE = frozenset({"no_phone", "no_address", "opted_out", "empty", "rend
 EMAIL_PER_HOUR = 10  # 9.5: a per-module counter, separate from CR-018's
 DEFAULT_HOLD_MIN = 15
 CODE_HOLD_MIN = 2  # a code expires in 10 minutes: it never waits 15 for a down account (recorded interpretation)
+# VENDORQ2-295: a report leaves by WhatsApp or (second channel, off by default) by e-mail; the e-mail subject per language
+# (ar / ru: developer translations, native review pending)
+REPORT_CHANNELS = ("whatsapp", "email")
+REPORT_SUBJECT = {"he": "דוח", "en": "Report", "ar": "تقرير", "ru": "Отчёт"}
 USE_MESSAGES, USE_CODES, USE_EMAIL = "tickets.messages", "tickets.codes", "email"
 
 
@@ -413,7 +417,7 @@ class Outbox:
             raise OutboxError("code_invalid")  # TKNOTIFOTP: the number check goes to the number itself - WhatsApp only, never a fallback
         if purpose in REPORT_PURPOSES:
             # CR-VENDORQ-294: a report names its module and row, goes to a contact by WhatsApp, carries no link / code / ticket / RFQ
-            if not source_module or not source_id or not contact_id or channel != "whatsapp" or link_id or code or code_id or ticket_id                     or rfq_id or assignment_id:
+            if not source_module or not source_id or not contact_id or channel not in REPORT_CHANNELS or link_id or code or code_id or ticket_id                     or rfq_id or assignment_id:
                 raise OutboxError("report_invalid")
         elif source_module or source_id or document_id or use_key:
             raise OutboxError("source_not_allowed")
@@ -684,7 +688,9 @@ class Outbox:
             text, problem = self.p.report_text(row, recipient)
             if not text:
                 return None, problem or "report_unavailable"
-            return OutboundMessage(outbox_id=row.id, channel=row.channel, purpose=row.purpose, recipient=recipient, text=text, account=account), None
+            subject = REPORT_SUBJECT.get(lang, REPORT_SUBJECT["he"]) if row.channel == "email" else ""  # VENDORQ2-295: the e-mail's subject line
+            return OutboundMessage(outbox_id=row.id, channel=row.channel, purpose=row.purpose, recipient=recipient, text=text, account=account,
+                                   subject=subject), None
         if row.purpose in templates.FIXED_PURPOSES:
             # TKNOTIFOTP: the code-owned text, whatever the template store holds (VPORTAL F2: or its code-owned variant the row names)
             tpl = templates.fixed_starter(row.purpose, row.template_id, lang)
