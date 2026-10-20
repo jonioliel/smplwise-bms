@@ -149,10 +149,6 @@ export class DoorWindowsScreen extends LitElement {
     window.setTimeout(() => (this.toast = ''), 2500);
   }
 
-  private zoneOf(key: string): string {
-    return this.data?.doors.find((d) => d.key === key)?.zone ?? 'Asia/Jerusalem';
-  }
-
   private doorOf(key: string): DoorRow | undefined {
     return this.data?.doors.find((d) => d.key === key);
   }
