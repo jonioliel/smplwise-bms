@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { defaultPolicy, doorAutomations, type DoorAutomationStatus, type DoorAutomationsAdapter, type DoorBlock, type DoorChoice, type DoorPolicy, type FireRow, type Simulation } from '../api/door-automations';
+import { DEFAULT_LIMITS, STEP_BOUNDS, defaultPolicy, doorAutomations, type DoorAutomationStatus, type DoorAutomationsAdapter, type DoorBlock, type DoorChoice, type DoorPolicy, type FireRow, type Simulation } from '../api/door-automations';
 import { dat, datCode, datLang } from '../i18n/door-automation';
 import { icon } from './automation-builder-icons';
 import { editorShared } from './automation-editor-css';
@@ -151,7 +151,7 @@ export class DoorAutomationBlock extends LitElement {
     const st = this.status!;
     return html`<div class="sum">
         <div class="chips">${b.doors.map((d) => html`<span class="tag acc">${icon('door', 12)}<bdi>${d.name ?? '—'}</bdi></span>`)}</div>
-        <div class="chips">${b.policy.windows.map((w) => html`<span class="tag"><bdi>${this.daysText(w.days)}</bdi> · <bdi dir="ltr">${w.start}–${w.end}</bdi></span>`)}</div>
+        <div class="chips">${b.policy.windows.length === 0 ? html`<span class="tag">${dat('anyTime')}</span>` : nothing}${b.policy.windows.map((w) => html`<span class="tag"><bdi>${this.daysText(w.days)}</bdi> · <bdi dir="ltr">${w.start}–${w.end}</bdi></span>`)}</div>
       </div>
       <div class="row">
         <button class="btn" type="button" data-edit ?disabled=${this.busy} @click=${() => { this.editing = true; }}>${icon('edit')}${dat('edit')}</button>
@@ -187,17 +187,18 @@ export class DoorAutomationBlock extends LitElement {
         </label>`)}
       </fieldset>
       <fieldset><legend>${dat('windows')}</legend>
+        ${p.windows.length === 0 ? html`<p class="muted" data-any-time>${dat('anyTime')}</p>` : nothing}
         ${p.windows.map((w, i) => html`<div class="win" data-window=${i}>
           <div class="days" role="group">${dayOrder(lang).map((d) => html`<button type="button" class="day ${w.days.includes(d) ? 'on' : ''}" aria-pressed=${w.days.includes(d) ? 'true' : 'false'}
             @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: this.policy.windows.map((x, j) => (j === i ? toggleDay(x, d) : x)) }; })}>${dat(`d${d}` as 'd0')}</button>`)}</div>
           <label class="t"><span>${dat('from')}</span><input type="time" dir="ltr" .value=${w.start} @change=${(e: Event) => this.setWin(i, 'start', (e.target as HTMLInputElement).value)} /></label>
           <label class="t"><span>${dat('to')}</span><input type="time" dir="ltr" .value=${w.end === '24:00' ? '23:59' : w.end} @change=${(e: Event) => this.setWin(i, 'end', (e.target as HTMLInputElement).value)} /></label>
-          ${p.windows.length > 1 ? html`<button type="button" class="link" @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: this.policy.windows.filter((_, j) => j !== i) }; })}>${dat('windowRemove')}</button>` : nothing}
+          ${p.windows.length > 0 ? html`<button type="button" class="link" @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: this.policy.windows.filter((_, j) => j !== i) }; })}>${dat('windowRemove')}</button>` : nothing}
         </div>`)}
         ${p.windows.length < 7 ? html`<button type="button" class="link" data-add-window @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: [...this.policy.windows, { days: [6, 0, 1, 2, 3], start: '07:00', end: '09:00' }] }; })}>+ ${dat('windowAdd')}</button>` : nothing}
       </fieldset>
       <details class="lim"><summary>${dat('limits')}</summary>
-        ${this.num('cooldown', 'cooldown_s', 10, 3600)}${this.num('perHour', 'max_per_hour', 1, 30)}${this.num('perDay', 'max_per_day', 1, 200)}${this.num('armDays', 'arm_days', 1, 90)}
+        ${this.num('cooldown', 'cooldown_s')}${this.num('perHour', 'max_per_hour')}${this.num('perDay', 'max_per_day')}${this.num('armDays', 'arm_days')}
       </details>
       ${this.problems.length ? html`<p class="err" role="alert">${this.problems.map((k) => dat(k as 'needDoor')).join(' · ')}</p>` : nothing}
       <div class="row">
@@ -214,9 +215,20 @@ export class DoorAutomationBlock extends LitElement {
     });
   }
 
-  private num(label: 'cooldown' | 'perHour' | 'perDay' | 'armDays', key: 'cooldown_s' | 'max_per_hour' | 'max_per_day' | 'arm_days', min: number, max: number) {
-    return html`<label class="fld n"><span>${dat(label)}</span><input type="number" dir="ltr" min=${min} max=${max} .value=${String(this.policy[key])}
-      @change=${(e: Event) => this.edit(() => { this.policy = { ...this.policy, [key]: Number((e.target as HTMLInputElement).value) }; })} /></label>`;
+  /** A step limit: empty = the installation's setting (shown as the placeholder). */
+  private num(label: 'cooldown' | 'perHour' | 'perDay' | 'armDays', key: 'cooldown_s' | 'max_per_hour' | 'max_per_day' | 'arm_days') {
+    const [min, max] = STEP_BOUNDS[key];
+    const base = (this.status?.limits ?? DEFAULT_LIMITS)[key];
+    const own = this.policy[key];
+    return html`<label class="fld n"><span>${dat(label)}</span><input type="number" dir="ltr" min=${min} max=${max} placeholder=${String(base)} data-limit=${key}
+      .value=${own === undefined ? '' : String(own)}
+      @change=${(e: Event) => this.edit(() => {
+        const raw = (e.target as HTMLInputElement).value.trim();
+        const next: DoorPolicy = { ...this.policy };
+        if (raw === '') delete next[key];
+        else next[key] = Number(raw);
+        this.policy = next;
+      })} /></label>`;
   }
 
   private renderConfirm() {
@@ -224,7 +236,7 @@ export class DoorAutomationBlock extends LitElement {
     const arm = this.confirm === 'arm';
     return html`<div class="confirm" role="alertdialog" aria-labelledby="da-confirm-title" data-confirm=${this.confirm}>
       <h5 id="da-confirm-title">${arm ? dat('armTitle') : dat('removeTitle')}</h5>
-      ${arm ? html`<p>${dat('armText', { days: this.block.policy.arm_days })}</p>` : nothing}
+      ${arm ? html`<p>${dat('armText', { days: this.block.effective_limits?.arm_days ?? this.block.policy.arm_days ?? (this.status?.limits ?? DEFAULT_LIMITS).arm_days })}</p>` : nothing}
       <div class="row">
         <button class="btn ${arm ? 'primary' : 'danger'}" type="button" data-confirm-yes ?disabled=${this.busy} @click=${() => void (arm ? this.arm() : this.removeBlock())}>${arm ? dat('armConfirm') : dat('remove')}</button>
         <button class="btn" type="button" @click=${() => { this.confirm = null; }}>${dat('cancel')}</button>

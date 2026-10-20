@@ -205,17 +205,17 @@ def test_the_permission_is_sensitive_system_admin_only_and_station_carriable():
 @pytest.mark.parametrize("policy, field", [
     ({"doors": [], "windows": POLICY["windows"]}, "doors"),
     ({"doors": [{"station_id": ENTRY, "relay": 1}] * 2, "windows": POLICY["windows"]}, "doors"),
-    ({"doors": [{"station_id": ENTRY, "relay": n} for n in range(1, 6)], "windows": POLICY["windows"]}, "doors"),
+    ({"doors": [{"station_id": ENTRY, "relay": n} for n in range(1, 18)], "windows": POLICY["windows"]}, "doors"),
     ({"doors": [{"station_id": ENTRY, "relay": 0}], "windows": POLICY["windows"]}, "doors"),
-    ({"doors": POLICY["doors"], "windows": []}, "windows"),
+    ({"doors": POLICY["doors"], "windows": "always"}, "windows"),
     ({"doors": POLICY["doors"], "windows": [{"days": [7], "start": "07:00", "end": "10:00"}]}, "windows"),
     ({"doors": POLICY["doors"], "windows": [{"days": [0], "start": "10:00", "end": "07:00"}]}, "windows"),
     ({"doors": POLICY["doors"], "windows": [{"days": [0], "start": "7:00", "end": "10:00"}]}, "windows"),
     ({"doors": POLICY["doors"], "windows": [{"days": [], "start": "07:00", "end": "10:00"}]}, "windows"),
-    ({**POLICY, "cooldown_s": 5}, "cooldown_s"),
-    ({**POLICY, "max_per_hour": 31}, "max_per_hour"),
+    ({**POLICY, "cooldown_s": 0}, "cooldown_s"),
+    ({**POLICY, "max_per_hour": 601}, "max_per_hour"),
     ({**POLICY, "max_per_day": 0}, "max_per_day"),
-    ({**POLICY, "arm_days": 91}, "arm_days"),
+    ({**POLICY, "arm_days": 366}, "arm_days"),
     ({**POLICY, "unknown_key": 1}, "unknown_key"),
 ])
 def test_policy_validation_refuses_and_names_the_field(world, policy, field):
@@ -230,7 +230,9 @@ def test_defaults_are_safe_and_a_new_block_is_a_draft(world):
     assert r.status_code == 201, r.text
     da = r.json()
     assert da["state"] == "draft" and da["policy_revision"] == 1 and da["armed_by"] is None
-    assert da["policy"]["cooldown_s"] == 60 and da["policy"]["max_per_hour"] == 4 and da["policy"]["max_per_day"] == 20 and da["policy"]["arm_days"] == 30
+    # owner decision 2026-10-21: few limits; a step without its own values follows the installation's settings
+    assert not {"cooldown_s", "max_per_hour", "max_per_day", "arm_days"} & set(da["policy"])
+    assert da["effective_limits"] == {"cooldown_s": 10, "max_per_hour": 30, "max_per_day": 300, "arm_days": 180}
     assert da["doors"] == [{"station_id": ENTRY, "relay": 1, "name": "כניסה ראשית"}]
     assert _create(c).json()["code"] == "door_automation_exists", "one block per automation"
     rows = audit_rows(world["db"], "door_automation.create")
@@ -291,7 +293,7 @@ def test_arm_needs_a_confirmation_and_binds_the_revision_and_expiry(world):
     assert r.status_code == 200, r.text
     armed = r.json()
     assert armed["state"] == "armed" and armed["armed_by"] == "dev-joni" and armed["bound_item_revision"] == "rev0000000000001"
-    assert armed["armed_until"] == "2026-11-04T06:00:00Z", "30 days from the (fake) arming instant"
+    assert armed["armed_until"] == "2027-04-03T06:00:00Z", "180 days (the default setting) from the (fake) arming instant"
     assert [r["decision"] for r in audit_rows(world["db"], "door_automation.arm")] == ["denied", "denied", "allowed"]
 
 
@@ -418,7 +420,7 @@ def test_every_gate_refuses_in_order_and_sends_nothing(live):
 def test_an_expired_arming_and_a_missing_automation_disarm(live):
     c, clock, db = live["c"], live["clock"], live["db"]
     da = _armed(c)
-    clock.advance(days=30, seconds=1)
+    clock.advance(days=180, seconds=1)
     assert fire(live)[0]["reason"] == "arm_expired" and state_of(c, da["id"])["disarm_reason"] == "arm_expired"
     clock.at = MONDAY_9
     da2 = _armed(c, item="9005")
@@ -455,10 +457,11 @@ def test_cooldown_caps_and_storm(live):
     clock.advance(seconds=61)
     assert fire(live)[0]["reason"] == "rate_hour"
     assert len(sender.calls) == 2
-    clock.advance(seconds=61)
-    assert fire(live)[0]["reason"] == "rate_hour"
+    for _ in range(3):
+        clock.advance(seconds=61)
+        assert fire(live)[0]["reason"] == "rate_hour"
     st = state_of(c, da["id"])
-    assert st["state"] == "disarmed" and st["disarm_reason"] == "storm", "three cooldown / rate refusals in 10 minutes"
+    assert st["state"] == "disarmed" and st["disarm_reason"] == "storm", "five cooldown / rate refusals in 10 minutes (the default setting)"
     assert fire(live) == [], "a disarmed block is silent"
     assert len(sender.calls) == 2
 
@@ -593,3 +596,66 @@ def test_the_window_rule_in_the_installation_zone():
     assert not door_automation.in_window(w, _dt.datetime(2026, 10, 11, 21, 0, tzinfo=_dt.timezone.utc), tz), "Monday 00:00 local"
     with pytest.raises(door_automation.ClockUntrusted):
         door_automation.in_window(w, MONDAY_9, "Mars/Olympus")
+
+
+# ================================================================ owner decisions 2026-10-21
+
+def test_whoever_creates_automations_may_arm_unless_removed_per_user_or_per_role(live):
+    """Decision 1: automation.manage implies the right to arm (no access.doors.automate needed); an administrator removes it per
+    person (whatever their roles) or per role; the arming person is still re-checked at every fire."""
+    c, db, sender = live["c"], live["db"], live["sender"]
+    _bind(db, "sara", "site_admin")
+    assert c.get(f"{API}/door-automations/status", headers=as_user("sara")).json()["can_manage"] is True
+    da = _create(c, user="sara").json()
+    assert _arm(c, da, user="sara").status_code == 200
+    assert fire(live)[0]["outcome"] == "sent"
+    # removed per person: refused to arm, and the armed step stops at its next fire
+    assert c.put(f"{API}/door-automations/users/dev-sara", json={"removed": True, "confirmed": True}, headers=as_user("sara")).status_code == 403
+    r = c.put(f"{API}/door-automations/users/dev-sara", json={"removed": True, "confirmed": True})
+    assert r.status_code == 200 and r.json() == {"user_id": "dev-sara", "removed": True}, r.text
+    live["clock"].advance(seconds=11)
+    assert fire(live)[0]["reason"] == "armer_lost_authority" and len(sender.calls) == 1
+    assert c.get(f"{API}/door-automations/status", headers=as_user("sara")).json() == {"visible": False}
+    assert c.put(f"{API}/door-automations/users/dev-sara", json={"removed": False, "confirmed": True}).status_code == 200
+    assert _arm(c, state_of(c, da["id"]), user="sara").status_code == 200
+    # removed per role: site_admin's automation.manage no longer implies arming; an explicit grant still does
+    r = c.put(f"{API}/door-automations/settings", json={"excluded_roles": ["site_admin"], "confirmed": True})
+    assert r.status_code == 200 and r.json()["excluded_roles"] == ["site_admin"], r.text
+    assert c.get(f"{API}/door-automations/status", headers=as_user("sara")).json() == {"visible": False}
+    role = _role(c, "חימוש דלתות", [door_automation.AUTOMATE])
+    _bind(db, "sara", role)
+    assert c.get(f"{API}/door-automations/status", headers=as_user("sara")).json()["can_manage"] is True
+    # an explicit deny of the permission wins over the implied right
+    _bind(db, "joni", role, effect="deny")
+    with db.connection(mode="read") as conn:
+        joni = Principal("dev-joni", "joni", "joni", "dev")
+        assert door_automation.may_automate(conn, joni, ENTRY) is False
+
+
+def test_every_limit_is_an_administrator_setting(live):
+    c, db, clock = live["c"], live["db"], live["clock"]
+    st = c.get(f"{API}/door-automations/status").json()
+    assert st["limits"] == {"cooldown_s": 10, "max_per_hour": 30, "max_per_day": 300, "arm_days": 180, "storm_refusals": 5, "storm_window_s": 600}
+    _bind(db, "dana", "operator")
+    assert c.put(f"{API}/door-automations/settings", json={"limits": {"cooldown_s": 120}, "confirmed": True}, headers=as_user("dana")).status_code == 403
+    r = c.put(f"{API}/door-automations/settings", json={"limits": {"cooldown_s": 0}, "confirmed": True})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["limits"]
+    r = c.put(f"{API}/door-automations/settings", json={"limits": {"cooldown_s": 120, "storm_refusals": 2}, "confirmed": True})
+    assert r.status_code == 200 and r.json()["limits"]["cooldown_s"] == 120, r.text
+    da = _armed(c)
+    assert fire(live)[0]["outcome"] == "sent"
+    clock.advance(seconds=60)
+    assert fire(live)[0]["reason"] == "cooldown", "the installation's 120 s"
+    clock.advance(seconds=1)
+    assert fire(live)[0]["reason"] == "cooldown"
+    assert state_of(c, da["id"])["disarm_reason"] == "storm", "the installation's storm setting (2)"
+    with db.connection() as conn:
+        set_setting(conn, "doors.automation.max_per_hour", "garbage")
+        assert door_automation.limits(conn)["max_per_hour"] == 30, "garbage falls back to the default, never to no limit"
+
+
+def test_a_step_without_time_windows_opens_any_time(live):
+    c, clock = live["c"], live["clock"]
+    _armed(c, policy={"doors": POLICY["doors"]})
+    clock.at = _dt.datetime(2026, 10, 10, 0, 30, tzinfo=_dt.timezone.utc)  # Saturday 03:30 local
+    assert fire(live)[0]["outcome"] == "sent"

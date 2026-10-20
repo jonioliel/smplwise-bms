@@ -44,7 +44,7 @@ async function install(page: Page, st: St) {
     const now = '2026-10-20T10:00:00Z';
     if (p === 'door-automations/status') {
       if (st.failStatus) return json({ code: 'ha_unavailable', user_message: 'x', retryable: true, correlation_id: '', details: {} }, 503);
-      return json(st.visible ? { visible: true, feature: st.available ? 'on' : 'off', go_live_permitted: st.available, available: st.available, killed: st.killed, can_manage: true, can_lift_kill: true, can_configure: true } : { visible: false });
+      return json(st.visible ? { visible: true, feature: st.available ? 'on' : 'off', go_live_permitted: st.available, available: st.available, killed: st.killed, can_manage: true, can_lift_kill: true, can_configure: true, limits: { cooldown_s: 10, max_per_hour: 30, max_per_day: 300, arm_days: 180, storm_refusals: 5, storm_window_s: 600 } } : { visible: false });
     }
     if (p === 'door-automations/doors') return json({ doors: DOORS });
     if (p === 'door-automations' && method === 'GET') return json({ items: st.block ? [view(st)] : [] });
@@ -141,7 +141,8 @@ for (const size of ['1440', '390'] as Size[]) {
     await el.locator('[data-save]').click();
     await expect(el.locator('[data-arm]')).toBeEnabled();
     const created = st.calls.find((c) => c.method === 'POST' && c.path === 'door-automations');
-    expect(created?.body).toMatchObject({ automation_id: '9001', name: 'שער בוקר', policy: { doors: [{ station_id: 'st-entry', relay: 1 }], cooldown_s: 60, max_per_hour: 4, max_per_day: 20, arm_days: 30 } });
+    expect(created?.body).toMatchObject({ automation_id: '9001', name: 'שער בוקר', policy: { doors: [{ station_id: 'st-entry', relay: 1 }], windows: [] } });
+    expect(Object.keys((created?.body as { policy: object }).policy).sort()).toEqual(['doors', 'windows']);
     await shot(page, `${size}-he-3-draft`);
     await el.locator('[data-arm]').click();
     await expect(el.locator('[data-confirm="arm"]')).toBeVisible();

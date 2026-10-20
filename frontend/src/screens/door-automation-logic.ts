@@ -2,7 +2,7 @@
  * CR-AUTODOORS-295: the pure part of the "open a door" block in the automation editor (no DOM): the state chip, the form checks,
  * the day order per language and the edits of a draft policy. The server re-checks everything; these only shape the screen.
  */
-import type { DoorAutomationStatus, DoorBlock, DoorChoice, DoorPolicy, DoorRef, TimeWindow } from '../api/door-automations';
+import { STEP_BOUNDS, type DoorAutomationStatus, type DoorBlock, type DoorChoice, type DoorPolicy, type DoorRef, type LimitKey, type TimeWindow } from '../api/door-automations';
 import { dat, datCode, type DatKey, type DatLang } from '../i18n/door-automation';
 
 export type ChipTone = 'neutral' | 'live' | 'off' | 'warn';
@@ -41,7 +41,6 @@ const HHMM = /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/;
 export function formProblems(name: string, policy: DoorPolicy): DatKey[] {
   const out: DatKey[] = [];
   if (!policy.doors.length) out.push('needDoor');
-  if (!policy.windows.length) out.push('needWindow');
   if (policy.windows.some((w) => !w.days.length || !HHMM.test(w.start) || !(w.end === '24:00' || HHMM.test(w.end)) || minutes(w.start) >= minutes(w.end))) out.push('badWindow');
   if (!name.trim()) out.push('name');
   return out;
@@ -71,15 +70,17 @@ export function canArm(block: DoorBlock | null, status: DoorAutomationStatus, ch
   return block.policy.doors.length > 0 && block.policy.doors.every((d) => choices.some((c) => sameDoor(c, d) && c.can_arm));
 }
 
-/** The policy the form sends: limits clamped to the server's bounds (the server refuses anything else anyway). */
+/** The policy the form sends: a limit only where the step sets its own (else the installation's applies), clamped to the server's bounds. */
 export function payload(policy: DoorPolicy): DoorPolicy {
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(v) ? v : lo)));
-  return {
+  const out: DoorPolicy = {
     doors: policy.doors.map((d) => ({ station_id: d.station_id, relay: d.relay })),
     windows: policy.windows.map((w) => ({ days: [...w.days].sort((a, b) => a - b), start: w.start, end: w.end })),
-    cooldown_s: clamp(policy.cooldown_s, 10, 3600),
-    max_per_hour: clamp(policy.max_per_hour, 1, 30),
-    max_per_day: clamp(policy.max_per_day, 1, 200),
-    arm_days: clamp(policy.arm_days, 1, 90),
   };
+  for (const k of Object.keys(STEP_BOUNDS) as LimitKey[]) {
+    const v = policy[k];
+    if (v === undefined || v === null || !Number.isFinite(v)) continue;
+    const [lo, hi] = STEP_BOUNDS[k];
+    out[k] = Math.min(hi, Math.max(lo, Math.round(v)));
+  }
+  return out;
 }

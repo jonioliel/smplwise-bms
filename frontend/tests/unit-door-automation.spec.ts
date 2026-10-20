@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultPolicy, mockDoorAutomations, type DoorAutomationStatus, type DoorBlock, type DoorChoice } from '../src/api/door-automations';
+import { DEFAULT_LIMITS, defaultPolicy, mockDoorAutomations, type DoorAutomationStatus, type DoorBlock, type DoorChoice } from '../src/api/door-automations';
 import { DAT_DEV_MARKED, DAT_KEYS, DAT_TABLES, dat, datCode } from '../src/i18n/door-automation';
 import { canArm, dayOrder, formProblems, payload, stateChip, stateLine, toggleDay, toggleDoor } from '../src/screens/door-automation-logic';
 
@@ -39,12 +39,11 @@ test('every string exists in Hebrew and English; Arabic and Russian are dev-mark
   expect(datCode('r', 'cooldown', 'en')).toBe('Opened a moment ago');
 });
 
-test('a new block starts safe: no door, a short weekday window, the server defaults', () => {
+test('a new step: no door yet, any time, the installation limits (owner decision 2026-10-21)', () => {
   const p = defaultPolicy();
-  expect(p.doors).toEqual([]);
-  expect(p.windows).toEqual([{ days: [6, 0, 1, 2, 3], start: '07:00', end: '09:00' }]);
-  expect([p.cooldown_s, p.max_per_hour, p.max_per_day, p.arm_days]).toEqual([60, 4, 20, 30]);
-  expect(formProblems('שער', p)).toContain('needDoor');
+  expect(p).toEqual({ doors: [], windows: [] });
+  expect(DEFAULT_LIMITS).toEqual({ cooldown_s: 10, max_per_hour: 30, max_per_day: 300, arm_days: 180, storm_refusals: 5, storm_window_s: 600 });
+  expect(formProblems('שער', p)).toEqual(['needDoor']);
 });
 
 test('the chip says what really happens now: stopped and off-in-this-version win over the stored state', () => {
@@ -61,7 +60,7 @@ test('form checks, day order and edits', () => {
   const p = { ...defaultPolicy(), doors: [{ station_id: 's1', relay: 1 }] };
   expect(formProblems('שער', p)).toEqual([]);
   expect(formProblems(' ', p)).toEqual(['name']);
-  expect(formProblems('x', { ...p, windows: [] })).toEqual(['needWindow']);
+  expect(formProblems('x', { ...p, windows: [] })).toEqual([]);
   expect(formProblems('x', { ...p, windows: [{ days: [0], start: '10:00', end: '09:00' }] })).toEqual(['badWindow']);
   expect(formProblems('x', { ...p, windows: [{ days: [], start: '07:00', end: '09:00' }] })).toEqual(['badWindow']);
   expect(formProblems('x', { ...p, windows: [{ days: [0], start: '00:00', end: '24:00' }] })).toEqual([]);
@@ -72,7 +71,8 @@ test('form checks, day order and edits', () => {
   const two = toggleDoor(p, { station_id: 's2', relay: 2 });
   expect(two.doors).toHaveLength(2);
   expect(toggleDoor(two, { station_id: 's1', relay: 1 }).doors).toEqual([{ station_id: 's2', relay: 2 }]);
-  expect(payload({ ...p, cooldown_s: 1, max_per_hour: 99, max_per_day: Number.NaN, arm_days: 400 })).toMatchObject({ cooldown_s: 10, max_per_hour: 30, max_per_day: 1, arm_days: 90 });
+  expect(payload({ ...p, cooldown_s: 0, max_per_hour: 999, max_per_day: Number.NaN, arm_days: 400 })).toEqual({ ...payload(p), cooldown_s: 1, max_per_hour: 600, arm_days: 365 });
+  expect(Object.keys(payload(p)).sort()).toEqual(['doors', 'windows']); // no limit is sent unless the step sets its own
 });
 
 test('arming is offered only for a saved, unchanged, not-armed block whose doors the person may open, while nothing is stopped', () => {

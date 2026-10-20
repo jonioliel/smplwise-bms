@@ -33,8 +33,10 @@ In scope (this branch):
 2. Migration **0145** (PROVISIONAL number; the lead renumbers at integration): `door_automations`, `door_automation_fires`.
 3. `routers/door_automations.py` (`/api/v1/door-automations...`): status, list, get, create, update, arm, disarm, simulate, delete,
    fires, kill switch, settings.
-4. The permission `access.doors.automate` (sensitive, never implied, built-in holder `system_admin` only; may be carried by a
-   station-scope role).
+4. The right to arm (owner decision 2026-10-21, section 12.1): every holder of `automation.manage` at the installation, plus the
+   explicit permission `access.doors.automate` (sensitive, listed by `system_admin`; may be carried by a custom or station-scope
+   role); removable per role (setting `doors.automation.excluded_roles`) and per person (`PUT /door-automations/users/{id}`,
+   setting `doors.automation.removed_users`); an explicit deny binding of `access.doors.automate` also wins.
 5. The hook in `services/automations.py` (`automation_triggered` -> `door_automation.on_event`), never raising into the mirror.
 6. The access audit: fire rows are `intercom.release` rows whose actor is `automation:<id>` with `details.actor_kind =
    "automation"`; `GET /access/audit?actor_kind=automation` lists exactly them.
@@ -56,22 +58,28 @@ DTO actor shape); turning anything on; any lab or door test; a typed "open door"
   `rbac.authorize` gives it nothing anywhere. Conversely the automation path never accepts a human principal: `handle_trigger`
   builds its own operator from the stored block and nothing else (test `test_operator_is_never_a_human_and_humans_never_fire`).
 - **Its own permission class.** The operator's authority is not RBAC; it is the block's allow-list, bounded by the authority of the
-  person who armed it: at arm time AND again at every fire, that person must be active, hold `access.doors.automate` on the
-  station chain of every door on the list (deny wins), and pass the one door rule (`door_authority.check`) for that door. A person
-  can therefore never delegate to an automation a door they cannot open themselves, and losing the right stops the automation.
-- `access.doors.automate` itself grants no door opening to a person (it is not `access.doors.open`): it allows creating, editing,
-  arming and disarming blocks for doors the person may already open.
+  person who armed it: at arm time AND again at every fire, that person must be active, still hold the right to arm for the
+  station of every door on the list (`door_automation.may_automate`: not removed per person, no explicit deny, and either
+  `access.doors.automate` on the station chain or `automation.manage` at the installation through a role that is not excluded),
+  and pass the one door rule (`door_authority.check`) for that door. A person can therefore never delegate to an automation a door
+  they cannot open themselves, and losing either right stops the automation at its next fire.
+- Neither `access.doors.automate` nor `automation.manage` grants a person any door opening (they are not `access.doors.open`).
 
 ## 4. The block (policy)
 
 | Field | Rule (validated on the server; defaults first) |
 |---|---|
-| `doors` | 1..4 entries `{station_id, relay}`; distinct; the station must exist in the served WisKey copy with that relay (at create, update and arm; fail closed without a copy) |
-| `windows` | 1..7 entries `{days: [0..6] (Mon=0), start: "HH:MM", end: "HH:MM" or "24:00"}`, start < end; evaluated in the installation zone (`time.zone`, IANA); an invalid zone refuses (`clock_untrusted`). There is no "always" default: a 24/7 block must say `00:00-24:00` on all seven days |
-| `cooldown_s` | 60 (10..3600): per door, since this block's last attempt on it |
-| `max_per_hour` | 4 (1..30): attempts per door in the last 60 minutes |
-| `max_per_day` | 20 (1..200): attempts of the block in the last 24 hours |
-| `arm_days` | 30 (1..90): an arming expires; re-arming is a new human step |
+| `doors` | 1..16 entries `{station_id, relay}`; distinct; the station must exist in the served WisKey copy with that relay (at create, update and arm; fail closed without a copy) |
+| `windows` | OPTIONAL (owner decision 2026-10-21): 0..7 entries `{days: [0..6] (Mon=0), start: "HH:MM", end: "HH:MM" or "24:00"}`, start < end; none = any time; evaluated in the installation zone (`time.zone`, IANA); an invalid zone refuses (`clock_untrusted`) |
+| `cooldown_s` | optional; installation default 10 s (1..3600): per door, since this block's last attempt on it |
+| `max_per_hour` | optional; installation default 30 (1..600): attempts per door in the last 60 minutes |
+| `max_per_day` | optional; installation default 300 (1..10000): attempts of the block in the last 24 hours |
+| `arm_days` | optional; installation default 180 (1..365): an arming expires; re-arming is a new human step |
+
+Every number is an administrator setting (`doors.automation.<name>`, `PUT /door-automations/settings`, system administrator,
+confirmed, audited), including the storm rule (`storm_refusals` default 5, 2..100; `storm_window_s` default 600, 60..3600). A step
+that sets its own value uses it; otherwise the installation's value at fire time applies. A garbage or out-of-bounds stored value
+falls back to the default, never to "no limit".
 
 Every save bumps `policy_revision` and disarms (reason `edited`). The block binds to the automation's live revision at arm.
 
@@ -90,7 +98,8 @@ Every save bumps `policy_revision` and disarms (reason `edited`). The block bind
    `rate_hour`; daily cap -> `rate_day`; station / relay still in the WisKey copy and online -> `door_unavailable`.
 10. Send once through the sender with the operator as actor: attempt row committed first, then the outcome row. Never retried,
     never queued; an unknown outcome stays unknown; one door's failure does not stop the next door.
-11. Storm: 3 refusals of kind cooldown / rate in 10 minutes disarm the block (`storm`) and audit it.
+11. Storm: `storm_refusals` (default 5) refusals of kind cooldown / rate within `storm_window_s` (default 10 minutes) disarm the
+    block (`storm`) and audit it.
 
 ## 6. Loop protection
 
@@ -144,12 +153,14 @@ four languages, the block's view model (state chip, safe defaults, what is sent)
 
 Please review, with the code at the head named in the report:
 
-1. **Trust in the trigger.** The fire is caused by a Home Assistant event (`automation_triggered`) received on the add-on's WS
-   session. Anyone who can fire that event in Home Assistant (an HA administrator, `event.fire`, a custom integration) can cause
-   an attempt. Mitigations: Arx's own gates (allow-list, window, caps, cooldown, arming, kill switch) bound the effect; a
-   human-context event is refused. Question: is a spoofed `automation_triggered` (context without user id) acceptable within those
-   bounds, or must Arx require a corroborating state change (the automation entity's `last_triggered` moving in the mirror within
-   N seconds) before it sends? (Recommendation: require corroboration before go-live; not built.)
+1. **MANDATORY PRE-GO-LIVE ITEM - trust in the trigger (lead decision under the owner's delegation, 2026-10-21).** The fire is caused
+   by a Home Assistant event (`automation_triggered`) received on the add-on's WS session; anyone who can fire that event in Home
+   Assistant (an HA administrator, `event.fire`, a custom integration) can cause an attempt, bounded only by the gates of section 5
+   and refused when it carries a person's context. Decision: the event stays the trigger for now, and BEFORE go-live Arx must also
+   require the matching state change - the automation entity's `last_triggered` moving in the Arx mirror to the event's instant
+   (within a few seconds, same entity, no earlier match consumed) - and refuse (`trigger_uncorroborated`) otherwise. NOT BUILT in
+   this branch. Review the design of that check (ordering of the event and the state frame, clock skew, a reload or reconnect
+   between them, replay of an old state frame) and confirm no go-live happens without it.
 2. **Delegation semantics.** The armer's authority is re-checked at every fire; the operator itself holds nothing. Check that no
    path lets the operator principal reach `rbac.authorize` with a binding (prefix collision, a `users` row named `automation:...`
    from a restore or the directory sync).
@@ -158,8 +169,9 @@ Please review, with the code at the head named in the report:
 4. **Loop protection completeness.** The static check covers state / numeric_state triggers by entity; review `zone`, `sun`, `time`
    (always safe), and whether a door's camera / doorbell entities (same WisKey config entry) are all covered by
    `config_entry_id`.
-5. **Rate and storm numbers** (defaults 60 s / 4 per hour / 20 per day / 3 refusals in 10 minutes) as physical-safety bounds,
-   including the fire-safety question already open for door windows (owner fire-safety review).
+5. **Rate and storm numbers** (owner defaults 2026-10-21: 10 s / 30 per hour / 300 per day / 180-day arming / 5 refusals in 10
+   minutes, all administrator settings) as physical-safety bounds in a public building, including the fire-safety question already
+   open for door windows (owner fire-safety review); and the bounds an administrator may set (section 4).
 6. **Audit completeness and privacy**: trigger source text is truncated to 120 characters and may contain an entity name; confirm
    that is acceptable in the access audit.
 7. **The live sender** (not built): it must use `open_door` (relay guard, attempt-before-send), and with the signed path the DTO
@@ -168,14 +180,28 @@ Please review, with the code at the head named in the report:
 8. **Concurrency**: two `automation_triggered` events for the same automation at once (two add-on workers are not supported:
    workers=1); the cooldown check and the attempt row are in one write transaction.
 
-## 12. Contradictions and open decisions (recorded, not resolved)
+## 12. Decisions taken and remaining notes
 
-1. CR-033 6.4 (D10a) says the door job acts as "the stored approving actor". This CR uses a non-human operator plus the armer
-   re-check, as the task asked. The audit names both. Owner decision needed: adopt the operator model for D10a.
-2. CR-017 decision 6ג allows sensitive steps in HA automations under manual-control grants; CR-033 R-17 forbids WisKey door steps
-   inside HA. This block keeps R-17: the door step never enters Home Assistant.
-3. Backup: blocks are not backed up (section 9). Owner decision: keep, or back up and restore as disarmed.
-4. Who may create blocks: `automation.manage` at the installation (v1, fail closed) plus `access.doors.automate` per door. A
-   floor-scoped automation editor cannot create one. Owner decision if that should widen.
-5. Migration number 0145 is provisional.
-6. The trigger-corroboration question (11.1) is a go-live blocker in the lead's view.
+Owner decisions of 2026-10-21 (taken, not open):
+
+1. **Who may arm.** Anyone who may create automations (`automation.manage` at the installation) may arm a door-opening step; the
+   explicit permission `access.doors.automate` (system_admin, custom roles, station-scope roles) grants it too. An administrator
+   removes the right per role (`doors.automation.excluded_roles`, Settings) and per person (`PUT /door-automations/users/{id}`,
+   system administrator or role administrator, confirmed, audited); an explicit deny binding of `access.doors.automate` also wins.
+   The re-check at every fire that the arming person can still arm and can open each door themselves stays. (Creating a step still
+   needs `automation.manage` at the installation, so a floor-scoped automation editor cannot create one.)
+2. **Trust in the Home Assistant "automation ran" event** (delegated by the owner to the lead): the event stays the trigger for now;
+   the matching state-change check is a MANDATORY pre-go-live item, not built now, listed first in section 11.
+3. **Limits.** Few limits, reasonable (possibly heavy) use in a public building: the mechanisms stay, loosened, and every number is
+   an administrator setting - wait between openings 10 s, 30 per door per hour, 300 per day, arming expiry 180 days, storm stop
+   after 5 refusals in 10 minutes. Time windows are optional (none = any time); the doors a step opens are named per step (the
+   step's door list is what it opens - there is no separate allow-list to configure). The global kill switch stays.
+Remaining notes:
+
+4. The automation operator model (section 3) replaces CR-033 6.4's "stored approving actor" for automations (the operator plus the
+   arming person's re-check; the audit names both). Not yet confirmed by the owner as such.
+5. CR-017 decision 6ג allows sensitive steps in HA automations under manual-control grants; CR-033 R-17 forbids WisKey door steps
+   inside HA. This step keeps R-17: the door step never enters Home Assistant.
+6. Backup: steps are not backed up (section 9), so a restore never revives an armed step; the definitions are lost on a restore.
+   The `doors.automation.*` settings start with `doors.` and are therefore never carried by a backup (CR-033 section 9).
+7. Migration number 0145 is provisional; the lead renumbers at integration.

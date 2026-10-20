@@ -34,7 +34,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from ..audit import audit
 from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError, forbidden
-from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize, permissions_anywhere
+from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize, permissions_anywhere, role_permissions
+from ..rbac import _active_bindings as rbac_active_bindings
 from . import door_authority, intercom_doors, intercom_sync, trusted_caller
 
 log = logging.getLogger("smplwise.door_automation")
@@ -51,12 +52,19 @@ OPERATOR_SOURCE = "automation"
 OPERATOR_PREFIX = "automation:"
 ENTRY_POINT = "door_job"
 
-MAX_DOORS = 4
+MAX_DOORS = 16
 MAX_WINDOWS = 7
-DEFAULTS = {"cooldown_s": 60, "max_per_hour": 4, "max_per_day": 20, "arm_days": 30}
-BOUNDS = {"cooldown_s": (10, 3600), "max_per_hour": (1, 30), "max_per_day": (1, 200), "arm_days": (1, 90)}
-STORM_REFUSALS = 3
-STORM_WINDOW_S = 600
+# Owner decision 2026-10-21 (CR-AUTODOORS-295 section 12, item 3): few limits, reasonable use in a public building. Every number is an
+# administrator setting (`doors.automation.<name>`, PUT /door-automations/settings); a step may set its own value for the four step
+# limits within the same bounds. A value outside the bounds, or garbage, falls back to the default (never "no limit").
+DEFAULTS = {"cooldown_s": 10, "max_per_hour": 30, "max_per_day": 300, "arm_days": 180}
+BOUNDS = {"cooldown_s": (1, 3600), "max_per_hour": (1, 600), "max_per_day": (1, 10000), "arm_days": (1, 365)}
+STORM_DEFAULTS = {"storm_refusals": 5, "storm_window_s": 600}
+STORM_BOUNDS = {"storm_refusals": (2, 100), "storm_window_s": (60, 3600)}
+ALL_BOUNDS = {**BOUNDS, **STORM_BOUNDS}
+SETTING_PREFIX = "doors.automation."
+EXCLUDED_ROLES_KEY = "doors.automation.excluded_roles"  # JSON list: roles whose automation.manage does NOT imply arming
+REMOVED_USERS_KEY = "doors.automation.removed_users"  # JSON list: people who may never arm (the per-user removal)
 STORM_REASONS = ("cooldown", "rate_hour", "rate_day")
 SEND_WITHIN_S = 15
 SOURCE_MAX = 120
@@ -175,9 +183,11 @@ def in_window(windows: list[dict[str, Any]], at: dt.datetime, tz: str) -> bool:
     """Whether the UTC instant `at` falls in one of the windows, read in the IANA zone `tz` (Mon = 0; start inclusive, end
     exclusive). An unknown zone raises ClockUntrusted (the caller refuses)."""
     try:
-        zone = ZoneInfo(tz)
+        zone = ZoneInfo(tz)  # checked even without a window: an untrusted zone refuses (fail closed)
     except (ZoneInfoNotFoundError, ValueError, TypeError):
         raise ClockUntrusted(tz) from None
+    if not windows:
+        return True  # no window: any time (owner decision 2026-10-21)
     local = at.astimezone(zone)
     minute = local.hour * 60 + local.minute
     for w in windows:
@@ -192,18 +202,33 @@ def _invalid(fields: list[str]) -> ApiError:
     return ApiError(422, "door_automation_invalid", "ההגדרה אינה תקינה: " + ", ".join(fields), details={"fields": fields})
 
 
-def _int_field(raw: dict[str, Any], key: str, bad: list[str]) -> int:
-    value = raw.get(key, DEFAULTS[key])
-    lo, hi = BOUNDS[key]
-    if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
-        bad.append(key)
-        return DEFAULTS[key]
-    return value
+def _int_ok(value: Any, lo: int, hi: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and lo <= value <= hi
+
+
+def limits(conn: sqlite3.Connection) -> dict[str, int]:
+    """The installation's limits (administrator settings), each within its bounds; garbage or out of bounds = the default."""
+    out: dict[str, int] = {}
+    for key, default in {**DEFAULTS, **STORM_DEFAULTS}.items():
+        lo, hi = ALL_BOUNDS[key]
+        try:
+            value = int(get_setting(conn, SETTING_PREFIX + key) or default)
+        except (TypeError, ValueError):
+            value = default
+        out[key] = value if lo <= value <= hi else default
+    return out
+
+
+def effective(conn: sqlite3.Connection, policy: dict[str, Any]) -> dict[str, int]:
+    """A step's limits: its own value where it sets one, else the installation's."""
+    base = limits(conn)
+    return {**base, **{k: int(policy[k]) for k in DEFAULTS if policy.get(k) is not None}}
 
 
 def validate_policy(raw: Any) -> dict[str, Any]:
-    """The block's policy, normalised; 422 `door_automation_invalid` naming every bad field. No default allow-list and no
-    default window: a block names its doors and its hours explicitly."""
+    """The block's policy, normalised; 422 `door_automation_invalid` naming every bad field. The doors to open are named
+    explicitly (1..MAX_DOORS); time windows are optional (none = any time, owner decision 2026-10-21); the four step limits are
+    optional (absent = the installation's setting)."""
     if not isinstance(raw, dict):
         raise _invalid(["policy"])
     bad: list[str] = [k for k in raw if k not in ("doors", "windows", *DEFAULTS)]
@@ -221,9 +246,9 @@ def validate_policy(raw: Any) -> dict[str, Any]:
             doors.append({"station_id": sid, "relay": relay})
         if len({(d["station_id"], d["relay"]) for d in doors}) != len(doors) and "doors" not in bad:
             bad.append("doors")
-    windows_raw = raw.get("windows")
+    windows_raw = raw.get("windows", [])
     windows: list[dict[str, Any]] = []
-    if not isinstance(windows_raw, list) or not 1 <= len(windows_raw) <= MAX_WINDOWS:
+    if not isinstance(windows_raw, list) or len(windows_raw) > MAX_WINDOWS:
         bad.append("windows")
     else:
         for w in windows_raw:
@@ -237,7 +262,13 @@ def validate_policy(raw: Any) -> dict[str, Any]:
                 bad.append("windows")
                 break
             windows.append({"days": sorted(days), "start": start, "end": end})
-    out = {"doors": doors, "windows": windows, **{k: _int_field(raw, k, bad) for k in DEFAULTS}}
+    out: dict[str, Any] = {"doors": doors, "windows": windows}
+    for k in DEFAULTS:
+        if raw.get(k) is not None:
+            if _int_ok(raw[k], *BOUNDS[k]):
+                out[k] = raw[k]
+            else:
+                bad.append(k)
     if bad:
         raise _invalid(sorted(set(bad)))
     return out
@@ -302,14 +333,62 @@ def view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         "name": row["name"], "state": row["state"], "policy": policy, "policy_revision": row["policy_revision"], "doors": doors,
         "bound_item_revision": row["bound_item_revision"], "armed_by": row["armed_by"], "armed_by_name": row["armed_by_name"],
         "armed_at": row["armed_at"], "armed_until": row["armed_until"], "disarm_reason": row["disarm_reason"], "disarmed_at": row["disarmed_at"],
-        "created_at": row["created_at"], "updated_at": row["updated_at"],
+        "created_at": row["created_at"], "updated_at": row["updated_at"], "effective_limits": {k: v for k, v in effective(conn, policy).items() if k in DEFAULTS},
     }
 
 
 # ---------------------------------------------------------------- authority (people)
 
+def _json_list(conn: sqlite3.Connection, key: str) -> list[str]:
+    try:
+        value = json.loads(get_setting(conn, key) or "[]")
+    except ValueError:
+        return []
+    return [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
+
+
+def removed_users(conn: sqlite3.Connection) -> list[str]:
+    return _json_list(conn, REMOVED_USERS_KEY)
+
+
+def excluded_roles(conn: sqlite3.Connection) -> list[str]:
+    return _json_list(conn, EXCLUDED_ROLES_KEY)
+
+
+def _implied(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """Owner decision 2026-10-21 (section 12, item 1): whoever may create automations (`automation.manage` at the installation,
+    through a role the administrator did not exclude) may arm a door step without holding `access.doors.automate` itself."""
+    if not authorize(conn, principal, "automation.manage", INSTALLATION).allowed:
+        return False
+    excluded = set(excluded_roles(conn))
+    for b in rbac_active_bindings(conn, principal):
+        if (b["effect"] == "allow" and (b["scope_type"], b["scope_id"]) == INSTALLATION and b["role_id"] not in excluded
+                and "automation.manage" in role_permissions(conn, b["role_id"])):
+            return True
+    return False
+
+
+def may_automate(conn: sqlite3.Connection, principal: Principal, station_id: str | None = None) -> bool:
+    """May this person arm (and manage) door steps - for one station's doors, or anywhere (`station_id` None)? Never an operator;
+    never a person the administrator removed; an explicit deny of `access.doors.automate` wins; else `access.doors.automate`
+    (granted per role or per user) or the implied right of `automation.manage`."""
+    if is_operator(principal) or principal.user_id in removed_users(conn):
+        return False
+    if station_id is not None:
+        d = authorize(conn, principal, AUTOMATE, (STATION, station_id))
+        if d.reason == "explicit_deny":
+            return False
+        if d.allowed:
+            return True
+    elif AUTOMATE in permissions_anywhere(conn, principal):
+        return True
+    if authorize(conn, principal, AUTOMATE, INSTALLATION).reason == "explicit_deny":
+        return False
+    return _implied(conn, principal)
+
+
 def holds_anywhere(conn: sqlite3.Connection, principal: Principal) -> bool:
-    return not is_operator(principal) and AUTOMATE in permissions_anywhere(conn, principal)
+    return may_automate(conn, principal, None)
 
 
 def door_name(door: dict[str, Any]) -> str:
@@ -325,7 +404,7 @@ def armer_reason(conn: sqlite3.Connection, principal: Principal, door: dict[str,
     user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if user is None or not user["active"]:
         return "user_inactive"
-    if not authorize(conn, principal, AUTOMATE, (STATION, door["station_id"])).allowed:
+    if not may_automate(conn, principal, door["station_id"]):
         return "automate_not_allowed"
     if not door_authority.check(conn, principal, door["station_id"], door["relay"], dev_mode=dev_mode).allowed:
         return "door_not_allowed"
@@ -404,7 +483,7 @@ def _require_manage(conn: sqlite3.Connection, principal: Principal, policy: dict
         _audit(conn, principal, action, "denied", block_id, "automation_manage", rid)
         raise forbidden(permission="automation.manage", target_type="installation", target_id="*")
     for d in policy["doors"]:
-        if not authorize(conn, principal, AUTOMATE, (STATION, d["station_id"])).allowed:
+        if not may_automate(conn, principal, d["station_id"]):
             _audit(conn, principal, action, "denied", block_id, "automate_not_allowed", rid)
             raise forbidden(permission=AUTOMATE, reason="automate_not_allowed", door=door_name(d))
 
@@ -487,7 +566,7 @@ def arm(conn: sqlite3.Connection, principal: Principal, row: sqlite3.Row, confir
     if loop == "triggers_unresolvable":
         raise refuse(ApiError(409, "triggers_unresolvable", "לא ניתן לזהות מה מפעיל את האוטומציה, ולכן אי אפשר לחמש אותה."), loop)
     at = now()
-    until = at + dt.timedelta(days=int(policy["arm_days"]))
+    until = at + dt.timedelta(days=effective(conn, policy)["arm_days"])
     conn.execute("""UPDATE door_automations SET state = 'armed', bound_item_revision = ?, armed_by = ?, armed_by_username = ?, armed_by_name = ?, armed_source = ?,
                     armed_at = ?, armed_until = ?, disarm_reason = NULL, disarmed_at = NULL, disarmed_by = NULL, updated_at = ? WHERE id = ?""",
                  (item["revision"], principal.user_id, principal.username, principal.display_name or principal.username, principal.source, iso(at), iso(until), iso(at), row["id"]))
@@ -532,20 +611,65 @@ def set_kill(conn: sqlite3.Connection, principal: Principal, on: Any, confirmed:
     return status(conn, principal)
 
 
-def set_feature(conn: sqlite3.Connection, principal: Principal, feature: Any, confirmed: Any, rid: str | None = None) -> dict[str, Any]:
-    if is_operator(principal) or not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
+def _is_admin(conn: sqlite3.Connection, principal: Principal) -> bool:
+    return not is_operator(principal) and authorize(conn, principal, "system.configure", INSTALLATION).allowed
+
+
+def set_settings(conn: sqlite3.Connection, principal: Principal, body: dict[str, Any], rid: str | None = None) -> dict[str, Any]:
+    """The administrator settings (system.configure, confirmation, audited): `feature` (on refused while GO_LIVE_PERMITTED is False),
+    `limits` {cooldown_s, max_per_hour, max_per_day, arm_days, storm_refusals, storm_window_s} within their bounds, and
+    `excluded_roles` (roles whose automation.manage does not imply arming). Validated as a whole before anything is written."""
+    if not _is_admin(conn, principal):
         _audit(conn, principal, "door_automation.settings", "denied", None, "no_binding", rid)
         raise forbidden(permission="system.configure")
-    if feature not in ("on", "off"):
-        raise _invalid(["feature"])
-    if confirmed is not True:
+    if body.get("confirmed") is not True:
         raise ApiError(409, "confirmation_required", "נדרש אישור מפורש.")
+    feature, lim, roles = body.get("feature"), body.get("limits"), body.get("excluded_roles")
+    bad: list[str] = []
+    if feature is not None and feature not in ("on", "off"):
+        bad.append("feature")
+    if lim is not None and (not isinstance(lim, dict) or any(k not in ALL_BOUNDS or not _int_ok(v, *ALL_BOUNDS[k]) for k, v in lim.items())):
+        bad.append("limits")
+    if roles is not None and (not isinstance(roles, list) or len(roles) > 200 or not all(isinstance(r, str) and 0 < len(r) <= 128 for r in roles)):
+        bad.append("excluded_roles")
+    if bad:
+        raise _invalid(bad)
     if feature == "on" and not go_live_permitted():
         _audit(conn, principal, "door_automation.settings", "denied", None, "door_automation_not_permitted", rid, key=FLAG_KEY, requested="on")
         raise ApiError(409, "door_automation_not_permitted", "פתיחת דלתות מאוטומציות אינה זמינה בגרסה הזו.")
-    set_setting(conn, FLAG_KEY, feature)
-    _audit(conn, principal, "door_automation.settings", "allowed", None, None, rid, key=FLAG_KEY, value=feature)
+    if feature is not None:
+        set_setting(conn, FLAG_KEY, feature)
+    for k, v in (lim or {}).items():
+        set_setting(conn, SETTING_PREFIX + k, str(v))
+    if roles is not None:
+        set_setting(conn, EXCLUDED_ROLES_KEY, json.dumps(sorted(set(roles))))
+    _audit(conn, principal, "door_automation.settings", "allowed", None, None, rid, feature=feature, limits=lim, excluded_roles=roles)
     return status(conn, principal)
+
+
+def set_feature(conn: sqlite3.Connection, principal: Principal, feature: Any, confirmed: Any, rid: str | None = None) -> dict[str, Any]:
+    return set_settings(conn, principal, {"feature": feature, "confirmed": confirmed}, rid)
+
+
+def set_user_removed(conn: sqlite3.Connection, principal: Principal, user_id: str, removed: Any, confirmed: Any, rid: str | None = None) -> dict[str, Any]:
+    """The per-user removal (owner decision 2026-10-21): a system administrator, or a role administrator (rbac.roles.manage), takes
+    the right to arm door steps away from one person - whatever their roles imply - or gives it back. Armed steps of that person
+    stop at their next fire (the armer re-check)."""
+    admin = _is_admin(conn, principal) or (not is_operator(principal) and authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed)
+    if not admin:
+        _audit(conn, principal, "door_automation.user", "denied", None, "no_binding", rid, user=user_id)
+        raise forbidden(permission="rbac.roles.manage")
+    if not isinstance(removed, bool):
+        raise _invalid(["removed"])
+    if confirmed is not True:
+        raise ApiError(409, "confirmation_required", "נדרש אישור מפורש.")
+    if conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is None:
+        raise ApiError(404, "not_found", "המשתמש לא נמצא.")
+    current = set(removed_users(conn))
+    current = current | {user_id} if removed else current - {user_id}
+    set_setting(conn, REMOVED_USERS_KEY, json.dumps(sorted(current)))
+    _audit(conn, principal, "door_automation.user", "allowed", None, None, rid, user=user_id, removed=removed)
+    return {"user_id": user_id, "removed": removed}
 
 
 def status(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
@@ -553,8 +677,11 @@ def status(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     holder = holds_anywhere(conn, principal)
     if not (admin or holder):
         return {"visible": False}
-    return {"visible": True, "feature": feature_setting(conn), "go_live_permitted": go_live_permitted(), "available": enabled(conn), "killed": killed(conn),
-            "can_manage": holder, "can_lift_kill": admin, "can_configure": admin}
+    out = {"visible": True, "feature": feature_setting(conn), "go_live_permitted": go_live_permitted(), "available": enabled(conn), "killed": killed(conn),
+           "can_manage": holder, "can_lift_kill": admin, "can_configure": admin, "limits": limits(conn)}
+    if admin:
+        out.update(excluded_roles=excluded_roles(conn), removed_users=removed_users(conn), bounds={k: list(v) for k, v in ALL_BOUNDS.items()})
+    return out
 
 
 def doors_for(conn: sqlite3.Connection, principal: Principal, *, dev_mode: bool) -> list[dict[str, Any]]:
@@ -564,7 +691,7 @@ def doors_for(conn: sqlite3.Connection, principal: Principal, *, dev_mode: bool)
         raise forbidden(permission=AUTOMATE)
     out: list[dict[str, Any]] = []
     for s in intercom_sync.SYNC.stations():
-        if not authorize(conn, principal, AUTOMATE, (STATION, s["id"])).allowed:
+        if not may_automate(conn, principal, s["id"]):
             continue
         relays = intercom_doors.station_relays(s)
         for lock in s.get("locks") or []:
@@ -628,7 +755,7 @@ def _door_gate(conn: sqlite3.Connection, row: sqlite3.Row, door: dict[str, Any],
         return "door_unavailable"
     if armer_reason(conn, _armer(row), door, dev_mode) is not None:
         return "armer_lost_authority"
-    policy = policy_of(row)
+    policy = effective(conn, policy_of(row))
     key = door_key(door)
     last = conn.execute("SELECT MAX(at) FROM door_automation_fires WHERE automation_id = ? AND door_key = ? AND attempted = 1", (row["id"], key)).fetchone()[0]
     if last and (at - _parse(last)).total_seconds() < policy["cooldown_s"]:  # type: ignore[operator]
@@ -656,9 +783,10 @@ def _record_refusal(conn: sqlite3.Connection, row: sqlite3.Row, door: dict[str, 
     if reason in DISARMING and row["state"] == "armed":
         _auto_disarm(conn, row, reason)
     elif reason in STORM_REASONS:
+        lim = limits(conn)
         n = conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE automation_id = ? AND reason IN (?, ?, ?) AND at > ?",
-                         (row["id"], *STORM_REASONS, iso(at - dt.timedelta(seconds=STORM_WINDOW_S)))).fetchone()[0]
-        if n >= STORM_REFUSALS:
+                         (row["id"], *STORM_REASONS, iso(at - dt.timedelta(seconds=lim["storm_window_s"])))).fetchone()[0]
+        if n >= lim["storm_refusals"]:
             _auto_disarm(conn, row, "storm")
 
 

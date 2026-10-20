@@ -12,7 +12,9 @@
 - DELETE /door-automations/{id}
 - GET    /door-automations/{id}/fires         the block's recent decisions
 - PUT    /door-automations/kill               {on, confirmed}: ON for any holder, OFF for a system administrator
-- PUT    /door-automations/settings           {feature, confirmed}: `on` refused while GO_LIVE_PERMITTED is False
+- PUT    /door-automations/settings           {feature?, limits?, excluded_roles?, confirmed}: system administrator; feature `on`
+                                              refused while GO_LIVE_PERMITTED is False; every limit is an administrator setting
+- PUT    /door-automations/users/{user_id}    {removed, confirmed}: take the right to arm away from one person (or give it back)
 
 Nothing here sends anything to a door: the fire path runs from the automations mirror's `automation_triggered` hook."""
 from __future__ import annotations
@@ -85,6 +87,14 @@ class KillBody(BaseModel):
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     feature: Any = None
+    limits: Any = None
+    excluded_roles: Any = None
+    confirmed: Any = None
+
+
+class UserBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    removed: Any = None
     confirmed: Any = None
 
 
@@ -123,7 +133,13 @@ def kill(body: KillBody, request: Request, principal: Principal = Depends(curren
 
 @router.put("/door-automations/settings")
 def settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return da.set_feature(conn, principal, body.feature, body.confirmed, _rid(request))
+    return da.set_settings(conn, principal, body.model_dump(), _rid(request))
+
+
+@router.put("/door-automations/users/{user_id}")
+def user_removed(body: UserBody, request: Request, user_id: str = Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.@-]+$"),
+                 principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    return da.set_user_removed(conn, principal, user_id, body.removed, body.confirmed, _rid(request))
 
 
 @router.get("/door-automations/{block_id}")

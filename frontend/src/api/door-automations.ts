@@ -26,11 +26,18 @@ export interface TimeWindow {
 export interface DoorPolicy {
   doors: DoorRef[];
   windows: TimeWindow[];
-  cooldown_s: number;
-  max_per_hour: number;
-  max_per_day: number;
-  arm_days: number;
+  /** The four step limits are optional: absent = the installation's setting (owner decision 2026-10-21). */
+  cooldown_s?: number;
+  max_per_hour?: number;
+  max_per_day?: number;
+  arm_days?: number;
 }
+
+export type LimitKey = 'cooldown_s' | 'max_per_hour' | 'max_per_day' | 'arm_days';
+export type Limits = Record<LimitKey, number> & { storm_refusals: number; storm_window_s: number };
+/** The installation defaults (owner decision 2026-10-21): few limits, reasonable use in a public building. */
+export const DEFAULT_LIMITS: Limits = { cooldown_s: 10, max_per_hour: 30, max_per_day: 300, arm_days: 180, storm_refusals: 5, storm_window_s: 600 };
+export const STEP_BOUNDS: Record<LimitKey, [number, number]> = { cooldown_s: [1, 3600], max_per_hour: [1, 600], max_per_day: [1, 10000], arm_days: [1, 365] };
 
 export interface DoorBlock {
   id: string;
@@ -48,6 +55,7 @@ export interface DoorBlock {
   armed_until: string | null;
   disarm_reason: string | null;
   disarmed_at: string | null;
+  effective_limits?: Record<LimitKey, number>;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +75,8 @@ export interface DoorAutomationStatus {
   can_manage?: boolean;
   can_lift_kill?: boolean;
   can_configure?: boolean;
+  /** The installation's limits (administrator settings). */
+  limits?: Limits;
 }
 
 export interface SimGate {
@@ -120,9 +130,9 @@ export const httpDoorAutomations: DoorAutomationsAdapter = {
   fires: async (block) => (await get<{ fires: FireRow[] }>(`${BASE}/${block.id}/fires`)).fires,
 };
 
-/** The safe starting policy of a new block: no door chosen, weekdays 07:00-09:00, the server's default limits. */
+/** A new step: no door chosen yet, no time window (any time) and the installation's limits (owner decision 2026-10-21). */
 export function defaultPolicy(): DoorPolicy {
-  return { doors: [], windows: [{ days: [6, 0, 1, 2, 3], start: '07:00', end: '09:00' }], cooldown_s: 60, max_per_hour: 4, max_per_day: 20, arm_days: 30 };
+  return { doors: [], windows: [] };
 }
 
 /** The demo / unit-test world: synthetic doors, one block per automation, nothing ever sent. */
@@ -138,7 +148,7 @@ export function mockDoorAutomations(opts: { visible?: boolean; available?: boole
   const named = (p: DoorPolicy) => p.doors.map((d) => ({ ...d, name: doors.find((x) => x.station_id === d.station_id && x.relay === d.relay)?.name ?? null }));
   const find = (id: string) => [...blocks.values()].find((b) => b.id === id);
   return {
-    status: async () => (!opts.visible ? { visible: false } : { visible: true, feature: opts.available ? 'on' : 'off', go_live_permitted: !!opts.available, available: !!opts.available, killed: !!opts.killed, can_manage: true, can_lift_kill: true, can_configure: true }),
+    status: async () => (!opts.visible ? { visible: false } : { visible: true, feature: opts.available ? 'on' : 'off', go_live_permitted: !!opts.available, available: !!opts.available, killed: !!opts.killed, can_manage: true, can_lift_kill: true, can_configure: true, limits: { ...DEFAULT_LIMITS } }),
     doors: async () => doors.map((d) => ({ ...d })),
     forAutomation: async (automationId) => blocks.get(automationId) ?? null,
     create: async (automationId, name, policy) => {
@@ -157,7 +167,7 @@ export function mockDoorAutomations(opts: { visible?: boolean; available?: boole
     },
     arm: async (block) => {
       const b = find(block.id)!;
-      const until = new Date(Date.now() + b.policy.arm_days * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const until = new Date(Date.now() + (b.policy.arm_days ?? DEFAULT_LIMITS.arm_days) * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
       Object.assign(b, { state: 'armed', armed_by: 'demo', armed_by_name: 'מנהל המערכת', armed_at: now(), armed_until: until, disarm_reason: null, disarmed_at: null });
       return structuredClone(b);
     },
