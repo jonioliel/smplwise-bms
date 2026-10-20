@@ -175,6 +175,20 @@ Builds on CR-018 (one center, administrator-only routing, no per-user preference
   edit drawer has a template editor, the variable list, a live preview with sample values and "restore built-in text". The
   same text is used by every channel (the center renders it per channel).
 
+### 7a. GENALERT-295 amendment (owner decision 2026-10-20, after the NMC lab check)
+Routing still starts empty (nothing is sent to anyone until an administrator chooses), but it is now chosen per alert type OR per severity, and the
+per-type escalation and quiet-hours choices are applied:
+- **Per severity:** `generator_severity_routing` (migration 0141, provisional) holds the default recipients (roles, named users) and channels (push, app,
+  email) of critical / alert / info on one generator. An alert type with no recipients (or no channels) of its own inherits the default of the severity it
+  fires with. WhatsApp is chosen per alert type only. Edited with `PUT /generator/devices/{id}/severity-routing/{severity}` (`generator.manage`).
+- **Escalation:** CRITICAL always escalates to the system administrators (`notify.manage` holders who may see the alert), after the type's own delay
+  (`escalate_after_s`) when its escalation is on, else after `generator.critical_escalate_after_min` (settings; default = the installation escalation delay).
+  It does not depend on the installation escalation switch. Every other severity escalates only when the type's own escalation is on. Stops on acknowledge.
+  `after_s` stays the delay before an alert FIRES; the editor's "minutes until escalation" now writes `escalate_after_s` (the migration moves old values).
+- **Quiet hours:** the type's choice is applied in the dispatch (`pass` = never held, `hold` = held, `matrix` = the installation matrix). A CRITICAL
+  alert is never held, whatever the choice or the matrix.
+- **First run:** while no alert type reaches anyone, the routing screen shows one banner: nobody is set, and what still reaches the administrators.
+
 ## 8. API sketch (`/api/v1/generator/...`)
 | Route | Permission | Notes |
 |---|---|---|

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { Caps, capsOf, customRangeError, engineRows, fill, filterQuery, EMPTY_FILTER, flowPlan, gaugeList, metricsOf, phaseTable, phoneKpis, plotSeries, renderTemplate, routeGroups, routingEmpty, availableVars, viewModeOf, alertCounts, sortOpen, toCsv } from '../src/generator/gen-logic';
-import { normalizeViewMode, type GenAlert, type PolicyItem } from '../src/api/generator';
+import { Caps, capsOf, customRangeError, engineRows, fill, filterQuery, EMPTY_FILTER, flowPlan, gaugeList, metricsOf, phaseTable, phoneKpis, plotSeries, renderTemplate, routeGroups, routingEmpty, effectiveRecipients, availableVars, viewModeOf, alertCounts, sortOpen, toCsv } from '../src/generator/gen-logic';
+import { normalizeViewMode, type GenAlert, type PolicyItem, type SeverityDefaults } from '../src/api/generator';
+import { GRT_KEYS, GRT_TABLES } from '../src/i18n/generator-routing';
 import { INFRA_TABS, applyInfraGenerator, visibleTabs } from '../src/shell/nav';
 import { ROLES, deviceFor, valuesFor, typesFor, GROUPS } from './generator-fixtures';
 
@@ -141,8 +142,33 @@ test.describe('generator: alerts and routing', () => {
   test('routing starts empty and stops being empty with one recipient', () => {
     const l = items('full');
     expect(routingEmpty(l)).toBe(true);
-    l[0] = { ...l[0], policy: { enabled: true, severity: null, recipients: { roles: ['operator'], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, row_version: 1 } };
+    l[0] = { ...l[0], policy: { enabled: true, severity: null, recipients: { roles: ['operator'], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, escalate_after_s: 0, row_version: 1 } };
     expect(routingEmpty(l)).toBe(false);
+  });
+  test('GENALERT-295: a severity default counts as configured; a type with its own recipients wins; a disabled type does not count', () => {
+    const none: SeverityDefaults = { critical: null, alert: null, info: null };
+    const alertDefault: SeverityDefaults = { ...none, alert: { recipients: { roles: ['site_admin'], users: [] }, channels: ['push'], row_version: 1 } };
+    const l = items('full');
+    expect(routingEmpty(l, none)).toBe(true);
+    expect(routingEmpty(l, alertDefault)).toBe(false); // every fixture type fires with 'alert'
+    expect(effectiveRecipients(l[0], alertDefault)).toEqual({ roles: ['site_admin'], users: [], inherited: true });
+    const own = { ...l[0], policy: { enabled: true, severity: null, recipients: { roles: [], users: ['u1'] }, channels: [], quiet_mode: 'matrix' as const, escalate: false, after_s: 0, escalate_after_s: 0, row_version: 1 } };
+    expect(effectiveRecipients(own, alertDefault)).toEqual({ roles: [], users: ['u1'], inherited: false });
+    const critOnly: SeverityDefaults = { ...none, critical: { recipients: { roles: ['operator'], users: [] }, channels: [], row_version: 1 } };
+    expect(routingEmpty(l, critOnly)).toBe(true); // alert-severity types inherit nothing from the critical default
+    expect(effectiveRecipients({ ...l[0], policy: { ...own.policy, recipients: { roles: [], users: [] }, severity: 'critical' } }, critOnly).roles).toEqual(['operator']);
+    const off = l.map((i) => ({ ...i, policy: { ...own.policy, enabled: false } }));
+    expect(routingEmpty(off, none)).toBe(true);
+  });
+  test('GENALERT-295: the four language columns carry every key with the same placeholders', () => {
+    for (const lang of ['en', 'ar', 'ru'] as const) {
+      for (const k of GRT_KEYS) {
+        const v = GRT_TABLES[lang][k];
+        expect(v, `${lang}.${k}`).toBeTruthy();
+        expect((v!.match(/\{\w+\}/g) ?? []).sort(), `${lang}.${k}`).toEqual((GRT_TABLES.he[k]!.match(/\{\w+\}/g) ?? []).sort());
+        expect(v).not.toMatch(/Home Assistant|Ingress/i);
+      }
+    }
   });
   test('message template: a clause with a missing variable is dropped', () => {
     const tpl = 'כשל התנעה: {device} לא התניע ב-{time}. מתח מצבר {battery}, מפלס דלק {fuel}.';

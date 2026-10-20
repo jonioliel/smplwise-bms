@@ -91,6 +91,14 @@ class Dispatch:
         """Quiet hours hold this channel back for this severity (the pass-through matrix); an escalation always passes."""
         if self.mode == "escalate" or not self.quiet:
             return False
+        if str(self.n.get("source") or "").startswith("generator.") and self._conn is not None:  # GENALERT-295: the alert type's own quiet-hours choice
+            from . import generator_alerts
+
+            if self.severity == "critical":
+                return False  # a CRITICAL generator alert is never held by quiet hours
+            mode = generator_alerts.quiet_mode_of(self._conn, self.n)
+            if mode != "matrix":
+                return mode == "hold"
         return not bool(self.settings["pass_through"][self.severity].get(channel))
 
     def reach(self, user_id: str) -> Reach | None:

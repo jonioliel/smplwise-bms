@@ -172,6 +172,8 @@ export interface PolicyBodyValue {
   quiet_mode: 'pass' | 'matrix' | 'hold';
   escalate: boolean;
   after_s: number;
+  /** Seconds before an unacknowledged alert of this type goes to the system administrators (0 = the generator's critical delay). */
+  escalate_after_s: number;
   row_version: number;
   /** The message text of this type for this generator; null = the built-in text. Sent only when edited. */
   template_he?: string | null;
@@ -190,6 +192,13 @@ export interface PolicyItem {
   message_sample?: string;
   policy: PolicyBodyValue | null;
 }
+/** The default recipients / channels of one severity on one generator; a type without its own inherits them. null = nothing chosen. */
+export interface SeverityDefault {
+  recipients: { roles: string[]; users: string[] };
+  channels: string[];
+  row_version: number;
+}
+export type SeverityDefaults = Record<Severity, SeverityDefault | null>;
 export interface PoliciesResponse {
   groups: { key: string; title: string }[];
   items: PolicyItem[];
@@ -199,6 +208,11 @@ export interface PoliciesResponse {
   channels_reserved: string[];
   quiet_modes: string[];
   note: string;
+  severity_defaults: SeverityDefaults;
+  /** The channels a severity default may carry (WhatsApp is chosen per alert type). */
+  severity_channels: string[];
+  /** Minutes before an unacknowledged CRITICAL alert goes to the system administrators. */
+  critical_escalate_after_min: number;
   /** Placeholder -> Hebrew description (the server's list). */
   placeholders?: Record<string, string>;
   template_max?: number;
@@ -216,6 +230,7 @@ export interface GenSettings {
   alert_retention_days: number;
   history_retention_days: number;
   stale_after_s: number;
+  critical_escalate_after_min: number;
   limits: Record<string, [number, number]>;
 }
 
@@ -257,10 +272,12 @@ export const ackAll = (deviceId: string) => post<{ acknowledged: number }>(`gene
 
 export const getPolicies = (id: string) => get<PoliciesResponse>(`generator/devices/${encodeURIComponent(id)}/policies`);
 export const putPolicy = (id: string, key: string, patch: PolicyPatch) => put<PolicyItem['policy']>(`generator/devices/${encodeURIComponent(id)}/policies/${encodeURIComponent(key)}`, patch);
+export const putSeverityRouting = (id: string, severity: Severity, patch: { recipients?: { roles: string[]; users: string[] }; channels?: string[]; row_version?: number }) =>
+  put<SeverityDefault>(`generator/devices/${encodeURIComponent(id)}/severity-routing/${encodeURIComponent(severity)}`, patch);
 export const resetPolicies = (id: string) => post<{ reset: number }>(`generator/devices/${encodeURIComponent(id)}/policies/reset`);
 
 export const getSettings = () => get<GenSettings>('generator/settings');
-export const putSettings = (patch: Partial<Pick<GenSettings, 'integration_domains' | 'thresholds' | 'alert_retention_days' | 'history_retention_days' | 'stale_after_s'>>) => put<GenSettings>('generator/settings', patch);
+export const putSettings = (patch: Partial<Pick<GenSettings, 'integration_domains' | 'thresholds' | 'alert_retention_days' | 'history_retention_days' | 'stale_after_s' | 'critical_escalate_after_min'>>) => put<GenSettings>('generator/settings', patch);
 
 /** The user's own live presentation (PUT /me/prefs `generator.view_mode`): the dials or the charts, one at a time. Null = the default (gauges). */
 export function normalizeViewMode(v: unknown): ViewMode {
