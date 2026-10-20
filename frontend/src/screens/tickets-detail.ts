@@ -58,7 +58,7 @@ export class TicketsDetailPage extends LitElement {
     const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
     const tab = params.get('tab') ?? (params.get('view') === 'timeline' ? 'history' : '');
     return html`<ticket-detail mode="page" .ticketId=${this.ticketId} .detailMode=${this.module.ui.detail} .scope=${lastScope()} .initialTab=${tab}
-      .defaultTab=${this.module.ui.detail_tab ?? ''} .assignContact=${parseAssignParam(params.get('assign'))}
+      .defaultTab=${this.module.ui.detail_tab ?? ''} .cameraViewfinder=${this.module.ui.camera_viewfinder === true} .assignContact=${parseAssignParam(params.get('assign'))}
       @assign-consumed=${() => history.replaceState(history.state, '', `${window.location.pathname}${window.location.search}${ticketHref(this.ticketId)}`)}
       data-screen="tickets-detail"></ticket-detail>${nothing}`;
   }

@@ -164,6 +164,7 @@ def test_display_settings_d19_d21_and_d28(w):
     m = w.c.get(f"{API}/tickets/module", headers=w.h("tom")).json()
     assert m["ui"] == {"detail": "drawer_fullscreen", "new_ticket": "sheet", "board_floors": "tree", "grouping": "no_status_filter", "closed_strip": "all",
                        "detail_tab": "overview", "drawer_size": "wide", "phone_sheet": "full", "handled_days": 7,
+                       "camera_viewfinder": False,  # CR-CAMVF-295: the live in-page camera, off by default
                        # MGRDASH phase 1: the manager overview's display choices (owner defaults)
                        "dash_handler_numbers": "own", "dash_vendors": "tagged", "dash_busy": 8, "dash_busy_departments": {}, "dash_compare": "below_numbers",
                        # MGRDASH phase 5: the morning summary's hour and the busy-department threshold (the alerts are off by default)

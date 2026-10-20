@@ -24,7 +24,7 @@ export interface TicketsMockOptions {
   /** D33: the configured Hebrew name */
   name?: { one: string; many: string; gender: string };
   /** D18 / D22 */
-  ui?: { detail?: 'drawer' | 'fullscreen' | 'drawer_fullscreen'; new_ticket?: 'sheet' | 'dialog'; /* TKUI1 */ detail_tab?: string; drawer_size?: string; phone_sheet?: string };
+  ui?: { detail?: 'drawer' | 'fullscreen' | 'drawer_fullscreen'; new_ticket?: 'sheet' | 'dialog'; /* TKUI1 */ detail_tab?: string; drawer_size?: string; phone_sheet?: string; /* CR-CAMVF-295 */ camera_viewfinder?: boolean };
   /** the list answers 500 */
   failList?: boolean;
   /** TKCAL: visit times and SLA targets on the list items (the weekly calendar); the mock clock is Tue 13.10.2026 10:42 UTC */
@@ -176,7 +176,7 @@ export async function installTicketsMock(page: Page, o: TicketsMockOptions = {})
   let rows: Row[] = o.empty ? [] : ROWS.map((r) => ({ ...r }));
   const nameHe = o.name ?? { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' }; // module absent: derived ("ניהול השירות" while the item names are the defaults)
   const names = { he: nameHe, en: { one: 'Ticket', many: 'Tickets', gender: '' }, ar: { one: 'بلاغ', many: 'بلاغات', gender: 'm' }, ru: { one: 'Заявка', many: 'Заявки', gender: 'f' } };
-  let ui: Record<string, string> = { detail: 'drawer_fullscreen', new_ticket: 'sheet', detail_tab: 'overview', drawer_size: 'wide', phone_sheet: 'full', ...(o.ui ?? {}) };
+  let ui: Record<string, unknown> = { detail: 'drawer_fullscreen', new_ticket: 'sheet', detail_tab: 'overview', drawer_size: 'wide', phone_sheet: 'full', ...(o.ui ?? {}) };
   let nameRevision = o.name ? 1 : 0;
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
