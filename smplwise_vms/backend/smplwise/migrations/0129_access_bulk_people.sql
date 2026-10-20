@@ -1,4 +1,4 @@
--- PROVISIONAL number 0131 (pilot/BULKPEOPLE-295, built on integ/293): renumber at integration. The content does not depend on the number.
+-- Final number 0129 (CR-BULKPEOPLE-295; built as PROVISIONAL 0131 on pilot/BULKPEOPLE-295; renumbered at the 2.10.0 integration, integ/2100: 0128 = VENDORQ-294). The content does not depend on the number.
 --
 -- CR-BULKPEOPLE-295 (docs/changes/CR-BULKPEOPLE-295.md): staged bulk import / bulk edit of access-control people.
 -- One row per job. `rows_json` holds the normalized rows needed to apply (names, phones: PII) and is set to NULL when the job ends,

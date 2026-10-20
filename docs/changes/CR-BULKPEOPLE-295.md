@@ -83,5 +83,5 @@ one export per minute per user, 5,000 exported rows, jobs expire after 24 hours.
 1. Who may confirm: built as system administrator only (safest). Option: allow a site administrator for their own stations.
 2. Live adapter (`WiskeyBulkEngine`) is NOT_RUN against any WisKey; WisKey has no bulk command, so Arx writes row by row through the
    existing `users/create` / `users/update` (config lane, never queued, never retried). WisKey may want a bulk receipt (their note).
-3. Migration number 0131 is PROVISIONAL (renumber at integration).
+3. Migration number 0129 (built as PROVISIONAL 0131; renumbered at the 2.10.0 integration, integ/2100).
 4. Arabic / Russian texts are an initial translation (native review needed).
