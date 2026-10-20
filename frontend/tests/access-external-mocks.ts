@@ -146,7 +146,21 @@ export interface ExternalOptions {
   identityFails?: boolean;
   /** SHAREDUI-295: what POST /read-now answers: the same unknown grant (default), a now-active grant, or a refusal */
   readNow?: 'still' | 'settled' | 'error';
+  /** GRANTS3-295: the cards switch is on and the list carries an active card grant (g15) waiting for its card */
+  cards?: boolean;
 }
+
+// GRANTS3-295: an active CARD grant waiting for its card (invented sample data) and the owner's per-grant history (ids / codes only)
+const CARD_GRANT: G = { id: 'g15', state: 'active', name: 'איתי ברק', company: 'ברק מעליות', stations: [['base', 'מרתף', [1]], ['roof', 'גג', [1]]], vf: '2026-10-20T04:00:00',
+  vu: '2026-10-24T13:00:00', source: 'ticket', ref: 'T-1850', code: null, number: '····27', link: { origin: 'created_from_arx', state: 'linked' }, approved: '2026-10-20T06:50:00', notice: true };
+export const HISTORY = [
+  { at: '2026-10-19T13:12:00Z', action: 'request', decision: 'allowed', reason: null, by: { kind: 'page', name: null }, facts: { source: 'ticket', doors: 2 } },
+  { at: '2026-10-19T13:12:00Z', action: 'notice_ack', decision: 'allowed', reason: null, by: { kind: 'page', name: null }, facts: { via: 'page', version: 'n2' } },
+  { at: '2026-10-20T06:40:00Z', action: 'approve', decision: 'denied', reason: 'self_approval', by: { kind: 'user', name: 'רפי ב.' }, facts: {} },
+  { at: '2026-10-20T06:50:00Z', action: 'approve', decision: 'allowed', reason: null, by: { kind: 'user', name: 'מיכל ש.' }, facts: { credential: 'card', doors: 2 } },
+  { at: '2026-10-20T06:50:05Z', action: 'provision', decision: 'allowed', reason: null, by: { kind: 'system', name: null }, facts: { attempt: 1 } },
+  { at: '2026-10-20T06:50:07Z', action: 'activate', decision: 'allowed', reason: null, by: { kind: 'system', name: null }, facts: { doors: 2 } },
+];
 
 export async function installExternalMock(page: Page, o: ExternalOptions = {}): Promise<ExternalMock> {
   const persona = o.persona ?? 'admin';
@@ -156,6 +170,7 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
   const enabled = o.enabled ?? true;
   const admin = o.systemAdmin ?? true;
   const grants = o.empty ? [] : SAMPLE.map((s) => grantOf(s));
+  if (o.cards && !o.empty) grants.unshift({ ...grantOf(CARD_GRANT), credential: 'card', code_state: 'not_needed', card_state: 'awaiting' });
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   const extra = ['access.external.grant', 'tickets.configure'];
   await page.route('**/api/v1/me', (route) => {
@@ -181,7 +196,8 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
         : { reachable: true, as_of: '2026-10-20T07:19:00Z', has_copy: true };
       return json(route, {
         grants, enabled, system_admin: admin, screen, may_request: o.mayRequest ?? true, wiskey,
-        rules: { external_grants: enabled ? 'on' : 'off', go_live_permitted: enabled, max_days: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off' },
+        rules: { external_grants: enabled ? 'on' : 'off', go_live_permitted: enabled, max_days: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off',
+          cards: o.cards ? 'on' : 'off', card_capture: 'off' },
       });
     }
     if (method === 'GET' && p === 'access-grants/digest') return json(route, { digest: DIGEST });
@@ -215,6 +231,11 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
         },
       });
     }
+    const hist = /^access-grants\/([^/]+)\/history$/.exec(p);
+    if (method === 'GET' && hist) {
+      if (!admin) return json(route, { code: 'not_system_admin', user_message: 'רק מנהל מערכת.', retryable: false, correlation_id: 'mock', details: {} }, 403);
+      return json(route, { history: HISTORY });
+    }
     const one = /^access-grants\/([^/]+)$/.exec(p);
     if (method === 'GET' && one) {
       const g = grants.find((x) => x.id === one[1]) as Record<string, any> | undefined;
@@ -233,6 +254,10 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
         if (o.readNow === 'error') return json(route, { code: 'access_grant_read_failed', user_message: 'WisKey לא ענה.', retryable: true, correlation_id: 'mock', details: {} }, 502);
         if (o.readNow === 'settled') Object.assign(g, { state: 'active', grant_state: 'active', pending_sync: false, doors_state: 'accepted' });
         return json(route, { grant: g });
+      }
+      if (g && /\/card$/.test(p)) { // GRANTS3-295: the card is saved (the mock keeps no number either)
+        (g as Record<string, unknown>).card_state = 'attached';
+        (g as Record<string, unknown>).revision = Number((g as Record<string, unknown>).revision) + 1;
       }
       return json(route, { grant: g ?? null, link: { id: 'l-new', origin: 'created_from_arx', state: 'linked' }, outcome: 'pushed', drift: false });
     }

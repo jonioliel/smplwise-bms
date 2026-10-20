@@ -34,7 +34,11 @@ ACCESSREQ-293 (the manual request form; owner decisions 2026-10-20; services/acc
 - POST   /access-grants                         also takes `purpose`, `notes`, `told` and `approve_now`
 GRANTSMIN-295 (the Arx-only leftovers; services/access_external.py):
 - GET    /access-grants/drift                   per person, where Arx and WisKey differ (from stored proof / digests; no WisKey read)
-- GET    /access-grants/export.csv              the grants the caller may see as CSV (number only at the caller's level; one a minute)"""
+- GET    /access-grants/export.csv              the grants the caller may see as CSV (number only at the caller's level; one a minute)
+GRANTS3-295 (services/access_cards.py, services/access_history.py):
+- POST   /access-grants/{id}/card               write the card of an active card grant (the number in memory only; behind the cards switch)
+- POST   /access-grants/{id}/card/capture       a card read at a reader - 409 while the capture lease route is not released
+- GET    /access-grants/{id}/history            the owner's per-grant history (system administrators; ids and closed codes only)"""
 from __future__ import annotations
 
 import sqlite3
@@ -126,6 +130,15 @@ class SettingsIn(BaseModel):
     digest_hour: int | None = Field(default=None, ge=0, le=23)
     name_sync: Literal["manual", "auto"] | None = None
     placement: Literal["access", "tickets", "both"] | None = None
+    cards: Literal["off", "on"] | None = None  # GRANTS3-295 (X5): card grants; `on` needs the go-live permit too
+
+
+class CardIn(BaseModel):
+    """GRANTS3-295 (X5): one card typed by number. `card_no` is checked in services/access_cards.py with a fixed, non-echoing refusal."""
+    model_config = ConfigDict(extra="forbid")
+    revision: int
+    card_no: str = Field(max_length=256)
+    label: str = Field(default="", max_length=64)
 
 
 class GoneIn(BaseModel):
@@ -190,7 +203,7 @@ def grantable_doors(request: Request, principal: Principal = Depends(current_pri
 
 @router.get("/access-grants/approvers")
 def approvers(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
-              stations: str = Query("", max_length=1024), credential: Literal["pin", "none"] = "pin") -> dict[str, Any]:
+              stations: str = Query("", max_length=1024), credential: Literal["pin", "none", "card"] = "pin") -> dict[str, Any]:
     """ACCESSREQ-293: who holds the approve permissions on every chosen station (display names; the caller only when he is a system
     administrator - owner decision a)."""
     _requester_or_403(conn, principal, request)
@@ -280,12 +293,13 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
             audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
                   request_id=_rid(request), details={"keys": sorted(changes)})
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו.")
-        if changes.get("external_grants") == "on" and not ag.go_live_permitted():
-            audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
-                  reason="access_grants_not_permitted", details={"key": ag.FLAG_KEY, "requested": "on"})
-            raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+        for name, key in (("external_grants", ag.FLAG_KEY), ("cards", ag.CARDS_KEY)):
+            if changes.get(name) == "on" and not ag.go_live_permitted():
+                audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
+                      reason="access_grants_not_permitted", details={"key": key, "requested": "on"})
+                raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
         keys = {"external_grants": ag.FLAG_KEY, "max_days": ag.MAX_DAYS_KEY, "max_doors": ag.MAX_DOORS_KEY, "phone_fresh_days": ag.FRESH_KEY,
-                "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY}
+                "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY, "cards": ag.CARDS_KEY}
         before = ag.settings_view(conn)
         for name, value in changes.items():
             if name in _SCREEN_KEYS:
@@ -349,8 +363,8 @@ def request_grant(body: GrantIn, request: Request, principal: Principal = Depend
             raise forbidden(permission=ag.PERMISSION, target_type="installation", target_id="*", reason="no_binding")
         doors = ag.parse_doors(body.doors, ag.max_doors(conn))
         vf, vu = ag.parse_window(body.valid_from, body.valid_until, ag.max_days(conn), ag.now())
-        if body.credential == "card":
-            raise ApiError(409, "access_grant_card_not_built", "גישה בכרטיס לאדם חיצוני עדיין אינה זמינה (שלב מאוחר יותר).")
+        if body.credential == "card" and not ag.cards_enabled(conn):  # GRANTS3-295 (X5): built, behind its own switch (off by default)
+            raise ApiError(409, "access_grant_cards_off", "גישה בכרטיס לאדם חיצוני כבויה.")
         if body.ticket_id and conn.execute("SELECT 1 FROM tickets WHERE id = ?", (body.ticket_id,)).fetchone() is None:
             raise ApiError(404, "ticket_not_found", "הקריאה לא נמצאה.")
         purpose = ar.clean_text(body.purpose, "purpose", ar.PURPOSE_MAX)
@@ -428,6 +442,33 @@ def rotate(body: RevisionIn, request: Request, grant_id: str = Path(..., pattern
 @router.post("/access-grants/{grant_id}/provision-now")
 def provision_now(request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     return _answer(request, principal, ag.provision_now(_db(request), principal, grant_id, _rid(request)))
+
+
+@router.post("/access-grants/{grant_id}/card")
+def card_attach(body: CardIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
+    """GRANTS3-295 (X5): write the card of an active card grant through the WisKey seam (the number in memory only)."""
+    from ..services import access_cards
+
+    g = access_cards.attach(_db(request), principal, grant_id, body.revision, body.card_no, body.label, _rid(request))
+    return _answer(request, principal, g)
+
+
+@router.post("/access-grants/{grant_id}/card/capture")
+def card_capture(body: RevisionIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
+    """GRANTS3-295 (X5): a card read at a reader - OFF until the owner releases the capture lease route (409)."""
+    from ..services import access_cards
+
+    return access_cards.capture(_db(request), principal, grant_id, body.revision, _rid(request))
+
+
+@router.get("/access-grants/{grant_id}/history")
+def history(grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Any:
+    """GRANTS3-295: the owner's per-grant history (system administrators): states, reasons and who - ids and closed codes only."""
+    from fastapi.responses import JSONResponse
+
+    from ..services import access_history
+
+    return JSONResponse({"history": access_history.history(conn, principal, grant_id)}, headers={"Cache-Control": "private, no-store"})
 
 
 @router.post("/access-grants/{grant_id}/read-now")

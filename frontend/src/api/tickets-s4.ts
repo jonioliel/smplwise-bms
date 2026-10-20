@@ -141,12 +141,16 @@ export interface AssignPreview {
   refusals: Refusal[];
   /** CR-ORG-LOCATIONS: the navigation-link switch - `available` = the request's location has coordinates; `on` = this text carries the link */
   location_nav?: { available: boolean; on: boolean };
+  /** GRANTS3-295: the "access needed" tick (the arrival step on the vendor's page) - offered only while the external-access feature is on */
+  access_needed?: { available: boolean };
 }
 export interface AssignContactBody { contactId: string; note?: string | null; noteExternal?: boolean; requireCode?: boolean | null; shareHistory?: boolean | null; sendNow?: boolean | null;
   /** slice 9 (D32): the cost claim requirement of THIS assignment; null = the server's preselection */
   costClaim?: 'required' | 'optional' | 'off' | null;
   /** CR-ORG-LOCATIONS: add the map link to the message (default off; only where the preview says it is available) */
-  locationNav?: boolean | null; revision: number }
+  locationNav?: boolean | null;
+  /** GRANTS3-295: "access needed" - the vendor's page offers the arrival step (default off) */
+  accessNeeded?: boolean | null; revision: number }
 
 export type LinkState = 'live' | 'grace' | 'expired' | 'revoked';
 export type LinkRevokedReason = 'closed' | 'cancelled' | 'reassigned' | 'returned' | 'not_mine' | 'manual' | 'resent' | 'module_key' | 'contact_changed' | 'contact_erased' | 'user_inactive';
@@ -238,6 +242,7 @@ const rest: TicketsS4Backend = {
     ...(b.costClaim ? { cost_claim: b.costClaim } : {}),
     ...(b.sendNow ? { send_now: true } : {}), // slice 5b (D29): the message leaves outside the send hours
     ...(b.locationNav ? { location_nav: true } : {}), // CR-ORG-LOCATIONS: default off
+    ...(b.accessNeeded ? { access_needed: true } : {}), // GRANTS3-295: default off
   }),
   copyLink: (ticketId) => post<CopyAnswer>(`${T}/${enc(ticketId)}/link/copy`, {}),
   linkAction: (ticketId, action) => post<TicketWithLink>(`${T}/${enc(ticketId)}/link/${action}`, {}),

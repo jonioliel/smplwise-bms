@@ -215,6 +215,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let consent = 0;
   let doc = 0;
   let claimPrefill = 0;
+  let arrival = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
@@ -235,6 +236,9 @@ test('a built bundle is outside www, script- and style-file only, and within the
       else if (/^portal-page[-.]/.test(f)) portal += n;
       else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK: the consent page's lazy chunk + stylesheet, its own cap
       else if (/^doc-(page|text)[-.]/.test(f)) doc += n; // CR-VENDORQ-294: the document page's lazy chunk (it shares the consent stylesheet), its own cap
+      // GRANTS3-295: the arrival step ("who arrives, when", then the approved doors / code schedule) - a lazy chunk + stylesheet the
+      // ticket page fetches only when its answer says `arrival: true`; its own 7 KB cap, so the ticket page grows by the loader only
+      else if (/^arrival-(card|text|model)[-.]/.test(f)) arrival += n;
       else gz += n;
     }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule
@@ -255,6 +259,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(consent).toBeLessThanOrEqual(5 * 1024);
   expect(doc).toBeLessThanOrEqual(4 * 1024);
   expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
+  // GRANTS3-295 (measured on the runner, gzip level 6): arrival-card js + css 6,351 B; the ticket page 62,108 B (integ/293: 61,954 B, +154 B for the loader)
+  expect(arrival).toBeLessThanOrEqual(7 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {

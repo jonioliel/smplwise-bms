@@ -67,6 +67,8 @@ export class ExternalAssign implements ReactiveController {
   sendNow: boolean | null = null;
   /** CR-ORG-LOCATIONS (owner 2026-10-17): "add a navigation link to the message" - off by default, shown only when the preview says the request's location has coordinates */
   locationNav = false;
+  /** GRANTS3-295: "access needed" - the vendor's page offers the arrival step; shown only when the preview says it is available */
+  accessNeeded = false;
   /** the last switch answer of the server for the chosen contact (kept while a new preview loads, so the switch does not flicker) */
   private navKnown: NavAnswer | null = null;
   private seq = 0;
@@ -94,6 +96,7 @@ export class ExternalAssign implements ReactiveController {
     this.error = '';
     this.sendNow = null;
     this.locationNav = false;
+    this.accessNeeded = false;
     this.navKnown = null;
     this.pending = '';
     this.seq += 1;
@@ -180,6 +183,7 @@ export class ExternalAssign implements ReactiveController {
     this.shareHistory = false;
     this.sendNow = null;
     this.locationNav = false;
+    this.accessNeeded = false;
     this.navKnown = null;
     this.error = '';
     void this.loadPreview(t);
@@ -260,6 +264,7 @@ export class ExternalAssign implements ReactiveController {
           @change=${(e: Event) => { this.shareHistory = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />${tt('asgShareHistory')}</label>` : nothing}
         ${this.costChoice()}
         ${this.navChoice(t)}
+        ${this.accessChoice()}
       </div>` : nothing}
       ${p ? html`<div class="xinfo" data-assign-preview>
         <span class="muted">${tIcon('link')}${tt('asgLinkLine', { days: p.link.cap_days, grace: p.link.grace_hours })}</span>
@@ -309,6 +314,14 @@ export class ExternalAssign implements ReactiveController {
       <span><b>${lt('navOn')}</b><small class="muted">${lt('navOnSub')}</small></span></label>`;
   }
 
+  /** GRANTS3-295: the "access needed" tick (hidden unless the preview offers it). */
+  private accessChoice(): TemplateResult | typeof nothing {
+    if (!this.preview?.access_needed?.available) return nothing;
+    return html`<label class="chk" data-access-needed-switch><input type="checkbox" data-access-needed .checked=${this.accessNeeded} ?disabled=${this.lend.busy()}
+      @change=${(e: Event) => { this.accessNeeded = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />
+      <span><b>${tt('asgAccessNeeded')}</b><small class="muted">${tt('asgAccessNeededSub')}</small></span></label>`;
+  }
+
   /** TKASSIGNDLG: whether the chosen outside contact is a vendor (the message field says "vendor" or "handler"). */
   get pickedVendor(): boolean {
     return !!this.contacts?.find((c) => c.id === this.pick && c.contact_kind === 'vendor');
@@ -330,6 +343,7 @@ export class ExternalAssign implements ReactiveController {
       sendNow: this.sendNowChoice() || null, // slice 5b (D29)
       costClaim: this.costClaim, // slice 9 (D32)
       locationNav: navForAssign(this.preview?.location_nav, this.locationNav) ?? null, // CR-ORG-LOCATIONS: default off
+      accessNeeded: this.preview?.access_needed?.available && this.accessNeeded ? true : null, // GRANTS3-295: default off
     }) as Promise<TicketWithLink>, tt('saved'));
   }
 }

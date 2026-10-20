@@ -355,4 +355,5 @@ def test_pushing_the_name_to_wiskey_stays_manual_by_default_and_the_permits_stay
     assert _get(env, "/access-grants").json()["screen"]["name_sync"] == "manual", "owner decision (c)"
     src = Path(ag.__file__).read_text(encoding="utf-8")
     assert "\nGO_LIVE_PERMITTED = False\n" in src, "the go-live permit is not in this build"
-    assert env.request(credential="card").json()["code"] == "access_grant_card_not_built", "the card (extended identity) stays locked"
+    # GRANTS3-295 (X5): cards are built, behind their own switch (off by default) - the request is refused while it is off
+    assert env.request(credential="card").json()["code"] == "access_grant_cards_off", "the card stays locked while the cards switch is off"
