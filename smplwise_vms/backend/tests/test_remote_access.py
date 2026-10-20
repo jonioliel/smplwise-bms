@@ -528,7 +528,10 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) - local sessions only
                      ("GET", "/api/v1/identity/service-identity"), ("PUT", "/api/v1/identity/service-identity"),
                      # SVCIDENT3: the runnable switch is local-only too (prefix-blocked in remote_channel; the remote 404 is asserted in test_service_identity_runnable.py)
-                     ("PUT", "/api/v1/identity/service-identity/runnable")}
+                     ("PUT", "/api/v1/identity/service-identity/runnable"),
+                     # CR-WISKEY-HMAC-ROTATION-295: the bridge key administration is local-only
+                     ("GET", "/api/v1/system/bridge-key"), ("PUT", "/api/v1/system/bridge-key/settings"),
+                     ("POST", "/api/v1/system/bridge-key/rotations"), ("POST", "/api/v1/system/bridge-key/rotations/{rotation_id}/resume")}
 # SVCIDENT-AMEND273 (owner decision 5, 2026-10-18): the extended mode's OFF-only kill switch is deliberately NOT local-only - it sits outside
 # the blocked `/identity/service-identity` prefix, so on the remote channel it needs a session (401 without one, like every other route)
 # and then a system administrator (tests/test_service_identity_remote_kill.py). It is listed here so a later block of it fails a test.
