@@ -170,7 +170,7 @@ test.describe('GRANTS3-295 the card and the history in the drawer', () => {
       await page.goto(url(`/wiskey/external?grant=${'g15'.padEnd(32, '0')}`, 'classic', scheme));
       const drawer = page.locator('sw-app access-external-screen sw-drawer[data-grant-drawer]');
       await expect(drawer.locator('[data-card-block="awaiting"]')).toBeVisible({ timeout: 30_000 });
-      await expect(drawer.locator('[data-action="card-read"]')).toBeDisabled();
+      await expect(drawer.locator('[data-action="card-read"]')).toHaveAttribute('disabled', ''); // sw-button: the host carries the attribute
       const input = drawer.locator('[data-card-no]');
       await input.fill('A1B2C3D4');
       await drawer.locator('[data-card-block]').scrollIntoViewIfNeeded();
