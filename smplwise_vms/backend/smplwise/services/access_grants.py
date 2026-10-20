@@ -66,7 +66,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
-from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, plan_overrides, requested_policy
+from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
 
 log = logging.getLogger("smplwise.access_grants")
 
@@ -2473,10 +2473,10 @@ class Worker:
 
     @staticmethod
     def _revoked(person: EnginePerson) -> bool:
-        """The readback shows the revoked state: door map KNOWN and empty, no group, no personal override, inactive, PIN known cleared. A
-        restricted projection (doors_known / pin_known False) is UNKNOWN and never counts."""
-        return (person.doors_known and person.pin_known and not person.doors and not person.group_ids and not person.overrides
-                and not person.active and not person.pin_configured)
+        """The readback shows the revoked state: door map KNOWN and empty, no group, no personal override (overrides KNOWN), inactive, PIN
+        known cleared. A restricted projection (doors_known / overrides_known / pin_known False) is UNKNOWN and never counts. R11-I1-03:
+        the one central predicate `access_grant_engine.central_revoked`."""
+        return central_revoked(person)
 
     @staticmethod
     def revoke_backoff_s(attempts: int) -> int:
@@ -2549,12 +2549,13 @@ class Worker:
                         engine.strip(person.id, person.revision)
                 # never "revoked" from the update result alone: a fresh central readback must show the expected state (door map KNOWN and
                 # empty, inactive, PIN known cleared) AND the central sync status must show no pending revocation. After a revoke there is no
-                # revision row, so an empty `assignments` map by itself proves nothing about the stations.
+                # revision row, so an empty `assignments` map by itself proves nothing about the stations. R11-I1-03: the status is asked
+                # for the revision of THIS readback (a mismatch is UNKNOWN), and its False counts only beside the central predicate.
                 person = engine.get_person(link["wiskey_person_id"])
                 # GRANTS3-295 (X5, CR 4.5 "card removal at grant end is part of R1"): WisKey's revoke-all keeps the cards, so every card
                 # of the person Arx created is removed by its id (cards/remove), then read again
                 person = self._remove_cards(engine, person)
-                if not self._revoked(person) or engine.revocation_pending(person.id) is not False:
+                if not self._revoked(person) or not revocation_proven(person, engine.revocation_pending(person.id, person.revision)):
                     raise EngineError("unknown", "revoke_unverified")
                 if g["credential"] == "card" and not (person.cards_known and not person.card_ids):
                     raise EngineError("unknown", "card_unverified")  # a card grant ends only on a readback that shows no card

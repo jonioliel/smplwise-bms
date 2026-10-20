@@ -1006,8 +1006,12 @@ class FakeAccessEngine:
     cleared; employee_no is server-generated (nine digits) when omitted. More switches: `hide_doors` (access fields redacted ->
     assignments {} + redacted_fields), `restricted_projection` (access AND credential fields redacted: pin_configured False proves nothing),
     `sync_lag` (a strip leaves a pending revocation until `settle_revocations()`), `status_unknown` (revocation_pending -> None).
+    STATIONSYNC-295 (R11-I1-03): `revocation_pending(person_id, revision)` runs the REAL `revocation_pending_from` over
+    `access_state_reader` (default: `access_state`, a fake of WisKey's PROPOSED ACR5-01 answer, revision-bound: another revision
+    raises revision_conflict); `unverified[person_id]` holds settled-but-unverified stations. Assignment rows carry a `last_sync_at`.
     `updates` records the (method, overrides, door keys) of every write, never a PIN."""
 
+    SYNCED_AT = "2026-10-20T06:00:00+00:00"
     PIN_SENTINELS = ("913377", "913378", "913379", "913380", "913381", "913382", "913383", "913384")
 
     def __init__(self) -> None:
@@ -1024,6 +1028,9 @@ class FakeAccessEngine:
         self.sync_lag = False  # a strip leaves a pending revocation until settle_revocations()
         self.status_unknown = False  # revocation_pending answers None
         self.pending_revocations: set[str] = set()
+        self.unverified: dict[str, set[str]] = {}
+        self._stripped_from: dict[str, set[str]] = {}  # settled-only station work per person (never cleanup)
+        self.access_state_reader = self.access_state
         self.updates: list[dict[str, Any]] = []
         self.calls: list[str] = []
         self.deleted: list[str] = []
@@ -1048,7 +1055,7 @@ class FakeAccessEngine:
         rows: dict[str, Any] = {}
         for sid, locks in p["doors"].items():
             rows[sid] = {"config_entry_id": sid, "enabled": True, "allowed_locks": list(locks), "desired_revision": p["revision"],
-                         "applied_revision": p["revision"], "sync_state": "synced", "last_error": None}
+                         "applied_revision": p["revision"], "sync_state": "synced", "last_sync_at": self.SYNCED_AT, "last_error": None}
         for sid in sorted(set(p["overrides"]) - set(p["doors"])) + [x for x in p.get("other_stations", ()) if x not in p["doors"]]:
             rows.setdefault(sid, {"config_entry_id": sid, "enabled": False, "allowed_locks": [1], "desired_revision": p["revision"],
                                   "applied_revision": p["revision"], "sync_state": "synced", "last_error": None})
@@ -1173,6 +1180,7 @@ class FakeAccessEngine:
         if p["revision"] != revision:
             raise self._err("revision_conflict")
         self.updates.append({"method": "strip", "overrides": {}, "doors": []})
+        self._stripped_from[person_id] = set(p["doors"]) | set(p["overrides"])
         p.update({"doors": {}, "overrides": {}, "group_ids": [], "active": False, "pin": None, "timing": None})
         p["revision"] += 1
         if self.sync_lag:
@@ -1217,11 +1225,30 @@ class FakeAccessEngine:
             raise self._err("unknown")
         return self._view(p)
 
-    def revocation_pending(self, person_id: str, revision: int | None = None):
+    def access_state(self, user_id: str, revision: int) -> dict[str, Any]:
+        """A fake of WisKey's PROPOSED ACR5-01 users/access_state answer (schema 1). A present person at another revision raises
+        revision_conflict; a deleted person is `absent` (no revision, no history disclosed); a strip under `sync_lag` leaves its
+        stations in `operations` until `settle_revocations()`."""
+        p = self.people.get(user_id)
+        if p is not None and p["revision"] != revision:
+            raise self._err("revision_conflict")
+        pending = {k: [] for k in ("bindings", "tombstones", "cards", "pins", "operations", "unverified")}
+        if user_id in self.pending_revocations:
+            pending["operations"] = sorted(self._stripped_from.get(user_id) or {"st-unknown"})
+        pending["unverified"] = sorted(self.unverified.get(user_id, ()))
+        owed = any(v for k, v in pending.items() if k != "unverified")
+        flag = True if owed else (False if p is not None and not pending["unverified"] else None)
+        return {"schema_version": 1, "observation": "durable_repository_snapshot", "scope": "all_managed_stations", "user_id": user_id,
+                "person_revision": p["revision"] if p is not None else None, "presence": "present" if p is not None else "absent",
+                "revocation_pending": flag, "stations_synced": None, "assignments": [], "timing_policy": None, "pending": pending}
+
+    def revocation_pending(self, person_id: str, revision: int):
+        from smplwise.services.access_grant_engine import revocation_pending_from
+
         self._gate("revocation_pending")
         if self.status_unknown:
             return None
-        return person_id in self.pending_revocations
+        return revocation_pending_from(self.access_state_reader, person_id, revision)
 
     def settle_revocations(self) -> None:
         """The stations took the removals: the central sync status shows no pending revocation any more."""

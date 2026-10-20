@@ -215,7 +215,8 @@ def test_r6_a4_valid_shapes_stay_known():
     pending = {"enabled": True, "allowed_locks": [1, 2], "desired_revision": 4, "applied_revision": None, "sync_state": "pending"}
     off = {"enabled": False, "allowed_locks": [2], "desired_revision": 3, "applied_revision": 3, "sync_state": "synced"}
     p = age.person_from_raw(_raw(assignments={"st-a": pending, "st-b": off}, group_ids=["g1"], permission_overrides={"st-c": "deny"}))
-    assert p.doors_known is True and p.doors == {"st-a": [1, 2]} and p.stations_synced is None
+    # STATIONSYNC-295 / R11-I2-01: a well-formed enabled row with applied_revision null ("not applied yet") is explicitly behind -> False
+    assert p.doors_known is True and p.doors == {"st-a": [1, 2]} and p.stations_synced is False
     revoked = age.person_from_raw(_raw(active=False, assignments={}, group_ids=[], permission_overrides={}, pin_configured=False))
     assert revoked.doors_known is True and ag.Worker._revoked(revoked) is True, "a well-formed empty inactive record still proves the strip"
 
