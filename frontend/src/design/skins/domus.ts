@@ -4,7 +4,10 @@ import type { Skin } from './index';
 /** Skin "hi-tech Domus": coloured canvas with a warm and a cool bloom, three glass levels, big titles, round shapes. Values from the approved package. */
 const tokens: TokenTable = {
   '--sw-bg': lt('#d9e1f0', '#0c1018'),
-  '--sw-canvas': lt('radial-gradient(1100px 680px at 90% -8%, rgba(255,168,60,.62), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(72,124,255,.58), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg, #e4e9f4 0%, #d6dfef 55%, #dce1ee 100%)', 'radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%)'),
+  // UXFIX-A11Y-295 (owner 2026-10-20, option A): the light blooms are softened - the warm one rgba(255,168,60,.62) -> rgba(255,193,117,.5), the
+  // cool one rgba(72,124,255,.58) -> rgba(178,200,255,.46) - so text drawn straight on a bloom centre reads at >= 4.5:1 (was 2.85-3.99:1;
+  // tests/unit-muted-contrast.spec.ts). The dark blooms already pass and are unchanged.
+  '--sw-canvas': lt('radial-gradient(1100px 680px at 90% -8%, rgba(255,193,117,.5), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(178,200,255,.46), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg, #e4e9f4 0%, #d6dfef 55%, #dce1ee 100%)', 'radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%)'),
   '--sw-surface': lt('rgba(255,255,255,.52)', 'rgba(22,27,38,.66)'),
   '--sw-surface-2': lt('rgba(255,255,255,.66)', 'rgba(255,255,255,.06)'),
   '--sw-surface-3': lt('rgba(20,30,50,.08)', 'rgba(255,255,255,.09)'),

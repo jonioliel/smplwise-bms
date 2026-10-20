@@ -15,7 +15,8 @@ import { DEVICE_PALETTES } from '../src/styles/devices-palettes';
  *   - the translucent surfaces and the nav glass composited over the page background;
  *   - the chip / hover fill (--sw-surface-3) over the solid surface (not in bubble: there it is the slider track / pressed fill,
  *     never a text bed; the bubble palettes carry their own contrast rows in design/palette.ts);
- *   - a skin whose canvas carries colour blooms (domus): the glass card over each bloom at its FULL alpha on each canvas stop.
+ *   - a skin whose canvas carries colour blooms (domus): the glass card over each bloom, and the bare canvas at each bloom's centre (a
+ *     page title or an empty state drawn straight on it), at the bloom's FULL alpha on each canvas stop.
  * The glass device screens (--dv-text-2 / --dv-text-3 of every device palette, light and dark) are checked on their own beds.
  * Threshold: WCAG 2.x 4.5:1 for small text (the muted tiers are 10.5-12.5 px).
  */
@@ -41,7 +42,13 @@ function skinBeds(id: string, mode: 'light' | 'dark'): { v: (n: string) => strin
   const canvas = colours(v('--sw-canvas'));
   const stops = canvas.filter((c) => c[3] >= 1);
   const blooms = canvas.filter((c) => c[3] < 1 && !(c[0] === 255 && c[1] === 255 && c[2] === 255)); // a white bloom only lightens
-  stops.forEach((s, i) => blooms.forEach((b, j) => (beds[`surface over bloom ${j + 1} on stop ${i + 1}`] = over(P('--sw-surface'), over(b, s)))));
+  stops.forEach((s, i) =>
+    blooms.forEach((b, j) => {
+      beds[`surface over bloom ${j + 1} on stop ${i + 1}`] = over(P('--sw-surface'), over(b, s));
+      // owner 2026-10-20 (option A): text drawn straight on the canvas (a page title, an empty state) at a bloom's centre, full alpha
+      beds[`canvas: bloom ${j + 1} on stop ${i + 1}`] = over(b, s);
+    }),
+  );
   return { v, beds };
 }
 
