@@ -447,11 +447,11 @@ export class ElecMetersPage extends LitElement {
       return html`<div data-elec="meters" data-state="error"><sw-state-panel state="error" heading="לא ניתן לטעון את המונים" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load(true)}></sw-state-panel></div>`;
     }
     if (!this.meters.length) {
-      return html`<div data-elec="meters" data-state="empty"><sw-state-panel state="empty" heading="אין מונים עדיין">${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>הוספת מונה</sw-button>` : nothing}</sw-state-panel>${this.renderAdd()}</div>`;
+      return html`<div data-elec="meters" data-state="empty"><sw-state-panel icon="bolt" state="empty" heading="אין מונים עדיין">${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>הוספת מונה</sw-button>` : nothing}</sw-state-panel>${this.renderAdd()}</div>`;
     }
     const list = this.visible();
     const body = !list.length
-      ? html`<sw-state-panel state="empty" compact heading="לא נמצאו מונים" data-no-results></sw-state-panel>`
+      ? html`<sw-state-panel icon="bolt" state="empty" compact heading="לא נמצאו מונים" data-no-results></sw-state-panel>`
       : html`${this.view === 'cards' ? this.renderCards(list) : this.renderTable(list)}${this.renderRows(list)}`;
     return html`<div data-elec="meters" data-state="ready" style="display:flex;flex-direction:column;gap:14px">
       ${this.renderHead()}

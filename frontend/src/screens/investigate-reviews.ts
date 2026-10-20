@@ -888,10 +888,10 @@ export class InvestigateReviews extends LitElement {
       : nothing;
     const active = filtersActive(this.filters, DEFAULT_FILTERS);
     if (view === 'all-reviewed') {
-      return html`${bulk}<sw-state-panel state="empty" heading=${r.emptyAllReviewed} actionLabel=${r.showReviewed} data-review-state="all-reviewed" @action=${() => this.setFilter({ status: 'all' })}></sw-state-panel>`;
+      return html`${bulk}<sw-state-panel icon="eye" state="empty" heading=${r.emptyAllReviewed} actionLabel=${r.showReviewed} data-review-state="all-reviewed" @action=${() => this.setFilter({ status: 'all' })}></sw-state-panel>`;
     }
     if (view === 'empty' || view === 'offline-empty') {
-      return html`<sw-state-panel state=${view === 'offline-empty' ? 'stale' : 'empty'} heading=${view === 'offline-empty' ? r.offline : r.empty} actionLabel=${active ? r.clearFilters : ''} data-review-state=${view} @action=${() => this.clearFilters()}></sw-state-panel>`;
+      return html`<sw-state-panel icon="eye" state=${view === 'offline-empty' ? 'stale' : 'empty'} heading=${view === 'offline-empty' ? r.offline : r.empty} actionLabel=${active ? r.clearFilters : ''} data-review-state=${view} @action=${() => this.clearFilters()}></sw-state-panel>`;
     }
     return html`${bulk}
       <div class="list" aria-busy=${String(this.busy)}>${this.items(list)}</div>

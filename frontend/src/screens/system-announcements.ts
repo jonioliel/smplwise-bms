@@ -202,11 +202,11 @@ export class SystemAnnouncements extends LitElement {
   render() {
     const t = announceText();
     if (this.phase === 'forbidden') return html`<sw-state-panel state="forbidden" heading=${t.forbidden}></sw-state-panel>`;
-    if (this.phase === 'local') return html`<sw-state-panel state="empty" heading=${t.local}></sw-state-panel>`;
+    if (this.phase === 'local') return html`<sw-state-panel icon="bell" state="empty" heading=${t.local}></sw-state-panel>`;
     if (this.phase === 'loading') return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (this.phase === 'error') return html`<sw-state-panel state="error" heading=${this.err} actionLabel="↻" @action=${() => void this.load()}></sw-state-panel>`;
     const d = this.data;
-    if (!d) return html`<sw-state-panel state="empty" heading=${t.none}></sw-state-panel>`;
+    if (!d) return html`<sw-state-panel icon="bell" state="empty" heading=${t.none}></sw-state-panel>`;
     const cf = d.config;
     return html`<div class="stack" data-announce>
       ${this.err ? html`<div class="err" role="alert">${this.err}</div>` : nothing}

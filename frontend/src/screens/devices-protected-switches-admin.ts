@@ -307,7 +307,7 @@ export class DevicesProtectedSwitches extends LitElement {
               <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${status(r)}</td><td>${source(r)}</td><td>${reviewed(r)}</td><td class="muted">${when(r)}</td></tr>`)}</tbody>
             </table>
             <div class="cards">${page.map((r) => html`<label class="card" data-entity=${r.entity_id}>${box(r)}<span>${bidi(r.name)} · ${status(r)}</span><span class="sub">${place(r)}${r.source ? html` · ${source(r)}` : nothing}</span></label>`)}</div>`
-        : html`<sw-state-panel compact state="empty" heading=${rows.length ? 'אין מתגים שמתאימים לסינון' : 'אין מתגים'} data-protected-empty></sw-state-panel>`}
+        : html`<sw-state-panel icon=${rows.length ? 'filter' : 'power'} compact state="empty" heading=${rows.length ? 'אין מתגים שמתאימים לסינון' : 'אין מתגים'} data-protected-empty></sw-state-panel>`}
       ${list.length > this.shown ? html`<sw-button size="sm" data-protected-more @click=${() => (this.shown += PAGE)}>הצג עוד (${ltrNum(list.length - this.shown)})</sw-button>` : nothing}
       <div class="actions bulk">
         <span data-protected-selected>נבחרו ${ltrNum(this.selected.size)} מתוך ${ltrNum(rows.length)}</span>

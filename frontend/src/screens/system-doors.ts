@@ -176,7 +176,7 @@ export class SwDoorGrants extends LitElement {
         <input type="search" placeholder="חיפוש לפי שם" aria-label="חיפוש לפי שם" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
         <span class="sub">רק דלתות מסוימות: שיוך התפקיד "פותח דלתות" לעמדה, בלשונית המשתמשים או הקבוצות</span>
       </div>
-      ${subjects.length ? subjects.map((r) => this.subjectRow(r)) : html`<sw-state-panel state="empty" heading="אין משתמשים או קבוצות"></sw-state-panel>`}
+      ${subjects.length ? subjects.map((r) => this.subjectRow(r)) : html`<sw-state-panel icon="door" state="empty" heading="אין משתמשים או קבוצות"></sw-state-panel>`}
       ${d.can_manage_roles ? html`<h3>תפקידים</h3>${d.roles.map((r) => this.roleRow(r))}` : nothing}
       ${p
         ? html`<sw-dialog open heading="פתיחת דלתות" data-door-grant-confirm @close=${() => { this.pending = null; }}>
@@ -263,7 +263,7 @@ export class SwDoorSetup extends LitElement {
       <h3>תזמוני נעילה שלא יעבדו</h3>
       ${st.lock_jobs.length
         ? st.lock_jobs.map((j) => html`<div class="row" data-door-lock-job=${j.schedule_id}><span class="name">${lockJobLine(j)}</span></div>`)
-        : html`<sw-state-panel state="empty" heading="אין תזמוני נעילה על דלתות אינטרקום"></sw-state-panel>`}
+        : html`<sw-state-panel icon="door" state="empty" heading="אין תזמוני נעילה על דלתות אינטרקום"></sw-state-panel>`}
       ${this.confirmEditor
         ? html`<sw-dialog open heading="פריטים שפותחים דלתות" data-door-editor-confirm @close=${() => { this.confirmEditor = null; }}>
             <p>${editorBlockQuestion(this.confirmEditor)}</p>
@@ -290,11 +290,11 @@ export class SwDoorSetup extends LitElement {
                 ${places.map((o) => html`<option value=${o.value} ?selected=${o.value === placementValue(s.placement)}>${o.label}</option>`)}
               </select>
             </div>`)
-          : html`<sw-state-panel state="empty" heading="אין תחנות" hint=${m.has_copy ? 'WisKey לא מסר תחנות.' : 'נתוני WisKey אינם זמינים כרגע.'}></sw-state-panel>`}
+          : html`<sw-state-panel icon="door" state="empty" heading="אין תחנות" hint=${m.has_copy ? 'WisKey לא מסר תחנות.' : 'נתוני WisKey אינם זמינים כרגע.'}></sw-state-panel>`}
       </sw-card>
       <sw-card heading="שיוך דלתות" subheading="לכל מנעול אינטרקום: התחנה והממסר שהוא פותח · שיוך מפורש בלבד, לא לפי שם" data-door-map-card style="margin-block-start: var(--sw-s-3)">
         ${suggested ? html`<div class="tools"><sw-button size="sm" data-door-map-apply ?disabled=${this.busy} @click=${() => this.run(() => applyDoorSuggestions())}>אישור ${suggested} הצעות חד-משמעיות</sw-button></div>` : nothing}
-        ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel state="empty" heading="אין מנעולי אינטרקום"></sw-state-panel>`}
+        ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel icon="door" state="empty" heading="אין מנעולי אינטרקום"></sw-state-panel>`}
       </sw-card>
       ${this.settings ? this.editorCard(this.settings) : nothing}`;
   }
@@ -388,7 +388,7 @@ export class SwDoorInventory extends LitElement {
       </div>
       ${shown.length
         ? shown.map((i) => this.itemRow(i))
-        : html`<sw-state-panel state="empty" heading=${inv.items.length ? 'אין פריטים בסינון הזה' : inventorySummary(inv)}></sw-state-panel>`}
+        : html`<sw-state-panel icon=${inv.items.length ? 'filter' : 'door'} state="empty" heading=${inv.items.length ? 'אין פריטים בסינון הזה' : inventorySummary(inv)}></sw-state-panel>`}
     </sw-card>`;
   }
 }

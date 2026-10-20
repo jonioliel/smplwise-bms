@@ -353,7 +353,7 @@ export class TicketsVendorAccounts extends LitElement {
         @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
     }
     const rows = this.data?.rows ?? [];
-    if (!rows.length) return html`<sw-state-panel state="empty" quiet heading=${ct('emptyReport')} data-va-state="empty"></sw-state-panel>`;
+    if (!rows.length) return html`<sw-state-panel icon="wrench" state="empty" quiet heading=${ct('emptyReport')} data-va-state="empty"></sw-state-panel>`;
     return html`<div data-va-state="ready">
       ${this.data?.truncated ? html`<div class="msg warn" role="status" data-va-truncated>${ct('vaTruncated')}</div>` : nothing}
       ${this.summary(accountSummary(rows))}

@@ -760,9 +760,9 @@ export class DeviceActivity extends LitElement {
           ${this.loadingMore ? this.renderSkeletons(2) : nothing}
           ${page?.next_cursor ? html`<div class="more"><sw-button size="sm" ?disabled=${this.loadingMore} data-load-more @click=${() => void this.loadFeed(true)}>${this.loadingMore ? t('deviceActivity.loadingMore') : t('deviceActivity.loadMore')}</sw-button></div>` : nothing}`
       : isFiltered(f)
-        ? html`<sw-state-panel state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${narrowed ? t('deviceActivity.clearFilters') : t('deviceActivity.widen')} compact data-feed-state="empty-filtered"
+        ? html`<sw-state-panel icon="activity" state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${narrowed ? t('deviceActivity.clearFilters') : t('deviceActivity.widen')} compact data-feed-state="empty-filtered"
             @action=${() => (narrowed ? this.clearFilters() : this.setFilter({ period: 'month' }))}></sw-state-panel>`
-        : html`<sw-state-panel state="empty" heading=${page?.tracked_since ? t('deviceActivity.emptyTitle') : t('deviceActivity.emptyNone')} compact data-feed-state="empty"></sw-state-panel>`;
+        : html`<sw-state-panel icon="activity" state="empty" heading=${page?.tracked_since ? t('deviceActivity.emptyTitle') : t('deviceActivity.emptyNone')} compact data-feed-state="empty"></sw-state-panel>`;
     return html`${head}${body}<div class="pf" data-foot>${since ? html`<span data-tracked-since>${since}</span> · ` : nothing}${footnote(page?.retention_days ?? 90, this.feed.some((x) => x.actor.type === 'device'))}</div>`;
   }
 
@@ -804,7 +804,7 @@ export class DeviceActivity extends LitElement {
     if (this.schedStatus === 'loading') return html`<div class="skels" data-sched-state="loading" role="status" aria-label=${t('deviceActivity.schedLoading')}>${[0, 1].map(() => html`<div class="sk"><span><i class="skel a"></i><i class="skel b"></i></span><i class="skel d"></i></div>`)}</div>`;
     if (this.schedStatus === 'forbidden') return html`<sw-state-panel state="forbidden" heading=${t('deviceActivity.schedForbidden')} compact data-sched-state="forbidden"></sw-state-panel>`;
     if (this.schedStatus === 'unavailable') return html`<sw-state-panel state="error" heading=${t('deviceActivity.schedUnavailable')} actionLabel=${t('deviceActivity.retry')} compact data-sched-state="unavailable" @action=${() => void this.loadSched()}></sw-state-panel>`;
-    if (!this.sched.length) return html`<sw-state-panel state="empty" heading=${t('deviceActivity.schedEmpty')} compact data-sched-state="empty"></sw-state-panel>${add}`;
+    if (!this.sched.length) return html`<sw-state-panel icon="activity" state="empty" heading=${t('deviceActivity.schedEmpty')} compact data-sched-state="empty"></sw-state-panel>${add}`;
     return html`${this.sched.map((s) => this.renderSched(s))}${add}`;
   }
 

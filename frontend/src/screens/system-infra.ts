@@ -87,7 +87,7 @@ export class SystemInfra extends LitElement {
     const cur = offered.find((s) => s.id === asked) ?? offered[0];
     const items: TabItem[] = offered.map((s) => ({ id: s.id, label: s.label, href: `#/system/infra/${s.id}` }));
     const tag = unsafeStatic(cur.tag);
-    const body = customElements.get(cur.tag) ? shtml`<${tag} .route=${this.route}></${tag}>` : html`<sw-state-panel state="empty" heading="אין מסך" data-state="empty"></sw-state-panel>`;
+    const body = customElements.get(cur.tag) ? shtml`<${tag} .route=${this.route}></${tag}>` : html`<sw-state-panel icon="cpu" state="empty" heading="אין מסך" data-state="empty"></sw-state-panel>`;
     return html`<sw-tabs class="strip" segmented .items=${items} .active=${cur.id} data-infra-settings-tabs></sw-tabs><div data-infra-section=${cur.id}>${body}</div>`;
   }
 }

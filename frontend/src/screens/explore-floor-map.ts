@@ -2965,7 +2965,7 @@ export class ExploreFloorMap extends LitElement {
   private renderStage() {
     const b = this.bundle;
     if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
-    if (this.noFloors) return html`<div class="cover"><sw-state-panel state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;
+    if (this.noFloors) return html`<div class="cover"><sw-state-panel icon="map" state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;
     if (!b) return html`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;
     switch (this.screenState) {
       case 'loading':
@@ -2979,7 +2979,7 @@ export class ExploreFloorMap extends LitElement {
     }
     if (this.screenState === 'empty' || b.planStatus === 'none') {
       return html`<div class="cover">
-        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
+        <sw-state-panel icon="map" state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
           <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
             ${b.permissions.import && !this.phone.restricted('structure') ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
             <sw-button icon="list" @click=${() => navigate('/live/wall')}>${t('floor.listView')}</sw-button>
@@ -2989,7 +2989,7 @@ export class ExploreFloorMap extends LitElement {
     }
     return html`
       ${this.screenState === 'stale' || this.screenState === 'partial'
-        ? html`<div class="banner"><sw-state-panel compact state=${this.screenState}></sw-state-panel></div>`
+        ? html`<div class="banner"><sw-state-panel icon="map" compact state=${this.screenState}></sw-state-panel></div>`
         : b.needsAlignment
           ? html`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`
           : nothing}

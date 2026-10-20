@@ -563,7 +563,7 @@ export class SystemMessagingAccounts extends LitElement {
     if (this.loadState === 'loading') return html`<sw-page crumbs="הגדרות" heading=${heading}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     if (this.loadState !== 'ready' || !this.view || !this.draft) {
       return html`<sw-page crumbs="הגדרות" heading=${heading} data-messaging-accounts data-state=${this.loadState}>
-        <sw-state-panel state=${this.loadState === 'forbidden' ? 'forbidden' : 'error'} heading=${this.loadState === 'forbidden' ? wt('forbidden') : this.error} actionLabel=${wt('retry')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+        <sw-state-panel icon="mail" state=${this.loadState === 'forbidden' ? 'forbidden' : 'error'} heading=${this.loadState === 'forbidden' ? wt('forbidden') : this.error} actionLabel=${wt('retry')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const dirty = isDirty(this.view, this.draft);
     return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${wt('sub')} data-messaging-accounts data-state="ready">

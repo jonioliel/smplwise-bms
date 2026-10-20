@@ -212,7 +212,7 @@ export class DevicesCameraPicker extends LitElement {
     const stills = d.ha_cameras.filter((h) => h.mode === 'still_only');
     const recorders = cap('nvr') ? d.recorders : []; // NN1 D5: leftover camera rows of a removed NVR are not offered
     const total = recorders.reduce((n, r) => n + r.cameras.length, 0) + stills.length;
-    if (!total) return html`<sw-state-panel compact data-camera-picker-state="empty" state="empty" heading="אין מצלמות זמינות לך" hint="מצלמות מופיעות כאן לפי ההרשאות שלך."></sw-state-panel>`;
+    if (!total) return html`<sw-state-panel icon="camera" compact data-camera-picker-state="empty" state="empty" heading="אין מצלמות זמינות לך" hint="מצלמות מופיעות כאן לפי ההרשאות שלך."></sw-state-panel>`;
     const groups = recorders.map((r) => ({ r, cams: r.cameras.filter((c) => this.match(`${c.name} ${c.channel}`)) })).filter((g) => g.cams.length);
     const more = stills.filter((h) => this.match(`${h.name} ${h.area_name ?? ''}`));
     return html`

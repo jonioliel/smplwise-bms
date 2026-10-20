@@ -219,7 +219,7 @@ export class InfraElevators extends LitElement {
       // no elevators: no Infrastructure tab strip (the module is absent until one is defined); the way to add one exists only in page edit mode
       return html`${top}${aff.addCard
         ? html`<div class="grid"><a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add data-state="empty"><div><b>+</b>${elt('addCard')}</div></a></div>`
-        : html`<sw-state-panel state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`}`;
+        : html`<sw-state-panel icon="elevator" state="empty" heading=${elt('empty')} data-state="empty"></sw-state-panel>`}`;
     }
     return html`${l1}${top}${this.kpis(list, stale)}
       <div class="grid" data-elevators>

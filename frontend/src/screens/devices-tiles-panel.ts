@@ -662,7 +662,7 @@ export class DevicesTilesPanel extends LitElement {
 
   private renderBody() {
     const m = KIND_META[this.kind];
-    if (this.notFound) return html`<sw-state-panel data-panel-state="not_found" state="empty" heading="הקומה או האזור לא נמצאו" hint="ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך."></sw-state-panel>`;
+    if (this.notFound) return html`<sw-state-panel icon="grid" data-panel-state="not_found" state="empty" heading="הקומה או האזור לא נמצאו" hint="ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך."></sw-state-panel>`;
     if (!this.data) {
       return this.error
         ? html`<sw-state-panel data-panel-state="error" state="error" heading="לא ניתן לטעון את הרשימה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
@@ -692,9 +692,9 @@ export class DevicesTilesPanel extends LitElement {
         <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${`חיפוש ב${m.noun}…`} aria-label=${`חיפוש ב${m.noun}`} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       </div>
       ${!c.total
-        ? html`<sw-state-panel data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
+        ? html`<sw-state-panel icon="grid" data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
         : !floors.length
-          ? html`<sw-state-panel data-panel-state="no_match" state="empty" heading="אין פריטים שמתאימים לסינון" hint=${q ? 'נסו חיפוש אחר, או בחרו "הכול".' : 'בחרו "הכול" כדי לראות את כל הפריטים.'}></sw-state-panel>`
+          ? html`<sw-state-panel icon="filter" data-panel-state="no_match" state="empty" heading="אין פריטים שמתאימים לסינון" hint=${q ? 'נסו חיפוש אחר, או בחרו "הכול".' : 'בחרו "הכול" כדי לראות את כל הפריטים.'}></sw-state-panel>`
           : repeat(
               floors,
               (f) => f.floor_id,

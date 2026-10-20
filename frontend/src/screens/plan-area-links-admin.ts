@@ -212,7 +212,7 @@ export class PlanAreaLinksAdmin extends LitElement {
               </tr>`)}
             </tbody>
           </table>`
-        : html`<sw-state-panel compact state="empty" heading=${t.rows.length ? 'אין חדרים שמתאימים לסינון' : 'אין חדרים בתוכניות'} hint=${t.rows.length ? '' : 'חדרים נוצרים בעורך התוכנית (זיהוי מהתוכנית או ציור ידני).'} data-area-links-empty></sw-state-panel>`}
+        : html`<sw-state-panel icon=${t.rows.length ? 'filter' : 'link'} compact state="empty" heading=${t.rows.length ? 'אין חדרים שמתאימים לסינון' : 'אין חדרים בתוכניות'} hint=${t.rows.length ? '' : 'חדרים נוצרים בעורך התוכנית (זיהוי מהתוכנית או ציור ידני).'} data-area-links-empty></sw-state-panel>`}
       <div class="foot">
         ${this.note ? html`<span class="ok" role="status" data-area-links-note>${this.note}</span>` : nothing}
         ${this.error ? html`<span class="err" data-area-links-error>${this.error}</span>` : nothing}

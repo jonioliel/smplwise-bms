@@ -290,7 +290,7 @@ export class DevicesTypeAdmin extends LitElement {
               <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${this.typeSelect(r)}${this.bulkOn(r)}</td><td>${source(r)}</td></tr>`)}</tbody>
             </table>
             <div class="cards">${page.map((r) => html`<div class="card" data-entity=${r.entity_id}>${box(r)}<span>${bidi(r.name)}</span><span class="sub">${place(r)} · ${source(r)}</span>${this.typeSelect(r)}${this.bulkOn(r)}</div>`)}</div>`
-        : html`<sw-state-panel compact state="empty" heading=${rows.length ? 'אין התקנים שמתאימים לסינון' : 'אין מתגים'} data-type-empty></sw-state-panel>`}
+        : html`<sw-state-panel icon=${rows.length ? 'filter' : 'sensor'} compact state="empty" heading=${rows.length ? 'אין התקנים שמתאימים לסינון' : 'אין מתגים'} data-type-empty></sw-state-panel>`}
       ${list.length > this.shown ? html`<sw-button size="sm" data-type-more @click=${() => (this.shown += PAGE)}>הצג עוד (${ltrNum(list.length - this.shown)})</sw-button>` : nothing}
       ${rows.length
         ? html`<div class="actions bulk">

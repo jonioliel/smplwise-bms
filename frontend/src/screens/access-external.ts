@@ -699,7 +699,7 @@ export class AccessExternalScreen extends LitElement {
     if (!rows.length) {
       const empty = !grants.length;
       const [h, p] = off && empty ? ['emptyOffTitle', 'emptyOffText'] : empty ? ['emptyTitle', 'emptyText'] : ['noMatchTitle', 'noMatchText'];
-      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)} actionLabel=${!empty ? xt('showAllOpen') : ''} @action=${() => (this.query = { filter: 'live', q: '', station: '', source: '' })}></sw-state-panel></div>`;
+      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel icon="link" state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)} actionLabel=${!empty ? xt('showAllOpen') : ''} @action=${() => (this.query = { filter: 'live', q: '', station: '', source: '' })}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>
         <div role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>

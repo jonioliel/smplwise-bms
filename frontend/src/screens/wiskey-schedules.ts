@@ -387,7 +387,7 @@ export class WiskeySchedules extends LitElement {
       const state = this.feed!.state === 'ready' ? 'error' : this.feed!.state;
       const p = feedPanel(state);
       return html`<sw-page heading=${title}><div data-sch data-sch-state=${`feed:${this.feed!.state}`}>
-        <sw-state-panel quiet state=${p.panel} heading=${p.heading} actionLabel=${p.panel === 'error' || p.panel === 'stale' ? sch('retry') : ''} data-sch-panel=${`feed:${this.feed!.state}`} @action=${() => this.refresh()}></sw-state-panel>
+        <sw-state-panel icon="calendar" quiet state=${p.panel} heading=${p.heading} actionLabel=${p.panel === 'error' || p.panel === 'stale' ? sch('retry') : ''} data-sch-panel=${`feed:${this.feed!.state}`} @action=${() => this.refresh()}></sw-state-panel>
       </div></sw-page>`;
     }
     return this.renderReady();
@@ -415,7 +415,7 @@ export class WiskeySchedules extends LitElement {
       <div data-sch data-sch-state=${doors.length ? 'ready' : 'empty'} data-sch-view=${view}>
         ${stale ? html`<p class="status" role="status" data-sch-stale="stations">${sch('stale', { t: stamp(this.feed?.fetched_at, this.feed?.default_zone ?? null) || '—' })}</p>` : nothing}
         ${!doors.length
-          ? html`<sw-state-panel quiet state="empty" heading=${sch('noDoors')} data-sch-panel="empty"></sw-state-panel>`
+          ? html`<sw-state-panel icon="calendar" quiet state="empty" heading=${sch('noDoors')} data-sch-panel="empty"></sw-state-panel>`
           : view === 'table'
             ? this.renderTable(doors)
             : this.renderDoorView(doors, door)}
@@ -475,7 +475,7 @@ export class WiskeySchedules extends LitElement {
     </div>`;
     let body;
     if (!f || (f.state === 'loading' && !f.data)) body = html`<sw-state-panel compact quiet state="loading" heading=${sch('loading')} data-sch-panel="door-loading"></sw-state-panel>`;
-    else if (f.state === 'unsupported') body = html`<sw-state-panel compact quiet state="empty" heading=${sch('sUnsupported')} data-sch-panel="door-unsupported"></sw-state-panel>`;
+    else if (f.state === 'unsupported') body = html`<sw-state-panel icon="calendar" compact quiet state="empty" heading=${sch('sUnsupported')} data-sch-panel="door-unsupported"></sw-state-panel>`;
     else if (f.state === 'forbidden') body = html`<sw-state-panel compact quiet state="forbidden" heading=${sch('noPermission')} data-sch-panel="door-forbidden"></sw-state-panel>`;
     else if (!f.data) {
       body = f.state === 'busy'
@@ -488,7 +488,7 @@ export class WiskeySchedules extends LitElement {
   private renderProgram(door: DoorRef, f: Fetch<StationPrograms>, zone: DisplayZone | null) {
     const s = doorSchedule(door, f.data)!;
     const stale = this.staleLine(f, zone, 'door');
-    if (s.none) return html`${stale}<sw-card><div class="block"><sw-state-panel compact quiet state="empty" heading=${sch('noProgram')} data-sch-panel="no-program"></sw-state-panel></div></sw-card>`;
+    if (s.none) return html`${stale}<sw-card><div class="block"><sw-state-panel icon="calendar" compact quiet state="empty" heading=${sch('noProgram')} data-sch-panel="no-program"></sw-state-panel></div></sw-card>`;
     const tone = programTone(s.state);
     return html`${stale}<sw-card>
       <div class="block" data-sch-program=${s.state}>
@@ -539,7 +539,7 @@ export class WiskeySchedules extends LitElement {
         ${f.state === 'loading' && !f.data
           ? html`<sw-state-panel compact quiet state="loading" heading=${sch('loading')}></sw-state-panel>`
           : f.state === 'unsupported'
-            ? html`<sw-state-panel compact quiet state="empty" heading=${sch('sUnsupported')} data-sch-panel=${`${attr}-unsupported`}></sw-state-panel>`
+            ? html`<sw-state-panel icon="calendar" compact quiet state="empty" heading=${sch('sUnsupported')} data-sch-panel=${`${attr}-unsupported`}></sw-state-panel>`
             : !f.data
               ? f.state === 'busy'
                 ? html`<sw-state-panel compact quiet state="stale" heading=${sch('busy')} data-sch-panel=${`${attr}-busy`}></sw-state-panel>`
@@ -557,7 +557,7 @@ export class WiskeySchedules extends LitElement {
               <span class="s">${[r.holidays, r.proposals].filter(Boolean).join(' · ')}</span></div>
           </div>`,
         )}</div>`
-      : html`<sw-state-panel compact quiet state="empty" heading=${sch('libraryEmpty')} data-sch-panel="library-empty"></sw-state-panel>`;
+      : html`<sw-state-panel icon="calendar" compact quiet state="empty" heading=${sch('libraryEmpty')} data-sch-panel="library-empty"></sw-state-panel>`;
     const planBody = planList.length
       ? html`<div class="rows">${planList.map(
           (p) => html`<div class="row" data-sch-plan-row=${p.id}>
@@ -566,7 +566,7 @@ export class WiskeySchedules extends LitElement {
             <sw-badge kind=${KIND[p.tone]} label=${p.state} data-sch-plan-state=${p.tone}></sw-badge>
           </div>`,
         )}</div>`
-      : html`<sw-state-panel compact quiet state="empty" heading=${sch('plansEmpty')} data-sch-panel="plans-empty"></sw-state-panel>`;
+      : html`<sw-state-panel icon="calendar" compact quiet state="empty" heading=${sch('plansEmpty')} data-sch-panel="plans-empty"></sw-state-panel>`;
     return html`<div class="two" data-sch-library>
       ${absent(lib) ? nothing : block(sch('libraryTitle'), 'library', lib, lib.data ? lib.data.length : null, libBody)}
       ${plans ? block(sch('plansTitle'), 'plans', plans, plans.data ? plans.data.length : null, planBody) : nothing}

@@ -435,7 +435,7 @@ export class TicketsHandlersMembers extends LitElement {
       ${this.adding ? this.addPanel() : nothing}
       ${this.depts.length
         ? (people.length ? html`<div class="cgrid" data-members-grid>${repeat(people, (p) => p.key, (p) => this.card(p))}</div>` : html`<span class="mut" data-members-empty>${empty}</span>`)
-        : html`<sw-state-panel state="empty" heading=${tt('hdNoDepartments')}></sw-state-panel>
+        : html`<sw-state-panel icon="users" state="empty" heading=${tt('hdNoDepartments')}></sw-state-panel>
           <div class="foot"><a href="#/system/tickets?tab=departments" data-to-departments>${tt('setTabDepartments')}</a></div>`}
     </div>`;
   }

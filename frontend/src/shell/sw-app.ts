@@ -2437,9 +2437,9 @@ export class SwApp extends LitElement {
   private renderNvrLess(kind: BlockKind = 'no_nvr') {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     // NN1: a recorder installation without its media server is not a supported installation (owner decision D2): say so, in operator words
-    if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+    if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel icon="camera" data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
     // CR-022: the NVR connection lives in Arx settings now (מערכת › חיבורים); only a holder of system.configure is offered the way there
-    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
+    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel icon="camera" data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
       hint="ההתקנה פועלת במצב ללא NVR: לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל."
       actionLabel=${can('system.configure') ? 'לחיבורים' : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
@@ -2751,7 +2751,7 @@ export class SwApp extends LitElement {
       ${!t
         ? html`<sw-state-panel state="loading"></sw-state-panel>`
         : !t.floors.length
-          ? html`<sw-state-panel state="empty" heading="אין אזורים"></sw-state-panel>`
+          ? html`<sw-state-panel icon="home" state="empty" heading="אין אזורים"></sw-state-panel>`
           : t.floors.map((f) => {
               const col = this.pickerCollapsed.has(f.floor_id);
               return html`<div class="pk-floor" data-picker-floor=${f.floor_id}>

@@ -758,7 +758,7 @@ export class InvestigateEventDetail extends LitElement {
   }
 
   render() {
-    if (!isApi()) return html`<sw-page heading="אירוע"><sw-state-panel state="empty" heading="דף האירוע זמין עם השרת" hint="במצב הדגמה אין אירועים אמיתיים."></sw-state-panel></sw-page>`;
+    if (!isApi()) return html`<sw-page heading="אירוע"><sw-state-panel icon="history" state="empty" heading="דף האירוע זמין עם השרת" hint="במצב הדגמה אין אירועים אמיתיים."></sw-state-panel></sw-page>`;
     if (this.error && !this.ev) return html`<sw-page heading="אירוע"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
     const ev = this.ev;
     if (!ev) return html`<sw-page heading="אירוע"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;

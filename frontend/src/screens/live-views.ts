@@ -178,7 +178,7 @@ export class LiveViews extends LitElement {
                   </sw-card>`,
                 )}
               </div>`
-            : html`<sw-state-panel state="empty" heading="אין עדיין תצוגות שמורות" hint="צור תצוגה: שם, מצלמות ופריסה. תצוגה משותפת נראית לכל המשתמשים; קיוסק פותח אותה במסך קיר בלי פקדים."></sw-state-panel>`}
+            : html`<sw-state-panel icon="grid" state="empty" heading="אין עדיין תצוגות שמורות" hint="צור תצוגה: שם, מצלמות ופריסה. תצוגה משותפת נראית לכל המשתמשים; קיוסק פותח אותה במסך קיר בלי פקדים."></sw-state-panel>`}
         ${this.editing ? this.renderEditor() : nothing}
         ${this.confirmDelete
           ? html`<sw-dialog open heading="מחיקת תצוגה" subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>

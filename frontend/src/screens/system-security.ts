@@ -165,7 +165,7 @@ export class SystemSecurityNvr extends LitElement {
   }
 
   render() {
-    if (!isApi()) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
+    if (!isApi()) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel icon="shield" state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
     if (this.error && !this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="error" heading="מצב ה־NVR לא נטען" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     if (!this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const h = this.h;

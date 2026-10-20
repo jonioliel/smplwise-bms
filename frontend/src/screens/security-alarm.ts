@@ -1078,7 +1078,7 @@ export class SecurityAlarm extends LitElement {
     const d = this.data!;
     const p = this.panel;
     if (!p) {
-      return html`<sw-page heading="אזעקה"><sw-state-panel data-alarm-empty state="empty" heading="לא נמצא לוח אזעקה"
+      return html`<sw-page heading="אזעקה"><sw-state-panel icon="shield" data-alarm-empty state="empty" heading="לא נמצא לוח אזעקה"
         hint="המערכת לא מצאה לוח אזעקה מחובר. מתקין או מנהל המערכת יכול לבדוק בהגדרות › אבטחה › ניהול אזעקה שמערכת האזעקה מחוברת לתשתית המערכת ושההרשאות מאפשרות לראות אותה."></sw-state-panel></sw-page>`;
     }
     const sub = `${d.counts.zones} חיישנים · ${d.counts.open} פתוחים · ${d.counts.bypassed} עקופים${d.counts.faults ? ` · ${d.counts.faults} תקלות` : ''}${d.channel === 'remote' ? ' · מחוץ לרשת המקומית' : ''}`;
@@ -1184,9 +1184,9 @@ export class SecurityAlarm extends LitElement {
         </div>
       </div>
       ${!p.zones.length
-        ? html`<sw-state-panel compact state="empty" heading="אין חיישנים ללוח הזה" hint="החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות › אבטחה › ניהול אזעקה."></sw-state-panel>`
+        ? html`<sw-state-panel icon="sensor" compact state="empty" heading="אין חיישנים ללוח הזה" hint="החיישנים מגיעים מאותה מערכת אזעקה. מנהל המערכת יכול לשייך חיישנים ידנית בהגדרות › אבטחה › ניהול אזעקה."></sw-state-panel>`
         : !zones.length
-          ? html`<sw-state-panel compact state="empty" heading="אין חיישנים שמתאימים לסינון" data-alarm-filter-empty actionLabel="הצג הכל" @action=${() => (this.filter = 'all')}></sw-state-panel>`
+          ? html`<sw-state-panel icon="filter" compact state="empty" heading="אין חיישנים שמתאימים לסינון" data-alarm-filter-empty actionLabel="הצג הכל" @action=${() => (this.filter = 'all')}></sw-state-panel>`
           : html`<div class="areas ${list ? 'list' : ''}">${[...groups.entries()].map(([area, zs]) => html`<section data-area=${area}><h3>${area}<span class="n">${zs.length}</span></h3>${list
               ? html`<div class="zlist" data-alarm-zones="list">${zs.map((z) => this.renderZone(p, z, true))}</div>`
               : html`<div class="grid" data-alarm-zones="cards">${zs.map((z) => this.renderZone(p, z, false))}</div>`}</section>`)}</div>`}`;
