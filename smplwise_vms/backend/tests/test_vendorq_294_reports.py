@@ -297,8 +297,7 @@ def test_a_report_leaves_by_email_with_the_text_built_at_send_time(env, mod, cap
     assert env.fake.calls == [], "e-mail never touches WhatsApp"
     to, rendered = env.mails[0]
     assert to == MAIL and rendered.subject == "דוח"
-    assert rendered.text == "מגדלי הדר
-" + TEXT + " (rebuilt)"
+    assert rendered.text == "מגדלי הדר\n" + TEXT + " (rebuilt)"
     done = next(r for r in env.rows() if r.id == row.id)
     assert (done.state, done.channel) == ("sent", "email")
     assert mod.outcomes == [("s1", "sent", None)]
@@ -366,6 +365,4 @@ def test_an_email_report_with_a_live_document_carries_the_same_temporary_link(en
         token = out_documents.token_of(out_documents.row(conn, doc["id"]))
     assert env.tick() == 1
     text = env.mails[0][1].text
-    assert text.startswith("מגדלי הדר
-" + TEXT + "
-הדוח המלא (זמין עד ") and text.endswith(f"{BASE_URL}/support/#d.{token}")
+    assert text.startswith("מגדלי הדר\n" + TEXT + "\nהדוח המלא (זמין עד ") and text.endswith(f"{BASE_URL}/support/#d.{token}")
