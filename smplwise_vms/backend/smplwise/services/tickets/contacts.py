@@ -631,7 +631,14 @@ def export(conn, viewer: Viewer, contact_id: str, rid: str | None = None) -> dic
         "timeline": [{"ticket_number": e["number"], "at": e["at"], "kind": e["kind"], "from": e.get("from_status"), "to": e.get("to_status"),
                       "body": e.get("body")} for e in store_links.contact_events(conn, contact_id)],
         "cost_claims": _cost_claims(conn, contact_id),  # S9 (11A.11 / 15.2)
+        "access": _access_grants(conn, contact_id),  # GRANTSMIN-295 (CR-ARX-WISKEY-SHARED-IDENTITY 2.6 "Rights")
     }
+
+
+def _access_grants(conn, contact_id: str) -> dict[str, Any]:
+    from .. import access_external
+
+    return access_external.rights_export(conn, contact_id)
 
 
 def _cost_claims(conn, contact_id: str) -> list[dict[str, Any]]:

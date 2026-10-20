@@ -75,6 +75,19 @@ test('the approval only narrows the window, in the installation zone and across 
   expect(datesText('2026-10-20T05:00:00Z', '2026-10-20T14:00:00Z', TZ)).toBe('20.10');
 });
 
+test('GRANTSMIN-295: every kind of drift and every record origin has its words', () => {
+  const kinds = ['missing', 'scope', 'unknown', 'sync_pending', 'name', 'unverified', 'idle_person'];
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    for (const k of kinds) {
+      expect(XT_TABLES[lang][`dk_${k}` as keyof typeof XT_TABLES.he], `${lang}.dk_${k}`).toBeTruthy();
+      expect(XT_TABLES[lang][`dkt_${k}` as keyof typeof XT_TABLES.he], `${lang}.dkt_${k}`).toBeTruthy();
+    }
+    for (const o of ['created_from_arx', 'matched']) expect(XT_TABLES[lang][`rec_${o}` as keyof typeof XT_TABLES.he]).toBeTruthy();
+  }
+  expect(xt('drAll', { n: 5 }, 'en')).toBe('All differences (5)');
+  expect(xt('exportDone', { n: 14 }, 'he')).toContain('14');
+});
+
 test('the words: every key in all four languages, placeholders kept, and the product is "WisKey" (owner decision 1)', () => {
   const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
   for (const lang of ['en', 'ar', 'ru'] as const) {

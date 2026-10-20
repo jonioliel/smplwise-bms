@@ -92,10 +92,34 @@ export const DIGEST = {
   ],
 };
 
+// GRANTSMIN-295: the drift view's wire (services/access_external.drift): per person, the differences most urgent first. Invented sample data.
+const gid = (s: string) => s.padEnd(32, '0');
+export const DRIFT = {
+  enabled: true, name_sync: 'manual', in_sync: 2,
+  rows: [
+    { link_id: 'l-g09', contact_id: 'c-g09', subject_kind: 'contact', name: 'משה ביטון', company: 'ביטון שיפוצים', origin: 'created_from_arx', link_state: 'wiskey_missing',
+      grant: { id: gid('g09'), state: 'revoking', doors: [{ station_id: 'lobby', name: 'לובי ראשי' }, { station_id: 'park', name: 'חניון' }] },
+      diffs: [{ kind: 'missing', grant_id: gid('g09') }], name_checked_at: '2026-10-19T06:00:00Z', scope_checked_at: '2026-10-19T05:40:00Z', can: { push_name: false, read_now: true } },
+    { link_id: 'l-g06', contact_id: 'c-g06', subject_kind: 'contact', name: 'שירן מזרחי', company: null, origin: 'created_from_arx', link_state: 'linked',
+      grant: { id: gid('g06'), state: 'active', doors: [{ station_id: 'lobby', name: 'לובי ראשי' }] },
+      diffs: [{ kind: 'scope', grant_id: gid('g06') }], name_checked_at: null, scope_checked_at: '2026-10-20T07:02:00Z', can: { push_name: false, read_now: true } },
+    { link_id: 'l-g07', contact_id: 'c-g07', subject_kind: 'contact', name: 'אבי שושן', company: 'שושן אינסטלציה', origin: 'created_from_arx', link_state: 'linked',
+      grant: { id: gid('g07'), state: 'active', doors: [{ station_id: 'kitchen', name: 'מטבח' }] },
+      diffs: [{ kind: 'sync_pending', grant_id: gid('g07') }], name_checked_at: null, scope_checked_at: '2026-10-20T06:10:00Z', can: { push_name: false, read_now: true } },
+    { link_id: 'l-g05', contact_id: 'c-g05', subject_kind: 'contact', name: 'רונן כהן', company: 'אוטיס מעליות', origin: 'created_from_arx', link_state: 'linked',
+      grant: { id: gid('g05'), state: 'active', doors: [{ station_id: 'roof', name: 'גג' }, { station_id: 'base', name: 'מרתף' }] },
+      diffs: [{ kind: 'name' }], name_checked_at: '2026-10-20T07:02:00Z', scope_checked_at: '2026-10-20T07:02:00Z', can: { push_name: true, read_now: true } },
+    { link_id: 'l-g12', contact_id: 'c-g12', subject_kind: 'contact', name: 'קובי אלון', company: 'אלון מנעולים', origin: 'created_from_arx', link_state: 'linked', grant: null,
+      diffs: [{ kind: 'idle_person', since: '2026-10-18T07:01:00Z' }], name_checked_at: '2026-10-17T06:00:00Z', scope_checked_at: null, can: { push_name: false, read_now: false } },
+  ],
+};
+
 export interface ExternalMock {
   access: AccessMock;
   posts: { path: string; body: unknown }[];
   settingsPuts: Record<string, unknown>[];
+  /** GRANTSMIN-295: the CSV requests (their query strings) */
+  exports: string[];
 }
 
 export interface ExternalOptions {
@@ -104,12 +128,16 @@ export interface ExternalOptions {
   enabled?: boolean;
   empty?: boolean;
   systemAdmin?: boolean;
+  /** GRANTSMIN-295: no differences (every person matches) */
+  noDrift?: boolean;
+  /** GRANTSMIN-295: the CSV answers 429 export_rate */
+  exportRate?: boolean;
 }
 
 export async function installExternalMock(page: Page, o: ExternalOptions = {}): Promise<ExternalMock> {
   const persona = o.persona ?? 'admin';
   const access = await installAccessMock(page, { persona });
-  const st: ExternalMock = { access, posts: [], settingsPuts: [] };
+  const st: ExternalMock = { access, posts: [], settingsPuts: [], exports: [] };
   const screen = { digest_channel: 'app', digest_day: 0, digest_hour: 8, name_sync: 'manual', placement: 'access' };
   const enabled = o.enabled ?? true;
   const admin = o.systemAdmin ?? true;
@@ -136,6 +164,13 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
       });
     }
     if (method === 'GET' && p === 'access-grants/digest') return json(route, { digest: DIGEST });
+    if (method === 'GET' && p === 'access-grants/drift') return json(route, { drift: enabled ? (o.noDrift ? { ...DRIFT, rows: [], in_sync: 7 } : DRIFT) : { ...DRIFT, enabled: false, rows: [], in_sync: 0 } });
+    if (method === 'GET' && p === 'access-grants/export.csv') {
+      st.exports.push(url.search);
+      if (o.exportRate) return json(route, { code: 'export_rate', user_message: 'אפשר לייצא פעם בדקה.', retryable: true, correlation_id: 'mock', details: { retry_after_s: 40 } }, 429);
+      return route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', headers: { 'Content-Disposition': 'attachment; filename="external-access-20261020-1020.csv"', 'X-Export-Rows': String(grants.length) },
+        body: '﻿"שם","מצב"\r\n"רונן כהן","פעיל · אומת"\r\n' });
+    }
     if (p === 'access-grants/settings') {
       if (method === 'PUT') {
         const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
