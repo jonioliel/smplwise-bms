@@ -61,7 +61,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
-from ..db import Database, get_setting, now_iso, permission_revision
+from ..db import Database, get_setting, now_iso, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia
@@ -627,9 +627,19 @@ def mark_revoking(conn: sqlite3.Connection, g: dict[str, Any], reason: str, *, a
         state = final_state_for(reason)
         _touch(conn, g["id"], {"state": state, "end_reason": reason, "ended_at": at, "code_state": code, "pending_json": None})
     _audit(conn, actor, "access.grant.revoke", g["id"], reason=reason, request_id=request_id, state=state, link_id=g.get("link_id"),
-           stations=stations_of(json.loads(g["doors_json"] or "{}")))
+           stations=_stations_or_none(g))
     WORKER.wake()
     return state
+
+
+def _stations_or_none(g: dict[str, Any]) -> list[str] | None:
+    """The stations for the revoke audit row. K7: an unreadable `doors_json` (a restored archive, a hand edit) must never make
+    the revoke itself fail - before, it raised inside the re-decision's fail-closed handler and rolled the whole pass back."""
+    try:
+        doors = json.loads(g["doors_json"] or "{}")
+        return stations_of(doors) if isinstance(doors, dict) else None
+    except (ValueError, TypeError):
+        return None
 
 
 def on_ticket_ended(conn: sqlite3.Connection, ticket_id: str, reason: str) -> int:
@@ -647,6 +657,30 @@ def on_ticket_ended(conn: sqlite3.Connection, ticket_id: str, reason: str) -> in
 
 
 _REDECIDE = threading.Event()
+
+
+def _cursor_after(raw: str | None) -> str | None:
+    """The last grant id an interrupted re-decision applied (K7), or None (no cursor, or one that cannot be read: start over)."""
+    try:
+        after = json.loads(raw)["after"] if raw else None
+    except (ValueError, TypeError, KeyError):
+        return None
+    return after if isinstance(after, str) and after else None
+
+
+def _approver_print(conn: sqlite3.Connection, g: dict[str, Any]) -> tuple[Any, ...]:
+    """What a re-decision reads that the permission revision does not guard (K7): the approver's own row and, for a local
+    identity, the local-approver switch. Equal before and after = a decision made on the snapshot still holds."""
+    approver = g.get("approved_by")
+    if not approver:
+        return (None,)
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (approver,)).fetchone()
+    row = None if user is None else (user["active"], user["deleted_at"] if "deleted_at" in user.keys() else None)
+    return (row, local_approvers(conn) if str(approver).startswith(LOCAL_ID_PREFIX) else None)
+
+
+def _between_decide_and_apply(rows: list[dict[str, Any]]) -> None:
+    """A seam for the K7 tests (a concurrent change, a crash between the two phases); does nothing."""
 
 
 def on_permission_change() -> None:
@@ -1603,6 +1637,8 @@ class Worker:
                 if _REDECIDE.is_set():
                     _REDECIDE.clear()
                     summary["redecided"] = self.redecide(db)
+                elif self.redecide_pending(db):  # K7: an interrupted re-decision resumes after its cursor
+                    summary["redecided"] = self.redecide(db, resume=True)
                 summary["reconciled"] = self.reconcile(db)
                 summary["ended"] = self.end_due(db)
                 with db.connection(mode="read", label="access_grants.worker.scan") as conn:
@@ -1658,42 +1694,138 @@ class Worker:
 
     # ---- re-decision (CR 3.5, owner answer 5; fail closed)
 
-    def redecide(self, db: Database) -> int:
+    # K7 (TRIAGE 2026-10-18): the re-decision of EVERY decided grant used to run inside ONE write transaction - every grant x
+    # station x permission authorisation held SQLite's single write lock (seconds on a large installation, every other writer
+    # queued behind it). It now runs in bounded chunks, ordered by grant id: each chunk is DECIDED in a read transaction (WAL
+    # readers never block the writer) and APPLIED in a short write transaction of its own, which also records the resume cursor.
+    # Results are those of the single transaction (tests/test_k7_redecide_chunked.py proves it against a verbatim copy of the old
+    # code); docs/changes/K7-REDECIDE-CHUNKED.md has the full argument.
+    REDECIDE_CHUNK = 200
+    REDECIDE_CURSOR_KEY = "access.external.redecide_cursor"  # {"rev": n, "after": "<last grant id applied>"} - runtime state
+
+    def redecide_pending(self, db: Database) -> bool:
+        """An interrupted re-decision (a crash or an error between two chunks) left its cursor: the next pass resumes it."""
+        try:
+            with db.connection(mode="read", label="access_grants.redecide.cursor") as conn:
+                return get_setting(conn, self.REDECIDE_CURSOR_KEY) is not None
+        except sqlite3.Error:
+            return False
+
+    def redecide(self, db: Database, *, resume: bool = False) -> int:
+        """Re-decide every decided grant against its approver's CURRENT permissions (CR 3.5, owner answer 5; fail closed).
+        `resume`: continue after the cursor an interrupted pass left - a grant at or before the cursor that is not yet stamped
+        with the current permission revision (a bump since the interruption, a restored row) is re-decided all the same."""
+        skip_upto: str | None = None
+        if resume:
+            with db.connection(mode="read", label="access_grants.redecide.cursor") as conn:
+                skip_upto = _cursor_after(get_setting(conn, self.REDECIDE_CURSOR_KEY))
         n = 0
-        with db.connection(label="access_grants.redecide") as conn:
-            marks = ",".join("?" * len(DECIDED))
-            rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks})", DECIDED).fetchall()]
-            rev = permission_revision(conn)
-            for g in rows:
-                n += 1
-                try:
-                    self._redecide_one(conn, g, rev)
-                except Exception:  # noqa: BLE001 - an error while re-deciding is a revoke
-                    mark_revoking(conn, g, "approver_lost_authority")
+        after = ""  # keyset: the last grant id of the previous chunk
+        committed = False  # a chunk of THIS pass committed (and with it a cursor)
+        marks = ",".join("?" * len(DECIDED))
+        try:
+            while True:
+                # 1. decide: a read transaction (one consistent snapshot per chunk), no write lock
+                with db.connection(mode="read", label="access_grants.redecide.decide") as conn:
+                    rev = permission_revision(conn)
+                    sql = f"SELECT * FROM access_grants WHERE state IN ({marks}) AND id > ?"
+                    args: list[Any] = [*DECIDED, after]
+                    if skip_upto is not None:
+                        sql += " AND (id > ? OR COALESCE(approval_revision, 0) < ?)"
+                        args += [skip_upto, rev]
+                    rows = [dict(r) for r in conn.execute(sql + " ORDER BY id LIMIT ?", (*args, self.REDECIDE_CHUNK)).fetchall()]
+                    plan = [(g, self._decide_safe(conn, g), _approver_print(conn, g)) for g in rows]
+                if not rows:  # nothing (more) to re-decide: a cursor still standing (an exactly full last chunk, a resume) is spent
+                    self._drop_cursor(db)
+                    break
+                last = len(rows) < self.REDECIDE_CHUNK
+                after = rows[-1]["id"]
+                _between_decide_and_apply(rows)
+                # 2. apply: a short write transaction, verified against the snapshot the decisions were made on
+                with db.connection(label="access_grants.redecide.apply") as conn:
+                    self._apply_chunk(conn, plan, rev)
+                    if last:
+                        conn.execute("DELETE FROM settings WHERE key = ?", (self.REDECIDE_CURSOR_KEY,))
+                    else:
+                        set_setting(conn, self.REDECIDE_CURSOR_KEY, json.dumps({"rev": rev, "after": after}))
+                committed = True
+                n += len(rows)
+                if last:
+                    break
+        except BaseException:
+            # fail closed: with no cursor standing (nothing committed and nothing to resume) another pass is asked for at once;
+            # with one standing, the next pass resumes after it (`redecide_pending`)
+            if not committed and not resume:
+                _REDECIDE.set()
+            raise
         return n
 
-    def _redecide_one(self, conn: sqlite3.Connection, g: dict[str, Any], rev: int) -> None:
+    def _drop_cursor(self, db: Database) -> None:
+        with db.connection(mode="read", label="access_grants.redecide.cursor") as conn:
+            if get_setting(conn, self.REDECIDE_CURSOR_KEY) is None:
+                return
+        with db.connection(label="access_grants.redecide.cursor") as conn:
+            conn.execute("DELETE FROM settings WHERE key = ?", (self.REDECIDE_CURSOR_KEY,))
+
+    def _apply_chunk(self, conn: sqlite3.Connection, plan: list[tuple[dict[str, Any], tuple[str, Any], tuple[Any, ...]]], rev: int) -> None:
+        """Apply one chunk's decisions. A decision is applied as made only when nothing it rests on moved since the snapshot:
+        the permission revision (every binding / role / group change bumps it - the rbac cache relies on the same rule), the
+        grant row (its revision) and the approver's own row and the local-approver switch (not revision-guarded). Anything else
+        is re-decided HERE, inside this write transaction, exactly as the single transaction did - bounded by the chunk size."""
+        fresh_rev = permission_revision(conn)
+        for g, decision, printed in plan:
+            cur = grant_row(conn, g["id"])
+            if cur is None or cur["state"] not in DECIDED:
+                continue  # the grant left the decided states meanwhile (revoked, ended): nothing to re-decide
+            try:
+                if fresh_rev != rev or cur["revision"] != g["revision"] or _approver_print(conn, cur) != printed:
+                    self._redecide_one(conn, cur, fresh_rev)
+                else:
+                    self._apply_decision(conn, cur, decision, rev)
+            except Exception:  # noqa: BLE001 - an error while re-deciding is a revoke
+                mark_revoking(conn, cur, "approver_lost_authority")
+
+    def _decide_safe(self, conn: sqlite3.Connection, g: dict[str, Any]) -> tuple[str, Any]:
+        try:
+            return self._decide(conn, g)
+        except Exception:  # noqa: BLE001 - an error while re-deciding is a revoke
+            return ("revoke", None)
+
+    @staticmethod
+    def _decide(conn: sqlite3.Connection, g: dict[str, Any]) -> tuple[str, Any]:
+        """The re-decision of one grant, reads only: ("revoke", None) | ("narrow", kept doors) | ("keep", None)."""
         approver = g.get("approved_by")
         user = conn.execute("SELECT active, deleted_at FROM users WHERE id = ?", (approver,)).fetchone() if approver else None
         if user is None or not user["active"] or (user["deleted_at"] if "deleted_at" in user.keys() else None):
-            mark_revoking(conn, g, "approver_lost_authority")
-            return
+            return ("revoke", None)
         if str(approver).startswith(LOCAL_ID_PREFIX) and not local_approvers(conn):
-            mark_revoking(conn, g, "approver_lost_authority")
-            return
+            return ("revoke", None)
         p = principal_of(approver)
         doors = json.loads(g["doors_json"] or "{}")
         perms = approve_permissions(g["credential"])
         kept = {s: r for s, r in doors.items() if not missing_on(conn, p, perms, [s])}
         if not kept:
+            return ("revoke", None)
+        if kept != doors:  # R9 within the re-decision: narrowed to the stations the approver still holds
+            return ("narrow", kept)
+        return ("keep", None)
+
+    @staticmethod
+    def _apply_decision(conn: sqlite3.Connection, g: dict[str, Any], decision: tuple[str, Any], rev: int) -> None:
+        kind, kept = decision
+        if kind == "revoke":
             mark_revoking(conn, g, "approver_lost_authority")
             return
-        if kept != doors:  # R9 within the re-decision: narrowed to the stations the approver still holds
+        if kind == "narrow":
             _touch(conn, g["id"], {"doors_json": json.dumps(kept, sort_keys=True), "needs_push": 1 if g["state"] in ("active", "unknown") else g["needs_push"],
                                    "approval_revision": rev})
             _audit(conn, None, "access.grant.amend", g["id"], reason="station_changed", kind="narrowed", stations=stations_of(kept))
             return
         _touch(conn, g["id"], {"approval_revision": rev})
+
+    def _redecide_one(self, conn: sqlite3.Connection, g: dict[str, Any], rev: int) -> None:
+        """Decide and apply in the caller's write transaction (the fallback of `_apply_chunk`)."""
+        self._apply_decision(conn, g, self._decide(conn, g), rev)
 
     # ---- the backstop reconciliation of R3-R6, R8 and the approver's active flag
 
