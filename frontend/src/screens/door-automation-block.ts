@@ -282,6 +282,13 @@ export class DoorAutomationBlock extends LitElement {
         opacity: 0.5;
         cursor: default;
       }
+      .btn:hover:not(:disabled) {
+        background: var(--da-soft);
+      }
+      .btn.primary:hover:not(:disabled) {
+        background: var(--da-accent);
+        filter: brightness(0.93);
+      }
       .tag.acc {
         background: var(--da-accent-soft);
         color: var(--da-accent-text);
