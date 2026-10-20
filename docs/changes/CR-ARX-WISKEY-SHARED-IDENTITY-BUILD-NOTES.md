@@ -534,3 +534,55 @@ contacts WisKey, a station, a door or WhatsApp.
   employee number, a PIN (Arx holds none) or the closure's free-text reference. A person without access: `{"link": null, "grants": []}`.
 - **Not built:** the denied-attempt alert (needs WisKey W-c, out of scope by instruction). The CSV is not offered on the contact
   directory screen (the per-person JSON export already is). Arabic / Russian CSV headers (English is served for them).
+
+## GRANTS3-295 - the arrival step for regular assignments, the vendor's view of the approved access, the owner's history, cards (X5)
+
+Branch `pilot/GRANTS3-295` from `integ/293` + `pilot/GRANTSMIN-295` (ACCESSREQ-293 is already in integ/293). Backlog items
+`grants-arrival-step-public`, `rfq-access-code-doors`, `grants-cards-x5` (private/planning/BACKLOG_RECONCILED_2026-10-20.md). Migration
+**0140_access_arrival_flags_cards (PROVISIONAL)** - the lead renumbers at integration. `GO_LIVE_PERMITTED` stays False; the new cards switch
+cannot be turned on without it; card capture is a separate constant (`access_cards.CAPTURE_PERMITTED = False`). Fakes only
+(`tests/test_grants3_295.py`, `tests/fake_wiskey.FakeAccessEngine` gained cards); nothing contacts WisKey, a station, a reader, a door or
+WhatsApp.
+
+- **The arrival step on a regular external assignment** (build notes' open question 5; owner-approved). `POST /tickets/{id}/assign` takes
+  `access_needed` (an outside contact only, 422 `not_allowed` while the feature is off, for a staff contact, or on a user assignment) and
+  stores it beside the assignment (`access_arrival_flags`, ids only; audited in `ticket.assign` details). The assign preview says
+  `access_needed: {available}`; the dialog shows the tick only then. `access_arrival._source`: an RFQ work order (its window, `rfq_order`
+  grants) or a ticked assignment (no window, `ticket` grants). Everything else of the step is unchanged (request only, the one-live rule,
+  the notice, the uniform 404).
+- **The vendor's page.** `GET /t/api/ticket` says `arrival: true` while the step is available (vendor link past the code gate, not read
+  only); the page then fetches the lazy chunk `arrival-card` (+ its stylesheet; own 6 KB gzip cap in `unit-public-ticket.spec.ts`): the
+  form (who - one of his persons or a new technician -, from / until, the fixed hours, the server's privacy notice and the attestation tick),
+  then the state. The main ticket bundle grows by the loader only.
+- **After approval (`rfq-access-code-doors`).** `GET /t/api/arrival` `current.access` once a human approved: the doors by NAME (never a
+  station id), the first / last day and the daily hours in the installation's zone, the credential, and for a PIN the delivery: `scheduled`
+  (with the local time it leaves) | `sent` | `not_delivered` (ask the manager), always to the named person's own number as `····NN`; for
+  a card `ready | preparing`. Never the code: the PIN exists only inside the worker's delivery call (unchanged). A widening that waits is not
+  shown.
+- **The owner-visible audit.** `GET /access-grants/{id}/history` (services/access_history.py): system administrators only (the uniform 404
+  first, then 403 `not_system_admin`), every `access.grant.*` audit row of the grant oldest first, `by` = user name | `page` | `system`, and
+  a closed allow-list of facts (states, reason / outcome codes, counts, the notice version, the window, the number of stations). Never a
+  contact id, a WisKey id, a station id, a number, a PIN or a card value. The drawer shows it to system administrators ("full history").
+  An index `audit_log(resource_type, resource_id)` comes with the migration.
+- **Cards (X5).** `credential = card` is requested / approved like any grant behind the switch `access.external.cards` (off; `on` refused
+  without the go-live permit, 409 `access_grants_not_permitted`) for a vendor's technician only (`access_grant_card_not_vendor`); the
+  approve permissions are the grant permission + people.manage + people.sensitive (no pin.generate). A decided grant never switches between
+  a card and another credential (409 `access_grant_credential_change`: end it, request a new one); `none -> card` is a widening.
+  Provisioning writes no credential (as for a PIN). `POST /access-grants/{id}/card {revision, card_no, label}` (services/access_cards.py):
+  interactive, the approve permissions on every station, the current revision, an ACTIVE card grant whose card is `awaiting` (or `unknown`),
+  a person Arx created; then one `Engine.card_add` (WisKey `cards/add`, live adapter NOT_RUN). The number lives only inside that call:
+  never stored (not even masked), logged, audited, answered or echoed in a refusal (a test scans the database file + WAL, the audit, the
+  logs and every answer for a sentinel). A lost answer is `card_state = unknown`; the next attach READS first and never adds a second card
+  (`access_grant_card_present`). `POST /access-grants/{id}/card/capture` answers 409 `access_grant_card_capture_off` (the lease route is not
+  released) and reaches nothing. At the end (R1-R10) the worker removes every card of the person Arx created by its id (WisKey's revoke-all
+  keeps cards) and counts a card grant's revocation done only on a fresh readback that shows no card (`card_unverified` otherwise); the row
+  ends with `card_state = removed`. `EnginePerson` gained `card_ids` / `cards_known` (ids only; an unreadable list is unknown).
+- **Screens.** The assign dialog's "נדרשת כניסה לאתר" tick; the drawer's card section (the number field is cleared on the press; "read at a
+  reader" is shown locked) and the history; the request form's card choice unlocks with the switch (he/en/ar/ru; ar/ru dev-marked as
+  before).
+- **Found, not changed (for the lead):** approving a WIDENING (`access_grants.approve`, amendment branch) writes the doors and the window but
+  not the requested `timing_json` / `credential`, so a wider timing or `none -> pin` approved as a widening keeps the old (narrower) value -
+  fail-safe, but the approval does not do what the dialog showed.
+- **Not built:** capture of a grant's card at a reader (lease route OFF by owner decision); a "regular vendor" mark on the directory (the
+  backlog's "regular vendors" is read as "a vendor's technician"); an "access needed" toggle after the assignment (set at assignment only);
+  native review of the ar / ru texts.

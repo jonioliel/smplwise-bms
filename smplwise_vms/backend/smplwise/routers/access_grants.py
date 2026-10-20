@@ -34,7 +34,11 @@ ACCESSREQ-293 (the manual request form; owner decisions 2026-10-20; services/acc
 - POST   /access-grants                         also takes `purpose`, `notes`, `told` and `approve_now`
 GRANTSMIN-295 (the Arx-only leftovers; services/access_external.py):
 - GET    /access-grants/drift                   per person, where Arx and WisKey differ (from stored proof / digests; no WisKey read)
-- GET    /access-grants/export.csv              the grants the caller may see as CSV (number only at the caller's level; one a minute)"""
+- GET    /access-grants/export.csv              the grants the caller may see as CSV (number only at the caller's level; one a minute)
+GRANTS3-295 (services/access_cards.py, services/access_history.py):
+- POST   /access-grants/{id}/card               write the card of an active card grant (the number in memory only; behind the cards switch)
+- POST   /access-grants/{id}/card/capture       a card read at a reader - 409 while the capture lease route is not released
+- GET    /access-grants/{id}/history            the owner's per-grant history (system administrators; ids and closed codes only)"""
 from __future__ import annotations
 
 import sqlite3

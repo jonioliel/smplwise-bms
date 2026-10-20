@@ -14,6 +14,11 @@ version). Dates fall inside the order's work window (outside it only as a reques
 from a fixed list, the total is at most access.external.max_days (owner answer 8). The doors are SUGGESTED from the ticket's place
 (stations placed in its building, then the site's stations flagged "entrance for external people"); the approver narrows them.
 
+GRANTS3-295: the step is also available on a REGULAR external assignment the manager ticked "access needed" (`access_arrival_flags`;
+no work window, `ticket` grants), the ticket page announces it (`available`), and once a human approved the request the view carries
+`current.access` (`access_view`): the doors by name, the dates and hours, and when / whether the personal code goes to ····NN - never
+the code.
+
 Nothing here contacts WisKey or WhatsApp; the answer never carries a phone number, a station id or an internal user id."""
 from __future__ import annotations
 
