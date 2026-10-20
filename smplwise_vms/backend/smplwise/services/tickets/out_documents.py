@@ -44,9 +44,10 @@ _HTML_FORBIDDEN = re.compile(
     r"|\b(?:src|href|action|poster|srcset|background)\s*=\s*[\"']?\s*(?!data:image/)(?:[a-z][a-z0-9+.-]*:|//)"
     r"|url\(\s*[\"']?\s*(?!data:image/)(?:[a-z][a-z0-9+.-]*:|//)|@import")
 
-# PAGE_READY: the public page's `#d.` mode (a lazy chunk, like the consent page) is NOT built in this slice (design 5.4). Until it is,
-# minting is refused - a set flag is the page slice's job, together with its bundle-budget measurement and the Fable public review.
-PAGE_READY = False
+# PAGE_READY: the public page's `#d.` mode (frontend/src/public-ticket/doc/, a lazy chunk like the consent page) exists - minting is
+# allowed once `reports.documents` is switched on (OFF by default; a Fable public-surface review is required before that in a release).
+# Kept as a flag so a build without the page can refuse every mint (no link that opens an empty page may leave).
+PAGE_READY = True
 
 
 class DocumentRefused(ValueError):
@@ -190,7 +191,7 @@ def lookup(conn: sqlite3.Connection, token_hash: str, now: dt.datetime) -> dict[
 def meta(r: Mapping[str, Any]) -> dict[str, Any]:
     """What the page shows before the download: no recipient, no module, no source."""
     return {"filename": r["filename"], "media_type": r["media_type"], "size": int(r["size_bytes"]), "expires_at": r["expires_at"],
-            "opens_left": max(0, int(r["max_opens"]) - int(r["open_count"] or 0)), "digest": r["sha256"]}
+            "opens_left": max(0, int(r["max_opens"]) - int(r["open_count"] or 0)), "digest": r["sha256"], "_id": r["id"]}
 
 
 def open_file(conn: sqlite3.Connection, token_hash: str, now: dt.datetime) -> tuple[dict[str, Any], bytes] | None:

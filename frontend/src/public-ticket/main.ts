@@ -104,6 +104,10 @@ class Page {
       this.render(); // WA-CONSENT-LINK: the lazy consent chunk; the token stays in memory only
       import('./consent/consent-page').then((m) => m.mountConsent({ root: this.root, token: boot.token as string, lang: this.lang,
         setLang: (l) => store(STORE.lang, l), unavailable: () => { this.phase = 'unavailable'; this.render(); } })).catch(() => { this.phase = 'error'; this.render(); });
+    } else if (boot.mode === 'document' && boot.token) {
+      this.render(); // CR-VENDORQ-294: the lazy document chunk; the token stays in memory only
+      import('./doc/doc-page').then((m) => m.mountDocument({ root: this.root, token: boot.token as string, lang: this.lang,
+        setLang: (l) => store(STORE.lang, l), unavailable: () => { this.phase = 'unavailable'; this.render(); } })).catch(() => { this.phase = 'error'; this.render(); });
     } else if (boot.mode === 'rfq' && boot.token) {
       this.startRfq(boot.token);
     } else if (boot.token) {

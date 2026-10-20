@@ -144,15 +144,21 @@ restore from the pre-upgrade backup is the full rollback, as for every release).
 `whatsapp.send_message` carries text only. Attaching a file needs a media service of `ha-whatsapp` (FaserF). Its name, field shape and
 whether it fetches a URL or reads a path are **UNVERIFIED** (no live check was run; upstream watch entry `ha-whatsapp`). The seam exists:
 `OutboundMessage` stays text; the adapter would get `supports_documents()` (False) and an allow-listed media service only after the live
-check list (private/planning/TICKETS_WHATSAPP_LIVE_CHECKS_HE.md) proves it. Until then the only document mode is the link.
+check list (private/planning/TICKETS_WHATSAPP_LIVE_CHECKS_HE.md) proves it. Until then the only document mode is the link. The add-on's
+source is NOT in this repository (searched 2026-10-20: no `send_document` / `send_image` definition anywhere), so per the lead's rule the
+attachment mode was not built.
 
-### 5.4 The public page - NOT built in this slice
+### 5.4 The public page
 
 The route `GET /t/api/doc` (metadata: filename, type, size, expiry, opens left, digest; kind `token_read`) and `GET /t/api/doc/file`
 (the bytes; kind `file_read`, its own per-token window) are built and tested on the public listener (`services/tickets/public_documents.py`,
-edge rules in `public_http.ROUTES`; the edge's failure caps per client network and installation-wide apply). The vendor page's `#d.` mode (a lazy
-chunk like the consent page; a download button) is **not built**: the public bundle budget needs its own measurement. Therefore minting
-refuses `document_page_missing` until `out_documents.PAGE_READY` is set by that slice - no link that opens an empty page can leave.
+edge rules in `public_http.ROUTES`; the edge's failure caps per client network and installation-wide apply). The page's `#d.` mode is built (second commit):
+`frontend/src/public-ticket/doc/doc-page.ts` + `doc-text.ts`, a lazy chunk like the consent page (it reuses the consent stylesheet), its
+own 4 KB gzip cap in `unit-public-ticket.spec.ts`. One card: the organisation (name, logo, look - the meta answer carries them, never a
+person), the file name, size, expiry and downloads left, one download button. The bytes become a `blob:` URL of the page with the server's
+checked file name (the chunk's only link, revoked after the click); the token stays in memory and travels in `X-Ticket-Token`.
+`out_documents.PAGE_READY` is now True; a build without the page sets it False and every mint is refused (`document_page_missing`).
+Guards: `tests/unit-public-doc.spec.ts`.
 **This is a new public surface: a Fable public-surface security review is required before it is switched on in a release.**
 
 ## 6. Test plan
@@ -202,6 +208,6 @@ purpose `report` (model, enqueue validation, send-time text port, no e-mail fall
 `reports.*` settings, the RFQ arrival reminder written with `author_kind = 'system'`, document revocation on contact change / erase and on
 module key rotation, document keys counted as "in use", the janitor purge.
 
-Not built: the public page's `#d.` mode (5.4; minting refused until `PAGE_READY`), the attached-file WhatsApp mode (5.3, upstream service
-unverified), e-mail delivery of reports, any Settings UI, the temperature branch's consumer code (section 7 - it lives on
+Built in the second commit: the public page's `#d.` mode (5.4). Not built: the attached-file WhatsApp mode (5.3, the add-on's service
+cannot be inspected here), e-mail delivery of reports, any Settings UI, the temperature branch's consumer code (section 7 - it lives on
 `pilot/TEMPCTL3-293`, not on main).

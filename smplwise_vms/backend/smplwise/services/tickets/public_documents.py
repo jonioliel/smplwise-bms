@@ -42,6 +42,14 @@ def download_headers(r: dict[str, Any]) -> dict[str, str]:
             "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store", "X-Document-Digest": r["sha256"]}
 
 
+def page_brand(conn: Any) -> dict[str, Any]:
+    """The organisation the page names (the public pages' name and logo) and the look - never a person."""
+    from . import brand, settings_doc
+
+    pub = brand.public_brand(conn)
+    return {"organization": pub.get("organization") or "", "logo": pub.get("logo"), "theme": settings_doc.read(conn)["public"].get("theme", "light")}
+
+
 def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> APIRouter:
     r = APIRouter()
 
@@ -61,15 +69,16 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
 
         def read() -> dict[str, Any] | None:
             with db.connection(mode="read", label="tickets.public.doc.meta") as conn:
-                return D.lookup(conn, th, now())
+                found = D.lookup(conn, th, now())
+                return dict(D.meta(found), **page_brand(conn)) if found else None
 
         row = await run_in_threadpool(read)
         pr = public_request(request)
         if row is None:
             pr.cost.unknown()
             raise PublicError(404, "link_unavailable")
-        pr.cost.proved(row["id"])
-        return JSONResponse(D.meta(row), headers={"Cache-Control": "no-store"})
+        pr.cost.proved(row.pop("_id"))
+        return JSONResponse(row, headers={"Cache-Control": "no-store"})
 
     @r.get(FILE_ROUTE)
     async def doc_file(request: Request) -> Response:

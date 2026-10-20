@@ -1,7 +1,7 @@
 """CR-VENDORQ-294 (docs/changes/CR-VENDORQ-294-DESIGN.md section 5): documents by a temporary link - the mint limits, the token design
 (domain `doc`, only its hash stored), the two public routes on the REAL public listener (edge + app) with their headers, the download count,
-expiry, revocation (manual, the contact's erase), the documents switch, a lost key, the janitor's purge and the key bookkeeping. No page is
-built (PAGE_READY stays False in the product; the tests set it). Every name and number is invented."""
+expiry, revocation (manual, the contact's erase), the documents switch, a lost key, the janitor's purge and the key bookkeeping. The page
+itself is frontend/src/public-ticket/doc/ (tests/unit-public-doc.spec.ts). Every name and number is invented."""
 from __future__ import annotations
 
 import datetime as dt
@@ -47,17 +47,18 @@ def _get(client, path, token):
     return client.get(f"/support/api/{path}", headers={"X-Ticket-Token": token})
 
 
-def test_minting_is_off_by_default_and_waits_for_the_page(settings, monkeypatch):
+def test_minting_is_off_by_default_and_a_build_without_the_page_refuses(settings, monkeypatch):
     world = build_s4(settings, monkeypatch)
     with pytest.raises(D.DocumentRefused) as exc:
         _mint(world)
     assert exc.value.code == "documents_off"
+    assert D.PAGE_READY is True, "the #d. page ships with this branch"
     with world.db.connection() as conn:
         settings_doc.apply_patch(conn, {"reports": {"documents": True}})
+    monkeypatch.setattr(D, "PAGE_READY", False)
     with pytest.raises(D.DocumentRefused) as exc:
         _mint(world)
-    assert exc.value.code == "document_page_missing", "no link that opens an empty page leaves before the page slice"
-    assert D.PAGE_READY is False
+    assert exc.value.code == "document_page_missing", "no link that opens an empty page leaves"
 
 
 @pytest.mark.parametrize("kw,code", [
@@ -120,7 +121,7 @@ def test_the_public_routes_serve_the_snapshot_and_count_the_downloads(s4):
     meta = _get(client, "doc", token)
     assert meta.status_code == 200, meta.text
     assert meta.json() == {"filename": "haccp-2026-09.pdf", "media_type": "application/pdf", "size": len(PDF), "expires_at": doc["expires_at"],
-                           "opens_left": 2, "digest": hashlib.sha256(PDF).hexdigest()}
+                           "opens_left": 2, "digest": hashlib.sha256(PDF).hexdigest(), "organization": "מגדלי הדר", "logo": None, "theme": "light"}
     for left in (1, 0):
         got = _get(client, "doc/file", token)
         assert got.status_code == 200 and got.content == PDF
