@@ -487,6 +487,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(frigate_config_router.router, prefix=api, tags=["frigate"])  # FRGS: config schema, zones and camera settings (class `config`, off by default)
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
+    from .routers import nvr_privacy as nvr_privacy_router
+
+    app.include_router(nvr_privacy_router.router, prefix=api, tags=["nvr"])  # NVRMASK-295: privacy-mask read / preview / guarded apply (off by default)
     from .routers import energy_meters as energy_meters_router
 
     from .routers import generator as generator_router
