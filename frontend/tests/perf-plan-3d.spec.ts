@@ -20,7 +20,7 @@ import { FLOOR, HOUSE, installPerfMock, powerMeters } from './perf-3d-mocks';
 //
 //   SW_BASE_URL=http://127.0.0.1:<vite>/ PERF_RUNG=full PERF_OUT=<dir> npx playwright test tests/perf-plan-3d.spec.ts --project=mobile --workers=1
 // PERF_RUNG: schematic | full | lite | realistic (default full). PERF_CPU: the throttling rate (default 4). PERF_RUNS: runs in one
-// invocation (default 1). PERF_TRACE=1 also records a DevTools trace of the rotate phase into PERF_OUT (a summary goes into the JSON).
+// invocation (default 1). PERF_TRACE=1 also records a DevTools trace of the zoom phase into PERF_OUT (a summary goes into the JSON).
 
 const RUNG = (process.env.PERF_RUNG ?? 'full') as 'schematic' | 'full' | 'lite' | 'realistic';
 const CPU = Number(process.env.PERF_CPU ?? 4);
@@ -159,6 +159,9 @@ async function phaseEnd(page: Page, start: { t: number; updates: Record<string, 
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** The camera position (the rotate phase checks that the drag did orbit). */
+const camera = (el: Locator): Promise<number[]> => el.evaluate((n) => { const p = (n as unknown as { view: { camera: { position: { x: number; y: number; z: number } } } }).view.camera.position; return [p.x, p.y, p.z]; });
+
 /** Wait until the view draws no more frames (the orbit damping settled) - at most `max` ms. */
 async function settle(el: Locator, max = 180_000): Promise<void> {
   const frames = () => el.evaluate((n) => Number((n as unknown as { view: { frames: number } }).view.frames));
@@ -173,7 +176,7 @@ async function settle(el: Locator, max = 180_000): Promise<void> {
 }
 
 /** A row of the 3D element where both ends of a drag land on the canvas itself (not on a label, the strip or the bar). */
-async function canvasRow(el: Locator): Promise<{ y: number; x0: number; x1: number }> {
+async function canvasRow(el: Locator): Promise<{ y: number; x0: number; x1: number; found: boolean }> {
   return el.evaluate((n) => {
     const host = n as HTMLElement;
     const canvas = host.shadowRoot!.querySelector('.stage canvas')!;
@@ -193,10 +196,10 @@ async function canvasRow(el: Locator): Promise<{ y: number; x0: number; x1: numb
       for (const [a, b] of [[0.45, 0.92], [0.5, 0.95], [0.4, 0.9], [0.25, 0.75]]) {
         const x0 = r.left + r.width * a;
         const x1 = r.left + r.width * b;
-        if (onCanvas(x0, y) && onCanvas(x1, y) && onCanvas((x0 + x1) / 2, y)) return { y, x0, x1 };
+        if (onCanvas(x0, y) && onCanvas(x1, y) && onCanvas((x0 + x1) / 2, y)) return { y, x0, x1, found: true };
       }
     }
-    return { y: r.top + r.height * 0.45, x0: r.left + r.width * 0.25, x1: r.left + r.width * 0.75 };
+    return { y: r.top + r.height * 0.45, x0: r.left + r.width * 0.25, x1: r.left + r.width * 0.75, found: false };
   });
 }
 
@@ -393,15 +396,17 @@ test.describe('PERF3D: the live floor map 3D on a phone (mocked backend, CPU thr
       let s = await phaseStart(page);
       let trace: Awaited<ReturnType<typeof traced>> | null = null;
       const row = await canvasRow(el);
-      if (TRACE) trace = await traced(cdp, OUT ? path.join(OUT, `trace-${LABEL}-${RUNG}-${run}.json`) : '', () => drag(cdp, row, STEPS));
-      else await drag(cdp, row, STEPS);
+      const cam0 = await camera(el);
+      await drag(cdp, row, STEPS);
       await settle(el); // damping settles
-      const rotate = { ...(await phaseEnd(page, s)), cdp: delta(mA, await metrics(cdp)) };
+      const cam1 = await camera(el);
+      const rotate = { ...(await phaseEnd(page, s)), cdp: delta(mA, await metrics(cdp)), row: { found: row.found, y: Math.round(row.y), x0: Math.round(row.x0), x1: Math.round(row.x1) }, cameraMoved: Math.round(Math.hypot(cam1[0] - cam0[0], cam1[1] - cam0[1], cam1[2] - cam0[2]) * 100) / 100 };
 
       // ---- zoom
       mA = await metrics(cdp);
       s = await phaseStart(page);
-      await pinch(cdp, box, STEPS);
+      if (TRACE) trace = await traced(cdp, OUT ? path.join(OUT, `trace-${LABEL}-${RUNG}-${run}.json`) : '', () => pinch(cdp, box, STEPS));
+      else await pinch(cdp, box, STEPS);
       await settle(el);
       const zoom = { ...(await phaseEnd(page, s)), cdp: delta(mA, await metrics(cdp)) };
 
