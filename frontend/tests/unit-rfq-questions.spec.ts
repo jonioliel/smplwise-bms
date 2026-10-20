@@ -15,6 +15,11 @@ import { freshDraft, parseRfqDraft, quoteWire } from '../src/public-ticket/rfq/r
 // store's answer plan (privacy between vendors), the navigation badge, the vendor page's question field and the words in every language.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-rfq-questions.spec.ts
 
+// TESTDEBT-295: the tickets switch is module state shared by every spec file of the worker - leave it off (the default) after each test.
+test.afterEach(() => {
+  applyTicketsHidden({});
+});
+
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src');
 
 const vendor = (id: string, pending: number, unread = 0, company = `חברה ${id}`): RfqVendor => ({
