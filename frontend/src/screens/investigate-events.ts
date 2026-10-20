@@ -340,6 +340,13 @@ export class InvestigateEvents extends LitElement {
     .kpi.hot .n {
       color: var(--sw-warning-text);
     }
+    /* UXFIX-A11Y-295: the range toggle was 30 x 25 / 46 x 25 on a phone */
+    @media (max-width: 767px), (pointer: coarse) {
+      .rangepick button {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+      }
+    }
     @media (max-width: 767px) {
       .kpis {
         display: grid;

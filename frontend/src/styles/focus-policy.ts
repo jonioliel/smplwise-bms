@@ -29,6 +29,28 @@ export const FOCUS_POLICY_CSS = `
 }
 `;
 
+/**
+ * UXFIX-A11Y-295 (UX audit 2026-10-20, finding 6): the touch-target helper rides on the same sheet, so it reaches every shadow root.
+ * `class="sw-hit"` on a control (a button, a link, a label that wraps a checkbox) grows its HIT AREA to at least 44 x 44 px on a
+ * touch screen without changing what is drawn: an invisible ::after centred on the control, never smaller than the control itself.
+ * Specificity 0, so a component that positions the control itself keeps winning. Not for a control whose own ::after draws
+ * something (that rule would merge with this one); such a control gets the min size instead.
+ */
+export const TOUCH_TARGET_PX = 44;
+export const TOUCH_POLICY_CSS = `
+@media (pointer: coarse) {
+  :where(.sw-hit) {
+    position: relative;
+  }
+  :where(.sw-hit)::after {
+    content: '';
+    position: absolute;
+    inset-block: min(0px, calc((100% - ${TOUCH_TARGET_PX}px) / 2));
+    inset-inline: min(0px, calc((100% - ${TOUCH_TARGET_PX}px) / 2));
+  }
+}
+`;
+
 let sheet: CSSStyleSheet | null = null;
 
 /** The shared sheet (null where constructable stylesheets do not exist). */
@@ -36,7 +58,7 @@ export function focusPolicySheet(): CSSStyleSheet | null {
   if (sheet) return sheet;
   try {
     sheet = new CSSStyleSheet();
-    sheet.replaceSync(FOCUS_POLICY_CSS);
+    sheet.replaceSync(FOCUS_POLICY_CSS + TOUCH_POLICY_CSS);
   } catch {
     sheet = null;
   }

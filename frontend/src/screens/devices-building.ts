@@ -1869,7 +1869,7 @@ export class DevicesBuilding extends LitElement {
         content: '';
         position: absolute;
         inset-block: -8px;
-        inset-inline: -4px -6px;
+        inset-inline: -11px; /* UXFIX-A11Y-295: 22 + 22 = 44 px wide, 28 + 16 = 44 px tall */
       }
     }
     .tfold .chev.folded {

@@ -698,10 +698,13 @@ export class SwApp extends LitElement {
       border-radius: 50%;
       background: var(--sw-border-strong);
     }
-    @media (max-width: 767px) {
+    /* UXFIX-A11Y-295: 28 px drawn, 44 px hit area on every touch screen (a coarse tablet got 40) */
+    @media (max-width: 767px), (pointer: coarse) {
       .float button::after {
         inset: -8px;
       }
+    }
+    @media (max-width: 767px) {
       .float {
         inset-inline-end: 10px;
       }

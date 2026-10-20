@@ -769,6 +769,7 @@ export const mediaGlassControls = css`
     .seg button,
     .seg.sm button {
       min-block-size: 44px;
+      min-inline-size: 44px; /* UXFIX-A11Y-295: the icon-only view switch was 37 px wide */
     }
     .rb {
       inline-size: 44px;
