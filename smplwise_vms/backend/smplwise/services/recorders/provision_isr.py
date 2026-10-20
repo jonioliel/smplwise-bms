@@ -56,7 +56,7 @@ READ_COMMANDS = frozenset({
     "GetSupportedAPIs",  # v2 2.1.1; a v1 device answers errorCode 1 (NN2A: decides whether a push write is possible; NN2B: whole-streams v1 vs partial v2 write)
     # PROVISION2 (2026-10-20): audio and PTZ facts (read-only), and the v2 reads used only when GetSupportedAPIs lists them
     "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo",
-    "GetMotionConfig",  # PROVISION2 phase 2: motion on / off + sensitivity (written through SetMotionConfig, below)
+    "GetMotionConfig", "GetPrivacyMaskConfig",  # PROVISION2 phase 2: motion on / off + sensitivity (written through SetMotionConfig, below)
 })
 # v2 reads the adapter prefers when (and only when) the device's own GetSupportedAPIs lists them; a v1 device keeps its v1 path
 V2_READS = frozenset({"GetChannelInfo", "GetAlarmStatusInfo"})

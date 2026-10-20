@@ -307,3 +307,14 @@ def test_motion_route_unchanged_clamped_grid_refused_and_no_effect(motion_app):
     r = c.put(f"/api/v1/cameras/{ids[1]}/motion", json={"enabled": False}, headers=h)
     assert r.status_code == 409 and r.json()["code"] == "nvr_no_effect"
 
+
+
+def test_zones_route_reads_motion_grid_and_privacy_masks_through_the_adapter(motion_app):
+    app, c, fake, ids, h = motion_app
+    z = c.get(f"/api/v1/cameras/{ids[2]}/zones", headers=h).json()
+    assert z["motion"]["rows"] == 9 and z["motion"]["cols"] == 32 and z["motion"]["sensitivity"] == 4 and z["motion"]["coverage_pct"] == 50.0
+    assert z["privacy_mask"] == {"enabled": True, "normalized": {"width": 640, "height": 480},
+                                 "regions": [{"id": "1", "enabled": True, "points": [[10, 20], [110, 20], [110, 70], [10, 70]], "color": "black"}]}
+    assert z["unsupported"] == {"intrusion": "not_supported", "line_crossing": "not_supported"}
+    assert z["can_edit_motion"] is True and z["sensitivity_caps"] == {"min": 1, "max": 8, "step": 1}
+    assert not any("ISAPI" in x for x in fake.hits if "otion" in x or "rivacy" in x) and fake.writes == []

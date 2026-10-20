@@ -160,3 +160,38 @@ def camera_facts(settings: Settings, recorder_id: str, channel: int) -> dict[str
     """The device part of GET /cameras/{id}/capabilities for a Provision camera (PTZ, presets, two-way audio, audio in video)."""
     _enabled(settings)
     return adapter(settings, recorder_id).camera_facts(int(channel))
+
+
+def detection_zones(settings: Settings, recorder_id: str, channel: int) -> dict[str, Any]:
+    """GET /cameras/{id}/zones for a Provision camera: motion grid (GetMotionConfig) and privacy masks (GetPrivacyMaskConfig),
+    read-only, in the Hikvision overlay shape; intrusion / line crossing are not offered by this vendor path (reported, never
+    invented)."""
+    from ...errors import ApiError
+    from . import provision_isr as pisr
+    from . import provision_isr_xml as px
+
+    _enabled(settings)
+    a = adapter(settings, recorder_id)
+    out: dict[str, Any] = {"intrusion": None, "line_crossing": None}
+    unsupported: dict[str, str] = {"intrusion": "not_supported", "line_crossing": "not_supported"}
+    for key, cmd, parser in (("motion", "GetMotionConfig", px.motion_zone), ("privacy_mask", "GetPrivacyMaskConfig", px.privacy_zone)):
+        try:
+            out[key] = a._xml(cmd, int(channel), parser)
+        except ApiError as exc:
+            if exc.code in pisr.STOP_CODES:
+                raise
+            out[key] = None
+            unsupported[key] = "not_supported" if exc.code == "nvr_not_supported" else exc.code
+    out["unsupported"] = unsupported
+    return out
+
+
+def motion_caps(settings: Settings, recorder_id: str, channel: int) -> dict[str, int] | None:
+    """The sensitivity scale of a Provision channel (GetMotionConfig min / max, step 1)."""
+    from . import provision_isr_xml as px
+
+    _enabled(settings)
+    f = px.parse_motion(adapter(settings, recorder_id).config_doc("motion", int(channel)))
+    if f.get("min") is None or f.get("max") is None:
+        return None
+    return {"min": int(f["min"]), "max": int(f["max"]), "step": 1}

@@ -902,3 +902,35 @@ def motion_set_document(get_xml: str | bytes, *, enabled: bool | None, sensitivi
             raise ValueError("sensitivity")
         s.text = str(int(sensitivity))
     return f'<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10">{_plain(m)}</config>'
+
+
+def motion_zone(xml: str | bytes) -> dict[str, Any]:
+    """GetMotionConfig -> the shape of nvr.parse_motion_grid (the zones overlay): enabled, sensitivity, rows / cols, cells."""
+    root = parse(xml)
+    m = child(root, "motion")
+    if m is None:
+        raise ET.ParseError("not a motion document")
+    rows = [t for t in (text(i, cap=64) for i in children(child(m, "area"), "item")) if t and _GRID_ROW.match(t)]
+    cols = max((len(r) for r in rows), default=0)
+    cells = [[c == "1" for c in r.ljust(cols, "0")] for r in rows]
+    total, active = len(rows) * cols, sum(c for row in cells for c in row)
+    return {"enabled": to_bool(text(m, "switch")) is True, "region_type": "grid", "sensitivity": to_int(text(m, "sensitivity")),
+            "rows": len(rows), "cols": cols, "cells": cells, "coverage_pct": round(100.0 * active / total, 1) if total else 0.0, "target_types": []}
+
+
+def privacy_zone(xml: str | bytes) -> dict[str, Any]:
+    """GetPrivacyMaskConfig (v1 3.5.1: up to 4 rectangles, X / Y / width / height in a 640x480 frame) -> the shape of
+    nvr.parse_privacy_mask: enabled (any mask on), polygons in the device's normalized frame."""
+    root = parse(xml)
+    lst = child(root, "privacyMask")
+    if lst is None:
+        raise ET.ParseError("not a privacy mask document")
+    regions = []
+    for n, it in enumerate(children(lst, "item"), start=1):
+        r = child(it, "rectangle")
+        x, y, w, h = (to_int(text(r, k)) or 0 for k in ("X", "Y", "width", "height"))
+        on = to_bool(text(it, "switch")) is True
+        if not w or not h:
+            continue
+        regions.append({"id": str(n), "enabled": on, "points": [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], "color": text(it, "color", cap=16)})
+    return {"enabled": any(r["enabled"] for r in regions), "normalized": {"width": 640, "height": 480}, "regions": regions}

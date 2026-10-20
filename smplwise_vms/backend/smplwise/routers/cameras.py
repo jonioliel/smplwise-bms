@@ -298,7 +298,12 @@ def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int, cam: 
 
     try:
         with unlocked(conn):
-            return nvr_write.motion_capabilities(camera_settings(settings_of(request), cam), channel)
+            from ..services.recorders import vendor_io
+
+            cs = camera_settings(settings_of(request), cam)
+            if vendor_io.handles(cs):  # PROVISION2: the device's own 1..8 scale
+                return vendor_io.motion_caps(cs, cam["recorder_id"], channel)
+            return nvr_write.motion_capabilities(cs, channel)
     except ApiError:
         return None
 
@@ -320,7 +325,13 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
         data, fetched_at = hit[1], hit[0]
     else:
         with unlocked(conn):
-            data = ZONES(camera_settings(settings_of(request), cam), int(cam["channel"]))
+            from ..services.recorders import vendor_io
+
+            cs = camera_settings(settings_of(request), cam)
+            if vendor_io.handles(cs):  # PROVISION2: motion grid + privacy masks through the adapter, never ISAPI
+                data = vendor_io.detection_zones(cs, cam["recorder_id"], int(cam["channel"]))
+            else:
+                data = ZONES(cs, int(cam["channel"]))
         fetched_at = now
         _ZONES_CACHE[camera_id] = (fetched_at, data)
     return {

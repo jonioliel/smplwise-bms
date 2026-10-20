@@ -27,7 +27,7 @@ JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
          "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
          "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetSupportedAPIs",
-         "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo", "GetMotionConfig"}  # P3 reads (the derived-events pass searches recordings)
+         "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo", "GetMotionConfig", "GetPrivacyMaskConfig"}  # P3 reads (the derived-events pass searches recordings)
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 
@@ -502,6 +502,15 @@ class FakeProvision:
 <sensitivity type="int32" min="1" max="8">{m['sensitivity']}</sensitivity><alarmHoldTime type="uint32">20</alarmHoldTime>
 <area type="list" count="9"><itemType type="string" minLen="16" maxLen="16"></itemType>{rows}</area>
 <triggerAlarmOut type="list" count="0"><itemType type="boolean"></itemType></triggerAlarmOut></motion>""", "1.0"))
+
+    def _GetPrivacyMaskConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        masks = {2: (True, 10, 20, 100, 50)}.get(ch, None) if ch == 2 else None
+        items = []
+        for n in range(4):
+            on, x, y, w, h = masks if (masks and n == 0) else (False, 0, 0, 0, 0)
+            items.append(f"<item><switch>{'true' if on else 'false'}</switch><rectangle><X>{x}</X><Y>{y}</Y><width>{w}</width><height>{h}</height></rectangle><color>black</color></item>")
+        return self._xml(request, _doc('<types><color><enum>black</enum></color></types><privacyMask type="list" count="4"><itemType><switch type="boolean"></switch></itemType>'
+                                       + "".join(items) + "</privacyMask>", "1.0"))
 
     def _SetMotionConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
         import xml.etree.ElementTree as ET
