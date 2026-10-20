@@ -504,3 +504,33 @@ owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERM
 - Not built: auto-approval rules (none exist; shown as "None"), the English/Arabic/Russian evidence screenshots (the screen follows the
   document language; the evidence set is Hebrew), the 14-day window across a DST change is held at 14 x 24 h (the last day ends an hour
   early) rather than refused.
+## GRANTSMIN-295 - the Arx-only leftovers (pilot/GRANTSMIN-295 from pilot/SHAREDID-293 @ ee2f6a1b0)
+
+Backlog item `grants-minor-leftovers` (private/planning/BACKLOG_RECONCILED_2026-10-20.md). SHAREDID-293 already shipped the weekly digest
+(decision 4), the name-drift detection and push (decision 5), confirm-gone and attach-recovered; this slice adds what was left. No
+migration (everything reads tables 0107/0108/0126; 0126 was provisional 0128 on the SHAREDID branch). `GO_LIVE_PERMITTED` stays False; fakes only (`tests/test_grantsmin_295.py`); nothing
+contacts WisKey, a station, a door or WhatsApp.
+
+- **Drift view (CR 2.3 / T12, the X1 "drift view").** `GET /access-grants/drift` (`access_external.drift`): per person, where Arx and WisKey
+  differ, built ONLY from what Arx stored - the read-back proof and the last `access.grant.verify` outcome, the name digests, the link
+  state. It never reads WisKey and never serves a WisKey value (its name is kept as a digest). Kinds, most urgent first: `missing`
+  (link `wiskey_missing`), `scope` (the last complete read-back mismatched), `unknown`, `sync_pending` (a narrowing not yet proven),
+  `name`, `unverified` (accepted, no stored proof), `idle_person` (a person Arx created with no live grant). Visibility: the person's
+  current grant must be visible to the caller (`access_grants.visible`; with no live grant, one of its grants); a link with no grant at
+  all only with people.manage installation-wide. Per row `can.push_name` (the same authority as `push_name`, offered only for a name
+  difference) and `can.read_now` (the same authority as `read_now`). The screen: a side panel (the three most urgent) and a dialog with
+  "push the name", "read back now" and "open the grant"; `#/wiskey/external?drift=1` opens the dialog. Off -> empty, `enabled: false`.
+- **The external-access CSV.** `GET /access-grants/export.csv?lang=he|en&live=` (`access_external.export_rows`): the grants the caller may
+  see (every row through `visible`), newest first, at most 5,000 (413), one export a minute per user (429 `export_rate`), UTF-8 + BOM,
+  every cell quoted and through `text_hygiene.csv_cell` (formula guard), times in the installation's zone, the screen's state words.
+  The number is never more than BOTH rules allow: nothing below people.sensitive on every station of the grant; the screen's mask
+  (····NN) at that level; the full number only when the directory would also show it to this caller (`tickets/contacts.full_phone_for`).
+  The code delivery state likewise only at the sensitive level. Gate: the grant permission or people.read somewhere, or
+  tickets.configure; a refusal is audited (`access.grant.export` denied `no_binding`); an export is audited with the row count only
+  (no names, no numbers). The screen's "Export CSV" button downloads it (Hebrew headers for he, English otherwise; ar/ru columns are
+  English like the tickets export).
+- **The person's data export (CR 2.6 "Rights").** `GET /tickets/contacts/{id}/export` gains `access`: the link's origin, state and time, and
+  every kept grant (window, timing, doors by name, state, end reason, source, the notice acknowledgements). Never WisKey's ids, the
+  employee number, a PIN (Arx holds none) or the closure's free-text reference. A person without access: `{"link": null, "grants": []}`.
+- **Not built:** the denied-attempt alert (needs WisKey W-c, out of scope by instruction). The CSV is not offered on the contact
+  directory screen (the per-person JSON export already is). Arabic / Russian CSV headers (English is served for them).
