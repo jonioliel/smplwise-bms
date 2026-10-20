@@ -197,6 +197,17 @@ def test_the_csv_masks_or_drops_the_number_by_what_the_caller_may_see(env):
     assert PHONE not in _export(env).text
 
 
+def test_the_csv_shows_the_full_number_to_a_tickets_directory_holder_like_the_directory(env):
+    """integ/2100 (SMALL-294 x GRANTSMIN-295): tickets.directory opens the directory with full numbers, so the export's
+    "the full number only when the directory would also show it" includes it (contacts.may_edit_directory, not may_configure)."""
+    env.active_grant()
+    role = env.role("מאשר", APPROVER)
+    bind(env.c, env.settings, "dir1", role, "installation", "*")
+    bind(env.c, env.settings, "dir1", "tickets_directory", "installation", "*")
+    cells = dict(zip(*_csv(_export(env, "dir1"))[:2]))
+    assert cells["טלפון"].endswith(PHONE[-4:]) and len([c for c in cells["טלפון"] if c.isdigit()]) >= 9, cells["טלפון"]
+
+
 def test_the_csv_is_refused_to_a_caller_without_an_access_role_and_audited(env):
     env.active_grant()
     bind(env.c, env.settings, "vw5", "viewer", "installation", "*")

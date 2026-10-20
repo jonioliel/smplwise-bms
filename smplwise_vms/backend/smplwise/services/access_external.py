@@ -856,7 +856,7 @@ def _phone_cell(conn: sqlite3.Connection, viewer: Any, g: dict[str, Any], sensit
     if not contact or not contact.get("phone_e164"):
         return ""
     if "managed" not in cache:
-        cache["configure"] = tcontacts.may_configure(viewer)
+        cache["configure"] = tcontacts.may_edit_directory(viewer)  # integ/2100: SMALL-294 tickets.directory is a directory editor too
         cache["managed"] = tcontacts.managed_departments(viewer)
         cache["unmask"] = tcontacts.managers_unmask(conn)
     depts = store_links.contact_departments(conn, contact["id"])
