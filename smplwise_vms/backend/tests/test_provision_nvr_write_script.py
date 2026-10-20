@@ -61,7 +61,7 @@ def test_whitelist_only():
         pnw.build_parser().parse_args(["reboot"])
     with pytest.raises(SystemExit):
         pnw.build_parser().parse_args(["factory-reset"])
-    assert pnw.OPERATIONS == ("set-alarm-server", "set-encoding", "restore-from-log")
+    assert pnw.OPERATIONS == ("set-alarm-server", "set-encoding", "set-motion", "restore-from-log")
 
 
 def test_dry_run_prints_redacted_body_and_writes_nothing(world):
@@ -383,3 +383,19 @@ def test_encoding_unknown_outcome_is_read_back_and_never_rewritten(v1world):
     text = "\n".join(lines)
     assert "OUTCOME UNKNOWN" in text and "No further write was made" in text and fake.writes == ["SetVideoStreamConfig"]
     assert _log(tmp)[-1]["phase"] == "unknown-readback"
+
+
+def test_motion_write_verify_restore_and_dry_run(v1world):
+    """PROVISION2: set-motion records the previous values and the full document first, verifies, restores from the log."""
+    fake, run, lines, tmp = v1world
+    assert run("--dry-run", "set-motion", "--channel", "2", "--sensitivity", "6") == 0 and fake.motion_bodies == []
+    assert run("set-motion", "--channel", "2", "--enabled", "false", "--sensitivity", "6") == 0
+    e = _log(tmp)
+    assert e[0]["before"] == {"enabled": True, "sensitivity": 4} and e[-1]["phase"] == "verified"
+    assert fake.motion[2] == {"switch": False, "sensitivity": 6}
+    assert (tmp / "log" / f"motion-before-{e[0]['entry']}.xml").exists()
+    assert run("restore-from-log", "--entry", e[0]["entry"]) == 0
+    assert fake.motion[2] == {"switch": True, "sensitivity": 4}
+    assert run("set-motion", "--channel", "2", "--sensitivity", "9") == 4  # outside the device's 1..8: nothing sent
+    assert len(fake.motion_bodies) == 2
+    assert not any(PASSWORD in x or HOST in x for x in lines)

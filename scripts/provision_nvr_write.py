@@ -15,6 +15,9 @@ owner at a prompt and the prompt shows exactly what will be written. Whitelisted
       the exact body; a diverging read-back restores once; an unknown outcome is read back read-only, never rewritten (exit 7)
       fields: codec (H.264|H.265|MJPEG), profile (baseline|main|high), resolution (WxH), fps, bitrate_mode (CBR|VBR),
       bitrate_kbps, quality (1..5), gop, smart_codec (true|false)
+  set-motion --channel N [--enabled true|false] [--sensitivity N] [--no-auto-restore]
+      (PROVISION2) motion detection switch / sensitivity (SetMotionConfig, the device's grid sent back as read); the full previous
+      GetMotionConfig answer is saved first; a diverging read-back restores once
   restore-from-log --entry ID          (restores the value recorded before entry ID)
 
 Anything else (reset, format, firmware, network, users, reboot, PTZ, ...) does not exist here and is refused by the parser.
@@ -43,7 +46,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MAIN_REPO = Path(r"C:\cloude\smplwisebms")
 sys.path.insert(0, str(ROOT / "smplwise_vms" / "backend"))
 
-OPERATIONS = ("set-alarm-server", "set-encoding", "restore-from-log")
+OPERATIONS = ("set-alarm-server", "set-encoding", "set-motion", "restore-from-log")
 FIELDS = {"codec": str, "profile": str, "resolution": str, "fps": int, "bitrate_mode": str, "bitrate_kbps": int, "quality": int, "gop": int,
           "smart_codec": "bool"}
 
@@ -372,6 +375,59 @@ def op_restore_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, v
     return 0 if ok else 3
 
 
+def op_set_motion(a: Any, j: Journal, out: Callable[[str], None], *, channel: int, enabled: bool | None, sensitivity: int | None, dry_run: bool,
+                  restoring: str | None = None, auto_restore: bool = True) -> int:
+    """PROVISION2: one motion-detection change on one channel. read -> save -> write once -> read back -> verify (restore once)."""
+    from smplwise.errors import ApiError
+    from smplwise.services.recorders import provision_isr_xml as px
+
+    if not 1 <= channel <= 512 or (enabled is None and sensitivity is None):
+        raise Refused("channel 1..512 and at least one of --enabled / --sensitivity")
+    before_xml = a.config_doc("motion", channel)
+    before = px.parse_motion(before_xml)
+    try:
+        body = px.motion_set_document(before_xml, enabled=enabled, sensitivity=sensitivity)
+    except ValueError as exc:
+        out(f"validation: REFUSED ({exc}) - nothing sent")
+        return 4
+    change = {k: v for k, v in (("enabled", enabled), ("sensitivity", sensitivity)) if v is not None}
+    prev = {k: before[k] for k in change}
+    out(f"request: POST /SetMotionConfig/{channel}")
+    out("body: " + j.redact(body))
+    out("current: " + json.dumps({k: before[k] for k in ("enabled", "sensitivity", "min", "max", "rows", "cols")}))
+    out("change: " + json.dumps(change))
+    if prev == change:
+        out("nothing differs from the device: nothing to write")
+        return 0
+    if dry_run:
+        out("dry-run: nothing written")
+        return 0
+    eid = uuid.uuid4().hex[:12]
+    j.save_restore(eid, {"op": "set-motion", "channel": channel, "before": prev})
+    j.save_snapshot(eid, "motion", before_xml)
+    j.write({"entry": eid, "time": _now(), "op": "set-motion", "phase": "before", "restore_of": restoring, "channel": channel, "before": prev, "change": change})
+    try:
+        a.put_config_doc("motion", channel, body)
+    except ApiError as exc:
+        j.write({"entry": eid, "time": _now(), "op": "set-motion", "phase": "refused", "code": exc.code, "details": exc.details})
+        out(f"entry {eid}: write failed ({exc.code}); no further write. restore record kept: restore-from-log --entry {eid}")
+        return 7 if exc.details.get("outcome") == "unknown" else 4
+    now = px.parse_motion(a.config_doc("motion", channel))
+    got = {k: now[k] for k in change}
+    ok = got == change and now["rows"] == before["rows"] and now["cols"] == before["cols"]
+    j.write({"entry": eid, "time": _now(), "op": "set-motion", "phase": "verified" if ok else "diverged", "after": got})
+    if ok:
+        out(f"entry {eid}: verified {json.dumps(got)}  (restore with: restore-from-log --entry {eid})")
+        return 0
+    out(f"entry {eid}: DIVERGED {json.dumps(got)}")
+    if restoring is not None or not auto_restore:
+        out(f"restore with: restore-from-log --entry {eid}")
+        return 3
+    rc = op_set_motion(a, j, out, channel=channel, enabled=prev.get("enabled"), sensitivity=prev.get("sensitivity"), dry_run=False, restoring=eid, auto_restore=False)
+    out(f"entry {eid}: {'restored and verified' if rc == 0 else 'RESTORE DID NOT VERIFY - stop and check the device'}")
+    return 3
+
+
 def op_restore(a: Any, j: Journal, out: Callable[[str], None], *, entry: str, dry_run: bool) -> int:
     rec = j.load_restore(entry)
     if rec["op"] == "set-alarm-server" and isinstance(rec.get("values"), dict):
@@ -380,6 +436,9 @@ def op_restore(a: Any, j: Journal, out: Callable[[str], None], *, entry: str, dr
         b = rec["before"]
         return op_set_alarm_server(a, j, out, server=b.get("server") or "", port=b.get("port") if b.get("server") else None, path=None,
                                    dry_run=dry_run, restoring=entry)
+    if rec["op"] == "set-motion":
+        b = rec["before"]
+        return op_set_motion(a, j, out, channel=int(rec["channel"]), enabled=b.get("enabled"), sensitivity=b.get("sensitivity"), dry_run=dry_run, restoring=entry)
     if rec["op"] == "set-encoding":
         return op_set_encoding(a, j, out, channel=int(rec["channel"]), stream=rec["stream"], changes=dict(rec["before"]), dry_run=dry_run, restoring=entry)
     raise Refused("unknown restore record")
@@ -407,6 +466,11 @@ def build_parser() -> argparse.ArgumentParser:
     s2.add_argument("--stream", choices=("main", "sub"), required=True)
     s2.add_argument("--set", action="append", default=[], dest="sets")
     s2.add_argument("--no-auto-restore", action="store_true", help="on a diverging read-back only print the restore command (default: restore once)")
+    s4 = sub.add_parser("set-motion")
+    s4.add_argument("--channel", type=int, required=True)
+    s4.add_argument("--enabled", choices=("true", "false"))
+    s4.add_argument("--sensitivity", type=int)
+    s4.add_argument("--no-auto-restore", action="store_true")
     s3 = sub.add_parser("restore-from-log")
     s3.add_argument("--entry", required=True)
     return p
@@ -434,6 +498,9 @@ def main(argv: list[str] | None = None, *, transport: Any = None, out: Callable[
         if args.op == "set-encoding":
             return op_set_encoding(a, j, out, channel=args.channel, stream=args.stream, changes=_parse_sets(args.sets), dry_run=args.dry_run,
                                    auto_restore=not args.no_auto_restore)
+        if args.op == "set-motion":
+            return op_set_motion(a, j, out, channel=args.channel, enabled=None if args.enabled is None else args.enabled == "true",
+                                 sensitivity=args.sensitivity, dry_run=args.dry_run, auto_restore=not args.no_auto_restore)
         return op_restore(a, j, out, entry=args.entry, dry_run=args.dry_run)
     except Refused as exc:
         out(f"refused: {exc}")
