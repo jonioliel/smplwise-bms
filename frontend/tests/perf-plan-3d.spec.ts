@@ -249,6 +249,11 @@ async function staticNumbers(el: Locator) {
       thumbnailCount: number;
     };
     const v = e.view;
+    // the GPU-synchronised cost of a frame as the view draws it now (SceneView.benchFrames: back-to-back frames, a one-pixel
+    // readback each - the studio-6 harness's method); the best of three blocks of 5
+    const bench = (v as unknown as { benchFrames(n: number): number });
+    bench.benchFrames(2);
+    const benchMs = Math.round(Math.min(bench.benchFrames(5), bench.benchFrames(5), bench.benchFrames(5)) * 10) / 10;
     v.redrawNow();
     const info = v.renderer.info;
     const q = v.getQuality();
@@ -292,6 +297,7 @@ async function staticNumbers(el: Locator) {
     const thumbs = [...e.renderRoot.querySelectorAll<HTMLImageElement>('[data-3d-thumb] img')].map((i) => i.src.length);
     return {
       quality: q,
+      benchMs,
       drawCalls: calls,
       triangles,
       geometries: info.memory.geometries,
