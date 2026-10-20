@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { ALL_CAPABILITIES, needsNvrSource, resolveCapabilities, type Capabilities } from '../src/api/capabilities';
-import { applyCapabilities, blockKind, capHiddenHref, missing, needsOfSegments, routeMissing, segmentsOfHref } from '../src/shell/nav-capabilities';
+import { applyCapabilities, blockKind, capHiddenHref, missing, needsOfSegments, routeMissing, segmentsOfHref, sensorEventsOnly } from '../src/shell/nav-capabilities';
 import { SECTION_TABS, visibleTabs, type Can } from '../src/shell/nav';
 import type { RouteState } from '../src/router';
 
@@ -23,7 +23,7 @@ const TABLE: [string, [boolean, boolean, boolean, boolean]][] = [
   ['#/live/wall', [false, false, false, true]],
   ['#/live/views', [false, false, false, true]],
   ['#/live/cameras/cam-1', [false, false, true, true]],
-  ['#/investigate/events', [false, false, true, true]],
+  ['#/investigate/events', [true, true, true, true]], // NVRLESS-295: the sensor events list serves an installation with Home Assistant events but no recorder
   ['#/investigate/events/ev-1', [false, false, true, true]],
   ['#/investigate/reviews', [false, false, true, true]],
   ['#/investigate/search', [false, false, true, true]],
@@ -74,7 +74,9 @@ test('segments of an href, and what a route needs', () => {
   expect(needsOfSegments(['live', 'cameras', 'c1'])).toEqual(['nvr']);
   expect(needsOfSegments(['kiosk'])).toEqual(['nvr', 'supported']);
   expect(needsOfSegments(['investigate'])).toEqual(['playback']); // the bare URL opens playback
-  expect(needsOfSegments(['investigate', 'events'])).toEqual(['events_recorder']);
+  expect(needsOfSegments(['investigate', 'events'])).toEqual(['events_any']); // NVRLESS-295: either source opens the list
+  expect(needsOfSegments(['investigate', 'events', 'ev-1'])).toEqual(['events_recorder']); // the detail page needs the recorder
+  expect(needsOfSegments(['investigate', 'reviews'])).toEqual(['events_recorder']);
   expect(needsOfSegments(['system', 'security', 'nvr'])).toEqual([]);
   expect(needsOfSegments(['devices', 'building'])).toEqual([]);
 });
@@ -105,9 +107,24 @@ test('the tab rows of the security area per installation (a section with no page
     applyCapabilities(COMBOS[id]);
     return { live: visibleTabs(SECTION_TABS.live, true, all).map((t) => t.id), investigate: visibleTabs(SECTION_TABS.investigate, true, all).map((t) => t.id) };
   };
-  expect(rows('A')).toEqual({ live: [], investigate: [] });
-  expect(rows('B')).toEqual({ live: [], investigate: [] });
+  expect(rows('A')).toEqual({ live: [], investigate: ['events'] }); // NVRLESS-295: only the sensor events list
+  expect(rows('B')).toEqual({ live: [], investigate: ['events'] });
   expect(rows('C')).toEqual({ live: [], investigate: ['events', 'reviews', 'search', 'cases', 'rules', 'exports', 'health'] });
   expect(rows('D').live).toEqual(['overview', 'wall', 'views']);
   expect(rows('D').investigate).toEqual(['events', 'playback', 'sync', 'history', 'reviews', 'search', 'cases', 'rules', 'exports', 'health']);
+});
+
+test('NVRLESS-295: the sensor events list needs one events source; the rest of the area still needs the recorder', () => {
+  const none = caps({ ...COMBOS.A, events_ha: false });
+  applyCapabilities(none);
+  expect(routeMissing(route('/investigate/events'))).toEqual(['events_any']);
+  expect(blockKind(routeMissing(route('/investigate/events')))).toBe('no_nvr');
+  expect(visibleTabs(SECTION_TABS.investigate, true, all).map((t) => t.id)).toEqual([]);
+  applyCapabilities(COMBOS.A);
+  expect(sensorEventsOnly()).toBe(true);
+  expect(routeMissing(route('/investigate/events'))).toEqual([]);
+  expect(routeMissing(route('/investigate/events/ev-1'))).toEqual(['events_recorder']);
+  for (const p of ['/investigate/reviews', '/investigate/search', '/investigate/cases', '/investigate/rules', '/investigate/exports', '/investigate/playback']) expect(routeMissing(route(p)).length, p).toBeGreaterThan(0);
+  applyCapabilities(COMBOS.D);
+  expect(sensorEventsOnly()).toBe(false); // with recorder events the event centre itself is shown
 });
