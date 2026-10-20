@@ -104,7 +104,9 @@ def live_ok() -> bool:
 
 
 def open_available(settings: Any) -> bool:
-    """Whether the LIVE engine can hold doors open (U3 / W13). False in this build."""
+    """Whether the LIVE engine can hold doors open (U3 / W13). False in this build (never true while the live engine is not permitted)."""
+    if not live_ok():
+        return False
     try:
         return bool(dwe.emergency_engine(settings).open_supported)
     except Exception:  # noqa: BLE001
