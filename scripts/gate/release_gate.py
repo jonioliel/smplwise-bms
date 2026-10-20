@@ -19,11 +19,26 @@ Partial runs for the nightly (scripts/gate/nightly_tests.sh drives this engine; 
   A skipped category is left out of the baseline check (named in the warnings), so a partial run is not "0 of N".
   GATE_COSTS_DIR=<dir>  a second results directory whose gate_*.logs also feed the --workers=1 chunk balance (the nightly writes
   its reports to its own directory and borrows the release gates' per-file times).
+
+Schedules (GATESPEED-293, docs/release/GATE_SPEED.md). `--schedule v1` (the default, GATE_SCHEDULE unset) is the 2.9.2 gate
+unchanged. `--schedule v2` (or GATE_SCHEDULE=v2) keeps every spec, project, server kind, retry rule and false-green guard, and
+only changes WHEN and HOW WIDE things run:
+  * backend: GATE_BACKEND_SHARDS shards (v2: 6) balanced by the earlier gates' per-file pytest times (junit XML that v2 writes
+    next to each shard log; seed `backend_seconds` in gate_durations.json; file size scaled to seconds otherwise); passed tests'
+    tmp_path dirs are removed at teardown (tmp_path_retention_policy=failed); GATE_BACKEND_TMPFS=1 (v2 default) puts the shards'
+    basetemp and TMPDIR on /dev/shm when it has GATE_TMPFS_MIN_GB (4) free, else on disk as in v1;
+  * Playwright: the preview groups, the dev-server groups, the pixel specs, the fixture spec and the visual step are ONE pool of
+    jobs under a worker budget (GATE_PW_SLOTS, 12), longest first; --workers=1 groups split into up to GATE_W1_MAX_CHUNKS (8)
+    chunks of about GATE_CHUNK_TARGET_SECS (1500) each, parallel groups get up to GATE_PW_MAX_WORKERS (6) workers; every
+    failure is retried alone AFTER the pool drained (the v1 rule).
+`--plan --root <checkout>` prints the v1 and v2 plans with time estimates from the recorded costs and runs nothing.
 """
-import concurrent.futures as cf, glob, json, os, re, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
+import concurrent.futures as cf, glob, json, math, os, re, shutil, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 HB_STOP = threading.Event()
+ABORT = threading.Event()   # set when main() leaves its run section (normally or by a signal) right before kill_all()
 
 BR, TIER = "", "L"        # set by main_cli()
 def visual_from_env(v):
@@ -67,6 +82,8 @@ try:
     FIXTURE_SPECS = {n for g in _fx.values() for n, s in g["specs"].items() if s.get("gate")} or FIXTURE_SPECS
 except (OSError, ValueError, KeyError):
     pass
+SCHEDULE = (os.environ.get("GATE_SCHEDULE") or "v1").strip().lower()   # v1 = the 2.9.2 gate; v2 = GATESPEED-293 (--schedule)
+_LOCK = threading.RLock()     # count()/item() are called from the v2 pool's threads too
 STATUS = RES / "gate_status.json"
 STARTED = time.strftime("%Y-%m-%dT%H:%M:%S%z")
 GROUPS = []          # process groups started here (only these are ever killed)
@@ -81,7 +98,7 @@ def now():
 
 
 def write_json(p, d):
-    tmp = Path(str(p) + ".tmp")
+    tmp = Path(f"{p}.{threading.get_ident()}.tmp")   # per thread: the heartbeat and a phase can write gate_status.json at once
     tmp.write_text(json.dumps(d, indent=1, ensure_ascii=False))
     os.replace(tmp, p)
 
@@ -136,7 +153,7 @@ def reap(p):
 def run(cmd, cwd, log, env=None, timeout=None):
     """Run to completion (bounded by the global deadline); returns (rc, timed_out)."""
     t = min(timeout or 1e9, left())
-    if t < 20:
+    if t < 20 or ABORT.is_set():   # ABORT: the gate is stopping; a v2 pool thread must not start a new process after kill_all()
         return 124, True
     p = spawn(cmd, cwd, log, env)
     try:
@@ -186,11 +203,13 @@ def wait_http(url, secs):
 
 
 def count(cat, key, n=1):
-    COUNTS.setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})[key] += n
+    with _LOCK:
+        COUNTS.setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})[key] += n
 
 
 def item(cat, ident, st, reason=""):
-    ITEMS.append({"category": cat, "id": ident, "status": st, "reason": reason[:300]})
+    with _LOCK:
+        ITEMS.append({"category": cat, "id": ident, "status": st, "reason": reason[:300]})
 
 
 class Phase:
@@ -384,6 +403,157 @@ def backend_finish(procs, wt, logd):
     else:
         for nid, why in todo:
             count("backend", "fail"); item("backend", nid, "FAIL", (why or "") + " (no time left to retry)")
+
+
+# ---------------------------------------------------------------- v2 schedule (GATESPEED-293): knobs and the backend shards
+def knob(name, v1, v2, cast=int):
+    """An integer/float knob: the environment wins, else the default of the active schedule (v1 = the 2.9.2 gate's value)."""
+    raw = os.environ.get(name)
+    if raw not in (None, ""):
+        try:
+            return cast(raw)
+        except ValueError:
+            pass
+    return v2 if SCHEDULE == "v2" else v1
+
+
+def _junit_file(classname):
+    """'tests.test_x' / 'tests.test_x.TestY' -> 'test_x.py' (the backend tests are flat under tests/)."""
+    parts = (classname or "").split(".")
+    if parts and parts[0] == "tests":
+        parts = parts[1:]
+    return (parts[0] + ".py") if parts and parts[0] else ""
+
+
+def junit_costs(path):
+    """Seconds per test file from one pytest junit XML (setup + call + teardown, as pytest's default junit_duration_report)."""
+    out = {}
+    try:
+        for _, el in ET.iterparse(str(path)):
+            if el.tag == "testcase":
+                f = _junit_file(el.get("classname", ""))
+                try:
+                    t = float(el.get("time") or 0)
+                except ValueError:
+                    t = 0.0
+                if f:
+                    out[f] = out.get(f, 0.0) + t
+                el.clear()
+    except (OSError, ET.ParseError):
+        return {}
+    return out
+
+
+_BCOSTS = None
+
+
+def backend_prior_costs():
+    """Seconds per backend test file: the newest of the last 10 gates' backend_s*.xml wins per file, then the seed
+    `backend_seconds` of gate_durations.json next to this script. {} when neither exists (the split then weighs by size)."""
+    global _BCOSTS
+    if _BCOSTS is not None:
+        return _BCOSTS
+    _BCOSTS = {}
+    mine = f"gate_{TAG}_{STATE['sha']}.logs"
+    roots = [RES] + ([Path(COSTS_DIR)] if COSTS_DIR and Path(COSTS_DIR).resolve() != RES.resolve() else [])
+    dirs = sorted((d for r in roots if r.is_dir() for d in r.glob("gate_*.logs") if d.is_dir() and not (r == RES and d.name == mine)),
+                  key=lambda d: d.stat().st_mtime, reverse=True)
+    for d in dirs[:10]:
+        costs = {}
+        for xp in d.glob("backend_s*.xml"):
+            for f, v in junit_costs(xp).items():
+                costs[f] = costs.get(f, 0.0) + v
+        for f, v in costs.items():
+            if v > 0:
+                _BCOSTS.setdefault(f, v)
+    for f, v in (_seed().get("backend_seconds") or {}).items():
+        if isinstance(v, (int, float)) and v > 0:
+            _BCOSTS.setdefault(f, float(v))
+    return _BCOSTS
+
+
+def _seed():
+    try:
+        return json.loads((HERE / DURATIONS_NAME).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def split_backend(files, n, costs):
+    """files = [(name, size_bytes)]. Longest-processing-time split into n shards: a file's weight is its recorded seconds, else
+    its size times the median seconds-per-byte of the timed files, else its size (the v1 rule). Returns [(names, weight)]."""
+    ratios = sorted(costs[f] / s for f, s in files if f in costs and s > 0)
+    rate = ratios[len(ratios) // 2] if ratios else None
+    weight = {f: (costs[f] if f in costs else (s * rate if rate else float(s))) for f, s in files}
+    bins = [[0.0, i, []] for i in range(max(1, n))]
+    for f in sorted(weight, key=lambda x: (-weight[x], x)):
+        b = min(bins, key=lambda b: (b[0], b[1]))
+        b[0] += weight[f]
+        b[2].append(f)
+    return [(sorted(b[2]), b[0]) for b in bins]
+
+
+def tmpfs_root(tag):
+    """A fresh directory on /dev/shm for the backend scratch, or None (no tmpfs, not writable, or under GATE_TMPFS_MIN_GB free)."""
+    shm = Path(os.environ.get("GATE_TMPFS_DIR", "/dev/shm"))
+    try:
+        st = os.statvfs(shm)
+        # a gate killed by `timeout -k` leaves its scratch behind; the gate holds the gate lock and the tests lock exclusively,
+        # so no other engine can be using one of these right now
+        for old in shm.glob("smplwise-gate-*"):
+            shutil.rmtree(old, ignore_errors=True)
+        st = os.statvfs(shm)
+        if st.f_bavail * st.f_frsize < knob("GATE_TMPFS_MIN_GB", 4, 4, float) * 1e9:
+            return None
+        d = Path(tempfile.mkdtemp(prefix=f"smplwise-gate-{tag}-", dir=str(shm)))
+        return d
+    except (OSError, AttributeError):
+        return None
+
+
+def backend_cmd(names, logd, k, basetemp, v2):
+    cmd = [PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(basetemp)]
+    if v2:   # per-file times for the next gate's split; a passed test's tmp_path is removed at its teardown
+        cmd += ["-o", "tmp_path_retention_policy=failed", "--junitxml", str(logd / f"backend_s{k}.xml")]
+    return cmd + ["tests/" + x for x in names]
+
+
+def backend_start_v2(wt, logd, n, shm=None):
+    """The v2 shards: the same pytest command as v1 (plus junit XML and the tmp_path retention), n shards balanced by time.
+    With `shm` the basetemp and TMPDIR of every shard live there (one filesystem, as /tmp and the home are on the runner)."""
+    bd = wt / "smplwise_vms" / "backend"
+    files = [(os.path.basename(f), os.path.getsize(f)) for f in sorted(glob.glob(str(bd / "tests" / "test_*.py")))]
+    parts = split_backend(files, n, backend_prior_costs())
+    procs, plan = [], []
+    for k, (names, w) in enumerate(parts, 1):
+        if not names:
+            continue
+        env = {}
+        base = logd
+        if shm:
+            base = shm / f"s{k}"
+            (base / "tmp").mkdir(parents=True, exist_ok=True)
+            env["TMPDIR"] = str(base / "tmp")
+        log = logd / f"backend_s{k}.log"
+        p = spawn(backend_cmd(names, logd, k, base / f"tmp_b{k}", True), bd, log, env=env)
+        procs.append((k, p, log))
+        plan.append({"shard": k, "files": len(names), "weight": round(w, 1)})
+    return procs, len(files), plan
+
+
+def last_backend_seconds():
+    """Summed pytest wall seconds of the newest gate's shards ('in 9051.15s'), else the seed's backend_shard_seconds_total."""
+    dirs = sorted((d for d in RES.glob("gate_*.logs") if d.is_dir() and list(d.glob("backend_s*.log"))) if RES.is_dir() else [],
+                  key=lambda d: d.stat().st_mtime, reverse=True)
+    for d in dirs[:1]:
+        tot = 0.0
+        for lg in d.glob("backend_s*.log"):
+            m = re.findall(r" in ([\d.]+)s", lg.read_text(errors="replace"))
+            tot += float(m[-1]) if m else 0.0
+        if tot:
+            return tot, d.name
+    v = _seed().get("backend_shard_seconds_total")
+    return (float(v), "gate_durations.json") if isinstance(v, (int, float)) else (0.0, "")
 
 
 # ---------------------------------------------------------------- spec classification
@@ -697,6 +867,277 @@ def start_vite(fe, mode, port, logd, api_port):
     return p, ok
 
 
+def fixture_block(wt, fe, logd, cls):
+    """The fixture specs against the fake backend (own data dir, own preview), settled in place. v1 runs it as its own phase,
+    v2 as one job of the pool."""
+    api = free_port(pair=True)
+    data = Path(tempfile.mkdtemp(prefix="gate_data_", dir=str(logd)))
+    fx = spawn([PY, "frontend/tests/fixtures/devices_fake_ha.py"], wt, logd / "fixture_devices.log",
+               env={"SW_PORT": str(api), "SW_DATA_DIR": str(data), "SW_DEV_USER": "joni", "SW_BOOTSTRAP_ADMIN": "joni"})
+    up = wait_http(f"http://127.0.0.1:{api}/healthz", 90)
+    port = free_port()
+    vp, ok = (None, False)
+    if up:
+        vp, ok = start_vite(fe, "preview", port, logd, api)
+    if not (up and ok):
+        count("fixture", "fail"); item("fixture", "fake backend / preview", "FAIL", f"did not start (fixture backend up={up} preview up={ok}); see fixture_devices.log")
+    else:
+        base_url = f"http://127.0.0.1:{port}/"
+        fenv = {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_API_PORT": str(api)}
+        for (projs, w1), names in group_by_run(cls["fixture"]).items():
+            lab = f"fixture_{'-'.join(projs)}"
+            status("running", f"Playwright fixture specs: {', '.join(names)}")
+            rows, rc, to = run_pw(fe, names, projs, base_url, logd, lab, env=fenv, workers=1, timeout=left())
+            settle("fixture", rows, rc, to, fe, logd, base_url, fenv, lab)
+    if vp:
+        reap(vp)
+    reap(fx)
+
+
+def visual_block(wt, fe, logd, dead):
+    """The M074 visual step on its own preview server (warn by default)."""
+    port = free_port()
+    vp, ok = start_vite(fe, "preview", port, logd, dead)
+    if not ok:
+        VISUAL_INFO.update(mode=VISUAL, error="vite preview did not start for the visual step")
+    else:
+        status("running", f"visual matrix ({VISUAL})")
+        run_visual(wt, fe, f"http://127.0.0.1:{port}/", logd)
+    reap(vp)
+
+
+# ---------------------------------------------------------------- v2 schedule: one Playwright pool under a worker budget
+def plan_pw_jobs(cat, table, costs, target, max_chunks, max_workers, base_workers):
+    """The Playwright jobs of one server kind. Same groups as v1 (group_by_run: projects + the --workers=1 header); a
+    --workers=1 group is split into ceil(total/target) chunks (at most max_chunks, balanced by recorded time), a parallel group
+    gets ceil(total/target) workers (at least base_workers, at most max_workers). est = expected wall seconds."""
+    known = sorted(costs[x] for x in table if x in costs)
+    dflt = known[len(known) // 2] if known else 60.0
+    jobs = []
+    for (projs, w1), names in group_by_run(table).items():
+        tag = f"{cat}_{'-'.join(projs)}{'_w1' if w1 else ''}"
+        total = sum(costs.get(x, dflt) for x in names)
+        if w1:
+            n = max(1, min(max_chunks, len(names), math.ceil(total / max(target, 1))))
+            chunks = balance(names, n) if n > 1 else [sorted(names)]
+            for i, part in enumerate(chunks):
+                if part:
+                    jobs.append({"kind": "pw", "cat": cat, "label": tag + (f"_c{i}" if n > 1 else ""), "names": part,
+                                 "projects": list(projs), "workers": 1, "est": sum(costs.get(x, dflt) for x in part)})
+        else:
+            w = max(int(base_workers), min(max_workers, math.ceil(total / max(target, 1))))
+            unit = max((costs.get(x, dflt) / max(1, len(projs)) for x in names), default=0.0)
+            jobs.append({"kind": "pw", "cat": cat, "label": tag, "names": sorted(names), "projects": list(projs), "workers": w,
+                         "est": max(total / w, unit)})
+    return jobs
+
+
+def _fits(cost, free, slots):
+    """A job starts when its workers fit in the free slots, or when the pool is empty (a job wider than the budget runs alone)."""
+    return cost <= free or free >= slots
+
+
+def _order(jobs):
+    """Largest area (expected seconds x workers) first: on the 2.9.2 costs it packs 12 slots in ~75 min against ~84 min for
+    plain longest-first (the lower bound, work / slots, is ~72 min)."""
+    return sorted(jobs, key=lambda j: (-j["est"] * j["workers"], -j["est"], j["label"]))
+
+
+def mem_available_mb():
+    """MemAvailable from /proc/meminfo in MB; None where there is no /proc (the guard is then off)."""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def load1():
+    try:
+        return os.getloadavg()[0]
+    except (OSError, AttributeError):
+        return None
+
+
+RESOURCES = {"samples": 0, "max_load1": None, "min_mem_available_mb": None}
+
+
+def sample_resources():
+    """One heartbeat sample (every 30 s): the report's resources line, for tuning GATE_PW_SLOTS / GATE_BACKEND_SHARDS."""
+    l, m = load1(), mem_available_mb()
+    with _LOCK:
+        RESOURCES["samples"] += 1
+        if l is not None:
+            RESOURCES["max_load1"] = round(max(l, RESOURCES["max_load1"] or 0.0), 1)
+        if m is not None:
+            RESOURCES["min_mem_available_mb"] = m if RESOURCES["min_mem_available_mb"] is None else min(m, RESOURCES["min_mem_available_mb"])
+
+
+def simulate_pool(jobs, slots):
+    """Expected makespan of run_pool(): the same greedy longest-first list scheduling, with est as the duration.
+    Returns (makespan_seconds, {label: start_seconds})."""
+    pending, running, t, free, starts = _order(jobs), [], 0.0, slots, {}
+    while pending or running:
+        pick = next((j for j in pending if _fits(j["workers"], free, slots)), None)
+        if pick is not None:
+            pending.remove(pick)
+            free -= pick["workers"]
+            starts[pick["label"]] = t
+            running.append((t + pick["est"], pick["workers"]))
+            continue
+        running.sort()
+        end, w = running.pop(0)
+        t, free = end, free + w
+    return t, starts
+
+
+def run_pool(jobs, slots, runner, min_free_mb=None, mem=mem_available_mb):
+    """Run every job (runner(job) in a thread) in _order() while the workers of the running jobs fit in `slots`. Memory guard:
+    while MemAvailable is under min_free_mb (GATE_MIN_FREE_MB, 1500) no further job starts unless the pool is empty.
+    Returns {label: (result, start_offset_s, wall_s)}; an exception of a job is its result."""
+    pending, threads, out = _order(jobs), [], {}
+    cond = threading.Condition()
+    state = {"free": slots}
+    t0 = time.time()
+    min_free_mb = knob("GATE_MIN_FREE_MB", 1500, 1500) if min_free_mb is None else min_free_mb
+
+    def low_memory():
+        m = mem()
+        return m is not None and m < min_free_mb and state["free"] < slots
+
+    def wrap(j, st):
+        try:
+            r = runner(j)
+        except BaseException as e:   # recorded, the pool goes on; the caller turns it into a FAIL
+            r = e
+        with cond:
+            state["free"] += j["workers"]
+            out[j["label"]] = (r, round(st - t0), round(time.time() - st))
+            cond.notify_all()
+
+    with cond:
+        while pending:
+            pick = None if low_memory() else next((j for j in pending if _fits(j["workers"], state["free"], slots)), None)
+            if pick is None:
+                cond.wait(timeout=10)
+                continue
+            pending.remove(pick)
+            state["free"] -= pick["workers"]
+            th = threading.Thread(target=wrap, args=(pick, time.time()), daemon=True)
+            th.start()
+            threads.append(th)
+    for th in threads:
+        th.join()
+    return out
+
+
+def v2_jobs(cls, costs, tier, skip_dev):
+    """Every Playwright job of a v2 gate (the plan only, nothing runs). The same classification as v1."""
+    target = knob("GATE_CHUNK_TARGET_SECS", 1500, 1500)
+    max_chunks = knob("GATE_W1_MAX_CHUNKS", 3, 8)
+    max_workers = knob("GATE_PW_MAX_WORKERS", int(PW_WORKERS), 6)
+    jobs = plan_pw_jobs("preview", cls["rest"], costs, target, max_chunks, max_workers, int(PW_WORKERS))
+    if cls["dev"] and not skip_dev:
+        jobs += plan_pw_jobs("dev", cls["dev"], costs, target, max_chunks, max_workers, int(PW_WORKERS))
+    if tier == "L" and cls["pixel"]:
+        jobs.append({"kind": "pixel", "cat": "pixel", "label": "pixel", "names": list(cls["pixel"]), "projects": ["desktop", "mobile"],
+                     "workers": 1, "est": pixel_estimate(len(cls["pixel"]))})
+    if cls["fixture"]:
+        jobs.append({"kind": "fixture", "cat": "fixture", "label": "fixture", "names": list(cls["fixture"]), "projects": [], "workers": 1,
+                     "est": sum(costs.get(x, 75.0) for x in cls["fixture"])})
+    if VISUAL:
+        jobs.append({"kind": "visual", "cat": "visual", "label": "visual", "names": [], "projects": [], "workers": 4, "est": 90.0})
+    return jobs
+
+
+def pixel_estimate(nspecs):
+    """The pixel specs run one Playwright process per file, one worker: the seed's pixel_phase_seconds (the last gate's pixel
+    stretch), else 4 s per spec file (at least a minute)."""
+    v = _seed().get("pixel_phase_seconds")
+    return float(v) if isinstance(v, (int, float)) and v > 0 else max(60.0, 4.0 * nspecs)
+
+
+def v1_estimate(cls, costs, tier, skip_dev, pixel_est):
+    """The v1 Playwright wall time from the same costs: preview groups side by side, then pixel, fixture, visual, then dev."""
+    def phase(cat, table):
+        if not table:
+            return 0.0
+        js = []
+        for (projs, w1), names in group_by_run(table).items():
+            n = min(3, max(1, len(names) // 4)) if w1 else 1
+            for part in (balance(names, n) if n > 1 else [names]):
+                tot = sum(costs.get(x, 60.0) for x in part)
+                js.append(tot if w1 else tot / int(PW_WORKERS))
+        return max(js or [0.0])
+    fx = sum(costs.get(x, 75.0) for x in cls["fixture"])
+    return phase("preview", cls["rest"]) + (pixel_est if tier == "L" else 0) + fx + (90.0 if VISUAL else 0) + (0.0 if skip_dev else phase("dev", cls["dev"]))
+
+
+def run_frontend_v2(wt, fe, logd, cls, dead):
+    """v2: preview and dev servers up together, every job in one pool, then every failure settled (retried alone) in order."""
+    slots = knob("GATE_PW_SLOTS", 12, 12)
+    jobs = v2_jobs(cls, prior_costs(), TIER, SKIP_DEV)
+    urls, servers = {}, []
+    if any(j["cat"] in ("preview", "pixel") for j in jobs):
+        port = free_port()
+        vp, ok = start_vite(fe, "preview", port, logd, dead)
+        servers.append(vp)
+        if ok:
+            urls["preview"] = urls["pixel"] = f"http://127.0.0.1:{port}/"
+        else:
+            item("preview", "vite preview", "FAIL", "did not start"); count("preview", "fail")
+    if any(j["cat"] == "dev" for j in jobs):
+        port = free_port()
+        vp, ok = start_vite(fe, "dev", port, logd, dead)
+        servers.append(vp)
+        if ok:
+            urls["dev"] = f"http://127.0.0.1:{port}/"
+        else:
+            item("dev", "vite dev server", "FAIL", "did not start"); count("dev", "fail")
+    jobs = [j for j in jobs if j["kind"] in ("fixture", "visual") or j["cat"] in urls]
+
+    def runner(j):
+        if j["kind"] == "pw":
+            rows, rc, to = run_pw(fe, j["names"], j["projects"], urls[j["cat"]], logd, j["label"], workers=j["workers"],
+                                  grep_invert="pixel-stable" if j["cat"] == "preview" else None, timeout=left())
+            return [(j["cat"], rows, rc, to, j["label"])]
+        if j["kind"] == "pixel":
+            out = []
+            for i, name in enumerate(j["names"]):
+                snap = fe / "tests" / f"{name}-snapshots"
+                if not (snap.is_dir() and any(snap.glob("*-linux.png"))):
+                    count("pixel", "skipped"); item("pixel", name, "SKIPPED_NO_BASELINE", "no *-linux.png baseline in " + snap.name)
+                    continue
+                lab = f"pixel_{i}"
+                rows, rc, to = run_pw(fe, [name], ["desktop", "mobile"], urls["pixel"], logd, lab, workers=1, grep="pixel-stable", timeout=left())
+                out.append(("pixel", rows, rc, to, lab))
+            return out
+        if j["kind"] == "fixture":
+            fixture_block(wt, fe, logd, cls)
+            return []
+        visual_block(wt, fe, logd, dead)
+        return []
+
+    status("running", f"Playwright pool: {len(jobs)} jobs, {slots} worker slots")
+    with Phase("playwright-pool", "Playwright pool (v2)"):
+        res = run_pool(jobs, slots, runner)
+    with Phase("playwright-settle", "Playwright: retry failures alone"):
+        for j in _order(jobs):
+            r = res.get(j["label"], (None, 0, 0))[0]
+            if isinstance(r, BaseException):
+                count(j["cat"], "fail"); item(j["cat"], j["label"], "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}")
+                continue
+            for cat, rows, rc, to, lab in r or []:
+                settle(cat, rows, rc, to, fe, logd, urls[cat], {}, lab)
+    for vp in servers:
+        reap(vp)
+    return {"slots": slots, "jobs": [{"label": j["label"], "cat": j["cat"], "workers": j["workers"], "files": len(j["names"]),
+                                      "est_s": round(j["est"]), "start_s": res.get(j["label"], (0, None, None))[1],
+                                      "wall_s": res.get(j["label"], (0, None, None))[2]} for j in _order(jobs)]}
+
+
 def summarize_visual(rows):
     """rows = visual.mjs results.json. Returns {pass, diff, error, nobase, diffs:[label,...]}."""
     c = {"pass": 0, "diff": 0, "error": 0, "nobase": 0, "diffs": []}
@@ -809,6 +1250,16 @@ def write_reports(sha, verdict, extra):
     for w in extra.get("baseline_warnings", []):
         md += ["", f"> אזהרה: {w}"]
     md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" for p in PHASES]
+    md += ["", f"- תזמון (schedule): {extra.get('schedule', 'v1')}"]
+    if extra.get("resources"):
+        r = extra["resources"]
+        md += [f"- resources (every 30 s, {r['samples']} samples): max load1 {r['max_load1']}, min MemAvailable {r['min_mem_available_mb']} MB"]
+    if extra.get("backend_shards"):
+        md += [f"- backend: {len(extra['backend_shards'])} shards, scratch: {extra.get('backend_scratch', 'disk')}"]
+    if extra.get("pool"):
+        p = extra["pool"]
+        md += [f"- Playwright pool: {p['slots']} worker slots, {len(p['jobs'])} jobs (label / workers / files / est s / start s / wall s):"]
+        md += [f"  - {j['label']} / {j['workers']} / {j['files']} / {j['est_s']} / {j['start_s']} / {j['wall_s']}" for j in p["jobs"]]
     for st, title in (("FAIL", "נכשלו"), ("WAIVED", "ויתור מפורש"),("FLAKY", "FLAKY (נכשל ועבר בהרצה חוזרת בודדת)"), ("KNOWN", "KNOWN (ברשימת הבעיות המוכרות)"), ("SKIPPED", "דולגו")):
         lst = [i for i in ITEMS if i["status"].startswith(st)]
         md += ["", f"## {title}: {len(lst)}", ""]
@@ -845,6 +1296,7 @@ def main():
         while not HB_STOP.wait(30):
             try:
                 status("running")
+                sample_resources()
             except Exception:
                 pass
 
@@ -857,17 +1309,28 @@ def main():
         if old.is_file():
             old.unlink()
     fe = wt / "frontend"
-    extra = {}
+    extra = {"schedule": SCHEDULE}
     procs = None
     nbackend = 0
     hard_fail = []
+    shm = None
     try:
         with Phase("modules", "node modules"):
             if not need_modules(wt, logd / "npm.log"):
                 hard_fail.append("npm ci failed")
         if TIER in ("M", "L") and not SKIP_BACKEND:
-            with Phase("backend-start", "backend: 3 shards started"):
-                procs, nbackend = backend_start(wt, logd)
+            if SCHEDULE == "v2":
+                n = max(1, knob("GATE_BACKEND_SHARDS", 3, 6))
+                with Phase("backend-start", f"backend: {n} shards started (v2)"):
+                    if knob("GATE_BACKEND_TMPFS", 0, 1):
+                        shm = tmpfs_root(TAG)
+                        extra["backend_scratch"] = str(shm) if shm else "disk (tmpfs unavailable or under GATE_TMPFS_MIN_GB free)"
+                    else:
+                        extra["backend_scratch"] = "disk"
+                    procs, nbackend, extra["backend_shards"] = backend_start_v2(wt, logd, n, shm)
+            else:
+                with Phase("backend-start", "backend: 3 shards started"):
+                    procs, nbackend = backend_start(wt, logd)
         with Phase("tsc", "tsc --noEmit"):
             rc, to = run(["npx", "tsc", "--noEmit"], fe, logd / "tsc.log", timeout=900)
             count("tsc", "pass" if rc == 0 else "fail")
@@ -899,7 +1362,9 @@ def main():
             "fixture needed but not in the gate routine (self-skip in the preview run)": ", ".join(f"{k}->{v}" for k, v in cls["fixture_other"].items()) or "-",
         }
         dead = free_port()   # nothing listens here: the app falls back to demo mode, as the specs' headers require
-        if COUNTS.get("build", {}).get("pass", 0) == 1:
+        if COUNTS.get("build", {}).get("pass", 0) == 1 and SCHEDULE == "v2":
+            extra["pool"] = run_frontend_v2(wt, fe, logd, cls, dead)
+        elif COUNTS.get("build", {}).get("pass", 0) == 1:
             if cls["rest"] or cls["pixel"]:
                 with Phase("playwright-preview", "Playwright on the dist preview"):
                     port = free_port()
@@ -924,38 +1389,10 @@ def main():
             # starve it of the budget (it used to run last and got 3 s)
             if cls["fixture"]:
                 with Phase("playwright-fixture", "Playwright with the fake-backend fixture"):
-                    api = free_port(pair=True)
-                    data = Path(tempfile.mkdtemp(prefix="gate_data_", dir=str(logd)))
-                    fx = spawn([PY, "frontend/tests/fixtures/devices_fake_ha.py"], wt, logd / "fixture_devices.log",
-                               env={"SW_PORT": str(api), "SW_DATA_DIR": str(data), "SW_DEV_USER": "joni", "SW_BOOTSTRAP_ADMIN": "joni"})
-                    up = wait_http(f"http://127.0.0.1:{api}/healthz", 90)
-                    port = free_port()
-                    vp, ok = (None, False)
-                    if up:
-                        vp, ok = start_vite(fe, "preview", port, logd, api)
-                    if not (up and ok):
-                        count("fixture", "fail"); item("fixture", "fake backend / preview", "FAIL", f"did not start (fixture backend up={up} preview up={ok}); see fixture_devices.log")
-                    else:
-                        base_url = f"http://127.0.0.1:{port}/"
-                        fenv = {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_API_PORT": str(api)}
-                        for (projs, w1), names in group_by_run(cls["fixture"]).items():
-                            lab = f"fixture_{'-'.join(projs)}"
-                            status("running", f"Playwright fixture specs: {', '.join(names)}")
-                            rows, rc, to = run_pw(fe, names, projs, base_url, logd, lab, env=fenv, workers=1, timeout=left())
-                            settle("fixture", rows, rc, to, fe, logd, base_url, fenv, lab)
-                    if vp:
-                        reap(vp)
-                    reap(fx)
+                    fixture_block(wt, fe, logd, cls)
             if VISUAL:
                 with Phase("visual-matrix", "M074 visual matrix (--touched)"):
-                    port = free_port()
-                    vp, ok = start_vite(fe, "preview", port, logd, dead)
-                    if not ok:
-                        VISUAL_INFO.update(mode=VISUAL, error="vite preview did not start for the visual step")
-                    else:
-                        status("running", f"visual matrix ({VISUAL})")
-                        run_visual(wt, fe, f"http://127.0.0.1:{port}/", logd)
-                    reap(vp)
+                    visual_block(wt, fe, logd, dead)
             if cls["dev"] and not SKIP_DEV:
                 with Phase("playwright-dev", "Playwright on the Vite dev server"):
                     port = free_port()
@@ -978,9 +1415,13 @@ def main():
     except BaseException as e:  # incl. the SIGTERM that `timeout` sends (turned into KeyboardInterrupt)
         hard_fail.append(("terminated (time budget)" if isinstance(e, KeyboardInterrupt) else type(e).__name__) + ": " + str(e)[:150])
     finally:
+        ABORT.set()
         kill_all()
+        if shm:   # v2 tmpfs scratch: RAM, never left behind (a failed test's dir goes with it; its log line stays in backend_sN.log)
+            shutil.rmtree(shm, ignore_errors=True)
     if left() < 0:
         hard_fail.append("90-minute budget exhausted: the run is incomplete")
+    extra["resources"] = dict(RESOURCES)
     baseline, bsrc = load_baseline(wt)
     extra["baseline_file"] = bsrc or "(none found)"
     extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
@@ -1012,11 +1453,114 @@ def on_term(sig, frm):
     raise KeyboardInterrupt(f"signal {sig}")
 
 
+def plan(root, tier):
+    """--plan: what v1 and v2 would run on the checkout `root`, with time estimates from the recorded costs. Runs nothing,
+    starts no process, writes nothing. Costs: the gate logs under GATE_RESULTS_DIR (+ GATE_COSTS_DIR), then gate_durations.json."""
+    global SCHEDULE
+    root = Path(root).resolve()
+    fe, bd = root / "frontend", root / "smplwise_vms" / "backend"
+    cls = classify(fe, tier)
+    costs = prior_costs()
+    lines = [f"plan for {root} (tier {tier}); {len(costs)} spec files timed; schedule knobs from the environment",
+             f"classification: rest {len(cls['rest'])}, dev {len(cls['dev'])}, fixture {len(cls['fixture'])}, pixel {len(cls['pixel'])}, "
+             f"tablet dropped (E4) {len(cls['tablet_dropped'])}"]
+    pix = pixel_estimate(len(cls["pixel"]))
+    v1_fe = v1_estimate(cls, costs, tier, SKIP_DEV, pix)
+    btot, bsrc = last_backend_seconds()
+    files = [(os.path.basename(f), os.path.getsize(f)) for f in sorted(glob.glob(str(bd / "tests" / "test_*.py")))]
+    bcosts = backend_prior_costs()
+    if not bcosts and btot and files:   # no per-file times yet: scale the sizes to the last gate's total
+        tsize = sum(s for _, s in files) or 1
+        bcosts = {f: btot * s / tsize for f, s in files}
+    out = {}
+    for sched, nsh in (("v1", 3), ("v2", None)):
+        keep, SCHEDULE = SCHEDULE, sched
+        try:
+            n = nsh or max(1, knob("GATE_BACKEND_SHARDS", 3, 6))
+            shards = split_backend(files, n, bcosts) if files else []
+            b_est = max((w for _, w in shards), default=0.0)
+            if sched == "v1":
+                fe_est, extra_lines = v1_fe, []
+            else:
+                slots = knob("GATE_PW_SLOTS", 12, 12)
+                jobs = v2_jobs(cls, costs, tier, SKIP_DEV)
+                fe_est, starts = simulate_pool(jobs, slots)
+                work = sum(j["est"] * j["workers"] for j in jobs)
+                extra_lines = [f"  pool: {slots} slots, {len(jobs)} jobs, {work / 3600:.1f} worker-hours, longest job {max((j['est'] for j in jobs), default=0) / 60:.0f} min"]
+                extra_lines += [f"    {j['label']:<44} w={j['workers']} files={len(j['names']):>3} est={j['est'] / 60:5.1f} min start={starts.get(j['label'], 0) / 60:5.1f}"
+                                for j in _order(jobs)]
+            out[sched] = {"frontend_s": fe_est, "backend_s": b_est}
+            lines += [f"{sched}: Playwright ~{fe_est / 60:.0f} min, backend {len(shards)} shards ~{b_est / 60:.0f} min (largest shard; "
+                      f"backend total {btot / 60:.0f} shard-min from {bsrc or 'sizes only'}), critical path ~{max(fe_est, b_est) / 60:.0f} min"
+                      " + ~1 min tsc/build/release_check + retries"] + extra_lines
+        finally:
+            SCHEDULE = keep
+    lines.append("estimates use the recorded per-file times of earlier gates as they ran then (under that gate's load); v2 runs more at once,"
+                 " so expect individual tests to be slower; the backend estimate assumes the shards scale (disk); tmpfs is not counted")
+    print("\n".join(lines))
+    return out
+
+
+def seed_from(logs_dir, source):
+    """--seed-from <gate_*.logs> ["<source line>"]: the refreshed gate_durations.json (stdout) from one gate's logs: Playwright
+    seconds per spec file (pw_*.json, retries excluded, as prior_costs()), backend seconds per test file (backend_s*.xml, v2
+    gates), the shards' summed pytest seconds; pixel_phase_seconds is kept from the current seed (a v2 report has it per job)."""
+    d = Path(logs_dir)
+    sec = {}
+    for jp in sorted(d.glob("pw_*.json")):
+        if "_retry_" in jp.name:
+            continue
+        try:
+            rep = json.loads(jp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        def walk(s):
+            for sp in s.get("specs", []):
+                f = os.path.basename(sp.get("file", ""))
+                for t in sp.get("tests", []):
+                    sec[f] = sec.get(f, 0.0) + sum((r.get("duration") or 0) for r in t.get("results", [])) / 1000.0
+            for c in s.get("suites", []):
+                walk(c)
+        for s in rep.get("suites", []):
+            walk(s)
+    bsec = {}
+    for xp in sorted(d.glob("backend_s*.xml")):
+        for f, v in junit_costs(xp).items():
+            bsec[f] = bsec.get(f, 0.0) + v
+    tot = 0.0
+    for lg in d.glob("backend_s*.log"):
+        m = re.findall(r" in ([\d.]+)s", lg.read_text(encoding="utf-8", errors="replace"))
+        tot += float(m[-1]) if m else 0.0
+    cur = _seed()
+    doc = dict(cur)
+    doc["source"] = source or f"gate logs {d.name}"
+    doc["seconds"] = {k: round(v, 1) for k, v in sorted(sec.items()) if round(v, 1) > 0}
+    if bsec:
+        doc["backend_seconds"] = {k: round(v, 1) for k, v in sorted(bsec.items()) if round(v, 1) > 0}
+    if tot:
+        doc["backend_shard_seconds_total"] = round(tot, 1)
+    print(json.dumps(doc, indent=2, ensure_ascii=False))
+    return 0
+
+
 def main_cli(argv):
-    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE
+    if argv[:1] == ["--seed-from"] and len(argv) >= 2:
+        return seed_from(argv[1], argv[2] if len(argv) > 2 else "")
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE
     args = list(argv)
+    plan_root = None
     while args:
         a = args.pop(0)
+        if a == "--schedule":
+            SCHEDULE = (args.pop(0) if args else "").strip().lower()
+            continue
+        if a == "--plan":
+            plan_root = plan_root or "."
+            continue
+        if a == "--root":
+            plan_root = args.pop(0) if args else "."
+            continue
         if a == "--tier":
             TIER = args.pop(0) if args else "L"
         elif a == "--allow-count-drop":
@@ -1037,11 +1581,18 @@ def main_cli(argv):
             return 0
         else:
             BR = a
-    if not BR:
-        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]')
+    if SCHEDULE not in ("v1", "v2"):
+        print("--schedule must be v1 (the 2.9.2 gate, default) or v2 (GATESPEED: more shards, one Playwright pool)")
         return 2
     if TIER not in ("S", "M", "L"):
         print("tier must be S, M or L")
+        return 2
+    if plan_root is not None:
+        plan(plan_root, TIER)
+        return 0
+    if not BR:
+        print('usage: release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]\n'
+              '       release_gate.py --plan --root <checkout> [--tier L]   (estimates only, runs nothing)')
         return 2
     TAG = re.sub(r"[^A-Za-z0-9._-]", "-", BR)
     signal.signal(signal.SIGTERM, on_term)
