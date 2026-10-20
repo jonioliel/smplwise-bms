@@ -100,6 +100,8 @@ export interface ExternalMock {
 
 export interface ExternalOptions {
   persona?: Persona;
+  /** TICKGATE-295: the tickets module is on (the request form's ticket link needs it) */
+  ticketsOn?: boolean;
   /** off (default true): the build as shipped - the switch is off and the go-live permit absent */
   enabled?: boolean;
   empty?: boolean;
@@ -110,7 +112,7 @@ export interface ExternalOptions {
 
 export async function installExternalMock(page: Page, o: ExternalOptions = {}): Promise<ExternalMock> {
   const persona = o.persona ?? 'admin';
-  const access = await installAccessMock(page, { persona });
+  const access = await installAccessMock(page, { persona, ticketsOn: o.ticketsOn });
   const st: ExternalMock = { access, posts: [], settingsPuts: [] };
   const screen = { digest_channel: 'app', digest_day: 0, digest_hour: 8, name_sync: 'manual', placement: 'access' };
   const enabled = o.enabled ?? true;

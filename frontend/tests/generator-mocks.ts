@@ -14,6 +14,8 @@ export const PERMS = {
 
 export interface GenMockOptions {
   perms?: string[];
+  /** the session's optional modules (`/me` modules) - e.g. { tickets: true } (TICKGATE-295: absent = the tickets module is off) */
+  modules?: { tickets: boolean };
   level?: Level;
   scenario?: Scenario;
   /** generators detected: 0 = none, 1, 2 (picker) or many */
@@ -60,7 +62,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
     const p = url.pathname.replace(/^.*\/api\/v1\//, '');
     const method = req.method();
     const body: unknown = method === 'GET' || method === 'DELETE' ? null : (() => { try { return req.postDataJSON(); } catch { return null; } })();
-    if (p === 'me') return json(route, { user: { id: 'u1', username: 'gen', display_name: 'דנה', source: 'ingress' }, channel: 'local', remote: null, bindings: [], permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done' });
+    if (p === 'me') return json(route, { user: { id: 'u1', username: 'gen', display_name: 'דנה', source: 'ingress' }, channel: 'local', remote: null, bindings: [], permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done', ...(o.modules ? { modules: o.modules } : {}) });
     if (p === 'me/prefs') {
       if (method === 'PUT') {
         st.calls.push({ method, path: p, body });
@@ -68,7 +70,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
       }
       return json(route, { prefs: { 'nav.order': [], 'generator.view_mode': st.viewMode }, stored: [], updated_at: null });
     }
-    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a' }, can_edit: false });
+    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', ...(o.modules?.tickets ? { 'tickets.enabled': 'true' } : {}) }, can_edit: false });
     if (p.startsWith('notifications')) return json(route, { unread: 0, items: [] });
     if (p === 'identity/users') return json(route, { users: [{ id: 'u2', name: 'יוסי', username: 'yossi', is_admin: false, active: true, source: 'vms', sync_status: 'verified', groups: [], bindings: [], is_self: false }], directory: { paired: false, last_directory_at: null, users: 1 }, revision: 1, can_assign: false, members: [], bindings: [] });
     if (p === 'access/roles') return json(route, { roles: [], labels: {}, sensitive: [], can_manage_roles: false });

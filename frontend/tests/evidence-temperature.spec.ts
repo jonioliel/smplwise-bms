@@ -88,8 +88,8 @@ const LOG = [ev('e1', 'u3', 'high', 'alarm', 9, 6.8, 4), ev('e2', 'u3', 'door', 
   ev('e7', 'u1', 'ack', 'info', 258, null, null, false, { ack_by_name: 'יוני', ack_at: iso(258) }), ev('e8', 'u1', 'high', 'alarm', 266, 7.4, 6, false, { ack_at: iso(258), ack_by_name: 'יוני' }),
 ].map((e) => ({ ...e, unit_name: units().find((u) => u.id === e.unit_id)!.name }));
 
-async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: boolean; perms?: string[] } = {}) {
-  await installGeneratorMock(page, { perms: o.perms ?? ['devices.read', 'infra.temperature.manage', 'infra.temperature.ack', 'system.configure'], count: 0 });
+async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: boolean; perms?: string[]; tickets?: boolean } = {}) {
+  await installGeneratorMock(page, { perms: o.perms ?? ['devices.read', 'infra.temperature.manage', 'infra.temperature.ack', 'system.configure'], count: 0, modules: o.tickets ? { tickets: true } : undefined });
   await page.route('**/api/v1/infra/temperature**', async (route) => {
     const p = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1\//, '');
     const shown = o.stale ? list.map((u) => ({ ...u, stale: true, status: 'unknown', value: null, value_last: u.value })) : list;
@@ -343,7 +343,7 @@ test.describe('temperature evidence', () => {
   });
 
   test('phase 3: a service ticket from the alarm (draft, chart, opened)', async ({ page }) => {
-    await install(page, phase3Units() as never);
+    await install(page, phase3Units() as never, { tickets: true }); // TICKGATE-295: the ticket actions exist only while the tickets module is on
     await page.goto('about:blank');
     await page.goto(url('/infra/temperature'));
     await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
@@ -426,4 +426,18 @@ test.describe('temperature evidence', () => {
       }
     });
   }
+  test('TICKGATE-295: tickets module OFF - the drawer offers no service request and no linked tickets', async ({ page }) => {
+    await install(page, phase3Units() as never); // no modules.tickets in the session = the module is off
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    const d = page.locator('sw-app infra-temperature temp-detail');
+    await expect(d.locator('[data-temp-detail="u3"]')).toBeVisible();
+    await expect(d.locator('[data-temp-ack]')).toBeEnabled(); // the rest of the drawer is as before
+    await expect(d.locator('[data-temp-ticket-btn]')).toHaveCount(0);
+    await expect(d.locator('[data-temp-tickets]')).toHaveCount(0);
+    await expect(d.locator('[data-ticket-link]')).toHaveCount(0);
+    await expect(d.locator('temp-ticket')).toHaveCount(0);
+    await page.screenshot({ path: path.join(OUT, `tickets-off-drawer-${test.info().project.name}.png`) });
+  });
 });

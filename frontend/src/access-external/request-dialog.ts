@@ -9,6 +9,7 @@ import {
 } from '../api/access-grants';
 import { ticketsS4Api, type Contact } from '../api/tickets-s4';
 import { ticketsApi, type TicketItem } from '../api/tickets';
+import { ticketsEnabled } from '../tickets/gate';
 import { phoneVerifyApi } from '../api/tickets-phone-verify';
 import { dateInZone, minuteInZone } from '../api/recordings';
 import { xCss } from './styles';
@@ -169,7 +170,7 @@ export class AccessRequestDialog extends LitElement {
         this.dirError = true;
       },
     );
-    void ticketsApi().list({ scope: 'visible', status: 'open', limit: 50 }).then((p) => (this.tickets = p.items), () => (this.tickets = []));
+    if (ticketsEnabled()) void ticketsApi().list({ scope: 'visible', status: 'open', limit: 50 }).then((p) => (this.tickets = p.items), () => (this.tickets = []));
   }
 
   private set(patch: Partial<RequestForm>): void {
@@ -322,11 +323,12 @@ export class AccessRequestDialog extends LitElement {
 
   private purposeSection(e: Errs): TemplateResult {
     const f = this.f;
-    return html`<section class="sec" data-sec="purpose"><h4><sw-icon name="ticket" size="14"></sw-icon>${rt('purpose')}<span class="chip" data-tone="off">${rt('optional')}</span></h4>
-      <div class="f2"><div class="field"><label for="tk">${rt('ticket')}</label><select id="tk" class="in" @change=${(ev: Event) => this.changeTicket((ev.target as HTMLSelectElement).value)}>
-          <option value="" ?selected=${!f.ticketId}>${rt('none')}</option>${this.tickets.map((t) => html`<option value=${t.id} ?selected=${f.ticketId === t.id}>#${t.number} · ${t.title}</option>`)}</select></div>
+    const tk = ticketsEnabled(); // owner rule 2026-10-20: no ticket link while the tickets module is off
+    return html`<section class="sec" data-sec="purpose"><h4>${tk ? html`<sw-icon name="ticket" size="14"></sw-icon>` : nothing}${rt('purpose')}<span class="chip" data-tone="off">${rt('optional')}</span></h4>
+      <div class="f2">${tk ? html`<div class="field"><label for="tk">${rt('ticket')}</label><select id="tk" class="in" @change=${(ev: Event) => this.changeTicket((ev.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!f.ticketId}>${rt('none')}</option>${this.tickets.map((t) => html`<option value=${t.id} ?selected=${f.ticketId === t.id}>#${t.number} · ${t.title}</option>`)}</select></div>` : nothing}
         <div class="field"><label for="pu">${rt('purposeVisit')}</label><input id="pu" class="in" autocomplete="off" maxlength=${PURPOSE_MAX} aria-invalid=${e.purpose ? 'true' : 'false'} .value=${f.purpose} @input=${(ev: Event) => this.set({ purpose: (ev.target as HTMLInputElement).value })} />${this.err(e, 'purpose')}</div></div>
-      ${f.ticketId ? html`<div class="row"><span class="chip" data-tone="acc"><sw-icon name="info" size="13"></sw-icon>${rt('endsWithTicket')}</span></div>` : nothing}</section>`;
+      ${tk && f.ticketId ? html`<div class="row"><span class="chip" data-tone="acc"><sw-icon name="info" size="13"></sw-icon>${rt('endsWithTicket')}</span></div>` : nothing}</section>`;
   }
 
   private stationBox(s: GrantableStation, enabled: boolean): TemplateResult {
