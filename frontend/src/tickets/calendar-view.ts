@@ -22,6 +22,14 @@ import './elapsed-clock';
  * quiet / warn / bad for a target by how near it is). A click opens the request through the host's `hrefOf` (the drawer or the full screen).
  * The host owns the data and the filters (scope, department, text, priority / handler / flags); this element only lays them out.
  */
+/**
+ * UXFIX-A11Y-295: a numeric range ("18–24") inside the RTL heading is an LTR island. The en dash is a neutral between two numbers, so in
+ * a right-to-left line the bidi algorithm drew it "24–18"; the isolate keeps the numbers in reading order whatever the language.
+ */
+export function isolateRanges(text: string): (string | TemplateResult)[] {
+  return text.split(/(\d+\s*[–-]\s*\d+)/).map((part, i) => (i % 2 ? html`<bdi dir="ltr">${part}</bdi>` : part));
+}
+
 @customElement('tickets-calendar')
 export class TicketsCalendar extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -352,9 +360,37 @@ export class TicketsCalendar extends LitElement {
       .today {
         min-block-size: 44px;
       }
+      /* UXFIX-A11Y-295 (UX audit 2026-10-20, finding 12): the week range wrapped to three lines between the step keys and the count, and
+         the controls took ~460 px above the first event. One line for the range (it shrinks with an ellipsis before it wraps), the
+         week's count leaves the bar (the day box says the day's count), the legend keeps one line and scrolls sideways if it must. */
+      .bar {
+        flex-wrap: nowrap;
+        gap: 6px;
+      }
       .bar h2 {
         flex: 1;
         font-size: var(--sw-fs-md);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: center;
+      }
+      .bar .grow,
+      .bar .cnt {
+        display: none;
+      }
+      .today {
+        flex: none;
+      }
+      .leg {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        gap: 4px 10px;
+        white-space: nowrap;
+      }
+      .leg::-webkit-scrollbar {
+        display: none;
       }
       a.ev {
         min-block-size: 44px;
@@ -496,7 +532,7 @@ export class TicketsCalendar extends LitElement {
       <div class="bar" data-cal-nav>
         <button type="button" class=${`step prev${rtl ? "" : " flip"}`} data-cal-prev aria-label=${prev} title=${prev} @click=${() => this.step(-1)}>${tIcon('back')}</button>
         <button type="button" class=${`step next${rtl ? " flip" : ""}`} data-cal-next aria-label=${next} title=${next} @click=${() => this.step(1)}>${tIcon('back')}</button>
-        <h2 data-cal-range aria-live="polite" aria-label=${ct('calWeekAria', range)}>${label}</h2>
+        <h2 data-cal-range aria-live="polite" aria-label=${ct('calWeekAria', range)}>${isolateRanges(label)}</h2>
         <button type="button" class="btn sm today" data-cal-today title=${ct('calTodayJump')} aria-current=${anchor === today ? "date" : nothing} @click=${this.goToday}>${ct('calToday')}</button>
         <span class="grow"></span>
         <span class="cnt" data-cal-count>${countText}</span>
