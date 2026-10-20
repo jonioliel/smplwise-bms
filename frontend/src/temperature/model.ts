@@ -549,3 +549,11 @@ export function localInput(ms: number): string {
 export function unreachable(users: ReportRecipient[], chosen: string[]): number {
   return users.filter((u) => chosen.includes(u.id) && u.reach && u.reach !== 'ok').length;
 }
+
+/** owner 2026-10-20: an operator never sees a raw Home Assistant entity id - a missing name, or a name that is itself an id, falls back to `fallback` (the unit's name) */
+const ENTITY_ID_RE = /^[a-z_]+\.[a-z0-9_]+$/;
+export function friendlyName(name: string | null | undefined, fallback: string): string {
+  const n = (name ?? '').trim();
+  if (n && !ENTITY_ID_RE.test(n)) return n;
+  return fallback.trim() || '—';
+}

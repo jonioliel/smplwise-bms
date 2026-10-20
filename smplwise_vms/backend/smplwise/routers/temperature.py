@@ -255,7 +255,7 @@ def _phase3(ctx: _Ctx, u: sqlite3.Row, rules: dict[str, Any], te: sqlite3.Row | 
     if u["power_entity_id"]:
         pe = ents.get(u["power_entity_id"])
         w = t.power_of(pe, connected=ctx.connected)
-        out["power"] = {"w": w, "on": None if w is None else w >= float(rules["compressor_on_w"]), "sensor_name": t.friendly(pe)}
+        out["power"] = {"w": w, "on": None if w is None else w >= float(rules["compressor_on_w"]), "sensor_name": t.friendly(pe, u["name"])}
     else:
         out["power"] = None
     if u["maint_until"] and u["maint_until"] > _iso(ts):
@@ -287,7 +287,7 @@ def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sql
         de = ents.get(u["door_entity_id"])
         st = t.door_of(de["state"], invert=bool(u["door_invert"]), available=de["available"], removed=de["removed_at"], disabled=de["disabled"], connected=ctx.connected) if de is not None else None
         since = de["last_changed"] if de is not None and st is not None else None
-        door = {"open": st, "since": since, "sensor_name": t.friendly(de)}
+        door = {"open": st, "since": since, "sensor_name": t.friendly(de, u["name"])}
     wins = t.unit_windows(u, ctx.learned)
     minute = t.local_min(ts, ctx.tz)
     nxt = t.next_window_start(wins, ts, ctx.tz)
@@ -301,7 +301,7 @@ def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sql
         "hvac": {k: reading[k] for k in ("setpoint", "setpoint_low", "setpoint_high", "hvac_mode", "hvac_action")} if reading["source"] == "climate" else None,
         "status": _status(open_evs, value, ctx.connected, t.is_off(reading, rules)), "value": value, "value_last": value_last,
         "updated_at": (te["last_updated"] or te["last_changed"]) if te is not None else None, "trend": t.trend_of(conn, u["id"], ts) if ctx.connected else None,
-        "temp_sensor_name": t.friendly(te), "door": door,
+        "temp_sensor_name": t.friendly(te, u["name"]), "door": door,
         "events": [_event_out(e, names, rules) for e in sorted(open_evs.values(), key=lambda e: e["started_at"], reverse=True)],
         "defrost": {"mode": u["defrost_mode"], "in_window": t.in_defrost(wins, minute), "next_at": _iso(nxt) if nxt else None,
                     "state": (dstate or {}).get("state", "learning") if u["defrost_mode"] == "learn" else u["defrost_mode"],
@@ -605,10 +605,10 @@ def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connec
     for r in rows:
         te, de, pe = ents.get(r["temp_entity_id"]), ents.get(r["door_entity_id"] or ""), ents.get(r["power_entity_id"] or "")
         items.append({"id": r["id"], "name": r["name"], "kind": r["kind"], "area_id": r["area_id"], "enabled": bool(r["enabled"]), "sort_order": r["sort_order"],
-                      "revision": r["revision"], "temp_entity_id": r["temp_entity_id"], "temp_sensor_name": t.friendly(te), "temp_missing": te is None or bool(te["removed_at"]),
-                      "door_entity_id": r["door_entity_id"], "door_sensor_name": t.friendly(de), "door_missing": bool(r["door_entity_id"]) and (de is None or bool(de["removed_at"])),
+                      "revision": r["revision"], "temp_entity_id": r["temp_entity_id"], "temp_sensor_name": t.friendly(te, r["name"]), "temp_missing": te is None or bool(te["removed_at"]),
+                      "door_entity_id": r["door_entity_id"], "door_sensor_name": t.friendly(de, r["name"]), "door_missing": bool(r["door_entity_id"]) and (de is None or bool(de["removed_at"])),
                       "door_invert": bool(r["door_invert"]), "low": r["low"], "high": r["high"], "band_mode": r["band_mode"],
-                      "power_entity_id": r["power_entity_id"], "power_sensor_name": t.friendly(pe), "power_missing": bool(r["power_entity_id"]) and (pe is None or bool(pe["removed_at"])),
+                      "power_entity_id": r["power_entity_id"], "power_sensor_name": t.friendly(pe, r["name"]), "power_missing": bool(r["power_entity_id"]) and (pe is None or bool(pe["removed_at"])),
                       "source": "climate" if r["temp_entity_id"].startswith("climate.") else "sensor", "rules": t.overrides_of(r["rules_json"]), "recipients": t.recipients_of(r),
                       "defrost_mode": r["defrost_mode"], "defrost_windows": t.fixed_of(r)})
     return {"units": items, "defaults": t.load_defaults(conn), "rule_specs": {k: {"type": s[0], "min": s[2], "max": s[3]} for k, s in t.RULES.items()},
@@ -635,7 +635,7 @@ def candidates(kind: str = Query("temp", pattern="^(temp|door|power)$"), q: str 
     items = []
     for r in rows:
         rd = t.reading_of(r) if kind == "temp" else None
-        items.append({"entity_id": r["entity_id"], "name": r["name"] or r["original_name"] or r["entity_id"], "device_class": r["device_class"], "area_name": r["area_name"],
+        items.append({"entity_id": r["entity_id"], "name": t.friendly(r, " · ".join(x for x in (r["area_name"], r["device_class"] or r["domain"]) if x) or r["domain"]), "device_class": r["device_class"], "area_name": r["area_name"],
                       "group": ("climate" if r["domain"] == "climate" else "sensor") if kind == "temp" else "power" if kind == "power" else "door",
                       "value": rd["value"] if rd else None, "setpoint": rd["setpoint"] if rd else None, "hvac_mode": rd["hvac_mode"] if rd else None,
                       "state": (r["state"] if r["state"] in ("on", "off") else None) if kind == "door" else None,
