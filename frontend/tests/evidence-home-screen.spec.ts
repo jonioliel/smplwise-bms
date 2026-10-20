@@ -199,7 +199,7 @@ test.describe('the home screen against the devices fixture backend', () => {
     expect(st['home.widgets'].calendar).toMatchObject({ date: HEBDATE, parsha: PARSHA, candles: CANDLES, havdalah: HAVDALAH, holiday: HOLIDAY });
     await open(page, '/devices/building');
     const b = page.locator('devices-building');
-    await expect(b.locator('sw-page')).toHaveAttribute('heading', 'חשמל והתקנים');
+    await expect(b.locator('sw-page')).toHaveAttribute('heading', 'ראשי');
     await expect(b.locator('.page-body')).toHaveAttribute('data-home-direction', 'a');
     await expect(b.locator('[data-layout-edit]')).toHaveCount(0);
     expect(await cardIds(page)).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);

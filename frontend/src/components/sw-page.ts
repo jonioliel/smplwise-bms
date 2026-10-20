@@ -82,6 +82,7 @@ export class SwPage extends LitElement {
     }
     h1 {
       margin: 0;
+      font-family: var(--sw-font-heading, var(--sw-font));
       font-size: var(--sw-h1, var(--sw-fs-2xl));
       font-weight: var(--sw-h1-weight, var(--sw-fw-semibold));
       line-height: 1.2;
@@ -111,7 +112,7 @@ export class SwPage extends LitElement {
         padding: 12px 12px 16px;
       }
       h1 {
-        font-size: var(--sw-fs-xl);
+        font-size: var(--sw-h1-phone, var(--sw-fs-xl));
       }
     }
   `;

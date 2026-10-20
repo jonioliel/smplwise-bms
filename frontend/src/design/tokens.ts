@@ -225,6 +225,11 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-h1': same('26px'),
       '--sw-h1-weight': same('700'),
       '--sw-h1-tracking': same('-0.6px'),
+      // UXFIX-NAV-295: the ONE page-heading style. A page title (sw-page's h1 and the glass pages' own header, styles/media-page.ts) reads
+      // size, weight, tracking, colour and this family; the phone size is the second tier. Resolved at :root, so a screen that re-points
+      // --sw-font (the glass screens: --dv-font) does not change the heading's family.
+      '--sw-h1-phone': same('var(--sw-fs-xl)'),
+      '--sw-font-heading': same('var(--sw-font)'),
     },
   },
   {

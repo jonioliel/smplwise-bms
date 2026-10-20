@@ -54,7 +54,7 @@ test.describe('home screen (demo data)', () => {
     await expect(b.locator('[data-layout-bar]')).toHaveCount(0);
     await expect(b.locator('[data-home-edit]')).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/devices/building'); // the parameter is dropped
-    await expect(b.locator('sw-page')).toHaveAttribute('heading', 'חשמל והתקנים');
+    await expect(b.locator('sw-page')).toHaveAttribute('heading', 'ראשי');
     await expect(b.locator('.page-body')).toHaveAttribute('data-home-direction', 'a');
     await expect(b.locator('.page-body')).toHaveAttribute('data-home-layout', 'hero');
     await expect(b.locator('home-widgets')).toHaveAttribute('layout', 'hero');
