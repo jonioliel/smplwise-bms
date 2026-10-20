@@ -58,7 +58,7 @@ async function expectNoCountdown(scope: Locator) {
   const text = await scope.innerText();
   expect(text).not.toMatch(/\b\d{1,2}:\d{2}\s*(?:שנ|sec|s\b)/);
   expect(text).not.toMatch(/\b75\b/);
-  expect(text).not.toMatch(/0:\d{2}/);
+  expect(text).not.toMatch(/(?<![\d:])0:\d{2}(?!:)/); // a 0:52-style countdown, not a clock time like 10:20
 }
 
 /** WCAG contrast of every visible element matched by `selector` (shadow roots included) against the backgrounds it sits on. */
@@ -136,7 +136,7 @@ async function smallTargets(root: Locator): Promise<string[]> {
   return root.evaluate((host) => {
     const out: string[] = [];
     const walk = (r: ParentNode) => {
-      for (const el of Array.from(r.querySelectorAll('button, sw-button, .kpi, input[type="checkbox"] + span'))) {
+      for (const el of Array.from(r.querySelectorAll('button, sw-button, .kpi, label.cb, summary'))) {
         if (el.tagName === 'BUTTON' && (el.getRootNode() as ShadowRoot).host?.tagName === 'SW-BUTTON') continue;
         const b = el.getBoundingClientRect();
         if (b.width && b.height && b.height < 43.5 && getComputedStyle(el).visibility !== 'hidden') out.push(`${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 20)}" ${Math.round(b.height)}`);
