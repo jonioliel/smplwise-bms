@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -49,6 +50,8 @@ NAME_MAX = 80
 EXPORT_MAX_S = 7200.0          # one export covers at most two hours of ONE camera
 EVENT_MAX_S = 600              # a manual event with a duration lasts at most ten minutes; an open one must be ended by hand
 LIST_MAX = 300
+READBACK_TRIES = 4             # reads (never writes) while an asynchronous change settles
+READBACK_DELAY_S = 0.5
 
 # PTZ: single steps only. There is no patrol, no loop, no autotrack start: a command is one message and one physical step.
 PTZ_STEPS = ("MOVE_UP", "MOVE_DOWN", "MOVE_LEFT", "MOVE_RIGHT", "ZOOM_IN", "ZOOM_OUT", "STOP")
@@ -107,29 +110,36 @@ class FrigateControl:
         return {f: _dig(cam, p) for f, p in FEATURE_PATHS.items()}
 
     def active_profile(self) -> dict[str, Any]:
-        """{"names": [...], "active": str | None}; a Frigate without profiles answers an empty list."""
+        """{"names": [...], "active": str | None}; a Frigate without profiles answers an empty list.
+
+        0.18 (frigate/api/app.py, verified against the 0.18.2 source and the owner's instance on 2026-10-05): `GET /api/profiles` answers
+        {"profiles": [{"name", "friendly_name"}], "active_profile": str | null, "last_activated": {}}, so ONE read gives both; the separate
+        `GET /api/profile/active` ({"active_profile": ...}) is read only when the first document does not carry the active profile."""
         names: list[str] = []
-        active: str | None = None
         try:
             doc = self.http.get_json("/api/profiles", optional=True)
         except ApiError as exc:
             if exc.code != "frigate_route_missing":
                 raise
             doc = []
+        act: Any = None
+        have_active = False
+        if isinstance(doc, dict):
+            if "active_profile" in doc:
+                act, have_active = doc.get("active_profile"), True
+            doc = doc.get("profiles") if isinstance(doc.get("profiles"), list) else []
         if isinstance(doc, list):
             names = [str(x.get("name") if isinstance(x, dict) else x) for x in doc if (x.get("name") if isinstance(x, dict) else x)]
-        elif isinstance(doc, dict):
-            names = [str(k) for k in doc]
-        try:
-            act = self.http.get_json("/api/profile/active", optional=True)
-        except ApiError as exc:
-            if exc.code != "frigate_route_missing":
-                raise
-            act = None
-        if isinstance(act, dict):
-            act = act.get("name") or act.get("profile") or act.get("active")
-        if isinstance(act, str) and act and act.lower() != "none":
-            active = act
+        if not have_active:
+            try:
+                act = self.http.get_json("/api/profile/active", optional=True)
+            except ApiError as exc:
+                if exc.code != "frigate_route_missing":
+                    raise
+                act = None
+            if isinstance(act, dict):
+                act = act.get("active_profile")
+        active = act if isinstance(act, str) and act and act.lower() != "none" else None
         return {"names": sorted(set(n for n in names if PROFILE_NAME.fullmatch(n)))[:40], "active": active}
 
     def event(self, event_id: str) -> dict[str, Any]:
@@ -138,7 +148,19 @@ class FrigateControl:
         doc = self.http.get_json(f"/api/events/{q(event_id)}")
         if not isinstance(doc, dict):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
-        return {"id": event_id, "retain": bool(doc.get("retain_indefinitely")), "sub_label": doc.get("sub_label") if isinstance(doc.get("sub_label"), str) else None}
+        sub = doc.get("sub_label")
+        return {"id": event_id, "retain": bool(doc.get("retain_indefinitely")), "sub_label": sub if isinstance(sub, str) and sub else None}
+
+    def event_settled(self, event_id: str, field: str, want: Any) -> bool:
+        """Read-back of an event field that Frigate applies ASYNCHRONOUSLY (0.18: a sub label goes through the event metadata publisher, so
+        the very next GET may still show the old value). Up to READBACK_TRIES reads, READBACK_DELAY_S apart; reads only, the write is never
+        repeated."""
+        for n in range(READBACK_TRIES):
+            if self.event(event_id)[field] == want:
+                return True
+            if n + 1 < READBACK_TRIES:
+                time.sleep(READBACK_DELAY_S)
+        return False
 
     def event_detail(self, event_id: str) -> dict[str, Any]:
         """One tracked object / manual event as a small, fixed document (read-back of a manual create / end)."""
@@ -228,7 +250,8 @@ class FrigateControl:
         label = (label or "").strip()
         if len(label) > SUB_LABEL_MAX or any(ord(ch) < 32 for ch in label):
             raise ApiError(422, "frigate_sub_label_invalid", "התווית אינה תקינה.", details={"max": SUB_LABEL_MAX})
-        self.http.write("events", "POST", f"/api/events/{q(event_id)}/sub_label", {"subLabel": label or None})
+        # 0.18: `subLabel` is a required string (null is a 422); "" clears the sub label (frigate/api/event.py set_sub_label)
+        self.http.write("events", "POST", f"/api/events/{q(event_id)}/sub_label", {"subLabel": label})
 
     # ------------------------------------------------------------------------------------------ F2b writes (wire shapes NOT verified)
 
@@ -245,13 +268,17 @@ class FrigateControl:
             raise ApiError(422, "frigate_object_invalid", "מזהה לא תקין.")
         return value or ""
 
-    def create_export(self, camera: str, start: float, end: float, name: str) -> str:
-        """`POST /api/export/{cam}/start/{start}/end/{end}` with `{"name", "playback": "realtime"}`; the new export's id is read from the
-        answer (`export_id`). Returns "" when the answer carries no id (the caller then finds it by name in the list)."""
+    def create_export(self, camera: str, start: float, end: float, name: str, case_id: str | None = None) -> str:
+        """`POST /api/export/{cam}/start/{start}/end/{end}` with `{"name", "source": "recordings"[, "export_case_id"]}` (0.18 ExportRecordingsBody;
+        the export is QUEUED, 202). The new export's id is read from the answer (`export_id`). Returns "" when the answer carries no id
+        (the caller then finds it by name in the list)."""
         FrigateAdapter._camera(camera)
         if not (end > start and end - start <= EXPORT_MAX_S and start > 0):
             raise ApiError(422, "frigate_export_range_invalid", "טווח הייצוא אינו תקין.", details={"max_s": int(EXPORT_MAX_S)})
-        reply = self.http.write("exports", "POST", f"/api/export/{camera}/start/{start:.3f}/end/{end:.3f}", {"name": self._name(name), "playback": "realtime"})
+        body: dict[str, Any] = {"name": self._name(name), "source": "recordings"}
+        if case_id is not None:
+            body["export_case_id"] = self._object(case_id)
+        reply = self.http.write("exports", "POST", f"/api/export/{camera}/start/{start:.3f}/end/{end:.3f}", body)
         try:
             doc = reply.json()
         except ApiError:
@@ -263,7 +290,26 @@ class FrigateControl:
         self.http.write("exports", "PATCH", f"/api/export/{q(self._object(export_id))}/rename", {"name": self._name(name)})
 
     def delete_export(self, export_id: str) -> None:
-        self.http.write("exports", "DELETE", f"/api/export/{q(self._object(export_id))}")
+        """0.18: `POST /api/exports/delete {"ids": [<one id>]}` (there is no per-id DELETE). Exactly one id, proven Arx's by the caller."""
+        self.http.write("exports", "POST", "/api/exports/delete", {"ids": [self._object(export_id)]})
+
+    def assign_export(self, export_id: str, case_id: str | None) -> None:
+        """0.18: `POST /api/exports/reassign {"ids": [<one id>], "export_case_id": <case> | null}` (null = out of its case)."""
+        self.http.write("exports", "POST", "/api/exports/reassign", {"ids": [self._object(export_id)], "export_case_id": self._object(case_id) if case_id is not None else None})
+
+    def export_job(self, export_id: str) -> dict[str, Any] | None:
+        """0.18: a queued / running export job (`GET /api/jobs/export/{id}`), as {id, status, step, case_id}; None when Frigate knows no such job."""
+        try:
+            doc = self.http.get_json(f"/api/jobs/export/{q(self._object(export_id))}", optional=True, control=True)
+        except ApiError as exc:
+            if exc.code in ("frigate_route_missing", "not_found"):
+                return None
+            raise
+        if not isinstance(doc, dict) or doc.get("id") != export_id:
+            return None
+        st = doc.get("status")
+        return {"id": export_id, "status": st if isinstance(st, str) and re.fullmatch(r"[a-z_]{1,20}", st) else "unknown",
+                "case_id": doc.get("export_case_id") if isinstance(doc.get("export_case_id"), str) else None}
 
     def create_case(self, name: str, description: str | None) -> str:
         """`POST /api/cases` with `{"name", "description"}`; the case id is read from the answer (`id`)."""

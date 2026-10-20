@@ -269,7 +269,7 @@ def set_sub_label(conn: sqlite3.Connection, principal: Principal, adapter: Friga
     except ApiError as exc:
         raise _failed(conn, principal, exc, before={"sub_label": cur["sub_label"]}, after={"sub_label": want}, state_hash=None, **base) from None
     try:
-        verified = ctl.event(event_id)["sub_label"] == want
+        verified = ctl.event_settled(event_id, "sub_label", want)
     except ApiError:
         verified = False
     cid = _log(conn, principal, before={"sub_label": cur["sub_label"]}, after={"sub_label": want}, state_hash=None, status="applied" if verified else "unverified", **base)
@@ -423,7 +423,7 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
             if ctl.event(row["target"])["sub_label"] != after["sub_label"]:
                 raise stale()
             ctl.set_sub_label(row["target"], before["sub_label"])
-            verified = ctl.event(row["target"])["sub_label"] == before["sub_label"]
+            verified = ctl.event_settled(row["target"], "sub_label", before["sub_label"])
         elif native_kind:
             verified = native.revert_kind(conn, adapter, row, before, after)
         elif config_kind:

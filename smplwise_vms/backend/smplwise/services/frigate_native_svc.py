@@ -118,9 +118,15 @@ def create_export(conn: sqlite3.Connection, principal: Principal, adapter: Friga
     except ApiError as exc:
         raise cs._failed(conn, principal, exc, target=want[:60], before=None, after=after, state_hash=None, **base) from None
     verified = False
+    queued = False
     try:
         if eid:
             verified = _find_export(ctl, eid) is not None
+            if not verified:
+                # 0.18: the export is a queued job and has no row in /api/exports until it starts; the job itself is the read-back
+                job = ctl.export_job(eid)
+                if job is not None and job["status"] in ("queued", "running", "success"):
+                    verified = queued = True
         else:
             fresh = [x for x in ctl.list_exports() if x["id"] not in known and x["camera"] == cam["source_ref"] and x["name"] == want]
             if len(fresh) == 1:
@@ -132,7 +138,7 @@ def create_export(conn: sqlite3.Connection, principal: Principal, adapter: Friga
     if eid:
         _remember(conn, principal, rid, "export", eid, want, cam, start, end)
     mark_first_write(conn, principal, rid, "export_create")
-    return {"created": True, "export_id": eid or None, "verified": verified, "change_id": cid}
+    return {"created": True, "export_id": eid or None, "verified": verified, "queued": queued, "change_id": cid}
 
 
 def rename_export(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, export_id: str, name: str, *, supervised: bool, request_id: str | None) -> dict[str, Any]:

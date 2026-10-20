@@ -132,7 +132,7 @@ def test_an_export_is_created_read_back_listed_renamed_and_deleted_with_a_confir
     r = _export(world).json()
     eid = r["export_id"]
     assert r["verified"] is True and eid.startswith("cam_front_")
-    assert world.fake.writes[-1] == ("POST", f"/api/export/cam_front/start/{EXPORT['start']:.3f}/end/{EXPORT['end']:.3f}", {"name": "Front door evening", "playback": "realtime"})
+    assert world.fake.writes[-1] == ("POST", f"/api/export/cam_front/start/{EXPORT['start']:.3f}/end/{EXPORT['end']:.3f}", {"name": "Front door evening", "source": "recordings"})
     lst = world.call("GET", f"{BASE}/exports")
     assert lst.status_code == 200
     rows = {x["id"]: x for x in lst.json()["exports"]}

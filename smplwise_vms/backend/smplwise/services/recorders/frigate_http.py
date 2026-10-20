@@ -71,6 +71,7 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
 # these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
 CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),
                                                     re.compile(r"/api/exports"), re.compile(r"/api/cases"),  # F2b: read-back of the export / case write classes
+                                                    re.compile(rf"/api/jobs/export/{OBJ}"),  # 0.18: an export is a queued job before its row exists
                                                     re.compile(r"/api/config/schema\.json"))  # FRGS: the instance's config schema (compared, never trusted)
 
 # F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
@@ -90,8 +91,10 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
                ("POST", re.compile(rf"/api/events/{CAM}/{LABEL}/create")), ("PUT", re.compile(rf"/api/events/{ID}/end"))),
     # F2b: Frigate-native exports and cases. Deletes exist here ONLY for ids the service layer proves Arx created itself; Frigate's
     # export of a camera time range is one camera, one bounded range. UNVERIFIED wire shapes.
+    # Verified against the 0.18.2 OpenAPI (FRIGATE-295): there is no `DELETE /api/export/{id}`; a delete is `POST /api/exports/delete {"ids": [...]}`
+    # (the service sends exactly one id it proved Arx created) and an assignment to a case is `POST /api/exports/reassign`.
     "exports": (("POST", re.compile(rf"/api/export/{CAM}/start/{NUM}/end/{NUM}")), ("PATCH", re.compile(rf"/api/export/{OBJ}/rename")),
-                ("DELETE", re.compile(rf"/api/export/{OBJ}"))),
+                ("POST", re.compile(r"/api/exports/delete")), ("POST", re.compile(r"/api/exports/reassign"))),
     "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
     # FRGS (CR-029 section 13): zones and the curated camera settings. The path is generic, so what may be written is decided by the ONLY
     # caller, `recorders/frigate_config.FrigateConfig._set` (one section of one camera, keys from its allow-listed schema). Never `/api/config/save`
