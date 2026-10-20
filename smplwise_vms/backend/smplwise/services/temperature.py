@@ -276,14 +276,34 @@ def in_defrost(windows: list[tuple[int, int]], minute: int) -> bool:
     return any(in_span(minute, s, n) for s, n in windows)
 
 
+def local_instant(day: dt.date, minute: int, tz: ZoneInfo) -> float:
+    """The unix instant of a local wall-clock minute of `day` in the installation zone, with the DST edge cases resolved EXPLICITLY:
+    * an AMBIGUOUS time (the repeated hour of the fall-back night, e.g. 01:30 on 25.10.2026 in Israel) is its FIRST occurrence (fold=0);
+    * a NON-EXISTENT time (the skipped hour of the spring-forward night, e.g. 02:30 on 27.03.2026 in Israel) is moved FORWARD by the gap
+      (02:30 -> 03:30 summer time): a window never starts before its local time and never disappears."""
+    naive = dt.datetime.combine(day, dt.time(minute // 60, minute % 60))
+    first = naive.replace(tzinfo=tz, fold=0)
+    second = naive.replace(tzinfo=tz, fold=1)
+    if first.utcoffset() == second.utcoffset():
+        return first.timestamp()  # an ordinary local time
+    # the two folds differ: ambiguous when both map back to the same wall time, non-existent otherwise
+    back = dt.datetime.fromtimestamp(first.timestamp(), tz).replace(tzinfo=None)
+    if back == naive:
+        return first.timestamp()  # ambiguous: the first occurrence
+    gap = abs((first.utcoffset() or dt.timedelta()) - (second.utcoffset() or dt.timedelta()))
+    # non-existent: the instant the same wall time reaches after the clock jumped = the pre-transition reading moved forward by the gap
+    return (dt.datetime.combine(day, dt.time(minute // 60, minute % 60)) + gap).replace(tzinfo=tz, fold=0).timestamp()
+
+
 def next_window_start(windows: list[tuple[int, int]], ts: float, tz: ZoneInfo) -> float | None:
-    """The next window start after `ts` (unix seconds), or None without windows."""
+    """The next window start strictly after `ts` (unix seconds), or None without windows. Computed per LOCAL day in the installation zone
+    (never "local minutes added to a UTC base", which is an hour off on a DST night)."""
     if not windows:
         return None
-    now_l = local_min(ts, tz)
-    base = ts - (ts % 60)
-    best = min(((s - now_l) % 1440 or 1440) for s, _n in windows)
-    return base + best * 60
+    today = dt.datetime.fromtimestamp(ts, dt.timezone.utc).astimezone(tz).date()
+    starts = [local_instant(today + dt.timedelta(days=d), s, tz) for d in (-1, 0, 1, 2) for s, _n in windows]
+    later = [a for a in starts if a > ts]
+    return min(later) if later else None
 
 
 def window_intervals(windows: list[tuple[int, int]], lo: float, hi: float, tz: ZoneInfo) -> list[tuple[float, float]]:
@@ -296,7 +316,7 @@ def window_intervals(windows: list[tuple[int, int]], lo: float, hi: float, tz: Z
     day = d0
     while day <= d1:
         for s, n in windows:
-            a = dt.datetime.combine(day, dt.time(s // 60, s % 60), tz).timestamp()
+            a = local_instant(day, s, tz)
             b = a + n * 60
             if b > lo and a < hi:
                 out.append((max(a, lo), min(b, hi)))

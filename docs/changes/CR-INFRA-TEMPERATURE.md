@@ -56,6 +56,11 @@ and nothing is suppressed. Learned windows are listed as learned with confirm / 
 the learned set is cleared. Learned and confirmed windows are excluded from out-of-range statistics (`exclude_defrost_stats`, owner decision 3)
 and hold alerts above the band (`defrost_suppress`) - never above the hard maximum.
 
+DST: every local wall-clock time (defrost windows, quiet hours, report schedules) is turned into an instant per LOCAL day of the
+installation zone (`temperature.local_instant`): an ambiguous time on the fall-back night is its first occurrence, a non-existent time on
+the spring-forward night is moved forward by the gap. (Gate-hygiene finding fixed: the next defrost start used to add local minutes to a
+UTC base and was an hour off on a transition night.)
+
 ## 4. Permissions
 
 | Permission | Holders | Grants |

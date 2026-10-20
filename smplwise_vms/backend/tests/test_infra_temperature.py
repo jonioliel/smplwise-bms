@@ -671,3 +671,53 @@ def test_climate_unit_with_fixed_band_and_a_sensor_unit_side_by_side(app):
     units = {u["id"]: u for u in c.get(API).json()["units"]}
     assert (units[u1]["low"], units[u1]["high"]) == (18, 26) and units[u1]["status"] == "ok" and units[u1]["hvac"]["hvac_action"] == "heating"
     assert units[u2]["source"] == "sensor" and units[u2]["hvac"] is None and units[u2]["status"] == "ok"
+
+
+# ---------------------------------------------------------------- DST (gate-hygiene finding): window starts are local instants of the zone
+
+def _utc(*a) -> float:
+    return dt.datetime(*a, tzinfo=UTC).timestamp()
+
+
+@pytest.mark.parametrize("now,windows,expected", [
+    # fall-back night 25.10.2026 (02:00 IDT -> 01:00 IST): from 00:30 IDT the 03:00 window is 03:00 IST = 01:00Z (the old code said 00:00Z)
+    (_utc(2026, 10, 24, 21, 30), [(180, 30)], _utc(2026, 10, 25, 1, 0)),
+    # the repeated hour: 01:30 is ambiguous -> its FIRST occurrence (01:30 IDT = 22:30Z on 24.10)
+    (_utc(2026, 10, 24, 21, 0), [(90, 30)], _utc(2026, 10, 24, 22, 30)),
+    # ... and once the first 01:30 has passed, the next start is the next day's 01:30 IST, never the second 01:30 of the same night
+    (_utc(2026, 10, 24, 22, 45), [(90, 30)], _utc(2026, 10, 25, 23, 30)),
+    # spring-forward night 27.03.2026 (02:00 IST -> 03:00 IDT): 03:00 is 03:00 IDT = 00:00Z
+    (_utc(2026, 3, 26, 22, 30), [(180, 30)], _utc(2026, 3, 27, 0, 0)),
+    # the skipped hour: 02:30 does not exist -> moved forward by the gap to 03:30 IDT = 00:30Z
+    (_utc(2026, 3, 26, 22, 30), [(150, 30)], _utc(2026, 3, 27, 0, 30)),
+    # an ordinary day: the earliest of several windows; a window that just started is not "next"
+    (_utc(2026, 7, 1, 0, 0), [(180, 30), (900, 30)], _utc(2026, 7, 1, 12, 0)),
+])
+def test_next_window_start_is_dst_correct(now, windows, expected):
+    tz = ZoneInfo("Asia/Jerusalem")
+    assert t.next_window_start(windows, now, tz) == expected
+
+
+def test_local_instant_and_window_intervals_across_both_transitions():
+    tz = ZoneInfo("Asia/Jerusalem")
+    assert t.local_instant(dt.date(2026, 10, 25), 90, tz) == _utc(2026, 10, 24, 22, 30)   # ambiguous -> first
+    assert t.local_instant(dt.date(2026, 3, 27), 150, tz) == _utc(2026, 3, 27, 0, 30)     # non-existent -> forward
+    assert t.local_instant(dt.date(2026, 10, 26), 180, tz) == _utc(2026, 10, 26, 1, 0)    # winter time
+    assert t.local_instant(dt.date(2026, 10, 24), 180, tz) == _utc(2026, 10, 24, 0, 0)    # summer time
+    # the window instants of the two nights are one per local day, each converted on its own
+    iv = t.window_intervals([(180, 30)], _utc(2026, 10, 23, 12, 0), _utc(2026, 10, 26, 12, 0), tz)
+    assert [a for a, _b in iv] == [_utc(2026, 10, 24, 0, 0), _utc(2026, 10, 25, 1, 0), _utc(2026, 10, 26, 1, 0)]
+    iv = t.window_intervals([(150, 30)], _utc(2026, 3, 26, 12, 0), _utc(2026, 3, 27, 12, 0), tz)
+    assert iv == [(_utc(2026, 3, 27, 0, 30), _utc(2026, 3, 27, 1, 0))]
+    # the report schedule's next run on the fall-back night uses the same rule
+    from smplwise.services import temperature_whatsapp as twa
+
+    assert twa.next_run({"freq": "daily", "at": "03:00"}, _utc(2026, 10, 24, 21, 30), tz) == _utc(2026, 10, 25, 1, 0)
+
+
+def test_the_defrost_chip_time_on_the_fall_back_night(app):
+    c, db, _s, clk = app
+    create(c, name="מקפיא", temp_entity_id="sensor.freezer_temp", door_entity_id=None, low=-22, high=-16, defrost_mode="fixed",
+           defrost_windows=[{"start": "03:00", "minutes": 30}])
+    clk["ts"] = _utc(2026, 10, 24, 21, 30)  # 00:30 local on 25.10
+    assert c.get(API).json()["units"][0]["defrost"]["next_at"] == "2026-10-25T01:00:00Z"

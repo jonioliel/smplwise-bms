@@ -161,7 +161,7 @@ def next_run(s: dict[str, Any], after_ts: float, tz: Any) -> float:
             continue
         if s["freq"] == "monthly" and day.day != min(int(s.get("dom") or 1), 28):
             continue
-        cand = dt.datetime.combine(day, dt.time(h, m), tz).timestamp()
+        cand = t.local_instant(day, h * 60 + m, tz)  # DST-safe (ambiguous = first occurrence, skipped = moved forward)
         if cand > after_ts:
             return cand
     return after_ts + 86400
