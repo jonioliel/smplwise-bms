@@ -775,6 +775,13 @@ def store_at(path: Path) -> EnergyStore:
         return st
 
 
+def forget_store(path: Path) -> None:
+    """DATASTORE-295: drop the cached store of a scratch directory (the restore drill) once that directory is removed."""
+    key = os.path.normcase(str(Path(path).resolve()))
+    with _STORES_LOCK:
+        _STORES.pop(key, None)
+
+
 def store_for(settings: Any) -> EnergyStore:
     """The energy store of an installation (`<data_dir>/energy.db`), migrated on first use."""
     return store_at(Path(settings.data_dir) / FILE_NAME)

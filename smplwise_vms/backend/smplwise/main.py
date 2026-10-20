@@ -704,6 +704,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import backup as backup_svc
 
         app.state.backup_task = asyncio.create_task(backup_svc.daily_loop(app.state.db, settings))
+        from .services import backup_drill
+
+        # DATASTORE-295: the monthly restore drill - the loop only reads its switch (`backup.drill.monthly`, OFF by default)
+        app.state.backup_drill_task = asyncio.create_task(backup_drill.monthly_loop(app.state.db, settings))
         from .services import push as push_svc
 
         push_svc.NOTIFIER.start(app.state.db)  # CR-008 P3: Web Push for rule alerts (only to subscribed users in scope)
@@ -752,7 +756,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        for name in ("janitor", "remote_revalidation"):
+        for name in ("janitor", "remote_revalidation", "backup_drill_task"):
             task = getattr(app.state, name, None)
             if task:
                 task.cancel()
