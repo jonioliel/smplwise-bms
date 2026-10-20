@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { defaultPolicy, doorAutomations, type DoorAutomationStatus, type DoorAutomationsAdapter, type DoorBlock, type DoorChoice, type DoorPolicy, type FireRow, type Simulation } from '../api/door-automations';
 import { dat, datCode, datLang } from '../i18n/door-automation';
@@ -38,7 +38,7 @@ export class DoorAutomationBlock extends LitElement {
     return this.adapter ?? doorAutomations();
   }
 
-  updated(changed: Map<string, unknown>): void {
+  updated(changed: PropertyValues<this>): void {
     if (changed.has('automationId') || changed.has('adapter')) void this.load();
   }
 

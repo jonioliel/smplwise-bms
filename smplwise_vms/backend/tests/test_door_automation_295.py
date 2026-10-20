@@ -572,7 +572,8 @@ def test_the_mirror_hook_fires_and_never_raises(live, monkeypatch):
 
     c, sender = live["c"], live["sender"]
     _armed(c)
-    automations.MIRROR.bind(live["app"].state.db, live["settings"])
+    monkeypatch.setattr(automations.MIRROR, "db", live["app"].state.db)  # restored after the test (the mirror is process-wide)
+    monkeypatch.setattr(automations.MIRROR, "settings", live["settings"])
     automations.MIRROR.on_ha_event(frame())
     assert len(sender.calls) == 1
 
