@@ -19,7 +19,8 @@ export interface Hvac {
   hvac_mode: string | null;
   hvac_action: string | null;
 }
-export type EventKind = 'high' | 'low' | 'door' | 'offline' | 'defrost' | 'ack' | 'mute';
+/** phase 3: predict (an early warning), battery / frozen / recovery / duty (health), maint / escalate / ticket (acts) */
+export type EventKind = 'high' | 'low' | 'door' | 'offline' | 'defrost' | 'ack' | 'mute' | 'predict' | 'battery' | 'frozen' | 'recovery' | 'duty' | 'maint' | 'escalate' | 'ticket';
 export type Severity = 'info' | 'warning' | 'alarm';
 export type DefrostMode = 'fixed' | 'learn' | 'none';
 export type DefrostState = 'learning' | 'learned' | 'none_found' | 'fixed' | 'none';
@@ -38,13 +39,21 @@ export interface TempEvent {
   value: number | null;
   peak: number | null;
   threshold: number | null;
-  suppressed: 'quiet' | 'mute' | 'defrost' | 'off' | null;
+  suppressed: 'quiet' | 'mute' | 'defrost' | 'off' | 'maintenance' | null;
   ack_at: string | null;
   ack_by_name: string | null;
   notified: boolean;
   /** for an open warning: when it turns into an alarm if it does not end (null = the alarm is off) */
   alarm_at?: string | null;
-  detail: { minutes?: number; until?: string; hard_max?: boolean; window?: boolean; closed?: string };
+  detail: {
+    minutes?: number; until?: string; hard_max?: boolean; window?: boolean; closed?: string;
+    /** phase 3 */
+    reason?: string; ended_early?: boolean; level?: number; of?: string; side?: 'high' | 'low'; eta_min?: number; rate_h?: number; battery?: number | null;
+    median_recovery_min?: number | null; recent?: number | null; before?: number | null; number?: number; absorbed?: boolean;
+  };
+  /** phase 3: how many steps of the escalation chain this alarm reached; the service ticket opened from it */
+  escalation_level?: number;
+  ticket_id?: string | null;
 }
 
 export interface DefrostWindow {
@@ -75,6 +84,86 @@ export interface UnitRules {
   quiet_includes_alarms?: boolean;
   mute_includes_alarms?: boolean;
   learn_days?: number;
+  /** phase 3 (every one a setting: installation default + per unit) */
+  predict_enabled?: boolean;
+  predict_horizon_min?: number;
+  predict_warn?: boolean;
+  maintenance_includes_alarms?: boolean;
+  maintenance_max_min?: number;
+  escalation_enabled?: boolean;
+  health_warn?: boolean;
+  battery_low_pct?: number;
+  frozen_min?: number;
+  recovery_slow_min?: number;
+  recovery_alert?: boolean;
+  compressor_on_w?: number;
+  duty_rise_pts?: number;
+  duty_alert?: boolean;
+}
+
+/** Phase 3 (idea 5): the projection of the slope of the last 30 minutes towards an edge of the band. */
+export interface Prediction {
+  side: 'high' | 'low';
+  threshold: number;
+  eta_min: number;
+  rate_h: number;
+}
+/** Phase 3 (idea 8): the temperature sensor's own device - battery, signal, reading age, a frozen value; `issues` adds recovery / duty. */
+export type HealthIssue = 'battery' | 'frozen' | 'signal' | 'recovery' | 'duty';
+export interface Health {
+  battery: number | null;
+  battery_low: boolean;
+  signal: number | null;
+  signal_unit: 'dBm' | 'lqi' | null;
+  signal_weak: boolean;
+  age_min: number | null;
+  frozen_since: string | null;
+  issues: HealthIssue[];
+}
+export interface DoorEffect {
+  opened: number;
+  closed: number;
+  open_min: number;
+  base: number;
+  peak: number;
+  rise: number;
+  recovery_min: number | null;
+  interrupted: boolean;
+}
+export interface DoorInsight {
+  opens: number;
+  avg_rise: number | null;
+  max_rise: number | null;
+  median_recovery_min: number | null;
+  unrecovered: number;
+  slow: boolean;
+  last: DoorEffect[];
+}
+export interface DutyInsight {
+  recent: number | null;
+  before: number | null;
+  rising: boolean;
+  today: number | null;
+  pct_24h: number | null;
+  days: { day: string; pct: number | null; minutes: number }[];
+}
+/** Phase 3 (ideas 2 and 6): recomputed hourly from the stored history. */
+export interface Insights {
+  door: DoorInsight | null;
+  duty: DutyInsight | null;
+  computed_at: string | null;
+}
+export interface Maintenance {
+  until: string;
+  reason: string;
+  by_name: string | null;
+}
+export interface LinkedTicket {
+  ticket_id: string;
+  number: number;
+  event_id: string | null;
+  status: string | null;
+  created_at: string;
 }
 
 export interface Stats {
@@ -124,6 +213,17 @@ export interface TempUnit {
   /** managers only */
   temp_entity_id?: string;
   door_entity_id?: string | null;
+  power_entity_id?: string | null;
+  /** phase 3 (an older server: absent) */
+  floor_id?: string | null;
+  floor_name?: string | null;
+  floor_level?: number | null;
+  prediction?: Prediction | null;
+  health?: Health;
+  insights?: Insights;
+  power?: { w: number | null; on: boolean | null; sensor_name: string } | null;
+  maintenance?: Maintenance | null;
+  tickets?: LinkedTicket[];
 }
 
 export interface UnitsResponse {
@@ -133,6 +233,10 @@ export interface UnitsResponse {
   at: string;
   can_manage: boolean;
   can_ack: boolean;
+  /** phase 3: the grid's grouping (idea 7) and whether the home widget is offered (idea 12) */
+  grouping?: 'area' | 'none';
+  home_widget?: boolean;
+  ticket_department_id?: string | null;
 }
 
 export interface HistoryResponse {
@@ -171,6 +275,10 @@ export interface ManagedUnit {
   door_sensor_name: string;
   door_missing: boolean;
   door_invert: boolean;
+  /** phase 3: a smart plug / current meter (read only) for the compressor duty cycle */
+  power_entity_id?: string | null;
+  power_sensor_name?: string;
+  power_missing?: boolean;
   low: number;
   high: number;
   band_mode: BandMode;
@@ -182,9 +290,10 @@ export interface ManagedUnit {
 }
 
 export interface RuleSpec {
-  type: 'bool' | 'int' | 'float' | 'hhmm';
+  type: 'bool' | 'int' | 'float' | 'hhmm' | 'choice' | 'id';
   min: number | null;
   max: number | null;
+  choices?: string[];
 }
 
 export interface ManageResponse {
@@ -203,10 +312,11 @@ export interface Candidate {
   area_name: string | null;
   value: number | null;
   state: 'on' | 'off' | null;
-  /** temp candidates: `sensor` or `climate` (grouped in the wizard); door candidates: `door` */
-  group: 'sensor' | 'climate' | 'door';
+  /** temp candidates: `sensor` or `climate` (grouped in the wizard); door candidates: `door`; phase 3 power candidates: `power` */
+  group: 'sensor' | 'climate' | 'door' | 'power';
   setpoint: number | null;
   hvac_mode: string | null;
+  watts?: number | null;
 }
 
 export interface UnitBody {
@@ -216,6 +326,7 @@ export interface UnitBody {
   temp_entity_id: string;
   door_entity_id?: string | null;
   door_invert?: boolean;
+  power_entity_id?: string | null;
   low: number;
   high: number;
   band_mode?: BandMode;
@@ -234,15 +345,28 @@ export interface SettingsResponse {
   rule_specs: Record<string, RuleSpec>;
 }
 
-export type AlertKind = 'alarm' | 'warning' | 'offline';
+export type AlertKind = 'alarm' | 'warning' | 'offline' | 'health';
 export type AlertChannel = 'push' | 'app' | 'email' | 'whatsapp';
 export interface AlertKindSettings {
   enabled: boolean;
   recipients: Recipients;
   channels: AlertChannel[];
 }
+/** Phase 3 (idea 4): an alarm nobody acknowledged climbs a tier per step (its own notification and log row). */
+export interface EscalationStep {
+  after_min: number;
+  recipients: Recipients;
+}
+export interface Escalation {
+  enabled: boolean;
+  channels: AlertChannel[];
+  steps: EscalationStep[];
+}
 export interface AlertSettings {
   kinds: Record<AlertKind, AlertKindSettings>;
+  /** an older server: absent */
+  escalation?: Escalation;
+  steps_max?: number;
   row_version: number;
   roles: { id: string; label: string }[];
   channels: AlertChannel[];
@@ -282,7 +406,7 @@ export const muteUnit = (id: string, body: { minutes?: number; until_defrost_end
 export const unmuteUnit = (id: string) => del(`${B}/${enc(id)}/mute`);
 
 export const listManaged = () => get<ManageResponse>(`${B}/manage`);
-export const listCandidates = (kind: 'temp' | 'door', q = '') => get<{ items: Candidate[] }>(`${B}/candidates${logQs({}, q ? { kind, q } : { kind })}`);
+export const listCandidates = (kind: 'temp' | 'door' | 'power', q = '') => get<{ items: Candidate[] }>(`${B}/candidates${logQs({}, q ? { kind, q } : { kind })}`);
 export const createUnit = (body: UnitBody) => post<ManagedUnit>(B, body);
 export const updateUnit = (id: string, body: UnitBody) => put<ManagedUnit>(`${B}/${enc(id)}`, body);
 export const deleteUnit = (id: string) => del(`${B}/${enc(id)}`);
@@ -290,9 +414,25 @@ export const reorderUnits = (ids: string[]) => put<ManageResponse>(`${B}/order`,
 export const getSettings = () => get<SettingsResponse>(`${B}/settings`);
 export const putSettings = (rules: Record<string, unknown>, row_version?: number) => put<SettingsResponse>(`${B}/settings`, { rules, row_version });
 export const getAlertSettings = () => get<AlertSettings>(`${B}/alerts`);
-export const putAlertSettings = (body: { kinds?: Partial<Record<AlertKind, Partial<AlertKindSettings>>>; row_version?: number }) => put<AlertSettings>(`${B}/alerts`, body);
+export const putAlertSettings = (body: { kinds?: Partial<Record<AlertKind, Partial<AlertKindSettings>>>; escalation?: Partial<Escalation>; row_version?: number }) =>
+  put<AlertSettings>(`${B}/alerts`, body);
 export const decideWindow = (id: string, startMin: number, decision: 'confirm' | 'reject') => post<{ windows: DefrostWindow[] }>(`${B}/${enc(id)}/defrost/${startMin}/${decision}`);
 export const clearLearned = (id: string) => del(`${B}/${enc(id)}/defrost/learned`);
+/** phase 3 (idea 9): the maintenance window - a reason and who; holds WARNINGS (alarms only when the setting says so) */
+export const startMaintenance = (id: string, minutes: number, reason: string) => post<{ maintenance: Maintenance }>(`${B}/${enc(id)}/maintenance`, { minutes, reason });
+export const endMaintenance = (id: string) => del(`${B}/${enc(id)}/maintenance`);
+/** phase 3 (idea 11): a service ticket from the unit or one of its alert rows */
+export interface TicketDraft {
+  title: string;
+  description: string;
+  departments: { id: string; name: string }[];
+  department_id: string | null;
+  attach_chart: boolean;
+}
+export const getTicketDraft = (id: string, eventId?: string | null, lang: 'he' | 'en' = 'he') =>
+  get<TicketDraft>(`${B}/${enc(id)}/ticket/draft${logQs({}, eventId ? { event_id: eventId, lang } : { lang })}`);
+export const openTicket = (id: string, body: { department_id: string; title?: string; description?: string; event_id?: string | null; attach_chart?: boolean; lang?: 'he' | 'en' }) =>
+  post<{ ticket_id: string; number: number; result: 'created' | 'absorbed'; chart_attached: boolean }>(`${B}/${enc(id)}/ticket`, body);
 
 /** The alert log as CSV (the browser's own download). */
 export async function downloadLogCsv(q: LogQuery, lang: 'he' | 'en' = 'he'): Promise<void> {
@@ -321,6 +461,8 @@ export interface ReportParams {
   chart?: boolean;
   events?: boolean;
   signature?: boolean;
+  /** phase 3 (idea 3): the HACCP compliance layout - a daily table per unit */
+  layout?: 'standard' | 'haccp';
 }
 export interface ReportUnit {
   id: string;
@@ -338,8 +480,10 @@ export interface ReportUnit {
   points?: [number, number, number | null][];
   doors?: [number, number][];
   defrost?: [number, number][];
-  events?: { kind: EventKind; severity: Severity; started_at: string; ended_at: string | null; value: number | null; peak: number | null; threshold: number | null }[];
+  events?: { kind: EventKind; severity: Severity; started_at: string; ended_at: string | null; value: number | null; peak: number | null; threshold: number | null; reason?: string | null; by_name?: string | null }[];
   events_more?: number;
+  /** phase 3: the HACCP daily table (layout haccp only) */
+  daily?: { day: string; min: number | null; max: number | null; avg: number | null; out_min: number; out_min_raw: number; alarms: number; door_opens: number | null; coverage: number; verdict: 'ok' | 'exc' | 'none' }[];
 }
 export interface ReportModel {
   v: number;
@@ -353,6 +497,7 @@ export interface ReportModel {
   events: boolean;
   /** a LINE only today (owner decision 4); a future electronic signature is a new mode */
   signature: { mode: 'line' } | null;
+  layout?: 'standard' | 'haccp';
   digest: string;
   range_text: string;
   text_summary: string;
@@ -408,6 +553,7 @@ export function reportQs(p: ReportParams): string {
   if (p.chart === false) q.set('chart', '0');
   if (p.events === false) q.set('events', '0');
   if (p.signature === false) q.set('signature', '0');
+  if (p.layout === 'haccp') q.set('layout', 'haccp');
   return `?${q.toString()}`;
 }
 

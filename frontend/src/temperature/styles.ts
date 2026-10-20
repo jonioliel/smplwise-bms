@@ -71,6 +71,13 @@ export const tempCss = css`
   .c-out { stroke: var(--tc-alarm); stroke-width: 2.2; stroke-linejoin: round; }
   .c-sp { stroke: var(--sw-text-2); stroke-width: 1.4; stroke-dasharray: 5 3; }
   .c-line.big { stroke-width: 2; }
+  /* phase 3 (idea 10): the compared units over the main line - categorical timeline colours, dashed so the main unit stays the hero */
+  .c-ov { stroke-width: 1.6; stroke-linejoin: round; stroke-dasharray: 6 3; }
+  .c-ov[data-ov='0'] { stroke: var(--sw-tl-person); }
+  .c-ov[data-ov='1'] { stroke: var(--sw-tl-vehicle); }
+  .legend i[data-k='ov0'] { background: var(--sw-tl-person); }
+  .legend i[data-k='ov1'] { background: var(--sw-tl-vehicle); }
+  .legend i[data-k='duty'] { background: var(--tc-acc); }
   .c-out.big { stroke-width: 2.4; }
   .c-grid { stroke: var(--sw-border); }
   .c-ax { font-size: var(--sw-fs-2xs); fill: var(--sw-text-3); }
