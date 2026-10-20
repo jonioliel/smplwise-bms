@@ -51,7 +51,8 @@ def test_the_release_numbers_are_contiguous_and_final():
     assert [names[n] for n in RELEASE] == ["0088_ticket_detail.sql", "0089_ticket_rfq.sql", "0090_ticket_map_element.sql",
                                            "0091_ticket_phone_verify.sql", "0092_ticket_template_quick_reply.sql", "0093_app_secrets.sql"]
     rebuilds = [f.name for f in dbmod.MIGRATIONS_DIR.glob("*.sql")
-                if int(f.name[:4]) > 87 and "CREATE TABLE ticket_outbox_new" in f.read_text(encoding="utf-8")]
+                if int(f.name[:4]) in RELEASE and "CREATE TABLE ticket_outbox_new" in f.read_text(encoding="utf-8")]
+    # integ/2100: scoped to this release's files - a later release may rebuild ticket_outbox again (0128 CR-VENDORQ-294 does)
     assert rebuilds == ["0089_ticket_rfq.sql"], "exactly one ticket_outbox rebuild in the release"
 
 

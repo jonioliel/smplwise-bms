@@ -18,6 +18,7 @@ smplwise_vms/backend/tests/test_media_ma_direct.py            # Music Assistant 
 smplwise_vms/backend/tests/test_media_ma_hardening.py         # Music Assistant LAN/SSRF hardening
 smplwise_vms/backend/tests/test_notify_email.py               # SMTP host SSRF guard
 smplwise_vms/backend/tests/test_tickets_public_app.py         # public-app client-address / proxy handling
+smplwise_vms/backend/tests/test_client_ip_trusted_proxy.py    # PUB-01: a LAN peer outside the hassio network must not choose its address (integ/2100)
 smplwise_vms/backend/tests/test_tickets_s4_wiring.py          # client-address and SSRF cases
 frontend/tests/unit-video-conn-test.spec.ts                   # address-class unit test (private/cgnat/link-local)
 
