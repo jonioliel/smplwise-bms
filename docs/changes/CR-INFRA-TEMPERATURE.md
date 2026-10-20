@@ -80,7 +80,7 @@ recipients rule `temperature`: alarms to operators + site and system administrat
 in Settings (system.configure) - or per unit (`recipients_json`). Channels: inbox always; push, phone app, e-mail and WhatsApp (the user's
 own opted-in number through the existing notification pipeline) on request. Subject kind `temperature`: devices.read on the unit's sensor.
 
-## 6. Storage (migration 0125_infra_temperature_PROVISIONAL - renumbered at integration)
+## 6. Storage (migration 0124_infra_temperature - built as PROVISIONAL 0125, renumbered at the 2.9.2 integration)
 
 `infra_temp_units`, `infra_temp_settings`, `infra_temp_samples` (one per minute while live, with the setpoint and flags 1 defrost / 2 door
 open / 4 climate off; 35 days), `infra_temp_samples_5m` (rollup, `retention_days` default 400), `infra_temp_doors`, `infra_temp_events` (the

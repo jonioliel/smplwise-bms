@@ -1,6 +1,6 @@
 -- CR-INFRA-TEMPERATURE 2.9.1: temperature control under Infrastructure (docs/changes/CR-INFRA-TEMPERATURE.md).
--- NUMBERING: built as PROVISIONAL 0125 on pilot/TEMPCTL-291 (other 2.9.1 branches add migrations too); the lead renumbers the file at the
--- 2.9.1 integration to keep the sequence contiguous. Nothing in the code refers to the number.
+-- NUMBERING: built as PROVISIONAL 0125 on pilot/TEMPCTL-291; renumbered to 0124 at the 2.9.2 integration (integ/292) to keep the sequence
+-- contiguous. Nothing in the code refers to the number.
 --
 -- A unit is a fridge, freezer, cold room or any watched space: ONE temperature source - a sensor (sensor.*, numeric) or a climate entity
 -- (climate.*: air conditioner / HVAC controller / thermostat - current temperature, setpoint, mode, action; owner 2026-10-19) - an optional door sensor

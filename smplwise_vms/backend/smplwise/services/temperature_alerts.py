@@ -7,7 +7,7 @@ request - WhatsApp is the user's OWN opted-in number through the notification pi
 
 Unlike the elevators (off by default), a temperature unit exists to raise alerts: every kind starts ON and reaches the managers (site and
 system administrators; alarms also the operators) until an administrator changes it. A unit may replace the recipients with its own list
-(`infra_temp_units.recipients_json`, the wizard's "who receives"). The choices live in `infra_temp_alert_settings` (migration 0125) and are
+(`infra_temp_units.recipients_json`, the wizard's "who receives"). The choices live in `infra_temp_alert_settings` (migration 0124) and are
 MIRRORED onto the CR-018 policy of each source, recipients rule `temperature`, which services/notify.recipients_for resolves through
 recipient_users() and then intersects with who may see the unit (subject kind `temperature`). Delivery, the pipeline's own quiet hours and the
 delivery log stay with the pipeline. The temperature module's own quiet hours (warnings only) are applied before a warning is emitted.
