@@ -441,8 +441,11 @@ export class TicketsList extends LitElement {
     switch (this.screen) {
       case 'loading': {
         const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:var(--sw-r-2xl)"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:14px;inline-size:60%"></span></div>`;
+        // UXFIX-A11Y-295: the cards view waits on skeleton CARDS (ticket-card skeleton: the card's own anatomy, so the same height - the
+        // old bars were shorter and the grid jumped, CLS 0.32-0.49) in the count a first page fills on the screen
+        const skel = html`<ticket-card skeleton></ticket-card>`;
         if (this.cal) return html`<div data-tickets-state="loading" aria-busy="true" data-cal-loading><div class="cgrid">${Array.from({ length: this.phone ? 2 : 7 }, () => card)}</div></div>`;
-        return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
+        return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => skel)}</div></div>`;
       }
       case 'off':
         return this.stateBox('ticket', tt('moduleOff'), 'off', can('system.configure') ? html`<a class="btn sm" href="#/system/tickets" data-open-settings>${tIcon('settings')}${tt('toSettings')}</a>` : undefined);

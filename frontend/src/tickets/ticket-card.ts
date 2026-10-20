@@ -40,6 +40,10 @@ export class TicketCard extends LitElement {
   /** the manager board's card: the warning line replaces the chips row */
   @property({ type: Boolean }) board = false;
   @property({ type: Boolean, reflect: true, attribute: 'data-picked' }) picked = false;
+  /** UXFIX-A11Y-295 (UX audit 2026-10-20, finding 7: CLS 0.32-0.49 when the cards replaced the skeletons): the loading placeholder IS
+   * the card - the same article, header, status sentence (two lines), chips row and footer with the same classes, the text replaced
+   * by shimmer bars - so the placeholder and the card it stands for have the same height by construction. Needs no `.item`. */
+  @property({ type: Boolean, reflect: true }) skeleton = false;
   @state() private menu = false;
 
   static styles = [bubbleChrome, ...automationsStyles, ticketCardStyles, ticketCardListStyles];
@@ -104,7 +108,29 @@ export class TicketCard extends LitElement {
     </div>`;
   }
 
+  private renderSkeleton(): TemplateResult {
+    const bar = (w: string) => html`<span class="skl ln" style=${`inline-size:${w}`}></span>`;
+    return html`<article class="tcard sk" aria-hidden="true" data-card-skeleton>
+      <header>
+        <div class="ttl">
+          <h3>${bar('68%')}</h3>
+          <div class="where">${tIcon('layers')}${bar('42%')}</div>
+        </div>
+        <div class="ctl"><span class="chip">${bar('52px')}</span><span class="more"></span></div>
+      </header>
+      <p class="stat">${bar('92%')}<br />${bar('58%')}</p>
+      ${this.board ? html`<div class="cwarn">${bar('64%')}</div>` : html`<div class="chips"><span class="chip">${bar('44px')}</span><span class="chip">${bar('58px')}</span></div>`}
+      <footer>
+        <span class="num">${bar('32px')}</span>
+        <span class="run">${bar('72px')}</span>
+        <a class="tl" tabindex="-1">${bar('56px')}</a>
+        <span class="pair"><span class="av"></span><span class="av"></span></span>
+      </footer>
+    </article>`;
+  }
+
   render() {
+    if (this.skeleton) return this.renderSkeleton();
     const t = this.item;
     if (!t) return nothing;
     const where = whereLine(t);

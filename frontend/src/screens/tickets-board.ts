@@ -572,7 +572,8 @@ export class TicketsBoard extends LitElement {
   private body(): TemplateResult {
     switch (this.screen) {
       case 'loading': {
-        const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:var(--sw-r-2xl)"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span></div>`;
+        // UXFIX-A11Y-295: skeleton cards in the board card's own anatomy (the warning line instead of the chips), not shorter bars
+        const card = html`<ticket-card skeleton .board=${true}></ticket-card>`;
         return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
       }
       case 'off':
