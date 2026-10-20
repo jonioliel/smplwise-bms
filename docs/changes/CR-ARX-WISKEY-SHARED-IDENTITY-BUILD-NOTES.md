@@ -551,9 +551,9 @@ WhatsApp.
   grants) or a ticked assignment (no window, `ticket` grants). Everything else of the step is unchanged (request only, the one-live rule,
   the notice, the uniform 404).
 - **The vendor's page.** `GET /t/api/ticket` says `arrival: true` while the step is available (vendor link past the code gate, not read
-  only); the page then fetches the lazy chunk `arrival-card` (+ its stylesheet; own 6 KB gzip cap in `unit-public-ticket.spec.ts`): the
+  only); the page then fetches the lazy chunk `arrival-card` (+ its own stylesheet file; own 7 KB gzip cap in `unit-public-ticket.spec.ts`, measured 6,351 B): the
   form (who - one of his persons or a new technician -, from / until, the fixed hours, the server's privacy notice and the attestation tick),
-  then the state. The main ticket bundle grows by the loader only.
+  then the state. The main ticket bundle grows by the loader only: 62,108 B gzip vs 61,954 B on integ/293 (+154 B; cap 63,488 B).
 - **After approval (`rfq-access-code-doors`).** `GET /t/api/arrival` `current.access` once a human approved: the doors by NAME (never a
   station id), the first / last day and the daily hours in the installation's zone, the credential, and for a PIN the delivery: `scheduled`
   (with the local time it leaves) | `sent` | `not_delivered` (ask the manager), always to the named person's own number as `····NN`; for
