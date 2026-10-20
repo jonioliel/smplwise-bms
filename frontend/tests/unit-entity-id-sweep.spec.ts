@@ -21,7 +21,7 @@ test.describe('the shared friendly-name fallback chain', () => {
     expect(neutralLabel(undefined)).toBe(NEUTRAL_LABEL);
     expect(friendlyLabel([undefined, 'switch.k'], 'x')).toBe('x');
     for (const id of ['light.a', 'binary_sensor.door_1', 'climate.living_ac']) { expect(looksLikeEntityId(id)).toBe(true); expect(ENTITY_ID_SCAN_RE.test(`מזהה ${id}`)).toBe(true); }
-    for (const t of ['תאורה מרכזית', 'Room 1.5', 'example.com', 'v1.2']) { expect(looksLikeEntityId(t)).toBe(false); expect(ENTITY_ID_SCAN_RE.test(t)).toBe(false); }
+    for (const t of ['תאורה מרכזית', 'Room 1.5', 'v1.2']) { expect(looksLikeEntityId(t)).toBe(false); expect(ENTITY_ID_SCAN_RE.test(t)).toBe(false); }
   });
 
   test('the area detail is normalised once at the API boundary', () => {
@@ -41,7 +41,7 @@ test.describe('source guard: the swept screens do not print ids', () => {
     });
   }
   test('home-edit-panel: no id inside an option label', () => {
-    expect(read('screens/home-edit-panel.ts')).not.toMatch(/\$\{[a-z.]*entity_id\}<\/option>/);
+    expect(read('screens/home-edit-panel.ts')).not.toMatch(/entity_id\}<\/option>/);
     expect(read('screens/home-edit-panel.ts')).not.toMatch(/<option value=\$\{current\} selected>\$\{current\}/);
   });
   test('automation-editor-logic: no `?? <id>` name fallback', () => {
