@@ -18,7 +18,7 @@ function when(iso: string | null | undefined): string {
 }
 
 /**
- * CR-WISKEY-HMAC-ROTATION-295: "מפתח הגשר" / Bridge key - Settings › Connections, after the secrets card. System administrator
+ * CR-WISKEY-HMAC-ROTATION-295: "מפתח הגשר" / Bridge key - Settings › Connections, right after the stored-passwords card. System administrator
  * only (the card hides itself on 403 / 404 and on the remote channel; the server enforces it). Shows the key id, generation, since,
  * the last rotation and the reminder - never the key itself. The switch stays disabled while the owner's activation permit is not in
  * the build; the rotate buttons are disabled with the server's short reason (`blocked_by`). Polls while a rotation is running.
@@ -26,7 +26,7 @@ function when(iso: string | null | undefined): string {
 @customElement('sw-bridge-key-card')
 export class SwBridgeKeyCard extends LitElement {
   @state() private s: BridgeKeyStatus | null = null;
-  @state() private hidden = false;
+  @state() private notShown = false;
   @state() private busy = false;
   @state() private error = '';
   @state() private asking: RotationMode | null = null;
@@ -96,7 +96,7 @@ export class SwBridgeKeyCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     if (onRemote()) {
-      this.hidden = true;
+      this.notShown = true;
       return;
     }
     void this.load();
@@ -119,7 +119,7 @@ export class SwBridgeKeyCard extends LitElement {
       this.error = '';
     } catch (err) {
       const status = (err as { status?: number }).status;
-      if (status === 403 || status === 404) this.hidden = true;
+      if (status === 403 || status === 404) this.notShown = true;
       else this.error = describeError(err);
     }
     this.schedule();
@@ -161,7 +161,7 @@ export class SwBridgeKeyCard extends LitElement {
   }
 
   render() {
-    if (this.hidden) return nothing;
+    if (this.notShown) return nothing;
     const s = this.s;
     if (!s) return this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing;
     const [kind, label] = this.overall(s);
