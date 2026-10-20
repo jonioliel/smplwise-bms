@@ -13,7 +13,7 @@ export const mediaPageStyles = css`
       position: relative;
       overflow: auto;
       scrollbar-width: thin;
-      background: var(--dv-backdrop);
+      background: var(--dv-page-backdrop);
       color: var(--dv-text);
       font-family: var(--dv-font);
       font-size: var(--sw-fs-md);

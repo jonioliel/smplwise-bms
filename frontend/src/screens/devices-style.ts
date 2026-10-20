@@ -124,19 +124,30 @@ export function resolveDevicesScheme(scheme: DevicesScheme): 'light' | 'dark' {
   return resolvedTheme() === 'dark' ? 'dark' : 'light';
 }
 
+/** BGFIX-293: does a glass host need its palette's own backdrop? Only when its resolved scheme differs from the product's - otherwise
+ * the shell's skin canvas is the page background, the same on every screen (styles/devices-themes.ts, --dv-page-backdrop). */
+export const needsOwnBackdrop = (resolved: 'light' | 'dark', product: 'light' | 'dark'): boolean => resolved !== product;
+
+/** The resolved scheme and the own-backdrop flag on one host. */
+function setScheme(host: HTMLElement, scheme: DevicesScheme) {
+  const resolved = resolveDevicesScheme(scheme);
+  host.setAttribute('data-devices-scheme', resolved);
+  host.toggleAttribute('data-devices-own-backdrop', needsOwnBackdrop(resolved, resolvedTheme() === 'dark' ? 'dark' : 'light'));
+}
+
 function reapply() {
   for (const [h, s] of [...hosts]) {
     if (!h.isConnected) {
       hosts.delete(h);
       autoHosts.delete(h);
-    } else h.setAttribute('data-devices-scheme', resolveDevicesScheme(s));
+    } else setScheme(h, s);
   }
 }
 
 /** The RESOLVED scheme on the host: `data-devices-scheme="light" | "dark"` (see resolveDevicesScheme). The CSS has no
  * colour-scheme media query: the resolution happens here, in JS - DEVICE_THEMES.md §6. */
 export function applyDevicesScheme(host: HTMLElement, scheme: DevicesScheme) {
-  host.setAttribute('data-devices-scheme', resolveDevicesScheme(scheme));
+  setScheme(host, scheme);
   hosts.set(host, scheme);
   if (!designWatched) {
     designWatched = true;
@@ -153,7 +164,7 @@ export function applyDevicesScheme(host: HTMLElement, scheme: DevicesScheme) {
       darkQuery.addEventListener('change', () => {
         for (const h of [...autoHosts]) {
           if (!h.isConnected) autoHosts.delete(h);
-          else h.setAttribute('data-devices-scheme', resolveDevicesScheme('auto'));
+          else setScheme(h, 'auto');
         }
       });
     } catch {
