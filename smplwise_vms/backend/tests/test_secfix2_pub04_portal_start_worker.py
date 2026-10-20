@@ -112,8 +112,29 @@ def test_on_a_full_queue_still_answers_the_same_202_and_counts_the_drop(env, mon
     w = _worker(env)
     # at most one job in the worker's hands and two queued: at least three of six dropped once the worker holds one, two otherwise
     assert w.dropped >= 2 and w.accepted + w.dropped == 6 and w.accepted <= 3, (w.accepted, w.dropped)
+    # FABLEFIX-295 D-04: the drop is visible to the administrator on the existing storage screen's queue block (counts only)
+    stats = public_portal.worker_stats()
+    assert stats["dropped"] == w.dropped and stats["accepted"] == w.accepted and stats["running"] is True and stats["max"] == 2
+    local = env.c.get(f"{API}/storage/local")
+    assert local.status_code == 200, local.text
+    assert local.json()["portal_start"] == {**stats, "depth": local.json()["portal_start"]["depth"]}
+    assert "050" not in local.text
     gate.set()
     assert w.wait_idle(5.0)
+
+
+def test_d04_the_drop_counter_survives_a_replaced_worker_and_is_zero_when_off(env):
+    """FABLEFIX-295 D-04: with the switch OFF nothing runs and nothing is counted; the totals are process-wide, so a worker that died
+    and was replaced does not wipe the administrator's count."""
+    assert public_portal.worker_stats() == {"running": False, "depth": 0, "max": public_portal.START_QUEUE_MAX, "accepted": 0, "dropped": 0}
+    w = public_portal.worker_for(env.s4.db)
+    w.stop(2.0)
+    assert w.submit(lambda: None) is False  # a dead worker drops and counts
+    assert public_portal.worker_stats()["dropped"] == 1
+    w2 = public_portal.worker_for(env.s4.db)  # replaced
+    assert w2 is not w and w2.submit(lambda: None) is True and w2.wait_idle(5.0)
+    stats = public_portal.worker_stats()
+    assert stats["dropped"] == 1 and stats["accepted"] == 1 and stats["running"] is True
 
 
 def test_on_an_exception_in_a_job_never_stops_the_worker_and_logs_no_number(env, monkeypatch, caplog):

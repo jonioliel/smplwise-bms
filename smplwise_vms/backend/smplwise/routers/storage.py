@@ -34,12 +34,17 @@ def storage_report(request: Request, principal: Principal = Depends(current_prin
 def local_state(settings: Any, conn: sqlite3.Connection) -> dict[str, Any]:
     """The add-on's data disk (exports, thumbnails, backups live there) against storage.min_free_mb, the export queue by
     state with its backpressure counters, and the alert-ingest queue - what the storage screen and /health show."""
+    from ..services.tickets import public_portal
+
     states = {r[0]: r[1] for r in conn.execute("SELECT state, COUNT(*) FROM export_jobs GROUP BY state").fetchall()}
     return {
         "data_disk": ex.disk_state(settings, ex.min_free_mb(conn)),
         "exports": {"by_state": states, "paused_disk_full": states.get(ex.PAUSED, 0), "waiting": states.get("queued", 0) + states.get(ex.PAUSED, 0),
                     "max_waiting": ex.MAX_QUEUED_TOTAL, "max_per_owner": ex.MAX_ACTIVE_JOBS, "counters": ex.stats()},
         "ingest_queue": events_ingest.QUEUE.stats(),
+        # FABLEFIX-295 D-04: the vendor portal's start-request queue (the `vendor_portal.start_worker` switch, OFF by default) - a
+        # dropped request still answered "sent", so the administrator must see the count
+        "portal_start": public_portal.worker_stats(),
     }
 
 
