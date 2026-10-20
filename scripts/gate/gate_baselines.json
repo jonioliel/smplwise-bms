@@ -1,15 +1,15 @@
 {
   "_comment": "Per-category PASSED counts (pass + flaky) of the previous accepted release gate. The gate fails a category whose passed count is below GATE_DROP_THRESHOLD (default 70 percent) of its value here, unless it was started with --allow-count-drop \"<reason>\". Refresh from \"baseline_candidate\" of a GREEN gate report after each release. Only tier L has a baseline; S and M print a warning (the count-drop check is not applied).",
-  "source": "gate integ/290-rel @ 7c364eec (tier L, 2026-10-19, verdict fail on 2 stale backend tests only, fixed in ca56b9d5b and verified by a targeted run; 4 flaky; the 2.9.0 candidate, accepted by the lead). baseline_candidate = pass + flaky: preview = 11456, pixel = 188, dev = 916, fixture = 15, backend = 11483 (the 2 fixed tests not counted).",
+  "source": "gate integ/291-rel @ c787ac14 (tier L, 2026-10-20, verdict fail on 7 TKRULES-caused reds only - 5 preview, 1 dev, 1 stale backend test - fixed in de52217b7 / cadc3a44f / 2d04cfe53 and verified by a targeted run on 3ec8743b3; 5 flaky; the 2.9.1 candidate, accepted by the lead). baseline_candidate = pass + flaky: preview = 11664, pixel = 188, dev = 915, fixture = 15, backend = 11717 (the 7 fixed tests not counted).",
   "tiers": {
     "L": {
       "tsc": 1,
       "build": 1,
-      "preview": 11456,
+      "preview": 11664,
       "pixel": 188,
-      "dev": 916,
+      "dev": 915,
       "fixture": 15,
-      "backend": 11483,
+      "backend": 11717,
       "release_check": 1
     }
   }
