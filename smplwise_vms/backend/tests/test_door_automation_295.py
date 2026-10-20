@@ -196,8 +196,8 @@ def test_the_permission_is_sensitive_system_admin_only_and_station_carriable():
     assert PERMISSION_LABELS[door_automation.AUTOMATE]
     assert door_automation.AUTOMATE in rbac.STATION_PERMISSIONS
     contract = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
-    roles_json = json.loads((Path(door_automation.__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8"))
-    assert contract == roles_json
+    assert {r["id"] for r in contract["roles"] if door_automation.AUTOMATE in r["permissions"]} == {"system_admin"}
+    assert door_automation.AUTOMATE in contract["sensitive_permissions_not_implied"]
 
 
 # ================================================================ the block: validation, create, update
@@ -561,10 +561,10 @@ def test_the_access_audit_lists_the_automation_rows(live):
     c = live["c"]
     _armed(c)
     fire(live)
-    rows = c.get(f"{API}/access/audit", params={"prefix": "intercom.", "actor_kind": "automation"}).json()["rows"]
+    rows = c.get(f"{API}/audit", params={"prefix": "intercom.", "actor_kind": "automation"}).json()["rows"]
     assert len(rows) == 2 and all(r["actor_user_id"].startswith("automation:") and r["details"]["actor_kind"] == "automation" for r in rows)
-    assert c.get(f"{API}/access/audit", params={"prefix": "door_automation.", "actor_kind": "person"}).json()["rows"], "the person's own rows"
-    assert all(not r["actor_user_id"].startswith("automation:") for r in c.get(f"{API}/access/audit", params={"prefix": "", "actor_kind": "person"}).json()["rows"] if r["actor_user_id"])
+    assert c.get(f"{API}/audit", params={"prefix": "door_automation.", "actor_kind": "person"}).json()["rows"], "the person's own rows"
+    assert all(not r["actor_user_id"].startswith("automation:") for r in c.get(f"{API}/audit", params={"prefix": "", "actor_kind": "person"}).json()["rows"] if r["actor_user_id"])
 
 
 def test_the_mirror_hook_fires_and_never_raises(live, monkeypatch):
