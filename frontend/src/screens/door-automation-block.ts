@@ -70,6 +70,7 @@ export class DoorAutomationBlock extends LitElement {
     fn();
     this.dirty = true;
     this.sim = null;
+    this.problems = [];
   }
 
   private async run(fn: () => Promise<void>): Promise<void> {
@@ -253,12 +254,50 @@ export class DoorAutomationBlock extends LitElement {
   static styles = [
     editorShared,
     css`
+      /* local knobs: the editor's devices theme (--dv-*) when mounted inside it, the shell tokens otherwise (never redefine --dv-* here) */
+      :host {
+        display: block;
+        --da-accent: var(--dv-accent, var(--sw-accent, #0a64d8));
+        --da-on-accent: var(--dv-on-accent, #ffffff);
+        --da-accent-soft: var(--dv-accent-soft, rgba(10, 100, 216, 0.12));
+        --da-accent-text: var(--dv-accent-text, var(--sw-accent, #0a64d8));
+        --da-line: var(--dv-border-strong, var(--sw-border, #c9d2de));
+        --da-surface: var(--dv-surface-2, var(--sw-surface, #ffffff));
+        --da-soft: var(--dv-surface-3, var(--sw-surface-3, #eef1f5));
+        --da-text-2: var(--dv-text-2, var(--sw-text-2, #5b6574));
+        --da-danger: var(--dv-danger, #d70015);
+        --da-ok-bg: var(--dv-success-soft, rgba(52, 199, 89, 0.16));
+        --da-warn-bg: var(--dv-warning-soft, rgba(255, 159, 10, 0.16));
+      }
+      .btn {
+        border-color: var(--da-line);
+        background: var(--da-surface);
+      }
+      .btn.primary {
+        background: var(--da-accent);
+        border-color: var(--da-accent);
+        color: var(--da-on-accent);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .tag.acc {
+        background: var(--da-accent-soft);
+        color: var(--da-accent-text);
+      }
+      .tag.warn {
+        background: var(--da-warn-bg);
+      }
+      .tag.ok {
+        background: var(--da-ok-bg);
+      }
       .da {
         margin-block-start: 14px;
         padding: 14px;
         border-radius: 16px;
-        border: 1px solid var(--dv-border-strong, var(--sw-border));
-        background: var(--dv-surface-2, var(--sw-surface));
+        border: 1px solid var(--da-line);
+        background: var(--da-surface);
         display: grid;
         gap: 10px;
       }
@@ -273,8 +312,8 @@ export class DoorAutomationBlock extends LitElement {
         inline-size: 28px;
         block-size: 28px;
         border-radius: 8px;
-        background: var(--dv-accent-soft);
-        color: var(--dv-accent-text);
+        background: var(--da-accent-soft);
+        color: var(--da-accent-text);
         flex: none;
       }
       .hd {
@@ -292,21 +331,21 @@ export class DoorAutomationBlock extends LitElement {
       small,
       .muted,
       .line {
-        color: var(--dv-text-2);
+        color: var(--da-text-2);
         font-size: var(--sw-fs-sm);
         margin: 0;
       }
       .tag.live {
-        background: var(--dv-success-soft);
+        background: var(--da-ok-bg);
         color: var(--ab-ok-text, #1a7f37);
       }
       .tag.off,
       .tag.neutral {
-        background: var(--dv-surface-3);
-        color: var(--dv-text-2);
+        background: var(--da-soft);
+        color: var(--da-text-2);
       }
       .err {
-        color: var(--dv-danger);
+        color: var(--da-danger);
         font-size: var(--sw-fs-sm);
         margin: 0;
       }
@@ -326,15 +365,15 @@ export class DoorAutomationBlock extends LitElement {
         box-shadow: none;
       }
       .btn.danger {
-        background: var(--dv-danger);
-        border-color: var(--dv-danger);
+        background: var(--da-danger);
+        border-color: var(--da-danger);
         color: #fff;
       }
       .link {
         background: none;
         border: none;
         padding: 0;
-        color: var(--dv-accent-text);
+        color: var(--da-accent-text);
         font-weight: 600;
         min-block-size: 32px;
       }
@@ -371,7 +410,7 @@ export class DoorAutomationBlock extends LitElement {
         min-block-size: 40px;
         padding: 0 10px;
         border-radius: 10px;
-        border: 1px solid var(--dv-border-strong, var(--sw-border));
+        border: 1px solid var(--da-line);
         background: var(--dv-surface-solid, var(--sw-surface));
         color: inherit;
       }
@@ -383,7 +422,7 @@ export class DoorAutomationBlock extends LitElement {
         flex-wrap: wrap;
       }
       .door.dim bdi {
-        color: var(--dv-text-2);
+        color: var(--da-text-2);
       }
       .door input {
         inline-size: 20px;
@@ -404,15 +443,15 @@ export class DoorAutomationBlock extends LitElement {
         min-inline-size: 40px;
         min-block-size: 36px;
         border-radius: 999px;
-        border: 1px solid var(--dv-border-strong, var(--sw-border));
+        border: 1px solid var(--da-line);
         background: transparent;
         font-size: var(--sw-fs-sm);
         font-weight: 600;
       }
       .day.on {
-        background: var(--dv-accent);
-        border-color: var(--dv-accent);
-        color: var(--dv-on-accent, #fff);
+        background: var(--da-accent);
+        border-color: var(--da-accent);
+        color: var(--da-on-accent);
       }
       .t {
         display: inline-flex;
@@ -439,10 +478,10 @@ export class DoorAutomationBlock extends LitElement {
       .sim {
         border-radius: 12px;
         padding: 12px;
-        background: var(--dv-warning-soft, rgba(255, 159, 10, 0.12));
+        background: var(--da-warn-bg);
       }
       .sim {
-        background: var(--dv-surface-3);
+        background: var(--da-soft);
       }
       .confirm p {
         margin: 0 0 10px;
@@ -456,7 +495,7 @@ export class DoorAutomationBlock extends LitElement {
         font-size: var(--sw-fs-sm);
       }
       li.no {
-        color: var(--dv-text-2);
+        color: var(--da-text-2);
       }
       @media (max-width: 600px) {
         .row .btn {
