@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { applyTicketsHidden } from '../src/shell/nav';
 import { ticketsEnabled } from '../src/tickets/gate';
 import { deviceTicketsOn } from '../src/tickets/device-entry';
-import { mapTicketsOn } from '../src/tickets/map-create';
 import { rowActions, type Notification } from '../src/api/notifications';
 
 // TICKGATE-295 (owner rule 2026-10-20): while the tickets module is OFF no "open a service request" entry point renders anywhere.
@@ -24,7 +23,6 @@ test('module OFF: the shared switch and every pure entry point say no', () => {
   expect(ticketsEnabled()).toBe(false);
   expect(ticketsEnabled('tickets.create', all)).toBe(false);
   expect(deviceTicketsOn(all)).toBe(false);
-  expect(mapTicketsOn(all)).toBe(false);
   expect(rowActions(ticketRow('ticket'), Date.now()).open).toBe(false);
   expect(rowActions(ticketRow('rfq'), Date.now()).open).toBe(false);
   expect(rowActions(ticketRow('camera'), Date.now()).open).toBe(true); // other rows keep their deep link
@@ -36,7 +34,6 @@ test('module ON: unchanged', () => {
   expect(ticketsEnabled('tickets.create', (p) => p === 'tickets.create')).toBe(true);
   expect(ticketsEnabled('tickets.create', () => false)).toBe(false);
   expect(deviceTicketsOn(all)).toBe(true);
-  expect(mapTicketsOn(all)).toBe(true);
   expect(rowActions(ticketRow('ticket'), Date.now()).open).toBe(true);
 });
 
@@ -49,6 +46,7 @@ test('lint: each UI entry point of the sweep asks the switch before rendering', 
   expect(read('access-external/request-dialog.ts')).toMatch(/const tk = ticketsEnabled\(\)/);
   expect(read('shell/sw-user-menu.ts')).toContain('ticketsEnabled() && canAnywhere(\'tickets.view\')');
   expect(read('components/notify-detail.ts')).toMatch(/renderDigest[^\n]*\n\s*if \(!ticketsEnabled\(\)\) return nothing/);
+  expect(read('tickets/map-create.ts')).toMatch(/return moduleOn && held\('tickets\.create'\)/); // mapTicketsOn (a Lit element: not importable in node)
   // the entry points that already had a module check keep it
   expect(read('screens/explore-floor-map.ts')).toContain('mapTicketsOn() ?');
   expect(read('screens/explore-floor-map.ts')).toContain('deviceTicketsOn() ?');
