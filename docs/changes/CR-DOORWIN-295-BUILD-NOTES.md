@@ -87,3 +87,22 @@ scope, deny, switches, preview, audit, no secrets), `test_door_emergency.py` (tw
 refusal, scope by binding, partial results, E-1 bounded open retry, OPEN over LOCK, release, drill never reaching the engine, attestation
 gate, live engine refused). Frontend: unit specs for the logic modules, evidence specs with screenshots (desktop / mobile / RTL).
 Untestable on fakes (NOT_RUN by design, W9 owner lab session): everything of CR-039 16 last bullet.
+
+## 6. Test results (runner, `~/light_run.sh` while the release gate was pending; fakes only)
+
+| Suite | Head | Result |
+|---|---|---|
+| `tests/test_doorwin_compile.py` | 21bec5de8 | 43 passed |
+| `tests/test_doorwin_watch.py` | ff105a103 | 21 passed |
+| `tests/test_doorwin_api.py` | ff105a103 | 21 passed |
+| `tests/test_door_emergency.py` | 901c6bfac | 23 passed (first run 22/23: the test mixed the per-minute `prepare` limiter with the hourly limit; test fixed) |
+| `tests/test_fake_doorwin_closed_rule_sr1.py` (SR-1 pin, 2 benign sites re-pinned) | ff105a103 | 5 passed |
+| `tests/test_access_permissions_wxperm.py` | ff105a103 | 21 passed |
+| `tests/test_intercom_authority.py`, `test_notify_core.py`, `test_rbac.py` | bf768da4f | 27 / 27 / 7 passed |
+| W0 fake self-tests (all `test_fake_doorwin_*`) | local, before the product code | 102 passed + SR-1 pin refreshed |
+| frontend `tsc` | bf768da4f | clean |
+| `tests/unit-door-windows.spec.ts` + `unit-token-lint.spec.ts` | 1b19155e7 | 16 passed |
+| `tests/evidence-doorwin-295.spec.ts` (desktop + mobile) | 0420c3cb3 | 22 passed; screenshots in `docs/design/evidence/DOORWIN-295/` |
+
+NOT_RUN: the full backend and Playwright suites (gate pending), pixel baselines / visual matrix, tablet project, ar / ru screenshots, anything
+against a real WisKey, station, door or Home Assistant (by design; CR-039 16 last bullet, W9 owner lab session).
