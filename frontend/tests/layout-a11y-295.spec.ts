@@ -101,6 +101,14 @@ test('empty state: the preset icon is the neutral tray, error and loading keep t
   await expect(icon('loading')).toHaveAttribute('data-icon', 'clock');
 });
 
+const headerParts = (page: Page) =>
+  page.locator('sw-app tickets-list [data-tickets-header]').evaluate((h) =>
+    [...h.querySelectorAll(':scope > *, :scope > * > *')].map((e) => {
+      const r = e.getBoundingClientRect();
+      return `${e.tagName.toLowerCase()}.${String(e.className).trim().split(/\s+/).join('.')} y${Math.round(r.y)} h${Math.round(r.height)} w${Math.round(r.width)}`;
+    }).join(' | '),
+  );
+
 test('tickets list: the cards replace skeleton cards of their own height; the load shifts the layout by < 0.1', async ({ page }, info) => {
   await page.addInitScript(() => {
     const w = window as unknown as { __cls: number; __shifts: string[] };
@@ -139,11 +147,14 @@ test('tickets list: the cards replace skeleton cards of their own height; the lo
   const skH = (await sk.first().boundingBox())!.height;
   const skTop = (await sk.first().boundingBox())!.y;
   const hdrSk = (await page.locator('sw-app tickets-list [data-tickets-header]').boundingBox())!;
+  const partsSk = await headerParts(page);
   const real = page.locator('sw-app tickets-list [data-tickets-grid] ticket-card');
   await expect(real.first()).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(1000);
   const realTop = (await real.first().boundingBox())!.y;
   const hdr = (await page.locator('sw-app tickets-list [data-tickets-header]').boundingBox())!;
+  console.log(`[${info.project.name}] header parts (skeleton): ${partsSk}
+  header parts (ready): ${await headerParts(page)}`);
   console.log(`[${info.project.name}] first card top ${Math.round(skTop)} (skeleton) -> ${Math.round(realTop)}; header ${Math.round(hdrSk.y)}+${Math.round(hdrSk.height)} -> ${Math.round(hdr.y)}+${Math.round(hdr.height)}`);
   const hs = (await real.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))).sort((a, b) => a - b);
   const median = hs[Math.floor(hs.length / 2)];
