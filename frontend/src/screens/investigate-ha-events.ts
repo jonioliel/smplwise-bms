@@ -228,8 +228,8 @@ export class InvestigateHaEvents extends LitElement {
         ${rows.length
           ? html`<sw-table data-ha-table .columns=${this.columns()} .rows=${rows as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>`
           : this.filtered
-            ? html`<sw-state-panel state="empty" data-ha-empty="filtered" heading=${hev('emptyFiltered')} hint=${hev('emptyFilteredHint')}><div style="margin-block-start:10px"><sw-button size="sm" data-ha-clear @click=${() => this.clearFilters()}>${hev('clearFilters')}</sw-button></div></sw-state-panel>`
-            : html`<sw-state-panel state="empty" data-ha-empty="none" heading=${hev('emptyTitle')} hint=${hev('emptyHint')}></sw-state-panel>`}
+            ? html`<sw-state-panel icon="filter" state="empty" data-ha-empty="filtered" heading=${hev('emptyFiltered')} hint=${hev('emptyFilteredHint')}><div style="margin-block-start:10px"><sw-button size="sm" data-ha-clear @click=${() => this.clearFilters()}>${hev('clearFilters')}</sw-button></div></sw-state-panel>`
+            : html`<sw-state-panel icon="sensor" state="empty" data-ha-empty="none" heading=${hev('emptyTitle')} hint=${hev('emptyHint')}></sw-state-panel>`}
         ${ev ? this.renderDrawer(ev) : nothing}
       </div>`;
   }

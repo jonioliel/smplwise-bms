@@ -918,7 +918,7 @@ export class AccessExternalScreen extends LitElement {
             <div class="row"><span class="chip" data-tone="ok" data-drift-insync>${xt('drInSync', { n: d.in_sync })}</span>${d.name_sync === 'auto' ? html`<span class="chip" data-tone="acc">${xt('drAuto')}</span>` : nothing}</div>
             ${d.rows.length
               ? html`<div class="drows" role="list">${d.rows.map((r) => this.driftRow(r))}</div>`
-              : html`<sw-state-panel state="empty" heading=${xt('drNone')} hint=${xt('drNoneText')}></sw-state-panel>`}
+              : html`<sw-state-panel icon="layers" state="empty" heading=${xt('drNone')} hint=${xt('drNoneText')}></sw-state-panel>`}
           </div>`}
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
       <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button></div>

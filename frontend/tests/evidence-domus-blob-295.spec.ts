@@ -15,9 +15,11 @@ const BEFORE_LIGHT_CANVAS =
   'radial-gradient(1100px 680px at 90% -8%, rgba(255,168,60,.62), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(72,124,255,.58), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg, #e4e9f4 0%, #d6dfef 55%, #dce1ee 100%)';
 
 type PNGLike = { width: number; height: number; data: Buffer };
-let PNG: { sync: { read: (b: Buffer) => PNGLike } } | null = null;
+type PNGMod = { sync: { read: (b: Buffer) => PNGLike } } | null;
+// integ/2100: `typeof PNG` here was the narrowed `null`, so tsc saw PNG as `never` in the test (TS2339) - a named type instead
+let PNG: PNGMod = null;
 try {
-  PNG = (createRequire(import.meta.url)('playwright-core/lib/utilsBundle') as { PNG: typeof PNG }).PNG;
+  PNG = (createRequire(import.meta.url)('playwright-core/lib/utilsBundle') as { PNG: PNGMod }).PNG;
 } catch {
   PNG = null;
 }
