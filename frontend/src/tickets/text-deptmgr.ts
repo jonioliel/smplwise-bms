@@ -25,6 +25,7 @@ export const DM_HE = {
   dmFullPhones: 'מנהלי מחלקה רואים מספרים מלאים',
   dmFullPhonesHint: 'רק ברשומות של המחלקות שהם מנהלים. כבוי: ארבע הספרות האחרונות בלבד.',
   dmMasked: 'מוסתר',
+  p_directory: 'ניהול ספריית אנשי קשר וספקים', // SMALL-294 (tickets.directory)
   p_handlers: 'מטפלים וספקים במחלקות שלי', // the "הרשאות" tab's words of the permission (tickets/perm-label.ts)
 } as const;
 
@@ -50,6 +51,7 @@ export const DM_EN: Record<keyof typeof DM_HE, string> = {
   dmFullPhones: 'Department managers see full numbers',
   dmFullPhonesHint: 'Only in the entries of the departments they manage. Off: the last four digits only.',
   dmMasked: 'Hidden',
+  p_directory: 'Manage the contact and vendor directory',
   p_handlers: 'Handlers in my departments',
 };
 

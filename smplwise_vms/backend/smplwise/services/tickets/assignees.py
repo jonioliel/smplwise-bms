@@ -89,7 +89,7 @@ def handlers(viewer: access.Viewer, department_id: str, row: dict[str, Any] | No
 
     conn = viewer.conn
     out: list[dict[str, Any]] = []
-    configure = contacts.may_configure(viewer)
+    configure = contacts.may_edit_directory(viewer)
     for u in service.eligible_assignees(conn, department_id, row):
         # TKSTAFF1: an account holder with a mobile on their directory row also gets the WhatsApp staff link (masked unless configure)
         mrow = store_links.contact_by_user(conn, u["id"]) or {}

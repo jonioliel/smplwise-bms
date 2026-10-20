@@ -283,6 +283,7 @@
         "tickets.costs",
         "tickets.delete",
         "tickets.handlers",
+        "tickets.directory",
         "tickets.technician_requests",
         "messaging.accounts.manage"
       ]
@@ -366,6 +367,13 @@
       ]
     },
     {
+      "id": "tickets_directory",
+      "name_he": "ניהול ספריית אנשי קשר וספקים ב{tickets}",
+      "permissions": [
+        "tickets.directory"
+      ]
+    },
+    {
       "id": "tickets_technician_requests",
       "name_he": "אישור בקשות טכנאים מספקים ב{tickets}",
       "permissions": [
@@ -433,6 +441,7 @@
     "tickets.costs",
     "tickets.delete",
     "tickets.handlers",
+    "tickets.directory",
     "tickets.technician_requests",
     "messaging.accounts.manage"
   ],

@@ -155,7 +155,7 @@ def _member_view(conn, m: dict[str, Any], full: bool, editable: bool = False) ->
 def department_view(scope: HandlerScope, dept_id: str) -> dict[str, Any]:
     conn, viewer = scope.conn, scope.viewer
     d = store.department(conn, dept_id) or {}
-    full = viewer.holds_installation(access.CONFIGURE) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(conn)
+    full = contacts.may_edit_directory(viewer) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(conn)
     can = dept_id in scope.departments
     return {"id": dept_id, "name": d.get("name", ""), "active": bool(d.get("active")), "can_manage": can,
             "members": [_member_view(conn, m, full, can) for m in store.members(conn, dept_id)]}
@@ -167,7 +167,7 @@ def overview(viewer: Viewer) -> dict[str, Any]:
     scope = reader(viewer)
     order = {d["id"]: i for i, d in enumerate(store.departments(scope.conn))}
     ids = sorted(scope.manager_of, key=lambda d: order.get(d, 10**6))
-    full = viewer.holds_installation(access.CONFIGURE) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(scope.conn)
+    full = contacts.may_edit_directory(viewer) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(scope.conn)
     return {"departments": [department_view(scope, d) for d in ids], "can_manage": bool(scope.departments), "full_phones": bool(full)}
 
 

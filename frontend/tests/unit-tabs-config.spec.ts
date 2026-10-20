@@ -8,6 +8,7 @@ import {
   SECURITY_SECTIONS,
   TAB_SECTIONS,
   applyTabsConfig,
+  applyTicketsHidden,
   areaRowSection,
   configureTabs,
   normalizeTabStyles,
@@ -37,6 +38,10 @@ function route(path: string): RouteState {
   const segments = p.split('/').filter(Boolean);
   return { path: p, segments, params: new URLSearchParams(q ?? ''), mode: segments[0] as RouteState['mode'] };
 }
+
+test.beforeEach(() => {
+  applyTicketsHidden(null); // the rail test asserts the module-off default: whatever ran before in this worker, start from it
+});
 
 test.afterEach(() => {
   applyTabsConfig({}); // the config is module state: every test starts from the built-in tabs

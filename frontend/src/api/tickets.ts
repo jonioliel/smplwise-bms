@@ -222,6 +222,8 @@ export interface MetaDepartment {
 export interface Meta {
   departments: MetaDepartment[];
   can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean;
+    /** SMALL-294: may edit the contact / vendor directory (tickets.configure or tickets.directory; an older server: absent) */
+    directory?: boolean;
     /** VPORTALRFQ: may see / decide the vendors' technician requests (tickets.configure or tickets.technician_requests) */
     technician_requests?: boolean };
 }

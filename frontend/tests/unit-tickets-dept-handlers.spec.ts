@@ -88,3 +88,7 @@ test('the components use the manager routes and never send a configurer-only fie
 test('VPORTALRFQ: the technician-request approval permission has its words in the "הרשאות" tab', () => {
   expect(ticketPermLabel('tickets.technician_requests')).toBe('אישור בקשות טכנאים מספקים (במחלקות שלי)');
 });
+
+test('SMALL-294: the directory permission has its words in the "הרשאות" tab', () => {
+  expect(ticketPermLabel('tickets.directory')).toBe('ניהול ספריית אנשי קשר וספקים');
+});

@@ -252,6 +252,7 @@
         "tickets.costs",
         "tickets.delete",
         "tickets.handlers",
+        "tickets.directory",
         "tickets.technician_requests",
         "messaging.accounts.manage"
       ]
@@ -304,6 +305,7 @@
     "tickets.costs",
     "tickets.delete",
     "tickets.handlers",
+    "tickets.directory",
     "tickets.technician_requests",
     "messaging.accounts.manage"
   ],
