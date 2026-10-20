@@ -130,7 +130,7 @@ class FakeFrigate:
         # F2b: exports, cases and manual events. `export_reply_id` / `case_reply_id` False = the create answer carries no id (Arx must find it
         # by name in the list); `seq` numbers the generated ids.
         self.exports: list[dict[str, Any]] = [{"id": "cam_front_foreign", "camera": "cam_front", "name": "made in Frigate", "date": T0 - 5000.0, "video_path": "/media/frigate/exports/foreign.mp4",
-                                              "thumb_path": "/media/frigate/exports/foreign.jpg", "in_progress": False, "export_case_id": None}]
+                                              "thumb_path": "/media/frigate/exports/foreign.jpg", "in_progress": False, "export_case": None}]
         self.cases: list[dict[str, Any]] = [{"id": "case_foreign", "name": "made in Frigate", "description": "", "created_at": T0 - 4000.0, "updated_at": T0 - 4000.0}]
         self.export_reply_id = True
         # 0.18.2: an export is a queued job; `export_queue_only` True = the job has not started (no Export row yet, only /api/jobs/export/{id})
@@ -151,12 +151,41 @@ class FakeFrigate:
         self.config_reflect = True
         self.schema_served = True
         self.schema_drop: set[str] = set()
+        # FRIGLIVE-295 (measured on the live 0.18.0): `micro_cache` True = Frigate's nginx micro-cache: an `/api/*` GET without `X-Cache-Bypass: 1`
+        # gets the first answer it cached for that URL (live: ~5 s; here until `cache.clear()`); `bypass_gets` lists the GETs that bypassed it.
+        # `strict_delete` True = `config/set` with "" for a key the file does not hold answers 500 and changes nothing (update_yaml's `del`).
+        # `effective_defaults` True = `/api/config` shows unset camera keys with Frigate's defaults, as the real effective config does.
+        # `clip_no_recordings` True = a range clip answers 400 "No recordings found for the specified time range".
+        self.micro_cache = False
+        self.cache: dict[str, httpx.Response] = {}
+        self.bypass_gets: list[str] = []
+        self.strict_delete = False
+        self.effective_defaults = False
+        self.clip_no_recordings = False
 
     # ------------------------------------------------------------------------------------------ documents
 
+    def effective_cameras(self) -> dict[str, Any]:
+        """The cameras as `/api/config` shows them: with `effective_defaults`, unset keys carry Frigate's default (as on the live 0.18.0)."""
+        if not self.effective_defaults:
+            return self.cameras
+        import copy
+
+        out = copy.deepcopy(self.cameras)
+        for cam in out.values():
+            mo = cam.setdefault("motion", {})
+            mo.setdefault("threshold", 30)
+            mo.setdefault("contour_area", 10)
+            mo.setdefault("lightning_threshold", 0.8)
+            for z in (cam.get("zones") or {}).values():
+                z.setdefault("inertia", 3)
+                z.setdefault("loitering_time", 0)
+                z.setdefault("objects", [])
+        return out
+
     def config(self) -> dict[str, Any]:
         return {
-            "cameras": self.cameras,
+            "cameras": self.effective_cameras(),
             "detectors": {"coral1": {"type": "edgetpu", "device": "usb:0"}, "coral2": {"type": "edgetpu", "device": "usb:1"}},
             "mqtt": {"enabled": False, "host": "192.0.2.20", "user": PLANTED_TOKEN_USER, "password": "__FRIGATE_SAVED_CREDENTIAL__"},
             "record": {"enabled": True, "continuous": {"days": 0}, "motion": {"days": 10}, "alerts": {"pre_capture": 10, "post_capture": 15, "retain": {"days": 30, "mode": "motion"}},
@@ -191,6 +220,21 @@ class FakeFrigate:
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         with self.lock:
+            path = request.url.path
+            if request.method == "GET" and path.startswith("/api/") and path != "/api/version":
+                if request.headers.get("x-cache-bypass") == "1":
+                    self.bypass_gets.append(path)
+                elif self.micro_cache:
+                    key = str(request.url)
+                    hit = self.cache.get(key)
+                    if hit is not None:
+                        self.hits.append(f"GET {path} (cached)")
+                        return httpx.Response(hit.status_code, content=hit.content, headers=hit.headers)
+                    r = self._handle(request)
+                    r.read()
+                    if r.status_code == 200:
+                        self.cache[key] = r
+                    return httpx.Response(r.status_code, content=r.content, headers=r.headers)
             return self._handle(request)
 
     FEATURE_PATHS = {"detect": ("detect", "enabled"), "motion": ("motion", "enabled"), "audio": ("audio", "enabled"), "review_alerts": ("review", "alerts", "enabled"),
@@ -290,8 +334,16 @@ class FakeFrigate:
         if not isinstance(cams, dict) or set(data) != {"cameras"} or any(c not in self.cameras for c in cams):
             return httpx.Response(400, json={"success": False, "message": "bad config_data"})
         if self.config_reflect:
-            for cam, section in cams.items():
-                _merge(self.cameras[cam], section)
+            import copy
+
+            staged = copy.deepcopy(self.cameras)
+            try:
+                for cam, section in cams.items():
+                    _merge(staged[cam], section, strict=self.strict_delete)
+            except KeyError:   # live 0.18.0: update_yaml `del`s a key given as "" -> KeyError -> 500, the file is unchanged
+                return httpx.Response(500, json={"success": False, "message": "Error updating config"})
+            self.cameras.clear()
+            self.cameras.update(staged)
         self.writes.append(("PUT", "/api/config/set", body))
         return self._json({"success": True, "message": "Config successfully updated, restart to apply" if body.get("requires_restart") else "Config successfully updated"})
 
@@ -332,7 +384,7 @@ class FakeFrigate:
             self.seq += 1
             eid = f"{cam}_{self.seq:06d}"
             row = {"id": eid, "camera": cam, "name": body["name"], "date": float(a), "video_path": f"/media/frigate/exports/{eid}.mp4", "thumb_path": f"/media/frigate/exports/{eid}.jpg",
-                   "in_progress": True, "export_case_id": case_id}
+                   "in_progress": True, "export_case": case_id}   # FRIGLIVE-295: the live 0.18.0 row names the case `export_case`
             if self.export_queue_only:
                 self.export_jobs[eid] = {"id": eid, "job_type": "export", "status": "queued", "camera": cam, "name": body["name"], "export_case_id": case_id, "current_step": "queued"}
             else:
@@ -357,7 +409,7 @@ class FakeFrigate:
                 return httpx.Response(404, json={"success": False, "message": "One or more exports not found."})
             for x in self.exports:
                 if x["id"] in ids:
-                    x["export_case_id"] = case_id
+                    x["export_case"] = case_id
             self.writes.append((m, path, body))
             return self._json({"success": True})
         mm = re.fullmatch(r"/api/export/([^/]+)/rename", path)
@@ -464,6 +516,8 @@ class FakeFrigate:
             return self._json([{"start_time": T0 - 600 + 30 * i, "motion": 10.5 + i, "camera": "cam_front,cam_yard"} for i in range(10) if a <= T0 - 600 + 30 * i <= b])
         if path.endswith("/clip.mp4") and (path.startswith("/api/events/") or path.startswith("/api/review/") or "/start/" in path):
             self.clip_hits.append(path)
+            if self.clip_no_recordings and "/start/" in path:
+                return httpx.Response(400, json={"success": False, "message": "No recordings found for the specified time range"})
             if self.clip_status != 200:
                 return httpx.Response(self.clip_status, json={"message": "no clip"})
             return httpx.Response(200, content=self.clip, headers={"content-type": self.clip_ctype, "content-length": str(len(self.clip))})
@@ -539,15 +593,18 @@ class FakeFrigate:
         return httpx.Response(404, json={"message": "not found"})
 
 
-def _merge(node: dict[str, Any], patch: dict[str, Any]) -> None:
+def _merge(node: dict[str, Any], patch: dict[str, Any], strict: bool = False) -> None:
     for k, v in patch.items():
         if v == "":
-            node.pop(k, None)
+            if strict:
+                del node[k]
+            else:
+                node.pop(k, None)
         elif isinstance(v, dict):
             child = node.get(k)
             if not isinstance(child, dict):
                 child = node[k] = {}
-            _merge(child, v)
+            _merge(child, v, strict)
         else:
             node[k] = v
 

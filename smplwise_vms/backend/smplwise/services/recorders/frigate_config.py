@@ -259,7 +259,7 @@ class FrigateConfig:
         """ONE camera's zones and curated settings from the effective config. Only these fields leave this function (the inputs with
         their credentials, ONVIF and the rest of the document stay here)."""
         FrigateAdapter._camera(camera)
-        cfg = self.http.get_json("/api/config")
+        cfg = self.http.get_json("/api/config", fresh=True)
         cam = _dig(cfg, ["cameras", camera])
         if not isinstance(cam, dict):
             raise ApiError(404, "not_found", "המצלמה לא נמצאה ב־Frigate.", details={"op": "config"})
@@ -269,6 +269,19 @@ class FrigateConfig:
         zones_raw = cam.get("zones") if isinstance(cam.get("zones"), dict) else {}
         zones = [zone_view(n, z, w, h) for n, z in sorted(zones_raw.items()) if isinstance(n, str) and ZONE_NAME.fullmatch(n)][:ZONES_MAX * 2]
         return {"frame": {"width": w, "height": h}, "zones": zones, "settings": {s["key"]: _setting_from(cam, s["key"]) for s in SETTINGS}}
+
+    def inherited(self, keys: list[str]) -> dict[str, Any]:
+        """What each camera setting falls back to when the camera does not set it: the global section at the same path when the effective
+        config shows one (`record.alerts.retain.days`, `objects.track`, `review.alerts.labels`, ...), else Frigate's documented default."""
+        cfg = self.http.get_json("/api/config", fresh=True)
+        cfg = cfg if isinstance(cfg, dict) else {}
+        out: dict[str, Any] = {}
+        for key in keys:
+            if key not in SETTING:
+                continue
+            g = _setting_from(cfg, key)
+            out[key] = g if g is not None else SETTING[key]["default"]
+        return out
 
     def zone(self, camera: str, name: str) -> dict[str, Any] | None:
         for z in self.camera(camera)["zones"]:
@@ -281,20 +294,40 @@ class FrigateConfig:
         only ZONE_EXTRA_KEYS, as Frigate shows them. Raises 409 `frigate_zone_not_reversible` when they cannot be kept for an
         undo (larger than ZONE_EXTRA_MAX_BYTES, or a key that Frigate's `config/set` would read as a path)."""
         FrigateAdapter._camera(camera)
-        raw = _dig(self.http.get_json("/api/config"), ["cameras", camera, "zones", name])
+        raw = _dig(self.http.get_json("/api/config", fresh=True), ["cameras", camera, "zones", name])
         return zone_extra_of(raw)
 
     def write_zone(self, camera: str, name: str, zone: dict[str, Any] | None) -> None:
-        """Create / replace one zone, or remove it (`zone=None`). Unset optional fields are removed so Frigate's default applies.
-        `zone["extra"]` (an undo of a delete only, checked by zone_extra_of) writes back the unmodelled fields the zone had."""
+        """Create / replace one zone, or remove it (`zone=None`). `zone["extra"]` (an undo of a delete only, checked by zone_extra_of) writes
+        back the unmodelled fields the zone had.
+
+        FRIGLIVE-295 (live 0.18.0, `frigate/util/builtin.update_yaml`): `config/set` deletes a key given as "" with `del`, so "" for a key the
+        YAML file does not hold is a KeyError and answers 500 ("Error updating config"; nothing is written). The first live zone create failed
+        that way (it sent "" for `inertia`, `loitering_time` and an empty `objects`). An optional field is therefore written as "" ONLY when the
+        effective config proves the file holds it (a value other than Frigate's default; zones inherit nothing); otherwise it is left out.
+        Removing the LAST zone of a camera removes the whole `zones` key, so no `zones: {}` is left in the file."""
         zone_name(name)
+        FrigateAdapter._camera(camera)
+        raw_zones = _dig(self.http.get_json("/api/config", fresh=True), ["cameras", camera, "zones"])
+        raw_zones = raw_zones if isinstance(raw_zones, dict) else {}
+        cur = raw_zones.get(name) if isinstance(raw_zones.get(name), dict) else None
         if zone is None:
-            self._set(camera, "zones", {name: ""})
+            if cur is None:
+                return   # nothing to remove ("" on a missing key would be a 500)
+            self._set(camera, "zones", "" if set(raw_zones) == {name} else {name: ""})
             return
         coords = ",".join(f"{c:.{PRECISION}f}".rstrip("0").rstrip(".") if c not in (0, 1) else str(int(c)) for p in zone["points"] for c in p)
-        body: dict[str, Any] = {**zone_extra_of(zone.get("extra")), "coordinates": coords, "objects": zone["objects"] or "",
-                                "inertia": "" if zone.get("inertia") is None else zone["inertia"],
-                                "loitering_time": "" if zone.get("loitering_time") is None else zone["loitering_time"]}
+        body: dict[str, Any] = {**zone_extra_of(zone.get("extra")), "coordinates": coords}
+        cur_view = zone_view(name, cur, None, None) if cur is not None else None
+        if zone["objects"]:
+            body["objects"] = zone["objects"]
+        elif cur_view is not None and cur_view["objects"]:
+            body["objects"] = ""
+        for key, default in (("inertia", 3), ("loitering_time", 0)):
+            if zone.get(key) is not None:
+                body[key] = zone[key]
+            elif cur_view is not None and cur_view.get(key) not in (None, default):
+                body[key] = ""
         self._set(camera, "zones", {name: body})
 
     def frigate_schema_check(self) -> dict[str, Any]:
@@ -321,7 +354,7 @@ class FrigateConfig:
 
     # ------------------------------------------------------------------------------------------ the write (ONE call)
 
-    def _set(self, camera: str, section: str, data: dict[str, Any]) -> None:
+    def _set(self, camera: str, section: str, data: dict[str, Any] | str) -> None:
         """THE config write: one section of one camera. UNVERIFIED wire shape (module docstring)."""
         FrigateAdapter._camera(camera)
         body = {"requires_restart": 0, "update_topic": f"config/cameras/{camera}/{section}", "config_data": {"cameras": {camera: {section: data}}}}
