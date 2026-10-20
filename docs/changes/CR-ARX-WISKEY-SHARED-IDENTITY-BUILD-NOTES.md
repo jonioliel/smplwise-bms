@@ -504,3 +504,31 @@ owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERM
 - Not built: auto-approval rules (none exist; shown as "None"), the English/Arabic/Russian evidence screenshots (the screen follows the
   document language; the evidence set is Hebrew), the 14-day window across a DST change is held at 14 x 24 h (the last day ends an hour
   early) rather than refused.
+
+## WKPEER-295 (2026-10-20) - Arx half of the peer / receipt seam (Arx reply 10 sections 2.4 / 2.6, round 11 R11-I4-02/03), branch pilot/WKPEER-295
+
+Cut from `origin/integ/293` (90a50db90). Fakes only (`tests/fake_wiskey_peer.py`, `tests/test_wkpeer_295.py`); nothing ran against a
+WisKey, Home Assistant, station or door. New modules only; no existing module, route, migration, switch value or WisKey contract
+changed; nothing imports the new modules (test-enforced). `GO_LIVE_PERMITTED` is False in all three new modules, the existing locks
+(`access_grants`, `capture_lease`, `EXTENDED_GO_LIVE_PERMITTED`) stay False (test-asserted); `signed_capture_covered()` is False.
+
+- **ARX-N02 typed seam - BUILT (OFF).** `services/wiskey_peer.py`: `VerifiedPeerRef` / `TransportAttestation` are sealed values
+  (direct construction, `dataclasses.replace`, pickling or a copy cannot forge one); `as_peer_binding` refuses strings (even the right
+  one), dicts, Principals, request / op ids and signatures; `FORBIDDEN_PEER_SOURCES` names act.principal, request_id, op_id,
+  local_signature and the rest. Shared receipt: `verify_receipt` checks the WisKey `signed_person_writes/status` draft1 result against
+  one intent's exact references (byte-exact, every key, strict types, state/terminal/commit/reason consistency, epoch not regressed,
+  `recovered_uncommitted` only with a fresh matching exclusive context). `OneCommitLedger`: one terminal fact per original operation,
+  a conflicting second commit or two operations claiming one central transition is a conflict (in memory; durable form = the intent
+  table of CR-ACR7-FENCE-02, not built).
+- **ARX-N02 registry client - BUILT (OFF).** `services/wiskey_peer_registry.py`: owner pin (`wiskey.peer_pin`), dedicated-owner check
+  before any lookup, no automatic rebind, revocation stops new queries, rotation is never followed automatically, historical read only
+  with `historical_read` on an older revision of the same pinned binding. The wire read `peer_bindings/get` is an Arx PROPOSAL.
+  `client_for` answers None; `LiveRegistryTransport` refuses.
+- **ARX-N01 ACR7-FENCE-02 - DESIGN DONE.** `docs/changes/CR-ACR7-FENCE-02.md` (dedicated principal, owner pin, durable immutable
+  intents, sender inventory, old-write policy). Finding recorded there: the person editor's `users/create` has no durable intent today.
+- **ACR5-01..04 consumers - BUILT (OFF).** `services/wiskey_acr5.py`: strict frozen-v1 `access_state` parser with the six queues kept
+  apart (never a boolean), revision-bound `revocation_verdict` (R11-I1-03; False only present + same revision + WisKey false + no
+  tracked queue + Arx's central revoked predicate at that revision), bookkeeping-only `stations_synced_verdict` (R11-I2-01), RBAC
+  filtering of pending station ids, normalize_user parser and the mode/schedule/bindings triple (an identical schedule alone is never
+  equivalence), ACR5-04 plans never executable. Four switches `wiskey.acr5_*` (default off) AND the build constant.
+- Not wired: `Engine.revocation_pending` still returns None; nothing reads access_state, normalize_user, receipts or the registry.
