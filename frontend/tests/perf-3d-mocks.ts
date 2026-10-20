@@ -76,7 +76,7 @@ function cells(h: HouseSize): Cell[] {
 }
 
 /** The rooms whose spot lamps are on a switched circuit: the first two of every level. */
-const circuitRooms = (h: HouseSize): string[] => cells(h).filter((c, n) => n % (h.nx * h.ny) < 2).map((c) => c.id);
+const circuitRooms = (h: HouseSize): string[] => cells(h).filter((_, n) => n % (h.nx * h.ny) < 2).map((c) => c.id);
 
 /** The published structure of the generated house. */
 export function houseDoc(h: HouseSize = HOUSE): GeometryDoc {
