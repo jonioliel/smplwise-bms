@@ -141,6 +141,18 @@ NOTICE_ATTEST = {
     "ar": "أبلغتُ الفني بما ورد أعلاه.",
     "ru": "Подтверждаю: техник уведомлён мною об изложенном выше.",
 }
+# Decision 2 (2026-10-18): the short notice addressed to the technician himself (version B of the legal pack), for the number-confirmation
+# message to a technician. Code-owned wording, kept here beside the notice so the four languages stay in step; not yet sent anywhere (see
+# docs/privacy/technician-notice-final.md: the phone-verification message cannot tell a technician from another directory person yet).
+NOTICE_SHORT = {
+    "he": "שמך, מספר הטלפון שלך ורישומי הכניסה שלך (שעה ודלת) נשמרים לצורך אבטחת המבנה בלבד, עד שהארגון מוחק אותם. לעיון, לתיקון או למחיקה: מנהל המבנה.",
+    "en": "Your name, phone number and entry records (time and door) are kept for building security only, until the organisation deletes them. "
+          "To see, correct or delete them: the building manager.",
+    "ar": "يُحفظ اسمك ورقم هاتفك وسجلّ عمليات دخولك (الوقت والباب) لأغراض أمن المبنى فقط، إلى أن تحذفها المؤسسة. "
+          "للاطلاع عليها أو تصحيحها أو حذفها: مدير المبنى.",
+    "ru": "Ваше имя, номер телефона и данные о ваших входах (время и дверь) хранятся только для обеспечения безопасности здания "
+          "до их удаления организацией. Ознакомление, исправление или удаление — через управляющего зданием.",
+}
 TEMPLATES = {  # owner answers 3 / 9 / 11: fixed, code-owned, never editable, no link, no username, no ticket text
     "he": "SmplWise Arx: קוד הכניסה האישי שלך הוא {code}. דלתות: {doors}. בתוקף {dates}, {hours}. הקוד אישי - אל תעביר אותו לאיש. "
           "הכניסות נרשמות (שם, שעה ודלת) לצורכי אבטחה בלבד; לשאלות: מנהל המבנה. אסמכתא {ref}.",
