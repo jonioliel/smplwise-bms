@@ -153,6 +153,11 @@ def test_a_queued_export_is_read_back_from_its_job(world):
     r = _export(world).json()
     assert r["verified"] is True and r["queued"] is True and r["export_id"] in world.fake.export_jobs
     assert world.changes()[0]["status"] == "applied"
-    world.fake.export_jobs.clear()
+
+    class _Forgets(dict):   # Frigate answered 202 with an id but knows no such job afterwards (lost / dropped)
+        def __setitem__(self, k, v):
+            pass
+
+    world.fake.export_jobs = _Forgets()
     r2 = _export(world, name="Lost job").json()
     assert r2["verified"] is False and r2["queued"] is False and world.changes()[0]["status"] == "unverified"
