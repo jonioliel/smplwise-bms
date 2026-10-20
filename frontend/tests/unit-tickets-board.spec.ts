@@ -120,7 +120,7 @@ test('the timeline rows the SLA monitor writes', () => {
 
 test('the board tab: after "המחלקה", for tickets.manage, active on #/tickets/board', () => {
   // owner 2026-10-14: "מטפלים וספקים" fifth; TKRFQ2: requests for quotation; TK258: "חשבון ספקים" last; MGRDASH: the managers' "סקירה" first
-  expect(TICKETS_TABS.map((t) => t.id)).toEqual(['overview', 'mine', 'department', 'board', 'all', 'handlers', 'rfqs', 'accounts']);
+  expect(TICKETS_TABS.map((t) => t.id)).toEqual(['overview', 'mine', 'department', 'board', 'all', 'handlers', 'rfqs', 'accounts', 'external']); // SHAREDID-293: "גישת חוץ" last, offered only when placed here
   expect(TICKETS_TABS.find((t) => t.id === 'board')?.label).toBe('לוח מנהל');
   expect(TAB_PERMISSIONS['#/tickets/board']).toEqual(['tickets.manage']);
   const r = { path: '/tickets/board', mode: 'tickets', segments: ['tickets', 'board'], params: new URLSearchParams() } as never;
