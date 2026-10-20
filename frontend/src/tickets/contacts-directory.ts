@@ -7,6 +7,7 @@ import '../components/sw-button';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
 import './phone-verify';
+import '../access-external/identity-card'; // SHAREDID-293: the access-control identity of a person (renders nothing without the right)
 import { settingsStyles } from '../styles/settings';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../api/automations-demo';
@@ -643,6 +644,7 @@ export class TicketsContacts extends LitElement {
         ${this.createdText(c) ? html`<dt>${tt('dmCreatedIn')}</dt><dd data-contact-created-ro>${bidi(this.createdText(c) ?? '')}</dd>` : nothing}
       </dl>
       ${this.mgr ? this.attachments(c) : nothing}
+      ${c.kind === 'person' ? html`<access-identity-card compact data-contact-identity contact-id=${c.id} name=${c.display_name}></access-identity-card>` : nothing}
     </div>`;
   }
 
@@ -725,6 +727,7 @@ export class TicketsContacts extends LitElement {
           ${this.mgr ? nothing : html`<sw-button size="sm" variant="ghost" data-contact-export ?disabled=${this.busy} @click=${() => void this.exportData(c)}>${tt('ctExport')}</sw-button>`}
           <sw-button size="sm" variant="ghost" data-contact-erase ?disabled=${this.busy || this.erasing} @click=${() => (this.erasing = true)}>${tt('ctErase')}</sw-button>` : nothing}
       </div>
+      ${c && c.kind === 'person' ? html`<access-identity-card compact data-contact-identity contact-id=${c.id} name=${c.display_name}></access-identity-card>` : nothing}
       ${c && this.erasing ? html`<div class="danger" role="group" data-contact-erase-confirm>
         <span>${tt('ctEraseConfirm', { name: c.display_name })}</span>
         ${this.mgr ? nothing : html`<label class="chk"><input type="checkbox" .checked=${this.eraseHistory} @change=${(e: Event) => (this.eraseHistory = (e.target as HTMLInputElement).checked)} />${tt('ctEraseHistory')}</label>`}

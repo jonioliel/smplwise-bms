@@ -1224,7 +1224,11 @@ def _screen_fields(conn: sqlite3.Connection, g: dict[str, Any]) -> dict[str, Any
         except sqlite3.Error:
             unresolved = False
     closer = conn.execute("SELECT display_name FROM users WHERE id = ?", (closure["closed_by"],)).fetchone() if closure else None
+    contact = contact_row(conn, g["subject_id"]) if g["subject_kind"] == "contact" else None
+    vendor = contact_row(conn, contact.get("vendor_id")) if contact and contact.get("vendor_id") else None
     return {
+        # the person's company (the vendor's directory name) and kind: a vendor's technician is a contractor, anyone else a visitor
+        "company": (vendor or {}).get("display_name"), "category": "contractor" if contact and contact.get("vendor_id") else "visitor",
         "created_at": g.get("created_at"), "updated_at": g.get("updated_at"), "ended_at": g.get("ended_at"), "revoking_since": g.get("revoking_since"),
         "approved_by_name": (approver["display_name"] if approver else None) or None,
         "link": {"id": link["id"], "origin": link["origin"], "state": link["state"]} if link else None,
