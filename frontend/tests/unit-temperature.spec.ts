@@ -187,3 +187,17 @@ test('the temperatures tab: hidden until a unit exists (or the viewer manages th
   expect(activeAreaTab({ path: '/infra/temperature/log', segments: ['infra', 'temperature', 'log'], params: new URLSearchParams(), mode: 'infra' })).toBe('temperature');
   applyInfraTemperature(false);
 });
+
+test('phase 2: unreachable recipients are counted for the warning; the report ranges all have words', async () => {
+  const { unreachable, REPORT_RANGES, localInput } = await import('../src/temperature/model');
+  const users = [{ id: 'a', name: 'A', reach: 'ok' as const, selectable: true }, { id: 'b', name: 'B', reach: 'no_address' as const, selectable: true },
+    { id: 'c', name: 'C', reach: 'no_consent' as const, selectable: true }];
+  expect(unreachable(users, ['a', 'b'])).toBe(1);
+  expect(unreachable(users, ['a', 'b', 'c'])).toBe(2);
+  expect(unreachable(users, [])).toBe(0);
+  for (const r of REPORT_RANGES) {
+    expect(tt(`rp${r}` as never)).not.toBe(`rp${r}`);
+    expect(tt(`rp${r}` as never, undefined, 'en')).not.toBe(`rp${r}`);
+  }
+  expect(localInput(Date.UTC(2026, 9, 19, 7, 0))).toMatch(/^2026-10-19T\d\d:00$/);
+});

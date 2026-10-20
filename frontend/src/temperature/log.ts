@@ -18,6 +18,7 @@ const PAGE = 200;
 export class TempLog extends LitElement {
   @property({ attribute: false }) units: TempUnit[] = [];
   @property() unitFilter = '';
+  @property({ type: Boolean }) canSend = false;
   @state() private q: LogQuery = { range: '24h' };
   @state() private rows: TempEvent[] = [];
   @state() private total = 0;
@@ -105,6 +106,8 @@ export class TempLog extends LitElement {
         <div class="meta">
           <button type="button" class="btn" data-temp-back @click=${() => this.dispatchEvent(new CustomEvent('back'))}><sw-icon name="chevronBack" size="16"></sw-icon>${tt('back')}</button>
           <button type="button" class="btn" ?disabled=${this.busy} data-temp-csv @click=${() => this.csv()}><sw-icon name="download" size="16"></sw-icon>${tt('csv')}</button>
+          ${this.canSend ? html`<button type="button" class="btn" data-temp-log-wa @click=${() => this.dispatchEvent(new CustomEvent('whatsapp', { detail: this.q.unit ? [this.q.unit] : this.units.map((u) => u.id) }))}><sw-icon name="share" size="16"></sw-icon>WhatsApp</button>` : nothing}
+          <button type="button" class="btn" data-temp-log-pdf @click=${() => this.dispatchEvent(new CustomEvent('report', { detail: this.q.unit ? [this.q.unit] : this.units.map((u) => u.id) }))}><sw-icon name="download" size="16"></sw-icon>${tt('report')}</button>
         </div></div>
       <div class="tcard">
         <div class="filters">

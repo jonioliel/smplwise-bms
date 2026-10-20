@@ -3,7 +3,7 @@
  * (tests/unit-temperature.spec.ts). The server decides every status; these only shape it for the screen: the chips of a card, the KPI row,
  * the gauge geometry, the sparkline / chart paths, the 24-hour ring, the timeline runs and the wizard's draft and checks.
  */
-import type { DefrostWindow, ManagedUnit, TempEvent, TempUnit, UnitBody, UnitKind, UnitStatus } from '../api/temperature';
+import type { DefrostWindow, ManagedUnit, ReportRange, ReportRecipient, TempEvent, TempUnit, UnitBody, UnitKind, UnitStatus } from '../api/temperature';
 import { tt, type TtKey } from '../i18n/temperature';
 
 export const TEMPERATURE_HREF = '#/infra/temperature';
@@ -436,3 +436,18 @@ export function setRule(d: Draft, defaults: Record<string, boolean | number | st
 }
 
 export const TEMPLATE_KEYS: [UnitKind, TtKey][] = [['fridge', 'kindFridge'], ['freezer', 'kindFreezer'], ['pharma', 'kindPharma'], ['server', 'kindServer']];
+
+// ---------------------------------------------------------------- phase 2: the report and WhatsApp dialogs
+
+export const REPORT_RANGES: ReportRange[] = ['24h', 'week', '7d', 'month', '30d', 'prev_week', 'prev_month', 'custom'];
+
+/** The datetime-local value of an instant in the browser's zone (the report dialog's custom range). */
+export function localInput(ms: number): string {
+  const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60_000);
+  return d.toISOString().slice(0, 16);
+}
+
+/** The recipients chosen that the summary cannot reach (owner decision 5: warn, but allow the selection). */
+export function unreachable(users: ReportRecipient[], chosen: string[]): number {
+  return users.filter((u) => chosen.includes(u.id) && u.reach && u.reach !== 'ok').length;
+}

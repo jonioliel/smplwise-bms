@@ -331,6 +331,10 @@ export class TempWizard extends LitElement {
         <input class="in" style="inline-size:auto" type="time" .value=${this.rule<string>('quiet_from')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_from', (e.target as HTMLInputElement).value)} aria-label=${tt('start')} />
         <span>${tt('to')}</span>
         <input class="in" style="inline-size:auto" type="time" .value=${this.rule<string>('quiet_to')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_to', (e.target as HTMLInputElement).value)} aria-label=${tt('to')} /></div></div>
+      <div class="field" data-w-holds><label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('alerts_enabled')} @change=${(e: Event) => this.setRule('alerts_enabled', (e.target as HTMLInputElement).checked)} data-w-alerts />${tt('alertsEnabled')}</label>
+        <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('quiet_includes_alarms')} @change=${(e: Event) => this.setRule('quiet_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('quietAlarms')}</label>
+        <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('mute_includes_alarms')} @change=${(e: Event) => this.setRule('mute_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('muteAlarms')}</label>
+        <span class="hint">${tt('alarmsNever')}</span></div>
       <div class="field"><span class="lbl">${tt('defrost')}</span>
         <span class="seg" role="group" data-w-defrost>${(['learn', 'fixed', 'none'] as const).map((m) => html`<button type="button" aria-pressed=${String(d.defrost_mode === m)} data-mode=${m}
           @click=${() => this.patch({ defrost_mode: m, defrost_windows: m === 'fixed' && !d.defrost_windows.length ? [{ start: '03:00', minutes: 30 }] : d.defrost_windows })}>${tt(m === 'learn' ? 'modeLearn' : m === 'fixed' ? 'modeFixed' : 'modeNone')}</button>`)}</span>

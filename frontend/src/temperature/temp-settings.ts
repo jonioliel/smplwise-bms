@@ -9,7 +9,7 @@ type Val = boolean | number | string;
 const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
   { title: 'rulesTitle', keys: [['warn_on_excursion', 'ruleWarnNow'], ['high_alarm', 'ruleHigh'], ['high_alarm_min', 'minutes'], ['low_alarm', 'ruleLow'], ['low_alarm_min', 'minutes'],
     ['door_alarm', 'ruleDoor'], ['door_alarm_min', 'minutes'], ['offline_warn', 'ruleOffline'], ['offline_min', 'minutes'], ['hysteresis', 'hysteresis']] },
-  { title: 'quiet', keys: [['quiet_enabled', 'quiet'], ['quiet_from', 'start'], ['quiet_to', 'to']] },
+  { title: 'quiet', keys: [['alerts_enabled', 'alertsEnabled'], ['quiet_enabled', 'quiet'], ['quiet_from', 'start'], ['quiet_to', 'to'], ['quiet_includes_alarms', 'quietAlarms'], ['mute_includes_alarms', 'muteAlarms']] },
   { title: 'defrost', keys: [['defrost_suppress', 'defrostSuppress'], ['exclude_defrost_stats', 'excludeStats'], ['defrost_hard_margin', 'hardMargin'], ['learn_days', 'learnDays'],
     ['learn_min_repeats', 'learnRepeats'], ['defrost_max_min', 'defrostMax']] },
   { title: 'groupClimate', keys: [['setpoint_tolerance', 'tolerance'], ['alert_when_off', 'alertWhenOff']] },

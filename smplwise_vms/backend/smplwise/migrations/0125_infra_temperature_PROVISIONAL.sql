@@ -135,3 +135,43 @@ CREATE TABLE infra_temp_alert_settings (
   updated_by  TEXT,
   updated_at  TEXT
 );
+
+-- Phase 2: the WhatsApp report (TEXT SUMMARY ONLY for now, owner decision 2026-10-19; services/temperature_whatsapp.py). A row keeps the
+-- REQUEST, never the text or a phone number; the text is rebuilt from the data at send time. recipient_kind: user today; vendor is reserved
+-- (it needs the tickets message-queue migration the owner deferred - docs/changes/CR-INFRA-TEMPERATURE.md section 9).
+CREATE TABLE infra_temp_report_sends (
+  id             TEXT PRIMARY KEY,
+  batch_id       TEXT NOT NULL,
+  schedule_id    TEXT,
+  recipient_kind TEXT NOT NULL DEFAULT 'user',      -- user | vendor (reserved)
+  user_id        TEXT,
+  contact_id     TEXT,                              -- ticket_contacts.id of a vendor (reserved)
+  request_json   TEXT NOT NULL,                     -- {"units": [...], "from": ts, "to": ts, "lang": "he"}
+  status         TEXT NOT NULL DEFAULT 'queued',    -- queued | held | retry | sent | failed | skipped
+  reason         TEXT,                              -- send_hours | no_address | no_consent | no_reach | rate_limited | channel_unavailable | ...
+  not_before     TEXT NOT NULL,
+  attempts       INTEGER NOT NULL DEFAULT 0,
+  created_by     TEXT,
+  created_at     TEXT NOT NULL,
+  finished_at    TEXT
+);
+CREATE INDEX idx_infra_temp_report_sends_due ON infra_temp_report_sends (status, not_before);
+CREATE INDEX idx_infra_temp_report_sends_batch ON infra_temp_report_sends (batch_id);
+
+CREATE TABLE infra_temp_report_schedules (
+  id              TEXT PRIMARY KEY,
+  units_json      TEXT NOT NULL,
+  range_key       TEXT NOT NULL,                     -- 24h | 7d | 30d | week | month | prev_week | prev_month
+  lang            TEXT NOT NULL DEFAULT 'he',
+  freq            TEXT NOT NULL,                     -- daily | weekly | monthly
+  dow             INTEGER,                           -- 0 = Sunday (weekly)
+  dom             INTEGER,                           -- 1..28 (monthly)
+  at              TEXT NOT NULL,                     -- HH:MM local
+  recipients_json TEXT NOT NULL,                     -- [{"kind": "user", "id": ...}] (vendor reserved)
+  enabled         INTEGER NOT NULL DEFAULT 1,
+  created_by      TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  last_run_at     TEXT,
+  next_run_at     TEXT NOT NULL
+);

@@ -368,9 +368,10 @@ export class TempDetail extends LitElement {
           ${this.canAck ? html`<button type="button" class="btn pri" ?disabled=${!ackable || this.busy} data-temp-ack @click=${() => this.act(() => ackUnit(u.id), 'acked')}><sw-icon name="check" size="16"></sw-icon>${tt('ack')}</button>
             ${u.muted_until ? html`<button type="button" class="btn" ?disabled=${this.busy} data-temp-unmute @click=${() => this.act(() => unmuteUnit(u.id), 'saved')}><sw-icon name="bell" size="16"></sw-icon>${tt('unmute')}</button>`
               : html`<button type="button" class="btn" ?disabled=${this.busy} aria-expanded=${String(this.muteOpen)} data-temp-mute @click=${() => { this.muteOpen = !this.muteOpen; }}><sw-icon name="bellOff" size="16"></sw-icon>${tt('mute')}</button>`}` : nothing}
+          <button type="button" class="btn" data-temp-report @click=${() => this.dispatchEvent(new CustomEvent('report', { detail: u.id }))}><sw-icon name="download" size="16"></sw-icon>${tt('report')}</button>
           <span class="sp"></span>
           ${this.canManage ? html`<button type="button" class="btn ghost" data-temp-detail-edit @click=${() => this.dispatchEvent(new CustomEvent('edit'))}><sw-icon name="edit" size="16"></sw-icon>${tt('edit')}</button>` : nothing}
-          ${this.muteOpen ? html`<div class="pop" role="menu" data-temp-mutepop><div class="hd">${tt('muteTitle')}</div><div class="nt">${tt('muteNote')}</div>
+          ${this.muteOpen ? html`<div class="pop" role="menu" data-temp-mutepop><div class="hd">${tt('muteTitle')}</div>${u.rules.mute_includes_alarms ? nothing : html`<div class="nt">${tt('muteNote')}</div>`}
             ${MUTES.map((m) => html`<button type="button" role="menuitem" data-mute=${m} @click=${() => { this.muteOpen = false; void this.act(() => muteUnit(u.id, { minutes: m }), 'muted', { t: hhmm(now + m * 60_000, lang) }); }}>${durationText(m)}<span class="num">${hhmm(now + m * 60_000, lang)}</span></button>`)}
             ${u.defrost.windows.some((w) => w.status !== 'rejected') ? html`<button type="button" role="menuitem" data-mute="defrost" @click=${() => { this.muteOpen = false; void this.act(() => muteUnit(u.id, { until_defrost_end: true }), 'saved'); }}>${tt('muteDefrost')}</button>` : nothing}
           </div>` : nothing}

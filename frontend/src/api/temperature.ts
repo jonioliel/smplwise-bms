@@ -71,6 +71,9 @@ export interface UnitRules {
   setpoint_tolerance: number;
   alert_when_off: boolean;
   learn_min_repeats?: number;
+  alerts_enabled?: boolean;
+  quiet_includes_alarms?: boolean;
+  mute_includes_alarms?: boolean;
   learn_days?: number;
 }
 
@@ -304,4 +307,131 @@ export async function downloadLogCsv(q: LogQuery, lang: 'he' | 'en' = 'he'): Pro
     throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
   }
   saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), 'temperature-log.csv'));
+}
+
+// ---------------------------------------------------------------- phase 2: the report (PDF) and the WhatsApp text summary
+
+export type ReportRange = '24h' | 'week' | '7d' | 'month' | '30d' | 'prev_week' | 'prev_month' | 'custom';
+export interface ReportParams {
+  units: string[];
+  range: ReportRange;
+  from?: string;
+  to?: string;
+  lang: 'he' | 'en';
+  chart?: boolean;
+  events?: boolean;
+  signature?: boolean;
+}
+export interface ReportUnit {
+  id: string;
+  name: string;
+  area: string | null;
+  low: number;
+  high: number;
+  band_mode: BandMode;
+  tolerance: number | null;
+  source: SourceKind;
+  sensor: string;
+  door: string | null;
+  excl_defrost: boolean;
+  stats: Stats;
+  points?: [number, number, number | null][];
+  doors?: [number, number][];
+  defrost?: [number, number][];
+  events?: { kind: EventKind; severity: Severity; started_at: string; ended_at: string | null; value: number | null; peak: number | null; threshold: number | null }[];
+  events_more?: number;
+}
+export interface ReportModel {
+  v: number;
+  lang: 'he' | 'en';
+  from: number;
+  to: number;
+  zone: string;
+  generated: number;
+  units: ReportUnit[];
+  chart: boolean;
+  events: boolean;
+  /** a LINE only today (owner decision 4); a future electronic signature is a new mode */
+  signature: { mode: 'line' } | null;
+  digest: string;
+  range_text: string;
+  text_summary: string;
+  filename: string;
+}
+export interface ReportRecipient {
+  id: string;
+  name: string;
+  /** users: whether the summary can reach them (warned, still selectable) */
+  reach?: 'ok' | 'no_address' | 'no_consent';
+  company?: string | null;
+  has_phone?: boolean;
+  selectable: boolean;
+  /** vendors: `coming_later` until the message-queue migration is approved */
+  reason?: string;
+}
+export interface RecipientsResponse {
+  users: ReportRecipient[];
+  vendors: ReportRecipient[];
+  send_hours: { from: string; to: string };
+  attachment: string;
+  attachment_modes: string[];
+}
+export interface SendRow {
+  id: string;
+  name: string;
+  status: 'queued' | 'held' | 'retry' | 'sent' | 'failed' | 'skipped';
+  reason: string | null;
+  not_before: string;
+  finished_at: string | null;
+}
+export interface Schedule {
+  id: string;
+  units: string[];
+  range_key: ReportRange;
+  lang: 'he' | 'en';
+  freq: 'daily' | 'weekly' | 'monthly';
+  dow: number | null;
+  dom: number | null;
+  at: string;
+  recipients: { kind: 'user' | 'vendor'; id: string }[];
+  enabled: boolean;
+  next_run_at: string;
+  last_run_at: string | null;
+}
+
+export function reportQs(p: ReportParams): string {
+  const q = new URLSearchParams({ units: p.units.join(','), range: p.range, lang: p.lang });
+  if (p.range === 'custom') {
+    if (p.from) q.set('from', p.from);
+    if (p.to) q.set('to', p.to);
+  }
+  if (p.chart === false) q.set('chart', '0');
+  if (p.events === false) q.set('events', '0');
+  if (p.signature === false) q.set('signature', '0');
+  return `?${q.toString()}`;
+}
+
+export const getReportPreview = (p: ReportParams) => get<ReportModel>(`${B}/report/preview${reportQs(p)}`);
+export const getReportRecipients = () => get<RecipientsResponse>(`${B}/report/recipients`);
+export const sendReport = (body: { units: string[]; range: ReportRange; from?: string; to?: string; lang: 'he' | 'en'; recipients: { kind: 'user' | 'vendor'; id: string }[] }) =>
+  post<{ batch_id: string; queued: number; sends: SendRow[] }>(`${B}/report/send`, body);
+export const getSends = (batch: string) => get<{ sends: SendRow[] }>(`${B}/report/sends/${enc(batch)}`);
+export const listSchedules = () => get<{ schedules: Schedule[] }>(`${B}/report/schedules`);
+export const createSchedule = (body: { units: string[]; range: ReportRange; lang: 'he' | 'en'; freq: string; at: string; dow?: number | null; dom?: number | null; recipients: { kind: 'user' | 'vendor'; id: string }[] }) =>
+  post<Schedule>(`${B}/report/schedules`, body);
+export const deleteSchedule = (id: string) => del(`${B}/report/schedules/${enc(id)}`);
+
+/** The PDF (the browser's own download). */
+export async function downloadReportPdf(p: ReportParams): Promise<void> {
+  const res = await fetch(apiUrl(`${B}/report.pdf${reportQs(p)}`), { credentials: 'same-origin' });
+  if (!res.ok) {
+    let body: ApiErrorBody | null = null;
+    try {
+      body = (await res.json()) as ApiErrorBody;
+    } catch {
+      body = null;
+    }
+    throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
+  }
+  saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), 'temperature-report.pdf'));
 }

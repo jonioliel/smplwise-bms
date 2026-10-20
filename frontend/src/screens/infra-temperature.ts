@@ -5,7 +5,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
-import { listUnits, type TempUnit, type UnitsResponse } from '../api/temperature';
+import { listUnits, type ReportParams, type TempUnit, type UnitsResponse } from '../api/temperature';
 import { onTemperatureAccess, temperatureAccess, type TemperatureAccess } from '../temperature/access';
 import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, addAffordances, agoText, chipsOf, durationText, kpisOf, matchesKpi, type KpiKey } from '../temperature/model';
 import { gauge, spark } from '../temperature/charts';
@@ -13,6 +13,8 @@ import { tempCss } from '../temperature/styles';
 import '../temperature/detail';
 import '../temperature/wizard';
 import '../temperature/log';
+import '../temperature/report';
+import '../temperature/whatsapp';
 import { tt, type TtKey } from '../i18n/temperature';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { INFRA_TABS, applyInfraTemperature, tabStyleOf, visibleTabs } from '../shell/nav';
@@ -45,6 +47,9 @@ export class InfraTemperature extends LitElement {
   /** the wizard: null = closed, '' = a new unit, else the unit id */
   @state() private wizard: string | null = null;
   @state() private toast = '';
+  /** phase 2: the PDF report dialog (the preselected units) and the WhatsApp dialog (its params) */
+  @state() private report: string[] | null = null;
+  @state() private wa: ReportParams | null = null;
   private offScreenEdit?: () => void;
   private stop?: () => void;
   private timer?: number;
@@ -251,6 +256,15 @@ export class InfraTemperature extends LitElement {
     </article>`;
   }
 
+  private reportOverlays() {
+    const units = this.data?.units ?? [];
+    return html`${this.report !== null
+      ? html`<temp-report .units=${units} .preselect=${this.report} .canSend=${this.access.manage} @close=${() => { this.report = null; }}
+          @done=${(e: CustomEvent<string>) => this.flash(e.detail)} @whatsapp=${(e: CustomEvent<ReportParams>) => { this.report = null; this.wa = e.detail; }}></temp-report>`
+      : nothing}
+      ${this.wa !== null ? html`<temp-wa .units=${units} .params=${this.wa} @close=${() => { this.wa = null; }}></temp-wa>` : nothing}`;
+  }
+
   private l1() {
     return isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2
       ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'temperature')} active="temperature" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>`
@@ -260,7 +274,9 @@ export class InfraTemperature extends LitElement {
   render() {
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.isLog()) {
-      return html`${this.l1()}<temp-log .units=${this.data?.units ?? []} .unitFilter=${this.route?.params.get('unit') ?? ''} @back=${() => { window.location.hash = TEMPERATURE_HREF; }}></temp-log>`;
+      return html`${this.l1()}<temp-log .units=${this.data?.units ?? []} .unitFilter=${this.route?.params.get('unit') ?? ''} .canSend=${this.access.manage}
+        @back=${() => { window.location.hash = TEMPERATURE_HREF; }} @report=${(e: CustomEvent<string[]>) => { this.report = e.detail; }}
+        @whatsapp=${(e: CustomEvent<string[]>) => { this.wa = { units: e.detail, range: '24h', lang: 'he' }; }}></temp-log>${this.reportOverlays()}`;
     }
     if (!this.data) {
       return this.error
@@ -284,13 +300,14 @@ export class InfraTemperature extends LitElement {
       ${this.openId && list.some((u) => u.id === this.openId)
         ? html`<temp-detail .unit=${list.find((u) => u.id === this.openId)!} .units=${list} .canAck=${this.data.can_ack} .canManage=${this.access.manage} .stale=${stale}
             @close=${() => this.closeDetail()} @open-unit=${(e: CustomEvent<string>) => { this.openId = e.detail; }}
-            @edit=${() => { this.wizard = this.openId; }} @changed=${(e: CustomEvent<string>) => { this.flash(e.detail); void this.load(); }}></temp-detail>`
+            @edit=${() => { this.wizard = this.openId; }} @report=${(e: CustomEvent<string>) => { this.report = [e.detail]; }} @changed=${(e: CustomEvent<string>) => { this.flash(e.detail); void this.load(); }}></temp-detail>`
         : nothing}
       ${this.wizard !== null
         ? html`<temp-wizard .unitId=${this.wizard || null} @close=${() => { this.wizard = null; }}
             @saved=${(e: CustomEvent<string>) => { this.wizard = null; this.flash(e.detail); void this.load(); }}
             @removed=${(e: CustomEvent<string>) => { this.wizard = null; this.openId = null; this.flash(e.detail); void this.load(); }}></temp-wizard>`
         : nothing}
+      ${this.reportOverlays()}
       ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
     if (!list.length) {
       return html`${this.l1()}${top}

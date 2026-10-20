@@ -231,7 +231,7 @@ def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sql
                                 else [{"start_min": w["start_min"], "minutes": w["minutes"], "status": w["status"], "repeats": w["repeats"]} for w in ctx.learned.get(u["id"], [])] if u["defrost_mode"] == "learn" else [])},
         "muted_until": u["muted_until"] if u["muted_until"] and u["muted_until"] > _iso(ts) else None,
         "rules": {k: rules[k] for k in ("warn_on_excursion", "high_alarm", "high_alarm_min", "low_alarm", "low_alarm_min", "door_alarm", "door_alarm_min", "offline_warn",
-                                         "offline_min", "quiet_enabled", "quiet_from", "quiet_to", "exclude_defrost_stats", "setpoint_tolerance", "alert_when_off", "learn_min_repeats", "learn_days")},
+                                         "offline_min", "quiet_enabled", "quiet_from", "quiet_to", "exclude_defrost_stats", "setpoint_tolerance", "alert_when_off", "learn_min_repeats", "learn_days", "alerts_enabled", "quiet_includes_alarms", "mute_includes_alarms")},
         "stats_24h": {k: st24[k] for k in ("min", "max", "avg", "out_min", "out_min_raw", "door_opens", "door_total_min", "door_longest_min", "alarms", "warnings")},
         "stale": not ctx.connected,
     }
@@ -300,6 +300,154 @@ def _log_query(conn: sqlite3.Connection, principal: Principal, unit: str | None,
     page = rows[offset:offset + limit]
     names = _user_names(conn, {r["ack_by"] or "" for r in page})
     return [_event_out(r, names) for r in page], total, vis
+
+
+# ---------------------------------------------------------------- phase 2: the report (PDF) and the WhatsApp text summary (registered before /{unit_id})
+
+class ReportSendIn(_Body):
+    units: list[str] = Field(min_length=1, max_length=30)
+    range: str = Field(default="24h", max_length=12)
+    start: str | None = Field(default=None, alias="from", max_length=40)
+    end: str | None = Field(default=None, alias="to", max_length=40)
+    lang: Literal["he", "en"] = "he"
+    recipients: list[dict[str, str]] = Field(min_length=1, max_length=30)
+
+
+class ScheduleIn(_Body):
+    units: list[str] = Field(min_length=1, max_length=30)
+    range: str = Field(max_length=12)
+    lang: Literal["he", "en"] = "he"
+    freq: str = Field(max_length=10)
+    at: str = Field(max_length=5)
+    dow: int | None = None
+    dom: int | None = None
+    recipients: list[dict[str, str]] = Field(min_length=1, max_length=30)
+
+
+def _report_range(conn: sqlite3.Connection, rng: str, start: str | None, end: str | None, ts: float) -> tuple[int, int]:
+    from ..services import temperature_whatsapp as twa
+
+    try:
+        if rng == "custom":
+            return t.parse_range("custom", start, end, ts)
+        return twa.range_of(rng, ts, t.site_zone(conn))
+    except ValueError as e:
+        raise ApiError(422, "validation", "טווח לא תקין.", details={"fields": [str(e)], "message_en": "Invalid range."}) from None
+
+
+def _report_units(conn: sqlite3.Connection, principal: Principal, ids: list[str]) -> tuple[list[sqlite3.Row], set[str]]:
+    vis = {u["id"]: (u, d) for u, d in _visible(conn, principal)}
+    missing = [i for i in ids if i not in vis]
+    if missing or not ids:
+        raise _err(404, "unit_not_found")
+    rows = [vis[i][0] for i in dict.fromkeys(ids)]
+    return rows, {i for i in ids if vis[i][1]}
+
+
+def _wa_error(e: Any) -> ApiError:
+    return ApiError(422, e.code, e.message, details={"fields": e.fields, "message_en": e.message_en})
+
+
+@router.get(f"{API}/report/preview")
+def report_preview(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
+                   end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
+                   events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1),
+                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The report MODEL (what the PDF and the WhatsApp text are made from) - the dialog's preview. devices.read, scoped like the units."""
+    from ..services import temperature_report as rep
+
+    ts = now_ts()
+    lo, hi = _report_range(conn, range, start, end, ts)
+    rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature))
+    return {**model, "range_text": rep.range_text(model), "text_summary": rep.text_summary(model), "filename": rep.filename(model)}
+
+
+@router.get(f"{API}/report.pdf")
+def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
+               end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
+               events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1),
+               principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    """The audit PDF of one or more units (a page per unit): presets or a custom range, Hebrew or English, chart / events / signature LINE
+    (owner decision 4: a line only; the model keeps room for a future electronic signature). Rendered in the isolated child process."""
+    from ..services import temperature_pdf, temperature_report as rep
+
+    ts = now_ts()
+    lo, hi = _report_range(conn, range, start, end, ts)
+    rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature))
+    try:
+        content = temperature_pdf.render(model)
+    except temperature_pdf.PdfError as e:
+        status = 422 if e.code in ("pdf_page_limit", "pdf_too_large") else 503
+        raise ApiError(status, e.code, "לא ניתן להפיק את הדוח כרגע." if status == 503 else "הדוח גדול מדי; יש לצמצם טווח או יחידות.",
+                       details={"message_en": "The report cannot be produced now." if status == 503 else "The report is too large; narrow the range or the units."}) from None
+    audit(conn, actor=principal, action="infra.temperature.report", decision="allowed", resource_type="infra_temp_unit", details={"units": len(rows), "digest": model["digest"][:16]})
+    return Response(content=content, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{rep.filename(model)}"', "Cache-Control": "private, no-store", "X-Report-Digest": model["digest"]})
+
+
+@router.get(f"{API}/report/recipients")
+def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The WhatsApp dialog's people: system users (with whether the summary can reach them) and vendors (listed, not selectable yet), plus
+    the installation's send hours. Never a phone number."""
+    from ..services import temperature_whatsapp as twa
+    from ..services.tickets import messaging as tmsg
+
+    w = tmsg.send_window(conn, None)
+    return {**twa.recipients(conn), "send_hours": {"from": w.start.strftime("%H:%M"), "to": w.end.strftime("%H:%M")}}
+
+
+@router.post(f"{API}/report/send", status_code=202)
+def report_send(body: ReportSendIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Queues the text summary to each recipient (one-off). It leaves inside the installation's send hours (else it waits for the next
+    opening, logged), through the shared account and pacing, only to a number the user opted in for."""
+    from ..services import temperature_whatsapp as twa
+
+    ts = now_ts()
+    lo, hi = _report_range(conn, body.range, body.start, body.end, ts)
+    _report_units(conn, principal, body.units)
+    try:
+        out = twa.queue_send(conn, principal, list(dict.fromkeys(body.units)), lo, hi, body.lang, body.recipients, ts)
+    except twa.SendInvalid as e:
+        raise _wa_error(e) from None
+    audit(conn, actor=principal, action="infra.temperature.report.send", decision="allowed", resource_type="infra_temp_report", resource_id=out["batch_id"],
+          details={"recipients": out["queued"], "units": len(body.units)})
+    return {**out, "sends": twa.batch_view(conn, out["batch_id"])}
+
+
+@router.get(f"{API}/report/sends/{{batch_id}}")
+def report_sends(batch_id: str, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    from ..services import temperature_whatsapp as twa
+
+    return {"sends": twa.batch_view(conn, batch_id)}
+
+
+@router.get(f"{API}/report/schedules")
+def report_schedules(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    from ..services import temperature_whatsapp as twa
+
+    return {"schedules": twa.schedules(conn)}
+
+
+@router.post(f"{API}/report/schedules", status_code=201)
+def report_schedule_create(body: ScheduleIn, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    from ..services import temperature_whatsapp as twa
+
+    _report_units(conn, principal, body.units)
+    try:
+        sid = twa.save_schedule(conn, principal, list(dict.fromkeys(body.units)), body.lang, body.model_dump(), now_ts())
+    except twa.SendInvalid as e:
+        raise _wa_error(e) from None
+    audit(conn, actor=principal, action="infra.temperature.report.schedule", decision="allowed", resource_type="infra_temp_report_schedule", resource_id=sid)
+    return next(s for s in twa.schedules(conn) if s["id"] == sid)
+
+
+@router.delete(f"{API}/report/schedules/{{schedule_id}}", status_code=204)
+def report_schedule_delete(schedule_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+    if conn.execute("DELETE FROM infra_temp_report_schedules WHERE id = ?", (schedule_id,)).rowcount == 0:
+        raise ApiError(404, "not_found", "התזמון לא נמצא.", details={"message_en": "The schedule was not found."})
+    audit(conn, actor=principal, action="infra.temperature.report.schedule.delete", decision="allowed", resource_type="infra_temp_report_schedule", resource_id=schedule_id)
 
 
 @router.get(f"{API}/events")

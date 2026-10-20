@@ -108,6 +108,26 @@ async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: 
           { entity_id: 'sensor.wine_cellar_temp', name: 'טמפרטורה מרתף יין', area_name: 'מסעדה', device_class: 'temperature', value: 13.4, state: null, group: 'sensor', setpoint: null, hvac_mode: null },
           { entity_id: 'climate.lobby_ac', name: 'מזגן לובי', area_name: 'לובי', device_class: null, value: 23.4, state: null, group: 'climate', setpoint: 22, hvac_mode: 'cool' }] });
     }
+    if (p === 'infra/temperature/report/preview') {
+      const ids = (new URL(route.request().url()).searchParams.get('units') ?? '').split(',');
+      const us = list.filter((u) => ids.includes(u.id)).map((u) => ({ id: u.id, name: u.name, area: u.area_name, low: u.low, high: u.high, band_mode: u.band_mode, tolerance: 2, source: u.source,
+        sensor: u.temp_sensor_name, door: u.door?.sensor_name ?? null, excl_defrost: true, stats: u.stats_24h, points: u.spark.map((q) => [q[0], q[1], q[2] ?? null]), doors: u.doors_24h,
+        defrost: u.defrost_24h, events: LOG.filter((e) => e.unit_id === u.id).map((e) => ({ kind: e.kind, severity: e.severity, started_at: e.started_at, ended_at: e.ended_at, value: e.value, peak: e.peak, threshold: e.threshold })), events_more: 0 }));
+      return json(route, { v: 1, lang: 'he', from: NOW_S - 86400, to: NOW_S, zone: 'Asia/Jerusalem', generated: NOW_S, units: us, chart: true, events: true, signature: { mode: 'line' },
+        digest: '3f9a1c0d5e7b2a4c'.repeat(4), range_text: '19.10.2026 13:42 – 20.10.2026 13:42', filename: 'temperature-report-20261020.pdf',
+        text_summary: `Arx · דוח טמפרטורות
+19.10.2026 13:42 – 20.10.2026 13:42
+${us.map((u) => `${u.name}: מינ׳ ${u.stats.min}° · מקס׳ ${u.stats.max}° · מחוץ לטווח ${u.stats.out_min} דק׳ · התראות ${u.stats.alarms + u.stats.warnings}`).join(String.fromCharCode(10))}
+הדוח המלא (PDF) זמין במערכת.
+הודעה אוטומטית - אין להשיב.` });
+    }
+    if (p === 'infra/temperature/report/recipients') {
+      return json(route, { users: [{ id: 'p1', name: 'יוני אוליאל', reach: 'ok', selectable: true }, { id: 'p2', name: 'דנה לוי', reach: 'ok', selectable: true },
+        { id: 'p3', name: 'משמרת מטבח', reach: 'no_address', selectable: true }, { id: 'p4', name: 'אורי כהן', reach: 'no_consent', selectable: true }],
+        vendors: [{ id: 'v1', name: 'קירור הצפון', company: 'קירור הצפון בע"מ', has_phone: true, selectable: false, reason: 'coming_later' }],
+        send_hours: { from: '08:00', to: '20:00' }, attachment: 'none', attachment_modes: ['none'] });
+    }
+    if (p === 'infra/temperature/report/schedules') return json(route, { schedules: [] });
     if (p === 'infra/temperature/settings') return json(route, { rules: { ...RULES, defrost_hard_margin: 5, retention_days: 400 }, code_defaults: {}, row_version: 1, rule_specs: {} });
     if (p === 'infra/temperature/alerts') return json(route, { kinds: {}, row_version: 1, roles: [], channels: [], kinds_order: [], can_edit: true });
     const m = /^infra\/temperature\/([^/]+)\/history$/.exec(p);
@@ -187,6 +207,26 @@ test.describe('temperature evidence', () => {
     await w.locator('[data-w-next]').click();
     await expect(w.locator('[data-w-summary]')).toContainText('טמפרטורה מקרר בר קפה');
     await page.screenshot({ path: path.join(OUT, `wizard-4-${test.info().project.name}.png`) });
+  });
+
+  test('PDF report dialog and the WhatsApp text-summary dialog', async ({ page }) => {
+    await install(page, units());
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    await page.locator('sw-app infra-temperature temp-detail [data-temp-report]').click();
+    const r = page.locator('sw-app infra-temperature temp-report');
+    await expect(r.locator('[data-rep-paper] .sig')).toBeVisible(); // a signature LINE only
+    await expect(r.locator('[data-rep-unit="u3"]')).toBeChecked();
+    await page.screenshot({ path: path.join(OUT, `report-${test.info().project.name}.png`) });
+    await r.locator('[data-rep-wa]').click();
+    const w = page.locator('sw-app infra-temperature temp-wa');
+    await expect(w.locator('[data-kind="vendor"] input')).toBeDisabled(); // vendors: coming later
+    await w.locator('[data-person="p1"] input').check();
+    await w.locator('[data-person="p3"] input').check(); // no number: warned, still selectable
+    await expect(w.locator('[data-wa-warn]')).toBeVisible();
+    await expect(w.locator('[data-wa-text]')).toContainText('דוח טמפרטורות');
+    await page.screenshot({ path: path.join(OUT, `whatsapp-${test.info().project.name}.png`) });
   });
 
   test('alert log', async ({ page }) => {

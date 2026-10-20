@@ -12,7 +12,8 @@ Every TICK_S (60 s) over the state mirror, for every enabled unit:
   - no live reading for `offline_min` minutes is a WARNING "the sensor does not report" until it reports again;
 * notifications through the CR-018 pipeline (sources temperature.alarm / .warning / .offline): a WARNING is held - logged, not sent - in the
   quiet hours (`quiet_enabled`, `quiet_from`..`quiet_to`, local time of the installation zone) and while the unit is muted; it is sent when
-  the hold ends and the condition still holds. An ALARM is never held. Each row's current notification is resolved when it ends or turns into
+  the hold ends and the condition still holds. An ALARM is never held by default (`quiet_includes_alarms` / `mute_includes_alarms` are
+  settings that default OFF); `alerts_enabled` off logs everything and sends nothing. Each row's current notification is resolved when it ends or turns into
   an alarm.
 
 While the infrastructure session is disconnected nothing is recorded and nothing changes (the mirror is not a reading). The learner (mode
@@ -191,14 +192,28 @@ def _door_track(conn: sqlite3.Connection, u: sqlite3.Row, door: bool | None, cha
     return None
 
 
-def _notify(conn: sqlite3.Connection, u: sqlite3.Row, ev: dict[str, Any], now_ts: float, *, held: str | None, area: str | None, out: dict[str, int]) -> None:
-    """Brings the row's notification in line: an alarm always; a warning unless held (quiet hours / mute)."""
+def holds(rules: dict[str, Any], *, quiet: bool, muted: bool) -> tuple[str | None, str | None]:
+    """(why a WARNING is held, why an ALARM is held) - None = it goes out. Owner decisions 2026-10-19, every one a setting (installation
+    default + per unit): alerts on (`alerts_enabled`), quiet hours and a mute hold warnings; alarms only when `quiet_includes_alarms` /
+    `mute_includes_alarms` say so (both default OFF: an alarm is never silenced unless an administrator explicitly chose it)."""
+    if not rules.get("alerts_enabled", True):
+        return "off", "off"
+    warn = "quiet" if quiet else "mute" if muted else None
+    alarm = "quiet" if quiet and rules.get("quiet_includes_alarms") else "mute" if muted and rules.get("mute_includes_alarms") else None
+    return warn, alarm
+
+
+def _notify(conn: sqlite3.Connection, u: sqlite3.Row, ev: dict[str, Any], now_ts: float, *, held: str | None, held_alarm: str | None = None, area: str | None,
+            out: dict[str, int]) -> None:
+    """Brings the row's notification in line: an alarm unless held (by default never), a warning unless held (quiet hours / mute)."""
     src = _source_of(ev)
     if src is None:
         return
-    want = ev["severity"] == "alarm" or (ev.get("warned_at") is not None and held is None)
-    if ev["severity"] != "alarm" and ev.get("warned_at") is not None and held is not None and not ev.get("notification_id"):
-        ev["suppressed"] = held
+    is_alarm = ev["severity"] == "alarm"
+    hold = held_alarm if is_alarm else held
+    want = (is_alarm or ev.get("warned_at") is not None) and hold is None
+    if (is_alarm or ev.get("warned_at") is not None) and hold is not None and not ev.get("notification_id"):
+        ev["suppressed"] = hold
     if not want or ev.get("notification_id"):
         return
     res = _emit(conn, _signal(u, ev, src, area, now_ts))
@@ -240,7 +255,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
         defrost = t.in_defrost(wins, minute)
         quiet = t.in_quiet(rules, minute)
         muted = bool(u["muted_until"] and u["muted_until"] > now)
-        held = "quiet" if quiet else "mute" if muted else None
+        held, held_alarm = holds(rules, quiet=quiet, muted=muted)
         hard_max = high + float(rules["defrost_hard_margin"])
         flags = (1 if defrost else 0) | (2 if door else 0) | (4 if switched_off else 0)
         if v is not None and t.record_sample(conn, u["id"], int(now_ts), v, flags, reading["setpoint"]):
@@ -340,7 +355,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
 
         for ev in touched:
             if ev["ended_at"] is None:
-                _notify(conn, u, ev, now_ts, held=held, area=area, out=out)
+                _notify(conn, u, ev, now_ts, held=held, held_alarm=held_alarm, area=area, out=out)
             _save(conn, ev)
     return out
 
@@ -375,7 +390,13 @@ def tick(db: Database, now: float | None = None, *, connected: bool | None = Non
             return {"skipped": "no_schema"}
         res = evaluate(conn, ts, connected=t.mirror_connected() if connected is None else connected)
         res["learned"] = run_learner(conn, ts)
-        return res
+    try:  # phase 2: the WhatsApp report sends and schedules (text summary only; services/temperature_whatsapp.py)
+        from . import temperature_whatsapp
+
+        res["reports"] = temperature_whatsapp.process(db, ts)
+    except Exception:  # noqa: BLE001 - a report problem never stops the evaluator
+        log.warning("temperature report pass failed", exc_info=True)
+    return res
 
 
 def janitor(db: Database, now: float | None = None) -> dict[str, Any] | None:
@@ -385,7 +406,11 @@ def janitor(db: Database, now: float | None = None) -> dict[str, Any] | None:
     _LAST["prune"] = ts
     with db.connection(label="temperature.janitor") as conn:
         try:
-            return t.prune(conn, ts, int(t.load_defaults(conn)["retention_days"]))
+            out = t.prune(conn, ts, int(t.load_defaults(conn)["retention_days"]))
+            from . import temperature_whatsapp
+
+            out["report_sends"] = temperature_whatsapp.prune(conn, ts)
+            return out
         except sqlite3.Error:
             return {"skipped": "no_schema"}
 

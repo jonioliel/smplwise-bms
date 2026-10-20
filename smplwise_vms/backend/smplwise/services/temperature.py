@@ -37,6 +37,9 @@ T_MIN, T_MAX = -60.0, 150.0
 
 # key -> (type, default, min, max). type: bool | int | float | hhmm. Every key may be overridden per unit (rules_json).
 RULES: dict[str, tuple[str, Any, float | None, float | None]] = {
+    "alerts_enabled": ("bool", True, None, None),         # owner 2026-10-19: alerts ON by default (a unit exists to raise them)
+    "quiet_includes_alarms": ("bool", False, None, None), # owner: quiet hours hold warnings only - alarms only if this is turned on
+    "mute_includes_alarms": ("bool", False, None, None),  # owner: a mute silences warnings only - alarms only if this is turned on
     "warn_on_excursion": ("bool", True, None, None),      # a warning from the moment the reading leaves the band
     "high_alarm": ("bool", True, None, None),
     "high_alarm_min": ("int", 10, 0, 1440),               # Z above the band
@@ -62,7 +65,11 @@ RULES: dict[str, tuple[str, Any, float | None, float | None]] = {
 # installation-only settings (not per unit)
 INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     "retention_days": ("int", 400, 35, 3650),             # the five-minute history (a year of audits by default)
+    # phase 2 (owner TODO): what a WhatsApp report carries besides its text summary. Only "none" until a transport can send a document
+    # (services/temperature_whatsapp.ATTACHMENT_MODES / attachment_for); future: "pdf" | "link" | "html"
+    "report_attachment": ("choice", "none", None, None),
 }
+CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none",)}
 RAW_KEEP_S = 35 * 86400
 BUCKET_S = 300
 RANGES = {"24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
@@ -121,6 +128,10 @@ def _check(key: str, spec: tuple[str, Any, float | None, float | None], v: Any) 
         return v
     if typ == "hhmm":
         if not _hhmm_ok(v):
+            raise Invalid("rule_invalid", [f"rules.{key}"])
+        return v
+    if typ == "choice":
+        if v not in CHOICES.get(key, ()):
             raise Invalid("rule_invalid", [f"rules.{key}"])
         return v
     if isinstance(v, bool) or not isinstance(v, (int, float)) or (isinstance(v, float) and not math.isfinite(v)):

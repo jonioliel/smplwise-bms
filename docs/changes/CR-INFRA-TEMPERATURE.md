@@ -1,6 +1,6 @@
 # CR-INFRA-TEMPERATURE - temperature control under Infrastructure (2.9.1)
 
-Status: phase 1 built on `pilot/TEMPCTL-291` (from `integ/290`). Owner-approved mockup and binding decisions:
+Status: phases 1 and 2 built on `pilot/TEMPCTL-291` (from `integ/290`). Owner-approved mockup and binding decisions:
 `private/planning/mockup_temperature_2026-10-19/` (index.html, OWNER_DECISIONS.md) plus the owner requirements relayed on 2026-10-19
 (optional defrost window with automatic learning; climate entities as a temperature source).
 
@@ -34,11 +34,14 @@ Every number below is a SETTING with an installation default (Settings > Infrast
 | above the band inside a defrost window, at or below the hard maximum (`defrost_hard_margin`), `defrost_suppress` on | defrost info row | none |
 | climate unit switched off (`hvac_mode` off), `alert_when_off` off | open band rows end ("off") | resolved; status `off` (grey), not an alarm |
 
+* Alerts are ON by default (`alerts_enabled`; off = every row is still logged with `suppressed = off`, nothing is sent).
 * Quiet hours (`quiet_enabled`, `quiet_from`..`quiet_to`, local time of the installation zone) hold WARNING notifications only; the row is
   logged with `suppressed = quiet` and the warning is sent when the quiet hours end if the condition still holds. Alarms are never held
-  (owner decision 2).
+  (owner decision 2) - unless an administrator turns on `quiet_includes_alarms` (default OFF).
 * Mute (operators, `infra.temperature.ack`): 15 / 30 / 60 / 120 minutes or until the end of the next defrost window; it holds WARNINGS only
-  and is logged with who. Alarms are never muted.
+  and is logged with who. Alarms are never muted - unless `mute_includes_alarms` is turned on (default OFF).
+* Owner 2026-10-19 (answers on phase 1): keep alerts on by default and the warnings-only holds; all three are settings with an installation
+  default and a per-unit override (Settings > Infrastructure > Temperatures; wizard step 3).
 * A disconnected mirror changes nothing and records nothing (status `unknown`, the last values shown grey, a banner).
 
 ## 3. Defrost
@@ -87,10 +90,45 @@ manage: `GET /manage`, `GET /candidates?kind=temp|door` (sensors and climate ent
 `DELETE /{id}`, `PUT /order`, `GET|PUT /settings`, `POST /{id}/defrost/{start_min}/confirm|reject`, `DELETE /{id}/defrost/learned`;
 routing: `GET|PUT /alerts`.
 
-## 8. Known limits (phase 1)
+## 8. Phase 2: the PDF report and the WhatsApp text summary
+
+* **PDF** (`GET /report.pdf?units=&range=&from=&to=&lang=he|en&chart=&events=&signature=`, devices.read, scoped like the units, audited):
+  presets 24 h / this week / 7 days / this month / 30 days / previous week / previous month and a custom range (ISO instants with a zone,
+  at most 400 days), one or several units (a page per unit), Hebrew (RTL) or English, the chart (reading, setpoint step line, band, door
+  and defrost bands, out-of-range in red), the statistics, the event list and a signature LINE (owner decision 4; the model keeps
+  `signature = {"mode": "line"}` so an electronic signature is a future mode, not a new report). Footer: local generation time and zone,
+  the UTC instant and a SHA-256 digest of the report model (`X-Report-Digest`). Rendering: the bill PDF's isolated child process and limits
+  (services/temperature_pdf.py, temperature_pdf_engine.py): WeasyPrint with the bundled fonts only, fpdf2 as a plain fallback; no network.
+  `GET /report/preview` returns the same model (the dialog's paper preview and the WhatsApp text are made from it).
+* **WhatsApp - TEXT SUMMARY ONLY** (owner option A, services/temperature_whatsapp.py): the range and per unit min / max / average /
+  out-of-range time / alerts, "the full report (PDF) is available in the system", capped at 700 characters. Recipients: system users -
+  a user receives only on the number he opted in for himself (notify_whatsapp.resolve_number; no number / no consent is warned in the
+  dialog, may still be chosen, and the send row ends `skipped` with the reason); the recipient must also see the units himself (else
+  `no_reach`). One-off (`POST /report/send`) or scheduled (`/report/schedules`: daily / weekly / monthly at a local time). Every send
+  respects the installation's WhatsApp send hours (tickets.settings `send_hours`): outside the window the row is `held` until the next
+  opening. Account: the use `infra.temperature.reports` (inherits the notifications account), the shared pacing ledger, the tickets
+  module's adapter. A send row stores the request, never the text or a number. Managers only (`infra.temperature.manage`).
+
+## 9. Open items the owner asked to keep (do not forget)
+
+1. **Document sending on WhatsApp (TODO, owner 2026-10-19).** Today the summary is text only because the transport
+   (`whatsapp.send_message`) cannot carry a document. To add the PDF itself, a temporary signed download link or an attached HTML report
+   later: (a) give the transport the capability (a media service of the WhatsApp integration, or a signed short-lived link route),
+   (b) add the mode to `temperature_whatsapp.ATTACHMENT_MODES` and `temperature.CHOICES["report_attachment"]`, (c) return the payload from
+   `temperature_whatsapp.attachment_for()` - the send pass (`process` -> `_send`) already carries it. The setting `report_attachment` (installation) is the
+   switch; only `none` is accepted until then. No change to the queue, the schedules or the dialog is needed.
+2. **Sending to vendors (DEFERRED, owner 2026-10-19).** External contacts are reached through the tickets message queue
+   (`ticket_outbox`), whose `purpose` CHECK needs a table-rebuild migration to add a temperature-report purpose. Not built. Until it is
+   approved, vendors are listed in the WhatsApp dialog DISABLED ("בקרוב") and the API refuses them (`vendor_coming_later`). The send rows
+   and schedules already carry `recipient_kind` / `contact_id`, so vendors - one-off AND scheduled, chosen per recipient (owner decision 6)
+   - need no schema change on the temperature side.
+
+## 10. Known limits
 
 * Statistics judge every sample against the CURRENT fixed band (a band edited later re-colours the past); a setpoint band uses the stored
   setpoint of each sample. Climate "off" minutes are excluded from out-of-range only where raw minutes exist (35 days).
 * "No live reading" is judged from the state (unavailable / unknown / not numeric); the mirror has no `last_reported`, so a frozen but
   "valid" value is not detected (sensor health is a phase 3 item).
-* The PDF report, WhatsApp sending and the phase 3 ideas are not in phase 1.
+* The PDF engines (WeasyPrint / fpdf2) are not installed on the development workstation: the PDF route is tested with a fake renderer
+  and the HTML builder directly; a real render is verified only where the engines exist (the add-on image / runner).
+* The phase 3 ideas are not built yet.
