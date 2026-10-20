@@ -168,7 +168,7 @@ def test_a_zone_edit_and_delete_are_undone_to_the_previous_shape(world):
     assert undo_edit.status_code == 200 and undo_edit.json()["verified"] is True and world.fake.cameras["cam_front"]["zones"]["porch"]["coordinates"] == "0.1,0.1,0.5,0.1,0.5,0.5"
     gone = world.call("POST", f"{BASE}/cameras/{_cam(world)}/config/zones/porch/delete", json={"confirm": True})
     assert gone.status_code == 200 and gone.json()["deleted"] is True and gone.json()["verified"] is True
-    assert "porch" not in world.fake.cameras["cam_front"]["zones"]
+    assert "zones" not in world.fake.cameras["cam_front"], "FRIGLIVE-295: the camera's last zone removes the whole key (no `zones: {}` left)"
     undo = world.call("POST", f"{BASE}/changes/{world.changes()[0]['id']}/revert", json={"confirm": True})
     assert undo.status_code == 200 and undo.json()["verified"] is True
     assert world.fake.cameras["cam_front"]["zones"]["porch"]["coordinates"] == "0.1,0.1,0.5,0.1,0.5,0.5"

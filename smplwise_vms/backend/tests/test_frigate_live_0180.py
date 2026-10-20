@@ -65,10 +65,11 @@ def test_polling_and_discovery_keep_frigate_s_cache():
 def test_retain_and_reviewed_reads_bypass_the_cache(world):
     world.fake.micro_cache = True
     ctl = FrigateControl(_plain_adapter(world))
-    ctl.event("1791227000.100000-aaa111")
+    ev = world.fake.reviews[0]["data"]["detections"][0]
+    ctl.event(ev)
     ctl.active_profile()
     ctl.list_cases()
-    assert {"/api/events/1791227000.100000-aaa111", "/api/profiles", "/api/cases"} <= set(world.fake.bypass_gets)
+    assert {f"/api/events/{ev}", "/api/profiles", "/api/cases"} <= set(world.fake.bypass_gets)
 
 
 # ---------------------------------------------------------------------------------------------- 2. export rows
