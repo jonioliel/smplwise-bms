@@ -1,6 +1,6 @@
 # Spec: technician-only phone-verification message that carries the short notice
 
-Status: SPEC ONLY, nothing implemented. Wording is pending legal review (see [technician-notice-final.md](technician-notice-final.md)).
+Status: IMPLEMENTED in PRIVTEXT-293 (release target 2.9.3). One deviation from section 3: two variants, `verify_technician` (no contact line) and `verify_technician_contact` (adds the verify_privacy last line), because a fixed label line ("Privacy questions:") does not drop out when the contact is unset; the shared definition is `access_grants.TECHNICIAN_SQL` / `is_technician`, used by `needs_review.idle_rows` too. Wording is pending legal review (see [technician-notice-final.md](technician-notice-final.md)).
 Basis: `origin/main` 586f191b3, read by code; paths are under `smplwise_vms/backend/smplwise/`. Decision 2 of 2026-10-18: the short notice (`access_grants.NOTICE_SHORT`) reaches the technician in the number-confirmation message.
 
 ## 1. The real code path

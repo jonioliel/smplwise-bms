@@ -59,9 +59,9 @@ Reviewed by Claude (not a native speaker of either language); a native reader sh
 - Version B uses the polite plural "Ваше" (capitalised, as in official notices) and avoids gendered verb forms.
 - "управляющий зданием" mirrors "מנהל המבנה"; "администрация здания" is a valid alternative.
 
-## Open wiring (not done here, needs an owner decision)
+## Wiring (PRIVTEXT-293, release target 2.9.3)
 
-Decision 2 of 2026-10-18 asks that the version B text reach the technician in the phone-number confirmation message. That message is the generic `phone_verify` message of the
-tickets module (`services/tickets/message_templates.py`), shared with other directory persons (vendor contacts) for whom "entry records" would be wrong. The code cannot yet tell a
-technician from another directory person on that path, so `NOTICE_SHORT` is held in code and tested but not attached to any message. Attaching it needs a short spec (now written: [technician-verification-message-spec.md](technician-verification-message-spec.md)): a
-`verify_technician` fixed variant of `phone_verify`, chosen when the contact is a technician (an access person link), with its own audit field.
+`NOTICE_SHORT` reaches a technician in the phone-number confirmation message through the fixed `phone_verify` variants `verify_technician` and
+`verify_technician_contact` (`services/tickets/message_templates.py`), chosen by `phone_verify._privacy_variant` only for a person for whom
+`access_grants.is_technician` is true. Every other person (vendor contacts, signed-in users) gets exactly the text they got before. Details:
+[technician-verification-message-spec.md](technician-verification-message-spec.md).

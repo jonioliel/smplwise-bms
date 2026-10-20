@@ -127,11 +127,7 @@ def pending_rows(conn: sqlite3.Connection, at: datetime, pending_days: int, *, c
 
 def idle_rows(conn: sqlite3.Connection, at: datetime, idle_months: int, *, contact_id: str | None = None) -> list[dict[str, Any]]:
     cutoff = months_back(at, idle_months)
-    sql = ("SELECT c.* FROM ticket_contacts c WHERE c.kind = 'person' AND c.user_id IS NULL AND c.erased_at IS NULL AND COALESCE(c.employee, 0) = 0 "
-           "AND NOT EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NULL AND p.rejected_at IS NULL) "
-           "AND (EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NOT NULL) "
-           "  OR EXISTS (SELECT 1 FROM access_person_links l WHERE l.subject_kind = 'contact' AND l.subject_id = c.id) "
-           "  OR EXISTS (SELECT 1 FROM access_grants g WHERE g.subject_kind = 'contact' AND g.subject_id = c.id))")
+    sql = "SELECT c.* FROM ticket_contacts c WHERE " + ag.TECHNICIAN_SQL  # PRIVTEXT-293: the one shared definition of a technician
     args: tuple[Any, ...] = ()
     if contact_id is not None:
         sql += " AND c.id = ?"

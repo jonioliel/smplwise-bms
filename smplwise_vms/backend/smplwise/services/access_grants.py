@@ -142,8 +142,8 @@ NOTICE_ATTEST = {
     "ru": "Подтверждаю: техник уведомлён мною об изложенном выше.",
 }
 # Decision 2 (2026-10-18): the short notice addressed to the technician himself (version B of the legal pack), for the number-confirmation
-# message to a technician. Code-owned wording, kept here beside the notice so the four languages stay in step; not yet sent anywhere (see
-# docs/privacy/technician-notice-final.md: the phone-verification message cannot tell a technician from another directory person yet).
+# message to a technician. Code-owned wording, kept here beside the notice so the four languages stay in step; the same sentence is in the
+# phone_verify variants verify_technician* (tickets/message_templates.py), chosen by is_technician below; a test compares them.
 NOTICE_SHORT = {
     "he": "שמך, מספר הטלפון שלך ורישומי הכניסה שלך (שעה ודלת) נשמרים לצורך אבטחת המבנה בלבד, עד שהארגון מוחק אותם. לעיון, לתיקון או למחיקה: מנהל המבנה.",
     "en": "Your name, phone number and entry records (time and door) are kept for building security only, until the organisation deletes them. "
@@ -153,6 +153,21 @@ NOTICE_SHORT = {
     "ru": "Ваше имя, номер телефона и данные о ваших входах (время и дверь) хранятся только для обеспечения безопасности здания "
           "до их удаления организацией. Ознакомление, исправление или удаление — через управляющего зданием.",
 }
+# PRIVTEXT-293: who is a "technician" - ONE definition for the phone-verification message (tickets/phone_verify) and the needs-review report
+# (needs_review.idle_rows): a directory person (not an internal user, not an employee, not erased) that Arx knows for door access - accepted
+# from the arrival page, linked to a door-system person, or with any grant row - and not a vendor-added person still waiting for a decision.
+# A plain vendor contact, a ticket contact or a signed-in user is never one. Alias `c` is ticket_contacts.
+TECHNICIAN_SQL = ("c.kind = 'person' AND c.user_id IS NULL AND c.erased_at IS NULL AND COALESCE(c.employee, 0) = 0 "
+                  "AND NOT EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NULL AND p.rejected_at IS NULL) "
+                  "AND (EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NOT NULL) "
+                  "  OR EXISTS (SELECT 1 FROM access_person_links l WHERE l.subject_kind = 'contact' AND l.subject_id = c.id) "
+                  "  OR EXISTS (SELECT 1 FROM access_grants g WHERE g.subject_kind = 'contact' AND g.subject_id = c.id))")
+
+
+def is_technician(conn: sqlite3.Connection, contact_id: str) -> bool:
+    return conn.execute("SELECT 1 FROM ticket_contacts c WHERE c.id = ? AND " + TECHNICIAN_SQL, (contact_id,)).fetchone() is not None
+
+
 TEMPLATES = {  # owner answers 3 / 9 / 11: fixed, code-owned, never editable, no link, no username, no ticket text
     "he": "SmplWise Arx: קוד הכניסה האישי שלך הוא {code}. דלתות: {doors}. בתוקף {dates}, {hours}. הקוד אישי - אל תעביר אותו לאיש. "
           "הכניסות נרשמות (שם, שעה ודלת) לצורכי אבטחה בלבד; לשאלות: מנהל המבנה. אסמכתא {ref}.",
