@@ -104,6 +104,8 @@ export interface ExternalOptions {
   enabled?: boolean;
   empty?: boolean;
   systemAdmin?: boolean;
+  /** ACCESSREQ-293: the caller may open the manual request form (default true) */
+  mayRequest?: boolean;
 }
 
 export async function installExternalMock(page: Page, o: ExternalOptions = {}): Promise<ExternalMock> {
@@ -131,7 +133,7 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
     const method = req.method();
     if (method === 'GET' && p === 'access-grants') {
       return json(route, {
-        grants, enabled, system_admin: admin, screen,
+        grants, enabled, system_admin: admin, screen, may_request: o.mayRequest ?? true,
         rules: { external_grants: enabled ? 'on' : 'off', go_live_permitted: enabled, max_days: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off' },
       });
     }

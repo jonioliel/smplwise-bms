@@ -26,13 +26,18 @@ SHAREDID-293 (owner decisions 2026-10-20; services/access_external.py):
 - POST   /access-grants/links/{id}/push-name    write the Arx name to a WisKey person Arx created (decision 5)
 - POST   /access-grants/{id}/read-now           the worker reads this grant now ("read back now")
 - POST   /access-grants/{id}/confirm-gone       manual "confirmed gone", system administrator, checks + word + reference (decision 3)
-- POST   /access-grants/{id}/attach-recovered   attach the person one lost create produced, system administrator (decision 7)"""
+- POST   /access-grants/{id}/attach-recovered   attach the person one lost create produced, system administrator (decision 7)
+ACCESSREQ-293 (the manual request form; owner decisions 2026-10-20; services/access_request.py):
+- GET    /access-grants/grantable-doors?ticket_id=   the stations / doors of the served WisKey copy and the caller's rights on each
+- GET    /access-grants/approvers?stations=&credential=   who could approve the chosen stations (names only; not the caller unless admin)
+- GET    /access-grants/notice?lang=            the privacy notice and the attestation in the person's language
+- POST   /access-grants                         also takes `purpose`, `notes`, `told` and `approve_now`"""
 from __future__ import annotations
 
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
@@ -42,6 +47,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require
 from ..services import access_external as ax
 from ..services import access_grants as ag
+from ..services import access_request as ar
 
 router = APIRouter()
 _ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
@@ -64,6 +70,12 @@ class GrantIn(BaseModel):
     valid_until: str = Field(max_length=20)
     timing: dict[str, Any] | None = None
     credential: Literal["pin", "none", "card"] = "pin"
+    # ACCESSREQ-293 (the manual request form): the optional purpose, the internal notes (never in a message), the requester's privacy
+    # notice tick (stored with the request) and "I approve now" (owner decision (a): a system administrator only)
+    purpose: str | None = Field(default=None, max_length=ar.PURPOSE_MAX)
+    notes: str | None = Field(default=None, max_length=ar.NOTES_MAX)
+    told: bool = False
+    approve_now: bool = False
 
 
 class ApproveIn(BaseModel):
@@ -136,13 +148,56 @@ def list_grants(principal: Principal = Depends(current_principal_ro), conn: sqli
     rules = ag.settings_view(conn)
     return {"grants": ag.list_for(conn, principal, live_only=not all), "enabled": ag.enabled(conn),
             "rules": {k: rules[k] for k in ("external_grants", "go_live_permitted", "max_days", "max_doors", "phone_fresh_days", "code_hour", "local_approvers")},
-            "screen": ax.settings_view(conn), "system_admin": is_system_admin(conn, principal.user_id)}
+            "screen": ax.settings_view(conn), "system_admin": is_system_admin(conn, principal.user_id),
+            "may_request": ar.may_request(conn, principal)}  # ACCESSREQ-293: the "request access" button
 
 
 @router.get("/access-grants/digest")
 def get_digest(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """SHAREDID-293 (owner decision 4): the last weekly period, over the grants the caller may see."""
     return {"digest": ax.digest(conn, principal)}
+
+
+def _requester_or_403(conn: sqlite3.Connection, principal: Principal, request: Request) -> None:
+    if not ar.may_request(conn, principal):
+        ag._audit(conn, principal, "access.grant.request_form", "*", decision="denied", reason="no_binding", resource_type="installation", request_id=_rid(request))
+        raise forbidden(permission=ag.PERMISSION, target_type="installation", target_id="*", reason="no_binding")
+
+
+@router.get("/access-grants/grantable-doors")
+def grantable_doors(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+                    ticket_id: str | None = Query(None, max_length=64, pattern=_ID)) -> dict[str, Any]:
+    """ACCESSREQ-293: the form's doors - every station of the served WisKey copy with its doors and whether the caller may request /
+    approve it (owner decision b), with the copy's freshness (`as_of`, `reachable`)."""
+    _requester_or_403(conn, principal, request)
+    return ar.grantable_doors(conn, principal, ticket_id)
+
+
+@router.get("/access-grants/approvers")
+def approvers(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+              stations: str = Query("", max_length=1024), credential: Literal["pin", "none"] = "pin") -> dict[str, Any]:
+    """ACCESSREQ-293: who holds the approve permissions on every chosen station (display names; the caller only when he is a system
+    administrator - owner decision a)."""
+    _requester_or_403(conn, principal, request)
+    ids = [s for s in dict.fromkeys(x.strip() for x in stations.split(",")) if s]
+    if not ids or len(ids) > ag.MAX_DOORS_CAP or not all(ia_valid(s) for s in ids):
+        raise ApiError(422, "access_grant_invalid", "יש לבחור עמדות.", details={"field": "stations", "code": "format"})
+    return ar.approvers(conn, principal, sorted(ids), credential)
+
+
+@router.get("/access-grants/notice")
+def notice(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+           lang: str = Query("he", max_length=8)) -> dict[str, Any]:
+    """ACCESSREQ-293: the privacy notice (n2) and the attestation in the person's language, from access_grants.notice_text (the
+    organisation name / contact point stay in sync with the arrival page)."""
+    _requester_or_403(conn, principal, request)
+    return ar.notice_view(conn, lang)
+
+
+def ia_valid(station_id: str) -> bool:
+    from ..services import intercom_authority as ia
+
+    return ia.valid_id(station_id) and station_id not in ("*", "all")
 
 
 @router.get("/access-grants/contacts/{contact_id}/identity")
@@ -253,12 +308,34 @@ def request_grant(body: GrantIn, request: Request, principal: Principal = Depend
             raise ApiError(409, "access_grant_card_not_built", "גישה בכרטיס לאדם חיצוני עדיין אינה זמינה (שלב מאוחר יותר).")
         if body.ticket_id and conn.execute("SELECT 1 FROM tickets WHERE id = ?", (body.ticket_id,)).fetchone() is None:
             raise ApiError(404, "ticket_not_found", "הקריאה לא נמצאה.")
+        purpose = ar.clean_text(body.purpose, "purpose", ar.PURPOSE_MAX)
+        notes = ar.clean_text(body.notes, "notes", ar.NOTES_MAX, multiline=True)
+        ar.check_request_doors(conn, principal, doors, body.ticket_id, _rid(request))  # owner decision (b)
         scope = ag.Scope(doors, vf, vu, ag.parse_timing(body.timing), body.credential)
+        if body.approve_now:  # owner decision (a): refused before anything is stored when the caller could not approve it
+            ar.precheck_approve_now(conn, principal, scope, body.contact_id, body.told, _rid(request))
         g, outcome = ag.request_grant(conn, actor=principal, requested_by=principal.user_id, contact_id=body.contact_id,
                                       source_kind="ticket" if body.ticket_id else "manual", source_ref=body.ticket_id, assignment_id=None, scope=scope,
-                                      request_id=_rid(request))
-        ag.notify_request(conn, g["id"])
-        return {"grant": ag.present(conn, principal, g), "outcome": outcome}
+                                      request_id=_rid(request), purpose=purpose, notes=notes)
+        if body.told:
+            ar.record_requester_notice(conn, principal, g["id"], _rid(request))
+        now_step = body.approve_now and outcome != "merged"
+        if not now_step:
+            ag.notify_request(conn, g["id"])
+        gid, rev = g["id"], g["revision"]
+    approval: dict[str, Any] | None = None
+    if now_step:
+        # "I approve now": the existing approval in its own transactions (its checks run again, WisKey reads outside the write lock).
+        # A refusal at this point keeps the request (it is a valid request) and tells the approvers; the answer says why.
+        try:
+            ag.approve(db, principal, gid, rev, told=body.told, request_id=_rid(request))
+            approval = {"approved": True}
+        except ApiError as exc:
+            approval = {"approved": False, "code": exc.code, "message": exc.user_message}
+            with db.connection(label="access_grants.request.notify") as conn:
+                ag.notify_request(conn, gid)
+    with db.connection(mode="read", label="access_grants.request.answer") as conn:
+        return {"grant": ag.present(conn, principal, ag.grant_row(conn, gid) or g), "outcome": outcome, "approval": approval}
 
 
 def _visible_or_404(conn: sqlite3.Connection, principal: Principal, grant_id: str) -> dict[str, Any]:

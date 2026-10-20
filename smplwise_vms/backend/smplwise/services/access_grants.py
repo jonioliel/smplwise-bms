@@ -712,10 +712,16 @@ def on_permission_change() -> None:
 # ---------------------------------------------------------------- request / amend (owner answer 12)
 
 def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, contact_id: str, source_kind: str, source_ref: str | None,
-                  assignment_id: str | None, scope: Scope, outside_window: bool = False, request_id: str | None = None) -> tuple[dict[str, Any], str]:
+                  assignment_id: str | None, scope: Scope, outside_window: bool = False, request_id: str | None = None,
+                  purpose: str | None = None, notes: str | None = None) -> tuple[dict[str, Any], str]:
     """Create a `requested` grant, or change the person's live one. Returns (grant, outcome): `created`; `replaced` (still
     requested); `merged` (a narrowing or the same scope of a decided grant: applied at once, pushed to WisKey by the worker when
-    active); `widening` (held in `pending_json` for a new approval; the approved scope keeps working meanwhile)."""
+    active); `widening` (held in `pending_json` for a new approval; the approved scope keeps working meanwhile).
+
+    ACCESSREQ-293: `scope_requested_by` names who asked for the scope that now waits for a decision (created, replaced, widening) -
+    owner decision (a): that person may not approve it. `purpose` / `notes` (already cleaned by services/access_request.clean_text)
+    are written when given."""
+    texts = {k: v for k, v in (("purpose", purpose), ("notes", notes)) if v is not None}
     if not enabled(conn):
         raise _off()
     if not scope.doors:
@@ -737,6 +743,7 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
             (gid, contact_id, (link_of_subject(conn, "contact", contact_id) or {}).get("id"), source_kind, source_ref, assignment_id, 1 if outside_window else 0,
              json.dumps(scope.doors, sort_keys=True), scope.valid_from, scope.valid_until, json.dumps(scope.timing, sort_keys=True) if scope.timing else None,
              scope.credential, requested_by, "not_needed" if scope.credential == "none" else "pending", at, at))
+        conn.execute("UPDATE access_grants SET scope_requested_by = ?, purpose = ?, notes = ? WHERE id = ?", (requested_by, purpose, notes, gid))
         _audit(conn, actor, "access.grant.request", gid, request_id=request_id, source=source_kind, source_ref=source_ref, window=[scope.valid_from, scope.valid_until],
                stations=stations_of(scope.doors), outside_window=bool(outside_window), technician_id=contact_id)
         return grant_row(conn, gid), "created"
@@ -745,7 +752,8 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     if live["state"] == "requested":
         _touch(conn, live["id"], {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
-                                  "outside_window": 1 if outside_window else 0, "code_state": "not_needed" if scope.credential == "none" else "pending"})
+                                  "outside_window": 1 if outside_window else 0, "code_state": "not_needed" if scope.credential == "none" else "pending",
+                                  "scope_requested_by": requested_by, **texts})
         _audit(conn, actor, "access.grant.amend", live["id"], request_id=request_id, kind="replaced", window=[scope.valid_from, scope.valid_until],
                stations=stations_of(scope.doors))
         return grant_row(conn, live["id"]), "replaced"
@@ -753,7 +761,7 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     if covers(current, scope):
         fields: dict[str, Any] = {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
-                                  "pending_json": None}
+                                  "pending_json": None, **texts}
         if live["state"] in ("active", "unknown") and scope != current:
             # R4-03: also while an unknown outcome is being settled - the settlement CASes on the row revision (this write moves it), and a
             # readback that still shows the broader scope activates the grant only with this flag set, so the narrowing is pushed next
@@ -765,7 +773,8 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
                stations=stations_of(scope.doors))
         WORKER.wake()
         return grant_row(conn, live["id"]), "merged"
-    _touch(conn, live["id"], {"pending_json": scope.as_json(), "outside_window": 1 if outside_window else live["outside_window"]})
+    _touch(conn, live["id"], {"pending_json": scope.as_json(), "outside_window": 1 if outside_window else live["outside_window"], "scope_requested_by": requested_by,
+                              **texts})
     _audit(conn, actor, "access.grant.amend", live["id"], request_id=request_id, kind="widening_requested", window=[scope.valid_from, scope.valid_until],
            stations=stations_of(scope.doors))
     return grant_row(conn, live["id"]), "widening"
@@ -821,6 +830,31 @@ def _person_stations(db: Any, g: dict[str, Any]) -> list[str] | None:
     return _complete_stations(person)
 
 
+def requesters_of(g: dict[str, Any]) -> set[str]:
+    """ACCESSREQ-293, owner decision (a): who asked for the scope that waits for a decision. A widening of a decided grant: whoever
+    asked for the widening (`scope_requested_by`). A still-requested grant: its creator AND whoever last replaced its scope (a
+    replacement must not let either of them approve). Rows written before the column existed name `requested_by`."""
+    by = g.get("scope_requested_by")
+    if g.get("state") in DECIDED and g.get("pending_json"):
+        return {by or g.get("requested_by") or ""}
+    return {x for x in (g.get("requested_by"), by) if x}
+
+
+def self_approval_refused(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -> bool:
+    """True when the caller asked for the scope awaiting a decision and is not a system administrator (owner decision (a): a system
+    administrator may approve his own request). Fail closed: an unreadable answer refuses."""
+    if str(principal.user_id) not in requesters_of(g):
+        return False
+    try:
+        return not is_system_admin(conn, principal.user_id)
+    except sqlite3.Error:
+        return True
+
+
+def self_approval_error() -> ApiError:
+    return ApiError(403, "access_grant_self_approval", "מי שביקש את הגישה אינו יכול לאשר אותה בעצמו. אדם נוסף צריך לאשר (מנהל מערכת יכול לאשר בקשה שלו).")
+
+
 def approve(db: Database, principal: Principal, grant_id: str, revision: int, *, doors: Any = None, valid_from: Any = None, valid_until: Any = None,
             told: bool = False, request_id: str | None = None) -> dict[str, Any]:
     """CR 3.2: an interactive human holding `access.external.grant` + people.manage + people.sensitive (+ pin.generate for a PIN)
@@ -839,7 +873,11 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
             raise deny("not_interactive", ApiError(403, "access_grant_interactive_only", "אישור גישה אפשרי רק ממסך מחובר של אדם, לא מאפליקציה או סקריפט."))
         if str(principal.user_id).startswith(LOCAL_ID_PREFIX) and not local_approvers(conn):
             raise deny("local_not_allowed", ApiError(403, "access_grant_local_not_allowed", "משתמש Arx מקומי אינו יכול לאשר גישת דלתות."))
-        return _visible_or_404(conn, principal, grant_id)
+        g = _visible_or_404(conn, principal, grant_id)
+        if self_approval_refused(conn, principal, g):
+            # ACCESSREQ-293, owner decision (a): a second person approves; decided after the uniform 404, before any WisKey read
+            raise deny("self_approval", self_approval_error())
+        return g
 
     with db.connection(label="access_grants.approve.check") as conn:
         g = caller_checks(conn)
@@ -1231,6 +1269,10 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
         **_screen_fields(conn, g),
+        # ACCESSREQ-293: the request form's purpose and internal notes (never in a message to the person), and whether the caller
+        # asked for the scope awaiting a decision (owner decision (a): the screen then offers no approval; the server refuses it anyway)
+        "purpose": g.get("purpose"), "notes": g.get("notes"),
+        "self_requested": str(principal.user_id) in requesters_of(g) if g["state"] == "requested" or g.get("pending_json") else False,
     }
 
 

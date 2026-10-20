@@ -174,7 +174,8 @@ export function actionsOf(g: Grant, systemAdmin: boolean): Actions {
   return {
     accept: s === 'draft',
     refuse: s === 'pending' || (!!g.pending_amendment && ['accepted', 'verified', 'sync', 'pushing'].includes(s)),
-    approve: s === 'pending' || (!!g.pending_amendment && ['accepted', 'verified', 'sync', 'pushing'].includes(s)),
+    // ACCESSREQ-293, owner decision (a): whoever asked for the scope does not approve it (a system administrator may) - the server refuses anyway
+    approve: (s === 'pending' || (!!g.pending_amendment && ['accepted', 'verified', 'sync', 'pushing'].includes(s))) && (!g.self_requested || systemAdmin),
     retry: g.state === 'approved',
     rotate: g.state === 'active' && g.credential === 'pin' && ['sent', 'not_delivered', 'unknown'].includes(g.code_state ?? '') && (g.code_sends ?? 0) < 3,
     revoke: ['pushing', 'accepted', 'verified', 'sync', 'unknown'].includes(s),
