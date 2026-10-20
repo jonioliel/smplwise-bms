@@ -63,5 +63,5 @@ Reviewed by Claude (not a native speaker of either language); a native reader sh
 
 Decision 2 of 2026-10-18 asks that the version B text reach the technician in the phone-number confirmation message. That message is the generic `phone_verify` message of the
 tickets module (`services/tickets/message_templates.py`), shared with other directory persons (vendor contacts) for whom "entry records" would be wrong. The code cannot yet tell a
-technician from another directory person on that path, so `NOTICE_SHORT` is held in code and tested but not attached to any message. Attaching it needs a short spec: a
+technician from another directory person on that path, so `NOTICE_SHORT` is held in code and tested but not attached to any message. Attaching it needs a short spec (now written: [technician-verification-message-spec.md](technician-verification-message-spec.md)): a
 `verify_technician` fixed variant of `phone_verify`, chosen when the contact is a technician (an access person link), with its own audit field.
