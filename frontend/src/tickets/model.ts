@@ -191,8 +191,10 @@ export function whereLine(t: Pick<TicketItem, 'place_text' | 'department' | 'cat
 }
 
 /** The card's footer line: when it moved last and who has it. */
-export function runLine(t: Pick<TicketItem, 'last_activity_at' | 'assignee'>, now: Date = new Date()): { text: string; tone: 'ok' | 'run' | 'bad' | '' } {
+export function runLine(t: Pick<TicketItem, 'last_activity_at' | 'assignee'>, now: Date = new Date(), opts: { omitUnassigned?: boolean } = {}): { text: string; tone: 'ok' | 'run' | 'bad' | '' } {
   const when = tt('updated', { when: relTime(t.last_activity_at, now) });
+  // UXFIX-NAV-295: the card's status sentence already says "waiting for a handler" - the footer then keeps only the time (never the same fact twice)
+  if (opts.omitUnassigned && !t.assignee) return { text: when, tone: 'bad' };
   const who = t.assignee?.name || tt('noAssignee');
   return { text: `${when} · ${who}`, tone: t.assignee ? 'run' : 'bad' };
 }

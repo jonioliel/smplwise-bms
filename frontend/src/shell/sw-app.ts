@@ -1234,7 +1234,14 @@ export class SwApp extends LitElement {
         max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        /* UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        white-space: normal;
+        line-height: 1.1;
+        text-align: center;
       }
       :host([data-design='a']) nav.bottom.dock .fab {
         flex: none;
@@ -1535,7 +1542,14 @@ export class SwApp extends LitElement {
         max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        /* UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        white-space: normal;
+        line-height: 1.1;
+        text-align: center;
       }
       /* CR-023: seven items (six areas and the user) share the phone bar: the label size is capped at 10.5 px (the bigger navigation
          presets keep their icons) and the side padding goes, so no label is cut */

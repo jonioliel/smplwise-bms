@@ -60,9 +60,15 @@ export const ticketCardStyles = css`
     font-weight: 700;
     letter-spacing: -0.015em;
     line-height: 1.25;
+    /* UXFIX-NAV-295: two lines, then the ellipsis (a one-line title lost its start in RTL and truncated even short titles on a phone) */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
+    overflow-wrap: anywhere;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
   }
   a.name {
     color: inherit;
@@ -247,6 +253,20 @@ export const ticketCardStyles = css`
   @media (max-width: 767px) {
     .tcard {
       padding: 14px 16px 12px;
+    }
+    /* UXFIX-NAV-295: on a phone the title column was 115-200 px (the chip and the menu shared its row) and cut even short titles:
+       the chip and the menu take the first row, the title gets the full width of the second */
+    header {
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+    .ctl {
+      order: 1;
+      margin-inline-start: auto;
+    }
+    .ttl {
+      order: 2;
+      flex: 1 1 100%;
     }
   }
   :host([data-skin='bubble']) .tcard {
