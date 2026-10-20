@@ -2,7 +2,7 @@
 
 - targets: the non-secret configuration (`config_json`) and the retention; the credential fields hold `store:offbox.<target>.<field>`
   references, never a value;
-- secrets: one sealed value per (target, field) - services/connection_store.seal_app_secret with the name `offbox|<target>|<field>`
+- secrets: one sealed value per (target, field) - services/connection_store.seal_app_secret with the name `offbox_<target>_<field>`
   (the installation key in /data/keys; a blob of another target or field never decrypts). `secret_lookup` resolves a `store:`
   reference for the transport, at connect time; nothing here logs or returns a value (`secret_state` answers configured / not);
 - runs: codes and counts of each push / test / drill."""
@@ -22,7 +22,9 @@ RUNS_KEPT = 50
 
 
 def _secret_name(target_id: str, field: str) -> str:
-    return f"offbox|{target_id}|{field}"
+    # the app-secret associated data allows lowercase letters, digits and `_` (connection_store._app_secret_aad): target ids are
+    # 16 lowercase hex (db.new_id), the fields are lowercase words - `offbox_<id>_<field>` is unique per target and field
+    return f"offbox_{target_id}_{field}"
 
 
 def store_ref(target_id: str, field: str) -> str:

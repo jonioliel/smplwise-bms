@@ -13,6 +13,7 @@ import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
+import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copies, encryption key, restore drill
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
@@ -1557,6 +1558,7 @@ export class SystemDiagnostics extends LitElement {
               ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
               : html`<div class="muted" style="padding-block:6px">עדיין אין גיבויים. הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.</div>`}
       </sw-card>
+      ${isApi() && can('backup.manage') ? html`<sw-offbox-backup data-offbox-section></sw-offbox-backup>` : nothing}
       <sw-card heading="אוטומטי ו־Rollback">
         <div class="row"><span class="lbl">לפני כל עדכון גרסה<span class="muted">עותק של הנתונים נכתב לפני שהגרסה החדשה נוגעת במסד; נשמרים ${this.backupPolicy['auto-pre-upgrade'] ?? 5} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>
         <div class="row"><span class="lbl">יומי<span class="muted">עותק אחד ביום, נשמרים ${this.backupPolicy['auto-daily'] ?? 7} האחרונים</span></span><sw-badge kind="live" label="פעיל"></sw-badge></div>

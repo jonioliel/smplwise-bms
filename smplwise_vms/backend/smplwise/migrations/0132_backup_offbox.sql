@@ -7,7 +7,7 @@
 --  - backup_offbox_targets: the administrator's targets; `config_json` holds only NON-secret fields (endpoint, bucket, host, the
 --    pinned host key ...) and `store:` references for the credentials.
 --  - backup_offbox_secrets: the credential values, each sealed with the installation key (services/connection_store.seal_app_secret,
---    associated data `offbox|<target id>|<field>`); never returned by the API, never logged.
+--    name `offbox_<target id>_<field>`); never returned by the API, never logged.
 --  - backup_offbox_runs: one row per push / connection test / drill of a target (codes and counts only - never a credential).
 -- Rollback: older code never reads these tables; dropping them loses only the targets' configuration (the copies stay at the targets
 -- and the keyring stays in /data/keys).
