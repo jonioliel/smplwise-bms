@@ -126,6 +126,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.external.phone_fresh_days", "access.external.code_hour", "access.external.local_approvers",
                  # K7: the resume cursor of an interrupted grant re-decision is this database's runtime state, never an archive's
                  "access.external.redecide_cursor",
+                 # CR-BULKPEOPLE-295: the bulk people switch is security policy too - never switched on by an archive
+                 "access.bulk_people",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
                  "bridge.local_identity_extended"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
