@@ -4,6 +4,7 @@ import type { AutomationDraft } from '../api/automations';
 import { icon } from './automation-builder-icons';
 import { AutomationEditorBase } from './automation-editor-base';
 import { ROOT } from './automation-editor-logic';
+import './door-automation-block'; // CR-AUTODOORS-295: the "open a door" block (renders nothing without access.doors.automate)
 
 /**
  * CR-017 S4: the automation builder (CR §4.2.1; mockups 14-33): the three stacked sections כאשר · אם · אז with a block card per trigger, condition
@@ -39,6 +40,7 @@ export class AutomationBuilder extends AutomationEditorBase {
       <section class="bsec2" data-section="action">
         <h4><span class="k then">${icon('play', 14)}</span>אז<small>${d.actions.length ? `${d.actions.length} צעדים, לפי הסדר` : 'מה לעשות'}</small></h4>
         ${this.renderList(ROOT, 'actions', 'action')}
+        ${this.isNew ? nothing : html`<door-automation-block .automationId=${this.itemId}></door-automation-block>`}
       </section>
       ${this.renderOptionsBox(this.renderDeleteRow() ?? nothing)}`;
   }
