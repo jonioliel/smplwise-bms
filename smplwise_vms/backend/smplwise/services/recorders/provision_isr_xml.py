@@ -848,3 +848,57 @@ def parse_push(body: str | bytes) -> dict[str, Any]:
     if mtype == "keepalive" or (dev is not None and mtype in ("", "keepalive")):
         return {"kind": "heartbeat", "status": {}, "data_time": None, "channel": channel}
     raise ET.ParseError("not an alarm push message")
+
+# ------------------------------------------------------------------------------------------------ motion detection (PROVISION2)
+
+_GRID_ROW = re.compile(r"^[01]{1,64}$")
+
+
+def parse_motion(xml: str | bytes) -> dict[str, Any]:
+    """`GetMotionConfig/{ch}` (v1 5.1.1) -> {"enabled", "sensitivity", "min", "max", "hold_s", "rows", "cols"}. The grid is the
+    device's own (guide: 18 rows of 22; the owner's NVR 1.4.7: 9 rows of 32) and is never rewritten by Arx."""
+    root = parse(xml)
+    m = child(root, "motion")
+    if m is None:
+        raise ET.ParseError("not a motion document")
+    sens = child(m, "sensitivity")
+    rows = [t for t in (text(i, cap=64) for i in children(child(m, "area"), "item")) if t and _GRID_ROW.match(t)]
+    return {"enabled": to_bool(text(m, "switch")), "sensitivity": to_int(text(m, "sensitivity")),
+            "min": to_int(sens.attrib.get("min")) if sens is not None else None, "max": to_int(sens.attrib.get("max")) if sens is not None else None,
+            "hold_s": to_int(text(m, "alarmHoldTime")), "rows": len(rows), "cols": len(rows[0]) if rows else 0}
+
+
+def _plain(el: ET.Element) -> str:
+    """An element re-sent without attributes (v1 Set rule) and without `itemType` declarations; text kept, CDATA for strings."""
+    tag = _local(el.tag)
+    kids = [c for c in el if _local(c.tag) != "itemType"]
+    if kids:
+        return f"<{tag}>" + "".join(_plain(c) for c in kids) + f"</{tag}>"
+    value = (el.text or "").strip()
+    if tag == "item" and el.attrib.get("id") is not None:  # list items keep their id (guide: ids from 1)
+        inner = value if value in ("true", "false") or value.isdigit() else cdata(value)
+        return f'<item id="{to_int(el.attrib.get("id")) or 0}">{inner}</item>'
+    return f"<{tag}>{cdata(value) if tag == 'item' else value}</{tag}>"
+
+
+def motion_set_document(get_xml: str | bytes, *, enabled: bool | None, sensitivity: int | None) -> str:
+    """SetMotionConfig body (v1 5.1.2: the whole `motion` element, no attributes): the device's current element with only the
+    switch and / or sensitivity changed; the grid, hold time and alarm-out linkage are sent back as read."""
+    root = parse(get_xml)
+    m = child(root, "motion")
+    if m is None:
+        raise ET.ParseError("not a motion document")
+    if enabled is not None:
+        sw = child(m, "switch")
+        if sw is None:
+            raise ValueError("switch")
+        sw.text = "true" if enabled else "false"
+    if sensitivity is not None:
+        s = child(m, "sensitivity")
+        if s is None:
+            raise ValueError("sensitivity")
+        lo, hi = to_int(s.attrib.get("min")), to_int(s.attrib.get("max"))
+        if (lo is not None and sensitivity < lo) or (hi is not None and sensitivity > hi):
+            raise ValueError("sensitivity")
+        s.text = str(int(sensitivity))
+    return f'<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10">{_plain(m)}</config>'

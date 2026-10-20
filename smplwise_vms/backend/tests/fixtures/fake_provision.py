@@ -27,7 +27,7 @@ JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
          "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
          "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetSupportedAPIs",
-         "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo"}  # P3 reads (the derived-events pass searches recordings)
+         "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo", "GetMotionConfig"}  # P3 reads (the derived-events pass searches recordings)
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 
@@ -91,6 +91,11 @@ class FakeProvision:
         self.ptz: dict[int, list[str]] = {}
         self.device_alarms: dict[str, bool] = {}
         self.caps_v2 = False
+        # PROVISION2 phase 2: motion per channel {ch: {"switch": bool, "sensitivity": int}} (the live 1.4.7 shape: 9 rows x 32,
+        # sensitivity 1..8); `motion_effect` "apply" | "ignore"; `motion_bodies` every SetMotionConfig body
+        self.motion: dict[int, dict[str, Any]] = {}
+        self.motion_effect = "apply"
+        self.motion_bodies: list[str] = []
 
     def _state(self, ch: int) -> dict[int, dict[str, Any]]:
         if ch not in self.streams:
@@ -486,6 +491,36 @@ class FakeProvision:
             dev += f'<diskRWError type="list" count="1"><item><sn type="string">FAKESERIAL0002</sn><status type="boolean">{"true" if self.device_alarms["diskRWError"] else "false"}</status></item></diskRWError>'
         body = self._status_xml(self.alarms).replace("<alarmStatusInfo>", f"<alarmStatusInfo><deviceAlarmStatus>{dev}</deviceAlarmStatus>", 1)
         return self._xml(request, _doc(body, "2.0.0"))
+
+    def _motion(self, ch: int) -> dict[str, Any]:
+        return self.motion.setdefault(ch, {"switch": True, "sensitivity": 4})
+
+    def _GetMotionConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        m = self._motion(ch)
+        rows = "".join("<item><![CDATA[00000000000000001111111111111111]]></item>" for _ in range(9))
+        return self._xml(request, _doc(f"""<motion><switch type="boolean">{'true' if m['switch'] else 'false'}</switch>
+<sensitivity type="int32" min="1" max="8">{m['sensitivity']}</sensitivity><alarmHoldTime type="uint32">20</alarmHoldTime>
+<area type="list" count="9"><itemType type="string" minLen="16" maxLen="16"></itemType>{rows}</area>
+<triggerAlarmOut type="list" count="0"><itemType type="boolean"></itemType></triggerAlarmOut></motion>""", "1.0"))
+
+    def _SetMotionConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        import xml.etree.ElementTree as ET
+
+        body = request.content.decode()
+        self.motion_bodies.append(body)
+        ns = "{http://www.ipc.com/ver10}"
+        m = ET.fromstring(body).find(f"{ns}motion")
+        if m is None or any(e.attrib and e.tag != f"{ns}item" for e in m.iter()):  # v1 rule: no attributes
+            return self._fail(request, 3)
+        rows = [i.text for i in m.find(f"{ns}area").findall(f"{ns}item")]
+        if len(rows) != 9 or any(len(r or "") != 32 for r in rows):  # the grid must come back exactly as read
+            return self._fail(request, 3)
+        sens = int(m.findtext(f"{ns}sensitivity"))
+        if not 1 <= sens <= 8:
+            return self._fail(request, 3)
+        if self.motion_effect == "apply":
+            self._motion(ch).update(switch=m.findtext(f"{ns}switch") == "true", sensitivity=sens)
+        return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)

@@ -208,6 +208,16 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         raise ApiError(409, "not_rollbackable", "אין לשינוי הזה מסמך קודם להחזיר.", details={"status": orig["status"]})
     rec_id = orig["recorder_id"] if "recorder_id" in orig.keys() else PRIMARY
     settings = settings_for(settings, rec_id)  # CR-024: the undo goes to the recorder the change was made on
+    from . import provision_config
+
+    if provision_config.is_provision_path(orig["path"]):  # PROVISION2: a Provision document goes back through its adapter
+        verify = provision_config.rollback_document(settings, rec_id, orig["path"], orig["before_xml"])
+        conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
+        rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"],
+                      after=verify, status="applied", rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id)
+        audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
+              details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, "vendor": "provision_isr"})
+        return rec
     own = client is None
     c = client or _client(settings)
     try:

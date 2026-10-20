@@ -233,3 +233,77 @@ def test_capabilities_route_asks_the_provision_adapter_not_isapi(settings, fake,
     assert body["ptz"]["state"] == "supported" and body["ptz"]["preset_count"] == 1 and body["audio_in"]["live"] == "off"
     assert not any("PTZCtrl" in h or "TwoWayAudio" in h for h in fake.hits)
     assert fake.writes == []
+
+
+# ------------------------------------------------------------------------------------------------ phase 2: motion on / off + sensitivity
+
+def test_motion_document_keeps_the_grid_and_drops_attributes(settings, fake):
+    a = make(settings, fake)
+    xml = a.config_doc("motion", 3)
+    facts = px.parse_motion(xml)
+    assert facts == {"enabled": True, "sensitivity": 4, "min": 1, "max": 8, "hold_s": 20, "rows": 9, "cols": 32}
+    body = px.motion_set_document(xml, enabled=False, sensitivity=6)
+    assert 'type="' not in body and "itemType" not in body and body.count("00000000000000001111111111111111") == 9
+    assert "<switch>false</switch>" in body and "<sensitivity>6</sensitivity>" in body
+    with pytest.raises(ValueError):
+        px.motion_set_document(xml, enabled=None, sensitivity=9)
+    assert fake.writes == []
+
+
+def test_motion_write_refused_while_writes_are_off(settings, fake):
+    from smplwise.errors import ApiError
+
+    a = make(settings, fake)
+    with pytest.raises(ApiError) as e:
+        a.put_config_doc("motion", 1, "<config/>")
+    assert e.value.details.get("reason") == "writes_disabled" and fake.writes == []
+
+
+@pytest.fixture()
+def motion_app(settings, fake, monkeypatch):
+    from conftest import as_user, bind
+    from smplwise.main import create_app
+
+    fake.channels = {1: "online", 2: "online"}
+    fake.install(monkeypatch)
+    monkeypatch.setitem(registry.VENDORS, "provision_isr", pisr.ProvisionIsrAdapter)
+    s = settings_for(settings, auth="basic", osd_names=False, writes_enabled=True)
+    app = create_app(s)
+    with TestClient(app) as c:
+        ids = wait_cameras(app, 2)
+        role = c.post("/api/v1/access/roles", json={"name": "עורך זיהוי", "description": "", "permissions": ["map.read", "video.live"],
+                                                    "sensitive": ["nvr.config.detection"]}).json()
+        bind(c, s, "dan", role["id"], "installation", "*")
+        yield app, c, fake, ids, as_user("dan")
+
+
+def test_motion_route_applies_records_and_rolls_back(motion_app):
+    app, c, fake, ids, h = motion_app
+    r = c.put(f"/api/v1/cameras/{ids[2]}/motion", json={"enabled": False, "sensitivity": 6}, headers=h)
+    assert r.status_code == 200, r.text
+    rec = r.json()
+    assert rec["status"] == "applied" and rec["kind"] == "detection" and rec["target"] == "motion-2" and rec["sensitivity_written"] == 6
+    assert fake.motion[2] == {"switch": False, "sensitivity": 6} and len(fake.motion_bodies) == 1
+    rb = c.post(f"/api/v1/nvr/changes/{rec['id']}/rollback", headers=h)
+    assert rb.status_code == 201, rb.text
+    assert fake.motion[2] == {"switch": True, "sensitivity": 4}
+    with app.state.db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT status, path, recorder_id FROM nvr_changes ORDER BY created_at").fetchall()
+        acts = [x["action"] for x in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'nvr.%'").fetchall()]
+    assert [x["status"] for x in rows] == ["rolled_back", "applied"] and all(x["path"] == "provision:motion/2" for x in rows)
+    assert "nvr.write" in acts and "nvr.rollback" in acts
+    assert not any("ISAPI" in x for x in fake.hits if "motion" in x.lower())
+
+
+def test_motion_route_unchanged_clamped_grid_refused_and_no_effect(motion_app):
+    app, c, fake, ids, h = motion_app
+    r = c.put(f"/api/v1/cameras/{ids[1]}/motion", json={"enabled": True, "sensitivity": 4}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "unchanged" and fake.motion_bodies == []
+    r = c.put(f"/api/v1/cameras/{ids[1]}/motion", json={"sensitivity": 40}, headers=h)  # clamped into the device's 1..8
+    assert r.status_code == 200 and r.json()["sensitivity_written"] == 8 and fake.motion[1]["sensitivity"] == 8
+    r = c.put(f"/api/v1/cameras/{ids[1]}/motion", json={"cells": [[True] * 22] * 18}, headers=h)
+    assert r.status_code == 409 and r.json()["code"] == "nvr_not_supported"
+    fake.motion_effect = "ignore"
+    r = c.put(f"/api/v1/cameras/{ids[1]}/motion", json={"enabled": False}, headers=h)
+    assert r.status_code == 409 and r.json()["code"] == "nvr_no_effect"
+

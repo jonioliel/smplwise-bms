@@ -162,6 +162,20 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     ch = int(cam["channel"])
+    from ..services import provision_config
+    from ..services.recorders import vendor_io
+
+    cs = camera_settings(settings_of(request), cam)
+    if vendor_io.handles(cs):
+        # PROVISION2: SetMotionConfig through the adapter (writes_enabled per recorder); the grid has the device's own size, so a
+        # grid edit is refused rather than translated; the sensitivity is on the device's scale (GetMotionConfig min / max)
+        if body.cells is not None:
+            raise ApiError(409, "nvr_not_supported", "עריכת רשת התנועה אינה נתמכת ב־NVR הזה; ניתן להפעיל ולשנות רגישות.", details={"field": "cells"})
+        parts = [p for p, v in ((f"רגישות {body.sensitivity}", body.sensitivity), ("הפעלה" if body.enabled else "כיבוי", body.enabled)) if v is not None]
+        rec = provision_config.apply_motion(cs, conn, principal, recorder_id=cam["recorder_id"], channel=ch, enabled=body.enabled, sensitivity=body.sensitivity,
+                                            note="זיהוי תנועה: " + " + ".join(parts), request_id=_rid(request))
+        _ZONES_CACHE.pop(camera_id, None)
+        return rec
     sensitivity = body.sensitivity
     if sensitivity is not None:
         with unlocked(conn):

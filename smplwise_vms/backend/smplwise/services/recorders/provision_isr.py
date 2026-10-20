@@ -56,6 +56,7 @@ READ_COMMANDS = frozenset({
     "GetSupportedAPIs",  # v2 2.1.1; a v1 device answers errorCode 1 (NN2A: decides whether a push write is possible; NN2B: whole-streams v1 vs partial v2 write)
     # PROVISION2 (2026-10-20): audio and PTZ facts (read-only), and the v2 reads used only when GetSupportedAPIs lists them
     "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo",
+    "GetMotionConfig",  # PROVISION2 phase 2: motion on / off + sensitivity (written through SetMotionConfig, below)
 })
 # v2 reads the adapter prefers when (and only when) the device's own GetSupportedAPIs lists them; a v1 device keeps its v1 path
 V2_READS = frozenset({"GetChannelInfo", "GetAlarmStatusInfo"})
@@ -66,7 +67,9 @@ LIVE_AUDIO_MODES = ("off", "copy", "opus", "copy_opus")
 EVENT_SESSION_COMMANDS = frozenset({"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"})
 # Device writes (P2): only with nvr_extra.writes_enabled (owner approval per unit), only through write_stream_encoding /
 # configure_push, never retried. Reads used around them stay in READ_COMMANDS.
-WRITE_COMMANDS = frozenset({"SetVideoStreamConfig", "SetAlarmServerConfig"})
+WRITE_COMMANDS = frozenset({"SetVideoStreamConfig", "SetAlarmServerConfig", "SetMotionConfig"})
+# PROVISION2: the per-channel configuration documents the change log can write and roll back (get, set); nothing else
+CONFIG_DOCS = {"motion": ("GetMotionConfig", "SetMotionConfig")}
 
 XML_MAX_BYTES = 2_000_000
 SNAPSHOT_MAX_BYTES = 8_000_000
@@ -808,6 +811,37 @@ class ProvisionIsrAdapter:
             raise ApiError(503, "source_unavailable", "ה־NVR קיבל את השינוי אבל לא ניתן לאמת אותו. המצב ייבדק מחדש.", retryable=False,
                            details={"op": "verify", "cause": exc.code, "outcome": "unknown"}) from exc
         return WriteOutcome(device_status="success", reboot_required=False, verified=verified)
+
+    # -- PROVISION2 phase 2: per-channel configuration documents (motion), for services/provision_config.py
+
+    def config_doc(self, doc: str, channel: int) -> str:
+        """The device's current document (`CONFIG_DOCS[doc]` Get), as text - the change log's `before` / `after`."""
+        get, _set = CONFIG_DOCS[doc]
+        data, _ = self._call(get, int(channel))
+        status, code, _desc = px.response_status(data)
+        if status == "failed":
+            raise _device_error(get, 400, data.decode("utf-8", "replace"))
+        return data.decode("utf-8", "replace")
+
+    def put_config_doc(self, doc: str, channel: int, body: str) -> None:
+        """One Set of a whole configuration document (writes enabled only; never retried; a lost connection after the request
+        left is `outcome: unknown`)."""
+        if not self.writes_enabled:
+            raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה עד לאישור.", details={"op": doc, "reason": "writes_disabled"})
+        _get, cmd = CONFIG_DOCS[doc]
+        nvr.check_deadline(cmd)
+        try:
+            data, _ = self._call(cmd, int(channel), body=body, allowed=WRITE_COMMANDS, timeout=15.0)
+        except ApiError as exc:
+            if exc.code in ("source_unavailable", "source_timeout", "source_too_large"):
+                exc.retryable = False
+                exc.details = {**exc.details, "op": doc, "outcome": "unknown"}
+            elif exc.code == "source_error" and exc.details.get("device_code") in (3, 15, 16, 18, 19):
+                raise ApiError(409, "nvr_rejected", "ה־NVR דחה את ההגדרות.", details={"op": doc, "device_code": exc.details.get("device_code")}) from exc
+            raise
+        status, code, _desc = px.response_status(data)
+        if status == "failed":
+            raise ApiError(409, "nvr_rejected", "ה־NVR דחה את ההגדרות.", details={"op": doc, "device_code": code})
 
     # ------------------------------------------------------------------------------------------ device push (events)
 
