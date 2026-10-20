@@ -840,9 +840,9 @@ export class WiskeyPeople extends LitElement {
       case 'loading':
         return this.renderSkeleton();
       case 'unsupported':
-        return html`<sw-state-panel data-wiskey-state="unsupported" state="empty" heading=${pt('state.unsupported')}></sw-state-panel>`;
+        return html`<sw-state-panel icon="users" data-wiskey-state="unsupported" state="empty" heading=${pt('state.unsupported')}></sw-state-panel>`;
       case 'unavailable':
-        return html`<sw-state-panel data-wiskey-state="unavailable" state="empty" heading=${pt('state.unavailable')}>${can('system.configure') ? html`<a class="settings-link" href="#/system/diagnostics?tab=access-control">${pt('action.settings')}</a>` : nothing}</sw-state-panel>`;
+        return html`<sw-state-panel icon="users" data-wiskey-state="unavailable" state="empty" heading=${pt('state.unavailable')}>${can('system.configure') ? html`<a class="settings-link" href="#/system/diagnostics?tab=access-control">${pt('action.settings')}</a>` : nothing}</sw-state-panel>`;
       case 'error':
         return html`<sw-state-panel data-wiskey-state="load_error" state="error" heading=${pt('state.error')} hint=${this.panelNote} actionLabel=${pt('action.retry')} @action=${() => this.begin()}></sw-state-panel>`;
       default:
@@ -851,7 +851,7 @@ export class WiskeyPeople extends LitElement {
     if (this.busy && !this.rows.length) return this.renderSkeleton();
     if (!this.rows.length) {
       const filtered = isFiltered(this.query, this.filters);
-      return html`<sw-state-panel data-wiskey-people-empty state="empty" heading=${filtered ? pt('state.no_results') : pt('state.empty')} actionLabel=${filtered ? pt('action.clear') : ''} @action=${() => this.clearAll()}></sw-state-panel>`;
+      return html`<sw-state-panel icon="users" data-wiskey-people-empty state="empty" heading=${filtered ? pt('state.no_results') : pt('state.empty')} actionLabel=${filtered ? pt('action.clear') : ''} @action=${() => this.clearAll()}></sw-state-panel>`;
     }
     const view = this.shownView;
     const more = this.page ? nextOffset(this.page) : null;

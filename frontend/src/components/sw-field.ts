@@ -57,7 +57,7 @@ export class SwField extends LitElement {
       ::slotted(input:not([type='checkbox']):not([type='radio']):not([type='range'])),
       ::slotted(select),
       ::slotted(textarea) {
-        min-block-size: 40px;
+        min-block-size: 44px; /* UXFIX-A11Y-295: 44 px touch target (was 40) */
       }
     }
     ::slotted([data-ltr]) {

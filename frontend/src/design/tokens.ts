@@ -7,6 +7,9 @@
  * The values below are the "classic" skin: the light column is exactly the look the product had before the foundation
  * (the effective values of the old styles/tokens.css), the dark column is the new dark set of the whole shell. A skin
  * (design/skins/*.ts) overrides names from this table - always BOTH columns - and adds a bounded set of component rules.
+ * UXFIX-A11Y-295 (UX audit 2026-10-20): the muted text tier was the one exception to that pixel-stable light column - --sw-text-3
+ * (#8a97ae, 2.75:1 on the page) and the offline / unknown / success / accent text darkened to >= 4.5:1, --sw-text-2 one step
+ * darker to keep the two tiers apart (tests/unit-muted-contrast.spec.ts).
  *
  * Rules for this file (docs/design/SKIN_AUTHORING_HE.md):
  *  - semantic names (`--sw-accent`, never `--sw-blue`); a state colour has a `-soft` fill and a `-text` companion;
@@ -71,8 +74,8 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     tokens: {
       '--sw-text': lt('#22314c', '#e6ebf5'),
       '--sw-heading': lt('#1e2e47', '#f3f6fc'),
-      '--sw-text-2': lt('#5b6a85', '#a9b4ca'),
-      '--sw-text-3': lt('#8a97ae', '#8190aa'),
+      '--sw-text-2': lt('#4b5976', '#a9b4ca'),
+      '--sw-text-3': lt('#5e6d88', '#8896af'),
       '--sw-text-inverse': lt('#ffffff', '#ffffff'), // text on an accent fill
     },
   },
@@ -83,7 +86,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-accent': lt('#2767ed', '#3a6ce0'),
       '--sw-accent-hover': lt('#1f57d1', '#5a88f2'),
       '--sw-accent-soft': lt('#edf3ff', 'rgba(91, 140, 255, 0.18)'),
-      '--sw-accent-text': lt('#2767ed', '#8fb2ff'),
+      '--sw-accent-text': lt('#2062ec', '#8fb2ff'),
       '--sw-focus': lt('#2767ed', '#7aa2ff'),
       '--sw-nav': lt('#2868ef', '#3a6ce0'),
     },
@@ -136,12 +139,12 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // the text colour of a state on its own -soft fill (badge, chip, KPI detail); the bare colour stays for dots, bars, icons
       '--sw-live-text': lt('#15803d', '#3ddc84'),
       '--sw-recorded-text': lt('#1f5ae6', '#8fb8ff'),
-      '--sw-offline-text': lt('#6b7280', '#b4bdcc'),
+      '--sw-offline-text': lt('#666d7a', '#b4bdcc'),
       '--sw-stale-text': lt('#b45309', '#f5b043'),
-      '--sw-unknown-text': lt('#6b7280', '#aab5c9'),
+      '--sw-unknown-text': lt('#666d7a', '#aab5c9'),
       '--sw-danger-text': lt('#b91c1c', '#ff8a82'),
       '--sw-warning-text': lt('#b45309', '#f5b043'),
-      '--sw-success-text': lt('#16a34a', '#3ddc84'),
+      '--sw-success-text': lt('#117d39', '#3ddc84'),
       '--sw-forbidden-text': lt('#b91c1c', '#ff8a82'),
       '--sw-toggle-on': lt('#2767ed', '#3a6ce0'),
       '--sw-toggle-thumb': same('#ffffff'), // the switch's knob (white on the track in both schemes; a skin may tint it)

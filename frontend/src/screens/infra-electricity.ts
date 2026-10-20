@@ -107,7 +107,7 @@ export class InfraElectricity extends LitElement {
     if (!this.access.view || (def.money && !this.access.bills)) {
       body = html`<sw-state-panel state="forbidden" data-elec=${page} data-state="forbidden"></sw-state-panel>`;
     } else if (!customElements.get(def.tag)) {
-      body = html`<sw-state-panel state="empty" heading="אין מסך" data-elec=${page} data-state="empty"></sw-state-panel>`;
+      body = html`<sw-state-panel icon="bolt" state="empty" heading="אין מסך" data-elec=${page} data-state="empty"></sw-state-panel>`;
     } else {
       const tag = unsafeStatic(def.tag);
       body = shtml`<${tag} .segments=${(r?.segments ?? []).slice(3)} .params=${r?.params ?? new URLSearchParams()}></${tag}>`;

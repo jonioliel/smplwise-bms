@@ -576,7 +576,7 @@ export class WiskeyEvents extends LitElement {
     const p: P =
       by[reply.state] ??
       (f === 'rate' ? { panel: 'stale', heading: ev('stateRate'), hint: ev('stateRateHint'), action: ev('retry') } : { panel: 'error', heading: ev('stateError'), hint: ev('stateErrorHint'), action: ev('retry') });
-    return html`<sw-state-panel quiet data-wiskey-state=${reply.state} state=${p.panel} heading=${p.heading} hint=${p.hint ?? ''} actionLabel=${p.action ?? ''}
+    return html`<sw-state-panel icon="history" quiet data-wiskey-state=${reply.state} state=${p.panel} heading=${p.heading} hint=${p.hint ?? ''} actionLabel=${p.action ?? ''}
       @action=${() => (p.action === ev('toSettings') ? this.toSettings() : this.refresh())}></sw-state-panel>`;
   }
 
@@ -596,9 +596,9 @@ export class WiskeyEvents extends LitElement {
       ? html`<div class="more"><sw-button size="lg" data-wiskey-events-more ?disabled=${s.busy} @click=${() => void this.feed.more()}>${s.loadingMore ? ev('loadingMore') : ev('more')}</sw-button></div>`
       : nothing;
     if (!records.length) {
-      if (page.next) return html`<sw-state-panel quiet compact state="empty" data-wiskey-events-empty heading=${ev('emptyMore')}></sw-state-panel>${more}`;
+      if (page.next) return html`<sw-state-panel icon="history" quiet compact state="empty" data-wiskey-events-empty heading=${ev('emptyMore')}></sw-state-panel>${more}`;
       const filtered = activeFilterCount(this.filters) > 0;
-      return html`<sw-state-panel quiet state="empty" data-wiskey-events-empty heading=${filtered ? ev('empty') : ev('emptyAll')} actionLabel=${filtered ? ev('clear') : ''} @action=${() => this.clearAll()}></sw-state-panel>`;
+      return html`<sw-state-panel icon="history" quiet state="empty" data-wiskey-events-empty heading=${filtered ? ev('empty') : ev('emptyAll')} actionLabel=${filtered ? ev('clear') : ''} @action=${() => this.clearAll()}></sw-state-panel>`;
     }
     const table = this.view === 'table' && !this.phone;
     return html`<span class="sr" data-wiskey-events-count=${records.length}></span>${table ? this.renderTable(records) : this.renderList(records)}${more}`;

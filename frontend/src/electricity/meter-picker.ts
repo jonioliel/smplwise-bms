@@ -258,7 +258,7 @@ export class ElecMeterPicker extends LitElement {
       ${this.rejected ? html`<div class="alert err" role="alert" data-picker-reject><span class="x" aria-hidden="true">!</span><div><b>${meterNames({ name: this.rejected.name, device_name: this.rejected.device, entity_name: this.rejected.entity }).primary}</b> לא נבחר. ${this.rejected.message}</div></div>` : nothing}
       ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
       ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${choose ? 'לא ניתן לטעון את המונים' : 'לא ניתן לטעון את החיישנים'} hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
-      ${this.phase === 'ready' && !listed.length ? html`<sw-state-panel state="empty" compact data-no-match heading=${choose ? (this.items.length ? 'לא נמצא מונה בשם הזה' : 'אין מונים עדיין') : 'לא נמצאו חיישנים'}></sw-state-panel>` : nothing}
+      ${this.phase === 'ready' && !listed.length ? html`<sw-state-panel icon="bolt" state="empty" compact data-no-match heading=${choose ? (this.items.length ? 'לא נמצא מונה בשם הזה' : 'אין מונים עדיין') : 'לא נמצאו חיישנים'}></sw-state-panel>` : nothing}
       ${listed.length
         ? html`<div class="list scroll" role="listbox" aria-multiselectable=${this.multi ? 'true' : 'false'} aria-label=${choose ? 'מונים' : 'חיישנים'} data-picker-list>
             ${listed.map((p) => {

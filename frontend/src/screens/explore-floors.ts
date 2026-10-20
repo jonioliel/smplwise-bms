@@ -349,11 +349,11 @@ export class ExploreFloors extends LitElement {
   }
 
   render() {
-    if (!this.tree) return html`<sw-page heading="קומות"><sw-state-panel state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
+    if (!this.tree) return html`<sw-page heading="קומות"><sw-state-panel icon="floor" state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
     const ctx = this.context;
     if (!ctx) {
       return html`<sw-page heading="קומות" subheading="אין עדיין אתרים ומבנים">
-        <sw-state-panel state="empty" heading="עוד אין מבנים" hint="צור אתר ומבנה כדי להוסיף קומות ותוכניות.">
+        <sw-state-panel icon="floor" state="empty" heading="עוד אין מבנים" hint="צור אתר ומבנה כדי להוסיף קומות ותוכניות.">
           <div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => navigate('/explore/sites')}>לאתרים</sw-button></div>
         </sw-state-panel>
       </sw-page>`;

@@ -305,8 +305,8 @@ export class TicketsVendorAccounts extends LitElement {
       ...(mark ? [{
         key: 'sel', label: '', width: '44px',
         render: (r: AccountClaim) => payable(r)
-          ? html`<input type="checkbox" aria-label=${ct('vaSelect')} data-va-select=${r.claim_id} .checked=${this.selected.has(r.claim_id)}
-              @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.toggle(r.claim_id, (e.target as HTMLInputElement).checked)} />`
+          ? html`<label class="sw-hit" style="display:inline-grid;place-items:center;cursor:pointer" @click=${(e: Event) => e.stopPropagation()}><input type="checkbox" aria-label=${ct('vaSelect')} data-va-select=${r.claim_id} .checked=${this.selected.has(r.claim_id)}
+              style="inline-size:18px;block-size:18px;margin:0" @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.toggle(r.claim_id, (e.target as HTMLInputElement).checked)} /></label>`
           : nothing,
       }] : []),
       { key: 'number', label: ct('vaColTicket'), render: (r) => r.ticket_id ? html`<a href=${`#/tickets/${r.ticket_id}`} data-va-link=${r.ticket_id} @click=${(e: Event) => e.stopPropagation()}>#${r.number ?? ''}</a>` : html`${r.number ? `#${r.number}` : ''}` },
@@ -353,7 +353,7 @@ export class TicketsVendorAccounts extends LitElement {
         @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
     }
     const rows = this.data?.rows ?? [];
-    if (!rows.length) return html`<sw-state-panel state="empty" quiet heading=${ct('emptyReport')} data-va-state="empty"></sw-state-panel>`;
+    if (!rows.length) return html`<sw-state-panel icon="wrench" state="empty" quiet heading=${ct('emptyReport')} data-va-state="empty"></sw-state-panel>`;
     return html`<div data-va-state="ready">
       ${this.data?.truncated ? html`<div class="msg warn" role="status" data-va-truncated>${ct('vaTruncated')}</div>` : nothing}
       ${this.summary(accountSummary(rows))}

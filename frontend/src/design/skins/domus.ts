@@ -4,7 +4,10 @@ import type { Skin } from './index';
 /** Skin "hi-tech Domus": coloured canvas with a warm and a cool bloom, three glass levels, big titles, round shapes. Values from the approved package. */
 const tokens: TokenTable = {
   '--sw-bg': lt('#d9e1f0', '#0c1018'),
-  '--sw-canvas': lt('radial-gradient(1100px 680px at 90% -8%, rgba(255,168,60,.62), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(72,124,255,.58), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg, #e4e9f4 0%, #d6dfef 55%, #dce1ee 100%)', 'radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%)'),
+  // UXFIX-A11Y-295 (owner 2026-10-20, option A): the light blooms are softened - the warm one rgba(255,168,60,.62) -> rgba(255,193,117,.5), the
+  // cool one rgba(72,124,255,.58) -> rgba(178,200,255,.46) - so text drawn straight on a bloom centre reads at >= 4.5:1 (was 2.85-3.99:1;
+  // tests/unit-muted-contrast.spec.ts). The dark blooms already pass and are unchanged.
+  '--sw-canvas': lt('radial-gradient(1100px 680px at 90% -8%, rgba(255,193,117,.5), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(178,200,255,.46), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg, #e4e9f4 0%, #d6dfef 55%, #dce1ee 100%)', 'radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg, #0e131c 0%, #0a0d14 100%)'),
   '--sw-surface': lt('rgba(255,255,255,.52)', 'rgba(22,27,38,.66)'),
   '--sw-surface-2': lt('rgba(255,255,255,.66)', 'rgba(255,255,255,.06)'),
   '--sw-surface-3': lt('rgba(20,30,50,.08)', 'rgba(255,255,255,.09)'),
@@ -21,12 +24,12 @@ const tokens: TokenTable = {
   '--sw-text': lt('#172033', '#eef2f8'),
   '--sw-heading': lt('#0f1727', '#ffffff'),
   '--sw-text-2': lt('#3f4c63', '#aab5c9'),
-  '--sw-text-3': lt('#56637a', '#8998af'),
+  '--sw-text-3': lt('#4f5b70', '#8998af'),
   '--sw-text-inverse': lt('#ffffff', '#0c1018'),
   '--sw-accent': lt('#2a63f0', '#6ea2ff'),
   '--sw-accent-hover': lt('#1f52d6', '#8ab5ff'),
   '--sw-accent-soft': lt('rgba(42,99,240,.12)', 'rgba(110,162,255,.18)'),
-  '--sw-accent-text': lt('#1d51d2', '#8fb8ff'),
+  '--sw-accent-text': lt('#1c4fce', '#8fb8ff'),
   '--sw-focus': lt('#2a63f0', '#7fb0ff'),
   '--sw-nav': lt('#2a63f0', '#6ea2ff'),
   '--sw-live': lt('#1f9d55', '#3ddc84'),
@@ -52,10 +55,10 @@ const tokens: TokenTable = {
   '--sw-recorded-text': lt('#1d51d2', '#8fb8ff'),
   '--sw-offline-text': lt('#4f5a6d', '#b4bdcc'),
   '--sw-stale-text': lt('#7a4c00', '#f5b043'),
-  '--sw-unknown-text': lt('#525f77', '#aab5c9'),
+  '--sw-unknown-text': lt('#4f5b72', '#aab5c9'),
   '--sw-danger-text': lt('#a82525', '#ff6b62'),
   '--sw-warning-text': lt('#7a4c00', '#f5b043'),
-  '--sw-success-text': lt('#14703c', '#3ddc84'),
+  '--sw-success-text': lt('#136838', '#3ddc84'),
   '--sw-forbidden-text': lt('#a51818', '#ff7a70'),
   '--sw-toggle-on': lt('#22a55b', '#34c76a'),
   '--sw-map-bg': lt('#f4f6fa', '#0f141d'),

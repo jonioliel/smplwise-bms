@@ -1072,7 +1072,7 @@ export class AccessExternalScreen extends LitElement {
       const [h, p] = off && empty ? ['emptyOffTitle', 'emptyOffText'] : empty ? ['emptyTitle', 'emptyText'] : ['noMatchTitle', 'noMatchText'];
       // the empty list offers the one useful next step: a new request (when the caller may ask), or clearing the filter
       const canAsk = empty && !off && !!this.data?.may_request;
-      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)}
+      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel icon="link" state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)}
         actionLabel=${!empty ? xt('showAllOpen') : canAsk ? rt('newBtn') : ''} @action=${() => (canAsk ? this.openRequest() : (this.query = { filter: 'live', q: '', station: '', source: '' }))}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>

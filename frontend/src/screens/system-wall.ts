@@ -252,7 +252,7 @@ export class SystemWall extends LitElement {
   private renderList() {
     const rows = this.profiles ?? [];
     if (!rows.length) {
-      return html`<sw-card data-wall-empty><sw-state-panel state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."></sw-state-panel></sw-card>`;
+      return html`<sw-card data-wall-empty><sw-state-panel icon="grid" state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."></sw-state-panel></sw-card>`;
     }
     return html`<table data-wall-table>
         <thead><tr><th>משתמש</th><th>מצב</th><th>נראה לאחרונה</th><th>מצלמות</th><th>התראות</th><th></th></tr></thead>

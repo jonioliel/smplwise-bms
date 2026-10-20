@@ -133,6 +133,18 @@ export const rfqStyles = css`
     color: inherit;
     text-decoration: none;
   }
+  /* UXFIX-A11Y-295: a 16 px tall text link; the hit area grows to 44 px on touch, the line stays as drawn */
+  @media (pointer: coarse) {
+    .crumbs a {
+      position: relative;
+    }
+    .crumbs a::after {
+      content: '';
+      position: absolute;
+      inset-block: -14px;
+      inset-inline: -4px;
+    }
+  }
   .crumbs a:hover {
     text-decoration: underline;
   }

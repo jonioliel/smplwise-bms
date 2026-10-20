@@ -1120,13 +1120,13 @@ export class DevicesArea extends LitElement {
   render() {
     const heading = 'חשמל והתקנים';
     if (!isApi()) {
-      return html`<sw-page heading="אזור" subheading="חשמל והתקנים · נתוני הדגמה" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel state="empty" heading="מסך האזור עובד מול השרת" hint="במצב הדגמה אין אזורים להצגה; עץ המבנה מציג נתוני הדגמה."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading="אזור" subheading="חשמל והתקנים · נתוני הדגמה" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel icon="home" state="empty" heading="מסך האזור עובד מול השרת" hint="במצב הדגמה אין אזורים להצגה; עץ המבנה מציג נתוני הדגמה."></sw-state-panel></sw-page>`;
     }
     if (this.forbidden) {
       return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בחשמל והתקנים" hint="נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
     if (this.notFound) {
-      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel data-devices-state="not_found" state="empty" heading="האזור לא נמצא" hint="האזור אינו קיים, או שאין בו התקנים שבהרשאתך."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building" crumbs=${`${heading} | אזור`}><sw-state-panel icon="home" data-devices-state="not_found" state="empty" heading="האזור לא נמצא" hint="האזור אינו קיים, או שאין בו התקנים שבהרשאתך."></sw-state-panel></sw-page>`;
     }
     const d = this.detail;
     if (!d) {
@@ -1188,7 +1188,7 @@ export class DevicesArea extends LitElement {
             ${repeat(customKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCustomCard(k)))}
             ${repeat(cameraKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCameraCard(k)))}
           </div>`
-        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="התקנים שישויכו לאזור יופיעו כאן."></sw-state-panel>`}
+        : html`<sw-state-panel icon="home" data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="התקנים שישויכו לאזור יופיעו כאן."></sw-state-panel>`}
       ${anyControllable ? nothing : html`<div class="note" data-readonly-note>תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.</div>`}
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
@@ -1272,7 +1272,7 @@ export class DevicesArea extends LitElement {
     const key = `card:${c.id}`;
     const bubble = this.skin.bubble;
     const body = c.count === 0
-      ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
+      ? html`<sw-state-panel icon="home" compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
       : tiles
         ? this.renderArranged(c, tiles)
         : !ents.length

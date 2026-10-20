@@ -246,7 +246,7 @@ export class SwHaUsers extends LitElement {
         ${canCreate(v) ? html`<sw-button variant="primary" size="sm" icon="plus" data-ha-add @click=${() => this.openCreate()}>${ht('add')}</sw-button>` : nothing}
       </div>
       ${v.users.length === 0
-        ? html`<sw-state-panel compact state="empty" heading=${ht('empty')} hint=${ht('emptyHint')}></sw-state-panel>`
+        ? html`<sw-state-panel icon="users" compact state="empty" heading=${ht('empty')} hint=${ht('emptyHint')}></sw-state-panel>`
         : html`<div class="list" role="list">
             <div class="item hdr" aria-hidden="true"><span>${ht('colName')}</span><span>${ht('colUser')}</span><span>${ht('colRole')}</span><span>${ht('colState')}</span><span></span></div>
             ${repeat(v.users, (u) => u.ha_user_id, (u) => this.renderRow(u, v))}

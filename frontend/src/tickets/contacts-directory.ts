@@ -620,7 +620,7 @@ export class TicketsContacts extends LitElement {
     const filtered = !!this.query.trim() || !!this.dept;
     let list: TemplateResult;
     if (this.rows === null) list = html`<div class="cgrid" data-contacts-loading aria-busy="true"><div class="glass hcard"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:44px"></span></div></div>`;
-    else if (!rows.length) list = html`<sw-state-panel state="empty" heading=${filtered ? tt('ctNone') : locked ? tt(`ctEmpty_${locked}` as TicketTextKey) : tt('ctEmpty')}></sw-state-panel>`;
+    else if (!rows.length) list = html`<sw-state-panel icon="users" state="empty" heading=${filtered ? tt('ctNone') : locked ? tt(`ctEmpty_${locked}` as TicketTextKey) : tt('ctEmpty')}></sw-state-panel>`;
     else if (locked === 'person') list = html`<div class="glass crows" role="list" data-contacts-list>${repeat(rows, (c) => c.id, (c) => this.row(c))}</div>`;
     else list = html`<div class="cgrid" data-contacts-list>${repeat(rows, (c) => c.id, (c) => this.card(c))}</div>`;
     return html`<div class="sec" data-card="contacts" data-contacts-kind=${locked || 'all'}>
@@ -738,7 +738,7 @@ export class TicketsContacts extends LitElement {
   }
 
   render() {
-    if (this.denied) return html`<sw-state-panel state="empty" heading=${tt('ctNoPermission')} data-contacts-denied></sw-state-panel>`;
+    if (this.denied) return html`<sw-state-panel icon="users" state="empty" heading=${tt('ctNoPermission')} data-contacts-denied></sw-state-panel>`;
     const sel = (this.rows ?? []).find((c) => c.id === this.selected) ?? null;
     const editing = this.creating && !!this.draft;
     const shownC = editing ? null : sel;

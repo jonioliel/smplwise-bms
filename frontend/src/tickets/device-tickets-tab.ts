@@ -60,7 +60,7 @@ export class DeviceTicketsTab extends LitElement {
       <span class="cnt" data-tickets-open=${d.open_count}>${d.items.length ? dt('openCount', { n: d.open_count }) : nothing}</span>
       ${d.can_create ? html`<sw-button size="sm" variant="primary" icon="plus" data-tickets-new @click=${() => this.fire('create')}>${dt('newBtn')}</sw-button>` : nothing}
     </div>`;
-    if (!d.items.length) return html`${head}<sw-state-panel state="empty" heading=${dt('empty')} compact data-tickets-state="empty"></sw-state-panel>`;
+    if (!d.items.length) return html`${head}<sw-state-panel icon="ticket" state="empty" heading=${dt('empty')} compact data-tickets-state="empty"></sw-state-panel>`;
     return html`${head}<div class="list" role="list" data-tickets-state="ready">${repeat(d.items, (t) => t.id, (t) => this.row(t))}</div>`;
   }
 

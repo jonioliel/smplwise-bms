@@ -148,7 +148,7 @@ export class InvestigateExports extends LitElement {
   private renderApi() {
     if (this.error && !this.jobs) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!this.jobs) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!this.jobs.length) return html`<sw-state-panel state="empty" heading="אין עבודות ייצוא" hint="פתח הקלטה, בחר טווח ולחץ ייצוא."><div style="margin-block-start:10px"><sw-button variant="primary" icon="history" @click=${() => navigate('/investigate/playback')}>להקלטות</sw-button></div></sw-state-panel>`;
+    if (!this.jobs.length) return html`<sw-state-panel icon="download" state="empty" heading="אין עבודות ייצוא" hint="פתח הקלטה, בחר טווח ולחץ ייצוא."><div style="margin-block-start:10px"><sw-button variant="primary" icon="history" @click=${() => navigate('/investigate/playback')}>להקלטות</sw-button></div></sw-state-panel>`;
     return html`
       ${this.ffmpeg ? nothing : html`<div class="warn">ffmpeg לא זמין בשרת: קבצי הייצוא נמסרים במיכל המקורי של ה־NVR (Hikvision PS, ניתן לניגון ב־VLC) ולא נחתכים לטווח המדויק.</div>`}
       ${this.error ? html`<div class="warn">${this.error}</div>` : nothing}

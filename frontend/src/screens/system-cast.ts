@@ -371,7 +371,7 @@ export class SystemCast extends LitElement {
   render() {
     void this.watch;
     const wrap = (inner: TemplateResult) => html`<div data-system-cast>${inner}</div>`;
-    if (!isApi()) return wrap(html`<sw-state-panel state="empty" heading="שידור למסכים" hint="ההגדרות זמינות בהתקנה עם שרת."></sw-state-panel>`);
+    if (!isApi()) return wrap(html`<sw-state-panel icon="cast" state="empty" heading="שידור למסכים" hint="ההגדרות זמינות בהתקנה עם שרת."></sw-state-panel>`);
     if (this.phase === 'local') return wrap(html`<sw-state-panel data-cast-admin-state="local" state="forbidden" heading="שידור למסכים" hint=${LOCAL_ONLY_GENERIC}></sw-state-panel>`);
     if (this.phase === 'forbidden') return wrap(html`<sw-state-panel data-cast-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות השידור" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel>`);
     if (this.phase === 'loading') return wrap(html`<sw-state-panel state="loading"></sw-state-panel>`);
@@ -484,12 +484,12 @@ export class CastMyScreens extends LitElement {
   }
 
   private body(): TemplateResult {
-    if (!isApi()) return html`<sw-state-panel state="empty" heading=${t('cast.mine')} hint="זמין בהתקנה עם שרת."></sw-state-panel>`;
+    if (!isApi()) return html`<sw-state-panel icon="cast" state="empty" heading=${t('cast.mine')} hint="זמין בהתקנה עם שרת."></sw-state-panel>`;
     if (this.phase === 'loading') return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (this.phase === 'forbidden') return html`<sw-state-panel state="forbidden" data-cast-mine-state="forbidden" heading="אין לך הרשאת שידור" hint="ההרשאה לשדר למסכים ניתנת על ידי מנהל המערכת."></sw-state-panel>`;
     if (this.phase === 'error' || !this.data) return html`<sw-state-panel state="error" data-cast-mine-state="error" heading="לא ניתן לטעון את המסכים" hint=${this.err} actionLabel=${t('states.retry')} @action=${() => void this.load()}></sw-state-panel>`;
     const d = this.data;
-    if (!d.ready) return html`<sw-state-panel state="empty" data-cast-mine-state="notready" heading=${t('cast.notReady')} hint=${can('system.configure') ? t('cast.notReadyAdmin') : ''}></sw-state-panel>`;
+    if (!d.ready) return html`<sw-state-panel icon="cast" state="empty" data-cast-mine-state="notready" heading=${t('cast.notReady')} hint=${can('system.configure') ? t('cast.notReadyAdmin') : ''}></sw-state-panel>`;
     const ok = d.targets.filter((x) => !x.blocked);
     const no = d.targets.filter((x) => x.blocked);
     const item = (x: CastTargets['targets'][number]) => {
@@ -501,7 +501,7 @@ export class CastMyScreens extends LitElement {
     };
     return html`<div data-cast-mine-list>
       <div class="muted">${d.active}/${d.max_sessions} · ${t('cast.mine')}</div>
-      ${ok.length ? html`<div class="list" data-cast-mine-ok>${ok.map(item)}</div>` : html`<sw-state-panel state="empty" heading=${t('cast.empty')}></sw-state-panel>`}
+      ${ok.length ? html`<div class="list" data-cast-mine-ok>${ok.map(item)}</div>` : html`<sw-state-panel icon="cast" state="empty" heading=${t('cast.empty')}></sw-state-panel>`}
       ${no.length ? html`<h4>לא זמינים לי</h4><div class="list" data-cast-mine-blocked>${no.map(item)}</div>` : nothing}
     </div>`;
   }

@@ -1094,7 +1094,7 @@ export class WiskeyEmbed extends LitElement {
     if (!m) return nothing;
     return html`<div class="over" data-wiskey-embed-error=${this.phase}>
       <div>
-        <sw-state-panel state=${m.state} heading=${m.heading} hint=${m.hint}></sw-state-panel>
+        <sw-state-panel icon="door" state=${m.state} heading=${m.heading} hint=${m.hint}></sw-state-panel>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>
           ${this.openInHaButton()}
@@ -1138,7 +1138,7 @@ export class WiskeyEmbed extends LitElement {
             ? html`<wiskey-people></wiskey-people>`
             : html`<div class="only" data-wiskey-embed-only=${only}>
                 <div>
-                  <sw-state-panel state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
+                  <sw-state-panel icon="door" state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
                   <div class="actions">
                     ${this.openInHaButton('primary')}
                     ${this.direct === 'companion' ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}

@@ -473,6 +473,24 @@ export class SystemNotifications extends LitElement {
       .scard.off .ln {
         opacity: 0.45;
       }
+      /* UXFIX-A11Y-295 (UX audit 2026-10-20, finding 13): on a phone the channel chips ran off both edges of the card (one nowrap row)
+         and the severity picker showed two of its three levels as a colour dot only. Every level now carries its name (above, in
+         sevSeg), the rows wrap inside the card, and the keys are 44 px. */
+      .scard .ln > .chs,
+      .scard .ln > .sevseg {
+        flex-wrap: wrap;
+        min-inline-size: 0;
+        max-inline-size: 100%;
+      }
+      .scard .ln > .sevseg {
+        border-radius: var(--sw-r-xl);
+      }
+      @media (pointer: coarse), (max-width: 767px) {
+        .sevseg button,
+        .chip {
+          block-size: 44px;
+        }
+      }
       /* quiet hours matrix */
       .qmx {
         inline-size: 100%;
@@ -1148,7 +1166,7 @@ export class SystemNotifications extends LitElement {
   // ---------------------------------------------------------------------------------------------- sections
 
   private sevSeg(source: string, cur: Severity) {
-    return html`<span class="sevseg" role="radiogroup" aria-label="חומרה">${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} aria-pressed=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i></i>${cur === s ? SEVERITY_LABEL[s] : ''}</button>`)}</span>`;
+    return html`<span class="sevseg" role="radiogroup" aria-label="חומרה">${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} aria-pressed=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i aria-hidden="true"></i>${SEVERITY_LABEL[s]}</button>`)}</span>`;
   }
   private whoSel(p: NotifyPolicy) {
     const forced = FAILURE_SOURCES.includes(p.source);

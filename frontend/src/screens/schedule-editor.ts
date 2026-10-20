@@ -1923,7 +1923,7 @@ export class ScheduleEditor extends LitElement {
   render() {
     if (this.loading) return html`<sw-page wide heading="עריכת תזמון"><sw-state-panel state="loading" data-editor-state="loading"></sw-state-panel></sw-page>`;
     if (this.forbidden || (this.loadError && !this.schedule && !this.creating)) {
-      return html`<sw-page wide heading="עריכת תזמון" crumbs="תזמונים|עריכה"><sw-state-panel data-editor-state=${this.forbidden ? 'forbidden' : 'error'} state=${this.forbidden ? 'forbidden' : 'error'} heading=${this.forbidden ? 'התזמון לא נמצא' : ''} hint=${this.forbidden ? 'ייתכן שנמחק, או שאינו בהרשאתכם.' : this.loadError} actionLabel=${this.forbidden ? '' : 'נסה שוב'} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+      return html`<sw-page wide heading="עריכת תזמון" crumbs="תזמונים|עריכה"><sw-state-panel icon="calendar" data-editor-state=${this.forbidden ? 'forbidden' : 'error'} state=${this.forbidden ? 'forbidden' : 'error'} heading=${this.forbidden ? 'התזמון לא נמצא' : ''} hint=${this.forbidden ? 'ייתכן שנמחק, או שאינו בהרשאתכם.' : this.loadError} actionLabel=${this.forbidden ? '' : 'נסה שוב'} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     if (this.creating && !this.status?.can.manage && this.status) {
       return html`<sw-page wide heading="תזמון חדש" crumbs="תזמונים|חדש"><sw-state-panel data-editor-state="forbidden" state="forbidden" hint="אין הרשאה ליצור תזמונים."></sw-state-panel></sw-page>`;

@@ -1370,7 +1370,7 @@ export class InvestigatePlayback extends LitElement {
   private renderApi() {
     if (this.error && !this.cams) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.init()}></sw-state-panel>`;
     if (!this.cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!this.cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;
+    if (!this.cams.length) return html`<sw-state-panel icon="history" state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;
     const cam = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
     const master = this.masterSession;
     const live = this.live;

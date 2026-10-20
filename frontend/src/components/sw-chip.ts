@@ -73,7 +73,7 @@ export class SwChip extends LitElement {
 
   render() {
     return html`
-      <button type="button" aria-pressed=${this.selected} ?disabled=${this.disabled}>
+      <button type="button" class="sw-hit" aria-pressed=${this.selected} ?disabled=${this.disabled}>
         ${this.dot ? html`<span class="d" style="--dot:${this.dot}"></span>` : ''}
         ${this.icon ? html`<sw-icon .name=${this.icon} size=${13}></sw-icon>` : ''}
         <slot></slot>

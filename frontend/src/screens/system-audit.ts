@@ -175,7 +175,7 @@ export class SystemAudit extends LitElement {
             ? html`<sw-table data-audit-table .columns=${apiColumns} .rows=${rows as unknown as Record<string, unknown>[]}></sw-table>`
             : this.error
               ? nothing
-              : html`<sw-state-panel state="empty" heading="אין רשומות לסינון הזה" hint="נסה משפחת פעולות אחרת או נקה את שם המשתמש"></sw-state-panel>`}
+              : html`<sw-state-panel icon="filter" state="empty" heading="אין רשומות לסינון הזה" hint="נסה משפחת פעולות אחרת או נקה את שם המשתמש"></sw-state-panel>`}
         <div class="pager"><span>${rows ? `מציג ${rows.length} רשומות אחרונות · צפייה ממושכת נרשמת כ־start/stop` : ''}</span></div>
       </sw-page>
     `;

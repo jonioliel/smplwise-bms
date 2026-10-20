@@ -305,7 +305,7 @@ export class InvestigateCases extends LitElement {
         ${this.loading && !this.cases.length
           ? html`<sw-state-panel state="loading"></sw-state-panel>`
           : !this.cases.length
-            ? html`<sw-state-panel state="empty" heading="אין תיקים עדיין" hint="פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן."></sw-state-panel>`
+            ? html`<sw-state-panel icon="case" state="empty" heading="אין תיקים עדיין" hint="פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן."></sw-state-panel>`
             : html`<sw-table data-cases-table .columns=${API_COLUMNS} .rows=${rows} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`/investigate/cases/${e.detail.id}`)}></sw-table>`}
         ${this.creating
           ? html`<sw-dialog open heading="תיק חדש" subheading="כותרת קצרה; פריטים נוספים מדפי האירוע, הנגן והמפה" data-case-create @close=${() => (this.creating = false)}>

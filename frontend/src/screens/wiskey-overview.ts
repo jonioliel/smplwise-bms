@@ -533,7 +533,7 @@ export class WiskeyOverview extends LitElement {
 
   private renderFeedPanel(feed: IntercomFeed) {
     const p = FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state];
-    return html`<sw-state-panel data-wiskey-state=${feed.state} state=${p.panel} heading=${p.heading} hint=${p.hint}></sw-state-panel>`;
+    return html`<sw-state-panel icon="door" data-wiskey-state=${feed.state} state=${p.panel} heading=${p.heading} hint=${p.hint}></sw-state-panel>`;
   }
 
   private renderStaleNote(feed: IntercomFeed) {
@@ -574,7 +574,7 @@ export class WiskeyOverview extends LitElement {
           </div>
           ${matches.length
             ? html`<div class="grid">${repeat(visible, (s) => s.id, (s) => this.renderDoor(s, zone))}</div>`
-            : html`<sw-state-panel compact state="empty" data-wiskey-empty heading=${all.length ? 'לא נמצאו דלתות תואמות' : t('no_stations')}></sw-state-panel>`}
+            : html`<sw-state-panel icon="door" compact state="empty" data-wiskey-empty heading=${all.length ? 'לא נמצאו דלתות תואמות' : t('no_stations')}></sw-state-panel>`}
           ${pages > 1
             ? html`<div class="pager">
                 <sw-button size="sm" variant="ghost" ?disabled=${page === 0} @click=${() => (this.page = page - 1)}>${t('wall_previous')}</sw-button>

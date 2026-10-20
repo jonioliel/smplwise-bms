@@ -372,7 +372,7 @@ export class SystemStorage extends LitElement {
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
       ${this.renderDiskGuard()}
       ${d ? this.renderLocal(d) : nothing}
-      <sw-state-panel data-storage-nvr-less state="empty" heading="מצב ללא NVR" hint="ההתקנה פועלת ללא NVR: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא."></sw-state-panel>
+      <sw-state-panel icon="storage" data-storage-nvr-less state="empty" heading="מצב ללא NVR" hint="ההתקנה פועלת ללא NVR: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא."></sw-state-panel>
     </sw-page>`;
   }
 
@@ -394,7 +394,7 @@ export class SystemStorage extends LitElement {
         ${this.renderDiskGuard()}
         ${this.renderLocal(d)}
         ${!d.nvr.configured
-          ? html`<sw-state-panel state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
+          ? html`<sw-state-panel icon="storage" state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
           : !d.nvr.reachable
             ? html`<sw-state-panel state="error" heading="אין תשובה מה־NVR" hint=${d.nvr.error ?? ''} actionLabel="נסה שוב" @action=${() => this.load(true)}></sw-state-panel>
                 ${this.renderSigning()}`

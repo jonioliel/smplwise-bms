@@ -233,7 +233,7 @@ export const devicesThemes = css`
     --dv-font: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', 'Noto Sans Hebrew', 'Heebo', Roboto, Arial, sans-serif;
     --dv-text: #1c1c1e;
     --dv-text-2: #4c4c50;
-    --dv-text-3: #6e6e73;
+    --dv-text-3: #67676c;
     /* DU1 (2026-10-09): the default palette's interaction and state colours are the PRODUCT's (the skin's accent, toggle and
        state colours, light or dark), read through the never-bridged --sw-product-* aliases (design/tokens.ts). One accent and
        one toggle colour per skin on every screen; the mockup's iOS values live on in the sand / forest / graphite palettes'

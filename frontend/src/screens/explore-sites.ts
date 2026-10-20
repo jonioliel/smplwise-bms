@@ -361,7 +361,7 @@ export class ExploreSites extends LitElement {
 
   render() {
     const tree = this.tree;
-    if (!tree) return html`<sw-page heading="אתרים ומבנים"><sw-state-panel state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
+    if (!tree) return html`<sw-page heading="אתרים ומבנים"><sw-state-panel icon="building" state=${this.error ? 'error' : 'loading'} hint=${this.error}></sw-state-panel></sw-page>`;
     const d = this.phone.restricted('structure') ? null : this.dialog;
     const canCreate = tree.canCreateSite && !this.phone.restricted('structure');
     return html`
@@ -369,7 +369,7 @@ export class ExploreSites extends LitElement {
         ${canCreate ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button>` : nothing}
         <sw-tabs .items=${[{ id: 'all', label: 'כל האתרים', count: tree.sites.length }, { id: 'buildings', label: 'מבנים', count: tree.sites.reduce((n, s) => n + (s.buildings?.length ?? 0), 0) }, { id: 'map', label: 'מפה' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${tree.sites.length === 0 && this.tab === 'all'
-          ? html`<sw-state-panel state="empty" heading="עוד אין אתרים" hint=${this.phone.restricted('structure') ? 'יצירת אתרים ומבנים זמינה במחשב.' : 'התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.'}>${canCreate ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button></div>` : nothing}</sw-state-panel>`
+          ? html`<sw-state-panel icon="building" state="empty" heading="עוד אין אתרים" hint=${this.phone.restricted('structure') ? 'יצירת אתרים ומבנים זמינה במחשב.' : 'התחל ביצירת האתר הראשון; אחר כך מבנה, קומות ותוכניות.'}>${canCreate ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${() => this.open({ kind: 'site' })}>אתר חדש</sw-button></div>` : nothing}</sw-state-panel>`
           : this.tab === 'all' ? this.renderSites(tree) : this.tab === 'buildings' ? this.renderBuildings(tree) : html`<div class="map">מפת אתרים (לוח 3 · מסך 17) תצטרף עם שכבת מיקום גאוגרפי · Beta</div>`}
         ${this.notice ? html`<div class="err" data-sites-notice style="margin-block:8px">${this.notice}</div>` : nothing}
         ${d && (d.kind === 'delete-site' || d.kind === 'delete-building')
