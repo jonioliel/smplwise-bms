@@ -105,7 +105,7 @@ def markdown(rows: list[dict], top: int) -> str:
                      f"{', '.join(r['written'][:6])}{' ...' if len(r['written']) > 6 else ''} |")
     lines += ["", "Tables written from the most modules outside a store:", "", "| table | modules | written from |", "|---|---|---|"]
     for t, mods in table_spread(rows)[:top]:
-        lines.append(f"| `{t}` | {len(mods)} | {', '.join(m.rsplit('/', 1)[-1] for m in mods[:8])}{' ...' if len(mods) > 8 else ''} |")
+        lines.append(f"| `{t}` | {len(mods)} | {', '.join(m.removeprefix('services/') for m in mods[:8])}{' ...' if len(mods) > 8 else ''} |")
     return "\n".join(lines) + "\n"
 
 
