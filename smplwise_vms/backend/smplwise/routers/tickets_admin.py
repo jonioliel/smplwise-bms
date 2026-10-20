@@ -187,6 +187,7 @@ class ReportsPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     to_contacts: StrictBool | None = None
     documents: StrictBool | None = None
+    email: StrictBool | None = None  # VENDORQ2-295
     document_hours: StrictInt | None = None
     document_max_opens: StrictInt | None = None
 
