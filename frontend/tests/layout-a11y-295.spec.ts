@@ -219,7 +219,7 @@ test.describe('phone headers', () => {
 });
 
 test.describe('notification rules table (desktop)', () => {
-  test.skip(({}, info) => info.project.name !== 'desktop', 'the table layout is the desktop one (tablet and phone show cards)');
+  test.skip(({ hasTouch }, info) => hasTouch || info.project.name !== 'desktop', 'the table layout is the desktop one (tablet and phone show cards)');
 
   test('every severity picker stays inside its cell and clear of the recipient select', async ({ page }) => {
     await openDemo(page, '/system/notifications');
