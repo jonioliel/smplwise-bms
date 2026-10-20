@@ -405,8 +405,8 @@ def _credentials(raw: dict[str, Any], redacted: set[str]) -> dict[str, Any] | No
 
 def project_person(raw: Any) -> dict[str, Any] | None:
     """One WisKey person (`users/query` record, `users/get`) as a closed superset, or None when it has no usable id. Not kept:
-    card numbers / masks / labels, the PIN itself, permission overrides, timing read-backs, sync references, created / updated
-    (the credential KINDS are kept as `credentials`, S7). A category WisKey redacted (`redacted_fields`) is unknown (null),
+    card numbers / masks / labels, the PIN itself, the permission override values (only their stations, `override_stations`, for
+    the write gate), timing read-backs, sync references, created / updated (the credential KINDS are kept as `credentials`, S7). A category WisKey redacted (`redacted_fields`) is unknown (null),
     never "empty"."""
     if not isinstance(raw, dict) or not _id(raw.get("id")):
         return None
@@ -441,6 +441,13 @@ def project_person(raw: Any) -> dict[str, Any] | None:
                 "last_error": _code(a.get("last_error")),
             })
     profile = raw.get("profile") if isinstance(raw.get("profile"), dict) else None
+    # PERMOVR-293 (WisKey Q2): the STATIONS of the person's own permission overrides (allow AND deny - never the values), for the write
+    # gate (intercom_authority.person_gate_station_ids). None = unknown: withheld, missing, not a map, or any entry malformed (fail
+    # closed - a malformed entry is never skipped, so it cannot shrink the set).
+    raw_overrides = raw.get("permission_overrides")
+    override_stations: list[str] | None = None
+    if "access" not in redacted and isinstance(raw_overrides, dict) and all(ia.valid_id(k) and v in ("allow", "deny") for k, v in raw_overrides.items()):
+        override_stations = sorted(raw_overrides)
     return {
         "id": raw["id"],
         "display_name": _text(raw.get("display_name"), 128) or "",
@@ -455,6 +462,7 @@ def project_person(raw: Any) -> dict[str, Any] | None:
         "identity_locked": bool(raw.get("identity_locked")),
         "group_ids": None if "access" in redacted else _ids(raw.get("group_ids"), 64),
         "assignments": assignments,
+        "override_stations": override_stations,
         "access_known": scope["access_known"] and assignments is not None and not dropped,
         "stations_known": scope["stations_known"] and assignments is not None and not dropped,
         "redacted_fields": scope["redacted_fields"],

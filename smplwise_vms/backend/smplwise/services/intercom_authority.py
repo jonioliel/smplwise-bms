@@ -21,7 +21,8 @@ out (risk 1 of CR-036: a filter bug here shows everything). The rules (CR-036 2.
   card number, a card mask and a PIN are in no read view at all (the person editor keeps the masked cards). A list row
   carries of these only the credential kinds and `phone_set`.
 - A person is `editable` only when the principal holds `access.people.manage` on EVERY station the person is assigned to
-  (WisKey's `operator_editable` / `person_scope_shared`; the write slice S11 enforces the same rule server-side).
+  (WisKey's `operator_editable` / `person_scope_shared`; the write slice S11 enforces the same rule server-side) AND on every
+  station of the person's own permission overrides, allow or deny (PERMOVR-293; unknown overrides: unrestricted only).
 - An access event is visible with `access.events.read` on its station - name, employee number and the event picture
   included (answers 2 and 4 of 2026-10-12; `access.employee_no_sensitive` / `access.event_portrait_sensitive` require
   `access.people.sensitive` on the station instead). A row without a station is visible to nobody (malformed: dropped).
@@ -342,6 +343,20 @@ def person_station_ids(person: dict[str, Any]) -> list[str] | None:
     return [a["station_id"] for a in assignments if isinstance(a, dict) and isinstance(a.get("station_id"), str)]
 
 
+def person_gate_station_ids(person: dict[str, Any]) -> list[str] | None:
+    """PERMOVR-293 (owner decision 2026-10-20, WisKey Q2): the stations a WRITE to this person touches before the change - the
+    assignments AND the stations of the person's own permission overrides (allow and deny alike: WisKey's `users/update` replaces the
+    complete overrides dict, so a deny on a station outside the writer's chain is a station of the person too). Each is decided by
+    `Authority.station` (rbac deny-overrides over the station chain). None = unknown (an incomplete record, or overrides that are
+    missing / withheld / malformed): only an unrestricted writer passes. Visibility does NOT use this (`person_station_ids`; WisKey Q1:
+    a malformed record stays hidden from a restricted operator, and an override never makes a person visible or hidden)."""
+    ids = person_station_ids(person)
+    overrides = person.get("override_stations")
+    if ids is None or not isinstance(overrides, list) or not all(isinstance(s, str) for s in overrides):
+        return None
+    return list(dict.fromkeys([*ids, *overrides]))
+
+
 def person_level_of(auth: Authority, person: dict[str, Any]) -> str:
     """The principal's level on a superset person (NONE = not visible)."""
     ids = person_station_ids(person)
@@ -396,7 +411,9 @@ def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False
     out["timing"] = _copy(person.get("timing")) if detail else None
     out["level"] = level
     wiskey_editable = person.get("operator_editable")
-    out["editable"] = bool(ids is not None and auth.person_editable(ids)) and wiskey_editable is not False
+    # PERMOVR-293: the write gate's stations (override stations included); unknown overrides - unrestricted only, as the gate decides
+    gate_ids = person_gate_station_ids(person)
+    out["editable"] = bool(ids is not None and auth.person_editable(gate_ids if gate_ids is not None else [])) and wiskey_editable is not False
     for k in PERSON_SENSITIVE_KEYS:
         out[k] = _copy(person.get(k)) if level == SENSITIVE and (detail or k in PERSON_ROW_SENSITIVE_KEYS) else None
     return out
