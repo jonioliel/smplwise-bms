@@ -100,8 +100,10 @@ test('the CSV cell guard neutralises formula starters', () => {
 });
 
 test('the tab: sixth entry of the area, tickets.costs.view, active on #/tickets/accounts', () => {
-  expect(TICKETS_TABS.at(-1)?.id).toBe('accounts');
-  expect(TICKETS_TABS.at(-1)?.label).toBe('חשבון ספקים');
+  // SHAREDID-293 appended "גישת חוץ" (shown only when placed under service management): the vendors account is the last scope tab before it
+  const accounts = TICKETS_TABS.filter((t) => t.id !== 'external').at(-1);
+  expect(accounts?.id).toBe('accounts');
+  expect(accounts?.label).toBe('חשבון ספקים');
   expect(TAB_PERMISSIONS['#/tickets/accounts']).toEqual(['tickets.costs.view']);
   expect(activeAreaTab({ path: '/tickets/accounts', mode: 'tickets', segments: ['tickets', 'accounts'], params: new URLSearchParams() } as never)).toBe('accounts');
 });

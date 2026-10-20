@@ -361,6 +361,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await ed.locator('li[data-sec="wiskey"][data-tab="people"] sw-toggle button').click();
     await ed.locator('[data-tabs-save]').click();
     await expect.poll(() => st.patches.length).toBe(1);
-    expect(st.patches[0]).toEqual({ 'ui.tabs': { wiskey: { order: ['events', 'overview', 'people', 'devices', 'sync', 'health', 'audit', 'tools', 'zzz'], hidden: ['people', 'zzz'] } } });
+    // SHAREDID-293: "גישת חוץ" closes the WisKey row while it is placed under access control (the default)
+    expect(st.patches[0]).toEqual({ 'ui.tabs': { wiskey: { order: ['events', 'overview', 'people', 'devices', 'sync', 'health', 'audit', 'tools', 'external', 'zzz'], hidden: ['people', 'zzz'] } } });
   });
 });
