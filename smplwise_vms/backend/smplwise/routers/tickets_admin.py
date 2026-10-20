@@ -236,6 +236,7 @@ class VendorPortalPatch(BaseModel):
     require_confirmed_number: StrictBool | None = None
     rfqs: StrictBool | None = None  # VPORTALRFQ: the vendor's open requests for quotation in the portal (default OFF)
     technician_requests: StrictBool | None = None  # VPORTALRFQ: "company technician requests" (default OFF)
+    start_worker: StrictBool | None = None  # SECFIX2-295 / PUB-04: portal/start's work on the listener's worker thread (default OFF)
 
 
 class NotifyPatch(BaseModel):

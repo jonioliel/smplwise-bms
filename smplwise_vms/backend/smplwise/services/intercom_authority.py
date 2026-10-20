@@ -107,11 +107,25 @@ EMPLOYEE_NO_SENSITIVE = "access.employee_no_sensitive"  # answer 2: "false" - th
 PORTRAIT_SENSITIVE = "access.event_portrait_sensitive"  # answer 4: "false" - the events view alone shows the event picture
 PORTRAIT_AUDIT = "access.event_portrait_audit"  # answer 4 (safest default): "true" - each event-picture view leaves an audit row
 SYNC_ERRORS_EVERYONE = "access.sync_errors_everyone"  # answer 5: "false" - error texts need access.admin.read on the station
+# SECFIX2-295 (open item of the 2.9.3 report, owner decision pending): a restricted WRITER who cannot see a person whose WisKey record is
+# malformed / incomplete (unknown station set) - "true": the uniform 404 (no existence oracle; the read side already hides such a record
+# from him, WisKey Q1); "false" (default, today): the 403 `intercom_person_scope`. services/intercom_writes.check_person.
+UNKNOWN_PERSON_UNIFORM_404 = "access.unknown_person_uniform_404"
 POLICY_DEFAULTS: dict[str, str] = {
     EMPLOYEE_NO_SENSITIVE: "false",
     PORTRAIT_SENSITIVE: "false",
     PORTRAIT_AUDIT: "true",
     SYNC_ERRORS_EVERYONE: "false",
+    UNKNOWN_PERSON_UNIFORM_404: "false",
+}
+# what an unreadable value reads as: the SAFE choice for the visibility settings; today's answer for the 404 switch (both of its values
+# refuse the write - the fallback only keeps the answer predictable until the owner decides)
+POLICY_ON_ERROR: dict[str, bool] = {
+    EMPLOYEE_NO_SENSITIVE: True,
+    PORTRAIT_SENSITIVE: True,
+    PORTRAIT_AUDIT: True,
+    SYNC_ERRORS_EVERYONE: False,
+    UNKNOWN_PERSON_UNIFORM_404: False,
 }
 
 
@@ -140,7 +154,7 @@ class Authority:
         """One of POLICY_DEFAULTS as a boolean. A value that cannot be read, or is neither "true" nor "false", reads as the
         SAFE choice (fail closed): a field stays sensitive, the audit row stays on, error texts stay hidden."""
         if key not in self._policy:
-            safe = key != SYNC_ERRORS_EVERYONE
+            safe = POLICY_ON_ERROR[key]
             try:
                 value = get_setting(self.conn, key, POLICY_DEFAULTS[key])
                 self._policy[key] = {"true": True, "false": False}.get(str(value), safe)

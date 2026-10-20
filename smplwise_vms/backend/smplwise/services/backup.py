@@ -124,6 +124,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # WISKEYID: the external-grant switch and its limits are security policy - never loosened by an archive
                  "access.external_grants", "access.external.max_days", "access.external.max_doors",
                  "access.external.phone_fresh_days", "access.external.code_hour", "access.external.local_approvers",
+                 # SECFIX2-295 / PUB-03: the retention period and the per-vendor cap of vendor-typed technicians (privacy policy)
+                 "access.external.pending_retention_days", "access.external.pending_max_per_vendor",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
                  "bridge.local_identity_extended"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"

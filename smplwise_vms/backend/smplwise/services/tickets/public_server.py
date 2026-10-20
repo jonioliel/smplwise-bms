@@ -433,6 +433,12 @@ class PublicListener:
         if sock is not None:
             with contextlib.suppress(OSError):
                 sock.close()
+        try:  # SECFIX2-295 / PUB-04: the portal start worker (if the switch ever started one) stops with the listener
+            from .public_portal import stop_workers
+
+            stop_workers(timeout_s=2.0)
+        except Exception as exc:  # noqa: BLE001 - stopping the listener never fails because of the worker
+            log.warning("portal start worker did not stop cleanly (%s)", type(exc).__name__)
         if not ended:
             log.warning("tickets public listener thread did not end within %.0f s", timeout_s)
         return ended

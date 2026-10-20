@@ -91,6 +91,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         needs_review.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("needs-review janitor failed", exc_info=True)
+    try:  # SECFIX2-295 / PUB-03: erase undecided vendor-typed technicians past access.external.pending_retention_days (0 = off, the default)
+        from .services import pending_retention
+
+        pending_retention.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("pending retention janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 

@@ -38,7 +38,7 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
@@ -116,6 +116,18 @@ class SettingsIn(BaseModel):
     phone_fresh_days: int | None = Field(default=None, ge=30, le=365)
     code_hour: int | None = Field(default=None, ge=0, le=23)
     local_approvers: Literal["off", "on"] | None = None
+    # SECFIX2-295 / PUB-03 (owner decision pending; 0 = off): erase an undecided vendor-typed technician after N days (7-365), and a cap
+    # of undecided technicians per vendor (1-100)
+    pending_retention_days: int | None = Field(default=None, ge=0, le=ag.PENDING_RETENTION_MAX)
+    pending_max_per_vendor: int | None = Field(default=None, ge=0, le=ag.PENDING_CAP_MAX)
+
+    @field_validator("pending_retention_days")
+    @classmethod
+    def _retention_floor(cls, v: int | None) -> int | None:
+        if v is not None and 0 < v < ag.PENDING_RETENTION_MIN:
+            raise ValueError(f"0 (off) or {ag.PENDING_RETENTION_MIN}-{ag.PENDING_RETENTION_MAX} days")
+        return v
+
     # SHAREDID-293 (owner decisions 4, 5, 6): the screen's own settings
     digest_channel: Literal["app", "app_whatsapp"] | None = None
     digest_day: int | None = Field(default=None, ge=0, le=6)
@@ -240,7 +252,8 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
                   reason="access_grants_not_permitted", details={"key": ag.FLAG_KEY, "requested": "on"})
             raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
         keys = {"external_grants": ag.FLAG_KEY, "max_days": ag.MAX_DAYS_KEY, "max_doors": ag.MAX_DOORS_KEY, "phone_fresh_days": ag.FRESH_KEY,
-                "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY}
+                "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY,
+                "pending_retention_days": ag.PENDING_RETENTION_KEY, "pending_max_per_vendor": ag.PENDING_CAP_KEY}
         before = ag.settings_view(conn)
         for name, value in changes.items():
             if name in _SCREEN_KEYS:

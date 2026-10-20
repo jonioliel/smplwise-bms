@@ -84,10 +84,18 @@ MAX_DOORS_KEY = "access.external.max_doors"
 FRESH_KEY = "access.external.phone_fresh_days"
 CODE_HOUR_KEY = "access.external.code_hour"
 LOCAL_KEY = "access.external.local_approvers"
-KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY)
+# SECFIX2-295 / PUB-03 (docs/security/PROPOSAL_PUB03_PENDING_TECHNICIAN_RETENTION.md, option A; owner decision pending): a technician a
+# vendor typed on the arrival page and nobody decided is erased after N days (services/pending_retention.py), and a vendor holds at most
+# M undecided technicians. "0" = OFF for both (today's behaviour). Inside `access.external.` so a project backup never carries them.
+PENDING_RETENTION_KEY = "access.external.pending_retention_days"
+PENDING_CAP_KEY = "access.external.pending_max_per_vendor"
+PENDING_RETENTION_MIN, PENDING_RETENTION_MAX = 7, 365
+PENDING_CAP_MAX = 100
+KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY, PENDING_RETENTION_KEY, PENDING_CAP_KEY)
 MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
-DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off"}
+DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off",
+            PENDING_RETENTION_KEY: "0", PENDING_CAP_KEY: "0"}
 REVOKE_ALL_WORD = "בטל הכל"
 DELETE_WORD = "מחק"
 
@@ -305,6 +313,33 @@ def local_approvers(conn: sqlite3.Connection) -> bool:
         return False
 
 
+def pending_retention_days(conn: sqlite3.Connection) -> int:
+    """PUB-03: 0 = off (today: an undecided vendor-typed technician is kept until a manager decides); otherwise 7-365 days (a stored
+    value below the floor reads as the floor, so a slip never erases a request the same week). Unreadable -> 0 (nothing is erased)."""
+    try:
+        value = int(get_setting(conn, PENDING_RETENTION_KEY) or DEFAULTS[PENDING_RETENTION_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    if value <= 0:
+        return 0
+    return max(PENDING_RETENTION_MIN, min(PENDING_RETENTION_MAX, value))
+
+
+def pending_cap(conn: sqlite3.Connection) -> int:
+    """PUB-03: at most this many undecided vendor-typed technicians per vendor (0 = no cap, today). Unreadable -> no cap (the arrival
+    page's own per-link budgets still hold)."""
+    try:
+        value = int(get_setting(conn, PENDING_CAP_KEY) or DEFAULTS[PENDING_CAP_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    return max(0, min(PENDING_CAP_MAX, value))
+
+
+def pending_count(conn: sqlite3.Connection, vendor_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM access_pending_contacts WHERE vendor_id = ? AND accepted_at IS NULL AND rejected_at IS NULL",
+                            (vendor_id,)).fetchone()[0])
+
+
 def zone_of(conn: sqlite3.Connection):
     from ..routers.settings import read_settings
     from .timeutil import zone
@@ -318,7 +353,8 @@ def zone_of(conn: sqlite3.Connection):
 def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"external_grants": "on" if enabled(conn) else "off", "go_live_permitted": go_live_permitted(), "max_days": max_days(conn),
             "max_days_cap": MAX_DAYS_CAP, "max_doors": max_doors(conn), "phone_fresh_days": fresh_days(conn), "code_hour": code_hour(conn),
-            "local_approvers": "on" if local_approvers(conn) else "off"}
+            "local_approvers": "on" if local_approvers(conn) else "off",
+            "pending_retention_days": pending_retention_days(conn), "pending_max_per_vendor": pending_cap(conn)}
 
 
 # ---------------------------------------------------------------- errors

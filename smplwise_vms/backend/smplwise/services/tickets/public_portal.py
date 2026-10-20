@@ -25,6 +25,9 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import queue
+import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, Literal
 
@@ -42,6 +45,107 @@ from .public_http import PORTAL_COOKIE
 log = logging.getLogger("smplwise.tickets.vendor_portal")
 UTC = dt.timezone.utc
 SENT = {"code": "sent_if_registered"}
+
+
+# ---------------------------------------------------------------- SECFIX2-295 / PUB-04: the listener's own start worker
+#
+# docs/security/PROPOSAL_PUB04_PORTAL_START_TIMING.md option A, behind `vendor_portal.start_worker` (default OFF = the BackgroundTask
+# below, today's behaviour). With it on, `portal/start` only ENQUEUES the job and returns: the request's ASGI call, the edge's in-flight
+# slot and the keep-alive connection are released at once and identically for a known and an unknown number. One daemon thread per
+# database drains a bounded queue; a full queue drops the job silently with a counter (the answer must stay the same 202 - never a 429
+# here); a job's exception is logged by type only (request_in_background never logs the number) and never stops the thread; the thread
+# stops with the listener (public_server.PublicListener.stop -> stop_workers).
+
+START_QUEUE_MAX = 64
+WORKER_THREAD_NAME = "arx-portal-start"
+_STOP = object()
+
+
+class StartWorker:
+    def __init__(self, maxsize: int) -> None:
+        self.queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, maxsize))
+        self.accepted = 0
+        self.dropped = 0
+        self._count_lock = threading.Lock()
+        self.thread = threading.Thread(target=self._loop, name=WORKER_THREAD_NAME, daemon=True)
+        self.thread.start()
+
+    def submit(self, job: Callable[[], None]) -> bool:
+        """Queue one job; False (counted, nothing else) when the queue is full or the worker has stopped."""
+        if not self.thread.is_alive():
+            with self._count_lock:
+                self.dropped += 1
+            return False
+        try:
+            self.queue.put_nowait(job)
+        except queue.Full:
+            with self._count_lock:
+                self.dropped += 1
+            return False
+        with self._count_lock:
+            self.accepted += 1
+        return True
+
+    def _loop(self) -> None:
+        while True:
+            job = self.queue.get()
+            try:
+                if job is _STOP:
+                    return
+                job()
+            except Exception as exc:  # noqa: BLE001 - one job never stops the worker; nothing about the job is logged
+                log.warning("portal start worker: a job failed (%s)", type(exc).__name__)
+            finally:
+                self.queue.task_done()
+
+    def wait_idle(self, timeout_s: float = 5.0) -> bool:
+        """Tests / shutdown: True once every queued job has finished (False after `timeout_s`)."""
+        end = time.monotonic() + timeout_s
+        while time.monotonic() < end:
+            if self.queue.unfinished_tasks == 0:
+                return True
+            time.sleep(0.01)
+        return self.queue.unfinished_tasks == 0
+
+    def stop(self, timeout_s: float = 5.0) -> None:
+        if self.thread.is_alive():
+            try:
+                self.queue.put(_STOP, timeout=timeout_s)
+            except queue.Full:
+                log.warning("portal start worker: the queue stayed full; the thread ends with the process")
+                return
+            self.thread.join(timeout_s)
+
+
+_workers: dict[int, tuple[Any, StartWorker]] = {}
+_workers_lock = threading.Lock()
+
+
+def worker_for(db: Any) -> StartWorker:
+    with _workers_lock:
+        entry = _workers.get(id(db))
+        if entry is None or entry[0] is not db or not entry[1].thread.is_alive():
+            entry = (db, StartWorker(START_QUEUE_MAX))
+            _workers[id(db)] = entry
+        return entry[1]
+
+
+def worker_started(db: Any) -> bool:
+    with _workers_lock:
+        entry = _workers.get(id(db))
+        return entry is not None and entry[0] is db
+
+
+def stop_workers(timeout_s: float = 5.0) -> None:
+    with _workers_lock:
+        entries = list(_workers.values())
+        _workers.clear()
+    for _db, w in entries:
+        w.stop(timeout_s)
+
+
+def reset_workers_for_tests() -> None:
+    stop_workers(timeout_s=2.0)
 
 
 class _Strict(BaseModel):
@@ -122,15 +226,26 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, data
         except Exception as exc:  # noqa: BLE001 - the answer already left; the number is never logged
             log.warning("portal code request failed (%s)", type(exc).__name__)
 
+    def start_mode(conn) -> bool | None:
+        """None = the portal is off; else whether the listener's worker takes the job (PUB-04). One read, before the number is parsed."""
+        return vendor_portal.start_worker(conn) if on(conn) else None
+
     @r.post("/t/api/portal/start")
     async def portal_start(request: Request) -> JSONResponse:
-        await require_on()
+        mode = await run_in_threadpool(read, start_mode)
+        if mode is None:
+            raise PublicError(404, "link_unavailable")
         body: StartIn = await read_json(request, StartIn)
         digits = vendor_portal.canonical_phone(body.phone)
         if digits is None:
             raise PublicError(422, "invalid", fields=[{"field": "phone", "code": "format"}])
+        net = public_request(request).net
+        if mode:
+            # PUB-04 option A: enqueue and answer; the ASGI call ends now for every number (a full queue drops silently, same answer)
+            worker_for(db).submit(lambda: request_in_background(digits, net))
+            return JSONResponse(SENT, status_code=202)
         # the same answer for every well-formed number; who it belongs to is looked up only after this answer was sent
-        return JSONResponse(SENT, status_code=202, background=BackgroundTask(request_in_background, digits, public_request(request).net))
+        return JSONResponse(SENT, status_code=202, background=BackgroundTask(request_in_background, digits, net))
 
     @r.post("/t/api/portal/verify")
     async def portal_verify(request: Request) -> JSONResponse:
