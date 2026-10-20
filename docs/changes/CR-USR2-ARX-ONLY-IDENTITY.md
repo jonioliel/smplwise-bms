@@ -858,3 +858,28 @@ check - the line removed - turned it red); evidence screenshots refreshed under 
 ### 13.4 Rollback
 
 Revert the branch. The bridge stores the same list in both versions, so a 0.9.2 bridge reads what 0.9.4 saved (and vice versa).
+
+### 13.5 Decisions taken for 2.10.0 (lead, on the owner's delegation, 2026-10-20)
+
+1. Bridge version **0.9.4** is kept; the key-rotation branch (WXROT) takes **0.9.5** when it lands (its `MIN_BRIDGE_FOR_ROTATION` and every
+   version pin move with it).
+2. Risk R5 stays **text only** for now (13.1). The stronger refusal is recorded below as a design note, not built.
+3. The add-on's own runnable list stays a **text field** (no picker): the add-on cannot enumerate Home Assistant's script / scene / automation
+   registry without a new read path, and the bridge-side picker already prevents typing mistakes on the side that decides.
+
+### 13.6 Design note (not built): refuse extended items while the service user's entity policy is the default (risk R5, "better")
+
+- **Bridge (next free version):** with every directory push, report `service_policy_restricted: true | false | null` - `true` only when the
+  configured service user is active, not an administrator, belongs to at least one group other than the built-in `system-users`, and
+  `user.permissions` is not the default `PolicyPermissions` of `system-users` (an `entities` policy that does not allow `all`); `false` when
+  it is the default (or allows all entities); `null` when the permission API is missing / raises (fail closed = treated as `false`). Ids and a
+  boolean only - never the policy itself.
+- **Add-on:** store it as `bridge.service_policy_restricted`; `service_identity.status()` adds the step `service_policy_default` (plain
+  Hebrew / English: "restrict the service user to a group that names only the devices Arx may reach"); `_local_subject` refuses EVERY item
+  only the extended mode admits with 503 `service_identity_policy_default` (audited `identity.service_identity.refused`, reason
+  `policy_default`) while the value is not `true`. Basic-mode items (2.6.4) are not affected.
+- **Bridge, second fence:** `execute` / `config_item` on behalf of an Arx-only person in the extended mode refuse with the same code when the
+  live check says default (the add-on's view can be up to 60 s old).
+- **Tests (negative first):** default policy / admin / missing API = refused on both sides with both switches on; a restricted group = admitted;
+  the step and its text; the push field; the code in `automation_ops.BRIDGE_ERRORS`. Needs one Home Assistant restart (bridge change).
+- Effort M; decide together with the go-live permit (it changes owner decision 4 "recommendation only" into a condition - owner call).
