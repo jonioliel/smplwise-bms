@@ -19,7 +19,7 @@ export class TempTicket extends LitElement {
   @property() eventId: string | null = null;
   @state() private draft: TicketDraft | null = null;
   @state() private dept = '';
-  @state() private title = '';
+  @state() private subject = '';
   @state() private desc = '';
   @state() private chart = true;
   @state() private err = '';
@@ -71,7 +71,7 @@ export class TempTicket extends LitElement {
       const d = await getTicketDraft(this.unitId, this.eventId, ttLang() === 'en' ? 'en' : 'he');
       this.draft = d;
       this.dept = d.department_id ?? '';
-      this.title = d.title;
+      this.subject = d.title;
       this.desc = d.description;
       this.chart = d.attach_chart;
     } catch (e) {
@@ -84,7 +84,7 @@ export class TempTicket extends LitElement {
     this.busy = true;
     this.err = '';
     try {
-      const r = await openTicket(this.unitId, { department_id: this.dept, title: this.title.trim(), description: this.desc, event_id: this.eventId, attach_chart: this.chart,
+      const r = await openTicket(this.unitId, { department_id: this.dept, title: this.subject.trim(), description: this.desc, event_id: this.eventId, attach_chart: this.chart,
         lang: ttLang() === 'en' ? 'en' : 'he' });
       this.dispatchEvent(new CustomEvent('done', { detail: { message: tt(r.result === 'absorbed' ? 'ticketAbsorbed' : 'ticketOpened', { n: r.number }), ticketId: r.ticket_id } }));
     } catch (e) {
@@ -105,14 +105,14 @@ export class TempTicket extends LitElement {
               <select id="tk-dept" class="in" data-ticket-dept @change=${(e: Event) => { this.dept = (e.target as HTMLSelectElement).value; }}>
                 <option value="" ?selected=${!this.dept}>${tt('ticketChoose')}</option>
                 ${d.departments.map((x) => html`<option value=${x.id} ?selected=${this.dept === x.id}>${x.name}</option>`)}</select></div>
-            <div class="field"><label class="l" for="tk-subj">${tt('ticketSubject')}</label><input id="tk-subj" class="in" maxlength="200" .value=${this.title}
-              @input=${(e: Event) => { this.title = (e.target as HTMLInputElement).value; }} data-ticket-title /></div>
+            <div class="field"><label class="l" for="tk-subj">${tt('ticketSubject')}</label><input id="tk-subj" class="in" maxlength="200" .value=${this.subject}
+              @input=${(e: Event) => { this.subject = (e.target as HTMLInputElement).value; }} data-ticket-title /></div>
             <div class="field"><label class="l" for="tk-desc">${tt('ticketDesc')}</label><textarea id="tk-desc" class="in" maxlength="4000" .value=${this.desc}
               @input=${(e: Event) => { this.desc = (e.target as HTMLTextAreaElement).value; }} data-ticket-desc></textarea></div>
             <label class="sw"><input type="checkbox" .checked=${this.chart} @change=${(e: Event) => { this.chart = (e.target as HTMLInputElement).checked; }} data-ticket-chart />${tt('ticketChart')}</label>`}
         <div class="bar">${this.err && d ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
           <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>
-          ${d?.departments.length ? html`<button type="button" class="btn pri" ?disabled=${this.busy || !this.dept || !this.title.trim()} data-ticket-open @click=${() => this.submit()}>
+          ${d?.departments.length ? html`<button type="button" class="btn pri" ?disabled=${this.busy || !this.dept || !this.subject.trim()} data-ticket-open @click=${() => this.submit()}>
             <sw-icon name="ticket" size="16"></sw-icon>${tt('ticketOpen')}</button>` : nothing}</div>
       </div>`;
   }
