@@ -422,10 +422,15 @@ def project_person(raw: Any) -> dict[str, Any] | None:
     if redacted & intercom_sync.CREDENTIAL_REDACTION:
         redacted.add("credentials")
     assignments: list[dict[str, Any]] | None = None
+    # R8-A1 (ARX-N03): a row this projection cannot keep (a non-object row, an id that is not a valid station id) is never silently
+    # dropped from a list that still claims to be the complete set - `dropped` clears access_known / stations_known below, and the strict
+    # shared verdict (person_scope -> access_grant_engine.access_shape) already clears them for every other malformed shape.
+    dropped = False
     if "access" not in redacted and isinstance(raw.get("assignments"), dict):
         assignments = []
-        for sid, a in sorted(raw["assignments"].items()):
+        for sid, a in sorted(raw["assignments"].items(), key=lambda kv: str(kv[0])):
             if not isinstance(a, dict) or not ia.valid_id(sid):
+                dropped = True
                 continue
             assignments.append({
                 "station_id": sid,
@@ -444,14 +449,14 @@ def project_person(raw: Any) -> dict[str, Any] | None:
         "archived": raw.get("archived_at") is not None,
         "valid_from": None if "access" in redacted else _iso(raw.get("valid_from")),
         "valid_until": None if "access" in redacted else _iso(raw.get("valid_until")),
-        "revision": _int(raw.get("revision")),
+        "revision": rev if (rev := _int(raw.get("revision"))) is not None and rev >= 1 else None,  # R8-A1: the engine's positive revision
         "access_category": None if "access" in redacted else _enum(raw.get("access_category"), ACCESS_CATEGORIES),
         "user_type": _enum(raw.get("user_type"), USER_TYPES),
         "identity_locked": bool(raw.get("identity_locked")),
         "group_ids": None if "access" in redacted else _ids(raw.get("group_ids"), 64),
         "assignments": assignments,
-        "access_known": scope["access_known"] and assignments is not None,
-        "stations_known": scope["stations_known"] and assignments is not None,
+        "access_known": scope["access_known"] and assignments is not None and not dropped,
+        "stations_known": scope["stations_known"] and assignments is not None and not dropped,
         "redacted_fields": scope["redacted_fields"],
         "timing": None if "access" in redacted else _timing(raw),
         "operator_editable": _bool(raw.get("operator_editable")),

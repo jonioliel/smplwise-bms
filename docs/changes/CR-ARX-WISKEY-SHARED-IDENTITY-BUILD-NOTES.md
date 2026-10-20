@@ -361,3 +361,47 @@ normalisation, any new WisKey command. **Open risk, unchanged on purpose: the 75
 timer is still what lets a fresh readback settle a row of a process that is gone; it is NOT proof that the remote handler ended, and a
 wall-clock jump can expire it early (forward) or hold it indefinitely (backward). Until ACR6-02 is designed, an unknown write settled after
 the hold is not an exactly-once or completion proof.
+## WISKEYARX-291 (2026-10-20) - Arx-side open items ARX-N01..N08 (Arx reply 10 to WisKey round 9), branch pilot/WISKEYARX-291
+
+Cut from `origin/integ/290`. Fakes and static review only: no Home Assistant, device, door, lock, real WisKey or key. `GO_LIVE_PERMITTED`
+and `EXTENDED_GO_LIVE_PERMITTED` stay False (test-asserted). No new endpoint, field, switch, migration or WisKey contract; ACR5-01..04
+proposed contracts stay OFF and unwired. Well-formed records project exactly as before; only malformed ones change (fail closed).
+New test file: `smplwise_vms/backend/tests/test_wiskeyarx_291.py`.
+
+- **ARX-N03 (R8-A1 / R6-A4) - CLOSED in source (fakes).** One strict verdict, `access_grant_engine.access_shape(raw) -> AccessShape
+  (complete, missing, malformed)`, now drives the engine (`person_from_raw`: `malformed` and `doors_known = shape.complete and not
+  redacted`, behaviour-equivalent except that a present container of the wrong type now also clears `overrides_known`) AND the
+  authorization projections: `intercom_sync.person_scope` clears `access_known` / `stations_known` on any malformed field (and reports
+  `access_malformed`), so `intercom_sync.project_person`, `intercom_adapter.project_person` and `intercom_authority.person_station_ids`
+  (-> `check_person`, the messaging caps, the people views) see UNKNOWN instead of a filtered "complete" list. The adapter also clears
+  completeness when it drops a row whose station id it cannot evaluate. Both projectors serve `revision` only as a positive int.
+  Consequence proven by test: a garbled row for a foreign station can no longer hide that station from the station-scope gate (403
+  `intercom_person_scope`, nothing sent). Files: `services/access_grant_engine.py`, `services/intercom_sync.py`,
+  `services/intercom_adapter.py`. Tests: 16 malformed shapes x engine + 3 projections + `person_station_ids`; engine-verdict equivalence;
+  well-formed unchanged; absent overrides/groups block the engine but not the people views (unchanged); the scope-gate case; invalid id;
+  non-positive revision. Open risks: a malformed record is now hidden from restricted operators in the people screens (unrestricted
+  ones still see it) - deliberate; `active` is still displayed as `bool(...)` next to `access_known: false`; personal
+  `permission_overrides` keys are still not part of the gate's station set (pre-existing, out of scope).
+- **ARX-N04 (R6-A5 / R8-A2) - PARTIAL.** No caller or route exists or was added. The private helper `_attach_recovered_person` now itself
+  refuses an actor whose Arx `users` row is missing or inactive (403 `actor_inactive`; `is_system_admin` leaves that to its caller) and
+  its audit row carries `proof_decision` and the exact original create (`original_create`: state, code, purpose_ref, subject, boot id,
+  started / finished ts). Still the future caller's duty (docstring): an authenticated interactive ACTIVE session, validation of the
+  evidence contents for that one operation, an audited refusal path. File: `services/access_grants.py`. Tests: inactive / deleted admin
+  refused with nothing changed; audit carries the original create.
+- **ARX-N05 (R8-A3) - CLOSED.** The no-caller test (`tests/test_wiskey_final3_281.py`) exempts only the exact defining service path,
+  inspects the same-named router explicitly and checks the service defines the helper and never calls it. Stale comments aligned:
+  `normalize_user` (ACR5-02) is "accepted for integration review as a frozen v1 read contract, not built / wired by Arx"
+  (`access_grant_engine._policy_of`, `access_grants._policy_is`); the arrival reply comment no longer says the scope is "proven" - it
+  states `scope_verified` is always false (`services/access_arrival.py`). Tests: comment pins in `test_wiskeyarx_291.py`.
+- **ARX-N07 (R9-A03) - CLOSED on the Arx side.** Arx already sends `api_contract` omitted (READ commands) or `API_CONTRACT = 1`; a
+  static test now pins every module's constant to 1 and refuses any other literal assignment. The documentation-only clarification of the
+  frozen v1 copies is WisKey's.
+- **ARX-N01 (ACR7-FENCE-02) - NOT DONE (design duty, not code).** No dedicated principal exists; only the owner can create it; Arx never
+  creates HA users. Nothing built.
+- **ARX-N02 (ACR8-SIGNED-HOOK-01 / R6-A1) - NOT DONE.** Joint design (verified_peer_ref seam at the verifier/transport boundary, binding
+  registry, revocation/rotation, one-central-commit) - no code in this round; `signed_capture_covered` stays false.
+- **ARX-N06 (R9-B01) - NOT DONE (owner decision).** The 32 MiB image cap stays the only real limit; no capacity admission, retirement
+  tool or archive was wired.
+- **ARX-N08 (joint acceptance test plan) - NOT DONE.** Waits for a separate permit.
+
+Runtime status: everything above ran against fakes only; lab / WisKey interoperability NOT_RUN.

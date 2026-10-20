@@ -265,12 +265,25 @@ def _unresolved(env) -> tuple[str, list[str], str]:
     return gid, created, op[0]["id"]
 
 
+SERVICE = BACKEND / "smplwise" / "services" / "access_grants.py"
+
+
 def test_r6_a5_the_helper_is_private_and_has_no_route():
+    """R8-A3 (ARX-N05): only the EXACT defining service path is exempt (not every file named access_grants.py - the router of that
+    name is inspected like any other file), and inside the service the name appears only at its definition."""
     assert not hasattr(ag, "attach_recovered_person"), "no public name"
+    assert Path(ag.__file__).resolve() == SERVICE.resolve()
+    checked = 0
     for path in (BACKEND / "smplwise").rglob("*.py"):
-        if path.name == "access_grants.py":
+        if path.resolve() == SERVICE.resolve():
             continue
-        assert "_attach_recovered_person" not in path.read_text(encoding="utf-8"), f"no product caller: {path.name}"
+        checked += 1
+        assert "_attach_recovered_person" not in path.read_text(encoding="utf-8"), f"no product caller: {path.relative_to(BACKEND)}"
+    assert checked > 0
+    router = BACKEND / "smplwise" / "routers" / "access_grants.py"
+    assert router.is_file() and "_attach_recovered_person" not in router.read_text(encoding="utf-8"), "the same-named router is inspected"
+    src = SERVICE.read_text(encoding="utf-8")
+    assert src.count("_attach_recovered_person(") == 1 and "def _attach_recovered_person(" in src, "the service defines it and never calls it"
 
 
 @pytest.mark.parametrize("actor", [None, "system", Principal("nobody", "nobody", "nobody", "ha")])
