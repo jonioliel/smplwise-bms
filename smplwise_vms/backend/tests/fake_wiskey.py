@@ -1057,6 +1057,8 @@ class FakeAccessEngine:
                                "group_ids": list(p["group_ids"]), "permission_overrides": dict(p["overrides"]), "pin_configured": p["pin"] is not None,
                                "access_category": p["category"],
                                "access_timing_policy": {"mode": "ha", "schedule": copy.deepcopy(p["timing"]), "bindings": {}} if p["timing"] else None}
+        if "policy" in p:  # STATIONPERM-295: a person whose whole timing policy was seeded (native mode with bindings, malformed ...)
+            raw["access_timing_policy"] = copy.deepcopy(p["policy"])
         redacted: list[str] = []
         if self.hide_doors or self.restricted_projection:
             raw.update({"assignments": {}, "group_ids": [], "permission_overrides": {}})
@@ -1080,10 +1082,21 @@ class FakeAccessEngine:
         return p
 
     # -- test seams
-    def add_person(self, person_id: str, *, stations: Iterable[str] = (), doors: dict[str, list[int]] | None = None, category: str = "contractor") -> None:
+    def add_person(self, person_id: str, *, stations: Iterable[str] = (), doors: dict[str, list[int]] | None = None, category: str = "contractor",
+                   group_doors: dict[str, list[int]] | None = None, overrides: dict[str, str] | None = None, policy: Any = None) -> None:
+        """`group_doors` (STATIONPERM-295): the stations the person's groups give (shown enabled with no personal entry); `overrides` the
+        personal entries; `policy` a whole seeded `access_timing_policy` (omitted = derived from the timing as before)."""
+        merged = {k: list(v) for k, v in (group_doors or {}).items()}
+        merged.update({k: list(v) for k, v in (doors or {}).items()})
+        for sid, mode in (overrides or {}).items():
+            if mode == "deny":
+                merged.pop(sid, None)
         self.people[person_id] = {"id": person_id, "revision": 1, "display_name": person_id, "employee_no": "e-" + person_id, "active": True,
-                                  "valid_from": None, "valid_until": None, "doors": dict(doors or {}), "other_stations": tuple(stations), "pin": None,
-                                  "timing": None, "category": category, "overrides": {}, "group_ids": []}
+                                  "valid_from": None, "valid_until": None, "doors": merged, "other_stations": tuple(stations), "pin": None,
+                                  "timing": None, "category": category, "overrides": dict(overrides or {}), "group_ids": ["g-1"] if group_doors else [],
+                                  "group_doors": {k: list(v) for k, v in (group_doors or {}).items()}}
+        if policy is not None:
+            self.people[person_id]["policy"] = copy.deepcopy(policy)
 
     def edit_elsewhere(self, person_id: str) -> None:
         """Someone edited the person in WisKey's own panel: the revision moves (T12)."""
@@ -1162,7 +1175,45 @@ class FakeAccessEngine:
             self.pending_revocations.add(person_id)
         return self._view(p)
 
-    def revocation_pending(self, person_id: str):
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]):
+        """STATIONPERM-295: the complete overrides replacement + the allowed station's relays. A station with no personal entry falls back
+        to the groups (`group_doors`); a deny beats a group; an allow with no relays named keeps the station's relays (else [1])."""
+        from smplwise.services.access_grant_engine import station_access_payload
+
+        self._gate("set_station_access")
+        p = self._get(person_id)
+        if self.unknown_before_apply:
+            self.unknown_before_apply = False
+            raise self._err("unknown")
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        try:
+            data = station_access_payload(overrides=overrides, doors=doors)
+        except ValueError:
+            raise self._err("refused") from None
+        groups = p.get("group_doors", {})
+        new_doors = {k: list(v) for k, v in p["doors"].items()}
+        for sid in set(p["overrides"]) | set(data["permission_overrides"]) | set(groups):
+            mode = data["permission_overrides"].get(sid)
+            if mode == "deny":
+                new_doors.pop(sid, None)
+            elif mode == "allow":
+                new_doors[sid] = list(data["door_permissions"].get(sid) or new_doors.get(sid) or groups.get(sid) or [1])
+            elif sid in groups:
+                new_doors[sid] = list(groups[sid])
+            else:
+                new_doors.pop(sid, None)
+        self.updates.append({"method": "set_station_access", "overrides": copy.deepcopy(data["permission_overrides"]), "doors": sorted(data["door_permissions"])})
+        p.update({"doors": new_doors, "overrides": dict(data["permission_overrides"])})
+        p["revision"] += 1
+        if self.sync_lag and any(m == "deny" for m in data["permission_overrides"].values()):
+            self.pending_revocations.add(person_id)
+        if self.unknown_after_apply:
+            self.unknown_after_apply = False
+            raise self._err("unknown")
+        return self._view(p)
+
+    def revocation_pending(self, person_id: str, revision: int | None = None):
         self._gate("revocation_pending")
         if self.status_unknown:
             return None

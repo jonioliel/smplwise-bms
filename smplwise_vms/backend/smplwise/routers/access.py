@@ -273,6 +273,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # a technician) - per station (the access-control station chain), together with people.manage + people.sensitive (+ pin.generate for
     # a code). Sensitive, never implied; built-in holder system_admin only; the owner hands it to a user through a custom role.
     "access.external.grant": "בקרת כניסה: אישור גישה זמנית לאדם חיצוני (ספק או טכנאי)",
+    "access.people.stations": "בקרת כניסה: מתן וחסימת גישה לאדם לפי עמדה",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

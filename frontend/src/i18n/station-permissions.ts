@@ -1,0 +1,164 @@
+/**
+ * STATIONPERM-295: the words of the person's per-station access block (the person's page, tab "גישה"). Short operator texts, no hint
+ * paragraphs. The product is "WisKey" in every text; no text names the home platform. Every key exists in all four tables (a unit test
+ * holds the parity); the Arabic and Russian columns are an INITIAL translation that needs a native review (dev-marked).
+ */
+import { xtLang, type XtLang } from './access-external';
+
+const he = {
+  title: 'הרשאות לפי עמדה',
+  src_group: 'דרך קבוצה',
+  src_personal: 'אישית',
+  src_blocked: 'חסומה',
+  src_none: 'ללא גישה',
+  src_unknown: 'לא ידוע',
+  sync_pending: 'ממתין לשליחה',
+  sync_applied: 'עודכן ב-WisKey',
+  sync_unverified: 'לא אומת',
+  sync_failed: 'נדחה ב-WisKey',
+  allow: 'אפשר',
+  deny: 'חסום',
+  inherit: 'לפי קבוצה',
+  approve: 'אישור',
+  refuse: 'דחייה',
+  withdraw: 'ביטול בקשה',
+  sync: 'בדיקה חוזרת',
+  add: 'הוספת עמדה',
+  addPick: 'בחירת עמדה',
+  doors: 'דלתות {doors}',
+  requested: 'בקשה: {who}',
+  requestedMine: 'הבקשה שלך ממתינה לאישור',
+  requestSent: 'הבקשה נשלחה לאישור',
+  confirmDeny: 'לחסום את {station}?',
+  confirmYes: 'חסום',
+  cancel: 'ביטול',
+  done: 'נשמר',
+  unavailable: 'WisKey לא זמין כרגע',
+  grantLive: 'גישה זמנית פעילה מנהלת את הדלתות של אדם זה',
+  self: 'לא ניתן לשנות את הגישה של עצמך',
+  empty: 'אין עמדות',
+  error: 'לא ניתן לטעון',
+  retry: 'נסה שוב',
+};
+type SpKey = keyof typeof he;
+
+const en: Record<SpKey, string> = {
+  title: 'Station permissions',
+  src_group: 'Through a group',
+  src_personal: 'Personal',
+  src_blocked: 'Blocked',
+  src_none: 'No access',
+  src_unknown: 'Unknown',
+  sync_pending: 'Waiting to send',
+  sync_applied: 'Updated in WisKey',
+  sync_unverified: 'Not verified',
+  sync_failed: 'Refused by WisKey',
+  allow: 'Allow',
+  deny: 'Block',
+  inherit: 'Follow group',
+  approve: 'Approve',
+  refuse: 'Refuse',
+  withdraw: 'Withdraw request',
+  sync: 'Check again',
+  add: 'Add station',
+  addPick: 'Choose a station',
+  doors: 'Doors {doors}',
+  requested: 'Request: {who}',
+  requestedMine: 'Your request is waiting for approval',
+  requestSent: 'Request sent for approval',
+  confirmDeny: 'Block {station}?',
+  confirmYes: 'Block',
+  cancel: 'Cancel',
+  done: 'Saved',
+  unavailable: 'WisKey is not available right now',
+  grantLive: "A live temporary access manages this person's doors",
+  self: 'You cannot change your own access',
+  empty: 'No stations',
+  error: 'Could not load',
+  retry: 'Try again',
+};
+
+const ar: Record<SpKey, string> = {
+  title: 'الأذونات حسب المحطة',
+  src_group: 'عبر مجموعة',
+  src_personal: 'شخصي',
+  src_blocked: 'محظور',
+  src_none: 'بلا وصول',
+  src_unknown: 'غير معروف',
+  sync_pending: 'بانتظار الإرسال',
+  sync_applied: 'تم التحديث في WisKey',
+  sync_unverified: 'لم يتم التحقق',
+  sync_failed: 'رفضه WisKey',
+  allow: 'السماح',
+  deny: 'حظر',
+  inherit: 'حسب المجموعة',
+  approve: 'موافقة',
+  refuse: 'رفض',
+  withdraw: 'سحب الطلب',
+  sync: 'تحقق مجددًا',
+  add: 'إضافة محطة',
+  addPick: 'اختر محطة',
+  doors: 'الأبواب {doors}',
+  requested: 'طلب: {who}',
+  requestedMine: 'طلبك بانتظار الموافقة',
+  requestSent: 'تم إرسال الطلب للموافقة',
+  confirmDeny: 'حظر {station}؟',
+  confirmYes: 'حظر',
+  cancel: 'إلغاء',
+  done: 'تم الحفظ',
+  unavailable: 'WisKey غير متاح حاليًا',
+  grantLive: 'وصول مؤقت نشط يدير أبواب هذا الشخص',
+  self: 'لا يمكنك تغيير وصولك الشخصي',
+  empty: 'لا توجد محطات',
+  error: 'تعذر التحميل',
+  retry: 'حاول مجددًا',
+};
+
+const ru: Record<SpKey, string> = {
+  title: 'Права по станциям',
+  src_group: 'Через группу',
+  src_personal: 'Личное',
+  src_blocked: 'Заблокировано',
+  src_none: 'Нет доступа',
+  src_unknown: 'Неизвестно',
+  sync_pending: 'Ожидает отправки',
+  sync_applied: 'Обновлено в WisKey',
+  sync_unverified: 'Не подтверждено',
+  sync_failed: 'Отклонено WisKey',
+  allow: 'Разрешить',
+  deny: 'Заблокировать',
+  inherit: 'По группе',
+  approve: 'Утвердить',
+  refuse: 'Отклонить',
+  withdraw: 'Отозвать запрос',
+  sync: 'Проверить снова',
+  add: 'Добавить станцию',
+  addPick: 'Выберите станцию',
+  doors: 'Двери {doors}',
+  requested: 'Запрос: {who}',
+  requestedMine: 'Ваш запрос ожидает утверждения',
+  requestSent: 'Запрос отправлен на утверждение',
+  confirmDeny: 'Заблокировать {station}?',
+  confirmYes: 'Заблокировать',
+  cancel: 'Отмена',
+  done: 'Сохранено',
+  unavailable: 'WisKey сейчас недоступен',
+  grantLive: 'Дверями этого человека управляет активный временный доступ',
+  self: 'Нельзя изменить собственный доступ',
+  empty: 'Нет станций',
+  error: 'Не удалось загрузить',
+  retry: 'Повторить',
+};
+
+const TABLES: Record<XtLang, Record<SpKey, string>> = { he, en, ar, ru };
+/** The columns that are an initial, unreviewed translation. */
+export const SP_DEV_MARKED: readonly XtLang[] = ['ar', 'ru'];
+export const SP_KEYS = Object.keys(he) as SpKey[];
+export const SP_TABLES = TABLES;
+export type { SpKey };
+
+/** The text of `key` in the document's language, with `{name}` placeholders filled. */
+export function spt(key: SpKey, vars?: Record<string, string | number>, lang: XtLang = xtLang()): string {
+  const raw = TABLES[lang][key] ?? he[key] ?? key;
+  return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
+}
