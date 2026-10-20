@@ -8,11 +8,12 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
 from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DEFAULT_ADDON_URL, DOMAIN, VERSION
-from .runnable import parse_runnable
+from .runnable import RUNNABLE_DOMAINS, parse_runnable, selector_value
 from .service_identity import options_error
 from .signing import sign
 
@@ -102,8 +103,7 @@ class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
         current = bool(options.get(CONF_DELEGATED_AUTHORING, False))
         service_user = str(options.get(CONF_SERVICE_USER_ID) or "")
         extended = bool(options.get(CONF_LOCAL_IDENTITY_EXTENDED, False))
-        stored_runnable, _ = parse_runnable(options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
-        runnable_text = ", ".join(sorted(stored_runnable or ()))
+        runnable_list = selector_value(options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
         errors: dict[str, str] = {}
         if user_input is not None:
             new = bool(user_input.get(CONF_DELEGATED_AUTHORING, False))
@@ -112,11 +112,14 @@ class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
             # 0.9.0 (USR2 P3): the service identity for Arx-only users - ONE existing, active, NON-administrator HA user (32-hex id), or empty
             typed = str(user_input.get(CONF_SERVICE_USER_ID) or "").strip().lower()
             err = await options_error(self.hass, typed)
-            # 0.9.2 (SVCIDENT3, review S1): the scripts / scenes / automations Arx-only users may run - entity ids, empty by default
-            runnable_text = str(user_input.get(CONF_LOCAL_IDENTITY_RUNNABLE) or "")
-            runnable_ids, runnable_err = parse_runnable(runnable_text)
+            # 0.9.2 (SVCIDENT3, review S1): the scripts / scenes / automations Arx-only users may run - entity ids, empty by default.
+            # 0.9.4 (EXTID-295, CR-USR2 12.4 item 4): picked from a list instead of typed; the list is judged exactly as the text was
+            # (domains, format, at most 100) and a cleared picker (key absent) stores an empty list
+            runnable_ids, runnable_err = parse_runnable(user_input.get(CONF_LOCAL_IDENTITY_RUNNABLE))
             if runnable_err:
                 errors[CONF_LOCAL_IDENTITY_RUNNABLE] = runnable_err
+            else:
+                runnable_list = sorted(runnable_ids or ())
             if err:
                 errors[CONF_SERVICE_USER_ID] = err
             service_user = typed  # shown again as typed when the form returns with an error
@@ -127,5 +130,8 @@ class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data={**options, CONF_DELEGATED_AUTHORING: new, CONF_DELEGATED_CHANGED_AT: changed_at, CONF_SERVICE_USER_ID: typed or None,
                                                              CONF_LOCAL_IDENTITY_EXTENDED: extended, CONF_LOCAL_IDENTITY_RUNNABLE: sorted(runnable_ids or ())})
         schema = vol.Schema({vol.Optional(CONF_DELEGATED_AUTHORING, default=current): bool, vol.Optional(CONF_SERVICE_USER_ID, default=service_user): str,
-                             vol.Optional(CONF_LOCAL_IDENTITY_EXTENDED, default=extended): bool, vol.Optional(CONF_LOCAL_IDENTITY_RUNNABLE, default=runnable_text): str})
+                             vol.Optional(CONF_LOCAL_IDENTITY_EXTENDED, default=extended): bool,
+                             # suggested_value, not default: with a default, clearing every item would bring the old list back
+                             vol.Optional(CONF_LOCAL_IDENTITY_RUNNABLE, description={"suggested_value": runnable_list}):
+                                 selector.EntitySelector(selector.EntitySelectorConfig(domain=list(RUNNABLE_DOMAINS), multiple=True))})
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

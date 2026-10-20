@@ -1,6 +1,9 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.9.2"
+VERSION = "0.9.4"
+# 0.9.4 (EXTID-295, CR-USR2 12.4 item 4 / 12.3 item 3): the runnable allowlist is picked in the options flow (a multi-entity picker of
+# scripts / scenes / automations) instead of typed; the stored list and every check are unchanged. The options-flow text states the
+# entity-policy residual risk. 0.9.3 stays reserved for the key-rotation branch (WXROT). Needs one Home Assistant restart (by the owner).
 # 0.9.2 (SVCIDENT3, the 2.7.0 security review S1 / S2): the options-flow allowlist `local_identity_runnable` (empty by default) of the scripts /
 # scenes / automations an Arx-only person may run, the impact check of each run (runnable.py) and the service user's entity policy on every
 # entity of a message screened on behalf of an Arx-only person. Nothing changes for a Home Assistant user's own message.

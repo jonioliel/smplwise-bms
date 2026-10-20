@@ -30,12 +30,12 @@
     "step": {
       "init": {
         "title": "SmplWise Arx: saving automations and the service identity",
-        "description": "Home Assistant lets only administrators write automations, scenes and scripts. When the first switch is on, the SmplWise Arx add-on may save them for the household members it has granted that permission, for the floors they are limited to. Only content of the simple builder is saved for them; anything advanced still needs an administrator. Off by default; only an administrator can change it, here.\n\nService identity (optional): the id of ONE Home Assistant user who is NOT an administrator (Settings > People > Users, advanced mode shows the id). SmplWise Arx users who have no Home Assistant account act through it - only device control, the alarm, media, casting and schedules, never automations. Enter the same id in the add-on (Settings > Arx users). Leave empty to refuse every such request.\n\nRunnable items (0.9.2): only the scripts, scenes and automations listed in the last field may be run by Arx-only users, and only in the extended mode. Enter the same list in the add-on (Settings > Arx users). Empty by default - nothing runs.",
+        "description": "Home Assistant lets only administrators write automations, scenes and scripts. When the first switch is on, the SmplWise Arx add-on may save them for the household members it has granted that permission, for the floors they are limited to. Only content of the simple builder is saved for them; anything advanced still needs an administrator. Off by default; only an administrator can change it, here.\n\nService identity (optional): the id of ONE Home Assistant user who is NOT an administrator (Settings > People > Users, advanced mode shows the id). SmplWise Arx users who have no Home Assistant account act through it - only device control, the alarm, media, casting and schedules, never automations. Enter the same id in the add-on (Settings > Arx users). Leave empty to refuse every such request.\n\nRunnable items (0.9.4): only the scripts, scenes and automations picked in the last field may be run by Arx-only users, and only in the extended mode. Enter the same list in the add-on (Settings > Arx users). Empty by default - nothing runs.\n\nResidual risk - the entity policy: for Arx-only users this bridge also checks the service user's own Home Assistant entity policy for every device a call or a runnable item targets. That check protects only when an administrator restricted the service user (a group whose entity policy names only the devices Arx may reach). A regular user without such a group may control every entity, so the fence then adds nothing. Restrict the service user before the extended mode is ever turned on.",
         "data": {
           "delegated_authoring": "Let Arx save automations, scenes and scripts for users who are not administrators - simple-builder content only",
           "service_user_id": "Service identity: Home Assistant user id (not an administrator)",
           "local_identity_extended": "Extended mode for Arx-only users: doors, alarm zone bypass, scripts and scenes, live camera source (under each user's Arx permission; a security review is required before turning it on)",
-          "local_identity_runnable": "Scripts, scenes and automations Arx-only users may run (entity ids separated by commas, e.g. script.evening_lights; empty = none). Each run is also checked here: an item whose steps open a lock, disarm, arm with bypass, call a service outside the everyday device controls or target a device the service user may not control is refused."
+          "local_identity_runnable": "Scripts, scenes and automations Arx-only users may run (pick from the list; none picked = none). Each run is also checked here: an item whose steps open a lock, disarm, arm with bypass, call a service outside the everyday device controls or target a device the service user may not control is refused."
         }
       }
     },
@@ -43,7 +43,7 @@
       "service_user_format": "A Home Assistant user id is 32 characters, 0-9 and a-f.",
       "service_user_unknown": "No active Home Assistant user has this id.",
       "service_user_admin": "This user is an administrator. The service identity must never be an administrator - choose or create a regular user.",
-      "runnable_format": "Enter entity ids of scripts, scenes or automations only (script.x, scene.x, automation.x), separated by commas.",
+      "runnable_format": "Pick only scripts, scenes or automations (script.x, scene.x, automation.x).",
       "runnable_too_many": "At most 100 items."
     }
   },

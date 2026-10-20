@@ -155,7 +155,8 @@ export class SystemServiceIdentity extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-    [data-si-doors-addon-only] {
+    [data-si-doors-addon-only],
+    [data-si-policy-risk] {
       margin-block-start: 6px;
     }
     .runnable {
@@ -251,6 +252,7 @@ export class SystemServiceIdentity extends LitElement {
                 ? html`<div class="note ${d.extended.requested ? 'warn' : ''}" data-si-extended=${d.extended.on ? 'on' : d.extended.requested ? 'requested' : 'off'}>
                     ${d.extended.requested ? lit('siExtendedOn') : lit('siExtendedOff')}
                     ${d.extended.doors_addon_only ? html`<div data-si-doors-addon-only>${lit('siDoorsAddonOnly')}</div>` : nothing}
+                    <div data-si-policy-risk>${lit('siPolicyRisk')}</div>
                   </div>`
                 : nothing}
               ${d.steps.length

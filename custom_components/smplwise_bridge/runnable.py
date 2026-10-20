@@ -48,6 +48,8 @@ from .service_identity import ALARM_PAIRS, DEVICE_PAIRS
 _LOGGER = logging.getLogger(__name__)
 
 RUNNABLE_RE = re.compile(r"^(script|scene|automation)\.[a-z0-9_]{1,100}$")
+# 0.9.4 (EXTID-295, CR-USR2 12.4 item 4): the domains the options-flow picker offers - the same three RUNNABLE_RE admits
+RUNNABLE_DOMAINS = ("automation", "scene", "script")
 MAX_RUNNABLE = 100
 ENTITY_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 SERVICE_RE = ENTITY_RE
@@ -132,6 +134,12 @@ def allowlist(value: Any) -> frozenset[str]:
     """The stored option as used at run time: a malformed value is an EMPTY list (every run refused - fail closed)."""
     ids, err = parse_runnable(value)
     return ids if ids is not None and err is None else frozenset()
+
+
+def selector_value(value: Any) -> list[str]:
+    """0.9.4 (EXTID-295): the stored option as the options-flow picker shows it - the sorted run-time list (a 0.9.2 text value becomes a
+    list; a malformed value shows nothing, exactly what runs)."""
+    return sorted(allowlist(value))
 
 
 # ---------------------------------------------------------------- the pure walk

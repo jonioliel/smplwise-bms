@@ -386,16 +386,17 @@ def test_init_wires_the_fences_for_screened_messages_only():
     assert "runnable.allowlist(entry.options.get(CONF_LOCAL_IDENTITY_RUNNABLE))" in text
     assert '"local_identity_runnable": sorted(runnable_ids())' in text  # the add-on's card learns the bridge's copy
     flow = (SRC / "config_flow.py").read_text(encoding="utf-8")
-    assert "vol.Optional(CONF_LOCAL_IDENTITY_RUNNABLE, default=runnable_text): str" in flow
+    # 0.9.4 (EXTID-295): a multi-entity picker replaced the free-text field (test_extid_followups.py holds the details)
+    assert "selector.EntitySelector(selector.EntitySelectorConfig(domain=list(RUNNABLE_DOMAINS), multiple=True))" in flow
     assert "CONF_LOCAL_IDENTITY_RUNNABLE: sorted(runnable_ids or ())" in flow
     assert load("const").CONF_LOCAL_IDENTITY_RUNNABLE == "local_identity_runnable"
 
 
 def test_version_092_both_copies_identical_and_strings():
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.2"
-        assert 'VERSION = "0.9.2"' in (root / "const.py").read_text(encoding="utf-8")
-        assert "const VERSION = '0.9.2'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.4"
+        assert 'VERSION = "0.9.4"' in (root / "const.py").read_text(encoding="utf-8")
+        assert "const VERSION = '0.9.4'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     for path in sorted(p for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
         rel = path.relative_to(SRC)
         assert (MIRROR / rel).read_bytes() == path.read_bytes(), rel
