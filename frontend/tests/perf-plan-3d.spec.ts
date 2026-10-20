@@ -190,13 +190,14 @@ async function canvasRow(el: Locator): Promise<{ y: number; x0: number; x1: numb
       }
       return e === canvas;
     };
-    for (const fy of [0.45, 0.4, 0.5, 0.35, 0.55, 0.3, 0.6, 0.25, 0.65]) {
+    // the drag starts on bare canvas away from the entity pills (a touch near a pill is adjusted onto it by the browser) and the
+    // floor map's circuit buttons (stacked along the inline-start edge: the left on a phone); the pointer is captured from there
+    for (const fy of [0.6, 0.65, 0.55, 0.7]) {
       const y = r.top + r.height * fy;
-      // (the floor map stacks its circuit buttons along the inline-start edge - the left on a phone: start right of them)
-      for (const [a, b] of [[0.45, 0.92], [0.5, 0.95], [0.4, 0.9], [0.25, 0.75]]) {
+      for (const [a, b] of [[0.75, 0.3], [0.8, 0.35], [0.7, 0.3]]) {
         const x0 = r.left + r.width * a;
         const x1 = r.left + r.width * b;
-        if (onCanvas(x0, y) && onCanvas(x1, y) && onCanvas((x0 + x1) / 2, y)) return { y, x0, x1, found: true };
+        if (onCanvas(x0, y) && onCanvas(x0 - 12, y) && onCanvas(x0 + 12, y) && onCanvas(x0, y - 12) && onCanvas(x0, y + 12)) return { y, x0, x1, found: true };
       }
     }
     return { y: r.top + r.height * 0.45, x0: r.left + r.width * 0.25, x1: r.left + r.width * 0.75, found: false };
