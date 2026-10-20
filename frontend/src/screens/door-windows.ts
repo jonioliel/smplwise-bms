@@ -371,7 +371,7 @@ export class DoorWindowsScreen extends LitElement {
         ${this.renderRules()}
       </div>
       ${this.renderEditor()}
-      ${this.renderConfirm()}
+      ${this.draft ? nothing : this.renderConfirm()}
       ${this.renderManual()}
       ${this.renderSettings()}
       <door-emergency-sheet .open=${this.sheet} .data=${em} @close=${() => (this.sheet = false)} @changed=${() => void this.loadEmergency()}></door-emergency-sheet>
@@ -495,6 +495,7 @@ export class DoorWindowsScreen extends LitElement {
         <sw-button variant="secondary" data-dw-save-draft ?disabled=${this.busy} @click=${() => this.save(false)}>${dwt('saveDraft')}</sw-button>
         <sw-button variant="primary" data-dw-save-enable ?disabled=${this.busy} @click=${() => this.save(true)}>${dwt('saveEnable')}</sw-button>
       </div>
+      ${this.renderConfirm() /* a modal drawer keeps its confirmation inside itself (sw-drawer `modal`) */}
     </sw-drawer>`;
   }
 
