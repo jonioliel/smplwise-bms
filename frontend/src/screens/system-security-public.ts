@@ -31,7 +31,7 @@ interface TicketsDoc {
  *  - technicians a vendor typed on the public page: the auto-delete period (default 90 days, 0 = off) and the most undecided per vendor
  *    (default 10, 0 = no cap) - GET / PUT access-grants/settings, system administrators only (a 403 hides the group);
  *  - the vendor portal's separate sign-in queue (`tickets.settings.vendor_portal.start_worker`, OFF) - only while the tickets module is on;
- *  - the uniform answer for a malformed person record (`access.unknown_person_uniform_404`, OFF until the security review).
+ *  - the uniform answer for a malformed person record (`access.unknown_person_uniform_404`, ON by default since the owner decision 2026-10-21).
  * Every value is decided and checked by the server; a refused save restores the shown value and says so. No explanatory paragraphs.
  */
 @customElement('system-security-public')
@@ -89,7 +89,7 @@ export class SystemSecurityPublic extends LitElement {
     try {
       const s = await get<SettingsReply>('settings');
       this.canEdit = !!s.can_edit && (!isApi() || can('system.configure'));
-      this.uniform = String(s.settings[UNIFORM_404_KEY] ?? 'false') === 'true';
+      this.uniform = String(s.settings[UNIFORM_404_KEY] ?? 'true') === 'true';
       const ticketsOn = String(s.settings['tickets.enabled'] ?? 'false') === 'true';
       const [pol, doc] = await Promise.all([
         getPendingPolicy().catch(() => null), // system administrators only: a refusal hides the group
@@ -149,7 +149,7 @@ export class SystemSecurityPublic extends LitElement {
     const next = !this.uniform;
     void this.run('uniform', async () => {
       const r = await patch<SettingsReply>('settings', { [UNIFORM_404_KEY]: String(next) });
-      this.uniform = String(r.settings[UNIFORM_404_KEY] ?? 'false') === 'true';
+      this.uniform = String(r.settings[UNIFORM_404_KEY] ?? 'true') === 'true';
     });
   }
 

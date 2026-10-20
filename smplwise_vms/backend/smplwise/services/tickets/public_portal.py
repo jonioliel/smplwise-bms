@@ -59,6 +59,15 @@ SENT = {"code": "sent_if_registered"}
 START_QUEUE_MAX = 64
 WORKER_THREAD_NAME = "arx-portal-start"
 _STOP = object()
+# FABLEFIX-295 D-04 (Fable review 2026-10-21): the process-wide totals of every worker (a replaced or stopped worker's counts stay), read by
+# the administrator's storage screen (`storage/local` -> `portal_start`) and /health `backpressure` - counts only, never a number
+_TOTALS = {"accepted": 0, "dropped": 0}
+_TOTALS_LOCK = threading.Lock()
+
+
+def _count(kind: str) -> None:
+    with _TOTALS_LOCK:
+        _TOTALS[kind] += 1
 
 
 class StartWorker:
@@ -75,15 +84,18 @@ class StartWorker:
         if not self.thread.is_alive():
             with self._count_lock:
                 self.dropped += 1
+            _count("dropped")
             return False
         try:
             self.queue.put_nowait(job)
         except queue.Full:
             with self._count_lock:
                 self.dropped += 1
+            _count("dropped")
             return False
         with self._count_lock:
             self.accepted += 1
+        _count("accepted")
         return True
 
     def _loop(self) -> None:
@@ -144,8 +156,21 @@ def stop_workers(timeout_s: float = 5.0) -> None:
         w.stop(timeout_s)
 
 
+def worker_stats() -> dict[str, Any]:
+    """D-04: what the administrator sees - whether a worker runs, its queue depth against the bound, and the process totals of accepted
+    and DROPPED start requests (a drop answers the same 202, so this counter is the only trace of a flood). Counts only."""
+    with _workers_lock:
+        workers = [w for _db, w in _workers.values()]
+    with _TOTALS_LOCK:
+        totals = dict(_TOTALS)
+    return {"running": any(w.thread.is_alive() for w in workers), "depth": sum(w.queue.qsize() for w in workers), "max": START_QUEUE_MAX,
+            "accepted": totals["accepted"], "dropped": totals["dropped"]}
+
+
 def reset_workers_for_tests() -> None:
     stop_workers(timeout_s=2.0)
+    with _TOTALS_LOCK:
+        _TOTALS.update(accepted=0, dropped=0)
 
 
 class _Strict(BaseModel):
