@@ -60,7 +60,7 @@ const block = (page: Page) => page.locator('wiskey-station-permissions');
 const shot = async (page: Page, info: TestInfo, name: string) => {
   if (!SHOTS) return;
   await settle(page);
-  await page.locator('wiskey-person-drawer sw-drawer').screenshot({ path: `${SHOTS}/${name}-${info.project.name}.png` }).catch(() => page.screenshot({ path: `${SHOTS}/${name}-${info.project.name}.png` }));
+  await page.screenshot({ path: `${SHOTS}/${name}-${info.project.name}.png` });
 };
 
 test('the block shows group, personal, blocked and a waiting request, light and dark', async ({ page }, info) => {
