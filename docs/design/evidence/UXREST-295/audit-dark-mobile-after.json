@@ -1,0 +1,235 @@
+{
+ "/": {
+  "n": 78,
+  "fails": 0,
+  "top": []
+ },
+ "/live": {
+  "n": 83,
+  "fails": 0,
+  "top": []
+ },
+ "/live/wall": {
+  "n": 27,
+  "fails": 0,
+  "top": []
+ },
+ "/explore/sites": {
+  "n": 28,
+  "fails": 0,
+  "top": []
+ },
+ "/explore/floors/f0": {
+  "n": 26,
+  "fails": 0,
+  "top": []
+ },
+ "/devices/building": {
+  "n": 78,
+  "fails": 0,
+  "top": []
+ },
+ "/devices/schedules": {
+  "n": 289,
+  "fails": 0,
+  "top": []
+ },
+ "/devices/automations": {
+  "n": 102,
+  "fails": 0,
+  "top": []
+ },
+ "/investigate/events": {
+  "n": 76,
+  "fails": 1,
+  "top": [
+   {
+    "text": "(",
+    "ratio": 1,
+    "fg": "color(srgb 1 1 1 / 0.8)",
+    "bg": "rgb(58,108,224)",
+    "size": 11,
+    "path": "span.count < button < sw-chip < div.filters"
+   }
+  ]
+ },
+ "/investigate/playback": {
+  "n": 64,
+  "fails": 0,
+  "top": []
+ },
+ "/security/alarm": {
+  "n": 67,
+  "fails": 1,
+  "top": [
+   {
+    "text": "אפשר לסגור, או לעקוף חיישן לפני הדריכה.",
+    "ratio": 3.9,
+    "fg": "rgb(129, 144, 170)",
+    "bg": "rgb(59,50,39)",
+    "size": 12.5,
+    "path": "span.hint < div < div.ready.no < section.hero"
+   }
+  ]
+ },
+ "/multimedia/players": {
+  "n": 135,
+  "fails": 0,
+  "top": []
+ },
+ "/multimedia/screens": {
+  "n": 75,
+  "fails": 2,
+  "top": [
+   {
+    "text": "12",
+    "ratio": 2.01,
+    "fg": "rgba(255, 255, 255, 0.22)",
+    "bg": "rgb(15,23,42)",
+    "size": 68,
+    "path": "span.ch < div.art < span.gbox < article.scard.glass"
+   },
+   {
+    "text": "12",
+    "ratio": 2.01,
+    "fg": "rgba(255, 255, 255, 0.22)",
+    "bg": "rgb(15,23,42)",
+    "size": 68,
+    "path": "span.ch < div.art < button.shot < article.scard.glass"
+   }
+  ]
+ },
+ "/tickets/mine": {
+  "n": 41,
+  "fails": 0,
+  "top": []
+ },
+ "/tickets/board": {
+  "n": 127,
+  "fails": 0,
+  "top": []
+ },
+ "/tickets/rfqs": {
+  "n": 92,
+  "fails": 0,
+  "top": []
+ },
+ "/infra/electricity/meters": {
+  "n": 84,
+  "fails": 0,
+  "top": []
+ },
+ "/infra/generator/live": {
+  "n": 9,
+  "fails": 0,
+  "top": []
+ },
+ "/system/access": {
+  "n": 70,
+  "fails": 0,
+  "top": []
+ },
+ "/system/notifications": {
+  "n": 323,
+  "fails": 0,
+  "top": []
+ },
+ "/system/setup": {
+  "n": 32,
+  "fails": 0,
+  "top": []
+ },
+ "/system/diagnostics": {
+  "n": 238,
+  "fails": 4,
+  "top": [
+   {
+    "text": "תאורה מרכזית",
+    "ratio": 1.78,
+    "fg": "rgb(43, 26, 5)",
+    "bg": "rgb(74,67,86)",
+    "size": 13,
+    "path": "span.nm < span.tx.over < span.txw < sw-pill"
+   },
+   {
+    "text": "דולק · 72%",
+    "ratio": 1.78,
+    "fg": "rgb(43, 26, 5)",
+    "bg": "rgb(74,67,86)",
+    "size": 12,
+    "path": "span.st < span.tx.over < span.txw < sw-pill"
+   },
+   {
+    "text": "תריס חלון",
+    "ratio": 1.78,
+    "fg": "rgb(43, 26, 5)",
+    "bg": "rgb(74,67,86)",
+    "size": 13,
+    "path": "span.nm < span.tx.base < span.txw < sw-pill"
+   },
+   {
+    "text": "פתוח · 60%",
+    "ratio": 1.78,
+    "fg": "rgb(43, 26, 5)",
+    "bg": "rgb(74,67,86)",
+    "size": 12,
+    "path": "span.st < span.tx.base < span.txw < sw-pill"
+   }
+  ]
+ },
+ "/system/tickets": {
+  "n": 162,
+  "fails": 0,
+  "top": []
+ },
+ "/system/security/cameras": {
+  "n": 142,
+  "fails": 0,
+  "top": []
+ },
+ "/system/messaging-accounts": {
+  "n": 80,
+  "fails": 3,
+  "top": [
+   {
+    "text": "····",
+    "ratio": 4.03,
+    "fg": "rgb(129, 144, 170)",
+    "bg": "rgb(34,48,82)",
+    "size": 11,
+    "path": "span.ltr.muted < b < span.nm < button.acc"
+   },
+   {
+    "text": "בשימוש: הודעות בקשות שירות · 12 מתוך 150",
+    "ratio": 4.03,
+    "fg": "rgb(129, 144, 170)",
+    "bg": "rgb(34,48,82)",
+    "size": 11,
+    "path": "small < span.nm < button.acc < div"
+   },
+   {
+    "text": "ידני",
+    "ratio": 4.26,
+    "fg": "rgb(129, 144, 170)",
+    "bg": "rgb(34,45,68)",
+    "size": 11,
+    "path": "span.tag.mute < b < span.nm < button.acc"
+   }
+  ]
+ },
+ "/wiskey/overview": {
+  "n": 57,
+  "fails": 0,
+  "top": []
+ },
+ "/wiskey/people": {
+  "n": 44,
+  "fails": 0,
+  "top": []
+ },
+ "/styleguide": {
+  "n": 213,
+  "fails": 0,
+  "top": []
+ }
+}

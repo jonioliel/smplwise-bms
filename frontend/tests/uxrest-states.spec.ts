@@ -1,5 +1,6 @@
 import { test } from '@playwright/test';
 import fs from 'node:fs';
+import { PERMS } from './tickets-mocks';
 
 // UXREST-295: loading / API error / offline states, exploratory driver. No backend: every api/v1 call hangs (loading), answers 500 (error)
 // or fails at the network (offline). Records the visible text of each screen and what looks like a raw technical string.
@@ -16,6 +17,12 @@ test('states', async ({ page }, info) => {
   for (const mode of ['loading', 'error', 'offline'] as const) {
     await page.unrouteAll();
     await page.route('**/api/v1/**', async (route) => {
+      const p = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1\//, '');
+      // the session answers (that is what puts the app in API mode); every data call after it hangs / fails
+      if (p === 'me') {
+        const perms = [...PERMS.admin, 'cameras.view', 'events.read', 'alarm.view', 'media.view', 'electricity.view'];
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { id: 'u1', username: 'ronit', display_name: 'רונית לוי', source: 'ingress' }, channel: 'local', remote: null, bindings: [{ id: 'b1', role_id: 'system_admin', role_name: 'מנהל מערכת', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', effect: 'allow' }], permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done', modules: { tickets: true } }) });
+      }
       if (mode === 'loading') return; // never answered
       if (mode === 'offline') return route.abort('internetdisconnected');
       return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ code: 'internal_error', user_message: '', retryable: true, correlation_id: 'x', details: {} }) });

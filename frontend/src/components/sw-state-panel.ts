@@ -113,7 +113,9 @@ export class SwStatePanel extends LitElement {
     // retry button goes away - a viewer used to see "משהו השתבש · נסה שוב" on the events centre (0.1.80).
     const forbidden = this.state === 'error' && /אין (לך )?הרשא/.test(this.hint);
     const preset = PRESETS[forbidden ? 'forbidden' : this.state];
-    const hint = this.hint || (this.quiet ? '' : preset.hint());
+    // UXREST-295: a hint that is only a machine code ("internal_error", "http_502": an error answer without a message) is never shown to the operator
+    const rawCode = /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(this.hint.trim());
+    const hint = (rawCode ? '' : this.hint) || (this.quiet ? '' : preset.hint());
     return html`
       <div class="icon" data-look=${forbidden ? 'forbidden' : ''} aria-hidden="true"><sw-icon .name=${preset.icon} size=${this.compact ? 20 : 26}></sw-icon></div>
       <div class="text" role="status">
