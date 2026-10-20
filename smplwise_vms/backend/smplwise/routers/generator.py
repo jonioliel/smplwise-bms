@@ -119,16 +119,22 @@ def list_devices(principal: Principal = Depends(_view_ro), conn: sqlite3.Connect
 
 @router.get("/generator/devices/live")
 def live_all(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """One call for a generator picker: every generator's availability, engine state, mode, supply source, mains, load, fuel and open alerts."""
+    """One call for a generator picker and the home widget: every generator's availability, engine state, mode, supply source, mains, load,
+    fuel and open alerts. GENWIDGET 2.9.3 (additive): the summary also carries the roles the power-flow derivation of the live screen reads
+    (running flag, mains voltages, the breakers, load-on-mains), `roles` lists the mapped role keys (capability set, no entity ids) and
+    `open_critical` counts the open critical alerts, so the home widget derives mains / generator exactly as the generator screen does."""
     rows = conn.execute("SELECT id, name, area_id, status FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
     values, counts, connected = core.read_values_bulk(conn), _open_counts(conn), _mirror_connected()
-    keys = ("engine_state", "controller_mode", "supply_source", "ats_position", "mains_available", "on_load", "gen_kw", "load_pct", "fuel_pct", "battery_v")
+    critical = {r[0]: r[1] for r in conn.execute("SELECT device_id, COUNT(*) FROM generator_alerts WHERE cleared_at IS NULL AND severity = 'critical' GROUP BY device_id").fetchall()}
+    keys = ("engine_state", "controller_mode", "supply_source", "ats_position", "mains_available", "on_load", "gen_kw", "load_pct", "fuel_pct", "battery_v",
+            "generator_running", "mains_v_l1", "mains_v_l2", "mains_v_l3", "mains_breaker_closed", "load_on_mains", "generator_breaker_closed")
     items = []
     for d in rows:
         v = values.get(d["id"], {})
         avail = core.availability(v, connected)
         items.append({"id": d["id"], "name": d["name"], "area_id": d["area_id"], "status": d["status"], "availability": avail, "stale": avail != "online",
-                      "open_alerts": counts.get(d["id"], 0), "summary": {k: {"value": v[k]["value"], "unit": v[k]["unit"]} for k in keys if k in v and v[k]["available"]}})
+                      "open_alerts": counts.get(d["id"], 0), "open_critical": critical.get(d["id"], 0), "roles": sorted(r for r in v if not r.startswith("alarm_")),
+                      "summary": {k: {"value": v[k]["value"], "unit": v[k]["unit"]} for k in keys if k in v and v[k]["available"]}})
     return {"devices": items, "open_alerts": sum(counts.values()), "at": now_iso()}
 
 

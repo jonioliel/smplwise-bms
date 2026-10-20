@@ -19,6 +19,8 @@ import '../components/sw-pill';
 import { BV1_STYLES, renderAgenda, renderClockTile, renderLauncher, renderWeatherTile, type Bv1Host, type LaunchState } from './home-widgets-bv1';
 import { ELEVATOR_WIDGET_STYLES, renderElevators } from '../elevators/home-widget'; // CR-INFRA-ELEVATORS 2.8.0
 import type { Elevator } from '../api/elevators';
+import { GENERATOR_WIDGET_STYLES, renderGenerators } from '../generator/home-widget'; // GENWIDGET 2.9.3
+import type { LiveSummaryItem } from '../api/generator';
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
  * flat pills - the weather on its hue, the armed alarm on the accent, no gradients - and the quick actions are pill rows
@@ -203,6 +205,8 @@ export class HomeWidgetsView extends LitElement {
   /** CR-INFRA-ELEVATORS 2.8.0: the elevators the viewer sees (the screen reads and polls them) and whether that read is stale. */
   @property({ attribute: false }) elevators: Elevator[] = [];
   @property({ type: Boolean }) elevatorsStale = false;
+  /** GENWIDGET 2.9.3: the generators the viewer sees (GET /generator/devices/live; the screen reads and polls them). */
+  @property({ attribute: false }) generators: LiveSummaryItem[] = [];
   @state() private now = new Date();
   @state() private dragId: WidgetId | '' = '';
   /** CR-015: the screens this user may see (null = not loaded / not allowed) and the one whose remote is open. */
@@ -1279,7 +1283,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, GENERATOR_WIDGET_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1470,6 +1474,8 @@ export class HomeWidgetsView extends LitElement {
         return renderLauncher(this.bv1, it, this.launchSt, new Map(Object.entries(this.data.names ?? {})), () => this.requestUpdate());
       case 'elevators':
         return renderElevators({ cfg: this.config.elevators, elevators: this.elevators, stale: this.elevatorsStale, editing: this.editing, now: this.now, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
+      case 'generators':
+        return renderGenerators({ generators: this.generators, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       default:
         return this.quickCard(it);
     }

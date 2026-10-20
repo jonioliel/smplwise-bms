@@ -26,6 +26,7 @@ default, an unknown key is refused - this is never free-form client storage):
      "media":    {"on", "sizes", "label", "phone_on", "phone_size"},
      "agenda":   {"on", "sizes", "label", "calendars": ["calendar.x", ...], "days": 1|3|7|14},          (BV1, 2026-10-05)
      "launcher": {"on", "sizes", "label", "items": [{"kind": "route|scene|script|quick", "id", "label"}]},  (BV1)
+     "generators": {"on", "sizes", "label", "phone_on", "phone_size"},                                   (GENWIDGET 2.9.3)
      "calendar": {"date", "parsha", "candles", "havdalah", "holiday", "extras": [{"entity_id", "label"}]}}
 
 BV1 also gives the clock and the weather a `style` ("card" | "tile"): the Bubble skin draws the tile, the other skins keep the card.
@@ -44,7 +45,8 @@ DEFAULT_SIDE = "end"
 # `media` (CR-015) is appended: a stored order without it keeps its look, the widget lands last like every widget a release adds.
 # BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way.
 # CR-INFRA-ELEVATORS 2.8.0: `elevators` is appended the same way (it is drawn only once the viewer sees at least one elevator).
-WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators")
+# GENWIDGET 2.9.3: `generators` is appended the same way (drawn only once the viewer sees at least one generator; no options of its own).
+WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators", "generators")
 SIZES = ("s", "m", "l")
 PHONE_LAYOUTS = ("snap", "stack", "two")  # a horizontal snap row | one card under the other | two per row (wrapping)
 DEFAULT_PHONE_LAYOUT = "stack"
@@ -60,6 +62,7 @@ DEFAULT_SIZES: dict[str, dict[str, str]] = {
     "agenda": {"a": "m", "b": "m", "c": "m"},
     "launcher": {"a": "m", "b": "s", "c": "m"},
     "elevators": {"a": "m", "b": "s", "c": "m"},
+    "generators": {"a": "m", "b": "s", "c": "m"},
 }
 # CR-INFRA-ELEVATORS 2.8.0 (owner decision 10b + owner feedback 2026-10-18): how the elevators appear on the home screen -
 # one card per elevator, ONE combined card for all of them, or both; which elevators are left out; all states or only the alerting ones.
@@ -185,7 +188,7 @@ def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str
 def _widget(wid: str, value: Any) -> dict[str, Any]:
     common = {"on", "sizes", "label", "phone_on", "phone_size"}
     extra = {"clock": {"mode", "seconds", "hebrew", "style"}, "weather": {"entity", "fields", "forecast", "sources", "style"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set(),
-             "agenda": {"calendars", "days"}, "launcher": {"items"}, "elevators": {"mode", "hidden", "filter"}}[wid]
+             "agenda": {"calendars", "days"}, "launcher": {"items"}, "elevators": {"mode", "hidden", "filter"}, "generators": set()}[wid]
     given = _obj(value, wid, common | extra)
     out = _default_widget(wid)
     if "on" in given:
