@@ -403,7 +403,10 @@ export class TicketsList extends LitElement {
     const tools = this.screen === 'ready' || this.screen === 'loading';
     const canCreate = !!this.meta?.can.create;
     const c = this.counts;
-    const withDept = (n: number | undefined) => (n === undefined ? nothing : html`<small>${countText(n)}</small>`);
+    // UXFIX-A11Y-295: until the counts arrive, an invisible two-digit badge holds the place of each count, so the scope and state
+    // segments do not widen afterwards (on a desktop the widening wrapped the view switch to a second row: CLS 0.37)
+    const countsPending = this.counts === NO_COUNTS;
+    const withDept = (n: number | undefined) => (n === undefined ? (countsPending ? html`<small aria-hidden="true" style="visibility:hidden">00</small>` : nothing) : html`<small>${countText(n)}</small>`);
     const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
     const cards = this.view !== 'table' || this.cal; // the card filters (priority, handler, flags) also narrow the calendar
     const active = activeCardFilters(this.filters);
