@@ -145,7 +145,7 @@ ended). No number, code or session value is stored in clear. Neither table is a 
    portal follows the page's own `dom.ts` / `strings.ts` pattern. The Settings controls are Lit (the app).
 2. **Code lifetime 10 minutes** - the portal's code text (`portal_code`, 2.6.4 review F2; it replaced the reuse of the generic
    number-verification text) says "valid for 10 minutes", and `vendor_portal.CODE_TTL` is 10 minutes.
-3. **"Back to the list" after an opened item** - not built: the ticket page's 60 KiB budget had 257 bytes left; the portal hand-off,
+3. **"Back to the list" after an opened item** - built later (`vendor-portal-leftovers`, `main.ts` `backToListButton`); at 2.6.4 it was not built: the ticket page's 60 KiB budget had 257 bytes left; the portal hand-off,
    the logo and the canonical-root move took 249 of them. "סיום" ends at the finished screen as for any link; opening `/support`
    again shows the list while the session lives.
 4. **Requests for quotation** are not listed (only service requests with their quote and payment request); RFQ quotes stay on the
@@ -335,3 +335,7 @@ Owner answer to question 4: technician-request approval is NOT limited to `ticke
   row and its audit actor; another department's holder sees only his; an all-departments holder sees all; `tickets.configure` unchanged;
   grant / revoke through the bindings API take effect at once; a floor-scoped binding grants nothing. The pinned catalogue tests
   (`test_tickets_admin`, `test_tickets_s2`, `test_wiskey_door_path`) list the new role / permission.
+
+## 13. VPORTAL2-291 - technician requests grouped by vendor (manager view)
+
+The pending company technician requests card (`tickets-portal-requests`) now groups requests under a heading per vendor company (name and count; groups by name, server order inside). App-side only; the public page bundle is unchanged. Test: `frontend/tests/unit-portal-requests-model.spec.ts`.
