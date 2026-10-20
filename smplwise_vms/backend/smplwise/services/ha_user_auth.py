@@ -48,6 +48,7 @@ from urllib.parse import urlparse
 from ..config import Settings
 from ..errors import ApiError, unauthenticated
 from ..rbac import Principal
+from .tickets import ratelimit as _ratelimit
 
 log = logging.getLogger("smplwise.remote")
 
@@ -836,15 +837,33 @@ def _audit_refusal(db, *, actor: Principal | None, reason: str, meta: dict[str, 
 
 # ---------------------------------------------------------------- request helpers
 
+_TRUSTED_PROXIES = _ratelimit.parse_trusted_cidrs(_ratelimit.DEFAULT_TRUSTED_PROXY_CIDRS)
+
+
+def _believes_forwarded_headers(peer: str) -> bool:
+    """PUB-01 (public review 2026-10-20): the forwarded-for headers are believed only from a trusted proxy peer - the hassio
+    network, where cloudflared and Supervisor connect from (the public listener's `ratelimit.classify_client` rule, default
+    networks). A peer with no TCP address (an in-process ASGI client, a unix socket) has nothing else to key by, so its headers stand."""
+    addr = _ratelimit.parse_address(peer)
+    if addr is None:
+        return True
+    return any(addr in net for net in _TRUSTED_PROXIES if net.version == addr.version)
+
+
 def client_ip(conn: Any) -> str:
     """The caller's address for the audit and the rate limits: Cloudflare's `CF-Connecting-IP`, else the first
-    `X-Forwarded-For` hop, else the peer. Used on the remote channel only (the tunnel sets these); never an identity."""
+    `X-Forwarded-For` hop, else the peer - the headers only when the TCP peer is a trusted proxy (the hassio network); a
+    peer anywhere else is keyed by itself, so it cannot rotate an address to dodge a per-address limiter or write one into the
+    audit. Used on the remote channel only (the tunnel sets these); never an identity."""
+    peer = (conn.client.host if getattr(conn, "client", None) else "") or ""
+    if peer and not _believes_forwarded_headers(peer):
+        return peer[:64]
     h = conn.headers
     ip = (h.get("cf-connecting-ip") or "").strip()
     if not ip:
         ip = (h.get("x-forwarded-for") or "").split(",")[0].strip()
-    if not ip and getattr(conn, "client", None):
-        ip = conn.client.host
+    if not ip:
+        ip = peer
     return ip[:64]
 
 
