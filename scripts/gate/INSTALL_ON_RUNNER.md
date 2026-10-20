@@ -43,6 +43,13 @@ The same three files carry an opt-in faster schedule (see `docs/release/GATE_SPE
   `python3 ~/release_gate.py --seed-from ~/smplwise-results/gate_<branch>_<sha>.logs "gate <branch> @ <sha> (...)" > gate_durations.json`.
   Copy that file into `scripts/gate/` and commit it.
 - The selftest has v2 cases (pool + tmpfs scratch in its own temp directory). They need no browser and no lock.
+- Phase 2: copy `select_tests.py` and `shadow_compare.py` next to `release_gate.py` (`~/` and `~/nightly-gate/`).
+  - `--select-base <ref>` needs `select_tests.py` in the same directory; without it the selection fails and the gate runs
+    the full tier, as the report says.
+  - The nightly writes `<date>_selection-audit.md` when `~/nightly-gate/select_tests.py` exists and a selection run left a
+    `gate_*.selection.json`.
+  - The quarantine list is `~/smplwise-results/quarantine.json`; it is rewritten by every gate.
+  - `SW_NIGHTLY_SCHEDULE=v2` in the cron line runs the nightly on the v2 schedule.
 
 ## Nightly run (cron 02:00 Asia/Jerusalem)
 
@@ -60,8 +67,8 @@ scp scripts/gate/nightly_tests.sh runner:~/ && ssh runner 'chmod +x ~/nightly_te
 
 Never while a nightly or a gate runs (`~/.smplwise-tests.lock` free, no `~/.gate-pending`). Results: the per-branch summary stays
 `~/smplwise-results/<date>_<branch>.md` (the dashboard reads it); the engine's full report, logs and its own `gate_status.json` are
-in `~/smplwise-results/nightly/` (never the release gate's files). Knobs: `SW_NIGHTLY_MAX_MIN` (hard limit, 150),
-`SW_NIGHTLY_BRANCH_MAX_MIN` (engine budget per branch, 120), `GATE_PW_WORKERS` (workers per Playwright process, 3),
+in `~/smplwise-results/nightly/` (never the release gate's files). Knobs: `SW_NIGHTLY_MAX_MIN` (hard limit, 240 since GATESPEED-293; was 150),
+`SW_NIGHTLY_BRANCH_MAX_MIN` (engine budget per branch, 225; was 120, which cut every nightly of 10-15..10-20), `SW_NIGHTLY_SCHEDULE` (v1 or v2), `GATE_PW_WORKERS` (workers per Playwright process, 3),
 `SW_NIGHTLY_ENGINE` (engine path). `--backend-only` keeps the old two-shard backend path; `--frontend-only` / `--no-dev` map to
 the engine's `GATE_SKIP_BACKEND=1` / `GATE_SKIP_DEV=1` (a skipped category is left out of the baseline check).
 

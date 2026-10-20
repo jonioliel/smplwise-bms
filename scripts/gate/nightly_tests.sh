@@ -16,10 +16,15 @@
 # So the nightly now runs the release gate ENGINE (tier L, no visual step) for each branch, with its own results directory
 # (~/smplwise-results/nightly/: never the dashboard's gate_status.json or gate_*.md) and a per-branch budget inside the hard limit.
 #
-# Hard limit (FIX1, 2026-10-08): the whole run (after the lock is won) is killed after SW_NIGHTLY_MAX_MIN minutes (default 150): the
+# Hard limit (FIX1, 2026-10-08): the whole run (after the lock is won) is killed after SW_NIGHTLY_MAX_MIN minutes (default 240): the
 # run's own process group is terminated, the lock is released, and <date>_nightly-TIMEOUT.md + nightly_status.json record it.
 # The engine has its own deadline (GATE_TOTAL_SECS, set below to what is left minus a margin), so it normally stops itself first
 # and still writes a report.
+# GATESPEED-293 (2026-10-20): 150 / 120 min no longer fit the suite. Every nightly of 10-15..10-20 stopped at its 117 min engine
+# budget with the backend shards cut (3564 of ~12000 tests on 10-20) and the dev-server phase cut (571 of ~916). The tier-L
+# gate takes ~151 min and the nightly runs evidence specs on tablet too, so the defaults are now 240 / 225 min (about 160 min
+# expected on v1, less with the test database template; SW_NIGHTLY_SCHEDULE=v2 shortens it further). The nightly is the safety
+# net of diff selection: it has to FINISH.
 # One run at a time (flock): a second start waits or exits. Never kills processes by name (only the PIDs/process groups it started).
 # Writes a summary per branch to ~/smplwise-results/<date>_<branch>.md (the dashboard reads the newest 20*.md).
 set -uo pipefail
@@ -28,8 +33,8 @@ for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --
 set -- "${ARGS[@]+"${ARGS[@]}"}"
 DIR="$HOME/smplwisebms"; RESULTS="$HOME/smplwise-results"; NRES="$RESULTS/nightly"
 ENGINE="${SW_NIGHTLY_ENGINE:-$HOME/nightly-gate/release_gate.py}"
-MAX_MIN="${SW_NIGHTLY_MAX_MIN:-150}"
-BRANCH_MAX_MIN="${SW_NIGHTLY_BRANCH_MAX_MIN:-120}"   # engine budget per branch (the gate itself needs about 60 min)
+MAX_MIN="${SW_NIGHTLY_MAX_MIN:-240}"
+BRANCH_MAX_MIN="${SW_NIGHTLY_BRANCH_MAX_MIN:-225}"   # engine budget per branch (the tier-L gate itself needs about 151 min)
 if [ "$DRY" -eq 1 ]; then
   if [ "$#" -gt 0 ]; then echo "branches: $*"; else echo "branches: main"; fi
   echo "flags: backend-only=$BO frontend-only=$FO no-dev=$ND; hard limit ${MAX_MIN} min; per-branch engine budget ${BRANCH_MAX_MIN} min; lock wait ${SW_NIGHTLY_LOCK_WAIT:-10800} s"
@@ -124,7 +129,10 @@ for BR in "${BRANCHES[@]}"; do
   SHA=$(git -C "$DIR" rev-parse --short "origin/$BR" 2>/dev/null)
   REP="$NRES/gate_$(echo "$BR" | sed 's/[^A-Za-z0-9._-]/-/g')_$SHA"
   rm -f "$REP.json" "$REP.md"   # a crash must not leave last night's report (same sha) looking like tonight's
-  GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
+  # GATESPEED-293: SW_NIGHTLY_SCHEDULE=v2 runs the nightly on the v2 schedule (6 shards on tmpfs, one Playwright pool); default v1.
+  # The nightly is the safety net of --select-base, so it must FINISH: in 2026-10-16..20 every nightly hit the 117 min engine
+  # budget (the backend was cut, e.g. 3564 of ~12000 tests on 10-20); raise SW_NIGHTLY_MAX_MIN / SW_NIGHTLY_BRANCH_MAX_MIN or use v2
+  GATE_SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v1}" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L --no-visual > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)
@@ -159,5 +167,12 @@ if fl:
     for i in fl[:20]:
         print(f"- [{i['category']}] {i['id'][:180]}")
 P
+  # GATESPEED-293 safety net: this FULL run (no selection) against the release gates that ran a diff selection
+  # (--select-base): every nightly red in a file such a run dropped is listed in <date>_selection-audit.md
+  SEL="$(dirname "$ENGINE")/select_tests.py"
+  if [ "$BR" = "main" ] && [ -f "$SEL" ] && [ -f "$REP.json" ] && ls "$RESULTS"/gate_*.selection.json >/dev/null 2>&1; then
+    python3 "$SEL" audit --nightly "$REP.json" --selections-dir "$RESULTS" --out "$RESULTS/$(date +%F)_selection-audit.md" \
+      >> "$LOGD/engine.log" 2>&1 && echo "- selection audit: $RESULTS/$(date +%F)_selection-audit.md" >> "$OUT"
+  fi
   cd "$DIR"
 done
