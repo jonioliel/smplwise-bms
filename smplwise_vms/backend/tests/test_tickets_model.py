@@ -28,6 +28,9 @@ for s in ("new", "assigned", "acknowledged", "in_progress", "waiting_part", "don
     EXPECTED.add(("manager", s, "cancelled"))
 EXPECTED |= {("inbound", "assigned", "acknowledged"), ("inbound", "assigned", "in_progress"), ("inbound", "acknowledged", "in_progress")}
 EXPECTED.add(("system", "done", "closed"))
+# CR-038 phase 2 (TKRULES-291, docs/changes/CR-038-TKRULES-NOTES.md): a rule may close the request it opened when the alert clears while
+# it is still new and unassigned - the system's one new move (services/tickets/model.py)
+EXPECTED.add(("system", "new", "closed"))
 
 
 @pytest.mark.parametrize("actor", model.ACTORS)
