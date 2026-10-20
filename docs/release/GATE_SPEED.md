@@ -147,11 +147,21 @@ every pool job (workers / files / estimate / start / wall) and the resource line
   - the switch works.
 - **Not compared, with reason**: `PRAGMA schema_version`, SQLite's internal change counter. A backup copy sets it to 1, while
   the real path ends at about 790. A test proves that no product code reads it.
-- **Saving (estimate, to be measured on the runner)**: on the workstation `migrate()` is 6.1 s of a 9.2 s app start. On the
-  runner one shard spends about 56 percent of its wall time waiting for the disk, and most of that is the 127 fsynced migration
-  commits per test. Expected: the backend's 439 shard-minutes drop by a third to a half, which is 150-220 shard-minutes. With
-  v1's 3 shards that is ~50-70 min of wall time on the backend track. Measurement recipe: one test file with and without the
-  switch through `~/light_run.sh` (section 6).
+- **Saving, measured on the runner** (2026-10-20, `~/light_run.sh`, nice/ionice idle, head 29f938da5):
+
+  | Test file | Template off | Template on | Saved |
+  |---|---|---|---|
+  | `test_tickets_detail.py`, 36 tests | 175.9 s | 121.7 s | -31% (4.9 -> 3.4 s per test) |
+  | `test_health_summary.py`, 1 test (dominated by the one template build) | 5.9 s | 6.0 s | 0 |
+
+  Scaled to the suite, that is about 30 percent of the 439 shard-minutes, roughly 130 shard-minutes.
+  - **v1** (3 shards): the backend track goes from ~146 to ~100 min. The v1 Playwright track (~148 min) stays the critical path,
+    so on its own the template does NOT shorten a v1 gate.
+  - **v2** (6 shards): the backend goes from ~73 to ~50 min, well under the ~75-90 min pool.
+  - The template matters for every targeted or selection run, and for the nightly, whose backend was cut by its budget.
+
+  Only one multi-test file was measured, so the 30 percent is an extrapolation. The rest of the per-test cost is app start-up
+  (seeding, policies, routers) and the tests' own work.
 
 ### 5.2 Diff-based selection (`--select-base <ref>`, opt-in)
 `scripts/gate/select_tests.py` (installed next to `release_gate.py`) maps `base...HEAD` to tests:
