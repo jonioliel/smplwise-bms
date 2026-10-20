@@ -1,4 +1,4 @@
--- PROVISIONAL number 0141 (GENALERT-295; the lead renumbers at integration). The content does not depend on the number.
+-- Final number 0131 (GENALERT-295; built as PROVISIONAL 0141; renumbered at the 2.10.0 integration, integ/2100). The content does not depend on the number.
 --
 -- GENALERT-295: who is told about a generator alert is an administrator's choice, per alert type OR per severity.
 --  - `generator_severity_routing`: the default recipients (roles + named users) and channels of one SEVERITY on one generator. A type that has

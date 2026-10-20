@@ -1,4 +1,4 @@
-"""usr2-passkeys-only-mode: the optional per-user "passkeys only" sign-in mode of Arx-only identities (migration 0140, provisional).
+"""usr2-passkeys-only-mode: the optional per-user "passkeys only" sign-in mode of Arx-only identities (migration 0130, built as provisional 0140).
 
 Fake authenticator only (tests/webauthn_fake.py): no real device. Covered: default off, the owner switch and a working passkey are
 required, self and administrator switches, the password refused with the uniform 401 (and never counted towards a lock) while a

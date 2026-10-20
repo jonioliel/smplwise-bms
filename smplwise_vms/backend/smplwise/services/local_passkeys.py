@@ -27,7 +27,7 @@ Verification: services/webauthn.py (own minimal implementation on `cryptography`
   (the authenticator's biometric / PIN is the second factor). It NEVER removes the password: password sign-in, the manager's links
   and the self-service reset keep working; removing the last passkey switches the mode off. A "password removed" mode is not built
   (it would need an administrator-approved recovery path - CR-USR2 section 10).
-- Passkeys only (usr2-passkeys-only-mode; per user, default OFF for everyone; migration 0140 is provisional):
+- Passkeys only (usr2-passkeys-only-mode; per user, default OFF for everyone; migration 0130, built as provisional 0140):
   `auth_local_credentials.passkey_only`. While it is on AND effective, password sign-in of that user is refused (li.sign_in answers
   the same uniform 401 as a wrong password - never counted towards a lock - and audits `auth.local.sign_in.failed` with tier
   `passkey_only`); only a passkey signs the user in. Effective = the flag AND the owner switch `security.local_passkey_first` is on

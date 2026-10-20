@@ -178,7 +178,7 @@ Builds on CR-018 (one center, administrator-only routing, no per-user preference
 ### 7a. GENALERT-295 amendment (owner decision 2026-10-20, after the NMC lab check)
 Routing still starts empty (nothing is sent to anyone until an administrator chooses), but it is now chosen per alert type OR per severity, and the
 per-type escalation and quiet-hours choices are applied:
-- **Per severity:** `generator_severity_routing` (migration 0141, provisional) holds the default recipients (roles, named users) and channels (push, app,
+- **Per severity:** `generator_severity_routing` (migration 0131, built as provisional 0141) holds the default recipients (roles, named users) and channels (push, app,
   email) of critical / alert / info on one generator. An alert type with no recipients (or no channels) of its own inherits the default of the severity it
   fires with. WhatsApp is chosen per alert type only. Edited with `PUT /generator/devices/{id}/severity-routing/{severity}` (`generator.manage`).
 - **Escalation:** CRITICAL always escalates to the system administrators (`notify.manage` holders who may see the alert), after the type's own delay

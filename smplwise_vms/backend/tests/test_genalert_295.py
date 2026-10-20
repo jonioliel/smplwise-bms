@@ -2,7 +2,7 @@
 choices are applied, CRITICAL always escalates to the system administrators and is never held by quiet hours.
 
 Lab finding behind it (NMC site, 2026-10-20): no routing saved = normal-severity alerts reached nobody; the per-type `escalate` / `quiet_mode` choices were
-stored but never read. Migration 0141 is PROVISIONAL (the lead renumbers at integration)."""
+stored but never read. Migration 0131 (built as PROVISIONAL 0141; renumbered at integ/2100)."""
 from __future__ import annotations
 
 import datetime as dt
