@@ -43,6 +43,14 @@ Fail closed: an error before the first chunk commits (no cursor) re-sets the re-
 with a cursor standing the next pass resumes after it. (The old code lost the re-decision entirely if its one transaction
 failed after the flag was cleared.)
 
+### Found while benchmarking: an unreadable row rolled the whole pass back
+
+`mark_revoking()` parsed `doors_json` for its audit row. A grant with an unreadable `doors_json` (a restored archive, a hand
+edit) therefore raised again INSIDE the re-decision's fail-closed handler, and the old single transaction rolled back - no grant
+was re-decided at all, and the flag had already been cleared (fail open until the next bump). `mark_revoking` now writes the
+revoke with no `stations` detail when the doors cannot be read (`_stations_or_none`). The old-code reference in the tests calls
+the same, fixed `mark_revoking`; the regression test is `test_an_unreadable_grant_row_is_revoked_and_never_rolls_the_pass_back`.
+
 ### Identical results
 
 For an uninterrupted pass with no concurrent change the end state is the same as the old code: the same `access_grants` rows
@@ -72,7 +80,25 @@ measures the old and the new code on clones of the same database, with a concurr
 
 ## Benchmark results
 
-BENCH_RESULTS_PLACEHOLDER
+Runner (Ubuntu, 16 CPUs, load ~2), branch `pilot/K7-295` @ 679ada921, 2026-10-20, chunk 200. "Decided" = grants in a decided
+state in the data set (about 90 % of the rows). The probe is a second thread of the same process doing a one-row
+`write_aside()` every 5 ms; its wait includes GIL contention with the deciding thread.
+
+| decided grants | code | write txns | max hold | p95 hold | total hold | probe max wait | probe p95 wait | wall |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 903 | before (one txn) | 1 | 185 ms | - | 185 ms | 185 ms | 3.7 ms | 0.19 s |
+| 903 | after (chunked) | 5 | 18 ms | 18 ms | 66 ms | 40 ms | 15 ms | 0.31 s |
+| 4,522 | before | 1 | 884 ms | - | 884 ms | 889 ms | 5.3 ms | 0.89 s |
+| 4,522 | after | 23 | 85 ms | 53 ms | 790 ms | 80 ms | 56 ms | 2.07 s |
+| 18,085 | before | 1 | 3,105 ms | - | 3,105 ms | 3,111 ms | 8.1 ms | 3.12 s |
+| 18,085 | after | 91 | 133 ms | 64 ms | 3,230 ms | 234 ms | 88 ms | 9.91 s |
+
+Reading: the longest single write-lock hold drops ~10x at 900 grants and ~23x at 18k, and no longer grows with the
+installation (bounded by the chunk; outliers are WAL checkpoints on commit). The total time the lock is held is about the same
+(the writes themselves dominate, not the authorisations), and the pass takes 2-3x longer wall time (two transactions per
+chunk, the snapshot verification, one connection open/close per phase) - acceptable for a background worker pass that runs
+only after a permission change. A profile at 18k: decide 3.2 s (authorisations), apply 1.3 s, connection open/close 2.9 s.
+Before the `+state` query fix the chunk SELECT used the state index and sorted every decided row per chunk (9 ms vs 0.9 ms).
 
 ## Rollback
 
