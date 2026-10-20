@@ -149,7 +149,7 @@ def test_the_outbox_keeps_report_fields_to_report_rows(env, mod):
             messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="whatsapp")
         assert exc.value.code == "report_invalid"
         with pytest.raises(OutboxError) as exc:
-            messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="email", source_module="fakemod", source_id="s1")
+            messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="email")
         assert exc.value.code == "report_invalid", "a report row always names its source (the e-mail channel is allowed: VENDORQ2-295)"
         with pytest.raises(OutboxError) as exc:
             messaging.RUNTIME.enqueue(conn, purpose="report", contact_id=env.s4.contact["id"], channel="sms", source_module="fakemod", source_id="s1")

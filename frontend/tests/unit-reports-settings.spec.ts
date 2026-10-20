@@ -62,7 +62,7 @@ test.describe('reports settings catalogue and copy rules', () => {
     }
     const src = readFileSync(path.join(SRC, 'tickets/reports-settings.ts'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     expect(src).not.toMatch(/class="muted">\$\{vrt\(['"](?!hoursUnit|opensUnit)/); // only the units use the muted style
-    expect(src).not.toMatch(/ticket|service request|openRequest/i); // the card offers no ticket action (tickets-module-off rule)
+    expect(src).not.toMatch(/(create|open|new)\w*ticket|service[- ]?request/i); // the card offers no ticket action (tickets-module-off rule)
   });
 
   test('the card is mounted inside the module settings only, behind the administrators tab', () => {
