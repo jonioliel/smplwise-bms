@@ -1728,7 +1728,8 @@ class Worker:
                 # 1. decide: a read transaction (one consistent snapshot per chunk), no write lock
                 with db.connection(mode="read", label="access_grants.redecide.decide") as conn:
                     rev = permission_revision(conn)
-                    sql = f"SELECT * FROM access_grants WHERE state IN ({marks}) AND id > ?"
+                    # `+state`: walk the primary key (id > ? ORDER BY id) - the state index would sort every decided row per chunk
+                    sql = f"SELECT * FROM access_grants WHERE +state IN ({marks}) AND id > ?"
                     args: list[Any] = [*DECIDED, after]
                     if skip_upto is not None:
                         sql += " AND (id > ? OR COALESCE(approval_revision, 0) < ?)"

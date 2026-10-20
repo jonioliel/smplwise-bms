@@ -482,10 +482,12 @@ def _measure(db: Database, run) -> dict:
         wall = time.monotonic() - t
         stop.set()
         probe.join(10)
-    mine = [s for label, s in holds if label.startswith("access_grants.redecide")]
-    return {"grants": n, "wall_s": round(wall, 3), "write_txns": len(mine), "max_hold_ms": round(1000 * max(mine), 1),
-            "total_hold_ms": round(1000 * sum(mine), 1), "probe_writes": len(waits), "probe_max_wait_ms": round(1000 * max(waits), 1),
-            "probe_p50_wait_ms": round(1000 * sorted(waits)[len(waits) // 2], 2)}
+    mine = sorted(s for label, s in holds if label.startswith("access_grants.redecide"))
+    waits.sort()
+    return {"grants": n, "wall_s": round(wall, 3), "write_txns": len(mine), "max_hold_ms": round(1000 * mine[-1], 1),
+            "p95_hold_ms": round(1000 * mine[int(0.95 * (len(mine) - 1))], 1), "total_hold_ms": round(1000 * sum(mine), 1),
+            "probe_writes": len(waits), "probe_max_wait_ms": round(1000 * waits[-1], 1),
+            "probe_p95_wait_ms": round(1000 * waits[int(0.95 * (len(waits) - 1))], 1), "probe_p50_wait_ms": round(1000 * waits[len(waits) // 2], 2)}
 
 
 @pytest.mark.skipif(not os.environ.get("K7_BENCH_GRANTS"), reason="benchmark: set K7_BENCH_GRANTS=<number of grants>")
