@@ -83,6 +83,13 @@ def test_unknown_or_malformed_overrides_fail_closed_for_a_restricted_writer(wx, 
     fake, c, _s = wx
     _overrides(fake, "u6", bad)
     r = c.put(API + "/people/u6", json=env(data={"display_name": "Gal B"}, revision=rev(fake, "u6")), headers=as_user("mia"))
+    # a malformed override set makes the record unknown; the restricted writer who cannot see such a record gets the uniform 404 by
+    # default (access.unknown_person_uniform_404, on since the owner decision 2026-10-21 - FABLEFIX-295) ...
+    assert r.status_code in (403, 404), (bad, r.text)
+    assert r.json()["code"] in ("intercom_person_scope", "intercom_person_not_found"), (bad, r.text)
+    # ... and the former 403 when an installation stored "false"
+    assert c.patch("/api/v1/settings", json={"access.unknown_person_uniform_404": "false"}, headers=as_user("root")).status_code == 200
+    r = c.put(API + "/people/u6", json=env(data={"display_name": "Gal B"}, revision=rev(fake, "u6")), headers=as_user("mia"))
     assert r.status_code == 403 and r.json()["code"] == "intercom_person_scope", (bad, r.text)
     assert not sent(fake, "users/update")
     r = c.put(API + "/people/u6", json=env(data={"display_name": "Root's"}, revision=rev(fake, "u6")), headers=as_user("root"))
