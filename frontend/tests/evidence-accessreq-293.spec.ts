@@ -46,7 +46,7 @@ async function shot(page: Page, info: TestInfo, name: string) {
 
 async function fill(page: Page, o: { self?: boolean } = {}) {
   const d = page.locator(DLG);
-  await d.locator('[data-contact="c1"] input').check();
+  await d.locator('[data-contact="c1"] input').click();
   await d.locator('#tk').selectOption('t1842');
   await d.locator('#pu').fill('החלפת מדחס');
   await d.locator('[data-door="lobby:1"]').check();
@@ -96,7 +96,7 @@ test('owner decision (a)+(b): a manager who may only request - entrances + the t
   await expect(d.locator('[data-open-stations] [data-door="base:1"]')).toBeAttached(); // the ticket's station joins
   await expect(d.locator('[data-locked-stations]')).toBeVisible();
   await expect(d.locator('[data-locked-stations] [data-door="roof:1"]')).toBeDisabled();
-  await d.locator('[data-contact="c1"] input').check();
+  await d.locator('[data-contact="c1"] input').click();
   await d.locator('[data-door="lobby:1"]').check();
   await expect(d.locator('[data-path="self"] input')).toBeDisabled();
   await expect(d.locator('[data-self-block="blk_second"]')).toBeVisible();
@@ -158,7 +158,7 @@ test('long names and many doors on the phone, light', async ({ page }, info) => 
   await boot(page, { longNames: true, manyDoors: true });
   await open(page);
   const d = page.locator(DLG);
-  await d.locator('[data-contact="c1"] input').check();
+  await d.locator('[data-contact="c1"] input').click();
   await expect(d.locator('[data-locked-stations]')).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -170,7 +170,7 @@ test('WisKey unavailable: the banner with the list time, "approve now" blocked, 
   await open(page);
   const d = page.locator(DLG);
   await expect(d.locator('[data-offline]')).toContainText('09:41');
-  await d.locator('[data-contact="c1"] input').check();
+  await d.locator('[data-contact="c1"] input').click();
   await d.locator('[data-door="lobby:1"]').check();
   await expect(d.locator('[data-self-block="blk_offline"]')).toBeVisible();
   await shot(page, info, '05-offline-dark');
@@ -187,7 +187,7 @@ test('"approve now" refused after the request was stored: the request stays and 
 test('no permission: no button, and the direct link shows the short refusal', async ({ page }, info) => {
   await boot(page, { mayRequest: false, hash: '/wiskey/external?request=1' });
   await expect(page.locator(`${SCREEN} [data-open-request]`)).toHaveCount(0);
-  await expect(page.locator(`${SCREEN} access-request-dialog [data-request-noperm]`)).toBeVisible();
+  await expect(page.locator(`${SCREEN} access-request-dialog [data-request-noperm] .nop h3`)).toBeVisible();
   await shot(page, info, '06-noperm-light');
 });
 
