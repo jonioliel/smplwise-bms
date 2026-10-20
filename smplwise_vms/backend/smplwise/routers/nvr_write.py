@@ -615,6 +615,8 @@ def _rollback_gate(change_id: str, principal: Principal = Depends(current_princi
         _require_stream_change(conn, principal, r)
     else:
         require(conn, principal, r["permission"], INSTALLATION)
+        if r["kind"] == "privacy_mask" and r["camera_id"]:  # NVRMASK-295: the undo of a mask also needs the camera in scope
+            require_camera(conn, principal, r["camera_id"], r["permission"])
     return principal
 
 

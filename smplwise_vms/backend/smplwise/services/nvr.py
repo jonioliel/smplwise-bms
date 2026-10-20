@@ -504,11 +504,20 @@ def parse_privacy_mask(xml: str) -> dict[str, object]:
     from .xmlsafe import parse
 
     root = parse(xml)
+    # The master switch is the document's own <enabled> child (never a region's, which comes later in document order).
+    master = _child_text(root, "enabled") == "true"
     regions = []
     lst = _child(root, "PrivacyMaskRegionList")
     for reg in list(lst) if lst is not None else []:
-        regions.append({"id": _text(reg, "id"), "enabled": _text(reg, "enabled") != "false", "points": _points(_child(reg, "RegionCoordinatesList"), "positionX", "positionY")})
-    return {"enabled": _text(root, "enabled") == "true", "normalized": _normalized(root, 704), "regions": regions}
+        points = _points(_child(reg, "RegionCoordinatesList"), "positionX", "positionY")
+        device_flag = _child_text(reg, "enabled")
+        # NVRMASK-295 (lab, DS-7616NXI-K2 V4.84.101, supervised test 2026-10-20): the region-level <enabled> reads "false"
+        # while the region IS masking the picture - only the master switch counts. A region is active when the master is
+        # on and it has a polygon; the device's own region flag is kept as `device_enabled` (evidence, never the verdict).
+        regions.append({"id": _child_text(reg, "id"), "enabled": master and len(points) >= 3,
+                        "device_enabled": (device_flag == "true") if device_flag else None, "points": points})
+    return {"enabled": master, "normalized": _normalized(root, 704), "regions": regions,
+            "active_regions": sum(1 for r in regions if r["enabled"])}
 
 
 def parse_field_detection(xml: str) -> dict[str, object]:

@@ -382,6 +382,9 @@ DEFAULTS: dict[str, str] = {
     # answers 404 feature_disabled, the area and the device tab are hidden, and the module's data is kept. Turning it on or off is
     # audited as tickets.module.enable / tickets.module.disable. Installation identity: kept out of project backups (SETTINGS_KEEP).
     "tickets.enabled": "false",
+    # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
+    # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
+    "nvr.privacy_mask_write": "false",
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
@@ -615,6 +618,7 @@ class SettingsPatch(BaseModel):
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=128, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
+    nvr_privacy_mask_write: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_write")  # NVRMASK-295
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")

@@ -204,6 +204,12 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         # CR-020 S2: an encoding change is undone only by services/nvr_settings.rollback_stream (nvr.configure on the camera,
         # confirm, etag-of-after check, two phases). This generic path must never PUT its document.
         raise ApiError(409, "not_rollbackable", "שינוי קידוד מבוטל רק דרך מסך הגדרות המצלמות.", details={"kind": orig["kind"]})
+    if orig["kind"] == "privacy_mask":
+        # NVRMASK-295: PUT of the old document does not remove stored regions on the lab firmware (it merges); the privacy
+        # module restores the original exactly (PUT + DELETE of the added regions + verified read-back).
+        from .nvr_privacy import restore_change
+
+        return restore_change(settings, conn, principal, change_id, request_id=request_id, client=client)
     if orig["status"] not in ("applied", "rolled_back") or not orig["before_xml"]:
         raise ApiError(409, "not_rollbackable", "אין לשינוי הזה מסמך קודם להחזיר.", details={"status": orig["status"]})
     rec_id = orig["recorder_id"] if "recorder_id" in orig.keys() else PRIMARY
