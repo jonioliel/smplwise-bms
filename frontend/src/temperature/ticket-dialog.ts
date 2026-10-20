@@ -30,7 +30,7 @@ export class TempTicket extends LitElement {
     .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
     .dlg {
       position: relative; inline-size: min(560px, 100%); max-block-size: calc(100dvh - 32px); overflow: auto; background: var(--sw-bg); border-radius: var(--sw-r-2xl);
-      box-shadow: var(--sw-shadow-3); padding: 18px 20px; display: grid; gap: 12px;
+      box-shadow: var(--sw-shadow-3); padding: 18px 20px; display: grid; gap: 12px; align-content: start;
     }
     h2 { margin: 0; font-size: var(--sw-fs-xl); }
     .field { display: grid; gap: 6px; }
