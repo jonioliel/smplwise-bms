@@ -101,7 +101,12 @@ class DocPage {
       this.render();
       return;
     }
-    const blob = await res.blob().catch(() => null);
+    // FABLEFIX-295 D-02: the bytes become an opaque download whatever type the answer carried - a blob that a WebView ignoring
+    // `download` navigates to is never rendered as HTML on this page's origin
+    const blob = await res
+      .arrayBuffer()
+      .then((buf) => new Blob([buf], { type: 'application/octet-stream' }))
+      .catch(() => null);
     if (!blob) {
       this.message = 'error';
       this.render();
