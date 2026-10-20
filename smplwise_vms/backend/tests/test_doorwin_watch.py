@@ -126,7 +126,7 @@ def test_a_refused_close_gets_at_most_three_backed_off_pause_retries(env):
     o = today(env)[0]
     assert o["state"] == "relock_unconfirmed" and o["retries"] == 3 and o["next_retry_at"] is None
     unconfirmed_at = dt.datetime.strptime(o["unconfirmed_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    assert_close_retries_bounded([dt.datetime.strptime(p["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) for p in pauses(env)], unconfirmed_at)
+    assert_close_retries_bounded([dt.datetime.fromisoformat(p["at"]) for p in pauses(env)], unconfirmed_at)
     assert len(pauses(env)) == 3
     assert env.audit_actions().count("door.window.relock_retry") == 3
     env.world.programs.close_refused.clear()

@@ -504,11 +504,15 @@ def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: 
         if first_dispatch and sent_ms and phase == "apply":
             conn.execute("UPDATE door_emergency_incidents SET first_sent_ms = ?, last_sent_ms = ? WHERE id = ?", (min(sent_ms), max(sent_ms), row["id"]))
         _recount(conn, row["id"], phase)
-    if phase == "release" and not row["drill"] and row["kind"] == "lock_secure":
+    if phase == "release" and not row["drill"]:
         with db.connection() as conn:
             if incident_row(conn, row["id"])["state"] in ("released", "released_partial"):
-                for d in conn.execute("SELECT station_id, relay FROM door_emergency_doors WHERE incident_id = ? AND phase = 'apply'", (row["id"],)).fetchall():
-                    dw.clear_pause(conn, d["station_id"], d["relay"])  # the programs are re-activated by the next compile (CR-039 8.2)
+                # the doors of this incident AND of a LOCK it superseded in one step (OPEN over LOCK): their programs are re-activated by
+                # the next compile (CR-039 8.2), never immediately
+                ids = [row["id"], *[r["id"] for r in conn.execute("SELECT id FROM door_emergency_incidents WHERE superseded_by = ?", (row["id"],))]]
+                for iid in ids:
+                    for d in conn.execute("SELECT station_id, relay FROM door_emergency_doors WHERE incident_id = ? AND phase = 'apply'", (iid,)).fetchall():
+                        dw.clear_pause(conn, d["station_id"], d["relay"])
         dw.WORKER.wake()
 
 
