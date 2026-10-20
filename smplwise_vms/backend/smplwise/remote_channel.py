@@ -293,6 +293,9 @@ class RemoteChannel:
         if any(rest == b or rest.startswith(b + "/") for b in BLOCKED_ON_REMOTE):
             await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
             return
+        if kind == "http" and rest.lower().endswith(".map"):  # PUB-05: the bundle's source maps are not served without an identity (Ingress keeps them)
+            await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
+            return
         headers = list(scope.get("headers") or [])
         if kind == "http" and (scope.get("method") or "GET").upper() not in SAFE_METHODS:
             sid = _session_cookie(headers)
