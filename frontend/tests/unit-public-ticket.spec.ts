@@ -262,7 +262,10 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(doc).toBeLessThanOrEqual(4 * 1024);
   expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
   // GRANTS3-295 (measured on the runner, gzip level 6): arrival-card js + css 6,351 B; the ticket page 62,108 B (integ/293: 61,954 B, +154 B for the loader)
-  expect(arrival).toBeLessThanOrEqual(7 * 1024);
+  // integ/2100: VENDORLANG-295 translated the 23 arrival keys that fell back to English in ar / ru - arrival-card js + css 7,551 B
+  // (383 B over 7 KB); the growth is the translations of a lazy chunk the ticket page fetches only with `arrival: true`, so its cap
+  // moves to 8 KB and the 62 KB ticket page is untouched (62,708 B at integ/2100 @ ed506da7d, headroom 780 B)
+  expect(arrival).toBeLessThanOrEqual(8 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {
