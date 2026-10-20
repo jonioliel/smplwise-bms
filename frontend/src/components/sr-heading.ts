@@ -3,7 +3,7 @@ import { css, html, type TemplateResult } from 'lit';
 /**
  * UXFIX-NAV-295 (UX audit 2026-10-20, finding 14): a page whose layout draws no visible title (the infrastructure screens: the
  * area chip and the page row already say where the user is) still carries exactly one `<h1>`, so a screen reader, the page outline and
- * the browser tab agree. The heading is visually hidden, never `display:none` (that would drop it from the accessibility tree);
+ * the browser tab agree. The heading is visually hidden, never removed from rendering (that would drop it from the accessibility tree);
  * its text is the page's navigation label, so the heading and the navigation never disagree.
  */
 export const srHeadingCss = css`
