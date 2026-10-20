@@ -99,7 +99,7 @@ def test_migration_0127_adds_the_columns_and_lets_a_requester_tick_the_notice(en
     with env.db.connection(mode="read") as conn:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(access_grants)")}
         assert {"purpose", "notes", "scope_requested_by"} <= cols
-        assert 130 in {r[0] for r in conn.execute("SELECT version FROM schema_migrations")}
+        assert 127 in {r[0] for r in conn.execute("SELECT version FROM schema_migrations")}
         ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'access_grant_notices'").fetchone()[0]
         assert "'requester'" in ddl and "ON DELETE CASCADE" in ddl
 

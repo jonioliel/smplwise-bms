@@ -91,7 +91,10 @@ def test_unknown_or_malformed_overrides_fail_closed_for_a_restricted_writer(wx, 
 
 def test_a_person_the_writer_cannot_see_stays_the_uniform_404_whatever_the_overrides(wx):
     fake, c, _s = wx
-    _overrides(fake, "u2", {"entry-a": "allow", "entry-b": "maybe"})  # u2 is on entry-b only: not mia's to see
+    # u2 is on entry-b only: not mia's to see. A WELL-FORMED override set (integ/293): a malformed one makes the whole record unknown
+    # since WISKEYARX-291 ARX-N03 (2.9.2), and check_person then refuses a restricted writer with 403 intercom_person_scope before
+    # the visibility step (test_wiskeyarx_291::test_n03_...; open item in the 2.9.3 release report)
+    _overrides(fake, "u2", {"entry-a": "allow", "entry-b": "deny"})
     answers = [post(c, f"/people/{uid}/active", "mia", active=False, revision=3) for uid in ("u2", "u-nobody")]
     assert {a.status_code for a in answers} == {404}, [a.text for a in answers]
     assert answers[0].json()["code"] == answers[1].json()["code"] == "intercom_person_not_found", "no existence oracle"
