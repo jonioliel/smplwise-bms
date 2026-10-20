@@ -6,7 +6,7 @@
  * Without a backend (static preview) there is no generator and the tab is not offered.
  */
 import { canAnywhere, isApi, onSession } from '../api/session';
-import { listDevices } from '../api/generator';
+import { listDevices, listLive, type LiveSummaryItem } from '../api/generator';
 import { applyInfraGenerator } from '../shell/nav';
 
 export interface GeneratorAccess {
@@ -39,5 +39,16 @@ export async function refreshGeneratorVisibility(): Promise<void> {
     applyInfraGenerator(r.devices.some((d) => d.core_met));
   } catch {
     applyInfraGenerator(false);
+  }
+}
+
+/** GENWIDGET 2.9.3: the generators of the home widget (GET /generator/devices/live). Without generator.view, without a backend or on a failed
+ * read: an empty list - the widget is then absent (never an error on a home screen of an installation that may have no generator). */
+export async function loadHomeGenerators(): Promise<LiveSummaryItem[]> {
+  if (!generatorAccess().view) return [];
+  try {
+    return (await listLive()).devices;
+  } catch {
+    return [];
   }
 }

@@ -9,6 +9,8 @@ import { listElevators, type Elevator } from '../api/elevators';
 import { elevatorsAccess } from '../elevators/access';
 import { listUnits } from '../api/temperature';
 import { temperatureAccess } from '../temperature/access';
+import { loadHomeGenerators } from '../generator/access'; // GENWIDGET 2.9.3
+import { generatorsAvailable } from '../generator/home-widget-model';
 import { MODE_KEY, personalHidden } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
@@ -39,6 +41,8 @@ export class SwHomePersonal extends LitElement {
   @state() private elevators: Elevator[] = [];
   /** CR-INFRA-TEMPERATURE phase 3: how many units the user sees (0 = the temperatures widget is never named here) */
   @state() private tempUnits = 0;
+  /** GENWIDGET 2.9.3: whether this user sees a generator (false = the generators widget is not offered here at all). */
+  @state() private generators = false;
 
   static styles = css`
     :host {
@@ -147,6 +151,7 @@ export class SwHomePersonal extends LitElement {
     });
     if (elevatorsAccess().view) void listElevators().then((r) => (this.elevators = r.elevators)).catch(() => (this.elevators = []));
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
+    void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
   }
 
   /** The elevators widget's own choices: how they appear (null = the installation's) and which are left out (null = the installation's list). */
@@ -259,8 +264,16 @@ export class SwHomePersonal extends LitElement {
     this.commit({ ...this.personal, widgets });
   }
 
+  /** The widgets offered here: the elevators / generators widget only to a user who sees one (no such device = the module is never named). */
+  private get offered(): WidgetId[] {
+    return this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0) && (id !== 'generators' || this.generators));
+  }
+
+  /** `to` is a place among the OFFERED widgets (review L6, GENWIDGET 2.9.3: a widget left out of the list is skipped, like the home editor). */
   private move(id: WidgetId, to: number) {
-    const order = moveWidget(this.order, id, to);
+    const offered = this.offered;
+    const target = offered[Math.max(0, Math.min(offered.length - 1, to))];
+    const order = target === undefined || target === id ? this.order : moveWidget(this.order, id, this.order.indexOf(target));
     const same = JSON.stringify(order) === JSON.stringify(this.base?.config.order);
     this.commit({ ...this.personal, order: same ? null : order });
   }
@@ -268,8 +281,7 @@ export class SwHomePersonal extends LitElement {
   render() {
     if (!this.base) return nothing;
     const d = this.direction;
-    // the elevators widget is offered only to a user who sees at least one elevator (no elevators = the module is never named)
-    const order = this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0));
+    const order = this.offered;
     return html`
       <div class="row" data-home-personal-direction>
         <span class="lbl" id="hp-dir">כיוון</span>

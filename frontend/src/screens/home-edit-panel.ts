@@ -53,6 +53,8 @@ export class HomeEditPanel extends LitElement {
   @property({ attribute: false }) elevators: Elevator[] = [];
   /** CR-INFRA-TEMPERATURE phase 3: the temperature units the editor sees (empty, or the widget switched off = not listed). */
   @property({ attribute: false }) temperatureUnits: TempUnit[] = [];
+  /** GENWIDGET 2.9.3: the editor sees at least one generator (false = the generators widget is not listed). */
+  @property({ type: Boolean }) generators = false;
   /** The widget whose settings are open (a card's "הגדרות" button sets it). */
   @property() open: WidgetId | '' = '';
   @state() private dragFloor = '';
@@ -340,7 +342,7 @@ export class HomeEditPanel extends LitElement {
 
   /** The widgets the editor lists: the elevators widget only while the editor sees an elevator (review L6: indices and ends count these). */
   private get listed(): WidgetId[] {
-    return this.draft.config.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.temperatureUnits.length > 0));
+    return this.draft.config.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.temperatureUnits.length > 0) && (id !== 'generators' || this.generators));
   }
 
   private moveW(id: WidgetId, to: number) {
@@ -429,7 +431,7 @@ export class HomeEditPanel extends LitElement {
       ${open
         ? html`<div class="w-body" data-home-wbody=${id}>
             <label class="f">כותרת <input type="text" data-home-label=${id} maxlength=${LABEL_MAX} .value=${w.label} placeholder=${WIDGET_NAME[id]} @input=${(e: Event) => this.setWidget(id, { label: (e.target as HTMLInputElement).value } as never)} /></label>
-            ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : id === 'agenda' ? agendaBody(this.bv1) : id === 'launcher' ? launcherBody(this.bv1) : id === 'elevators' ? this.elevatorsBody() : id === 'temperature' ? this.temperatureBody() : id === 'media' ? nothing : this.quickBody()}
+            ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : id === 'agenda' ? agendaBody(this.bv1) : id === 'launcher' ? launcherBody(this.bv1) : id === 'elevators' ? this.elevatorsBody() : id === 'temperature' ? this.temperatureBody() : id === 'media' || id === 'generators' ? nothing : this.quickBody()}
           </div>`
         : nothing}
     </div>`;
