@@ -411,8 +411,9 @@ def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False
     out["timing"] = _copy(person.get("timing")) if detail else None
     out["level"] = level
     wiskey_editable = person.get("operator_editable")
-    gate_ids = person_gate_station_ids(person)  # PERMOVR-293: the write gate's stations (override stations included)
-    out["editable"] = bool(gate_ids is not None and auth.person_editable(gate_ids)) and wiskey_editable is not False
+    # PERMOVR-293: the write gate's stations (override stations included); unknown overrides - unrestricted only, as the gate decides
+    gate_ids = person_gate_station_ids(person)
+    out["editable"] = bool(ids is not None and auth.person_editable(gate_ids if gate_ids is not None else [])) and wiskey_editable is not False
     for k in PERSON_SENSITIVE_KEYS:
         out[k] = _copy(person.get(k)) if level == SENSITIVE and (detail or k in PERSON_ROW_SENSITIVE_KEYS) else None
     return out
