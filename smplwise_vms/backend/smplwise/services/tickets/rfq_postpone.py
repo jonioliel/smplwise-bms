@@ -137,7 +137,7 @@ def vendor_postpone(conn, link: Any, body: Mapping[str, Any], now: dt.datetime) 
     pid = store_rfq.insert_postponement(conn, {
         "rfq_id": row["id"], "award_id": a["id"], "rfq_vendor_id": v["id"], "link_id": link.link_id, "proposed_from": wf, "proposed_to": wt,
         "reason": reason, "scheduled_from": sf, "lead_seconds": lead, "late": 1 if late else 0, "created_at": at, "state": "open"})
-    store_rfq.update_rfq(conn, row["id"], {"updated_at": at})  # the managers' copies go stale
+    store_rfq.update_rfq(conn, row["id"], {"updated_at": at})  # the rule (A6): a notice BUMPS the revision - the managers' open forms go stale; only housekeeping (a file, a system write) uses bump=False
     store_rfq.insert_event(conn, row["id"], "vendor_postponement", actor_kind="contact", actor_name=_name(conn, v), rfq_vendor_id=v["id"],
                            data={"award_id": a["id"], "postponement_id": pid, "proposed_from": wf, "proposed_to": wt, "scheduled_from": sf,
                                  "lead_seconds": lead, "late": late}, at=at)
