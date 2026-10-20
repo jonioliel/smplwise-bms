@@ -312,7 +312,11 @@ export class SystemTickets extends LitElement {
     }
     /* a narrow page: the seven tabs wrap onto rows instead of scrolling sideways (nothing hidden behind a scroll) */
     @container (max-width: 900px) {
-      .stabs .seg {
+      /* integ/291: the bubble skin's own ".seg" rule (999 px pill, higher specificity) used to win here; with nine tabs the wrapped
+         strip is three rows high at 320 px and that pill corner reached the text of the last row's end buttons (layout guard: "text
+         in the rounded corner"). The wrapped strip keeps this rule's radius in the bubble skin too. */
+      .stabs .seg,
+      :host([data-skin='bubble']) .stabs .seg {
         flex-wrap: wrap;
         overflow: visible;
         justify-content: center;
