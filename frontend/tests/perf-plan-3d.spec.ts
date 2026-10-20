@@ -31,7 +31,10 @@ const LABEL = process.env.PERF_LABEL ?? 'run';
 /** Touch moves per gesture (each waits for the page: a slow frame stretches the gesture, the count stays). */
 const STEPS = Number(process.env.PERF_STEPS ?? 60);
 
-test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+/** PERF_DSF: the emulated device pixel ratio (default 3, a current phone; the view draws at min(2, it) below level 3) - the proposal's
+ * resolution experiments run the same harness at 1.5 and 1. */
+const DSF = Number(process.env.PERF_DSF ?? 3);
+test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: DSF, isMobile: true, hasTouch: true });
 
 interface Win {
   __perf: {
@@ -441,7 +444,7 @@ test.describe('PERF3D: the live floor map 3D on a phone (mocked backend, CPU thr
       const stat = await staticNumbers(el);
 
       const result = {
-        label: LABEL, rung: RUNG, cpu: CPU, run, at: new Date().toISOString(),
+        label: LABEL, rung: RUNG, cpu: CPU, dsf: DSF, run, at: new Date().toISOString(),
         renderer: await el.evaluate((n) => (n as unknown as { view: { rendererInfo(): { renderer: string } } }).view.rendererInfo().renderer),
         load: {
           readyMs: Math.round(tReady - t0), firstFrameMs: Math.round(tFrame - t0), thumbsMs: Math.round(tThumbs - t0), settledMs: Math.round(tSettled - t0),
