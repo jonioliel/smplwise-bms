@@ -357,7 +357,7 @@ def test_disconnected_mirror_changes_nothing(app):
     c, db, *_ = app
     uid = create(c)
     set_state(db, "sensor.fridge_temp", "9")
-    assert tick(db, T0, connected=False) == {"sampled": 0, "opened": 0, "alarmed": 0, "closed": 0, "notified": 0}
+    assert tick(db, T0, connected=False) == {"sampled": 0, "opened": 0, "alarmed": 0, "closed": 0, "notified": 0, "escalated": 0}  # phase 3: escalated
     assert events(db, uid) == []
 
 

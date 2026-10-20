@@ -18,6 +18,8 @@ import { LookController } from '../design/look';
 import '../components/sw-pill';
 import { BV1_STYLES, renderAgenda, renderClockTile, renderLauncher, renderWeatherTile, type Bv1Host, type LaunchState } from './home-widgets-bv1';
 import { ELEVATOR_WIDGET_STYLES, renderElevators } from '../elevators/home-widget'; // CR-INFRA-ELEVATORS 2.8.0
+import { TEMPERATURE_WIDGET_STYLES, renderTemperature } from '../temperature/home-widget'; // CR-INFRA-TEMPERATURE phase 3
+import type { TempUnit } from '../api/temperature';
 import type { Elevator } from '../api/elevators';
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
@@ -203,6 +205,9 @@ export class HomeWidgetsView extends LitElement {
   /** CR-INFRA-ELEVATORS 2.8.0: the elevators the viewer sees (the screen reads and polls them) and whether that read is stale. */
   @property({ attribute: false }) elevators: Elevator[] = [];
   @property({ type: Boolean }) elevatorsStale = false;
+  /** CR-INFRA-TEMPERATURE phase 3 (idea 12): the temperature units the viewer sees and whether that read is stale. */
+  @property({ attribute: false }) temperatureUnits: TempUnit[] = [];
+  @property({ type: Boolean }) temperatureStale = false;
   @state() private now = new Date();
   @state() private dragId: WidgetId | '' = '';
   /** CR-015: the screens this user may see (null = not loaded / not allowed) and the one whose remote is open. */
@@ -1279,7 +1284,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1468,6 +1473,8 @@ export class HomeWidgetsView extends LitElement {
         return renderAgenda(this.bv1, it);
       case 'launcher':
         return renderLauncher(this.bv1, it, this.launchSt, new Map(Object.entries(this.data.names ?? {})), () => this.requestUpdate());
+      case 'temperature':
+        return renderTemperature({ cfg: this.config.temperature, units: this.temperatureUnits, stale: this.temperatureStale, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'elevators':
         return renderElevators({ cfg: this.config.elevators, elevators: this.elevators, stale: this.elevatorsStale, editing: this.editing, now: this.now, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       default:

@@ -7,7 +7,7 @@ import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listUnits, type ReportParams, type TempUnit, type UnitsResponse } from '../api/temperature';
 import { onTemperatureAccess, temperatureAccess, type TemperatureAccess } from '../temperature/access';
-import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, addAffordances, agoText, chipsOf, durationText, kpisOf, matchesKpi, type KpiKey } from '../temperature/model';
+import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, addAffordances, agoText, chipsOf, durationText, floorsOf, groupLook, groupUnits, kpisOf, matchesKpi, type KpiKey } from '../temperature/model';
 import { gauge, spark } from '../temperature/charts';
 import { tempCss } from '../temperature/styles';
 import '../temperature/detail';
@@ -25,6 +25,17 @@ import { leadReserveStyles } from '../styles/lead-reserve';
 
 const POLL_MS = 30_000;
 const LONG_PRESS_MS = 480;
+/** phase 3 (idea 7): the collapsed area groups, per browser (a convenience only - never shared, never required) */
+const COLLAPSED_KEY = 'sw.temperature.collapsed';
+
+function readCollapsed(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 200) : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * תשתיות › טמפרטורות (CR-INFRA-TEMPERATURE 2.9.1, from the owner-approved mockup 2026-10-19): the KPI row (units / OK / warning / alarm /
@@ -50,6 +61,9 @@ export class InfraTemperature extends LitElement {
   /** phase 2: the PDF report dialog (the preselected units) and the WhatsApp dialog (its params) */
   @state() private report: string[] | null = null;
   @state() private wa: ReportParams | null = null;
+  /** phase 3 (idea 7): the floor quick filter and the collapsed area groups */
+  @state() private floor: string | null = null;
+  @state() private collapsed: string[] = readCollapsed();
   private offScreenEdit?: () => void;
   private stop?: () => void;
   private timer?: number;
@@ -108,6 +122,26 @@ export class InfraTemperature extends LitElement {
     .add b { display: block; font-size: var(--sw-fs-3xl); color: var(--sw-accent); line-height: 1; }
     .add small { color: var(--sw-text-3); }
     .add:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 3px; }
+    .kpi[data-k='health'] { --c: var(--sw-warning); }
+    /* phase 3 (idea 7): area groups, like the floors tree of the other screens; a quick floor filter */
+    .floors { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .floors button {
+      border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit;
+      font-size: var(--sw-fs-sm); cursor: pointer;
+    }
+    .floors button[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
+    .floors button:focus-visible, .ghead:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    .groups { display: grid; gap: 18px; }
+    .group { display: grid; gap: 10px; }
+    .ghead {
+      display: flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 4px 2px; font: inherit; color: inherit; cursor: pointer; text-align: start;
+      inline-size: 100%;
+    }
+    .ghead h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); }
+    .ghead small { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+    .ghead .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c); flex: none; }
+    .ghead .chev { margin-inline-start: auto; color: var(--sw-text-3); transition: transform var(--sw-t-fast) var(--sw-ease-out); }
+    .ghead[aria-expanded='false'] .chev { transform: rotate(-90deg); }
     .empty { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 40px 16px; }
     .empty .art { inline-size: 72px; block-size: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-accent-soft); color: var(--sw-accent); }
     .empty h2 { margin: 0; font-size: var(--sw-fs-xl); }
@@ -226,8 +260,44 @@ export class InfraTemperature extends LitElement {
       aria-pressed=${String(this.kpi === id)} @click=${() => { this.kpi = this.kpi === id ? null : id; }}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${tt(key)}</span></div></button>`;
     return html`<div class="kpis" role="group" aria-label=${tt('title')}>
       ${cell('total', '', k.total, 'kpiTotal')}${cell('ok', 'ok', k.ok, 'kpiOk')}${cell('warning', 'warn', k.warning, 'kpiWarn')}${cell('alarm', 'alarm', k.alarm, 'kpiAlarm')}
-      ${cell('door', '', k.door, 'kpiDoor')}${cell('offline', 'off', k.offline, 'kpiOff')}
+      ${cell('door', '', k.door, 'kpiDoor')}${cell('offline', 'off', k.offline, 'kpiOff')}${k.health ? cell('health', '', k.health, 'kpiHealth') : nothing}
     </div>`;
+  }
+
+  private toggleGroup(key: string) {
+    const id = key || '-';
+    this.collapsed = this.collapsed.includes(id) ? this.collapsed.filter((x) => x !== id) : [...this.collapsed, id];
+    try {
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify(this.collapsed));
+    } catch {
+      /* per-browser convenience only */
+    }
+  }
+
+  /** Idea 7: the cards under collapsible area headers (floor and the worst state in the header), or one flat grid. */
+  private cards(shown: TempUnit[], stale: boolean, now: number, lang: string, addCard: unknown) {
+    const grouped = this.data?.grouping !== 'none';
+    const groups = groupUnits(shown, this.floor);
+    if (!grouped || (groups.length < 2 && !this.floor)) {
+      return html`<div class="grid" data-temp-grid>${(this.floor ? groups.flatMap((g) => g.units) : shown).map((u) => this.card(u, stale, now, lang))}${addCard}</div>`;
+    }
+    return html`<div class="groups" data-temp-groups>${groups.map((g) => {
+      const open = !this.collapsed.includes(g.key || '-');
+      return html`<section class="group" data-temp-group=${g.key || '-'}>
+        <button type="button" class="ghead" aria-expanded=${String(open)} data-look=${groupLook(g, stale)} data-temp-group-toggle=${g.key || '-'}
+          aria-label=${tt(open ? 'groupCollapse' : 'groupExpand', { name: g.name })} @click=${() => this.toggleGroup(g.key)}>
+          <span class="dot" aria-hidden="true"></span><h2>${g.name}</h2><small>${[g.floor, tt('groupCount', { n: g.units.length })].filter(Boolean).join(' · ')}</small>
+          <sw-icon class="chev" name="chevronDown" size="16"></sw-icon></button>
+        ${open ? html`<div class="grid" data-temp-grid>${g.units.map((u) => this.card(u, stale, now, lang))}</div>` : nothing}</section>`;
+    })}${addCard ? html`<div class="grid">${addCard}</div>` : nothing}</div>`;
+  }
+
+  private floorBar(list: TempUnit[]) {
+    const floors = floorsOf(list);
+    if (floors.length < 2 || this.data?.grouping === 'none') return nothing;
+    return html`<div class="floors" role="group" aria-label=${tt('floorFilter')} data-temp-floors>
+      <button type="button" aria-pressed=${String(this.floor === null)} data-temp-floor="" @click=${() => { this.floor = null; }}>${tt('allFloors')}</button>
+      ${floors.map((f) => html`<button type="button" aria-pressed=${String(this.floor === f.id)} data-temp-floor=${f.id} @click=${() => { this.floor = this.floor === f.id ? null : f.id; }}>${f.name}</button>`)}</div>`;
   }
 
   private card(u: TempUnit, stale: boolean, now: number, lang: string) {
@@ -317,13 +387,12 @@ export class InfraTemperature extends LitElement {
         ${overlays}`;
     }
     const shown = list.filter((u) => matchesKpi(u, this.kpi, stale));
+    const addCard = aff.addCard ? html`<button type="button" class="add" data-temp-add @click=${() => { this.wizard = ''; }}><div><b>+</b>${tt('addCard')}<br /><small>${tt('addCardSub')}</small></div></button>` : nothing;
     return html`${this.l1()}${top}
       ${stale ? html`<div class="banner" role="status" data-temp-stale><sw-icon name="offline" size="18"></sw-icon><span>${tt('staleBanner')}</span></div>` : nothing}
       ${this.kpis(list, stale)}
-      <div class="grid" data-temp-grid>
-        ${shown.map((u) => this.card(u, stale, now, lang))}
-        ${aff.addCard ? html`<button type="button" class="add" data-temp-add @click=${() => { this.wizard = ''; }}><div><b>+</b>${tt('addCard')}<br /><small>${tt('addCardSub')}</small></div></button>` : nothing}
-      </div>
+      ${this.floorBar(list)}
+      ${this.cards(shown, stale, now, lang, addCard)}
       ${overlays}`;
   }
 }

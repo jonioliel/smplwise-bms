@@ -32,6 +32,9 @@ export class TempWizard extends LitElement {
   @state() private meta: ManageResponse | null = null;
   @state() private temps: Candidate[] = [];
   @state() private doors: Candidate[] = [];
+  /** phase 3 (idea 6): smart plugs / power meters for the compressor duty cycle (read only) */
+  @state() private powers: Candidate[] = [];
+  @state() private qp = '';
   @state() private users: DirectoryUser[] = [];
   @state() private groups: AccessGroup[] = [];
   @state() private qt = '';
@@ -95,6 +98,8 @@ export class TempWizard extends LitElement {
     .banner { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-sm); }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     .def { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+    details.more { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; background: var(--sw-surface); }
+    details.more > summary { cursor: pointer; list-style-position: inside; }
     @media (max-width: 600px) {
       :host { padding: 0; }
       .sheet { inline-size: 100%; max-block-size: 100dvh; block-size: 100dvh; border-radius: 0; }
@@ -125,6 +130,7 @@ export class TempWizard extends LitElement {
       this.meta = meta;
       this.temps = temps.items;
       this.doors = doors.items;
+      void listCandidates('power').then((r) => (this.powers = r.items)).catch(() => (this.powers = [])); // an older server: no power sensors
       const m = this.unitId ? meta.units.find((u) => u.id === this.unitId) : null;
       if (m) this.d = draftOf(m);
     } catch (e) {
@@ -267,7 +273,55 @@ export class TempWizard extends LitElement {
         <input class="in" type="search" placeholder=${tt('searchDoor')} .value=${this.qd} @input=${(e: Event) => { this.qd = (e.target as HTMLInputElement).value; }} aria-label=${tt('searchDoor')} />
         ${this.sensorList('door')}
         ${this.d.door_entity_id ? html`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><label class="sw"><input type="checkbox" .checked=${this.d.door_invert}
-            @change=${(e: Event) => this.patch({ door_invert: (e.target as HTMLInputElement).checked })} data-w-invert /><span>${tt('invert')}</span></label>${now ? html`<span class="hint">${tt('doorNow', { s: now })}</span>` : nothing}</div>` : nothing}</div>`;
+            @change=${(e: Event) => this.patch({ door_invert: (e.target as HTMLInputElement).checked })} data-w-invert /><span>${tt('invert')}</span></label>${now ? html`<span class="hint">${tt('doorNow', { s: now })}</span>` : nothing}</div>` : nothing}</div>
+      ${this.powers.length || this.d.power_entity_id ? this.powerField() : nothing}`;
+  }
+
+  /** Phase 3 (idea 6): the optional power sensor of the unit - read only; the compressor's share of running time. */
+  private powerField() {
+    const q = this.qp.trim().toLowerCase();
+    const list = this.powers.filter((c) => !q || c.name.toLowerCase().includes(q) || c.entity_id.includes(q) || (c.area_name ?? '').toLowerCase().includes(q));
+    const cur = this.d.power_entity_id;
+    return html`<div class="field" data-w-power><span class="lbl">${tt('powerSensor')} <span class="chip">${tt('optional')}</span></span>
+      <input class="in" type="search" placeholder=${tt('searchPower')} .value=${this.qp} @input=${(e: Event) => { this.qp = (e.target as HTMLInputElement).value; }} aria-label=${tt('searchPower')} />
+      <div class="slist" role="listbox" aria-label=${tt('powerSensor')} data-power-list>
+        <button type="button" class="sopt" role="option" aria-selected=${String(!cur)} data-cand="" @click=${() => this.patch({ power_entity_id: null })}>
+          <sw-icon name="close" size="16"></sw-icon><span class="tx"><span class="nm">${tt('noPowerSensor')}</span></span></button>
+        ${list.map((c) => html`<button type="button" class="sopt" role="option" aria-selected=${String(cur === c.entity_id)} data-cand=${c.entity_id} @click=${() => this.patch({ power_entity_id: c.entity_id })}>
+          <sw-icon name="power" size="16"></sw-icon><span class="tx"><span class="nm">${c.name}${c.area_name ? html` <span class="def">· ${c.area_name}</span>` : nothing}</span><span class="mono ltr">${c.entity_id}</span></span>
+          <span class="lv">${c.watts === null || c.watts === undefined ? tt('disconnected') : `${Math.round(c.watts)} W`}</span></button>`)}</div>
+      <span class="hint">${tt('powerHint')}</span>
+      ${cur ? html`<label class="sw">${tt('compressorOnW')}<input class="in n" type="number" step="1" min="0.5" max="5000" .value=${String(this.rule<number>('compressor_on_w'))}
+        @change=${(e: Event) => this.setRule('compressor_on_w', Math.max(0.5, this.num(e)))} data-w-onw /></label>` : nothing}</div>`;
+  }
+
+  /** Phase 3: a switch row of a rule, with "default: x" when this unit overrides it. */
+  private check(key: string, label: TtKey) {
+    return html`<label class="sw" data-w-rule=${key}><input type="checkbox" .checked=${this.rule<boolean>(key)} @change=${(e: Event) => this.setRule(key, (e.target as HTMLInputElement).checked)} />${tt(label)}
+      ${key in this.d.rules ? html`<span class="def">${tt('fromDefault', { v: String(this.defaults[key]) })}</span>` : nothing}</label>`;
+  }
+
+  private numRule(key: string, label: TtKey, min: number, max: number, step = 1) {
+    return html`<label class="sw" data-w-rule=${key}>${tt(label)}<input class="in n" type="number" min=${min} max=${max} step=${step} .value=${String(this.rule<number>(key))}
+      @change=${(e: Event) => this.setRule(key, Math.max(min, Math.min(max, step === 1 ? Math.round(this.num(e)) : this.num(e))))} />
+      ${key in this.d.rules ? html`<span class="def">${tt('fromDefault', { v: String(this.defaults[key]) })}</span>` : nothing}</label>`;
+  }
+
+  /** Phase 3 (owner 2026-10-20: every capability a setting): the forecast, maintenance, escalation, sensor health and cooling-fault rules. */
+  private phase3Rules() {
+    const d = this.d;
+    return html`<details class="field more" data-w-phase3><summary class="lbl">${tt('phase3Title')}</summary><div style="display:grid;gap:8px;padding-block-start:8px">
+      ${this.check('predict_enabled', 'predictEnabled')}
+      ${this.rule<boolean>('predict_enabled') ? html`${this.numRule('predict_horizon_min', 'predictHorizon', 5, 240)}${this.check('predict_warn', 'predictWarn')}${this.rule<boolean>('predict_warn') ? this.numRule('predict_warn_min', 'predictWarnMin', 5, 240) : nothing}` : nothing}
+      ${this.check('escalation_enabled', 'escalationUnit')}
+      ${this.check('maintenance_includes_alarms', 'maintAlarms')}
+      ${this.numRule('maintenance_max_min', 'maintMax', 15, 1440)}
+      ${this.check('health_warn', 'healthWarn')}
+      ${this.numRule('battery_low_pct', 'batteryLow', 5, 60)}
+      ${this.numRule('frozen_min', 'frozenMin', 0, 2880)}
+      ${d.door_entity_id ? html`${this.check('recovery_alert', 'recoveryAlert')}${this.numRule('recovery_slow_min', 'recoverySlow', 5, 240)}` : nothing}
+      ${d.power_entity_id ? html`${this.check('duty_alert', 'dutyAlert')}${this.numRule('duty_rise_pts', 'dutyRise', 5, 80)}` : nothing}
+    </div></details>`;
   }
 
   private ruleRow(onKey: string, minKey: string, lead: TtKey, chip: 'alarm' | 'warn', icon: string, extra?: unknown) {
@@ -335,6 +389,7 @@ export class TempWizard extends LitElement {
         <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('quiet_includes_alarms')} @change=${(e: Event) => this.setRule('quiet_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('quietAlarms')}</label>
         <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('mute_includes_alarms')} @change=${(e: Event) => this.setRule('mute_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('muteAlarms')}</label>
         <span class="hint">${tt('alarmsNever')}</span></div>
+      ${this.phase3Rules()}
       <div class="field"><span class="lbl">${tt('defrost')}</span>
         <span class="seg" role="group" data-w-defrost>${(['learn', 'fixed', 'none'] as const).map((m) => html`<button type="button" aria-pressed=${String(d.defrost_mode === m)} data-mode=${m}
           @click=${() => this.patch({ defrost_mode: m, defrost_windows: m === 'fixed' && !d.defrost_windows.length ? [{ start: '03:00', minutes: 30 }] : d.defrost_windows })}>${tt(m === 'learn' ? 'modeLearn' : m === 'fixed' ? 'modeFixed' : 'modeNone')}</button>`)}</span>
@@ -360,6 +415,7 @@ export class TempWizard extends LitElement {
         <div><span>${tt('name')}</span><b>${d.name || '—'}</b></div>
         <div><span>${tt('tempSensor')}</span><b>${temp?.name ?? d.temp_entity_id}</b></div>
         <div><span>${tt('doorSensor')}</span><b>${door?.name ?? tt('none')}${door && d.door_invert ? ' ⇄' : ''}</b></div>
+        ${d.power_entity_id ? html`<div><span>${tt('powerSensor')}</span><b>${this.powers.find((c) => c.entity_id === d.power_entity_id)?.name ?? d.power_entity_id}</b></div>` : nothing}
         <div><span>${tt('bandMode')}</span><b dir="ltr">${this.isClimate && d.band_mode === 'setpoint' ? `${tt('bandSetpoint')} ±${this.rule<number>('setpoint_tolerance')}°` : `${deg(d.low)} – ${deg(d.high)}`}</b></div>
         <div><span>${tt('rulesTitle')}</span><b>${[this.rule<boolean>('high_alarm') ? `↑ ${this.rule<number>('high_alarm_min')}′` : '', this.rule<boolean>('low_alarm') ? `↓ ${this.rule<number>('low_alarm_min')}′` : '', d.door_entity_id && this.rule<boolean>('door_alarm') ? `${tt('kDoor')} ${this.rule<number>('door_alarm_min')}′` : ''].filter(Boolean).join(' · ')}</b></div>
         <div><span>${tt('who')}</span><b>${d.ownRecipients ? tt('whoOwn') : tt('whoDefault')}</b></div>

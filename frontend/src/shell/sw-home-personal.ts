@@ -7,6 +7,8 @@ import {
 } from '../api/home';
 import { listElevators, type Elevator } from '../api/elevators';
 import { elevatorsAccess } from '../elevators/access';
+import { listUnits } from '../api/temperature';
+import { temperatureAccess } from '../temperature/access';
 import { MODE_KEY, personalHidden } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
@@ -35,6 +37,8 @@ export class SwHomePersonal extends LitElement {
   @state() private failed = '';
   /** CR-INFRA-ELEVATORS 2.8.0: the elevators this user sees (empty = the elevators widget is not offered here at all). */
   @state() private elevators: Elevator[] = [];
+  /** CR-INFRA-TEMPERATURE phase 3: how many units the user sees (0 = the temperatures widget is never named here) */
+  @state() private tempUnits = 0;
 
   static styles = css`
     :host {
@@ -142,6 +146,7 @@ export class SwHomePersonal extends LitElement {
       this.rowBase = devicesPrefsOf(s);
     });
     if (elevatorsAccess().view) void listElevators().then((r) => (this.elevators = r.elevators)).catch(() => (this.elevators = []));
+    if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
   }
 
   /** The elevators widget's own choices: how they appear (null = the installation's) and which are left out (null = the installation's list). */
@@ -264,7 +269,7 @@ export class SwHomePersonal extends LitElement {
     if (!this.base) return nothing;
     const d = this.direction;
     // the elevators widget is offered only to a user who sees at least one elevator (no elevators = the module is never named)
-    const order = this.order.filter((id) => id !== 'elevators' || this.elevators.length > 0);
+    const order = this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0));
     return html`
       <div class="row" data-home-personal-direction>
         <span class="lbl" id="hp-dir">כיוון</span>

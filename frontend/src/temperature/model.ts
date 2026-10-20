@@ -114,11 +114,34 @@ export function chipsOf(u: TempUnit, now: number, lang = 'he-IL'): Chip[] {
     }
     if (e.ack_at && e.ack_by_name && (e.severity === 'alarm' || e.severity === 'warning')) out.push({ tone: 'ok', icon: 'check', text: tt('ackedBy', { name: e.ack_by_name }), id: `ack-${e.id}` });
   }
+  // phase 3: the projection (idea 5), the maintenance window (idea 9), sensor health and suspected cooling faults (ideas 2, 6, 8), escalation
+  if (!stale && u.prediction) out.push({ tone: 'warn', icon: u.prediction.side === 'high' ? 'arrowUp' : 'snow', text: tt('predictChip', { t: degT(u.prediction.threshold), m: u.prediction.eta_min }), id: 'predict' });
+  if (u.maintenance) out.push({ tone: 'acc', icon: 'wrench', text: tt('maintChip', { t: hhmm(Date.parse(u.maintenance.until), lang) }), id: 'maint' });
+  for (const c of healthChips(u, lang)) out.push(c);
+  for (const e of u.events) if ((e.escalation_level ?? 0) > 0 && !e.ack_at) out.push({ tone: 'err', icon: 'bell', text: tt('escalatedChip', { n: e.escalation_level ?? 0 }), id: `esc-${e.id}` });
   if (!stale && u.defrost.in_window) out.push({ tone: 'acc', icon: 'snow', text: tt('inDefrost'), id: 'defrost' });
   else if (!stale && u.defrost.next_at && u.status !== 'offline') out.push({ tone: 'acc', icon: 'snow', text: tt('nextDefrost', { t: hhmm(Date.parse(u.defrost.next_at), lang) }), id: 'defrost' });
   else if (!stale && u.defrost.mode === 'learn' && u.defrost.state === 'learning') out.push({ tone: 'mut', icon: 'snow', text: tt('learning'), id: 'defrost' });
   if (u.muted_until) out.push({ tone: 'mut', icon: 'bellOff', text: tt('mutedUntil', { t: hhmm(Date.parse(u.muted_until), lang) }), id: 'mute' });
   return out;
+}
+
+/** Phase 3 (ideas 2, 6, 8): the health chips of a card - a low battery, a frozen reading, a suspected cooling fault (slow recovery after the
+ * door, a rising compressor duty cycle). A weak signal is shown in the detail only (it is not an alert). */
+export function healthChips(u: TempUnit, lang = 'he-IL'): Chip[] {
+  const h = u.health;
+  if (!h || u.stale) return [];
+  const out: Chip[] = [];
+  if (h.battery_low) out.push({ tone: 'warn', icon: 'battery', text: h.battery !== null ? tt('healthBattery', { p: Math.round(h.battery) }) : tt('healthBatteryLow'), id: 'h-battery' });
+  if (h.frozen_since) out.push({ tone: 'warn', icon: 'pause', text: tt('healthFrozen', { t: hhmm(Date.parse(h.frozen_since), lang) }), id: 'h-frozen' });
+  if (h.issues.includes('recovery')) out.push({ tone: 'warn', icon: 'doorOpen', text: tt('healthRecovery'), id: 'h-recovery' });
+  if (h.issues.includes('duty')) out.push({ tone: 'warn', icon: 'power', text: tt('healthDuty'), id: 'h-duty' });
+  return out;
+}
+
+/** A unit with a sensor problem the operator should fix (idea 8: the "sensors offline" tile widened to sensor health). */
+export function hasHealthIssue(u: TempUnit): boolean {
+  return !!u.health && (u.health.battery_low || !!u.health.frozen_since || u.health.signal_weak);
 }
 
 // ---------------------------------------------------------------- KPI row
@@ -130,15 +153,18 @@ export interface Kpis {
   alarm: number;
   door: number;
   offline: number;
+  /** phase 3: units with a sensor-health problem (battery, frozen value, weak signal) */
+  health: number;
 }
 export type KpiKey = keyof Kpis;
 
 export function kpisOf(list: TempUnit[], stale: boolean): Kpis {
-  const k: Kpis = { total: list.length, ok: 0, warning: 0, alarm: 0, door: 0, offline: 0 };
+  const k: Kpis = { total: list.length, ok: 0, warning: 0, alarm: 0, door: 0, offline: 0, health: 0 };
   for (const u of list) {
     const s = stale ? 'unknown' : u.status === 'off' ? 'ok' : u.status; // a climate unit switched off counts with the healthy ones
     if (s === 'ok' || s === 'warning' || s === 'alarm' || s === 'offline') k[s] += 1;
     if (!stale && u.door?.open === true) k.door += 1;
+    if (!stale && hasHealthIssue(u)) k.health += 1;
   }
   return k;
 }
@@ -146,8 +172,58 @@ export function kpisOf(list: TempUnit[], stale: boolean): Kpis {
 export function matchesKpi(u: TempUnit, k: KpiKey | null, stale: boolean): boolean {
   if (!k || k === 'total') return true;
   if (k === 'door') return !stale && u.door?.open === true;
+  if (k === 'health') return !stale && hasHealthIssue(u);
   const s = stale ? 'unknown' : u.status === 'off' ? 'ok' : u.status;
   return s === k;
+}
+
+// ---------------------------------------------------------------- phase 3: grouping by area / floor (idea 7)
+
+export interface UnitGroup {
+  /** the area id, or '' for the units without an area */
+  key: string;
+  name: string;
+  floor: string | null;
+  floorLevel: number | null;
+  units: TempUnit[];
+}
+
+/** The floors present among the units (the quick filter), ordered by level then name; units without a floor are not listed. */
+export function floorsOf(list: TempUnit[]): { id: string; name: string }[] {
+  const seen = new Map<string, { id: string; name: string; level: number | null }>();
+  for (const u of list) if (u.floor_id && u.floor_name && !seen.has(u.floor_id)) seen.set(u.floor_id, { id: u.floor_id, name: u.floor_name, level: u.floor_level ?? null });
+  return [...seen.values()].sort((a, b) => (a.level ?? 1e9) - (b.level ?? 1e9) || a.name.localeCompare(b.name)).map(({ id, name }) => ({ id, name }));
+}
+
+/** Area groups (the units keep their own order inside a group); groups ordered by floor level, then area name; "no area" last. */
+export function groupUnits(list: TempUnit[], floor: string | null = null): UnitGroup[] {
+  const groups = new Map<string, UnitGroup>();
+  for (const u of list) {
+    if (floor && u.floor_id !== floor) continue;
+    const key = u.area_id && u.area_name ? u.area_id : '';
+    let g = groups.get(key);
+    if (!g) {
+      g = { key, name: key ? (u.area_name as string) : tt('groupNoArea'), floor: key ? u.floor_name ?? null : null, floorLevel: key ? u.floor_level ?? null : null, units: [] };
+      groups.set(key, g);
+    }
+    g.units.push(u);
+  }
+  return [...groups.values()].sort((a, b) => (a.key === '' ? 1 : 0) - (b.key === '' ? 1 : 0) || (a.floorLevel ?? 1e9) - (b.floorLevel ?? 1e9) || a.name.localeCompare(b.name));
+}
+
+/** The worst look inside a group (its header dot). */
+export function groupLook(g: UnitGroup, stale: boolean): Look {
+  if (stale) return 'unk';
+  const order: UnitStatus[] = ['alarm', 'warning', 'offline', 'ok', 'off', 'unknown'];
+  const worst = order.find((s) => g.units.some((u) => u.status === s)) ?? 'ok';
+  return LOOK_OF[worst];
+}
+
+// ---------------------------------------------------------------- phase 3: unit comparison (idea 10)
+
+/** A reading normalized to its unit's band: 0 = the low threshold, 1 = the high one (so units with different bands share one axis). */
+export function normalize(v: number, low: number, high: number): number {
+  return (v - low) / Math.max(1e-9, high - low);
 }
 
 /** Page edit mode (owner 2026-10-19, like the elevators): the add affordances exist only for a manager, only in edit mode. */
@@ -344,27 +420,46 @@ export function eventText(e: TempEvent): string {
       return tt('evAck', { name: e.ack_by_name ?? '' });
     case 'mute':
       return tt('evMute', { d: durationText(e.detail.minutes ?? 0), name: e.ack_by_name ?? '' });
+    case 'predict':
+      return tt('evPredict', { t: degT(e.threshold) });
+    case 'battery':
+      return tt('evBattery');
+    case 'frozen':
+      return tt('evFrozen');
+    case 'recovery':
+      return tt('evRecovery');
+    case 'duty':
+      return tt('evDuty');
+    case 'maint':
+      return tt('evMaint', { r: e.detail.reason ?? '', name: e.ack_by_name ?? '' });
+    case 'escalate':
+      return tt('evEscalate', { n: e.detail.level ?? '' });
+    case 'ticket':
+      return tt('evTicket', { n: e.detail.number ?? '', name: e.ack_by_name ?? '' });
     default:
       return e.kind;
   }
 }
 
+/** The act rows of the log (one instant, no duration / value). */
+export const ACT_KINDS: readonly string[] = ['ack', 'mute', 'escalate', 'ticket'];
+
 export function eventValue(e: TempEvent): string {
   if (e.kind === 'door') return tt('valueOpen');
   if (e.kind === 'offline') return e.value === null ? '—' : tt('lastValue', { v: degT(e.value) });
   if (e.kind === 'defrost') return tt('peak', { v: degT(e.peak) });
-  if (e.kind === 'ack' || e.kind === 'mute') return '—';
+  if (ACT_KINDS.includes(e.kind) || e.kind === 'maint' || e.kind === 'battery' || e.kind === 'recovery' || e.kind === 'duty') return '—';
   return deg(e.ended_at ? e.peak : e.value);
 }
 
 export function eventDuration(e: TempEvent, now: number): string {
-  if (e.kind === 'ack' || e.kind === 'mute') return '—';
+  if (ACT_KINDS.includes(e.kind)) return '—';
   const end = e.ended_at ? Date.parse(e.ended_at) : now;
   return durationText((end - Date.parse(e.started_at)) / MIN);
 }
 
 export function heldText(e: TempEvent): string {
-  return e.suppressed === 'quiet' ? tt('heldQuiet') : e.suppressed === 'mute' ? tt('heldMute') : e.suppressed === 'off' ? tt('heldOff') : '';
+  return e.suppressed === 'quiet' ? tt('heldQuiet') : e.suppressed === 'mute' ? tt('heldMute') : e.suppressed === 'off' ? tt('heldOff') : e.suppressed === 'maintenance' ? tt('heldMaint') : '';
 }
 
 // ---------------------------------------------------------------- the wizard's draft
@@ -378,6 +473,8 @@ export interface Draft {
   temp_entity_id: string;
   door_entity_id: string | null;
   door_invert: boolean;
+  /** phase 3: the optional power sensor (duty cycle) */
+  power_entity_id: string | null;
   low: number;
   high: number;
   band_mode: 'fixed' | 'setpoint';
@@ -391,7 +488,7 @@ export interface Draft {
 
 export function newDraft(): Draft {
   return {
-    id: null, name: '', area_id: null, kind: 'fridge', temp_entity_id: '', door_entity_id: null, door_invert: false, low: 2, high: 6, band_mode: 'fixed', rules: {},
+    id: null, name: '', area_id: null, kind: 'fridge', temp_entity_id: '', door_entity_id: null, door_invert: false, power_entity_id: null, low: 2, high: 6, band_mode: 'fixed', rules: {},
     ownRecipients: false, recipients: { roles: [], users: [], groups: [] }, defrost_mode: 'learn', defrost_windows: [], enabled: true,
   };
 }
@@ -399,7 +496,7 @@ export function newDraft(): Draft {
 export function draftOf(m: ManagedUnit): Draft {
   return {
     id: m.id, revision: m.revision, name: m.name, area_id: m.area_id, kind: m.kind, temp_entity_id: m.temp_entity_id, door_entity_id: m.door_entity_id,
-    door_invert: m.door_invert, low: m.low, high: m.high, band_mode: m.band_mode, rules: { ...(m.rules as Record<string, boolean | number | string>) }, ownRecipients: !!m.recipients,
+    door_invert: m.door_invert, power_entity_id: m.power_entity_id ?? null, low: m.low, high: m.high, band_mode: m.band_mode, rules: { ...(m.rules as Record<string, boolean | number | string>) }, ownRecipients: !!m.recipients,
     recipients: m.recipients ? { ...m.recipients } : { roles: [], users: [], groups: [] }, defrost_mode: m.defrost_mode,
     defrost_windows: m.defrost_windows.map((w) => ({ ...w })), enabled: m.enabled,
   };
@@ -417,6 +514,7 @@ export function problemOf(d: Draft, step: number): TtKey | null {
 export function bodyOf(d: Draft): UnitBody {
   return {
     name: d.name.trim(), area_id: d.area_id, kind: d.kind, temp_entity_id: d.temp_entity_id, door_entity_id: d.door_entity_id, door_invert: !!d.door_entity_id && d.door_invert,
+    power_entity_id: d.power_entity_id,
     low: d.low, high: d.high, band_mode: d.temp_entity_id.startsWith('climate.') ? d.band_mode : 'fixed', rules: d.rules, recipients: d.ownRecipients ? d.recipients : null, defrost_mode: d.defrost_mode,
     defrost_windows: d.defrost_mode === 'fixed' ? d.defrost_windows : [], enabled: d.enabled, ...(d.revision !== undefined ? { revision: d.revision } : {}),
   };

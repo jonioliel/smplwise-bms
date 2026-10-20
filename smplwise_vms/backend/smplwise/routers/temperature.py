@@ -20,7 +20,7 @@ import sqlite3
 import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -76,6 +76,7 @@ class UnitIn(_Body):
     temp_entity_id: str = Field(min_length=3, max_length=255)
     door_entity_id: str | None = Field(default=None, max_length=255)
     door_invert: bool = False
+    power_entity_id: str | None = Field(default=None, max_length=255)  # phase 3: a smart plug / current meter (read only) for the duty cycle
     low: float
     high: float
     band_mode: Literal["fixed", "setpoint"] = "fixed"
@@ -111,9 +112,36 @@ class AlertKindIn(_Body):
     channels: list[str] | None = Field(default=None, max_length=5)
 
 
+class EscalationStepIn(_Body):
+    after_min: int
+    recipients: RecipientsIn
+
+
+class EscalationIn(_Body):
+    enabled: bool | None = None
+    channels: list[str] | None = Field(default=None, max_length=5)
+    steps: list[EscalationStepIn] | None = Field(default=None, max_length=10)
+
+
 class AlertsIn(_Body):
     kinds: dict[str, AlertKindIn] | None = None
+    escalation: EscalationIn | None = None
     row_version: int | None = None
+
+
+class MaintenanceIn(_Body):
+    minutes: int = Field(ge=5, le=1440)
+    reason: str = Field(min_length=1, max_length=120)
+
+
+class TicketIn(_Body):
+    department_id: str = Field(min_length=1, max_length=64)
+    title: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=4000)
+    event_id: str | None = Field(default=None, max_length=64)
+    priority_key: str | None = Field(default=None, max_length=32)
+    attach_chart: bool | None = None
+    lang: Literal["he", "en"] = "he"
 
 
 def _manage_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
@@ -151,10 +179,17 @@ def _event_out(r: sqlite3.Row | dict[str, Any], names: dict[str, str], rules: di
         detail = json.loads(d.get("detail_json") or "{}") if "detail_json" in d else d.get("detail") or {}
     except ValueError:
         detail = {}
-    out = {k: d.get(k) for k in ("id", "unit_id", "kind", "severity", "started_at", "warned_at", "alarmed_at", "ended_at", "value", "peak", "threshold", "suppressed", "ack_at")}
+    out = {k: d.get(k) for k in ("id", "unit_id", "kind", "severity", "started_at", "warned_at", "alarmed_at", "ended_at", "value", "peak", "threshold", "suppressed", "ack_at",
+                                 "escalation_level", "ticket_id")}
+    out["escalation_level"] = int(out["escalation_level"] or 0)
     out["ack_by_name"] = names.get(d.get("ack_by") or "", None) if d.get("ack_by") else None
     out["notified"] = bool(d.get("notification_id"))
-    out["detail"] = {k: v for k, v in detail.items() if k in ("minutes", "until", "hard_max", "window", "closed", "events")}
+    # phase 3 detail keys: maintenance (reason, ended early), escalation (level, of), prediction (side, eta), health, ticket (number)
+    out["detail"] = {k: v for k, v in detail.items() if k in ("minutes", "until", "hard_max", "window", "closed", "events", "reason", "ended_early", "level", "of",
+                                                               "side", "eta_min", "rate_h", "battery", "median_recovery_min", "recent", "before", "number",
+                                                               "absorbed")}
+    if d.get("kind") == "ticket" and not out["ticket_id"]:
+        out["ticket_id"] = detail.get("ticket_id") if isinstance(detail.get("ticket_id"), str) else None
     if rules is not None and d.get("severity") == "warning" and d.get("kind") in ("high", "low") and not d.get("ended_at"):
         z = rules["high_alarm_min" if d["kind"] == "high" else "low_alarm_min"]
         on = rules["high_alarm" if d["kind"] == "high" else "low_alarm"]
@@ -178,13 +213,57 @@ def _status(open_evs: dict[str, dict[str, Any]], value: float | None, connected:
 
 
 class _Ctx:
-    def __init__(self, conn: sqlite3.Connection, ts: float) -> None:
-        self.conn, self.ts = conn, ts
+    def __init__(self, conn: sqlite3.Connection, ts: float, principal: Principal | None = None) -> None:
+        from ..services import temperature_insights as ti
+
+        self.conn, self.ts, self.principal = conn, ts, principal
         self.tz = t.site_zone(conn)
         self.defaults = t.load_defaults(conn)
         self.learned = t.learned_of(conn)
         self.connected = t.mirror_connected()
-        self.areas = {r["area_id"]: r["name"] for r in conn.execute("SELECT area_id, name FROM ha_areas").fetchall()}
+        self.insights = ti.load(conn)
+        rows = conn.execute("""SELECT a.area_id, a.name, a.floor_id, f.name AS floor_name, f.level AS floor_level FROM ha_areas a
+                               LEFT JOIN ha_floors f ON f.floor_id = a.floor_id""").fetchall()
+        self.areas = {r["area_id"]: r["name"] for r in rows}
+        self.floors = {r["area_id"]: (r["floor_id"], r["floor_name"], r["floor_level"]) for r in rows}
+
+
+def _phase3(ctx: _Ctx, u: sqlite3.Row, rules: dict[str, Any], te: sqlite3.Row | None, reading: dict[str, Any], ents: dict[str, sqlite3.Row],
+            open_evs: dict[str, dict[str, Any]], door: dict[str, Any] | None, low: float, high: float, door_visible: bool, minute: int,
+            wins: list[tuple[int, int]]) -> dict[str, Any]:
+    """Phase 3 of a unit's answer: its floor (grouping, idea 7), the time-to-threshold (idea 5), the sensor health (idea 8), the door
+    correlation and duty cycle (ideas 2 and 6, from the hourly insights), the power reading, the maintenance window (idea 9) and the tickets
+    opened from it that the caller may see (idea 11). Friendly names only - never an entity id."""
+    from ..services import temperature_insights as ti
+    from ..services import temperature_tickets as ttk
+
+    conn, ts = ctx.conn, ctx.ts
+    fl = ctx.floors.get(u["area_id"] or "")
+    out: dict[str, Any] = {"floor_id": fl[0] if fl else None, "floor_name": fl[1] if fl else None, "floor_level": fl[2] if fl else None}
+    value = reading["value"]
+    pred = None
+    if (ctx.connected and rules["predict_enabled"] and value is not None and not (door and door.get("open") is True) and not t.in_defrost(wins, minute)
+            and "high" not in open_evs and "low" not in open_evs and not t.is_off(reading, rules)):
+        pred = t.predict(value, t.rate_per_min(conn, u["id"], ts), low, high, int(rules["predict_horizon_min"]))
+    out["prediction"] = pred
+    hl = ti.health(conn, u["id"], te, reading["source"], rules, ts, connected=ctx.connected)
+    ins = ctx.insights.get(u["id"]) or {}
+    dins = ins.get("door") if door_visible and u["door_entity_id"] else None
+    duty = ins.get("duty") if u["power_entity_id"] else None
+    out["health"] = {**hl, "issues": hl["issues"] + (["recovery"] if dins and dins.get("slow") else []) + (["duty"] if duty and duty.get("rising") else [])}
+    out["insights"] = {"door": dins, "duty": duty, "computed_at": ins.get("computed_at")}
+    if u["power_entity_id"]:
+        pe = ents.get(u["power_entity_id"])
+        w = t.power_of(pe, connected=ctx.connected)
+        out["power"] = {"w": w, "on": None if w is None else w >= float(rules["compressor_on_w"]), "sensor_name": t.friendly(pe)}
+    else:
+        out["power"] = None
+    if u["maint_until"] and u["maint_until"] > _iso(ts):
+        out["maintenance"] = {"until": u["maint_until"], "reason": u["maint_reason"], "by_name": _user_names(conn, {u["maint_by"] or ""}).get(u["maint_by"] or "")}
+    else:
+        out["maintenance"] = None
+    out["tickets"] = ttk.linked(conn, ctx.principal, u["id"]) if ctx.principal is not None else []
+    return out
 
 
 def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sqlite3.Row], *, spark: bool, manage: bool) -> dict[str, Any]:
@@ -231,17 +310,20 @@ def _unit_out(ctx: _Ctx, u: sqlite3.Row, door_visible: bool, ents: dict[str, sql
                                 else [{"start_min": w["start_min"], "minutes": w["minutes"], "status": w["status"], "repeats": w["repeats"]} for w in ctx.learned.get(u["id"], [])] if u["defrost_mode"] == "learn" else [])},
         "muted_until": u["muted_until"] if u["muted_until"] and u["muted_until"] > _iso(ts) else None,
         "rules": {k: rules[k] for k in ("warn_on_excursion", "high_alarm", "high_alarm_min", "low_alarm", "low_alarm_min", "door_alarm", "door_alarm_min", "offline_warn",
-                                         "offline_min", "quiet_enabled", "quiet_from", "quiet_to", "exclude_defrost_stats", "setpoint_tolerance", "alert_when_off", "learn_min_repeats", "learn_days", "alerts_enabled", "quiet_includes_alarms", "mute_includes_alarms")},
+                                         "offline_min", "quiet_enabled", "quiet_from", "quiet_to", "exclude_defrost_stats", "setpoint_tolerance", "alert_when_off", "learn_min_repeats", "learn_days", "alerts_enabled", "quiet_includes_alarms", "mute_includes_alarms",
+                                         "predict_enabled", "predict_horizon_min", "predict_warn", "predict_warn_min", "maintenance_includes_alarms", "maintenance_max_min", "escalation_enabled",
+                                         "health_warn", "battery_low_pct", "frozen_min", "recovery_slow_min", "recovery_alert", "compressor_on_w", "duty_rise_pts", "duty_alert")},
         "stats_24h": {k: st24[k] for k in ("min", "max", "avg", "out_min", "out_min_raw", "door_opens", "door_total_min", "door_longest_min", "alarms", "warnings")},
         "stale": not ctx.connected,
     }
+    out.update(_phase3(ctx, u, rules, te, reading, ents, open_evs, door, low, high, door_visible, minute, wins))
     if spark:
         s = t.series(conn, u["id"], lo, int(ts), ts, max_points=288)
         out["spark"] = [[p[0], p[1], p[5]] if reading["source"] == "climate" else [p[0], p[1]] for p in s["points"]]
         out["doors_24h"] = t.door_intervals(conn, u["id"], lo, int(ts), ts) if door_visible else []
         out["defrost_24h"] = [[int(a), int(b)] for a, b in t.window_intervals(wins, lo, ts, ctx.tz)]
     if manage:
-        out.update({"temp_entity_id": u["temp_entity_id"], "door_entity_id": u["door_entity_id"]})
+        out.update({"temp_entity_id": u["temp_entity_id"], "door_entity_id": u["door_entity_id"], "power_entity_id": u["power_entity_id"]})
     return out
 
 
@@ -254,13 +336,16 @@ def _visible(conn: sqlite3.Connection, principal: Principal) -> list[tuple[sqlit
 @router.get(API)
 def list_units(spark: int = Query(1, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every enabled unit the caller may see with its live status, open alerts, 24-hour statistics and (spark=1) the 24-hour line. Empty = no units."""
-    ctx = _Ctx(conn, now_ts())
+    ctx = _Ctx(conn, now_ts(), principal)
     vis = _visible(conn, principal)
-    ents = t.entity_rows(conn, [x for u, _d in vis for x in (u["temp_entity_id"], u["door_entity_id"])])
+    ents = t.entity_rows(conn, [x for u, _d in vis for x in (u["temp_entity_id"], u["door_entity_id"], u["power_entity_id"])])
     manage = authorize(conn, principal, MANAGE, INSTALLATION).allowed
     items = [_unit_out(ctx, u, d, ents, spark=bool(spark), manage=manage) for u, d in vis]
     return {"units": items, "summary": t.summary([i["status"] for i in items]), "stale": not ctx.connected, "at": _iso(ctx.ts),
-            "can_manage": manage, "can_ack": authorize(conn, principal, ACK, INSTALLATION).allowed}
+            "can_manage": manage, "can_ack": authorize(conn, principal, ACK, INSTALLATION).allowed,
+            # phase 3: the grid's grouping (idea 7) and whether the home widget is offered (idea 12) - installation settings
+            "grouping": ctx.defaults.get("grid_grouping", "area"), "home_widget": bool(ctx.defaults.get("home_widget", True)),
+            "ticket_department_id": ctx.defaults.get("ticket_department_id") or None}
 
 
 def _one_visible(conn: sqlite3.Connection, principal: Principal, unit_id: str) -> tuple[sqlite3.Row, bool]:
@@ -287,7 +372,7 @@ def _log_query(conn: sqlite3.Connection, principal: Principal, unit: str | None,
     where = [f"unit_id IN ({','.join('?' * len(ids))})", "started_at <= ?", "(ended_at IS NULL OR ended_at >= ?)"]
     args: list[Any] = [*ids, _iso(hi), _iso(lo)]
     if kind:
-        kinds = ("high", "low") if kind == "temp" else ("ack", "mute") if kind == "act" else (kind,)
+        kinds = (("high", "low", "predict") if kind == "temp" else t.ACT_KINDS if kind == "act" else t.HEALTH_KINDS if kind == "health" else (kind,))
         where.append(f"kind IN ({','.join('?' * len(kinds))})")
         args += list(kinds)
     if severity:
@@ -351,7 +436,7 @@ def _wa_error(e: Any) -> ApiError:
 @router.get(f"{API}/report/preview")
 def report_preview(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
                    end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
-                   events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1),
+                   events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
                    principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The report MODEL (what the PDF and the WhatsApp text are made from) - the dialog's preview. devices.read, scoped like the units."""
     from ..services import temperature_report as rep
@@ -359,14 +444,14 @@ def report_preview(units: str = Query(..., max_length=2000), range: str = Query(
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
-    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature))
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout)
     return {**model, "range_text": rep.range_text(model), "text_summary": rep.text_summary(model), "filename": rep.filename(model)}
 
 
 @router.get(f"{API}/report.pdf")
 def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
                end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
-               events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1),
+               events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """The audit PDF of one or more units (a page per unit): presets or a custom range, Hebrew or English, chart / events / signature LINE
     (owner decision 4: a line only; the model keeps room for a future electronic signature). Rendered in the isolated child process."""
@@ -375,14 +460,15 @@ def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
-    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature))
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout)
     try:
         content = temperature_pdf.render(model)
     except temperature_pdf.PdfError as e:
         status = 422 if e.code in ("pdf_page_limit", "pdf_too_large") else 503
         raise ApiError(status, e.code, "לא ניתן להפיק את הדוח כרגע." if status == 503 else "הדוח גדול מדי; יש לצמצם טווח או יחידות.",
                        details={"message_en": "The report cannot be produced now." if status == 503 else "The report is too large; narrow the range or the units."}) from None
-    audit(conn, actor=principal, action="infra.temperature.report", decision="allowed", resource_type="infra_temp_unit", details={"units": len(rows), "digest": model["digest"][:16]})
+    audit(conn, actor=principal, action="infra.temperature.report", decision="allowed", resource_type="infra_temp_unit",
+          details={"units": len(rows), "digest": model["digest"][:16], "layout": layout})
     return Response(content=content, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{rep.filename(model)}"', "Cache-Control": "private, no-store", "X-Report-Digest": model["digest"]})
 
@@ -451,7 +537,7 @@ def report_schedule_delete(schedule_id: str, principal: Principal = Depends(_man
 
 
 @router.get(f"{API}/events")
-def events(unit: str | None = Query(None, max_length=64), kind: str | None = Query(None, pattern="^(temp|high|low|door|offline|defrost|ack|mute|act)$"),
+def events(unit: str | None = Query(None, max_length=64), kind: str | None = Query(None, pattern="^(temp|high|low|door|offline|defrost|ack|mute|act|predict|battery|frozen|recovery|duty|maint|escalate|ticket|health)$"),
            severity: str | None = Query(None, pattern="^(info|warning|alarm)$"), range: str = Query("24h", pattern="^(24h|7d|30d|custom)$"),  # noqa: A002
            start: str | None = Query(None, alias="from", max_length=40), end: str | None = Query(None, alias="to", max_length=40),
            limit: int = Query(200, ge=1, le=1000), offset: int = Query(0, ge=0),
@@ -464,13 +550,17 @@ def events(unit: str | None = Query(None, max_length=64), kind: str | None = Que
     return {"events": rows, "total": total}
 
 
-KIND_HE = {"high": "טמפרטורה מעל הטווח", "low": "טמפרטורה מתחת לטווח", "door": "דלת פתוחה", "offline": "חיישן לא מדווח", "defrost": "הפשרה", "ack": "אישור התראה", "mute": "השתקה"}
-KIND_EN = {"high": "Above range", "low": "Below range", "door": "Door open", "offline": "Sensor not reporting", "defrost": "Defrost", "ack": "Acknowledged", "mute": "Muted"}
+KIND_HE = {"high": "טמפרטורה מעל הטווח", "low": "טמפרטורה מתחת לטווח", "door": "דלת פתוחה", "offline": "חיישן לא מדווח", "defrost": "הפשרה", "ack": "אישור התראה", "mute": "השתקה",
+           "predict": "חריגה צפויה", "battery": "סוללת חיישן חלשה", "frozen": "ערך קפוא בחיישן", "recovery": "התאוששות איטית אחרי דלת", "duty": "זמן פעולת מדחס עולה",
+           "maint": "חלון תחזוקה", "escalate": "הסלמת אזעקה", "ticket": "קריאת שירות נפתחה"}
+KIND_EN = {"high": "Above range", "low": "Below range", "door": "Door open", "offline": "Sensor not reporting", "defrost": "Defrost", "ack": "Acknowledged", "mute": "Muted",
+           "predict": "Predicted excursion", "battery": "Sensor battery low", "frozen": "Frozen sensor value", "recovery": "Slow recovery after the door",
+           "duty": "Compressor run time rising", "maint": "Maintenance window", "escalate": "Alarm escalated", "ticket": "Service ticket opened"}
 SEV_HE = {"info": "מידע", "warning": "אזהרה", "alarm": "אזעקה"}
 
 
 @router.get(f"{API}/events.csv")
-def events_csv(unit: str | None = Query(None, max_length=64), kind: str | None = Query(None, pattern="^(temp|high|low|door|offline|defrost|ack|mute|act)$"),
+def events_csv(unit: str | None = Query(None, max_length=64), kind: str | None = Query(None, pattern="^(temp|high|low|door|offline|defrost|ack|mute|act|predict|battery|frozen|recovery|duty|maint|escalate|ticket|health)$"),
                severity: str | None = Query(None, pattern="^(info|warning|alarm)$"), range: str = Query("24h", pattern="^(24h|7d|30d|custom)$"),  # noqa: A002
                start: str | None = Query(None, alias="from", max_length=40), end: str | None = Query(None, alias="to", max_length=40),
                lang: str = Query("he", pattern="^(he|en)$"),
@@ -493,7 +583,7 @@ def events_csv(unit: str | None = Query(None, max_length=64), kind: str | None =
     for r in rows:
         st = rt._ts(r["started_at"]) or now
         en = rt._ts(r["ended_at"]) if r["ended_at"] else now
-        dur = "" if r["kind"] in ("ack", "mute") else str(round((en - st) / 60))
+        dur = "" if r["kind"] in ("ack", "mute", "escalate", "ticket") else str(round((en - st) / 60))
         u = vis.get(r["unit_id"])
         safe = lambda s: ("'" + s) if isinstance(s, str) and s[:1] in ("=", "+", "-", "@") else s  # noqa: E731 - no formula injection
         w.writerow([loc(r["started_at"]), r["started_at"], safe(u["name"] if u else ""), (KIND_HE if he else KIND_EN).get(r["kind"], r["kind"]),
@@ -510,14 +600,15 @@ def events_csv(unit: str | None = Query(None, max_length=64), kind: str | None =
 @router.get(f"{API}/manage")
 def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     rows = t.units(conn)
-    ents = t.entity_rows(conn, [x for r in rows for x in (r["temp_entity_id"], r["door_entity_id"])])
+    ents = t.entity_rows(conn, [x for r in rows for x in (r["temp_entity_id"], r["door_entity_id"], r["power_entity_id"])])
     items = []
     for r in rows:
-        te, de = ents.get(r["temp_entity_id"]), ents.get(r["door_entity_id"] or "")
+        te, de, pe = ents.get(r["temp_entity_id"]), ents.get(r["door_entity_id"] or ""), ents.get(r["power_entity_id"] or "")
         items.append({"id": r["id"], "name": r["name"], "kind": r["kind"], "area_id": r["area_id"], "enabled": bool(r["enabled"]), "sort_order": r["sort_order"],
                       "revision": r["revision"], "temp_entity_id": r["temp_entity_id"], "temp_sensor_name": t.friendly(te), "temp_missing": te is None or bool(te["removed_at"]),
                       "door_entity_id": r["door_entity_id"], "door_sensor_name": t.friendly(de), "door_missing": bool(r["door_entity_id"]) and (de is None or bool(de["removed_at"])),
                       "door_invert": bool(r["door_invert"]), "low": r["low"], "high": r["high"], "band_mode": r["band_mode"],
+                      "power_entity_id": r["power_entity_id"], "power_sensor_name": t.friendly(pe), "power_missing": bool(r["power_entity_id"]) and (pe is None or bool(pe["removed_at"])),
                       "source": "climate" if r["temp_entity_id"].startswith("climate.") else "sensor", "rules": t.overrides_of(r["rules_json"]), "recipients": t.recipients_of(r),
                       "defrost_mode": r["defrost_mode"], "defrost_windows": t.fixed_of(r)})
     return {"units": items, "defaults": t.load_defaults(conn), "rule_specs": {k: {"type": s[0], "min": s[2], "max": s[3]} for k, s in t.RULES.items()},
@@ -527,25 +618,28 @@ def manage_list(principal: Principal = Depends(_manage_ro), conn: sqlite3.Connec
 
 
 @router.get(f"{API}/candidates")
-def candidates(kind: str = Query("temp", pattern="^(temp|door)$"), q: str = Query("", max_length=80), principal: Principal = Depends(_manage_ro),
+def candidates(kind: str = Query("temp", pattern="^(temp|door|power)$"), q: str = Query("", max_length=80), principal: Principal = Depends(_manage_ro),
                conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The sensors the setter may link (devices.read scope): numeric degree sensors for `temp`, binary sensors for `door` (door / opening /
     window classes first). Friendly name first; the id for the setter, who manages the module."""
     from ..services import ha_scope
 
-    doms = ("sensor", "climate") if kind == "temp" else ("binary_sensor",)
+    doms = ("sensor", "climate") if kind == "temp" else ("sensor",) if kind == "power" else ("binary_sensor",)
     marks = ",".join("?" * len(doms))
     rows = conn.execute(f"""SELECT entity_id, name, original_name, domain, device_class, unit, state, available, removed_at, disabled, area_name, attributes_json
                             FROM ha_entities WHERE domain IN ({marks}) AND removed_at IS NULL AND disabled = 0 ORDER BY name, entity_id""", doms).fetchall()
     if kind == "temp":
         rows = [r for r in rows if t.is_temperature_entity(r)]
+    elif kind == "power":  # phase 3: a smart plug / current meter of the unit (read only)
+        rows = [r for r in rows if t.is_power_entity(r)]
     items = []
     for r in rows:
         rd = t.reading_of(r) if kind == "temp" else None
         items.append({"entity_id": r["entity_id"], "name": r["name"] or r["original_name"] or r["entity_id"], "device_class": r["device_class"], "area_name": r["area_name"],
-                      "group": ("climate" if r["domain"] == "climate" else "sensor") if kind == "temp" else "door",
+                      "group": ("climate" if r["domain"] == "climate" else "sensor") if kind == "temp" else "power" if kind == "power" else "door",
                       "value": rd["value"] if rd else None, "setpoint": rd["setpoint"] if rd else None, "hvac_mode": rd["hvac_mode"] if rd else None,
-                      "state": (r["state"] if r["state"] in ("on", "off") else None) if kind == "door" else None})
+                      "state": (r["state"] if r["state"] in ("on", "off") else None) if kind == "door" else None,
+                      "watts": t.power_of(r) if kind == "power" else None})
     if kind == "temp":
         items.sort(key=lambda i: (0 if i["group"] == "sensor" else 1, i["name"]))
     if kind == "door":
@@ -563,7 +657,8 @@ def get_settings(principal: Principal = Depends(_manage_ro), conn: sqlite3.Conne
     """The installation defaults of every rule (each unit may override any of them)."""
     r = conn.execute("SELECT row_version FROM infra_temp_settings WHERE id = 1").fetchone()
     return {"rules": t.load_defaults(conn), "code_defaults": t.code_defaults(), "row_version": r["row_version"] if r else 0,
-            "rule_specs": {k: {"type": s[0], "min": s[2], "max": s[3]} for k, s in {**t.RULES, **t.INSTALLATION}.items()}}
+            "rule_specs": {k: {"type": s[0], "min": s[2], "max": s[3], **({"choices": list(t.CHOICES[k])} if k in t.CHOICES else {})}
+                           for k, s in {**t.RULES, **t.INSTALLATION}.items()}}
 
 
 @router.put(f"{API}/settings")
@@ -641,6 +736,13 @@ def _validate_unit(conn: sqlite3.Connection, principal: Principal, body: UnitIn)
             raise _err(422, "sensor_not_found", fields=["door_entity_id"])
         if d["domain"] != "binary_sensor":
             raise _err(422, "not_door_sensor", fields=["door_entity_id"])
+    power = (body.power_entity_id or "").strip() or None
+    if power:
+        p = conn.execute("SELECT domain, device_class, unit FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (power,)).fetchone()
+        if p is None or not ha_scope.entity_visible(wide, floors, placed or {}, power):
+            raise _err(422, "sensor_not_found", fields=["power_entity_id"])
+        if not t.is_power_entity(p):
+            raise _err(422, "not_power_sensor", fields=["power_entity_id"])
     if body.band_mode == "setpoint" and r["domain"] != "climate":
         raise ApiError(422, "validation", "טווח לפי נקודת היעד אפשרי רק ליחידת מיזוג.", details={"fields": ["band_mode"], "message_en": "A setpoint band needs a climate entity."})
     rec = None
@@ -649,7 +751,7 @@ def _validate_unit(conn: sqlite3.Connection, principal: Principal, body: UnitIn)
             rec = temperature_alerts.validate_recipients(conn, body.recipients.model_dump(), "recipients")
         except temperature_alerts.AlertsInvalid as e:
             raise ApiError(422, e.code, e.message, details={**e.details, "message_en": e.message_en}) from None
-    return {"temp": temp, "door": door, "low": low, "high": high, "rules": rules, "mode": mode, "wins": wins, "rec": rec}
+    return {"temp": temp, "door": door, "power": power, "low": low, "high": high, "rules": rules, "mode": mode, "wins": wins, "rec": rec}
 
 
 def _name_taken(conn: sqlite3.Connection, name: str, except_id: str | None = None) -> bool:
@@ -683,10 +785,10 @@ def create(body: UnitIn, principal: Principal = Depends(_manage_w), conn: sqlite
         raise _err(409, "duplicate_name", fields=["name"])
     uid, at = new_id(), now_iso()
     nxt = conn.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM infra_temp_units").fetchone()[0]
-    conn.execute("""INSERT INTO infra_temp_units(id, name, name_key, area_id, kind, temp_entity_id, door_entity_id, door_invert, low, high, band_mode, rules_json, recipients_json,
-                    defrost_mode, defrost_json, sort_order, enabled, revision, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
-                 (uid, name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["low"], v["high"], body.band_mode,
-                  json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), nxt, int(body.enabled), at, at))
+    conn.execute("""INSERT INTO infra_temp_units(id, name, name_key, area_id, kind, temp_entity_id, door_entity_id, door_invert, power_entity_id, low, high, band_mode, rules_json,
+                    recipients_json, defrost_mode, defrost_json, sort_order, enabled, revision, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
+                 (uid, name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["power"], v["low"], v["high"],
+                  body.band_mode, json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), nxt, int(body.enabled), at, at))
     audit(conn, actor=principal, action="infra.temperature.create", decision="allowed", resource_type="infra_temp_unit", resource_id=uid)
     return _manage_one(conn, principal, uid)
 
@@ -715,10 +817,13 @@ def update(unit_id: str, body: UnitIn, principal: Principal = Depends(_manage_w)
         rt.close_all(conn, cur, ts, "changed")  # a different sensor: the open conditions were about the old one
     if cur["temp_entity_id"] != v["temp"]:
         conn.execute("DELETE FROM infra_temp_defrost_learned WHERE unit_id = ? AND status = 'learned'", (unit_id,))
-    conn.execute("""UPDATE infra_temp_units SET name = ?, name_key = ?, area_id = ?, kind = ?, temp_entity_id = ?, door_entity_id = ?, door_invert = ?, low = ?, high = ?,
-                    band_mode = ?, rules_json = ?, recipients_json = ?, defrost_mode = ?, defrost_json = ?, enabled = ?, revision = revision + 1, updated_at = ? WHERE id = ?""",
-                 (name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["low"], v["high"], body.band_mode,
-                  json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), int(body.enabled), now_iso(), unit_id))
+    if (cur["power_entity_id"] or None) != v["power"]:
+        conn.execute("DELETE FROM infra_temp_insights WHERE unit_id = ?", (unit_id,))  # the duty cycle was about the old power sensor
+    conn.execute("""UPDATE infra_temp_units SET name = ?, name_key = ?, area_id = ?, kind = ?, temp_entity_id = ?, door_entity_id = ?, door_invert = ?, power_entity_id = ?,
+                    low = ?, high = ?, band_mode = ?, rules_json = ?, recipients_json = ?, defrost_mode = ?, defrost_json = ?, enabled = ?, revision = revision + 1, updated_at = ?
+                    WHERE id = ?""",
+                 (name, t.name_key(name), body.area_id or None, body.kind, v["temp"], v["door"], int(body.door_invert and bool(v["door"])), v["power"], v["low"], v["high"],
+                  body.band_mode, json.dumps(v["rules"]), json.dumps(v["rec"]) if v["rec"] is not None else None, v["mode"], json.dumps(v["wins"]), int(body.enabled), now_iso(), unit_id))
     audit(conn, actor=principal, action="infra.temperature.update", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
     return _manage_one(conn, principal, unit_id)
 
@@ -727,7 +832,8 @@ def update(unit_id: str, body: UnitIn, principal: Principal = Depends(_manage_w)
 def delete(unit_id: str, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     u = _unit_row(conn, unit_id)
     rt.close_all(conn, u, now_ts(), "removed")
-    for tbl in ("infra_temp_samples", "infra_temp_samples_5m", "infra_temp_doors", "infra_temp_events", "infra_temp_defrost_learned", "infra_temp_defrost_state"):
+    for tbl in ("infra_temp_samples", "infra_temp_samples_5m", "infra_temp_doors", "infra_temp_events", "infra_temp_defrost_learned", "infra_temp_defrost_state",
+                "infra_temp_insights", "infra_temp_tickets"):  # phase 3 tables (the tickets themselves stay in the service module)
         conn.execute(f"DELETE FROM {tbl} WHERE unit_id = ?", (unit_id,))
     conn.execute("DELETE FROM infra_temp_units WHERE id = ?", (unit_id,))
     audit(conn, actor=principal, action="infra.temperature.delete", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
@@ -777,6 +883,8 @@ def ack(unit_id: str, body: AckIn | None = None, principal: Principal = Depends(
     for e in evs:
         conn.execute("UPDATE infra_temp_events SET ack_by = ?, ack_at = ? WHERE id = ?", (principal.user_id, at, e["id"]))
         notify.ack_from_alert(conn, e.get("notification_id"), principal)
+        if e.get("escalation_level"):
+            rt.resolve_escalations(conn, u, e, now_ts())  # phase 3: an acknowledged alarm stops climbing and its steps end
     rt.log_act(conn, unit_id, "ack", at, principal.user_id, {"events": [e["id"] for e in evs]})
     audit(conn, actor=principal, action="infra.temperature.ack", decision="allowed", resource_type="infra_temp_unit", resource_id=u["id"])
     return {"acked": len(evs), "at": at}
@@ -813,6 +921,85 @@ def unmute(unit_id: str, principal: Principal = Depends(_ack_w), conn: sqlite3.C
     return {"muted_until": None}
 
 
+# ---------------------------------------------------------------- phase 3: the maintenance window (idea 9) - infra.temperature.ack
+
+@router.post(f"{API}/{{unit_id}}/maintenance")
+def maintenance_start(unit_id: str, body: MaintenanceIn, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Puts the unit in maintenance (cleaning, restocking, a technician) for a while, with a reason and who: its WARNINGS are held and logged
+    as held by maintenance; alarms still go out (saying the unit is in maintenance) unless `maintenance_includes_alarms` is on. Shown in the
+    alert log and in the report with the name - never an anonymous silence."""
+    u, _d = _one_visible(conn, principal, unit_id)
+    rules = t.effective(t.load_defaults(conn), t.overrides_of(u["rules_json"]))
+    reason = " ".join(body.reason.split())
+    if not reason:
+        raise _err(422, "maint_reason", fields=["reason"])
+    if body.minutes > int(rules["maintenance_max_min"]):
+        raise _err(422, "maint_too_long", fields=["minutes"], max=int(rules["maintenance_max_min"]))
+    until = rt.start_maintenance(conn, u, now_ts(), body.minutes, reason, principal.user_id)
+    audit(conn, actor=principal, action="infra.temperature.maintenance", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id,
+          details={"minutes": body.minutes})
+    return {"maintenance": {"until": until, "reason": reason, "by_name": _user_names(conn, {principal.user_id}).get(principal.user_id)}}
+
+
+@router.delete(f"{API}/{{unit_id}}/maintenance")
+def maintenance_end(unit_id: str, principal: Principal = Depends(_ack_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    u, _d = _one_visible(conn, principal, unit_id)
+    if not u["maint_until"] or u["maint_until"] <= _iso(now_ts()):
+        raise _err(409, "not_in_maintenance")
+    rt.end_maintenance(conn, u, now_ts(), by=principal.user_id, early=True)
+    audit(conn, actor=principal, action="infra.temperature.maintenance.end", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id)
+    return {"maintenance": None}
+
+
+# ---------------------------------------------------------------- phase 3: a service ticket from a unit / an alert row (idea 11)
+
+def _event_of(conn: sqlite3.Connection, unit_id: str, event_id: str | None, door_vis: bool) -> dict[str, Any] | None:
+    if not event_id:
+        return None
+    r = conn.execute("SELECT * FROM infra_temp_events WHERE id = ? AND unit_id = ?", (event_id, unit_id)).fetchone()
+    if r is None or r["kind"] in t.ACT_KINDS or (r["kind"] == "door" and not door_vis):
+        raise _err(404, "event_not_found")
+    return dict(r)
+
+
+@router.get(f"{API}/{{unit_id}}/ticket/draft")
+def ticket_draft(unit_id: str, event_id: str | None = Query(None, max_length=64), lang: Literal["he", "en"] = "he",
+                 principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The prefilled ticket (title, description) and the departments the caller may open it in - the dialog's content. Nothing is written."""
+    from ..services import temperature_tickets as ttk
+    from ..services.tickets import access as taccess
+    from ..services.tickets import store as tstore
+
+    u, door_vis = _one_visible(conn, principal, unit_id)
+    if not taccess.module_on(conn):
+        raise _err(409, "tickets_unavailable")
+    ev = _event_of(conn, unit_id, event_id, door_vis)
+    viewer = taccess.Viewer(conn, principal)
+    depts = [{"id": d["id"], "name": d["name"]} for d in tstore.departments(conn, include_inactive=False) if viewer.can_create_in(d)]
+    pref = t.load_defaults(conn).get("ticket_department_id") or None
+    return {**ttk.draft(conn, u, ev, lang, now_ts(), door_visible=door_vis), "departments": depts,
+            "department_id": pref if any(d["id"] == pref for d in depts) else (depts[0]["id"] if len(depts) == 1 else None),
+            "attach_chart": bool(t.load_defaults(conn).get("ticket_attach_chart", True))}
+
+
+@router.post(f"{API}/{{unit_id}}/ticket", status_code=201)
+def ticket_open(unit_id: str, body: TicketIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Opens a service ticket from the unit (or one of its alert rows) as the caller - the service module's own creation path and rules."""
+    from ..auth import settings_of
+    from ..services import temperature_tickets as ttk
+
+    u, door_vis = _one_visible(conn, principal, unit_id)
+    ev = _event_of(conn, unit_id, body.event_id, door_vis)
+    try:
+        data_dir = settings_of(request).data_dir
+    except Exception:  # noqa: BLE001 - no data directory = no picture; the ticket still opens
+        data_dir = None
+    out = ttk.open_ticket(conn, principal, u, ev, body.model_dump(), data_dir, now_ts(), door_visible=door_vis)
+    audit(conn, actor=principal, action="infra.temperature.ticket", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id,
+          details={"ticket_id": out["ticket_id"], "result": out["result"], "event": bool(ev)})
+    return out
+
+
 # ---------------------------------------------------------------- one unit (registered last)
 
 @router.get(f"{API}/{{unit_id}}/history")
@@ -840,6 +1027,6 @@ def history(unit_id: str, range: str = Query("24h", pattern="^(24h|7d|30d|custom
 @router.get(f"{API}/{{unit_id}}")
 def get_one(unit_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     u, d = _one_visible(conn, principal, unit_id)
-    ctx = _Ctx(conn, now_ts())
-    ents = t.entity_rows(conn, [u["temp_entity_id"], u["door_entity_id"] or ""])
+    ctx = _Ctx(conn, now_ts(), principal)
+    ents = t.entity_rows(conn, [u["temp_entity_id"], u["door_entity_id"] or "", u["power_entity_id"] or ""])
     return _unit_out(ctx, u, d, ents, spark=True, manage=authorize(conn, principal, MANAGE, INSTALLATION).allowed)

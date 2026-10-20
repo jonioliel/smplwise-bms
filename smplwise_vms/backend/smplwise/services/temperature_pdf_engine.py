@@ -55,12 +55,18 @@ def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
     for u in model["units"]:
         pdf.add_page()
         s = u["stats"]
-        line(f'{L["title"]} · {u["name"]}', 15)
+        line(f'{L["haccp"] if model.get("layout") == "haccp" else L["title"]} · {u["name"]}', 15)
         line(f'{L["range"]}: {range_text(model)}', 9)
         line(f'{L["sensor"]}: {u.get("sensor") or "—"} · {L["door"]}: {u.get("door") or L["none"]} · {L["band"]}: {deg(u["low"])} – {deg(u["high"])}', 9)
         pdf.ln(2)
         line(f'{L["min"]} {deg(s["min"])} · {L["max"]} {deg(s["max"])} · {L["avg"]} {deg(s["avg"])} · {L["out"]} {dur_text(s["out_min"], lang)} · '
              f'{L["alerts"]} {s["alarms"] + s["warnings"]}', 10)
+        if u.get("daily"):  # phase 3: the HACCP daily table, one line per day
+            pdf.ln(2)
+            line(L["daily"], 11)
+            for d in u["daily"]:
+                line(f'{d["day"]} · {deg(d["min"])} / {deg(d["max"])} / {deg(d["avg"])} · {L["out"]} {d["out_min"]} · {L["alerts"]} {d["alarms"]} · '
+                     f'{d["coverage"]:.0f}% · {L["v_" + d["verdict"]]}', 8.5)
         if model.get("events"):
             pdf.ln(2)
             line(L["events"], 11)

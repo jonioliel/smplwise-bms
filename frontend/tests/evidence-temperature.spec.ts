@@ -101,6 +101,7 @@ async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: 
     }
     if (p === 'infra/temperature/candidates') {
       const kind = new URL(route.request().url()).searchParams.get('kind');
+      if (kind === 'power') return json(route, { items: [{ entity_id: 'sensor.bar_fridge_plug_power', name: 'שקע חכם מקרר בר קפה', area_name: 'לובי', device_class: 'power', value: null, state: null, group: 'power', setpoint: null, hvac_mode: null, watts: 96 }] }); // phase 3
       return json(route, kind === 'door'
         ? { items: [{ entity_id: 'binary_sensor.bar_fridge_door', name: 'דלת מקרר בר קפה', area_name: 'לובי', device_class: 'door', value: null, state: 'off', group: 'door', setpoint: null, hvac_mode: null },
           { entity_id: 'binary_sensor.meat_coldroom_door', name: 'דלת חדר קירור בשר', area_name: 'מטבח', device_class: 'door', value: null, state: 'on', group: 'door', setpoint: null, hvac_mode: null }] }
@@ -115,6 +116,10 @@ async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: 
         defrost: u.defrost_24h, events: LOG.filter((e) => e.unit_id === u.id).map((e) => ({ kind: e.kind, severity: e.severity, started_at: e.started_at, ended_at: e.ended_at, value: e.value, peak: e.peak, threshold: e.threshold })), events_more: 0 }));
       return json(route, { v: 1, lang: 'he', from: NOW_S - 86400, to: NOW_S, zone: 'Asia/Jerusalem', generated: NOW_S, units: us, chart: true, events: true, signature: { mode: 'line' },
         digest: '3f9a1c0d5e7b2a4c'.repeat(4), range_text: '19.10.2026 13:42 – 20.10.2026 13:42', filename: 'temperature-report-20261020.pdf',
+        layout: new URL(route.request().url()).searchParams.get('layout') === 'haccp' ? 'haccp' : 'standard',
+        ...(new URL(route.request().url()).searchParams.get('layout') === 'haccp' ? { units: us.map((u, i) => ({ ...u, daily: Array.from({ length: 30 }, (_x, d) => ({
+          day: `2026-09-${String(d + 1).padStart(2, '0')}`, min: u.low + 0.3, max: d === 11 + i ? u.high + 2.1 : u.high - 0.2, avg: (u.low + u.high) / 2, out_min: d === 11 + i ? 34 : 0, out_min_raw: d === 11 + i ? 34 : 0,
+          alarms: d === 11 + i ? 1 : 0, door_opens: 18, coverage: d === 20 ? 62 : 99.8, verdict: d === 11 + i ? 'exc' : 'ok' })) })) } : {}),
         text_summary: `Arx · דוח טמפרטורות
 19.10.2026 13:42 – 20.10.2026 13:42
 ${us.map((u) => `${u.name}: מינ׳ ${u.stats.min}° · מקס׳ ${u.stats.max}° · מחוץ לטווח ${u.stats.out_min} דק׳ · התראות ${u.stats.alarms + u.stats.warnings}`).join(String.fromCharCode(10))}
@@ -128,6 +133,15 @@ ${us.map((u) => `${u.name}: מינ׳ ${u.stats.min}° · מקס׳ ${u.stats.max}
         send_hours: { from: '08:00', to: '20:00' }, attachment: 'none', attachment_modes: ['none'] });
     }
     if (p === 'infra/temperature/report/schedules') return json(route, { schedules: [] });
+    // phase 3: the ticket dialog's draft and the opened ticket, the maintenance window
+    const tk = /^infra\/temperature\/([^/]+)\/ticket(\/draft)?$/.exec(p);
+    if (tk && tk[2]) {
+      return json(route, { title: 'חדר קירור בשר: טמפרטורה מעל 4°', description: ['יחידה: חדר קירור בשר · אזור: מטבח', 'אירוע: טמפרטורה מעל 4° · מאז 20.10.2026 13:33', 'ערך נוכחי: 6.8° · טווח יעד: 0.0°–4.0°',
+        'פרטי היחידה במערכת: #/infra/temperature?unit=u3'].join(String.fromCharCode(10)),
+        departments: [{ id: 'dept-maintenance', name: 'אחזקה' }, { id: 'dept-kitchen', name: 'מטבח' }], department_id: 'dept-maintenance', attach_chart: true });
+    }
+    if (tk) return json(route, { ticket_id: 't-41', number: 41, result: 'created', chart_attached: true }, 201);
+    if (/^infra\/temperature\/[^/]+\/maintenance$/.test(p)) return json(route, { maintenance: { until: new Date((NOW_S + 3600) * 1000).toISOString(), reason: 'ניקוי', by_name: 'יוני' } });
     if (p === 'infra/temperature/settings') return json(route, { rules: { ...RULES, defrost_hard_margin: 5, retention_days: 400 }, code_defaults: {}, row_version: 1, rule_specs: {} });
     if (p === 'infra/temperature/alerts') return json(route, { kinds: {}, row_version: 1, roles: [], channels: [], kinds_order: [], can_edit: true });
     const m = /^infra\/temperature\/([^/]+)\/history$/.exec(p);
@@ -138,6 +152,30 @@ ${us.map((u) => `${u.name}: מינ׳ ${u.stats.min}° · מקס׳ ${u.stats.max}
     }
     return json(route, { code: 'unit_not_found', user_message: 'היחידה לא נמצאה.', retryable: false, correlation_id: 'mock', details: {} }, 404);
   });
+}
+
+/** Phase 3 (CR section 11): the same units placed in areas and floors, with sensor health, insights, a projection, a maintenance window, an
+ * escalated alarm with its ticket and a smart plug - all fake, deterministic. */
+function phase3Units() {
+  const okHealth = { battery: 88, battery_low: false, signal: -61, signal_unit: 'dBm', signal_weak: false, age_min: 3, frozen_since: null, issues: [] as string[] };
+  const doorOk = { opens: 21, avg_rise: 1.4, max_rise: 2.6, median_recovery_min: 9, unrecovered: 0, slow: false,
+    last: [0, 1, 2, 3, 4].map((k) => ({ opened: NOW_S - 3600 * (k + 1), closed: NOW_S - 3600 * (k + 1) + 60, open_min: 1, base: 3.6, peak: 5 + k * 0.2, rise: 1.4 + k * 0.2, recovery_min: 8 + k, interrupted: false })) };
+  const days = Array.from({ length: 7 }, (_x, k) => ({ day: `2026-10-${String(13 + k).padStart(2, '0')}`, pct: k < 4 ? 41 + k : 58 + k * 2, minutes: k === 6 ? 700 : 1440 }));
+  const place = { kitchen: ['kitchen', 'מטבח', 'f0', 'קומה 0', 0], store: ['store', 'מחסן', 'fm1', 'קומה −1', -1], offices: ['offices', 'משרדים', 'f2', 'קומה 2', 2], clinic: ['clinic', 'מרפאה', 'f1', 'קומה 1', 1] } as const;
+  const at = (k: keyof typeof place) => ({ area_id: place[k][0], area_name: place[k][1], floor_id: place[k][2], floor_name: place[k][3], floor_level: place[k][4] });
+  const base = units();
+  const ins = (door: unknown, duty: unknown = null) => ({ door, duty, computed_at: iso(20) });
+  return [
+    { ...base[0], ...at('kitchen'), health: okHealth, insights: ins(doorOk), prediction: { side: 'high', threshold: 6, eta_min: 18, rate_h: 4.2 }, power: null, maintenance: null, tickets: [] },
+    { ...base[1], ...at('store'), health: { ...okHealth, battery: 14, battery_low: true, issues: ['battery', 'duty'] }, insights: ins({ ...doorOk, opens: 9 }, { recent: 62.7, before: 42.5, rising: true, today: 64, pct_24h: 63.1, days }),
+      prediction: null, power: { w: 182, on: true, sensor_name: 'שקע חכם מקפיא' }, maintenance: null, tickets: [] },
+    { ...base[2], ...at('kitchen'), events: [ev('e1', 'u3', 'high', 'alarm', 31, 6.8, 4, true, { escalation_level: 1 }), ev('e2', 'u3', 'door', 'alarm', 14, null, 10)],
+      health: { ...okHealth, issues: ['recovery'] }, insights: ins({ ...doorOk, median_recovery_min: 47, slow: true }), prediction: null, power: null, maintenance: null,
+      tickets: [{ ticket_id: 't-40', number: 40, event_id: 'e9', status: 'in_progress', created_at: iso(2000) }] },
+    { ...base[3], ...at('offices'), health: { ...okHealth, battery: null, signal: null, signal_unit: null }, insights: ins(null), prediction: null, power: null, maintenance: null, tickets: [] },
+    { ...base[4], ...at('clinic'), health: { ...okHealth, signal: -92, signal_weak: true, issues: ['signal'] }, insights: ins({ ...doorOk, opens: 1, median_recovery_min: null, last: [] }), prediction: null,
+      power: null, maintenance: { until: new Date((NOW_S + 2700) * 1000).toISOString(), reason: 'ניקוי שבועי', by_name: 'דנה לוי' }, tickets: [] },
+  ];
 }
 
 const noOverflow = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
@@ -195,7 +233,7 @@ test.describe('temperature evidence', () => {
     await page.locator('sw-app infra-temperature [data-temp-new]').click();
     const w = page.locator('sw-app infra-temperature temp-wizard');
     await expect(w.locator('[data-grp="climate"]')).toBeVisible(); // sensors AND climate entities, grouped
-    await w.locator('[data-cand="sensor.bar_fridge_temp"]').click();
+    await w.locator('[data-temp-list] [data-cand="sensor.bar_fridge_temp"]').click();
     await w.locator('[data-door-list] [data-cand="binary_sensor.bar_fridge_door"]').click();
     await page.screenshot({ path: path.join(OUT, `wizard-1-${test.info().project.name}.png`) });
     await w.locator('[data-w-next]').click();
@@ -255,5 +293,81 @@ test.describe('temperature evidence', () => {
     await expect(page.locator('sw-app infra-temperature [data-state="empty"]')).toBeVisible();
     await expect(page.locator('sw-app infra-temperature [data-temp-add-first]')).toHaveCount(0);
     await page.screenshot({ path: path.join(OUT, `empty-${test.info().project.name}.png`) });
+  });
+
+  test('phase 3: the grid grouped by area and floor, the floor filter and the sensor-health tile', async ({ page }) => {
+    await install(page, phase3Units() as never);
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    const s = page.locator('sw-app infra-temperature');
+    await expect(s.locator('[data-temp-group]')).toHaveCount(4);
+    await expect(s.locator('[data-temp-group="store"] .ghead small')).toContainText('קומה −1');
+    await expect(s.locator('[data-temp-kpi="health"] b')).toHaveText('2'); // a low battery and a weak signal
+    await expect(s.locator('[data-temp-unit="u1"] [data-chip="predict"]')).toBeVisible();
+    await expect(s.locator('[data-temp-unit="u5"] [data-chip="maint"]')).toBeVisible();
+    await expect(s.locator('[data-temp-unit="u3"] [data-chip="esc-e1"]')).toBeVisible();
+    await noOverflow(page);
+    await page.screenshot({ path: path.join(OUT, `p3-grid-groups-${test.info().project.name}.png`), fullPage: true });
+    await s.locator('[data-temp-floor="fm1"]').click();
+    await expect(s.locator('[data-temp-unit]')).toHaveCount(1);
+    await s.locator('[data-temp-floor=""]').click();
+    await s.locator('[data-temp-group-toggle="kitchen"]').click();
+    await expect(s.locator('[data-temp-group="kitchen"] [data-temp-unit]')).toHaveCount(0);
+    await s.locator('[data-temp-group-toggle="kitchen"]').click();
+  });
+
+  test('phase 3: the detail panels - health, duty cycle, door correlation, maintenance, comparison', async ({ page }) => {
+    await install(page, phase3Units() as never);
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u2"]').click();
+    const d = page.locator('sw-app infra-temperature temp-detail');
+    if (test.info().project.name === 'desktop') await d.locator('[data-temp-wide]').click();
+    await expect(d.locator('[data-temp-health]')).toContainText('14%');
+    await expect(d.locator('[data-temp-duty]')).toHaveAttribute('data-rising', 'true');
+    await expect(d.locator('[data-temp-doorfx]')).toBeVisible();
+    await expect(d).not.toContainText('sensor.');
+    await page.screenshot({ path: path.join(OUT, `p3-detail-${test.info().project.name}.png`) });
+    await d.locator('[data-temp-maint]').click();
+    await expect(d.locator('[data-temp-maintpop]')).toBeVisible();
+    await d.locator('[data-maint-reason]').fill('ניקוי');
+    await page.screenshot({ path: path.join(OUT, `p3-maintenance-${test.info().project.name}.png`) });
+    await page.keyboard.press('Escape');
+    await d.locator('[data-cmp-pick="u1"]').check();
+    await d.locator('[data-cmp-pick="u3"]').check();
+    await expect(d.locator('[data-temp-chart] path.c-ov')).toHaveCount(2);
+    await d.locator('[data-cmp-scale="norm"]').click();
+    await expect(d.locator('[data-cmp-pick="u4"]')).toBeDisabled(); // at most 2 more units
+    await d.locator('[data-temp-chart]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(OUT, `p3-compare-${test.info().project.name}.png`) });
+  });
+
+  test('phase 3: a service ticket from the alarm (draft, chart, opened)', async ({ page }) => {
+    await install(page, phase3Units() as never);
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    const d = page.locator('sw-app infra-temperature temp-detail');
+    await expect(d.locator('[data-temp-tickets] [data-ticket-link="t-40"]')).toBeVisible(); // the two-way link
+    await d.locator('[data-temp-ticket-btn]').click();
+    const t = d.locator('temp-ticket');
+    await expect(t.locator('[data-ticket-dept]')).toHaveValue('dept-maintenance');
+    await expect(t.locator('[data-ticket-chart]')).toBeChecked();
+    await page.screenshot({ path: path.join(OUT, `p3-ticket-${test.info().project.name}.png`) });
+    await t.locator('[data-ticket-open]').click();
+    await expect(page.locator('sw-app infra-temperature .toast')).toContainText('#41');
+  });
+
+  test('phase 3: the HACCP compliance report (daily table)', async ({ page }) => {
+    await install(page, phase3Units() as never);
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    await page.locator('sw-app infra-temperature temp-detail [data-temp-report]').click();
+    const r = page.locator('sw-app infra-temperature temp-report');
+    await r.locator('[data-rep-layout-btn="haccp"]').click();
+    await expect(r.locator('[data-rep-daily] tbody tr[data-verdict]')).toHaveCount(8);
+    await expect(r.locator('[data-rep-paper] .sig > div')).toHaveCount(3); // manager name, signature, date
+    await page.screenshot({ path: path.join(OUT, `p3-report-haccp-${test.info().project.name}.png`) });
   });
 });
