@@ -3,7 +3,7 @@ what - services/tickets/org_locations.py calls these functions after its own che
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from ...db import new_id, now_iso
 
@@ -92,3 +92,18 @@ def clear_dead_plan_zones(conn: sqlite3.Connection) -> int:
     return conn.execute(
         "UPDATE ticket_org_locations SET plan_zone_id = NULL WHERE plan_zone_id IS NOT NULL AND NOT EXISTS "
         "(SELECT 1 FROM spatial_zones z WHERE z.id = ticket_org_locations.plan_zone_id AND z.deleted_at IS NULL)").rowcount
+
+
+def plan_zone_links(conn: sqlite3.Connection, location_ids: Iterable[Any]) -> dict[str, dict[str, Any]]:
+    """ORGPLAN2-291 (moved here at integ/292: ticket SQL lives in the store): ONE read for many locations - location id -> its live linked
+    room {location_id, id, name, floor_id, floor_name}; a location without a link, or whose room is deleted, is absent."""
+    ids = list(dict.fromkeys(i for i in location_ids if isinstance(i, str) and i))
+    out: dict[str, dict[str, Any]] = {}
+    for k in range(0, len(ids), 500):  # well under SQLite's bound-variable limit
+        chunk = ids[k:k + 500]
+        for r in conn.execute(
+                "SELECT l.id AS location_id, z.id, z.name, z.floor_id, f.name AS floor_name FROM ticket_org_locations l "  # noqa: S608 - placeholders only
+                "JOIN spatial_zones z ON z.id = l.plan_zone_id AND z.deleted_at IS NULL JOIN floors f ON f.id = z.floor_id "
+                f"WHERE l.id IN ({','.join('?' * len(chunk))})", chunk):
+            out[r["location_id"]] = dict(r)
+    return out

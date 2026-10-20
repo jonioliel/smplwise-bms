@@ -135,16 +135,7 @@ def check_plan_zone(conn: sqlite3.Connection, principal: Any, body: Mapping[str,
 def _links(conn: sqlite3.Connection, location_ids: Any) -> dict[str, dict[str, Any]]:
     """ONE read for many locations: location id -> its live linked room {id, name, floor_id, floor_name}; a location without a link, or
     whose room is deleted, is absent."""
-    ids = list(dict.fromkeys(i for i in location_ids if isinstance(i, str) and i))
-    out: dict[str, dict[str, Any]] = {}
-    for k in range(0, len(ids), 500):  # well under SQLite's bound-variable limit
-        chunk = ids[k:k + 500]
-        for r in conn.execute(
-                "SELECT l.id AS location_id, z.id, z.name, z.floor_id, f.name AS floor_name FROM ticket_org_locations l "  # noqa: S608 - placeholders only
-                "JOIN spatial_zones z ON z.id = l.plan_zone_id AND z.deleted_at IS NULL JOIN floors f ON f.id = z.floor_id "
-                f"WHERE l.id IN ({','.join('?' * len(chunk))})", chunk):
-            out[r["location_id"]] = dict(r)
-    return out
+    return store_locations.plan_zone_links(conn, location_ids)
 
 
 def plan_areas_for_chains(conn: sqlite3.Connection, principal: Any, chains: Mapping[Any, Sequence[tuple[str, Any]]]) -> dict[Any, dict[str, Any] | None]:
