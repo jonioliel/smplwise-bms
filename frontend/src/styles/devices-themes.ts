@@ -33,7 +33,7 @@ export type DeviceThemeId = (typeof DEVICE_THEMES)[number];
 /** Every knob a palette sets, with its role (the same list, with screenshots, is in docs/design/DEVICE_THEMES.md). */
 export const DEVICE_THEME_KNOBS: Record<string, string> = {
   '--dv-color-scheme': 'light | dark - native form controls and scrollbars inside the screens',
-  '--dv-backdrop': 'the page backdrop behind the glass (gradient); carried by the screen\'s sw-page, grows with the content',
+  '--dv-backdrop': 'the palette\'s own backdrop (gradient); painted (through --dv-page-backdrop) only when the glass scheme differs from the product\'s - otherwise the skin canvas is the page background (BGFIX-293)',
   '--dv-surface': 'panel surface: cards, KPIs, floor cards, tree panel, area tiles, popover, dialog (translucent)',
   '--dv-surface-2': 'inner surface: device tiles and rows inside a card, area rows inside a floor card, empty cards',
   '--dv-surface-3': 'tracks: segmented-control groove, progress bars, sliders\' rails',
@@ -194,9 +194,25 @@ export const devicesThemes = css`
     color: var(--dv-text);
     font-family: var(--dv-font);
   }
-  /* the backdrop rides on the page frame, which grows with the content (the host is only as tall as the view) */
+  /* BGFIX-293 (owner 2026-10-20): ONE page background on every screen - the shell's skin canvas (sw-app), exactly as the
+     security screen shows it. A glass screen therefore paints no page layer of its own: --dv-page-backdrop is transparent and
+     the canvas shows through the glass. Only when the glass area's resolved scheme differs from the product's (an explicit
+     devices.glass_scheme / devices.scheme choice: dark glass inside a light product, or the reverse) does the palette's
+     --dv-backdrop come back - the glass panels need a ground of their own scheme to stay readable. devices-style.ts sets
+     data-devices-own-backdrop on exactly those hosts. Every page-level paint site reads --dv-page-backdrop, never --dv-backdrop
+     (tests/layout-page-background.spec.ts, tests/unit-page-background.spec.ts). --dv-page-fill is the opaque variant for a surface
+     that must hide the screen under it (the notification centre's full-page presentation): the skin canvas itself. */
+  :host([data-devices-style='glass']) {
+    --dv-page-backdrop: transparent;
+    --dv-page-fill: var(--sw-canvas);
+  }
+  :host([data-devices-style='glass'][data-devices-own-backdrop]) {
+    --dv-page-backdrop: var(--dv-backdrop);
+    --dv-page-fill: var(--dv-backdrop);
+  }
+  /* the (own) backdrop rides on the page frame, which grows with the content (the host is only as tall as the view) */
   :host([data-devices-style='glass']) sw-page {
-    background: var(--dv-backdrop);
+    background: var(--dv-page-backdrop);
   }
 
   /* ---- 2. palette "default" (the approved mockup): light. 6b: this block is the BASE of every palette (the shape

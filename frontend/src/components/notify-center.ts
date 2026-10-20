@@ -115,7 +115,7 @@ export class NotifyCenter extends LitElement {
         border: 0;
         border-radius: 0;
         box-shadow: none;
-        background: var(--dv-backdrop);
+        background: var(--dv-page-fill);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
         transform: translateY(14px);
