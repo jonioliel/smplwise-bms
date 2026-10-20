@@ -11,7 +11,7 @@ import './arrival.css';
 import { h, icon } from '../dom';
 import type { Lang } from '../strings';
 import { at, type ArrivalKey } from './arrival-text';
-import { bodyOf, codeKey, draftProblem, firstDraft, outsideWindow, refusalKey, shortDay, type ArrivalDraft, type ArrivalView } from './arrival-model';
+import { bodyOf, codeKey, ltr, draftProblem, firstDraft, outsideWindow, refusalKey, shortDay, type ArrivalDraft, type ArrivalView } from './arrival-model';
 
 export interface ArrivalHost {
   fetchJson(path: string, init?: { method?: 'GET' | 'POST'; body?: unknown }): Promise<{ status: number; body: unknown }>;
@@ -123,13 +123,13 @@ class ArrivalCard {
     const out: (Node | null)[] = [];
     if (cur.state === 'waiting') {
       out.push(h('div', { class: 'arr-state wait', attrs: { role: 'status', 'data-arrival-state': 'waiting' } }, icon('clock'),
-        h('div', null, h('b', null, this.t('waiting')), h('small', { attrs: { dir: 'auto' } }, this.t('waitingFor', { person: cur.person })))));
+        h('div', null, h('b', null, this.t('waiting')), h('small', { attrs: { dir: 'auto' } }, ltr(this.t('waitingFor', { person: cur.person }))))));
     } else if (cur.state === 'ending') {
       out.push(h('div', { class: 'arr-state', attrs: { role: 'status', 'data-arrival-state': 'ending' } }, icon('out'), h('b', null, this.t('ending'))));
     } else if (cur.access) {
       const a = cur.access;
       out.push(h('div', { class: 'arr-state ok', attrs: { role: 'status', 'data-arrival-state': 'approved' } }, icon('done'),
-        h('div', null, h('b', null, this.t('approved')), h('small', { attrs: { dir: 'auto' } }, cur.person))));
+        h('div', null, h('b', null, this.t('approved')), h('small', { attrs: { dir: 'auto' } }, ltr(cur.person)))));
       const dates = a.from === a.to ? shortDay(a.from) : `${shortDay(a.from)} – ${shortDay(a.to)}`;
       out.push(h('dl', { class: 'arr-facts' },
         h('dt', null, this.t('doors')), h('dd', { attrs: { 'data-arrival-doors': true } }, ...a.doors.map((d) => h('span', { class: 'arr-door', attrs: { dir: 'auto' } }, icon('pin'), d))),
@@ -140,7 +140,7 @@ class ArrivalCard {
         const tone = key === 'codeFailed' ? 'bad' : key === 'codeSent' || key === 'cardReady' ? 'ok' : 'info';
         out.push(h('p', { class: `arr-code ${tone}`, attrs: { 'data-arrival-code': a.code?.state ?? a.card?.state ?? '' } },
           icon(key === 'codeFailed' ? 'alert' : 'send'),
-          h('span', null, this.t(key, { to: a.code?.to ?? '', at: shortDay(a.code?.at ?? null) }))));
+          h('span', null, ltr(this.t(key, { to: a.code?.to ?? '', at: shortDay(a.code?.at ?? null) })))));
       }
     }
     if (cur.pending_change) out.push(h('p', { class: 'muted small', attrs: { 'data-arrival-pending': true } }, this.t('pendingChange')));
@@ -156,7 +156,7 @@ class ArrivalCard {
     const persons = h('div', { class: 'pills arr-persons', attrs: { role: 'radiogroup', 'aria-label': this.t('who') } });
     const pick = (id: string, label: string) => persons.appendChild(h('button', { class: `pill ${d.personId === id ? 'on' : ''}`,
       attrs: { type: 'button', role: 'radio', 'aria-checked': String(d.personId === id), 'data-arrival-person': id, dir: 'auto' },
-      on: { click: () => this.set({ personId: id }, true) } }, label));
+      on: { click: () => this.set({ personId: id }, true) } }, ltr(label)));
     for (const p of v.persons) pick(p.id, p.label);
     if (v.can_add) pick('new', this.t('addNew'));
     const fresh = d.personId === 'new' ? h('div', { class: 'arr-new' },

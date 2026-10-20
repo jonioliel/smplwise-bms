@@ -88,3 +88,8 @@ export function codeKey(a: AccessView): ArrivalKey | null {
   if (a.credential !== 'pin' || !a.code) return null;
   return a.code.state === 'sent' ? 'codeSent' : a.code.state === 'not_delivered' ? 'codeFailed' : 'codeScheduled';
 }
+
+/** "····61" and dates stay left-to-right inside a Hebrew / Arabic sentence (an LRI ... PDI isolate - text only, no markup). */
+export function ltr(s: string): string {
+  return s.replace(/····\d+|\d{2}\.\d{2}(?: \d{2}:\d{2})?/g, (m) => `\u2066${m}\u2069`);
+}

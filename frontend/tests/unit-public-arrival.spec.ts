@@ -88,3 +88,9 @@ test('the chunk builds DOM from text nodes only, builds no link and keeps nothin
     expect(src, f).not.toMatch(/from '\.\.\/\.\.\//);
   }
 });
+
+test('a masked number and a date stay left-to-right inside a right-to-left sentence', async () => {
+  const { ltr } = await import('../src/public-ticket/arrival/arrival-model');
+  expect(ltr('רון ····61')).toBe('רון \u2066····61\u2069');
+  expect(ltr('ב-21.10 18:00')).toBe('ב-\u206621.10 18:00\u2069');
+});
