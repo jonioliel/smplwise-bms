@@ -9,6 +9,8 @@ so every refusal of the guard is the same answer whatever the body is; with the 
 (the contract of the remote channel is unchanged). Fakes only: no Home Assistant, no device."""
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.routing import APIRoute
 from test_local_identity import Lx, ORIGIN  # noqa: F401 - the USR2 test app
@@ -40,10 +42,11 @@ def lx(settings, tmp_path, monkeypatch):
     hua.reset_for_tests()
 
 
-def _strip(r) -> tuple[int, dict]:
+def _strip(r) -> tuple[int, str]:
+    """(status, the body without its correlation id as canonical JSON) - hashable, byte-comparable."""
     d = r.json()
     d.pop("correlation_id", None)
-    return r.status_code, d
+    return r.status_code, json.dumps(d, sort_keys=True)
 
 
 def _post(client, path: str, raw: bytes, **headers):
@@ -88,12 +91,11 @@ def test_on_the_local_channel_every_body_is_the_same_404(lx, path):
     assert len({repr(a) for a in answers}) == 1, ("one byte-identical answer (correlation id aside)", path, answers)
 
 
-def test_the_local_channel_404_is_the_ordinary_not_found_of_the_app(lx):
+def test_the_local_channel_404_is_the_guards_not_found_never_the_validation_envelope(lx):
     lx.enable()
-    unknown = _strip(lx.admin.post("/api/v1/auth/local/no-such-route", json={}, headers=ORIGIN))
     guarded = _strip(_post(lx.admin, "/api/v1/auth/local/sign-in", b"{not json", **ORIGIN))
-    assert guarded[0] == 404 and guarded[1]["code"] == "not_found"
-    assert unknown[0] == 404
+    assert guarded[0] == 404 and json.loads(guarded[1])["code"] == "not_found", guarded
+    assert "validation" not in guarded[1] and "msg" not in guarded[1], "no pydantic text reaches the answer"
 
 
 # ---------------------------------------------------------------- the remote channel: the guard's refusals beat the body too
