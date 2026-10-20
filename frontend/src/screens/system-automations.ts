@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { subscribeClock } from '../api/clock-ticker';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -269,10 +270,16 @@ export class SystemAutomations extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+    // CLOCK-293: the relative times ("last sync", "changed") age while the page stays open
+    this.offClock = subscribeClock(() => (this.now = autoNow()));
   }
+
+  private offClock: (() => void) | null = null;
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.offClock?.();
+    this.offClock = null;
     window.clearTimeout(this.noteTimer);
   }
 

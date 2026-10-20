@@ -5,6 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
 import '../components/media-remote';
 import { ALARM_HE } from '../api/devices';
+import { createClockSubscription } from '../api/clock-ticker';
 import {
   calendarText, clockParts, forecastIsDaily, sinceText, untilText, forecastLabel, forecastShown, hasValue, hebrewDate, NO_DATA, QUICK_ACTION_LABEL, SIZE_LABEL, SIZES, valueText, WEATHER_FIELD_LABEL, WEATHER_HE, weatherGlyph,
   type Avail, type HomeConfig, type HomeData, type QuickAction, type Size, type WeatherField, type WeatherGlyph, type WidgetId, type WidgetItem,
@@ -222,7 +223,8 @@ export class HomeWidgetsView extends LitElement {
   @state() private remoteKind = '';
   @state() private remoteOpen = false;
   private mediaTimer = 0;
-  private timer = 0;
+  /** CLOCK-293: the shared wall-clock ticker (api/clock-ticker.ts); a render never touches it, so a live data refresh cannot freeze the clock. */
+  private ticker = createClockSubscription((now) => (this.now = now));
   /** Bubble phase C: the skin in force (the quick actions are pills there). */
   private skin = new SkinController(this);
   /** BV1: the surface dial (the surfaceless / glass widgets) - mirrored to `data-surface` on the host. */
@@ -1292,15 +1294,15 @@ export class HomeWidgetsView extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.schedule();
+    this.now = new Date();
+    this.syncTicker();
     void this.loadScreens();
     this.mediaTimer = window.setInterval(() => document.visibilityState === 'visible' && void this.loadScreens(), 10_000);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.clearTimeout(this.timer);
-    this.timer = 0;
+    this.ticker.stop();
     window.clearInterval(this.mediaTimer);
   }
 
@@ -1333,19 +1335,15 @@ export class HomeWidgetsView extends LitElement {
     return !!this.screens?.length || !!this.speakers?.length;
   }
 
-  /** The clock ticks each second only while a card shows seconds, else every 10 s. */
-  private schedule() {
-    window.clearTimeout(this.timer);
+  /** The clock ticks each second only while a card shows seconds, else when the minute changes (cheap and idempotent: a render calls it). */
+  private syncTicker() {
     const c = this.config?.clock;
     const secs = !!c && c.on && c.seconds && c.mode !== undefined && this.items.some((i) => i.id === 'clock' && i.avail === 'ok' && i.size !== 's');
-    this.timer = window.setTimeout(() => {
-      this.now = new Date();
-      this.schedule();
-    }, secs ? 1000 : 10_000);
+    this.ticker.setSeconds(secs);
   }
 
   protected updated() {
-    this.schedule();
+    this.syncTicker();
     // BV1: the surface dial on the host (the surfaceless / glass widget rules key on it; the other skins ignore it)
     const surface = this.look.of('surface');
     if (this.getAttribute('data-surface') !== surface) this.setAttribute('data-surface', surface);

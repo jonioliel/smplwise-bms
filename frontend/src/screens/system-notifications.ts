@@ -28,6 +28,7 @@ import {
 import { applyNotifyGlass, notifyStore } from '../components/notify-store';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { subscribeClock } from '../api/clock-ticker';
 
 type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'wa' | 'chan' | 'log';
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
@@ -90,6 +91,9 @@ export class SystemNotifications extends LitElement {
   @state() private mailError = '';
   @state() private picker: { target: 'esc' | string; selected: string[] } | null = null;
   @state() private now = Date.now();
+  /** CLOCK-293: the screen's clock minus the wall clock (zero live; the demo's fixed mock clock keeps its own base), so the relative times age. */
+  private clockOffset = 0;
+  private offClock: (() => void) | null = null;
   @state() private tz: string | undefined = undefined;
   private rev = 1;
   private chain: Promise<void> = Promise.resolve();
@@ -909,8 +913,11 @@ export class SystemNotifications extends LitElement {
     void applyNotifyGlass(this);
     this.phoneMq.addEventListener('change', this.onMq);
     void this.load();
+    this.offClock = subscribeClock(() => (this.now = Date.now() + this.clockOffset));
   }
   disconnectedCallback() {
+    this.offClock?.();
+    this.offClock = null;
     this.phoneMq.removeEventListener('change', this.onMq);
     this.obs?.disconnect();
     window.clearTimeout(this.toastTimer);
@@ -961,6 +968,7 @@ export class SystemNotifications extends LitElement {
       this.users = users;
       this.devices = devices;
       this.now = clock.now;
+      this.clockOffset = clock.now - Date.now();
       this.tz = clock.tz;
       this.mail = mailDraftOf(s);
       this.mailResult = null;
