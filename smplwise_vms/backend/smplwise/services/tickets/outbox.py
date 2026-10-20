@@ -40,8 +40,8 @@ from zoneinfo import ZoneInfo
 
 from . import hours
 from . import message_templates as templates  # renamed in slice 5b: slice 2 owns `templates.py` (ticket templates)
-from .channel import (CLAIM_LINK_PURPOSES, CODE_PURPOSES, LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, SENT, UNKNOWN, AccountRef,
-                      OutboundMessage, Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
+from .channel import (CLAIM_LINK_PURPOSES, CODE_PURPOSES, LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, REPORT_PURPOSES, SENT, UNKNOWN,
+                      AccountRef, OutboundMessage, Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
 
 log = logging.getLogger("smplwise.tickets.outbox")
 UTC = dt.timezone.utc
@@ -59,7 +59,8 @@ MAX_ATTEMPTS = 4  # the first try + 3 retries
 RETRY_DELAYS = (dt.timedelta(minutes=2), dt.timedelta(minutes=8), dt.timedelta(minutes=20))
 RETRY_SPAN = dt.timedelta(minutes=30)
 NON_RETRYABLE = frozenset({"no_phone", "no_address", "opted_out", "empty", "render_too_long", "template_missing", "code_lost",
-                           "target_lost", "contact_missing", "link_not_live", "number_unverified"})
+                           "target_lost", "contact_missing", "link_not_live", "number_unverified",
+                           "report_unavailable", "report_unsafe", "document_not_live"})  # CR-VENDORQ-294: a report's text / document
 EMAIL_PER_HOUR = 10  # 9.5: a per-module counter, separate from CR-018's
 DEFAULT_HOLD_MIN = 15
 CODE_HOLD_MIN = 2  # a code expires in 10 minutes: it never waits 15 for a down account (recorded interpretation)
@@ -116,6 +117,10 @@ class OutboxRow:
     sent_at: dt.datetime | None = None
     updated_at: dt.datetime | None = None
     rfq_id: str | None = None  # TKRFQ1 (0089): the request for quotation a vendor message belongs to (ticket_id is NULL then)
+    # CR-VENDORQ-294 (0129, PROVISIONAL): purpose `report` - the module that builds the text at send time, its own row, an optional document
+    source_module: str | None = None
+    source_id: str | None = None
+    document_id: str | None = None
 
 
 # ---------------------------------------------------------------- ports
@@ -372,6 +377,8 @@ class Ports:
     new_id: Callable[[], str] = lambda: _secrets.token_hex(8)
     new_nonce: Callable[[], str] = lambda: _secrets.token_hex(8)  # 64-bit, 16 hex (button ids 't:<nonce>:<action>')
     derive_code: Callable[[OutboxRow], str | None] | None = None  # slice 5b: the six digits of a `code_id` row (W9)
+    # CR-VENDORQ-294: the text of a `report` row, built at send time by its module's provider -> (text, None) | (None, outcome code)
+    report_text: Callable[[OutboxRow, Recipient], tuple[str | None, str | None]] | None = None
 
 
 class Outbox:
@@ -387,7 +394,9 @@ class Outbox:
                 params: Mapping[str, Any] | None = None, template_id: str | None = None, template_revision: int | None = None,
                 channel: str = "whatsapp", requested_by: str | None = None, idempotency_key: str | None = None,
                 send_now: bool = False, code: str | None = None, test_target: str | None = None,
-                test_account_key: str | None = None, code_id: str | None = None, rfq_id: str | None = None) -> OutboxRow:
+                test_account_key: str | None = None, code_id: str | None = None, rfq_id: str | None = None,
+                source_module: str | None = None, source_id: str | None = None, document_id: str | None = None,
+                use_key: str | None = None) -> OutboxRow:
         """Write one message. Returns the existing row when `idempotency_key` was already used (no second message).
         A `test` row names its account at enqueue time (the per-account "שליחת בדיקה"); every other row gets its account when
         the worker claims it."""
@@ -402,6 +411,12 @@ class Outbox:
         if purpose == "phone_verify" and (not code or not code.isdigit() or len(code) != 6 or not code_id or link_id or ticket_id
                                           or channel != "whatsapp"):
             raise OutboxError("code_invalid")  # TKNOTIFOTP: the number check goes to the number itself - WhatsApp only, never a fallback
+        if purpose in REPORT_PURPOSES:
+            # CR-VENDORQ-294: a report names its module and row, goes to a contact by WhatsApp, carries no link / code / ticket / RFQ
+            if not source_module or not source_id or not contact_id or channel != "whatsapp" or link_id or code or code_id or ticket_id                     or rfq_id or assignment_id:
+                raise OutboxError("report_invalid")
+        elif source_module or source_id or document_id or use_key:
+            raise OutboxError("source_not_allowed")
         if purpose == "test":
             if phone_digits(test_target or "") is None or channel != "whatsapp" or not test_account_key:
                 raise OutboxError("test_target_invalid")
@@ -417,7 +432,7 @@ class Outbox:
                 if existing is not None:
                     return existing
             now = now.astimezone(UTC)
-            use = USE_EMAIL if channel == "email" else (USE_CODES if purpose in CODE_PURPOSES else USE_MESSAGES)
+            use = USE_EMAIL if channel == "email" else (USE_CODES if purpose in CODE_PURPOSES else (use_key or USE_MESSAGES))
             row = OutboxRow(
                 id=self.p.new_id(), purpose=purpose, channel=channel, use_key=use, created_at=now, not_before=now, updated_at=now,
                 recipient_kind="test" if purpose == "test" else "contact", contact_id=contact_id, ticket_id=ticket_id,
@@ -425,6 +440,7 @@ class Outbox:
                 template_revision=template_revision, priority=priority_of(purpose), requested_by=requested_by,
                 idempotency_key=idempotency_key, send_now=bool(send_now) and purpose == "assign",
                 account_key=test_account_key if purpose == "test" else None, code_id=code_id if purpose in CODE_PURPOSES else None, rfq_id=rfq_id,
+                source_module=source_module, source_id=source_id, document_id=document_id,
                 reply_nonce=self.p.new_nonce() if channel == "whatsapp" and purpose in REPLY_PURPOSES else None)
             if assignment_id:
                 for old in self.p.store.open_rows():
@@ -662,6 +678,13 @@ class Outbox:
 
     def _message(self, row: OutboxRow, recipient: Recipient, account: AccountRef | None, now: dt.datetime) -> tuple[OutboundMessage | None, str | None]:
         lang = recipient.lang if recipient.lang in templates.LANGS else templates.DEFAULT_LANG
+        if row.purpose in REPORT_PURPOSES:  # CR-VENDORQ-294: the module's text, rebuilt now (the row never holds a text)
+            if self.p.report_text is None:
+                return None, "report_unavailable"
+            text, problem = self.p.report_text(row, recipient)
+            if not text:
+                return None, problem or "report_unavailable"
+            return OutboundMessage(outbox_id=row.id, channel=row.channel, purpose=row.purpose, recipient=recipient, text=text, account=account), None
         if row.purpose in templates.FIXED_PURPOSES:
             # TKNOTIFOTP: the code-owned text, whatever the template store holds (VPORTAL F2: or its code-owned variant the row names)
             tpl = templates.fixed_starter(row.purpose, row.template_id, lang)
@@ -774,8 +797,10 @@ class Outbox:
 
     def _fallback(self, row: OutboxRow, now: dt.datetime) -> None:
         """9.5. Called only for not_sent / refused (never for unknown)."""
-        if row.purpose in ("test", "phone_verify"):
-            return  # TKNOTIFOTP: a number check proves the NUMBER - it never takes another channel (the person asks again)
+        if row.purpose in ("test", "phone_verify") or row.purpose in REPORT_PURPOSES:
+            # TKNOTIFOTP: a number check proves the NUMBER - it never takes another channel (the person asks again).
+            # CR-VENDORQ-294: a report has no e-mail fallback in this slice; its module learns the outcome through the hooks.
+            return
         if row.channel == "whatsapp":
             self.p.hooks.send_failed(row)
         recipient, _ = self._recipient(row) if row.recipient_kind == "contact" else (None, "")

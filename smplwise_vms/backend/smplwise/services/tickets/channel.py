@@ -38,7 +38,10 @@ PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "u
             # TKRFQ1 (migration 0089): requests for quotation - the invitation, a reminder, "a new message about your quote", the
             # cancellation notice to vendors who quoted (owner decision 2) and the work order (stage C4)
             "rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order",
-            "phone_verify")  # TKNOTIFOTP (folded into the 0089 outbox rebuild): the fixed number-verification code (no ticket, no link, WhatsApp only)
+            "phone_verify",  # TKNOTIFOTP (folded into the 0089 outbox rebuild): the fixed number-verification code (no ticket, no link, WhatsApp only)
+            "report")  # CR-VENDORQ-294 (0129, PROVISIONAL): a module's report to an external contact (contact_reports.py) - text built at send time
+# CR-VENDORQ-294: the purposes whose text a registered module provider builds at send time (no template, no params, no reply buttons)
+REPORT_PURPOSES = frozenset({"report"})
 RFQ_PURPOSES = frozenset({"rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order"})
 # the purposes whose message carries a six-digit code ({code} mandatory, rendered at send time only)
 CODE_PURPOSES = frozenset({"code", "phone_verify"})
@@ -54,6 +57,7 @@ KIND_OF_PURPOSE = {
     "test": "test",
     "rfq_invite": "link", "rfq_update": "link", "rfq_order": "link", "rfq_reminder": "reminder", "rfq_cancelled": "status",
     "phone_verify": "code",
+    "report": "status",
 }
 # 7.3: 0 = code (sent first), 1 = assign / update / reopened, 2 = reminder / closed / reassigned (and the rest)
 PRIORITY_OF_PURPOSE = {"code": 0, "phone_verify": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1, "rfq_invite": 1, "rfq_update": 1, "rfq_order": 1}

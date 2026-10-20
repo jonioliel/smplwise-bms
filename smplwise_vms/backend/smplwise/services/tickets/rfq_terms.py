@@ -746,7 +746,8 @@ def _remind(conn, row: Mapping[str, Any], v: Mapping[str, Any], t: Mapping[str, 
     contact = store_links.contact(conn, v["contact_id"]) or {}
     lang = contact.get("lang") if contact.get("lang") in REMINDER_TEXT else "he"
     mid = store_rfq.insert_message(conn, {"rfq_id": row["id"], "rfq_vendor_id": v["id"], "direction": "out", "body": REMINDER_TEXT[lang],
-                                          "author_kind": "user", "author_id": "system", "source_kind": "award", "source_id": t["award_id"],
+                                          "author_kind": rfq.SYSTEM_AUTHOR_KIND, "author_id": rfq.SYSTEM_AUTHOR_ID, "source_kind": "award",
+                                          "source_id": t["award_id"],
                                           "created_at": at})
     queued = False
     link = store_rfq.link_of_vendor(conn, v["id"])

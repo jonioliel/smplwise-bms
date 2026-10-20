@@ -100,7 +100,8 @@ COLUMNS = ("id", "ticket_id", "assignment_id", "link_id", "recipient_kind", "con
            "account_key", "template_id", "template_revision", "params_json", "state", "held_reason", "held_since", "attempts",
            "first_attempt_at", "not_before", "priority", "outcome_code", "provider_message_id", "reply_nonce", "fallback_of", "resend_of",
            "code_id", "idempotency_key", "send_now", "requested_by", "created_at", "sent_at", "updated_at",
-           "rfq_id")  # TKRFQ1 (0089)
+           "rfq_id",  # TKRFQ1 (0089)
+           "source_module", "source_id", "document_id")  # CR-VENDORQ-294 (0129, PROVISIONAL)
 _TIMES = ("held_since", "first_attempt_at", "not_before", "created_at", "sent_at", "updated_at")
 
 
@@ -135,7 +136,10 @@ def from_db(r: Mapping[str, Any]) -> OutboxRow:
         provider_message_id=r["provider_message_id"], reply_nonce=r["reply_nonce"], fallback_of=r["fallback_of"], resend_of=r["resend_of"],
         requested_by=r["requested_by"], idempotency_key=r["idempotency_key"], send_now=bool(r["send_now"]), code_id=r["code_id"],
         account_key=r["account_key"], sent_at=parse(r["sent_at"]), updated_at=parse(r["updated_at"]),
-        rfq_id=r["rfq_id"] if "rfq_id" in r.keys() else None)
+        rfq_id=r["rfq_id"] if "rfq_id" in r.keys() else None,
+        source_module=r["source_module"] if "source_module" in r.keys() else None,
+        source_id=r["source_id"] if "source_id" in r.keys() else None,
+        document_id=r["document_id"] if "document_id" in r.keys() else None)
 
 
 def _stamp_generation(conn: sqlite3.Connection, row: OutboxRow) -> None:

@@ -131,6 +131,9 @@ def rotate_key(body: RotateBody, request: Request, principal: Principal = Depend
     from ..services.tickets import rfq_links  # TKRFQ1: the RFQ vendor links derive under the same key
 
     revoked += rfq_links.revoke_all_live(conn, "module_key", now)
+    from ..services.tickets import out_documents  # CR-VENDORQ-294: a document link derives under the same key
+
+    revoked += out_documents.revoke_all_live(conn, "module_key", now)
     rekeyed = 0
     for c in store_links.phone_keyed_contacts(conn):
         store_links.set_phone_key(conn, c["id"], links.phone_key(new_key, c["phone_e164"]), new_id)

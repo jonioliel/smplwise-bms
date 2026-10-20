@@ -128,9 +128,12 @@ restore from the pre-upgrade backup is the full rollback, as for every release).
   `http(s)://` - a self-contained report); anything else is refused at mint time.
 * At most **2 MiB** per document (also a table CHECK) and **64 MiB** of live (not purged) documents per installation (`document_store_full`).
   Filename: `[A-Za-z0-9._-]`, at most 80 characters, the extension must match the type; never a person's name by default.
-* Served with `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy:
-  no-referrer` and, for HTML, `Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:` - an HTML
-  report never runs a script or reaches the network even if opened inline.
+* Served with `Content-Disposition: attachment` (ASCII name + RFC 5987 `filename*`), the exact type, `X-Content-Type-Options: nosniff`,
+  `Cache-Control: private, no-store` and the edge's own security headers: the public edge REPLACES any route CSP with the listener's
+  `default-src 'none'; script-src 'self'; ...` and adds `Referrer-Policy: no-referrer` (public_http.SECURITY_HEADERS) - at least as strict
+  as `sandbox` for a download. The HTML hygiene check at mint time (no script / frame / object / form / base / link / meta refresh /
+  `javascript:` / external `src` / `href` / `url()` / `@import`; `data:image/` allowed) is what keeps a saved HTML report inert when it is
+  opened later from the device.
 * The bytes are deleted (`content = NULL`, `purged_at`) by the janitor at expiry / revocation; the row (ids, digest, counts - no content,
   no number) goes 90 days later. Audit: `report.document.mint` / `report.document.open` with ids and counts only.
 * A document is a snapshot: what the recipient downloads is exactly what was sent (the `sha256` of the bytes is stored and returned in
@@ -145,8 +148,9 @@ check list (private/planning/TICKETS_WHATSAPP_LIVE_CHECKS_HE.md) proves it. Unti
 
 ### 5.4 The public page - NOT built in this slice
 
-The route `GET /t/api/doc` (metadata: filename, type, size, expiry, opens left) and `GET /t/api/doc/file` (the bytes) are built and
-tested on the public listener (kinds `token_read`, the edge's per-token windows and failure caps). The vendor page's `#d.` mode (a lazy
+The route `GET /t/api/doc` (metadata: filename, type, size, expiry, opens left, digest; kind `token_read`) and `GET /t/api/doc/file`
+(the bytes; kind `file_read`, its own per-token window) are built and tested on the public listener (`services/tickets/public_documents.py`,
+edge rules in `public_http.ROUTES`; the edge's failure caps per client network and installation-wide apply). The vendor page's `#d.` mode (a lazy
 chunk like the consent page; a download button) is **not built**: the public bundle budget needs its own measurement. Therefore minting
 refuses `document_page_missing` until `out_documents.PAGE_READY` is set by that slice - no link that opens an empty page can leave.
 **This is a new public surface: a Fable public-surface security review is required before it is switched on in a release.**
@@ -179,3 +183,25 @@ Real vs fake: SQLite and the migration files are real; WhatsApp, Home Assistant,
 * `ar` / `ru` lines of the report link text are developer translations (native review pending), as for every starter.
 * Contiguous-numbering check (`test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final`) is red on this branch
   by design while 0129 is provisional over a 0123 main; it is green again once the integration renumbers the file.
+
+## 9. Settings (tickets settings document, `PUT /api/v1/tickets/settings` block `reports`, `system.configure`)
+
+| Key | Default | Range | Meaning |
+|---|---|---|---|
+| `reports.to_contacts` | `false` | bool | A module may queue a report to an external contact. |
+| `reports.documents` | `false` | bool | Documents may be minted and their links answer. Off = every document link is the uniform 404. |
+| `reports.document_hours` | `72` | 1..168 | How long a new document link lives (7-day hard ceiling in code too). |
+| `reports.document_max_opens` | `5` | 1..20 | Downloads per document. |
+
+No Settings screen was added (no UI in this slice).
+
+## 10. What this branch built / did not build
+
+Built: migration 0129 (PROVISIONAL), `contact_reports.py`, `out_documents.py`, `public_documents.py` + the two edge rules, the outbox
+purpose `report` (model, enqueue validation, send-time text port, no e-mail fallback, non-retryable codes, hooks to the module), the
+`reports.*` settings, the RFQ arrival reminder written with `author_kind = 'system'`, document revocation on contact change / erase and on
+module key rotation, document keys counted as "in use", the janitor purge.
+
+Not built: the public page's `#d.` mode (5.4; minting refused until `PAGE_READY`), the attached-file WhatsApp mode (5.3, upstream service
+unverified), e-mail delivery of reports, any Settings UI, the temperature branch's consumer code (section 7 - it lives on
+`pilot/TEMPCTL3-293`, not on main).

@@ -307,6 +307,11 @@ class DbHooks:
 
     def cancelled(self, row: OutboxRow, reason: str) -> None:
         log.info("outbox cancelled id=%s purpose=%s reason=%s", row.id, row.purpose, reason)
+        conn = self._conn()
+        if conn is not None and row.source_module:  # CR-VENDORQ-294: the report's module hears the end too
+            from . import contact_reports
+
+            contact_reports.on_outcome(conn, row)
 
     def outcome(self, row: OutboxRow, result: SendResult, account: AccountRef | None) -> None:
         conn = self._conn()
@@ -326,12 +331,17 @@ class DbHooks:
             from . import rfq as rfq_mod
 
             rfq_mod.on_outbox_outcome(conn, row, row.state, row.outcome_code, obs.iso_s(now))
+        if row.source_module:  # CR-VENDORQ-294: a report's module mirrors the final state (ids and states only)
+            from . import contact_reports
+
+            contact_reports.on_outcome(conn, row)
         audit(conn, actor=None, action="ticket.message.send", decision="allowed",
-              resource_type="ticket" if row.ticket_id else "ticket_rfq" if row.rfq_id else "installation",
-              resource_id=row.ticket_id or row.rfq_id or "tickets",
+              resource_type="ticket" if row.ticket_id else "ticket_rfq" if row.rfq_id else "contact_report" if row.source_module else "installation",
+              resource_id=row.ticket_id or row.rfq_id or row.source_id or "tickets",
               details={"outbox_id": row.id, "channel": row.channel, "purpose": row.purpose, "outcome": result.outcome,
                        "code": result.outcome_code, "account": account.key if account else row.account_key,
-                       **({"number": ticket["number"]} if ticket else {})})
+                       **({"number": ticket["number"]} if ticket else {}),
+                       **({"module": row.source_module, "document": bool(row.document_id)} if row.source_module else {})})
         if result.outcome == SENT and ticket is not None and row.purpose in LINK_PURPOSES:
             if ticket.get("waiting_reason") == "send_failed" and ticket.get("current_assignment_id") == row.assignment_id \
                     and ticket["status"] not in model.FINAL:
@@ -370,6 +380,10 @@ class DbHooks:
     def still_relevant(self, row: OutboxRow) -> bool:
         """After the module was off: a reminder or a link for a ticket that was closed, or an assignment that ended, is not sent."""
         conn = self._conn()
+        if conn is not None and row.source_module:  # CR-VENDORQ-294: the report's module decides (e.g. a deleted schedule)
+            from . import contact_reports
+
+            return contact_reports.still_relevant(conn, row)
         if conn is not None and row.rfq_id and not row.ticket_id:  # TKRFQ1: a request that ended sends only its cancellation notice
             from . import rfq as rfq_mod
 
@@ -456,7 +470,7 @@ class MessagingRuntime:
         email = EmailChannel(self._mail_config, sender=self._send_mail)
         ports = Ports(store=obs.SqliteOutboxStore(db), directory=DbDirectory(io), links=DbLinks(io, self.clock), templates=DbTemplates(io),
                       context=DbContext(io, lambda: self.data_dir), accounts=_LazyAccounts(self), channels={"whatsapp": self._whatsapp, "email": email},
-                      gate=gate, messaging_key=b"", hooks=DbHooks(self), derive_code=self._derive_code)
+                      gate=gate, messaging_key=b"", hooks=DbHooks(self), derive_code=self._derive_code, report_text=self._report_text)
         ports.messaging_key = self._messaging_key()
         self.outbox = DbOutbox(ports, db)
         self.queue = inbound_mod.InboundQueue()
@@ -526,6 +540,13 @@ class MessagingRuntime:
             return codes_mod.derive_code(KEYS.get(link.get("key_id")), row.code_id)
         except Exception:  # noqa: BLE001 - a missing key: the code is lost (the vendor asks again)
             return None
+
+    def _report_text(self, row: OutboxRow, recipient: Recipient) -> tuple[str | None, str | None]:
+        """CR-VENDORQ-294: the text of a `report` row, built now from its module's data (on the worker's bound connection)."""
+        from . import contact_reports
+
+        with obs.Access(self.db).read("tickets.reports.render") as conn:
+            return contact_reports.render(conn, row, recipient, self.clock())
 
     def _register(self) -> None:
         """The hooks other slices left for this one (each a plain module attribute; tests reset them)."""
@@ -771,6 +792,9 @@ class MessagingRuntime:
         now = self.clock()
         with db.connection(label="tickets.messaging.retention") as conn:
             n = obs.prune(conn, outbox_before=now - OUTBOX_KEEP, inbound_before=now - INBOUND_KEEP)
+            from . import out_documents  # CR-VENDORQ-294: a document's bytes go at expiry / revocation, its row 90 days later
+
+            n += out_documents.purge(conn, now)
         if n:
             log.info("tickets messaging retention rows=%d", n)
         return n

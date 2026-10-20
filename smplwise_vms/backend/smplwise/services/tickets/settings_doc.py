@@ -484,6 +484,14 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("rfq", "vendor_uploads", "max_image_mb"): (8, int_range(1, 8)),
     ("rfq", "vendor_uploads", "max_doc_mb"): (10, int_range(1, 10)),
     ("rfq", "vendor_uploads", "max_total_mb"): (20, int_range(1, 50)),
+    # CR-VENDORQ-294 (docs/changes/CR-VENDORQ-294-DESIGN.md): a module's report to an EXTERNAL contact through the message queue
+    # (contact_reports.py, outbox purpose `report`) - OFF by default; and the documents those reports may carry by a temporary link
+    # (out_documents.py) - OFF by default, at most 7 days and 20 downloads whatever is stored. A Fable review of the public document route
+    # is required before `documents` is switched on in a release.
+    ("reports", "to_contacts"): (False, boolean),
+    ("reports", "documents"): (False, boolean),
+    ("reports", "document_hours"): (72, int_range(1, 168)),
+    ("reports", "document_max_opens"): (5, int_range(1, 20)),
 }
 
 
