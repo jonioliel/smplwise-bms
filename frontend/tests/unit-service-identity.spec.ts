@@ -147,6 +147,29 @@ test('the extended note says WisKey doors follow the add-on switch alone', async
   await expect(page.locator('system-service-identity [data-si-doors-addon-only]')).toContainText('WisKey');
 });
 
+// EXTID-295 (CR-USR2 12.3 item 3, risk R5): the entity-policy residual risk is stated wherever the extended block is shown - in both languages
+test('the extended note states the entity-policy residual risk (he and en)', async ({ page }) => {
+  await setup(page, { [`GET ${API}`]: { status: 200, body: { ...READY, extended: EXT_OFF } } });
+  await mount(page);
+  const line = page.locator('system-service-identity [data-si-policy-risk]');
+  await expect(line).toContainText('סיכון שנותר');
+  await expect(line).toContainText('הגביל את משתמש השירות');
+  await page.evaluate(() => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = '';
+  });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-policy-risk]')).toContainText('Residual risk');
+  await expect(page.locator('system-service-identity [data-si-policy-risk]')).toContainText('restricted the service user');
+});
+
+test('an older server without the extended block shows no residual-risk line', async ({ page }) => {
+  await setup(page, { [`GET ${API}`]: { status: 200, body: READY } });
+  await mount(page);
+  await expect(page.locator('system-service-identity [data-si-state="ready"]')).toBeVisible();
+  await expect(page.locator('system-service-identity [data-si-policy-risk]')).toHaveCount(0);
+});
+
 // SVCIDENT3 (review S1 a): the runnable allowlist - empty by default; a refused list shows the server text; a saved list shows the bridge agreement
 const RUN_EMPTY = { ids: [], bridge_ids: [], agrees: true, max: 100 };
 test('the runnable list: empty by default, a refused list shows the server text, a saved list is sent as ids', async ({ page }) => {

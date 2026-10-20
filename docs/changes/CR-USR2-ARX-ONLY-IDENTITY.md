@@ -817,3 +817,69 @@ permit (the permit gets its own section and commit later).
 7. `notify` - **not decided**; nothing changed (R4 stays open).
 8. Gate / garage as a `cover` on the direct path - **leave as is**, accepted residual risk R12.
 9. Build the selected hardening first, then one Fable review of everything.
+## 13. EXTID-295 - the documented follow-ups (backlog item `extended-identity-followups`, 2026-10-20)
+
+Branch `pilot/EXTID-295` (from `origin/main` @ 586f191b). No migration. Bridge **0.9.4** (0.9.3 stays reserved for the key-rotation branch
+WXROT, per the 2.8.0 integration notes). **The extended mode stays locked:** `EXTENDED_GO_LIVE_PERMITTED = False` is not touched, nothing
+here is a permit, and the remote kill switch (12.8 item 5) is unchanged. Fakes only; no Home Assistant was contacted or restarted.
+
+### 13.1 What was built
+
+| Follow-up | Where it was recorded | Built |
+|---|---|---|
+| A picker for the bridge's runnable list | 12.4 item 4, 12.7 item 4 | The bridge options-flow field `local_identity_runnable` is a Home Assistant multi-entity selector (`EntitySelector`, domains `automation` / `scene` / `script`, `multiple=True`) instead of free text. It is pre-filled with `suggested_value` (not `default`, so clearing every item stores an empty list instead of bringing the old one back). The picked list goes through the unchanged `parse_runnable` (format, domains, at most 100) and is stored exactly as before (a sorted list) - the add-on, the directory push, the card's agreement check and every run fence are unchanged. `runnable.selector_value` shows the stored value as the run time uses it (a 0.9.2 text value becomes a list; a malformed value shows nothing). The add-on's own list stays a text field (it lists ids the add-on cannot enumerate from Home Assistant's registry). `BRIDGE_EXTENDED_REQUIRED` stays 0.9.2: no stored format changed. |
+| The entity-policy residual risk in the ops guide and the cards | 12.3 item 3; go-live pack risk R5 (minimum mitigation: card + options-flow + ops guide) | The bridge's options-flow description (en / he / strings.json); the add-on's service-identity card (one line under the extended note, `data-si-policy-risk`, he / en - the `local-identity` table has no ar / ru columns); `smplwise_vms/DOCS.md` / `DOCS_HE.md` ("Extended service identity - residual risks the installer must know": R5, the owner-accepted R1 / R2 / R3 / R4 / R8 / R12, R9 / R10, R13, the kill paths of R7 and R14); the Hebrew guide chapter `docs/user-guide/he/47-identity-users_HE.md` (same content, no Home Assistant name - "תשתית המערכת" / "רכיב החיבור"), `GUIDE_ALL_HE.html` rebuilt. The bridge-side check that the service user's policy is not the default (R5 "better") is NOT built. |
+| The bypass control offered by permission (the backlog's "bypass button by permission") | 11.6 item 4 | `GET /alarm/panels`: for an Arx-only person, `can.bypass`, `can.restore` and the `arm_custom_bypass` arming mode are offered only while `service_identity.extended_on()` is true (never in this build). Before, a local person holding `alarm.bypass` was shown zone bypass / restore / arming with bypass that the service identity always refused. The routes' refusals are unchanged (still audited `service_identity_refused`); Home Assistant users are unchanged. |
+
+### 13.2 Tests
+
+`tests/test_extid_followups.py` (negative first: the shipped build is locked; a local site administrator with a stored "on" is not offered
+bypass / restore / arming with bypass and the route refusal is unchanged; with the permit monkeypatched, offered only once the mode is in
+force; an HA user unchanged; the free-text field is gone; the picker, its domains and `suggested_value`; `selector_value` incl. malformed
+values; the picker's list judged like the text; bridge 0.9.4 in both copies byte-identical while the add-on still requires 0.9.2; the
+residual-risk text in the options flow (en / he / strings) and in DOCS / DOCS_HE / the guide chapter, and no Home Assistant name in the
+guide section). Version pins moved to 0.9.4 in the `test_bridge_*` / `test_lovelace_card` files; `test_bridge_runnable.py` asserts the
+picker. `frontend/tests/unit-service-identity.spec.ts`: the residual-risk line in he and en, and absent for an older server (a mutation
+check - the line removed - turned it red); evidence screenshots refreshed under `docs/evidence/USR2/`.
+
+### 13.3 Not verified / owner actions
+
+- The picker was never rendered by a real Home Assistant (no HA access by rule); its behaviour is taken from the selector API. The first
+  real check is the owner's, after the update.
+- **Bridge 0.9.4 needs one Home Assistant restart after the update - the owner does it** (`[platform-restart]` in the release notes).
+- Release-note lines (draft, for the integration): EN "Extended service identity (still locked): the bridge's list of runnable scripts,
+  scenes and automations is picked from a list instead of typed (bridge 0.9.4 - restart Home Assistant once); the residual risks are
+  stated in the bridge options, the service-identity card and the documentation; Arx-only people are no longer offered zone bypass,
+  its restore or arming with bypass while the extended mode is not in force (they were always refused)." HE: "זהות שירות מורחבת (עדיין
+  נעולה): רשימת הסקריפטים, הסצנות והאוטומציות להרצה ברכיב החיבור נבחרת מרשימה במקום הקלדה (גשר 0.9.4 - יש להפעיל מחדש את Home
+  Assistant פעם אחת); הסיכונים שנותרו מוסברים באפשרויות הגשר, בכרטיס זהות השירות ובתיעוד; משתמשי Arx בלבד כבר לא רואים עקיפת אזור,
+  ביטול עקיפה ודריכה עם עקיפה כל עוד המצב המורחב אינו בתוקף (הם תמיד נדחו)."
+
+### 13.4 Rollback
+
+Revert the branch. The bridge stores the same list in both versions, so a 0.9.2 bridge reads what 0.9.4 saved (and vice versa).
+
+### 13.5 Decisions taken for 2.10.0 (lead, on the owner's delegation, 2026-10-20)
+
+1. Bridge version **0.9.4** is kept; the key-rotation branch (WXROT) takes **0.9.5** when it lands (its `MIN_BRIDGE_FOR_ROTATION` and every
+   version pin move with it).
+2. Risk R5 stays **text only** for now (13.1). The stronger refusal is recorded below as a design note, not built.
+3. The add-on's own runnable list stays a **text field** (no picker): the add-on cannot enumerate Home Assistant's script / scene / automation
+   registry without a new read path, and the bridge-side picker already prevents typing mistakes on the side that decides.
+
+### 13.6 Design note (not built): refuse extended items while the service user's entity policy is the default (risk R5, "better")
+
+- **Bridge (next free version):** with every directory push, report `service_policy_restricted: true | false | null` - `true` only when the
+  configured service user is active, not an administrator, belongs to at least one group other than the built-in `system-users`, and
+  `user.permissions` is not the default `PolicyPermissions` of `system-users` (an `entities` policy that does not allow `all`); `false` when
+  it is the default (or allows all entities); `null` when the permission API is missing / raises (fail closed = treated as `false`). Ids and a
+  boolean only - never the policy itself.
+- **Add-on:** store it as `bridge.service_policy_restricted`; `service_identity.status()` adds the step `service_policy_default` (plain
+  Hebrew / English: "restrict the service user to a group that names only the devices Arx may reach"); `_local_subject` refuses EVERY item
+  only the extended mode admits with 503 `service_identity_policy_default` (audited `identity.service_identity.refused`, reason
+  `policy_default`) while the value is not `true`. Basic-mode items (2.6.4) are not affected.
+- **Bridge, second fence:** `execute` / `config_item` on behalf of an Arx-only person in the extended mode refuse with the same code when the
+  live check says default (the add-on's view can be up to 60 s old).
+- **Tests (negative first):** default policy / admin / missing API = refused on both sides with both switches on; a restricted group = admitted;
+  the step and its text; the push field; the code in `automation_ops.BRIDGE_ERRORS`. Needs one Home Assistant restart (bridge change).
+- Effort M; decide together with the go-live permit (it changes owner decision 4 "recommendation only" into a condition - owner call).

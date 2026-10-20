@@ -133,16 +133,21 @@ def panels(request: Request, principal: Principal = Depends(current_principal), 
     stored = codes.stored_panel_codes(conn)
     remote = principal.source in ("remote", "local")
     out = []
+    # EXTID-295 (CR-USR2 11.6 item 4 / the backlog's "bypass button by permission"): an Arx-only person's zone bypass, its restore and arming with
+    # the bypass set go through the service identity, which refuses them unless the extended mode is in force (never while
+    # EXTENDED_GO_LIVE_PERMITTED is False) - so they are not offered; the routes' refusals are unchanged
+    bypass_reachable = not service_identity.is_local(principal) or service_identity.extended_on(conn)
     for p in _visible_panels(conn, scope):
         eid = p["entity_id"]
+        may_bypass = scope.allowed(BYPASS, eid) and bypass_reachable
         can = {
             "arm": scope.allowed(ARM, eid) and _remote_block(principal, cfg, "arm") is None,
             "disarm": scope.allowed(DISARM, eid) and _remote_block(principal, cfg, "disarm") is None,
-            "bypass": scope.allowed(BYPASS, eid) and _remote_block(principal, cfg, "bypass_on") is None,
-            "restore": scope.allowed(BYPASS, eid) and _remote_block(principal, cfg, "bypass_off") is None,
+            "bypass": may_bypass and _remote_block(principal, cfg, "bypass_on") is None,
+            "restore": may_bypass and _remote_block(principal, cfg, "bypass_off") is None,
         }
         p["can"] = can
-        if not scope.allowed(BYPASS, eid):
+        if not may_bypass:
             # arming with the bypass set is a zone bypass: panel_action asks alarm.bypass for it, so a caller without it is not offered the mode
             p["arm_modes"] = [m for m in p["arm_modes"] if m != "arm_custom_bypass"]
         p["panel_code_set"] = eid in stored

@@ -1523,6 +1523,28 @@ and external-person door grants (`access_grants.GO_LIVE_PERMITTED`, permission `
 privacy notice (version n2, four languages) shown on the arrival page. Enabling any of them needs the owner's separate permit, the
 fixes listed in `docs/release/2.7.3-INTEGRATION-NOTES.md` ("Fix before enabling") and a full gate.
 
+**Extended service identity - residual risks the installer must know (stays locked).** Read before the owner's permit is ever given:
+- *The entity policy protects only when you restrict the service user.* For Arx-only people the bridge checks the service user's own
+  Home Assistant entity policy on every device a call or a runnable item targets. A regular (non-administrator) user without a
+  restricting group may control every entity, so this check then adds nothing. Put the service user in a group whose entity policy
+  names only the devices Arx may reach, and leave locks, alarm panels, gate / garage covers and the helpers that drive them out of it.
+- *Accepted by the owner (2026-10-18):* no second factor for doors, zone bypass, disarm and runs; no rate limit; dangerous services
+  inside scripts and template entities (a template switch, button or helper that an automation turns into a door opening is not seen
+  by the bridge's impact check); `notify` with literal content; gate / garage covers on the direct device path.
+- The runnable allowlist names an entity id, not its content: an administrator (or delegated authoring) may change a listed script
+  later. The bridge re-checks every step on every run, against the UI files (`scripts.yaml`, `automations.yaml`, `scenes.yaml`); a
+  hand-edited, not reloaded file may differ from what runs.
+- Home Assistant's logbook shows the service user for every such action; the person is named only in the Arx audit log.
+- *Kill paths* (any one is enough): the remote kill switch `POST /api/v1/identity/extended-mode/off` (system administrator, also from
+  the remote channel; turns the mode off and empties the runnable allowlist); the add-on switch `security.local_identity_extended`
+  off (local channel); the bridge's own option or its runnable list cleared (a Home Assistant administrator, in the bridge's options);
+  deactivating the service user in Home Assistant; turning `security.local_identity` off (ends every Arx-only session). A live view
+  that is already open may run up to 300 seconds after the mode goes off.
+- Bridge 0.9.4 (EXTID-295): the bridge's runnable list is picked from a list of scripts, scenes and automations in its options
+  instead of typed; nothing it stores changes. **Restart Home Assistant once** after the update (the owner does this). While the mode
+  is not in force, Arx-only people are no longer offered zone bypass, its restore or arming with the bypass set on the alarm screen
+  (they were always refused).
+
 **Manager overview (2.9.0).** The overview tab shows the cards of the phase 2 route `GET /api/v1/tickets/dashboard` and a payments
 card (`GET /api/v1/tickets/dashboard/payments`, cost permission). Its three alerts are **off by default**: the morning summary
 (`ticket.dash_digest`, hour `ui.dash_digest_hour`, default 08:00, Sunday - Thursday), the busy department (`ticket.dash_busy_department`,
