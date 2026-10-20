@@ -1588,15 +1588,29 @@ def present_events(conn, row: Mapping[str, Any], amounts: bool) -> list[dict[str
     return out
 
 
-def summary(conn, viewer: Viewer, seen: RfqSeen, now: dt.datetime) -> dict[str, Any]:
+def plan_areas(conn, viewer: Viewer, seens: Sequence[RfqSeen]) -> dict[str, dict[str, Any] | None]:
+    """ORGPLAN2-291, the "show on map" target of requests for quotation, for a whole page in a fixed number of reads: the RFQ's own
+    location's linked room, else the location of its SOURCE ticket (only a ticket this viewer may see; one batched read), else none -
+    the sites / buildings model carries no location of its own, so there is no further level. A viewer without map.read on that floor
+    gets None, the same as no link. Keyed by RFQ id."""
+    rows = [s.row for s in seens]
+    tickets = access.visible_by_ids(viewer, [r.get("source_ticket_id") for r in rows])
+    chains = {r["id"]: [("location", r.get("location_id")),
+                        ("ticket", tickets[r["source_ticket_id"]].row.get("location_id") if r.get("source_ticket_id") in tickets else None)] for r in rows}
+    return org_locations.plan_areas_for_chains(conn, viewer.principal, chains)
+
+
+def summary(conn, viewer: Viewer, seen: RfqSeen, now: dt.datetime, areas: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """`areas`: the page's `plan_areas()` (the list route batches it); None = this one request alone; {} = the caller shows no map link."""
     row = seen.row
+    plan_area = (plan_areas(conn, viewer, [seen]) if areas is None else areas).get(row["id"])
     amounts = sees_amounts(viewer, seen)
     vendors = store_rfq.vendors_of(conn, row["id"])
     live = _live_by_vendor(conn, vendors)
     dept = store.department_any(conn, row["department_id"]) or {}
     return {"id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": effective_state(row, now), "title": row["title"],
             "department": {"id": row["department_id"], "name": dept.get("name") or ""}, "place_text": row.get("place_text"),
-            "location": org_locations.present_request(row), "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
+            "location": org_locations.present_request(row), "plan_area": plan_area, "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"), "created_at": row["created_at"],
             "updated_at": row["updated_at"], "internal_owner": {"id": row.get("internal_owner_user_id"),
                                                                  "name": store.display_name(conn, row.get("internal_owner_user_id"))},
             "kpis": kpis(conn, row, vendors, live, now, amounts), "questions": _questions().counts(conn, row, now)[0]}
@@ -1667,7 +1681,7 @@ def detail(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
         "id": row["id"], "number": row["number"], "ref": ref(row["number"]), "state": state, "title": row["title"], "description": row["description"],
         "department": {"id": row["department_id"], "name": dept.get("name") or ""},
         "place": {"site_id": row.get("site_id"), "building_id": row.get("building_id"), "floor_id": row.get("floor_id"), "text": row.get("place_text")},
-        "location": org_locations.present_request(row), "location_nav": bool(row.get("location_nav")),  # CR-ORG-LOCATIONS
+        "location": org_locations.present_request(row), "plan_area": plan_areas(conn, viewer, [seen])[row["id"]], "location_nav": bool(row.get("location_nav")),  # CR-ORG-LOCATIONS
         "source_ticket": source, "due_at": row["due_at"], "work_from": row.get("work_from"), "work_to": row.get("work_to"),
         "allowed_line_kinds": allowed_kinds(row),
         "internal_owner": {"id": row.get("internal_owner_user_id"), "name": store.display_name(conn, row.get("internal_owner_user_id")),

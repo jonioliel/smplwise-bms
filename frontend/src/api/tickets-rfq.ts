@@ -67,6 +67,9 @@ export interface RfqQuestion {
   age_h: number;
 }
 
+/** ORGPLAN2-291: a linked plan room and where the link came from (the RFQ's own location or its source ticket's). */
+export interface RfqPlanArea { zone_id: string; floor_id: string; name: string; floor_name: string; source: 'location' | 'ticket' }
+
 /** One row of `GET tickets/rfqs` (rfq.summary). */
 export interface RfqSummary {
   id: string;
@@ -76,6 +79,8 @@ export interface RfqSummary {
   title: string;
   department: { id: string; name: string };
   place_text: string | null;
+  /** ORGPLAN2-291: the "show on map" target - the RFQ's location's room, else its source ticket's; null for a viewer who may not read that floor */
+  plan_area?: RfqPlanArea | null;
   due_at: string | null;
   work_from: string | null;
   work_to: string | null;
@@ -280,6 +285,8 @@ export interface RfqDetail {
   /** CR-ORG-LOCATIONS: the organisation location named at creation (its snapshot) and the navigation-link switch of its messages */
   location?: RequestLocation | null;
   location_nav?: boolean;
+  /** ORGPLAN2-291: the "show on map" target (see RfqSummary.plan_area) */
+  plan_area?: RfqPlanArea | null;
   source_ticket: { id: string; number: number } | null;
   due_at: string | null;
   work_from: string | null;
