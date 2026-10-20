@@ -40,7 +40,7 @@ from .hours import _local_instant
 
 UTC = dt.timezone.utc
 DEFAULT_ZONE = "Asia/Jerusalem"
-DEFAULT_WEEKDAYS = (6, 0, 1, 2, 3)
+DEFAULT_WEEKDAYS = (0, 1, 2, 3, 6)  # Sunday - Thursday, in the validator's sorted form (integ/292: a fresh default = a saved one)
 HOLIDAYS_MAX = 400
 OVERRIDES_MAX = 200
 AUTO_CLOSE_MODES = ("calendar", "working")
