@@ -225,7 +225,7 @@ def test_an_address_outside_the_private_lan_is_refused_before_anything_is_stored
     assert urlsplit(url).hostname not in json.dumps(rows) and TOKEN not in json.dumps(rows)
 
 
-@pytest.mark.parametrize("url", ["http://10.0.0.5:8123", "http://10.0.0.5:8094", "http://192.168.1.9:1984", "http://192.168.1.9:8554", "http://192.168.1.9:8099"])
+@pytest.mark.parametrize("url", ["http://10.200.17.5:8123", "http://10.200.17.5:8094", "http://192.168.1.9:1984", "http://192.168.1.9:8554", "http://192.168.1.9:8099"])
 def test_the_platforms_own_ports_are_never_a_music_server(d, url):
     app, c, fake, *_ = d
     r = c.put(f"{API}/admin/ma-connection", json={"url": url})

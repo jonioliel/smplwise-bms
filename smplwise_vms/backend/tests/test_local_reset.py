@@ -421,7 +421,7 @@ def test_a_plain_users_link_goes_to_the_verified_number_and_is_never_returned(rx
     # on the local channel the public host is unknown until a system administrator sets it
     r = rx.admin.post(f"/api/v1/identity/local-users/{uid}/link", json={"purpose": "first_login", "via": "whatsapp"})
     assert r.status_code == 409 and r.json()["code"] == "public_url_unknown"
-    assert rx.admin.patch("/api/v1/settings", json={"security.local_public_url": "https://10.0.0.5"}).status_code == 422
+    assert rx.admin.patch("/api/v1/settings", json={"security.local_public_url": "https://192.0.2.24"}).status_code == 422
     assert rx.admin.patch("/api/v1/settings", json={"security.local_public_url": "https://arx.example.com/evil"}).status_code == 422
     assert rx.admin.patch("/api/v1/settings", json={"security.local_public_url": "https://arx.example.com"}).status_code == 200
     r = rx.admin.post(f"/api/v1/identity/local-users/{uid}/link", json={"purpose": "first_login", "via": "whatsapp"})

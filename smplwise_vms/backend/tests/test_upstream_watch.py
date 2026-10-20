@@ -271,7 +271,7 @@ def test_registry_has_no_lab_private_values(registry):
 def test_the_ip_check_still_catches_a_real_address_in_the_registry(registry):
     """2.4.7 integration: a four-part version is written as its release tag (s6-overlay "v3.2.3.2"); a real address anywhere in
     the registry text is still caught."""
-    for addr in ("192.168.1.20", "10.0.0.5", "172.16.4.2"):
+    for addr in ("192.0.2.20", "198.51.100.8", "203.0.113.4"):
         reg = copy.deepcopy(registry)
         reg["items"][0]["impact_he"] = f"{reg['items'][0].get('impact_he', '')} {addr}"
         assert IP_LIKE.search(json.dumps(reg).replace("1.14.0", "")), addr

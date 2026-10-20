@@ -17,7 +17,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const SHOTS = process.env.SW_SHOTS ?? '';
 const ADDRESS = /\b\d{1,3}(?:\.\d{1,3}){3}\b|[0-9a-f]{1,4}:[0-9a-f]{1,4}:[0-9a-f:]*|\.local\b/i;
-const FAKE_ADDRESSES = ['203.0.113.5', '203.0.113.50', '10.9.9.9', '198.51.100.7', '2001:db8', 'abcd-1234.local'];
+const FAKE_ADDRESSES = ['203.0.113.5', '203.0.113.50', '192.0.2.9', '198.51.100.7', '2001:db8', 'abcd-1234.local'];
 
 type Scenario = 'ok' | 'ice' | 'nodecode' | 'hang' | 'cap';
 
@@ -61,7 +61,7 @@ const FAKE_MEDIA = () => {
     send(data: string) {
       const m = JSON.parse(data) as { type: string };
       if (m.type === 'webrtc/offer') {
-        this.msg({ type: 'webrtc/answer', value: 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=candidate:1 1 udp 2130706431 10.9.9.9 8555 typ host\r\n' }, 30);
+        this.msg({ type: 'webrtc/answer', value: 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=candidate:1 1 udp 2130706431 192.0.2.9 8555 typ host\r\n' }, 30);
         this.msg({ type: 'webrtc/candidate', value: 'candidate:2 1 udp 1694498815 203.0.113.50 8555 typ srflx raddr 0.0.0.0 rport 8555' }, 60);
         this.msg({ type: 'webrtc/candidate', value: 'candidate:3 1 udp 1694498815 198.51.100.7 8555 typ srflx raddr 0.0.0.0 rport 8555' }, 70);
       }

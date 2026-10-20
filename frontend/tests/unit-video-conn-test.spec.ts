@@ -257,7 +257,7 @@ test('the text report carries address classes only: no IPv4, no IPv6, no host na
       'candidate:5 1 udp 1 100.88.1.1 5000 typ host',
     ])
       cand(x, 'localCandidates', line);
-    for (const line of ['candidate:1 1 udp 1 10.0.0.5 8555 typ host', 'candidate:2 1 udp 1 198.51.100.9 8555 typ srflx', 'candidate:3 1 tcp 1 198.51.100.9 8555 typ host tcptype passive']) cand(x, 'remoteCandidates', line);
+    for (const line of ['candidate:1 1 udp 1 10.200.17.5 8555 typ host', 'candidate:2 1 udp 1 198.51.100.9 8555 typ srflx', 'candidate:3 1 tcp 1 198.51.100.9 8555 typ host tcptype passive']) cand(x, 'remoteCandidates', line);
     x.iceErrors = { '701 STUN host lookup received error from 74.125.250.129:19302': 2 };
     x.timeline.push({ at: 5, kind: 'ws', value: 'open' }, { at: 400, kind: 'ice', value: 'checking' }, { at: 12000, kind: 'ice', value: 'failed' });
     x.selectedPair = { local: { type: 'srflx', protocol: 'udp', cls: 'public', networkType: 'cellular' }, remote: { type: 'srflx', protocol: 'udp', cls: 'public', networkType: '' }, relayProtocol: '', rttMs: 40 };
