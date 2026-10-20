@@ -361,3 +361,44 @@ normalisation, any new WisKey command. **Open risk, unchanged on purpose: the 75
 timer is still what lets a fresh readback settle a row of a process that is gone; it is NOT proof that the remote handler ended, and a
 wall-clock jump can expire it early (forward) or hold it indefinitely (backward). Until ACR6-02 is designed, an unknown write settled after
 the hold is not an exactly-once or completion proof.
+## SHAREDID-293 - the shared identity screen (owner decisions 2026-10-20, pilot/SHAREDID-293)
+
+Server (`services/access_external.py`, hooks in `services/access_grants.py`, routes in `routers/access_grants.py`) and the screen
+(`frontend/src/screens/access-external.ts`, `frontend/src/access-external/`). Mockup: private/planning/mockup_shared_identity_2026-10-20.
+PROVISIONAL migration **0128_access_external_identity** (renumber at integration: 0124-0125 2.9.2 integration, 0126 TEMPCTL3, 0127 PERMOVR).
+
+- **Decision 1 - "WisKey" in the UI.** Every text of the screen and the identity card names WisKey, never "the intercom system" (a unit test
+  scans the four languages).
+- **Decision 2 - "Active - verified" only with stored read-back proof.** This supersedes the R6-A3 "never label verified" choice above with
+  its stronger option: `access_grants.scope_proof` (sha256 of the scope) + `scope_proof_at` are written in the same transaction as every
+  verdict a FRESH read that satisfies `scope_proven` backs (an unknown outcome settled, a narrowing pushed) and by the hourly
+  `verify_pass` (a read only, never a write; compare-and-set on the row revision, which the pass does not bump). `scope_is_proven(g)`:
+  active, no push outstanding, stored digest == digest of the scope now - so any scope change invalidates it and legacy rows are unproven
+  until read. Only then `scope_verified: true` and `doors_state: verified_central` (the central record; never a station claim). A mismatch
+  clears the proof and is audited (`access.grant.verify` outcome `mismatch`) - a digest gap. A person not found on the verify read withdraws
+  the authority (`revoking`, `wiskey_missing`), the R3 rule.
+- **Decision 3 - manual "confirmed gone".** `POST /access-grants/{id}/confirm-gone`: an interactive system administrator, a grant in
+  `revoking` whose link is `wiskey_missing`, three ticked checks, the typed word (נמחק) and an 8..128-character reference without a phone
+  number. The grant ends as `ended` (never `revoked`) with an `access_grant_closures` row; the hourly alerts stop; every manager gets
+  `access.grant_closed_manual`. The reference is kept in the closure row only (the audit has ids) and shown to system administrators
+  only. `watch_gone` reads the person once an hour: found again -> `reappeared_at`, an attention notice at once, and the grant goes back to
+  `revoking` (when the subject has no other live grant and the link exists) so the normal strip runs.
+- **Decision 4 - weekly digest.** Source `access.weekly_digest` (managers, content-free: "a new digest is ready"); the channel setting IS
+  that source's notification policy (`app` = app + phone, `app_whatsapp` adds WhatsApp); day/hour settings (default Sunday 08:00, the
+  installation zone, DST-safe); sent once per period, a period more than 6 h late is skipped (audited), never a burst. `GET
+  /access-grants/digest`: the last full period over the grants the caller may see (counts, slow revocations > 2 min, approvers, gaps:
+  name drift, scope mismatch, persons Arx created with no live grant). WisKey's own name values are never stored (digests only), so a
+  name gap says only that the names differ.
+- **Decision 5 - name drift.** `access_person_links.name_seen` / `name_pushed` (digests). `POST /access-grants/links/{id}/push-name`
+  (people.manage on every station of the live grant, installation-wide when none; interactive; a person Arx created only) and the
+  automatic push (`name_sync` = auto; retried after 15 minutes when it did not land). A matched person is never renamed.
+- **Decision 6 - placement.** `access.external.placement` (access | tickets | both), readable by everyone in GET /settings, written only by a
+  system administrator through PUT /access-grants/settings; the tab follows (`shell/nav.ts`), notification links follow.
+- **Decision 7 - attach a recovered person.** `POST /access-grants/{id}/attach-recovered` over the private helper (unchanged guards):
+  system administrators, interactive; every refusal - the helper's included - is audited with its code (owner Q3 of 08:10). The identity
+  card shows the op id to system administrators only. The R6-A5 "no product caller" test now pins this route as the ONE caller.
+- **Extended service identity stays LOCKED** (shown as a locked row; nothing here touches it).
+- Not built in this slice: the manual "request access" form (no approved design for its dialog; requests arrive from the vendor page),
+  an "offline" banner (the list endpoint carries no WisKey connectivity signal), the 75 s hold countdown of the mockup's unknown state
+  (the worker keeps its own holds; "read back now" asks the worker), per-grant audit history (the drawer derives "what happened" from
+  the row's instants).

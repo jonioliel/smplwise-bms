@@ -47,7 +47,7 @@ test('the list: KPIs, states, verified only with proof, the banners and the side
   await expect(s.locator('[data-kpi="waiting"] b')).toHaveText('3');
   // decision 2: exactly the one row whose server answer carries scope_verified
   await expect(s.locator('.gl-r[data-ui-state="verified"]')).toHaveCount(1);
-  await expect(s.locator('.gl-r[data-ui-state="accepted"]')).toHaveCount(1);
+  await expect(s.locator('.gl-r[data-ui-state="accepted"]')).toHaveCount(2); // one of them carries a widening that waits
   await expect(s.locator('[data-banner="revoking"]')).toBeVisible();
   await expect(s.locator('[data-digest-panel]')).toBeVisible();
   await expect(s.locator('[data-extended-identity="locked"] input')).toBeDisabled();
@@ -83,7 +83,7 @@ test('decision 2 in the drawer: verified shows the full ladder; accepted stops b
   await s.locator('.gl-r[data-ui-state="verified"]').click();
   await expect(s.locator('[data-ladder] .stp[data-s="done"]')).toHaveCount(5);
   await s.locator('sw-drawer[data-grant-drawer]').evaluate((el) => el.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true })));
-  await s.locator('.gl-r[data-ui-state="accepted"]').click();
+  await s.locator('.gl-r', { hasText: 'שירן מזרחי' }).click();
   await expect(s.locator('[data-ladder] .stp[data-s="done"]')).toHaveCount(4);
 });
 
@@ -93,7 +93,7 @@ test('the approval dialog narrows only and sends the doors and the window it sho
   await s.locator('.gl-r[data-ui-state="pending"]').click();
   await s.locator('[data-action="approve"]').click();
   const dlg = s.locator('sw-dialog[data-approve-dialog]');
-  await expect(dlg).toBeVisible();
+  await expect(dlg.locator('[data-approve-ok]')).toBeVisible();
   await shot(page, info, '04-approve');
   await dlg.locator('[data-approve-door="base:1"]').uncheck();
   await dlg.locator('[data-approve-ok]').click();

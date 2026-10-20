@@ -267,11 +267,16 @@ def ag_api() -> str:
     return API
 
 
-def test_r5_a3_a_pending_narrowing_is_never_presented_as_applied(env):
+def test_r5_a3_a_pending_narrowing_is_never_presented_as_applied(env, monkeypatch):
+    from smplwise.services import access_external as ax
+
+    real_verify = ax.verify_pass
+    monkeypatch.setattr(ax, "verify_pass", lambda db: 0)  # SHAREDID-293: no read-back yet
     gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
     v = _view(env, gid)
     # R6-A3: provisioning trusted the write's answer (no post-write proof is recorded): accepted, never verified
     assert (v["grant_state"], v["needs_push"], v["pending_sync"], v["scope_verified"], v["doors_state"]) == ("active", False, False, False, "accepted")
+    monkeypatch.setattr(ax, "verify_pass", real_verify)
     env.engine.offline = True  # the push cannot happen now
     env.request(doors={"st-a": [1]})
     env.run()
@@ -281,7 +286,8 @@ def test_r5_a3_a_pending_narrowing_is_never_presented_as_applied(env):
     env.engine.offline = False
     env.run()
     v = _view(env, gid)
-    assert (v["needs_push"], v["pending_sync"], v["scope_verified"], v["doors_state"]) == (False, False, False, "accepted")
+    # SHAREDID-293 (owner decision 2): the narrowing's fresh readback proved the new scope - stored proof, so now verified (central only)
+    assert (v["needs_push"], v["pending_sync"], v["scope_verified"], v["doors_state"]) == (False, False, True, "verified_central")
 
 
 def test_r5_a3_an_unknown_or_approved_grant_is_not_a_verified_scope(env):

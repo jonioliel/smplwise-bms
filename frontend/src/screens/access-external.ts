@@ -253,7 +253,8 @@ export class AccessExternalScreen extends LitElement {
     this.sel = id;
     this.detail = this.data?.grants.find((g) => g.id === id) ?? null;
     try {
-      this.detail = (await getGrant(id)).grant;
+      const g = (await getGrant(id)).grant;
+      if (this.sel === id) this.detail = g; // a drawer closed (or another opened) meanwhile stays as it is
     } catch {
       /* the list row stays */
     }
@@ -728,7 +729,7 @@ export class AccessExternalScreen extends LitElement {
         </div>
         ${this.side()}
       </div>
-      ${this.drawer()}
+      ${this.dialog ? nothing : this.drawer()}
       ${this.dialogs()}
       <div class="toasts" aria-live="polite">${this.toasts.map((t) => html`<div class="toast" data-toast><sw-icon name="check" size="16"></sw-icon>${t.text}</div>`)}</div>
     `;

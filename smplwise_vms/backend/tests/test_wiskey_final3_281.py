@@ -234,11 +234,21 @@ def test_r6_a3_no_row_is_presented_as_verified_without_a_recorded_proof(row, wan
     assert (s["needs_push"], s["pending_sync"], s["scope_verified"], s["doors_state"]) == want
 
 
-def test_r6_a3_a_provisioned_grant_is_accepted_not_verified(env):
+def test_r6_a3_a_provisioned_grant_is_accepted_not_verified(env, monkeypatch):
+    """SHAREDID-293 (owner decision 2, supersedes the R6-A3 "never verified" choice): the provisioning write's answer is no proof -
+    accepted; only a stored fresh read-back proof (the verify pass) makes it verified."""
+    from smplwise.services import access_external as ax
+
+    real_verify = ax.verify_pass
+    monkeypatch.setattr(ax, "verify_pass", lambda db: 0)
     gid = env.active_grant(doors={"st-a": [1]})
     v = _view(env, gid)
     assert v["grant_state"] == "active" and v["scope_verified"] is False and v["doors_state"] == "accepted"
     assert "verified_central" not in json.dumps(v)
+    monkeypatch.setattr(ax, "verify_pass", real_verify)
+    env.run()
+    v = _view(env, gid)
+    assert v["scope_verified"] is True and v["doors_state"] == "verified_central"
 
 
 def test_r6_a3_the_arrival_reply_carries_the_same_five_fields_as_present(arr):
@@ -266,11 +276,16 @@ def _unresolved(env) -> tuple[str, list[str], str]:
 
 
 def test_r6_a5_the_helper_is_private_and_has_no_route():
+    """SHAREDID-293 (owner decision 7, 2026-10-20): the reviewed caller now exists - ONE service function, access_external.attach_recovered
+    (system administrators, interactive, every refusal audited), behind POST /access-grants/{id}/attach-recovered. No other caller."""
     assert not hasattr(ag, "attach_recovered_person"), "no public name"
+    callers = []
     for path in (BACKEND / "smplwise").rglob("*.py"):
-        if path.name == "access_grants.py":
+        if path.name == "access_grants.py" and path.parent.name == "services":
             continue
-        assert "_attach_recovered_person" not in path.read_text(encoding="utf-8"), f"no product caller: {path.name}"
+        if "_attach_recovered_person" in path.read_text(encoding="utf-8"):
+            callers.append(f"{path.parent.name}/{path.name}")
+    assert callers == ["services/access_external.py"], f"the one reviewed caller only: {callers}"
 
 
 @pytest.mark.parametrize("actor", [None, "system", Principal("nobody", "nobody", "nobody", "ha")])
