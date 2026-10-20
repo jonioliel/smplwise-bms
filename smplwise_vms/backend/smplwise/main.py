@@ -414,6 +414,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
+    from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)
+
+    app.include_router(door_automations_router.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
