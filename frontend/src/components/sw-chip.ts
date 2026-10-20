@@ -58,7 +58,7 @@ export class SwChip extends LitElement {
       color: var(--sw-text-3);
     }
     :host([selected]) .count {
-      color: color-mix(in srgb, var(--sw-text-inverse) 80%, transparent);
+      color: var(--sw-text-inverse); /* UXREST-295: the 80 % mix read 3.7:1 on the accent fill; the count is the quieter figure by its brackets and size */
     }
     button:disabled {
       cursor: default;

@@ -654,7 +654,7 @@ export class SystemNotifications extends LitElement {
         color: var(--sw-text-3);
       }
       :host([data-devices-scheme='dark']) .pushcard .ph {
-        color: rgba(235, 235, 245, 0.6);
+        color: rgba(235, 235, 245, 0.64);
       }
       .pushcard .ph .app {
         inline-size: 16px;

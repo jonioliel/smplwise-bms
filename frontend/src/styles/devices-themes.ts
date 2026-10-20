@@ -314,7 +314,7 @@ export const devicesThemes = css`
     --dv-overlay: rgba(0, 0, 0, 0.55);
     --dv-text: #f5f5f7;
     --dv-text-2: rgba(235, 235, 245, 0.72);
-    --dv-text-3: rgba(235, 235, 245, 0.56);
+    --dv-text-3: rgba(235, 235, 245, 0.64);
     /* the accent and state knobs stay on the --sw-product-* aliases of the light block: the product's dark values apply when
        the product is dark; with devices.scheme=dark under a light product the light accent reads on the dark glass */
     --dv-neutral-soft: rgba(142, 142, 147, 0.2);

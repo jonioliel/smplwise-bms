@@ -6,6 +6,7 @@ import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-icon';
+import '../components/sw-state-panel';
 import '../components/sw-scene';
 import '../components/sw-camera-tile';
 import { demoEvents, demoHealth, demoScene, demoSites, demoWall, eventTypeLabel } from '../fixtures/catalog';
@@ -74,6 +75,8 @@ export class LiveOverview extends LitElement {
   @state() private tz = 'Asia/Jerusalem';
   @state() private now = new Date();
   @state() private loaded = false;
+  /** UXREST-295: every call of the first read failed (server away): an error with a retry, not zeros and "reading the system state" for ever. */
+  @state() private loadFailed = false;
   private timer = 0;
   private clockTimer = 0;
   /** Owner 2026-09-29: the tiles' shape (ui.tile_layout) - compact rectangles on a phone by default. */
@@ -117,6 +120,7 @@ export class LiveOverview extends LitElement {
     if (recent.status === 'fulfilled') this.recent = recent.value.events;
     if (health.status === 'fulfilled') this.health = health.value;
     if (raw.status === 'fulfilled') this.raw = raw.value;
+    this.loadFailed = [cams, sites, health, raw].every((r) => r.status === 'rejected') && this.cams?.length === 0 && this.health === null;
     this.loaded = true;
     this.now = new Date();
   }
@@ -176,6 +180,9 @@ export class LiveOverview extends LitElement {
     const c = 2 * Math.PI * r;
     const favorites = cams.filter((x) => x.status === 'online').slice(0, 2);
     const layout = this.tiles.layout;
+    if (this.loaded && this.loadFailed) {
+      return html`<sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`}><sw-state-panel state="error" actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    }
     return html`
       <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `מצב המערכת: ${STATUS_LABEL[h.status]}${firstIssue ? ` · ${firstIssue.label}` : ' · כל הבדיקות תקינות'}` : 'קורא את מצב המערכת…'}>
         <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${this.now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: this.tz })}</div>

@@ -146,6 +146,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-warning-text': lt('#b45309', '#f5b043'),
       '--sw-success-text': lt('#117d39', '#3ddc84'),
       '--sw-forbidden-text': lt('#b91c1c', '#ff8a82'),
+      // UXREST-295: a count badge on a danger fill. White on the dark scheme's coral danger (#ff6b62) read 2.8:1 and on the light red 3.8:1;
+      // the light badge takes the deep red of --sw-danger-text (white 6.5:1), the dark one a near-black text on the coral (7:1).
+      '--sw-badge-bg': lt('#b91c1c', '#ff6b62'),
+      '--sw-badge-fg': lt('#ffffff', '#2a0b09'),
       '--sw-toggle-on': lt('#2767ed', '#3a6ce0'),
       '--sw-toggle-thumb': same('#ffffff'), // the switch's knob (white on the track in both schemes; a skin may tint it)
       // Investigation timeline kinds (owner 2026-10-01): the defaults; the installation setting `timeline.colors` (api/timeline-colors.ts)

@@ -23,8 +23,8 @@ export const rfqStyles = css`
     min-block-size: 22px;
     padding-inline: 8px;
     border-radius: 999px;
-    background: var(--dv-danger);
-    color: var(--sw-on-video); /* white on the danger fill */
+    background: var(--sw-badge-bg);
+    color: var(--sw-badge-fg); /* UXREST-295: readable text on the badge fill in both schemes */
     font-size: var(--sw-fs-xs);
     font-weight: 700;
     white-space: nowrap;
