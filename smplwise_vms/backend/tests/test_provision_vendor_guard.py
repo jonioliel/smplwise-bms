@@ -59,7 +59,6 @@ def world(settings, monkeypatch):
     ("put", "/api/v1/nvr/time", {"sync_now": True}),
     ("put", "/api/v1/nvr/ntp", {"host": "pool.ntp.org"}),
     ("put", "/api/v1/cameras/{cid}/osd", {"name_enabled": True}),
-    ("put", "/api/v1/cameras/{cid}/motion", {"sensitivity": 50}),
     ("put", "/api/v1/cameras/{cid}/schedules/motion", {"days": WEEK}),
 ])
 def test_isapi_writes_refuse_a_provision_recorder(world, method, path, body):
@@ -71,6 +70,15 @@ def test_isapi_writes_refuse_a_provision_recorder(world, method, path, body):
     writes = [h for h in fake.hits if not h.split(" ", 1)[1].lstrip("/").split("/")[0].startswith(("Get", "Search"))]
     assert writes == [], "the Provision device saw no write"
     assert built == [], "no ISAPI client was built, so no credentials went out"
+
+
+def test_motion_route_takes_the_provision_path_and_refuses_while_writes_are_off(world):
+    """PROVISION2: the motion route no longer refuses a Provision camera as vendor_unsupported - it goes through the Provision
+    adapter (SetMotionConfig); with writes off for the recorder it refuses before any device request or ISAPI client."""
+    c, cid, fake, built = world
+    r = c.put(f"/api/v1/cameras/{cid}/motion", json={"sensitivity": 5})
+    assert r.status_code == 409 and r.json()["code"] == "nvr_not_supported", r.text
+    assert not any("MotionConfig" in h for h in fake.hits) and built == []
 
 
 def test_hikvision_rtsp_url_refuses_other_vendors(settings):

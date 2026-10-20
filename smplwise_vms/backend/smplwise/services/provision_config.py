@@ -49,6 +49,8 @@ def apply_motion(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     from .nvr_write import _record
 
     a = vendor_io.adapter(settings, recorder_id)
+    if not a.writes_enabled:  # refused before any device request and before anything is recorded
+        raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה עד לאישור.", details={"op": "motion", "reason": "writes_disabled"})
     path, target = path_for("motion", channel), f"motion-{channel}"
     with unlocked(conn):
         before = a.config_doc("motion", channel)
