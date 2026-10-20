@@ -208,7 +208,7 @@ def test_routine_rotation_overlaps_then_retires_and_verifies(world):
     assert w["engine"].tick()["state"] == "switched"
     w["clock"].advance(91)
     rot = w["engine"].tick()
-    assert rot["state"] == "verified" and rot["peer_retire_ok"] == 1 and rot["anchor_eligible"] is False
+    assert rot["state"] == "verified" and rot["peer_retire_ok"] == 1 and not rot["anchor_eligible"]
     ks = _keys(w["db"])
     assert ks["g0-legacy"]["state"] == "retired" and ks["g0-legacy"]["value_enc"] is None
     assert w["peer"].accepted() == {rot["kid_to"]}
@@ -222,7 +222,7 @@ def test_hard_cut_has_no_instant_with_two_keys_and_is_anchor_eligible(world):
     seen_two = []
     w["peer"].on_call = lambda op: seen_two.append(len(w["peer"].accepted() - ({w["peer"].next} if w["peer"].next else set())) > 1)
     rot = w["engine"].start(None, "hard_cut")
-    assert rot["state"] == "verified" and rot["anchor_eligible"] is True and rot["overlap_s"] == 0
+    assert rot["state"] == "verified" and rot["anchor_eligible"] == 1 and rot["overlap_s"] == 0
     assert not any(seen_two)
     assert _keys(w["db"])["g0-legacy"]["state"] == "retired"
     assert w["peer"].accepted() == {rot["kid_to"]}
