@@ -12,6 +12,7 @@ import { bt } from '../tickets/board-text'; // CR-038 slice 6: the board tab's l
 import { ot } from '../tickets/overview-text'; // MGRDASH: the overview tab's label
 import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
 import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
+import { xt } from '../i18n/access-external'; // SHAREDID-293: the external-access tab's label
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -33,6 +34,30 @@ const STATIC_WISKEY_TABS: readonly TabItem[] = [
  * WisKey's own labels (ids kept apart from labels; WisKey's `users` stays SMPLWISE's `people` segment, so the per-screen
  * choice and old bookmarks keep working). Until then, and for an older WisKey, the static list above. */
 export const WISKEY_TABS: TabItem[] = [...STATIC_WISKEY_TABS];
+
+/** SHAREDID-293 (owner decision 6, 2026-10-20): "גישת חוץ" (the shared Arx + WisKey identity screen) sits under the access-control
+ * area, under service management, or both - the installation's `access.external.placement` (access | tickets | both), set by a system
+ * administrator on the screen itself. An Arx-only tab: never a tab of the embedded panel. */
+export const EXTERNAL_WISKEY_HREF = '#/wiskey/external';
+export const EXTERNAL_TICKETS_HREF = '#/tickets/external';
+export type ExternalPlacement = 'access' | 'tickets' | 'both';
+let EXTERNAL_PLACEMENT: ExternalPlacement = 'access';
+const externalTab = (href: string): TabItem => ({ id: 'external', get label() { return xt('tab'); }, href });
+export function externalPlacement(): ExternalPlacement {
+  return EXTERNAL_PLACEMENT;
+}
+/** Apply `access.external.placement` (the shell once the product settings load; the screen right after the administrator saves). */
+export function applyExternalPlacement(settings: Record<string, unknown> | null | undefined): ExternalPlacement {
+  const raw = String(settings?.['access.external.placement'] ?? 'access');
+  const next: ExternalPlacement = raw === 'tickets' || raw === 'both' ? raw : 'access';
+  if (next !== EXTERNAL_PLACEMENT) {
+    EXTERNAL_PLACEMENT = next;
+    rebuildWiskeyTabs();
+    for (const l of tabsListeners) l();
+  }
+  return next;
+}
+WISKEY_TABS.push(externalTab(EXTERNAL_WISKEY_HREF)); // the default placement (access) until the settings say otherwise
 
 /** CR-036 S9: what the native schedules screen's tab is called. */
 export const WISKEY_SCHEDULES_LABEL = 'לוחות זמנים';
@@ -113,7 +138,9 @@ function rebuildWiskeyTabs(): void {
   }
   // CR-036 S6: the native stations screen is named for what it shows ("תחנות ודלתות"); WisKey's own tab keeps WisKey's label
   const named = WISKEY_UI.stations === 'smplwise' ? next.map((t) => (t.id === WISKEY_SCREEN_SEGMENT.stations ? { ...t, label: WISKEY_STATIONS_LABEL } : t)) : next;
-  WISKEY_TABS.splice(0, WISKEY_TABS.length, ...named);
+  // SHAREDID-293: the external-access tab closes the row while the screen is placed under access control (owner decision 6)
+  const withExternal = EXTERNAL_PLACEMENT === 'tickets' ? named : [...named.filter((t) => t.id !== 'external'), externalTab(EXTERNAL_WISKEY_HREF)];
+  WISKEY_TABS.splice(0, WISKEY_TABS.length, ...withExternal);
 }
 
 /** What a WisKey route asks the embed to show. The confirmed-location mirror (`wiskey_tab` / `wiskey_tool` in the
@@ -141,6 +168,7 @@ function safeDecode(s: string): string {
  * embed, so its route decides. */
 function wiskeyActiveTab(r: RouteState | null): string {
   const path = wiskeyPathSegment(r);
+  if (path === 'external') return 'external'; // SHAREDID-293: an Arx-only screen, never the embed
   const screen = wiskeyScreenOf(path);
   const own = !!screen && WISKEY_UI[screen] === 'smplwise';
   if (own) return path;
@@ -622,6 +650,8 @@ export const TICKETS_TABS: TabItem[] = [
   { id: 'handlers', get label() { return tt('hdTitle'); }, href: TICKETS_HANDLERS_HREF }, // the fifth entry: handlers, employees, vendors, contacts
   { id: 'rfqs', get label() { return rt('navTitle'); }, href: TICKETS_RFQS_HREF }, // TKRFQ2: requests for quotation
   { id: 'accounts', get label() { return ct('vaTitle'); }, href: TICKETS_ACCOUNTS_HREF }, // TK258: "חשבון ספקים" (tickets.costs.view)
+  // SHAREDID-293: "גישת חוץ" when the owner placed it under service management (access.external.placement tickets | both)
+  { id: 'external', get label() { return xt('tab'); }, href: '#/tickets/external' },
 ];
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
 
@@ -820,7 +850,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -987,6 +1017,10 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // TKRFQ2: requests for quotation - whoever may open one (tickets.external) or decide on one (tickets.costs); the server's visibility rule narrows every row
   [TICKETS_RFQS_HREF]: ['tickets.external', 'tickets.costs'],
   [TICKETS_SETTINGS_HREF]: ['system.configure', 'tickets.configure'],
+  // SHAREDID-293: the external-access screen - approvers (access.external.grant at any scope; the server narrows every grant to the
+  // stations the caller may see). Station-scoped people readers keep their own screens: no new tab for them (clean operator screens).
+  [EXTERNAL_WISKEY_HREF]: ['access.external.grant'],
+  [EXTERNAL_TICKETS_HREF]: ['access.external.grant'],
   '#/system/messaging-accounts': ['system.configure', 'messaging.accounts.manage'], // CR-038 S5a (installation scope)
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
   [UPDATE_SETTINGS_HREF]: ['system.update'],
@@ -1046,14 +1080,14 @@ export function tabAllowed(href: string, can?: Can): boolean {
   const native = NATIVE_WISKEY_TABS[href];
   const isNative = !!native && WISKEY_UI[native.screen] === 'smplwise';
   const need = isNative ? native.need : (TAB_PERMISSIONS[href] ?? (isWiskeyHref(href) ? ['access.read'] : undefined));
-  const installationOnly = !isNative && (INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href));
+  const installationOnly = !isNative && href !== EXTERNAL_WISKEY_HREF && (INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href)); // SHAREDID-293: any scope
   return !need || !can || need.some((p) => can(p, installationOnly));
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;

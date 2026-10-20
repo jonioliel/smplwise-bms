@@ -225,6 +225,10 @@ DEFAULTS: dict[str, str] = {
     # Talk also needs a talk transport from the intercom (W10) and access.call on the station; without them the talk button
     # keeps its classic-panel mode (access.talk_button). services/intercom_media.py.
     "access.station_media": "off",
+    # SHAREDID-293 (owner decision 6, 2026-10-20): where the external-access screen ("גישת חוץ") sits - access (the access-control area) |
+    # tickets (service management) | both. Read by every user here (navigation only); written by a system administrator through
+    # PUT /access-grants/settings (services/access_external.py), never through PATCH /settings.
+    "access.external.placement": "access",
     # CR-007 slice 6a: הגדרות › חשמל והתקנים - how the device-control screens look, per installation (read by every user
     # through GET /settings; changed with system.configure, audited like every product setting). Presentation only: the
     # safety rules of the bulk actions (confirmation, expiry, never locks / alarm / door release) are not settings.
@@ -401,6 +405,8 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     for key, default in DEFAULTS.items():
         value = get_setting(conn, key, default) or default
         out[key] = int(value) if key in INT_KEYS else value
+    if out.get("access.external.placement") not in ("access", "tickets", "both"):  # SHAREDID-293: a corrupt value never moves the screen
+        out["access.external.placement"] = "access"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.look"] = look.stored(out["ui.look"])

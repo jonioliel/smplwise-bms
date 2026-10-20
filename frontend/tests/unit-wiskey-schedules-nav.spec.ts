@@ -24,7 +24,7 @@ test.describe('the schedules screen in the WisKey area navigation', () => {
     expect(WISKEY_SCREEN_SEGMENT.schedules).toBe('schedules');
     expect(wiskeyScreenOf('schedules')).toBe('schedules');
     expect(WISKEY_UI.schedules).toBe('wiskey');
-    expect(ids()).toEqual(['overview', 'events', 'people', 'devices', 'sync', 'health', 'audit', 'tools']);
+    expect(ids()).toEqual(['overview', 'events', 'people', 'devices', 'sync', 'health', 'audit', 'tools', 'external']); // SHAREDID-293: the Arx-only tab closes the row
     // a typed address with the switch off is the embedded panel (the panel shows its default for an id it does not know)
     expect(wiskeyRoute(route('#/wiskey/schedules'), true)).toEqual({ kind: 'embed', tab: 'schedules', tool: null });
   });
@@ -32,7 +32,7 @@ test.describe('the schedules screen in the WisKey area navigation', () => {
   test('switched to Arx: the tab appears after the stations, labelled for what it shows, and routes to the native screen', () => {
     applyWiskeyUi({ 'access.ui.schedules': 'smplwise' });
     expect(WISKEY_UI.schedules).toBe('smplwise');
-    expect(ids()).toEqual(['overview', 'events', 'people', 'devices', 'schedules', 'sync', 'health', 'audit', 'tools']);
+    expect(ids()).toEqual(['overview', 'events', 'people', 'devices', 'schedules', 'sync', 'health', 'audit', 'tools', 'external']);
     const tab = WISKEY_TABS.find((t) => t.id === 'schedules');
     expect(tab).toEqual({ id: 'schedules', label: WISKEY_SCHEDULES_LABEL, href: SCHEDULES });
     expect(wiskeyRoute(route('#/wiskey/schedules'), true)).toEqual({ kind: 'smplwise', screen: 'schedules' });

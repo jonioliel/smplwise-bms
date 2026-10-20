@@ -37,6 +37,7 @@ import '../screens/wiskey-people';
 import '../screens/wiskey-stations';
 import '../screens/wiskey-schedules';
 import '../screens/wiskey-embed';
+import '../screens/access-external'; // SHAREDID-293: "גישת חוץ" (#/wiskey/external, #/tickets/external)
 import '../screens/devices-building';
 import '../screens/devices-area';
 import '../screens/devices-schedules';
@@ -108,7 +109,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -1634,6 +1635,7 @@ export class SwApp extends LitElement {
           // הגדרות › מתגי מסכי כניסה: hide the whole WisKey area for everyone, regardless of role (T054 follow-up) - same
           // "hidden for everyone" shape as hideMap above, applied to the whole WISKEY_TABS group at once.
           if (applyWiskeyHidden(ps as unknown as Record<string, unknown>)) for (const wt of WISKEY_TABS) HIDDEN_HREFS.add(wt.href ?? '');
+          applyExternalPlacement(ps as unknown as Record<string, unknown>); // SHAREDID-293: where "גישת חוץ" sits (before the WisKey tabs rebuild)
           applyWiskeyUi(ps as unknown as Record<string, unknown>); // הגדרות › מתגי מסכי כניסה: embed or SMPLWISE per WisKey screen
           applySnapshotHidden(ps as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview leaves the navigation
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
@@ -2319,6 +2321,8 @@ export class SwApp extends LitElement {
         if (this.session.mode === 'api' && WISKEY_HIDDEN) {
           return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
         }
+        // SHAREDID-293: "גישת חוץ" - an Arx-only screen under the access-control area (owner decision 6: or under service management)
+        if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`;
         const w = wiskeyRoute(r, this.session.mode === 'api');
         // one call site: switching embedded tabs keeps the loaded frame (embed API v1: a wiskey:navigate message)
         if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab} .tool=${w.tool ?? ''}></wiskey-embed>`;
@@ -2377,6 +2381,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'handlers') return html`<tickets-handlers></tickets-handlers>`; // owner 2026-10-14: handlers, employees, vendors, contacts
         if (s[1] === 'accounts') return html`<tickets-vendor-accounts></tickets-vendor-accounts>`; // TK258: the vendors account
         if (s[1] === 'rfqs') return html`<tickets-rfqs .route=${r}></tickets-rfqs>`; // TKRFQ2: requests for quotation (list, board, comparison, new)
+        if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`; // SHAREDID-293 (owner decision 6)
         if (!s[1] || !['mine', 'department', 'all'].includes(s[1])) {
           const first = visibleTabs(AREA_TABS.tickets, this.session.mode === 'api', canNav)[0]?.href ?? '#/tickets/mine';
           queueMicrotask(() => window.location.replace(first));

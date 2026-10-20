@@ -435,6 +435,32 @@ class Scope:
         return Scope(d["doors"], d["valid_from"], d["valid_until"], d.get("timing"), d["credential"])
 
 
+def scope_digest(scope: Scope) -> str:
+    """SHAREDID-293 (owner decision 2): the digest a read-back proof is stored under. Any change of the doors, the window, the timing
+    or the credential gives another digest, so a stored proof never covers a scope it did not prove."""
+    import hashlib
+
+    return hashlib.sha256(scope.as_json().encode("utf-8")).hexdigest()[:32]
+
+
+def proof_fields(scope: Scope) -> dict[str, Any]:
+    """The columns a FRESH read that proved `scope` (scope_proven) writes, in the same transaction as the verdict it backs."""
+    at = iso(now())
+    return {"scope_proof": scope_digest(scope), "scope_proof_at": at, "scope_checked_at": at}
+
+
+def scope_is_proven(g: dict[str, Any]) -> bool:
+    """Owner decision 2: "Active - verified" only when the server holds read-back proof of the row's CURRENT scope: an active grant,
+    no narrowing still to push, and a stored proof digest equal to the digest of its scope now."""
+    proof = g.get("scope_proof")
+    if not proof or g.get("state") != "active" or g.get("needs_push"):
+        return False
+    try:
+        return proof == scope_digest(Scope.of_row(g))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def covers(old: Scope, new: Scope) -> bool:
     """`new` is the same as or narrower than `old` in every dimension (owner answer 12: such a change merges at once)."""
     for sid, relays in new.doors.items():
@@ -1204,6 +1230,38 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "code_sends": g["code_sends"] if sensitive else None,
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
+        **_screen_fields(conn, g),
+    }
+
+
+def _screen_fields(conn: sqlite3.Connection, g: dict[str, Any]) -> dict[str, Any]:
+    """SHAREDID-293: what the external-access screen needs beside the grant itself - the instants of its life, the approver's display
+    name, the link's origin and state, whether a lost users/create is unresolved, and a manual closure (owner decision 3). Ids, states
+    and instants; the only name is the approver's (an Arx user)."""
+    link = link_of_grant(conn, g)
+    approver = conn.execute("SELECT display_name FROM users WHERE id = ?", (g["approved_by"],)).fetchone() if g.get("approved_by") else None
+    try:
+        closure = conn.execute("SELECT kind, closed_by, closed_at, reappeared_at FROM access_grant_closures WHERE grant_id = ?", (g["id"],)).fetchone()
+    except sqlite3.OperationalError:  # a database before 0128
+        closure = None
+    unresolved = False
+    if link is None and g.get("pushed"):
+        try:
+            unresolved = wj.create_verdict(wj.create_ops(conn, grant_id=g["id"]))[0] == "unresolved"
+        except sqlite3.Error:
+            unresolved = False
+    closer = conn.execute("SELECT display_name FROM users WHERE id = ?", (closure["closed_by"],)).fetchone() if closure else None
+    contact = contact_row(conn, g["subject_id"]) if g["subject_kind"] == "contact" else None
+    vendor = contact_row(conn, contact.get("vendor_id")) if contact and contact.get("vendor_id") else None
+    return {
+        # the person's company (the vendor's directory name) and kind: a vendor's technician is a contractor, anyone else a visitor
+        "company": (vendor or {}).get("display_name"), "category": "contractor" if contact and contact.get("vendor_id") else "visitor",
+        "created_at": g.get("created_at"), "updated_at": g.get("updated_at"), "ended_at": g.get("ended_at"), "revoking_since": g.get("revoking_since"),
+        "approved_by_name": (approver["display_name"] if approver else None) or None,
+        "link": {"id": link["id"], "origin": link["origin"], "state": link["state"]} if link else None,
+        "create_unresolved": unresolved,
+        "closure": {"kind": closure["kind"], "closed_at": closure["closed_at"], "closed_by_name": (closer["display_name"] if closer else None) or None,
+                    "reappeared_at": closure["reappeared_at"]} if closure else None,
     }
 
 
@@ -1211,17 +1269,19 @@ def sync_status(g: dict[str, Any]) -> dict[str, Any]:
     """R5-A3: approval is not a verified central scope. `pending_sync` for a decided grant whose scope is not accepted yet (approved,
     provisioning, unknown, or active with a narrowing still to push). Neither is a claim about the stations (WisKey applies later).
 
-    R6-A3 / ACR6-03: `scope_verified` is ALWAYS False in this build and `doors_state` is never `verified_central`. A normal provisioning
-    sets `active` from the write's own answer (no fresh post-write read, no `scope_proven`), and legacy active rows carry no proof at
-    all; no proof revision is recorded anywhere, so nothing may present the scope as verified. An active grant with no push outstanding
-    is `accepted` (WisKey's central record accepted the write; not re-read). Recording a proof revision after a complete fresh post-write
-    read (invalidated on any scope change, legacy rows unknown until read) is the later, stronger option - it needs a schema column."""
+    R6-A3 / ACR6-03 + SHAREDID-293 (owner decision 2, 2026-10-20): `scope_verified` is True ONLY when the server stores read-back proof
+    of the row's current scope (`scope_is_proven`: a complete FRESH read after the write matched the doors, the validity, the timing and
+    the active flag - `scope_proven` - and the stored digest equals the scope now; any scope change invalidates it, legacy rows carry
+    none). Then `doors_state` is `verified_central`: WisKey's CENTRAL record, never a claim that a station applied it. An active grant
+    with no push outstanding and no current proof is `accepted` (WisKey's central record accepted the write; not re-read)."""
     state = g["state"]
     needs_push = bool(g.get("needs_push"))
     accepted = state == "active" and not needs_push
+    verified = accepted and scope_is_proven(g)
     pending = state in ("approved", "provisioning", "unknown") or (state == "active" and needs_push)
-    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": False,
-            "doors_state": "accepted" if accepted else "desired" if state in LIVE else None}
+    return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": verified,
+            "scope_verified_at": g.get("scope_proof_at") if verified else None,
+            "doors_state": "verified_central" if verified else "accepted" if accepted else "desired" if state in LIVE else None}
 
 
 def _station_name(station_id: str) -> str:
@@ -1660,9 +1720,23 @@ class Worker:
                         summary[kind] = summary.get(kind, 0) + 1
                 self.finish_unlinks(db)
                 self.alert_and_prune(db)
+                self._screen_passes(db)
                 return summary
             finally:
                 self._after_pass()
+
+    @staticmethod
+    def _screen_passes(db: Database) -> None:
+        """SHAREDID-293: the external-access screen's own passes, after the grant work of the pass (services/access_external.py) - the
+        read-back verification of active grants (owner decision 2), the watch for a person confirmed gone that reappears (3), the name
+        sync (5) and the weekly digest (4). Each fails closed on its own: a failure never stops the grant work."""
+        from . import access_external as ax
+
+        for step in (ax.verify_pass, ax.watch_gone, ax.name_pass, ax.digest_due):
+            try:
+                step(db)
+            except Exception:  # noqa: BLE001
+                log.warning("access grants: the %s pass failed", getattr(step, "__name__", "screen"))
 
     def run_grant(self, db: Database, grant_id: str) -> None:
         with self._lock:
@@ -1832,9 +1906,10 @@ class Worker:
                 if op_id is None:
                     op_id = wj.create_intent(conn, g["id"], g["subject_kind"], g["subject_id"], ref)
                 wj.create_dispatched(conn, op_id)
+            sent_name = ((contact or {}).get("display_name") or "אורח")[:32]
             try:
                 # employee_no is omitted: WisKey generates one (nine digits) and returns it - stored as returned, never sent on update
-                person = engine.create_person(display_name=((contact or {}).get("display_name") or "אורח")[:32], category=category,
+                person = engine.create_person(display_name=sent_name, category=category,
                                               responsible_person=((approver["display_name"] if approver else "") or "Arx")[:64],
                                               access_purpose=f"Arx external access {ref}")
             except EngineError as exc:
@@ -1851,6 +1926,11 @@ class Worker:
                 conn.execute("""INSERT INTO access_person_links(id, subject_kind, subject_id, wiskey_person_id, origin, employee_no, linked_by, linked_at, last_pushed_rev)
                                 VALUES (?, ?, ?, ?, 'created_from_arx', ?, ?, ?, ?)""",
                              (lid, g["subject_kind"], g["subject_id"], person.id, person.employee_no, g.get("approved_by") or "system", iso(now()), person.revision))
+                # SHAREDID-293 (owner decision 5): the digests of the name Arx wrote and WisKey answered with (never the name)
+                from .access_external import name_digest
+
+                conn.execute("UPDATE access_person_links SET name_pushed = ?, name_seen = ?, name_checked_at = ? WHERE id = ?",
+                             (name_digest(sent_name), name_digest(person.display_name), iso(now()), lid))
                 wj.create_finished(conn, op_id, "ok", person_id=person.id)
                 _audit(conn, None, "access.person_link.create", lid, resource_type="access_person_link", wiskey_person_id=person.id, grant_id=g["id"])
                 link = link_row(conn, lid)
@@ -2046,7 +2126,8 @@ class Worker:
                 _audit(conn, None, "access.grant.unknown", g["id"], reason="scope_moved")
                 return None
             if scope_proven(person, scope):
-                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "needs_push": 0}, expect_revision=g["revision"])
+                # SHAREDID-293 (owner decision 2): this fresh read proved the complete scope - stored as the read-back proof
+                _touch(conn, g["id"], {"state": "active", "wiskey_revision": person.revision, "needs_push": 0, **proof_fields(scope)}, expect_revision=g["revision"])
                 _audit(conn, None, "access.grant.activate", g["id"], wiskey_person_id=person.id, after="unknown", stations_synced=person.stations_synced)
                 return "provisioned"
             if cur["needs_push"] and readback_covers(person, scope):
@@ -2104,7 +2185,8 @@ class Worker:
                 return
         with db.connection(label="access_grants.narrow.done") as conn:
             # F2 (review H3 i): compare-and-set on the revision the scan read
-            if _touch(conn, g["id"], {"needs_push": 0, "wiskey_revision": readback.revision}, expect_revision=g["revision"]):
+            # SHAREDID-293 (owner decision 2): the fresh readback proved the complete scope - stored as the read-back proof
+            if _touch(conn, g["id"], {"needs_push": 0, "wiskey_revision": readback.revision, **proof_fields(scope)}, expect_revision=g["revision"]):
                 _audit(conn, None, "access.grant.amend", g["id"], kind="pushed", stations=stations_of(scope.doors), readback=True, written=written,
                        central_only=True, stations_synced=readback.stations_synced)
             else:
@@ -2371,9 +2453,11 @@ def _notify(conn: sqlite3.Connection, source: str, subject_id: str, kind: str, r
     """A content-free notification to the managers (no name, no number, no door). Never raises."""
     try:
         from . import notify
+        from .access_external import screen_href
 
+        # SHAREDID-293: the link opens the external-access screen where the owner placed it (owner decision 6)
         notify.emit(conn, notify.Signal(source=source, subject_kind="system", subject_id=subject_id[:32], dedupe_key=f"{source}:{subject_id[:32]}" + (f":r{repeat}" if repeat else ""),
-                                        params={"kind": kind}, link="#/system/access?tab=external"))
+                                        params={"kind": kind}, link=screen_href(conn, subject_id if len(subject_id) == 32 else None)))
     except Exception:  # noqa: BLE001
         log.warning("access grants notification failed")
 
