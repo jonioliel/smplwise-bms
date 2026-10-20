@@ -140,5 +140,23 @@ def go2rtc_source(settings: Settings, rtsp_url: str) -> str:
     client for a firmware where it works. Only for go2rtc: thumbnails / frames hand the plain URL to the local ffmpeg."""
     extra = settings.nvr_extra if isinstance(settings.nvr_extra, dict) else {}
     if str(extra.get("go2rtc_source") or "ffmpeg").lower() == "rtsp":
-        return rtsp_url
-    return f"ffmpeg:{rtsp_url}#video=copy"
+        return rtsp_url  # the native client carries whatever tracks the device offers; live_audio does not apply
+    return f"ffmpeg:{rtsp_url}#video=copy" + AUDIO_SUFFIX[_live_audio(extra)]
+
+
+# PROVISION2 audio in video (nvr_extra.live_audio, OFF by default). The NVR sends G.711 (GetAudioStreamConfig: G711A / G711U,
+# 8 kHz) when a camera's sound is on: `copy` passes it unchanged (WebRTC plays PCMA / PCMU; go2rtc's MSE wraps it for the
+# browser), `opus` transcodes for WebRTC only, `copy_opus` offers both tracks and each consumer takes the one it can play.
+# A camera without sound must still play its video: see the live check in CR-PROVISION2 (go2rtc on the lab host).
+AUDIO_SUFFIX = {"off": "", "copy": "#audio=copy", "opus": "#audio=opus", "copy_opus": "#audio=copy#audio=opus"}
+
+
+def _live_audio(extra: dict[str, Any]) -> str:
+    mode = str(extra.get("live_audio") or "off").lower()
+    return mode if mode in AUDIO_SUFFIX else "off"
+
+
+def camera_facts(settings: Settings, recorder_id: str, channel: int) -> dict[str, Any]:
+    """The device part of GET /cameras/{id}/capabilities for a Provision camera (PTZ, presets, two-way audio, audio in video)."""
+    _enabled(settings)
+    return adapter(settings, recorder_id).camera_facts(int(channel))

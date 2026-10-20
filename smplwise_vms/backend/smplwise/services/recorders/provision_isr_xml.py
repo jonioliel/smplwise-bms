@@ -557,6 +557,7 @@ def parse_stream_caps(xml: str | bytes) -> dict[str, Any]:
             if value and _RES.match(value):
                 resolutions.append({"resolution": value, "max_fps": to_int(r.attrib.get("maxFrameRate"))})
         levels = [t for t in (text(i, cap=16) for i in children(child(item, "encodeLevelCaps"), "item")) if t] or top_levels
+        levels_265 = [t for t in (text(i, cap=16) for i in children(child(item, "encodeLevelCaps265"), "item")) if t]
         streams[no] = {
             "device_id": sid,
             "name": name if name and SAFE_NAME.match(name) else None,
@@ -564,8 +565,84 @@ def parse_stream_caps(xml: str | bytes) -> dict[str, Any]:
             "resolutions": resolutions,
             "codecs": [t for t in (text(i, cap=16) for i in children(child(item, "encodeTypeCaps"), "item")) if t],
             "profiles": [_PROFILES.get(t.lower(), t) for t in levels],
+            # v2.1 (GetStreamCaps 3.1.1): the H.265 profiles and the bitrate list the stream accepts; [] on v1 firmware
+            "profiles_h265": [_PROFILES.get(t.lower(), t) for t in levels_265],
+            "bitrate_list": sorted({v for v in (to_int(text(i)) for i in children(child(item, "bitRateLists"), "item")) if v and v > 0}),
         }
     return {"rtsp_port": to_int(text(root, "rtspPort")), "streams": streams}
+
+
+# ------------------------------------------------------------------------------------------------ v2 channel info
+
+CHANNEL_TYPES = {"normal": "normal", "thermal": "thermal", "fisheye": "fisheye", "panoramic": "panoramic", "ptz": "ptz", "4ptzfusion": "ptz_fusion"}
+
+
+def parse_channel_info(xml: str | bytes) -> list[dict[str, Any]]:
+    """v2 `GetChannelInfo` (2.1.4, NVR 1.4.12+ / IPC 5.3.0+): one call with every channel's id, name, status and (IPC only) type.
+    -> [{"channel", "name", "status", "type"}]. The `ip` element is never read (AGENTS: no address leaves the adapter)."""
+    root = parse(xml)
+    lst = child(root, "channelList")
+    if lst is None:
+        raise ET.ParseError("not a channelList document")
+    out: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for it in children(lst, "item"):
+        ch = to_int(text(it, "channelId"))
+        if ch is None or ch < 1 or ch > 4096 or ch in seen:
+            continue
+        seen.add(ch)
+        kind = (text(it, "attribute", cap=16) or "").lower()
+        out.append({"channel": ch, "name": text(it, "name", cap=TEXT_CAP), "status": text(it, "status", cap=16),
+                    "type": CHANNEL_TYPES.get(kind) if kind else None})
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ audio, PTZ (read-only)
+
+def parse_audio_stream_config(xml: str | bytes) -> dict[str, Any]:
+    """`GetAudioStreamConfig/{ch}` (v1 3.3.1 / v2 3.3.1) -> {"enabled", "codec", "input", "sample_rate", "codecs", "inputs"}.
+    `enabled` is None when the device does not send `audioInSwitch` (the owner's NVR 1.4.7, live 2026-10-20: codec and input
+    only, and no audio track on any channel's RTSP) - None never means "on". Codec names as the device writes them (G711A,
+    G711U, AAC)."""
+    root = parse(xml)
+    types = child(root, "types")
+
+    def enums(*names: str) -> list[str]:
+        for n in names:
+            got = [t for t in (text(e, cap=16) for e in children(child(types, n), "enum")) if t]
+            if got:
+                return got
+        return []
+
+    if child(root, "audioEncode") is None and child(root, "audioInSwitch") is None:
+        raise ET.ParseError("not an audio stream document")
+    return {"enabled": to_bool(text(root, "audioInSwitch")), "codec": text(root, "audioEncode", cap=16),
+            "input": text(root, "audioInput", cap=16), "sample_rate": to_int(text(root, "audioSampleRate")),
+            "codecs": enums("audioEncode", "audioEncodeE"), "inputs": enums("audioInput", "audioInputE")}
+
+
+def parse_ptz_caps(xml: str | bytes) -> dict[str, Any]:
+    """`PtzGetCaps/{ch}` (v1 4.1.1) -> {"speed": {"min", "max"}, "preset_max", "cruise_max"}."""
+    root = parse(xml)
+    caps = child(root, "caps")
+    if caps is None:
+        raise ET.ParseError("not a PTZ caps document")
+    return {"speed": {"min": to_int(text(caps, "controlMinSpeed")), "max": to_int(text(caps, "controlMaxSpeed"))},
+            "preset_max": to_int(text(caps, "presetMaxCount")), "cruise_max": to_int(text(caps, "cruiseMaxCount"))}
+
+
+def parse_ptz_presets(xml: str | bytes) -> list[dict[str, Any]]:
+    """`PtzGetPresets/{ch}` (v1 4.3.1) -> [{"id", "name"}], ids from 1."""
+    root = parse(xml)
+    lst = child(root, "presetInfo")
+    if lst is None:
+        raise ET.ParseError("not a preset list")
+    out = []
+    for it in children(lst, "item"):
+        pid = to_int(it.attrib.get("id"))
+        if pid is not None and pid >= 1:
+            out.append({"id": pid, "name": text(it, cap=TEXT_CAP) or str(pid)})
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ alarms / events
@@ -577,12 +654,21 @@ def parse_alarm_status_info(info: ET.Element | None) -> dict[tuple[str, int | No
     out: dict[tuple[str, int | None], bool] = {}
     if info is None:
         return out
-    for el in list(info)[:MAX_ITEMS]:
+    elements = list(info)[:MAX_ITEMS]
+    dev = child(info, "deviceAlarmStatus")  # v2.1: device-level alarms grouped (diskFull, noDisk, hddPullOut, diskRWError, ...)
+    if dev is not None:
+        elements = [e for e in elements if e is not dev] + list(dev)[:MAX_ITEMS]
+    for el in elements:
         kind = _local(el.tag)[:32]
         items = [i for i in el if _local(i.tag) == "item"]
         if items:
-            for i in items[:MAX_ITEMS]:
-                state = to_bool(i.text)
+            for n, i in enumerate(items[:MAX_ITEMS], start=1):
+                # v2 diskRWError items carry <sn> + <status> (the serial is never read; the position is the id)
+                state = to_bool(i.text) if child(i, "status") is None else to_bool(text(i, "status"))
+                if child(i, "status") is not None:
+                    if state is not None:
+                        out[(kind, n)] = state
+                    continue
                 if state is not None:
                     out[(kind, to_int(i.attrib.get("id")))] = state
             continue

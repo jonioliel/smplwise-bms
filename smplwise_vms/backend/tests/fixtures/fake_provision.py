@@ -26,7 +26,8 @@ NS = 'xmlns="http://www.ipc.com/ver10"'
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
          "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
-         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetSupportedAPIs"}  # P3 reads (the derived-events pass searches recordings)
+         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetSupportedAPIs",
+         "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo"}  # P3 reads (the derived-events pass searches recordings)
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 
@@ -83,6 +84,13 @@ class FakeProvision:
         self.caps_missing: set[int] = set()
         self.video_refused: set[int] = set()
         self.set_hook: Any = None
+        # PROVISION2: audio per channel (None = the live 1.4.7 shape: codec + input, no audioInSwitch), PTZ channels and their
+        # presets (other channels answer errorCode 3 like the live NVR), v2 reads answered only when `supported_apis` lists them,
+        # device-level alarms of the v2 GetAlarmStatusInfo, v2 GetStreamCaps extras (H.265 profiles, bitrate list)
+        self.audio: dict[int, dict[str, Any]] = {}
+        self.ptz: dict[int, list[str]] = {}
+        self.device_alarms: dict[str, bool] = {}
+        self.caps_v2 = False
 
     def _state(self, ch: int) -> dict[int, dict[str, Any]]:
         if ch not in self.streams:
@@ -311,7 +319,7 @@ class FakeProvision:
                 items.append(f'<item id="{sid - 1}"><streamName type="string"><![CDATA[rtsp://{HOST}:554/chID={ch}&streamType={st}]]></streamName>'
                              f'<resolutionCaps type="list" count="2"><itemType type="resolution"></itemType>{res}</resolutionCaps>'
                              '<encodeTypeCaps type="list" count="0"><itemType type="encodeType"></itemType></encodeTypeCaps>'
-                             '<encodeLevelCaps type="list" count="0"><itemType type="encodeLevel"></itemType></encodeLevelCaps></item>')
+                             '<encodeLevelCaps type="list" count="0"><itemType type="encodeLevel"></itemType></encodeLevelCaps>' + self._caps_v2_extras() + '</item>')
             return self._xml(request, _doc('<types><resolution><enum>1920x1080</enum></resolution><encodeType></encodeType><encodeLevel></encodeLevel></types>'
                                            '<encodeLevelCaps><enum>baseLine</enum><enum>mainProfile</enum></encodeLevelCaps><rtspPort type="uint16">554</rtspPort>'
                                            f'<streamList type="list" count="{len(items)}">{"".join(items)}</streamList>', "1.0"))
@@ -325,7 +333,7 @@ class FakeProvision:
 <item id="1"><streamName type="string"><![CDATA[profile1]]></streamName>
 <resolutionCaps type="list" count="2"><itemType type="resolution"/><item maxFrameRate="25">2592x1520</item><item maxFrameRate="30">1920x1080</item></resolutionCaps>
 <encodeTypeCaps type="list" count="2"><itemType type="encodeType"/><item>h264</item><item>h265</item></encodeTypeCaps>
-<encodeLevelCaps type="list" count="3"><itemType type="encodeLevel"/><item>baseLine</item><item>mainProfile</item><item>highProfile</item></encodeLevelCaps></item>
+<encodeLevelCaps type="list" count="3"><itemType type="encodeLevel"/><item>baseLine</item><item>mainProfile</item><item>highProfile</item></encodeLevelCaps>V2EXTRAS</item>
 <item id="2"><streamName type="string"><![CDATA[profile2]]></streamName>
 <resolutionCaps type="list" count="1"><itemType type="resolution"/><item maxFrameRate="25">704x576</item></resolutionCaps>
 <encodeTypeCaps type="list" count="3"><itemType type="encodeType"/><item>h264</item><item>h265</item><item>mjpeg</item></encodeTypeCaps>
@@ -333,7 +341,13 @@ class FakeProvision:
 <item id="3"><streamName type="string"><![CDATA[profile3]]></streamName>
 <resolutionCaps type="list" count="1"><itemType type="resolution"/><item maxFrameRate="25">704x576</item></resolutionCaps>
 <encodeTypeCaps type="list" count="1"><itemType type="encodeType"/><item>mjpeg</item></encodeTypeCaps></item>
-</streamList>""", "1.0"))
+</streamList>""".replace("V2EXTRAS", self._caps_v2_extras()), "1.0"))
+
+    def _caps_v2_extras(self) -> str:
+        if not self.caps_v2:
+            return ""
+        return ('<encodeLevelCaps265 type="list" count="1"><itemType type="encodeLevelE"/><item>mainProfile</item></encodeLevelCaps265>'
+                '<bitRateLists type="list" count="4"><itemType type="uint32"/><item>8192</item><item>4096</item><item>2048</item><item>1024</item></bitRateLists>')
 
     def _GetSnapshot(self, request: httpx.Request, ch: int) -> httpx.Response:
         if self.kind == "nvr" and self.channels.get(ch) in (None, "offline"):
@@ -429,6 +443,49 @@ class FakeProvision:
 
     def _SetUnSubscribe(self, request: httpx.Request, ch: int) -> httpx.Response:
         return self._xml(request, f'<?xml version="1.0" encoding="UTF-8"?><config version="1.0" {NS} status="success" errorCode="200"/>')
+
+    # PROVISION2 reads
+    def _fail(self, request: httpx.Request, code: int) -> httpx.Response:
+        return self._xml(request, f'<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="{code}"/>', 400)
+
+    def _v2_only(self, cmd: str) -> bool:
+        return self.supported_apis is not None and cmd in self.supported_apis
+
+    def _GetAudioStreamConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        a = self.audio.get(ch)
+        sw = "" if a is None or a.get("enabled") is None else f'<audioInSwitch type="boolean">{"true" if a["enabled"] else "false"}</audioInSwitch>'
+        enc, inp = (a or {}).get("codec", "G711A"), (a or {}).get("input", "MIC")
+        return self._xml(request, _doc(f"""<types><audioEncode><enum>G711A</enum><enum>G711U</enum></audioEncode><audioInput><enum>MIC</enum><enum>LIN</enum></audioInput></types>
+{sw}<audioEncode type="audioEncode">{enc}</audioEncode><audioInput type="audioInput">{inp}</audioInput>""", "1.0"))
+
+    def _PtzGetCaps(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if ch not in self.ptz:
+            return self._fail(request, 3)
+        return self._xml(request, _doc("""<caps><controlMinSpeed type="uint32">1</controlMinSpeed><controlMaxSpeed type="uint32">8</controlMaxSpeed>
+<presetMaxCount type="uint32">255</presetMaxCount><cruiseMaxCount type="uint32">8</cruiseMaxCount></caps>""", "1.0"))
+
+    def _PtzGetPresets(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if ch not in self.ptz:
+            return self._fail(request, 3)
+        items = "".join(f'<item id="{i}"><![CDATA[{n}]]></item>' for i, n in enumerate(self.ptz[ch], 1))
+        return self._xml(request, _doc(f'<presetInfo type="list" maxCount="360"><itemType type="string" maxLen="10"></itemType>{items}</presetInfo>', "1.0"))
+
+    def _GetChannelInfo(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if not self._v2_only("GetChannelInfo"):
+            return self._fail(request, 1)
+        items = "".join(f"""<item><channelId type="uint32">{c}</channelId><name type="string"><![CDATA[{self.names.get(c, f"V2-{c}")}]]></name>
+<status type="channelStatus">{st}</status>{'<attribute type="channelType">PTZ</attribute>' if c in self.ptz else ''}<ip type="string">192.0.2.{c}</ip></item>"""
+                        for c, st in self.channels.items())
+        return self._xml(request, _doc(f'<types><channelStatus><enum>online</enum><enum>offline</enum></channelStatus></types><channelList type="list" count="{len(self.channels)}">{items}</channelList>', "2.0.0"))
+
+    def _GetAlarmStatusInfo(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if not self._v2_only("GetAlarmStatusInfo"):
+            return self._fail(request, 1)
+        dev = "".join(f'<{k} type="boolean">{"true" if v else "false"}</{k}>' for k, v in self.device_alarms.items() if k != "diskRWError")
+        if "diskRWError" in self.device_alarms:
+            dev += f'<diskRWError type="list" count="1"><item><sn type="string">FAKESERIAL0002</sn><status type="boolean">{"true" if self.device_alarms["diskRWError"] else "false"}</status></item></diskRWError>'
+        body = self._status_xml(self.alarms).replace("<alarmStatusInfo>", f"<alarmStatusInfo><deviceAlarmStatus>{dev}</deviceAlarmStatus>", 1)
+        return self._xml(request, _doc(body, "2.0.0"))
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)

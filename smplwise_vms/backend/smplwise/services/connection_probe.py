@@ -697,6 +697,11 @@ def _probe_vendor(cand: Settings, budget: float, backends: list) -> dict[str, An
             except Exception:  # noqa: BLE001 - the device answered GetDeviceInfo; the count is optional
                 channels = None
         result = {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmware")), "channels": channels}
+        try:  # PROVISION2: which API generation the device speaks (GetSupportedAPIs, cached by the channel read above)
+            with nvr_mod.deadline(_budget_left(DEADLINE_S)):
+                result["api_level"] = a.api_level()
+        except Exception:  # noqa: BLE001 - optional fact
+            pass
     except ApiError as exc:
         code = {"source_timeout": "timeout"}.get(exc.code, exc.code)
         result = {"ok": False, "code": code if code in OUTCOMES else "source_error"}

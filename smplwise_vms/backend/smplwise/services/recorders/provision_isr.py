@@ -54,7 +54,13 @@ READ_COMMANDS = frozenset({
     "GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
     "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
     "GetSupportedAPIs",  # v2 2.1.1; a v1 device answers errorCode 1 (NN2A: decides whether a push write is possible; NN2B: whole-streams v1 vs partial v2 write)
+    # PROVISION2 (2026-10-20): audio and PTZ facts (read-only), and the v2 reads used only when GetSupportedAPIs lists them
+    "GetAudioStreamConfig", "PtzGetCaps", "PtzGetPresets", "GetChannelInfo", "GetAlarmStatusInfo",
 })
+# v2 reads the adapter prefers when (and only when) the device's own GetSupportedAPIs lists them; a v1 device keeps its v1 path
+V2_READS = frozenset({"GetChannelInfo", "GetAlarmStatusInfo"})
+# nvr_extra.live_audio: whether go2rtc carries the camera's sound (vendor_io.go2rtc_source). OFF by default for every customer.
+LIVE_AUDIO_MODES = ("off", "copy", "opus", "copy_opus")
 # The long-polling session commands: named Set*, but they manage this client's own subscription, not the device's
 # configuration (v1 long-polling guide 2.1-2.4).
 EVENT_SESSION_COMMANDS = frozenset({"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"})
@@ -484,7 +490,43 @@ class ProvisionIsrAdapter:
             return RecorderHealth(online=False, model=None, firmware=None, error=exc.code)
         return RecorderHealth(online=True, model=info.get("model"), firmware=info.get("firmware"), error=None)
 
+    # -- PROVISION2: API level and the v2 reads behind capability detection
+
+    def has_api(self, command: str) -> bool:
+        """True only when the device's own GetSupportedAPIs lists `command` (a v1 device lists nothing: always False)."""
+        apis = self.supported_apis()
+        return apis is not None and command in apis
+
+    def api_level(self) -> str:
+        """`v2` when the device answers GetSupportedAPIs (v2.1 firmware: NVR 1.4.12+, IPC 5.3.0+), else `v1`. Never guessed from
+        the model or the firmware string."""
+        return "v2" if self.supported_apis() is not None else "v1"
+
+    def api_facts(self) -> dict[str, Any]:
+        """For health / the settings screen: the API level, the device's `apiVersion` (None on the owner's 1.4.7) and which v2 reads
+        are in use. No address, no secret."""
+        apis = self.supported_apis()
+        return {"level": "v2" if apis is not None else "v1", "api_version": (self._info or {}).get("api_version"),
+                "commands": len(apis) if apis is not None else None, "v2_reads": sorted(c for c in V2_READS if apis and c in apis),
+                "partial_write": bool(apis and "SetVideoStreamConfig" in apis)}
+
+    def channel_info_v2(self) -> list[dict[str, Any]] | None:
+        """v2 GetChannelInfo (names, status and type in one call) or None when the device does not list it or the read fails
+        softly - the caller then takes the v1 path, so a v2 quirk never costs the channel list."""
+        if not self.has_api("GetChannelInfo"):
+            return None
+        try:
+            return self._xml("GetChannelInfo", None, px.parse_channel_info)
+        except ApiError as exc:
+            if exc.code in ("nvr_not_supported", "source_error", "source_invalid"):
+                return None
+            raise
+
     def list_channels(self) -> list[ChannelInfo]:
+        v2 = self.channel_info_v2()
+        if v2 is not None:
+            return [ChannelInfo(source_ref=str(c["channel"]), channel=c["channel"], name=c["name"] or f"ערוץ {c['channel']}",
+                                online=px.CHANNEL_ONLINE.get(c["status"] or "")) for c in v2]
         if self.kind() == "ipc":
             return [ChannelInfo(source_ref="1", channel=1, name=self._channel_name(1) or "ערוץ 1", online=True)]
         out = []
@@ -578,16 +620,19 @@ class ProvisionIsrAdapter:
         top = max([r["max_fps"] or 0 for r in caps.get("resolutions", [])] + [int(s["fps"] or 0)])
         profiles = [p for p in (caps.get("profiles") or []) if p in ("baseline", "main", "high")]
         smart = any(t.endswith(("plus", "smart")) for t in tokens)
+        # v2.1 GetStreamCaps adds the H.265 profiles and a bitrate list per stream; v1 firmware sends neither (both [] here)
+        h265_profiles = [p for p in (caps.get("profiles_h265") or []) if p in ("baseline", "main", "high")]
+        h265 = h265_profiles or ([s["profile"]] if s["profile"] and s["codec"] == "H.265" else [])
         options: dict[str, Any] = {
             "codec": families,
             "profile": {f: (profiles or ([s["profile"]] if s["profile"] else [])) for f in families if f == "H.264"}
-            | ({"H.265": [s["profile"]]} if "H.265" in families and s["profile"] and s["codec"] == "H.265" else {}),
+            | ({"H.265": h265} if "H.265" in families and h265 else {}),
             "resolution": {f: list(resolutions) for f in families},
             "fps": [float(v) for v in range(1, top + 1)],
             "fps_full": False,
             "bitrate_mode": ["CBR", "VBR"] if s["bitrate_mode"] else [],
             "bitrate_kbps": s["limits"]["bitrate"],
-            "bitrate_list": s["limits"]["bitrate_list"],
+            "bitrate_list": s["limits"]["bitrate_list"] or list(caps.get("bitrate_list") or []),
             "quality": list(range(1, len(px.QUALITY_WORDS) + 1)) if s["quality"] is not None else [],
             "gop": s["limits"]["gop"],
             "svc": False, "smart_codec": smart, "b_frames": False, "locks": {},
@@ -881,6 +926,73 @@ class ProvisionIsrAdapter:
     def alarm_status(self) -> dict[tuple[str, int | None], bool]:
         return self._xml("GetAlarmStatus", None, px.parse_alarm_status)
 
+    def health_alarms(self) -> dict[tuple[str, int | None], bool]:
+        """The alarm read of the health monitor: v2 GetAlarmStatusInfo when the device lists it (device-level disk alarms in
+        `deviceAlarmStatus`: diskFull, noDisk, hddPullOut, diskRWError), else v1 GetAlarmStatus. A v2 read that fails softly
+        falls back to v1."""
+        if self.has_api("GetAlarmStatusInfo"):
+            try:
+                return self._xml("GetAlarmStatusInfo", None, px.parse_alarm_status)
+            except ApiError as exc:
+                if exc.code not in ("nvr_not_supported", "source_error", "source_invalid"):
+                    raise
+        return self.alarm_status()
+
+    # -- PROVISION2: audio and PTZ facts (read-only; the camera capabilities route)
+
+    def audio_config(self, channel: int) -> dict[str, Any]:
+        """GetAudioStreamConfig/{ch}: the camera's audio input as the device states it (see px.parse_audio_stream_config)."""
+        return self._xml("GetAudioStreamConfig", int(channel), px.parse_audio_stream_config)
+
+    def camera_facts(self, channel: int) -> dict[str, Any]:
+        """The camera capabilities route's device part for a Provision channel, in the Hikvision shape (`ptz`, `audio` = two-way
+        talk) plus `audio_in` (the camera's sound in the video stream). 'unknown' is an honest answer; 'unsupported' only when the
+        device refuses the PTZ read for that channel. Every call is a read."""
+        ch = int(channel)
+        ptz: dict[str, Any] = {"state": "unknown", "reason": None, "presets": None, "preset_count": None}
+        try:
+            caps = self._xml("PtzGetCaps", ch, px.parse_ptz_caps)
+            ptz.update(state="supported", reason="device PTZ capabilities read", speed=caps["speed"], preset_max=caps["preset_max"])
+            try:
+                presets = self._xml("PtzGetPresets", ch, px.parse_ptz_presets)
+                ptz.update(presets=presets, preset_count=len(presets))
+            except ApiError as exc:
+                if exc.code in STOP_CODES:
+                    raise
+                ptz["reason"] = f"presets unreadable ({exc.code})"
+        except ApiError as exc:
+            if exc.code in STOP_CODES:
+                raise
+            code = exc.details.get("device_code")
+            # live 2026-10-20: every channel of the owner's NVR (no PTZ camera) answers 400 errorCode 3 to PtzGetCaps
+            if code in (1, 3, 11, 12) or exc.code == "nvr_not_supported":
+                ptz.update(state="unsupported", reason=f"device refused the PTZ read (code {code})")
+            else:
+                ptz["reason"] = exc.code
+        audio_in: dict[str, Any] = {"state": "unknown", "reason": None, "codec": None, "input": None, "live": self.live_audio_mode()}
+        try:
+            a = self.audio_config(ch)
+            audio_in.update(codec=a["codec"], input=a["input"], codecs=a["codecs"])
+            if a["enabled"] is True:
+                audio_in.update(state="on", reason="enabled on the device")
+            elif a["enabled"] is False:
+                audio_in.update(state="off", reason="disabled on the device")
+            else:
+                audio_in["reason"] = "the device does not state whether the camera sends sound"
+        except ApiError as exc:
+            if exc.code in STOP_CODES:
+                raise
+            audio_in.update(state="unsupported" if exc.code == "nvr_not_supported" else "unknown", reason=exc.code)
+        talk = {"state": "unknown", "reason": "two-way audio on Provision-ISR is the device's RTSP talk channel; not implemented in Arx",
+                "channel_id": None, "codec": None}
+        return {"ptz": ptz, "audio": talk, "audio_in": audio_in}
+
+    def live_audio_mode(self) -> str:
+        """`nvr_extra.live_audio`: `off` (default: go2rtc gets video only, the CR-025 behaviour), `copy` (the camera's own audio
+        track, e.g. G.711 for WebRTC / MSE), `opus` (transcoded for WebRTC), `copy_opus` (both tracks). See vendor_io.go2rtc_source."""
+        mode = str(self._extra.get("live_audio") or "off").lower()
+        return mode if mode in LIVE_AUDIO_MODES else "off"
+
     def channel_states(self) -> dict[int, bool | None]:
         if self.kind() == "ipc":
             return {1: True}
@@ -913,7 +1025,7 @@ class ProvisionIsrAdapter:
                 disks = (DiskReading(ref="0", state="missing", raw=None, total_mb=None, free_mb=None),)
         record = part("recording", self.record_status)
         states = part("channels", self.channel_states)
-        alarms = part("alarms", self.alarm_status) or {}
+        alarms = part("alarms", self.health_alarms) or {}
         offline_by_alarm = {i for (k, i), on in alarms.items() if on and i is not None and k in OFFLINE_ALARMS}
         disk_alarms = tuple(sorted({k for (k, _i), on in alarms.items() if on and DISK_ALARM.search(k)}))
         channels: tuple[ChannelReading, ...] | None = None
@@ -1228,6 +1340,8 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         sel("push_auth", "אימות דחיפות", (("token", "מפתח בנתיב"), ("address", "לפי כתובת המכשיר"), ("token_and_address", "מפתח וכתובת")), advanced=True),
         sel("rtsp_style", "כתובת RTSP", (("", "לפי המכשיר"), ("path", "/chID=…"), ("query", "?chID=…")), advanced=True),
         sel("go2rtc_source", "חיבור go2rtc לווידאו", (("ffmpeg", "דרך ffmpeg (מומלץ למכשיר הזה)"), ("rtsp", "RTSP ישיר")), advanced=True),
+        sel("live_audio", "שמע בווידאו", (("off", "כבוי"), ("copy", "השמע של המצלמה (G.711)"), ("opus", "המרה ל־Opus"),
+                                         ("copy_opus", "שניהם (המלצה לדפדפנים שונים)")), advanced=True),
         adv("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool"),
         adv("suppress_tls_warning", "להסתיר את אזהרת התעודה", "bool"),
     )

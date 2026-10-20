@@ -340,6 +340,12 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
 # ---------------------------------------------------------------- capability facts (T045 / T012, read-only)
 
 CAPS = nvr.fetch_capabilities  # seam for tests
+
+
+def PROVISION_CAPS(settings: Any, recorder_id: str, channel: int) -> dict[str, Any]:  # noqa: N802 - a seam like CAPS
+    from ..services.recorders import vendor_io
+
+    return vendor_io.camera_facts(settings, recorder_id, channel)
 _CAPS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 CAPS_TTL_S = 300
 
@@ -362,7 +368,13 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
         data, fetched_at = hit[1], hit[0]
     else:
         with unlocked(conn):
-            data = CAPS(camera_settings(settings_of(request), cam), int(cam["channel"]))
+            from ..services.recorders import vendor_io
+
+            cs = camera_settings(settings_of(request), cam)
+            if vendor_io.handles(cs):  # PROVISION2: a Provision camera is asked through its adapter, never over ISAPI
+                data = PROVISION_CAPS(cs, cam["recorder_id"], int(cam["channel"]))
+            else:
+                data = CAPS(cs, int(cam["channel"]))
         fetched_at = now
         _CAPS_CACHE[camera_id] = (fetched_at, data)
     return {
