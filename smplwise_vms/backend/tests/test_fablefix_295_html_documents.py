@@ -82,7 +82,7 @@ def test_escape_text_makes_hostile_names_inert_and_never_trips_the_tripwire():
         out = D.escape_text(raw)
         assert not any(ch in out for ch in "<>\"'=:()/\\`\t\n\x00"), raw
         assert not D._HTML_FORBIDDEN.search(out), raw
-        assert html.unescape(out) == raw  # the reader sees exactly the name
+        assert html.unescape(out) == raw.replace(chr(0), chr(0xFFFD))  # the reader sees the name (a NUL renders as U+FFFD, as HTML does)
         doc = GOOD_REPORT.replace("מקרר 1", out)
         D._check_content("text/html", doc.encode("utf-8"))
     assert D.escape_text("מקרר ראשי 2") == "מקרר ראשי 2" and D.escape_text(None) == ""

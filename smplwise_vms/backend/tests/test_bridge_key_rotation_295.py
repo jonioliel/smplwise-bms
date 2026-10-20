@@ -257,7 +257,7 @@ def test_routine_rotation_overlaps_then_retires_and_verifies(world):
     assert w["peer"].accepted() == {rot["kid_to"]}
     _k1(w["db"])
     # after retire: the old key is refused by Arx (by state, before any time stage)
-    assert _code(w, w["peer"].sign({"m": 3}, kid=rot["kid_to"]) | {"kid": "g0-legacy"}) == "key_retired"
+    assert _refusal(w, w["peer"].sign({"m": 3}, kid=rot["kid_to"]) | {"kid": "g0-legacy"}) == ("bad_signature", "key_retired")  # H-02
 
 
 def test_hard_cut_has_no_instant_with_two_keys_and_is_anchor_eligible(world):
@@ -471,7 +471,9 @@ def test_expired_overlap_window_is_refused_even_before_the_retire_step(world):
     old_msg = w["peer"].sign({"m": 1}, kid="g0-legacy")
     w["clock"].advance(91)  # no tick: the retire step has not run
     assert _keys(w["db"])["g0-legacy"]["state"] == "retiring"
-    assert _code(w, old_msg | {"ts": int(w["clock"]())}) in ("key_expired",)
+    # H-02: a re-timed old message no longer authenticates - one wire code; a message really signed now with the old key is expired
+    assert _code(w, old_msg | {"ts": int(w["clock"]())}) == "bad_signature"
+    assert _code(w, bk.sign_with("g0-legacy", LEGACY, {"m": 2}, ts=int(w["clock"]()))) == "key_expired"
     assert rot["state"] == "switched"
 
 
