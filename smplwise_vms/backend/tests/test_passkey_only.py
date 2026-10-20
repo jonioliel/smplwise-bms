@@ -65,11 +65,12 @@ def test_on_refuses_the_password_uniformly_and_only_a_passkey_signs_in(px):
     r = c.put(ONLY, json={"on": True})
     assert r.status_code == 200 and r.json()["only_on"] is True and r.json()["only_effective"] is True and r.json()["first_on"] is True
     good = px.sign_in(px.remote(), "maria", GOOD)
+    assert px.audit("auth.local.sign_in.failed")[-1]["reason"] == "passkey_only"
     bad = px.sign_in(px.remote(), "maria", "not the right password at all")
     assert good.status_code == 401 and bad.status_code == 401
     strip = lambda r_: {k: v for k, v in r_.json().items() if k != "correlation_id"}  # noqa: E731
     assert strip(good) == strip(bad) and "arx_session" not in _cookie(good)
-    assert px.audit("auth.local.sign_in.failed")[-1]["reason"] == "passkey_only"
+    assert px.audit("auth.local.sign_in.failed")[-1]["reason"] == "password"
     # a correct password is never counted towards a lock
     for _ in range(12):
         assert px.sign_in(px.remote(), "maria", GOOD).status_code == 401
