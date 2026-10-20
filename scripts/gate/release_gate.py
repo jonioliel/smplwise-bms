@@ -71,6 +71,9 @@ SKIP_BACKEND = os.environ.get("GATE_SKIP_BACKEND") == "1"
 SKIP_DEV = os.environ.get("GATE_SKIP_DEV") == "1"
 SKIPPED_CATS = ({"backend"} if SKIP_BACKEND else set()) | ({"dev"} if SKIP_DEV else set())
 COSTS_DIR = os.environ.get("GATE_COSTS_DIR") or ""
+SELECT_BASE = os.environ.get("GATE_SELECT_BASE") or ""   # --select-base <ref>: diff-based selection (select_tests.py); "" = full tier
+REDUCED_CATS = {}        # category -> "n of m files" when a selection left files out (filled by apply_selection())
+SELECTION = {}           # the select_tests.py result of this run
 # specs that need a fake backend and are part of the gate's routine; any other spec that needs a fixture self-skips in the
 # preview run and is listed under "fixture needed but not in the gate routine"
 # One source with scripts/fixture_job.py (the runner's `fixture` job): frontend/tests/fixtures/fixture_specs.json, the specs with
@@ -312,9 +315,12 @@ def need_modules(wt, log):
 
 
 # ---------------------------------------------------------------- backend
-def backend_start(wt, logd, nshards=3):
+def backend_start(wt, logd, nshards=3, only=None):
+    """only: a set of test file names (a --select-base run); None = every tests/test_*.py (the full tier)."""
     bd = wt / "smplwise_vms" / "backend"
     files = sorted(glob.glob(str(bd / "tests" / "test_*.py")), key=lambda f: -os.path.getsize(f))
+    if only is not None:
+        files = [f for f in files if os.path.basename(f) in only]
     shards = [[] for _ in range(nshards)]
     load = [0] * nshards
     for f in files:
@@ -403,6 +409,92 @@ def backend_finish(procs, wt, logd):
     else:
         for nid, why in todo:
             count("backend", "fail"); item("backend", nid, "FAIL", (why or "") + " (no time left to retry)")
+
+
+# ---------------------------------------------------------------- quarantine (GATESPEED-293 phase 2)
+QUARANTINE_CATS = ("backend", "preview", "dev", "pixel", "fixture")
+
+
+def first_run_reds(items):
+    """Test ids that failed on their first run in one gate (FLAKY = passed alone, FAIL = failed again); gate-level items
+    (a shard, a process, a server) are not tests."""
+    return {i["id"]: i["category"] for i in items if i.get("status") in ("FAIL", "FLAKY") and i.get("category") in QUARANTINE_CATS
+            and ("::" in i["id"] or ".spec.ts:" in i["id"])}
+
+
+def quarantine(history):
+    """history = [(label, {id: category})], newest first (this gate first). A test is in quarantine when it failed on its first
+    run in two consecutive gates, and stays until two consecutive gates ran it without a first-run failure. Quarantine never
+    skips a test: it still runs, is retried once alone, and its result counts as usual; the list is the fix-ticket queue."""
+    ids = {i: c for _, reds in history for i, c in reds.items()}
+    out = []
+    for tid, cat in ids.items():
+        seq = [tid in reds for _, reds in history]
+        pair = next((k for k in range(len(seq) - 1) if seq[k] and seq[k + 1]), None)
+        if pair is None:
+            continue
+        last = seq.index(True)
+        if last >= 2:          # two clean gates since the last first-run failure: released
+            continue
+        out.append({"id": tid, "category": cat, "gates": [lab for (lab, reds) in reversed(history) if tid in reds],
+                    "streak_from": history[pair + 1][0]})
+    return sorted(out, key=lambda e: (e["category"], e["id"]))
+
+
+def gate_history(current_label, current_items, limit=10):
+    """This gate plus the earlier release gates' reports in RES (gate_*.json with a verdict), newest first."""
+    docs = []
+    for p in RES.glob("gate_*.json"):
+        if p.name.endswith(".selection.json") or p.name == STATUS.name:
+            continue
+        try:
+            d = json.loads(p.read_text())
+        except Exception:
+            continue
+        if "verdict" in d and "items" in d and f"{d.get('branch')}@{d.get('sha')}" != current_label:
+            docs.append((d.get("finished") or "", f"{d.get('branch')}@{d.get('sha')}", first_run_reds(d["items"])))
+    docs.sort(reverse=True)
+    return [(current_label, first_run_reds(current_items))] + [(lab, reds) for _, lab, reds in docs[: limit - 1]]
+
+
+# ---------------------------------------------------------------- diff-based selection (GATESPEED-293 phase 2, opt-in)
+def compute_selection(wt, base):
+    """select_tests.py (next to this script) on the worktree: base...HEAD. `base` is a ref name; origin/<base> is used when the
+    worktree has no such local ref (the gate's worktree sees origin only)."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import select_tests
+    ref = base
+    if subprocess.run(["git", "-C", str(wt), "rev-parse", "--verify", "-q", f"{base}^{{commit}}"], capture_output=True).returncode != 0:
+        ref = f"origin/{base}"
+    return select_tests.select_diff(Path(wt), ref, "HEAD")
+
+
+def backend_only(sel):
+    """The backend file set of a selection, or None (full tier); notes the reduced category."""
+    b = sel.get("backend") or {}
+    if not sel or sel.get("error") or sel.get("full", {}).get("backend") or not b.get("dropped"):
+        return None
+    REDUCED_CATS["backend"] = f"{len(b['selected'])} of {b['total']} files"
+    return set(b["selected"])
+
+
+def filter_classification(cls, sel):
+    """Keep only the selected spec files in every kind (rest / dev / fixture / pixel); notes the reduced categories."""
+    f = sel.get("frontend") or {}
+    if not sel or sel.get("error") or sel.get("full", {}).get("frontend") or not f.get("dropped"):
+        return cls
+    keep = set(f["selected"])
+    for kind, cat in (("rest", "preview"), ("dev", "dev"), ("fixture", "fixture")):
+        before = len(cls[kind])
+        cls[kind] = {n: v for n, v in cls[kind].items() if n in keep}
+        if len(cls[kind]) < before:
+            REDUCED_CATS[cat] = f"{len(cls[kind])} of {before} spec files"
+    before = len(cls["pixel"])
+    cls["pixel"] = [n for n in cls["pixel"] if n in keep]
+    if len(cls["pixel"]) < before:
+        REDUCED_CATS["pixel"] = f"{len(cls['pixel'])} of {before} spec files"
+    return cls
 
 
 # ---------------------------------------------------------------- v2 schedule (GATESPEED-293): knobs and the backend shards
@@ -518,11 +610,13 @@ def backend_cmd(names, logd, k, basetemp, v2):
     return cmd + ["tests/" + x for x in names]
 
 
-def backend_start_v2(wt, logd, n, shm=None):
+def backend_start_v2(wt, logd, n, shm=None, only=None):
     """The v2 shards: the same pytest command as v1 (plus junit XML and the tmp_path retention), n shards balanced by time.
     With `shm` the basetemp and TMPDIR of every shard live there (one filesystem, as /tmp and the home are on the runner)."""
     bd = wt / "smplwise_vms" / "backend"
     files = [(os.path.basename(f), os.path.getsize(f)) for f in sorted(glob.glob(str(bd / "tests" / "test_*.py")))]
+    if only is not None:
+        files = [(f, s) for f, s in files if f in only]
     parts = split_backend(files, n, backend_prior_costs())
     procs, plan = [], []
     for k, (names, w) in enumerate(parts, 1):
@@ -1205,6 +1299,10 @@ def check_baselines(baseline, tier):
         if cat in SKIPPED_CATS:
             warns.append(f"category {cat} was not run in this partial run (GATE_SKIP_*): its baseline was NOT checked")
             continue
+        if cat in REDUCED_CATS:   # --select-base: fewer files on purpose; the per-process zero-test / crash guards still apply
+            warns.append(f"category {cat} ran a diff selection ({REDUCED_CATS[cat]}): its baseline ratio was NOT checked")
+            BASELINE_ROWS[cat] = {"baseline": exp, "actual": passed_of(cat), "ratio": round(passed_of(cat) / exp, 3) if exp else 1.0, "state": "selection"}
+            continue
         act = passed_of(cat)
         ratio = (act / exp) if exp else 1.0
         low = act < DROP_THRESHOLD * exp
@@ -1250,6 +1348,19 @@ def write_reports(sha, verdict, extra):
     for w in extra.get("baseline_warnings", []):
         md += ["", f"> אזהרה: {w}"]
     md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" for p in PHASES]
+    if extra.get("selection"):
+        s = extra["selection"]
+        md += ["", "## בחירת בדיקות לפי השינוי (selection)", ""]
+        if s.get("error"):
+            md += [f"> אזהרה: הבחירה נכשלה ({s['error']}), השער רץ במלואו"]
+        else:
+            md += [f"- base: {s['base']} | full backend: {', '.join(s['full'].get('backend', [])[:3]) or 'no'} | full frontend: {', '.join(s['full'].get('frontend', [])[:3]) or 'no'}",
+                   f"- reduced: {s['reduced'] or 'nothing (full tier)'} | the dropped files: {s['file']}",
+                   "> the nightly full run on main is the safety net (select_tests.py audit)"]
+    if extra.get("quarantine"):
+        q = extra["quarantine"]
+        md += ["", f"## הסגר (quarantine): {len(q)} - failed on the first run in two consecutive gates; a fix ticket each, never skipped", ""]
+        md += [f"- [{e['category']}] {e['id'][:180]} ({', '.join(e['gates'][-3:])})" for e in q]
     md += ["", f"- תזמון (schedule): {extra.get('schedule', 'v1')}"]
     if extra.get("resources"):
         r = extra["resources"]
@@ -1314,6 +1425,15 @@ def main():
     nbackend = 0
     hard_fail = []
     shm = None
+    only = None
+    if SELECT_BASE:
+        with Phase("select", f"diff selection against {SELECT_BASE}"):
+            try:
+                SELECTION.update(compute_selection(wt, SELECT_BASE))
+            except Exception as e:   # no selection = the full tier, said in the report
+                SELECTION.update(error=f"{type(e).__name__}: {str(e)[:200]}")
+            write_json(RES / f"gate_{TAG}_{sha}.selection.json", SELECTION)
+            only = backend_only(SELECTION)
     try:
         with Phase("modules", "node modules"):
             if not need_modules(wt, logd / "npm.log"):
@@ -1327,10 +1447,10 @@ def main():
                         extra["backend_scratch"] = str(shm) if shm else "disk (tmpfs unavailable or under GATE_TMPFS_MIN_GB free)"
                     else:
                         extra["backend_scratch"] = "disk"
-                    procs, nbackend, extra["backend_shards"] = backend_start_v2(wt, logd, n, shm)
+                    procs, nbackend, extra["backend_shards"] = backend_start_v2(wt, logd, n, shm, only=only)
             else:
                 with Phase("backend-start", "backend: 3 shards started"):
-                    procs, nbackend = backend_start(wt, logd)
+                    procs, nbackend = backend_start(wt, logd, only=only)
         with Phase("tsc", "tsc --noEmit"):
             rc, to = run(["npx", "tsc", "--noEmit"], fe, logd / "tsc.log", timeout=900)
             count("tsc", "pass" if rc == 0 else "fail")
@@ -1353,6 +1473,10 @@ def main():
             if rc != 0:
                 item("release_check", "scripts/release_check.py", "FAIL", f"rc={rc}; " + " | ".join(l.strip() for l in txt.splitlines() if re.search(r"fail|missing|differ", l, re.I))[:220])
         cls = classify(fe, TIER)
+        if SELECTION:
+            cls = filter_classification(cls, SELECTION)
+            extra["selection"] = {"base": SELECT_BASE, "error": SELECTION.get("error"), "full": SELECTION.get("full"),
+                                  "reduced": dict(REDUCED_CATS), "file": f"gate_{TAG}_{sha}.selection.json"}
         extra["classification"] = {
             "rest": f"{len(cls['rest'])} spec files on the dist preview",
             "dev": f"{len(cls['dev'])} on the Vite dev server: " + ", ".join(f"{k}({'/'.join(v['projects'])})" for k, v in cls["dev"].items()),
@@ -1422,6 +1546,11 @@ def main():
     if left() < 0:
         hard_fail.append("90-minute budget exhausted: the run is incomplete")
     extra["resources"] = dict(RESOURCES)
+    try:   # the fix-ticket queue: first-run failures in two consecutive gates (report section + ~/smplwise-results/quarantine.json)
+        extra["quarantine"] = quarantine(gate_history(f"{BR}@{sha}", ITEMS))
+        write_json(RES / "quarantine.json", {"updated": now(), "gate": f"{BR}@{sha}", "entries": extra["quarantine"]})
+    except Exception as e:  # noqa: BLE001 - a report helper never changes the verdict
+        extra["quarantine_error"] = f"{type(e).__name__}: {e}"[:200]
     baseline, bsrc = load_baseline(wt)
     extra["baseline_file"] = bsrc or "(none found)"
     extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
@@ -1547,13 +1676,19 @@ def seed_from(logs_dir, source):
 def main_cli(argv):
     if argv[:1] == ["--seed-from"] and len(argv) >= 2:
         return seed_from(argv[1], argv[2] if len(argv) > 2 else "")
-    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE, SELECT_BASE
     args = list(argv)
     plan_root = None
     while args:
         a = args.pop(0)
         if a == "--schedule":
             SCHEDULE = (args.pop(0) if args else "").strip().lower()
+            continue
+        if a == "--select-base":
+            SELECT_BASE = (args.pop(0) if args else "").strip()
+            if not SELECT_BASE:
+                print("--select-base needs a ref (the previous release, e.g. main or v2.9.2)")
+                return 2
             continue
         if a == "--plan":
             plan_root = plan_root or "."
@@ -1591,7 +1726,7 @@ def main_cli(argv):
         plan(plan_root, TIER)
         return 0
     if not BR:
-        print('usage: release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]\n'
+        print('usage: release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--select-base <ref>] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]\n'
               '       release_gate.py --plan --root <checkout> [--tier L]   (estimates only, runs nothing)')
         return 2
     TAG = re.sub(r"[^A-Za-z0-9._-]", "-", BR)

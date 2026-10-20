@@ -33,6 +33,13 @@ os.environ.setdefault("SW_ACCESS_GRANTS_WORKER", "0")
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402
 
+# GATESPEED-293: a fresh test app copies a database migrated once per process instead of running every migration again
+# (tests/db_template.py; proof in tests/test_db_template.py). SW_TEST_DB_TEMPLATE=0 restores the per-test migrations.
+import db_template as _db_template  # noqa: E402
+from smplwise.db import Database as _Database  # noqa: E402
+
+_db_template.install(_Database)
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption("--sw-repeat", type=int, default=1, help="run every selected test N times (flaky-test verification; combine with a CPU burner)")

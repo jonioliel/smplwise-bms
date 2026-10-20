@@ -124,7 +124,10 @@ for BR in "${BRANCHES[@]}"; do
   SHA=$(git -C "$DIR" rev-parse --short "origin/$BR" 2>/dev/null)
   REP="$NRES/gate_$(echo "$BR" | sed 's/[^A-Za-z0-9._-]/-/g')_$SHA"
   rm -f "$REP.json" "$REP.md"   # a crash must not leave last night's report (same sha) looking like tonight's
-  GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
+  # GATESPEED-293: SW_NIGHTLY_SCHEDULE=v2 runs the nightly on the v2 schedule (6 shards on tmpfs, one Playwright pool); default v1.
+  # The nightly is the safety net of --select-base, so it must FINISH: in 2026-10-16..20 every nightly hit the 117 min engine
+  # budget (the backend was cut, e.g. 3564 of ~12000 tests on 10-20); raise SW_NIGHTLY_MAX_MIN / SW_NIGHTLY_BRANCH_MAX_MIN or use v2
+  GATE_SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v1}" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L --no-visual > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)
@@ -159,5 +162,12 @@ if fl:
     for i in fl[:20]:
         print(f"- [{i['category']}] {i['id'][:180]}")
 P
+  # GATESPEED-293 safety net: this FULL run (no selection) against the release gates that ran a diff selection
+  # (--select-base): every nightly red in a file such a run dropped is listed in <date>_selection-audit.md
+  SEL="$(dirname "$ENGINE")/select_tests.py"
+  if [ "$BR" = "main" ] && [ -f "$SEL" ] && [ -f "$REP.json" ] && ls "$RESULTS"/gate_*.selection.json >/dev/null 2>&1; then
+    python3 "$SEL" audit --nightly "$REP.json" --selections-dir "$RESULTS" --out "$RESULTS/$(date +%F)_selection-audit.md" \
+      >> "$LOGD/engine.log" 2>&1 && echo "- selection audit: $RESULTS/$(date +%F)_selection-audit.md" >> "$OUT"
+  fi
   cd "$DIR"
 done

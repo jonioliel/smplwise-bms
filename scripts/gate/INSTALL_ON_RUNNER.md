@@ -43,6 +43,13 @@ The same three files carry an opt-in faster schedule (see `docs/release/GATE_SPE
   `python3 ~/release_gate.py --seed-from ~/smplwise-results/gate_<branch>_<sha>.logs "gate <branch> @ <sha> (...)" > gate_durations.json`.
   Copy that file into `scripts/gate/` and commit it.
 - The selftest has v2 cases (pool + tmpfs scratch in its own temp directory). They need no browser and no lock.
+- Phase 2: copy `select_tests.py` and `shadow_compare.py` next to `release_gate.py` (`~/` and `~/nightly-gate/`).
+  - `--select-base <ref>` needs `select_tests.py` in the same directory; without it the selection fails and the gate runs
+    the full tier, as the report says.
+  - The nightly writes `<date>_selection-audit.md` when `~/nightly-gate/select_tests.py` exists and a selection run left a
+    `gate_*.selection.json`.
+  - The quarantine list is `~/smplwise-results/quarantine.json`; it is rewritten by every gate.
+  - `SW_NIGHTLY_SCHEDULE=v2` in the cron line runs the nightly on the v2 schedule.
 
 ## Nightly run (cron 02:00 Asia/Jerusalem)
 
