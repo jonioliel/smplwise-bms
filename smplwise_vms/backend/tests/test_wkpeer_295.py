@@ -255,7 +255,7 @@ def test_a_committed_receipt_with_every_exact_reference_settles():
     ("operation_id", "capture-operation-fixture-9"),
     ("operation_binding_ref", "capture-binding-fixture-9"),
     ("repository_id", OTHER_REPO),
-    ("repository_id", REPO.upper()),
+    ("repository_id", " " + REPO),  # leading space: no strip
     ("query_owner_id", OTHER_OWNER),
     ("peer_binding_ref", "peer-binding-fixture-9"),
     ("peer_binding_revision", 3),
@@ -502,7 +502,7 @@ def test_a_complete_present_answer_parses_with_six_separate_queues():
 
 @pytest.mark.parametrize("over", [
     {"schema_version": 2}, {"schema_version": True}, {"observation": "live"}, {"scope": "some_stations"},
-    {"user_id": PERSON.upper()}, {"person_revision": True}, {"person_revision": 0}, {"presence": "gone"},
+    {"user_id": PERSON + " "}, {"user_id": "u-" + PERSON}, {"person_revision": True}, {"person_revision": 0}, {"presence": "gone"},
     {"revocation_pending": "false"}, {"stations_synced": 1}, {"assignments": {}}, {"timing_policy": []},
     {"pending": {"bindings": [], "tombstones": [], "cards": [], "pins": [], "operations": []}},
     {"pending": {"bindings": ["st-a", "st-a"], "tombstones": [], "cards": [], "pins": [], "operations": [], "unverified": []}},
