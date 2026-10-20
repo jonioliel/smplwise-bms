@@ -11,8 +11,11 @@ import type { Skin } from './index';
  */
 const tokens: TokenTable = {
   '--sw-bg': lt('#eef3fa', '#0a0f1a'),
+  // UXFIX-A11Y-295 (owner option A for domus, applied to crystal too - the same finding): the light blooms are softened toward white at
+  // the same alpha - rgba(120, 200, 255) -> rgba(152, 213, 255), rgba(176, 150, 255) -> rgba(204, 187, 255) - so text straight on a bloom
+  // centre reads at >= 4.5:1 (was 4.20-4.35:1). Dark unchanged.
   '--sw-canvas': lt(
-    'radial-gradient(1200px 760px at 8% -10%, rgba(120, 200, 255, 0.38), transparent 62%), radial-gradient(1100px 720px at 100% 110%, rgba(176, 150, 255, 0.30), transparent 64%), radial-gradient(900px 520px at 55% 30%, rgba(255, 255, 255, 0.55), transparent 70%), linear-gradient(165deg, #f4f8fd 0%, #e9eff8 55%, #e6edf7 100%)',
+    'radial-gradient(1200px 760px at 8% -10%, rgba(152, 213, 255, 0.38), transparent 62%), radial-gradient(1100px 720px at 100% 110%, rgba(204, 187, 255, 0.30), transparent 64%), radial-gradient(900px 520px at 55% 30%, rgba(255, 255, 255, 0.55), transparent 70%), linear-gradient(165deg, #f4f8fd 0%, #e9eff8 55%, #e6edf7 100%)',
     'radial-gradient(1000px 640px at 6% -8%, rgba(64, 140, 255, 0.20), transparent 62%), radial-gradient(1000px 680px at 100% 108%, rgba(140, 96, 255, 0.18), transparent 64%), linear-gradient(180deg, #0d1424 0%, #080c16 100%)',
   ),
   '--sw-bg-veil': lt('rgba(238, 243, 250, 0.42)', 'rgba(10, 15, 26, 0.50)'),
