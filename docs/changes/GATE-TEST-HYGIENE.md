@@ -91,8 +91,11 @@ UTC-day `_day` checked against an `T23:59:59Z` end), `test_rbac_camera_scope._to
 `test_db_*` (`device_time` with an explicit offset = a correct instant).
 
 Wall-clock sweep with the fixed `clock_shift` (the 18 most date-sensitive files, 3 local shards, at `2026-11-01T00:05+02:00` with
-`SW_FAKE_LOCAL_TZ=UTC`, i.e. the UTC runner at 22:05 on 31 October = installation day AND month boundary, after DST): result in the
-"Runs" section.
+`SW_FAKE_LOCAL_TZ=UTC`, i.e. the UTC runner at 22:05 on 31 October = installation day AND month boundary, after DST): **575 passed,
+2 failed, 1 skipped**. Both failures are artifacts of the tool, not of the tests: `test_tickets_tk251r::test_a4_orphan_files_...` and
+`test_events_cache::test_thumbnail_folder_index` compare REAL file-system mtimes with the shifted `time.time()` (the shift is 11 days,
+so a fresh file looks old); both pass unshifted. Known limit of `clock_shift`: it cannot shift file mtimes - use small shifts or skip
+mtime-based tests when sweeping.
 
 ## 3. Flaky tests
 
@@ -203,7 +206,8 @@ NOT be skipped: release_check, tsc for any frontend change, the changed tests th
 
 See the final report of the task for the exact counts; in short:
 - backend targeted: the 4 changed/new backend tests of the two 2.9.0 reds + the new guard (4 passed); `test_gate_hygiene.py` (103 passed);
-  `test_targeted_plan.py` (23 passed); the dashboard guard verified to fail with batching disabled.
+  `test_targeted_plan.py` (23 passed); the dashboard guard verified to fail with batching disabled; the 18-file wall-clock sweep at the
+  installation's month boundary (575 passed, 2 clock_shift mtime artifacts that pass unshifted).
 - frontend: `tsc --noEmit` rc=0; `vite build` rc=0; 6 date-related unit specs (68 passed, Node TZ = Asia/Jerusalem);
   `evidence-tabs-ui.spec.ts` on the dist preview, 3 projects (24 passed; evidence pictures restored).
 
