@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import { t } from '../i18n/he';
+import { lockScrollChain } from './scroll-lock';
 
 const FOCUSABLE = 'button, a[href], input, select, textarea, [tabindex]';
 
@@ -51,28 +52,6 @@ function deepActive(): HTMLElement | null {
  * and the phone sheet's height vars `--sw-drawer-sheet-h` / `--sw-drawer-sheet-max-h` (default auto / 88dvh). An element marked
  * `data-nested-open` inside the drawer (an open menu) keeps Escape for itself, like an open confirmation.
  */
-/** One reference count per locked scroll container, shared by every drawer: the inline `overflow` is saved by the FIRST lock and
- * restored by the LAST release. Per-drawer save/restore left a container locked for good when two drawers overlapped (the second
- * one saved the first one's "hidden" and put it back on closing last): the page could no longer be scrolled. */
-const scrollLocks = new Map<HTMLElement, { n: number; overflow: string }>();
-
-function lockEl(el: HTMLElement) {
-  const l = scrollLocks.get(el);
-  if (l) l.n++;
-  else {
-    scrollLocks.set(el, { n: 1, overflow: el.style.overflow });
-    el.style.overflow = 'hidden';
-  }
-}
-
-function unlockEl(el: HTMLElement) {
-  const l = scrollLocks.get(el);
-  if (!l) return;
-  if (--l.n > 0) return;
-  scrollLocks.delete(el);
-  el.style.overflow = l.overflow;
-}
-
 @customElement('sw-drawer')
 export class SwDrawer extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
@@ -83,8 +62,8 @@ export class SwDrawer extends LitElement {
   @state() private hasFooter = false;
   /** review M3: a press that STARTED on the backdrop - a drag from inside the panel ending outside never closes it. */
   private downOnBackdrop = false;
-  /** review M2: the scroll containers behind a modal drawer, locked while it is open (their inline overflow before). */
-  private locked: HTMLElement[] = [];
+  /** review M2: the release of the scroll lock behind a modal drawer while it is open (components/scroll-lock.ts). */
+  private releaseScroll: (() => void) | null = null;
 
   static styles = css`
     :host {
@@ -304,26 +283,16 @@ export class SwDrawer extends LitElement {
   }
 
   /** Every scrolling ancestor (through shadow roots) stops scrolling while the modal drawer is open: a wheel or a
-   * touch over the dimmed page never moves the screen behind (review M2). */
+   * touch over the dimmed page never moves the screen behind (review M2) - and the page behind never moves either (UIJANK-293:
+   * the shared lock keeps a classic scrollbar's gutter). */
   private lockScroll() {
     this.unlockScroll();
-    let n: Node | null = this;
-    while (n) {
-      const parent: Node | null = n.parentNode instanceof ShadowRoot ? n.parentNode.host : n.parentNode;
-      if (parent instanceof HTMLElement) {
-        const oy = getComputedStyle(parent).overflowY;
-        if (oy === 'auto' || oy === 'scroll' || parent === document.documentElement) {
-          this.locked.push(parent);
-          lockEl(parent);
-        }
-      }
-      n = parent;
-    }
+    this.releaseScroll = lockScrollChain(this);
   }
 
   private unlockScroll() {
-    for (const el of this.locked) unlockEl(el);
-    this.locked = [];
+    this.releaseScroll?.();
+    this.releaseScroll = null;
   }
 
   private onFooterSlot = (e: Event) => {
