@@ -1,8 +1,8 @@
 # CR-VENDORQ-294 - reports to vendors through the message queue, the RFQ "system" author, documents by temporary link
 
 **Status:** design + backend slice on `pilot/VENDORQ-294` (base `origin/main` 586f191b3, 2.9.1). **Everything is OFF by default.** No real
-WhatsApp send was made (fake ha-whatsapp only). Migration number **0129 is PROVISIONAL** (0124 = 2.9.2; 0125 / 0126 / 0128 are other
-provisional branches): it is renumbered at integration, like every provisional file.
+WhatsApp send was made (fake ha-whatsapp only). Migration number **0128** (built as PROVISIONAL 0129; renumbered at the 2.10.0 integration, integ/2100: 0124 = 2.9.2, 0125-0127 =
+2.9.3).
 
 Owner items this answers (all kept "do not forget"):
 
@@ -23,9 +23,9 @@ temporary link line, and sends through the existing worker - account mapping, se
 A document is a snapshot (PDF or HTML bytes) in `outbound_documents`, reachable for a short time through a derived, single-purpose link
 `#d.<token>` on the public listener.
 
-## 2. Migration 0129 (PROVISIONAL) - one file, two table rebuilds, one new table
+## 2. Migration 0128 (built as PROVISIONAL 0129) - one file, two table rebuilds, one new table
 
-`0129_vendor_queue_documents_PROVISIONAL.sql`. The migration runner wraps the file in one transaction (`db.migrate`: `BEGIN; ...; INSERT
+`0128_vendor_queue_documents.sql`. The migration runner wraps the file in one transaction (`db.migrate`: `BEGIN; ...; INSERT
 schema_migrations; COMMIT`) with `foreign_keys=ON`; any failure leaves the database at 0123 untouched.
 
 ### 2.1 `ticket_outbox` (rebuild; last rebuilt by 0089)
@@ -58,7 +58,7 @@ once purged), `max_opens`, `open_count`, `first_opened_at`, `last_opened_at`, `c
 ### 2.4 Proof the rebuild preserves data (tests, section 6)
 
 `test_vendorq_294_migration.py` builds a database at 0123 from the real files, fills both tables with every state / purpose / author shape
-(incl. 0086 `link_generation`, 0089 `rfq_id`, 0104 question columns), runs the real 0129 and compares every column of every row
+(incl. 0086 `link_generation`, 0089 `rfq_id`, 0104 question columns), runs the real 0128 and compares every column of every row
 (except the intended `author_kind` rewrite), the index names, `PRAGMA foreign_key_check` (empty) and `PRAGMA integrity_check` (`ok`).
 
 ## 3. Rollback
@@ -69,11 +69,11 @@ Three levels, cheapest first:
    `reports.documents = false` - no document is minted and the public route answers the uniform 404 for every token (also for documents
    minted before). Open `report` rows: they still leave (they were accepted); to stop them, the managers' existing cancel acts on the
    outbox apply.
-2. **Code revert, schema kept** (the normal case): the schema is a superset. The pre-0129 code reads `ticket_outbox` by column name
+2. **Code revert, schema kept** (the normal case): the schema is a superset. The pre-0128 code reads `ticket_outbox` by column name
    (`from_db`) and writes an explicit column list (the new columns default NULL); a leftover `report` row ends `not_sent`
    (`template_missing`) because the old code has no text for it. Old code reading a `system` RFQ line shows it with an empty author (no
    lookup fails) - run the data step below to restore the D21 shape.
-3. **Data rollback SQL** (tested in `test_vendorq_294_migration.py::test_the_documented_rollback_restores_the_pre_0129_data_shape`):
+3. **Data rollback SQL** (tested in `test_vendorq_294_migration.py::test_the_documented_rollback_restores_the_pre_0128_data_shape`):
 
 ```sql
 BEGIN;
@@ -165,7 +165,7 @@ Guards: `tests/unit-public-doc.spec.ts`.
 
 | Test file | What it proves |
 |---|---|
-| `test_vendorq_294_migration.py` | 0123 -> 0129 on the real files: every outbox and RFQ-message row and column survives; D21 rows become `system`; the new CHECKs accept `report` / `system` and refuse an unknown purpose, a `report` without a source, a non-report row with one, an inbound `system` line; indexes by name; `foreign_key_check` empty; `integrity_check` ok; runs once; the rollback SQL restores the pre-0129 data shape. |
+| `test_vendorq_294_migration.py` | 0123 -> 0128 on the real files: every outbox and RFQ-message row and column survives; D21 rows become `system`; the new CHECKs accept `report` / `system` and refuse an unknown purpose, a `report` without a source, a non-report row with one, an inbound `system` line; indexes by name; `foreign_key_check` empty; `integrity_check` ok; runs once; the rollback SQL restores the pre-0128 data shape. |
 | `test_vendorq_294_reports.py` | Off by default (`reports_to_contacts_off`); queue -> outbox row (no text, no number) -> worker -> fake ha-whatsapp `send_message` with the provider's text; send hours hold it; unmapped account holds; outcome reaches the provider; `unknown` final; unsafe provider text / missing provider / dead document end `not_sent` with non-retryable codes; no e-mail fallback; the link line appears with a live document; logs and rows carry no number / text / token. |
 | `test_vendorq_294_documents.py` | Mint limits (type, magic, HTML hygiene, size, total, filename, switch, page-ready guard); token derivation (domain `doc`, hash only); public `GET /t/api/doc` + `/file` with headers, open counting, expiry, revocation, contact erase, key loss -> uniform 404; purge removes bytes. |
 | `test_tickets_rfq_*` (existing) + a new case in `test_vendorq_294_reports.py` | The arrival reminder writes `author_kind = 'system'`; `present_message` and the vendor page still mark it `system`. |
@@ -188,7 +188,7 @@ Real vs fake: SQLite and the migration files are real; WhatsApp, Home Assistant,
   tickets settings API only).
 * `ar` / `ru` lines of the report link text are developer translations (native review pending), as for every starter.
 * Contiguous-numbering check (`test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final`) is red on this branch
-  by design while 0129 is provisional over a 0123 main; it is green again once the integration renumbers the file.
+  by design while the file was provisional 0129 over a 0123 main; renumbered to 0128 at the 2.10.0 integration.
 
 ## 9. Settings (tickets settings document, `PUT /api/v1/tickets/settings` block `reports`, `system.configure`)
 
@@ -203,7 +203,7 @@ No Settings screen was added (no UI in this slice).
 
 ## 10. What this branch built / did not build
 
-Built: migration 0129 (PROVISIONAL), `contact_reports.py`, `out_documents.py`, `public_documents.py` + the two edge rules, the outbox
+Built: migration 0128 (built as PROVISIONAL 0129), `contact_reports.py`, `out_documents.py`, `public_documents.py` + the two edge rules, the outbox
 purpose `report` (model, enqueue validation, send-time text port, no e-mail fallback, non-retryable codes, hooks to the module), the
 `reports.*` settings, the RFQ arrival reminder written with `author_kind = 'system'`, document revocation on contact change / erase and on
 module key rotation, document keys counted as "in use", the janitor purge.

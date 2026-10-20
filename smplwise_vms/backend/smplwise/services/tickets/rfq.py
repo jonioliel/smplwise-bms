@@ -1327,12 +1327,12 @@ def store_out_message(conn, viewer: Viewer, seen: RfqSeen, v: Mapping[str, Any],
 
 
 SYSTEM_AUTHOR_ID = "system"  # rfq-thread-system-author: the system's own messages (reminders)
-SYSTEM_AUTHOR_KIND = "system"  # CR-VENDORQ-294: the 0129 rebuild of ticket_rfq_messages allows author_kind 'system' (D21 closed)
+SYSTEM_AUTHOR_KIND = "system"  # CR-VENDORQ-294: the 0128 rebuild of ticket_rfq_messages allows author_kind 'system' (D21 closed)
 
 
 def is_system_message(m: Mapping[str, Any]) -> bool:
-    """The system's own thread line: author_kind 'system' (0129). The pre-0129 shape - author_kind 'user' with the reserved user id
-    'system' - still reads as the system (0129 rewrites such rows; this keeps code that meets one before the migration correct)."""
+    """The system's own thread line: author_kind 'system' (0128). The pre-0128 shape - author_kind 'user' with the reserved user id
+    'system' - still reads as the system (0128 rewrites such rows; this keeps code that meets one before the migration correct)."""
     kind = m.get("author_kind")
     return kind == SYSTEM_AUTHOR_KIND or (kind == "user" and m.get("author_id") == SYSTEM_AUTHOR_ID)
 

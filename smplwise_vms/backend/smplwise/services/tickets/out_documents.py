@@ -2,7 +2,7 @@
 TEMPORARY LINK - the first consumer is the temperature HACCP report (owner TODO 2026-10-19: "document sending through the WhatsApp
 connection, with a temporary link and/or an attached HTML report").
 
-    table      outbound_documents (migration 0129, PROVISIONAL number): a SNAPSHOT of the bytes (what is downloaded is exactly what was
+    table      outbound_documents (migration 0128): a SNAPSHOT of the bytes (what is downloaded is exactly what was
                sent; its sha256 is kept and served as X-Document-Digest), at most MAX_BYTES each and LIVE_TOTAL_MAX for all live ones
     token      links.derive_token(module key, document id, 1, domain="doc") - derived, never stored; only sha256(token) is kept (UNIQUE:
                the public listener's ONE indexed lookup). The domain means a ticket / RFQ / consent token can never be a document token
@@ -226,7 +226,7 @@ def revoke_recipient(conn: sqlite3.Connection, recipient_kind: str, recipient_id
     if reason not in REVOKE_REASONS:
         raise ValueError("reason")
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
-        return 0  # a database before 0129
+        return 0  # a database before 0128
     return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE recipient_kind = ? AND recipient_id = ? "
                         "AND revoked_at IS NULL", (iso(now), reason, recipient_kind, recipient_id)).rowcount
 

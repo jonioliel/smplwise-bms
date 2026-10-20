@@ -1,10 +1,10 @@
-"""CR-VENDORQ-294 (docs/changes/CR-VENDORQ-294-DESIGN.md section 2): the PROVISIONAL migration 0129 on the real migration files.
+"""CR-VENDORQ-294 (docs/changes/CR-VENDORQ-294-DESIGN.md section 2): migration 0128 (built as PROVISIONAL 0129) on the real migration files.
 
 A database at 0123 (2.9.1 main) is filled with every shape both rebuilt tables hold - outbox rows of every state, with the 0086
 `link_generation`, the 0089 `rfq_id`, nonces and idempotency keys; RFQ thread lines of both directions, the 0104 question columns and the
-D21 reminder lines (`author_kind 'user'`, `author_id 'system'`) - then 0129 runs. Every row and column survives, only the D21 rows change
+D21 reminder lines (`author_kind 'user'`, `author_id 'system'`) - then the later migrations up to 0128 run. Every row and column survives, only the D21 rows change
 (to `author_kind 'system'`), the indexes come back by name, the new CHECKs hold, the foreign keys and the file are intact, and the
-documented rollback SQL restores the pre-0129 data shape. Every name and text is invented."""
+documented rollback SQL restores the pre-0128 data shape. Every name and text is invented."""
 from __future__ import annotations
 
 import re
@@ -17,13 +17,13 @@ from smplwise import db as dbmod
 
 AT = "2026-10-01T08:00:00Z"
 BASE = 123  # origin/main at the branch point (2.9.1)
-NUMBER = 129  # PROVISIONAL
+NUMBER = 128  # final (built as PROVISIONAL 0129; renumbered at integ/2100)
 DESIGN = dbmod.MIGRATIONS_DIR.parents[3] / "docs" / "changes" / "CR-VENDORQ-294-DESIGN.md"
 
 
 def _file():
     files = [f for f in dbmod.MIGRATIONS_DIR.glob("*.sql") if int(f.name.split("_", 1)[0]) == NUMBER]
-    assert len(files) == 1, "exactly one 0129 file"
+    assert len(files) == 1, "exactly one 0128 file"
     return files[0]
 
 
@@ -94,9 +94,9 @@ def upgraded(settings, tmp_path, monkeypatch):
     return database, before, idx, applied
 
 
-def test_the_file_is_marked_provisional_and_rebuilds_each_table_once():
+def test_the_file_carries_its_final_number_and_rebuilds_each_table_once():
     f = _file()
-    assert "PROVISIONAL" in f.name and "PROVISIONAL" in f.read_text(encoding="utf-8").splitlines()[0]
+    assert "PROVISIONAL" not in f.name and "Final number 0128" in f.read_text(encoding="utf-8").splitlines()[0]
     sql = f.read_text(encoding="utf-8")
     assert sql.count("CREATE TABLE ticket_outbox_new") == 1 and sql.count("CREATE TABLE ticket_rfq_messages_new") == 1
     assert "CREATE TABLE outbound_documents" in sql
@@ -158,7 +158,7 @@ def _rollback_sql() -> str:
     return section.split("```sql", 1)[1].split("```", 1)[0]
 
 
-def test_the_documented_rollback_restores_the_pre_0129_data_shape(upgraded):
+def test_the_documented_rollback_restores_the_pre_0128_data_shape(upgraded):
     database = upgraded[0]
     with database.connection() as conn:
         _outbox(conn, "o-rep", "report", "queued", source_module="temperature", source_id="s1")

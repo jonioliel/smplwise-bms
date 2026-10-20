@@ -310,7 +310,7 @@ def any_keyed_row(conn: sqlite3.Connection) -> bool:
         return True  # WA-CONSENT-LINK (0113): a live consent link depends on the key too
     if (conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is not None
             and conn.execute("SELECT 1 FROM outbound_documents WHERE purged_at IS NULL AND revoked_at IS NULL LIMIT 1").fetchone() is not None):
-        return True  # CR-VENDORQ-294 (0129): a live document link depends on the key too
+        return True  # CR-VENDORQ-294 (0128): a live document link depends on the key too
     return conn.execute("SELECT 1 FROM ticket_contacts WHERE phone_key IS NOT NULL LIMIT 1").fetchone() is not None
 
 
@@ -332,7 +332,7 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
                         ("ticket_phone_verifications", "consumed_at IS NULL AND invalidated_at IS NULL"),
                         # WA-CONSENT-LINK (0113): a consent link that can still be answered derives its token under its key
                         ("intercom_consent_requests", "state IN ('sending', 'open')"),
-                        # CR-VENDORQ-294 (0129): a document link that can still be downloaded derives its token under its key
+                        # CR-VENDORQ-294 (0128): a document link that can still be downloaded derives its token under its key
                         ("outbound_documents", "purged_at IS NULL AND revoked_at IS NULL")):
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone() is None:
             continue  # a database before the table's migration

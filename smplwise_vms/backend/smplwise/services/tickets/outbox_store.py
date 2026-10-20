@@ -101,7 +101,7 @@ COLUMNS = ("id", "ticket_id", "assignment_id", "link_id", "recipient_kind", "con
            "first_attempt_at", "not_before", "priority", "outcome_code", "provider_message_id", "reply_nonce", "fallback_of", "resend_of",
            "code_id", "idempotency_key", "send_now", "requested_by", "created_at", "sent_at", "updated_at",
            "rfq_id",  # TKRFQ1 (0089)
-           "source_module", "source_id", "document_id")  # CR-VENDORQ-294 (0129, PROVISIONAL)
+           "source_module", "source_id", "document_id")  # CR-VENDORQ-294 (migration 0128)
 _TIMES = ("held_since", "first_attempt_at", "not_before", "created_at", "sent_at", "updated_at")
 
 

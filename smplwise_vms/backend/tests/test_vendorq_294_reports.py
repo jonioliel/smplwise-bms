@@ -1,5 +1,5 @@
 """CR-VENDORQ-294 (docs/changes/CR-VENDORQ-294-DESIGN.md section 4): a module's report to an EXTERNAL contact through the tickets message
-queue - over the REAL store (migration 0129, PROVISIONAL) with the fake ha-whatsapp of slice 5b (no network, no Home Assistant, no phone):
+queue - over the REAL store (migration 0128) with the fake ha-whatsapp of slice 5b (no network, no Home Assistant, no phone):
 off by default, queue -> outbox row (no text, no number) -> worker -> `send_message` with the provider's text built at send time, the send
 hours, the account mapping, the outcome back to the module, `unknown` final, the refusal codes, no e-mail fallback, the document line with
 a live document, and row / log hygiene. A fake module (`fakemod`) stands in for the temperature report. Every name and number is invented."""

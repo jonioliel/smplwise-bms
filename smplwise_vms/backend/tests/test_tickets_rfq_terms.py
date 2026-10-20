@@ -429,7 +429,7 @@ def test_the_reminder_uses_the_existing_purpose_and_stops_after_two(s4):
         assert rfq_terms.tick(conn, now + dt.timedelta(hours=50)) == 1
         assert rfq_terms.tick(conn, now + dt.timedelta(hours=100)) == 0  # at most two
         purposes = [r[0] for r in conn.execute("SELECT purpose FROM ticket_outbox WHERE rfq_id = ? ORDER BY created_at", (d["id"],))]
-        # CR-VENDORQ-294 (D21 closed by the 0129 rebuild): the reminder lines are stored with the `system` author kind
+        # CR-VENDORQ-294 (D21 closed by the 0128 rebuild): the reminder lines are stored with the `system` author kind
         authors = [(r[0], r[1]) for r in conn.execute("SELECT author_kind, author_id FROM ticket_rfq_messages WHERE rfq_vendor_id = ? AND source_kind = 'award' "
                                                       "AND author_id = 'system'", (v1,))]
     assert authors == [("system", "system"), ("system", "system")]
@@ -713,7 +713,7 @@ def test_the_reminder_message_has_a_distinct_system_author(s4):
         sysm = store_rfq.insert_message(conn, {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "body": "reminder",
                                                "author_kind": "system", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})
         shown = rfq.present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v1) if m["id"] == sysm))
-        # a line written in the pre-0129 shape (a database restored from backup and then upgraded is rewritten by 0129; this covers the
+        # a line written in the pre-0128 shape (a database restored from backup and then upgraded is rewritten by 0128; this covers the
         # code reading such a line before the migration ran) is still the system's own
         legacy = store_rfq.insert_message(conn, {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "body": "old reminder",
                                                  "author_kind": "user", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})

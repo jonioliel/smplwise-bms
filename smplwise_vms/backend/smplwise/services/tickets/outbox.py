@@ -117,7 +117,7 @@ class OutboxRow:
     sent_at: dt.datetime | None = None
     updated_at: dt.datetime | None = None
     rfq_id: str | None = None  # TKRFQ1 (0089): the request for quotation a vendor message belongs to (ticket_id is NULL then)
-    # CR-VENDORQ-294 (0129, PROVISIONAL): purpose `report` - the module that builds the text at send time, its own row, an optional document
+    # CR-VENDORQ-294 (migration 0128): purpose `report` - the module that builds the text at send time, its own row, an optional document
     source_module: str | None = None
     source_id: str | None = None
     document_id: str | None = None

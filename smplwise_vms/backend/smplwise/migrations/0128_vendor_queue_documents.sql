@@ -1,4 +1,4 @@
--- PROVISIONAL NUMBER 0129 (CR-VENDORQ-294, branch pilot/VENDORQ-294, base main 0123): renumbered at integration (0124 = 2.9.2; 0125 / 0126 / 0128 are other provisional branches).
+-- Final number 0128 (CR-VENDORQ-294; built as PROVISIONAL 0129 on pilot/VENDORQ-294 over main 0123; renumbered at the 2.10.0 integration, integ/2100: 0124 = 2.9.2, 0125-0127 = 2.9.3).
 -- docs/changes/CR-VENDORQ-294-DESIGN.md section 2. Three changes, ONE file, one transaction (db.migrate wraps it):
 --
 -- 1. ticket_outbox REBUILD (last rebuilt by 0089): the purpose `report` (a module's report to an external contact through the message
