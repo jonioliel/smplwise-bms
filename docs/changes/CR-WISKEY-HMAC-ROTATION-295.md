@@ -4,7 +4,7 @@ Status: BUILT AGAINST FAKES (2026-10-20), branch `pilot/HMACROT-295` from `origi
 `wxrot-hmac-key-rotation`, owner decision 2026-10-20 "build now"; **activation only after a Fable security review**.
 Nothing here contacts a real bridge, WisKey or Home Assistant. `bridge_rotation.GO_LIVE_PERMITTED` is False; the switch
 `bridge.key_rotation` defaults to `off` and `on` is refused (409) while the permit is not in the build. The eight WisKey switches
-are untouched (all OFF). Migration **0143 is PROVISIONAL** (the lead renumbers at integration; the content does not depend on it).
+are untouched (all OFF). Migration **0135** (built as PROVISIONAL 0143; renumbered at the 2.10.0 integration, integ/2100).
 
 Builds on (read first): `CR-034-WISKEY-HMAC-ROTATION.md` (branch `origin/pilot/WISKEY-CRs`, PROPOSED 2026-10-10, encodes owner
 decisions 23-31), `docs/wiskey-exchange/schemas/1/ROTATION_HMAC_OUTLINE.md` (2026-10-04 outline), `CR-033-WISKEY-DOOR-PATH.md`
@@ -201,7 +201,7 @@ reminder; secret scan of audit and logs. Frontend: `i18n` key parity unit spec.
 5. `fresh_repair` and `emergency` modes, owner notice (CR-034 5.2, 8), dedicated permission `bridge.key.rotate`.
 6. Persistent nonce cache across restarts (today in memory, like `ha_bridge`).
 7. Owner answers: contradictions 1 and 2 (section 2).
-8. Final migration number (0143 provisional).
+8. Final migration number: 0135 (built as provisional 0143; done at integ/2100).
 
 ## 14. What the Fable security review must cover
 

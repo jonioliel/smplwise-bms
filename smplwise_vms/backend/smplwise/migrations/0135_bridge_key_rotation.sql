@@ -1,5 +1,5 @@
--- PROVISIONAL number 0143 (pilot/HMACROT-295, built on origin/main 61ddf6a91 whose last migration is 0127). The lead renumbers it
--- at integration; the content does not depend on the number.
+-- Final number 0135 (HMACROT-295; built as PROVISIONAL 0143 on pilot/HMACROT-295 from origin/main 61ddf6a91; renumbered at the 2.10.0
+-- integration, integ/2100); the content does not depend on the number.
 --
 -- CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (key ids, sealed material) and the rotation history.
 --  - bridge_keys: one row per key. `value_enc` is the AES-256-GCM blob of connection_store.seal_bridge_key (AAD bound to the kid);

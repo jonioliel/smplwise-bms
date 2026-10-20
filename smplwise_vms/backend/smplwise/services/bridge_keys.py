@@ -256,7 +256,7 @@ def insert(conn: sqlite3.Connection, data_dir: Path, *, kid: str, generation: in
 
 def set_state(conn: sqlite3.Connection, kid: str, state: str, *, verify_until: str | None = None) -> None:
     if state in ("retired", "discarded"):
-        # the wipe: the sealed blob goes in the same statement as the state (the CHECK in 0143 refuses one without the other)
+        # the wipe: the sealed blob goes in the same statement as the state (the CHECK in 0135 refuses one without the other)
         conn.execute("UPDATE bridge_keys SET state = ?, value_enc = NULL, verify_until = NULL, ended_at = ? WHERE kid = ?", (state, now_iso(), kid))
     elif state == "current":
         conn.execute("UPDATE bridge_keys SET state = 'current', verify_until = NULL, activated_at = COALESCE(activated_at, ?) WHERE kid = ?", (now_iso(), kid))
