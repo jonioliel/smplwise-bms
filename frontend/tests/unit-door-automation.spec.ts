@@ -112,5 +112,5 @@ test('the builder mounts the block only for a saved automation, and the confirma
   expect(blockSrc.indexOf('private arm()')).toBeGreaterThan(-1);
   // arm() is reached only from the confirmation's yes-button
   expect(blockSrc.match(/this\.arm\(\)/g)).toHaveLength(1);
-  expect(blockSrc).toContain("data-confirm-yes ?disabled=${this.busy} @click=${() => void (arm ? this.arm() : this.remove())}");
+  expect(blockSrc).toContain("data-confirm-yes ?disabled=${this.busy} @click=${() => void (arm ? this.arm() : this.removeBlock())}");
 });

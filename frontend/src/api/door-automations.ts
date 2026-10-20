@@ -112,7 +112,7 @@ export const httpDoorAutomations: DoorAutomationsAdapter = {
   forAutomation: async (automationId) => (await get<{ items: DoorBlock[] }>(`${BASE}?automation_id=${encodeURIComponent(automationId)}`)).items[0] ?? null,
   create: (automationId, name, policy) => post<DoorBlock>(BASE, { automation_id: automationId, name, policy }),
   update: (block, name, policy) => put<DoorBlock>(`${BASE}/${block.id}`, { name, policy, policy_revision: block.policy_revision }),
-  // `confirmed: true` is sent only from the arm dialog's confirm button
+  // the explicit confirmation flag is sent only from the arm dialog's confirm button
   arm: (block) => post<DoorBlock>(`${BASE}/${block.id}/arm`, { confirmed: true, policy_revision: block.policy_revision }),
   disarm: (block) => post<DoorBlock>(`${BASE}/${block.id}/disarm`, {}),
   simulate: (block) => post<Simulation>(`${BASE}/${block.id}/simulate`, {}),

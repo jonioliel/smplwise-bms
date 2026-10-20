@@ -112,7 +112,7 @@ export class DoorAutomationBlock extends LitElement {
     });
   }
 
-  private remove(): Promise<void> {
+  private removeBlock(): Promise<void> {
     this.confirm = null;
     return this.run(async () => {
       await this.api.remove(this.block!);
@@ -225,7 +225,7 @@ export class DoorAutomationBlock extends LitElement {
       <h5 id="da-confirm-title">${arm ? dat('armTitle') : dat('removeTitle')}</h5>
       ${arm ? html`<p>${dat('armText', { days: this.block.policy.arm_days })}</p>` : nothing}
       <div class="row">
-        <button class="btn ${arm ? 'primary' : 'danger'}" type="button" data-confirm-yes ?disabled=${this.busy} @click=${() => void (arm ? this.arm() : this.remove())}>${arm ? dat('armConfirm') : dat('remove')}</button>
+        <button class="btn ${arm ? 'primary' : 'danger'}" type="button" data-confirm-yes ?disabled=${this.busy} @click=${() => void (arm ? this.arm() : this.removeBlock())}>${arm ? dat('armConfirm') : dat('remove')}</button>
         <button class="btn" type="button" @click=${() => { this.confirm = null; }}>${dat('cancel')}</button>
       </div>
     </div>`;

@@ -98,7 +98,7 @@ async function mount(page: Page, st: St, size: Size = '1440', lang: 'he' | 'en' 
     document.body.innerHTML = '';
     const wrap = document.createElement('div');
     wrap.style.cssText = 'max-width:760px;margin:24px auto;padding:0 16px;';
-    const el = document.createElement('door-automation-block') as HTMLElement & { automationId: string; adapter: unknown };
+    const el = document.createElement('door-automation-block') as unknown as HTMLElement & { automationId: string; adapter: unknown };
     el.adapter = api.httpDoorAutomations;
     el.automationId = '9001';
     wrap.append(el);
