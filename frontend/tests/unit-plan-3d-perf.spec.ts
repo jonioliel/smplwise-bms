@@ -195,14 +195,20 @@ test('level 2: the shadow map is drawn for a new graph, not for a camera move; t
   const draws = await shadowDraws(page);
   if (cut1 !== cut0) expect(draws).toBeGreaterThan(1);
   // the picture with the cached map is the picture with a map drawn afresh
+  // (capture() steps the orbit controls: with damping on, a residual drift moves the camera between two captures - off here,
+  // and one capture first so the camera stands still)
   const pics = await el.evaluate((n) => {
-    const v = (n as unknown as Probe).view;
+    const v = (n as unknown as Probe).view as View & { controls: { enableDamping: boolean } };
+    v.controls.enableDamping = false;
+    v.capture();
     const cached = v.capture();
+    const again = v.capture();
     v.renderer.shadowMap.needsUpdate = true;
     const fresh = v.capture();
-    return { same: cached === fresh, len: cached.length };
+    return { stable: cached === again, same: cached === fresh, len: cached.length };
   });
   expect(pics.len).toBeGreaterThan(1000);
+  expect(pics.stable, 'two captures of the same view are the same pixels').toBe(true);
   expect(pics.same, 'the cached shadow map draws exactly the fresh one').toBe(true);
   // the labels followed the orbit
   const host = (await el.boundingBox())!;

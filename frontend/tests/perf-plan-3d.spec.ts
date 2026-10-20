@@ -28,6 +28,8 @@ const RUNS = Number(process.env.PERF_RUNS ?? 1);
 const OUT = process.env.PERF_OUT ?? '';
 const TRACE = process.env.PERF_TRACE === '1';
 const LABEL = process.env.PERF_LABEL ?? 'run';
+/** Touch moves per gesture (each waits for the page: a slow frame stretches the gesture, the count stays). */
+const STEPS = Number(process.env.PERF_STEPS ?? 60);
 
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
 
@@ -157,11 +159,50 @@ async function phaseEnd(page: Page, start: { t: number; updates: Record<string, 
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Wait until the view draws no more frames (the orbit damping settled) - at most `max` ms. */
+async function settle(el: Locator, max = 180_000): Promise<void> {
+  const frames = () => el.evaluate((n) => Number((n as unknown as { view: { frames: number } }).view.frames));
+  const end = Date.now() + max;
+  let last = await frames();
+  while (Date.now() < end) {
+    await wait(2000);
+    const now = await frames();
+    if (now === last) return;
+    last = now;
+  }
+}
+
+/** A row of the 3D element where both ends of a drag land on the canvas itself (not on a label, the strip or the bar). */
+async function canvasRow(el: Locator): Promise<{ y: number; x0: number; x1: number }> {
+  return el.evaluate((n) => {
+    const host = n as HTMLElement;
+    const canvas = host.shadowRoot!.querySelector('.stage canvas')!;
+    const r = host.getBoundingClientRect();
+    const onCanvas = (x: number, y: number) => {
+      let e: Element | null = document.elementFromPoint(x, y);
+      while (e?.shadowRoot) {
+        const inner = e.shadowRoot.elementFromPoint(x, y);
+        if (!inner || inner === e) break;
+        e = inner;
+      }
+      return e === canvas;
+    };
+    for (const fy of [0.45, 0.4, 0.5, 0.35, 0.55, 0.3, 0.6, 0.25, 0.65]) {
+      const y = r.top + r.height * fy;
+      // (the floor map stacks its circuit buttons along the inline-start edge - the left on a phone: start right of them)
+      for (const [a, b] of [[0.45, 0.92], [0.5, 0.95], [0.4, 0.9], [0.25, 0.75]]) {
+        const x0 = r.left + r.width * a;
+        const x1 = r.left + r.width * b;
+        if (onCanvas(x0, y) && onCanvas(x1, y) && onCanvas((x0 + x1) / 2, y)) return { y, x0, x1 };
+      }
+    }
+    return { y: r.top + r.height * 0.45, x0: r.left + r.width * 0.25, x1: r.left + r.width * 0.75 };
+  });
+}
+
 /** One finger across the canvas (an orbit), `steps` moves ~16 ms apart. */
-async function drag(cdp: CDPSession, box: { x: number; y: number; width: number; height: number }, steps: number): Promise<void> {
-  const y = box.y + box.height * 0.45;
-  const x0 = box.x + box.width * 0.25;
-  const x1 = box.x + box.width * 0.75;
+async function drag(cdp: CDPSession, row: { y: number; x0: number; x1: number }, steps: number): Promise<void> {
+  const { y, x0, x1 } = row;
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y, id: 1 }] });
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
@@ -351,16 +392,17 @@ test.describe('PERF3D: the live floor map 3D on a phone (mocked backend, CPU thr
       let mA = await metrics(cdp);
       let s = await phaseStart(page);
       let trace: Awaited<ReturnType<typeof traced>> | null = null;
-      if (TRACE) trace = await traced(cdp, OUT ? path.join(OUT, `trace-${LABEL}-${RUNG}-${run}.json`) : '', () => drag(cdp, box, 120));
-      else await drag(cdp, box, 120);
-      await wait(800); // damping settles
+      const row = await canvasRow(el);
+      if (TRACE) trace = await traced(cdp, OUT ? path.join(OUT, `trace-${LABEL}-${RUNG}-${run}.json`) : '', () => drag(cdp, row, STEPS));
+      else await drag(cdp, row, STEPS);
+      await settle(el); // damping settles
       const rotate = { ...(await phaseEnd(page, s)), cdp: delta(mA, await metrics(cdp)) };
 
       // ---- zoom
       mA = await metrics(cdp);
       s = await phaseStart(page);
-      await pinch(cdp, box, 120);
-      await wait(800);
+      await pinch(cdp, box, STEPS);
+      await settle(el);
       const zoom = { ...(await phaseEnd(page, s)), cdp: delta(mA, await metrics(cdp)) };
 
       // ---- idle
@@ -370,12 +412,15 @@ test.describe('PERF3D: the live floor map 3D on a phone (mocked backend, CPU thr
       const idle = { ...(await phaseEnd(page, s)), cdp: delta(mA, await metrics(cdp)) };
 
       // ---- live pushes: the power meters tick
+      await settle(el);
       const builds0 = await el.evaluate((n) => (n as unknown as { view: { buildCount: number } }).view.buildCount);
       mA = await metrics(cdp);
       s = await phaseStart(page);
+      // a home's sensors: power readings (not drawn in 3D) and temperature readings (a room's chip) alternate
       const meters = powerMeters();
       for (let i = 0; i < 12; i++) {
-        expect(mock.push(meters[i % meters.length], String(100 + i * 13))).toBe(true);
+        const m = meters[(i >> 1) % meters.length];
+        expect(i % 2 ? mock.push(m.replace('_power', '_temp'), (22 + i / 10).toFixed(1)) : mock.push(m, String(100 + i * 13))).toBe(true);
         await wait(400);
       }
       await wait(1000);

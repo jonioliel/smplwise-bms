@@ -75,6 +75,9 @@ function cells(h: HouseSize): Cell[] {
   return out;
 }
 
+/** The rooms whose spot lamps are on a switched circuit: the first two of every level. */
+const circuitRooms = (h: HouseSize): string[] => cells(h).filter((c, n) => n % (h.nx * h.ny) < 2).map((c) => c.id);
+
 /** The published structure of the generated house. */
 export function houseDoc(h: HouseSize = HOUSE): GeometryDoc {
   const walls: GeomWall[] = [];
@@ -109,7 +112,8 @@ export function houseDoc(h: HouseSize = HOUSE): GeometryDoc {
       object(`${c.id}-cab`, c.level, 'cabinet.low', [c.x0 + dx * 0.5, c.cy], { w_m: 0.9, d_m: 0.45, h_m: 0.9 }, 0),
       object(`${c.id}-spot`, c.level, 'light.spot', [c.x1 - dx * 0.5, c.y1 - dy * 0.5], { w_m: 0.12, d_m: 0.12, h_m: 0.1 }, -0.2),
     );
-    circuits.push({ id: `${c.id}-circ`, name: `מעגל ${c.id}`, switch_entity_id: `switch.${c.id}`, member_ids: [`${c.id}-spot`], color_token: 'light', power_w: 40 } as GeometryDoc['circuits'][number]);
+    // four switched circuits in the house (the host stacks a button per circuit at the map's edge: one per room would cover the canvas)
+    if (circuitRooms(h).includes(c.id)) circuits.push({ id: `${c.id}-circ`, name: `מעגל ${c.id}`, switch_entity_id: `switch.${c.id}`, member_ids: [`${c.id}-spot`], color_token: 'light', power_w: 40 } as GeometryDoc['circuits'][number]);
   }
   return {
     schema_version: '2.0', plan_version_id: VERSION, floor_id: FLOOR, source: { sha256: '', file_name: 'plan.png', mime: 'image/png', page: 1 },
@@ -193,7 +197,7 @@ export async function installPerfMock(page: Page, opts: { install?: string; own?
   const building = { id: 'b-perf', site_id: 's-perf', name: 'בית בדיקה', sort_order: 0, updated_at: PUBLISHED, floors: [floorRow] };
   const site = { id: 's-perf', name: 'אתר בדיקה', address: '', timezone: 'Asia/Jerusalem', sort_order: 0, updated_at: PUBLISHED, buildings: [building] };
   const sync = { connected: true, last_snapshot_at: NOW, last_event_at: NOW, last_registry_at: NOW, last_error: null, reconnects: 0, sequence: 1, entities: Object.keys(states).length, started_at: PUBLISHED, ha_version: null };
-  const circuitStates = Object.fromEntries(cells(h).map((c) => [`${c.id}-circ`, { entity_id: `switch.${c.id}`, name: `מעגל ${c.id}`, color_token: 'light', member_ids: [`${c.id}-spot`], power_w: 40, state: states[`switch.${c.id}`], known: true, fresh: true, available: true, can_control: false, actions: [] }]));
+  const circuitStates = Object.fromEntries(cells(h).filter((c) => circuitRooms(h).includes(c.id)).map((c) => [`${c.id}-circ`, { entity_id: `switch.${c.id}`, name: `מעגל ${c.id}`, color_token: 'light', member_ids: [`${c.id}-spot`], power_w: 40, state: states[`switch.${c.id}`], known: true, fresh: true, available: true, can_control: false, actions: [] }]));
   const zones = cells(h).map((c) => ({ id: `z-${c.id}`, floor_id: FLOOR, plan_version_id: VERSION, name: `חדר ${c.id}`, kind: 'room', polygon: [{ x: c.x0, y: c.y0 }, { x: c.x1, y: c.y0 }, { x: c.x1, y: c.y1 }, { x: c.x0, y: c.y1 }], color: '#2767ED', source: 'manual', searchable: true, label_pos: 'auto', level_id: c.level, ceiling_height_m: null, tags: [], area_id: null, revision: 1, created_at: PUBLISHED, updated_at: PUBLISHED }));
   const bundle = () => ({
     floor: floorRow, building, site,
