@@ -140,13 +140,13 @@ test('the key export needs EXPORT, shows the key once, then cannot run again', a
   const card = await open(page);
   await card.locator('[data-offbox-export]').click();
   const dlg = card.locator('[data-offbox-key-dialog="export"]');
-  await expect(dlg.locator('[data-offbox-key-go]')).toBeDisabled();
+  await expect(dlg.locator('[data-offbox-key-go]')).toHaveAttribute('disabled', ''); // sw-button: a custom element, not a native control
   await dlg.locator('[data-offbox-confirm]').fill('EXPORT');
   await dlg.locator('[data-offbox-key-go]').click();
   await expect(dlg.locator('[data-offbox-key-text]')).toHaveValue(/^SWXB-KEY-1:3f2a9c1d7b6e5a40:/);
   await shot(page, 'offbox-key-export');
   await dlg.getByRole('button', { name: 'ביטול' }).click();
-  await expect(card.locator('[data-offbox-export]')).toBeDisabled();
+  await expect(card.locator('[data-offbox-export]')).toHaveAttribute('disabled', '');
   expect(mock.calls.filter((c) => c.path === 'backups/offbox/key/export')).toHaveLength(1);
 });
 
