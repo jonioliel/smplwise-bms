@@ -10,8 +10,8 @@ How it works:
 * the outbox worker sends it like every contact message: the account the module's use maps to, the send hours (held at night), the
   pacing per account and recipient, the number-verification stop, `unknown` final, the audit row - nothing of that is re-implemented here.
 
-Rules of this slice: OFF by default (`reports.to_contacts`); WhatsApp ONLY (no e-mail fallback - a document by e-mail is a separate
-decision); the provider's text is one paragraph of at most TEXT_MAX characters and must not look like a link (only the system's own
+Rules of this slice: OFF by default (`reports.to_contacts`); WhatsApp, or e-mail as the second channel (VENDORQ2-295, `reports.email`, off by
+default; chosen per report by the caller - never an automatic fallback from one to the other); the provider's text is one paragraph of at most TEXT_MAX characters and must not look like a link (only the system's own
 document link may appear); a document that is no longer live stops the message (`document_not_live`) - never a message promising a dead
 link. Nothing here logs or audits a number, a text, a token or a URL."""
 from __future__ import annotations
@@ -81,22 +81,38 @@ def enabled(conn: sqlite3.Connection) -> bool:
     return bool(settings_doc.read(conn)["reports"]["to_contacts"])
 
 
-def reach(conn: sqlite3.Connection, contact_id: str) -> str:
-    """`ok` | `no_contact` | `no_whatsapp` - may a report reach this contact now (the dialog's list; never a number)."""
+def email_enabled(conn: sqlite3.Connection) -> bool:
+    """VENDORQ2-295: e-mail as the second delivery channel - its own switch, on top of `reports.to_contacts` (both off by default)."""
+    reports = settings_doc.read(conn)["reports"]
+    return bool(reports["to_contacts"] and reports["email"])
+
+
+def reach(conn: sqlite3.Connection, contact_id: str, channel: str = "whatsapp") -> str:
+    """`ok` | `no_contact` | `no_whatsapp` | `no_email` | `reports_email_off` - may a report reach this contact now by this channel (the dialog's
+    list; never a number or an address). E-mail needs the e-mail switch, an address on the contact and a configured SMTP; the contact's
+    preferred channel does not matter (a report is the manager's explicit act), but an opt-out stops it at send time like every message."""
     from . import messaging
 
     contact = store_links.contact(conn, contact_id)
     if contact is None or contact.get("erased_at") or not contact.get("active", 1):
         return "no_contact"
+    if channel == "email":
+        if not email_enabled(conn):
+            return "reports_email_off"
+        if not contact.get("email") or not messaging.email_configured(conn, messaging.RUNTIME.data_dir):
+            return "no_email"
+        return "ok"
     if messaging.plan_channel(conn, contact, messaging.RUNTIME.data_dir) != "whatsapp":
         return "no_whatsapp"  # no number, WhatsApp off, prefers e-mail / manual, or an unverified number where verification is required
     return "ok"
 
 
 def queue(conn: sqlite3.Connection, *, module: str, source_id: str, contact_id: str, requested_by: str | None,
-          idempotency_key: str | None = None, use_key: str | None = None, document_id: str | None = None, department_id: str | None = None) -> Any:
+          idempotency_key: str | None = None, use_key: str | None = None, document_id: str | None = None, department_id: str | None = None,
+          channel: str = "whatsapp") -> Any:
     """ONE outbox row (purpose `report`) inside the caller's write transaction. Refusals: reports_to_contacts_off, report_module,
-    report_source, contact (no_contact / no_whatsapp), document_unknown, queue_unavailable."""
+    report_source, report_channel, reports_email_off, contact (no_contact / no_whatsapp / no_email), document_unknown, queue_unavailable.
+    `channel` is `whatsapp` (default) or `email` (VENDORQ2-295; needs `reports.email`). There is NO automatic switch between the two."""
     from . import messaging
     from .outbox import OutboxError
 
@@ -106,7 +122,9 @@ def queue(conn: sqlite3.Connection, *, module: str, source_id: str, contact_id: 
         raise ReportRefused("report_module")
     if not isinstance(source_id, str) or not _SOURCE.fullmatch(source_id):
         raise ReportRefused("report_source")
-    why = reach(conn, contact_id)
+    if channel not in ("whatsapp", "email"):
+        raise ReportRefused("report_channel")
+    why = reach(conn, contact_id, channel)
     if why != "ok":
         raise ReportRefused(why)
     if document_id is not None:
@@ -116,7 +134,7 @@ def queue(conn: sqlite3.Connection, *, module: str, source_id: str, contact_id: 
     if messaging.RUNTIME.outbox is None:
         raise ReportRefused("queue_unavailable")
     try:
-        return messaging.RUNTIME.enqueue(conn, purpose=PURPOSE, contact_id=contact_id, department_id=department_id, channel="whatsapp",
+        return messaging.RUNTIME.enqueue(conn, purpose=PURPOSE, contact_id=contact_id, department_id=department_id, channel=channel,
                                          requested_by=requested_by, idempotency_key=idempotency_key, source_module=module, source_id=source_id,
                                          document_id=document_id, use_key=use_key)
     except OutboxError as exc:
@@ -205,5 +223,5 @@ def still_relevant(conn: sqlite3.Connection, row: Any) -> bool:
         return False
 
 
-__all__ = ["register", "unregister", "queue", "reach", "render", "clean", "enabled", "on_outcome", "still_relevant", "ReportBody", "ReportRefused",
+__all__ = ["register", "unregister", "queue", "reach", "email_enabled", "render", "clean", "enabled", "on_outcome", "still_relevant", "ReportBody", "ReportRefused",
            "PROVIDERS", "TEXT_MAX"]

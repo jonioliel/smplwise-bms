@@ -3,10 +3,10 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { createSchedule, deleteSchedule, getReportPreview, getReportRecipients, getSends, listSchedules, sendReport, type RecipientsResponse, type ReportParams,
-  type ReportRange, type ReportRecipient, type Schedule, type SendRow, type TempUnit } from '../api/temperature';
-import { REPORT_RANGES, bidi, unreachable } from './model';
+  type ReportRange, type ReportRecipient, type Schedule, type SendRow, type TempUnit, type VendorChannel } from '../api/temperature';
+import { REPORT_RANGES, bidi, chosenVendors, recipientPicks, unreachable, vendorChannel, vendorChannelReason, vendorChannelsOffered } from './model';
 import { tempCss } from './styles';
-import { tt, type TtKey } from '../i18n/temperature';
+import { TT_KEYS, tt, type TtKey } from '../i18n/temperature';
 
 type Freq = 'daily' | 'weekly' | 'monthly';
 
@@ -15,8 +15,9 @@ export { unreachable } from './model';
 /**
  * CR-INFRA-TEMPERATURE 2.9.1 phase 2: send the temperature report on WhatsApp - a TEXT SUMMARY only for now (owner decision 2026-10-19,
  * option A; the PDF stays in the system). Recipients: the system users (a user without a confirmed number is marked and may still be chosen;
- * the row is then "not sent" with the reason) and the vendors - listed but DISABLED ("בקרוב") until the message-queue migration the owner
- * deferred. A one-off send ("שליחה עכשיו") or a schedule (daily / weekly / monthly at a time). The installation's WhatsApp send hours apply:
+ * the row is then "not sent" with the reason) and the vendors - listed but DISABLED ("בקרוב") while vendor reports are off (the default); with
+ * them on (TEMPVENDOR-295) a vendor is selectable and the channel - WhatsApp, or e-mail when that switch is on - is picked per vendor and per
+ * report, never switched automatically; the reason shows when a channel is not available. A one-off send ("שליחה עכשיו") or a schedule (daily / weekly / monthly at a time). The installation's WhatsApp send hours apply:
  * a message outside the window waits for the next one (shown in the status list). Managers only (infra.temperature.manage).
  */
 @customElement('temp-wa')
@@ -25,6 +26,7 @@ export class TempWa extends LitElement {
   @property({ attribute: false }) params: ReportParams | null = null;
   @state() private rec: RecipientsResponse | null = null;
   @state() private chosen: string[] = [];
+  @state() private channels: Record<string, VendorChannel> = {};
   @state() private q = '';
   @state() private range: ReportRange = '24h';
   @state() private text = '';
@@ -63,6 +65,9 @@ export class TempWa extends LitElement {
     .row .tx { flex: 1; min-inline-size: 0; }
     .row small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
     .row .w { color: var(--sw-warning-text); font-size: var(--sw-fs-xs); }
+    .row .seg { flex: none; }
+    .row .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .row .vw { display: grid; gap: 4px; justify-items: end; }
     .row input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
     .presets { display: flex; flex-wrap: wrap; gap: 6px; }
     .presets button { border: 1px solid var(--sw-border); background: var(--sw-surface); border-radius: var(--sw-r-pill); padding: 5px 12px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); cursor: pointer; }
@@ -111,13 +116,19 @@ export class TempWa extends LitElement {
     return this.params?.units?.length ? this.params.units : this.units.map((u) => u.id);
   }
 
+  /** only vendors are chosen: the preview is the text a vendor gets (no "available in the system" note) */
+  private get vendorOnly(): boolean {
+    const v = chosenVendors(this.rec, this.chosen);
+    return v > 0 && v === this.chosen.length;
+  }
+
   private get repLang(): 'he' | 'en' {
     return this.params?.lang ?? 'he';
   }
 
   private async preview() {
     try {
-      this.text = (await getReportPreview({ units: this.unitIds, range: this.range, lang: this.repLang, chart: false, events: false, signature: false })).text_summary;
+      this.text = (await getReportPreview({ units: this.unitIds, range: this.range, lang: this.repLang, chart: false, events: false, signature: false, external: this.vendorOnly })).text_summary;
     } catch {
       this.text = '';
     }
@@ -128,7 +139,19 @@ export class TempWa extends LitElement {
   }
 
   private toggle(id: string, on: boolean) {
+    const before = this.vendorOnly;
     this.chosen = on ? [...new Set([...this.chosen, id])] : this.chosen.filter((x) => x !== id);
+    if (before !== this.vendorOnly) void this.preview();
+  }
+
+  private pick(id: string, channel: VendorChannel) {
+    this.channels = { ...this.channels, [id]: channel };
+  }
+
+  private reasonText(code: string | null | undefined): string {
+    if (!code) return '';
+    const key = `waReason_${code}` as TtKey;
+    return (TT_KEYS as string[]).includes(key) ? tt(key) : code;
   }
 
   private async send() {
@@ -136,7 +159,7 @@ export class TempWa extends LitElement {
     this.err = '';
     this.ok = '';
     try {
-      const r = await sendReport({ units: this.unitIds, range: this.range, lang: this.repLang, recipients: this.chosen.map((id) => ({ kind: 'user' as const, id })) });
+      const r = await sendReport({ units: this.unitIds, range: this.range, lang: this.repLang, recipients: recipientPicks(this.rec, this.chosen, this.channels) });
       this.sends = r.sends;
       this.ok = tt('waQueued', { n: r.queued });
       window.clearInterval(this.poll);
@@ -145,7 +168,7 @@ export class TempWa extends LitElement {
         if (--left <= 0) window.clearInterval(this.poll);
         try {
           this.sends = (await getSends(r.batch_id)).sends;
-          if (this.sends.every((s) => s.status !== 'queued' && s.status !== 'retry')) window.clearInterval(this.poll);
+          if (this.sends.every((s) => s.status !== 'queued' && s.status !== 'retry' && s.status !== 'handed')) window.clearInterval(this.poll);
         } catch {
           window.clearInterval(this.poll);
         }
@@ -163,7 +186,7 @@ export class TempWa extends LitElement {
     this.ok = '';
     try {
       await createSchedule({ units: this.unitIds, range: this.range, lang: this.repLang, freq: this.freq, at: this.at, dow: this.freq === 'weekly' ? this.dow : null,
-        dom: this.freq === 'monthly' ? this.dom : null, recipients: this.chosen.map((id) => ({ kind: 'user' as const, id })) });
+        dom: this.freq === 'monthly' ? this.dom : null, recipients: recipientPicks(this.rec, this.chosen, this.channels) });
       this.schedules = (await listSchedules()).schedules;
       this.ok = tt('waScheduled');
     } catch (e) {
@@ -178,15 +201,22 @@ export class TempWa extends LitElement {
     const warn = !vendor && p.reach && p.reach !== 'ok' ? tt(p.reach === 'no_address' ? 'waNoPhone' : 'waNoConsent') : '';
     const q = this.q.trim().toLowerCase();
     if (q && !p.name.toLowerCase().includes(q) && !(p.company ?? '').toLowerCase().includes(q)) return nothing;
+    const live = vendor && !!p.channels; // vendor reports are on: the server sent the reason per channel
+    const ch = live ? vendorChannel(p, this.channels[p.id], !!this.rec?.vendor_reports?.email) : null;
+    const chReason = live && ch ? vendorChannelReason(p, ch) : '';
     return html`<label class="row" ?data-disabled=${!p.selectable} data-person=${p.id} data-kind=${vendor ? 'vendor' : 'user'}>
       <input type="checkbox" .checked=${on} ?disabled=${!p.selectable} @change=${(e: Event) => this.toggle(p.id, (e.target as HTMLInputElement).checked)} />
       <span class="tx">${p.name}${p.company ? html`<small>${p.company}</small>` : nothing}</span>
-      ${vendor ? html`<span class="chip" title=${tt('waVendorsLater')}>${tt('waComingLater')}</span>` : warn ? html`<span class="w">${warn}</span>` : nothing}</label>`;
+      ${live ? html`<span class="vw"><span class="seg" role="group" data-wa-channels=${p.id}>${vendorChannelsOffered(!!this.rec?.vendor_reports?.email).map((c) => html`<button type="button" ?disabled=${!p.selectable || vendorChannelReason(p, c) !== 'ok'}
+            title=${vendorChannelReason(p, c) === 'ok' ? '' : this.reasonText(vendorChannelReason(p, c))} aria-pressed=${String(ch === c)} data-wa-channel=${c}
+            @click=${(e: Event) => { e.preventDefault(); this.pick(p.id, c); }}>${tt(c === 'whatsapp' ? 'waChannelWhatsapp' : 'waChannelEmail')}</button>`)}</span>
+          ${chReason && chReason !== 'ok' ? html`<span class="w" data-wa-reason>${this.reasonText(chReason)}</span>` : nothing}</span>`
+        : vendor ? html`<span class="chip" title=${tt('waVendorsLater')}>${tt('waComingLater')}</span>` : warn ? html`<span class="w">${warn}</span>` : nothing}</label>`;
   }
 
   render() {
     const r = this.rec;
-    const names = new Map((r?.users ?? []).map((u) => [u.id, u.name]));
+    const names = new Map([...(r?.users ?? []), ...(r?.vendors ?? [])].map((u) => [u.id, u.name]));
     const bad = unreachable(r?.users ?? [], this.chosen);
     const unitName = new Map(this.units.map((u) => [u.id, u.name]));
     return html`<div class="ovl" @click=${() => this.close()}></div>
@@ -199,7 +229,7 @@ export class TempWa extends LitElement {
             <input class="in" type="search" .value=${this.q} placeholder=${tt('waSearch')} aria-label=${tt('waSearch')} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; }} />
             <div class="plist" data-wa-list>
               ${r ? html`<div class="grp">${tt('waUsers')}</div>${r.users.map((u) => this.person(u, false))}
-                ${r.vendors.length ? html`<div class="grp">${tt('waVendors')} · ${tt('waVendorsLater')}</div>${r.vendors.map((v) => this.person(v, true))}` : nothing}` : html`<p class="hint" style="padding:10px">…</p>`}
+                ${r.vendors.length ? html`<div class="grp">${tt('waVendors')}${r.vendor_reports?.enabled ? '' : html` · ${tt('waVendorsLater')}`}</div>${r.vendors.map((v) => this.person(v, true))}` : nothing}` : html`<p class="hint" style="padding:10px">…</p>`}
             </div>
             ${bad ? html`<div class="banner warn" data-wa-warn><sw-icon name="warning" size="16"></sw-icon><span>${tt('waWarn', { n: bad })}</span></div>` : nothing}
           </div>
@@ -222,7 +252,7 @@ export class TempWa extends LitElement {
               <button type="button" class="btn sm ghost" @click=${async () => { await deleteSchedule(s.id); this.schedules = this.schedules.filter((x) => x.id !== s.id); }}>${tt('waDelete')}</button></div>`)}</div>` : nothing}
           </div>
           ${r ? html`<div class="banner"><sw-icon name="clock" size="16"></sw-icon><span>${tt('waHours', { h: bidi(`${r.send_hours.from}–${r.send_hours.to}`) })}</span></div>` : nothing}
-          ${this.sends.length ? html`<div class="status" data-wa-status>${this.sends.map((s) => html`<div>${s.name} · <b>${tt(`waStatus_${s.status}` as TtKey)}</b>${s.reason ? html` <span class="hint">(${s.reason})</span>` : nothing}</div>`)}</div>` : nothing}
+          ${this.sends.length ? html`<div class="status" data-wa-status>${this.sends.map((s) => html`<div>${s.name}${s.channel ? html` · ${tt(s.channel === 'email' ? 'waChannelEmail' : 'waChannelWhatsapp')}` : nothing} · <b>${tt(`waStatus_${s.status}` as TtKey)}</b>${s.reason ? html` <span class="hint">(${this.reasonText(s.reason)})</span>` : nothing}</div>`)}</div>` : nothing}
         </div>
         <div class="wf">
           <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>

@@ -142,7 +142,8 @@ def test_a_zone_is_created_read_back_logged_and_undone(world):
     out = r.json()
     assert out["changed"] is True and out["verified"] is True and out["zone"]["points"] == SQUARE
     assert _config_writes(world) == [("PUT", "/api/config/set", {"requires_restart": 0, "update_topic": "config/cameras/cam_front/zones", "config_data": {"cameras": {"cam_front": {"zones": {
-        "driveway": {"coordinates": "0.2,0.2,0.6,0.2,0.6,0.7,0.2,0.7", "objects": ["car", "person"], "inertia": 4, "loitering_time": ""}}}}}})]
+        "driveway": {"coordinates": "0.2,0.2,0.6,0.2,0.6,0.7,0.2,0.7", "objects": ["car", "person"], "inertia": 4}}}}}})], \
+        "FRIGLIVE-295: an unset optional field of a NEW zone is left out (\"\" on a key the file lacks is a 500 on the live 0.18.0)"
     assert world.fake.cameras["cam_front"]["zones"]["driveway"]["coordinates"] == "0.2,0.2,0.6,0.2,0.6,0.7,0.2,0.7"
     assert _view(world).json()["first_write_done"]["config_zone"] is True
     log = world.changes()[0]
@@ -167,7 +168,7 @@ def test_a_zone_edit_and_delete_are_undone_to_the_previous_shape(world):
     assert undo_edit.status_code == 200 and undo_edit.json()["verified"] is True and world.fake.cameras["cam_front"]["zones"]["porch"]["coordinates"] == "0.1,0.1,0.5,0.1,0.5,0.5"
     gone = world.call("POST", f"{BASE}/cameras/{_cam(world)}/config/zones/porch/delete", json={"confirm": True})
     assert gone.status_code == 200 and gone.json()["deleted"] is True and gone.json()["verified"] is True
-    assert "porch" not in world.fake.cameras["cam_front"]["zones"]
+    assert "zones" not in world.fake.cameras["cam_front"], "FRIGLIVE-295: the camera's last zone removes the whole key (no `zones: {}` left)"
     undo = world.call("POST", f"{BASE}/changes/{world.changes()[0]['id']}/revert", json={"confirm": True})
     assert undo.status_code == 200 and undo.json()["verified"] is True
     assert world.fake.cameras["cam_front"]["zones"]["porch"]["coordinates"] == "0.1,0.1,0.5,0.1,0.5,0.5"

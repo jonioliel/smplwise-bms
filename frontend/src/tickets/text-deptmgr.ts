@@ -69,6 +69,8 @@ export const DM_AR_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
   dmLookupNone: 'لا يوجد مورّد بهذا الرقم.',
   dmLookupAttach: 'ربط بالقسم',
   dmLookupAttached: 'مرتبط بالفعل',
+  p_directory: 'إدارة دليل جهات الاتصال والموردين', // SMALL-294 / SMALL2-295 (tickets.directory)
+  p_handlers: 'المعالجون والموردون في أقسامي',
 };
 export const DM_RU_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
   dmCreatedIn: 'Создано в отделе',
@@ -79,4 +81,6 @@ export const DM_RU_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
   dmLookupNone: 'Поставщик с этим номером не найден.',
   dmLookupAttach: 'Привязать к отделу',
   dmLookupAttached: 'Уже привязан',
+  p_directory: 'Управление справочником контактов и поставщиков', // SMALL-294 / SMALL2-295 (tickets.directory)
+  p_handlers: 'Исполнители и поставщики в моих отделах',
 };

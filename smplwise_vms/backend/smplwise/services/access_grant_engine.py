@@ -73,6 +73,10 @@ class EnginePerson:
     # R5-A2: the COMPLETE `access_timing_policy` as WisKey returned it ({mode, schedule, bindings}, each key only when it was present;
     # None = no policy). `timing` above is its schedule only; a scope proof compares the whole policy (mode and bindings included).
     timing_policy: dict[str, Any] | None = None
+    # GRANTS3-295 (X5): the ids of the person's saved cards (WisKey's card ids - never a number, not even the masked form) and whether
+    # the card list was readable (`cards` a list of objects with an id, credentials not redacted). False = unknown, never "no card".
+    card_ids: tuple[str, ...] = ()
+    cards_known: bool = False
 
 
 class Engine(Protocol):
@@ -86,6 +90,11 @@ class Engine(Protocol):
 
     def strip(self, person_id: str, revision: int) -> EnginePerson: ...
 
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
+        """STATIONPERM-295: ONE revision-checked users/update carrying ONLY the complete `permission_overrides` map and the
+        `door_permissions` of an allowed station (`station_access_payload`). Never groups, timing, validity, active or credentials."""
+        ...
+
     def revocation_pending(self, person_id: str) -> bool | None:
         """Central sync status: True = a revocation for this person is still pending, False = none, None = cannot tell."""
         ...
@@ -95,6 +104,14 @@ class Engine(Protocol):
     def rename(self, person_id: str, revision: int, display_name: str) -> EnginePerson: ...
 
     def delete(self, person_id: str, revision: int) -> None: ...
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
+        """GRANTS3-295 (X5): one card typed by number (WisKey `cards/add`). The number exists only in this call's frame."""
+        ...
+
+    def card_remove(self, person_id: str, revision: int, card_id: str) -> EnginePerson:
+        """GRANTS3-295 (X5): one saved card by its id (WisKey `cards/remove`)."""
+        ...
 
 
 # ---------------------------------------------------------------- the live engine (refused in this build)
@@ -183,6 +200,19 @@ def strip_payload() -> dict[str, Any]:
     ONE allowed null (phone/responsible_person/access_purpose are never null). Sent with sync_now; the answer is the public person object.
     It is not proof of physical removal: the worker waits for a readback AND the central sync status (see `Worker.strip`)."""
     return {"group_ids": [], "permission_overrides": {}, "active": False, "pin": None}
+
+
+def station_access_payload(*, overrides: dict[str, str], doors: dict[str, list[int]]) -> dict[str, Any]:
+    """STATIONPERM-295 (CR-STATION-PERMISSIONS-295 section 4): the users/update `data` of one per-station decision - the COMPLETE
+    `permission_overrides` replacement (built by the caller from a fresh read, every other station's entry carried over) and
+    `door_permissions` for the allowed station only. Nothing else: `group_ids`, `access_timing_policy` (mode / schedule / bindings stay
+    together and are never written here), validity, `active`, PIN and cards are left as WisKey has them. Source-derived, NOT_RUN."""
+    if not isinstance(overrides, dict) or not all(isinstance(k, str) and k and v in ("allow", "deny") for k, v in overrides.items()):
+        raise ValueError("overrides")
+    for sid, relays in doors.items():
+        if overrides.get(sid) != "allow" or not relays or not all(_strict_int(r) and r in RELAYS for r in relays):
+            raise ValueError("doors")
+    return {"permission_overrides": dict(overrides), "door_permissions": {k: sorted(set(v)) for k, v in doors.items()}}
 
 
 _ACCESS_FIELDS = frozenset({"assignments", "group_ids", "permission_overrides"})
@@ -329,7 +359,12 @@ def person_from_raw(raw: Any) -> EnginePerson:
         doors = {}
         synced = None
     policy = raw.get("access_timing_policy") if isinstance(raw.get("access_timing_policy"), dict) else None
+    # GRANTS3-295 (X5): card ids only; a list that is not a list of objects with a non-blank string id is unknown (never "no card")
+    cards = raw.get("cards")
+    cards_known = (isinstance(cards, list) and not credential_redacted
+                   and all(isinstance(c, dict) and isinstance(c.get("id"), str) and c["id"].strip() for c in cards))
     return EnginePerson(
+        card_ids=tuple(c["id"] for c in cards) if cards_known else (), cards_known=cards_known,
         id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=active,
         valid_from=raw.get("valid_from") if isinstance(raw.get("valid_from"), str) else None,
         valid_until=raw.get("valid_until") if isinstance(raw.get("valid_until"), str) else None,
@@ -474,6 +509,14 @@ class WiskeyServiceEngine:
         data = strip_payload()
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
 
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
+        """STATIONPERM-295: refused (`not_permitted`) while the go-live permit is not in the build; never run against a WisKey."""
+        self._guard()
+        from . import intercom_client
+
+        data = station_access_payload(overrides=overrides, doors=doors)
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
+
     def revocation_pending(self, person_id: str) -> bool | None:
         """No confirmation endpoint is asserted by WisKey, and Arx's overview projection drops tombstones / revocations (B0, D-006): until the
         pinned service-channel source shows where the central sync status can be read, this is UNKNOWN - a live revoke stays `revoking`."""
@@ -504,6 +547,26 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True), person_id)
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
+        """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/add` answers the person's public record (cards masked). The number
+        is in the command frame only - never in a log, an audit row, the journal or an exception text (the mapped error carries WisKey's
+        code, e.g. `card_conflict`)."""
+        self._guard()
+        from . import intercom_client
+
+        card = {"card_no": card_no, "label": _clean_name(label, ""), "card_type": "normalCard", "enabled": True}
+        try:
+            return self._write(lambda call: intercom_client.cards_add(call, person_id, revision, card), person_id)
+        finally:
+            card.clear()
+
+    def card_remove(self, person_id: str, revision: int, card_id: str) -> EnginePerson:
+        """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/remove` by the card's id; the stations follow WisKey's own sync."""
+        self._guard()
+        from . import intercom_client
+
+        return self._write(lambda call: intercom_client.cards_remove(call, person_id, revision, card_id), person_id)
 
     def delete(self, person_id: str, revision: int) -> None:
         self._guard()

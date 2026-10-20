@@ -106,6 +106,16 @@ def state_hash(features: dict[str, bool | None]) -> str:
     return hashlib.sha256(json.dumps(features, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
+def _case_of(row: dict[str, Any]) -> str | None:
+    """The case of an export row. FRIGLIVE-295: the live 0.18.0 `GET /api/exports` row names it `export_case` (the peewee foreign key's field
+    name); the job document and the request bodies use `export_case_id`. Both are read."""
+    for key in ("export_case", "export_case_id"):
+        v = row.get(key)
+        if isinstance(v, str) and OBJECT_ID.fullmatch(v):
+            return v
+    return None
+
+
 class FrigateControl:
     """The F2 operations of one recorder. Constructed over a `FrigateAdapter` (its HTTP session); safe to build per request."""
 
@@ -119,7 +129,7 @@ class FrigateControl:
         """Every known switch of one camera as the effective config shows it (True / False, None = not reported). Only these booleans
         are read out of `/api/config`: the rest of the document (stream URLs with credentials) never leaves this function."""
         FrigateAdapter._camera(camera)
-        cfg = self.http.get_json("/api/config")
+        cfg = self.http.get_json("/api/config", fresh=True)
         cams = cfg.get("cameras") if isinstance(cfg, dict) else None
         cam = cams.get(camera) if isinstance(cams, dict) else None
         if not isinstance(cam, dict):
@@ -152,7 +162,7 @@ class FrigateControl:
         `GET /api/profile/active` ({"active_profile": ...}) is read only when the first document does not carry the active profile."""
         names: list[str] = []
         try:
-            doc = self.http.get_json("/api/profiles", optional=True)
+            doc = self.http.get_json("/api/profiles", optional=True, fresh=True)
         except ApiError as exc:
             if exc.code != "frigate_route_missing":
                 raise
@@ -167,7 +177,7 @@ class FrigateControl:
             names = [str(x.get("name") if isinstance(x, dict) else x) for x in doc if (x.get("name") if isinstance(x, dict) else x)]
         if not have_active:
             try:
-                act = self.http.get_json("/api/profile/active", optional=True)
+                act = self.http.get_json("/api/profile/active", optional=True, fresh=True)
             except ApiError as exc:
                 if exc.code != "frigate_route_missing":
                     raise
@@ -180,7 +190,7 @@ class FrigateControl:
     def event(self, event_id: str) -> dict[str, Any]:
         if not EVENT_ID.fullmatch(event_id or ""):
             raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
-        doc = self.http.get_json(f"/api/events/{q(event_id)}")
+        doc = self.http.get_json(f"/api/events/{q(event_id)}", fresh=True)
         if not isinstance(doc, dict):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
         sub = doc.get("sub_label")
@@ -201,7 +211,7 @@ class FrigateControl:
         """One tracked object / manual event as a small, fixed document (read-back of a manual create / end)."""
         if not EVENT_ID.fullmatch(event_id or ""):
             raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
-        doc = self.http.get_json(f"/api/events/{q(event_id)}")
+        doc = self.http.get_json(f"/api/events/{q(event_id)}", fresh=True)
         if not isinstance(doc, dict):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
         end = doc.get("end_time")
@@ -211,7 +221,7 @@ class FrigateControl:
 
     def list_exports(self) -> list[dict[str, Any]]:
         """Frigate exports as small fixed rows: file paths and thumbnails never leave the adapter (they name Frigate's disk)."""
-        doc = self.http.get_json("/api/exports", control=True)
+        doc = self.http.get_json("/api/exports", control=True, fresh=True)
         if not isinstance(doc, list):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "exports"})
         out = []
@@ -219,11 +229,11 @@ class FrigateControl:
             if isinstance(x, dict) and isinstance(x.get("id"), str) and OBJECT_ID.fullmatch(x["id"]):
                 out.append({"id": x["id"], "camera": x.get("camera") if isinstance(x.get("camera"), str) else None, "name": (x.get("name") or "")[:NAME_MAX] if isinstance(x.get("name"), str) else "",
                             "date": x.get("date") if isinstance(x.get("date"), (int, float)) else None, "in_progress": bool(x.get("in_progress")),
-                            "case_id": x.get("export_case_id") if isinstance(x.get("export_case_id"), str) else None})
+                            "case_id": _case_of(x)})
         return out
 
     def list_cases(self) -> list[dict[str, Any]]:
-        doc = self.http.get_json("/api/cases", control=True)
+        doc = self.http.get_json("/api/cases", control=True, fresh=True)
         if not isinstance(doc, list):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "cases"})
         out = []
@@ -337,7 +347,7 @@ class FrigateControl:
     def export_job(self, export_id: str) -> dict[str, Any] | None:
         """0.18: a queued / running export job (`GET /api/jobs/export/{id}`), as {id, status, step, case_id}; None when Frigate knows no such job."""
         try:
-            doc = self.http.get_json(f"/api/jobs/export/{q(self._object(export_id))}", optional=True, control=True)
+            doc = self.http.get_json(f"/api/jobs/export/{q(self._object(export_id))}", optional=True, control=True, fresh=True)
         except ApiError as exc:
             if exc.code in ("frigate_route_missing", "not_found"):
                 return None

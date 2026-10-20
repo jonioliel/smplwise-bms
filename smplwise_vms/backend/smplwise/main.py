@@ -91,6 +91,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         needs_review.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("needs-review janitor failed", exc_info=True)
+    try:  # SECFIX2-295 / PUB-03: erase undecided vendor-typed technicians past access.external.pending_retention_days (default 90, owner 2026-10-21; a saved 0 = off)
+        from .services import pending_retention
+
+        pending_retention.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("pending retention janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 
@@ -417,6 +423,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(bulk_people_router.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
+    from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)
+
+    app.include_router(door_automations_router.router, prefix=api, tags=["access-control"])
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
@@ -501,9 +510,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import capture_lease as capture_lease_router
 
     app.include_router(capture_lease_router.router, prefix=api, tags=["access"])  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
+    from .routers import bridge_key as bridge_key_router
+
+    app.include_router(bridge_key_router.router, prefix=api, tags=["system"])  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)
     from .routers import access_grants as access_grants_router
 
     app.include_router(access_grants_router.router, prefix=api, tags=["access"])  # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants (off; go-live not permitted)
+    from .routers import access_station_permissions as access_station_permissions_router
+
+    app.include_router(access_station_permissions_router.router, prefix=api, tags=["access"])  # STATIONPERM-295: per-station access of a person (off; go-live not permitted)
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import local_identity as local_identity_router
 

@@ -215,6 +215,42 @@ export function tintOnlyChange(from: SceneDescription, to: SceneDescription): bo
   return differs;
 }
 
+/** Two DOM-label parts (a temperature chip, an entity pill) that draw the same label. */
+const sameLabel = (a: ScenePart, b: ScenePart): boolean =>
+  a.text === b.text && a.color === b.color && a.opacity === b.opacity && sameVec(a.position, b.position) && sameVec(a.size, b.size) && a.userData.id === b.userData.id && a.userData.kind === b.userData.kind;
+
+/**
+ * PERF3D-295: a description that differs from another only in what the scene graph never draws or draws in place - the
+ * opacity of its tints (a presence fade step, as tintOnlyChange) and the DOM labels (DOM_LABEL_KINDS: a temperature chip's
+ * reading, an entity pill's text or state colour - the element lays them out over the canvas, three realises nothing for
+ * them). The same parts in the same order otherwise, the same levels and size; with a label changed, the realistic part must
+ * be the same as well (level 3 reads its lamps and rooms from it). A home's meters push a new reading every few seconds: each
+ * used to rebuild the whole graph, the shadow map and the cutaway.
+ */
+export function liveOnlyChange(from: SceneDescription, to: SceneDescription): boolean {
+  if (from === to || from.parts.length !== to.parts.length || from.levels.length !== to.levels.length) return false;
+  if (from.size[0] !== to.size[0] || from.size[1] !== to.size[1]) return false;
+  for (let i = 0; i < from.levels.length; i++) {
+    const a = from.levels[i];
+    const b = to.levels[i];
+    if (a.id !== b.id || a.elevation_m !== b.elevation_m || a.ceiling_height_m !== b.ceiling_height_m) return false;
+  }
+  let differs = false;
+  let labels = false;
+  for (let i = 0; i < from.parts.length; i++) {
+    const a = from.parts[i];
+    const b = to.parts[i];
+    if (DOM_LABEL_KINDS.has(a.kind) && a.kind === b.kind && a.id === b.id && a.level_id === b.level_id && a.shape === b.shape) {
+      if (!sameLabel(a, b)) differs = labels = true;
+      continue;
+    }
+    if (!samePart(a, b)) return false;
+    if (a.opacity !== b.opacity) differs = true;
+  }
+  if (labels && (from.real || to.real) && JSON.stringify(from.real ?? null) !== JSON.stringify(to.real ?? null)) return false;
+  return differs;
+}
+
 /** The twelve edges of the unit box as line segments (an outline without EdgesGeometry). */
 function unitBoxEdges(): BufferGeometry {
   const c = [-0.5, 0.5];
@@ -435,7 +471,7 @@ export class SceneView {
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerleave', this.onLeave);
     canvas.addEventListener('pointercancel', this.onCancel);
-    canvas.addEventListener('webglcontextrestored', this.invalidate); // three restores its state; one frame redraws it
+    canvas.addEventListener('webglcontextrestored', this.onRestored); // three restores its state; one frame redraws it
     this.resize();
   }
 
@@ -547,7 +583,12 @@ export class SceneView {
     const night = this.night;
     // the realistic level's renderer state is undone for levels 1-2 (their pictures must not move)
     this.renderer.localClippingEnabled = this.quality === 3;
-    this.renderer.shadowMap.autoUpdate = this.quality !== 3;
+    // PERF3D-295: the sun's shadow map is drawn when what it shows changed, never per frame - at level 2 as at level 3. The map
+    // depends on the casters, their visibility and the sun (fitSun: a fixed direction, a box over the extent), never on the
+    // camera, so an orbit, a zoom or a pinch re-used the same map every frame while redrawing every caster into it (a second
+    // pass over the whole floor). Every change of a caster or of the sun raises markShadows(); the pixels are the same.
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.shadowMap.type = this.quality === 3 ? PCFShadowMap : PCFSoftShadowMap;
     this.applyPixelRatio();
     this.scene.environment = null;
@@ -623,8 +664,19 @@ export class SceneView {
     cam.far = r * 4;
     cam.updateProjectionMatrix();
     sun.shadow.needsUpdate = true;
-    if (this.quality === 3) this.renderer.shadowMap.needsUpdate = true;
+    this.markShadows();
   }
+
+  /** The shadow map must be drawn again on the next frame (a caster moved, appeared, hid, or the sun moved). */
+  private markShadows(): void {
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
+  /** The WebGL context came back: three restored its state, the shadow map is drawn afresh with the next frame. */
+  private onRestored = (): void => {
+    this.markShadows();
+    this.invalidate();
+  };
 
   // ---- the realistic level (CR-029 S1 / S2): rig, sky, environment, post chain, section cut, lamp pool, animation
 
@@ -1194,9 +1246,9 @@ export class SceneView {
   }
 
   setDescription(desc: SceneDescription): void {
-    if (this.desc && tintOnlyChange(this.desc, desc)) {
-      // a presence fade step: the graph stays (no rebuild of the instancing or the shadow map), the tints take their
-      // new opacity in place
+    if (this.desc && liveOnlyChange(this.desc, desc)) {
+      // a presence fade step or a new reading on a DOM label (PERF3D-295): the graph stays (no rebuild of the instancing or
+      // the shadow map), the tints take their new opacity in place; the element lays the labels out from the new description
       for (const p of desc.parts) {
         if (p.kind !== 'tint') continue;
         const sp = this.quality === 3 && desc.real ? this.statePart(p) : p; // level 3 thins the presence plates (R3 G2)
@@ -1213,6 +1265,7 @@ export class SceneView {
     for (const [id, s] of this.realBuilt?.shutters ?? []) before.set(id, { p: s.mesh.position.clone(), q: s.mesh.quaternion.clone(), sy: s.mesh.scale.y });
     this.anims = [];
     this.clear();
+    this.markShadows(); // a new graph: new casters
     this.recolour();
     this.desc = desc;
     this.extent = sceneExtent(desc);
@@ -1522,6 +1575,24 @@ export class SceneView {
     return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
   }
 
+  private readonly projSize = new Vector2();
+  private readonly projV = new Vector3();
+  /** PERF3D-295: projectPoint for many points at once, for the element's per-frame label layout - the camera's matrices once,
+   * one scratch vector, and the size the canvas was last sized to (resize(): the mount's CSS box, kept current by the element's
+   * ResizeObserver) instead of reading the mount's box per point: that read forced a style and layout pass in the middle of the
+   * label writes, on every drawn frame. `out[i]` is null behind the camera. */
+  projectPoints(points: readonly Vec3[]): ({ x: number; y: number } | null)[] {
+    this.active.updateMatrixWorld();
+    this.renderer.getSize(this.projSize);
+    const w = this.projSize.x;
+    const h = this.projSize.y;
+    const v = this.projV;
+    return points.map((p) => {
+      v.set(p[0], p[1], p[2]).project(this.active);
+      return v.z > 1 ? null : { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
+    });
+  }
+
   // ---- the cutaway (level 2): walls between the camera and the interior keep CUTAWAY_HEIGHT_M
 
   /** The azimuth the cutaway should follow now: the quantised camera azimuth from an overview above the ceilings, or
@@ -1581,6 +1652,7 @@ export class SceneView {
     this.cutNow = next;
     this.rebuildCaps(elevation);
     if (this.sun) this.sun.shadow.needsUpdate = true;
+    this.markShadows(); // the cut walls and their caps cast differently
     if (this.selectedId) this.setSelected(this.selectedId); // the outline follows the cut
   }
 
@@ -1755,7 +1827,11 @@ export class SceneView {
     const moving = flying || animating || easing;
     if (this.hideSmall) {
       const show = this.walking ? true : this.active === this.ortho ? this.ortho.top / (this.ortho.zoom || 1) < HIDE_SMALL_DISTANCE_M / 2 : this.persp.position.distanceTo(this.controls.target) < HIDE_SMALL_DISTANCE_M;
-      for (const g of this.smallGroups) g.visible = show;
+      for (const g of this.smallGroups) {
+        if (g.visible === show) continue;
+        g.visible = show;
+        this.markShadows(); // a hidden caster leaves the shadow map
+      }
     }
     this.updateCutaway();
     this.drawFrame();
@@ -1939,7 +2015,7 @@ export class SceneView {
     canvas.removeEventListener('pointermove', this.onMove);
     canvas.removeEventListener('pointerleave', this.onLeave);
     canvas.removeEventListener('pointercancel', this.onCancel);
-    canvas.removeEventListener('webglcontextrestored', this.invalidate);
+    canvas.removeEventListener('webglcontextrestored', this.onRestored);
     this.controls.removeEventListener('change', this.invalidate);
     this.controls.dispose();
     window.clearTimeout(this.realRebuildTimer);

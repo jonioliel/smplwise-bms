@@ -267,6 +267,75 @@ test.describe('temperature evidence', () => {
     await page.screenshot({ path: path.join(OUT, `whatsapp-${test.info().project.name}.png`) });
   });
 
+  // TEMPVENDOR-295: vendors in the report dialog - off (the default), on with a channel per vendor, e-mail switched off
+  const TV_OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/TEMPVENDOR-295');
+  const TV_USERS = [{ id: 'p1', name: 'יוני אוליאל', reach: 'ok', selectable: true }, { id: 'p3', name: 'משמרת מטבח', reach: 'no_address', selectable: true }];
+  const tvVendors = (email: boolean) => [
+    { id: 'v1', name: 'קירור הצפון', company: 'קירור הצפון בע"מ', has_phone: true, selectable: true, reason: null, channel: 'whatsapp', channels: { whatsapp: 'ok', email: email ? 'ok' : 'reports_email_off' } },
+    { id: 'v2', name: 'מיזוג דרום', company: 'מיזוג דרום בע"מ', has_phone: false, selectable: email, reason: email ? null : 'no_whatsapp', channel: 'email',
+      channels: { whatsapp: 'no_whatsapp', email: email ? 'ok' : 'reports_email_off' } },
+    { id: 'v3', name: 'שירותי קור', company: null, has_phone: false, selectable: false, reason: 'no_whatsapp', channel: 'whatsapp', channels: { whatsapp: 'no_whatsapp', email: 'no_email' } },
+  ];
+  async function openDialog(page: Page, email: boolean | null) {
+    await install(page, units());
+    if (email !== null) {
+      await page.route('**/api/v1/infra/temperature/report/recipients', (route) => json(route, { users: TV_USERS, vendors: tvVendors(email), send_hours: { from: '07:00', to: '21:00' },
+        attachment: 'link', attachment_modes: ['none', 'link'], vendor_reports: { enabled: true, email } }));
+      await page.route('**/api/v1/infra/temperature/report/send', (route) => json(route, { batch_id: 'b1', queued: 2, vendors: 2, sends: [
+        { id: 's1', name: 'קירור הצפון', kind: 'vendor', channel: 'whatsapp', status: 'handed', reason: null, not_before: iso(0), finished_at: null },
+        { id: 's2', name: 'מיזוג דרום', kind: 'vendor', channel: 'email', status: 'skipped', reason: 'no_email', not_before: iso(0), finished_at: iso(0) }] }, 202));
+    }
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    await page.locator('sw-app infra-temperature temp-detail [data-temp-report]').click();
+    await page.locator('sw-app infra-temperature temp-report [data-rep-wa]').click();
+    const w = page.locator('sw-app infra-temperature temp-wa');
+    await expect(w.locator('[data-wa-list] [data-person="p1"]')).toBeVisible();
+    return w;
+  }
+
+  test('TEMPVENDOR-295: vendors stay disabled while vendor reports are off', async ({ page }) => {
+    fs.mkdirSync(TV_OUT, { recursive: true });
+    const w = await openDialog(page, null);
+    await expect(w.locator('[data-kind="vendor"] input')).toBeDisabled();
+    await expect(w.locator('[data-wa-channels]')).toHaveCount(0);
+    await page.screenshot({ path: path.join(TV_OUT, `vendors-off-${test.info().project.name}.png`) });
+  });
+
+  test('TEMPVENDOR-295: a channel per vendor, the reason when a channel is unavailable, e-mail only when its switch is on', async ({ page }) => {
+    fs.mkdirSync(TV_OUT, { recursive: true });
+    const w = await openDialog(page, true);
+    await expect(w.locator('[data-person="v1"] input')).toBeEnabled();
+    await expect(w.locator('[data-person="v3"] input')).toBeDisabled();
+    await expect(w.locator('[data-person="v1"] [data-wa-channel]')).toHaveCount(2);
+    await expect(w.locator('[data-person="v2"] [data-wa-channel="whatsapp"]')).toBeDisabled(); // no number: the reason is on the button
+    await expect(w.locator('[data-person="v2"] [data-wa-channel="email"]')).toHaveAttribute('aria-pressed', 'true'); // started on the first channel that works
+    await expect(w.locator('[data-person="v3"] [data-wa-reason]')).toBeVisible();
+    await w.locator('[data-person="v1"] input').check();
+    await w.locator('[data-person="v1"] [data-wa-channel="email"]').click();
+    await expect(w.locator('[data-person="v1"] [data-wa-channel="email"]')).toHaveAttribute('aria-pressed', 'true');
+    await w.locator('[data-person="v2"] input').check();
+    await page.screenshot({ path: path.join(TV_OUT, `vendors-on-${test.info().project.name}.png`) });
+    const sent = page.waitForRequest((r) => r.url().endsWith('/report/send') && r.method() === 'POST');
+    await w.locator('[data-wa-send]').click();
+    const body = (await sent).postDataJSON();
+    expect(body.recipients).toEqual([{ kind: 'vendor', id: 'v1', channel: 'email' }, { kind: 'vendor', id: 'v2', channel: 'email' }]);
+    await expect(w.locator('[data-wa-status]')).toContainText('הועבר לתור ההודעות');
+    await expect(w.locator('[data-wa-status]')).toContainText('אין כתובת דוא״ל לספק');
+    await page.screenshot({ path: path.join(TV_OUT, `vendors-sent-${test.info().project.name}.png`) });
+  });
+
+  test('TEMPVENDOR-295: with the e-mail switch off only WhatsApp is offered', async ({ page }) => {
+    fs.mkdirSync(TV_OUT, { recursive: true });
+    const w = await openDialog(page, false);
+    await expect(w.locator('[data-person="v1"] [data-wa-channel]')).toHaveCount(1);
+    await expect(w.locator('[data-person="v1"] [data-wa-channel="whatsapp"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(w.locator('[data-person="v2"] input')).toBeDisabled(); // its only usable channel is e-mail, which is off
+    await expect(w.locator('[data-person="v2"] [data-wa-reason]')).toBeVisible();
+    await page.screenshot({ path: path.join(TV_OUT, `vendors-email-off-${test.info().project.name}.png`) });
+  });
+
   test('alert log', async ({ page }) => {
     await install(page, units());
     await page.goto('about:blank');

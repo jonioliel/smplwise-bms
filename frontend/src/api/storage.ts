@@ -79,6 +79,8 @@ export interface StorageLocal {
     counters: { refused_disk: number; refused_queue_full: number; paused_disk_full: number; resumed: number };
   };
   ingest_queue: { depth: number; max: number; high_water: number; accepted: number; processed: number; failed: number; coalesced: number; dropped: number };
+  /** FABLEFIX-295 D-04: the supplier portal's code-request queue - counts only; a drop still answered "sent" to the supplier. */
+  portal_start?: { running: boolean; depth: number; max: number; accepted: number; dropped: number };
 }
 
 export const getStorageLocal = () => get<StorageLocal>('storage/local');

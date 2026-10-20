@@ -215,6 +215,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let consent = 0;
   let doc = 0;
   let claimPrefill = 0;
+  let arrival = 0;
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
@@ -235,6 +236,9 @@ test('a built bundle is outside www, script- and style-file only, and within the
       else if (/^portal-page[-.]/.test(f)) portal += n;
       else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK: the consent page's lazy chunk + stylesheet, its own cap
       else if (/^doc-(page|text)[-.]/.test(f)) doc += n; // CR-VENDORQ-294: the document page's lazy chunk (it shares the consent stylesheet), its own cap
+      // GRANTS3-295: the arrival step ("who arrives, when", then the approved doors / code schedule) - a lazy chunk + stylesheet the
+      // ticket page fetches only when its answer says `arrival: true`; its own 7 KB cap, so the ticket page grows by the loader only
+      else if (/^arrival-(card|text|model)[-.]/.test(f)) arrival += n;
       else gz += n;
     }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule
@@ -247,6 +251,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
   // Measured from a local build:public of integ/291: ticket page 62,884 B (cap 63,488 B, headroom 604 B).
   // SMALL-294: four catalogue keys no code reads (claim line_total / docs_required, page documentsHint / readOnlyChip, x4 languages) removed:
   // ticket page 62,880 -> 62,583 B (headroom 608 -> 905 B). Measured on a local build:public, same method as this test.
+  // SMALL2-295: the unused `device` icon path and the unread claim `card_title` words (x4 languages) removed; measured on the runner with this
+  // test's method: 62,639 -> 62,558 B (headroom 849 -> 930 B). Nothing else in the page is unreferenced (keys, icons, CSS classes, tokens checked).
   expect(rfq).toBeLessThanOrEqual(21 * 1024);
   expect(rfqTerms).toBeLessThanOrEqual(3 * 1024);
   expect(rfqUpload).toBeLessThanOrEqual(5 * 1024);
@@ -255,6 +261,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
   expect(consent).toBeLessThanOrEqual(5 * 1024);
   expect(doc).toBeLessThanOrEqual(4 * 1024);
   expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
+  // GRANTS3-295 (measured on the runner, gzip level 6): arrival-card js + css 6,351 B; the ticket page 62,108 B (integ/293: 61,954 B, +154 B for the loader)
+  expect(arrival).toBeLessThanOrEqual(7 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {

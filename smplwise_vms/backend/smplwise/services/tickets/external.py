@@ -220,11 +220,23 @@ def preview(conn, viewer: Viewer, seen: Seen, contact_id: str, *, require_code: 
         "link": {"sliding_days": d.sliding_days, "cap_days": d.cap_days, "grace_hours": d.grace_hours,
                  "expires_at": handler_links.iso(expires), "cap_at": handler_links.iso(cap)},
         "refusals": refusals,
+        # GRANTS3-295: whether this assignment may carry the "access needed" tick (the arrival step on the vendor's page)
+        "access_needed": {"available": _access_needed_available(conn, contact)},
     }
     extra = getattr(DISPATCH, "preview_extra", None)  # slice 5b: the template text, the account, the send-hours line, "send now"
     if extra is not None:
         out.update(extra(conn, row, contact, location_nav=nav))
     return out
+
+
+def _access_needed_available(conn, contact: dict[str, Any]) -> bool:
+    """GRANTS3-295: the external-grants feature is on and the contact is an outside vendor / person (services/access_arrival.py)."""
+    try:
+        from .. import access_arrival
+
+        return access_arrival.flag_available(conn, contact) and not assignees.is_staff(contact)
+    except Exception:  # noqa: BLE001 - the assign dialog never fails on the access feature
+        return False
 
 
 def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dict[str, Any] | None) -> dict[str, Any]:
@@ -239,9 +251,13 @@ def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dic
 
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,
                    share_history: bool | None, send_now: bool, revision: int, rid: str | None = None, cost_claim: str | None = None,
-                   dispatch: bool = True, location_nav: bool | None = None) -> str:
+                   dispatch: bool = True, location_nav: bool | None = None, access_needed: bool | None = None) -> str:
     """`dispatch=False` (TKRFQ4, the RFQ work order): everything an assignment does EXCEPT queueing the assignment message - the order
-    message leaves only on the manager's explicit click (owner rule: an approval never sends anything by itself)."""
+    message leaves only on the manager's explicit click (owner rule: an approval never sends anything by itself).
+
+    GRANTS3-295 `access_needed`: the manager's "access needed" tick - the vendor's page then offers the arrival step ("who arrives,
+    when"), which can only create a grant REQUEST. Refused (422 `not_allowed`, before anything is stored) while the external-grants
+    feature is off or for a staff contact."""
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
@@ -268,6 +284,8 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "share_history", "code": "not_allowed"}]})
     share = hist["default"] if share_history is None else bool(share_history)
     nav = _check_location_nav(conn, row, location_nav)  # CR-ORG-LOCATIONS: after the permission gates, before any write
+    if access_needed and not _access_needed_available(conn, contact):  # GRANTS3-295: before any write
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "access_needed", "code": "not_allowed"}]})
     from . import costs  # S9 (D32): the cost claim requirement of THIS assignment, preselected vendor -> department -> installation
 
     if cost_claim is not None and cost_claim not in costs.MODES:
@@ -291,6 +309,10 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
                                          "channel": channel, "assigned_by": viewer.uid, "assigned_at": now,
                                          "share_history": 1 if share else 0, "require_code": 1 if req else 0,
                                          "cost_claim": claim_mode, "location_nav": 1 if nav else 0})
+    if access_needed:  # GRANTS3-295: the tick lives beside the assignment (access_arrival_flags), ids only
+        from .. import access_arrival
+
+        access_arrival.set_flag(conn, assignment_id=aid, ticket_id=row["id"], by=viewer.uid, at=now)
     try:
         link_row = handler_links.mint(conn, ticket=row, assignment_id=aid, contact_id=contact_id, require_code=req, now=now_dt)
     except ModuleKeyError:
@@ -324,7 +346,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     audit(conn, actor=viewer.principal, action="ticket.assign", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "assignee_kind": "contact", "contact_id": contact_id, "reassign": bool(current), "reopened": reopened,
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),
-                   "cost_claim": claim_mode, "location_nav": nav})
+                   "cost_claim": claim_mode, "location_nav": nav, **({"access_needed": True} if access_needed else {})})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "link": link_row["id"][:6], "generation": 1, "kind": "external"})
     sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)

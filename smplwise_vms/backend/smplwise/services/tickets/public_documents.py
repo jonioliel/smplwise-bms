@@ -5,7 +5,7 @@ listener (services/tickets/out_documents.py has the rules; the edge's ROUTES car
 - `GET /t/api/doc`      - what the page shows before the download: the file name, type, size, expiry, downloads left and the digest. No
                           recipient, no module, no source. Unknown / expired / revoked / used-up / purged token, documents switched off,
                           the key gone, or no token: the uniform 404.
-- `GET /t/api/doc/file` - the bytes, as a DOWNLOAD (`attachment`, the exact type, `nosniff`, `private, no-store`, the digest in
+- `GET /t/api/doc/file` - the bytes, as a DOWNLOAD (`attachment`, the exact type for a PDF and application/octet-stream for HTML, `nosniff`, `private, no-store`, the digest in
                           X-Document-Digest); every download counts one against `max_opens` (compare-and-set: the last download is won
                           once). The edge replaces any route CSP with the listener's `default-src 'none'; ...` (at least as strict as
                           `sandbox` for a download).
@@ -34,6 +34,13 @@ log = logging.getLogger("smplwise.tickets.public.documents")
 UTC = dt.timezone.utc
 META_ROUTE = "/t/api/doc"
 FILE_ROUTE = "/t/api/doc/file"
+# FABLEFIX-295 D-01 (c) / D-02: an HTML document is handed over as opaque bytes - no browser or in-app WebView ever renders it from the
+# link (the `.html` file name and the `attachment` disposition still save it as a report). A PDF keeps its own type.
+FILE_MEDIA_TYPE = "application/octet-stream"
+
+
+def file_media_type(media_type: str) -> str:
+    return media_type if media_type == "application/pdf" else FILE_MEDIA_TYPE
 
 
 def download_headers(r: dict[str, Any]) -> dict[str, str]:
@@ -95,6 +102,6 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
             raise PublicError(404, "link_unavailable")
         row, content = got
         pr.cost.proved(row["id"])
-        return Response(content, media_type=row["media_type"], headers=download_headers(row))
+        return Response(content, media_type=file_media_type(row["media_type"]), headers=download_headers(row))
 
     return r

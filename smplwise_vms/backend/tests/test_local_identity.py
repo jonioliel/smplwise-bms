@@ -159,9 +159,7 @@ def test_public_routes_are_remote_only(lx):
     lx.enable()
     for path in ("/api/v1/auth/local/sign-in", "/api/v1/auth/local/set-password", "/api/v1/auth/local/sign-in/second-factor"):
         r = lx.admin.post(path, json={"username": "a", "password": "b", "token": "c", "code": "1"}, headers=ORIGIN)
-        assert r.status_code in (404, 422), path
-        if r.status_code == 422:  # the body model refused before the guard ran: send the exact body
-            continue
+        assert r.status_code == 404, path  # SECFIX2-295 / PUB-07: the guard runs before the body model, so never a 422 here
     r = lx.admin.post("/api/v1/auth/local/sign-in", json={"username": "a", "password": "b"}, headers=ORIGIN)
     assert r.status_code == 404
 

@@ -50,9 +50,15 @@ from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
 from ..services import second_factor as sf
+from .. import guarded_route
 from .local_identity import _error, _public_guard, _rid, _success, _user_row
 
 router = APIRouter()
+
+
+def public_post(path: str, **kwargs: Any):
+    """SECFIX2-295 / PUB-07: the guard before the body (routers/local_identity.public_post, smplwise/guarded_route.py)."""
+    return guarded_route.post(router, _public_guard, path, **kwargs)
 
 SELF_LIMITS: list[tuple[float, int]] = [(60.0, 20), (3600.0, 100)]
 OPTIONS_LIMITS: list[tuple[float, int]] = [(60.0, 30), (3600.0, 300)]
@@ -76,9 +82,8 @@ def _ip_limit(request: Request, key: str, limits: list[tuple[float, int]]) -> JS
     return None
 
 
-@router.post("/auth/local/sign-in/passkey/options")
+@public_post("/auth/local/sign-in/passkey/options")
 async def second_step_options(request: Request) -> Response:
-    _public_guard(request)
     refused = _ip_limit(request, "lpko", OPTIONS_LIMITS)
     if refused is not None:
         return refused
@@ -86,9 +91,8 @@ async def second_step_options(request: Request) -> Response:
     return JSONResponse(out)
 
 
-@router.post("/auth/local/sign-in/passkey")
+@public_post("/auth/local/sign-in/passkey")
 async def second_step_passkey(body: CredentialBody, request: Request) -> Response:
-    _public_guard(request)
     refused = _ip_limit(request, "lsf", SECOND_STEP_LIMITS)  # one budget with the TOTP code step
     if refused is not None:
         return refused
@@ -96,9 +100,8 @@ async def second_step_passkey(body: CredentialBody, request: Request) -> Respons
     return _success(request, r)
 
 
-@router.post("/auth/local/passkey/options")
+@public_post("/auth/local/passkey/options")
 async def passwordless_options(request: Request) -> Response:
-    _public_guard(request)
     refused = _ip_limit(request, "lpkp", OPTIONS_LIMITS)  # review F10: its own budget - never starves the second-step options
     if refused is not None:
         return refused
@@ -106,11 +109,10 @@ async def passwordless_options(request: Request) -> Response:
     return JSONResponse(await run_in_threadpool(lpk.passwordless_options, request.app.state.db, addr))
 
 
-@router.post("/auth/local/passkey")
+@public_post("/auth/local/passkey")
 async def passwordless_sign_in(body: CredentialBody, request: Request) -> Response:
     import asyncio
 
-    _public_guard(request)
     r = await run_in_threadpool(lpk.passwordless_sign_in, request.app.state.db, settings_of(request), request, body.credential, _rid(request))
     if r.status == "rate_limited":
         return _error(request, 429, "rate_limited", li.RATE_LIMITED_HE, {"Retry-After": str(r.retry_after)}, retryable=True)

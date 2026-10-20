@@ -194,10 +194,19 @@ def test_the_settings_api_takes_the_report_keys_within_their_ranges(s4):
     rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "reports": {"to_contacts": True, "document_hours": 24, "document_max_opens": 3}})
     assert r.status_code == 200, r.text
-    assert r.json()["reports"] == {"to_contacts": True, "documents": True, "document_hours": 24, "document_max_opens": 3}
-    for bad in ({"document_hours": 169}, {"document_max_opens": 21}, {"documents": "yes"}, {"attach": True}):
+    assert r.json()["reports"] == {"to_contacts": True, "documents": True, "email": False, "document_hours": 24, "document_max_opens": 3}
+    for bad in ({"document_hours": 169}, {"document_max_opens": 21}, {"documents": "yes"}, {"email": "yes"}, {"attach": True}):
         rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
         assert s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "reports": bad}).status_code == 422, bad
+
+
+def test_the_settings_api_takes_the_email_switch_off_by_default(s4):
+    """VENDORQ2-295: `reports.email` is off by default and is a plain boolean."""
+    assert s4.c.get(f"{API}/tickets/settings").json()["reports"]["email"] is False
+    rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
+    r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "reports": {"email": True}})
+    assert r.status_code == 200, r.text
+    assert r.json()["reports"]["email"] is True and r.json()["reports"]["to_contacts"] is False, "the e-mail switch never opens the master switch"
 
 
 def test_a_key_rotation_revokes_every_live_document_link(s4):

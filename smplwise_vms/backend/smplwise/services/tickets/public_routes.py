@@ -136,6 +136,11 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                     files = rfq_attach.ticket_list(conn, ctx.link.ticket_id)  # RFQATT (contract 19.6): the order's request files
                     if files:
                         data["rfq_files"] = files
+                if (ctx.code_ok or not ctx.link.require_code) and not ctx.read_only and not ctx.link.no_money:
+                    from .. import access_arrival  # GRANTS3-295: announce the arrival step, so the page fetches its lazy chunk only then
+
+                    if access_arrival.available(conn, ctx.link):
+                        data["arrival"] = True
                 return data
 
         try:

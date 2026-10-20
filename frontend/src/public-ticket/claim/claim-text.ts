@@ -29,7 +29,6 @@ export const FALLBACK_LABELS: Readonly<Record<ClaimLang, ItemLabels>> = {
 const he = {
   heading: 'דרישת תשלום',
   heading_item: 'דרישת תשלום - {ticket} {number}',
-  card_title: 'הגשת דרישת תשלום',
   card_hint: 'אפשר להגיש פירוט עלות לעבודה שבוצעה',
   required_hint: 'נדרש פירוט עלות לעבודה שבוצעה',
   open_form: 'הגשת דרישת תשלום',
@@ -156,7 +155,6 @@ export type ClaimTextKey = keyof typeof he;
 const en: Record<ClaimTextKey, string> = {
   heading: 'Cost claim',
   heading_item: 'Cost claim - {ticket} {number}',
-  card_title: 'Submit a cost claim',
   card_hint: 'You can submit the cost of the work you did',
   required_hint: 'A cost breakdown of the work is required',
   open_form: 'Submit a cost claim',
@@ -281,7 +279,6 @@ const en: Record<ClaimTextKey, string> = {
 const ar: Record<ClaimTextKey, string> = {
   heading: 'مطالبة بالتكلفة',
   heading_item: 'مطالبة بالتكلفة - {ticket} {number}',
-  card_title: 'تقديم مطالبة بالتكلفة',
   card_hint: 'يمكنك تقديم تفاصيل تكلفة العمل الذي تم إنجازه',
   required_hint: 'مطلوب تفصيل تكلفة العمل الذي تم إنجازه',
   open_form: 'تقديم مطالبة بالتكلفة',
@@ -406,7 +403,6 @@ const ar: Record<ClaimTextKey, string> = {
 const ru: Record<ClaimTextKey, string> = {
   heading: 'Счёт за работу',
   heading_item: 'Счёт за работу - {ticket} {number}',
-  card_title: 'Подать счёт за работу',
   card_hint: 'Вы можете подать расчёт стоимости выполненной работы',
   required_hint: 'Требуется расчёт стоимости выполненной работы',
   open_form: 'Подать счёт за работу',

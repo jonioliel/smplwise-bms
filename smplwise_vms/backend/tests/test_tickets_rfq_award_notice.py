@@ -396,6 +396,20 @@ def test_a_manager_acknowledges_it_and_the_vendor_may_give_a_new_one(s4):
     assert postpone(c, tok, work_from=_at(14)).status_code == 200  # a new notice after the last one was handled
 
 
+def test_a_postponement_notice_bumps_the_request_revision_so_an_open_manager_form_goes_stale(s4):
+    """A6 / award-postpone-revision-bump (one rule): the notice changes what the managers see and decide on (the banner, the proposed
+    date, the acknowledge button), so the request's revision moves and a form opened before it is refused 409 `rfq_stale`. A file the
+    vendor attaches is the other side of the rule: it never makes a form stale (bump=False)."""
+    d, v1, tok, c, b = awarded(s4)
+    before = detail(s4, d["id"], "mona")["revision"]
+    assert postpone(c, tok).status_code == 200
+    after = detail(s4, d["id"], "mona")["revision"]
+    assert after == before + 1
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/close", json={"revision": before}, headers=s4.h("mona"))
+    assert r.status_code == 409 and r.json()["code"] == "rfq_stale"
+    assert detail(s4, d["id"], "mona")["revision"] == after  # the refused close wrote nothing
+
+
 def test_the_arrival_date_change_answers_the_open_notice(s4):
     switch(s4)
     d, v1, tok, c, b = awarded(s4)

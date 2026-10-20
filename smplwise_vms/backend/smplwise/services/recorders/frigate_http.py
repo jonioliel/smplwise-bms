@@ -134,6 +134,13 @@ LOGIN_TIMEOUT_S = 8.0
 REFUSED_BACKOFF_S = 300.0     # after Frigate refuses the credentials no further login for this long (Frigate rate-limits logins)
 TOKEN_TTL_S = 20 * 3600.0     # the cookie is valid 24 h; the adapter renews before that (and on any 401)
 
+# FRIGLIVE-295 (live 0.18.0, 2026-10-21): Frigate's nginx keeps a ~5 s micro-cache of `/api/*` answers (`X-Cache-Status: HIT`). A read made
+# right after a write therefore shows the state BEFORE the write for up to ~6 s (measured: every runtime toggle "appeared" after 5.5-6.1 s,
+# a retain / reviewed flag likewise). Frigate's nginx honours `X-Cache-Bypass: 1` (`X-Cache-Status: BYPASS`). Reads that decide about a
+# write (state before, read-back after, the stale check of an undo) send it (`fresh=True`); polling and discovery keep the cache, which
+# protects Frigate's CPU.
+CACHE_BYPASS = {"X-Cache-Bypass": "1"}
+
 _TOKENS: dict[str, tuple[str, float]] = {}   # device_key -> (JWT, obtained at monotonic)
 _REFUSED: dict[str, float] = {}              # device_key -> no login before this (monotonic)
 _LOCK = threading.Lock()
@@ -422,15 +429,15 @@ class FrigateHttp:
     # ------------------------------------------------------------------------------------------ one GET
 
     def get(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False,
-            timeout: float = READ_TIMEOUT_S, control: bool = False) -> Reply:
+            timeout: float = READ_TIMEOUT_S, control: bool = False, fresh: bool = False) -> Reply:
         """GET one allow-listed path. 401 -> one fresh login and one retry; a second 401 is `source_forbidden`. Raises ApiError for
-        everything but a 200."""
+        everything but a 200. `fresh=True` bypasses Frigate's nginx micro-cache (CACHE_BYPASS): for reads that verify a write."""
         if not (allowed(path) or (control and control_read_allowed(path))):
             raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "get", "reason": "not_allowed"})
         _check_query(path, params)
         for attempt in (0, 1):
             token = self.login()
-            reply = self._send(path, params, token, max_bytes, timeout)
+            reply = self._send(path, params, token, max_bytes, timeout, fresh)
             if reply.status == 401 and attempt == 0:
                 self.forget_token()
                 continue
@@ -443,11 +450,12 @@ class FrigateHttp:
             raise map_status(_op(path), reply.status, optional)
         return reply
 
-    def _send(self, path: str, params: dict[str, Any] | None, token: str, max_bytes: int, timeout: float) -> Reply:
+    def _send(self, path: str, params: dict[str, Any] | None, token: str, max_bytes: int, timeout: float, fresh: bool = False) -> Reply:
         nvr.check_deadline(path)
+        headers = {"Cookie": f"frigate_token={token}", **(CACHE_BYPASS if fresh else {})}
         with self._client(timeout=timeout) as c:
             try:
-                with c.stream("GET", path, params=params, headers={"Cookie": f"frigate_token={token}"}, timeout=nvr.bounded_timeout(c.timeout)) as r:
+                with c.stream("GET", path, params=params, headers=headers, timeout=nvr.bounded_timeout(c.timeout)) as r:
                     declared = r.headers.get("content-length")
                     if declared and declared.isdigit() and int(declared) > max_bytes:
                         raise ApiError(503, "source_too_large", "תשובת Frigate גדולה מהצפוי.", details={"op": _op(path)})
@@ -485,7 +493,12 @@ class FrigateHttp:
                     continue
                 if r.status_code != 200:
                     status = r.status_code
+                    # FRIGLIVE-295 (live 0.18.0): a window without recordings is 400 {"success": false, "message": "No recordings found for the
+                    # specified time range"}; that is "no recording here", not a refused request
+                    no_rec = status == 400 and _says_no_recordings(r)
                     stack.close()
+                    if no_rec:
+                        raise ApiError(409, "no_recording", "אין הקלטה בטווח המבוקש.", details={"op": "clip"})
                     if status == 401:
                         self.forget_token()
                     raise map_status("clip", status)
@@ -559,8 +572,9 @@ class FrigateHttp:
 
     # ------------------------------------------------------------------------------------------ conveniences
 
-    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False, control: bool = False) -> Any:
-        return self.get(path, params, max_bytes=max_bytes, optional=optional, control=control).json()
+    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False, control: bool = False,
+                 fresh: bool = False) -> Any:
+        return self.get(path, params, max_bytes=max_bytes, optional=optional, control=control, fresh=fresh).json()
 
     def websocket_url(self) -> str:
         return ("wss" if self.scheme == "https" else "ws") + self.base_url()[len(self.scheme):] + "/ws"
@@ -582,6 +596,21 @@ def _trust_context() -> Any:
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     return ctx
+
+
+def _says_no_recordings(r: httpx.Response) -> bool:
+    """A 400 clip answer whose (small) JSON body says there are no recordings in the window."""
+    try:
+        body = b""
+        for piece in r.iter_bytes():
+            body += piece
+            if len(body) > 2000:
+                return False
+        doc = json.loads(body.decode("utf-8"))
+    except (httpx.HTTPError, ValueError, UnicodeDecodeError):
+        return False
+    msg = doc.get("message") if isinstance(doc, dict) else None
+    return isinstance(msg, str) and "no recordings" in msg.lower()
 
 
 def _token_from_set_cookie(headers: list[str]) -> str | None:

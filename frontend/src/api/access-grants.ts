@@ -80,6 +80,20 @@ export interface Grant {
   purpose?: string | null;
   notes?: string | null;
   self_requested?: boolean;
+  /** GRANTS3-295 (X5): the card of a card grant (never a number, not even masked); null for a PIN grant or below the sensitive level */
+  card_state?: CardState | null;
+}
+
+export type CardState = 'awaiting' | 'adding' | 'attached' | 'unknown' | 'removed';
+
+/** GRANTS3-295: one row of the owner's per-grant history (ids, states and closed codes only). */
+export interface HistoryRow {
+  at: string;
+  action: string;
+  decision: 'allowed' | 'denied' | string;
+  reason: string | null;
+  by: { kind: 'user' | 'page' | 'system'; name: string | null };
+  facts: Record<string, unknown>;
 }
 
 export interface GrantRules {
@@ -90,6 +104,9 @@ export interface GrantRules {
   phone_fresh_days: number;
   code_hour: number;
   local_approvers: 'on' | 'off';
+  /** GRANTS3-295 (X5): card grants and card capture (capture stays off until the lease route is released) */
+  cards?: 'on' | 'off';
+  card_capture?: 'on' | 'off';
 }
 
 export type Placement = 'access' | 'tickets' | 'both';
@@ -192,6 +209,10 @@ export const getGrant = (id: string) => get<{ grant: Grant }>(`access-grants/${e
 export const getDigest = () => get<{ digest: Digest }>('access-grants/digest');
 export const getIdentity = (contactId: string) => get<{ identity: Identity }>(`access-grants/contacts/${enc(contactId)}/identity`);
 export const getDrift = () => get<{ drift: Drift }>('access-grants/drift');
+/** GRANTS3-295: the owner's per-grant history (system administrators). */
+export const getHistory = (id: string) => get<{ history: HistoryRow[] }>(`access-grants/${enc(id)}/history`);
+/** GRANTS3-295 (X5): write the card of an active card grant (the number goes to WisKey only; never kept here after the call). */
+export const attachCard = (id: string, revision: number, cardNo: string) => post<{ grant: Grant }>(`access-grants/${enc(id)}/card`, { revision, card_no: cardNo });
 
 /** GRANTSMIN-295: the grants the caller may see as a CSV file (the server filters the rows and the numbers; one a minute). */
 export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Promise<{ blob: Blob; rows: number; filename: string }> {
@@ -224,6 +245,41 @@ export const attachRecovered = (id: string, body: { op_id: string; wiskey_person
   post<{ link: GrantLink; grant: Grant | null }>(`access-grants/${enc(id)}/attach-recovered`, body);
 export const revokeAll = (confirm: string) => post<{ revoked: number }>('access-grants/revoke-all', { confirm });
 export const acceptContact = (contactId: string) => post<unknown>(`access-grants/pending-contacts/${enc(contactId)}/accept`);
+
+// ---------------------------------------------------------------- SECFIX2-295 (owner 2026-10-21): undecided vendor-typed technicians
+
+export interface PendingRow {
+  contact_id: string;
+  name: string;
+  vendor: string;
+  /** only while the tickets module is on (else null) */
+  ticket_number: number | null;
+  since: string;
+  days: number;
+  /** null while retention is off */
+  days_left: number | null;
+}
+
+export interface PendingReply {
+  pending: PendingRow[];
+  retention_days: number;
+  max_per_vendor: number;
+  tickets_on: boolean;
+}
+
+/** GET access-grants/pending-contacts - 403 for anyone who may not decide (the caller then shows nothing). */
+export const listPendingContacts = () => get<PendingReply>('access-grants/pending-contacts');
+/** The existing "reject and delete" (access_grants.reject_pending_contact). */
+export const rejectPendingContact = (contactId: string) =>
+  post<{ contact_id: string; rejected: boolean; deleted: boolean }>(`access-grants/pending-contacts/${enc(contactId)}/reject`);
+
+/** PUB-03 retention and cap (system administrators): GET / PUT access-grants/settings carry them next to the rules. */
+export interface PendingPolicy {
+  pending_retention_days: number;
+  pending_max_per_vendor: number;
+}
+export const getPendingPolicy = () => get<GrantRules & ScreenSettings & PendingPolicy>('access-grants/settings');
+export const putPendingPolicy = (body: Partial<PendingPolicy>) => put<GrantRules & ScreenSettings & PendingPolicy>('access-grants/settings', body);
 export const matchLink = (contactId: string, wiskeyPersonId: string) => post<{ link: GrantLink }>('access-grants/links', { contact_id: contactId, wiskey_person_id: wiskeyPersonId });
 export const unlinkPerson = (linkId: string) => api_del(`access-grants/links/${enc(linkId)}`);
 export const deletePersonNow = (linkId: string, confirm: string) => post<{ outcome: string; pending: boolean }>(`access-grants/links/${enc(linkId)}/delete-person`, { confirm });
@@ -290,7 +346,7 @@ export interface RequestBody {
   valid_from: string;
   valid_until: string;
   timing: Timing | null;
-  credential: 'pin' | 'none';
+  credential: 'pin' | 'none' | 'card';
   purpose?: string | null;
   notes?: string | null;
   told: boolean;
@@ -305,7 +361,7 @@ export interface RequestReply {
 }
 
 export const grantableDoors = (ticketId?: string | null) => get<GrantableDoors>(`access-grants/grantable-doors${ticketId ? `?ticket_id=${enc(ticketId)}` : ''}`);
-export const listApprovers = (stations: string[], credential: 'pin' | 'none') =>
+export const listApprovers = (stations: string[], credential: 'pin' | 'none' | 'card') =>
   get<ApproversReply>(`access-grants/approvers?stations=${enc(stations.join(','))}&credential=${credential}`);
 export const getNotice = (lang: string) => get<NoticeReply>(`access-grants/notice?lang=${enc(lang)}`);
 export const requestGrant = (body: RequestBody) => post<RequestReply>('access-grants', body);

@@ -84,10 +84,20 @@ MAX_DOORS_KEY = "access.external.max_doors"
 FRESH_KEY = "access.external.phone_fresh_days"
 CODE_HOUR_KEY = "access.external.code_hour"
 LOCAL_KEY = "access.external.local_approvers"
-KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY)
+CARDS_KEY = "access.external.cards"  # GRANTS3-295 (X5): card grants for a vendor's technicians; off by default, on only with the go-live permit
+# SECFIX2-295 / PUB-03 (docs/security/PROPOSAL_PUB03_PENDING_TECHNICIAN_RETENTION.md, option A; owner decision pending): a technician a
+# vendor typed on the arrival page and nobody decided is erased after N days (services/pending_retention.py), and a vendor holds at most
+# M undecided technicians. Owner decision 2026-10-21: the recommendation is the default - 90 days, 10 per vendor (a value an administrator
+# saved, including "0" = off, wins; an installation that never saved one gets these at upgrade). Never in a project backup.
+PENDING_RETENTION_KEY = "access.external.pending_retention_days"
+PENDING_CAP_KEY = "access.external.pending_max_per_vendor"
+PENDING_RETENTION_MIN, PENDING_RETENTION_MAX = 7, 365
+PENDING_CAP_MAX = 100
+KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY, CARDS_KEY, PENDING_RETENTION_KEY, PENDING_CAP_KEY)
 MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
-DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off"}
+DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off",
+            PENDING_RETENTION_KEY: "90", PENDING_CAP_KEY: "10"}
 REVOKE_ALL_WORD = "בטל הכל"
 DELETE_WORD = "מחק"
 
@@ -305,6 +315,33 @@ def local_approvers(conn: sqlite3.Connection) -> bool:
         return False
 
 
+def pending_retention_days(conn: sqlite3.Connection) -> int:
+    """PUB-03: default 90 (owner 2026-10-21); a saved 0 = off (an undecided vendor-typed technician is kept until a manager decides); otherwise 7-365 days (a stored
+    value below the floor reads as the floor, so a slip never erases a request the same week). Unreadable -> 0 (nothing is erased)."""
+    try:
+        value = int(get_setting(conn, PENDING_RETENTION_KEY) or DEFAULTS[PENDING_RETENTION_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    if value <= 0:
+        return 0
+    return max(PENDING_RETENTION_MIN, min(PENDING_RETENTION_MAX, value))
+
+
+def pending_cap(conn: sqlite3.Connection) -> int:
+    """PUB-03: at most this many undecided vendor-typed technicians per vendor (default 10, owner 2026-10-21; a saved 0 = no cap). Unreadable -> no cap (the arrival
+    page's own per-link budgets still hold)."""
+    try:
+        value = int(get_setting(conn, PENDING_CAP_KEY) or DEFAULTS[PENDING_CAP_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    return max(0, min(PENDING_CAP_MAX, value))
+
+
+def pending_count(conn: sqlite3.Connection, vendor_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM access_pending_contacts WHERE vendor_id = ? AND accepted_at IS NULL AND rejected_at IS NULL",
+                            (vendor_id,)).fetchone()[0])
+
+
 def zone_of(conn: sqlite3.Connection):
     from ..routers.settings import read_settings
     from .timeutil import zone
@@ -315,10 +352,24 @@ def zone_of(conn: sqlite3.Connection):
         return zone("Asia/Jerusalem")
 
 
+def cards_enabled(conn: sqlite3.Connection) -> bool:
+    """GRANTS3-295 (X5): card grants - `on` only when the setting says exactly `on`, the feature is on AND the go-live permit is in the
+    build (services/access_cards.py holds the card rules; capture stays off on its own constant)."""
+    try:
+        return (get_setting(conn, CARDS_KEY) or "off") == "on" and enabled(conn)
+    except sqlite3.Error:
+        return False
+
+
 def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    from .access_cards import CAPTURE_PERMITTED
+
     return {"external_grants": "on" if enabled(conn) else "off", "go_live_permitted": go_live_permitted(), "max_days": max_days(conn),
             "max_days_cap": MAX_DAYS_CAP, "max_doors": max_doors(conn), "phone_fresh_days": fresh_days(conn), "code_hour": code_hour(conn),
-            "local_approvers": "on" if local_approvers(conn) else "off"}
+            "local_approvers": "on" if local_approvers(conn) else "off",
+            # GRANTS3-295 (X5): cards, and card capture - which stays off until the owner releases the lease route
+            "cards": "on" if cards_enabled(conn) else "off", "card_capture": "on" if CAPTURE_PERMITTED else "off",
+            "pending_retention_days": pending_retention_days(conn), "pending_max_per_vendor": pending_cap(conn)}
 
 
 # ---------------------------------------------------------------- errors
@@ -468,7 +519,7 @@ def covers(old: Scope, new: Scope) -> bool:
             return False
     if new.valid_from < old.valid_from or new.valid_until > old.valid_until:
         return False
-    if old.credential == "none" and new.credential == "pin":
+    if old.credential == "none" and new.credential in ("pin", "card"):
         return False
     return _timing_covers(old.timing, new.timing)
 
@@ -766,8 +817,16 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     problem = subject_problem(conn, contact)
     if problem and not (problem == "contact_pending" and str(requested_by).startswith("contact:")):
         raise _conflict("access_grant_subject", "אי אפשר לבקש גישה עבור איש הקשר הזה.", reason=problem)
+    if scope.credential == "card":  # GRANTS3-295 (X5): the switch and "a vendor's technician only"
+        from .access_cards import check_request
+
+        check_request(conn, contact)
     at = iso(now())
     live = live_grant_of(conn, "contact", contact_id)
+    if live is not None and live["state"] in DECIDED and "card" in (live["credential"], scope.credential) and live["credential"] != scope.credential:
+        # GRANTS3-295: a decided grant never changes between a card and another credential (a PIN on a carded person, or a card left on a
+        # PIN person, would outlive what was approved) - the access is ended and a new one requested
+        raise _conflict("access_grant_credential_change", "אי אפשר להחליף כרטיס בקוד (או להפך) בגישה שאושרה. בטלו אותה ובקשו גישה חדשה.")
     if live is None:
         gid = uuid.uuid4().hex
         conn.execute(
@@ -948,8 +1007,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         chosen = Scope(chosen_doors, vf, vu, requested.timing, requested.credential)
         if not covers(requested, chosen):
             raise deny("widened", _invalid("doors", "wider_than_requested", "המאשר יכול רק לצמצם את מה שהתבקש."))
-        if requested.credential == "card":
-            raise deny("card", _conflict("access_grant_card_not_built", "גישה בכרטיס לאדם חיצוני עדיין אינה זמינה (שלב מאוחר יותר)."))
+        if requested.credential == "card" and not cards_enabled(conn):
+            # GRANTS3-295 (X5): built; still refused while the cards switch is off (it cannot be on without the go-live permit)
+            raise deny("cards_off", _conflict("access_grant_cards_off", "גישה בכרטיס לאדם חיצוני כבויה."))
         stations = stations_of(chosen.doors)
         missing = missing_on(conn, principal, (PERMISSION,), stations) + missing_on(
             conn, principal, approve_permissions(chosen.credential)[1:], sorted(set(stations) | set(person_stations or [])))
@@ -987,7 +1047,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         else:
             fields.update({"state": "approved", "provision_after": None, "provision_attempts": 0,
                            "code_state": "pending" if chosen.credential == "pin" else "not_needed",
-                           "code_due_at": code_due(conn, vf, at) if chosen.credential == "pin" else None})
+                           "code_due_at": code_due(conn, vf, at) if chosen.credential == "pin" else None,
+                           # GRANTS3-295 (X5): a card grant waits for its card (typed by number by an approver once the grant is active)
+                           "card_state": "awaiting" if chosen.credential == "card" else None})
             action = "access.grant.approve"
         if not _touch(conn, grant_id, fields, expect_revision=revision):
             raise deny("stale", _conflict("stale_revision", "הגישה השתנתה מאז שנטענה. טענו מחדש."))
@@ -1193,6 +1255,45 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
     return {"link_id": link_id, "outcome": outcome, "pending": outcome == "accepted"}
 
 
+def may_decide_pending(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """The authority of accept_pending_contact / reject_pending_contact (one rule for the list and both decisions)."""
+    return PERMISSION in permissions_anywhere(conn, principal) or authorize(conn, principal, "tickets.configure", INSTALLATION).allowed
+
+
+def pending_list(conn: sqlite3.Connection, principal: Principal, at: datetime | None = None) -> dict[str, Any]:
+    """SECFIX2-295 (owner 2026-10-21): every technician a vendor typed on the arrival page that no manager accepted or rejected - the
+    name, the vendor, the ticket number (only while the tickets module is on), since when, and the days left before the retention
+    janitor erases him (None while retention is off). Never a phone number. Oldest first. Refused (403) to anyone who may not decide."""
+    if not may_decide_pending(conn, principal):
+        raise forbidden(permission=PERMISSION, target_type="installation", target_id="*", reason="no_binding")
+    from .tickets.access import module_on
+
+    now_at = at or now()
+    days_keep = pending_retention_days(conn)
+    try:
+        tickets_on = module_on(conn)
+    except Exception:  # noqa: BLE001 - an unreadable module switch hides the ticket reference (fail closed)
+        tickets_on = False
+    rows = conn.execute(
+        "SELECT p.contact_id, p.vendor_id, p.assignment_id, p.created_at, c.display_name, v.display_name AS vendor_name "
+        "FROM access_pending_contacts p JOIN ticket_contacts c ON c.id = p.contact_id LEFT JOIN ticket_contacts v ON v.id = p.vendor_id "
+        "WHERE p.accepted_at IS NULL AND p.rejected_at IS NULL AND c.erased_at IS NULL ORDER BY p.created_at, p.contact_id").fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        since = _parse_any(r["created_at"])
+        days = max(0, (now_at - since).days) if since else 0
+        number = None
+        if tickets_on and r["assignment_id"]:
+            try:
+                t = conn.execute("SELECT t.number FROM ticket_assignments a JOIN tickets t ON t.id = a.ticket_id WHERE a.id = ?", (r["assignment_id"],)).fetchone()
+                number = t[0] if t else None
+            except sqlite3.Error:
+                number = None
+        out.append({"contact_id": r["contact_id"], "name": r["display_name"] or "", "vendor": r["vendor_name"] or "", "ticket_number": number,
+                    "since": r["created_at"], "days": days, "days_left": max(0, days_keep - days) if days_keep else None})
+    return {"pending": out, "retention_days": days_keep, "max_per_vendor": pending_cap(conn), "tickets_on": tickets_on}
+
+
 def accept_pending_contact(db: Database, principal: Principal, contact_id: str, request_id: str | None = None) -> dict[str, Any]:
     """Owner answer 7: a manager accepts a technician the vendor added (the contact becomes active); the technician still confirms
     his own number by code before any access code can go to it."""
@@ -1300,6 +1401,7 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "approved_by": g["approved_by"], "approved_at": g["approved_at"],
         "code_state": g["code_state"] if sensitive else None, "code_due_at": g["code_due_at"] if sensitive else None,
         "code_sends": g["code_sends"] if sensitive else None,
+        "card_state": g.get("card_state") if sensitive else None,  # GRANTS3-295 (X5): never a number, not even masked
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
         **_screen_fields(conn, g),
@@ -2449,8 +2551,13 @@ class Worker:
                 # empty, inactive, PIN known cleared) AND the central sync status must show no pending revocation. After a revoke there is no
                 # revision row, so an empty `assignments` map by itself proves nothing about the stations.
                 person = engine.get_person(link["wiskey_person_id"])
+                # GRANTS3-295 (X5, CR 4.5 "card removal at grant end is part of R1"): WisKey's revoke-all keeps the cards, so every card
+                # of the person Arx created is removed by its id (cards/remove), then read again
+                person = self._remove_cards(engine, person)
                 if not self._revoked(person) or engine.revocation_pending(person.id) is not False:
                     raise EngineError("unknown", "revoke_unverified")
+                if g["credential"] == "card" and not (person.cards_known and not person.card_ids):
+                    raise EngineError("unknown", "card_unverified")  # a card grant ends only on a readback that shows no card
             except EngineError as exc:
                 # WisKey round 3: `user_not_found` (users/get or the write) is NOT proof that the person and their station grants are
                 # gone - it may mean "outside the service user's scope", and a delete leaves a tombstone whose station removals are
@@ -2468,9 +2575,29 @@ class Worker:
             if cur is None or cur["state"] != "revoking":
                 return None
             state = final_state_for(cur["end_reason"] or "manual")
-            _touch(conn, g["id"], {"state": state, "ended_at": iso(now()), "needs_push": 0})
+            done: dict[str, Any] = {"state": state, "ended_at": iso(now()), "needs_push": 0}
+            if cur["credential"] == "card":
+                done["card_state"] = "removed"
+            _touch(conn, g["id"], done)
             _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome)
         return "revoked"
+
+    @staticmethod
+    def _remove_cards(engine: Engine, person: EnginePerson) -> EnginePerson:
+        """GRANTS3-295 (X5): remove every card of a person Arx created (the caller checked the origin), one revision-checked cards/remove
+        per card id (a conflict re-reads once), and answer a FRESH readback. An unreadable card list is left to the caller's verdict."""
+        if not person.cards_known or not person.card_ids:
+            return person
+        for card_id in person.card_ids:
+            try:
+                person = engine.card_remove(person.id, person.revision, card_id)
+            except EngineError as exc:
+                if exc.kind != "revision_conflict":
+                    raise
+                person = engine.get_person(person.id)
+                if card_id in person.card_ids:
+                    person = engine.card_remove(person.id, person.revision, card_id)
+        return engine.get_person(person.id)
 
     # ---- the code (owner answers 3, 4, 11)
 

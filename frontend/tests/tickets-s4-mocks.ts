@@ -44,6 +44,8 @@ export interface S4MockOptions {
   empty?: boolean;
   /** the readiness the server reports (merged over "everything ready"); the handler page part follows `publicReady` */
   readiness?: Partial<Readiness>;
+  /** GRANTS3-295: the external-access feature is on - the preview offers the "access needed" tick */
+  accessNeeded?: boolean;
 }
 export interface Readiness {
   public_page: boolean; public_option: boolean; base_url: boolean; module_key: boolean; public_ready: boolean; public_missing: string[];
@@ -333,7 +335,8 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
           : `שלום ${c.display_name},\nבקשת שירות ${head}\nלעדכון הטיפול: [קישור]`;
         return json(route, { channel: 'manual', lang: c.lang, text, require_code: req, require_code_locked: c.require_code, code_to_contact_phone: req,
           share_history: { available: true, default: !!(c.share_history ?? vendor?.share_history) }, link: { sliding_days: 14, cap_days: 90, grace_hours: 24, expires_at: at(24 * 31), cap_at: at(24 * 90) },
-          refusals: [...(ready ? [] : ['public_link_unavailable']), ...(req ? ['code_channel_unavailable'] : [])] });
+          refusals: [...(ready ? [] : ['public_link_unavailable']), ...(req ? ['code_channel_unavailable'] : [])],
+          ...(o.accessNeeded ? { access_needed: { available: c.kind !== 'employee' } } : {}) });
       }
       if (action === 'assign') {
         const b = body as { assignee: { kind: string; id: string } };

@@ -433,6 +433,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # portal_more.py). Both need `enabled`; system.configure, audited, remote allowed like the other portal keys
     ("vendor_portal", "rfqs"): (False, boolean),
     ("vendor_portal", "technician_requests"): (False, boolean),
+    # SECFIX2-295 / PUB-04 (docs/security/PROPOSAL_PUB04_PORTAL_START_TIMING.md, option A; owner decision pending, measure first): the
+    # number-dependent work of `portal/start` runs on the listener's own worker thread (a bounded queue) instead of a Starlette
+    # BackgroundTask inside the request's ASGI call. OFF by default = today's behaviour (the residual CR-VENDOR-PORTAL section 6 accepts)
+    ("vendor_portal", "start_worker"): (False, boolean),
     # VPORTAL: the stamp of the organisation's logo on the public pages ("" = none) - written ONLY by the logo routes
     # (services/tickets/brand.py), never by PUT /tickets/settings
     ("brand", "logo"): ("", _logo_stamp),
@@ -493,6 +497,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # is required before `documents` is switched on in a release.
     ("reports", "to_contacts"): (False, boolean),
     ("reports", "documents"): (False, boolean),
+    # VENDORQ2-295: e-mail as the second delivery channel of a report (same queue, same send hours, same link rules) - OFF by default;
+    # it also needs the installation's SMTP and an address on the contact
+    ("reports", "email"): (False, boolean),
     ("reports", "document_hours"): (72, int_range(1, 168)),
     ("reports", "document_max_opens"): (5, int_range(1, 20)),
 }

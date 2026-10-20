@@ -703,6 +703,8 @@ class SettingsPatch(BaseModel):
     access_event_portrait_sensitive: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_sensitive")
     access_event_portrait_audit: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_audit")
     access_sync_errors_everyone: str | None = Field(default=None, pattern="^(true|false)$", alias="access.sync_errors_everyone")
+    # SECFIX2-295: the uniform 404 for a restricted writer and a malformed person record he cannot see (default false = today's 403)
+    access_unknown_person_uniform_404: str | None = Field(default=None, pattern="^(true|false)$", alias="access.unknown_person_uniform_404")
     access_call_hint: str | None = Field(default=None, pattern="^(everyone|call)$", alias="access.call_hint")  # CR-036 S6
     access_talk_button: str | None = Field(default=None, pattern="^(classic|hidden)$", alias="access.talk_button")
     access_announce_scope: str | None = Field(default=None, pattern="^(scope|station)$", alias="access.announce_scope")

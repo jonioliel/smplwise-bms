@@ -3,7 +3,7 @@
  * (tests/unit-temperature.spec.ts). The server decides every status; these only shape it for the screen: the chips of a card, the KPI row,
  * the gauge geometry, the sparkline / chart paths, the 24-hour ring, the timeline runs and the wizard's draft and checks.
  */
-import type { DefrostWindow, ManagedUnit, ReportRange, ReportRecipient, TempEvent, TempUnit, UnitBody, UnitKind, UnitStatus } from '../api/temperature';
+import type { DefrostWindow, ManagedUnit, RecipientPick, RecipientsResponse, ReportRange, ReportRecipient, TempEvent, TempUnit, UnitBody, UnitKind, UnitStatus, VendorChannel } from '../api/temperature';
 import { tt, type TtKey } from '../i18n/temperature';
 
 export const TEMPERATURE_HREF = '#/infra/temperature';
@@ -548,6 +548,38 @@ export function localInput(ms: number): string {
 /** The recipients chosen that the summary cannot reach (owner decision 5: warn, but allow the selection). */
 export function unreachable(users: ReportRecipient[], chosen: string[]): number {
   return users.filter((u) => chosen.includes(u.id) && u.reach && u.reach !== 'ok').length;
+}
+
+/** TEMPVENDOR-295: the channel a vendor row starts on (the server's first channel that can carry the report; WhatsApp otherwise). */
+export function vendorChannel(v: ReportRecipient, picked?: VendorChannel, emailOn = true): VendorChannel {
+  const c = picked ?? v.channel ?? 'whatsapp';
+  return emailOn || c !== 'email' ? c : 'whatsapp'; // e-mail is not offered while its switch is off
+}
+
+/** The channels a vendor row offers: WhatsApp always, e-mail only while the e-mail switch of vendor reports is on. */
+export function vendorChannelsOffered(emailOn: boolean): VendorChannel[] {
+  return emailOn ? ['whatsapp', 'email'] : ['whatsapp'];
+}
+
+/** `ok` or the reason (no_whatsapp | no_email | reports_email_off | no_contact) the vendor cannot take the report by `channel` now. */
+export function vendorChannelReason(v: ReportRecipient, channel: VendorChannel): string {
+  return v.channels?.[channel] ?? 'no_contact';
+}
+
+/** What is sent for the chosen people: users by id, vendors with the channel picked for THIS report (never switched automatically). */
+export function recipientPicks(rec: RecipientsResponse | null, chosen: string[], channels: Record<string, VendorChannel>): RecipientPick[] {
+  const vendors = new Map((rec?.vendors ?? []).map((v) => [v.id, v]));
+  const emailOn = !!rec?.vendor_reports?.email;
+  return chosen.map((id) => {
+    const v = vendors.get(id);
+    return v ? { kind: 'vendor' as const, id, channel: vendorChannel(v, channels[id], emailOn) } : { kind: 'user' as const, id };
+  });
+}
+
+/** The chosen people that are vendors (the preview text and the document note differ for them). */
+export function chosenVendors(rec: RecipientsResponse | null, chosen: string[]): number {
+  const ids = new Set((rec?.vendors ?? []).map((v) => v.id));
+  return chosen.filter((id) => ids.has(id)).length;
 }
 
 /** owner 2026-10-20: an operator never sees a raw Home Assistant entity id - a missing name, or a name that is itself an id, falls back to `fallback` (the unit's name) */

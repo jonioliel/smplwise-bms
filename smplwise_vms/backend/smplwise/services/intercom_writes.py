@@ -112,6 +112,22 @@ def scope_refusal() -> ApiError:
     return ApiError(403, "intercom_person_scope", "האדם משויך גם לעמדה שאינה בניהולך, ולכן אי אפשר לשנות אותו מכאן.")
 
 
+def sees_unknown_person(auth: ia.Authority) -> bool:
+    """Whether the caller can see a person whose station set is UNKNOWN: only when unrestricted for reading or managing people - the
+    read side's rule (intercom_authority.person_level_of: unknown assignments are visible to an unrestricted reader only; WisKey Q1)
+    and this gate's own `knows` rule for a person with no station."""
+    return auth.unrestricted(MANAGE) or auth.unrestricted(ia.PEOPLE_READ)
+
+
+def unknown_station_refusal(auth: ia.Authority) -> ApiError:
+    """The refusal of a writer who is not unrestricted, for a person whose station set is unknown. SECFIX2-295: with the owner switch
+    `access.unknown_person_uniform_404` on, a caller who cannot see such a person gets the uniform 404 - the same bytes as an id
+    WisKey does not know (no existence oracle); off (default, today) and for a caller who sees the person: the 403."""
+    if not sees_unknown_person(auth) and auth.policy(ia.UNKNOWN_PERSON_UNIFORM_404):
+        return uniform_not_found()
+    return scope_refusal()
+
+
 def field_refusal() -> ApiError:
     return ApiError(403, "intercom_field_level", "שינוי פרטים רגישים (טלפון, תמונה, קוד או כרטיסים) דורש הרשאה לפרטים רגישים.")
 
@@ -213,9 +229,10 @@ def check_person(
     extra_ids = [s for s in extra_stations if isinstance(s, str)]
     before = ia.person_station_ids(person)
     if before is None:
-        # WisKey withheld the person's assignments (a redacted `access` category): nothing can be decided per station
+        # WisKey withheld the person's assignments (a redacted `access` category) or the record is malformed / incomplete (ARX-N03):
+        # nothing can be decided per station
         if not shortcut_applies(auth, perms, sensitive):
-            raise scope_refusal()
+            raise unknown_station_refusal(auth)
         before = []
     knows = any(auth.station(MANAGE, s) or auth.station(ia.PEOPLE_READ, s) for s in before) if before else (auth.unrestricted(MANAGE) or auth.unrestricted(ia.PEOPLE_READ))
     if not knows:

@@ -2,6 +2,12 @@
 
 Source: `private/planning/SECURITY_REVIEW_PUBLIC_2026-10-20.md`, finding PUB-03 (Low, privacy / data minimisation). Status: PROPOSAL, owner decision needed. No code, no migration in this change.
 
+**Update SECFIX2-295:** option A and the cap are IMPLEMENTED; owner decision 2026-10-21: defaults 90 days and 10 per vendor
+(`access.external.pending_retention_days`, `access.external.pending_max_per_vendor`; a saved 0 switches either off): `services/pending_retention.py`, `access_arrival._new_technician`, tests
+`test_secfix2_pub03_pending_retention.py`. The 60-day reminder of point 2 is served by the existing needs-review report (from day 30,
+`directory.review_pending_days`); point 6 was already true (lead decision 6, 2026-10-18). Values and screens:
+`docs/security/SECFIX2_295_OWNER_SWITCHES.md` sections 2 and 5. The title's "(not implemented)" refers to the original proposal.
+
 1. Problem: `access_arrival._new_technician` inserts an inactive `ticket_contacts` row (clear name, `phone_e164`, `phone_key`) plus an `access_pending_contacts` row for a number typed by a vendor on a public link. If no manager accepts or rejects it, nothing ever deletes it, and it travels in every backup.
 2. Option A (recommended): a janitor step deletes a pending row, and its inactive contact row when nothing else references it, once it is older than 90 days without a decision. A manager reminder (needs-review) fires at 60 days so a real request is not lost.
 3. Option B: 30 days, shorter and more private, but a slow approval loop (holidays) loses real requests and the vendor must retype.

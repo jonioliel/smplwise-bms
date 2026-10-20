@@ -278,6 +278,7 @@ export class SystemStorage extends LitElement {
         </div>
       </div>
       ${l.ingest_queue.dropped || l.ingest_queue.coalesced ? html`<div class="hint" style="margin-block-start:6px">תור קליטת ההתראות מה־NVR: ${l.ingest_queue.coalesced} אוחדו לרצף אחד · ${l.ingest_queue.dropped} נזרקו כשהמסד היה איטי (שיא ${l.ingest_queue.high_water} מתוך ${l.ingest_queue.max})</div>` : nothing}
+      ${l.portal_start?.dropped ? html`<div class="hint" style="margin-block-start:6px" data-local-portal-dropped>בקשות קוד בפורטל הספקים: ${l.portal_start.dropped} נזרקו כשהתור היה מלא (מתוך ${l.portal_start.accepted + l.portal_start.dropped})</div>` : nothing}
     </sw-card>`;
   }
 

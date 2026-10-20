@@ -524,7 +524,7 @@ unfixed code).
 | F6 | `b64url_decode` is strict: `=` only as trailing padding of the right length, canonical encoding (unused bits zero). | The docstring's claim is now true. |
 | F7 | An assertion whose BE flag differs from the registered value is refused (`backup_eligibility_changed`). | WebAuthn L3. |
 | F10 | `POST auth/local/passkey/options` has its own per-address budget (`lpkp`), no longer shared with the second-step options (`lpko`). | |
-| F8 | NOT fixed: pydantic validation before `_public_guard` (422 instead of 404 / 403) - the same pattern as the existing sign-in routes; changing it means moving body parsing into every public route. Recorded. | |
+| F8 | NOT fixed: pydantic validation before `_public_guard` (422 instead of 404 / 403) - the same pattern as the existing sign-in routes; changing it means moving body parsing into every public route. Recorded. **Fixed in SECFIX2-295 (public review PUB-07):** every public route of `routers/local_identity.py` and `routers/local_passkeys.py` is a guard-first route (`smplwise/guarded_route.py`): the guard runs before the body is read; tests `test_secfix2_pub07_guard_first.py`. | |
 | F9 | Documentation only (exact tunnel path, §10.1). The middleware handling of `/.well-known/assetlinks.json` (strip identity headers, 404 for other non-prefixed paths from a non-proxy peer) is NOT built - a `remote_channel` change outside this branch's scope. | |
 | F11 | Recorded (§10.1): UV is the authenticator's assertion under attestation `none`. | Inherent to the owner-approved conveyance. |
 

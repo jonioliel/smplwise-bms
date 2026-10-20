@@ -96,7 +96,7 @@ RULES: dict[str, tuple[str, Any, float | None, float | None]] = {
 INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     "retention_days": ("int", 400, 35, 3650),             # the five-minute history (a year of audits by default)
     # phase 2 (owner TODO): what a WhatsApp report carries besides its text summary. Only "none" until a transport can send a document
-    # (services/temperature_whatsapp.ATTACHMENT_MODES / attachment_for); future: "pdf" | "link" | "html"
+    # (services/temperature_whatsapp.ATTACHMENT_MODES / attachment_for); "link" = a vendor gets the PDF by a temporary link (TEMPVENDOR-295); future: "pdf" | "html"
     "report_attachment": ("choice", "none", None, None),
     # phase 3: the grid grouped by area / floor (idea 7) or flat; every viewer may still collapse groups (kept in his browser)
     "grid_grouping": ("choice", "area", None, None),
@@ -106,7 +106,7 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     # phase 3: the home screen widget (idea 12) is offered to viewers who see a unit; off = no widget anywhere
     "home_widget": ("bool", True, None, None),
 }
-CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none",), "grid_grouping": ("area", "none")}
+CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none", "link"), "grid_grouping": ("area", "none")}
 RAW_KEEP_S = 35 * 86400
 BUCKET_S = 300
 RANGES = {"24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400}

@@ -37,6 +37,8 @@ export class AccessRequestDialog extends LitElement {
   /** contacts that hold a live grant (a new request for them counts as a widening) */
   @property({ attribute: false }) live: Set<string> = new Set();
   @property({ type: Boolean }) noPerm = false;
+  /** GRANTS3-295 (X5): the cards switch is on - the card choice unlocks (the card is typed in the grant's drawer once it is active) */
+  @property({ type: Boolean }) cards = false;
 
   @state() private f: RequestForm = freshForm();
   @state() private g: GrantableDoors | null = null;
@@ -410,7 +412,9 @@ export class AccessRequestDialog extends LitElement {
     return html`<section class="sec" data-sec="cred"><h4><sw-icon name="shield" size="14"></sw-icon>${rt('cred')}</h4>
       <div class="seg" role="group"><button type="button" data-cred="pin" aria-pressed=${String(f.cred === 'pin')} @click=${() => this.set({ cred: 'pin' })}><sw-icon name="mail" size="14"></sw-icon>${rt('credPin')}</button>
         <button type="button" data-cred="none" aria-pressed=${String(f.cred === 'none')} @click=${() => this.set({ cred: 'none' })}>${rt('credNone')}</button>
-        <button type="button" disabled aria-pressed="false" data-cred="card"><sw-icon name="lock" size="14"></sw-icon>${rt('credCard')}</button></div></section>`;
+        ${this.cards
+          ? html`<button type="button" data-cred="card" aria-pressed=${String(f.cred === 'card')} @click=${() => this.set({ cred: 'card' })}><sw-icon name="shield" size="14"></sw-icon>${rt('credCard')}</button>`
+          : html`<button type="button" disabled aria-pressed="false" data-cred="card"><sw-icon name="lock" size="14"></sw-icon>${rt('credCard')}</button>`}</div></section>`;
   }
 
   private notesSection(): TemplateResult {

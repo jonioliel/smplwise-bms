@@ -13,8 +13,9 @@ import type { DropdownItem } from '../components/sw-dropdown';
 import { ApiError, describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import {
-  acceptContact, approveGrant, confirmGone, exportGrantsCsv, getDigest, getDrift, getGrant, listGrants, provisionNow, pushName, putScreenSettings, readNow, refuseGrant, revokeAll,
-  revokeGrant, rotateCode, type Digest, type Drift, type DriftKind, type DriftRow, type Grant, type GrantsReply, type ScreenSettings,
+  acceptContact, approveGrant, attachCard, confirmGone, exportGrantsCsv, getHistory, type HistoryRow, getDigest, getDrift, getGrant, listGrants, listPendingContacts,
+  provisionNow, pushName, putScreenSettings, readNow, refuseGrant, rejectPendingContact, revokeAll, revokeGrant, rotateCode, type Digest, type Drift, type DriftKind,
+  type DriftRow, type Grant, type GrantsReply, type PendingReply, type ScreenSettings,
 } from '../api/access-grants';
 import {
   BUCKETS, DAYS, STATE_ICON, STATE_TONE, actionsOf, codeOf, counts, datesText, doorState, durationText, goneReferenceOk, hoursText, ladder, lastDay, localDate,
@@ -22,6 +23,8 @@ import {
 } from '../access-external/model';
 import { subscribeClock } from '../api/clock-ticker';
 import { xCss } from '../access-external/styles';
+import { leftText, leftTone, sortPending, ticketText, waitText } from '../access-external/pending-model';
+import { spt } from '../i18n/security-public';
 import { xt, xtDynamic, xtLang, type XtKey } from '../i18n/access-external';
 import { rt } from '../i18n/access-request';
 import { SkinController } from '../design/skin';
@@ -53,7 +56,7 @@ function saveFile(blob: Blob, name: string): void {
   window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
 }
 
-type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: string; run: () => Promise<unknown>; done: XtKey };
+type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: string; run: () => Promise<unknown>; done: XtKey; doneText?: string };
 type Dialog =
   | null
   | { kind: 'confirm'; c: Confirm }
@@ -93,10 +96,14 @@ export class AccessExternalScreen extends LitElement {
   @state() private digest: Digest | null = null;
   @state() private drift: Drift | null = null;
   @state() private exporting = false;
+  @state() private pending: PendingReply | null = null;
   @state() private busy = false;
   @state() private dlgError = '';
   @state() private toasts: { id: number; text: string }[] = [];
   @state() private tz = 'Asia/Jerusalem';
+  // GRANTS3-295: the card typed for a card grant (held only until the save answers) and the owner's per-grant history
+  @state() private cardNo = '';
+  @state() private history: { id: string; rows: HistoryRow[] | null; error: string } | null = null;
   // the approval dialog
   @state() private apDoors = new Set<string>();
   @state() private apFrom = '';
@@ -218,6 +225,10 @@ export class AccessExternalScreen extends LitElement {
       .drow .dlist li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; line-height: 1.45; }
       .drow .dlist b { color: var(--sw-text); font-weight: 600; }
       .drow .dact { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+      .pd-r { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 16px; border-block-end: 1px solid var(--sw-border); }
+      .pd-r:last-child { border-block-end: 0; }
+      .pd-w { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
+      .pd-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .seg { display: flex; flex-wrap: wrap; gap: 6px; }
       .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
       .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
@@ -234,6 +245,8 @@ export class AccessExternalScreen extends LitElement {
         .ap { grid-template-columns: 1fr; }
       }
       @media (max-width: 600px) {
+        .pd-r { grid-template-columns: 1fr; }
+        .pd-a { justify-content: flex-start; }
         .top { flex-direction: column; align-items: stretch; }
         .top .sp { display: none; }
         .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -289,6 +302,7 @@ export class AccessExternalScreen extends LitElement {
   }
 
   private async load(): Promise<void> {
+    void this.loadPending();
     try {
       this.data = await listGrants(true);
       this.error = '';
@@ -303,6 +317,15 @@ export class AccessExternalScreen extends LitElement {
       // with a list on the screen, a failed poll keeps it and says how old it is (stale); without one, the error panel
       this.error = describeError(e);
       this.stale = !!this.data;
+    }
+  }
+
+  /** SECFIX2-295: the undecided vendor-typed technicians - only for those who may decide (a 403 or any failure shows nothing). */
+  private async loadPending(): Promise<void> {
+    try {
+      this.pending = await listPendingContacts();
+    } catch {
+      this.pending = null;
     }
   }
 
@@ -377,14 +400,17 @@ export class AccessExternalScreen extends LitElement {
     this.sel = null;
     this.detail = null;
     this.rb = null;
+    this.cardNo = '';
+    this.history = null;
   }
 
-  private async act(fn: () => Promise<unknown>, done: XtKey, vars?: Record<string, string | number>): Promise<boolean> {
+  private async act(fn: () => Promise<unknown>, done: XtKey, vars?: Record<string, string | number>, doneText?: string): Promise<boolean> {
     this.busy = true;
     this.dlgError = '';
     try {
       await fn();
-      this.toast(done, vars);
+      if (doneText) this.toastText(doneText);
+      else this.toast(done, vars);
       await this.load();
       if (this.sel) await this.openDrawer(this.sel);
       void this.loadDigest();
@@ -530,10 +556,12 @@ export class AccessExternalScreen extends LitElement {
               ${g.person.number ? html`<div><span>${xt('sentTo')}</span><b class="num">${xt('whatsapp')} ${g.person.number}</b></div>` : nothing}
               <div><span>${xt('theCode')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('neverShown')}</b></div></div></section>`
           : nothing}
+        ${this.cardBlock(g)}
         ${g.closure?.reference ? html`<section class="sec"><h4><sw-icon name="info" size="14"></sw-icon>${xt('gone_ref_label')}</h4><p style="margin:0" data-closure-reference>${g.closure.reference}</p></section>` : nothing}
         <section class="sec" data-grant-identity><access-identity-card compact contact-id=${g.person.contact_id} name=${this.name(g)} .tz=${this.tz} @changed=${() => this.load()}></access-identity-card></section>
         ${this.timelineBlock(g)}
         ${rbv ? nothing : this.rbLine(g)}
+        ${this.historyBlock(g)}
         <div class="dfoot">${this.drawerActions(g, a, !!rbv, offline)}</div>
       </div>
     </sw-drawer>`;
@@ -560,6 +588,56 @@ export class AccessExternalScreen extends LitElement {
       <div class="rb-t"><b>${xt('rb_waitTitle')}</b><span>${off ? xt('rb_offline') : xt('rb_waitText')}</span>${this.rbLine(g)}</div>
       ${canRead ? this.readBtn(g, uiState(g) === 'unknown', off) : nothing}
     </div>`;
+  }
+
+  /** GRANTS3-295 (X5): a card grant's card - its state, and for an active grant waiting for its card the number field (the number goes to
+   * WisKey only and is cleared from this screen at once); reading the card at a reader stays off (the capture lease route). */
+  private cardBlock(g: Grant): TemplateResult | typeof nothing {
+    if (g.credential !== 'card') return nothing;
+    const cs = g.card_state ?? null;
+    const tone = cs === 'attached' ? 'ok' : cs === 'unknown' ? 'warn' : cs === 'removed' ? 'off' : 'acc';
+    const canSave = g.state === 'active' && (cs === 'awaiting' || cs === 'unknown');
+    return html`<section class="sec" data-card-block=${cs ?? ''}><h4><sw-icon name="lock" size="14"></sw-icon>${xt('cardTitle')}</h4><div class="kv">
+        <div><span>${xt('codeState')}</span><b>${cs ? html`<span class="chip" data-tone=${tone} data-card-state=${cs}>${xt(`card_${cs}` as XtKey)}</span>` : html`<span class="chip" data-tone="off">${xt('code_hidden')}</span>`}</b></div>
+        <div><span>${xt('cardNo')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('cardNeverKept')}</b></div></div>
+      ${canSave ? html`<div class="row" style="margin-block-start:8px;flex-wrap:wrap;gap:8px">
+          <input class="in" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="32" dir="ltr" aria-label=${xt('cardNo')} placeholder=${xt('cardNo')}
+            data-card-no .value=${this.cardNo} @input=${(e: Event) => { this.cardNo = (e.target as HTMLInputElement).value; }} style="flex:1 1 160px;min-inline-size:0" />
+          <sw-button variant="primary" icon="check" data-action="card-save" ?disabled=${this.busy || !this.cardNo.trim()} @click=${() => this.saveCard(g)}>${xt('cardAttach')}</sw-button>
+          <sw-button icon="lock" data-action="card-read" disabled title=${xt('cardReadOff')}>${xt('cardRead')}</sw-button></div>
+          <p class="note" data-card-read-off><sw-icon name="info" size="14"></sw-icon>${xt('cardReadOff')}</p>` : nothing}
+    </section>`;
+  }
+
+  private async saveCard(g: Grant): Promise<void> {
+    const number = this.cardNo.trim();
+    this.cardNo = ''; // the field never keeps the number after the press, whatever the answer
+    await this.act(() => attachCard(g.id, g.revision, number), 'cardAttachDone');
+  }
+
+  /** GRANTS3-295: the owner's per-grant history (system administrators): who, what and the closed reason codes - never a code or a number. */
+  private historyBlock(g: Grant): TemplateResult | typeof nothing {
+    if (!this.data?.system_admin) return nothing;
+    const h = this.history?.id === g.id ? this.history : null;
+    const who = (r: HistoryRow) => (r.by.kind === 'page' ? xt('hist_page') : r.by.kind === 'system' ? xt('hist_system') : r.by.name ?? '—');
+    return html`<section class="sec" data-grant-history><h4><sw-icon name="history" size="14"></sw-icon>${xt('histTitle')}</h4>
+      ${!h ? html`<sw-button size="sm" data-history-show @click=${() => void this.loadHistory(g.id)}>${xt('histShow')}</sw-button>`
+        : h.error ? html`<p class="err-line" role="alert">${h.error}</p>`
+        : !h.rows ? html`<sw-state-panel state="loading"></sw-state-panel>`
+        : !h.rows.length ? html`<p class="note">${xt('histEmpty')}</p>`
+        : html`<ol class="tl" data-history>${h.rows.map((r) => html`<li data-history-action=${r.action}><time>${this.fmt(r.at)}</time><i data-tone=${r.decision === 'denied' ? 'warn' : 'acc'}></i>
+            <span>${xtDynamic(`h_${r.action}`, 'h_other')}${r.decision === 'denied' ? html` · <b>${xt('hist_denied')}</b>` : nothing} · ${who(r)}${r.reason ? html` · <small class="num">${r.reason}</small>` : nothing}</span></li>`)}</ol>`}
+    </section>`;
+  }
+
+  private async loadHistory(id: string): Promise<void> {
+    this.history = { id, rows: null, error: '' };
+    try {
+      const rows = (await getHistory(id)).history;
+      if (this.history?.id === id) this.history = { id, rows, error: '' };
+    } catch (e) {
+      if (this.history?.id === id) this.history = { id, rows: null, error: describeError(e) };
+    }
   }
 
   private timelineBlock(g: Grant): TemplateResult | typeof nothing {
@@ -721,7 +799,7 @@ export class AccessExternalScreen extends LitElement {
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
       <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button>
         <sw-button variant=${c.danger ? 'danger' : 'primary'} data-confirm-ok ?disabled=${!ok} @click=${async () => {
-          const r = await this.act(c.run, c.done);
+          const r = await this.act(c.run, c.done, undefined, c.doneText);
           if (r) this.dialog = null;
         }}>${c.btn}</sw-button></div>
     </sw-dialog>`;
@@ -778,7 +856,7 @@ export class AccessExternalScreen extends LitElement {
 
   private requestDialog(noPerm: boolean): TemplateResult {
     const live = new Set((this.data?.grants ?? []).filter((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state)).map((g) => g.person.contact_id));
-    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} @close=${() => (this.dialog = null)}
+    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} ?cards=${this.data?.rules.cards === 'on'} @close=${() => (this.dialog = null)}
       @done=${(e: CustomEvent<{ text: string; grant?: Grant }>) => {
         this.dialog = null;
         this.toastText(e.detail.text);
@@ -906,6 +984,26 @@ export class AccessExternalScreen extends LitElement {
     return nothing;
   }
 
+  // ---------------------------------------------------------------- SECFIX2-295: undecided vendor-typed technicians
+
+  /** The technicians vendors typed on the public page that nobody decided yet: name, vendor, the request (only while tickets are on;
+   * text, never a link), how long waiting, the auto-delete countdown; approve / reject-and-delete through the existing routes only.
+   * Hidden when empty or when the caller may not decide (the server answered 403). */
+  private pendingPanel(): TemplateResult | typeof nothing {
+    const p = this.pending;
+    if (!p || !p.pending.length) return nothing;
+    return html`<section class="tcard" data-pending-panel>
+      <div class="filters"><b>${spt('pendTitle')}</b><span class="chip" data-tone="acc" data-pending-count>${p.pending.length}</span></div>
+      <div role="list">${sortPending(p.pending).map((r) => html`<div role="listitem" class="pd-r" data-pending=${r.contact_id}>
+        <span class="pn"><b>${r.name || '—'}</b><small>${[r.vendor, ticketText(r)].filter(Boolean).join(' · ')}</small></span>
+        <span class="pd-w"><span class="num">${waitText(r)}</span><span class="chip" data-tone=${leftTone(r)} data-left>${leftText(r)}</span></span>
+        <span class="pd-a">
+          <sw-button size="sm" variant="primary" data-pending-approve ?disabled=${this.busy} @click=${() => this.confirm({ title: spt('approveQ', { name: r.name }), body: html`<p>${spt('approveText')}</p>`, btn: spt('approve'), run: () => acceptContact(r.contact_id), done: 'failed', doneText: spt('approveDone') })}>${spt('approve')}</sw-button>
+          <sw-button size="sm" variant="danger" data-pending-reject ?disabled=${this.busy} @click=${() => this.confirm({ title: spt('rejectQ', { name: r.name }), body: html`<p>${spt('rejectText')}</p>`, btn: spt('reject'), danger: true, run: () => rejectPendingContact(r.contact_id), done: 'failed', doneText: spt('rejectDone') })}>${spt('reject')}</sw-button>
+        </span></div>`)}</div>
+    </section>`;
+  }
+
   // ---------------------------------------------------------------- the page
 
   private side(): TemplateResult {
@@ -1029,6 +1127,7 @@ export class AccessExternalScreen extends LitElement {
             (b) => html`<button type="button" class="kpi" data-kpi=${b} data-tone=${KPI_TONE[b]} aria-pressed=${String(this.query.filter === b)} @click=${() => (this.query = { ...this.query, filter: (this.query.filter === b ? 'live' : b) as Filter })}><span class="dot" aria-hidden="true"></span><div><b>${c[b]}</b><span>${xt(KPI_KEY[b])}</span></div></button>`,
           )}</div>
           ${this.list(grants)}
+          ${this.pendingPanel()}
         </div>
         ${this.side()}
       </div>

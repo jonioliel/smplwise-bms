@@ -80,7 +80,7 @@ def test_an_arx_export_is_put_into_a_case_taken_out_and_the_move_is_undone(world
     out = world.call("POST", url, json={"case_id": None}).json()
     assert out["verified"] is True and world.fake.writes[-1] == ("POST", "/api/exports/reassign", {"ids": [eid], "export_case_id": None})
     undo = world.call("POST", f"{BASE}/changes/{out['change_id']}/revert", json={})
-    assert undo.status_code == 200 and next(x for x in world.fake.exports if x["id"] == eid)["export_case_id"] == "case_foreign"
+    assert undo.status_code == 200 and next(x for x in world.fake.exports if x["id"] == eid)["export_case"] == "case_foreign"
     assert world.call("POST", url, json={"case_id": "no_such_case"}).status_code == 404
     assert world.call("POST", f"{BASE}/exports/cam_front_foreign/case", json={"case_id": "case_foreign", "supervised": True}).json()["code"] == "frigate_object_not_arx"
 
@@ -89,7 +89,7 @@ def test_an_export_can_be_created_straight_into_a_case(world):
     world.policy(exports=True)
     r = _export(world, case_id="case_foreign").json()
     assert r["verified"] is True and world.fake.writes[-1][2] == {"name": "Front door evening", "source": "recordings", "export_case_id": "case_foreign"}
-    assert next(x for x in world.fake.exports if x["id"] == r["export_id"])["export_case_id"] == "case_foreign"
+    assert next(x for x in world.fake.exports if x["id"] == r["export_id"])["export_case"] == "case_foreign"
     n = len(world.fake.writes)
     assert _export(world, case_id="no_such_case").status_code == 404 and len(world.fake.writes) == n
 

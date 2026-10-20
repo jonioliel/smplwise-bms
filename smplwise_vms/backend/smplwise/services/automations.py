@@ -438,6 +438,14 @@ class Mirror:
             self._queue("*")
             self.flush()
         elif etype in ("automation_triggered", "script_started"):
+            if etype == "automation_triggered":
+                # CR-AUTODOORS-295: an automation with an "open a door" block - judged and fired by Arx (never raises, never on this loop)
+                try:
+                    from . import door_automation
+
+                    door_automation.on_event(self.db, self.settings, frame)
+                except Exception:  # noqa: BLE001
+                    log.exception("door automation hook failed")
             eid = data.get("entity_id")
             if isinstance(eid, str) and self.db is not None:
                 with self.db.connection(label="automations event") as conn:
