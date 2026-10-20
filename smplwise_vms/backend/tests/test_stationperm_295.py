@@ -61,7 +61,7 @@ class Env:
         return self.c.put(f"{BASE}/people/{P}/stations/{station}", json=body, headers=as_user(user) if user else None)
 
     def post(self, station: str, what: str, user: str | None = None):
-        return self.c.post(f"{BASE}/people/{P}/stations/{station}/{what}", json={"revision": self.rev(station)}, headers=as_user(user) if user else None)
+        return self.c.post(f"{BASE}/people/{P}/stations/{station}/{what}", json={"revision": max(1, self.rev(station))}, headers=as_user(user) if user else None)
 
     def role(self, name: str, permissions: list[str], sensitive: list[str]) -> str:
         r = self.c.post(f"{API}/access/roles", json={"name": name, "description": "station permission test", "permissions": permissions, "sensitive": sensitive})
