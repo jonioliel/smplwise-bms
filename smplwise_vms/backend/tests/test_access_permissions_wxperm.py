@@ -57,10 +57,11 @@ DEFAULT_GRANTS: dict[str, set[str]] = {
     "access.groups.manage": {"system_admin"},
     "access.external.grant": {"system_admin"},  # CR-ARX-WISKEY-SHARED-IDENTITY D5 (owner answer 2, 2026-10-17)
     "access.doors.automate": {"system_admin"},  # CR-AUTODOORS-295: automations that open doors (arming), sensitive
+    "access.people.stations": ADMINS,  # STATIONPERM-295 (owner decision 2026-10-21: system_admin and site_admin; editable per role / station)
 }
 SENSITIVE_ACCESS = {"access.doors.open", "access.release", "access.call", "access.events.export", "access.people.sensitive", "access.people.manage",
                     "access.people.message", "access.pin.generate", "access.cards.capture", "access.schedules.manage", "access.stations.manage",
-                    "access.groups.manage", "access.external.grant", "access.doors.automate"}
+                    "access.groups.manage", "access.external.grant", "access.doors.automate", "access.people.stations"}
 
 
 # ---------------------------------------------------------------- the default grant sets

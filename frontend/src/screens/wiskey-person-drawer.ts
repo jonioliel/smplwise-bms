@@ -7,6 +7,8 @@ import '../components/sw-drawer';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './wiskey-person-messages';
+import './wiskey-station-permissions';
+import { isApi } from '../api/session';
 import { fetchPersonPhoto, type AcPerson, type AcProfileField } from '../api/access-people';
 import type { DisplayZone } from '../api/intercom';
 import type { StateKind } from '../components/sw-badge';
@@ -410,7 +412,8 @@ export class WiskeyPersonDrawer extends LitElement {
               ${st.last_error ? html`<span class="err" data-person-sync-error=${st.last_error} title=${st.last_error}>${knownSyncError(st.last_error) ? syncErrorText(st.last_error) : html`<bdi class="ltr">${st.last_error}</bdi>`}</span>` : nothing}
             </li>`;
           })}</ul>`}
-    </section>`;
+    </section>
+    ${isApi() ? html`<wiskey-station-permissions .personId=${p.id} .stationNames=${this.stationNames}></wiskey-station-permissions>` : nothing}`;
   }
 
   private renderGroups(p: AcPerson): TemplateResult {

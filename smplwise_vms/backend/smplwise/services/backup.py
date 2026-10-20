@@ -130,6 +130,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.external.redecide_cursor",
                  # CR-BULKPEOPLE-295: the bulk people switch is security policy too - never switched on by an archive
                  "access.bulk_people",
+                 # STATIONPERM-295: the per-station permission switch is security policy - never changed by an archive
+                 "access.station_permissions",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
                  "bridge.local_identity_extended"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"

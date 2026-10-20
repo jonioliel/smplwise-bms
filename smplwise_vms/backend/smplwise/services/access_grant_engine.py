@@ -90,6 +90,11 @@ class Engine(Protocol):
 
     def strip(self, person_id: str, revision: int) -> EnginePerson: ...
 
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
+        """STATIONPERM-295: ONE revision-checked users/update carrying ONLY the complete `permission_overrides` map and the
+        `door_permissions` of an allowed station (`station_access_payload`). Never groups, timing, validity, active or credentials."""
+        ...
+
     def revocation_pending(self, person_id: str) -> bool | None:
         """Central sync status: True = a revocation for this person is still pending, False = none, None = cannot tell."""
         ...
@@ -195,6 +200,19 @@ def strip_payload() -> dict[str, Any]:
     ONE allowed null (phone/responsible_person/access_purpose are never null). Sent with sync_now; the answer is the public person object.
     It is not proof of physical removal: the worker waits for a readback AND the central sync status (see `Worker.strip`)."""
     return {"group_ids": [], "permission_overrides": {}, "active": False, "pin": None}
+
+
+def station_access_payload(*, overrides: dict[str, str], doors: dict[str, list[int]]) -> dict[str, Any]:
+    """STATIONPERM-295 (CR-STATION-PERMISSIONS-295 section 4): the users/update `data` of one per-station decision - the COMPLETE
+    `permission_overrides` replacement (built by the caller from a fresh read, every other station's entry carried over) and
+    `door_permissions` for the allowed station only. Nothing else: `group_ids`, `access_timing_policy` (mode / schedule / bindings stay
+    together and are never written here), validity, `active`, PIN and cards are left as WisKey has them. Source-derived, NOT_RUN."""
+    if not isinstance(overrides, dict) or not all(isinstance(k, str) and k and v in ("allow", "deny") for k, v in overrides.items()):
+        raise ValueError("overrides")
+    for sid, relays in doors.items():
+        if overrides.get(sid) != "allow" or not relays or not all(_strict_int(r) and r in RELAYS for r in relays):
+            raise ValueError("doors")
+    return {"permission_overrides": dict(overrides), "door_permissions": {k: sorted(set(v)) for k, v in doors.items()}}
 
 
 _ACCESS_FIELDS = frozenset({"assignments", "group_ids", "permission_overrides"})
@@ -489,6 +507,14 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         data = strip_payload()
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
+
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
+        """STATIONPERM-295: refused (`not_permitted`) while the go-live permit is not in the build; never run against a WisKey."""
+        self._guard()
+        from . import intercom_client
+
+        data = station_access_payload(overrides=overrides, doors=doors)
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
 
     def revocation_pending(self, person_id: str) -> bool | None:

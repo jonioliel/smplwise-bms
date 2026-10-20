@@ -277,6 +277,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # themselves (checked at arm time and again at every fire). Opens nothing by itself. Sensitive, never implied; built-in holder
     # system_admin only; may be carried by a station-scope role (rbac.STATION_PERMISSIONS).
     "access.doors.automate": "בקרת כניסה: אוטומציות שפותחות דלתות (הגדרה, חימוש ועצירה)",
+    "access.people.stations": "בקרת כניסה: מתן וחסימת גישה לאדם לפי עמדה",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,
