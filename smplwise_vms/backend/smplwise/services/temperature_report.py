@@ -37,7 +37,11 @@ LABELS: dict[str, dict[str, str]] = {
            "no_data": "אין נתונים בטווח", "no_events": "אין אירועים בטווח", "setpoint": "נקודת יעד", "excl": "זמן הפשרה לא נספר", "more": "ועוד {n}",
            "high": "טמפרטורה מעל {t}", "low": "טמפרטורה מתחת ל-{t}", "door_ev": "דלת פתוחה יותר מ-{m} דק׳", "offline": "החיישן לא דיווח",
            "defrost": "מחזור הפשרה", "ack": "התראה אושרה", "mute": "השתקה", "sev_alarm": "אזעקה", "sev_warning": "אזהרה", "sev_info": "מידע",
-           "open": "פתוח", "site": "SmplWise Arx"},
+           "open": "פתוח", "site": "SmplWise Arx",
+           "haccp": "דוח תאימות (HACCP)", "daily": "טבלה יומית", "day": "תאריך", "coverage": "כיסוי נתונים", "verdict": "תוצאה",
+           "v_ok": "תקין", "v_exc": "חריגה", "v_none": "אין נתונים", "maint": "חלון תחזוקה: {r}", "by": "על ידי {n}", "days_ok": "ימים תקינים",
+           "sign_name": "שם המנהל", "predict": "חריגה צפויה", "battery": "סוללת חיישן חלשה", "frozen": "ערך קפוא בחיישן",
+           "recovery": "התאוששות איטית אחרי דלת", "duty": "זמן פעולת מדחס עולה"},
     "en": {"title": "Temperature report", "range": "Range", "band": "Target band", "sensor": "Temperature sensor", "door": "Door sensor", "none": "None",
            "min": "Minimum", "max": "Maximum", "avg": "Average", "out": "Out of range", "out_raw": "incl. defrost", "doors": "Door openings", "alerts": "Alerts",
            "chart": "Temperature chart", "events": "Alerts and events", "time": "Time", "event": "Event", "value": "Value", "dur": "Duration",
@@ -45,8 +49,13 @@ LABELS: dict[str, dict[str, str]] = {
            "no_data": "No data in the range", "no_events": "No events in the range", "setpoint": "Setpoint", "excl": "defrost time not counted", "more": "and {n} more",
            "high": "Temperature above {t}", "low": "Temperature below {t}", "door_ev": "Door open longer than {m} min", "offline": "The sensor did not report",
            "defrost": "Defrost cycle", "ack": "Alert acknowledged", "mute": "Muted", "sev_alarm": "Alarm", "sev_warning": "Warning", "sev_info": "Info",
-           "open": "open", "site": "SmplWise Arx"},
+           "open": "open", "site": "SmplWise Arx",
+           "haccp": "Compliance report (HACCP)", "daily": "Daily table", "day": "Date", "coverage": "Data coverage", "verdict": "Result",
+           "v_ok": "OK", "v_exc": "Excursion", "v_none": "No data", "maint": "Maintenance window: {r}", "by": "by {n}", "days_ok": "Days in range",
+           "sign_name": "Manager name", "predict": "Predicted excursion", "battery": "Sensor battery low", "frozen": "Frozen sensor value",
+           "recovery": "Slow recovery after the door", "duty": "Compressor run time rising"},
 }
+LAYOUTS: tuple[str, ...] = ("standard", "haccp")
 
 
 def deg(v: float | None) -> str:
@@ -64,10 +73,32 @@ def _downsample(points: list[list[Any]], n: int) -> list[list[Any]]:
     return [points[int(i * step)] for i in range(n)]
 
 
+def daily(conn: sqlite3.Connection, u: sqlite3.Row, rules: dict[str, Any], lo: int, hi: int, tz: ZoneInfo, now_ts: float, door_visible: bool) -> list[dict[str, Any]]:
+    """Phase 3 (idea 3, the HACCP compliance report): one row per LOCAL day of lo..hi - min / max / average, minutes out of the band (defrost
+    excluded per the unit's setting), alarms, door openings and the data coverage (the share of the day with a live reading)."""
+    out: list[dict[str, Any]] = []
+    day = _local(lo, tz).date()
+    last = _local(hi - 1, tz).date()
+    while day <= last:
+        a = max(lo, int(t.local_instant(day, 0, tz)))
+        b = min(hi, int(t.local_instant(day + dt.timedelta(days=1), 0, tz)))
+        if b > a:
+            st = t.stats(conn, u, rules, a, b, now_ts)
+            per = 1 if st["source"] == "raw" else 5
+            cov = min(100.0, round(100 * st["samples"] * per / max(1, (b - a) / 60), 1))
+            out.append({"day": day.isoformat(), "min": st["min"], "max": st["max"], "avg": st["avg"], "out_min": st["out_min"], "out_min_raw": st["out_min_raw"],
+                        "alarms": st["alarms"], "door_opens": st["door_opens"] if door_visible else None, "coverage": cov,
+                        "verdict": "none" if not st["samples"] else ("ok" if st["out_min"] == 0 and st["alarms"] == 0 else "exc")})
+        day += dt.timedelta(days=1)
+    return out
+
+
 def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[str], lo: int, hi: int, lang: str, now_ts: float, *,
-          chart: bool = True, events: bool = True, signature: bool = True) -> dict[str, Any]:
-    """The report model. `units` are already filtered to what the caller may see; `door_visible` = the unit ids whose door sensor he sees."""
+          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard") -> dict[str, Any]:
+    """The report model. `units` are already filtered to what the caller may see; `door_visible` = the unit ids whose door sensor he sees.
+    `layout` haccp (phase 3, idea 3) adds the daily table per unit (and the PDF leads with it)."""
     lang = lang if lang in LABELS else "he"
+    layout = layout if layout in LAYOUTS else "standard"
     tz = t.site_zone(conn)
     defaults = t.load_defaults(conn)
     learned = t.learned_of(conn, [u["id"] for u in units])
@@ -94,15 +125,31 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
             item["doors"] = t.door_intervals(conn, u["id"], lo, hi, now_ts) if dv else []
             item["defrost"] = [[int(a), int(b)] for a, b in t.window_intervals(t.unit_windows(u, learned), lo, hi, tz)]
         if events:
-            rows = conn.execute("""SELECT kind, severity, started_at, ended_at, value, peak, threshold FROM infra_temp_events WHERE unit_id = ? AND started_at <= ?
-                                   AND (ended_at IS NULL OR ended_at >= ?) AND kind IN ('high','low','door','offline','defrost') ORDER BY started_at DESC""",
-                                (u["id"], b_iso, a_iso)).fetchall()
+            # phase 3: maintenance windows (with the reason and who - never an anonymous silence) and the health rows join the list
+            rows = conn.execute("""SELECT e.kind, e.severity, e.started_at, e.ended_at, e.value, e.peak, e.threshold, e.detail_json,
+                                          COALESCE(us.display_name, us.username) AS by_name FROM infra_temp_events e LEFT JOIN users us ON us.id = e.ack_by
+                                   WHERE e.unit_id = ? AND e.started_at <= ? AND (e.ended_at IS NULL OR e.ended_at >= ?)
+                                   AND e.kind IN ('high','low','door','offline','defrost','maint','predict','battery','frozen','recovery','duty')
+                                   ORDER BY e.started_at DESC""", (u["id"], b_iso, a_iso)).fetchall()
             rows = [r for r in rows if r["kind"] != "door" or dv]
-            item["events"] = [dict(r) for r in rows[:MAX_EVENTS]]
+            evs = []
+            for r in rows[:MAX_EVENTS]:
+                d = dict(r)
+                try:
+                    det = json.loads(d.pop("detail_json") or "{}")
+                except ValueError:
+                    det = {}
+                d["reason"] = str(det.get("reason") or "")[:120] if d["kind"] == "maint" else None
+                if d["kind"] != "maint":
+                    d.pop("by_name", None)
+                evs.append(d)
+            item["events"] = evs
             item["events_more"] = max(0, len(rows) - MAX_EVENTS)
+        if layout == "haccp":
+            item["daily"] = daily(conn, u, rules, lo, hi, tz, now_ts, dv)
         out_units.append(item)
     model: dict[str, Any] = {"v": 1, "lang": lang, "from": lo, "to": hi, "zone": str(tz), "generated": int(now_ts), "units": out_units,
-                             "chart": chart, "events": events, "signature": {"mode": "line"} if signature else None}
+                             "chart": chart, "events": events, "signature": {"mode": "line"} if signature else None, "layout": layout}
     model["digest"] = digest(model)
     return model
 
@@ -134,6 +181,9 @@ def event_text(e: dict[str, Any], lang: str) -> str:
         return L["low"].replace("{t}", deg(e["threshold"]))
     if k == "door":
         return L["door_ev"].replace("{m}", str(int(e["threshold"] or 0)))
+    if k == "maint":
+        txt = L["maint"].replace("{r}", e.get("reason") or "")
+        return f'{txt} · {L["by"].replace("{n}", e["by_name"])}' if e.get("by_name") else txt
     return L.get(k, k)
 
 
@@ -222,6 +272,7 @@ h2 {{ font-size: 10.5pt; margin: 10pt 0 4pt; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; }}
 th, td {{ border-bottom: 0.5pt solid #e3e8f0; padding: 3pt 4pt; text-align: start; }} th {{ color: #5b6a85; font-weight: 700; }}
 .n {{ direction: ltr; unicode-bidi: isolate; white-space: nowrap; }}
+table.daily td, table.daily th {{ padding: 2pt 4pt; font-size: 8pt; }} table.daily tr.exc td {{ color: #b91c1c; }} table.daily tr.none td {{ color: #8a94a8; }}
 .sig {{ display: flex; gap: 24pt; margin-top: 22pt; }} .sig div {{ flex: 1; border-top: 0.8pt solid #1d2433; padding-top: 3pt; font-size: 8.5pt; }}
 .foot {{ position: running(foot); font-size: 6.5pt; color: #8a94a8; }}
 """
@@ -244,9 +295,20 @@ def html_of(model: dict[str, Any]) -> str:
         stats = "".join(f'<div><span>{E(L[k])}</span><b>{v}</b>{x}</div>' for k, v, x in (
             ("min", deg(s["min"]), ""), ("max", deg(s["max"]), ""), ("avg", deg(s["avg"]), ""), ("out", E(dur_text(s["out_min"], lang)), out_extra),
             ("doors", f'{s["door_opens"]} · {E(dur_text(s["door_total_min"], lang))}' if u["door"] else "—", ""), ("alerts", str(s["alarms"] + s["warnings"]), "")))
-        body = [f'<div class="hd"><div><h1>{E(L["title"])} · {E(u["name"])}</h1><div class="sub">{E(u["area"] or "")} · {E(L["sensor"])}: {E(u["sensor"] or "—")}'
+        haccp = model.get("layout") == "haccp"
+        body = [f'<div class="hd"><div><h1>{E(L["haccp"] if haccp else L["title"])} · {E(u["name"])}</h1><div class="sub">{E(u["area"] or "")} · {E(L["sensor"])}: {E(u["sensor"] or "—")}'
                 f' · {E(L["door"])}: {E(u["door"] or L["none"])} · {E(L["band"])}: {band}</div><div class="sub">{E(L["range"])}: <span class="n">{E(rng)}</span></div></div>'
                 f'<div class="brand">SmplWise</div></div>', f'<div class="stats">{stats}</div>']
+        if haccp and u.get("daily") is not None:
+            ok_days = sum(1 for d in u["daily"] if d["verdict"] == "ok")
+            drows = "".join(
+                f'<tr class="{d["verdict"]}"><td class="n">{dt.date.fromisoformat(d["day"]):%d.%m.%Y}</td><td class="n">{deg(d["min"])}</td><td class="n">{deg(d["max"])}</td>'
+                f'<td class="n">{deg(d["avg"])}</td><td>{E(dur_text(d["out_min"], lang)) if d["out_min"] else "0"}</td><td class="n">{d["alarms"]}</td>'
+                f'<td class="n">{"—" if d["door_opens"] is None else d["door_opens"]}</td><td class="n">{d["coverage"]:.0f}%</td><td>{E(L["v_" + d["verdict"]])}</td></tr>'
+                for d in u["daily"])
+            body.append(f'<h2>{E(L["daily"])} · {E(L["days_ok"])}: <span class="n">{ok_days}/{len(u["daily"])}</span></h2>'
+                        f'<table class="daily"><thead><tr><th>{E(L["day"])}</th><th>{E(L["min"])}</th><th>{E(L["max"])}</th><th>{E(L["avg"])}</th><th>{E(L["out"])}</th>'
+                        f'<th>{E(L["alerts"])}</th><th>{E(L["doors"])}</th><th>{E(L["coverage"])}</th><th>{E(L["verdict"])}</th></tr></thead><tbody>{drows}</tbody></table>')
         if model["chart"]:
             body.append(f'<h2>{E(L["chart"])}</h2>' + (chart_svg(u, model["from"], model["to"], tz) if u.get("points") else f'<p class="sub">{E(L["no_data"])}</p>'))
         if model["events"]:
@@ -267,7 +329,7 @@ def html_of(model: dict[str, Any]) -> str:
             else:
                 body.append(f'<p class="sub">{E(L["no_events"])}</p>')
         if model.get("signature") and model["signature"].get("mode") == "line":
-            body.append(f'<div class="sig"><div>{E(L["sign"])}</div><div>{E(L["date"])}</div></div>')
+            body.append(f'<div class="sig">{"<div>" + E(L["sign_name"]) + "</div>" if haccp else ""}<div>{E(L["sign"])}</div><div>{E(L["date"])}</div></div>')
         pages.append(f'<section class="unit">{"".join(body)}</section>')
     direction = "rtl" if lang == "he" else "ltr"
     return (f'<!doctype html><html lang="{lang}" dir="{direction}"><head><meta charset="utf-8"><style>{_css(lang)}</style></head><body>'
@@ -276,7 +338,8 @@ def html_of(model: dict[str, Any]) -> str:
 
 def filename(model: dict[str, Any]) -> str:
     tz = ZoneInfo(model["zone"])
-    return f"temperature-report-{_local(model['to'], tz):%Y%m%d}.pdf"
+    kind = "haccp" if model.get("layout") == "haccp" else "report"
+    return f"temperature-{kind}-{_local(model['to'], tz):%Y%m%d}.pdf"
 
 
 # ---------------------------------------------------------------- the WhatsApp text (option A: text only)

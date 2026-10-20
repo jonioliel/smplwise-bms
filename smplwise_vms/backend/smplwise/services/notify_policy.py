@@ -94,6 +94,12 @@ SOURCES: tuple[Source, ...] = (
        resolve_text="הטמפרטורה חזרה לטווח"),
     _s("temperature.offline", "טמפרטורה: חיישן לא מדווח", "device_faults", "alert", "חיישן טמפרטורה לא מדווח", "{name}: {detail}.", who="temperature", push=False,
        subject="temperature", resolve_text="החיישן חזר לדווח"),
+    # phase 3: sensor health (a low battery, a frozen reading) and a suspected cooling fault (slow recovery, a rising duty cycle) - a WARNING
+    # class; and the escalation chain of an unacknowledged alarm (each step to its own tier; critical, never held by quiet hours)
+    _s("temperature.health", "טמפרטורה: תקינות חיישן ויחידה", "device_faults", "alert", "בעיה ביחידת טמפרטורה", "{name}: {detail}.", who="temperature",
+       push=False, subject="temperature", resolve_text="הבעיה נפתרה"),
+    _s("temperature.escalation", "טמפרטורה: הסלמת אזעקה", "device_faults", "critical", "אזעקת טמפרטורה לא אושרה", "{name}: {detail}.", who="temperature",
+       subject="temperature", resolve_notice=True, resolve_text="האזעקה אושרה או הסתיימה", app=True),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),

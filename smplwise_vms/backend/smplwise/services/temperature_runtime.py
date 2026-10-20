@@ -10,6 +10,10 @@ Every TICK_S (60 s) over the state mirror, for every enabled unit:
     - unless it is above the hard maximum (high + `defrost_hard_margin`); a defrost is logged as an info row;
   - a door open longer than X minutes (`door_alarm_min`) is an ALARM until it closes;
   - no live reading for `offline_min` minutes is a WARNING "the sensor does not report" until it reports again;
+* phase 3 (CR-INFRA-TEMPERATURE section 11): the power reading of an optional smart plug (duty cycle), an early warning before a predicted
+  crossing (`predict_warn`, off by default), sensor health and suspected cooling faults (temperature.health), the maintenance window (holds
+  WARNINGS like a mute, with a reason and a name; alarms only with `maintenance_includes_alarms`) and the escalation chain of an alarm nobody
+  acknowledged (temperature.escalation, one notification and one log row per step);
 * notifications through the CR-018 pipeline (sources temperature.alarm / .warning / .offline): a WARNING is held - logged, not sent - in the
   quiet hours (`quiet_enabled`, `quiet_from`..`quiet_to`, local time of the installation zone) and while the unit is muted; it is sent when
   the hold ends and the condition still holds. An ALARM is never held by default (`quiet_includes_alarms` / `mute_includes_alarms` are
@@ -40,15 +44,17 @@ log = logging.getLogger("smplwise.temperature")
 TICK_S = 60
 PRUNE_EVERY_S = 3600
 LINK = "#/infra/temperature"
-SRC = {"alarm": "temperature.alarm", "warning": "temperature.warning", "offline": "temperature.offline"}
-_LAST = {"prune": 0.0, "learn": {}}  # type: dict[str, Any]
+SRC = {"alarm": "temperature.alarm", "warning": "temperature.warning", "offline": "temperature.offline", "health": "temperature.health",
+       "escalation": "temperature.escalation"}
+_LAST = {"prune": 0.0, "learn": {}, "insights": {}}  # type: dict[str, Any]
 _lock = threading.Lock()
 
 
 def reset() -> None:
-    """Tests: forget the janitor and learner clocks."""
+    """Tests: forget the janitor, learner and insight clocks."""
     _LAST["prune"] = 0.0
     _LAST["learn"] = {}
+    _LAST["insights"] = {}
 
 
 def _iso(ts: float) -> str:
@@ -79,6 +85,17 @@ def detail_text(kind: str, ev: dict[str, Any], now_ts: float) -> str:
         return f"הדלת פתוחה {mins} דק׳"
     if kind == "offline":
         return f"אין דיווח מהחיישן {mins} דק׳"
+    d = ev.get("detail") or {}
+    if kind == "predict":
+        return f"{fmt(ev.get('value'))} · צפוי לחצות את {fmt(ev.get('threshold'))} בעוד כ־{d.get('eta_min', '?')} דק׳"
+    if kind == "battery":
+        return f"סוללת החיישן חלשה ({d['battery']:.0f}%)" if isinstance(d.get("battery"), (int, float)) else "סוללת החיישן חלשה"
+    if kind == "frozen":
+        return f"החיישן מדווח אותו ערך ({fmt(ev.get('value'))}) כבר {mins} דק׳"
+    if kind == "recovery":
+        return f"התאוששות איטית אחרי פתיחת דלת (חציון {d.get('median_recovery_min', '?')} דק׳) · חשד לתקלת קירור"
+    if kind == "duty":
+        return f"זמן פעולת המדחס עולה ({d.get('before', '?')}% ← {d.get('recent', '?')}%) · חשד לתקלת קירור"
     return ""
 
 
@@ -87,17 +104,48 @@ def _source_of(ev: dict[str, Any]) -> str | None:
         return SRC["alarm"]
     if ev["kind"] == "offline":
         return SRC["offline"]
-    if ev["kind"] in ("high", "low"):
+    if ev["kind"] in ("high", "low", "predict"):
         return SRC["warning"]
+    if ev["kind"] in t.HEALTH_KINDS:
+        return SRC["health"]
     return None
 
 
 def _signal(u: sqlite3.Row, ev: dict[str, Any], source: str, area: str | None, now_ts: float, *, resolve: bool = False, text: str | None = None) -> notify.Signal:
-    params: dict[str, Any] = {"name": u["name"], "place": area or u["name"], "detail": detail_text(ev["kind"], ev, now_ts)}
+    detail = detail_text(ev["kind"], ev, now_ts)
+    maint = _maint_note(u, now_ts)
+    if maint and not resolve:
+        detail = f"{detail} · {maint}" if detail else maint  # an alarm during maintenance still goes out, saying so (owner: alarms are never silenced)
+    params: dict[str, Any] = {"name": u["name"], "place": area or u["name"], "detail": detail}
     if resolve and text:
         params.update({"resolution": "condition_ended", "resolve_text": text})
     return notify.Signal(source, "temperature", u["id"], dedupe_key=f"{source}:{ev['id']}", resolve=resolve, params=params,
                          origin={"unit_id": u["id"], "temp_event_id": ev["id"]}, link=f"{LINK}?unit={u['id']}", area_id=u["area_id"])
+
+
+def _maint_note(u: sqlite3.Row, now_ts: float) -> str:
+    keys = u.keys()
+    if "maint_until" not in keys or not u["maint_until"] or (_ts(u["maint_until"]) or 0) <= now_ts:
+        return ""
+    return f"בתחזוקה: {u['maint_reason'] or ''}".strip()
+
+
+def _esc_signal(u: sqlite3.Row, ev: dict[str, Any], level: int, now_ts: float, area: str | None, *, resolve: bool = False) -> notify.Signal:
+    """Step `level` of the escalation chain of an unacknowledged alarm (a notification of its own per step)."""
+    src = SRC["escalation"]
+    mins = max(0, round((now_ts - (_ts(ev.get("alarmed_at") or ev["started_at"]) or now_ts)) / 60))
+    params: dict[str, Any] = {"name": u["name"], "place": area or u["name"],
+                              "detail": f"{detail_text(ev['kind'], ev, now_ts)} · לא אושרה {mins} דק׳ · שלב {level}"}
+    if resolve:
+        params.update({"resolution": "condition_ended", "resolve_text": "האזעקה אושרה או הסתיימה"})
+    return notify.Signal(src, "temperature", u["id"], dedupe_key=f"{src}:{ev['id']}:{level}", resolve=resolve, params=params,
+                         origin={"unit_id": u["id"], "temp_event_id": ev["id"], "escalation_level": level}, link=f"{LINK}?unit={u['id']}", area_id=u["area_id"])
+
+
+def resolve_escalations(conn: sqlite3.Connection, u: sqlite3.Row, ev: dict[str, Any], now_ts: float) -> None:
+    """Ends the escalation notifications of a row (it ended, or someone acknowledged it)."""
+    for level in range(1, int(ev.get("escalation_level") or 0) + 1):
+        _emit(conn, _esc_signal(u, ev, level, now_ts, None, resolve=True))
 
 
 def _emit(conn: sqlite3.Connection, signal: notify.Signal) -> notify.EmitResult | None:
@@ -113,13 +161,15 @@ def _resolve_current(conn: sqlite3.Connection, u: sqlite3.Row, ev: dict[str, Any
     if ev.get("notification_id") and src:
         _emit(conn, _signal(u, ev, src, None, now_ts, resolve=True, text=text))
     ev["notification_id"] = None
+    if text is not None and ev.get("escalation_level"):
+        resolve_escalations(conn, u, ev, now_ts)  # the row ENDS (text given): its escalation steps end with it
 
 
 def _save(conn: sqlite3.Connection, ev: dict[str, Any]) -> None:
     conn.execute("""UPDATE infra_temp_events SET severity = ?, warned_at = ?, alarmed_at = ?, ended_at = ?, value = ?, peak = ?, notification_id = ?, suppressed = ?,
-                    detail_json = ? WHERE id = ?""",
+                    detail_json = ?, escalation_level = ?, escalated_at = ? WHERE id = ?""",
                  (ev["severity"], ev["warned_at"], ev["alarmed_at"], ev["ended_at"], ev["value"], ev["peak"], ev["notification_id"], ev["suppressed"],
-                  json.dumps(ev.get("detail") or {}, ensure_ascii=False), ev["id"]))
+                  json.dumps(ev.get("detail") or {}, ensure_ascii=False), int(ev.get("escalation_level") or 0), ev.get("escalated_at"), ev["id"]))
 
 
 def _open(conn: sqlite3.Connection, unit_id: str, kind: str, severity: str, started: str, *, value: float | None = None, threshold: float | None = None,
@@ -142,7 +192,8 @@ def log_act(conn: sqlite3.Connection, unit_id: str, kind: str, at: str, by: str 
 
 def open_events(conn: sqlite3.Connection, unit_id: str) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
-    for r in conn.execute("SELECT * FROM infra_temp_events WHERE unit_id = ? AND ended_at IS NULL AND kind IN ('high','low','door','offline','defrost')", (unit_id,)).fetchall():
+    marks = ",".join("?" * len(t.CONDITION_KINDS))
+    for r in conn.execute(f"SELECT * FROM infra_temp_events WHERE unit_id = ? AND ended_at IS NULL AND kind IN ({marks})", (unit_id, *t.CONDITION_KINDS)).fetchall():
         d = dict(r)
         try:
             d["detail"] = json.loads(d.pop("detail_json") or "{}")
@@ -192,14 +243,16 @@ def _door_track(conn: sqlite3.Connection, u: sqlite3.Row, door: bool | None, cha
     return None
 
 
-def holds(rules: dict[str, Any], *, quiet: bool, muted: bool) -> tuple[str | None, str | None]:
+def holds(rules: dict[str, Any], *, quiet: bool, muted: bool, maint: bool = False) -> tuple[str | None, str | None]:
     """(why a WARNING is held, why an ALARM is held) - None = it goes out. Owner decisions 2026-10-19, every one a setting (installation
-    default + per unit): alerts on (`alerts_enabled`), quiet hours and a mute hold warnings; alarms only when `quiet_includes_alarms` /
-    `mute_includes_alarms` say so (both default OFF: an alarm is never silenced unless an administrator explicitly chose it)."""
+    default + per unit): alerts on (`alerts_enabled`), quiet hours, a mute and (phase 3) a maintenance window hold warnings; alarms only when
+    `quiet_includes_alarms` / `mute_includes_alarms` / `maintenance_includes_alarms` say so (all default OFF: an alarm is never silenced unless
+    an administrator explicitly chose it)."""
     if not rules.get("alerts_enabled", True):
         return "off", "off"
-    warn = "quiet" if quiet else "mute" if muted else None
-    alarm = "quiet" if quiet and rules.get("quiet_includes_alarms") else "mute" if muted and rules.get("mute_includes_alarms") else None
+    warn = "maintenance" if maint else "quiet" if quiet else "mute" if muted else None
+    alarm = ("maintenance" if maint and rules.get("maintenance_includes_alarms") else "quiet" if quiet and rules.get("quiet_includes_alarms")
+             else "mute" if muted and rules.get("mute_includes_alarms") else None)
     return warn, alarm
 
 
@@ -228,8 +281,11 @@ def _notify(conn: sqlite3.Connection, u: sqlite3.Row, ev: dict[str, Any], now_ts
 
 
 def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dict[str, int]:
-    """One pass over every unit. Returns counters {sampled, opened, alarmed, closed, notified}."""
-    out = {"sampled": 0, "opened": 0, "alarmed": 0, "closed": 0, "notified": 0}
+    """One pass over every unit. Returns counters {sampled, opened, alarmed, closed, notified, escalated}."""
+    from . import temperature_alerts
+    from . import temperature_insights as ti
+
+    out = {"sampled": 0, "opened": 0, "alarmed": 0, "closed": 0, "notified": 0, "escalated": 0}
     if not connected:
         return out  # the mirror is not a reading: nothing is recorded and nothing changes
     now = _iso(now_ts)
@@ -237,28 +293,36 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
     minute = t.local_min(now_ts, tz)
     defaults = t.load_defaults(conn)
     rows = t.units(conn)
-    ents = t.entity_rows(conn, [x for r in rows for x in (r["temp_entity_id"], r["door_entity_id"])])
+    ents = t.entity_rows(conn, [x for r in rows for x in (r["temp_entity_id"], r["door_entity_id"], r["power_entity_id"])])
     learned = t.learned_of(conn)
+    insights = ti.load(conn)
+    chain = temperature_alerts.load(conn)["escalation"]
     areas: dict[str, str] | None = None
     for u in rows:
         if not u["enabled"]:
             out["closed"] += close_all(conn, u, now_ts, "disabled")
             continue
         rules = t.effective(defaults, t.overrides_of(u["rules_json"]))
-        reading = t.reading_of(ents.get(u["temp_entity_id"]))
+        te = ents.get(u["temp_entity_id"])
+        reading = t.reading_of(te)
         v = reading["value"]
         low, high = t.band_of(u, reading, rules)
         switched_off = t.is_off(reading, rules)
         de = ents.get(u["door_entity_id"]) if u["door_entity_id"] else None
         door = t.door_of(de["state"], invert=bool(u["door_invert"]), available=de["available"], removed=de["removed_at"], disabled=de["disabled"]) if de is not None else None
+        pw = t.power_of(ents.get(u["power_entity_id"])) if u["power_entity_id"] else None
         wins = t.unit_windows(u, learned)
         defrost = t.in_defrost(wins, minute)
         quiet = t.in_quiet(rules, minute)
         muted = bool(u["muted_until"] and u["muted_until"] > now)
-        held, held_alarm = holds(rules, quiet=quiet, muted=muted)
+        maint_end = _ts(u["maint_until"])
+        maint = maint_end is not None and maint_end > now_ts
+        if u["maint_until"] and not maint:
+            end_maintenance(conn, u, maint_end or now_ts)  # the window ran out: its log row closes at its own end
+        held, held_alarm = holds(rules, quiet=quiet, muted=muted, maint=maint)
         hard_max = high + float(rules["defrost_hard_margin"])
         flags = (1 if defrost else 0) | (2 if door else 0) | (4 if switched_off else 0)
-        if v is not None and t.record_sample(conn, u["id"], int(now_ts), v, flags, reading["setpoint"]):
+        if v is not None and t.record_sample(conn, u["id"], int(now_ts), v, flags, reading["setpoint"], pw=pw, on_w=float(rules["compressor_on_w"])):
             out["sampled"] += 1
         door_since = _door_track(conn, u, door, de["last_changed"] if de is not None else None, now_ts) if u["door_entity_id"] else None
         evs = open_events(conn, u["id"])
@@ -353,11 +417,133 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
         if dev is not None:
             touched.append(dev)
 
+        # -- phase 3, idea 5: an EARLY warning before the excursion (`predict_warn`, default off - the card shows the projection anyway); never
+        #    while the door is open or inside a defrost window (expected rises), never next to an open excursion
+        pev = evs.get("predict")
+        calm = v is not None and not switched_off and not door and not defrost and "high" not in evs and "low" not in evs
+        if calm and rules["predict_enabled"] and rules["predict_warn"]:
+            horizon = int(rules["predict_horizon_min"])
+            rate = t.rate_per_min(conn, u["id"], now_ts)
+            # a row opens inside the horizon and stays while the crossing is within 1.5x of it (no flapping on the edge)
+            pr = t.predict(v, rate, low, high, horizon if pev is None else int(horizon * 1.5) + 5)
+        else:
+            pr = None
+        if pev is None and pr is not None:
+            pev = _open(conn, u["id"], "predict", "warning", now, value=v, threshold=pr["threshold"], warned=now,
+                        detail={"side": pr["side"], "eta_min": pr["eta_min"], "rate_h": pr["rate_h"]})
+            touched.append(pev)
+            out["opened"] += 1
+        elif pev is not None:
+            if pr is None:
+                _resolve_current(conn, u, pev, now_ts, "החריגה החלה" if ("high" in evs or "low" in evs) else "התחזית התבטלה")
+                pev["ended_at"] = now
+                out["closed"] += 1
+            else:
+                pev["value"] = v
+                pev["detail"] = {**pev.get("detail", {}), "eta_min": pr["eta_min"], "rate_h": pr["rate_h"]}
+            touched.append(pev)
+
+        # -- phase 3, ideas 2 / 6 / 8: sensor health and a suspected cooling fault (warnings of the `health` kind; each a setting)
+        hl = ti.health(conn, u["id"], te, reading["source"], rules, now_ts) if rules["health_warn"] else None
+        ins = insights.get(u["id"]) or {}
+        door_ins = ins.get("door") or {}
+        duty_ins = ins.get("duty") or {}
+        wanted = {
+            "battery": (bool(hl and hl["battery_low"]), {"battery": hl["battery"]} if hl else {}, now),
+            "frozen": (bool(hl and hl["frozen_since"]), {}, (hl or {}).get("frozen_since") or now),
+            "recovery": (bool(rules["recovery_alert"] and door_ins.get("slow")), {"median_recovery_min": door_ins.get("median_recovery_min")}, now),
+            "duty": (bool(rules["duty_alert"] and u["power_entity_id"] and duty_ins.get("rising")), {"recent": duty_ins.get("recent"), "before": duty_ins.get("before")}, now),
+        }
+        for kind, (active, detail, since) in wanted.items():
+            hev = evs.get(kind)
+            if active and hev is None:
+                hev = _open(conn, u["id"], kind, "warning", since, value=v, warned=now, detail=detail)
+                touched.append(hev)
+                out["opened"] += 1
+            elif hev is not None and not active:
+                _resolve_current(conn, u, hev, now_ts, "הבעיה נפתרה")
+                hev["ended_at"] = now
+                touched.append(hev)
+                out["closed"] += 1
+            elif hev is not None:
+                hev["value"] = v if v is not None else hev["value"]
+                touched.append(hev)
+
+        # -- phase 3, idea 4: the escalation chain of an alarm nobody acknowledged (never while alarms are held - by default they never are)
+        if chain["enabled"] and rules["escalation_enabled"] and held_alarm is None:
+            for ev in touched:
+                if ev["severity"] != "alarm" or ev["ended_at"] is not None or ev.get("ack_at"):
+                    continue
+                lvl = int(ev.get("escalation_level") or 0)
+                if lvl >= len(chain["steps"]):
+                    continue
+                step = chain["steps"][lvl]
+                if now_ts - (_ts(ev.get("alarmed_at")) or now_ts) < int(step["after_min"]) * 60:
+                    continue
+                res = _emit(conn, _esc_signal(u, ev, lvl + 1, now_ts, area))
+                ev["escalation_level"], ev["escalated_at"] = lvl + 1, now
+                log_act(conn, u["id"], "escalate", now, None, {"event": ev["id"], "level": lvl + 1, "of": ev["kind"],
+                                                               "notified": bool(res and res.action in ("created", "folded", "renotified"))})
+                out["escalated"] += 1
+
         for ev in touched:
             if ev["ended_at"] is None:
                 _notify(conn, u, ev, now_ts, held=held, held_alarm=held_alarm, area=area, out=out)
             _save(conn, ev)
     return out
+
+
+# ---------------------------------------------------------------- phase 3: the maintenance window (idea 9)
+
+def start_maintenance(conn: sqlite3.Connection, u: sqlite3.Row, now_ts: float, minutes: int, reason: str, by: str | None) -> str:
+    """Puts the unit in maintenance for `minutes` with a reason and who: its WARNINGS are held (alarms only with `maintenance_includes_alarms`),
+    the alert log and the report show the window with the name - never an anonymous mute. A running window is replaced (its row ends now)."""
+    if u["maint_event_id"]:
+        end_maintenance(conn, u, now_ts, by=by, early=True)
+    until = now_ts + minutes * 60
+    eid = new_id()
+    conn.execute("""INSERT INTO infra_temp_events(id, unit_id, kind, severity, started_at, ack_by, ack_at, detail_json) VALUES (?,?, 'maint', 'info', ?, ?, ?, ?)""",
+                 (eid, u["id"], _iso(now_ts), by, _iso(now_ts), json.dumps({"reason": reason, "minutes": minutes, "until": _iso(until)}, ensure_ascii=False)))
+    conn.execute("UPDATE infra_temp_units SET maint_until = ?, maint_by = ?, maint_reason = ?, maint_event_id = ? WHERE id = ?",
+                 (_iso(until), by, reason, eid, u["id"]))
+    return _iso(until)
+
+
+def end_maintenance(conn: sqlite3.Connection, u: sqlite3.Row, at_ts: float, *, by: str | None = None, early: bool = False) -> None:
+    """Ends the window (ran out, or ended early by `by`): the log row closes; held warnings go out on the next pass if their condition holds."""
+    if u["maint_event_id"]:
+        r = conn.execute("SELECT detail_json FROM infra_temp_events WHERE id = ?", (u["maint_event_id"],)).fetchone()
+        try:
+            d = json.loads(r["detail_json"] or "{}") if r else {}
+        except ValueError:
+            d = {}
+        if early:
+            d.update(ended_early=True, ended_by=by)
+        conn.execute("UPDATE infra_temp_events SET ended_at = ?, detail_json = ? WHERE id = ? AND ended_at IS NULL",
+                     (_iso(at_ts), json.dumps(d, ensure_ascii=False), u["maint_event_id"]))
+    conn.execute("UPDATE infra_temp_units SET maint_until = NULL, maint_by = NULL, maint_reason = NULL, maint_event_id = NULL WHERE id = ?", (u["id"],))
+
+
+# ---------------------------------------------------------------- phase 3: the hourly insights (door correlation, duty cycle)
+
+def run_insights(conn: sqlite3.Connection, now_ts: float, *, force: bool = False) -> int:
+    from . import temperature_insights as ti
+
+    tz = t.site_zone(conn)
+    defaults = t.load_defaults(conn)
+    n = 0
+    for u in t.units(conn, enabled_only=True):
+        if not (u["door_entity_id"] or u["power_entity_id"]):
+            continue
+        if not force and now_ts - _LAST["insights"].get(u["id"], 0.0) < ti.RUN_EVERY_S:
+            continue
+        _LAST["insights"][u["id"]] = now_ts
+        try:
+            ti.compute(conn, u, t.effective(defaults, t.overrides_of(u["rules_json"])), tz, now_ts)
+            n += 1
+        except Exception:  # noqa: BLE001
+            log.warning("temperature insights failed for one unit", exc_info=True)
+    return n
 
 
 def run_learner(conn: sqlite3.Connection, now_ts: float, *, force: bool = False) -> int:
@@ -390,6 +576,7 @@ def tick(db: Database, now: float | None = None, *, connected: bool | None = Non
             return {"skipped": "no_schema"}
         res = evaluate(conn, ts, connected=t.mirror_connected() if connected is None else connected)
         res["learned"] = run_learner(conn, ts)
+        res["insights"] = run_insights(conn, ts)
     try:  # phase 2: the WhatsApp report sends and schedules (text summary only; services/temperature_whatsapp.py)
         from . import temperature_whatsapp
 

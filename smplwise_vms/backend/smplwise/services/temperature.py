@@ -29,7 +29,13 @@ DEFROST_MODES: tuple[str, ...] = ("fixed", "learn", "none")
 STATUSES: tuple[str, ...] = ("ok", "warning", "alarm", "offline", "off", "unknown")  # off = a climate unit switched off (a state, not an alarm)
 BAND_MODES: tuple[str, ...] = ("fixed", "setpoint")
 HVAC_MODES: tuple[str, ...] = ("off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only")
-EVENT_KINDS: tuple[str, ...] = ("high", "low", "door", "offline", "defrost", "ack", "mute")
+EVENT_KINDS: tuple[str, ...] = ("high", "low", "door", "offline", "defrost", "ack", "mute",
+                                # phase 3: a predicted crossing, sensor health (battery / frozen reading), a suspected cooling fault (slow
+                                # recovery after the door / a rising compressor duty cycle), a maintenance window, an escalation step, a ticket
+                                "predict", "battery", "frozen", "recovery", "duty", "maint", "escalate", "ticket")
+CONDITION_KINDS: tuple[str, ...] = ("high", "low", "door", "offline", "defrost", "predict", "battery", "frozen", "recovery", "duty")
+HEALTH_KINDS: tuple[str, ...] = ("battery", "frozen", "recovery", "duty")
+ACT_KINDS: tuple[str, ...] = ("ack", "mute", "maint", "escalate", "ticket")
 SEVERITIES: tuple[str, ...] = ("info", "warning", "alarm")
 DEAD = {"", "unknown", "unavailable", "none", "null", "nan"}
 MAX_FIXED_WINDOWS = 6
@@ -61,6 +67,28 @@ RULES: dict[str, tuple[str, Any, float | None, float | None]] = {
     "defrost_max_min": ("int", 60, 10, 180),              # a rise longer than this is not a defrost cycle
     "setpoint_tolerance": ("float", 2.0, 0.1, 20),        # climate units in band mode `setpoint`: the band is setpoint -/+ this
     "alert_when_off": ("bool", False, None, None),        # climate units: judge the band also while the unit is switched off
+    # ---- phase 3 (owner 2026-10-20: every accepted idea, every capability a setting; alerts on by default, alarms never silenced)
+    # time-to-threshold (idea 5): the card shows "the threshold is crossed in ~N min" from the slope of the last 30 minutes
+    "predict_enabled": ("bool", True, None, None),
+    "predict_horizon_min": ("int", 60, 5, 240),           # shown / warned only when the crossing is this close
+    "predict_warn": ("bool", False, None, None),          # an EARLY warning notification before the excursion starts (off: display only)
+    # maintenance window (idea 9): holds the unit's WARNINGS; alarms only when this is turned on (owner: alarms are never silenced)
+    "maintenance_includes_alarms": ("bool", False, None, None),
+    "maintenance_max_min": ("int", 240, 15, 1440),
+    # escalation chain (idea 4): the unit follows the installation's chain (Settings > Infrastructure > Temperatures > alerts) unless off here
+    "escalation_enabled": ("bool", True, None, None),
+    # sensor health (idea 8)
+    "health_warn": ("bool", True, None, None),            # a warning for a low battery or a frozen reading (the sensor health card always shows)
+    "battery_low_pct": ("int", 20, 5, 60),
+    "frozen_min": ("int", 360, 0, 2880),                  # the same value for this long = a frozen reading (0 = not checked)
+    "signal_weak_dbm": ("int", -85, -120, -30),
+    # door <-> temperature correlation and recovery time (idea 2)
+    "recovery_slow_min": ("int", 30, 5, 240),             # median recovery after closing slower than this = suspected cooling fault
+    "recovery_alert": ("bool", False, None, None),        # notify about it (off: the card and the detail mark it)
+    # compressor duty cycle from a smart plug / current meter (idea 6)
+    "compressor_on_w": ("float", 15.0, 0.5, 5000),        # power at or above this = the compressor runs
+    "duty_rise_pts": ("int", 15, 5, 80),                  # the last 3 days above the 4 before by this many points = rising
+    "duty_alert": ("bool", False, None, None),
 }
 # installation-only settings (not per unit)
 INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
@@ -68,8 +96,15 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     # phase 2 (owner TODO): what a WhatsApp report carries besides its text summary. Only "none" until a transport can send a document
     # (services/temperature_whatsapp.ATTACHMENT_MODES / attachment_for); future: "pdf" | "link" | "html"
     "report_attachment": ("choice", "none", None, None),
+    # phase 3: the grid grouped by area / floor (idea 7) or flat; every viewer may still collapse groups (kept in his browser)
+    "grid_grouping": ("choice", "area", None, None),
+    # phase 3: a service ticket from an alarm (idea 11): the department offered first ("" = the person chooses) and the chart picture
+    "ticket_department_id": ("id", "", None, None),
+    "ticket_attach_chart": ("bool", True, None, None),
+    # phase 3: the home screen widget (idea 12) is offered to viewers who see a unit; off = no widget anywhere
+    "home_widget": ("bool", True, None, None),
 }
-CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none",)}
+CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none",), "grid_grouping": ("area", "none")}
 RAW_KEEP_S = 35 * 86400
 BUCKET_S = 300
 RANGES = {"24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
@@ -91,6 +126,12 @@ MESSAGES: dict[str, dict[str, str]] = {
     "order_mismatch": {"he": "הסדר חייב לכלול את כל היחידות.", "en": "The order must list every unit."},
     "nothing_to_ack": {"he": "אין התראה פתוחה לאישור.", "en": "There is no open alert to acknowledge."},
     "window_not_found": {"he": "חלון ההפשרה לא נמצא.", "en": "The defrost window was not found."},
+    "not_power_sensor": {"he": "חיישן ההספק חייב להיות חיישן הספק (W / kW).", "en": "The power sensor must report power (W / kW)."},
+    "maint_reason": {"he": "יש לכתוב סיבה לחלון התחזוקה.", "en": "A reason is required for the maintenance window."},
+    "maint_too_long": {"he": "חלון התחזוקה ארוך מהמותר.", "en": "The maintenance window is longer than allowed."},
+    "not_in_maintenance": {"he": "היחידה לא בתחזוקה.", "en": "The unit is not in maintenance."},
+    "tickets_unavailable": {"he": "מודול ניהול השירות לא פעיל.", "en": "The service module is not active."},
+    "event_not_found": {"he": "האירוע לא נמצא.", "en": "The event was not found."},
 }
 
 
@@ -132,6 +173,10 @@ def _check(key: str, spec: tuple[str, Any, float | None, float | None], v: Any) 
         return v
     if typ == "choice":
         if v not in CHOICES.get(key, ()):
+            raise Invalid("rule_invalid", [f"rules.{key}"])
+        return v
+    if typ == "id":  # a record id (or "" = none); existence is checked where it is used
+        if not isinstance(v, str) or len(v) > 64 or (v and not all(c.isalnum() or c in "-_" for c in v)):
             raise Invalid("rule_invalid", [f"rules.{key}"])
         return v
     if isinstance(v, bool) or not isinstance(v, (int, float)) or (isinstance(v, float) and not math.isfinite(v)):
@@ -366,6 +411,32 @@ def is_temperature_entity(r: sqlite3.Row | dict[str, Any]) -> bool:
     return r["device_class"] == "temperature" or unit in ("°C", "°F", "C", "F", "℃", "℉")
 
 
+def is_power_entity(r: sqlite3.Row | dict[str, Any]) -> bool:
+    """A numeric power sensor (smart plug / current meter): device class power, or a W / kW unit (phase 3, idea 6)."""
+    if r["domain"] != "sensor":
+        return False
+    unit = (r["unit"] or "").strip()
+    return r["device_class"] == "power" or unit in ("W", "kW")
+
+
+def power_of(r: Any, *, connected: bool = True) -> float | None:
+    """Watts of a live power reading (kW converted); None for anything that is not one."""
+    if r is None or not connected or r["removed_at"] or r["disabled"] or not r["available"]:
+        return None
+    s = str(r["state"] or "").strip().lower()
+    if s in DEAD:
+        return None
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    if not math.isfinite(v) or v < 0:
+        return None
+    if (r["unit"] or "").strip() == "kW":
+        v *= 1000
+    return round(v, 1)
+
+
 def _num(v: Any) -> float | None:
     if isinstance(v, bool) or v is None:
         return None
@@ -438,7 +509,7 @@ def entity_rows(conn: sqlite3.Connection, ids: Iterable[str]) -> dict[str, sqlit
     if not ids:
         return {}
     rows = conn.execute(f"""SELECT entity_id, name, original_name, domain, device_class, unit, state, available, removed_at, disabled, last_changed, last_updated,
-                                   area_name, attributes_json FROM ha_entities WHERE entity_id IN ({','.join('?' * len(ids))})""", ids).fetchall()
+                                   area_name, attributes_json, device_id FROM ha_entities WHERE entity_id IN ({','.join('?' * len(ids))})""", ids).fetchall()
     return {r["entity_id"]: r for r in rows}
 
 
@@ -491,23 +562,27 @@ def mirror_connected() -> bool:
 
 # ---------------------------------------------------------------- history: samples, rollup, query, statistics
 
-def record_sample(conn: sqlite3.Connection, unit_id: str, ts: int, v: float, flags: int, sp: float | None = None) -> bool:
-    """One raw sample for the minute of `ts` (with the climate setpoint when there is one) plus the five-minute rollup. Returns False when that
-    minute was already recorded."""
+def record_sample(conn: sqlite3.Connection, unit_id: str, ts: int, v: float, flags: int, sp: float | None = None, pw: float | None = None,
+                  on_w: float | None = None) -> bool:
+    """One raw sample for the minute of `ts` (with the climate setpoint and the power reading when there are) plus the five-minute rollup
+    (phase 3: minutes with a power reading and minutes at or above `on_w` = the compressor ran). Returns False when that minute was already
+    recorded."""
     ts -= ts % 60
-    cur = conn.execute("INSERT OR IGNORE INTO infra_temp_samples(unit_id, ts, v, sp, flags) VALUES (?,?,?,?,?)", (unit_id, ts, v, sp, flags))
+    cur = conn.execute("INSERT OR IGNORE INTO infra_temp_samples(unit_id, ts, v, sp, flags, pw) VALUES (?,?,?,?,?,?)", (unit_id, ts, v, sp, flags, pw))
     if cur.rowcount == 0:
         return False
     bucket = ts - ts % BUCKET_S
     d = 1 if flags & 1 else 0
+    pw_n = 1 if pw is not None else 0
+    on_n = 1 if pw is not None and on_w is not None and pw >= on_w else 0
     conn.execute(
-        """INSERT INTO infra_temp_samples_5m(unit_id, ts, v_avg, v_min, v_max, n, n_def, sp_avg, sp_n) VALUES (?,?,?,?,?,1,?,?,?)
+        """INSERT INTO infra_temp_samples_5m(unit_id, ts, v_avg, v_min, v_max, n, n_def, sp_avg, sp_n, pw_n, on_n) VALUES (?,?,?,?,?,1,?,?,?,?,?)
            ON CONFLICT(unit_id, ts) DO UPDATE SET v_avg = (v_avg * n + excluded.v_avg) / (n + 1), v_min = MIN(v_min, excluded.v_min),
              v_max = MAX(v_max, excluded.v_max), n = n + 1, n_def = n_def + excluded.n_def,
              sp_avg = CASE WHEN excluded.sp_avg IS NULL THEN sp_avg WHEN sp_avg IS NULL THEN excluded.sp_avg
                            ELSE (sp_avg * sp_n + excluded.sp_avg) / (sp_n + 1) END,
-             sp_n = sp_n + excluded.sp_n""",
-        (unit_id, bucket, v, v, v, d, sp, 1 if sp is not None else 0))
+             sp_n = sp_n + excluded.sp_n, pw_n = pw_n + excluded.pw_n, on_n = on_n + excluded.on_n""",
+        (unit_id, bucket, v, v, v, d, sp, 1 if sp is not None else 0, pw_n, on_n))
     return True
 
 
@@ -643,6 +718,27 @@ def rate_per_min(conn: sqlite3.Connection, unit_id: str, now_ts: float, minutes:
     if den == 0:
         return None
     return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den
+
+
+PREDICT_MIN_RATE = 0.01  # degrees per minute (0.6 / hour): a slower drift is noise, not a trend worth a prediction
+
+
+def predict(v: float | None, rate: float | None, low: float, high: float, horizon_min: int) -> dict[str, Any] | None:
+    """Time-to-threshold (phase 3, idea 5): with the reading still inside the band and the slope of the last 30 minutes heading to an edge,
+    when it would cross: {side: high | low, threshold, eta_min, rate_h (degrees per hour)}; None when the reading is already out, the drift is
+    too slow, or the crossing is further than `horizon_min`. A projection, never a reading: the caller suppresses it while the door is open or
+    inside a defrost window (expected rises)."""
+    if v is None or rate is None or not low <= v <= high:
+        return None
+    if rate >= PREDICT_MIN_RATE:
+        side, thr, eta = "high", high, (high - v) / rate
+    elif rate <= -PREDICT_MIN_RATE:
+        side, thr, eta = "low", low, (v - low) / -rate
+    else:
+        return None
+    if eta > horizon_min:
+        return None
+    return {"side": side, "threshold": thr, "eta_min": max(1, int(round(eta))), "rate_h": round(rate * 60, 2)}
 
 
 def prune(conn: sqlite3.Connection, now_ts: float, retention_days: int) -> dict[str, int]:
