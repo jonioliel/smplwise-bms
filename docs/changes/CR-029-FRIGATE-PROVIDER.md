@@ -334,3 +334,13 @@ Full detail and the area-by-area matrix: `docs/changes/CR-FRIGATE-CAPABILITY-MAT
   (class `exports`, kind `export_assign`) and a case on export creation, the clip of a closed review item of at most an hour.
 - Sections 7 and 10-11 "NOT VERIFIED" lines still stand for the LIVE instance: this phase verified shapes against the published API and
   source, not by writing to the owner's Frigate (the supervised session was blocked on access, see the task report).
+
+## 16. FRIGLIVE-295 - live validation on the owner's Frigate 0.18.0 (branch pilot/FRIGLIVE-295, no migration)
+
+Full report: `docs/changes/CR-FRIGATE-LIVE-0180-REPORT.md`. Every read path and every write class except profile and PTZ was exercised on the
+owner's instance (one action at a time, original recorded, rolled back, effective config and raw YAML verified identical to the baseline).
+The route list of the live 0.18.0 equals the 0.18.2 list. Five fixes: read-backs bypass Frigate's nginx micro-cache (`X-Cache-Bypass: 1`);
+export rows name the case `export_case`; a clip without recordings is `no_recording`; `config/set` never sends `""` for a key the file lacks
+(that is a 500) and removing the last zone removes the `zones` key; a settings undo removes a key whose old value was only inherited.
+The section 7 line on the WebSocket `reviews` payload is now verified live (one `update` frame, JSON-string payload, parsed by Arx).
+Still NOT VERIFIED live: profile switch (no profiles defined), PTZ, a viewer account, Frigate's restream (its go2rtc lists no streams).

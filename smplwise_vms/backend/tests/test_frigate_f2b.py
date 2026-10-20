@@ -176,7 +176,7 @@ def test_an_export_whose_answer_has_no_id_is_found_by_name_and_a_bad_range_is_re
 def test_an_export_is_limited_to_the_cameras_of_the_binding_and_the_list_is_filtered(world):
     cams = world.cams()
     world.policy(exports=True)
-    world.fake.exports.append({"id": "cam_yard_foreign", "camera": "cam_yard", "name": "yard", "date": 1.0, "in_progress": False, "export_case_id": None})
+    world.fake.exports.append({"id": "cam_yard_foreign", "camera": "cam_yard", "name": "yard", "date": 1.0, "in_progress": False, "export_case": None})
     bind(world.c, world.s, "tal", "system_admin", "camera", cams["cam_front"])
     h = as_user("tal")
     assert _export(world, "cam_yard", headers=h).status_code == 403

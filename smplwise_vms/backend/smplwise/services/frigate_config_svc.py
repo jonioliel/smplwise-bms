@@ -170,6 +170,17 @@ def revert_kind(adapter: FrigateAdapter, row: sqlite3.Row, before: Any, after: A
         now = cfg.camera(cam)["settings"]
         if not all(fcfg.same_setting(k, now.get(k), v) for k, v in (after or {}).items()):
             raise stale()
-        cfg.write_settings(cam, target, dict(before or {}))
-        return _settings_back(cfg, cam, dict(before or {}))[0]
+        before = dict(before or {})
+        # FRIGLIVE-295 (live 0.18.0): `/api/config` is the EFFECTIVE config, so an unset key reads as the value it inherits (the global section or
+        # Frigate's default). Writing that value back pinned it in the YAML file (one extra line; same effective state). A value equal to what the
+        # key inherits is therefore undone by REMOVING the key; if the read-back then disagrees (the key had really been set), the value itself is
+        # written once as a correction.
+        inherited = cfg.inherited(list(before))
+        first = {k: (None if v is not None and fcfg.same_setting(k, v, inherited.get(k)) else v) for k, v in before.items()}
+        cfg.write_settings(cam, target, first)
+        ok = _settings_back(cfg, cam, before)[0]
+        if not ok and first != before:
+            cfg.write_settings(cam, target, before)
+            ok = _settings_back(cfg, cam, before)[0]
+        return ok
     raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.")
