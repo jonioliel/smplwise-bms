@@ -329,6 +329,23 @@ def test_a_code_protected_link_shows_only_the_minimal_card_and_code_send_is_503(
         assert conn.execute("SELECT COUNT(*) FROM ticket_link_codes").fetchone()[0] == 0
 
 
+def test_a_pre_code_open_of_a_code_protected_link_records_no_open_and_no_device(s4):
+    """PUB-02 (public review 2026-10-20): like the RFQ page (review F1), a forwarded code-protected link alone forges no
+    "the vendor opened the link" line and no device row - an open counts only past the code gate."""
+    t, token = s4.sent()
+    with s4.db.connection() as conn:
+        conn.execute("UPDATE ticket_links SET require_code = 1 WHERE ticket_id = ?", (t["id"],))
+    client, _ = s4.public(Clock(time.time()))
+    for _ in range(2):
+        v = client.get("/t/api/ticket", headers=hdr(token)).json()
+        assert v["code_required"] is True and v["code_ok"] is False
+    row = s4.link_row(t["id"])
+    assert row["open_count"] == 0 and row["first_opened_at"] is None
+    assert [e for e in s4.w.detail(t["id"])["events"] if e["kind"] == "link_opened"] == []
+    with s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM ticket_link_access").fetchone()[0] == 0
+
+
 # ---------------------------------------------------------------- hostile inputs
 
 
