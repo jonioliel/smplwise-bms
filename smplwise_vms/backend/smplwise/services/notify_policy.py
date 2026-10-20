@@ -21,11 +21,11 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator")  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature")  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator")  # rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature")  # rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -85,6 +85,15 @@ SOURCES: tuple[Source, ...] = (
        subject="elevator", resolve_text="התקלה הסתיימה"),
     _s("elevator.out_of_service", "מעלית: השבתה", "device_faults", "info", "מעלית בהשבתה", "{name} בהשבתה.", who="elevator", push=False, enabled=False,
        subject="elevator", resolve_text="ההשבתה הסתיימה"),
+    # CR-INFRA-TEMPERATURE 2.9.1 (services/temperature_runtime.py): the temperature units. ON by default (a unit exists to raise alerts); the
+    # recipients and channels are chosen in Settings > Infrastructure > Temperatures and mirrored here (services/temperature_alerts.py; rule
+    # `temperature`). The module holds WARNINGS in its own quiet hours / mute before emitting; an alarm is never held.
+    _s("temperature.alarm", "טמפרטורה: אזעקה", "device_faults", "critical", "אזעקת טמפרטורה", "{name}: {detail}.", who="temperature", subject="temperature",
+       resolve_notice=True, resolve_text="היחידה חזרה לתקין", app=True),
+    _s("temperature.warning", "טמפרטורה: חריגה מהטווח", "device_faults", "alert", "חריגת טמפרטורה", "{name}: {detail}.", who="temperature", subject="temperature",
+       resolve_text="הטמפרטורה חזרה לטווח"),
+    _s("temperature.offline", "טמפרטורה: חיישן לא מדווח", "device_faults", "alert", "חיישן טמפרטורה לא מדווח", "{name}: {detail}.", who="temperature", push=False,
+       subject="temperature", resolve_text="החיישן חזר לדווח"),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),

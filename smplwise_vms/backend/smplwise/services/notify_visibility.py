@@ -187,6 +187,10 @@ class Reach:
             src = str(n.get("source") or "")
             role = src.split(".", 1)[1] if src.startswith("elevator.") else None
             return elevators.visible_to(self.conn, lambda eid: self._entity("devices.read", eid), sid, role)
+        if kind == "temperature":  # CR-INFRA-TEMPERATURE 2.9.1: devices.read on the unit's temperature sensor (and the door sensor, when linked)
+            from . import temperature_access
+
+            return temperature_access.visible_to(self.conn, lambda eid: self._entity("devices.read", eid), sid)
         if kind == "session":
             if str(n.get("source") or "") == "security.lockout":
                 return self._allowed("system.configure")  # administrators ONLY: the locked-out account is not told (and cannot acknowledge it)

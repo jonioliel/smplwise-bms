@@ -553,12 +553,16 @@ export const INFRA_SETTINGS_HREF = '#/system/infra';
 export const INFRA_GENERATOR_HREF = '#/infra/generator/live';
 /** CR-INFRA-ELEVATORS: the elevators' live list (devices.read; offered only once an elevator is defined). */
 export const INFRA_ELEVATORS_HREF = '#/infra/elevators';
+/** CR-INFRA-TEMPERATURE 2.9.1: the temperature units (devices.read; offered once a unit is defined, or to a manager for setup). */
+export const INFRA_TEMPERATURE_HREF = '#/infra/temperature';
 export const INFRA_TABS: TabItem[] = [
   { id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF },
   // CR-031: a sibling of the meters, offered only when a generator is detected (or to a manager, for setup)
   { id: 'generator', label: 'גנרטור', href: INFRA_GENERATOR_HREF },
   // CR-INFRA-ELEVATORS: hidden until at least one elevator is defined that the viewer may see (elevators/access.ts)
   { id: 'elevators', label: 'מעליות', href: INFRA_ELEVATORS_HREF },
+  // CR-INFRA-TEMPERATURE 2.9.1: hidden until a unit is defined that the viewer may see (or he may manage them; temperature/access.ts)
+  { id: 'temperature', label: 'טמפרטורות', href: INFRA_TEMPERATURE_HREF },
 ];
 
 /** CR-031: the generator tab is hidden until a generator is detected (generator/access.ts); hidden = true until told otherwise. */
@@ -576,6 +580,15 @@ export function applyInfraElevators(show: boolean): void {
   const hide = !show;
   if (hide === INFRA_NO_ELEVATORS) return;
   INFRA_NO_ELEVATORS = hide;
+  for (const l of tabsListeners) l();
+}
+
+/** CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab is hidden until the viewer sees a unit or may manage them; hidden = true until told otherwise. */
+let INFRA_NO_TEMPERATURE = true;
+export function applyInfraTemperature(show: boolean): void {
+  const hide = !show;
+  if (hide === INFRA_NO_TEMPERATURE) return;
+  INFRA_NO_TEMPERATURE = hide;
   for (const l of tabsListeners) l();
 }
 
@@ -804,7 +817,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'devices':
       return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'infra':
-      return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : 'electricity';
+      return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
       return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
@@ -957,7 +970,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [INFRA_METERS_HREF]: ['energy.view'],
   [INFRA_GENERATOR_HREF]: ['generator.view'],
   [INFRA_ELEVATORS_HREF]: ['devices.read'],
-  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage'],
+  [INFRA_TEMPERATURE_HREF]: ['devices.read'],
+  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage'],
   // CR-038 (section 8): the tickets area - "שלי" for whoever may view or open tickets (a creator sees the tickets they opened), "המחלקה" for
   // tickets.view (the server lists the caller's departments), "הכול" for tickets.all_departments; held at ANY scope (the server's visibility rule
   // narrows every row by place and department). The settings tab: the switch and the display (system.configure) or the name, departments and
@@ -1039,7 +1053,7 @@ export function tabAllowed(href: string, can?: Can): boolean {
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered = items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;
@@ -1061,7 +1075,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
