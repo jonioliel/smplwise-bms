@@ -77,7 +77,7 @@ class CredentialRef:
         kind, _, rest = self.ref.partition(":")
         if kind == "env" and re.fullmatch(r"[A-Z_][A-Z0-9_]{0,63}", rest):
             return
-        if kind == "file" and rest and Path(rest).is_absolute():
+        if kind == "file" and rest and (rest.startswith("/") or Path(rest).is_absolute()) and "\x00" not in rest:
             return
         # never echo the rejected text: it may be the secret itself, pasted where a reference belongs
         raise OffboxError("credential_ref_invalid", "a credential must be a reference: env:NAME or file:/absolute/path")

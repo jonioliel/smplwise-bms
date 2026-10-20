@@ -192,7 +192,7 @@ def test_one_drill_at_a_time(settings):
 def test_the_monthly_schedule_is_off_by_default_and_runs_when_due(settings):
     _archive(settings)
     db = Database(settings.db_path)
-    now = dt.datetime(2026, 10, 20, 12, tzinfo=dt.timezone.utc)
+    now = dt.datetime.now(dt.timezone.utc)
     assert drill.monthly_tick(db, settings, now) is None and drill.read_last(settings) is None, "OFF by default"
     with db.connection() as conn:
         set_setting(conn, drill.SCHEDULE_KEY, "true")
