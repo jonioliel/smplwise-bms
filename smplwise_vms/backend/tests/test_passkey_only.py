@@ -74,7 +74,7 @@ def test_on_refuses_the_password_uniformly_and_only_a_passkey_signs_in(px):
     # a correct password is never counted towards a lock
     for _ in range(12):
         assert px.sign_in(px.remote(), "maria", GOOD).status_code == 401
-    assert px.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,)) == [{"failed_count": 0, "delay_until": None}]
+    assert px.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,)) == [{"failed_count": 1, "delay_until": None}]  # only the one deliberate wrong password counted
     c2, r = _pk_sign_in(px, auth)
     assert r.status_code == 200 and "arx_session=l." in _cookie(r)
     assert c2.get("/arx/api/v1/me").json()["user"]["id"] == uid
