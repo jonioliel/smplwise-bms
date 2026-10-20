@@ -13,7 +13,7 @@ import type { DropdownItem } from '../components/sw-dropdown';
 import { ApiError, describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import {
-  acceptContact, approveGrant, confirmGone, exportGrantsCsv, getDigest, getDrift, getGrant, listGrants, provisionNow, pushName, putScreenSettings, readNow, refuseGrant, revokeAll,
+  acceptContact, approveGrant, attachCard, confirmGone, exportGrantsCsv, getHistory, type HistoryRow, getDigest, getDrift, getGrant, listGrants, provisionNow, pushName, putScreenSettings, readNow, refuseGrant, revokeAll,
   revokeGrant, rotateCode, type Digest, type Drift, type DriftKind, type DriftRow, type Grant, type GrantsReply, type ScreenSettings,
 } from '../api/access-grants';
 import {
@@ -96,6 +96,9 @@ export class AccessExternalScreen extends LitElement {
   @state() private dlgError = '';
   @state() private toasts: { id: number; text: string }[] = [];
   @state() private tz = 'Asia/Jerusalem';
+  // GRANTS3-295: the card typed for a card grant (held only until the save answers) and the owner's per-grant history
+  @state() private cardNo = '';
+  @state() private history: { id: string; rows: HistoryRow[] | null; error: string } | null = null;
   // the approval dialog
   @state() private apDoors = new Set<string>();
   @state() private apFrom = '';
@@ -338,6 +341,8 @@ export class AccessExternalScreen extends LitElement {
   private closeDrawer(): void {
     this.sel = null;
     this.detail = null;
+    this.cardNo = '';
+    this.history = null;
   }
 
   private async act(fn: () => Promise<unknown>, done: XtKey, vars?: Record<string, string | number>): Promise<boolean> {
@@ -443,12 +448,64 @@ export class AccessExternalScreen extends LitElement {
               ${g.person.number ? html`<div><span>${xt('sentTo')}</span><b class="num">${xt('whatsapp')} ${g.person.number}</b></div>` : nothing}
               <div><span>${xt('theCode')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('neverShown')}</b></div></div></section>`
           : nothing}
+        ${this.cardBlock(g)}
         ${g.closure?.reference ? html`<section class="sec"><h4><sw-icon name="info" size="14"></sw-icon>${xt('gone_ref_label')}</h4><p style="margin:0" data-closure-reference>${g.closure.reference}</p></section>` : nothing}
         <section class="sec" data-grant-identity><access-identity-card compact contact-id=${g.person.contact_id} name=${this.name(g)} @changed=${() => this.load()}></access-identity-card></section>
         ${this.timelineBlock(g)}
+        ${this.historyBlock(g)}
         <div class="dfoot">${this.drawerActions(g, a)}</div>
       </div>
     </sw-drawer>`;
+  }
+
+  /** GRANTS3-295 (X5): a card grant's card - its state, and for an active grant waiting for its card the number field (the number goes to
+   * WisKey only and is cleared from this screen at once); reading the card at a reader stays off (the capture lease route). */
+  private cardBlock(g: Grant): TemplateResult | typeof nothing {
+    if (g.credential !== 'card') return nothing;
+    const cs = g.card_state ?? null;
+    const tone = cs === 'attached' ? 'ok' : cs === 'unknown' ? 'warn' : cs === 'removed' ? 'off' : 'acc';
+    const canSave = g.state === 'active' && (cs === 'awaiting' || cs === 'unknown');
+    return html`<section class="sec" data-card-block=${cs ?? ''}><h4><sw-icon name="lock" size="14"></sw-icon>${xt('cardTitle')}</h4><div class="kv">
+        <div><span>${xt('codeState')}</span><b>${cs ? html`<span class="chip" data-tone=${tone} data-card-state=${cs}>${xt(`card_${cs}` as XtKey)}</span>` : html`<span class="chip" data-tone="off">${xt('code_hidden')}</span>`}</b></div>
+        <div><span>${xt('cardNo')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('cardNeverKept')}</b></div></div>
+      ${canSave ? html`<div class="row" style="margin-block-start:8px;flex-wrap:wrap;gap:8px">
+          <input class="in" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="32" dir="ltr" aria-label=${xt('cardNo')} placeholder=${xt('cardNo')}
+            data-card-no .value=${this.cardNo} @input=${(e: Event) => { this.cardNo = (e.target as HTMLInputElement).value; }} style="flex:1 1 160px;min-inline-size:0" />
+          <sw-button variant="primary" icon="check" data-action="card-save" ?disabled=${this.busy || !this.cardNo.trim()} @click=${() => this.saveCard(g)}>${xt('cardAttach')}</sw-button>
+          <sw-button icon="lock" data-action="card-read" disabled title=${xt('cardReadOff')}>${xt('cardRead')}</sw-button></div>
+          <p class="note" data-card-read-off><sw-icon name="info" size="14"></sw-icon>${xt('cardReadOff')}</p>` : nothing}
+    </section>`;
+  }
+
+  private async saveCard(g: Grant): Promise<void> {
+    const number = this.cardNo.trim();
+    this.cardNo = ''; // the field never keeps the number after the press, whatever the answer
+    await this.act(() => attachCard(g.id, g.revision, number), 'cardAttachDone');
+  }
+
+  /** GRANTS3-295: the owner's per-grant history (system administrators): who, what and the closed reason codes - never a code or a number. */
+  private historyBlock(g: Grant): TemplateResult | typeof nothing {
+    if (!this.data?.system_admin) return nothing;
+    const h = this.history?.id === g.id ? this.history : null;
+    const who = (r: HistoryRow) => (r.by.kind === 'page' ? xt('hist_page') : r.by.kind === 'system' ? xt('hist_system') : r.by.name ?? '—');
+    return html`<section class="sec" data-grant-history><h4><sw-icon name="history" size="14"></sw-icon>${xt('histTitle')}</h4>
+      ${!h ? html`<sw-button size="sm" data-history-show @click=${() => void this.loadHistory(g.id)}>${xt('histShow')}</sw-button>`
+        : h.error ? html`<p class="err-line" role="alert">${h.error}</p>`
+        : !h.rows ? html`<sw-state-panel state="loading"></sw-state-panel>`
+        : !h.rows.length ? html`<p class="note">${xt('histEmpty')}</p>`
+        : html`<ol class="tl" data-history>${h.rows.map((r) => html`<li data-history-action=${r.action}><time>${this.fmt(r.at)}</time><i data-tone=${r.decision === 'denied' ? 'warn' : 'acc'}></i>
+            <span>${xtDynamic(`h_${r.action}`, 'h_other')}${r.decision === 'denied' ? html` · <b>${xt('hist_denied')}</b>` : nothing} · ${who(r)}${r.reason ? html` · <small class="num">${r.reason}</small>` : nothing}</span></li>`)}</ol>`}
+    </section>`;
+  }
+
+  private async loadHistory(id: string): Promise<void> {
+    this.history = { id, rows: null, error: '' };
+    try {
+      const rows = (await getHistory(id)).history;
+      if (this.history?.id === id) this.history = { id, rows, error: '' };
+    } catch (e) {
+      if (this.history?.id === id) this.history = { id, rows: null, error: describeError(e) };
+    }
   }
 
   private timelineBlock(g: Grant): TemplateResult | typeof nothing {
@@ -667,7 +724,7 @@ export class AccessExternalScreen extends LitElement {
 
   private requestDialog(noPerm: boolean): TemplateResult {
     const live = new Set((this.data?.grants ?? []).filter((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state)).map((g) => g.person.contact_id));
-    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} @close=${() => (this.dialog = null)}
+    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} ?cards=${this.data?.rules.cards === 'on'} @close=${() => (this.dialog = null)}
       @done=${(e: CustomEvent<{ text: string; grant?: Grant }>) => {
         this.dialog = null;
         this.toastText(e.detail.text);

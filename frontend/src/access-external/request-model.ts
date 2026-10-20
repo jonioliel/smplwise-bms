@@ -40,7 +40,7 @@ export interface RequestForm {
   days: Set<number>;
   dates: Set<string>;
   wins: Win[];
-  cred: 'pin' | 'none';
+  cred: 'pin' | 'none' | 'card'; // GRANTS3-295: 'card' only while the cards switch is on (a vendor's technician; the server decides)
   notes: string;
   told: boolean;
   path: 'self' | 'send';

@@ -1,0 +1,138 @@
+/**
+ * GRANTS3-295: the words of the arrival step on the vendor's page (he / en; ar / ru marked for a native review like the rest of the
+ * access texts). The privacy notice itself is the SERVER's text (access_grants.notice_text, in the person's language) - never here.
+ */
+import type { Lang } from '../strings';
+
+const HE = {
+  title: 'כניסה לאתר',
+  lead: 'מי מגיע ומתי? הבקשה נשלחת למנהל לאישור. קוד הכניסה האישי יישלח בוואטסאפ רק לאדם שמגיע, למספר שלו.',
+  who: 'מי מגיע',
+  addNew: 'טכנאי אחר',
+  newName: 'שם מלא',
+  newPhone: 'מספר נייד (וואטסאפ)',
+  newNote: 'הטכנאי יאשר את המספר שלו בקוד, ומנהל יאשר אותו לפני שתינתן גישה.',
+  from: 'מתאריך',
+  to: 'עד תאריך',
+  hours: 'שעות',
+  allDay: 'כל היום',
+  windowNote: 'מועד העבודה המוסכם: {from} – {to}',
+  outside: 'התאריכים מחוץ למועד המוסכם. הבקשה תסומן כך למנהל.',
+  maxDays: 'עד {n} ימים.',
+  notice: 'הודעת פרטיות',
+  attest: 'אישור',
+  send: 'שליחת בקשת כניסה',
+  sending: 'שולח…',
+  waiting: 'הבקשה נשלחה וממתינה לאישור מנהל.',
+  waitingFor: 'עבור {person}',
+  approved: 'הכניסה אושרה',
+  ending: 'הגישה מסתיימת.',
+  pendingChange: 'שינוי שביקשתם ממתין לאישור. הגישה המאושרת בתוקף עד אז.',
+  doors: 'דלתות',
+  dates: 'תאריכים',
+  codeScheduled: 'קוד אישי יישלח בוואטסאפ ל-{to} ב-{at}.',
+  codeSent: 'קוד אישי נשלח בוואטסאפ ל-{to}. הקוד אישי - אין להעביר אותו.',
+  codeFailed: 'הקוד לא נשלח. פנו למנהל שהזמין את העבודה.',
+  cardReady: 'כרטיס הכניסה מוכן. יש לאסוף אותו מהמנהל.',
+  cardPreparing: 'כרטיס כניסה יוכן על ידי המנהל.',
+  change: 'שינוי תאריכים',
+  cancel: 'ביטול',
+  errRequired: 'יש לבחור מי מגיע ולאשר את הודעת הפרטיות.',
+  errDates: 'תאריכים לא תקינים.',
+  errOther: 'כבר נשלחה בקשה לאדם אחר בעבודה הזו. לשינוי פנו למנהל.',
+  errOtherTicket: 'לאדם הזה כבר יש גישה בעבודה אחרת. פנו למנהל.',
+  errNoDoors: 'לא ניתן להציע דלתות לכתובת הזו. פנו למנהל.',
+  errGeneric: 'הבקשה לא נשלחה. נסו שוב.',
+  offline: 'אין חיבור. נסו שוב.',
+};
+type Key = keyof typeof HE;
+
+const EN: Record<Key, string> = {
+  title: 'Site access',
+  lead: 'Who is coming, and when? The request goes to a manager for approval. The personal entry code is sent by WhatsApp only to the person who comes, to his own number.',
+  who: 'Who is coming',
+  addNew: 'Another technician',
+  newName: 'Full name',
+  newPhone: 'Mobile number (WhatsApp)',
+  newNote: 'The technician confirms his number with a code, and a manager accepts him before any access is given.',
+  from: 'From',
+  to: 'Until',
+  hours: 'Hours',
+  allDay: 'All day',
+  windowNote: 'Agreed work dates: {from} – {to}',
+  outside: 'The dates are outside the agreed dates. The manager will see that.',
+  maxDays: 'Up to {n} days.',
+  notice: 'Privacy notice',
+  attest: 'I confirm',
+  send: 'Send the access request',
+  sending: 'Sending…',
+  waiting: 'The request was sent and waits for a manager.',
+  waitingFor: 'For {person}',
+  approved: 'Access approved',
+  ending: 'The access is ending.',
+  pendingChange: 'A change you asked for waits for approval. The approved access stays valid meanwhile.',
+  doors: 'Doors',
+  dates: 'Dates',
+  codeScheduled: 'A personal code will be sent by WhatsApp to {to} on {at}.',
+  codeSent: 'A personal code was sent by WhatsApp to {to}. The code is personal - do not pass it on.',
+  codeFailed: 'The code was not sent. Please contact the manager who ordered the work.',
+  cardReady: 'The access card is ready. Collect it from the manager.',
+  cardPreparing: 'The manager will prepare an access card.',
+  change: 'Change the dates',
+  cancel: 'Cancel',
+  errRequired: 'Choose who is coming and confirm the privacy notice.',
+  errDates: 'The dates are not valid.',
+  errOther: 'A request was already sent for another person on this job. Ask the manager to change it.',
+  errOtherTicket: 'This person already has access for another job. Please contact the manager.',
+  errNoDoors: 'No doors can be suggested for this address. Please contact the manager.',
+  errGeneric: 'The request was not sent. Please try again.',
+  offline: 'No connection. Please try again.',
+};
+
+// ar / ru: machine-drafted, marked for the native review the access texts wait for (the CR's rule); the structure is complete.
+const AR: Record<Key, string> = {
+  ...EN,
+  title: 'الدخول إلى الموقع',
+  lead: 'من سيأتي ومتى؟ يُرسل الطلب إلى المدير للموافقة. يُرسل رمز الدخول الشخصي عبر واتساب فقط للشخص القادم إلى رقمه.',
+  who: 'من سيأتي',
+  addNew: 'فني آخر',
+  from: 'من تاريخ',
+  to: 'حتى تاريخ',
+  hours: 'الساعات',
+  allDay: 'طوال اليوم',
+  send: 'إرسال طلب الدخول',
+  waiting: 'تم إرسال الطلب وهو بانتظار موافقة المدير.',
+  approved: 'تمت الموافقة على الدخول',
+  doors: 'الأبواب',
+  dates: 'التواريخ',
+  codeScheduled: 'سيُرسل رمز شخصي عبر واتساب إلى {to} في {at}.',
+  codeSent: 'أُرسل رمز شخصي عبر واتساب إلى {to}. الرمز شخصي - لا تنقله لغيرك.',
+  codeFailed: 'لم يُرسل الرمز. يرجى التواصل مع المدير.',
+};
+const RU: Record<Key, string> = {
+  ...EN,
+  title: 'Доступ на объект',
+  lead: 'Кто придёт и когда? Запрос уходит менеджеру на утверждение. Личный код входа отправляется в WhatsApp только тому, кто придёт, на его номер.',
+  who: 'Кто придёт',
+  addNew: 'Другой техник',
+  from: 'С',
+  to: 'По',
+  hours: 'Часы',
+  allDay: 'Весь день',
+  send: 'Отправить запрос на доступ',
+  waiting: 'Запрос отправлен и ждёт утверждения менеджера.',
+  approved: 'Доступ утверждён',
+  doors: 'Двери',
+  dates: 'Даты',
+  codeScheduled: 'Личный код будет отправлен в WhatsApp на {to} {at}.',
+  codeSent: 'Личный код отправлен в WhatsApp на {to}. Код личный - не передавайте его.',
+  codeFailed: 'Код не отправлен. Обратитесь к менеджеру.',
+};
+
+export const ARRIVAL_TEXT: Record<Lang, Record<Key, string>> = { he: HE, en: EN, ar: AR, ru: RU };
+export type ArrivalKey = Key;
+
+export function at(lang: Lang, key: Key, vars: Record<string, string | number> = {}): string {
+  const s = (ARRIVAL_TEXT[lang] ?? HE)[key] ?? HE[key];
+  return s.replace(/\{(\w+)\}/g, (_m, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
+}

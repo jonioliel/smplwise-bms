@@ -1,0 +1,28 @@
+/* GRANTS3-295: the arrival step's own rules (the lazy chunk carries them; the page's tokens come from styles.css). */
+.arrival h2 { display: flex; align-items: center; gap: 8px; }
+.arrival .arr-label { display: block; font-size: var(--sw-fs-sm); font-weight: 600; margin-block-end: 6px; }
+.arrival .arr-persons .pill { min-block-size: 44px; overflow-wrap: anywhere; }
+.arrival .arr-new { display: grid; gap: 8px; margin-block: 8px; }
+.arrival .field > span { display: block; font-size: var(--sw-fs-sm); font-weight: 600; margin-block-end: 4px; }
+.arrival .arr-dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-block: 10px 4px; }
+@media (max-width: 520px) { .arrival .arr-dates { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .arrival .arr-dates > :last-child { grid-column: 1 / -1; } }
+.arrival .arr-dates .input { inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
+.arrival .arr-warn { display: flex; gap: 6px; align-items: flex-start; color: var(--sw-warning); background: var(--sw-warning-soft); border-radius: var(--sw-r-sm); padding: 8px 10px; font-size: var(--sw-fs-sm); }
+.arrival .arr-notice { border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); padding: 8px 12px; margin-block: 10px; }
+.arrival .arr-notice summary { display: flex; gap: 6px; align-items: center; cursor: pointer; font-weight: 600; min-block-size: 32px; }
+.arrival .arr-notice p { margin: 8px 0 0; font-size: var(--sw-fs-sm); line-height: 1.55; white-space: pre-line; }
+.arrival .arr-ack { display: flex; gap: 10px; align-items: flex-start; font-size: var(--sw-fs-sm); line-height: 1.5; margin-block: 8px 12px; }
+.arrival .arr-ack input { inline-size: 22px; block-size: 22px; flex: none; margin: 0; accent-color: var(--sw-accent); }
+.arrival .arr-state { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--sw-r-md); background: var(--sw-bg); }
+.arrival .arr-state.ok { background: var(--sw-success-soft); color: var(--sw-success); }
+.arrival .arr-state.wait { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.arrival .arr-state small { display: block; color: var(--sw-text); opacity: .8; margin-block-start: 2px; overflow-wrap: anywhere; }
+.arrival .arr-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; margin: 14px 0; }
+.arrival .arr-facts dt { font-size: var(--sw-fs-sm); font-weight: 600; opacity: .75; }
+.arrival .arr-facts dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; overflow-wrap: anywhere; }
+.arrival .arr-door { display: inline-flex; gap: 4px; align-items: center; padding: 3px 10px; border-radius: var(--sw-r-pill); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-sm); }
+.arrival .arr-code { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--sw-r-sm); font-size: var(--sw-fs-sm); line-height: 1.5; }
+.arrival .arr-code.ok { background: var(--sw-success-soft); color: var(--sw-success); }
+.arrival .arr-code.info { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.arrival .arr-code.bad { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.arrival .ic { inline-size: 18px; block-size: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
