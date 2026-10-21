@@ -263,7 +263,8 @@ def _row_view(conn: sqlite3.Connection, principal: Principal, sid: str, row: dic
     if personal is None:
         source = "unknown"
     elif personal == "deny":
-        source = "blocked"
+        # GRANTDENY-295: Arx wrote this deny over a station a group still grants - the row says so (a deny set elsewhere stays "blocked")
+        source = "blocked_group" if row and row.get("group_grants") and row.get("effect") == "deny" else "blocked"
     elif personal == "allow":
         source = "personal"
     else:
@@ -446,7 +447,7 @@ def _store_decision(conn: sqlite3.Connection, row: dict[str, Any] | None, person
         # a direct decision settles any request waiting on the station (the decider saw it on the same screen)
         conn.execute("""UPDATE access_station_permissions SET effect = ?, relays_json = ?, sync_state = 'pending', decided_by = ?, decided_at = ?,
                         approval_revision = ?, request_effect = NULL, request_relays_json = NULL, requested_by = NULL, requested_at = NULL,
-                        proof_at = NULL, last_error = NULL, attempts = 0, updated_at = ?, revision = revision + 1 WHERE id = ?""",
+                        proof_at = NULL, last_error = NULL, attempts = 0, group_grants = 0, updated_at = ?, revision = revision + 1 WHERE id = ?""",
                      (effect, json.dumps(relays), principal.user_id, at, rev, at, row["id"]))
 
 
@@ -588,55 +589,83 @@ def push(db: Database, principal: Principal, person_id: str, station_id: str, re
     assert row is not None
     effect, relays, seen = row["effect"], _relays(row["relays_json"]), row["revision"]
     engine = ag.engine_for(db)
-    state, code, after = _send(engine, person_id, station_id, effect, relays)
+    state, code, after, final, group = _send(engine, person_id, station_id, effect, relays)
+    escalated = final != effect
     with db.connection(label="station_permissions.result") as conn:
-        cur = conn.execute("""UPDATE access_station_permissions SET sync_state = ?, last_error = ?, wiskey_revision = COALESCE(?, wiskey_revision),
-                              proof_at = ?, attempts = attempts + 1, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ?""",
-                           (state, code, after.revision if after else None, now_iso() if state == "applied" else None, now_iso(), row["id"], seen))
+        # GRANTDENY-295: a removed personal allow that a group still grants became an explicit personal deny - the row now says so.
+        # `group_grants` is only ever raised by a fresh read that showed the group grant; a later re-sync (the station is already blocked,
+        # so it reads as not enabled) keeps it.
+        keep = 1 if (final == "deny" and (group or row.get("group_grants"))) else 0
+        cur = conn.execute("""UPDATE access_station_permissions SET effect = ?, relays_json = ?, group_grants = ?, sync_state = ?, last_error = ?,
+                              wiskey_revision = COALESCE(?, wiskey_revision), proof_at = ?, attempts = attempts + 1, updated_at = ?,
+                              revision = revision + 1 WHERE id = ? AND revision = ?""",
+                           (final, "[]" if escalated else row["relays_json"], keep, state, code, after.revision if after else None,
+                            now_iso() if state == "applied" else None, now_iso(), row["id"], seen))
         superseded = cur.rowcount == 0
+        extra = {"requested_effect": effect, "group_grants": True} if escalated and not superseded else {}
         _audit(conn, principal, "push", station_id, decision="allowed" if state in ("applied", "unverified", "pending") else "failed",
-               request_id=request_id, person=person_id, effect=effect, state=state if not superseded else "superseded", code=code)
+               request_id=request_id, person=person_id, effect=final, state=state if not superseded else "superseded", code=code, **extra)
     return {"sync_state": state, "code": code}
 
 
-def _send(engine: Any, person_id: str, station_id: str, effect: str, relays: list[int]) -> tuple[str, str | None, EnginePerson | None]:
-    """(sync_state, closed code, the last person read). One retry on a revision conflict (a fresh read first); an unknown outcome is
-    never retried blindly - it is read back."""
+def _send(engine: Any, person_id: str, station_id: str, effect: str, relays: list[int]) -> tuple[str, str | None, EnginePerson | None, str, bool]:
+    """(sync_state, closed code, the last person read, the effect actually in force, a group still grants the station).
+
+    GRANTDENY-295 (owner decision 2026-10-21 (9a), lab finding): WisKey resolves `allowed = (group stations + personal allow) - personal
+    deny`, so dropping a personal allow (`inherit` from `allow`) does NOT revoke a station that one of the person's groups still grants.
+    Removing a personal allow is a revocation, so when the proven read-back still shows the station enabled, Arx writes the explicit
+    personal `deny` (the same revision-checked write, read back and proven the same way) and the row becomes a block. A `deny` over a
+    group-granted station reports `group` True (read before the write)."""
+    state, code, after, before = _send_once(engine, person_id, station_id, effect, relays)
+    if (effect == "inherit" and state == "applied" and before is not None and before.overrides.get(station_id) == "allow"
+            and after is not None and after.doors_known and station_id in after.doors):
+        state, code, after, _ = _send_once(engine, person_id, station_id, "deny", [])
+        return state, code, after, "deny", True
+    group = (effect == "deny" and before is not None and before.doors_known and before.overrides_known and station_id in before.doors
+             and before.overrides.get(station_id) != "allow")
+    return state, code, after, effect, bool(group)
+
+
+def _send_once(engine: Any, person_id: str, station_id: str, effect: str,
+               relays: list[int]) -> tuple[str, str | None, EnginePerson | None, EnginePerson | None]:
+    """(sync_state, closed code, the last person read, the person as read BEFORE the write). One retry on a revision conflict (a fresh
+    read first); an unknown outcome is never retried blindly - it is read back."""
+    person = None
     for attempt in range(2):
         try:
             person = engine.get_person(person_id)
         except EngineError as exc:
-            return ("unverified" if exc.kind == "not_found" else "pending"), exc.kind, None
+            return ("unverified" if exc.kind == "not_found" else "pending"), exc.kind, None, None
         if effect == "allow":
             problem = timing_problem(person, station_id, effect)
             if problem:
-                return "failed", problem, person
+                return "failed", problem, person, person
         try:
             overrides, doors = plan(person, station_id, effect, relays)
         except EngineError as exc:
-            return "pending", exc.code or exc.kind, person
+            return "pending", exc.code or exc.kind, person, person
         if proven(person, station_id, effect, relays, _revocation_pending(engine, person_id, person.revision) if effect == "deny" else None):
-            return "applied", None, person  # already so in WisKey: nothing to write
+            return "applied", None, person, person  # already so in WisKey: nothing to write
         if effect == "deny" and deny_unverified(engine, person, station_id):
-            return "unverified", UNVERIFIED_CODE, person  # in place, not verified by the other side (v1): nothing to write either
+            return "unverified", UNVERIFIED_CODE, person, person  # in place, not verified by the other side (v1): nothing to write either
         try:
             engine.set_station_access(person_id, person.revision, overrides=overrides, doors=doors)
         except EngineError as exc:
             if exc.kind == "revision_conflict" and attempt == 0:
                 continue
             if exc.kind in ("not_sent", "not_permitted", "revision_conflict"):
-                return "pending", exc.kind, person
+                return "pending", exc.kind, person, person
             if exc.kind == "unknown":
                 break  # read back, never resend
-            return "failed", exc.kind, person
+            return "failed", exc.kind, person, person
         break
     try:
         after = engine.get_person(person_id)
     except EngineError as exc:
-        return "unverified", exc.kind, None
+        return "unverified", exc.kind, None, person
     pending = _revocation_pending(engine, person_id, after.revision) if effect == "deny" else None
     if proven(after, station_id, effect, relays, pending):
-        return "applied", None, after
+        return "applied", None, after, person
     if effect == "deny" and deny_unverified(engine, after, station_id):
-        return "unverified", UNVERIFIED_CODE, after
-    return "unverified", ("revocation_pending" if effect == "deny" and pending is not False else "readback"), after
+        return "unverified", UNVERIFIED_CODE, after, person
+    return "unverified", ("revocation_pending" if effect == "deny" and pending is not False else "readback"), after, person

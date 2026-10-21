@@ -5,7 +5,7 @@
 import { get, post, put } from './client';
 
 export type SpEffect = 'allow' | 'deny' | 'inherit';
-export type SpSource = 'group' | 'personal' | 'blocked' | 'none' | 'unknown';
+export type SpSource = 'group' | 'personal' | 'blocked' | 'blocked_group' | 'none' | 'unknown';
 export type SpSyncState = 'none' | 'pending' | 'applied' | 'unverified' | 'failed';
 
 export interface SpRecord {

@@ -78,3 +78,18 @@ test('doors, labels, add choices and the outcome line', () => {
   expect(outcomeKey('requested')).toBe('requestSent');
   expect(outcomeKey('decided')).toBe('done');
 });
+
+// GRANTDENY-295: a personal deny over a station a group still grants is said on the row; removing a personal allow reads as a removal.
+test('a personal deny over a group grant has its own chip, and the removal of a personal allow its own label', () => {
+  expect(sourceBadge('blocked_group').kind).toBe('error');
+  expect(sourceBadge('blocked_group').label).toBe(spt('src_blocked_group'));
+  expect(sourceBadge('blocked_group').label).not.toBe(sourceBadge('blocked').label);
+  const personal = rowButtons(st({ source: 'personal', actions: { ...NONE, inherit: true, deny: true } }));
+  expect(personal.map((b) => [b.action, b.label])).toEqual([['inherit', spt('removePersonal')], ['deny', spt('deny')]]);
+  const blocked = rowButtons(st({ source: 'blocked_group', actions: { ...NONE, inherit: true } }));
+  expect(blocked.map((b) => [b.action, b.label])).toEqual([['inherit', spt('inherit')]]);
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    expect(spt('src_blocked_group', undefined, lang).length).toBeGreaterThan(0);
+    expect(spt('removePersonal', undefined, lang).length).toBeGreaterThan(0);
+  }
+});

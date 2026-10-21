@@ -13,6 +13,8 @@ export function sourceBadge(source: SpSource): { kind: StateKind; label: string 
     case 'group': return { kind: 'neutral', label: spt('src_group') };
     case 'personal': return { kind: 'live', label: spt('src_personal') };
     case 'blocked': return { kind: 'error', label: spt('src_blocked') };
+    // GRANTDENY-295: Arx wrote a personal deny over a station a group still grants - said on the row itself, no paragraph
+    case 'blocked_group': return { kind: 'error', label: spt('src_blocked_group') };
     case 'none': return { kind: 'offline', label: spt('src_none') };
     default: return { kind: 'unknown', label: spt('src_unknown') };
   }
@@ -36,7 +38,8 @@ export function rowButtons(st: SpStation): { action: SpAction; label: string; pr
   if (a.approve) out.push({ action: 'approve', label: spt('approve'), primary: true });
   if (a.refuse) out.push({ action: 'refuse', label: spt(st.request?.mine ? 'withdraw' : 'refuse'), primary: false });
   if (a.allow && st.source !== 'personal' && !st.request) out.push({ action: 'allow', label: spt('allow'), primary: false });
-  if (a.inherit) out.push({ action: 'inherit', label: spt('inherit'), primary: false });
+  // on a personal allow "inherit" is the removal of that allow (the server turns it into a personal deny while a group still grants the station)
+  if (a.inherit) out.push({ action: 'inherit', label: spt(st.source === 'personal' ? 'removePersonal' : 'inherit'), primary: false });
   if (a.deny) out.push({ action: 'deny', label: spt('deny'), primary: false });
   if (a.sync) out.push({ action: 'sync', label: spt('sync'), primary: false });
   return out;
