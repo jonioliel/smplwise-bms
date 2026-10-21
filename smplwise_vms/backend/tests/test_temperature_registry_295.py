@@ -4,6 +4,7 @@ Before: `services/temperature_whatsapp` joined the registry only once a temperat
 module gate, so the Settings messaging accounts screen showed or omitted it depending on what had run since the restart."""
 from __future__ import annotations
 
+import importlib
 import sys
 
 from conftest import as_user
@@ -35,6 +36,8 @@ def _define_unit(c, settings) -> None:
 
 def test_the_use_is_registered_by_application_start_without_any_temperature_route(settings, monkeypatch):
     """Forget the module (as in a fresh process where nothing temperature-related ran yet): building the app alone registers the use."""
+    for other in ("smplwise.services.local_reset", "smplwise.services.access_grants"):  # REGSTART-295: create_app below imports these for the first time when no earlier test did, and their registry joins would land in the patched copy and be lost for the rest of the process
+        importlib.import_module(other)
     was_imported = NAME in sys.modules
     monkeypatch.delitem(sys.modules, NAME, raising=False)
     monkeypatch.delattr(services_pkg, "temperature_whatsapp", raising=False)  # "from .services import x" returns the package attribute without importing
