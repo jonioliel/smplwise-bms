@@ -574,6 +574,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
         update_switch = _update_switch(conn, data)
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
+        door_history = _keep_door_history(conn) if mode == "replace" and "door_automations" in tables else None
         if mode == "replace":
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
                 if t in kept_current:
@@ -592,6 +593,8 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             if t in data:
                 counts[t] = _insert_rows(conn, t, data[t], replace=(mode == "replace"))
         door_blocks_disarmed = door_blocks_sanitised + (_disarm_restored_blocks(conn) if "door_automations" in tables else 0)
+        if door_history is not None:
+            _put_back_door_history(conn, *door_history)
         if "notify_settings" in tables:  # CR-018: an archive without the table must not leave the notification settings without their one row
             from .notify_settings import ensure_row
 
@@ -707,6 +710,38 @@ def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> tuple[int, i
         kept.append(r)
     data["door_automations"] = kept
     return len(rows) - len(kept), disarmed
+
+
+def _keep_door_history(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    """Owner decision 2026-10-21 ("not hard to manage"): a replace restore does NOT wipe the door automations' fire history. Deleting the
+    blocks would cascade to `door_automation_fires` - the record an administrator reads and the counters the per-door cap and the cooldown
+    count - so the installation's own rows are kept aside here and put back after the archive's rows are in (`_put_back_door_history`)."""
+    try:
+        blocks = [dict(r) for r in conn.execute("SELECT * FROM door_automations").fetchall()]
+        fires = [dict(r) for r in conn.execute("SELECT * FROM door_automation_fires").fetchall()]
+    except sqlite3.OperationalError:  # a database before the migration
+        return None
+    return blocks, fires
+
+
+def _put_back_door_history(conn: sqlite3.Connection, blocks: list[dict[str, Any]], fires: list[dict[str, Any]]) -> None:
+    """Put the installation's fire rows back. A fire whose block is not in the restored set keeps its block as a deleted, disarmed record
+    (the soft-delete the screens already know), so the history and the per-door cap still see it; nothing is armed by this."""
+    if not fires:
+        return
+    from . import door_automation
+
+    at = door_automation.iso(door_automation.now())
+    present = {r[0] for r in conn.execute("SELECT id FROM door_automations").fetchall()}
+    needed = {f["automation_id"] for f in fires}
+    for b in blocks:
+        if b["id"] in needed and b["id"] not in present:
+            tomb = {**b, "state": "disarmed", "disarm_reason": b.get("disarm_reason") or "restored", "armed_until": None, "deleted_at": b.get("deleted_at") or at, "updated_at": at}
+            cols = ", ".join(tomb)
+            conn.execute(f"INSERT OR IGNORE INTO door_automations({cols}) VALUES ({', '.join('?' * len(tomb))})", list(tomb.values()))
+    for f in fires:
+        cols = ", ".join(f)
+        conn.execute(f"INSERT OR IGNORE INTO door_automation_fires({cols}) VALUES ({', '.join('?' * len(f))})", list(f.values()))
 
 
 def _disarm_restored_blocks(conn: sqlite3.Connection) -> int:

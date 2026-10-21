@@ -78,12 +78,8 @@ STORM_REASONS = ("cooldown", "rate_hour", "rate_day", "door_rate_hour", "door_ra
 SEND_WITHIN_S = 15
 SOURCE_MAX = 120
 MANUAL_SOURCES = ("trigger action", "manual")
-# A-04: the wording of `automation_triggered.data.source` is Home Assistant's, so manual detection no longer relies on it alone. A run
-# is automatic only when it carries NO person (`context.user_id`) and NO parent context (`context.parent_id` - a run caused by another
-# automation, script or service call cannot be traced back to a person from here) AND its source starts with one of these
-# trigger descriptions. An empty or unknown source is treated as manual (fail closed); the same for a source in MANUAL_SOURCES.
-AUTOMATIC_SOURCES = ("state", "numeric state", "time", "sun", "event", "template", "webhook", "mqtt", "zone", "homeassistant", "calendar", "tag",
-                     "device", "geo_location", "persistent_notification")
+# A-04 (relaxed 2026-10-21, see is_manual): a person's context (`context.user_id`), a source in MANUAL_SOURCES or no source at all is a manual
+# run; the trust in an automatic run comes from the corroboration with Home Assistant's state machine (DA-01).
 # A-09: the mirror's hook queues the frame; ONE worker handles them in order. A full queue drops the frame and counts it.
 QUEUE_MAX = 256
 CORROBORATE_WAIT_S = 3.0  # the event can arrive before the automation entity's state frame: re-check this long before refusing
@@ -141,8 +137,8 @@ def now() -> dt.datetime:
 
 
 def reset_for_tests() -> None:
-    global SENDER, DISPATCH
-    SENDER, DISPATCH = None, None
+    global SENDER, DISPATCH, STATE_READER
+    SENDER, DISPATCH, STATE_READER = None, None, None
     STATS["dropped"] = STATS["handled"] = 0
     set_clock(None)
 
@@ -828,17 +824,17 @@ def _context_of(value: Any) -> tuple[Any, Any]:
 
 
 def is_manual(trigger: dict[str, Any], context: Any) -> bool:
-    """A-04: treat the run as a person's (or as untraceable) unless it is demonstrably automatic. Manual when the context names a
-    person (`user_id`) or has a parent context (`parent_id`: caused by a service call, script or automation we cannot trace to a person),
-    when the source is one of MANUAL_SOURCES, and - fail closed - when the source is empty or not one of Home Assistant's known
-    automatic trigger descriptions (AUTOMATIC_SOURCES)."""
-    user, parent = _context_of(context)
-    if user or parent:
+    """A-04, relaxed by the owner's decision of 2026-10-21 ("safe, but not hard to manage"): a run is a person's when its context names a
+    person (`user_id`), when it is a manual run (MANUAL_SOURCES) or when it carries no source at all. A parent context is NOT refused:
+    Home Assistant gives almost every automation run one (the state change that triggered it, or a script / automation that caused that
+    change), so refusing it would refuse ordinary runs; and an unfamiliar source wording (a new Home Assistant version) is not refused
+    either. What makes the event trustworthy is the corroboration against Home Assistant's own state machine (DA-01), not its wording;
+    the parent id and the source are kept in the audit."""
+    user, _parent = _context_of(context)
+    if user:
         return True
     src = str(trigger.get("source") or "").strip().lower()
-    if not src or src in MANUAL_SOURCES:
-        return True
-    return not any(src == p or src.startswith(p + " ") for p in AUTOMATIC_SOURCES)
+    return not src or src in MANUAL_SOURCES
 
 
 def _watch_specs(cfg: dict[str, Any]) -> tuple[list[tuple[str, bool]], bool, bool]:
@@ -907,6 +903,38 @@ def corroboration(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime) -
         else:
             return "uncorroborated", None
     return None, stamp
+
+
+# DA-01 (Fable review 2, 2026-10-21): the mirror is fed by the same event bus an attacker can fire `state_changed` on, so it is only the
+# cheap pre-filter. At decision time Arx reads the automation entity ONCE from Home Assistant's state machine (an authenticated REST read,
+# GET /api/states/<entity_id>) and matches the run with THAT `last_triggered`; firing an event cannot change the state machine. Any error,
+# a missing entity or an unreadable stamp refuses (fail closed). Tests install a fake (`STATE_READER`).
+STATE_READER: Callable[[Any, str], Any] | None = None
+
+
+def _read_state(settings: Any, entity_id: str) -> dict[str, Any] | None:
+    try:
+        if STATE_READER is not None:
+            answer = STATE_READER(settings, entity_id)
+        else:
+            from . import ha_client
+
+            answer = ha_client.get_state(settings, entity_id)
+    except Exception:  # noqa: BLE001 - a failed read is a refusal, never an opening
+        return None
+    return answer if isinstance(answer, dict) else None
+
+
+def direct_run(settings: Any, entity_id: str, at: dt.datetime, window: int, done: str | None) -> str | None:
+    """The `last_triggered` stamp of the automation entity read directly from Home Assistant, when it is within `window` seconds of `at` and
+    newer than the last matched run (`done`); None otherwise (refused)."""
+    st = _read_state(settings, entity_id)
+    attrs = st.get("attributes") if st is not None else None
+    lt = _instant(attrs.get("last_triggered")) if isinstance(attrs, dict) else None
+    if lt is None or abs((at - lt).total_seconds()) > window:
+        return None
+    stamp = _stamp(lt)
+    return None if done and stamp <= done else stamp
 
 
 def _consume(conn: sqlite3.Connection, row: sqlite3.Row, stamp: str) -> bool:
@@ -1060,30 +1088,41 @@ def _fire_door(db: Database, block_id: str, door: dict[str, Any], trigger: dict[
 
 def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[str, Any], context: Any, *, corroborate: bool = True) -> list[dict[str, Any]]:
     """One run of the automation `item_id` reported by Home Assistant. Returns one entry per decision (tests, logs). `context` is the event's
-    context ({user_id, parent_id}). The event can reach Arx before the automation entity's state frame does, so an event that fails ONLY the
-    corroboration is re-checked for CORROBORATE_WAIT_S (each time in a fresh transaction, nothing held) before it is refused and recorded."""
+    context ({user_id, parent_id}). Order: the block gates with the mirror as the pre-filter (read only), then ONE direct read of the
+    automation entity from Home Assistant's state machine outside any transaction (DA-01), then - under the write lock - the run is matched
+    with exactly one event (`_consume`, a replay is refused) and the doors are handled. The event can reach Arx before the state frame does,
+    so an event that fails ONLY the corroboration is re-checked for CORROBORATE_WAIT_S (nothing held while waiting) before it is refused."""
     dev_mode = bool(getattr(settings, "dev_user", None))
     deadline = _monotonic() + CORROBORATE_WAIT_S
     while True:
-        with db.connection(label="door automation gates") as conn:
+        at = now()
+        with db.connection(mode="read", label="door automation gates") as conn:
             row = by_item(conn, item_id)
             if row is None or row["state"] != "armed":
                 return []
-            at = now()
             matched: list[str] = []
             refusal = next((reason for _gate, ok, reason in _block_gates(conn, row, at, trigger, context, corroborate=corroborate, matched=matched) if not ok), None)
-            if refusal is None and corroborate and not (matched and _consume(conn, row, matched[0])):
-                refusal = "uncorroborated"  # matched by an earlier event of the same run: a replay
-            waiting = refusal == "uncorroborated" and _monotonic() < deadline
-            if refusal is not None and not waiting:
+            item = _item(conn, row["automation_item_id"]) if refusal is None and corroborate else None
+            window, done = limits(conn)["corroborate_window_s"], row["corroborated_trigger"]
+        stamp: str | None = None
+        if refusal is None and corroborate:
+            stamp = direct_run(settings, item["entity_id"], at, window, done) if item is not None and item["entity_id"] else None
+            if stamp is None:
+                refusal = "uncorroborated"
+        if refusal == "uncorroborated" and _monotonic() < deadline:
+            _sleep(CORROBORATE_POLL_S)
+            continue
+        with db.connection(label="door automation decide run") as conn:
+            row = by_item(conn, item_id)
+            if row is None or row["state"] != "armed":
+                return []
+            if refusal is None and corroborate and not _consume(conn, row, stamp):  # type: ignore[arg-type]
+                refusal = "uncorroborated"  # this run was already matched with an earlier event: a replay
+            if refusal is not None:
                 _record_refusal(conn, row, None, refusal, trigger, at)
                 return [{"door": None, "outcome": "refused", "reason": refusal}]
-            if not waiting:
-                block_id, doors = row["id"], policy_of(row)["doors"]
-        if not waiting:
-            break
-        _sleep(CORROBORATE_POLL_S)
-    return [_fire_door(db, block_id, d, trigger, dev_mode) for d in doors]
+            block_id, doors = row["id"], policy_of(row)["doors"]
+        return [_fire_door(db, block_id, d, trigger, dev_mode) for d in doors]
 
 
 def handle_trigger(db: Database, settings: Any, frame: Any) -> list[dict[str, Any]]:
@@ -1101,7 +1140,10 @@ def handle_trigger(db: Database, settings: Any, frame: Any) -> list[dict[str, An
             return []
         item_id = item["item_id"]
     context = event.get("context") if isinstance(event.get("context"), dict) else {}
-    return handle_item_event(db, settings, item_id, _trigger_of(data.get("source"), event.get("time_fired")), context)
+    trigger = _trigger_of(data.get("source"), event.get("time_fired"))
+    if isinstance(context.get("parent_id"), str):
+        trigger["parent_context"] = context["parent_id"][:64]  # audit only (never authority)
+    return handle_item_event(db, settings, item_id, trigger, context)
 
 
 def _worker_loop(q: queue.Queue[Callable[[], Any]]) -> None:

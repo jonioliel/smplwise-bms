@@ -93,6 +93,16 @@ def world(settings, monkeypatch):
     door_automation.SENDER = sender
     door_automation.set_clock(clock)
     door_automation.DISPATCH = lambda fn: fn()  # synchronous in tests
+    # DA-01: Home Assistant's state machine, read directly at decision time. `corroborate()` records a real run here AND in the mirror;
+    # a test that forges the mirror alone leaves this unchanged.
+    machine: dict[str, dict[str, Any]] = {}
+    reads: list[str] = []
+
+    def read_state(_settings: Any, entity_id: str) -> dict[str, Any] | None:
+        reads.append(entity_id)
+        return machine.get(entity_id)
+
+    door_automation.STATE_READER = read_state
     c.get(f"{API}/me")  # joni: the bootstrap system administrator
     with db.connection() as conn:
         for eid, platform, entry in (("lock.entrance", "hikvision_intercom", ENTRY), ("lock.dock_gate", "hikvision_intercom", DOCK),
@@ -115,7 +125,7 @@ def world(settings, monkeypatch):
                          (f"automation.a_{item}", "automation", f"a_{item}", "automation", "on", "{}", now_iso(), now_iso(), now_iso()))
         conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, state, state_seen_at, first_seen_at, updated_at) VALUES ('light.lobby','light','lobby','zha','off',?,?,?)",
                      (now_iso(), now_iso(), now_iso()))
-    return {"app": app, "c": c, "db": db, "sender": sender, "clock": clock, "feed": feed, "settings": settings}
+    return {"app": app, "c": c, "db": db, "sender": sender, "clock": clock, "feed": feed, "settings": settings, "machine": machine, "reads": reads}
 
 
 @pytest.fixture()
@@ -174,6 +184,8 @@ def corroborate(w: dict[str, Any], item: str = "9001", *, run: bool = True, chan
     with w["db"].connection() as conn:
         if run:
             conn.execute("UPDATE ha_entities SET attributes_json = ? WHERE entity_id = ?", (json.dumps({"last_triggered": last.isoformat()}), f"automation.a_{item}"))
+            if "machine" in w:
+                w["machine"][f"automation.a_{item}"] = {"entity_id": f"automation.a_{item}", "state": "on", "attributes": {"last_triggered": last.isoformat()}}
         if change:
             conn.execute("UPDATE ha_entities SET last_changed = ?, last_updated = ? WHERE entity_id = 'binary_sensor.lobby_motion'", (at.isoformat(), at.isoformat()))
 
@@ -913,31 +925,34 @@ def test_a_deleted_blocks_fires_still_count_for_the_door(live):
     ("time", None, None, False),
     ("sun", None, None, False),
     ("state of binary_sensor.lobby_motion", "0123456789abcdef0123456789abcdef", None, True),  # a person's context
-    ("state of binary_sensor.lobby_motion", None, "01JPARENT", True),  # caused by a service call / script / automation: not traceable to nobody
+    ("state of binary_sensor.lobby_motion", None, "01JPARENT", False),  # owner 2026-10-21: a parent context is normal for a run, not refused
     ("trigger action", None, None, True),
     ("manual", None, None, True),
     ("Trigger Action", None, None, True),
     ("", None, None, True),  # unknown wording fails closed
-    ("button pressed by someone", None, None, True),
-    ("statement", None, None, True),
+    ("something new in a later Home Assistant", None, None, False),  # owner 2026-10-21: unfamiliar wording is not refused
 ])
-def test_manual_detection_uses_the_context_and_an_allow_list_of_sources(source, user, parent, manual):
+def test_manual_detection_is_a_persons_context_or_a_manual_run(source, user, parent, manual):
     ctx = {"user_id": user, "parent_id": parent}
     assert door_automation.is_manual({"source": source}, ctx) is manual
     if user:
         assert door_automation.is_manual({"source": source}, user) is True, "a bare user id (older callers) still counts"
 
 
-def test_a_context_parent_or_an_unknown_source_never_fires(live):
-    c, sender = live["c"], live["sender"]
+def test_a_parent_context_fires_when_corroborated_and_is_kept_in_the_audit(live):
+    """Owner decision 2026-10-21: a run with a parent context (the usual case in Home Assistant) is not refused; corroboration decides.
+    An empty source is still a manual run."""
+    c, sender, clock = live["c"], live["sender"], live["clock"]
     _armed(c)
     corroborate(live)
     f = frame()
     f["event"]["context"]["parent_id"] = "01JPARENT"
-    assert door_automation.handle_trigger(live["db"], live["settings"], f)[0]["reason"] == "manual_trigger"
+    assert door_automation.handle_trigger(live["db"], live["settings"], f)[0]["outcome"] == "sent"
+    attempt = [r for r in audit_rows(live["db"], "intercom.release") if r["details"]["phase"] == "attempt"][-1]
+    assert attempt["details"]["trigger"]["parent_context"] == "01JPARENT"
+    clock.advance(seconds=11)
     assert fire(live, source="")[0]["reason"] == "manual_trigger"
-    assert fire(live, source="something new in a later Home Assistant")[0]["reason"] == "manual_trigger"
-    assert sender.calls == []
+    assert len(sender.calls) == 1
 
 
 # ---- A-09: one bounded queue, one worker, a dropped counter
@@ -1137,3 +1152,68 @@ def test_manage_reach_names_the_scope_and_never_lets_the_operator_in(live):
         assert door_automation.manage_reach(conn, joni) == "installation"
         assert door_automation.manage_reach(conn, door_automation.operator_of("x", "x")) is None
         assert door_automation.manage_reach(conn, Principal("dev-nobody", "nobody", "nobody", "dev")) is None
+
+
+# ---- DA-01 (Fable review 2): one direct read of Home Assistant's state machine at decision time
+
+def test_a_forged_mirror_without_a_real_run_in_the_state_machine_never_opens(live):
+    """The attacker of A-01 can fire `state_changed` too, so the mirror alone is not evidence: the run must be in Home Assistant's state machine."""
+    c, sender, db, clock = live["c"], live["sender"], live["db"], live["clock"]
+    _armed(c)
+    corroborate(live)
+    live["machine"].clear()  # the mirror says it ran; the state machine does not know the automation
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    live["machine"]["automation.a_9001"] = {"attributes": {"last_triggered": (clock.at - _dt.timedelta(hours=2)).isoformat()}}  # an old run
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    live["machine"]["automation.a_9001"] = {"attributes": {"last_triggered": "garbage"}}
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    assert sender.calls == []
+    reads_before = len(live["reads"])
+    assert fire(live)[0]["outcome"] == "sent"  # a real run: mirror AND state machine
+    assert live["reads"][reads_before:] == ["automation.a_9001"], "exactly one direct read at decision time"
+
+
+def test_a_failing_state_read_refuses(live):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+
+    def boom(_s: Any, _e: str) -> Any:
+        raise RuntimeError("Home Assistant unreachable")
+
+    door_automation.STATE_READER = boom
+    assert fire(live)[0]["reason"] == "uncorroborated" and sender.calls == []
+
+
+def test_one_state_machine_run_opens_once_even_for_two_events(live):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    corroborate(live)
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame())[0]["outcome"] == "sent"
+    live["clock"].advance(seconds=11)
+    # a second event for the SAME run (no new run in the state machine): a replay, refused
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame())[0]["reason"] == "uncorroborated"
+    assert fire(live)[0]["outcome"] == "sent", "a later real run opens again"
+    assert len(sender.calls) == 2
+
+
+def test_a_replace_restore_keeps_the_fire_history(live):
+    """Owner decision 2026-10-21: a replace restore brings the blocks back disarmed but does not wipe the history an administrator reads, nor the
+    counters the per-door cap and the cooldown use; a block the archive does not have keeps its history as a deleted record."""
+    c = live["c"]
+    da = _armed(c)
+    assert fire(live)[0]["outcome"] == "sent"
+    e = c.post(f"{API}/backups", json={}).json()
+    gone = _create(c, item="9005").json()
+    with live["db"].connection() as conn:  # a decision of a block the archive does not have
+        conn.execute("INSERT INTO door_automation_fires(id, automation_id, door_key, at, attempted, outcome, reason) VALUES ('f-gone', ?, ?, ?, 0, 'refused', 'cooldown')",
+                     (gone["id"], f"{ENTRY}#1", door_automation.iso(live["clock"].at)))
+    res = c.post(f"{API}/backups/{e['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert state_of(c, da["id"])["state"] == "disarmed" and state_of(c, da["id"])["disarm_reason"] == "restored"
+    assert [f["outcome"] for f in c.get(f"{API}/door-automations/{da['id']}/fires").json()["fires"]] == ["sent"]
+    with live["db"].connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE id = 'f-gone'").fetchone()[0] == 1
+        tomb = conn.execute("SELECT state, deleted_at FROM door_automations WHERE id = ?", (gone["id"],)).fetchone()
+    assert tomb["state"] != "armed" and tomb["deleted_at"], "kept only as a deleted record"
+    assert _arm(c, state_of(c, da["id"])).status_code == 200
+    assert fire(live)[0]["reason"] == "cooldown", "the restored block still sees its own last opening"
