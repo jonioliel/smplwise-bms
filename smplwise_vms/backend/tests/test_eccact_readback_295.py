@@ -136,3 +136,27 @@ def test_revisions_are_bounded_to_2_pow_53_minus_1():
     assert a5._pos_int(2 ** 53 - 1) and not a5._pos_int(2 ** 53)
     with pytest.raises(ValueError):
         a5.access_state_request("u", 2 ** 53)
+
+
+# ---------------------------------------------------------------- the engine end to end (permit open, fake transport)
+
+def _engine(sync, known):
+    return age.WiskeyServiceEngine(None, access_state_reader=rb.LiveReadback(None, sync=sync), last_known_stations=lambda pid: known)
+
+
+def test_the_engine_proves_a_revocation_only_through_a_negotiated_v2_answer():
+    from smplwise.services import access_grants as ag
+
+    assert ag.GO_LIVE_PERMITTED is True  # the engine guard is open (ECCACT-295); every installation switch is still off by default
+    answer = fx("present_revoked_disabled_row_applied")
+    sid = answer["assignments"][0]["station_id"]
+    assert _engine(FakeSync(answer=answer), frozenset({sid})).revocation_pending(PERSON, REV) is False
+    # a past station without a row stays UNKNOWN (no applied=true is invented from an empty assignments list)
+    assert _engine(FakeSync(answer=answer), frozenset({sid, "past-station"})).revocation_pending(PERSON, REV) is None
+    # a WisKey that only offers v1: it can report work still owed, but never a clean revocation
+    only_v1 = dict(commands=["users/access_state"], caps=["person_access_state_v1"])
+    assert _engine(FakeSync(answer=v1_clean(), **only_v1), frozenset()).revocation_pending(PERSON, REV) is None
+    owed = v1_clean(); owed["revocation_pending"] = True
+    assert _engine(FakeSync(answer=owed, **only_v1), frozenset()).revocation_pending(PERSON, REV) is True
+    # a WisKey that lists nothing usable
+    assert _engine(FakeSync(answer=answer, commands=["users/get"]), frozenset({sid})).revocation_pending(PERSON, REV) is None
