@@ -42,7 +42,7 @@ def test_every_row_starts_temporary_and_the_marker_is_set_and_cleared(s4):
     made = s4.add_contact(kind="vendor", display_name="ספק קבוע חדש", permanent_vendor=True)
     assert made.status_code == 201 and made.json()["permanent_vendor"] is True
     assert patch(s4, s4.vendor["id"], permanent_vendor=False).json()["permanent_vendor"] is False
-    assert patch(s4, s4.vendor["id"], permanent_vendor="yes").status_code in (422,)
+    assert patch(s4, s4.vendor["id"], permanent_vendor="maybe").status_code in (422,)
 
 
 def test_the_list_carries_the_marker_and_filters_on_it(s4):
