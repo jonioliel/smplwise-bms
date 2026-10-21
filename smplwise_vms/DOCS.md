@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.10.0: what is on, off and locked
+## Releases 2.6.4 to 2.10.1: what is on, off and locked
 
-Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291`, `integ/292`, `integ/293` and `integ/2100` (2.8.0 to 2.9.3 are released; 2.10.0 is the release candidate). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291`, `integ/292`, `integ/293`, `integ/2100` and `integ/2101` (2.8.0 to 2.10.0 are released; 2.10.1 is the release candidate). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1593,6 +1593,8 @@ privacy masks (guarded write, `nvr.config.privacy`, local only); Frigate 0.18 zo
 (`ui.camera_viewfinder`, OFF); no service-request action while the tickets module is off; Settings > Security > Public interface (undecided
 technicians erased after 90 days, 10 per vendor; uniform 404 for an unknown person record by default); RTL, accessibility and loading-state
 fixes; a faster 3D screen on phones. Bridge 0.9.4 (allowlist picker) needs one restart of the home system.
+
+**2.10.1.** No migration. A personal choice for the settings navigation on phones (tab row or dropdown, `ui.dd_settings_nav`); the temperature report and identity / access messaging uses join the messaging registry at startup; the remote document allows the microphone only while push-to-talk or the embedded WisKey panel is on; Arabic and Russian words of the vendor page load on demand; `tickets.directory` also opens the external-access identity card, its CSV and link / unlink; per-widget failure panels on the home screen; one strict WisKey `access_state` parser (v1 + v2, fakes only).
 
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
 2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control), 2.9.3 adds 0125 (temperature phase 3), 0126 (external-access identity) and 0127 (access-request form), 2.10.0 adds 0128..0135 (vendor report queue, bulk people, passkeys only, generator routing, arrival and cards, door automations, station access, bridge key set). Bridge 0.9.2 (from 2.7.1) and bridge 0.9.4 (2.10.0) each need one restart of the home system. Reload the
