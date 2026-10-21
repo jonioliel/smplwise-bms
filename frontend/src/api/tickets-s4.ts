@@ -71,7 +71,8 @@ export interface Contact {
 }
 export interface CreatedDepartment { id: string | null; name: string | null; other: boolean }
 /** `handler_departments`: the departments in which the caller manages handlers without tickets.configure (CR-DEPT-MANAGER-HANDLERS) */
-export interface ContactsPage { contacts: Contact[]; can_edit: boolean; handler_departments?: string[] }
+/** `can_edit_staff` (TICKPERM-295): may edit handlers' rows (employees, user-linked); a directory-only holder gets false (an older server: absent) */
+export interface ContactsPage { contacts: Contact[]; can_edit: boolean; can_edit_staff?: boolean; handler_departments?: string[] }
 export interface ContactBody {
   kind?: ContactKind;
   display_name?: string;

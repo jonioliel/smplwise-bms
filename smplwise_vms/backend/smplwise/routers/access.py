@@ -342,7 +342,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # Sensitive, not delegable by default, the single-permission role tickets_technician_requests; system_admin only among built-ins.
     # SMALL-294 (CR-038 18A, D15): keep the contact / vendor directory (create, edit, erase, export, full phone numbers, every row) without
     # tickets.configure; tickets.configure still covers it. Sensitive, not delegable by default, a single-permission role tickets_directory.
-    "tickets.directory": "{module}: ניהול ספריית אנשי קשר וספקים",
+    "tickets.directory": "{module}: ספרייה - ספקים ואנשי קשר חיצוניים",
     "tickets.technician_requests": "{module}: אישור בקשות טכנאים מספקים (במחלקות שבאחריותי)",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.

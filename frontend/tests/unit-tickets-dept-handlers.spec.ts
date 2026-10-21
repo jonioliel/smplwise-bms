@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handlerDepartments, mayShare, memberRemovable, rowActions } from '../src/tickets/dept-handlers-model';
+import { creatableKinds, handlerDepartments, mayShare, memberRemovable, rowActions } from '../src/tickets/dept-handlers-model';
 import { DM_EN, DM_HE } from '../src/tickets/text-deptmgr';
 import { boardHref, parseBoardRoute } from '../src/tickets/board-model';
 import { template, tt } from '../src/tickets/text';
@@ -90,5 +90,13 @@ test('VPORTALRFQ: the technician-request approval permission has its words in th
 });
 
 test('SMALL-294: the directory permission has its words in the "הרשאות" tab', () => {
-  expect(ticketPermLabel('tickets.directory')).toBe('ניהול ספריית אנשי קשר וספקים');
+  expect(ticketPermLabel('tickets.directory')).toBe('ספרייה: ספקים ואנשי קשר חיצוניים');
+});
+
+test('TICKPERM-295: a directory-only holder creates vendors and contacts, never a handler (employee); an older server shows all', () => {
+  expect(creatableKinds(false, false)).toEqual(['person', 'vendor']);
+  expect(creatableKinds(true, false)).toEqual(['person', 'vendor', 'employee']);
+  expect(creatableKinds(undefined, false)).toEqual(['person', 'vendor', 'employee']);
+  expect(creatableKinds(false, true)).toEqual(['person', 'vendor', 'employee']); // a department manager keeps his own routes
+  expect(DM_HE.p_directory).not.toBe(DM_EN.p_directory);
 });

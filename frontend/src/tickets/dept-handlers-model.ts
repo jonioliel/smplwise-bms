@@ -70,3 +70,9 @@ export function lookupReady(raw: string): boolean {
 export function mobileEditable(m: Pick<ManagedMember, 'kind' | 'role' | 'mobile_editable'>): boolean {
   return m.kind === 'user' && m.role === 'member' && m.mobile_editable === true;
 }
+
+/** TICKPERM-295: the kinds of a new directory row the caller may create. A handler (an employee without an account) is a handlers' row:
+ *  a directory-only holder (`can_edit_staff` false) gets vendors and contacts only; an older server omits the flag (all, the server refuses). */
+export function creatableKinds(canEditStaff: boolean | undefined, manager: boolean): readonly ('person' | 'vendor' | 'employee')[] {
+  return canEditStaff === false && !manager ? ['person', 'vendor'] : ['person', 'vendor', 'employee'];
+}

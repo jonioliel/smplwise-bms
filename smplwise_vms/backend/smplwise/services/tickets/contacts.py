@@ -141,6 +141,25 @@ def require_directory(conn, viewer: Viewer) -> None:
         require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
 
 
+def is_staff_row(row: dict[str, Any] | None) -> bool:
+    """TICKPERM-295: a HANDLER's row - an employee without an account, or a row linked to a user. Such a row decides where a person's
+    staff links and messages go, so it belongs to the handlers' side of the split, not to the vendor / contact directory."""
+    return bool(row) and bool(row.get("employee") or row.get("user_id"))
+
+
+def may_edit_staff_rows(viewer: Viewer) -> bool:
+    """TICKPERM-295: who edits handler rows through the directory: `tickets.configure` only (what always covered them). A holder of
+    `tickets.directory` alone keeps the vendors and the outside contacts; department managers keep their own routes
+    (services/tickets/dept_handlers.py, `tickets.handlers`)."""
+    return viewer.holds_installation(access.CONFIGURE)
+
+
+def require_staff_rows(conn, viewer: Viewer) -> None:
+    """The write gate of a handler row: the usual audited refusal naming `tickets.configure`."""
+    if not may_edit_staff_rows(viewer):
+        require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+
+
 def managed_departments(viewer: Viewer) -> set[str] | None:
     """The departments whose contacts the caller may read: None = every department (tickets.all_departments with manage)."""
     if access.MANAGE not in viewer.anywhere:
@@ -257,8 +276,9 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
     conn = viewer.conn
     configure = may_edit_directory(viewer)
     managed = None if configure else managed_departments(viewer)
+    staff = may_edit_staff_rows(viewer)
     if not configure and managed is not None and not managed:
-        return {"contacts": [], "can_edit": False}
+        return {"contacts": [], "can_edit": False, "can_edit_staff": False}
     rows = store_links.contacts(conn, query=model.clean_text(query), kind=kind, include_inactive=include_inactive)
     dmap = store_links.departments_map(conn, [r["id"] for r in rows])
     counts = store_links.open_ticket_counts(conn, [r["id"] for r in rows])
@@ -273,6 +293,8 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
         depts = dmap.get(r["id"], [])
         if not configure and not readable(viewer, depts, managed):
             continue
+        if configure and not staff and is_staff_row(r):
+            continue  # TICKPERM-295: the directory editor does not see the handlers' rows
         if department_id and not allowed_in(depts, department_id):
             continue
         if permanent is not None and bool(r.get("permanent_vendor")) != permanent:  # VENDMARK-295: the marker filter
@@ -283,7 +305,7 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
         if scope is not None and scope.capable:
             item["manager_editable"] = scope.editable(r, depts)
         out.append(item)
-    return {"contacts": out, "can_edit": configure,
+    return {"contacts": out, "can_edit": configure, "can_edit_staff": staff,
             # CR-DEPT-MANAGER-HANDLERS: the departments in which this caller manages handlers (empty for a configurer: can_edit covers it)
             "handler_departments": sorted(scope.departments) if scope is not None and scope.capable else []}
 
@@ -449,6 +471,8 @@ def create(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -
         depts = _departments(conn, body)
     except ContactInvalid as exc:
         raise invalid(conn, exc.field, exc.code) from None
+    if fields.get("employee") or fields.get("user_id"):
+        require_staff_rows(conn, viewer)  # TICKPERM-295: a new handler row is not a directory entry
     cid = insert_checked(conn, viewer, fields, depts, rid)
     return one(conn, viewer, cid)
 
@@ -478,6 +502,8 @@ def one(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
     managed = None if configure else managed_departments(viewer)
     if not configure and not readable(viewer, depts, managed):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    if configure and not may_edit_staff_rows(viewer) and is_staff_row(row):
+        raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))  # TICKPERM-295: the uniform answer
     vendors = {}
     if row.get("vendor_id"):
         v = store_links.contact(conn, row["vendor_id"])
@@ -512,8 +538,20 @@ def update(conn, viewer: Viewer, contact_id: str, body: dict[str, Any], revision
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    _staff_gate(conn, viewer, row, body)
     update_checked(conn, viewer, row, body, revision, rid)
     return one(conn, viewer, contact_id)
+
+
+def _staff_gate(conn, viewer: Viewer, row: dict[str, Any], body: dict[str, Any] | None = None) -> None:
+    """TICKPERM-295: a handler row - or an edit that makes one (kind employee, a user link) - needs the handlers' side of the split.
+    A directory-only holder meets the same 404 as for an unknown id on a row that is already a handler's."""
+    if may_edit_staff_rows(viewer):
+        return
+    if is_staff_row(row):
+        raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    if body and (body.get("kind") == "employee" or body.get("user_id")):
+        require_staff_rows(conn, viewer)
 
 
 def update_checked(conn, viewer: Viewer, row: dict[str, Any], body: dict[str, Any], revision: int, rid: str | None,
@@ -613,6 +651,7 @@ def erase(conn, viewer: Viewer, contact_id: str, *, history: bool, rid: str | No
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    _staff_gate(conn, viewer, row)
     return erase_checked(conn, viewer, row, history=history, rid=rid)
 
 
@@ -644,6 +683,7 @@ def export(conn, viewer: Viewer, contact_id: str, rid: str | None = None) -> dic
     row = store_links.contact(conn, contact_id)
     if row is None:
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    _staff_gate(conn, viewer, row)
     audit(conn, actor=viewer.principal, action="ticket.contact.export", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
           request_id=rid)
     keep = ("id", "kind", "display_name", "company", "phone_e164", "email", "preferred_channel", "require_code", "share_history", "lang",
