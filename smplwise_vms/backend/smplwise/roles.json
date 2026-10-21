@@ -228,6 +228,7 @@
         "backup.manage",
         "system.update",
         "users.ha_manage",
+        "bridge.key.rotate",
         "video.export",
         "ha.entity.control",
         "cases.manage",
@@ -497,7 +498,8 @@
     "tickets.directory",
     "tickets.technician_requests",
     "messaging.accounts.manage",
-    "messaging.pacing.reserve"
+    "messaging.pacing.reserve",
+    "bridge.key.rotate"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
 }

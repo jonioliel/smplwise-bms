@@ -32,6 +32,7 @@ from typing import Any, Protocol
 
 from ..db import Database, get_setting, is_busy
 from . import capture_lease as cl
+from . import bridge_rotation as _rotation
 from . import ha_bridge, trusted_caller
 from .wiskey_channels import LEASE_SIGNED
 
@@ -110,6 +111,8 @@ class NotSendable(Exception):
 
 
 def _secret(conn: sqlite3.Connection) -> str:
+    if _rotation.door_commands_paused(conn):  # HMACACT2-295: held, not dropped - the event worker retries a NotSendable
+        raise NotSendable(_rotation.PAUSE_CODE)
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
         raise NotSendable("bridge_not_paired")

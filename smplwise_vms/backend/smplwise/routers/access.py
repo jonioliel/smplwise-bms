@@ -82,6 +82,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # never a custom role, never delegable: the security spec gives site administrators no home-system management); the actor
     # must also be an active home-system administrator in the synced directory (routers/ha_users.py).
     "users.ha_manage": "ניהול משתמשי מערכת הבית: יצירה, השבתה ומחיקה",
+    # HMACACT2-295 (CR-034 section 7): starting or resuming a bridge key rotation. Sensitive, installation scope, system_admin only, never delegable,
+    # never in a custom role (SYSTEM_PERMISSIONS). The route also still requires a system administrator.
+    "bridge.key.rotate": "החלפת מפתח הגשר (הפעלה והמשך)",
     "video.export": "ייצוא וידאו",
     "ha.entity.control": "שליטה בישויות HA",
     "audio.talk": "דיבור דו־כיווני",
@@ -352,7 +355,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "messaging.pacing.reserve": "הקצאת שליחה בתקציב הוואטסאפ המשותף (שירות WisKey בלבד)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
-                      "users.ha_manage", "identity.local.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
+                      "users.ha_manage", "identity.local.manage", "bridge.key.rotate"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a

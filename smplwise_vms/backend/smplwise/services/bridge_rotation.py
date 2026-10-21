@@ -75,6 +75,32 @@ class RotationRefused(Exception):
         self.status = status
 
 
+# HMACACT2-295 (CR-034 A1): while a rotation is unfinished, NEW trusted door calls (door_open, door_open_status, the capture-lease
+# messages) are refused or held with this reason - a door command is never signed while the key set may be half switched. Held = the
+# lease event worker keeps its queue and retries (NotSendable); refused = an interactive door command answers 503
+# `bridge_key_rotating` with `outcome: not_sent`. Nothing is dropped silently. `needs_repair` also pauses (the peer's key state is
+# unknown) until an administrator resumes it; an administrator turning the switch off lifts the pause (the engine then no longer
+# drives a rotation).
+PAUSE_STATES = ACTIVE + ("needs_repair",)
+PAUSE_CODE = "bridge_key_rotating"
+PAUSE_TEXT = "החלפת מפתח הגשר מתבצעת כרגע, ופתיחת דלתות מרחוק מושהית לכמה דקות. לא נשלחה פקודה - אפשר לנסות שוב בעוד רגע."
+
+
+def door_commands_paused(conn: sqlite3.Connection) -> bool:
+    """True while a bridge-key rotation is in progress (or waits for repair) and the rotation switch is on."""
+    try:
+        if mode(conn) != "on":
+            return False
+        last = conn.execute("SELECT state FROM bridge_rotations ORDER BY started_at DESC, rowid DESC LIMIT 1").fetchone()
+        if last is None:
+            return False
+        if last["state"] == "needs_repair":
+            return True
+        return conn.execute(f"SELECT 1 FROM bridge_rotations WHERE state IN ({','.join('?' * len(ACTIVE))}) LIMIT 1", ACTIVE).fetchone() is not None
+    except sqlite3.OperationalError:  # no rotation table yet: nothing can be rotating
+        return False
+
+
 def go_live_permitted() -> bool:
     return GO_LIVE_PERMITTED is True
 
