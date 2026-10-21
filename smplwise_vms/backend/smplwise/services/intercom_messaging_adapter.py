@@ -40,7 +40,7 @@ from datetime import timedelta
 from typing import Any
 
 from ..config import Settings
-from . import intercom_adapter, intercom_client, intercom_sync
+from . import intercom_adapter, intercom_client, intercom_sync, wa_pacing
 from .intercom_client import IntercomError, UnclearAnswer
 from .intercom_messaging import utc
 
@@ -50,6 +50,7 @@ DOMAIN = intercom_client.DOMAIN
 API_CONTRACT = intercom_client.API_CONTRACT
 COMMANDS = ("whatsapp/status", "whatsapp/preview", "whatsapp/send")
 LANGUAGE = "he"  # `preview` requires a language; the text it would build is never used
+PACING_MAX_AGE_S = 300.0  # CR-WA-PACING-295: WisKey's counters older than this are unknown, not "still true"
 STATUS_TTL_S = 20.0  # the service's state is person-free and principal-independent: cached briefly (a dialog opens often)
 SEND_WITHIN_S = 15.0  # a send that reaches the feed's loop later than this is not sent (`expired`)
 TOKEN = re.compile(r"^\S{8,512}$")
@@ -61,7 +62,11 @@ TEMPLATE_SEND_SUPPORTED = False  # WA-CONSENT-LINK: rc.37 has no WhatsApp-templa
 SEND_REFUSED = frozenset({
     "invalid_fields", "whatsapp_unavailable", "whatsapp_invalid_phone", "whatsapp_preview_expired", "user_not_found",
     "unauthorized", "rate_limited", "api_incompatible", "request_too_large", "unknown_command",
+    # CR-WA-PACING-295 (WisKey's reply 2026-10-21): the provider provably did not accept the message
+    "pair_rate_limited", "pacing_expired",
 })
+# CR-WA-PACING-295: WisKey says the send may have left. Never a refusal, never sent again by Arx.
+UNCERTAIN_CODES = frozenset({"whatsapp_send_uncertain", "status_unknown"})
 
 
 @dataclass(frozen=True)
@@ -96,7 +101,9 @@ def project_status(raw: Any) -> dict[str, Any]:
     quota = raw.get("quota")
     limit, used = (_int(quota.get("limit")), _int(quota.get("used"))) if isinstance(quota, dict) else (None, None)
     return {"available": raw.get("available") is True and bool(accounts), "accounts": accounts[:10],
-            "quota": {"limit": limit, "used": used} if limit is not None and used is not None else None}
+            "quota": {"limit": limit, "used": used} if limit is not None and used is not None else None,
+            # CR-WA-PACING-295: WisKey's `whatsapp_pacing_status_v1` block per account (tolerant: absent on WisKey versions without it)
+            "pacing": wa_pacing.project_pacing_accounts(raw.get("accounts"))}
 
 
 def project_recipient(raw: Any) -> dict[str, Any]:
@@ -164,8 +171,10 @@ async def _preview_and_send(call: intercom_client.Call, account: str, user_id: s
 
 # the burst refusals: WisKey's AdminLimiter / Arx's own message lane bucket - wait a moment and it passes
 BURST_RETRY_S = 5
+PAIR_RETRY_S = 300
 NOT_SENT_WISKEY = {
     "rate_limited": "rate_limited", "busy": "busy", "expired": "expired", "whatsapp_unavailable": "service_unavailable",
+    "pair_rate_limited": "pair_rate_limited", "pacing_expired": "pacing_expired",
     "whatsapp_preview_expired": "expired", "user_not_found": "person_not_found",
     "unauthorized": "service_unavailable", "unknown_command": "service_unavailable", "api_incompatible": "service_unavailable",
 }
@@ -177,7 +186,7 @@ def classify(reply: dict[str, Any], outcome: str, phase: str) -> SendResult:
     state = str(reply.get("state") or "")
     if outcome == "ok":
         return SendResult("sent")
-    if outcome == "unknown":
+    if outcome == "unknown" or code in UNCERTAIN_CODES:
         return SendResult("unknown", "uncertain", code or state or "unknown")
     if outcome == "not_sent":  # the feed refused or never scheduled it: nothing reached WisKey
         return _not_sent(NOT_SENT_WISKEY.get(code, "service_unavailable"), code or state)
@@ -192,6 +201,8 @@ def classify(reply: dict[str, Any], outcome: str, phase: str) -> SendResult:
 def _not_sent(word: str, wiskey_code: str) -> SendResult:
     if word in ("rate_limited", "busy"):
         return SendResult("not_sent", "rate_limited", wiskey_code, BURST_RETRY_S, "burst")
+    if word == "pair_rate_limited":  # the provider slowed this one recipient: not a burst, wait a while
+        return SendResult("not_sent", word, wiskey_code, PAIR_RETRY_S, "pair")
     return SendResult("not_sent", word, wiskey_code)
 
 
@@ -219,6 +230,8 @@ class MessagingAdapter:
         self._status: dict[str, Any] | None = None
         self._status_key: tuple[Any, ...] | None = None
         self._status_at = 0.0
+        self._pacing: list[dict[str, Any]] = []
+        self._pacing_at: float | None = None
 
     def forget(self) -> None:
         with self._lock:
@@ -248,7 +261,16 @@ class MessagingAdapter:
         out = {"state": "ready", "available": got["available"], "accounts": got["accounts"], "quota": got["quota"], "last_error": None}
         with self._lock:
             self._status, self._status_key, self._status_at = dict(out), key, time.monotonic()
+            self._pacing, self._pacing_at = list(got.get("pacing") or []), time.monotonic()
         return out
+
+    def cached_pacing(self) -> dict[str, "wa_pacing.WiskeyStatus"]:
+        """WisKey's pacing block as of the last status read, without asking WisKey (the outbox worker must never wait on it). Older than
+        PACING_MAX_AGE_S, or never read: empty = UNKNOWN to the budget."""
+        with self._lock:
+            fresh = self._pacing_at is not None and time.monotonic() - self._pacing_at < PACING_MAX_AGE_S
+            raw = list(self._pacing) if fresh else []
+        return wa_pacing.parse_wiskey_status(raw)
 
     @staticmethod
     def account_for(status: dict[str, Any], configured: str) -> tuple[str | None, str | None]:

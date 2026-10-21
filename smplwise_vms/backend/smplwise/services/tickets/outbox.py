@@ -39,6 +39,7 @@ from typing import Any, Callable, Iterable, Mapping, Protocol
 from zoneinfo import ZoneInfo
 
 from . import hours
+from .. import wa_pacing
 from . import message_templates as templates  # renamed in slice 5b: slice 2 owns `templates.py` (ticket templates)
 from .channel import (CLAIM_LINK_PURPOSES, CODE_PURPOSES, LINK_PURPOSES, NOT_SENT, PURPOSES, REFUSED, REPLY_PURPOSES, REPORT_PURPOSES, SENT, UNKNOWN,
                       AccountRef, OutboundMessage, Recipient, SendResult, TicketChannel, keyed_hash, phone_digits, priority_of)
@@ -383,6 +384,9 @@ class Ports:
     derive_code: Callable[[OutboxRow], str | None] | None = None  # slice 5b: the six digits of a `code_id` row (W9)
     # CR-VENDORQ-294: the text of a `report` row, built at send time by its module's provider -> (text, None) | (None, outcome code)
     report_text: Callable[[OutboxRow, Recipient], tuple[str | None, str | None]] | None = None
+    # CR-WA-PACING-295: the shared WhatsApp send budget (services/wa_pacing.WaPacer) - per-minute / burst caps, priority classes, foreign
+    # (WisKey) use, backoff on rate answers and the queue age limit. None = the legacy gate alone.
+    pacer: Any = None
 
 
 class Outbox:
@@ -606,9 +610,16 @@ class Outbox:
             return self._fail_before_claim(row, "no_phone", now)
         rkey = keyed_hash(self.p.messaging_key, digits)
         decision = self.p.gate.check(account_key=account.key, pacing=pacing, recipient_key=rkey, kind=ledger_kind(row.purpose), now=now)
-        if not decision.allowed:
-            if row.state == "held" or row.not_before != decision.not_before:
-                self._set(row, state="queued", now=now, held_reason=None, held_since=None, not_before=decision.not_before)
+        klass = wa_pacing.class_of(purpose=row.purpose)
+        pace = (self.p.pacer.check(account_key=account.key, pacing=pacing, recipient_key=rkey, klass=klass, ref=row.id, now=now,
+                                       retrying=row.outcome_code in wa_pacing.RATE_CODES)
+                if self.p.pacer is not None else None)
+        if pace is not None and pace.expired:  # CR-WA-PACING-295: waited on the shared budget past its class limit - ends visibly, never dropped
+            return self._fail_before_claim(row, "pacing_expired", now)
+        if not decision.allowed or (pace is not None and not pace.allowed):
+            until = max(d.not_before for d in (decision, pace) if d is not None and not d.allowed)
+            if row.state == "held" or row.not_before != until:
+                self._set(row, state="queued", now=now, held_reason=None, held_since=None, not_before=until)
             return 0
         msg, problem = self._message(row, recipient, account, now)
         if msg is None:
@@ -624,6 +635,20 @@ class Outbox:
         if result.may_have_left:
             self.p.gate.record(account_key=account.key, use_key=row.use_key, recipient_key=rkey, kind=ledger_kind(row.purpose), now=now)
         self.p.accounts.note_result(account.key, result)
+        if self.p.pacer is not None:
+            until = self.p.pacer.on_result(account_key=account.key, recipient_key=rkey, klass=klass, outcome=result.outcome,
+                                           outcome_code=result.outcome_code, now=now)
+            if result.outcome == NOT_SENT and result.outcome_code in wa_pacing.RATE_CODES:
+                # the platform asked us to slow down and the message did not leave: it waits out the backoff WITHOUT using a retry attempt;
+                # only the class age limit ends it (visibly)
+                self.p.pacer.note_deferred(account_key=account.key, klass=klass, ref=row.id, now=now)
+                if self.p.pacer.aged_out(ref=row.id, now=now, klass=klass):
+                    done = self._set(claimed, state=NOT_SENT, now=now, outcome_code="pacing_expired")
+                    self._final(done, SendResult(NOT_SENT, "pacing_expired"), account, now, fallback=True)
+                else:
+                    self._set(claimed, state="queued", now=now, outcome_code=result.outcome_code, attempts=max(0, claimed.attempts - 1),
+                              not_before=until or now + dt.timedelta(seconds=wa_pacing.ACCOUNT_BACKOFF_S[0]))
+                return 1
         self._finish(claimed, result, now, account)
         return 1
 
@@ -759,6 +784,14 @@ class Outbox:
             self._final(final, SendResult(NOT_SENT, reason), None, now, fallback=True)
         return 0
 
+    def _pacing_release(self, row: OutboxRow) -> None:
+        if self.p.pacer is None:
+            return
+        try:
+            self.p.pacer.release(row.id)
+        except Exception:  # noqa: BLE001 - a stale wait row is pruned by the janitor and ignored by the counters (they join the outbox)
+            log.debug("pacing release skipped id=%s", row.id)
+
     def _fail_before_claim(self, row: OutboxRow, code: str, now: dt.datetime) -> int:
         final = self._set(row, state="not_sent", now=now, outcome_code=code, held_reason=None, held_since=None)
         self._final(final, SendResult(NOT_SENT, code), None, now, fallback=code not in ("target_lost",))
@@ -766,6 +799,7 @@ class Outbox:
 
     def _cancel(self, row: OutboxRow, reason: str, now: dt.datetime) -> OutboxRow:
         done = self._set(row, state="cancelled", now=now, outcome_code=reason)
+        self._pacing_release(row)
         self.p.secrets.drop(row.id)
         self.p.hooks.cancelled(done, reason)
         return done
@@ -795,6 +829,7 @@ class Outbox:
             self._final(done, result, account, now, fallback=True)
 
     def _final(self, row: OutboxRow, result: SendResult, account: AccountRef | None, now: dt.datetime, *, fallback: bool) -> None:
+        self._pacing_release(row)
         self.p.hooks.outcome(row, result, account)
         log.info("outbox final id=%s purpose=%s channel=%s state=%s code=%s", row.id, row.purpose, row.channel, row.state, row.outcome_code)
         if fallback:

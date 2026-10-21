@@ -431,3 +431,36 @@ def view(conn: sqlite3.Connection, *, can_manage: bool, now: dt.datetime | None 
         "pacing_ranges": {k: list(v) for k, v in ma.PACING_RANGES.items()}, "pacing_default": ma.Pacing().__dict__.copy(),
         "test_send": {"enabled": test_send_enabled()},
     }
+
+
+# ---------------------------------------------------------------- CR-WA-PACING-295: the shared send budget on one request's connection
+
+def wiskey_pacing() -> dict[str, Any]:
+    """WisKey's `whatsapp_pacing_status_v1` block as of the last status read (never asks WisKey; empty = unknown)."""
+    try:
+        from .intercom_messaging_adapter import MESSAGING
+
+        return MESSAGING.cached_pacing()
+    except Exception:  # noqa: BLE001 - WisKey absent or not ready: its counters are unknown
+        return {}
+
+
+def pacer_on(conn: sqlite3.Connection) -> Any:
+    """The pacer of a route: reads and writes on the request's own connection (the route holds the write gate, so a reservation's
+    admission and lease row are one atomic step)."""
+    import contextlib
+
+    from . import wa_pacing as wp
+
+    store = wp.SqlitePacerStore(lambda: contextlib.nullcontext(conn), lambda: conn)
+    return wp.WaPacer(ma.SqliteSendLedger(conn), store, config=lambda: wp.load_config(conn), foreign=wp.wiskey_foreign_use(conn), wiskey=wiskey_pacing)
+
+
+def pacing_for(conn: sqlite3.Connection) -> Callable[[str], ma.Pacing]:
+    doc = load_doc(conn)
+
+    def get(account_key: str) -> ma.Pacing:
+        acc = doc.account(account_key)
+        return acc.pacing if acc is not None else ma.Pacing()
+
+    return get

@@ -144,7 +144,7 @@ def test_corrupt_document_reads_as_empty():
 
 def test_parse_drops_bad_rows_and_round_trips():
     raw = {"revision": 3, "accounts": [
-        {"key": KEY_A, "kind": "discovered", "label": "שירות‮ ····0001", "last4": "0001", "pacing": {"per_hour": 999}},
+        {"key": KEY_A, "kind": "discovered", "label": "שירות‮ ····0001", "last4": "0001", "pacing": {"per_hour": 99999}},
         {"key": "manual:k3f9", "kind": "manual", "label": "ישן", "account": "15555550199"},
         {"key": "manual:zz", "kind": "manual", "account": "x"},  # key too short
         {"key": KEY_B, "kind": "manual", "account": "x"},  # kind does not match the key
@@ -247,7 +247,7 @@ def gate(seed=1):
 
 
 def test_minimum_gap_with_jitter():
-    g, p = gate(), ma.Pacing()
+    g, p = gate(), ma.Pacing(min_gap_s=15, jitter_s=10)
     assert g.check(account_key=KEY_A, pacing=p, recipient_key="r1", kind="message", now=T0).allowed
     g.record(account_key=KEY_A, use_key="tickets.messages", recipient_key="r1", kind="message", now=T0)
     d = g.check(account_key=KEY_A, pacing=p, recipient_key="r2", kind="message", now=T0 + dt.timedelta(seconds=14))

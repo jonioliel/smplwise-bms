@@ -46,6 +46,7 @@ from ...audit import audit
 from ...db import Database, get_setting, unlocked
 from .. import messaging_accounts as ma
 from .. import messaging_runtime as mr
+from .. import wa_pacing
 from . import access, handler_links, hours, model, naming, notify_bridge, outbox_store as obs, settings_doc, sla, store, store_links
 from . import org_locations  # CR-ORG-LOCATIONS: the {location} value
 from . import rfq_links, store_rfq  # TKRFQ1: request-for-quotation vendor links and their outbox rows
@@ -466,16 +467,33 @@ class MessagingRuntime:
         self._states = {}
         io = obs.Access(db)
         gate = ma.PacingGate(obs.BoundSendLedger(db))
+        pacer = self._build_pacer(io, db)
         self._whatsapp = WhatsAppChannel(self._transport(), _LazyAccounts(self), use_buttons=self._use_buttons)
         email = EmailChannel(self._mail_config, sender=self._send_mail)
         ports = Ports(store=obs.SqliteOutboxStore(db), directory=DbDirectory(io), links=DbLinks(io, self.clock), templates=DbTemplates(io),
                       context=DbContext(io, lambda: self.data_dir), accounts=_LazyAccounts(self), channels={"whatsapp": self._whatsapp, "email": email},
-                      gate=gate, messaging_key=b"", hooks=DbHooks(self), derive_code=self._derive_code, report_text=self._report_text)
+                      gate=gate, messaging_key=b"", hooks=DbHooks(self), derive_code=self._derive_code, report_text=self._report_text,
+                      pacer=pacer)
         ports.messaging_key = self._messaging_key()
         self.outbox = DbOutbox(ports, db)
         self.queue = inbound_mod.InboundQueue()
         self.counters = collections.Counter()
         self._register()
+
+    @staticmethod
+    def _build_pacer(io: Any, db: Database) -> wa_pacing.WaPacer:
+        """CR-WA-PACING-295: the shared send budget on the worker's bound connection (writes) and short reads (settings, WisKey's record)."""
+        store = wa_pacing.SqlitePacerStore(lambda: io.read("messaging.pacing"), io.write)
+
+        def config() -> wa_pacing.PacerConfig:
+            with io.read("messaging.pacing") as conn:
+                return wa_pacing.load_config(conn)
+
+        def foreign(since: dt.datetime) -> list[dt.datetime]:
+            with io.read("messaging.pacing") as conn:
+                return wa_pacing.wiskey_foreign_use(conn)(since)
+
+        return wa_pacing.WaPacer(obs.BoundSendLedger(db), store, config=config, foreign=foreign, wiskey=mr.wiskey_pacing)
 
     def _transport(self) -> Any:
         if self.transport is not None:
@@ -795,6 +813,7 @@ class MessagingRuntime:
             from . import out_documents  # CR-VENDORQ-294: a document's bytes go at expiry / revocation, its row 90 days later
 
             n += out_documents.purge(conn, now)
+            n += wa_pacing.SqlitePacerStore(lambda: contextlib.nullcontext(conn), lambda: conn).prune(now - wa_pacing.COUNTER_KEEP)  # CR-WA-PACING-295
         if n:
             log.info("tickets messaging retention rows=%d", n)
         return n

@@ -51,6 +51,10 @@ TIMEOUT_S = 15.0
 _ACCOUNT_ERROR = re.compile(r"(?is)account\b.{0,120}\bnot found|multiple whatsapp accounts")
 _NO_RESPONSE = re.compile(r"(?i)does not support responses|return_response")
 _MESSAGE_ID = re.compile(r"^[A-Za-z0-9_\-:.@]{1,128}$")
+# CR-WA-PACING-295: the platform asking us to slow down. A pair-rate answer (Meta 131056: too many messages from this number to this
+# recipient) slows only that pair; an HTTP 429 / 130429 / 131048 / "rate limit" / "too many requests" slow the whole account. The message did not leave.
+_PAIR_RATE = re.compile(r"(?i)(?<![0-9])131056(?![0-9])|pair[ _-]?rate")
+_ACCOUNT_RATE = re.compile(r"(?i)(?<![0-9])(?:130429|131048)(?![0-9])|rate[ _-]?limit|too many requests|spam rate")
 
 
 @dataclass(frozen=True)
@@ -95,8 +99,18 @@ class HaServiceTransport:
         return TransportReply("response", r.status_code, body, ok, r.text[:500] if r.status_code == 400 else "")
 
 
+def rate_code(*texts: Any) -> str | None:
+    """`pair_rate_limited` | `rate_limited` | None for the text an answer carries (a body, a message, an error code)."""
+    blob = " ".join(str(t) for t in texts if t is not None)[:1000]
+    if _PAIR_RATE.search(blob):
+        return "pair_rate_limited"
+    if _ACCOUNT_RATE.search(blob):
+        return "rate_limited"
+    return None
+
+
 def classify(reply: TransportReply) -> SendResult:
-    """9.4 - see the table in the module note."""
+    """9.4 - see the table in the module note (plus the rate answers: 429 or a rate text -> not_sent / rate_limited | pair_rate_limited)."""
     if reply.kind == "not_configured":
         return SendResult(NOT_SENT, "ha_not_configured")
     if reply.kind == "connect_error":
@@ -110,9 +124,12 @@ def classify(reply: TransportReply) -> SendResult:
         body = reply.body
         response = body.get("service_response", body) if isinstance(body, dict) else None
         if isinstance(response, dict) and response.get("success") is False:
-            return SendResult(REFUSED, "provider_refused")
+            rate = rate_code(response.get("error"), response.get("error_code"), response.get("code"), response.get("message"))
+            return SendResult(NOT_SENT, rate) if rate else SendResult(REFUSED, "provider_refused")
         mid = response.get("message_id") if isinstance(response, dict) else None
         return SendResult(SENT, None, mid if isinstance(mid, str) and _MESSAGE_ID.match(mid) else None)
+    if status == 429:
+        return SendResult(NOT_SENT, rate_code(reply.body_text, reply.body) or "rate_limited")
     if status == 400:
         text = reply.body_text or ""
         if isinstance(reply.body, dict) and isinstance(reply.body.get("message"), str):
@@ -121,6 +138,9 @@ def classify(reply: TransportReply) -> SendResult:
             return SendResult(NOT_SENT, "account_not_found")
         if _NO_RESPONSE.search(text):
             return SendResult(NOT_SENT, "response_unsupported")
+        rate = rate_code(text)
+        if rate:
+            return SendResult(NOT_SENT, rate)
         return SendResult(NOT_SENT, "bad_request")
     if status in (401, 403):
         return SendResult(NOT_SENT, "ha_forbidden")

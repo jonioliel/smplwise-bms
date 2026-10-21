@@ -12,12 +12,16 @@ tickets module gate. Read: `system.configure` or `messaging.accounts.manage` (in
   POST /messaging/whatsapp/test     one test message from one account to a typed number - OFF until slice 5b's outbox exists AND the
                                     owner approved live sends (messaging_runtime.test_send_enabled); local channel only
                                     (remote_channel.BLOCKED_ON_REMOTE)
+  GET/PUT /messaging/whatsapp/pacing  CR-WA-PACING-295: the shared send budget - mode (conservative | standard | off), WisKey shares the number,
+                                    queue age limits per class; GET also the counters (same read gate)
 
 Audit: `messaging.accounts.update` (use keys and account KEYS before / after, account keys added / removed / changed - never a number,
 a typed value or a label), `messaging.accounts.refresh` (counts), `messaging.accounts.test` (account key, outcome). Nothing here writes
 to Home Assistant or `ha-whatsapp`."""
 from __future__ import annotations
 
+import datetime as dt
+import re
 import sqlite3
 from typing import Any
 
@@ -32,6 +36,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import ha_client
 from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
+from ..services import wa_pacing
 from ..services.tickets.channel import phone_digits
 
 router = APIRouter()
@@ -206,3 +211,109 @@ def test_send(body: TestBody, request: Request, principal: Principal = Depends(c
     audit(conn, actor=principal, action="messaging.accounts.test", decision="allowed", resource_type="installation", resource_id="messaging.whatsapp",
           request_id=_rid(request), details={"account": ref.key, "state": result.get("state")})
     return {"id": result.get("id"), "state": result.get("state")}
+
+
+# ---------------------------------------------------------------- CR-WA-PACING-295: the shared send budget
+
+class PacingModeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: str | None = Field(default=None, max_length=16)
+    wiskey_shared: bool | None = None
+    max_wait_min: dict[str, int] | None = None
+    per_minute: int | None = None
+    burst: int | None = None
+    lease_ttl_s: int | None = None
+    senders: dict[str, str] | None = None  # Arx account key -> WisKey's opaque sender_ref (replaces the whole map)
+
+
+def _pacing_view(conn: sqlite3.Connection, can_manage: bool) -> dict[str, Any]:
+    svc = mr.service(conn)
+    keys = [a.key for a in svc.doc().accounts if not a.removed] + [k for k in svc.discovered() if svc.doc().account(k) is None]
+    cfg = wa_pacing.load_config(conn)
+    out = wa_pacing.snapshot(conn, mr.pacer_on(conn), keys, dt.datetime.now(dt.timezone.utc))
+    out["can_manage"] = can_manage
+    out["applies"] = bool(mr._tickets_module_on(conn)) and cfg.enabled  # the budget governs the tickets module's sends; with it off nothing here changes
+    return out
+
+
+@router.get("/messaging/whatsapp/pacing")
+def get_pacing(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The shared send budget: mode, the numbers it works with, and per account the counters of the last 24 hours (sent, deferred,
+    backoff, expired), the queue waiting on the budget, the backoff in force and what is known of WisKey's own sends (`unknown` is never
+    zero). No number, text or recipient."""
+    return _pacing_view(conn, _reader(conn, principal))
+
+
+@router.put("/messaging/whatsapp/pacing")
+def put_pacing(body: PacingModeBody, request: Request, principal: Principal = Depends(current_principal),
+               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, MANAGE, INSTALLATION)
+    current = wa_pacing.load_config(conn)
+    raw = {**wa_pacing.config_to_json(current), **{k: v for k, v in body.model_dump().items() if v is not None}}
+    if body.max_wait_min is not None:
+        raw["max_wait_min"] = {**raw["max_wait_min"], **body.max_wait_min}
+    new, problems = wa_pacing.validate_config(raw)
+    if problems:
+        raise _problems(problems)
+    wa_pacing.store_config(conn, new)
+    audit(conn, actor=principal, action="messaging.pacing.update", decision="allowed", resource_type="installation", resource_id=wa_pacing.SETTING_KEY,
+          request_id=_rid(request), details={"mode": [current.mode, new.mode], "wiskey_shared": [current.wiskey_shared, new.wiskey_shared],
+                                             "per_minute": [current.per_minute, new.per_minute], "burst": [current.burst, new.burst],
+                                             "senders_accounts": sorted(new.senders),
+                                             "max_wait_changed": sorted(k for k in wa_pacing.CLASSES if current.max_wait_min.get(k) != new.max_wait_min.get(k))})
+    return _pacing_view(conn, True)
+
+
+# the reservation port: WisKey asks for one send of its own, atomically against the same budget (docs/changes/CR-WA-PACING-295.md section 4)
+
+class ReserveBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sender_ref: str = Field(max_length=128)
+    klass: str = Field(alias="class", max_length=16)
+    request_id: str = Field(pattern=r"^[A-Za-z0-9_.:\-]{8,128}$")
+
+
+class SlowdownBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope: str = Field(max_length=16)
+    retry_after_s: int | None = Field(default=None, ge=1, le=86400)
+
+
+class ReleaseBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: str = Field(pattern=r"^[A-Za-z0-9_.:\-]{8,128}$")
+    outcome: str = Field(max_length=24)
+    slowdown: SlowdownBody | None = None
+
+
+RESERVE = "messaging.pacing.reserve"
+
+
+def _port(conn: sqlite3.Connection, principal: Principal) -> wa_pacing.WaReservations:
+    """The port's gate: ONLY `messaging.pacing.reserve` (a dedicated service principal's single-permission role) - `messaging.accounts.manage`
+    does not open it and it opens nothing else."""
+    require(conn, principal, RESERVE, INSTALLATION)
+    return wa_pacing.WaReservations(mr.pacer_on(conn), mr.pacing_for(conn))
+
+
+@router.post("/messaging/whatsapp/pacing/reserve")
+def reserve(body: ReserveBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """`granted` + a short-lived lease, or `denied` with `reason` and `retry_after_s` (both HTTP 200: a decision is an answer, not an error).
+    Idempotent by `request_id`. Contract: docs/changes/CR-WA-PACING-295-PORT-CONTRACT.md."""
+    return _port(conn, principal).reserve(sender_ref=body.sender_ref, klass=body.klass, request_id=body.request_id, now=dt.datetime.now(dt.timezone.utc))
+
+
+@router.post("/messaging/whatsapp/pacing/release")
+def release(body: ReleaseBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Settle a lease with the outcome (accepted_by_provider | not_sent | unknown | expired), optionally with the provider slow-down that
+    caused it. Idempotent: the first outcome stands."""
+    return _port(conn, principal).release(request_id=body.request_id, outcome=body.outcome, now=dt.datetime.now(dt.timezone.utc),
+                                          slowdown=body.slowdown.model_dump() if body.slowdown else None)
+
+
+@router.get("/messaging/whatsapp/pacing/lease/{request_id}")
+def lease_status(request_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Reconciliation: what Arx holds for one `request_id`."""
+    if not re.match(r"^[A-Za-z0-9_.:\-]{8,128}$", request_id):
+        raise _problems([{"code": "invalid", "field": "request_id"}])
+    return _port(conn, principal).status(request_id=request_id, now=dt.datetime.now(dt.timezone.utc))

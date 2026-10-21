@@ -522,7 +522,7 @@ def _release_one(db: Database, settings: Any, row: dict[str, Any], ApiError: Any
         return "released", None, message_id
     if result.outcome == "unknown":
         return "released", "uncertain", message_id  # handed on, outcome unknown: never retried
-    if result.outcome == "not_sent" and result.code in ("rate_limited", "service_unavailable", "expired"):
+    if result.outcome == "not_sent" and result.code in ("rate_limited", "pair_rate_limited", "service_unavailable", "expired"):
         return "retry", result.code, None
     return "dropped", "person_not_found" if result.code == "person_not_found" else "refused", None
 
