@@ -15,6 +15,8 @@ import { sameWiskeyView, type WiskeyView } from '../wiskey/embed-view';
 import './wiskey-overview';
 import './wiskey-events';
 import './wiskey-people';
+import { settledPhase } from './wiskey-embed-phase';
+import { wet } from '../i18n/wiskey-embed'; // UXREST2-295: the loading / timeout words in he / en / ar / ru
 
 /**
  * WisKey's own Home Assistant panel, embedded as-is (CR-005 recorded decision 2026-09-28, "embedded panel").
@@ -89,6 +91,7 @@ import './wiskey-people';
 export { WISKEY_PANEL_PATH };
 const PANEL_TAG = WISKEY_PANEL_TAG;
 const LOAD_TIMEOUT_MS = 20000; // no `load` at all: nothing answers at the address
+const SETTLE_TIMEOUT_MS = 35000; // UXREST2-295: loaded, but still "loading" this long after the probe's own 25 s limit
 const PANEL_TIMEOUT_MS = 25000; // Home Assistant loaded but never mounted the panel
 const RELAY_PANEL_TIMEOUT_MS = 10000; // the same, with the experimental phone relay: fall back sooner (review 2026-09-29)
 const TAB_TIMEOUT_MS = 15000; // legacy: the panel's session (its permissions) loads after it mounts; navigate() refuses until then
@@ -732,6 +735,16 @@ export class WiskeyEmbed extends LitElement {
     }, LOAD_TIMEOUT_MS);
   }
 
+  /** UXREST2-295: the frame loaded, so the 20 s "nothing answers" timer is gone; a frame that then never leaves "loading" (no
+   * handshake, no marker, no panel and no verdict from the probe) ends in the same timeout state with its retry instead of a
+   * spinner for ever. "waiting" (the panel says it is signing in) is a different, announced state and is left alone. */
+  private startSettleTimer() {
+    window.clearTimeout(this.loadTimer);
+    this.loadTimer = window.setTimeout(() => {
+      this.phase = settledPhase(this.phase, this.mode);
+    }, SETTLE_TIMEOUT_MS);
+  }
+
   // ------------------------------------------------------------------ embed API v1
 
   private onReady(catalog: WiskeyCatalog) {
@@ -921,6 +934,7 @@ export class WiskeyEmbed extends LitElement {
     this.frameWin?.removeEventListener('location-changed', this.onFrameNav);
     this.frameWin = f.contentWindow;
     this.frameWin?.addEventListener('location-changed', this.onFrameNav); // Home Assistant's own in-app navigation
+    this.startSettleTimer();
     window.clearInterval(this.timer);
     this.timer = window.setInterval(() => this.tick(), TICK_MS);
     this.tick();
@@ -1086,7 +1100,7 @@ export class WiskeyEmbed extends LitElement {
     const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות ‹ מתגי מסכי כניסה את מסכי Arx.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
-      unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק נפתח ישירות, לא דרך תשתית המערכת. ${common}`, state: 'stale' },
+      unreachable: { heading: wet('unreachableTitle'), hint: wet('unreachableHint'), state: 'stale' },
       blocked: { heading: 'הדפדפן לא מאפשר להטמיע את WisKey כאן', hint: `המסגרת נחסמה (מדיניות מסגרות) או הופנתה לכתובת אחרת. ${common}`, state: 'error' },
       unsupported: { heading: 'גרסת ממשק ההטמעה של WisKey אינה נתמכת', hint: `WisKey המותקן מדבר בגרסת ממשק הטמעה ${this.unsupportedVersion || 'לא ידועה'}, ו־Arx מכיר את גרסה 1. ${common}`, state: 'error' },
     };
@@ -1096,7 +1110,7 @@ export class WiskeyEmbed extends LitElement {
       <div>
         <sw-state-panel icon="door" state=${m.state} heading=${m.heading} hint=${m.hint}></sw-state-panel>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>
+          <sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>${wet('retry')}</sw-button>
           ${this.openInHaButton()}
           ${this.fullLink()}
         </div>
@@ -1217,7 +1231,7 @@ export class WiskeyEmbed extends LitElement {
               ></iframe>`,
             )}
         ${notes.length ? html`<div class="status" role="status" data-wiskey-embed-status>${notes}</div>` : nothing}
-        ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading="טוען את WisKey…" hint="הלוח נטען בתוך המסך; בפעם הראשונה זה לוקח כמה שניות."></sw-state-panel></div>` : nothing}
+        ${this.phase === 'loading' ? html`<div class="over"><sw-state-panel state="loading" heading=${wet('loading')}></sw-state-panel></div>` : nothing}
         ${failed ? this.renderError() : nothing}
       </div>
     `;

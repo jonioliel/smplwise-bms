@@ -14,6 +14,8 @@ import { ltrNum, bidi } from '../i18n/bidi';
 import { canAnywhere, isApi } from '../api/session';
 import { isOn, media, type MediaDevice } from '../api/media-screens';
 import { isPlaying, players, type PlayerDevice } from '../api/media-players';
+import { hwf } from '../i18n/home-widget-failure'; // UXREST2-295: a widget whose own read failed says so, with a retry
+import '../components/sw-state-panel';
 import { SkinController } from '../design/skin';
 import { LookController } from '../design/look';
 import '../components/sw-pill';
@@ -213,12 +215,17 @@ export class HomeWidgetsView extends LitElement {
   @property({ type: Boolean }) temperatureStale = false;
   /** GENWIDGET 2.9.3: the generators the viewer sees (GET /generator/devices/live; the screen reads and polls them). */
   @property({ attribute: false }) generators: LiveSummaryItem[] = [];
+  /** UXREST2-295: the widgets whose own read failed (the screen reads elevators / temperature / generators); each draws a failure panel with a
+   * retry (`home-widget-retry {id}`) in its own slot and the other widgets are untouched. */
+  @property({ attribute: false }) failed: WidgetId[] = [];
   @state() private now = new Date();
   @state() private dragId: WidgetId | '' = '';
   /** CR-015: the screens this user may see (null = not loaded / not allowed) and the one whose remote is open. */
   @state() private screens: MediaDevice[] | null = null;
   /** CR-016: the approved speakers, players and receivers this user may see (null / empty = none). */
   @state() private speakers: PlayerDevice[] | null = null;
+  /** UXREST2-295: the last media read failed (the previous screens / speakers are kept; the next poll or the retry reads again). */
+  @state() private mediaFailed = false;
   @state() private remoteKey = '';
   @state() private remoteKind = '';
   @state() private remoteOpen = false;
@@ -1312,21 +1319,23 @@ export class HomeWidgetsView extends LitElement {
     if (isApi() && !canAnywhere('media.read')) {
       this.screens = null;
       this.speakers = null;
+      this.mediaFailed = false;
       return;
     }
     try {
       if (!(await media().status()).enabled) {
         this.screens = null;
         this.speakers = null;
+        this.mediaFailed = false;
         return;
       }
       const { devices } = await media().list();
       this.screens = devices.filter((d) => d.kind === 'screen');
       // a failure of the players read never takes the screens away
       this.speakers = await players().list().then((r) => r.devices.filter((d) => ['speaker', 'player', 'receiver'].includes(d.kind))).catch(() => null);
+      this.mediaFailed = false;
     } catch {
-      this.screens = null;
-      this.speakers = null;
+      this.mediaFailed = true; // the previous screens and speakers stay; the card says the read failed
     }
   }
 
@@ -1458,7 +1467,16 @@ export class HomeWidgetsView extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ the cards
 
+  /** UXREST2-295: the failure panel of one widget, in the widget's own slot (same state panel as every screen). */
+  private failedCard(it: WidgetItem, retry: () => void) {
+    return this.shell(it, 'wg-failed', {}, html`<sw-state-panel compact state="error" heading=${it.title} hint=${hwf('failed')} actionLabel=${hwf('retry')} data-home-widget-failed=${it.id} @action=${retry}></sw-state-panel>`);
+  }
+
   private card(it: WidgetItem) {
+    if (!this.editing) {
+      if (this.failed.includes(it.id)) return this.failedCard(it, () => this.emit('home-widget-retry', { id: it.id }));
+      if (it.id === 'media' && this.mediaFailed) return this.failedCard(it, () => void this.loadScreens());
+    }
     switch (it.id) {
       case 'clock':
         // BV1: the tile style is the Bubble skin's; every other skin keeps the card
