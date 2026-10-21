@@ -62,6 +62,7 @@ class Reject(Exception):
         assert stage in gv.STAGES and code in CODES[stage], (stage, code)
         super().__init__(f"{stage}:{code}")
         self.stage, self.code = stage, code
+        self.request_id: str | None = None  # set by `validate` once the schema stage passed (the answer then carries it)
 
 
 @dataclass(frozen=True)
@@ -192,6 +193,14 @@ def validate(service: str, service_data: Any, now: int | None, secret: str = TES
     except gv.ContractReject as exc:
         raise Reject(exc.stage, exc.code) from None
     issued, expires = schema(m)
+    try:
+        return _after_schema(service, m, issued, expires, now, secret, nonces)
+    except Reject as exc:
+        exc.request_id = m["request_id"]
+        raise
+
+
+def _after_schema(service: str, m: dict[str, Any], issued: int, expires: int, now: int | None, secret: str, nonces: set[str] | None) -> LeaseDTO:
     if m["ts"] != issued:
         raise Reject("binding", "ts_mismatch")
     if SERVICE_OF[m["action"]] != service:

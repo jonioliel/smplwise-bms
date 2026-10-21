@@ -1,9 +1,11 @@
-# wiskey-capture-lease-v1 - the capture lease and its revocation stream (DRAFT)
+# wiskey-capture-lease-v1 - the capture lease and its revocation stream
 
-Status: DRAFT, Arx LEASE-BUILD 2026-10-16 (CR-WISKEY-LEASE-REVOCATION-EVENT slice L0). Design source:
+Status: **approved for implementation by WisKey on 2026-10-21, with the corrections recorded in section 7** (WisKey's answer
+`WISKEY_CAPTURE_LEASE_V1_RESPONSE_2026-10-21_HE.md`). That approval is NOT a go-live permit: WisKey's consumer is not proven, the Arx
+route stays off (below) and needs the owner's separate permit. Arx LEASE-BUILD 2026-10-16 (CR-WISKEY-LEASE-REVOCATION-EVENT slice L0). Design source:
 `docs/changes/CR-WISKEY-LEASE-REVOCATION-EVENT.md` (on `origin/pilot/CR-LEASE-REVOKE`). Nothing here is switched on: the Arx route
-is behind `access.capture_lease` (default `off`) and cannot be switched on while no bridge offers `smplwise_bridge.lease_event`
-(slice L4, pending WisKey's consumer) NOR without the owner's separate go-live permit, which is enforced in code: the build
+is behind `access.capture_lease` (default `off`) and cannot be switched on while no bridge offers `smplwise_bridge.lease_event` and
+`smplwise_bridge.lease_request` (slice L4, pending the bridge release and WisKey's consumer) NOR without the owner's separate go-live permit, which is enforced in code: the build
 constant `GO_LIVE_PERMITTED = False` (`services/capture_lease.py`) keeps the route off and refuses `on` (409
 `capture_lease_not_permitted`) whatever bridge is known; only the commit carrying the owner's written permit flips it. Owner decisions encoded (2026-10-16): lease 120 s default and cap; any `permission_revision`
 bump revokes every live lease without a re-check; heartbeat every 5 s while a lease is live, WisKey destroys after 15 s of
@@ -14,21 +16,30 @@ Files: `lease.schema.json` (closed JSON Schema), `GOLDEN_VECTORS.json` (8 accept
 
 ## 1. Transport
 
-The DTO v3 trusted-caller transport, unchanged: the bridge service's data is exactly `{signed_message_json}`; the bridge
-verifies stages 1-7 (transport, encoding, parse, schema, binding, signature, time, state/replay) and hands the immutable DTO to
-WisKey (stage 8). Signing exactly as `wiskey-trusted-door-v1`: canonical JSON (sort_keys, compact, UTF-8) of the body without
-`ts`/`nonce`/`sig`, HMAC-SHA256 with the pairing secret over `"<ts>.<nonce>.<sha256(canonical)>"`, `ts == epoch(issued_at)`,
-explicit 32-hex `nonce` (fresh per send), `MAX_MESSAGE_BYTES` 8192.
+The DTO v3 trusted-caller transport with `protocol = wiskey-capture-lease-v1`: the bridge service's data is exactly
+`{signed_message_json}` (`supports_response: ONLY`); the bridge verifies stages 1-7 (transport, encoding, parse, schema, binding,
+signature, time, state/replay) and hands the immutable DTO to WisKey (stage 8). **No generalized W1 envelope, no grant / decision field,
+nothing besides the closed key list of section 2** (WisKey 2026-10-21; Arx's builder `services/lease_events.sign` /
+`trusted_caller.sign` emits exactly that list and `tests/test_lease_wire_closed_295.py` pins it). Signing as `wiskey-trusted-door-v1`:
+canonical JSON (sort_keys, compact, UTF-8) of the body without `ts`/`nonce`/`sig`, HMAC-SHA256 over `"<ts>.<nonce>.<sha256(canonical)>"`
+with the pairing secret, `ts == epoch(issued_at)`, explicit 32-hex `nonce` (fresh per send), `MAX_MESSAGE_BYTES` 8192.
 
-| Service | Actions | Status |
+**Rotated keys and `kid` (review L-05).** After a bridge key rotation (HMACACT-295) Arx signs with the current key of the key set, with
+the v2 recipe in which the key id is bound into the MAC (`"v2.<kid>.<ts>.<nonce>.<sha256(canonical)>"`). The `kid` field itself is
+**never on a lease wire**: `lease.schema.json` is closed and has no `kid` (a message that carries one is a `schema/unknown_field`).
+The bridge verifies a lease message with the key set: the message as it is (kid-less: the pairing secret while it still signs), and on a
+bad signature each key id the key set accepts, presenting the message with that `kid` (`KeySet.verify`). A lease signed with the current
+key, and with the previous key during a rotation window, both verify that way; once the window closes the previous key no longer does.
+
+| Service (FINAL names, WisKey 2026-10-21) | Actions | Status |
 |---|---|---|
-| `smplwise_bridge.lease_event` | `lease_revoke`, `lease_heartbeat`, `lease_stream_reset` | the CR's service name; bridge 0.9.x line, not built (L4) |
-| `smplwise_bridge.lease_request` (**PROVISIONAL name**) | `capture_start`, `capture_status`, `capture_confirm`, `capture_cancel` | WisKey's generalized W1 envelope; the service name is WisKey's revised C04 to fix (W?) |
+| `smplwise_bridge.lease_event` | `lease_revoke`, `lease_heartbeat`, `lease_stream_reset` | bridge 0.9.x line, in progress (`pilot/LEASEBR-295`), not released |
+| `smplwise_bridge.lease_request` | `capture_start`, `capture_status`, `capture_confirm`, `capture_cancel` | same bridge line; the four answers are closed (section 4) |
 
 ## 2. Envelope and cross-field rules
 
-Wire keys (closed): `protocol` (`wiskey-capture-lease-v1`), `actor {id, display_name}`, `action`, `station`, `params`,
-`request_id` (UUIDv4, never reused), `issued_at`, `expires_at`, `ts`, `nonce`, `sig`. Text fields: 1..128 characters, no C0/C1
+Wire keys (closed, and nothing else - in particular no `kid`): `protocol` (`wiskey-capture-lease-v1`), `actor {id, display_name}`,
+`action`, `station`, `params`, `request_id` (UUIDv4, never reused), `issued_at`, `expires_at`, `ts`, `nonce`, `sig`. Text fields: 1..128 characters, no C0/C1
 control (Arx also refuses Unicode format characters before signing).
 
 Rules a JSON Schema cannot state (the reference validator enforces them):
@@ -59,17 +70,21 @@ station, params)` - never the envelope (request_id, nonce, times differ between 
 `< last` -> `stale` (the named lease destroyed anyway); `> last + 1` -> `gap` (destroy all); unknown stream -> `unknown_stream`.
 Arx retries a revoke every 2 s with a NEW envelope and the SAME sequence and params until a closed answer or
 `lease_expires_at + 15 s`; after 5 s without one it also sends the lease's own `capture_cancel` once. While no lease is live
-nothing is sent. The host destroys every live lease after 15 s without a revoke or a heartbeat (W?).
+nothing is sent. The host destroys every live lease after 15 s without a revoke or a heartbeat (confirmed by WisKey 2026-10-21; their
+timer that enforces it without any traffic is part of their consumer and not yet proven).
 
 ## 4. Answers
 
 `lease_event` (closed): `{result: acknowledged, request_id, sequence, destroyed[, live_leases on a heartbeat]}` ·
 `{result: duplicate, request_id, sequence}` · `{result: stale, request_id, sequence, last_sequence}` ·
 `{result: gap, request_id, sequence, last_sequence, destroyed}` · `{result: conflict, request_id, sequence, destroyed}` ·
-`{result: unknown_stream, request_id}` · `{result: rejected, stage, code[, request_id]}` (request_id iff the schema stage passed).
-Any other shape, another `request_id` or another `sequence` is NOT an acknowledgement (Arx retries).
+`{result: unknown_stream, request_id}` · `{result: rejected, stage, code[, request_id]}`. `rejected`: `request_id` is forbidden at the
+transport / encoding / parse / schema stages and required (the request's own) at binding / signature / time / state; `stage` and `code`
+belong to the closed table of `CAPTURE_ANSWER_CODES.json`. Any other shape, an extra field, another `request_id` or another `sequence` is
+NOT an acknowledgement (Arx retries). `live_leases` appears on a heartbeat answer only. Arx enforces this in `services/lease_answers.py`
+(`classify_event`).
 
-`lease_request` (CLOSED, Arx answer ARX-LEASE-RESPONSE of 2026-10-17): the bridge service's answer object (the `service_response` of
+`lease_request` (CLOSED, Arx answer ARX-LEASE-RESPONSE of 2026-10-17, approved by WisKey 2026-10-21 as the definition): the bridge service's answer object (the `service_response` of
 `return_response`) for `smplwise_bridge.lease_request` is validated by one closed JSON Schema per action (draft 2020-12,
 `additionalProperties: false` in every object, `oneOf` of variants). Requests, services, timings and M1-M14 are unchanged.
 
@@ -97,8 +112,17 @@ Variants and `request_id` (DTO v3 section 9: the `request_id` is present iff the
 Status details: `error` is non-null exactly when `state` is `error` (`capture_timeout|capture_unsupported|capture_reader_invalid|
 capture_failed`); `card` is non-null exactly when `state` is `captured`: `{masked_number: ^•{4}( [A-Za-z0-9_-]{4})?$, technology: one of
 TypeA_M1, TypeA_CPU, TypeB, ID_125K, FelicaCard, DesfireCard, or null; reader_id: 1..8 or null}`. `applying` is never reported on the
-lease route (during a confirm the host answers `refused capture_operation_busy`). An acknowledged confirm means WisKey's store holds
-the card, not that a station applied it.
+lease route (during a confirm the host answers `refused capture_operation_busy`, also to a status). An acknowledged confirm means
+WisKey's store holds the card, not that a station applied it.
+
+Arx enforces all of this in `services/lease_answers.py` (`classify_request(answer, request_id, action)`), used by every lease route
+(start, the status poller, confirm, cancel). Whatever is not one of the closed shapes - an extra field, a `refused` code outside the
+action's table, a `sent_unknown` to anything but `capture_confirm`, a `rejected` with a `request_id` where it is forbidden or without one
+where it is required, a status state `applying`, a card that is not masked - is `unknown`, i.e. an unclear outcome: a start becomes
+`start_unknown` (revoked, the station held), a confirm `confirm_unknown` ("לא ידוע אם הכרטיס נוסף", never resent), a cancel `cancel_unknown`
+(revoked), a status poll is simply asked again. A `refused binding_denied` to a status read ends Arx's session as lost (the host ends
+the session on it). The person of an acknowledged confirm is refused when it carries `pin`, `card_no` or `photo`; its exact
+`ManagedUser.public()` field list is checked by the schema (and projected by `iw.project_editor`), not duplicated in `lease_answers`.
 
 Closed `refused` codes per action:
 
@@ -127,7 +151,8 @@ value beyond the masked form in a status, a person name in an event answer, or a
 - A ledger write that fails with "database is locked" is retried (3 tries, backoff 0.5 s / 1 s) before Arx degrades (F3);
   during the retries Arx issues no lease and sends no heartbeat (the host's silence rule is the backstop). After a degrade an
   administrator's audited re-enable marks the ledger's live rows revoked and announces a new stream (`lease_stream_reset`).
-- `rejected` answers: `stage` and `code` must each match `^[a-z][a-z0-9_]{0,63}$`, else the answer is invalid (not an ack).
+- `rejected` answers: `stage` and `code` must each match `^[a-z][a-z0-9_]{0,63}$` AND belong to the closed table (since LEASEARX-295,
+  the table of the action for a request), with the `request_id` rule of section 4; else the answer is invalid (not an ack).
 
 ## 6. Deviations from the CR (recorded, NOT resolved - to be carried into CR-WISKEY-LEASE-REVOCATION-EVENT section 8)
 
@@ -154,3 +179,22 @@ each needs the owner's / CR author's decision to amend the CR text or the code.
 Further deviations introduced by LEASE-FIX (also for section 8): the heartbeat lists `issued` leases as well as `active` (CR
 says "live"; Arx previously sent only `active`); the GET of the lease settings now requires a system administrator, like the
 PUT (CR 7.3); an administrator `degraded_reenable` exists for F3 (the CR says "until restart").
+
+## 7. Change record
+
+**LEASEARX-295 (2026-10-21), after WisKey's answer of 2026-10-21** (`pilot/LEASEARX-295`; nothing is switched on: `GO_LIVE_PERMITTED =
+False`, `MIN_BRIDGE_FOR_CAPTURE_LEASE = None`, route `off`):
+1. The service names `smplwise_bridge.lease_event` and `smplwise_bridge.lease_request` are FINAL; the "provisional" wording is removed
+   (code: `lease_events.BRIDGE_DOMAIN`, `SERVICE_EVENT`, `SERVICE_REQUEST`, the only place the names are written).
+2. The wire is DTO v3, `protocol = wiskey-capture-lease-v1`, the service data exactly `{signed_message_json}`; no generalized W1 envelope
+   field. Arx's builder emits exactly the closed key list of section 2 (test: `test_the_lease_wire_is_exactly_the_closed_key_list_and_has_no_kid`).
+3. The v1 lease wire is CLOSED: Arx no longer puts `kid` on a lease envelope signed with a rotated key (review L-05); the key id stays
+   bound into the MAC and the bridge names the key by trying the key ids of its key set (section 1). Any extension of the wire needs
+   both sides' agreement and an updated schema and vectors first.
+4. The answers are the four closed answer schemas and the closed code table, enforced in `services/lease_answers.py`: a `request_id`
+   rule per `rejected` stage, a stage / code table per action, closed `refused` codes per action, `sent_unknown` for `capture_confirm`
+   only, no `applying` status. The reference bridge fake now answers a refusal after the schema stage with the request's `request_id`.
+   The event answers get the same strictness (extra fields, `live_leases` on heartbeat answers only).
+5. Unchanged and still true: the confirm barrier decides a racing revoke at the host (`sent_unknown` past it; Arx never resends a
+   confirm); `live_leases` is informational; `binding_revision` is carried opaque (`null` while WisKey does not publish it; `null` is not
+   a wildcard); duplicate / conflict are keyed on the message's meaning; Arx resets the stream after one `unknown_stream` to a heartbeat.

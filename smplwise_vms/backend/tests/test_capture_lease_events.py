@@ -109,7 +109,7 @@ def test_n2_replay_of_the_same_bytes_is_refused_and_a_duplicate_envelope_is_idem
     w.step(0.25)
     first = _revokes(w)[-1]
     replay = w.bridge.replay(w.bridge.calls.index(first))
-    assert replay == {"result": "rejected", "stage": "state", "code": "replay"}
+    assert replay == {"result": "rejected", "stage": "state", "code": "replay", "request_id": first["dto"].request_id}  # a post-schema refusal names the request
     # the same sequence and params in a NEW envelope: duplicate, the host state unchanged
     with w.db.connection(mode="read") as conn:
         signed = le.sign(conn, "lease_revoke", first["dto"].actor_id, first["dto"].actor_id, "*", first["dto"].params)
@@ -255,9 +255,9 @@ def test_n7_bridge_time_stage_refuses_a_future_or_expired_message(lease_world):
                          at=cl.now() + timedelta(seconds=2))
         past = le.sign(conn, "lease_heartbeat", "a", "a", "*", {"stream_id": w.host.stream_id, "sequence": 1, "live_leases": [], "permission_revision": 1},
                        at=cl.now() - timedelta(seconds=30))
-    assert w.bridge.event(w.settings, future.text) == {"result": "rejected", "stage": "time", "code": "not_yet_valid"}
-    assert w.bridge.event(w.settings, past.text) == {"result": "rejected", "stage": "time", "code": "expired"}
-    kind, data = le.classify({"result": "rejected", "stage": "time", "code": "not_yet_valid"}, "x")
+    assert w.bridge.event(w.settings, future.text) == {"result": "rejected", "stage": "time", "code": "not_yet_valid", "request_id": future.request_id}
+    assert w.bridge.event(w.settings, past.text) == {"result": "rejected", "stage": "time", "code": "expired", "request_id": past.request_id}
+    kind, data = le.classify({"result": "rejected", "stage": "time", "code": "not_yet_valid", "request_id": "x"}, "x")
     assert kind == "rejected" and data["code"] in le.CLOCK_CODES
 
 

@@ -51,10 +51,13 @@ class Signed:
 
 def sign(secret: str, *, protocol: str, actions: Iterable[str], action: str, actor_id: str, display_name: str, station: str,
          params: dict[str, Any], request_id: str, lifetime_s: int, max_lifetime_s: int, max_bytes: int,
-         now: datetime | None = None, nonce: str | None = None) -> Signed:
+         now: datetime | None = None, nonce: str | None = None, kid_on_wire: bool = True) -> Signed:
     """Build and sign one wire message. `now` and `nonce` are injectable for golden vectors and fake clocks only; production
     passes neither (the host clock, a fresh `secrets.token_hex(16)`). Raises MessageInvalid / ValueError locally for
-    anything the bridge would refuse at its schema or time stage."""
+    anything the bridge would refuse at its schema or time stage.
+
+    `kid_on_wire=False` (the capture lease, whose v1 wire is closed): a key of the key set still signs v2 (its key id is bound into the
+    MAC), but the `kid` field is dropped from the wire - the verifier names the key by trying the key ids its key set accepts."""
     if action not in tuple(actions):
         raise ValueError("action")
     if not (text_ok(actor_id) and text_ok(display_name) and text_ok(station) and isinstance(request_id, str) and UUID_RE.fullmatch(request_id)):
@@ -76,6 +79,8 @@ def sign(secret: str, *, protocol: str, actions: Iterable[str], action: str, act
         "expires_at": iso(issued + timedelta(seconds=lifetime_s)),
     }
     wire = ha_bridge.sign(secret, body, ts=int(issued.timestamp()), nonce=nonce)
+    if not kid_on_wire:
+        wire.pop("kid", None)
     text = json.dumps(wire, ensure_ascii=False, separators=(",", ":"))
     data = text.encode("utf-8")
     if len(data) > max_bytes:
