@@ -112,7 +112,10 @@ approval can make the person active again, see F-05). Every revoke is read again
 - The command `hikvision_intercom/users/access_state_v2` and the capability `person_access_state_v2`, advertised only while the gate
   is on. A missing command or capability is UNKNOWN for Arx. There is no fallback to v1 for a revocation claim.
 - The query principal: today WisKey requires an active Home Assistant admin (`arx_readback_api.authorize`, `is_active` and
-  `is_admin`). Arx does not create it, its token, or its groups. The owner decides, and there is no workaround.
+  `is_admin`). Arx does not create it, its token, or its groups, and there is no workaround. **Owner decision 2026-10-21:** WisKey
+  is asked to drop the full-admin requirement for `access_state_v2` and expose it through the bridge (or another integration path
+  agreed with Arx), with no manual step and no new HA user. Until WisKey confirms that path, the Arx side stays fake-only and the
+  live connection stays blocked. No client is built, and GO_LIVE_PERMITTED is False.
 - The answer shape exactly as in section 2, with the same projection rules as `person_readback.project` and
   `revocation_snapshot.project_v2` at `c932c553`. A change to either is a new schema version, not an additive field.
 - Responsibilities: Arx owns this consumer and its tests. WisKey owns the contract and the server. Acceptance is joint, and there is
@@ -136,7 +139,10 @@ approval can make the person active again, see F-05). Every revoke is read again
    unable to prove any full revoke, so v2 would become mandatory for revocation proof.
 7. **Q7, capacity.** The bounded format, the atomic person-plus-evidence commit and the measurements (F-15) are still needed before
    the receipt work can be accepted.
-8. **Q8, query principal.** Is a narrower permission than full Home Assistant admin possible (F-03)? This is the owner's decision.
+8. **Q8, query principal (owner decision 2026-10-21).** Drop the full-admin requirement and serve `access_state_v2` through the
+   bridge or another agreed path, with no manual step and no new HA user (F-03). Please confirm the path.
+9. **Q9, round-11 private source bundle.** Please confirm the path and SHA-256 of `OWNER_PRIVATE_SOURCE_BUNDLE.zip`, and deliver it
+   to the owner's PC.
 
 ## 6. Rollback
 
