@@ -14,12 +14,13 @@ import pytest
 from smplwise.services import messaging_runtime as mr
 
 LAZY_MODULES = ("smplwise.services.temperature_whatsapp",)
+IMPORTED_FIRST = ("smplwise.services.local_reset",)  # TEMPREG-295: also joins at import only (its janitor imports it in the app lifespan); the accounts tests expect its "identity" module
 LAZY_MODULE_KEYS = ("temperature",)
 
 
 @pytest.fixture()
 def registry_without_lazy_modules(monkeypatch):
-    for name in LAZY_MODULES:
+    for name in (*IMPORTED_FIRST, *LAZY_MODULES):
         importlib.import_module(name)  # the join (if any) happens now, never in the middle of the test
     monkeypatch.setattr(mr, "_USE_PROVIDERS", [p for p in mr._USE_PROVIDERS if getattr(p, "__module__", "") not in LAZY_MODULES])  # noqa: SLF001
     for attr in ("_LABELS", "_MODULE_LABELS", "_DEPARTMENTS"):

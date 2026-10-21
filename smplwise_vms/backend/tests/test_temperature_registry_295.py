@@ -4,9 +4,7 @@ Before: `services/temperature_whatsapp` joined the registry only once a temperat
 module gate, so the Settings messaging accounts screen showed or omitted it depending on what had run since the restart."""
 from __future__ import annotations
 
-import subprocess
 import sys
-from pathlib import Path
 
 from conftest import as_user
 from fastapi.testclient import TestClient
@@ -18,6 +16,11 @@ from smplwise.services import messaging_runtime as mr
 API = "/api/v1"
 URL = f"{API}/messaging/whatsapp"
 USE = "infra.temperature.reports"
+NAME = "smplwise.services.temperature_whatsapp"
+
+
+def _joined() -> bool:
+    return any(getattr(p, "__module__", "") == NAME for p in mr._USE_PROVIDERS)  # noqa: SLF001
 
 
 def _define_unit(c, settings) -> None:
@@ -29,23 +32,22 @@ def _define_unit(c, settings) -> None:
     assert r.status_code in (200, 201), r.text
 
 
-def test_the_use_is_registered_by_application_start_without_any_temperature_route(settings):
-    """A fresh interpreter that only builds the app (no temperature request, no tick) already has the report use in the registry."""
-    code = (
-        "import sys; sys.path.insert(0, %r)\n"
-        "from smplwise.main import create_app\n"
-        "from smplwise.services import messaging_runtime as mr\n"
-        "create_app(%r)\n"
-        "print('USE_REGISTERED' if any(p.__module__.endswith('temperature_whatsapp') for p in mr._USE_PROVIDERS) else 'USE_MISSING')\n"
-    ) % (str(Path(__file__).resolve().parents[1]), settings)
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120, cwd=str(Path(__file__).resolve().parents[1]))
-    assert "USE_REGISTERED" in out.stdout, out.stdout + out.stderr
+def test_the_use_is_registered_by_application_start_without_any_temperature_route(settings, monkeypatch):
+    """Forget the module (as in a fresh process where nothing temperature-related ran yet): building the app alone registers the use."""
+    monkeypatch.delitem(sys.modules, NAME, raising=False)
+    monkeypatch.setattr(mr, "_USE_PROVIDERS", [p for p in mr._USE_PROVIDERS if getattr(p, "__module__", "") != NAME])  # noqa: SLF001
+    monkeypatch.setattr(mr, "_LABELS", {k: v for k, v in mr._LABELS.items() if k != "temperature"})  # noqa: SLF001
+    monkeypatch.setattr(mr, "_MODULE_LABELS", {k: v for k, v in mr._MODULE_LABELS.items() if k != "temperature"})  # noqa: SLF001
+    assert not _joined()
+    create_app(settings)
+    assert _joined()
+    assert "temperature" in mr._MODULE_LABELS  # noqa: SLF001
 
 
 def test_the_use_is_hidden_while_the_module_is_off_and_shown_once_a_unit_is_defined(settings):
     c = TestClient(create_app(settings))
     c.get(f"{API}/me")  # joni bootstraps as system_admin
-    assert any(getattr(p, "__module__", "").endswith("temperature_whatsapp") for p in mr._USE_PROVIDERS)  # registered, not lazily
+    assert _joined()  # registered at start, not lazily
     off = c.get(URL, headers=as_user("joni")).json()
     assert USE not in [u["key"] for u in off["uses"]]
     _define_unit(c, settings)
