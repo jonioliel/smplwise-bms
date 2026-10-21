@@ -814,7 +814,11 @@ permit (the permit gets its own section and commit later).
    `extended_switch` / `runnable` rows; the answer carries counts and the switch state only. The bridge's own switch and list are untouched
    (no bridge change, no version bump). Tests: `tests/test_service_identity_remote_kill.py`, `tests/test_remote_access.py` (the route table).
 6. No rate limit - **accepted residual risk R8**.
-7. `notify` - **not decided**; nothing changed (R4 stays open).
+7. `notify` - **decided: stays as built (option b - literal content only, everything else allowed, including app command messages, action
+   buttons and intents), accepted residual risk R4; no code change.** *Record corrected on 2026-10-21* (Fable security review 4, A-3 /
+   contradiction 2; owner decision 5 of 2026-10-21: "notify inside scripts stays as built, but correct the record"). This line read
+   "`notify` - not decided; nothing changed (R4 stays open)" until then, while the amendment draft's section 4a decision 7 already recorded
+   the decision as taken on 2026-10-18; the draft was right, this line was stale. Nothing changed in code.
 8. Gate / garage as a `cover` on the direct path - **leave as is**, accepted residual risk R12.
 9. Build the selected hardening first, then one Fable review of everything.
 ## 13. EXTID-295 - the documented follow-ups (backlog item `extended-identity-followups`, 2026-10-20)
