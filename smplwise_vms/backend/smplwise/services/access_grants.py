@@ -1041,6 +1041,17 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
                                   "approved_by": principal.user_id, "approved_at": iso(at), "approval_revision": permission_revision(conn),
                                   "phone_confirmed_at": (contact or {}).get("phone_confirmed_at")}
         if amendment:
+            # GRANTDENY-295 (GRANTS3 finding): the approved amendment is the WHOLE scope - doors and window AND the timing and the credential
+            # that were requested. Writing only doors + window left the old schedule / credential on the row (and the next push) while the
+            # approver had approved the new ones. A credential that widens (none -> pin / card) starts the code / card flow like a first approval.
+            fields["timing_json"] = json.dumps(chosen.timing, sort_keys=True) if chosen.timing else None
+            if chosen.credential != g["credential"]:
+                fields["credential"] = chosen.credential
+                fields["code_state"] = "pending" if chosen.credential == "pin" else "not_needed"
+                fields["code_due_at"] = code_due(conn, vf, at) if chosen.credential == "pin" else None
+                fields["card_state"] = "awaiting" if chosen.credential == "card" else None
+            elif chosen.credential == "pin" and g.get("code_state") == "pending":
+                fields["code_due_at"] = code_due(conn, vf, at)  # the window moved: the code is still due at the new start
             if g["state"] in ("active", "provisioning"):  # HARDEN271 K4: a write in flight carries the old map - push the new one after it
                 fields["needs_push"] = 1
             action = "access.grant.amend"

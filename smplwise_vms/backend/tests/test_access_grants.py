@@ -995,3 +995,63 @@ def test_r3_an_unknown_outcome_is_decided_only_by_a_readback_that_answered(env):
         assert env.grant(gid)["state"] == "unknown"
     env.run()
     assert env.grant(gid)["state"] == "active" and env.engine.calls.count("apply") == 1, "decided by the readback, never replayed"
+
+
+# ================================================================ GRANTDENY-295: group grants, explicit deny; the approved amendment is the whole scope
+
+def test_narrowing_denies_a_station_that_a_group_still_grants_explicitly(env):
+    """Lab finding 2026-10-21: dropping a personal entry does not revoke a station a group grants - only an explicit personal deny does."""
+    gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
+    p = env.person_of(gid)
+    p["group_doors"] = {"st-b": [1]}  # one of the person's groups also grants st-b
+    env.engine.edit_elsewhere(p["id"])
+    env.request(doors={"st-a": [1]})
+    env.run()
+    assert env.grant(gid)["needs_push"] == 0
+    last = env.engine.updates[-1]
+    assert last["method"] == "apply" and last["overrides"]["st-b"] == "deny", "an explicit personal deny, not a dropped entry"
+    assert set(p["doors"]) == {"st-a"}
+
+
+def test_the_dropped_entry_alone_would_leave_the_group_station_in_force(env):
+    """The control of the finding: `inherit` (the entry removed) leaves the station to the group; the deny above is what revokes."""
+    gid = env.active_grant(doors={"st-a": [1], "st-b": [1]})
+    p = env.person_of(gid)
+    p["group_doors"] = {"st-b": [1]}
+    p["group_ids"] = ["g-1"]
+    person = env.engine.get_person(p["id"])
+    overrides = dict(person.overrides)
+    overrides.pop("st-b")
+    env.engine.set_station_access(person.id, person.revision, overrides=overrides, doors={})
+    assert "st-b" in p["doors"], "still granted by the group after the personal entry was removed"
+
+
+AMEND_TIMING = {"mode": "weekly", "timezone": "Asia/Jerusalem", "days": ["Monday"], "dates": [], "periods": [{"start": "08:00", "end": "12:00"}]}
+
+
+def test_an_approved_amendment_writes_the_timing_and_the_credential_not_only_doors_and_window(env):
+    r = env.request(doors={"st-a": [1]}, timing=AMEND_TIMING, credential="none")
+    assert r.status_code == 200, r.text
+    gid = r.json()["grant"]["id"]
+    assert env.approve(gid).status_code == 200
+    env.run()
+    assert env.grant(gid)["state"] == "active" and env.person_of(gid)["timing"] is not None
+    # a widening in two dimensions the old approval did not cover: no schedule restriction and a PIN
+    w = env.request(doors={"st-a": [1]}, timing=None, credential="pin")
+    assert w.status_code == 200 and w.json()["outcome"] == "widening", w.text
+    before = env.grant(gid)
+    assert before["timing_json"] and before["credential"] == "none" and before["pending_json"]
+    a = env.approve(gid)
+    assert a.status_code == 200, a.text
+    after = env.grant(gid)
+    assert after["timing_json"] is None and after["credential"] == "pin" and after["pending_json"] is None
+    assert after["code_state"] == "pending" and after["code_due_at"] and after["needs_push"] == 1
+    env.run()
+    assert env.person_of(gid)["timing"] is None, "the pushed scope carries the approved schedule"
+    audit = [json.loads(x["details_json"]) for x in env_audits(env, "access.grant.amend")]
+    assert any(d.get("kind") == "widening_approved" and d.get("credential") == "pin" for d in audit)
+
+
+def env_audits(env, action: str) -> list[dict]:
+    with env.db.connection(mode="read") as conn:
+        return [dict(r) for r in conn.execute("SELECT * FROM audit_log WHERE action = ? ORDER BY rowid", (action,)).fetchall()]

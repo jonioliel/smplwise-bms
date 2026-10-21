@@ -358,3 +358,44 @@ def test_a_revision_moved_in_wiskey_is_reread_once(env):
     env.engine.set_station_access = racing  # type: ignore[method-assign]
     r = env.put("st-c", "allow", [1])
     assert r.status_code == 200 and r.json()["sync_state"] == "applied" and calls["n"] == 2, r.text
+
+
+# ================================================================ GRANTDENY-295: removing a personal allow that a group still grants
+
+def test_removing_a_personal_allow_that_a_group_grants_writes_an_explicit_personal_deny(env):
+    assert env.put("st-a", "allow", [1, 2]).json()["sync_state"] == "applied"  # a personal allow on top of the group grant of st-a
+    assert env.person()["overrides"]["st-a"] == "allow"
+    r = env.put("st-a", "inherit")
+    assert r.status_code == 200 and r.json() == {"outcome": "decided", "sync_state": "applied", "code": None}, r.text
+    p = env.person()
+    assert p["overrides"]["st-a"] == "deny" and "st-a" not in p["doors"], "the group still granted it: only a personal deny revokes"
+    assert [u["overrides"].get("st-a") for u in env.engine.updates[-2:]] == [None, "deny"], "the entry is dropped, read back, then denied"
+    row = env.row("st-a")
+    assert (row["effect"], row["sync_state"], row["group_grants"], row["relays_json"]) == ("deny", "applied", 1, "[]")
+    shown = {s["station_id"]: s for s in env.view().json()["stations"]}["st-a"]
+    assert shown["source"] == "blocked_group" and shown["enabled"] is False and shown["record"]["effect"] == "deny"
+    push = [a for a in env.audits() if a["action"].endswith(".push")][-1]
+    d = json.loads(push["details_json"])
+    assert d["effect"] == "deny" and d["requested_effect"] == "inherit" and d["group_grants"] is True and d["state"] == "applied"
+    # following the group again clears the note and gives the station back
+    back = env.put("st-a", "inherit")
+    assert back.json()["sync_state"] == "applied"
+    shown = {s["station_id"]: s for s in env.view().json()["stations"]}["st-a"]
+    assert shown["source"] == "group" and env.row("st-a")["group_grants"] == 0 and env.person()["doors"]["st-a"] == [1]
+
+
+def test_removing_a_personal_allow_no_group_grants_stays_a_plain_removal(env):
+    r = env.put("st-b", "inherit")
+    assert r.status_code == 200 and r.json()["sync_state"] == "applied", r.text
+    p = env.person()
+    assert "st-b" not in p["overrides"] and "st-b" not in p["doors"]
+    row = env.row("st-b")
+    assert (row["effect"], row["group_grants"]) == ("inherit", 0)
+    assert len(env.engine.updates) == 1, "no second write: nothing granted it any more"
+
+
+def test_blocking_a_station_a_group_grants_says_so_and_a_block_set_elsewhere_does_not(env):
+    assert env.put("st-a", "deny").json()["sync_state"] == "applied"
+    rows = {s["station_id"]: s for s in env.view().json()["stations"]}
+    assert rows["st-a"]["source"] == "blocked_group" and env.row("st-a")["group_grants"] == 1
+    assert rows["st-d"]["source"] == "blocked", "st-d was denied in WisKey's own panel: Arx does not know a group grants it"
