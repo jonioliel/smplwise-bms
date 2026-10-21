@@ -561,7 +561,7 @@ export class WiskeyStations extends LitElement {
       return html`<sw-page heading=${t.title}>
         ${this.renderFeedBadge()}
         <div data-wk-stations data-wk-state=${`feed:${this.feed!.state}`}>
-          <sw-state-panel state=${p.panel} heading=${p.heading} actionLabel=${p.settings && can('system.configure') ? t.states.toSettings : ''} data-wk-panel=${`feed:${this.feed!.state}`} @action=${() => (window.location.hash = '#/system/diagnostics?tab=access-control')}></sw-state-panel>
+          <sw-state-panel icon="door" state=${p.panel} heading=${p.heading} actionLabel=${p.settings && can('system.configure') ? t.states.toSettings : ''} data-wk-panel=${`feed:${this.feed!.state}`} @action=${() => (window.location.hash = '#/system/diagnostics?tab=access-control')}></sw-state-panel>
         </div>
       </sw-page>`;
     }
@@ -644,8 +644,8 @@ export class WiskeyStations extends LitElement {
 
   private renderContent(v: ViewCtx, all: readonly AccessStation[], shown: readonly AccessStation[], view: ViewMode) {
     const t = v.text;
-    if (!all.length) return html`<sw-state-panel state="empty" heading=${t.states.empty} data-wk-panel="empty"></sw-state-panel>`;
-    if (!shown.length) return html`<sw-state-panel compact state="empty" heading=${t.states.emptyFilter} data-wk-panel="empty-filter"></sw-state-panel>`;
+    if (!all.length) return html`<sw-state-panel icon="door" state="empty" heading=${t.states.empty} data-wk-panel="empty"></sw-state-panel>`;
+    if (!shown.length) return html`<sw-state-panel icon="door" compact state="empty" heading=${t.states.emptyFilter} data-wk-panel="empty-filter"></sw-state-panel>`;
     if (view === 'table') {
       return html`<sw-table class="tbl" dense data-wk-table .columns=${tableColumns(v, all)} .rows=${shown as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.open(e.detail.id)}></sw-table>`;
     }

@@ -57,6 +57,9 @@ class Page {
   private costHandle: { element: HTMLElement; update(ctx: { status: string | null; claim: { status: string } | null }): void; refresh(): Promise<void>;
     ready: Promise<void>; quoteState(): string | null; destroy(): void } | null = null;
   private costLoading = false;
+  // GRANTS3-295: the arrival step (lazy chunk, fetched only when the ticket answer says `arrival: true`)
+  private arrivalHandle: { element: HTMLElement; refresh(): Promise<void>; setLang(l: Lang): void } | null = null;
+  private arrivalLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
   private view: TicketView | null = null;
@@ -103,6 +106,10 @@ class Page {
     if (boot.mode === 'consent' && boot.token) {
       this.render(); // WA-CONSENT-LINK: the lazy consent chunk; the token stays in memory only
       import('./consent/consent-page').then((m) => m.mountConsent({ root: this.root, token: boot.token as string, lang: this.lang,
+        setLang: (l) => store(STORE.lang, l), unavailable: () => { this.phase = 'unavailable'; this.render(); } })).catch(() => { this.phase = 'error'; this.render(); });
+    } else if (boot.mode === 'document' && boot.token) {
+      this.render(); // CR-VENDORQ-294: the lazy document chunk; the token stays in memory only
+      import('./doc/doc-page').then((m) => m.mountDocument({ root: this.root, token: boot.token as string, lang: this.lang,
         setLang: (l) => store(STORE.lang, l), unavailable: () => { this.phase = 'unavailable'; this.render(); } })).catch(() => { this.phase = 'error'; this.render(); });
     } else if (boot.mode === 'rfq' && boot.token) {
       this.startRfq(boot.token);
@@ -246,6 +253,7 @@ class Page {
       return;
     }
     this.view = r.data;
+    if (r.data.arrival && this.arrivalHandle) void this.arrivalHandle.refresh(); // GRANTS3-295: the approval may have landed meanwhile
     if (r.data.theme) saveServerMode(r.data.theme);
     this.theme = resolveMode(storedChoice(), r.data.theme);
     applyMode(this.theme);
@@ -582,6 +590,7 @@ class Page {
       this.hero(v, kind),
       v.claim_mode ? null : this.mapCard(v),
       v.claim_mode ? null : this.rfqFiles(v),
+      v.arrival && !readOnly && kind === 'vendor' ? this.arrivalBlock(v) : null,
       v.claim_mode ? this.costBlock(v) : null,
       writable ? this.statusCard(v) : null,
       writable ? this.etaCard(v) : null,
@@ -592,6 +601,23 @@ class Page {
       writable && v.actions?.return ? this.returnBlock() : null),
     this.primaryBar(v, kind),
     this.footer());
+  }
+
+  /** GRANTS3-295: the arrival step's card, mounted once from its lazy chunk and refreshed when the ticket reloads. */
+  private arrivalBlock(v: TicketView): HTMLElement | null {
+    if (this.arrivalHandle) {
+      this.arrivalHandle.setLang(this.lang);
+      return this.arrivalHandle.element;
+    }
+    if (!this.arrivalLoading) {
+      this.arrivalLoading = true;
+      void import('./arrival/arrival-card').then((m) => {
+        this.arrivalHandle = m.mountArrival({ fetchJson: (path, init) => rawCall(this.creds, init?.method ?? 'GET', path, init?.body), lang: this.lang,
+          zone: v.time_zone, newRequestId });
+        this.render();
+      }).catch(() => { this.arrivalLoading = false; });
+    }
+    return null;
   }
 
   /** RFQATT: the request files a work order referenced - the lazy `rfq-files` chunk renders them (fetched only when there are some). */

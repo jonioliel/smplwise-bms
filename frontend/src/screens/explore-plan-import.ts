@@ -863,7 +863,7 @@ export class ExplorePlanImport extends LitElement {
   }
 
   private renderDemo() {
-    return html`<sw-card><sw-state-panel state="empty" heading="ייבוא תוכנית עובד מול השרת" hint="בתצוגת ההדגמה אין שרת מחובר. במערכת המותקנת המסך מעלה PDF/PNG, בוחר עמוד, מסובב וחותך, ומפרסם גרסה."></sw-state-panel></sw-card>`;
+    return html`<sw-card><sw-state-panel icon="map" state="empty" heading="ייבוא תוכנית עובד מול השרת" hint="בתצוגת ההדגמה אין שרת מחובר. במערכת המותקנת המסך מעלה PDF/PNG, בוחר עמוד, מסובב וחותך, ומפרסם גרסה."></sw-state-panel></sw-card>`;
   }
 
   render() {
@@ -875,7 +875,7 @@ export class ExplorePlanImport extends LitElement {
         ${!isApi()
           ? this.renderDemo()
           : !this.floorId || (this.tree && !f)
-            ? html`<sw-state-panel state="empty" heading="בחר קומה" hint="ייבוא תוכנית מתחיל מדף הקומות."><div style="margin-block-start:10px"><sw-button variant="primary" @click=${() => navigate('/explore/sites')}>לאתרים</sw-button></div></sw-state-panel>`
+            ? html`<sw-state-panel icon="map" state="empty" heading="בחר קומה" hint="ייבוא תוכנית מתחיל מדף הקומות."><div style="margin-block-start:10px"><sw-button variant="primary" @click=${() => navigate('/explore/sites')}>לאתרים</sw-button></div></sw-state-panel>`
             : html`
                 <sw-card><sw-steps .steps=${STEPS} .current=${this.step}></sw-steps></sw-card>
                 <div class="layout">

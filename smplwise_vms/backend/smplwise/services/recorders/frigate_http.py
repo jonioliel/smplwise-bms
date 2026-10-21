@@ -71,6 +71,7 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
 # these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
 CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),
                                                     re.compile(r"/api/exports"), re.compile(r"/api/cases"),  # F2b: read-back of the export / case write classes
+                                                    re.compile(rf"/api/jobs/export/{OBJ}"),  # 0.18: an export is a queued job before its row exists
                                                     re.compile(r"/api/config/schema\.json"))  # FRGS: the instance's config schema (compared, never trusted)
 
 # F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
@@ -79,8 +80,13 @@ CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz
 # /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
 ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
 RECORD_FEATURES = ("enabled", "recordings", "snapshots")
+# FRIGATE-295 (0.18 `PUT /api/camera/{cam}/set/{feature}/{sub_command}`): runtime switches of ONE named zone / motion mask / object mask of ONE
+# camera. Frigate refuses ON for an item disabled in its YAML (logged, answered 200), so the read-back decides.
+SUB_FEATURES = ("zone", "motion_mask", "object_mask")
+SUB = r"[A-Za-z0-9_-]{1,64}"
 WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
-    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),),
+    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),
+                  ("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(SUB_FEATURES)})/{SUB}"))),
     "record": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(RECORD_FEATURES)})")),),
     "profile": (("PUT", re.compile(r"/api/camera/\*/set/profile")),),
     "review": (("POST", re.compile(r"/api/reviews/viewed")), ("DELETE", re.compile(rf"/api/review/{ID}/viewed"))),
@@ -90,8 +96,10 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
                ("POST", re.compile(rf"/api/events/{CAM}/{LABEL}/create")), ("PUT", re.compile(rf"/api/events/{ID}/end"))),
     # F2b: Frigate-native exports and cases. Deletes exist here ONLY for ids the service layer proves Arx created itself; Frigate's
     # export of a camera time range is one camera, one bounded range. UNVERIFIED wire shapes.
+    # Verified against the 0.18.2 OpenAPI (FRIGATE-295): there is no `DELETE /api/export/{id}`; a delete is `POST /api/exports/delete {"ids": [...]}`
+    # (the service sends exactly one id it proved Arx created) and an assignment to a case is `POST /api/exports/reassign`.
     "exports": (("POST", re.compile(rf"/api/export/{CAM}/start/{NUM}/end/{NUM}")), ("PATCH", re.compile(rf"/api/export/{OBJ}/rename")),
-                ("DELETE", re.compile(rf"/api/export/{OBJ}"))),
+                ("POST", re.compile(r"/api/exports/delete")), ("POST", re.compile(r"/api/exports/reassign"))),
     "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
     # FRGS (CR-029 section 13): zones and the curated camera settings. The path is generic, so what may be written is decided by the ONLY
     # caller, `recorders/frigate_config.FrigateConfig._set` (one section of one camera, keys from its allow-listed schema). Never `/api/config/save`
@@ -101,7 +109,8 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
 # F2b: the clip read. Read-only GET, streamed, kept OFF `GET_ALLOWED` (no F1 read path can reach it) and reachable only through `open_clip`,
 # which the Arx clip routes alone call, after permission and the first-supervised-read gate. UNVERIFIED wire shape: Frigate cuts the clip on the
 # server (`/api/{camera}/start/{s}/end/{e}/clip.mp4`, `/api/events/{id}/clip.mp4`); nothing has been read from a real instance yet.
-CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"))
+CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"),
+                                             re.compile(rf"/api/review/{ID}/clip\.mp4"))   # FRIGATE-295: a review item's clip (0.18)
 CLIP_MAX_BYTES = 400_000_000
 CLIP_TIMEOUT_S = 30.0           # per network read; the total is bounded by CLIP_TOTAL_S
 CLIP_TOTAL_S = 300.0
@@ -124,6 +133,13 @@ READ_TIMEOUT_S = 8.0
 LOGIN_TIMEOUT_S = 8.0
 REFUSED_BACKOFF_S = 300.0     # after Frigate refuses the credentials no further login for this long (Frigate rate-limits logins)
 TOKEN_TTL_S = 20 * 3600.0     # the cookie is valid 24 h; the adapter renews before that (and on any 401)
+
+# FRIGLIVE-295 (live 0.18.0, 2026-10-21): Frigate's nginx keeps a ~5 s micro-cache of `/api/*` answers (`X-Cache-Status: HIT`). A read made
+# right after a write therefore shows the state BEFORE the write for up to ~6 s (measured: every runtime toggle "appeared" after 5.5-6.1 s,
+# a retain / reviewed flag likewise). Frigate's nginx honours `X-Cache-Bypass: 1` (`X-Cache-Status: BYPASS`). Reads that decide about a
+# write (state before, read-back after, the stale check of an undo) send it (`fresh=True`); polling and discovery keep the cache, which
+# protects Frigate's CPU.
+CACHE_BYPASS = {"X-Cache-Bypass": "1"}
 
 _TOKENS: dict[str, tuple[str, float]] = {}   # device_key -> (JWT, obtained at monotonic)
 _REFUSED: dict[str, float] = {}              # device_key -> no login before this (monotonic)
@@ -413,15 +429,15 @@ class FrigateHttp:
     # ------------------------------------------------------------------------------------------ one GET
 
     def get(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False,
-            timeout: float = READ_TIMEOUT_S, control: bool = False) -> Reply:
+            timeout: float = READ_TIMEOUT_S, control: bool = False, fresh: bool = False) -> Reply:
         """GET one allow-listed path. 401 -> one fresh login and one retry; a second 401 is `source_forbidden`. Raises ApiError for
-        everything but a 200."""
+        everything but a 200. `fresh=True` bypasses Frigate's nginx micro-cache (CACHE_BYPASS): for reads that verify a write."""
         if not (allowed(path) or (control and control_read_allowed(path))):
             raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "get", "reason": "not_allowed"})
         _check_query(path, params)
         for attempt in (0, 1):
             token = self.login()
-            reply = self._send(path, params, token, max_bytes, timeout)
+            reply = self._send(path, params, token, max_bytes, timeout, fresh)
             if reply.status == 401 and attempt == 0:
                 self.forget_token()
                 continue
@@ -434,11 +450,12 @@ class FrigateHttp:
             raise map_status(_op(path), reply.status, optional)
         return reply
 
-    def _send(self, path: str, params: dict[str, Any] | None, token: str, max_bytes: int, timeout: float) -> Reply:
+    def _send(self, path: str, params: dict[str, Any] | None, token: str, max_bytes: int, timeout: float, fresh: bool = False) -> Reply:
         nvr.check_deadline(path)
+        headers = {"Cookie": f"frigate_token={token}", **(CACHE_BYPASS if fresh else {})}
         with self._client(timeout=timeout) as c:
             try:
-                with c.stream("GET", path, params=params, headers={"Cookie": f"frigate_token={token}"}, timeout=nvr.bounded_timeout(c.timeout)) as r:
+                with c.stream("GET", path, params=params, headers=headers, timeout=nvr.bounded_timeout(c.timeout)) as r:
                     declared = r.headers.get("content-length")
                     if declared and declared.isdigit() and int(declared) > max_bytes:
                         raise ApiError(503, "source_too_large", "תשובת Frigate גדולה מהצפוי.", details={"op": _op(path)})
@@ -476,7 +493,12 @@ class FrigateHttp:
                     continue
                 if r.status_code != 200:
                     status = r.status_code
+                    # FRIGLIVE-295 (live 0.18.0): a window without recordings is 400 {"success": false, "message": "No recordings found for the
+                    # specified time range"}; that is "no recording here", not a refused request
+                    no_rec = status == 400 and _says_no_recordings(r)
                     stack.close()
+                    if no_rec:
+                        raise ApiError(409, "no_recording", "אין הקלטה בטווח המבוקש.", details={"op": "clip"})
                     if status == 401:
                         self.forget_token()
                     raise map_status("clip", status)
@@ -550,8 +572,9 @@ class FrigateHttp:
 
     # ------------------------------------------------------------------------------------------ conveniences
 
-    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False, control: bool = False) -> Any:
-        return self.get(path, params, max_bytes=max_bytes, optional=optional, control=control).json()
+    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False, control: bool = False,
+                 fresh: bool = False) -> Any:
+        return self.get(path, params, max_bytes=max_bytes, optional=optional, control=control, fresh=fresh).json()
 
     def websocket_url(self) -> str:
         return ("wss" if self.scheme == "https" else "ws") + self.base_url()[len(self.scheme):] + "/ws"
@@ -573,6 +596,21 @@ def _trust_context() -> Any:
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     return ctx
+
+
+def _says_no_recordings(r: httpx.Response) -> bool:
+    """A 400 clip answer whose (small) JSON body says there are no recordings in the window."""
+    try:
+        body = b""
+        for piece in r.iter_bytes():
+            body += piece
+            if len(body) > 2000:
+                return False
+        doc = json.loads(body.decode("utf-8"))
+    except (httpx.HTTPError, ValueError, UnicodeDecodeError):
+        return False
+    msg = doc.get("message") if isinstance(doc, dict) else None
+    return isinstance(msg, str) and "no recordings" in msg.lower()
 
 
 def _token_from_set_cookie(headers: list[str]) -> str | None:

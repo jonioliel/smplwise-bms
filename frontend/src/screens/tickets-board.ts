@@ -572,7 +572,8 @@ export class TicketsBoard extends LitElement {
   private body(): TemplateResult {
     switch (this.screen) {
       case 'loading': {
-        const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:var(--sw-r-2xl)"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span></div>`;
+        // UXFIX-A11Y-295: skeleton cards in the board card's own anatomy (the warning line instead of the chips), not shorter bars
+        const card = html`<ticket-card skeleton .board=${true}></ticket-card>`;
         return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
       }
       case 'off':
@@ -615,7 +616,7 @@ export class TicketsBoard extends LitElement {
       ${this.body()}
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
-      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
+      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
       @assign-consumed=${() => writeHref(boardHref(this.r, { t: this.r.ticketId }), true)}
       @drawer-close=${this.closeDrawer} @ticket-changed=${() => void this.load(true)} @ticket-gone=${this.onGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${'department'} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}

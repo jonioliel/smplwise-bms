@@ -55,7 +55,7 @@ const tokens: TokenTable = {
   '--sw-unknown-text': lt('#5c5e62', '#a6a6a6'),
   '--sw-danger-text': lt('#b01f1f', '#ff5a5a'),
   '--sw-warning-text': lt('#7a4c00', '#f2b134'),
-  '--sw-success-text': lt('#0a7a44', '#2fd070'),
+  '--sw-success-text': lt('#0a7541', '#2fd070'),
   '--sw-forbidden-text': lt('#a51818', '#ff6b6b'),
   '--sw-toggle-on': lt('#2662f0', '#3d7eff'),
   '--sw-map-bg': lt('#f4f6fa', '#0f141d'),

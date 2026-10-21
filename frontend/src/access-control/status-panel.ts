@@ -32,7 +32,7 @@ const SPEC: Record<Failure, PanelSpec> = {
 export function failurePanel(failure: Failure, message: string, retry: () => void, compact = false): TemplateResult {
   const s = SPEC[failure];
   const hint = failure === 'error' && message ? message : s.hint ? st(s.hint) : '';
-  return html`<sw-state-panel quiet ?compact=${compact} data-access-state=${failure} state=${s.panel} heading=${st(s.heading)} hint=${hint} actionLabel=${s.retry ? st('retry') : ''} @action=${retry}></sw-state-panel>`;
+  return html`<sw-state-panel icon="door" quiet ?compact=${compact} data-access-state=${failure} state=${s.panel} heading=${st(s.heading)} hint=${hint} actionLabel=${s.retry ? st('retry') : ''} @action=${retry}></sw-state-panel>`;
 }
 
 /** A list of `n` placeholder rows (a dot, two lines, a pill). */

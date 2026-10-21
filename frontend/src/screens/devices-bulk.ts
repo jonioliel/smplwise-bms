@@ -202,7 +202,13 @@ export class DevicesBulkMenu extends LitElement {
     .more[aria-expanded='true'] {
       background: var(--sw-surface-2);
       color: var(--sw-text);
-      outline: none;
+    }
+    /* UXREST-295: the fill alone is not a focus indicator (UX audit, keyboard pass): the brand ring stays */
+    .more:focus-visible,
+    button.item:focus-visible,
+    a.open:focus-visible {
+      outline: var(--sw-focus-w, 2px) solid var(--sw-focus);
+      outline-offset: -2px;
     }
     .title {
       font-size: var(--sw-fs-xs);
@@ -250,7 +256,6 @@ export class DevicesBulkMenu extends LitElement {
     button.item:hover:not(:disabled),
     button.item:focus-visible {
       background: var(--sw-surface-2);
-      outline: none;
     }
     button.item:disabled {
       color: var(--sw-text-3);
@@ -292,7 +297,6 @@ export class DevicesBulkMenu extends LitElement {
     a.open:hover,
     a.open:focus-visible {
       background: var(--sw-surface-2);
-      outline: none;
     }
   `;
 
@@ -483,8 +487,8 @@ export class DevicesBulkMenu extends LitElement {
             })}
             <div class="foot">כל פעולה נפתחת בחלון אישור. מנעולים ואזעקה אינם נכללים.</div>`
         : nothing}
-      ${this.openHref ? html`<a class="open" href=${this.openHref} data-open-area role="menuitem" @click=${() => (this.open = false)}>פתח אזור<span aria-hidden="true">›</span></a>` : nothing}
-      ${this.mapHref ? html`<a class="open" href=${this.mapHref} data-open-map role="menuitem" @click=${() => (this.open = false)}>הצג על המפה<span aria-hidden="true">›</span></a>` : nothing}
+      ${this.openHref ? html`<a class="open" href=${this.openHref} data-open-area role="menuitem" @click=${() => (this.open = false)}>פתח אזור<span aria-hidden="true">‹</span></a>` : nothing}
+      ${this.mapHref ? html`<a class="open" href=${this.mapHref} data-open-map role="menuitem" @click=${() => (this.open = false)}>הצג על המפה<span aria-hidden="true">‹</span></a>` : nothing}
     </div>`;
   }
 

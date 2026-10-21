@@ -1,0 +1,27 @@
+# Files allowed to contain private-range IPv4 literals. One glob per line: `path  # reason`.
+# Never write an address in this file. New entries need a reason; prefer a setting or a
+# placeholder (RFC 5737 192.0.2.x) over a new entry. Created 2026-10-20 from the scan in
+# private/planning/IP_LITERAL_SCAN_2026-10-20.md (entries marked TODO are cleanup candidates).
+
+# --- Legitimate: named well-known addresses in security code/docs ---
+smplwise_vms/backend/smplwise/services/connection_probe.py   # blocked cloud-metadata address inside the CGNAT range (refused on purpose)
+docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md                  # documents the same blocked metadata address
+
+# --- Legitimate: SSRF / address-class guard tests must feed private addresses to validators ---
+smplwise_vms/backend/tests/test_nvr_connection.py             # NVR connection address guard
+smplwise_vms/backend/tests/test_cr022_security_third_review.py  # CGNAT / metadata address cases
+smplwise_vms/backend/tests/test_source_policy.py              # stream-source policy: private/link-local refusal
+smplwise_vms/backend/tests/test_bridge_cast_policy.py         # cast policy address classes
+smplwise_vms/backend/tests/test_bridge_stream_source.py       # link-local refusal
+smplwise_vms/backend/tests/test_cast_sessions.py              # cast address validation
+smplwise_vms/backend/tests/test_media_ma_direct.py            # Music Assistant LAN-only check
+smplwise_vms/backend/tests/test_media_ma_hardening.py         # Music Assistant LAN/SSRF hardening
+smplwise_vms/backend/tests/test_notify_email.py               # SMTP host SSRF guard
+smplwise_vms/backend/tests/test_tickets_public_app.py         # public-app client-address / proxy handling
+smplwise_vms/backend/tests/test_client_ip_trusted_proxy.py    # PUB-01: a LAN peer outside the hassio network must not choose its address (integ/2100)
+smplwise_vms/backend/tests/test_tickets_s4_wiring.py          # client-address and SSRF cases
+frontend/tests/unit-video-conn-test.spec.ts                   # address-class unit test (private/cgnat/link-local)
+
+# --- Fixtures that must look like a LAN/link-local address for a guard under test ---
+frontend/tests/fixtures/media_fake_ha.py                      # fake music server must resolve to a private LAN address (ma_direct LAN-only check)
+smplwise_vms/backend/tests/test_ha_camera_live.py             # DNS-rebind guard: a name resolving to the well-known link-local metadata address must be refused

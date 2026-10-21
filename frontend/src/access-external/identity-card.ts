@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { can, canAnywhere, isApi } from '../api/session';
 import { attachRecovered, deletePersonNow, getIdentity, matchLink, pushName, unlinkPerson, type Identity } from '../api/access-grants';
 import { getAcPeople, type AcPerson } from '../api/access-people';
@@ -33,8 +33,13 @@ export class AccessIdentityCard extends LitElement {
   @property() name = '';
   /** Compact: inside the grant drawer (no rules / history columns). */
   @property({ type: Boolean }) compact = false;
+  /** SHAREDUI-295: the installation's zone for the times shown (the host passes it; else the browser's) */
+  @property({ attribute: false }) tz: string | undefined = undefined;
   @state() private data: Identity | null = null;
   @state() private absent = false;
+  /** SHAREDUI-295: loading, and a load that failed for another reason than "not yours to see" (a 403 / 404 hides the card) */
+  @state() private loading = false;
+  @state() private loadError = '';
   @state() private dialog: Dialog = null;
   @state() private busy = false;
   @state() private error = '';
@@ -49,7 +54,9 @@ export class AccessIdentityCard extends LitElement {
   static styles = [
     xCss,
     css`
-      :host { display: block; }
+      :host { display: block; --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px)); --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px)); }
+      .state { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+      .state .sp { flex: 1; }
       .card { display: grid; gap: 12px; }
       .grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
       :host([compact]) .grid { grid-template-columns: 1fr; }
@@ -61,14 +68,14 @@ export class AccessIdentityCard extends LitElement {
       .acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
       .act { display: grid; gap: 6px; align-content: start; padding: 12px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border-strong); font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .act h4 { margin: 0; font-size: var(--sw-fs-base); color: var(--sw-heading); display: flex; gap: 6px; align-items: center; }
-      .act.dis { opacity: 0.62; }
-      .act .why { display: flex; gap: 6px; align-items: center; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+      .act.dis { background: var(--sw-surface-2); border-style: dashed; }
+      .act .why { display: flex; gap: 6px; align-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
       .act.wide { grid-column: 1 / -1; border-style: dashed; }
       .side { display: grid; gap: 12px; }
       .plist { display: grid; gap: 6px; max-block-size: 40vh; overflow: auto; }
       .plist label { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); cursor: pointer; min-block-size: var(--sw-touch-desktop); box-sizing: border-box; }
-      .plist small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
-      .ok-line { color: var(--sw-success-text); font-size: var(--sw-fs-sm); font-weight: 600; margin: 0; }
+      .plist small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
+      .ok-line { color: var(--x-ok-t); font-size: var(--sw-fs-sm); font-weight: 600; margin: 0; }
       .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-block-start: 14px; }
       @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
     `,
@@ -85,12 +92,19 @@ export class AccessIdentityCard extends LitElement {
       this.absent = true;
       return;
     }
+    this.loading = !this.data;
+    this.loadError = '';
     try {
       this.data = (await getIdentity(this.contactId)).identity;
       this.absent = false;
-    } catch {
+    } catch (e) {
       this.data = null;
-      this.absent = true;
+      // not the caller's to see (or a company): nothing at all; anything else: say so, with a retry (fail closed - no action is offered)
+      const hidden = e instanceof ApiError && (e.status === 403 || e.status === 404);
+      this.absent = hidden;
+      this.loadError = hidden ? '' : describeError(e);
+    } finally {
+      this.loading = false;
     }
   }
 
@@ -133,7 +147,7 @@ export class AccessIdentityCard extends LitElement {
 
   private stateView(d: Identity): { tone: string; icon: string; t: XtKey; desc: string } {
     const l = d.link;
-    if (!l && d.unresolved) return { tone: 'warn', icon: 'help', t: 'id_unresolved_t', desc: xt('id_unresolved_d', { t: fmt(d.unresolved.started_at) }) };
+    if (!l && d.unresolved) return { tone: 'warn', icon: 'help', t: 'id_unresolved_t', desc: xt('id_unresolved_d', { t: fmt(d.unresolved.started_at, this.tz) }) };
     if (!l) return { tone: 'off', icon: 'user', t: 'id_none_t', desc: xt('id_none_d') };
     if (l.state === 'wiskey_missing') return { tone: 'warn', icon: 'warning', t: 'id_missing_t', desc: xt('id_missing_d') };
     if (l.state === 'unlinking') return { tone: 'off', icon: 'link', t: 'id_unlinking_t', desc: xt('id_unlinking_d') };
@@ -184,7 +198,7 @@ export class AccessIdentityCard extends LitElement {
       return html`<sw-dialog open wide heading=${xt('at_title')} subheading=${xt('at_sub')} data-identity-dialog="attach" @close=${() => (this.dialog = null)}>
         <div class="stack">
           <div class="callout" data-tone="warn"><sw-icon name="warning" size="18"></sw-icon><div><b>${xt('at_warn')}</b>${xt('at_warnText')}</div></div>
-          <div class="kv"><div><span>${xt('at_op')}</span><b class="num">${op.slice(0, 8)}… · ${fmt(d.unresolved.started_at)}</b></div><div><span>${xt('at_count')}</span><b>${xt('at_countValue')}</b></div></div>
+          <div class="kv"><div><span>${xt('at_op')}</span><b class="num">${op.slice(0, 8)}… · ${fmt(d.unresolved.started_at, this.tz)}</b></div><div><span>${xt('at_count')}</span><b>${xt('at_countValue')}</b></div></div>
           <div class="field"><label>${xt('at_person')}</label>${this.peopleSearch()}</div>
           <div class="field"><label for="aref">${xt('at_ref')}</label><input id="aref" class="in ltr" maxlength="128" .value=${this.ref} aria-invalid=${this.ref && !refOk ? 'true' : 'false'} @input=${(e: Event) => (this.ref = (e.target as HTMLInputElement).value)} /><span class="hint ${this.ref && !refOk ? 'e' : ''}">${xt('at_refHint')}</span></div>
           <div class="callout" data-tone="acc"><sw-icon name="refresh" size="18"></sw-icon><div>${xt('at_after')}</div></div>
@@ -209,7 +223,12 @@ export class AccessIdentityCard extends LitElement {
 
   render() {
     const d = this.data;
-    if (this.absent || !d) return nothing;
+    if (this.absent) return nothing;
+    if (!d && this.loadError)
+      return html`<section class="card"><h3><sw-icon name="lock" size="18"></sw-icon>${xt('id_title')}</h3>
+        <div class="state" role="alert" data-identity-error><sw-icon name="warning" size="16"></sw-icon><span>${xt('id_error')}</span><span class="sp"></span>
+          <sw-button size="sm" icon="refresh" @click=${() => this.load()}>${xt('retry')}</sw-button></div></section>`;
+    if (!d) return this.loading ? html`<section class="card"><h3><sw-icon name="lock" size="18"></sw-icon>${xt('id_title')}</h3><div class="state" role="status" data-identity-loading>${xt('id_loading')}</div></section>` : nothing;
     const v = this.stateView(d);
     const drift = !!d.link?.name_drift;
     const auto = d.name_sync === 'auto';
@@ -244,17 +263,22 @@ export class AccessIdentityCard extends LitElement {
           <div><span>${xt('ir_name')}</span><b>${auto ? xt('ir_nameAuto') : xt('ir_nameManual')}</b></div></div></section>
         ${d.history.length
           ? html`<section class="stack" style="gap:8px"><h3><sw-icon name="history" size="18"></sw-icon>${xt('id_history')}</h3><ol class="tl">${d.history.map(
-              (h) => html`<li><time>${fmt(h.at)}</time><i data-tone="acc"></i><span>${HISTORY_KEY[h.action] ? xt(HISTORY_KEY[h.action]) : h.action}</span></li>`,
+              (h) => html`<li><time>${fmt(h.at, this.tz)}</time><i data-tone="acc"></i><span>${HISTORY_KEY[h.action] ? xt(HISTORY_KEY[h.action]) : h.action}</span></li>`,
             )}</ol></section>`
           : nothing}
       </aside></div>${this.dialogs(d)}`;
   }
 }
 
-function fmt(iso: string): string {
+function fmt(iso: string, tz?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(document.documentElement.lang || 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const o: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+  try {
+    return d.toLocaleString(document.documentElement.lang || 'he-IL', tz ? { ...o, timeZone: tz } : o);
+  } catch {
+    return d.toLocaleString(document.documentElement.lang || 'he-IL', o);
+  }
 }
 
 declare global {

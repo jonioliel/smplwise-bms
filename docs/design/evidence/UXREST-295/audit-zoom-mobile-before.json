@@ -1,0 +1,170 @@
+{
+ "/": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/live": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/live/wall": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/explore/sites": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/explore/floors/f0": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/devices/building": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/devices/schedules": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/devices/automations": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/investigate/events": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/investigate/playback": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/security/alarm": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/multimedia/players": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/multimedia/screens": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/tickets/mine": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/tickets/board": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/tickets/rfqs": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/infra/electricity/meters": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/infra/generator/live": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/access": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/notifications": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/setup": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/diagnostics": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/tickets": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/security/cameras": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/system/messaging-accounts": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/wiskey/overview": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/wiskey/people": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ },
+ "/styleguide": {
+  "vw": 195,
+  "sw": 308,
+  "over": true,
+  "culprits": []
+ }
+}

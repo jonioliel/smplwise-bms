@@ -307,7 +307,7 @@ export class SwDoorBlocks extends LitElement {
       ${this.saved ? html`<div class="sub" role="status" data-door-blocks-saved>${bt('saved')}</div>` : nothing}
       <div class="sum" data-door-blocks-summary>${summaryLine(d)}${d.items.length ? ` · ${bt('summaryItems', { blocked: d.counts.items_blocked })}` : ''}</div>
       ${!d.wiskey_present && !d.entities.length
-        ? html`<sw-state-panel state="empty" heading=${bt('none')} data-door-blocks-none></sw-state-panel>`
+        ? html`<sw-state-panel icon="door" state="empty" heading=${bt('none')} data-door-blocks-none></sw-state-panel>`
         : html`<h3>${bt('entities')}</h3>
           <div class="tools">
             <input type="search" data-door-blocks-search placeholder=${bt('search')} aria-label=${bt('search')} .value=${this.q}
@@ -319,11 +319,11 @@ export class SwDoorBlocks extends LitElement {
           </div>
           ${rows.rows.length
             ? rows.rows.map((e) => this.entityRow(e))
-            : html`<sw-state-panel state="empty" heading=${d.entities.length ? bt('noMatch') : bt('noEntities')}></sw-state-panel>`}
+            : html`<sw-state-panel icon="door" state="empty" heading=${d.entities.length ? bt('noMatch') : bt('noEntities')}></sw-state-panel>`}
           ${rows.left ? html`<sw-button class="more" size="sm" variant="ghost" data-door-blocks-more @click=${() => { this.shown += PAGE; }}>${bt('more', { n: rows.left })}</sw-button>` : nothing}
           ${d.truncated ? html`<div class="sub">${bt('truncated')}</div>` : nothing}
           <h3>${bt('items')}</h3>
-          ${d.items.length ? d.items.map((i) => this.itemRow(i)) : html`<sw-state-panel state="empty" heading=${bt('noItems')}></sw-state-panel>`}`}
+          ${d.items.length ? d.items.map((i) => this.itemRow(i)) : html`<sw-state-panel icon="door" state="empty" heading=${bt('noItems')}></sw-state-panel>`}`}
     </sw-card>${this.dialog()}`;
   }
 }

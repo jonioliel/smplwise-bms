@@ -1556,7 +1556,7 @@ export class DevicesLayoutController implements ReactiveController {
         ${this.tileCard
           ? html`<nav class="lay-crumb" data-layout-tiles-crumb aria-label="מיקום בעורך">
               <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><span aria-hidden="true">→</span> כל הכרטיסים</button>
-              <span aria-hidden="true">›</span>
+              <span aria-hidden="true">‹</span>
               <span class="here" aria-current="page">${this.labelOf(this.tileCard)} · סידור התקנים</span>
             </nav>`
           : nothing}
@@ -1874,7 +1874,7 @@ export class DevicesLayoutController implements ReactiveController {
       ${this.opts.scope === 'area' && this.variant === 'desktop'
         ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
         : nothing}
-      <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות › חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
+      <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות ‹ חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
     </aside>`;
   }
 

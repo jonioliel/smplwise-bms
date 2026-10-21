@@ -232,6 +232,8 @@ test.describe('TKUI5: the public page in the approved look', () => {
     let portalMore = 0;
     let consent = 0;
     let claimPrefill = 0;
+    let doc = 0;
+    let arrival = 0;
     for (const f of fs.readdirSync(path.join(BUNDLE, 'assets'))) {
       if (!/\.(js|css)$/.test(f)) continue;
       const n = zlib.gzipSync(fs.readFileSync(path.join(BUNDLE, 'assets', f))).length;
@@ -241,6 +243,8 @@ test.describe('TKUI5: the public page in the approved look', () => {
       else if (/^rfq-(page|files)[-.]/.test(f)) rfq += n; // RFQATT: the request files' chunk is the RFQ page's (lazy on a ticket link, only with an order's files)
       else if (/^portal-more[-.]/.test(f)) portalMore += n; // VPORTALRFQ (integ/270, as the unit guard): the portal's extra sections, own 6 KB cap
       else if (/^portal-page[-.]/.test(f)) portal += n; // VPORTAL: the vendor portal's lazy chunk + stylesheet has its own budget (as the unit guard)
+      else if (/^doc-(page|text)[-.]/.test(f)) doc += n; // CR-VENDORQ-294 (as the unit guard): the document page's lazy chunk, own 4 KB cap
+      else if (/^arrival-(card|text|model)[-.]/.test(f)) arrival += n; // GRANTS3-295 (as the unit guard): the arrival step's lazy chunk + stylesheet, own 8 KB cap
       else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK (integ/270, as the unit guard): the consent page, own 5 KB cap
       else gz += n;
     }
@@ -254,6 +258,8 @@ test.describe('TKUI5: the public page in the approved look', () => {
     expect(portal).toBeLessThanOrEqual(12 * 1024);
     expect(portalMore).toBeLessThanOrEqual(6 * 1024);
     expect(consent).toBeLessThanOrEqual(5 * 1024);
+    expect(doc).toBeLessThanOrEqual(4 * 1024);
+    expect(arrival).toBeLessThanOrEqual(8 * 1024);
     expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
     const html =fs.readFileSync(path.join(BUNDLE, 'index.html'), 'utf8');
     expect(html).not.toMatch(/<style|\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i);

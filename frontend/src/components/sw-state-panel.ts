@@ -10,7 +10,7 @@ export type PanelState = 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' |
 
 const PRESETS: Record<PanelState, { icon: IconName; title: () => string; hint: () => string; tone: string }> = {
   loading: { icon: 'clock', title: () => t('states.loading'), hint: () => '', tone: 'neutral' },
-  empty: { icon: 'map', title: () => t('states.empty'), hint: () => '', tone: 'neutral' },
+  empty: { icon: 'inbox', title: () => t('states.empty'), hint: () => '', tone: 'neutral' },
   error: { icon: 'warning', title: () => t('states.error'), hint: () => t('states.errorHint'), tone: 'danger' },
   forbidden: { icon: 'lock', title: () => t('states.forbidden'), hint: () => t('states.forbiddenHint'), tone: 'forbidden' },
   stale: { icon: 'offline', title: () => t('states.stale'), hint: () => t('states.staleHint'), tone: 'stale' },
@@ -27,6 +27,11 @@ export class SwStatePanel extends LitElement {
   /** CR-036 S8: no second sentence - an operator screen that says only its heading ("המסך הזה אינו זמין לך") does not get the
    * preset's explanatory hint when it passes none of its own. */
   @property({ type: Boolean, reflect: true }) quiet = false;
+  /** UXFIX-A11Y-295 (UX audit 2026-10-20: 105 of 110 empty states showed the map pin, "no alarm panel" included): the topical
+   * icon of the EMPTY state (a shield on the alarm, a bolt on the meters). Only the empty state reads it: loading, error,
+   * forbidden, stale and partial keep their preset icon, so a screen can set it once on a panel whose state changes. Unset: the
+   * neutral tray. */
+  @property() icon: IconName | '' = '';
 
   static styles = css`
     :host {
@@ -113,9 +118,12 @@ export class SwStatePanel extends LitElement {
     // retry button goes away - a viewer used to see "משהו השתבש · נסה שוב" on the events centre (0.1.80).
     const forbidden = this.state === 'error' && /אין (לך )?הרשא/.test(this.hint);
     const preset = PRESETS[forbidden ? 'forbidden' : this.state];
-    const hint = this.hint || (this.quiet ? '' : preset.hint());
+    // UXREST-295: a hint that is only a machine code ("internal_error", "http_502": an error answer without a message) is never shown to the operator
+    const rawCode = /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(this.hint.trim());
+    const hint = (rawCode ? '' : this.hint) || (this.quiet ? '' : preset.hint());
+    const icon = !forbidden && this.state === 'empty' && this.icon ? this.icon : preset.icon;
     return html`
-      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} aria-hidden="true"><sw-icon .name=${preset.icon} size=${this.compact ? 20 : 26}></sw-icon></div>
+      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 26}></sw-icon></div>
       <div class="text" role="status">
         <h4>${this.heading || preset.title()}</h4>
         ${hint ? html`<p>${hint}</p>` : ''}

@@ -69,7 +69,9 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 # The archive format is an allow-list (PROJECT_TABLES / ACCESS_TABLES / OPTIONAL_TABLES); this set is the guard that none of them
 # is ever added to it, checked at import and again by `snapshot`.
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
-                                   "auth_local_reset_codes", "auth_local_reset_sends"})
+                                   "auth_local_reset_codes", "auth_local_reset_sends",
+                                   # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
+                                   "bridge_keys", "bridge_rotations"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -114,6 +116,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.capture_lease", "access.capture_lease_seconds", "access.lookup_scope",
                  # BACKUP-HASH-ENC: the backup password's minimum length is this installation's policy - never loosened by an archive
                  "backup.password_min",
+                 # DATASTORE-295: the monthly restore drill's switch is this installation's own schedule - never exported or restored
+                 "backup.drill.monthly",
                  # HARDEN271 item 1 (2.7.0 integration notes, open risk 9): what 2.7.0 added that describes THIS installation.
                  # WA-SEND-FIX: the HMAC key of the phone hashes - restored, every number-based opt-out stops matching; exported,
                  # the key sits in the archive in the clear.
@@ -124,8 +128,18 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # WISKEYID: the external-grant switch and its limits are security policy - never loosened by an archive
                  "access.external_grants", "access.external.max_days", "access.external.max_doors",
                  "access.external.phone_fresh_days", "access.external.code_hour", "access.external.local_approvers",
+                 # K7: the resume cursor of an interrupted grant re-decision is this database's runtime state, never an archive's
+                 "access.external.redecide_cursor",
+                 # CR-BULKPEOPLE-295: the bulk people switch is security policy too - never switched on by an archive
+                 "access.bulk_people",
+                 # STATIONPERM-295: the per-station permission switch is security policy - never changed by an archive
+                 "access.station_permissions",
+                 # SECFIX2-295 / PUB-03: the retention period and the per-vendor cap of vendor-typed technicians (privacy policy)
+                 "access.external.pending_retention_days", "access.external.pending_max_per_vendor",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
-                 "bridge.local_identity_extended"}
+                 "bridge.local_identity_extended",
+                # CR-WISKEY-HMAC-ROTATION-295: the key rotation switch and its reminder are this installation's policy - never from an archive
+                "bridge.key_rotation", "bridge.key_rotation.reminder_days"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
@@ -509,8 +523,10 @@ def _fill_missing_hashes(data: dict[str, list[dict[str, Any]]], current: dict[st
 
 
 def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str = "replace", scope: str = "project", actor_user_id: str | None = None,
-            backup_password: str | None = None, skip_sensitive: bool = False) -> dict[str, Any]:
-    """Load a backup into the current database inside the caller's transaction. `replace` empties every table of
+            backup_password: str | None = None, skip_sensitive: bool = False, process_hooks: bool = True) -> dict[str, Any]:
+    """Load a backup into the current database inside the caller's transaction. `process_hooks=False` (DATASTORE-295, the
+    restore drill into a scratch directory): the process-wide capture-lease revocation and stream reset are NOT triggered - the
+    live installation's database was not touched, so its live leases stay valid. `replace` empties every table of
     the scope first, also one the archive does not have (a backup older than the table): the restored project equals
     the backup, and no row is left pointing at a parent row being replaced (R-T7-1) - except KEEP_WHEN_ABSENT (CR-019's
     switch protection): an archive without them keeps the current rows (`kept_current` in the answer). Identity rows of
@@ -620,13 +636,24 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             allowed = {r[0] for r in conn.execute("SELECT id FROM energy_meters").fetchall()}
             energy = energy_backup.restore_from_zip(settings, z, names, allowed_meters=allowed, replace=(mode == "replace"))
     if scope == "project+access":
-        bump_permission_revision(conn)
+        if process_hooks:
+            bump_permission_revision(conn)
+        else:  # the drill's scratch database: the same revision move, without the process-wide lease / grant hooks
+            from ..db import permission_revision
+
+            set_setting(conn, "permission_revision", str(permission_revision(conn) + 1))
     # CR-WISKEY-LEASE-REVOCATION-EVENT 2.3: a restored database gets a fresh revocation stream (never the archive's counter - the
     # lease tables are not backup tables) and no capture lease survives a restore
     from . import capture_lease, lease_events
 
-    capture_lease.on_authority_change("restore", all=True)
-    lease_events.WORKER.request_reset("restore")
+    if process_hooks:
+        capture_lease.on_authority_change("restore", all=True)
+        lease_events.WORKER.request_reset("restore")
+        # CR-WISKEY-HMAC-ROTATION-295 section 9: the key tables are not in any archive (the live keys stay); a rotation in flight is
+        # resolved by the engine's next round as a restore (rolled back before its switch)
+        from . import bridge_rotation
+
+        bridge_rotation.on_restore()
     lease_settings = _lease_settings_report(conn, data)
     # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
     from .skins import store as skins_store

@@ -89,6 +89,7 @@
         "devices.control",
         "access.cards.capture",
         "access.pin.generate",
+        "access.people.stations",
         "access.stations.read",
         "access.events.read",
         "access.events.export",
@@ -170,6 +171,8 @@
         "access.cards.capture",
         "access.pin.generate",
         "access.external.grant",
+        "access.doors.automate",
+        "access.people.stations",
         "access.stations.read",
         "access.events.read",
         "access.events.export",
@@ -252,6 +255,7 @@
         "tickets.costs",
         "tickets.delete",
         "tickets.handlers",
+        "tickets.directory",
         "tickets.technician_requests",
         "messaging.accounts.manage"
       ]
@@ -269,6 +273,8 @@
     "access.cards.capture",
     "access.pin.generate",
     "access.external.grant",
+    "access.doors.automate",
+    "access.people.stations",
     "access.events.export",
     "access.people.sensitive",
     "access.people.message",
@@ -304,6 +310,7 @@
     "tickets.costs",
     "tickets.delete",
     "tickets.handlers",
+    "tickets.directory",
     "tickets.technician_requests",
     "messaging.accounts.manage"
   ],

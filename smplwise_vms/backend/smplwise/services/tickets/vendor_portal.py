@@ -116,6 +116,15 @@ def require_confirmed(conn) -> bool:
         return True
 
 
+def start_worker(conn) -> bool:
+    """SECFIX2-295 / PUB-04: `portal/start` hands its work to the listener's worker thread (default OFF = the request's background
+    task, today's behaviour). An unreadable document reads OFF (both paths answer the same 202; the work still happens)."""
+    try:
+        return bool(settings_doc.read(conn)["vendor_portal"]["start_worker"])
+    except Exception:  # noqa: BLE001
+        return False
+
+
 PROVED_VIA = ("code", "user")  # 0091: a typed code, or the signed-in person confirming their own number - never a manager's mark
 
 

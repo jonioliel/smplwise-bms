@@ -60,9 +60,17 @@ export const ticketCardStyles = css`
     font-weight: 700;
     letter-spacing: -0.015em;
     line-height: 1.25;
+    /* UXFIX-RTL: two lines, then an ellipsis; the title text carries dir="auto" so a Latin / Cyrillic title keeps its beginning
+       (a one-line ellipsis in an RTL box cut the start of it) and the full text is the link's title attribute. */
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+    text-align: start;
+    text-overflow: ellipsis; /* UXFIX-NAV-295 (same fix as UXFIX-RTL) */
+    white-space: normal;
   }
   a.name {
     color: inherit;
@@ -247,6 +255,20 @@ export const ticketCardStyles = css`
   @media (max-width: 767px) {
     .tcard {
       padding: 14px 16px 12px;
+    }
+    /* UXFIX-NAV-295: on a phone the title column was 115-200 px (the chip and the menu shared its row) and cut even short titles:
+       the chip and the menu take the first row, the title gets the full width of the second */
+    header {
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+    .ctl {
+      order: 1;
+      margin-inline-start: auto;
+    }
+    .ttl {
+      order: 2;
+      flex: 1 1 100%;
     }
   }
   :host([data-skin='bubble']) .tcard {

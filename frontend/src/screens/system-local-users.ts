@@ -9,7 +9,8 @@ import type { TableColumn } from '../components/sw-table';
 import { ApiError, apiUrl, del, describeError, get, patch, post, put } from '../api/client';
 import { fmtWhen, type RoleInfo, type ScopeRef } from '../api/access';
 import { lit, type LocalIdentityKey } from '../i18n/local-identity';
-import { adminRemovePasskey, userPasskeys, type PasskeyView } from '../api/passkeys';
+import { adminRemovePasskey, adminSetPasskeyOnly, userPasskeys, type PasskeyView } from '../api/passkeys';
+import { po } from '../i18n/passkey-only';
 
 /** USR2: one Arx-only identity as GET /identity/local-users lists it (never a hash, never a link). */
 export interface LocalUser {
@@ -41,6 +42,8 @@ export interface LocalUser {
   /** USR2 phase 4: how many passkeys (the list is its own route) and the user's own passkey-only mode. */
   passkeys?: number;
   passkey_first?: boolean;
+  /** usr2-passkeys-only-mode: password sign-in refused for the user (default off). */
+  passkey_only?: boolean;
 }
 
 export interface LocalUsersReply {
@@ -393,6 +396,14 @@ export class SystemLocalUsers extends LitElement {
     });
   }
 
+  private passkeyOnly(u: LocalUser, on: boolean) {
+    if (!window.confirm(po(on ? 'onlyConfirmOn' : 'onlyConfirmOff'))) return;
+    void this.run(async () => {
+      await adminSetPasskeyOnly(u.id, on);
+      await this.load();
+    });
+  }
+
   private setPasskeyFirstAllowed(on: boolean) {
     void this.run(async () => {
       await patch('/settings', { 'security.local_passkey_first': on ? 'on' : 'off' });
@@ -413,14 +424,17 @@ export class SystemLocalUsers extends LitElement {
     }
     const items = this.pk?.userId === u.id ? this.pk.items : [];
     return html`<div class="full cell" data-local-passkeys>
-      <span class="muted">${lit('passkeysCount', { n: u.passkeys ?? items.length })}${u.passkey_first ? html` · ${lit('passkeyFirstOn')}` : nothing}</span>
+      <span class="muted">${lit('passkeysCount', { n: u.passkeys ?? items.length })}${u.passkey_first ? html` · ${lit('passkeyFirstOn')}` : nothing}${u.passkey_only ? html` · ${po('onlyOn')}` : nothing}</span>
       ${items.map((p) => html`<span class="muted" data-local-passkey=${p.id}>${p.label || lit('passkeys')} · ${fmtWhen(p.created_at)}${p.synced ? html` · ${lit('passkeySynced')}` : nothing}${p.usable ? nothing : html` · ${lit('passkeyNotUsable')}`}
         ${manage ? html`<sw-button size="sm" variant="ghost" @click=${() => this.removePasskey(u, p.id)} ?disabled=${this.busy} data-local-passkey-remove>${lit('passkeyAdminRemove')}</sw-button>` : nothing}</span>`)}
       ${manage && this.pkStepUp
         ? html`<label>${lit('code')}<input class="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" .value=${this.pkCode}
             @input=${(e: Event) => (this.pkCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} data-local-passkey-code /></label>`
         : nothing}
-      ${manage && u.passkey_first
+      ${manage && (u.passkey_only || (this.data?.passkey_first_allowed && (u.passkeys ?? items.length) > 0))
+        ? html`<div class="actions"><sw-button @click=${() => this.passkeyOnly(u, !u.passkey_only)} ?disabled=${this.busy} data-local-passkey-only>${u.passkey_only ? po('onlyDisable') : po('onlyEnable')} · ${po('onlyLabel')}</sw-button></div>`
+        : nothing}
+      ${manage && u.passkey_first && !u.passkey_only
         ? html`<div class="actions"><sw-button @click=${() => this.passkeyFirstOff(u)} ?disabled=${this.busy} data-local-passkey-first-off>${lit('passkeyFirstAdminOff')}</sw-button></div>`
         : nothing}
     </div>`;

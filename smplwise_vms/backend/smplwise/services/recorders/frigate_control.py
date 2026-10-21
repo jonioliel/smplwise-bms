@@ -17,12 +17,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from collections.abc import Callable
 from typing import Any
 
 from ...errors import ApiError
 from .frigate import CAMERA_KEY, FrigateAdapter
-from .frigate_http import ANALYTICS_FEATURES, RECORD_FEATURES, ID, LABEL, OBJ, q
+from .frigate_http import ANALYTICS_FEATURES, RECORD_FEATURES, SUB_FEATURES, ID, LABEL, OBJ, q
 
 # feature -> where its switch lives in a camera's section of the effective config
 FEATURE_PATHS: dict[str, tuple[str, ...]] = {
@@ -40,6 +41,10 @@ FEATURE_PATHS: dict[str, tuple[str, ...]] = {
     "snapshots": ("snapshots", "enabled"),
 }
 FEATURE_CLASS = {**{f: "analytics" for f in ANALYTICS_FEATURES}, **{f: "record" for f in RECORD_FEATURES}}
+# FRIGATE-295: a named zone / mask switch is the feature "<kind>:<name>" (kind in SUB_FEATURES), class analytics; where its state lives:
+SUB_PATHS: dict[str, tuple[str, ...]] = {"zone": ("zones",), "motion_mask": ("motion", "mask"), "object_mask": ("objects", "mask")}
+SUB_NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+SUB_MAX = 40   # named items read per kind and camera
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 EVENT_ID = re.compile(rf"^{ID}$")
 SUB_LABEL_MAX = 60
@@ -49,6 +54,8 @@ NAME_MAX = 80
 EXPORT_MAX_S = 7200.0          # one export covers at most two hours of ONE camera
 EVENT_MAX_S = 600              # a manual event with a duration lasts at most ten minutes; an open one must be ended by hand
 LIST_MAX = 300
+READBACK_TRIES = 4             # reads (never writes) while an asynchronous change settles
+READBACK_DELAY_S = 0.5
 
 # PTZ: single steps only. There is no patrol, no loop, no autotrack start: a command is one message and one physical step.
 PTZ_STEPS = ("MOVE_UP", "MOVE_DOWN", "MOVE_LEFT", "MOVE_RIGHT", "ZOOM_IN", "ZOOM_OUT", "STOP")
@@ -67,7 +74,20 @@ def normalize_ptz(command: str) -> str:
     raise ApiError(422, "ptz_command_invalid", "פקודת PTZ אינה מותרת (צעד בודד, זום, עצירה או נקודה שמורה בלבד).", details={"allowed": list(PTZ_STEPS) + ["preset_<name>"]})
 
 
+def split_feature(feature: str) -> tuple[str, str | None]:
+    """"zone:front_path" -> ("zone", "front_path"); a plain feature -> (feature, None). A malformed name is refused (422)."""
+    kind, sep, name = (feature or "").partition(":")
+    if not sep:
+        return feature, None
+    if kind not in SUB_FEATURES or not SUB_NAME.fullmatch(name):
+        raise ApiError(422, "frigate_feature_unknown", "המתג אינו מוכר.", details={"feature": (feature or "")[:40]})
+    return kind, name
+
+
 def feature_class(feature: str) -> str:
+    kind, name = split_feature(feature)
+    if name is not None:
+        return "analytics"
     cls = FEATURE_CLASS.get(feature)
     if cls is None:
         raise ApiError(422, "frigate_feature_unknown", "המתג אינו מוכר.", details={"feature": feature[:40]})
@@ -86,6 +106,16 @@ def state_hash(features: dict[str, bool | None]) -> str:
     return hashlib.sha256(json.dumps(features, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
+def _case_of(row: dict[str, Any]) -> str | None:
+    """The case of an export row. FRIGLIVE-295: the live 0.18.0 `GET /api/exports` row names it `export_case` (the peewee foreign key's field
+    name); the job document and the request bodies use `export_case_id`. Both are read."""
+    for key in ("export_case", "export_case_id"):
+        v = row.get(key)
+        if isinstance(v, str) and OBJECT_ID.fullmatch(v):
+            return v
+    return None
+
+
 class FrigateControl:
     """The F2 operations of one recorder. Constructed over a `FrigateAdapter` (its HTTP session); safe to build per request."""
 
@@ -99,52 +129,89 @@ class FrigateControl:
         """Every known switch of one camera as the effective config shows it (True / False, None = not reported). Only these booleans
         are read out of `/api/config`: the rest of the document (stream URLs with credentials) never leaves this function."""
         FrigateAdapter._camera(camera)
-        cfg = self.http.get_json("/api/config")
+        cfg = self.http.get_json("/api/config", fresh=True)
         cams = cfg.get("cameras") if isinstance(cfg, dict) else None
         cam = cams.get(camera) if isinstance(cams, dict) else None
         if not isinstance(cam, dict):
             raise ApiError(404, "not_found", "המצלמה לא נמצאה ב־Frigate.", details={"op": "config"})
-        return {f: _dig(cam, p) for f, p in FEATURE_PATHS.items()}
+        out: dict[str, bool | None] = {f: _dig(cam, p) for f, p in FEATURE_PATHS.items()}
+        out.update(self._named_switches(cam))
+        return out
+
+    @staticmethod
+    def _named_switches(cam: dict[str, Any]) -> dict[str, bool | None]:
+        """0.18: zones / motion masks / object masks are mappings name -> {enabled, ...}; each becomes the switch "<kind>:<name>"."""
+        out: dict[str, bool | None] = {}
+        for kind, path in SUB_PATHS.items():
+            node: Any = cam
+            for key in path:
+                node = node.get(key) if isinstance(node, dict) else None
+            if not isinstance(node, dict):
+                continue
+            for name in sorted(node)[:SUB_MAX]:
+                item = node[name]
+                if isinstance(name, str) and SUB_NAME.fullmatch(name) and isinstance(item, dict) and isinstance(item.get("enabled"), bool):
+                    out[f"{kind}:{name}"] = item["enabled"]
+        return out
 
     def active_profile(self) -> dict[str, Any]:
-        """{"names": [...], "active": str | None}; a Frigate without profiles answers an empty list."""
+        """{"names": [...], "active": str | None}; a Frigate without profiles answers an empty list.
+
+        0.18 (frigate/api/app.py, verified against the 0.18.2 source and the owner's instance on 2026-10-05): `GET /api/profiles` answers
+        {"profiles": [{"name", "friendly_name"}], "active_profile": str | null, "last_activated": {}}, so ONE read gives both; the separate
+        `GET /api/profile/active` ({"active_profile": ...}) is read only when the first document does not carry the active profile."""
         names: list[str] = []
-        active: str | None = None
         try:
-            doc = self.http.get_json("/api/profiles", optional=True)
+            doc = self.http.get_json("/api/profiles", optional=True, fresh=True)
         except ApiError as exc:
             if exc.code != "frigate_route_missing":
                 raise
             doc = []
+        act: Any = None
+        have_active = False
+        if isinstance(doc, dict):
+            if "active_profile" in doc:
+                act, have_active = doc.get("active_profile"), True
+            doc = doc.get("profiles") if isinstance(doc.get("profiles"), list) else []
         if isinstance(doc, list):
             names = [str(x.get("name") if isinstance(x, dict) else x) for x in doc if (x.get("name") if isinstance(x, dict) else x)]
-        elif isinstance(doc, dict):
-            names = [str(k) for k in doc]
-        try:
-            act = self.http.get_json("/api/profile/active", optional=True)
-        except ApiError as exc:
-            if exc.code != "frigate_route_missing":
-                raise
-            act = None
-        if isinstance(act, dict):
-            act = act.get("name") or act.get("profile") or act.get("active")
-        if isinstance(act, str) and act and act.lower() != "none":
-            active = act
+        if not have_active:
+            try:
+                act = self.http.get_json("/api/profile/active", optional=True, fresh=True)
+            except ApiError as exc:
+                if exc.code != "frigate_route_missing":
+                    raise
+                act = None
+            if isinstance(act, dict):
+                act = act.get("active_profile")
+        active = act if isinstance(act, str) and act and act.lower() != "none" else None
         return {"names": sorted(set(n for n in names if PROFILE_NAME.fullmatch(n)))[:40], "active": active}
 
     def event(self, event_id: str) -> dict[str, Any]:
         if not EVENT_ID.fullmatch(event_id or ""):
             raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
-        doc = self.http.get_json(f"/api/events/{q(event_id)}")
+        doc = self.http.get_json(f"/api/events/{q(event_id)}", fresh=True)
         if not isinstance(doc, dict):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
-        return {"id": event_id, "retain": bool(doc.get("retain_indefinitely")), "sub_label": doc.get("sub_label") if isinstance(doc.get("sub_label"), str) else None}
+        sub = doc.get("sub_label")
+        return {"id": event_id, "retain": bool(doc.get("retain_indefinitely")), "sub_label": sub if isinstance(sub, str) and sub else None}
+
+    def event_settled(self, event_id: str, field: str, want: Any) -> bool:
+        """Read-back of an event field that Frigate applies ASYNCHRONOUSLY (0.18: a sub label goes through the event metadata publisher, so
+        the very next GET may still show the old value). Up to READBACK_TRIES reads, READBACK_DELAY_S apart; reads only, the write is never
+        repeated."""
+        for n in range(READBACK_TRIES):
+            if self.event(event_id)[field] == want:
+                return True
+            if n + 1 < READBACK_TRIES:
+                time.sleep(READBACK_DELAY_S)
+        return False
 
     def event_detail(self, event_id: str) -> dict[str, Any]:
         """One tracked object / manual event as a small, fixed document (read-back of a manual create / end)."""
         if not EVENT_ID.fullmatch(event_id or ""):
             raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
-        doc = self.http.get_json(f"/api/events/{q(event_id)}")
+        doc = self.http.get_json(f"/api/events/{q(event_id)}", fresh=True)
         if not isinstance(doc, dict):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
         end = doc.get("end_time")
@@ -154,7 +221,7 @@ class FrigateControl:
 
     def list_exports(self) -> list[dict[str, Any]]:
         """Frigate exports as small fixed rows: file paths and thumbnails never leave the adapter (they name Frigate's disk)."""
-        doc = self.http.get_json("/api/exports", control=True)
+        doc = self.http.get_json("/api/exports", control=True, fresh=True)
         if not isinstance(doc, list):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "exports"})
         out = []
@@ -162,11 +229,11 @@ class FrigateControl:
             if isinstance(x, dict) and isinstance(x.get("id"), str) and OBJECT_ID.fullmatch(x["id"]):
                 out.append({"id": x["id"], "camera": x.get("camera") if isinstance(x.get("camera"), str) else None, "name": (x.get("name") or "")[:NAME_MAX] if isinstance(x.get("name"), str) else "",
                             "date": x.get("date") if isinstance(x.get("date"), (int, float)) else None, "in_progress": bool(x.get("in_progress")),
-                            "case_id": x.get("export_case_id") if isinstance(x.get("export_case_id"), str) else None})
+                            "case_id": _case_of(x)})
         return out
 
     def list_cases(self) -> list[dict[str, Any]]:
-        doc = self.http.get_json("/api/cases", control=True)
+        doc = self.http.get_json("/api/cases", control=True, fresh=True)
         if not isinstance(doc, list):
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "cases"})
         out = []
@@ -196,7 +263,9 @@ class FrigateControl:
         """W1 / W2: one runtime switch of ONE camera (`*` is not a camera key and is refused by the allow-list)."""
         FrigateAdapter._camera(camera)
         klass = feature_class(feature)
-        self.http.write(klass, "PUT", f"/api/camera/{camera}/set/{feature}", {"value": "ON" if on else "OFF"})
+        kind, name = split_feature(feature)
+        path = f"/api/camera/{camera}/set/{kind}/{name}" if name is not None else f"/api/camera/{camera}/set/{feature}"
+        self.http.write(klass, "PUT", path, {"value": "ON" if on else "OFF"})
 
     def set_profile(self, name: str | None) -> None:
         """W3: the active profile for the whole Frigate (`None` = no profile). Frigate clears the runtime toggles on a switch."""
@@ -228,7 +297,8 @@ class FrigateControl:
         label = (label or "").strip()
         if len(label) > SUB_LABEL_MAX or any(ord(ch) < 32 for ch in label):
             raise ApiError(422, "frigate_sub_label_invalid", "התווית אינה תקינה.", details={"max": SUB_LABEL_MAX})
-        self.http.write("events", "POST", f"/api/events/{q(event_id)}/sub_label", {"subLabel": label or None})
+        # 0.18: `subLabel` is a required string (null is a 422); "" clears the sub label (frigate/api/event.py set_sub_label)
+        self.http.write("events", "POST", f"/api/events/{q(event_id)}/sub_label", {"subLabel": label})
 
     # ------------------------------------------------------------------------------------------ F2b writes (wire shapes NOT verified)
 
@@ -245,13 +315,17 @@ class FrigateControl:
             raise ApiError(422, "frigate_object_invalid", "מזהה לא תקין.")
         return value or ""
 
-    def create_export(self, camera: str, start: float, end: float, name: str) -> str:
-        """`POST /api/export/{cam}/start/{start}/end/{end}` with `{"name", "playback": "realtime"}`; the new export's id is read from the
-        answer (`export_id`). Returns "" when the answer carries no id (the caller then finds it by name in the list)."""
+    def create_export(self, camera: str, start: float, end: float, name: str, case_id: str | None = None) -> str:
+        """`POST /api/export/{cam}/start/{start}/end/{end}` with `{"name", "source": "recordings"[, "export_case_id"]}` (0.18 ExportRecordingsBody;
+        the export is QUEUED, 202). The new export's id is read from the answer (`export_id`). Returns "" when the answer carries no id
+        (the caller then finds it by name in the list)."""
         FrigateAdapter._camera(camera)
         if not (end > start and end - start <= EXPORT_MAX_S and start > 0):
             raise ApiError(422, "frigate_export_range_invalid", "טווח הייצוא אינו תקין.", details={"max_s": int(EXPORT_MAX_S)})
-        reply = self.http.write("exports", "POST", f"/api/export/{camera}/start/{start:.3f}/end/{end:.3f}", {"name": self._name(name), "playback": "realtime"})
+        body: dict[str, Any] = {"name": self._name(name), "source": "recordings"}
+        if case_id is not None:
+            body["export_case_id"] = self._object(case_id)
+        reply = self.http.write("exports", "POST", f"/api/export/{camera}/start/{start:.3f}/end/{end:.3f}", body)
         try:
             doc = reply.json()
         except ApiError:
@@ -263,7 +337,26 @@ class FrigateControl:
         self.http.write("exports", "PATCH", f"/api/export/{q(self._object(export_id))}/rename", {"name": self._name(name)})
 
     def delete_export(self, export_id: str) -> None:
-        self.http.write("exports", "DELETE", f"/api/export/{q(self._object(export_id))}")
+        """0.18: `POST /api/exports/delete {"ids": [<one id>]}` (there is no per-id DELETE). Exactly one id, proven Arx's by the caller."""
+        self.http.write("exports", "POST", "/api/exports/delete", {"ids": [self._object(export_id)]})
+
+    def assign_export(self, export_id: str, case_id: str | None) -> None:
+        """0.18: `POST /api/exports/reassign {"ids": [<one id>], "export_case_id": <case> | null}` (null = out of its case)."""
+        self.http.write("exports", "POST", "/api/exports/reassign", {"ids": [self._object(export_id)], "export_case_id": self._object(case_id) if case_id is not None else None})
+
+    def export_job(self, export_id: str) -> dict[str, Any] | None:
+        """0.18: a queued / running export job (`GET /api/jobs/export/{id}`), as {id, status, step, case_id}; None when Frigate knows no such job."""
+        try:
+            doc = self.http.get_json(f"/api/jobs/export/{q(self._object(export_id))}", optional=True, control=True, fresh=True)
+        except ApiError as exc:
+            if exc.code in ("frigate_route_missing", "not_found"):
+                return None
+            raise
+        if not isinstance(doc, dict) or doc.get("id") != export_id:
+            return None
+        st = doc.get("status")
+        return {"id": export_id, "status": st if isinstance(st, str) and re.fullmatch(r"[a-z_]{1,20}", st) else "unknown",
+                "case_id": doc.get("export_case_id") if isinstance(doc.get("export_case_id"), str) else None}
 
     def create_case(self, name: str, description: str | None) -> str:
         """`POST /api/cases` with `{"name", "description"}`; the case id is read from the answer (`id`)."""
@@ -331,4 +424,4 @@ class FrigateControl:
             raise ApiError(503, "frigate_write_unknown", "לא ידוע אם פקודת ה־PTZ בוצעה. בדקו במצלמה לפני ניסיון נוסף.", details={"op": "ptz", "error": type(exc).__name__}) from exc
 
 
-__all__ = ["FrigateControl", "FEATURE_PATHS", "FEATURE_CLASS", "PTZ_STEPS", "normalize_ptz", "state_hash", "feature_class", "CAMERA_KEY"]
+__all__ = ["FrigateControl", "FEATURE_PATHS", "FEATURE_CLASS", "SUB_PATHS", "PTZ_STEPS", "normalize_ptz", "state_hash", "feature_class", "split_feature", "CAMERA_KEY"]

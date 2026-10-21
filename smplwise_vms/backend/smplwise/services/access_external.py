@@ -23,15 +23,18 @@ Nothing here turns the feature on: every pass is a no-op while `access.external_
 while the owner's go-live permit is not in the build. Extended service identity stays LOCKED (not touched here)."""
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import logging
 import re
 import sqlite3
+import time
 import unicodedata
 from collections import Counter
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Iterator
 
 from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError, forbidden
@@ -664,3 +667,284 @@ def _notify(conn: sqlite3.Connection, source: str, subject_id: str, kind: str, *
                                         params={"kind": kind}, link=link or screen_href(conn, subject_id if len(subject_id) == 32 else None)))
     except Exception:  # noqa: BLE001 - a notice never fails the action
         log.warning("access external: a notification failed")
+
+
+# ================================================================ GRANTSMIN-295: the Arx-only leftovers SHAREDID-293 did not cover
+# (private/planning/BACKLOG_RECONCILED_2026-10-20.md, grants-minor-leftovers). The denied-attempt alert stays out: it needs WisKey W-c.
+
+def _last_verify(conn: sqlite3.Connection, grant_id: str) -> str | None:
+    """The outcome of the last read-back of a grant (`verify_pass`'s audit row): proven / mismatch / unknown, or None."""
+    last = conn.execute("SELECT details_json FROM audit_log WHERE action = 'access.grant.verify' AND resource_id = ? ORDER BY rowid DESC LIMIT 1",
+                        (grant_id,)).fetchone()
+    try:
+        return json.loads(last["details_json"] or "{}").get("outcome") if last else None
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------- the drift view (CR 2.3 / T12; owner decision 5)
+
+DRIFT_ORDER = ("missing", "scope", "unknown", "sync_pending", "name", "unverified", "idle_person")
+
+
+def _may_push_name(conn: sqlite3.Connection, principal: Principal, link: dict[str, Any], stations: list[str]) -> bool:
+    """The same authority `push_name` checks (the interactive-session rule is the server's, at the click)."""
+    if link.get("origin") != "created_from_arx" or link.get("state") != "linked":
+        return False
+    lacks = ag.missing_on(conn, principal, (ia.PEOPLE_MANAGE,), stations) if stations else ag._unrestricted_lacks(conn, principal, (ia.PEOPLE_MANAGE,))
+    return not lacks
+
+
+def _may_read_now(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any] | None) -> bool:
+    """The same authority `read_now` checks."""
+    if g is None or g["state"] not in ("unknown", "revoking", "active"):
+        return False
+    stations = ag.stations_of(json.loads(g["doors_json"] or "{}"))
+    return ag.holds_somewhere(conn, principal, ag.PERMISSION, stations) or ag.holds_somewhere(conn, principal, ia.PEOPLE_MANAGE, stations)
+
+
+def drift(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+    """Per person, where Arx and WisKey differ - served ONLY from what Arx already stored (the hourly read-back's proof and audit, the
+    name digests, the link state): never a WisKey read, never a WisKey value (WisKey's name is kept as a digest, so a name difference
+    says only that the names differ). A person is listed when the caller may see its current grant (or, with none, one of its grants;
+    `access_grants.visible`); a link with no grant at all (a manual match) only to a caller with people.manage installation-wide.
+    Kinds, most urgent first:
+      missing      WisKey did not find the person (the link is `wiskey_missing`; the revocation waits - see "confirmed gone");
+      scope        the last complete read-back found a door map / window that is not the grant's (a WisKey-side edit, T12);
+      unknown      a write's outcome is unknown (the worker reads again; nothing is decided meanwhile);
+      sync_pending Arx narrowed the grant and the narrowing is not yet written and proven;
+      name         WisKey's name differs from the directory name Arx would write (a person Arx created; "push the name");
+      unverified   active and accepted, but no stored read-back proof (not read yet, the map unreadable, or a matched person);
+      idle_person  a person Arx created in WisKey holds no live grant."""
+    out: dict[str, Any] = {"enabled": ag.enabled(conn), "name_sync": name_sync(conn), "rows": [], "in_sync": 0}
+    if not out["enabled"]:
+        return out
+    manage_all = authorize(conn, principal, ia.PEOPLE_MANAGE, INSTALLATION).allowed
+    links = [dict(r) for r in conn.execute("SELECT * FROM access_person_links WHERE state IN ('linked', 'wiskey_missing') ORDER BY linked_at").fetchall()]
+    for link in links:
+        grants = [dict(r) for r in conn.execute("SELECT * FROM access_grants WHERE subject_kind = ? AND subject_id = ? ORDER BY created_at DESC",
+                                                (link["subject_kind"], link["subject_id"])).fetchall()]
+        live = ag.live_grant_of(conn, link["subject_kind"], link["subject_id"])
+        if live is not None:
+            if not ag.visible(conn, principal, live):
+                continue  # the person's current grant is outside the caller's stations: its differences are not the caller's
+        elif grants:
+            if not any(ag.visible(conn, principal, g) for g in grants):
+                continue
+        elif not manage_all:
+            continue
+        diffs: list[dict[str, Any]] = []
+        if link["state"] == "wiskey_missing":
+            diffs.append({"kind": "missing", "grant_id": live["id"] if live else None})
+        if live is not None:
+            if live["state"] == "unknown":
+                diffs.append({"kind": "unknown", "grant_id": live["id"]})
+            elif live["state"] == "active" and live.get("needs_push"):
+                diffs.append({"kind": "sync_pending", "grant_id": live["id"]})
+            elif live["state"] == "active" and not ag.scope_is_proven(live):
+                mismatch = bool(live.get("scope_checked_at")) and _last_verify(conn, live["id"]) == "mismatch"
+                diffs.append({"kind": "scope" if mismatch else "unverified", "grant_id": live["id"]})
+        ours = link["origin"] == "created_from_arx" and link["state"] == "linked"
+        if ours and link["subject_kind"] == "contact" and name_drift(conn, link):
+            diffs.append({"kind": "name"})
+        if ours and live is None:
+            ended = max((g.get("ended_at") or "" for g in grants), default="")
+            diffs.append({"kind": "idle_person", "since": ended or None})
+        if not diffs:
+            out["in_sync"] += 1
+            continue
+        diffs.sort(key=lambda x: DRIFT_ORDER.index(x["kind"]))
+        contact = ag.contact_row(conn, link["subject_id"]) if link["subject_kind"] == "contact" else None
+        vendor = ag.contact_row(conn, contact.get("vendor_id")) if contact and contact.get("vendor_id") else None
+        stations = ag.stations_of(json.loads(live["doors_json"] or "{}")) if live else []
+        out["rows"].append({
+            "link_id": link["id"], "contact_id": link["subject_id"], "subject_kind": link["subject_kind"],
+            "name": (contact or {}).get("display_name"), "company": (vendor or {}).get("display_name"),
+            "origin": link["origin"], "link_state": link["state"],
+            "grant": {"id": live["id"], "state": live["state"], "doors": [{"station_id": s, "name": ag._station_name(s)} for s in stations]} if live else None,
+            "diffs": diffs,
+            "name_checked_at": link.get("name_checked_at"), "scope_checked_at": (live or {}).get("scope_checked_at"),
+            "can": {"push_name": any(d["kind"] == "name" for d in diffs) and _may_push_name(conn, principal, link, stations),
+                    "read_now": _may_read_now(conn, principal, live)},
+        })
+    out["rows"].sort(key=lambda r: (DRIFT_ORDER.index(r["diffs"][0]["kind"]), r["name"] or ""))
+    return out
+
+
+# ---------------------------------------------------------------- the external-access CSV (the screen's export)
+
+EXPORT_RATE_S = 60.0      # one export a minute per user (the tickets table's rule)
+EXPORT_MAX_ROWS = 5000
+_export_last: dict[str, float] = {}
+
+EXPORT_COLUMNS = ("name", "company", "category", "state", "doors", "valid_from", "valid_until", "source", "source_ref", "approved_by", "approved_at",
+                  "ended_at", "record", "phone", "code_state", "grant_id")
+EXPORT_HEADERS: dict[str, dict[str, str]] = {
+    "he": {"name": "שם", "company": "חברה", "category": "סוג", "state": "מצב", "doors": "דלתות", "valid_from": "מתאריך", "valid_until": "עד",
+           "source": "מקור", "source_ref": "הפניה", "approved_by": "אושר על ידי", "approved_at": "אושר ב", "ended_at": "הסתיים ב",
+           "record": "רשומת WisKey", "phone": "טלפון", "code_state": "מצב הקוד", "grant_id": "מזהה גישה"},
+    "en": {"name": "Name", "company": "Company", "category": "Kind", "state": "State", "doors": "Doors", "valid_from": "From", "valid_until": "Until",
+           "source": "Source", "source_ref": "Reference", "approved_by": "Approved by", "approved_at": "Approved at", "ended_at": "Ended at",
+           "record": "WisKey record", "phone": "Phone", "code_state": "Code", "grant_id": "Grant id"},
+}
+# the screen's own state words (frontend/src/i18n/access-external.ts st_*), so the file reads like the list
+STATE_TEXT: dict[str, dict[str, str]] = {
+    "he": {"draft": "טיוטה", "pending": "ממתין לאישור", "pushing": "נשלח · ממתין לתשובה", "verified": "פעיל · אומת", "accepted": "פעיל · טרם אומת",
+           "sync": "פעיל · שינוי ממתין", "unknown": "לא ידוע", "revoking": "בביטול · התראה כל שעה", "revoked": "בוטל", "ended": "הסתיים",
+           "refused": "נדחה", "failed": "נכשל", "gone": "נסגר · אושר ידנית שאינו קיים"},
+    "en": {"draft": "Draft", "pending": "Awaiting approval", "pushing": "Sent · awaiting answer", "verified": "Active · verified",
+           "accepted": "Active · not yet verified", "sync": "Active · change pending", "unknown": "Unknown", "revoking": "Revoking · hourly alert",
+           "revoked": "Revoked", "ended": "Ended", "refused": "Refused", "failed": "Failed", "gone": "Closed · confirmed gone"},
+}
+CATEGORY_TEXT = {"he": {"contractor": "קבלן", "visitor": "מבקר"}, "en": {"contractor": "Contractor", "visitor": "Visitor"}}
+SOURCE_TEXT = {"he": {"manual": "ידני", "ticket": "קריאה", "rfq_order": "הזמנת עבודה"}, "en": {"manual": "Manual", "ticket": "Ticket", "rfq_order": "Work order"}}
+RECORD_TEXT = {"he": {"created_from_arx": "נוצר מ-Arx", "matched": "קושר לאדם קיים", "": "אין"},
+               "en": {"created_from_arx": "Created by Arx", "matched": "Matched to an existing person", "": "None"}}
+CODE_TEXT = {"he": {"not_needed": "לא נדרש", "pending": "ממתין", "queued": "בתור", "sent": "נשלח", "not_delivered": "לא נמסר", "unknown": "לא ידוע"},
+             "en": {"not_needed": "Not needed", "pending": "Pending", "queued": "Queued", "sent": "Sent", "not_delivered": "Not delivered", "unknown": "Unknown"}}
+
+
+def reset_export_rate() -> None:
+    """Tests only."""
+    _export_last.clear()
+
+
+def export_wait(user_id: str, now: float | None = None) -> float:
+    """Seconds the user must still wait (0 = may export now). Only a successful export counts (`export_mark`)."""
+    now = time.monotonic() if now is None else now
+    last = _export_last.get(user_id)
+    return 0.0 if last is None else max(0.0, EXPORT_RATE_S - (now - last))
+
+
+def export_mark(user_id: str) -> None:
+    _export_last[user_id] = time.monotonic()
+
+
+def may_export(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """Who may take the file: a holder of the grant permission or of people.read somewhere (each row is still checked with `visible`),
+    or a directory editor (tickets.configure)."""
+    anywhere = permissions_anywhere(conn, principal)
+    return ag.PERMISSION in anywhere or ia.PEOPLE_READ in anywhere or authorize(conn, principal, "tickets.configure", INSTALLATION).allowed
+
+
+def ui_state(p: dict[str, Any]) -> str:
+    """frontend/src/access-external/model.ts uiState(), on a `present()` dict."""
+    closure = p.get("closure")
+    if closure and not closure.get("reappeared_at") and p["state"] != "revoking":
+        return "gone"
+    s = p["state"]
+    if s == "requested":
+        return "draft" if p["person"].get("pending") else "pending"
+    if s in ("approved", "provisioning"):
+        return "pushing"
+    if s == "active":
+        return "sync" if p.get("needs_push") else "verified" if p.get("scope_verified") else "accepted"
+    return s if s in ("unknown", "revoking", "ended", "revoked", "refused") else "failed"
+
+
+def _phone_cell(conn: sqlite3.Connection, viewer: Any, g: dict[str, Any], sensitive: bool, cache: dict[str, Any]) -> str:
+    """The number at the level the caller may see it, never more than BOTH rules allow: nothing below people.sensitive on every station
+    of the grant (the screen's rule); the screen's mask (····NN) at that level; the full number only when the directory would also show
+    it to this caller (tickets/contacts.full_phone_for: a directory editor, a manager with tickets.external over the contact's
+    department, or the installation's "managers see full numbers" setting for the manager's own departments)."""
+    from .tickets import contacts as tcontacts
+    from .tickets import store_links
+
+    if not sensitive or g["subject_kind"] != "contact":
+        return ""
+    contact = ag.contact_row(conn, g["subject_id"])
+    if not contact or not contact.get("phone_e164"):
+        return ""
+    if "managed" not in cache:
+        cache["configure"] = tcontacts.may_edit_directory(viewer)  # integ/2100: SMALL-294 tickets.directory is a directory editor too
+        cache["managed"] = tcontacts.managed_departments(viewer)
+        cache["unmask"] = tcontacts.managers_unmask(conn)
+    depts = store_links.contact_departments(conn, contact["id"])
+    if tcontacts.full_phone_for(viewer, depts, cache["managed"], cache["configure"], cache["unmask"]):
+        return tcontacts.display_phone(contact["phone_e164"]) or ""
+    return ag.mask_number(contact) or ""
+
+
+def _local(iso: str | None, tz: Any) -> str:
+    at = ag.parse_iso(iso) if iso else None
+    return at.astimezone(tz).strftime("%Y-%m-%d %H:%M") if at else ""
+
+
+def export_rows(conn: sqlite3.Connection, principal: Principal, *, live_only: bool, lang: str) -> list[list[Any]]:
+    """Header + one row per grant the caller may see (`visible`), newest first, at most EXPORT_MAX_ROWS (413 above). Every cell through
+    the shared formula guard (tickets/text_hygiene.csv_cell); times in the installation's zone. Never a code (Arx holds none), never a
+    WisKey id or value; the delivery state and the number only at the people-sensitive level (as on the screen)."""
+    from .tickets.access import Viewer
+    from .tickets.text_hygiene import csv_cell
+
+    lang = lang if lang in EXPORT_HEADERS else "he"
+    if live_only:
+        marks = ",".join("?" * len(ag.LIVE))
+        rows = conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks}) ORDER BY created_at DESC", ag.LIVE).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM access_grants ORDER BY created_at DESC").fetchall()
+    seen = [dict(r) for r in rows if ag.visible(conn, principal, dict(r))]
+    if len(seen) > EXPORT_MAX_ROWS:
+        raise ApiError(413, "export_too_large", "יותר מדי שורות לייצוא.", details={"max_rows": EXPORT_MAX_ROWS})
+    tz = ag.zone_of(conn)
+    viewer = Viewer(conn, principal)
+    cache: dict[str, Any] = {}
+    out: list[list[Any]] = [[csv_cell(EXPORT_HEADERS[lang][c]) for c in EXPORT_COLUMNS]]
+    for g in seen:
+        p = ag.present(conn, principal, g)
+        doors = json.loads(g["doors_json"] or "{}")
+        stations = ag.stations_of(doors)
+        sensitive = bool(stations) and all(authorize(conn, principal, ia.PEOPLE_SENSITIVE, (STATION, s)).allowed for s in stations)
+        values = {
+            "name": p["person"]["name"] or "", "company": p.get("company") or "", "category": CATEGORY_TEXT[lang].get(p.get("category") or "", ""),
+            "state": STATE_TEXT[lang][ui_state(p)], "doors": ", ".join(dict.fromkeys(d["name"] for d in p["doors"])),
+            "valid_from": _local(p["valid_from"], tz), "valid_until": _local(p["valid_until"], tz),
+            "source": SOURCE_TEXT[lang].get(p["source"], p["source"]), "source_ref": p["source_ref"] or "",
+            "approved_by": p.get("approved_by_name") or "", "approved_at": _local(p.get("approved_at"), tz), "ended_at": _local(p.get("ended_at"), tz),
+            "record": RECORD_TEXT[lang][(p.get("link") or {}).get("origin") or ""],
+            "phone": _phone_cell(conn, viewer, g, sensitive, cache),
+            "code_state": CODE_TEXT[lang].get(p["code_state"] or "", "") if sensitive and p["code_state"] else "",
+            "grant_id": p["id"],
+        }
+        out.append([csv_cell(values[c]) for c in EXPORT_COLUMNS])
+    return out
+
+
+def export_stream(cells: list[list[Any]]) -> Iterator[bytes]:
+    """UTF-8 with a BOM, every cell quoted, CRLF (the tickets export's format)."""
+    yield "﻿".encode("utf-8")
+    for i in range(0, len(cells), 200):
+        buf = io.StringIO(newline="")
+        csv.writer(buf, quoting=csv.QUOTE_ALL, lineterminator="\r\n").writerows(cells[i:i + 200])
+        yield buf.getvalue().encode("utf-8")
+
+
+def export_filename(conn: sqlite3.Connection) -> str:
+    """An ASCII name (the display texts may be any script)."""
+    return "external-access-" + datetime.now(ag.zone_of(conn)).strftime("%Y%m%d-%H%M") + ".csv"
+
+
+# ---------------------------------------------------------------- the person's data export (tickets 15.2, CR 2.6 "Rights")
+
+def rights_export(conn: sqlite3.Connection, contact_id: str) -> dict[str, Any]:
+    """What `GET /tickets/contacts/{id}/export` adds for one person (the caller - tickets.configure - is checked there): the link's origin
+    and state, and every grant still kept (window, doors by name, state, the notice acknowledgements). WisKey's ids, PINs (Arx holds
+    none), the closure's free-text reference and the phone (already in the export's contact row) are not repeated here."""
+    try:
+        link = ag.link_of_subject(conn, "contact", contact_id)
+        rows = [dict(r) for r in conn.execute("SELECT * FROM access_grants WHERE subject_kind = 'contact' AND subject_id = ? ORDER BY created_at",
+                                              (contact_id,)).fetchall()]
+    except sqlite3.OperationalError:  # a database before 0107
+        return {"link": None, "grants": []}
+    grants = []
+    for g in rows:
+        doors = json.loads(g["doors_json"] or "{}")
+        notices = conn.execute("SELECT via, version, at FROM access_grant_notices WHERE grant_id = ? ORDER BY at", (g["id"],)).fetchall()
+        grants.append({
+            "id": g["id"], "state": g["state"], "end_reason": g["end_reason"], "source": g["source_kind"], "source_ref": g["source_ref"],
+            "valid_from": g["valid_from"], "valid_until": g["valid_until"], "timing": json.loads(g["timing_json"]) if g["timing_json"] else None,
+            "credential": g["credential"], "doors": [{"station_id": s, "name": ag._station_name(s), "relays": doors[s]} for s in ag.stations_of(doors)],
+            "created_at": g["created_at"], "approved_at": g["approved_at"], "ended_at": g.get("ended_at"),
+            "notices": [{"via": n["via"], "version": n["version"], "at": n["at"]} for n in notices],
+        })
+    return {"link": {"origin": link["origin"], "state": link["state"], "linked_at": link["linked_at"]} if link else None, "grants": grants}

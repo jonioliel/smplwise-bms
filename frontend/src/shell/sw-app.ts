@@ -79,6 +79,7 @@ import '../screens/investigate-playback';
 import '../screens/investigate-sync';
 import '../screens/investigate-history-map';
 import '../screens/investigate-events';
+import '../screens/investigate-ha-events';
 import '../screens/investigate-event-detail';
 import '../screens/investigate-reviews';
 import '../screens/investigate-cases';
@@ -110,7 +111,7 @@ import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
-import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
+import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
@@ -698,10 +699,19 @@ export class SwApp extends LitElement {
       border-radius: 50%;
       background: var(--sw-border-strong);
     }
-    @media (max-width: 767px) {
-      .float button::after {
-        inset: -8px;
+    /* UXFIX-A11Y-295 (UX audit 2026-10-20): the two keys were 28 x 28 and sat edge to edge, so their -8 px rings overlapped and the
+       first key kept 28 px of width. On a touch screen each key is 44 px wide (the pill grows sideways; the icons and the 34 px pill
+       height stay) and its ring adds 8 px above and below: 44 x 44 each, no overlap. */
+    @media (max-width: 767px), (pointer: coarse) {
+      .float button {
+        inline-size: 44px;
+        border-radius: var(--sw-r-pill);
       }
+      .float button::after {
+        inset: -8px 0;
+      }
+    }
+    @media (max-width: 767px) {
       .float {
         inset-inline-end: 10px;
       }
@@ -1234,7 +1244,14 @@ export class SwApp extends LitElement {
         max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        /* UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        white-space: normal;
+        line-height: 1.1;
+        text-align: center;
       }
       :host([data-design='a']) nav.bottom.dock .fab {
         flex: none;
@@ -1359,7 +1376,7 @@ export class SwApp extends LitElement {
         z-index: 4;
         display: flex;
         flex: none;
-        padding-inline: 12px 84px;
+        padding-inline: 12px 112px;
         background: var(--sw-bg);
         --sw-tab-min-h: 44px;
       }
@@ -1380,7 +1397,7 @@ export class SwApp extends LitElement {
         align-items: center;
         gap: 8px;
         padding: 0 12px;
-        padding-inline-end: 84px;
+        padding-inline-end: 112px;
         background: var(--sw-bg);
       }
       :host([data-design='a']) .tabpair > sw-tabs,
@@ -1413,9 +1430,10 @@ export class SwApp extends LitElement {
         position: absolute;
         inset: -6px;
       }
-      /* the floating search / status corner sits over the first row's far end: that row keeps clear of it */
+      /* the floating search / status corner sits over the first row's far end: that row keeps clear of it (release 2.10.0: the
+         phone reserve is 112 px - 84 px fitted the 28 px keys; UXFIX-A11Y-295 made each key 44 px wide, the corner reaches 108 px) */
       :host([data-design='a'][data-top='tabs']) .subnav {
-        padding-inline-end: 84px;
+        padding-inline-end: 112px;
       }
       :host([data-design='a']) nav.secrow {
         position: sticky;
@@ -1425,7 +1443,7 @@ export class SwApp extends LitElement {
         flex: none;
         gap: 0;
         padding-block: 0;
-        padding-inline: 12px 84px;
+        padding-inline: 12px 112px;
         border-radius: 0;
         background: var(--sw-bg);
         border-block-end: 1px solid var(--sw-border);
@@ -1435,7 +1453,7 @@ export class SwApp extends LitElement {
         content: '';
         position: absolute;
         inset-block: 5px;
-        inset-inline: 12px 84px;
+        inset-inline: 12px 112px;
         border-radius: var(--sw-r-md);
         background: var(--sw-surface-3);
       }
@@ -1535,7 +1553,18 @@ export class SwApp extends LitElement {
         max-inline-size: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        /* UXFIX-NAV-295: a long module name ("ניהול השירות") wraps to a second line instead of ending in "..." */
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        white-space: normal;
+        line-height: 1.1;
+        text-align: center;
+      }
+      /* release 2.10.0: the two-line display above outranked "labels off" (:host([data-nolabels]) nav.bottom .lbl); labels off wins */
+      :host([data-design='a'][data-nolabels]) nav.bottom .lbl {
+        display: none;
       }
       /* CR-023: seven items (six areas and the user) share the phone bar: the label size is capped at 10.5 px (the bigger navigation
          presets keep their icons) and the side padding goes, so no label is cut */
@@ -2278,6 +2307,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''} .extraParam=${r.params.get('extra') ?? ''} .fromMap=${r.params.get('from') === 'map'}></investigate-playback>`;
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'} .at=${r.params.get('t') ?? ''} .camera=${r.params.get('camera') ?? ''}></investigate-history-map>`;
         if (s[1] === 'events' && s[2]) return html`<investigate-event-detail .eventId=${s[2]}></investigate-event-detail>`;
+        if (s[1] === 'events' && sensorEventsOnly() && this.session.mode === 'api') return html`<investigate-ha-events .date=${r.params.get('date') ?? ''}></investigate-ha-events>`; // NVRLESS-295: no recorder events, the sensor events list
         if (s[1] === 'events') return html`<investigate-events .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>`;
         // NN5-F1B: the review screen; with no Frigate recorder it renders the event windows itself (investigate-reviews)
         if (s[1] === 'reviews') return html`<investigate-reviews .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-reviews>`;
@@ -2319,7 +2349,7 @@ export class SwApp extends LitElement {
         // available" panel a missing access.read permission shows (wiskey-*.ts `data-wiskey-state="no_permission"`),
         // not the embed or either SMPLWISE screen; the per-screen choice does not apply while the area is hidden.
         if (this.session.mode === 'api' && WISKEY_HIDDEN) {
-          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות › מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
+          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
         }
         // SHAREDID-293: "גישת חוץ" - an Arx-only screen under the access-control area (owner decision 6: or under service management)
         if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`;
@@ -2442,9 +2472,9 @@ export class SwApp extends LitElement {
   private renderNvrLess(kind: BlockKind = 'no_nvr') {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     // NN1: a recorder installation without its media server is not a supported installation (owner decision D2): say so, in operator words
-    if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+    if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel icon="camera" data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
     // CR-022: the NVR connection lives in Arx settings now (מערכת › חיבורים); only a holder of system.configure is offered the way there
-    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
+    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel icon="camera" data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
       hint="ההתקנה פועלת במצב ללא NVR: לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל."
       actionLabel=${can('system.configure') ? 'לחיבורים' : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
@@ -2756,7 +2786,7 @@ export class SwApp extends LitElement {
       ${!t
         ? html`<sw-state-panel state="loading"></sw-state-panel>`
         : !t.floors.length
-          ? html`<sw-state-panel state="empty" heading="אין אזורים"></sw-state-panel>`
+          ? html`<sw-state-panel icon="home" state="empty" heading="אין אזורים"></sw-state-panel>`
           : t.floors.map((f) => {
               const col = this.pickerCollapsed.has(f.floor_id);
               return html`<div class="pk-floor" data-picker-floor=${f.floor_id}>

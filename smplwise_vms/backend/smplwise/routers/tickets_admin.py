@@ -35,7 +35,7 @@ COLOR = r"^--sw-[a-z0-9-]{1,40}$"
 DOMAIN = r"^[a-z][a-z0-9_]{0,39}$"
 GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure",
                "tickets_costs_view", "tickets_costs", "tickets_delete",  # + S9 (D31, 11A.8); + full deletion (owner 14.10)
-               "tickets_handlers",  # + department managers' handlers (owner 2026-10-17)
+               "tickets_handlers", "tickets_directory",  # + SMALL-294: the directory without the settings; + department managers' handlers (owner 2026-10-17)
                "tickets_technician_requests")  # + VPORTALRFQ: the portal's technician requests (owner 2026-10-17)
 
 
@@ -103,6 +103,7 @@ class UiPatch(BaseModel):
     drawer_size: Literal["drawer", "wide", "full"] | None = None  # TKUI1
     phone_sheet: Literal["full", "half"] | None = None  # TKUI1
     handled_days: StrictInt | None = None  # HANDLERLOAD: the default period of the "handled" number (days)
+    camera_viewfinder: StrictBool | None = None  # CR-CAMVF-295: the live in-page camera viewfinder (default off)
     # MGRDASH phase 1: the manager overview's display choices (settings_doc validates every value again)
     dash_handler_numbers: Literal["managers", "own", "everyone"] | None = None
     dash_vendors: Literal["tagged", "separate", "hidden"] | None = None
@@ -180,6 +181,17 @@ class DirectoryPatch(BaseModel):
     review_idle_months: StrictInt | None = None
 
 
+class ReportsPatch(BaseModel):
+    """CR-VENDORQ-294: reports to external contacts through the message queue and their documents by a temporary link (settings_doc
+    `reports.*`; both switches OFF by default; settings_doc validates the ranges again)."""
+    model_config = ConfigDict(extra="forbid")
+    to_contacts: StrictBool | None = None
+    documents: StrictBool | None = None
+    email: StrictBool | None = None  # VENDORQ2-295
+    document_hours: StrictInt | None = None
+    document_max_opens: StrictInt | None = None
+
+
 class PrivacyPatch(BaseModel):
     """PRIVORG-291: the contact point for privacy requests (e-mail or phone) and an optional https link (settings_doc `privacy.*`);
     the organisation name is the existing `organization_name`. settings_doc validates both values again."""
@@ -236,6 +248,7 @@ class VendorPortalPatch(BaseModel):
     require_confirmed_number: StrictBool | None = None
     rfqs: StrictBool | None = None  # VPORTALRFQ: the vendor's open requests for quotation in the portal (default OFF)
     technician_requests: StrictBool | None = None  # VPORTALRFQ: "company technician requests" (default OFF)
+    start_worker: StrictBool | None = None  # SECFIX2-295 / PUB-04: portal/start's work on the listener's worker thread (default OFF)
 
 
 class NotifyPatch(BaseModel):
@@ -271,6 +284,7 @@ class SettingsBody(BaseModel):
     vendor_portal: VendorPortalPatch | None = None  # VPORTAL
     notify: NotifyPatch | None = None  # TKNOTIFMATRIX
     privacy: PrivacyPatch | None = None  # PRIVORG-291
+    reports: ReportsPatch | None = None  # CR-VENDORQ-294
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -325,7 +339,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

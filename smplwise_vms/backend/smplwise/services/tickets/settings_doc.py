@@ -331,6 +331,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # HANDLERLOAD (owner 2026-10-17): the period of the "handled" number on the handler cards, in days (1 = today, 7, 30); each viewer's
     # own choice (kept in the browser) wins over this installation default
     ("ui", "handled_days"): (7, int_choice(1, 7, 30)),
+    # CR-CAMVF-295 (docs/changes/CR-CAMVF-295-SECURITY.md): the live in-page camera viewfinder in a request's photos (the authenticated
+    # app only; the public page keeps its file input and `camera=()`). OFF by default - the kill switch; no header follows it
+    ("ui", "camera_viewfinder"): (False, boolean),
     # MGRDASH phase 1 (owner decisions 2026-10-17, docs/design/MANAGER_DASHBOARD_SPEC_HE.md): the manager overview's display choices.
     # In `ui` because the screens read them from GET /tickets/module and GET /tickets/board; none of them widens what anybody may see
     # (every number is still counted from the rows the server lets the viewer manage).
@@ -430,6 +433,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # portal_more.py). Both need `enabled`; system.configure, audited, remote allowed like the other portal keys
     ("vendor_portal", "rfqs"): (False, boolean),
     ("vendor_portal", "technician_requests"): (False, boolean),
+    # SECFIX2-295 / PUB-04 (docs/security/PROPOSAL_PUB04_PORTAL_START_TIMING.md, option A; owner decision pending, measure first): the
+    # number-dependent work of `portal/start` runs on the listener's own worker thread (a bounded queue) instead of a Starlette
+    # BackgroundTask inside the request's ASGI call. OFF by default = today's behaviour (the residual CR-VENDOR-PORTAL section 6 accepts)
+    ("vendor_portal", "start_worker"): (False, boolean),
     # VPORTAL: the stamp of the organisation's logo on the public pages ("" = none) - written ONLY by the logo routes
     # (services/tickets/brand.py), never by PUT /tickets/settings
     ("brand", "logo"): ("", _logo_stamp),
@@ -484,6 +491,17 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("rfq", "vendor_uploads", "max_image_mb"): (8, int_range(1, 8)),
     ("rfq", "vendor_uploads", "max_doc_mb"): (10, int_range(1, 10)),
     ("rfq", "vendor_uploads", "max_total_mb"): (20, int_range(1, 50)),
+    # CR-VENDORQ-294 (docs/changes/CR-VENDORQ-294-DESIGN.md): a module's report to an EXTERNAL contact through the message queue
+    # (contact_reports.py, outbox purpose `report`) - OFF by default; and the documents those reports may carry by a temporary link
+    # (out_documents.py) - OFF by default, at most 7 days and 20 downloads whatever is stored. A Fable review of the public document route
+    # is required before `documents` is switched on in a release.
+    ("reports", "to_contacts"): (False, boolean),
+    ("reports", "documents"): (False, boolean),
+    # VENDORQ2-295: e-mail as the second delivery channel of a report (same queue, same send hours, same link rules) - OFF by default;
+    # it also needs the installation's SMTP and an address on the contact
+    ("reports", "email"): (False, boolean),
+    ("reports", "document_hours"): (72, int_range(1, 168)),
+    ("reports", "document_max_opens"): (5, int_range(1, 20)),
 }
 
 

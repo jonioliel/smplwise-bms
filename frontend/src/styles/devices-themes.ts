@@ -233,7 +233,7 @@ export const devicesThemes = css`
     --dv-font: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', 'Noto Sans Hebrew', 'Heebo', Roboto, Arial, sans-serif;
     --dv-text: #1c1c1e;
     --dv-text-2: #4c4c50;
-    --dv-text-3: #6e6e73;
+    --dv-text-3: #67676c;
     /* DU1 (2026-10-09): the default palette's interaction and state colours are the PRODUCT's (the skin's accent, toggle and
        state colours, light or dark), read through the never-bridged --sw-product-* aliases (design/tokens.ts). One accent and
        one toggle colour per skin on every screen; the mockup's iOS values live on in the sand / forest / graphite palettes'
@@ -314,7 +314,7 @@ export const devicesThemes = css`
     --dv-overlay: rgba(0, 0, 0, 0.55);
     --dv-text: #f5f5f7;
     --dv-text-2: rgba(235, 235, 245, 0.72);
-    --dv-text-3: rgba(235, 235, 245, 0.56);
+    --dv-text-3: rgba(235, 235, 245, 0.64);
     /* the accent and state knobs stay on the --sw-product-* aliases of the light block: the product's dark values apply when
        the product is dark; with devices.scheme=dark under a light product the light accent reads on the dark glass */
     --dv-neutral-soft: rgba(142, 142, 147, 0.2);

@@ -22,7 +22,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import device_activity
-from ..services.tickets import access, attachments, create, device_context, model, naming, place, present, service, settings_doc, store
+from ..services.tickets import access, attachments, contacts, create, device_context, model, naming, place, present, service, settings_doc, store
 from ..services.tickets.access import Viewer, text
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
@@ -105,6 +105,7 @@ def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Con
             "all_departments": all_depts,
             "external": access.EXTERNAL in viewer.anywhere,
             "configure": viewer.holds_installation(access.CONFIGURE),
+            "directory": contacts.may_edit_directory(viewer),  # SMALL-294: configure or tickets.directory
             "handlers": any(d["can_handlers"] for d in out),  # CR-DEPT-MANAGER-HANDLERS
             # VPORTALRFQ: the vendors' technician requests card (directory editors, or holders of tickets.technician_requests)
             "technician_requests": viewer.holds_installation(access.CONFIGURE) or viewer.holds_installation(access.TECH_REQUESTS),
@@ -337,6 +338,7 @@ class AssignBody(BaseModel):
     send_now: bool = False  # slice 5b (D29): release the message outside the send hours
     cost_claim: Literal["required", "optional", "off"] | None = None  # slice 9 (D32): an outside contact only; None = the preselection
     location_nav: bool = False  # CR-ORG-LOCATIONS: add the map link to the outgoing message (default off; an outside contact with a located request only)
+    access_needed: bool = False  # GRANTS3-295: "access needed" - the vendor's page offers the arrival step (an outside contact only)
     revision: int = Field(ge=1)
 
 
@@ -350,10 +352,13 @@ def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., p
 
         external.assign_contact(conn, viewer, seen, body.assignee.id, note=body.note, note_external=body.note_external,
                                 require_code=body.require_code, share_history=body.share_history, send_now=body.send_now,
-                                revision=body.revision, rid=_rid(request), cost_claim=body.cost_claim, location_nav=body.location_nav)
+                                revision=body.revision, rid=_rid(request), cost_claim=body.cost_claim, location_nav=body.location_nav,
+                                access_needed=body.access_needed)
     else:
         if body.location_nav and seen.manager:  # the switch exists for an outside contact's message only: refused, not ignored
             raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "location_nav", "code": "not_allowed"}]})
+        if body.access_needed and seen.manager:  # GRANTS3-295: likewise - an outside contact's assignment only
+            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "access_needed", "code": "not_allowed"}]})
         service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
     return _detail(conn, viewer, ticket_id)
 

@@ -193,7 +193,7 @@ export function rfqVendorFileUrl(ticketId: string, fileId: string): string {
 export type DetailTab = 'overview' | 'conv' | 'costs' | 'history';
 export type DrawerSizeSetting = 'drawer' | 'wide' | 'full';
 export type PhoneSheetSetting = 'full' | 'half';
-export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode; detail_tab?: DetailTab; drawer_size?: DrawerSizeSetting; phone_sheet?: PhoneSheetSetting; /* HANDLERLOAD */ handled_days?: 1 | 7 | 30;
+export interface UiSettings { detail: DetailMode; new_ticket: NewTicketMode; detail_tab?: DetailTab; drawer_size?: DrawerSizeSetting; phone_sheet?: PhoneSheetSetting; /* HANDLERLOAD */ handled_days?: 1 | 7 | 30; /* CR-CAMVF-295 (default off) */ camera_viewfinder?: boolean;
   /* MGRDASH (read through tickets/overview-model.ts overviewSettingsOf) */ dash_handler_numbers?: string; dash_vendors?: string; dash_busy?: number; dash_busy_departments?: Record<string, number>; dash_compare?: string;
   /* MGRDASH phase 5: the alerts' values */ dash_digest_hour?: number; dash_dept_stuck?: number }
 export type NameEntries = Record<TicketLang, TicketName>;
@@ -222,6 +222,8 @@ export interface MetaDepartment {
 export interface Meta {
   departments: MetaDepartment[];
   can: { view: boolean; create: boolean; manage: boolean; all_departments: boolean; external: boolean; configure: boolean; handlers?: boolean;
+    /** SMALL-294: may edit the contact / vendor directory (tickets.configure or tickets.directory; an older server: absent) */
+    directory?: boolean;
     /** VPORTALRFQ: may see / decide the vendors' technician requests (tickets.configure or tickets.technician_requests) */
     technician_requests?: boolean };
 }
@@ -392,9 +394,12 @@ export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDur
     /** 2.9.1: per department / "*" digest time, recipients and channel override; the urgent rule and its per-SLA-policy override */
     departments?: Record<string, { digest_time?: string; recipients?: { managers: boolean; users: string[]; roles: string[] }; channels?: Partial<Record<'push' | 'email' | 'whatsapp', 'on' | 'off'>> }>;
     urgent_immediate?: boolean; sla_urgent?: Record<string, 'immediate' | 'matrix'> };
+  /** VENDORQ2-295 (CR-VENDORQ-294): reports to external contacts (all switches OFF by default) and the document link's limits */
+  reports?: { to_contacts: boolean; email: boolean; documents: boolean; document_hours: number; document_max_opens: number };
   vendor_portal?: VendorPortalSettings; brand?: { logo: string } /* VPORTAL: the logo's stamp ("" = none), set only by the logo routes */ }
 export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; calendar?: WorkCalendarDoc; urgent_is_critical?: boolean; organization_name?: string; privacy?: { contact?: string; link?: string }; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones?: boolean; review_pending_days?: number; review_idle_months?: number };
-  rfq?: { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; instalment_reminder_hours?: number; vendor_uploads?: Partial<RfqVendorUploadSettings> }; vendor_portal?: Partial<VendorPortalSettings> }
+  rfq?: { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; instalment_reminder_hours?: number; vendor_uploads?: Partial<RfqVendorUploadSettings> }; vendor_portal?: Partial<VendorPortalSettings>;
+  reports?: Partial<{ to_contacts: boolean; email: boolean; documents: boolean; document_hours: number; document_max_opens: number }> }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;

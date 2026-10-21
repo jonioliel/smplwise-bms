@@ -258,7 +258,7 @@ export class DevicesProtectedSwitches extends LitElement {
     const areas = [...new Map(rows.filter((r) => r.area_id && (!f.floor || r.floor_id === f.floor)).map((r) => [r.area_id!, r.area_name ?? r.area_id!])).entries()];
     const selectable = list.filter((r) => !readOnly(r));
     const waiting = suggestedIds(rows).length;
-    const place = (r: ProtectedSwitchRow) => [r.floor_name, r.area_name].filter(Boolean).join(' › ') || 'ללא שיוך';
+    const place = (r: ProtectedSwitchRow) => [r.floor_name, r.area_name].filter(Boolean).join(' ‹ ') || 'ללא שיוך';
     const status = (r: ProtectedSwitchRow) => {
       const s = statusOf(r);
       return html`<span class=${s === 'protected' ? 'yes' : s === 'suggested' ? 'wait' : 'no'} data-status=${s}>${STATUS_TEXT[s]}</span>`;
@@ -301,13 +301,13 @@ export class DevicesProtectedSwitches extends LitElement {
               <thead><tr>
                 <th><span class="muted">בחירה</span></th>
                 <th aria-sort=${f.sort === 'name' ? 'ascending' : 'none'}><button type="button" data-protected-sort="name" @click=${() => this.setFilter({ sort: 'name' })}>שם</button></th>
-                <th aria-sort=${f.sort === 'area' ? 'ascending' : 'none'}><button type="button" data-protected-sort="area" @click=${() => this.setFilter({ sort: 'area' })}>קומה › אזור</button></th>
+                <th aria-sort=${f.sort === 'area' ? 'ascending' : 'none'}><button type="button" data-protected-sort="area" @click=${() => this.setFilter({ sort: 'area' })}>קומה ‹ אזור</button></th>
                 <th>מוגן</th><th>מקור</th><th>אושר</th><th>שונה על ידי</th>
               </tr></thead>
               <tbody>${page.map((r) => html`<tr data-entity=${r.entity_id}><td>${box(r)}</td><td>${bidi(r.name)}<div class="muted">${r.entity_id}</div></td><td>${place(r)}</td><td>${status(r)}</td><td>${source(r)}</td><td>${reviewed(r)}</td><td class="muted">${when(r)}</td></tr>`)}</tbody>
             </table>
             <div class="cards">${page.map((r) => html`<label class="card" data-entity=${r.entity_id}>${box(r)}<span>${bidi(r.name)} · ${status(r)}</span><span class="sub">${place(r)}${r.source ? html` · ${source(r)}` : nothing}</span></label>`)}</div>`
-        : html`<sw-state-panel compact state="empty" heading=${rows.length ? 'אין מתגים שמתאימים לסינון' : 'אין מתגים'} data-protected-empty></sw-state-panel>`}
+        : html`<sw-state-panel icon=${rows.length ? 'filter' : 'power'} compact state="empty" heading=${rows.length ? 'אין מתגים שמתאימים לסינון' : 'אין מתגים'} data-protected-empty></sw-state-panel>`}
       ${list.length > this.shown ? html`<sw-button size="sm" data-protected-more @click=${() => (this.shown += PAGE)}>הצג עוד (${ltrNum(list.length - this.shown)})</sw-button>` : nothing}
       <div class="actions bulk">
         <span data-protected-selected>נבחרו ${ltrNum(this.selected.size)} מתוך ${ltrNum(rows.length)}</span>

@@ -321,3 +321,26 @@ Root cause of "no events" on the owner's install is not proven: the new `events`
 
 **Rollback.** Run the previous version (no migration); or set `restream` to `off` on the recorder (the next stream sync removes Arx's
 Frigate streams by exact name); Frigate itself is never changed.
+
+## 15. FRIGATE-295 - wire shapes checked against Frigate 0.18.2, three more abilities (branch pilot/FRIGATE-295, no migration)
+
+Full detail and the area-by-area matrix: `docs/changes/CR-FRIGATE-CAPABILITY-MATRIX.md`. In short:
+- **Fixed against Frigate's own OpenAPI and source at v0.18.2** (route sets of 0.18.0 / 0.18.1 / 0.18.2 identical): sub-label clear sends `""`
+  (null is a 422) and its read-back waits for the asynchronous update; export delete is `POST /api/exports/delete`; an export is a queued job
+  (202) read back from `/api/jobs/export/{id}`; the profile documents are `{profiles[], active_profile, last_activated}` /
+  `{active_profile}` (before the fix the active profile was never seen). The fake Frigate now answers with these shapes and
+  `test_frigate_wire_0182.py` checks every call Arx sends against the 0.18.2 route list.
+- **New**: runtime switches of one named zone / motion mask / object mask (class `analytics`), an Arx export into / out of a Frigate case
+  (class `exports`, kind `export_assign`) and a case on export creation, the clip of a closed review item of at most an hour.
+- Sections 7 and 10-11 "NOT VERIFIED" lines still stand for the LIVE instance: this phase verified shapes against the published API and
+  source, not by writing to the owner's Frigate (the supervised session was blocked on access, see the task report).
+
+## 16. FRIGLIVE-295 - live validation on the owner's Frigate 0.18.0 (branch pilot/FRIGLIVE-295, no migration)
+
+Full report: `docs/changes/CR-FRIGATE-LIVE-0180-REPORT.md`. Every read path and every write class except profile and PTZ was exercised on the
+owner's instance (one action at a time, original recorded, rolled back, effective config and raw YAML verified identical to the baseline).
+The route list of the live 0.18.0 equals the 0.18.2 list. Five fixes: read-backs bypass Frigate's nginx micro-cache (`X-Cache-Bypass: 1`);
+export rows name the case `export_case`; a clip without recordings is `no_recording`; `config/set` never sends `""` for a key the file lacks
+(that is a 500) and removing the last zone removes the `zones` key; a settings undo removes a key whose old value was only inherited.
+The section 7 line on the WebSocket `reviews` payload is now verified live (one `update` frame, JSON-string payload, parsed by Arx).
+Still NOT VERIFIED live: profile switch (no profiles defined), PTZ, a viewer account, Frigate's restream (its go2rtc lists no streams).

@@ -469,7 +469,8 @@ def test_l6_zone_delete_then_undo_keeps_the_fields_arx_does_not_model(world):
                                                          "filters": {"person": {"min_area": 5000}}, "speed_threshold": 2.5}
     gone = world.call("POST", f"{BASE}/cameras/{cam}/config/zones/porch/delete", json={"confirm": True, "supervised": True})
     assert gone.status_code == 200 and gone.json()["verified"] is True
-    assert "porch" not in world.fake.cameras["cam_front"]["zones"]
+    # FRIGLIVE-295 (F4, measured on Frigate 0.18): removing a camera's last zone removes its `zones` key
+    assert "porch" not in world.fake.cameras["cam_front"].get("zones", {})
     undo = world.call("POST", f"{BASE}/changes/{world.changes()[0]['id']}/revert", json={"confirm": True})
     assert undo.status_code == 200 and undo.json()["verified"] is True
     back = world.fake.cameras["cam_front"]["zones"]["porch"]

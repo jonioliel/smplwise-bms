@@ -3,19 +3,20 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
-import { getPolicies, previewPolicy, putPolicy, resetPolicies, type GenDevice, type PoliciesResponse, type PolicyBodyValue, type PolicyItem, type Severity } from '../api/generator';
+import { getPolicies, previewPolicy, putPolicy, putSettings, putSeverityRouting, resetPolicies, type GenDevice, type PoliciesResponse, type PolicyBodyValue, type PolicyItem, type Severity } from '../api/generator';
 import { listUsers, type DirectoryUser } from '../api/access';
 import { ApiError, describeError } from '../api/client';
 import { he } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
-import { fill, hasRecipients, routeGroups, routingEmpty } from './gen-logic';
+import { effectiveRecipients, fill, hasRecipients, routeGroups, routingEmpty } from './gen-logic';
+import { grt } from '../i18n/generator-routing';
 
 const G = he.generator;
 const S = G.settings;
 const SEVS: Severity[] = ['critical', 'alert', 'info'];
-const DEFAULT_POLICY: PolicyBodyValue = { enabled: true, severity: null, recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, row_version: 0 };
+const DEFAULT_POLICY: PolicyBodyValue = { enabled: true, severity: null, recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, escalate_after_s: 0, row_version: 0 };
 const chLabel = (c: string) => (S.ch as Record<string, string>)[c] ?? c;
 
 /**
@@ -32,6 +33,9 @@ export class GenRouting extends LitElement {
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   @state() private editing: PolicyItem | null = null;
+  @state() private sevEdit: Severity | null = null;
+  @state() private sevDraft: { recipients: { roles: string[]; users: string[] }; channels: string[] } = { recipients: { roles: [], users: [] }, channels: [] };
+  @state() private delay = '5';
   @state() private draft: PolicyBodyValue = { ...DEFAULT_POLICY };
   @state() private text = '';
   @state() private users: DirectoryUser[] = [];
@@ -49,7 +53,8 @@ export class GenRouting extends LitElement {
 
   protected updated(c: Map<string, unknown>) {
     if (c.has('device')) {
-      this.editing = null; // the routing is per generator: never carry an editor, a message or a draft across generators
+      this.editing = null;
+      this.sevEdit = null; // the routing is per generator: never carry an editor, a message or a draft across generators
       this.msg = '';
       this.fail = '';
       this.data = null;
@@ -122,7 +127,7 @@ export class GenRouting extends LitElement {
     this.busy = true;
     this.fail = '';
     const d = this.draft;
-    const body: Record<string, unknown> = { enabled: d.enabled, severity: d.severity ?? i.default_severity, recipients: d.recipients, channels: d.channels, quiet_mode: d.quiet_mode, escalate: d.escalate && hasRecipients(d), after_s: d.after_s, row_version: i.policy?.row_version };
+    const body: Record<string, unknown> = { enabled: d.enabled, severity: d.severity ?? i.default_severity, recipients: d.recipients, channels: d.channels, quiet_mode: d.quiet_mode, escalate: d.escalate, escalate_after_s: d.escalate_after_s, row_version: i.policy?.row_version };
     const t = this.text.trim();
     if (t !== (i.policy?.template_he || i.message).trim()) body.template_he = !t || t === i.message.trim() ? null : t;
     try {
@@ -136,6 +141,39 @@ export class GenRouting extends LitElement {
         await this.load();
       } else if (e instanceof ApiError && e.body.code === 'template_invalid') this.tplError = this.templateMessage(e);
       else this.fail = describeError(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+  private editSeverity(sev: Severity) {
+    const cur = this.data?.severity_defaults?.[sev];
+    this.editing = null;
+    this.sevEdit = sev;
+    this.sevDraft = { recipients: { roles: [...(cur?.recipients.roles ?? [])], users: [...(cur?.recipients.users ?? [])] }, channels: [...(cur?.channels ?? [])] };
+    this.delay = String(this.data?.critical_escalate_after_min ?? 5);
+    this.fail = '';
+  }
+  private async saveSeverity() {
+    const sev = this.sevEdit;
+    if (!sev || !this.data) return;
+    this.busy = true;
+    this.fail = '';
+    try {
+      const cur = this.data.severity_defaults?.[sev];
+      const saved = await putSeverityRouting(this.device.id, sev, { recipients: this.sevDraft.recipients, channels: this.sevDraft.channels, row_version: cur?.row_version });
+      let minutes = this.data.critical_escalate_after_min;
+      if (sev === 'critical') {
+        const m = Math.round(Number(this.delay));
+        if (Number.isFinite(m) && m >= 1 && m <= 1440 && m !== minutes) minutes = (await putSettings({ critical_escalate_after_min: m })).critical_escalate_after_min;
+      }
+      this.data = { ...this.data, severity_defaults: { ...this.data.severity_defaults, [sev]: saved }, critical_escalate_after_min: minutes };
+      this.sevEdit = null;
+      this.msg = grt('saved');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        this.fail = S.conflict;
+        await this.load();
+      } else this.fail = describeError(e);
     } finally {
       this.busy = false;
     }
@@ -154,14 +192,51 @@ export class GenRouting extends LitElement {
     }
   }
 
-  private recChips(p: PolicyItem['policy']) {
-    if (!hasRecipients(p)) return html`<span class="mut">${S.noRec}</span>`;
+  private chips(rec: { roles: string[]; users: string[] }, inherited = false) {
+    if (rec.roles.length === 0 && rec.users.length === 0) return html`<span class="mut">${S.noRec}</span>`;
     const names = new Map(this.users.map((u) => [u.id, u.name || u.username]));
-    return html`<span class="rec">${p!.recipients.roles.map((r) => html`<span>${(S.roleNames as Record<string, string>)[r] ?? r}</span>`)}${p!.recipients.users.map((u) => html`<span class="usr">${names.get(u) ?? u}</span>`)}</span>`;
+    return html`<span class="rec ${inherited ? 'mut' : ''}" title=${inherited ? grt('inheritedFrom') : ''}>${rec.roles.map((r) => html`<span>${(S.roleNames as Record<string, string>)[r] ?? r}</span>`)}${rec.users.map((u) => html`<span class="usr">${names.get(u) ?? u}</span>`)}</span>`;
   }
-  private chIcons(p: PolicyItem['policy']) {
-    const on = new Set(['inbox', ...(p?.channels ?? [])]);
+  private recChips(i: PolicyItem) {
+    const e = effectiveRecipients(i, this.data?.severity_defaults);
+    return this.chips(e, e.inherited);
+  }
+  private chIconsOf(channels: string[]) {
+    const on = new Set(['inbox', ...channels]);
+    return html`<span class="chs">${['inbox', ...(this.data?.severity_channels ?? [])].map((c) => html`<span class="ch ${on.has(c) ? 'on' : ''}" title=${c === 'inbox' ? S.inboxAlways : chLabel(c)}>${c === 'inbox' ? html`<sw-icon name="bell" size="14"></sw-icon>` : chLabel(c)}</span>`)}</span>`;
+  }
+  private chIcons(i: PolicyItem) {
+    const p = i.policy;
+    const dflt = this.data?.severity_defaults?.[p?.severity ?? i.default_severity];
+    const on = new Set(['inbox', ...(p?.channels.length ? p.channels : (dflt?.channels ?? []))]);
     return html`<span class="chs">${['inbox', ...(this.data?.channels ?? [])].map((c) => html`<span class="ch ${on.has(c) ? 'on' : ''}" title=${c === 'inbox' ? S.inboxAlways : chLabel(c)}>${c === 'inbox' ? html`<sw-icon name="bell" size="14"></sw-icon>` : chLabel(c)}</span>`)}</span>`;
+  }
+
+  private severityTable(data: PoliciesResponse) {
+    const dflt = data.severity_defaults ?? { critical: null, alert: null, info: null };
+    const note = (sev: Severity) => (sev === 'critical' ? html`<div class="mut" data-critical-note>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : nothing);
+    return html`<div class="row"><span class="h3">${grt('defaultsTitle')}</span><span class="mut">${grt('defaultsSub')}</span></div>
+      <div class="card flush" data-severity-defaults><div class="scrollx"><table class="t routing"><tbody>${SEVS.map((sev) => html`<tr class="pick" data-severity-row=${sev} @click=${() => this.editSeverity(sev)}>
+        <td><span class="sev ${sev}">${G.alerts.sev[sev]}</span>${note(sev)}</td><td>${this.chips(dflt[sev]?.recipients ?? { roles: [], users: [] })}</td><td>${this.chIconsOf(dflt[sev]?.channels ?? [])}</td></tr>`)}</tbody></table></div></div>`;
+  }
+
+  private sevDrawer() {
+    const sev = this.sevEdit;
+    const data = this.data;
+    const d = this.sevDraft;
+    const chk = (label: string, on: boolean, fn: () => void) => html`<label class="${on ? 'on' : ''}"><input type="checkbox" .checked=${on} @change=${fn} /> ${label}</label>`;
+    const users = this.users.filter((u) => !this.userQ || (u.name || u.username).toLowerCase().includes(this.userQ.toLowerCase()));
+    return html`<sw-drawer modal .open=${!!sev} heading=${sev ? fill(grt('editDefault'), { name: G.alerts.sev[sev] }) : ''} @close=${() => (this.sevEdit = null)} data-drawer="severity">
+      ${sev && data ? html`<div class="drawer-body">
+        <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${data.roles.map((r) => chk(r.label, d.recipients.roles.includes(r.id), () => (this.sevDraft = { ...d, recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, r.id) } })))}</div></div>
+        ${this.users.length ? html`<div class="fld"><label>${S.recUsers}</label>
+          ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
+          <div class="chooser" data-users style="max-block-size:220px;overflow:auto">${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => (this.sevDraft = { ...d, recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
+        <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels><label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>${data.severity_channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => (this.sevDraft = { ...d, channels: this.toggle(d.channels, c) })))}</div></div>
+        ${sev === 'critical' ? html`<div class="fld"><label for="crit-min">${grt('criticalDelay')}</label><input id="crit-min" type="number" min="1" max="1440" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => (this.delay = (e.target as HTMLInputElement).value)} data-critical-delay /><div class="mut" data-critical-note>${grt('criticalNote', { n: this.delay })}</div></div>` : nothing}
+        ${this.fail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
+        <div class="row"><button class="btn pri" ?disabled=${this.busy} @click=${() => this.saveSeverity()} data-save-severity>${S.save}</button><button class="btn" @click=${() => (this.sevEdit = null)}>${S.cancel}</button></div>
+      </div>` : nothing}</sw-drawer>`;
   }
 
   private drawer() {
@@ -170,21 +245,24 @@ export class GenRouting extends LitElement {
     const data = this.data!;
     const ph = data.placeholders ?? {};
     const max = data.template_max ?? 500;
+    const critical = (d.severity ?? i?.default_severity) === 'critical';
+    const eff = i ? effectiveRecipients({ ...i, policy: { ...d, severity: d.severity ?? i.default_severity } }, data.severity_defaults) : { roles: [], users: [], inherited: true };
     const users = this.users.filter((u) => !this.userQ || (u.name || u.username).toLowerCase().includes(this.userQ.toLowerCase()));
     const chk = (label: string, on: boolean, fn: () => void, dis = false, extra = '') => html`<label class="${on ? 'on' : ''} ${dis ? 'dis' : ''}"><input type="checkbox" .checked=${on} ?disabled=${dis} @change=${fn} /> ${label}${extra ? html` <span class="mut">${extra}</span>` : nothing}</label>`;
     return html`<sw-drawer modal .open=${!!i} heading=${i ? fill(S.editTitle, { name: i.title }) : ''} @close=${() => (this.editing = null)} data-drawer="routing">
       ${i ? html`<div class="drawer-body">
         <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${() => this.patch({ enabled: !d.enabled })} data-enabled /> <span>${S.active}</span></label>
         <div class="fld"><label>${S.severity}</label><div class="seg" role="group" data-severity>${SEVS.map((s) => html`<button aria-pressed=${(d.severity ?? i.default_severity) === s} @click=${() => this.patch({ severity: s })}>${G.alerts.sev[s]}</button>`)}</div></div>
-        ${hasRecipients(d) ? nothing : html`<div class="notice warnbox" data-empty-note>${S.routingEmpty}: ${S.routingEmptyShort}</div>`}
+        ${eff.roles.length + eff.users.length > 0 ? nothing : html`<div class="notice warnbox" data-empty-note>${S.routingEmpty}: ${S.routingEmptyShort}</div>`}
+        ${hasRecipients(d) || eff.roles.length + eff.users.length === 0 ? nothing : html`<div class="mut" data-inherited>${grt('inheritedFrom')}: ${this.chips(eff, true)}</div>`}
         <div class="fld"><label>${S.recRoles}</label><div class="chooser" data-roles>${data.roles.map((r) => chk(r.label, d.recipients.roles.includes(r.id), () => this.patch({ recipients: { ...d.recipients, roles: this.toggle(d.recipients.roles, r.id) } })))}</div></div>
         ${this.users.length ? html`<div class="fld"><label>${S.recUsers}</label>
           ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
           <div class="chooser" data-users style="max-block-size:220px;overflow:auto">${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => this.patch({ recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
         <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chk(S.inboxAlways, true, () => undefined, true)}${data.channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => this.patch({ channels: this.toggle(d.channels, c) })))}${data.channels_reserved.map((c) => chk(chLabel(c), false, () => undefined, true, S.soon))}</div></div>
-        <div class="fld"><label>${S.quietHours}</label><div class="seg" role="group" data-quiet>${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => html`<button aria-pressed=${d.quiet_mode === m} @click=${() => this.patch({ quiet_mode: m })}>${S.quietLong[m]}</button>`)}</div></div>
-        <div class="fld"><label>${S.escalate}</label><div class="row"><input type="checkbox" .checked=${d.escalate && hasRecipients(d)} ?disabled=${!hasRecipients(d)} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
-          ${hasRecipients(d) ? html`<input type="number" min="0" style="inline-size:90px" .value=${String(Math.round(d.after_s / 60))} @change=${(e: Event) => this.patch({ after_s: Math.max(0, Number((e.target as HTMLInputElement).value) || 0) * 60 })} /> <span class="mut">${S.escalateAfter}</span>` : html`<span class="mut">${S.escalateOff}</span>`}</div></div>
+        <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<div class="seg" role="group" data-quiet>${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => html`<button aria-pressed=${d.quiet_mode === m} @click=${() => this.patch({ quiet_mode: m })}>${S.quietLong[m]}</button>`)}</div>`}</div>
+        <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><input type="checkbox" .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
+          ${d.escalate ? html`<input type="number" min="1" style="inline-size:90px" .value=${String(Math.round((d.escalate_after_s || data.critical_escalate_after_min * 60) / 60))} @change=${(e: Event) => this.patch({ escalate_after_s: Math.max(1, Number((e.target as HTMLInputElement).value) || 1) * 60 })} data-escalate-min /> <span class="mut">${S.escalateAfter}</span>` : nothing}</div>`}</div>
         <div class="fld"><label for="tpl">${S.message}</label>
           <textarea id="tpl" class="note" dir="rtl" .value=${this.text} maxlength=${max} @input=${(e: Event) => this.tplInput((e.target as HTMLTextAreaElement).value)} data-template></textarea>
           <div class="row mut"><span data-counter>${fill(S.tplCounter, { n: this.text.length, max })}</span><span>${S.tplClip}</span></div>
@@ -209,14 +287,15 @@ export class GenRouting extends LitElement {
       const on = p?.enabled ?? true;
       if (!i.available) return html`<tr class="off na" data-type=${i.key}><td class="c1 c"><input type="checkbox" disabled /></td><td class="b">${i.title}</td><td colspan="5"><span class="chip c-mut nodot">${fill(S.needs, { n: i.needs ?? '' })}</span></td></tr>`;
       return html`<tr class="pick ${on ? '' : 'off'}" data-type=${i.key} @click=${() => this.edit(i)}><td class="c1 c"><input type="checkbox" .checked=${on} aria-label=${S.colOn} @click=${(e: Event) => e.stopPropagation()} @change=${async (e: Event) => { const v = (e.target as HTMLInputElement).checked; try { const saved = await putPolicy(this.device.id, i.key, { enabled: v, row_version: p?.row_version }); this.data = { ...data, items: data.items.map((x) => (x.key === i.key ? { ...x, policy: saved } : x)) }; } catch (er) { this.fail = describeError(er); await this.load(); } }} /></td>
-        <td class="b">${i.title}</td><td><span class="sev ${p?.severity ?? i.default_severity}">${G.alerts.sev[p?.severity ?? i.default_severity]}</span></td><td>${this.recChips(p)}</td><td>${this.chIcons(p)}</td>
-        <td class="c"><span class="mut">${S.quiet[p?.quiet_mode ?? 'matrix']}</span></td><td class="c">${p?.escalate ? html`<span class="chip c-ok nodot">v</span>` : html`<span class="mut">-</span>`}</td></tr>`;
+        <td class="b">${i.title}</td><td><span class="sev ${p?.severity ?? i.default_severity}">${G.alerts.sev[p?.severity ?? i.default_severity]}</span></td><td>${this.recChips(i)}</td><td>${this.chIcons(i)}</td>
+        <td class="c"><span class="mut">${S.quiet[p?.quiet_mode ?? 'matrix']}</span></td><td class="c">${(p?.severity ?? i.default_severity) === 'critical' ? html`<span class="chip c-ok nodot" title=${grt('criticalNote', { n: data.critical_escalate_after_min })}>${grt('always')}</span>` : p?.escalate ? html`<span class="chip c-ok nodot">v</span>` : html`<span class="mut">-</span>`}</td></tr>`;
     };
     const phoneRow = (i: PolicyItem) => !i.available
       ? html`<div class="li dis"><div class="grow"><div class="t1">${i.title}</div><div class="t2">${fill(S.needs, { n: i.needs ?? '' })}</div></div></div>`
-      : html`<button class="li" data-type=${i.key} @click=${() => this.edit(i)}><div class="grow"><div class="t1">${i.title}</div><div class="t2">${this.recChips(i.policy)}</div><div style="margin-block-start:6px">${this.chIcons(i.policy)}</div></div><span class="sev ${i.policy?.severity ?? i.default_severity}">${G.alerts.sev[i.policy?.severity ?? i.default_severity]}</span></button>`;
+      : html`<button class="li" data-type=${i.key} @click=${() => this.edit(i)}><div class="grow"><div class="t1">${i.title}</div><div class="t2">${this.recChips(i)}</div><div style="margin-block-start:6px">${this.chIcons(i)}</div></div><span class="sev ${i.policy?.severity ?? i.default_severity}">${G.alerts.sev[i.policy?.severity ?? i.default_severity]}</span></button>`;
     return html`<div class="col" data-gen-routing>
-      ${routingEmpty(data.items) ? html`<div class="notice warnbox" data-routing-empty role="status"><sw-icon name="info" size="18"></sw-icon><span><b>${S.routingEmpty}.</b> ${S.routingEmptyBody}</span></div>` : nothing}
+      ${routingEmpty(data.items, data.severity_defaults) ? html`<div class="notice warnbox" data-routing-empty role="status"><sw-icon name="info" size="18"></sw-icon><span><b>${grt('emptyTitle')}.</b> ${grt('emptyCritical', { n: data.critical_escalate_after_min })}</span></div>` : nothing}
+      ${this.severityTable(data)}
       <div class="notice"><sw-icon name="info" size="18"></sw-icon><span>${S.routingNote}</span></div>
       <div class="row"><span class="h3">${S.subs.routing}</span><span class="mut">${fill(S.activeCount, { n: active })}${data.total - data.available ? ` · ${fill(S.noSensor, { n: data.total - data.available })}` : ''}</span><div class="sp"></div>
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></div>
@@ -225,7 +304,7 @@ export class GenRouting extends LitElement {
       <div class="list only-phone" style="flex-direction:column">${groups.map((g) => html`<div class="h3">${g.title}</div>${g.items.filter(match).map(phoneRow)}`)}</div>
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}${!this.editing && this.fail ? html`<div class="bad" role="alert">${this.fail}</div>` : nothing}
       <div class="row"><button class="btn" ?disabled=${this.busy} @click=${() => this.reset()} data-reset>${S.reset}</button></div>
-      ${this.drawer()}
+      ${this.drawer()}${this.sevDrawer()}
     </div>`;
   }
 }

@@ -25,6 +25,7 @@ import { elecCss } from '../electricity/styles';
 import { genCss } from '../generator/gen-styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { srHeading, srHeadingCss } from '../components/sr-heading';
 
 const G = he.generator;
 const PAGES = ['live', 'alerts', 'charts', 'history'] as const;
@@ -56,7 +57,7 @@ export class InfraGenerator extends LitElement {
   /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
   private pagesChip: PairChip | null = null;
 
-  static styles = [elecCss, genCss, css`
+  static styles = [elecCss, genCss, srHeadingCss, css`
     :host { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
     .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .body { min-inline-size: 0; }
@@ -148,7 +149,12 @@ export class InfraGenerator extends LitElement {
       <div class="card"><div class="hd"><span class="h3">${G.notFound.howTitle}</span></div><dl class="kv">${G.notFound.how.map((t, i) => html`<dt>${i + 1}</dt><dd>${t}</dd>`)}</dl></div>`;
   }
 
+  /** UXFIX-NAV-295: one h1 on every state of the page (visually hidden; the navigation label names the page). */
   render() {
+    return html`${srHeading(G.tab)}${this.renderPage()}`;
+  }
+
+  private renderPage() {
     this.pagesChip = null;
     const l1 =isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;

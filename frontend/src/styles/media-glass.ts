@@ -46,8 +46,8 @@ export const mediaGlassKnobs = css`
     --mm-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 46%);
     --mm-accent-glow: rgba(0, 122, 255, 0.3);
     --mm-text-inverse: #ffffff;
-    --mm-fs-page-title: 44px;
-    --mm-fs-page-title-compact: 24px;
+    --mm-fs-page-title: var(--sw-h1);
+    --mm-fs-page-title-compact: var(--sw-fs-2xl);
     --mm-art-glow-blur: 46px;
     --mm-art-glow-alpha: 0.5;
     --mm-art-halo-alpha: 0.2;
@@ -100,8 +100,8 @@ export const mediaGlassKnobs = css`
   }
   @media (max-width: 767px) {
     :host([data-devices-style='glass']) {
-      --mm-fs-page-title: 32px;
-      --mm-fs-page-title-compact: 20px;
+      --mm-fs-page-title: var(--sw-h1-phone);
+      --mm-fs-page-title-compact: var(--sw-fs-lg);
       --mm-dpad-size: 196px;
       --mm-rocker-w: 56px;
       --mm-key-size: 50px;
@@ -769,6 +769,7 @@ export const mediaGlassControls = css`
     .seg button,
     .seg.sm button {
       min-block-size: 44px;
+      min-inline-size: 44px; /* UXFIX-A11Y-295: the icon-only view switch was 37 px wide */
     }
     .rb {
       inline-size: 44px;

@@ -60,7 +60,7 @@ const he = {
   // settings tab
   tab: 'משתמשי Arx',
   tabSub: 'אנשים שקיימים רק ב־Arx (עובדים, צוות ספקים) - ללא חשבון ב־Home Assistant. נכנסים בגישה מרחוק בלבד, עם תפקיד אחד בהיקף אחד.',
-  off: 'משתמשי Arx כבויים. מנהל מערכת מפעיל אותם בהגדרות › אבטחה (security.local_identity).',
+  off: 'משתמשי Arx כבויים. מנהל מערכת מפעיל אותם בהגדרות ‹ אבטחה (security.local_identity).',
   add: 'משתמש Arx חדש',
   colName: 'שם',
   colUsername: 'שם משתמש',
@@ -91,7 +91,7 @@ const he = {
   blocked_no_verified_number: 'איפוס עצמי לא יעבוד עדיין: למשתמש אין מספר וואטסאפ מאומת. הוא מאשר את המספר בעצמו ב״החשבון שלי״.',
   waVerified: 'וואטסאפ מאומת: {masked}',
   waNone: 'אין מספר וואטסאפ מאומת',
-  waChannelOff: 'ערוץ הוואטסאפ לא מוגדר: בחר חשבון לשימוש ״איפוס סיסמה וקישורי כניסה של משתמשי Arx״ בהגדרות › ערוץ ההודעות.',
+  waChannelOff: 'ערוץ הוואטסאפ לא מוגדר: בחר חשבון לשימוש ״איפוס סיסמה וקישורי כניסה של משתמשי Arx״ בהגדרות ‹ ערוץ ההודעות.',
   waAdminNote: 'קישורים של משתמש עם הרשאות ניהול לא נשלחים בוואטסאפ - רק מוצגים בכניסה מקומית.',
   issueFirstWa: 'קישור כניסה ראשונה בוואטסאפ',
   issueResetWa: 'קישור איפוס בוואטסאפ',
@@ -149,6 +149,8 @@ const he = {
   siExtendedOff: 'מצב מורחב (פתיחת דלתות, עקיפת אזורים, סקריפטים וסצנות, הרצה ממסך האוטומציות, מצלמות בזרם חי) כבוי. הפעלתו דורשת סקירת אבטחה, מנהל מערכת בכניסה מקומית (security.local_identity_extended) וגם הפעלה ברכיב החיבור.',
   // SVCIDENT3 (review S4): WisKey doors follow the add-on switch alone; (S1 a) the runnable allowlist
   siDoorsAddonOnly: 'שימו לב: דלתות WisKey נפתחות דרך מערכת הדלתות ולא דרך רכיב החיבור, ולכן הן תלויות במתג המצב המורחב של Arx בלבד. מנעולים של תשתית המערכת דורשים את שני המתגים.',
+  // EXTID-295 (CR-USR2 12.3 item 3, risk R5): the entity-policy fence protects only when the service user is restricted
+  siPolicyRisk: 'סיכון שנותר: רכיב החיבור בודק שמשתמש השירות רשאי לשלוט בכל התקן שמשתמש Arx פונה אליו, אבל הבדיקה מגינה רק אם מנהל ב-Home Assistant הגביל את משתמש השירות לקבוצה שמונה רק את ההתקנים המותרים. משתמש רגיל בלי קבוצה כזו רשאי לשלוט בכל התקן.',
   siRunTitle: 'סקריפטים, סצנות ואוטומציות שמשתמשי Arx רשאים להריץ',
   siRunSub: 'ריק כברירת מחדל - שום דבר לא רץ. רק במצב המורחב, ורק פריט שמופיע כאן וגם ברשימה של רכיב החיבור. רכיב החיבור בודק גם את הצעדים של הפריט ודוחה פריט שפותח מנעול, מנטרל, דורך עם עקיפה או קורא לשירות מחוץ לשליטה הרגילה בהתקנים.',
   siRunLabel: 'מזהי ישויות, מופרדים בפסיקים (script.x, scene.x, automation.x)',
@@ -286,6 +288,7 @@ const en: Partial<Record<Key, string>> = {
   siExtendedOn: 'Extended mode is on: Arx users may also open doors, bypass alarm zones, run scripts and scenes, run automations, scripts and scenes from the automations screen and show live cameras - each only under their own Arx permission. Writing automations, enabling / disabling them and assigning a device to an area stay refused. A security review is required before enabling it.',
   siExtendedOff: "Extended mode (doors, zone bypass, scripts and scenes, running from the automations screen, live cameras) is off. Turning it on needs a security review, a system administrator on the local channel (security.local_identity_extended) and the bridge's own switch.",
   siDoorsAddonOnly: 'Note: WisKey doors are opened by the door system, not through the bridge, so they follow the Arx extended-mode switch alone. Infrastructure locks need both switches.',
+  siPolicyRisk: 'Residual risk: the bridge checks that the service user may control every device an Arx user targets, but that protects only when a Home Assistant administrator restricted the service user to a group that names only the allowed devices. A regular user without such a group may control every device.',
   siRunTitle: 'Scripts, scenes and automations Arx users may run',
   siRunSub: 'Empty by default - nothing runs. Only in the extended mode, and only an item listed here AND in the bridge list. The bridge also checks the steps of the item and refuses one that opens a lock, disarms, arms with bypass or calls a service outside the everyday device controls.',
   siRunLabel: 'Entity ids, separated by commas (script.x, scene.x, automation.x)',

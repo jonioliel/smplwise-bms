@@ -8,6 +8,17 @@ import {
   SECURITY_SECTIONS,
   TAB_SECTIONS,
   applyTabsConfig,
+  applyAlarmPresent,
+  applyExternalPlacement,
+  applyInfraElevators,
+  applyInfraGenerator,
+  applyInfraMeters,
+  applyInfraTemperature,
+  applyNvrLess,
+  applyRfqQuestions,
+  applySchedulesHidden,
+  applyAutomationsHidden,
+  applyTicketsHidden,
   areaRowSection,
   configureTabs,
   normalizeTabStyles,
@@ -37,6 +48,25 @@ function route(path: string): RouteState {
   const segments = p.split('/').filter(Boolean);
   return { path: p, segments, params: new URLSearchParams(q ?? ''), mode: segments[0] as RouteState['mode'] };
 }
+
+// nav.ts keeps the installation's switches as module state and Playwright reuses a worker for the next spec file, so any spec that turns one
+// on and does not put it back changes what the assertions below see (the rail, the security sections, securityTarget). Root cause of the
+// intermittent unit-tabs-config failure: the outcome depended on which spec ran before this one in the same worker. Start every test from
+// the built-in defaults of EVERY switch the shell's navigation reads, instead of trusting the neighbours to clean up.
+test.beforeEach(() => {
+  applyTicketsHidden(null); // the rail test asserts the module-off default
+  applyRfqQuestions(0);
+  applyExternalPlacement(null);
+  applyInfraGenerator(false);
+  applyInfraElevators(false);
+  applyInfraTemperature(false);
+  applyInfraMeters(true);
+  applyNvrLess(false);
+  applyAlarmPresent(null);
+  applySchedulesHidden(null);
+  applyAutomationsHidden(null);
+  applyTabsConfig({});
+});
 
 test.afterEach(() => {
   applyTabsConfig({}); // the config is module state: every test starts from the built-in tabs

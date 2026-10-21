@@ -187,6 +187,8 @@ def test_r4_04_station_application_is_reported_beside_the_central_proof_never_as
     p = age.person_from_raw(raw)
     assert p.doors_known is True and p.stations_synced is False
     raw["assignments"]["st-a"].update(applied_revision=4, sync_state="synced")
+    assert age.person_from_raw(raw).stations_synced is None, "R11-I2-01: no valid last_sync_at is UNKNOWN, never synced"
+    raw["assignments"]["st-a"].update(last_sync_at="2026-10-20T06:00:00+00:00")
     assert age.person_from_raw(raw).stations_synced is True
     assert age.person_from_raw({**raw, "redacted_fields": ["access"]}).stations_synced is None
 

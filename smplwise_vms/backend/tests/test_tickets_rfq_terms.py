@@ -429,6 +429,10 @@ def test_the_reminder_uses_the_existing_purpose_and_stops_after_two(s4):
         assert rfq_terms.tick(conn, now + dt.timedelta(hours=50)) == 1
         assert rfq_terms.tick(conn, now + dt.timedelta(hours=100)) == 0  # at most two
         purposes = [r[0] for r in conn.execute("SELECT purpose FROM ticket_outbox WHERE rfq_id = ? ORDER BY created_at", (d["id"],))]
+        # CR-VENDORQ-294 (D21 closed by the 0128 rebuild): the reminder lines are stored with the `system` author kind
+        authors = [(r[0], r[1]) for r in conn.execute("SELECT author_kind, author_id FROM ticket_rfq_messages WHERE rfq_vendor_id = ? AND source_kind = 'award' "
+                                                      "AND author_id = 'system'", (v1,))]
+    assert authors == [("system", "system"), ("system", "system")]
     assert purposes.count("rfq_update") == 3 and set(purposes) <= {"rfq_invite", "rfq_update"}  # the award notice + two reminders
     v = view(c, tok)
     assert sum(1 for m in v["messages"] if not m["mine"]) == 3
@@ -707,9 +711,15 @@ def test_the_reminder_message_has_a_distinct_system_author(s4):
     with s4.db.connection() as conn:
         at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
         sysm = store_rfq.insert_message(conn, {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "body": "reminder",
-                                               "author_kind": "user", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})
+                                               "author_kind": "system", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})
         shown = rfq.present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v1) if m["id"] == sysm))
+        # a line written in the pre-0128 shape (a database restored from backup and then upgraded is rewritten by 0128; this covers the
+        # code reading such a line before the migration ran) is still the system's own
+        legacy = store_rfq.insert_message(conn, {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "body": "old reminder",
+                                                 "author_kind": "user", "author_id": "system", "source_kind": "award", "source_id": None, "created_at": at})
+        old = rfq.present_message(conn, next(m for m in store_rfq.messages_of_vendor(conn, v1) if m["id"] == legacy))
     assert shown["system"] is True and shown["by"] == "מערכת"
+    assert old["system"] is True and old["by"] == "מערכת"
 
 
 def test_the_vendor_page_marks_the_system_message_without_naming_an_author(s4):
@@ -722,7 +732,7 @@ def test_the_vendor_page_marks_the_system_message_without_naming_an_author(s4):
     with s4.db.connection() as conn:
         at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
         base = {"rfq_id": d["id"], "rfq_vendor_id": v1, "direction": "out", "source_kind": "award", "source_id": None, "created_at": at}
-        store_rfq.insert_message(conn, {**base, "body": "reminder", "author_kind": "user", "author_id": "system"})
+        store_rfq.insert_message(conn, {**base, "body": "reminder", "author_kind": "system", "author_id": "system"})
         store_rfq.insert_message(conn, {**base, "body": "from a person", "author_kind": "user", "author_id": "mona"})
         shown = rfq_vendor.present_messages(conn, {"id": v1})
     by_text = {m["text"]: m for m in shown}

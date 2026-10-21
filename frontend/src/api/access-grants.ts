@@ -2,7 +2,7 @@
  * SHAREDID-293: the typed calls of the external-access screen (routers/access_grants.py). The server decides every permission and
  * filters every list; nothing here grants anything. The entry code never appears in any answer (only its delivery state).
  */
-import { get, post, put, del } from './client';
+import { ApiError, apiUrl, get, post, put, del } from './client';
 
 export type GrantState = 'requested' | 'approved' | 'provisioning' | 'active' | 'revoking' | 'ended' | 'revoked' | 'refused' | 'failed' | 'unknown';
 export type CodeState = 'not_needed' | 'pending' | 'queued' | 'sent' | 'not_delivered' | 'unknown';
@@ -80,6 +80,20 @@ export interface Grant {
   purpose?: string | null;
   notes?: string | null;
   self_requested?: boolean;
+  /** GRANTS3-295 (X5): the card of a card grant (never a number, not even masked); null for a PIN grant or below the sensitive level */
+  card_state?: CardState | null;
+}
+
+export type CardState = 'awaiting' | 'adding' | 'attached' | 'unknown' | 'removed';
+
+/** GRANTS3-295: one row of the owner's per-grant history (ids, states and closed codes only). */
+export interface HistoryRow {
+  at: string;
+  action: string;
+  decision: 'allowed' | 'denied' | string;
+  reason: string | null;
+  by: { kind: 'user' | 'page' | 'system'; name: string | null };
+  facts: Record<string, unknown>;
 }
 
 export interface GrantRules {
@@ -90,6 +104,9 @@ export interface GrantRules {
   phone_fresh_days: number;
   code_hour: number;
   local_approvers: 'on' | 'off';
+  /** GRANTS3-295 (X5): card grants and card capture (capture stays off until the lease route is released) */
+  cards?: 'on' | 'off';
+  card_capture?: 'on' | 'off';
 }
 
 export type Placement = 'access' | 'tickets' | 'both';
@@ -112,6 +129,14 @@ export interface GrantsReply {
   system_admin: boolean;
   /** ACCESSREQ-293: the caller may open the manual request form */
   may_request?: boolean;
+  /** SHAREDUI-295: the served WisKey copy - when it was read and whether WisKey answers now (absent from an older server: unknown) */
+  wiskey?: WiskeyFreshness;
+}
+
+export interface WiskeyFreshness {
+  as_of: string | null;
+  reachable: boolean;
+  has_copy: boolean;
 }
 
 export interface DigestGap {
@@ -142,6 +167,31 @@ export interface Digest {
   gaps: DigestGap[];
 }
 
+/** GRANTSMIN-295: one kind of difference between Arx and WisKey (most urgent first, the server's order). */
+export type DriftKind = 'missing' | 'scope' | 'unknown' | 'sync_pending' | 'name' | 'unverified' | 'idle_person';
+
+export interface DriftRow {
+  link_id: string;
+  contact_id: string;
+  subject_kind: 'contact' | 'user';
+  name: string | null;
+  company: string | null;
+  origin: 'created_from_arx' | 'matched';
+  link_state: 'linked' | 'wiskey_missing';
+  grant: { id: string; state: GrantState; doors: { station_id: string; name: string }[] } | null;
+  diffs: { kind: DriftKind; grant_id?: string | null; since?: string | null }[];
+  name_checked_at: string | null;
+  scope_checked_at: string | null;
+  can: { push_name: boolean; read_now: boolean };
+}
+
+export interface Drift {
+  enabled: boolean;
+  name_sync: NameSync;
+  rows: DriftRow[];
+  in_sync: number;
+}
+
 export interface Identity {
   contact_id: string;
   link: (GrantLink & { linked_at: string; name_drift: boolean }) | null;
@@ -158,6 +208,28 @@ export const listGrants = (all = true) => get<GrantsReply>(`access-grants${all ?
 export const getGrant = (id: string) => get<{ grant: Grant }>(`access-grants/${enc(id)}`);
 export const getDigest = () => get<{ digest: Digest }>('access-grants/digest');
 export const getIdentity = (contactId: string) => get<{ identity: Identity }>(`access-grants/contacts/${enc(contactId)}/identity`);
+export const getDrift = () => get<{ drift: Drift }>('access-grants/drift');
+/** GRANTS3-295: the owner's per-grant history (system administrators). */
+export const getHistory = (id: string) => get<{ history: HistoryRow[] }>(`access-grants/${enc(id)}/history`);
+/** GRANTS3-295 (X5): write the card of an active card grant (the number goes to WisKey only; never kept here after the call). */
+export const attachCard = (id: string, revision: number, cardNo: string) => post<{ grant: Grant }>(`access-grants/${enc(id)}/card`, { revision, card_no: cardNo });
+
+/** GRANTSMIN-295: the grants the caller may see as a CSV file (the server filters the rows and the numbers; one a minute). */
+export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Promise<{ blob: Blob; rows: number; filename: string }> {
+  const q = new URLSearchParams({ lang, ...(liveOnly ? { live: 'true' } : {}) });
+  const res = await fetch(apiUrl(`access-grants/export.csv?${q}`), { credentials: 'same-origin' });
+  if (!res.ok) {
+    let body: Partial<ApiError['body']> = {};
+    try {
+      body = (await res.json()) as typeof body;
+    } catch {
+      body = {};
+    }
+    throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: body.retryable ?? false, correlation_id: body.correlation_id ?? '', details: body.details ?? {} });
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'external-access.csv';
+  return { blob: await res.blob(), rows: Number(res.headers.get('X-Export-Rows') ?? 0), filename: name };
+}
 export const getScreenSettings = () => get<GrantRules & ScreenSettings>('access-grants/settings');
 export const putScreenSettings = (body: Partial<ScreenSettings>) => put<GrantRules & ScreenSettings>('access-grants/settings', body);
 
@@ -173,6 +245,41 @@ export const attachRecovered = (id: string, body: { op_id: string; wiskey_person
   post<{ link: GrantLink; grant: Grant | null }>(`access-grants/${enc(id)}/attach-recovered`, body);
 export const revokeAll = (confirm: string) => post<{ revoked: number }>('access-grants/revoke-all', { confirm });
 export const acceptContact = (contactId: string) => post<unknown>(`access-grants/pending-contacts/${enc(contactId)}/accept`);
+
+// ---------------------------------------------------------------- SECFIX2-295 (owner 2026-10-21): undecided vendor-typed technicians
+
+export interface PendingRow {
+  contact_id: string;
+  name: string;
+  vendor: string;
+  /** only while the tickets module is on (else null) */
+  ticket_number: number | null;
+  since: string;
+  days: number;
+  /** null while retention is off */
+  days_left: number | null;
+}
+
+export interface PendingReply {
+  pending: PendingRow[];
+  retention_days: number;
+  max_per_vendor: number;
+  tickets_on: boolean;
+}
+
+/** GET access-grants/pending-contacts - 403 for anyone who may not decide (the caller then shows nothing). */
+export const listPendingContacts = () => get<PendingReply>('access-grants/pending-contacts');
+/** The existing "reject and delete" (access_grants.reject_pending_contact). */
+export const rejectPendingContact = (contactId: string) =>
+  post<{ contact_id: string; rejected: boolean; deleted: boolean }>(`access-grants/pending-contacts/${enc(contactId)}/reject`);
+
+/** PUB-03 retention and cap (system administrators): GET / PUT access-grants/settings carry them next to the rules. */
+export interface PendingPolicy {
+  pending_retention_days: number;
+  pending_max_per_vendor: number;
+}
+export const getPendingPolicy = () => get<GrantRules & ScreenSettings & PendingPolicy>('access-grants/settings');
+export const putPendingPolicy = (body: Partial<PendingPolicy>) => put<GrantRules & ScreenSettings & PendingPolicy>('access-grants/settings', body);
 export const matchLink = (contactId: string, wiskeyPersonId: string) => post<{ link: GrantLink }>('access-grants/links', { contact_id: contactId, wiskey_person_id: wiskeyPersonId });
 export const unlinkPerson = (linkId: string) => api_del(`access-grants/links/${enc(linkId)}`);
 export const deletePersonNow = (linkId: string, confirm: string) => post<{ outcome: string; pending: boolean }>(`access-grants/links/${enc(linkId)}/delete-person`, { confirm });
@@ -239,7 +346,7 @@ export interface RequestBody {
   valid_from: string;
   valid_until: string;
   timing: Timing | null;
-  credential: 'pin' | 'none';
+  credential: 'pin' | 'none' | 'card';
   purpose?: string | null;
   notes?: string | null;
   told: boolean;
@@ -254,7 +361,7 @@ export interface RequestReply {
 }
 
 export const grantableDoors = (ticketId?: string | null) => get<GrantableDoors>(`access-grants/grantable-doors${ticketId ? `?ticket_id=${enc(ticketId)}` : ''}`);
-export const listApprovers = (stations: string[], credential: 'pin' | 'none') =>
+export const listApprovers = (stations: string[], credential: 'pin' | 'none' | 'card') =>
   get<ApproversReply>(`access-grants/approvers?stations=${enc(stations.join(','))}&credential=${credential}`);
 export const getNotice = (lang: string) => get<NoticeReply>(`access-grants/notice?lang=${enc(lang)}`);
 export const requestGrant = (body: RequestBody) => post<RequestReply>('access-grants', body);

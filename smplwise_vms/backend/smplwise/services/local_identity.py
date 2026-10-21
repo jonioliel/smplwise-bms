@@ -1157,6 +1157,9 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
                                WHERE u.source = 'local' AND lower(u.username) = ? AND u.deleted_at IS NULL""", (uname,)).fetchone() if uname else None
         mode = lock_mode(conn)
         ctx = _context_words(conn, user) if user is not None else []
+        from . import local_passkeys as _lpk
+
+        passkey_only = user is not None and _lpk.only_effective(conn, user["id"])  # usr2-passkeys-only-mode: the password is refused for this user
     pw_ok_len = isinstance(password, str) and len(lp.normalize(password).encode("utf-8")) <= lp.MAX_BYTES
 
     def fail(tier: str, *, user_id: str | None, sleep_s: float = 0.0, count: bool = True) -> SignInResult:
@@ -1214,7 +1217,10 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
     ok = usable and pw_ok_len and lp.verify(password, user["password_hash"])
     if not (usable and pw_ok_len):  # the same one hash computation as a real check, whatever stopped it
         lp.verify_dummy(password if pw_ok_len else "")
-    if not ok:
+    # FABLEFIX-295 P-01: a correct password for an account in passkeys-only mode is booked exactly like a wrong one (per-network
+    # delay, ceiling count and lock, global tier, manager notices) - otherwise the side effects tell a guesser that the password is
+    # right. The lock touches password sign-in only, which this person does not use; the passkey path is unaffected.
+    if not ok or passkey_only:
         net_failures = TIERS.acct_fail(uname, ip)
         last = float(user["last_failed_at"] or 0.0)
         same_window = bool(last) and int(last // ACCOUNT_CEILING_WINDOW_S) == int(now // ACCOUNT_CEILING_WINDOW_S)
@@ -1231,6 +1237,8 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
             _audit(db, actor=None, action="auth.local.account_delayed", decision="denied", reason="ten_failures", resource_id=uid,
                    details={"failures": net_failures, "ip": masked}, request_id=request_id)
             _notify(db, "security.local_account_delayed", uid)
+        if ok:  # passkeys-only: the same uniform 401 as any failed sign-in; the audit tier stays distinct for the managers
+            return fail("passkey_only", user_id=uid)
         return fail("password" if usable else ("disabled" if not user["active"] else "no_password"), user_id=uid)
     # success
     TIERS.acct_clear(uname, ip)

@@ -40,6 +40,9 @@ Profile id: `hikvision.ds-7616nxi-k2d.v4.84.101`. Each entry states how it was e
 | C2 | IPC reboot via `GET /ISAPI/ContentMgmt/InputProxy/channels/<id>/reboot`; NVR reboot via PUT/POST/GET `/ISAPI/System/reboot`. | code | Sensitive; never executed in tests without explicit approval. |
 | C3 | SMART / bad-sector tests: 4 bodies × PUT/POST/GET; "invalid operation" means unsupported. | code | Same as C2. |
 | C4 | `alertStream` emits `videoloss inactive` noise; legacy drops it. | code | Keep the filter when T031 revives events. |
+| C5 | Privacy mask (V4.84.101): `.../privacyMask/capabilities` answers 403 `notSupport`; the document's own GET is the only shape source. | lab (supervised write, 2026-10-20) | NVRMASK-295 falls back to 4 regions of 4 points in the 704x576 normalized frame. |
+| C6 | Privacy mask: a region's own `<enabled>` reads `false` while the region masks the picture (frame check: black block); only the master `<enabled>` counts. | lab (supervised write, 2026-10-20) | `nvr.parse_privacy_mask` marks a region active when the master is on (fixed in NVRMASK-295; the device flag is kept as `device_enabled`). |
+| C7 | Privacy mask: PUT with fewer (or no) regions MERGES - stored regions stay (inactive) until `DELETE .../privacyMask/regions/<id>`; the read-back after PUT + DELETE was byte-identical to the original. The device also answers the region points in its own order. | lab (supervised write + cleanup, 2026-10-20) | The write and the undo PUT, then DELETE every unwanted region, then verify the semantic state (points compared as a set). |
 
 ## 4. go2rtc 1.9.14 (AlexxIT add-on)
 

@@ -141,7 +141,7 @@ def code_invalid(r) -> None:
 def test_the_portal_is_off_by_default_and_every_portal_route_is_the_uniform_404(env):
     doc = env.c.get(f"{API}/tickets/settings").json()
     assert doc["vendor_portal"] == {"enabled": False, "closed_months": 2, "require_confirmed_number": True,
-                                    "rfqs": False, "technician_requests": False} and doc["brand"] == {"logo": ""}  # + VPORTALRFQ (OFF)
+                                    "rfqs": False, "technician_requests": False, "start_worker": False} and doc["brand"] == {"logo": ""}  # + VPORTALRFQ (OFF), + SECFIX2-295 PUB-04 (OFF)
     assigned(env)
     c, _ = public(env)
     for path in PORTAL:
@@ -410,7 +410,7 @@ def test_f1_the_rule_is_on_by_default_system_configure_audited_and_switchable_fr
     monkeypatch.setattr(tickets_admin, "is_remote", lambda request: True)  # owner 2026-10-17: the portal keys are NOT local-only
     doc = portal_on(env, require_confirmed_number=False)
     assert doc["vendor_portal"] == {"enabled": True, "closed_months": 2, "require_confirmed_number": False, "rfqs": False,
-                                    "technician_requests": False}  # + VPORTALRFQ (OFF)
+                                    "technician_requests": False, "start_worker": False}  # + VPORTALRFQ (OFF), + SECFIX2-295 PUB-04 (OFF)
     with env.s4.db.connection(mode="read") as conn:
         details = [json.loads(x[0]) for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'tickets.settings.update'")]
     assert any("vendor_portal.require_confirmed_number" in d.get("changed", []) for d in details)

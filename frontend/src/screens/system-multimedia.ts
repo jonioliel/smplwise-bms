@@ -430,7 +430,7 @@ export class SystemMultimedia extends LitElement {
           </select>
         </label>
         <span class="f">זיהוי<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
-        <span class="f">מיקום<span>${[d.floor_name, d.area_name].filter(Boolean).join(' › ') || '—'}</span></span>
+        <span class="f">מיקום<span>${[d.floor_name, d.area_name].filter(Boolean).join(' ‹ ') || '—'}</span></span>
         <span class="grow"></span>
       </div>
       <div class="line">

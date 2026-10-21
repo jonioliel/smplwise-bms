@@ -14,6 +14,8 @@ export interface RequestOptions extends ExternalOptions {
   longNames?: boolean;
   /** what POST /access-grants answers for "I approve now" */
   approval?: 'ok' | 'failed';
+  /** SHAREDUI-295: GET /access-grants/grantable-doors fails on the first ask (the form's load error, then a retry that works) */
+  doorsFailOnce?: boolean;
 }
 
 export interface RequestMock extends ExternalMock {
@@ -79,11 +81,12 @@ const NOTICE: Record<string, { text: string; attest: string }> = {
 };
 
 export async function installRequestMock(page: Page, o: RequestOptions = {}): Promise<RequestMock> {
-  const ext = await installExternalMock(page, o);
+  const ext = await installExternalMock(page, { ticketsOn: true, ...o }); // TICKGATE-295: the form's ticket link exists only while the tickets module is on
   const st: RequestMock = { ...ext, requests: [], contactsCreated: [] };
   const admin = o.systemAdmin ?? true;
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   const all = stations(o);
+  let doorsFailed = false;
   await page.route((u) => u.pathname.endsWith('/api/v1/tickets/contacts'), async (route) => {
     if (route.request().method() === 'POST') {
       const body = JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>;
@@ -105,6 +108,10 @@ export async function installRequestMock(page: Page, o: RequestOptions = {}): Pr
     const u = new URL(req.url());
     const p = u.pathname.replace(/^.*\/api\/v1\//, '');
     if (req.method() === 'GET' && p === 'access-grants/grantable-doors') {
+      if (o.doorsFailOnce && !doorsFailed) {
+        doorsFailed = true;
+        return json(route, { code: 'service_unavailable', user_message: 'השרת לא זמין כרגע.', retryable: true, correlation_id: 'mock', details: {} }, 503);
+      }
       const ticket = u.searchParams.get('ticket_id');
       return json(route, {
         stations: all.map((s) => {

@@ -182,7 +182,7 @@ export class ElevatorSettings extends LitElement {
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}
       ${this.fail && !this.draft ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
       ${!this.list.length
-        ? html`<sw-state-panel state="empty" heading=${elt('settingsEmpty')} data-state="empty"></sw-state-panel>`
+        ? html`<sw-state-panel icon="elevator" state="empty" heading=${elt('settingsEmpty')} data-state="empty"></sw-state-panel>`
         : html`<div class="card flush" data-elevator-list>${this.list.map((e, i) => {
             const c = chipOf(e);
             const missing = Object.values(e.sensors).some((s) => s?.missing) || e.extras.some((x) => x.missing);

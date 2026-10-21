@@ -23,8 +23,8 @@ export const rfqStyles = css`
     min-block-size: 22px;
     padding-inline: 8px;
     border-radius: 999px;
-    background: var(--dv-danger);
-    color: var(--sw-on-video); /* white on the danger fill */
+    background: var(--sw-badge-bg);
+    color: var(--sw-badge-fg); /* UXREST-295: readable text on the badge fill in both schemes */
     font-size: var(--sw-fs-xs);
     font-weight: 700;
     white-space: nowrap;
@@ -132,6 +132,18 @@ export const rfqStyles = css`
   .crumbs a {
     color: inherit;
     text-decoration: none;
+  }
+  /* UXFIX-A11Y-295: a 16 px tall text link; the hit area grows to 44 px on touch, the line stays as drawn */
+  @media (pointer: coarse) {
+    .crumbs a {
+      position: relative;
+    }
+    .crumbs a::after {
+      content: '';
+      position: absolute;
+      inset-block: -14px;
+      inset-inline: -4px;
+    }
   }
   .crumbs a:hover {
     text-decoration: underline;

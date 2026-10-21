@@ -149,6 +149,8 @@ export interface TicketView {
   limits?: { note_max: number; reason_max: number; photo_max_bytes: number; photos_left: number };
   /** TKMAP1: the request's map element - the stored text and whether the server can draw its picture (never an id or plan data) */
   map_element?: { name: string; floor: string; room: string; image: boolean } | null;
+  /** GRANTS3-295: the arrival step ("who arrives, when") is available - the page fetches its lazy chunk only then */
+  arrival?: boolean;
 }
 
 export const api = {

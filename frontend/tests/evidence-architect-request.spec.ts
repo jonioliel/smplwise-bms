@@ -88,7 +88,7 @@ test.describe('wizard: the floor step offers the request only while there is no 
     await expect(floor.locator('[data-step-problem="no_plan"]')).toBeVisible();
     const link = floor.locator('[data-architect-request]');
     await expect(link).toHaveCount(1);
-    await expect(link).toHaveText('בקשה לאדריכל ›');
+    await expect(link).toHaveText('בקשה לאדריכל ‹');
     await expect(floor.locator('[data-step-link]')).toBeVisible();
     // only the floor step has it
     await expect(page.locator('system-wizard [data-architect-request]')).toHaveCount(1);

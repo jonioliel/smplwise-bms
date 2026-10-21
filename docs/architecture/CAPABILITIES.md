@@ -9,7 +9,7 @@ Predecessor: `docs/operations/NVR_LESS_MODE.md` (the binary mode this generalise
 |---|---|
 | D1 | Generalise the binary `installation_mode` into a **derived** capability set exposed on `/me`. No migration, no stored flag, no new permission. |
 | D2 | **An NVR without go2rtc is not a supported installation.** The setup wizard never reaches "ready" and says why in operator language (no infrastructure branding). There is no degraded "snapshot grid" mode. |
-| D3 | Without an NVR the investigate area stays hidden. A Home Assistant events list is a **future** option only (not built). |
+| D3 | Without an NVR the investigate area stays hidden, except the **sensor events list** (NVRLESS-295, built): `#/investigate/events` serves `events_recorder` OR `events_ha`; every other investigate page still needs the recorder. |
 | D4 | Changing the NVR / go2rtc connection keeps "restart required" (background work is chosen at start-up). |
 | D5 | When an NVR is removed, camera rows stay (disabled from use, invisible), history intact; they return when an NVR is added again. |
 | D6 | No per-area hide switch. Hiding follows what the installation has. |
@@ -30,7 +30,7 @@ call from the connection settings; **configured, not reachable**: a go2rtc or Ho
 | `live_video` | `go2rtc` AND a live source: a recorder with live, WisKey credentials, or Home Assistant (opted-in HA cameras). |
 | `playback` | `go2rtc` AND a recorder whose adapter declares `playback != none`. |
 | `events_recorder` | A recorder whose adapter declares `events != none` (Hikvision alertStream). |
-| `events_ha` | `ha` (HA security events are recorded with `source = ha`; not shown in the event centre yet, D3). |
+| `events_ha` | `ha` (HA security events are recorded with `source = ha`; shown in the event centre of a recorder installation, and alone in the read-only sensor events list `investigate-ha-events` when there is no recorder with events: NVRLESS-295, pseudo-need `events_any`). |
 | `ha_cameras_still` | `ha`. |
 | `ha_cameras_live` | `ha` AND `go2rtc` (per-camera opt-in by an administrator stays a separate, stored choice). |
 | `supported` / `unsupported_reason` | `false` / `nvr_without_go2rtc` when `nvr` AND NOT `go2rtc` (D2); otherwise `true` / `null`. |
@@ -96,7 +96,8 @@ tells the user to configure something (the "how to add it" text lives in Setting
 |---|---|---|
 | Live overview, all cameras, saved views, wall, kiosk | `nvr` (and `supported`) | Installation C is unsupported: the shell shows the existing neutral panel pointing at Settings › connections; no snapshot grid (D2). Installation B with a WisKey / HA live source: a sources list is a P2 design question, not decided here. |
 | Camera page, camera health | `nvr` | |
-| Investigate: events, reviews, rules, search, cases, exports, recordings | `events_recorder` | Hidden without an NVR (D3). |
+| Investigate: reviews, rules, search, cases, exports, event detail, recordings | `events_recorder` | Hidden without an NVR (D3). |
+| Investigate: events list | `events_any` (= `events_recorder` or `events_ha`) | NVRLESS-295: without recorder events the list is the sensor events list (GET /events?source=ha, `events.read`, read only, no clip). |
 | Investigate: playback, sync, historical map | `playback` | |
 | Camera settings (CR-020), NVR notify, storage | `nvr` | |
 | Floor map camera layer / picker / anchors | `nvr` | Leftover camera rows are not drawn without an NVR (D5). |
@@ -116,7 +117,8 @@ Without a backend (demo) everything is on; a backend that sends no block is read
 |---|---|---|---|---|---|
 | Live overview, all cameras, saved views, kiosk wall | `nvr`, `supported` | panel "no NVR" | panel "no NVR" | panel "needs a media server" | screen |
 | Camera page | `nvr` | panel | panel | screen (the player opens no socket without `live_video`) | screen |
-| Events, reviews, rules, search, cases, exports, event detail | `events_recorder` | panel | panel | screen | screen |
+| Reviews, rules, search, cases, exports, event detail | `events_recorder` | panel | panel | screen | screen |
+| Events list | `events_recorder` or `events_ha` | sensor list | sensor list | screen | screen |
 | Playback, synchronised playback, historical map | `playback` | panel | panel | panel "needs a media server" | screen |
 | Camera health, camera settings (CR-020) | `nvr` | panel | panel | screen | screen |
 | Everything else (alarm, automations, notifications, media, schedules, backup, map, settings) | none | screen | screen | screen | screen |
@@ -154,7 +156,7 @@ shell is P2 work; it belongs to the P2 evidence.
 ## 6. Not built / later
 
 - P2 leftovers: see section 4a.
-- HA events in the event centre (D3: future option only).
+- HA events in the event centre of a recorder installation (the sensor list exists only without recorder events, NVRLESS-295).
 - Intercom snapshot 503 → 409 (small follow-up; needs a change to an existing intercom test).
 - ~~Multi-recorder (`recorders[]` with more than one entry), recorder credentials~~: done by CR-024 (migration 0055; credentials in the
   CR-022 `recorder_connections` table). Vendor adapters other than Hikvision (P6): still open; the seam is `registry.register_vendor`.

@@ -169,7 +169,8 @@ test.describe('vendors account (TK258)', () => {
     await expect(page.locator(`${S} [data-va-mark]`)).toHaveAttribute('disabled', '');
     // approved rows only carry a box
     await expect(page.locator(`${S} [data-va-select]`)).toHaveCount(4);
-    for (const id of ['claim00000000001', 'claim00000000002', 'claim00000000006']) await page.locator(`${S} [data-va-select="${id}"]`).check();
+    // UXFIX-A11Y-295: the checkbox sits in a 44 px label (sw-hit) whose hit ring covers it on touch; a tap lands on the label, which toggles it
+    for (const id of ['claim00000000001', 'claim00000000002', 'claim00000000006']) await page.locator(`${S} [data-va-select="${id}"]`).check({ force: true });
     await page.locator(`${S} [data-va-mark]`).click();
     const dlg = page.locator(`${S} sw-dialog[data-va-dialog]`);
     await expect(dlg.locator('[data-va-sum]')).toHaveCount(2);

@@ -54,8 +54,9 @@ def is_link_id(value: object) -> bool:
 # ---------------------------------------------------------------- handler-link tokens
 
 
-TOKEN_DOMAINS = ("tkt", "rfq", "wac")  # TKRFQ1: an RFQ vendor link (ticket_rfq_links) derives under its own domain - never a ticket token
+TOKEN_DOMAINS = ("tkt", "rfq", "wac", "doc")  # TKRFQ1: an RFQ vendor link (ticket_rfq_links) derives under its own domain - never a ticket token
 # WA-CONSENT-LINK: `wac` = a WhatsApp consent request (intercom_consent_requests) - a capability for ONE consent answer, never a ticket token
+# CR-VENDORQ-294: `doc` = a document sent by a temporary link (outbound_documents, out_documents.py) - a capability to download ONE snapshot
 
 
 def derive_token(key: bytes, link_id: str, generation: int, *, domain: str = "tkt") -> str:

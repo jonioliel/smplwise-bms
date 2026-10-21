@@ -473,6 +473,35 @@ export class SystemNotifications extends LitElement {
       .scard.off .ln {
         opacity: 0.45;
       }
+      /* UXFIX-A11Y-295 (UX audit 2026-10-20, finding 13): on a phone the channel chips ran off both edges of the card (one nowrap row)
+         and the severity picker showed two of its three levels as a colour dot only. Every level now carries its name (above, in
+         sevSeg), the rows wrap inside the card, and the keys are 44 px. */
+      .scard .ln > .chs,
+      .scard .ln > .sevseg {
+        flex-wrap: wrap;
+        min-inline-size: 0;
+        max-inline-size: 100%;
+      }
+      .scard .ln > .sevseg {
+        border-radius: var(--sw-r-xl);
+      }
+      @media (pointer: coarse), (max-width: 767px) {
+        .sevseg button,
+        .chip {
+          block-size: 44px;
+        }
+      }
+      /* release 2.10.0: since every severity level carries its name (finding 13) the three keys did not fit the 15 % column of the
+         desktop table and ran under the recipient select. The column is wider, the keys are compact there, and as a last
+         resort the picker wraps inside its cell instead of overlapping the next one. */
+      .mx .sevseg {
+        flex-wrap: wrap;
+        max-inline-size: 100%;
+      }
+      .mx .sevseg button {
+        padding: 0 6px;
+        gap: 4px;
+      }
       /* quiet hours matrix */
       .qmx {
         inline-size: 100%;
@@ -636,7 +665,7 @@ export class SystemNotifications extends LitElement {
         color: var(--sw-text-3);
       }
       :host([data-devices-scheme='dark']) .pushcard .ph {
-        color: rgba(235, 235, 245, 0.6);
+        color: rgba(235, 235, 245, 0.64);
       }
       .pushcard .ph .app {
         inline-size: 16px;
@@ -1148,7 +1177,7 @@ export class SystemNotifications extends LitElement {
   // ---------------------------------------------------------------------------------------------- sections
 
   private sevSeg(source: string, cur: Severity) {
-    return html`<span class="sevseg" role="radiogroup" aria-label="חומרה">${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} aria-pressed=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i></i>${cur === s ? SEVERITY_LABEL[s] : ''}</button>`)}</span>`;
+    return html`<span class="sevseg" role="radiogroup" aria-label="חומרה">${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} aria-pressed=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i aria-hidden="true"></i>${SEVERITY_LABEL[s]}</button>`)}</span>`;
   }
   private whoSel(p: NotifyPolicy) {
     const forced = FAILURE_SOURCES.includes(p.source);
@@ -1188,7 +1217,7 @@ export class SystemNotifications extends LitElement {
     const s = this.settings as NotifySettings;
     let body: TemplateResult;
     if (!this.phone) {
-      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:25%"><col style="width:8%"><col style="width:15%"><col style="width:18%"><col></colgroup>
+      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:20%"><col style="width:7%"><col style="width:24%"><col style="width:18%"><col></colgroup>
         <thead><tr><th>מקור</th><th class="c">פעיל</th><th>חומרה</th><th>מי מקבל</th><th>ערוצים</th></tr></thead>
         <tbody>${groups.map((g: MatrixGroup) => html`<tr class="cat"><td colspan="5">${nIcon(g.icon)}${g.label}</td></tr>${g.rows.map(({ info, policy: p }) => html`<tr class=${p.enabled ? '' : 'off'} data-pol-row=${p.source}>
           <td class="keep"><span class="nm"><span class="ring">${nIcon(info.icon)}</span><b>${info.label}</b></span></td>

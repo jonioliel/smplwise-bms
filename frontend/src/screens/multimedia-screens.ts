@@ -163,10 +163,12 @@ export class MultimediaScreens extends LitElement {
     }
     h1 {
       margin: 0;
+      font-family: var(--sw-font-heading);
       font-size: var(--mm-fs-page-title);
-      font-weight: 700;
-      letter-spacing: -0.035em;
-      line-height: 1.04;
+      font-weight: var(--sw-h1-weight, 700);
+      letter-spacing: var(--sw-h1-tracking, -0.6px);
+      line-height: 1.2;
+      color: var(--sw-heading, var(--sw-text));
       flex: none;
       transition: font-size var(--mm-motion) var(--mm-ease);
     }

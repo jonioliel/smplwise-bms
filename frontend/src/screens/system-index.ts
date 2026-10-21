@@ -38,7 +38,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: 'מראה ותצוגה',
     icon: 'dashboard',
     entries: [
-      { tab: 'general', label: 'כללי', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand קריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
+      { tab: 'general', label: 'מראה ותצוגה', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand קריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
       { tab: 'general', label: 'לשוניות', href: `${GEN}?tab=tabs`, sub: true, keywords: 'סדר הסתרה סרגל פס תחתון כמוסה dropdown' },
       { tab: 'general', label: 'וידאו ומדיה', href: `${GEN}?tab=media`, sub: true, keywords: 'webrtc mse תעבורה קיר מצלמות קיוסק מסך פתיחה זרמים go2rtc ייצוא שמירה ימים ציר זמן צבעים סקינים AI תלת־ממד 3D מצב תצוגה ריאליסטי realistic תמונות מוכנות stills מסך קיר תצוגת התוכנית מפת תאורה מיקום האתר שמש מיקום הבית ידני קו רוחב קו אורך מעבר לתמונה מוכנה חוסר פעילות idle' },
       { tab: 'general', label: 'מפה', href: `${GEN}?tab=map`, sub: true, keywords: 'קומת ברירת מחדל 2D 3D מפלסים תוכנית תצוגה ריאליסטית realistic סגנון אדריכלי בהיר תאום דיגיטלי כהה שמש שעה מיקום האתר קו רוחב קו אורך רהיטים טקסטורות חתך סיור גובה עין ההעדפה שלי' },
@@ -63,6 +63,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'security', label: 'אבטחה', href: '#/system/security', keywords: 'אזעקה alarm לוח קוד NVR מצלמות' },
       { tab: 'security', label: 'ניהול אזעקה', href: '#/system/security/manage', sub: true, keywords: 'לוחות קוד חיישנים עקיפה' },
       { tab: 'security', label: 'מצלמות', href: '#/system/security/cameras', sub: true, keywords: 'קידוד codec רזולוציה bitrate' },
+      { tab: 'security', label: 'ממשק ציבורי', href: '#/system/security/public', sub: true, keywords: 'טכנאים ספקים מחיקה אוטומטית פורטל 404' },
       { tab: 'audit', label: 'אודיט', href: '#/system/audit', keywords: 'יומן מי עשה מה request_id' },
     ],
   },

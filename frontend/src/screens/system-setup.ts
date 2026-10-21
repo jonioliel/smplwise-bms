@@ -23,6 +23,7 @@ import '../components/nvr-connection-form';
 import '../components/nvr-recorders-card';
 import '../components/frigate-summary';
 import '../components/sw-secrets-card'; // TKSECRETS2: הגדרות › חיבורים › סודות
+import '../components/sw-bridge-key-card'; // CR-WISKEY-HMAC-ROTATION-295: הגדרות › חיבורים › מפתח הגשר (system administrator)
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -429,7 +430,7 @@ export class SystemSetup extends LitElement {
                 <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${() => this.planNotify(null, false, true)}>הפעל תנועה בכל הערוצים</sw-button>
                 <sw-button size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-smart @click=${() => this.planNotify(null, true, true)}>הפעל גם אירועים חכמים</sw-button>
               </div>`
-            : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית למנהל המערכת, ולאחרים דרך תפקיד מותאם (הגדרות › משתמשים והרשאות › תפקידים), גם למנהל מערכת.</div>`}
+            : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית למנהל המערכת, ולאחרים דרך תפקיד מותאם (הגדרות ‹ משתמשים והרשאות ‹ תפקידים), גם למנהל מערכת.</div>`}
           ${this.notifyResult ? html`<div class="hint" data-nvr-result>${this.notifyResult}</div>` : nothing}
           ${this.changes.length ? html`<div class="hint" style="margin-block-start:8px"><b>שינויים אחרונים ב־NVR</b></div>
             <ul class="changes" data-nvr-changes>${this.changes.map((c) => html`<li><span class="ltr">${c.created_at.slice(0, 16).replace('T', ' ')}</span> · ${c.target} · ${c.note || c.kind} · ${c.status === 'applied' ? 'בוצע' : c.status === 'unchanged' ? 'ללא שינוי' : c.status === 'rolled_back' ? 'הוחזר' : 'נכשל'}${c.actor_username ? ` · ${c.actor_username}` : ''}
@@ -481,10 +482,11 @@ export class SystemSetup extends LitElement {
                 ${!installationSupported() ? html`<div class="hint" data-go2rtc-required>${UNSUPPORTED_NVR_WITHOUT_GO2RTC}</div>` : nothing}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
                 ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
-                ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
+                ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות ‹ כללי ‹ בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
               ${this.renderWiskeyCard()}
               ${can('system.configure') ? html`<sw-secrets-card></sw-secrets-card>` : nothing}
+              ${can('system.configure') ? html`<sw-bridge-key-card></sw-bridge-key-card>` : nothing}
               ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup><sw-door-inventory data-door-inventory></sw-door-inventory><sw-door-blocks data-door-blocks></sw-door-blocks>` : nothing}
               <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
@@ -581,7 +583,7 @@ export class SystemSetup extends LitElement {
     // T071: the demo onboarding wizard that lived here became the real wizard (system-wizard.ts, #/system/wizard);
     // this page lists live connection facts, which a design preview without a backend does not have.
     return html`<sw-page crumbs="הגדרות" heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד">
-      <sw-state-panel state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${() => (window.location.hash = '#/system/wizard')}></sw-state-panel>
+      <sw-state-panel icon="link" state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${() => (window.location.hash = '#/system/wizard')}></sw-state-panel>
     </sw-page>`;
   }
 }

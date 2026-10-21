@@ -285,7 +285,8 @@ def test_never_lists_and_extended_tables_are_identical_on_both_sides():
     for k, d in si.EXTENDED_FEATURES.items():  # nothing on the extended never-list is in an extended table
         for svc, items in d.items():
             assert not any(si.never_local(svc, i, True) for i in items), k
-    assert si.BRIDGE_EXTENDED_REQUIRED == load("const").VERSION == "0.9.2"  # SVCIDENT3: the run fences ship in 0.9.2
+    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.2"  # SVCIDENT3: the run fences ship in 0.9.2
+    assert load("const").VERSION == "0.9.4"  # EXTID-295: the picker bridge; no stored format changed, so the requirement stays 0.9.2
 
 
 # ---------------------------------------------------------------- 4. through the routes: the user's own permission still decides

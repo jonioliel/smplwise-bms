@@ -374,7 +374,7 @@ export class SystemPlanView extends LitElement {
       this.message = '';
     };
     return html`<div class="row" data-view-row="site">
-      <span class="lbl">מיקום האתר — ידני<span class="muted">קו רוחב וקו אורך במעלות, לחישוב מסלול השמש. חל רק כשמקור המיקום הוא "ידני" (הגדרות › כללי › וידאו ומדיה › מיקום האתר לשמש בתלת־ממד); אחרת השמש לפי מיקום הבית</span></span>
+      <span class="lbl">מיקום האתר — ידני<span class="muted">קו רוחב וקו אורך במעלות, לחישוב מסלול השמש. חל רק כשמקור המיקום הוא "ידני" (הגדרות ‹ כללי ‹ וידאו ומדיה ‹ מיקום האתר לשמש בתלת־ממד); אחרת השמש לפי מיקום הבית</span></span>
       <span class="site">
         <sw-field label="קו רוחב"><input type="text" inputmode="decimal" data-ltr data-site-lat placeholder="32.08" .value=${d.lat} ?disabled=${this.instDisabled} @input=${(e: Event) => set({ lat: (e.target as HTMLInputElement).value.trim() })} /></sw-field>
         <sw-field label="קו אורך"><input type="text" inputmode="decimal" data-ltr data-site-lon placeholder="34.78" .value=${d.lon} ?disabled=${this.instDisabled} @input=${(e: Event) => set({ lon: (e.target as HTMLInputElement).value.trim() })} /></sw-field>

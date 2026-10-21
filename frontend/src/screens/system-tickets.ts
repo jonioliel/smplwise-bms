@@ -488,8 +488,8 @@ export class SystemTickets extends LitElement {
       for (const s of tree.sites) {
         out.push({ type: 'site', id: s.id, label: s.name });
         for (const b of s.buildings ?? []) {
-          out.push({ type: 'building', id: b.id, label: `${s.name} › ${b.name}` });
-          for (const f of b.floors ?? []) out.push({ type: 'floor', id: f.id, label: `${s.name} › ${b.name} › ${f.name}` });
+          out.push({ type: 'building', id: b.id, label: `${s.name} ‹ ${b.name}` });
+          for (const f of b.floors ?? []) out.push({ type: 'floor', id: f.id, label: `${s.name} ‹ ${b.name} ‹ ${f.name}` });
         }
       }
     } catch {
@@ -908,7 +908,7 @@ export class SystemTickets extends LitElement {
             <span class="txt"><span class="nm">${bidi(d.name)}</span>
               <span class="sub">${tt('depSummary', { c: d.categories.filter((c) => c.active).length, p: d.priorities.filter((p) => p.active).length, m: d.members.length })}</span></span>
             ${d.active ? nothing : html`<span class="tag">${tt('depInactive')}</span>`}</button>`)}</div>`
-            : html`<sw-state-panel state="empty" heading=${tt('depNone')}></sw-state-panel>`}
+            : html`<sw-state-panel icon="ticket" state="empty" heading=${tt('depNone')}></sw-state-panel>`}
           <div class="foot">
             <input class="in" maxlength="40" data-dept-new-name placeholder=${tt('depName')} aria-label=${tt('depAdd')} .value=${this.newDept.name} @input=${(e: Event) => (this.newDept = { ...this.newDept, name: (e.target as HTMLInputElement).value })}
               @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.addDepartment(); }} />

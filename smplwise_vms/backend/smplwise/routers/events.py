@@ -65,6 +65,35 @@ def _with_names(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[di
     return rows
 
 
+def _with_places(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """NVRLESS-295: where a sensor (source 'ha') event's entity is placed now - `place` = {floor_id, floor_name, building_name, zone}
+    from its current plan anchor and the smallest zone containing it, or None (not placed). One pass over the anchors; rows of
+    other sources are left alone."""
+    wanted = {str((r.get("details") or {}).get("entity_id")) for r in rows if r.get("source") == "ha" and (r.get("details") or {}).get("entity_id")}
+    if not wanted:
+        return rows
+    floors = {f["id"]: (f["name"], f["bname"]) for f in conn.execute(
+        "SELECT f.id, f.name, b.name AS bname FROM floors f JOIN buildings b ON b.id = f.building_id WHERE f.deleted_at IS NULL").fetchall()}
+    zones: dict[str, list[tuple[float, str, list[dict[str, float]]]]] = {}
+    for z in conn.execute("SELECT floor_id, name, polygon_json FROM spatial_zones WHERE deleted_at IS NULL").fetchall():
+        try:
+            poly = json.loads(z["polygon_json"] or "[]")
+        except ValueError:
+            continue
+        if len(poly) >= 3:
+            zones.setdefault(z["floor_id"], []).append((_area(poly), z["name"], poly))
+    placed: dict[str, dict[str, Any]] = {}
+    for a in conn.execute("SELECT resource_id, floor_id, x, y FROM map_anchors WHERE resource_type = 'ha_entity' AND effective_to IS NULL ORDER BY updated_at").fetchall():
+        if a["resource_id"] not in wanted or a["floor_id"] not in floors:
+            continue
+        hit = min(((ar, nm) for ar, nm, poly in zones.get(a["floor_id"], []) if correlation._inside(a["x"], a["y"], poly)), default=None)
+        placed[a["resource_id"]] = {"floor_id": a["floor_id"], "floor_name": floors[a["floor_id"]][0], "building_name": floors[a["floor_id"]][1], "zone": hit[1] if hit else None}
+    for r in rows:
+        if r.get("source") == "ha":
+            r["place"] = placed.get(str((r.get("details") or {}).get("entity_id") or ""))
+    return rows
+
+
 def _with_thumbs(settings: Settings, rows: list[dict[str, Any]], queue_first: int = 0) -> list[dict[str, Any]]:
     """Thumbnail state per row; the first `queue_first` rows without one are queued for generation."""
     ask: list[str] = []
@@ -218,7 +247,7 @@ def _list_window(conn: sqlite3.Connection, wide: bool, ids: RowScope, date: str 
     rows = [events_ingest.row_to_event(r) for r in conn.execute(sql, args).fetchall()]
     rows = [r for r in rows if _visible(r, wide, ids)][:limit]
     return {
-        "events": _with_names(conn, rows),
+        "events": _with_places(conn, _with_names(conn, rows)),
         "from": iso_utc(start),
         "to": iso_utc(end),
         "timezone": tz_name,

@@ -1370,7 +1370,7 @@ export class InvestigatePlayback extends LitElement {
   private renderApi() {
     if (this.error && !this.cams) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.init()}></sw-state-panel>`;
     if (!this.cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!this.cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;
+    if (!this.cams.length) return html`<sw-state-panel icon="history" state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;
     const cam = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
     const master = this.masterSession;
     const live = this.live;
@@ -1418,7 +1418,7 @@ export class InvestigatePlayback extends LitElement {
           })}
           <span class="sep"></span>
           <button class="q" data-frame-step="-1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד אחורה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(-1)}>‹ פריים</button>
-          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד קדימה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(1)}>פריים ›</button>
+          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד קדימה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(1)}>פריים ‹</button>
           <span class="sep"></span>
           <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>

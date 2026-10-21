@@ -14,6 +14,7 @@ listed), `reviews`, `events`, `segments` ({camera: [segment]}), `latest_status`.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from typing import Any
 
@@ -129,9 +130,14 @@ class FakeFrigate:
         # F2b: exports, cases and manual events. `export_reply_id` / `case_reply_id` False = the create answer carries no id (Arx must find it
         # by name in the list); `seq` numbers the generated ids.
         self.exports: list[dict[str, Any]] = [{"id": "cam_front_foreign", "camera": "cam_front", "name": "made in Frigate", "date": T0 - 5000.0, "video_path": "/media/frigate/exports/foreign.mp4",
-                                              "thumb_path": "/media/frigate/exports/foreign.jpg", "in_progress": False, "export_case_id": None}]
+                                              "thumb_path": "/media/frigate/exports/foreign.jpg", "in_progress": False, "export_case": None}]
         self.cases: list[dict[str, Any]] = [{"id": "case_foreign", "name": "made in Frigate", "description": "", "created_at": T0 - 4000.0, "updated_at": T0 - 4000.0}]
         self.export_reply_id = True
+        # 0.18.2: an export is a queued job; `export_queue_only` True = the job has not started (no Export row yet, only /api/jobs/export/{id})
+        self.export_queue_only = False
+        # 0.18: a sub label is applied asynchronously; `sub_label_lag` = how many event reads still show the old value after a write
+        self.sub_label_lag = 0
+        self.export_jobs: dict[str, dict[str, Any]] = {}
         # F2b clip read: `clip` is the body served for any clip.mp4 GET; `clip_status` / `clip_ctype` force an answer; `clip_hits` lists the clip GETs
         self.clip = b"\x00\x00\x00ftypmp42" + b"fake-clip-bytes-" * 64
         self.clip_status = 200
@@ -145,12 +151,41 @@ class FakeFrigate:
         self.config_reflect = True
         self.schema_served = True
         self.schema_drop: set[str] = set()
+        # FRIGLIVE-295 (measured on the live 0.18.0): `micro_cache` True = Frigate's nginx micro-cache: an `/api/*` GET without `X-Cache-Bypass: 1`
+        # gets the first answer it cached for that URL (live: ~5 s; here until `cache.clear()`); `bypass_gets` lists the GETs that bypassed it.
+        # `strict_delete` True = `config/set` with "" for a key the file does not hold answers 500 and changes nothing (update_yaml's `del`).
+        # `effective_defaults` True = `/api/config` shows unset camera keys with Frigate's defaults, as the real effective config does.
+        # `clip_no_recordings` True = a range clip answers 400 "No recordings found for the specified time range".
+        self.micro_cache = False
+        self.cache: dict[str, httpx.Response] = {}
+        self.bypass_gets: list[str] = []
+        self.strict_delete = False
+        self.effective_defaults = False
+        self.clip_no_recordings = False
 
     # ------------------------------------------------------------------------------------------ documents
 
+    def effective_cameras(self) -> dict[str, Any]:
+        """The cameras as `/api/config` shows them: with `effective_defaults`, unset keys carry Frigate's default (as on the live 0.18.0)."""
+        if not self.effective_defaults:
+            return self.cameras
+        import copy
+
+        out = copy.deepcopy(self.cameras)
+        for cam in out.values():
+            mo = cam.setdefault("motion", {})
+            mo.setdefault("threshold", 30)
+            mo.setdefault("contour_area", 10)
+            mo.setdefault("lightning_threshold", 0.8)
+            for z in (cam.get("zones") or {}).values():
+                z.setdefault("inertia", 3)
+                z.setdefault("loitering_time", 0)
+                z.setdefault("objects", [])
+        return out
+
     def config(self) -> dict[str, Any]:
         return {
-            "cameras": self.cameras,
+            "cameras": self.effective_cameras(),
             "detectors": {"coral1": {"type": "edgetpu", "device": "usb:0"}, "coral2": {"type": "edgetpu", "device": "usb:1"}},
             "mqtt": {"enabled": False, "host": "192.0.2.20", "user": PLANTED_TOKEN_USER, "password": "__FRIGATE_SAVED_CREDENTIAL__"},
             "record": {"enabled": True, "continuous": {"days": 0}, "motion": {"days": 10}, "alerts": {"pre_capture": 10, "post_capture": 15, "retain": {"days": 30, "mode": "motion"}},
@@ -185,6 +220,21 @@ class FakeFrigate:
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         with self.lock:
+            path = request.url.path
+            if request.method == "GET" and path.startswith("/api/") and path != "/api/version":
+                if request.headers.get("x-cache-bypass") == "1":
+                    self.bypass_gets.append(path)
+                elif self.micro_cache:
+                    key = str(request.url)
+                    hit = self.cache.get(key)
+                    if hit is not None:
+                        self.hits.append(f"GET {path} (cached)")
+                        return httpx.Response(hit.status_code, content=hit.content, headers=hit.headers)
+                    r = self._handle(request)
+                    r.read()
+                    if r.status_code == 200:
+                        self.cache[key] = r
+                    return httpx.Response(r.status_code, content=r.content, headers=r.headers)
             return self._handle(request)
 
     FEATURE_PATHS = {"detect": ("detect", "enabled"), "motion": ("motion", "enabled"), "audio": ("audio", "enabled"), "review_alerts": ("review", "alerts", "enabled"),
@@ -206,6 +256,20 @@ class FakeFrigate:
             body = json.loads(request.content) if request.content else None
         except ValueError:
             return httpx.Response(400, json={"message": "bad body"})
+        mm = re.fullmatch(r"/api/camera/([^/]+)/set/(zone|motion_mask|object_mask)/([^/]+)", path)
+        if m == "PUT" and mm:
+            # 0.18.2 (frigate/api/camera.py camera_set + comms/dispatcher.py): the handler runs after the 200; an unknown name or ON for an
+            # item disabled in the YAML is only logged, the answer is still {"success": true}
+            cam, kind, name = mm.groups()
+            val = (body or {}).get("value")
+            if cam not in self.cameras or val not in ("ON", "OFF"):
+                return httpx.Response(404 if cam not in self.cameras else 400, json={"success": False})
+            node = self.cameras[cam].get("zones") if kind == "zone" else (self.cameras[cam].get("motion" if kind == "motion_mask" else "objects") or {}).get("mask")
+            item = node.get(name) if isinstance(node, dict) else None
+            if isinstance(item, dict) and not (val == "ON" and item.get("enabled_in_config") is False):
+                item["enabled"] = val == "ON"
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
         mm = re.fullmatch(r"/api/camera/([^/]+)/set/([a-z_]+)", path)
         if m == "PUT" and mm:
             cam, feat = mm.groups()
@@ -247,7 +311,13 @@ class FakeFrigate:
             if what == "retain" and m in ("POST", "DELETE"):
                 st["retain"] = m == "POST"
             elif what == "sub_label" and m == "POST":
-                st["sub_label"] = (body or {}).get("subLabel")
+                lab = (body or {}).get("subLabel")
+                if not isinstance(lab, str) or len(lab) > 100:   # 0.18.2: required string, max 100 (null -> 422)
+                    return httpx.Response(422, json={"detail": [{"loc": ["body", "subLabel"], "msg": "Input should be a valid string"}]})
+                if self.sub_label_lag:                           # 0.18 applies it asynchronously (event metadata publisher)
+                    st["pending_sub"] = [lab or None, self.sub_label_lag]
+                else:
+                    st["sub_label"] = lab or None                # "" clears the sub label (frigate/api/event.py set_sub_label)
             else:
                 return httpx.Response(405)
             self.writes.append((m, path, body))
@@ -264,8 +334,16 @@ class FakeFrigate:
         if not isinstance(cams, dict) or set(data) != {"cameras"} or any(c not in self.cameras for c in cams):
             return httpx.Response(400, json={"success": False, "message": "bad config_data"})
         if self.config_reflect:
-            for cam, section in cams.items():
-                _merge(self.cameras[cam], section)
+            import copy
+
+            staged = copy.deepcopy(self.cameras)
+            try:
+                for cam, section in cams.items():
+                    _merge(staged[cam], section, strict=self.strict_delete)
+            except KeyError:   # live 0.18.0: update_yaml `del`s a key given as "" -> KeyError -> 500, the file is unchanged
+                return httpx.Response(500, json={"success": False, "message": "Error updating config"})
+            self.cameras.clear()
+            self.cameras.update(staged)
         self.writes.append(("PUT", "/api/config/set", body))
         return self._json({"success": True, "message": "Config successfully updated, restart to apply" if body.get("requires_restart") else "Config successfully updated"})
 
@@ -298,12 +376,42 @@ class FakeFrigate:
             cam, a, b = mm.groups()
             if cam not in self.cameras or float(b) <= float(a) or not (body or {}).get("name"):
                 return httpx.Response(400, json={"message": "bad export"})
+            if (body or {}).get("source", "recordings") not in ("recordings", "preview"):
+                return httpx.Response(422, json={"detail": [{"loc": ["body", "source"], "msg": "Input should be 'recordings' or 'preview'"}]})
+            case_id = (body or {}).get("export_case_id")
+            if case_id is not None and not any(c["id"] == case_id for c in self.cases):
+                return httpx.Response(404, json={"success": False, "message": "Export case not found"})
             self.seq += 1
             eid = f"{cam}_{self.seq:06d}"
-            self.exports.append({"id": eid, "camera": cam, "name": body["name"], "date": float(a), "video_path": f"/media/frigate/exports/{eid}.mp4", "thumb_path": f"/media/frigate/exports/{eid}.jpg",
-                                 "in_progress": False, "export_case_id": None})
+            row = {"id": eid, "camera": cam, "name": body["name"], "date": float(a), "video_path": f"/media/frigate/exports/{eid}.mp4", "thumb_path": f"/media/frigate/exports/{eid}.jpg",
+                   "in_progress": True, "export_case": case_id}   # FRIGLIVE-295: the live 0.18.0 row names the case `export_case`
+            if self.export_queue_only:
+                self.export_jobs[eid] = {"id": eid, "job_type": "export", "status": "queued", "camera": cam, "name": body["name"], "export_case_id": case_id, "current_step": "queued"}
+            else:
+                row["in_progress"] = False
+                self.exports.append(row)
             self.writes.append((m, path, body))
-            return self._json({"success": True, "message": "Starting export of recording.", **({"export_id": eid} if self.export_reply_id else {})})
+            # 0.18.2: the export is a queued job; 202 with the job id (frigate/api/export.py export_recording)
+            return self._json({"success": True, "message": "Export queued.", **({"export_id": eid} if self.export_reply_id else {}), "status": "queued"}, 202)
+        if m == "POST" and path == "/api/exports/delete":
+            ids = (body or {}).get("ids") or []
+            if not ids or any(not any(x["id"] == i for x in self.exports) for i in ids):
+                return httpx.Response(404, json={"success": False, "message": "One or more exports not found."})
+            self.exports = [x for x in self.exports if x["id"] not in ids]
+            self.writes.append((m, path, body))
+            return self._json({"success": True, "message": "Successfully deleted exports."})
+        if m == "POST" and path == "/api/exports/reassign":
+            ids = (body or {}).get("ids") or []
+            case_id = (body or {}).get("export_case_id")
+            if case_id is not None and not any(c["id"] == case_id for c in self.cases):
+                return httpx.Response(404, json={"success": False, "message": "Export case not found"})
+            if not ids or any(not any(x["id"] == i for x in self.exports) for i in ids):
+                return httpx.Response(404, json={"success": False, "message": "One or more exports not found."})
+            for x in self.exports:
+                if x["id"] in ids:
+                    x["export_case"] = case_id
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
         mm = re.fullmatch(r"/api/export/([^/]+)/rename", path)
         if m == "PATCH" and mm:
             for x in self.exports:
@@ -312,14 +420,8 @@ class FakeFrigate:
                     self.writes.append((m, path, body))
                     return self._json({"success": True})
             return httpx.Response(404, json={"message": "Export not found"})
-        mm = re.fullmatch(r"/api/export/([^/]+)", path)
-        if m == "DELETE" and mm:
-            n = len(self.exports)
-            self.exports = [x for x in self.exports if x["id"] != mm.group(1)]
-            if len(self.exports) == n:
-                return httpx.Response(404, json={"message": "Export not found"})
-            self.writes.append((m, path, body))
-            return self._json({"success": True})
+        if m == "DELETE" and re.fullmatch(r"/api/export/([^/]+)", path):
+            return httpx.Response(405, json={"detail": "Method Not Allowed"})   # 0.18.2: deletes go through POST /api/exports/delete
         if m == "POST" and path == "/api/cases":
             if not (body or {}).get("name"):
                 return httpx.Response(400, json={"message": "bad case"})
@@ -412,8 +514,10 @@ class FakeFrigate:
         if path == "/api/review/activity/motion":
             a, b = float(q["after"]), float(q["before"])
             return self._json([{"start_time": T0 - 600 + 30 * i, "motion": 10.5 + i, "camera": "cam_front,cam_yard"} for i in range(10) if a <= T0 - 600 + 30 * i <= b])
-        if path.endswith("/clip.mp4") and (path.startswith("/api/events/") or "/start/" in path):
+        if path.endswith("/clip.mp4") and (path.startswith("/api/events/") or path.startswith("/api/review/") or "/start/" in path):
             self.clip_hits.append(path)
+            if self.clip_no_recordings and "/start/" in path:
+                return httpx.Response(400, json={"success": False, "message": "No recordings found for the specified time range"})
             if self.clip_status != 200:
                 return httpx.Response(self.clip_status, json={"message": "no clip"})
             return httpx.Response(200, content=self.clip, headers={"content-type": self.clip_ctype, "content-length": str(len(self.clip))})
@@ -422,15 +526,23 @@ class FakeFrigate:
         if path == "/api/cases":
             return self._json([dict(x) for x in self.cases])
         if path == "/api/profiles":
-            return self._json(list(self.profiles))
+            return self._json({"profiles": [{"name": n, "friendly_name": n.title()} for n in sorted(self.profiles)], "active_profile": self.active_profile, "last_activated": {}})
         if path == "/api/profile/active":
-            return httpx.Response(200, content=json.dumps(self.active_profile), headers={"content-type": "application/json"})
+            return self._json({"active_profile": self.active_profile})
+        mm2 = re.fullmatch(r"/api/jobs/export/([^/]+)", path)
+        if mm2:
+            job = self.export_jobs.get(mm2.group(1))
+            return self._json(dict(job)) if job else httpx.Response(404, json={"success": False, "message": "Job not found"})
         if path.startswith("/api/events/") and path.count("/") == 3:
             eid = path.rsplit("/", 1)[1]
             known = {d for r in self.reviews for d in r["data"]["detections"]}
             if eid not in known and eid not in self.event_state:
                 return httpx.Response(404, json={"message": "Event not found"})
             st = self.event_state.setdefault(eid, {"retain": False, "sub_label": None})
+            if st.get("pending_sub"):
+                st["pending_sub"][1] -= 1
+                if st["pending_sub"][1] <= 0:
+                    st["sub_label"] = st.pop("pending_sub")[0]
             return self._json({"id": eid, "camera": st.get("camera", "cam_front"), "label": st.get("label", "person"), "sub_label": st["sub_label"], "retain_indefinitely": st["retain"],
                                "start_time": st.get("start_time", T0 - 100), "end_time": st.get("end_time", T0 - 90)})
         parts0 = path.strip("/").split("/")
@@ -481,15 +593,18 @@ class FakeFrigate:
         return httpx.Response(404, json={"message": "not found"})
 
 
-def _merge(node: dict[str, Any], patch: dict[str, Any]) -> None:
+def _merge(node: dict[str, Any], patch: dict[str, Any], strict: bool = False) -> None:
     for k, v in patch.items():
         if v == "":
-            node.pop(k, None)
+            if strict:
+                del node[k]
+            else:
+                node.pop(k, None)
         elif isinstance(v, dict):
             child = node.get(k)
             if not isinstance(child, dict):
                 child = node[k] = {}
-            _merge(child, v)
+            _merge(child, v, strict)
         else:
             node[k] = v
 

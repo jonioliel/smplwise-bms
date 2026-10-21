@@ -322,9 +322,14 @@ def _superset(**over: Any) -> dict:
 
 
 class _Auth:
-    def __init__(self, stations: set[str], unrestricted: bool = False) -> None:
-        self.stations, self.all = stations, unrestricted
+    def __init__(self, stations: set[str], unrestricted: bool = False, uniform_404: bool = False) -> None:
+        self.stations, self.all, self.uniform_404 = stations, unrestricted, uniform_404
         self.principal = SimpleNamespace(user_id="u")
+
+    def policy(self, key):
+        # access.unknown_person_uniform_404: these tests pin the 403 branch (a stored "false"); the default-on 404 is
+        # tests/test_secfix2_unknown_person_404.py (FABLEFIX-295, owner decision 2026-10-21)
+        return self.uniform_404 if key == ia.UNKNOWN_PERSON_UNIFORM_404 else False
 
     def station(self, perm, sid):
         return self.all or sid in self.stations
@@ -344,6 +349,9 @@ def test_r5_a4_check_person_refuses_a_scoped_writer_on_a_partial_view(over):
     with pytest.raises(ApiError) as e:
         iw.check_person(_Auth({"st-a"}), _superset(**over), permissions=(iw.MANAGE,))
     assert e.value.status == 403 and e.value.code == "intercom_person_scope"
+    with pytest.raises(ApiError) as e:  # the default since 2026-10-21: the uniform 404 for a writer who cannot see the person
+        iw.check_person(_Auth({"st-a"}, uniform_404=True), _superset(**over), permissions=(iw.MANAGE,))
+    assert e.value.status == 404
     assert iw.check_person(_Auth(set(), unrestricted=True), _superset(**over), permissions=(iw.MANAGE,)).person is not None
     assert iw.check_person(_Auth({"st-a"}), _superset(), permissions=(iw.MANAGE,)).stations == ["st-a"], "a complete record still decides per station"
 

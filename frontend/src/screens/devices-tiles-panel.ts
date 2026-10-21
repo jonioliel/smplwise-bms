@@ -662,7 +662,7 @@ export class DevicesTilesPanel extends LitElement {
 
   private renderBody() {
     const m = KIND_META[this.kind];
-    if (this.notFound) return html`<sw-state-panel data-panel-state="not_found" state="empty" heading="הקומה או האזור לא נמצאו" hint="ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך."></sw-state-panel>`;
+    if (this.notFound) return html`<sw-state-panel icon="grid" data-panel-state="not_found" state="empty" heading="הקומה או האזור לא נמצאו" hint="ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך."></sw-state-panel>`;
     if (!this.data) {
       return this.error
         ? html`<sw-state-panel data-panel-state="error" state="error" heading="לא ניתן לטעון את הרשימה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
@@ -681,7 +681,7 @@ export class DevicesTilesPanel extends LitElement {
     const shown = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
     const narrowed = this.filter !== 'all' || !!q;
     return html`<div class="top">
-        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ›</a>` : nothing}
+        ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ‹</a>` : nothing}
         <div class="ctlbar">
           <div class="seg" role="group" aria-label="סינון">
             ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
@@ -692,9 +692,9 @@ export class DevicesTilesPanel extends LitElement {
         <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${`חיפוש ב${m.noun}…`} aria-label=${`חיפוש ב${m.noun}`} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       </div>
       ${!c.total
-        ? html`<sw-state-panel data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
+        ? html`<sw-state-panel icon="grid" data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
         : !floors.length
-          ? html`<sw-state-panel data-panel-state="no_match" state="empty" heading="אין פריטים שמתאימים לסינון" hint=${q ? 'נסו חיפוש אחר, או בחרו "הכול".' : 'בחרו "הכול" כדי לראות את כל הפריטים.'}></sw-state-panel>`
+          ? html`<sw-state-panel icon="filter" data-panel-state="no_match" state="empty" heading="אין פריטים שמתאימים לסינון" hint=${q ? 'נסו חיפוש אחר, או בחרו "הכול".' : 'בחרו "הכול" כדי לראות את כל הפריטים.'}></sw-state-panel>`
           : repeat(
               floors,
               (f) => f.floor_id,
@@ -728,7 +728,7 @@ export class DevicesTilesPanel extends LitElement {
     const avail = shown.filter((r) => rowState(r) !== 'unavailable' && r.can_control && !r.bulk_excluded);
     const on = avail.filter((r) => rowState(r) === 'active').length;
     // owner 2026-09-30: nothing about eligibility on the screen - the reason lives in the disabled button's tooltip only
-    const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות › חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות › חשמל';
+    const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות ‹ חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות ‹ חשמל';
     const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only });
     if ('open' in master) {
       return html`<div class="master-group" data-panel-master="covers">

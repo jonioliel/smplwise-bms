@@ -359,12 +359,13 @@ class PolicyBody(_Body):
     quiet_mode: Literal["pass", "matrix", "hold"] | None = None
     escalate: bool | None = None
     after_s: int | None = None
+    escalate_after_s: int | None = None  # GENALERT-295: seconds before an unacknowledged alert of this type goes to the system administrators (0 = the generator's critical delay)
     template_he: str | None = Field(default=None, max_length=alerts.TEMPLATE_MAX)  # null = the built-in template; placeholders: alerts.PLACEHOLDERS
     row_version: int | None = None
 
 
 # second re-review (decided): `after_s` too - the delay before an alert fires decides how often a flapping condition reaches WhatsApp
-WHATSAPP_REACH_FIELDS = ("recipients", "severity", "quiet_mode", "escalate", "enabled", "after_s")
+WHATSAPP_REACH_FIELDS = ("recipients", "severity", "quiet_mode", "escalate", "enabled", "after_s", "escalate_after_s")
 
 
 def _whatsapp_change(conn: sqlite3.Connection, device_id: str, alert_key: str, body: "PolicyBody") -> bool:
@@ -411,6 +412,24 @@ def put_policy(device_id: str, alert_key: str, body: PolicyBody, principal: Prin
         raise ApiError(status, exc.code, exc.message, details=exc.details) from None
 
 
+class SeverityRoutingBody(_Body):
+    recipients: dict[str, list[str]] | None = None
+    channels: list[str] | None = None
+    row_version: int | None = None
+
+
+@router.put("/generator/devices/{device_id}/severity-routing/{severity}")
+def put_severity_routing(device_id: str, severity: str, body: SeverityRoutingBody, principal: Principal = Depends(_manage_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """GENALERT-295: the default recipients and channels of one severity on this generator (what an alert type without its own choice inherits)."""
+    _device(conn, device_id)
+    if severity not in alerts.SEVERITIES:
+        raise not_found("החומרה לא נמצאה.")
+    try:
+        return alerts.save_severity_routing(conn, principal, device_id, severity, body.model_dump(exclude_unset=True))
+    except alerts.RoutingInvalid as exc:
+        raise ApiError(409 if exc.code == "revision_conflict" else 422, exc.code, exc.message, details=exc.details) from None
+
+
 class PreviewBody(_Body):
     template_he: str | None = Field(default=None, max_length=alerts.TEMPLATE_MAX)
 
@@ -441,6 +460,7 @@ class SettingsBody(_Body):
     alert_retention_days: int | None = None
     history_retention_days: int | None = None
     stale_after_s: int | None = None
+    critical_escalate_after_min: int | None = None  # GENALERT-295: minutes before an unacknowledged CRITICAL generator alert goes to the system administrators; 0 = the installation's escalation delay
 
 
 def _settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -449,7 +469,7 @@ def _settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"integration_domains": mine if isinstance(mine, list) else [], "known_domains": list(cat.KNOWN_DOMAINS), "thresholds": core.thresholds(conn), "threshold_defaults": cat.DEFAULT_THRESHOLDS,
             "threshold_limits": {k: list(v) for k, v in cat.THRESHOLD_LIMITS.items()}, "thresholds_set": sorted((stored.get("default") or {}).keys()) if isinstance(stored, dict) else [],
             "alert_retention_days": core.int_setting(conn, "alert_retention_days"), "history_retention_days": core.int_setting(conn, "history_retention_days"),
-            "stale_after_s": core.int_setting(conn, "stale_after_s"), "limits": {k: list(v[:2]) for k, v in cat.RETENTION_LIMITS.items()}}
+            "stale_after_s": core.int_setting(conn, "stale_after_s"), "critical_escalate_after_min": alerts.critical_escalate_after_min(conn), "limits": {k: list(v[:2]) for k, v in cat.RETENTION_LIMITS.items()}}
 
 
 @router.get("/generator/settings")
@@ -481,6 +501,11 @@ def put_settings(body: SettingsBody, principal: Principal = Depends(_manage_w), 
             if not lo <= v <= hi:
                 raise ApiError(422, "validation", "ערך מחוץ לטווח.", details={"fields": [name]})
             core.jset(conn, f"generator.{name}", v)
+    if "critical_escalate_after_min" in sent and body.critical_escalate_after_min is not None:
+        v = body.critical_escalate_after_min
+        if not 0 <= v <= 1440:
+            raise ApiError(422, "validation", "ערך מחוץ לטווח.", details={"fields": ["critical_escalate_after_min"]})
+        core.jset(conn, "generator.critical_escalate_after_min", v)
     audit(conn, actor=principal, action="generator.settings.update", decision="allowed", resource_type="generator_settings", resource_id=None, details={"keys": sorted(sent)})
     return _settings_out(conn)
 

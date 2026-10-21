@@ -114,6 +114,8 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   // CR-INFRA-TEMPERATURE phase 3: the maintenance window and the sensor battery
   wrench: svg`<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.8 1.8 0 0 0 2.6 2.6l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>`,
   battery: svg`<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/>`,
+  // UXFIX-A11Y-295: the neutral empty state (nothing here yet) - a tray, not a map pin
+  inbox: svg`<path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

@@ -39,10 +39,20 @@ export interface ControlSwitch {
   /** null = Frigate does not report it */
   value: boolean | null;
 }
+/** FRIGATE-295: a runtime switch of ONE named zone / motion mask / object mask; `feature` is "<kind>:<name>" (class analytics). */
+export interface NamedSwitch {
+  feature: string;
+  kind: 'zone' | 'motion_mask' | 'object_mask';
+  name: string;
+  class: 'analytics';
+  value: boolean | null;
+}
 export interface CameraControl {
   recorder_id: string;
   camera_id: string;
   features: ControlSwitch[];
+  /** absent on a server before FRIGATE-295 */
+  named?: NamedSwitch[];
   /** the groups THIS caller may change now: permission on the camera AND the class switched on */
   writable: { analytics: boolean; record: boolean; ptz: boolean };
 }
@@ -107,8 +117,8 @@ export const revertChange = (rid: string, id: string, confirm: boolean, supervis
 // ---- F2b (routers/frigate_f2b.py, CR-029 section 11): the first supervised write, the automatic profile, exports, cases, manual events, the clip ----
 
 /** The kinds whose first write toward a recorder must be supervised once (`frigate_first_write`). */
-export type SupervisedKind = 'export_create' | 'export_rename' | 'export_delete' | 'case_create' | 'case_rename' | 'case_delete' | 'event_create' | 'event_end' | 'profile_auto' | 'clip_read' | 'config_zone' | 'config_settings';
-export const SUPERVISED_KINDS: SupervisedKind[] = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read', 'config_zone', 'config_settings'];
+export type SupervisedKind = 'export_create' | 'export_rename' | 'export_delete' | 'export_assign' | 'case_create' | 'case_rename' | 'case_delete' | 'event_create' | 'event_end' | 'profile_auto' | 'clip_read' | 'config_zone' | 'config_settings';
+export const SUPERVISED_KINDS: SupervisedKind[] = ['export_create', 'export_rename', 'export_delete', 'export_assign', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read', 'config_zone', 'config_settings'];
 
 export interface FirstWrites {
   recorder_id: string;
@@ -185,8 +195,11 @@ export interface FrigateCase {
   arx_created: boolean;
 }
 export const getExports = (rid: string) => get<{ recorder_id: string; exports: FrigateExport[]; enabled: boolean }>(`${base(rid)}/exports`);
-export const createExport = (rid: string, body: { camera_id: string; start: number; end: number; name: string; supervised?: boolean }) =>
-  post<{ created: boolean; export_id: string | null; verified: boolean; change_id: string | null }>(`${base(rid)}/exports`, body);
+export const createExport = (rid: string, body: { camera_id: string; start: number; end: number; name: string; case_id?: string | null; supervised?: boolean }) =>
+  post<{ created: boolean; export_id: string | null; verified: boolean; queued?: boolean; change_id: string | null }>(`${base(rid)}/exports`, body);
+/** FRIGATE-295: put an export Arx created into a Frigate case, or out of it (`caseId` null). */
+export const assignExport = (rid: string, id: string, caseId: string | null, supervised = false) =>
+  post<{ changed: boolean; export_id: string; case_id: string | null; verified: boolean; change_id: string | null }>(`${base(rid)}/exports/${encodeURIComponent(id)}/case`, { case_id: caseId, ...(supervised ? { supervised } : {}) });
 export const renameExport = (rid: string, id: string, name: string, supervised = false) =>
   patch<{ changed: boolean; export_id: string; name: string; verified: boolean }>(`${base(rid)}/exports/${encodeURIComponent(id)}`, supervised ? { name, supervised } : { name });
 export const deleteExport = (rid: string, id: string, supervised = false) =>
@@ -214,6 +227,8 @@ export const EXPORT_MAX_S = 7200;
 export const clipUrl = (rid: string, cameraId: string, start: number, end: number, supervised = false): string =>
   apiUrl(`${base(rid)}/cameras/${encodeURIComponent(cameraId)}/clip.mp4?start=${start}&end=${end}${supervised ? '&supervised=true' : ''}`);
 export const eventClipUrl = (rid: string, eventId: string, supervised = false): string => apiUrl(`${base(rid)}/events/${encodeURIComponent(eventId)}/clip.mp4${supervised ? '?supervised=true' : ''}`);
+/** FRIGATE-295: the clip of one CLOSED review item of at most an hour (the server answers 409 `frigate_clip_window` otherwise). */
+export const reviewClipUrl = (rid: string, reviewId: string, supervised = false): string => apiUrl(`${base(rid)}/reviews/${encodeURIComponent(reviewId)}/clip.mp4${supervised ? '?supervised=true' : ''}`);
 
 /** The open manual events Arx created, read from the change log: an `event_create` row that is still reversible (the undo ends it). */
 export function openManualEvents(changes: readonly ChangeRow[]): { id: string; camera_id: string | null; label: string; sub_label: string | null; at: string; actor: string | null; status: ChangeRow['status'] }[] {
@@ -256,7 +271,11 @@ export const SWITCH_ORDER: Record<SwitchGroup, string[]> = {
   record: ['enabled', 'recordings', 'snapshots'],
 };
 
-export const featureText = (f: string): string => (he.frigate.control.feature as Record<string, string>)[f] ?? f;
+export const featureText = (f: string): string => {
+  const i = f.indexOf(':');
+  if (i > 0) return `${(he.frigate.control.namedKind as Record<string, string>)[f.slice(0, i)] ?? f.slice(0, i)}: ${f.slice(i + 1)}`;
+  return (he.frigate.control.feature as Record<string, string>)[f] ?? f;
+};
 
 /** The switches of one group that Frigate reports, in screen order. A switch Frigate does not report (null) is not drawn. */
 export function groupSwitches(c: CameraControl, group: SwitchGroup): ControlSwitch[] {

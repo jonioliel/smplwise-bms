@@ -41,6 +41,7 @@ import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEn
 import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
+import { sameScene } from '../map/scene-equal';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import { modeFromWire, type QualityMode } from '../map/quality-mode';
 import type { FloorRequestDetail, HudCornerDetail, LevelSelectDetail, PartSelectDetail, RealisticChangeDetail, WalkChangeDetail } from '../map/sw-plan-3d';
@@ -1914,7 +1915,10 @@ export class ExploreFloorMap extends LitElement {
     }
     if (!base) return null;
     const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
-    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d, realistic: this.real3d, materialsCatalog: this.materials3d });
+    const built = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d, realistic: this.real3d, materialsCatalog: this.materials3d });
+    // PERF3D-295: a push the 3D does not draw (a meter's reading) builds an equal description: the shown object stays, so the
+    // 3D view neither realises its scene again nor re-lays its labels
+    const desc = memo && same && sameScene(memo.desc, built) ? memo.desc : built;
     // the strip draws every level from a description keyed on the structure only (without the level filter and without
     // the state layer): a live state push or a level switch keeps the memo's object, so the element's thumbnail cache
     // (keyed on it) is not redrawn - the state dots are drawn over the cached pictures (CR-006 1b)
@@ -2965,7 +2969,7 @@ export class ExploreFloorMap extends LitElement {
   private renderStage() {
     const b = this.bundle;
     if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
-    if (this.noFloors) return html`<div class="cover"><sw-state-panel state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;
+    if (this.noFloors) return html`<div class="cover"><sw-state-panel icon="map" state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;
     if (!b) return html`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;
     switch (this.screenState) {
       case 'loading':
@@ -2979,7 +2983,7 @@ export class ExploreFloorMap extends LitElement {
     }
     if (this.screenState === 'empty' || b.planStatus === 'none') {
       return html`<div class="cover">
-        <sw-state-panel state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
+        <sw-state-panel icon="map" state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
           <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
             ${b.permissions.import && !this.phone.restricted('structure') ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
             <sw-button icon="list" @click=${() => navigate('/live/wall')}>${t('floor.listView')}</sw-button>
@@ -2989,7 +2993,7 @@ export class ExploreFloorMap extends LitElement {
     }
     return html`
       ${this.screenState === 'stale' || this.screenState === 'partial'
-        ? html`<div class="banner"><sw-state-panel compact state=${this.screenState}></sw-state-panel></div>`
+        ? html`<div class="banner"><sw-state-panel icon="map" compact state=${this.screenState}></sw-state-panel></div>`
         : b.needsAlignment
           ? html`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`
           : nothing}

@@ -273,6 +273,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # a technician) - per station (the access-control station chain), together with people.manage + people.sensitive (+ pin.generate for
     # a code). Sensitive, never implied; built-in holder system_admin only; the owner hands it to a user through a custom role.
     "access.external.grant": "בקרת כניסה: אישור גישה זמנית לאדם חיצוני (ספק או טכנאי)",
+    # CR-AUTODOORS-295: create, edit, arm and stop the "open a door" blocks of automations - only for doors the person may open
+    # themselves (checked at arm time and again at every fire). Opens nothing by itself. Sensitive, never implied; built-in holder
+    # system_admin only; may be carried by a station-scope role (rbac.STATION_PERMISSIONS).
+    "access.doors.automate": "בקרת כניסה: אוטומציות שפותחות דלתות (הגדרה, חימוש ועצירה)",
+    "access.people.stations": "בקרת כניסה: מתן וחסימת גישה לאדם לפי עמדה",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,
@@ -328,6 +333,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # VPORTALRFQ (owner 2026-10-17): approve / reject the company technician requests vendors send from the portal - only for vendors
     # of the departments the holder manages (all of them with tickets.all_departments); tickets.configure keeps approving every one.
     # Sensitive, not delegable by default, the single-permission role tickets_technician_requests; system_admin only among built-ins.
+    # SMALL-294 (CR-038 18A, D15): keep the contact / vendor directory (create, edit, erase, export, full phone numbers, every row) without
+    # tickets.configure; tickets.configure still covers it. Sensitive, not delegable by default, a single-permission role tickets_directory.
+    "tickets.directory": "{module}: ניהול ספריית אנשי קשר וספקים",
     "tickets.technician_requests": "{module}: אישור בקשות טכנאים מספקים (במחלקות שבאחריותי)",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
@@ -1118,6 +1126,7 @@ def list_audit(
     limit: int = Query(100, ge=1, le=500),
     channel: str | None = Query(None, pattern="^(local|remote|bearer)$"),
     view: str | None = Query(None, pattern="^(remote_sign_ins|remote_refusals)$"),
+    actor_kind: str | None = Query(None, pattern="^(automation|person)$"),
 ) -> dict[str, Any]:
     """The audit screen. CR-008 P2: `channel` = where the actor came from (`local` = inside the system's own UI,
     `remote` = SmplWise Arx, `bearer` = Arx with a bearer token); `view` = a quick view that replaces the action prefix:
@@ -1142,6 +1151,12 @@ def list_audit(
         sql += f" AND {detail.format('via')} = 'bearer'"
     elif channel == "local":
         sql += f" AND NOT {remote_row}"
+    # CR-AUTODOORS-295: `automation` = the rows of the automation operators (actor `automation:<block id>`, e.g. a door an
+    # automation opened); `person` = everything else
+    if actor_kind == "automation":
+        sql += " AND actor_user_id LIKE 'automation:%'"
+    elif actor_kind == "person":
+        sql += " AND (actor_user_id IS NULL OR actor_user_id NOT LIKE 'automation:%')"
     if actor:
         # HA 2026.10 normalises usernames (strip + casefold, core#175613): "Joni" finds the rows written as "joni" before
         # or after a rename. SQLite's LOWER() is ASCII-only, so the same Python normalisation runs on both sides.

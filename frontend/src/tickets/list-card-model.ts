@@ -145,7 +145,8 @@ export function cardModel(item: CardItem, ctx: { role: ViewerRole; now?: Date; b
     if (tail && sentence.length + 3 + tail.length <= SENTENCE_MAX) sentence = `${sentence} · ${tail}`;
   }
   const warning = ctx.board ? boardWarning(item, ctx.role) : null;
-  const run = runLine(item, now);
+  // UXFIX-NAV-295: a request still waiting for its handler says so in the sentence; the footer then does not repeat "ללא מטפל"
+  const run = runLine(item, now, { omitUnassigned: !item.assignee && (item.status === 'new' || /שיוך|assign/i.test(sentence)) });
   return {
     sentence,
     chip: statusChip(item),

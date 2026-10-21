@@ -282,7 +282,7 @@ export class ExploreEntities extends LitElement {
             : !cat
               ? html`<sw-state-panel state="loading"></sw-state-panel>`
               : !rows.length
-                ? html`<sw-state-panel state="empty" heading=${total ? 'אין ישויות שתואמות את הסינון' : 'הקטלוג ריק'} hint=${total ? 'נקה את החיפוש או בחר domain אחר.' : sync?.connected ? 'ההסנכרון פעיל אך טרם התקבלו מצבים.' : 'לא מחובר לתשתית המערכת. בדוק בהגדרות → כללי.'}></sw-state-panel>`
+                ? html`<sw-state-panel icon=${total ? 'filter' : 'list'} state="empty" heading=${total ? 'אין ישויות שתואמות את הסינון' : 'הקטלוג ריק'} hint=${total ? 'נקה את החיפוש או בחר domain אחר.' : sync?.connected ? 'ההסנכרון פעיל אך טרם התקבלו מצבים.' : 'לא מחובר לתשתית המערכת. בדוק בהגדרות → כללי.'}></sw-state-panel>`
                 : html`<sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>`}
           ${ent ? this.renderApiDrawer(ent) : nothing}
         </div>

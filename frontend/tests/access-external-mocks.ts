@@ -92,30 +92,85 @@ export const DIGEST = {
   ],
 };
 
+// GRANTSMIN-295: the drift view's wire (services/access_external.drift): per person, the differences most urgent first. Invented sample data.
+const gid = (s: string) => s.padEnd(32, '0');
+export const DRIFT = {
+  enabled: true, name_sync: 'manual', in_sync: 2,
+  rows: [
+    { link_id: 'l-g09', contact_id: 'c-g09', subject_kind: 'contact', name: 'משה ביטון', company: 'ביטון שיפוצים', origin: 'created_from_arx', link_state: 'wiskey_missing',
+      grant: { id: gid('g09'), state: 'revoking', doors: [{ station_id: 'lobby', name: 'לובי ראשי' }, { station_id: 'park', name: 'חניון' }] },
+      diffs: [{ kind: 'missing', grant_id: gid('g09') }], name_checked_at: '2026-10-19T06:00:00Z', scope_checked_at: '2026-10-19T05:40:00Z', can: { push_name: false, read_now: true } },
+    { link_id: 'l-g06', contact_id: 'c-g06', subject_kind: 'contact', name: 'שירן מזרחי', company: null, origin: 'created_from_arx', link_state: 'linked',
+      grant: { id: gid('g06'), state: 'active', doors: [{ station_id: 'lobby', name: 'לובי ראשי' }] },
+      diffs: [{ kind: 'scope', grant_id: gid('g06') }], name_checked_at: null, scope_checked_at: '2026-10-20T07:02:00Z', can: { push_name: false, read_now: true } },
+    { link_id: 'l-g07', contact_id: 'c-g07', subject_kind: 'contact', name: 'אבי שושן', company: 'שושן אינסטלציה', origin: 'created_from_arx', link_state: 'linked',
+      grant: { id: gid('g07'), state: 'active', doors: [{ station_id: 'kitchen', name: 'מטבח' }] },
+      diffs: [{ kind: 'sync_pending', grant_id: gid('g07') }], name_checked_at: null, scope_checked_at: '2026-10-20T06:10:00Z', can: { push_name: false, read_now: true } },
+    { link_id: 'l-g05', contact_id: 'c-g05', subject_kind: 'contact', name: 'רונן כהן', company: 'אוטיס מעליות', origin: 'created_from_arx', link_state: 'linked',
+      grant: { id: gid('g05'), state: 'active', doors: [{ station_id: 'roof', name: 'גג' }, { station_id: 'base', name: 'מרתף' }] },
+      diffs: [{ kind: 'name' }], name_checked_at: '2026-10-20T07:02:00Z', scope_checked_at: '2026-10-20T07:02:00Z', can: { push_name: true, read_now: true } },
+    { link_id: 'l-g12', contact_id: 'c-g12', subject_kind: 'contact', name: 'קובי אלון', company: 'אלון מנעולים', origin: 'created_from_arx', link_state: 'linked', grant: null,
+      diffs: [{ kind: 'idle_person', since: '2026-10-18T07:01:00Z' }], name_checked_at: '2026-10-17T06:00:00Z', scope_checked_at: null, can: { push_name: false, read_now: false } },
+  ],
+};
+
 export interface ExternalMock {
   access: AccessMock;
   posts: { path: string; body: unknown }[];
   settingsPuts: Record<string, unknown>[];
+  /** GRANTSMIN-295: the CSV requests (their query strings) */
+  exports: string[];
+  /** SHAREDUI-295: how many times the screen asked for the list */
+  listCalls: number;
 }
 
 export interface ExternalOptions {
   persona?: Persona;
+  /** TICKGATE-295: the tickets module is on (the request form's ticket link needs it) */
+  ticketsOn?: boolean;
   /** off (default true): the build as shipped - the switch is off and the go-live permit absent */
   enabled?: boolean;
   empty?: boolean;
   systemAdmin?: boolean;
   /** ACCESSREQ-293: the caller may open the manual request form (default true) */
   mayRequest?: boolean;
+  /** GRANTSMIN-295: no differences (every person matches) */
+  noDrift?: boolean;
+  /** GRANTSMIN-295: the CSV answers 429 export_rate */
+  exportRate?: boolean;
+  /** SHAREDUI-295: WisKey does not answer (the list's `wiskey` freshness); `noCopy`: and Arx holds no copy either */
+  wiskeyOffline?: boolean | 'noCopy';
+  /** SHAREDUI-295: GET /access-grants fails - always (the first load), or after the first answer (a poll that fails: stale) */
+  listFails?: 'always' | 'after-first';
+  /** SHAREDUI-295: the identity card's GET fails with a server error (not a 404) */
+  identityFails?: boolean;
+  /** SHAREDUI-295: what POST /read-now answers: the same unknown grant (default), a now-active grant, or a refusal */
+  readNow?: 'still' | 'settled' | 'error';
+  /** GRANTS3-295: the cards switch is on and the list carries an active card grant (g15) waiting for its card */
+  cards?: boolean;
 }
+
+// GRANTS3-295: an active CARD grant waiting for its card (invented sample data) and the owner's per-grant history (ids / codes only)
+const CARD_GRANT: G = { id: 'g15', state: 'active', name: 'איתי ברק', company: 'ברק מעליות', stations: [['base', 'מרתף', [1]], ['roof', 'גג', [1]]], vf: '2026-10-20T04:00:00',
+  vu: '2026-10-24T13:00:00', source: 'ticket', ref: 'T-1850', code: null, number: '····27', link: { origin: 'created_from_arx', state: 'linked' }, approved: '2026-10-20T06:50:00', notice: true };
+export const HISTORY = [
+  { at: '2026-10-19T13:12:00Z', action: 'request', decision: 'allowed', reason: null, by: { kind: 'page', name: null }, facts: { source: 'ticket', doors: 2 } },
+  { at: '2026-10-19T13:12:00Z', action: 'notice_ack', decision: 'allowed', reason: null, by: { kind: 'page', name: null }, facts: { via: 'page', version: 'n2' } },
+  { at: '2026-10-20T06:40:00Z', action: 'approve', decision: 'denied', reason: 'self_approval', by: { kind: 'user', name: 'רפי ב.' }, facts: {} },
+  { at: '2026-10-20T06:50:00Z', action: 'approve', decision: 'allowed', reason: null, by: { kind: 'user', name: 'מיכל ש.' }, facts: { credential: 'card', doors: 2 } },
+  { at: '2026-10-20T06:50:05Z', action: 'provision', decision: 'allowed', reason: null, by: { kind: 'system', name: null }, facts: { attempt: 1 } },
+  { at: '2026-10-20T06:50:07Z', action: 'activate', decision: 'allowed', reason: null, by: { kind: 'system', name: null }, facts: { doors: 2 } },
+];
 
 export async function installExternalMock(page: Page, o: ExternalOptions = {}): Promise<ExternalMock> {
   const persona = o.persona ?? 'admin';
-  const access = await installAccessMock(page, { persona });
-  const st: ExternalMock = { access, posts: [], settingsPuts: [] };
+  const access = await installAccessMock(page, { persona, ticketsOn: o.ticketsOn });
+  const st: ExternalMock = { access, posts: [], settingsPuts: [], exports: [], listCalls: 0 };
   const screen = { digest_channel: 'app', digest_day: 0, digest_hour: 8, name_sync: 'manual', placement: 'access' };
   const enabled = o.enabled ?? true;
   const admin = o.systemAdmin ?? true;
   const grants = o.empty ? [] : SAMPLE.map((s) => grantOf(s));
+  if (o.cards && !o.empty) grants.unshift({ ...grantOf(CARD_GRANT), credential: 'card', code_state: 'not_needed', card_state: 'awaiting' });
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   const extra = ['access.external.grant', 'tickets.configure'];
   await page.route('**/api/v1/me', (route) => {
@@ -132,12 +187,27 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
     const p = url.pathname.replace(/^.*\/api\/v1\//, '');
     const method = req.method();
     if (method === 'GET' && p === 'access-grants') {
+      st.listCalls += 1;
+      if (o.listFails === 'always' || (o.listFails === 'after-first' && st.listCalls > 1)) {
+        return json(route, { code: 'service_unavailable', user_message: 'השרת לא זמין כרגע.', retryable: true, correlation_id: 'mock', details: {} }, 503);
+      }
+      const wiskey = o.wiskeyOffline
+        ? { reachable: false, as_of: o.wiskeyOffline === 'noCopy' ? null : '2026-10-20T07:14:00Z', has_copy: o.wiskeyOffline !== 'noCopy' }
+        : { reachable: true, as_of: '2026-10-20T07:19:00Z', has_copy: true };
       return json(route, {
-        grants, enabled, system_admin: admin, screen, may_request: o.mayRequest ?? true,
-        rules: { external_grants: enabled ? 'on' : 'off', go_live_permitted: enabled, max_days: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off' },
+        grants, enabled, system_admin: admin, screen, may_request: o.mayRequest ?? true, wiskey,
+        rules: { external_grants: enabled ? 'on' : 'off', go_live_permitted: enabled, max_days: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off',
+          cards: o.cards ? 'on' : 'off', card_capture: 'off' },
       });
     }
     if (method === 'GET' && p === 'access-grants/digest') return json(route, { digest: DIGEST });
+    if (method === 'GET' && p === 'access-grants/drift') return json(route, { drift: enabled ? (o.noDrift ? { ...DRIFT, rows: [], in_sync: 7 } : DRIFT) : { ...DRIFT, enabled: false, rows: [], in_sync: 0 } });
+    if (method === 'GET' && p === 'access-grants/export.csv') {
+      st.exports.push(url.search);
+      if (o.exportRate) return json(route, { code: 'export_rate', user_message: 'אפשר לייצא פעם בדקה.', retryable: true, correlation_id: 'mock', details: { retry_after_s: 40 } }, 429);
+      return route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', headers: { 'Content-Disposition': 'attachment; filename="external-access-20261020-1020.csv"', 'X-Export-Rows': String(grants.length) },
+        body: '﻿"שם","מצב"\r\n"רונן כהן","פעיל · אומת"\r\n' });
+    }
     if (p === 'access-grants/settings') {
       if (method === 'PUT') {
         const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
@@ -147,6 +217,7 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
       return json(route, { external_grants: 'off', go_live_permitted: false, max_days: 14, max_days_cap: 14, max_doors: 4, phone_fresh_days: 180, code_hour: 18, local_approvers: 'off', ...screen });
     }
     const ident = /^access-grants\/contacts\/([^/]+)\/identity$/.exec(p);
+    if (ident && o.identityFails) return json(route, { code: 'service_unavailable', user_message: 'השרת לא זמין כרגע.', retryable: true, correlation_id: 'mock', details: {} }, 503);
     if (ident) {
       const g = grants.find((x) => (x.person as { contact_id: string }).contact_id === ident[1]) as Record<string, any> | undefined;
       if (!g) return json(route, { code: 'access_identity_not_found', user_message: 'לא נמצא.', retryable: false, correlation_id: 'mock', details: {} }, 404);
@@ -159,6 +230,11 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
           history: link ? [{ action: 'access.person_link.create', at: '2026-10-17T06:00:00Z' }, { action: 'access.grant.request', at: '2026-10-19T13:12:00Z' }] : [],
         },
       });
+    }
+    const hist = /^access-grants\/([^/]+)\/history$/.exec(p);
+    if (method === 'GET' && hist) {
+      if (!admin) return json(route, { code: 'not_system_admin', user_message: 'רק מנהל מערכת.', retryable: false, correlation_id: 'mock', details: {} }, 403);
+      return json(route, { history: HISTORY });
     }
     const one = /^access-grants\/([^/]+)$/.exec(p);
     if (method === 'GET' && one) {
@@ -174,6 +250,15 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
       const m = /^access-grants\/([^/]+)\//.exec(p);
       const g = m ? grants.find((x) => x.id === m[1]) : undefined;
       if (p === 'access-grants/revoke-all') return json(route, { revoked: 9 });
+      if (g && p.endsWith('/read-now')) {
+        if (o.readNow === 'error') return json(route, { code: 'access_grant_read_failed', user_message: 'WisKey לא ענה.', retryable: true, correlation_id: 'mock', details: {} }, 502);
+        if (o.readNow === 'settled') Object.assign(g, { state: 'active', grant_state: 'active', pending_sync: false, doors_state: 'accepted' });
+        return json(route, { grant: g });
+      }
+      if (g && /\/card$/.test(p)) { // GRANTS3-295: the card is saved (the mock keeps no number either)
+        (g as Record<string, unknown>).card_state = 'attached';
+        (g as Record<string, unknown>).revision = Number((g as Record<string, unknown>).revision) + 1;
+      }
       return json(route, { grant: g ?? null, link: { id: 'l-new', origin: 'created_from_arx', state: 'linked' }, outcome: 'pushed', drift: false });
     }
     return json(route, { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }, 404);

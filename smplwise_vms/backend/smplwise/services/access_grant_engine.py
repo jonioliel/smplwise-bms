@@ -65,14 +65,23 @@ class EnginePerson:
     group_ids: tuple[str, ...] = ()
     # False when `pin_configured` may be unreadable (restricted projection): pin_configured=False is then NOT proof of a cleared PIN.
     pin_known: bool = True
-    # R4-04: whether the stations have APPLIED the central record: True = every enabled assignment reports `sync_state` "synced" with
-    # applied_revision == desired_revision; False = at least one does not; None = cannot tell (door map unknown, bookkeeping missing).
-    # Recorded beside a proof of the central scope, never taken as physical completion and never required by it.
+    # R4-04 / R11-I2-01: the CENTRAL applied bookkeeping (desired / applied revisions of WisKey's journal), NOT physical proof.
+    # True = every enabled assignment has desired_revision == `revision`, applied_revision == desired_revision, sync_state "synced"
+    # and a valid last_sync_at; False = at least one well-formed row is explicitly behind (applied < desired, applied null = not
+    # applied yet, or a known non-synced state); None = cannot tell (door map unknown, bookkeeping missing / inconsistent, no sync
+    # time, a row synced for an older person revision). Recorded beside a proof of the central scope, never required by it.
     # R5-A7: None also when no assignment is enabled - "no evidence", never a vacuous True.
     stations_synced: bool | None = None
+    # R11-I2-01: whether the stations PHYSICALLY hold the record. Always None (UNKNOWN) in this build: no device-side evidence
+    # contract exists, and the central bookkeeping above is never promoted to it.
+    physical_proof: bool | None = None
     # R5-A2: the COMPLETE `access_timing_policy` as WisKey returned it ({mode, schedule, bindings}, each key only when it was present;
     # None = no policy). `timing` above is its schedule only; a scope proof compares the whole policy (mode and bindings included).
     timing_policy: dict[str, Any] | None = None
+    # GRANTS3-295 (X5): the ids of the person's saved cards (WisKey's card ids - never a number, not even the masked form) and whether
+    # the card list was readable (`cards` a list of objects with an id, credentials not redacted). False = unknown, never "no card".
+    card_ids: tuple[str, ...] = ()
+    cards_known: bool = False
 
 
 class Engine(Protocol):
@@ -86,8 +95,16 @@ class Engine(Protocol):
 
     def strip(self, person_id: str, revision: int) -> EnginePerson: ...
 
-    def revocation_pending(self, person_id: str) -> bool | None:
-        """Central sync status: True = a revocation for this person is still pending, False = none, None = cannot tell."""
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
+        """STATIONPERM-295: ONE revision-checked users/update carrying ONLY the complete `permission_overrides` map and the
+        `door_permissions` of an allowed station (`station_access_payload`). Never groups, timing, validity, active or credentials."""
+        ...
+
+    def revocation_pending(self, person_id: str, revision: int) -> bool | None:
+        """Central sync status of the person AT `revision` (the revision of the fresh readback the caller is judging, R11-I1-03):
+        True = a revocation is still pending, False = none, None = cannot tell. False only through `revocation_pending_verdict`
+        (present, same revision, all six pending arrays empty); a revision mismatch, absence or a scoped 404 is None. A False here
+        is never enough alone: the caller also needs `central_revoked` on that same readback (`revocation_proven`)."""
         ...
 
     def pin_generate(self, person_id: str) -> str: ...
@@ -95,6 +112,14 @@ class Engine(Protocol):
     def rename(self, person_id: str, revision: int, display_name: str) -> EnginePerson: ...
 
     def delete(self, person_id: str, revision: int) -> None: ...
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
+        """GRANTS3-295 (X5): one card typed by number (WisKey `cards/add`). The number exists only in this call's frame."""
+        ...
+
+    def card_remove(self, person_id: str, revision: int, card_id: str) -> EnginePerson:
+        """GRANTS3-295 (X5): one saved card by its id (WisKey `cards/remove`)."""
+        ...
 
 
 # ---------------------------------------------------------------- the live engine (refused in this build)
@@ -183,6 +208,19 @@ def strip_payload() -> dict[str, Any]:
     ONE allowed null (phone/responsible_person/access_purpose are never null). Sent with sync_now; the answer is the public person object.
     It is not proof of physical removal: the worker waits for a readback AND the central sync status (see `Worker.strip`)."""
     return {"group_ids": [], "permission_overrides": {}, "active": False, "pin": None}
+
+
+def station_access_payload(*, overrides: dict[str, str], doors: dict[str, list[int]]) -> dict[str, Any]:
+    """STATIONPERM-295 (CR-STATION-PERMISSIONS-295 section 4): the users/update `data` of one per-station decision - the COMPLETE
+    `permission_overrides` replacement (built by the caller from a fresh read, every other station's entry carried over) and
+    `door_permissions` for the allowed station only. Nothing else: `group_ids`, `access_timing_policy` (mode / schedule / bindings stay
+    together and are never written here), validity, `active`, PIN and cards are left as WisKey has them. Source-derived, NOT_RUN."""
+    if not isinstance(overrides, dict) or not all(isinstance(k, str) and k and v in ("allow", "deny") for k, v in overrides.items()):
+        raise ValueError("overrides")
+    for sid, relays in doors.items():
+        if overrides.get(sid) != "allow" or not relays or not all(_strict_int(r) and r in RELAYS for r in relays):
+            raise ValueError("doors")
+    return {"permission_overrides": dict(overrides), "door_permissions": {k: sorted(set(v)) for k, v in doors.items()}}
 
 
 _ACCESS_FIELDS = frozenset({"assignments", "group_ids", "permission_overrides"})
@@ -296,24 +334,19 @@ def person_from_raw(raw: Any) -> EnginePerson:
     # missing key is not "disabled"), the lock list a list of supported relays, a present bookkeeping revision a positive int (null = not
     # applied yet). Never skipped: a malformed row makes the whole map unknown (the loop below only builds the map of a valid record).
     malformed = bool(shape.malformed)
-    enabled_rows = 0
-    synced: bool | None = True
+    checks: list[bool | None] = []
     if isinstance(assignments, dict):
         for sid, row in assignments.items():
             if not _row_ok(sid, row):
                 continue
             locks = row["allowed_locks"]
-            desired, applied = row.get("desired_revision"), row.get("applied_revision")
             stations.add(sid)
             if row["enabled"] is True:
-                enabled_rows += 1
                 doors[sid] = sorted(set(locks))
-                if desired is None or applied is None:
-                    synced = None if synced is not False else False
-                elif row.get("sync_state") != "synced" or applied != desired:
-                    synced = False
-    if enabled_rows == 0:
-        synced = None  # R5-A7: nothing enabled is no evidence of application, not a vacuous "synced"
+                checks.append(_row_synced(row, raw["revision"]))
+    # R11-I2-01: one explicitly behind row makes the person False; otherwise any unknown row makes it UNKNOWN. R5-A7: nothing enabled
+    # is no evidence of application, not a vacuous "synced".
+    synced: bool | None = None if not checks else False if False in checks else None if None in checks else True
     overrides: dict[str, str] = {}
     if isinstance(overrides_raw, dict):
         overrides = {k: v for k, v in overrides_raw.items() if isinstance(k, str) and k.strip() and v in ("allow", "deny")}
@@ -329,7 +362,12 @@ def person_from_raw(raw: Any) -> EnginePerson:
         doors = {}
         synced = None
     policy = raw.get("access_timing_policy") if isinstance(raw.get("access_timing_policy"), dict) else None
+    # GRANTS3-295 (X5): card ids only; a list that is not a list of objects with a non-blank string id is unknown (never "no card")
+    cards = raw.get("cards")
+    cards_known = (isinstance(cards, list) and not credential_redacted
+                   and all(isinstance(c, dict) and isinstance(c.get("id"), str) and c["id"].strip() for c in cards))
     return EnginePerson(
+        card_ids=tuple(c["id"] for c in cards) if cards_known else (), cards_known=cards_known,
         id=raw["id"], revision=raw["revision"], display_name=str(raw.get("display_name") or "")[:32], active=active,
         valid_from=raw.get("valid_from") if isinstance(raw.get("valid_from"), str) else None,
         valid_until=raw.get("valid_until") if isinstance(raw.get("valid_until"), str) else None,
@@ -341,6 +379,42 @@ def person_from_raw(raw: Any) -> EnginePerson:
         group_ids=tuple(g for g in groups if isinstance(g, str)) if isinstance(groups, list) else (), stations_synced=synced,
         timing_policy=_policy_of(raw.get("access_timing_policy")),
     )
+
+
+SYNC_STATES = frozenset({"synced", "pending", "syncing", "offline", "conflict", "error", "delete_pending"})  # WisKey models.SYNC_STATES
+
+
+def _valid_sync_time(value: Any) -> bool:
+    """R11-I2-01: a valid `last_sync_at` is an ISO 8601 string WITH a timezone (a naive time, a number or a free text is not)."""
+    if not isinstance(value, str) or not 10 <= len(value) <= 40:
+        return False
+    try:
+        moment = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        return False
+    return moment.tzinfo is not None and moment.utcoffset() is not None
+
+
+def _row_synced(row: dict[str, Any], revision: int) -> bool | None:
+    """R11-I2-01 (WisKey person_readback rule, adopted by Arx): the CENTRAL applied bookkeeping of one enabled, shape-valid row.
+
+    UNKNOWN (None) when the bookkeeping is missing or inconsistent: no positive desired_revision, desired ahead of the person's
+    revision, an absent `applied_revision` key (a present null is "not applied yet"), applied ahead of desired, a sync_state outside
+    WisKey's set. False only for a well-formed row that is explicitly behind: applied null or below desired, or a known state other
+    than "synced". True only when desired == the person's revision, applied == desired, "synced" and a valid `last_sync_at`; a row
+    synced for an OLDER person revision, or without a valid sync time, proves nothing about this revision (None)."""
+    desired, applied, state = row.get("desired_revision"), row.get("applied_revision"), row.get("sync_state")
+    if not _positive_int(desired) or desired > revision or "applied_revision" not in row:
+        return None
+    if applied is not None and (not _positive_int(applied) or applied > desired):
+        return None
+    if not isinstance(state, str) or state not in SYNC_STATES:
+        return None
+    if applied is None or applied < desired or state != "synced":
+        return False
+    if desired != revision or not _valid_sync_time(row.get("last_sync_at")):
+        return None
+    return True
 
 
 def _strict_int(value: Any) -> bool:
@@ -374,14 +448,134 @@ def requested_policy(timing: dict[str, Any] | None) -> dict[str, Any] | None:
     return {"mode": "ha", "schedule": timing, "bindings": {}} if timing else None
 
 
+# ---------------------------------------------------------------- R11-I1-03 / R11-I1-04: the revision-bound revocation predicate
+#
+# WisKey's ACR5-01 `users/access_state(user_id, revision)` is PROPOSED, not delivered; Arx has NO client for it. What is built here is
+# the Arx side of the contract only: a strict consumer of the answer, the verdict, and a typed reader seam that only fakes fill.
+# Nothing below sends anything; the live engine passes no reader (UNKNOWN) and stays behind GO_LIVE_PERMITTED (False).
+
+ACCESS_STATE_SCHEMA = 1
+ACCESS_STATE_OBSERVATION = "durable_repository_snapshot"
+ACCESS_STATE_SCOPE = "all_managed_stations"
+PRESENCES = ("present", "delete_pending", "absent")
+PENDING_QUEUES = ("bindings", "tombstones", "cards", "pins", "operations")  # central work still owed to a station
+PENDING_UNVERIFIED = "unverified"  # work that disappeared without a positive device readback - never cleanup, never "pending" either
+
+
+class AccessStateReader(Protocol):
+    """The typed seam for ACR5-01: returns WisKey's raw access_state answer for `user_id` bound to `revision`, or raises (an
+    `EngineError("revision_conflict")` when WisKey's person is at another revision). Only fakes implement it in this build."""
+
+    def __call__(self, user_id: str, revision: int) -> Any: ...
+
+
+@dataclass(frozen=True)
+class AccessState:
+    """A strictly parsed access_state answer (R11-I3-01). All six pending arrays are kept (R11-I1-04): the five central queues in
+    `pending`, `unverified` apart - never collapsed to a boolean, and an empty array is never cleanup on its own. Station ids are
+    WisKey's; nothing shows them before Arx RBAC station scope (intercom_authority) has filtered them - no view does today."""
+
+    user_id: str
+    person_revision: int | None
+    presence: str
+    revocation_pending: bool | None
+    stations_synced: bool | None
+    pending: dict[str, tuple[str, ...]]
+    unverified: tuple[str, ...]
+
+    @property
+    def has_pending(self) -> bool:
+        return any(self.pending.values())
+
+
+def _station_ids(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list) or not all(isinstance(s, str) and 1 <= len(s) <= 128 and s.strip() for s in value) or len(set(value)) != len(value):
+        raise ValueError("access_state pending array")
+    return tuple(sorted(value))
+
+
+def access_state_from_raw(raw: Any, *, user_id: str) -> AccessState:
+    """The strict consumer (ValueError on anything off contract): schema_version exactly int 1, the fixed observation and scope, the
+    exact user_id asked for, presence in PRESENCES, person_revision a positive int for a present person and null otherwise,
+    revocation_pending / stations_synced a strict bool or null, `pending` with exactly the six arrays of unique non-blank station ids.
+    A not-pending (False) answer must be internally consistent: present, and every array - unverified included - empty."""
+    if not isinstance(raw, dict):
+        raise ValueError("access_state record")
+    if not _strict_int(raw.get("schema_version")) or raw["schema_version"] != ACCESS_STATE_SCHEMA:
+        raise ValueError("access_state schema_version")
+    if raw.get("observation") != ACCESS_STATE_OBSERVATION or raw.get("scope") != ACCESS_STATE_SCOPE:
+        raise ValueError("access_state observation / scope")
+    if not isinstance(raw.get("user_id"), str) or raw["user_id"] != user_id:
+        raise ValueError("access_state user_id")
+    presence = raw.get("presence")
+    if presence not in PRESENCES:
+        raise ValueError("access_state presence")
+    revision = raw.get("person_revision")
+    if (presence == "present") != _positive_int(revision) or (presence != "present" and revision is not None):
+        raise ValueError("access_state person_revision")
+    flags = (raw.get("revocation_pending"), raw.get("stations_synced"))
+    if not all(f is None or isinstance(f, bool) for f in flags):
+        raise ValueError("access_state flags")
+    pending_raw = raw.get("pending")
+    if not isinstance(pending_raw, dict) or set(pending_raw) != {*PENDING_QUEUES, PENDING_UNVERIFIED}:
+        raise ValueError("access_state pending")
+    pending = {k: _station_ids(pending_raw[k]) for k in PENDING_QUEUES}
+    unverified = _station_ids(pending_raw[PENDING_UNVERIFIED])
+    if flags[0] is False and (presence != "present" or any(pending.values()) or unverified):
+        raise ValueError("access_state inconsistent")
+    return AccessState(user_id=user_id, person_revision=revision, presence=presence, revocation_pending=flags[0], stations_synced=flags[1],
+                       pending=pending, unverified=unverified)
+
+
+def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: int) -> bool | None:
+    """R11-I1-03: the central revocation status of `person_id` at `revision`. None (UNKNOWN) for another person, or a present person
+    at any other revision; True when anything is still owed (a central queue, delete_pending, or WisKey's own True); None when the
+    person is absent (absence / a scoped 404 is never cleanup), when only `unverified` work remains, or when WisKey did not say False;
+    False only for a present person at exactly `revision` with all six arrays empty and WisKey's flag False."""
+    if state.user_id != person_id or (state.presence == "present" and state.person_revision != revision):
+        return None
+    if state.has_pending or state.presence == "delete_pending" or state.revocation_pending is True:
+        return True
+    if state.presence != "present" or state.unverified or state.revocation_pending is not False:
+        return None
+    return False
+
+
+def revocation_pending_from(reader: AccessStateReader | None, person_id: str, revision: Any) -> bool | None:
+    """Ask `reader` for `person_id` at `revision` and judge the answer. No reader, an unusable revision (not a positive int), any
+    failure of the reader (a revision_conflict included) or an off-contract answer: None - a revoke stays `revoking`."""
+    if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
+        return None
+    try:
+        state = access_state_from_raw(reader(person_id, revision), user_id=person_id)
+    except Exception:  # noqa: BLE001 - every failure is UNKNOWN, never "not pending"
+        return None
+    return revocation_pending_verdict(state, person_id=person_id, revision=revision)
+
+
+def central_revoked(person: EnginePerson) -> bool:
+    """The separate CENTRAL revocation predicate over one fresh readback: door map, overrides and PIN all KNOWN, and no door, no group,
+    no personal override, inactive, no PIN. A restricted projection is UNKNOWN and never counts."""
+    return (person.doors_known and person.overrides_known and person.pin_known and not person.doors and not person.group_ids
+            and not person.overrides and not person.active and not person.pin_configured)
+
+
+def revocation_proven(person: EnginePerson, pending: bool | None) -> bool:
+    """A revoke is done only when BOTH hold for the same readback: the central predicate on `person` and a revocation status of
+    exactly False obtained for `person.revision` (`Engine.revocation_pending(person.id, person.revision)`)."""
+    return central_revoked(person) and pending is False
+
+
 class WiskeyServiceEngine:
     """The S11 people writes on the service channel. Every method refuses (`not_permitted`) while the go-live permit is not in the
     build; nothing below the guard has run against a WisKey (NOT_RUN)."""
 
     WHO = "system:access_grants"
 
-    def __init__(self, settings: Any) -> None:
+    def __init__(self, settings: Any, access_state_reader: AccessStateReader | None = None) -> None:
         self.settings = settings
+        # R11-I1-03: no ACR5-01 client is built, so production passes none (revocation status UNKNOWN); only tests inject a fake.
+        self.access_state_reader = access_state_reader
 
     def _guard(self) -> None:
         from . import access_grants
@@ -474,11 +668,27 @@ class WiskeyServiceEngine:
         data = strip_payload()
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
 
-    def revocation_pending(self, person_id: str) -> bool | None:
-        """No confirmation endpoint is asserted by WisKey, and Arx's overview projection drops tombstones / revocations (B0, D-006): until the
-        pinned service-channel source shows where the central sync status can be read, this is UNKNOWN - a live revoke stays `revoking`."""
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
+        """STATIONPERM-295: refused (`not_permitted`) while the go-live permit is not in the build; never run against a WisKey."""
         self._guard()
-        return None
+        from . import intercom_client
+
+        data = station_access_payload(overrides=overrides, doors=doors)
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
+
+    def revocation_pending(self, person_id: str, revision: int) -> bool | None:
+        """WisKey's ACR5-01 access_state is PROPOSED and Arx has built no client for it (R11-I3-01), and the overview projection drops
+        tombstones / revocations (B0, D-006): with no reader this is UNKNOWN - a live revoke stays `revoking`. With a reader (tests
+        only) the answer is bound to `revision` and judged by `revocation_pending_verdict`; while a write to the person is unsettled
+        no status can be judged (None)."""
+        self._guard()
+        if self.access_state_reader is None:
+            return None
+        from . import intercom_sync
+
+        if intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
+            return None
+        return revocation_pending_from(self.access_state_reader, person_id, revision)
 
     def pin_generate(self, person_id: str) -> str:
         """users/pin_generate is a read in WisKey (the value is not reserved); it is NOT a readback of the person, so it carries no
@@ -504,6 +714,26 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True), person_id)
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
+        """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/add` answers the person's public record (cards masked). The number
+        is in the command frame only - never in a log, an audit row, the journal or an exception text (the mapped error carries WisKey's
+        code, e.g. `card_conflict`)."""
+        self._guard()
+        from . import intercom_client
+
+        card = {"card_no": card_no, "label": _clean_name(label, ""), "card_type": "normalCard", "enabled": True}
+        try:
+            return self._write(lambda call: intercom_client.cards_add(call, person_id, revision, card), person_id)
+        finally:
+            card.clear()
+
+    def card_remove(self, person_id: str, revision: int, card_id: str) -> EnginePerson:
+        """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/remove` by the card's id; the stations follow WisKey's own sync."""
+        self._guard()
+        from . import intercom_client
+
+        return self._write(lambda call: intercom_client.cards_remove(call, person_id, revision, card_id), person_id)
 
     def delete(self, person_id: str, revision: int) -> None:
         self._guard()

@@ -2597,7 +2597,7 @@ created), and `dedupe_key = "rule:<rule_id>:<entity|camera>"`. Estimated 6-8 age
 | "Ask the manager" note type on the page | review gap | raises `waiting_on = manager` (reason `question`) |
 | CSV export / monthly counts per department and vendor | review gap | release 1 has the text filter only |
 | Per-department notification matrix, daily digest of `done` / `closed` | review gap | release 1: `notify_new` for the first manager only, `urgent_is_critical` |
-| Separate handler and directory permissions | D15 trade-off | no data change needed |
+| Separate handler and directory permissions | D15 trade-off | no data change needed. DONE (SMALL-294): the handler side is `tickets.handlers` (CR-DEPT-MANAGER-HANDLERS); the directory (create / edit / erase / export / full phones / every row) now also opens with the new sensitive `tickets.directory` (single-permission role `tickets_directory`, system_admin only, not delegable); `tickets.configure` still covers it. Phone-verification and the needs-review report stay with `tickets.configure`. SMALL2-295 re-verified it on integ/2100: no migration (roles.json only), `tickets.configure` and system_admin keep today's behaviour, the new permission is on no other built-in role; the Arabic / Russian words of the two permission labels were added as DEV-marked entries (the tickets screens read Hebrew / English only today) |
 | Payment / accounting integration | D31 | subscribes to `emit_cost_event` or reads the report API (11A.9) |
 | Rasterising invoice PDFs to images (safe preview) | D31 | needs a sandboxed renderer the add-on does not have |
 | Two-person approval above an amount | D32 (not chosen now) | a later setting |

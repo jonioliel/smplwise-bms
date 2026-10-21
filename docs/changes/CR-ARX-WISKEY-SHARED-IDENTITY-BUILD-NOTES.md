@@ -504,3 +504,181 @@ owner's decisions of the same day. Extended identity stays LOCKED; `GO_LIVE_PERM
 - Not built: auto-approval rules (none exist; shown as "None"), the English/Arabic/Russian evidence screenshots (the screen follows the
   document language; the evidence set is Hebrew), the 14-day window across a DST change is held at 14 x 24 h (the last day ends an hour
   early) rather than refused.
+## GRANTSMIN-295 - the Arx-only leftovers (pilot/GRANTSMIN-295 from pilot/SHAREDID-293 @ ee2f6a1b0)
+
+Backlog item `grants-minor-leftovers` (private/planning/BACKLOG_RECONCILED_2026-10-20.md). SHAREDID-293 already shipped the weekly digest
+(decision 4), the name-drift detection and push (decision 5), confirm-gone and attach-recovered; this slice adds what was left. No
+migration (everything reads tables 0107/0108/0126; 0126 was provisional 0128 on the SHAREDID branch). `GO_LIVE_PERMITTED` stays False; fakes only (`tests/test_grantsmin_295.py`); nothing
+contacts WisKey, a station, a door or WhatsApp.
+
+- **Drift view (CR 2.3 / T12, the X1 "drift view").** `GET /access-grants/drift` (`access_external.drift`): per person, where Arx and WisKey
+  differ, built ONLY from what Arx stored - the read-back proof and the last `access.grant.verify` outcome, the name digests, the link
+  state. It never reads WisKey and never serves a WisKey value (its name is kept as a digest). Kinds, most urgent first: `missing`
+  (link `wiskey_missing`), `scope` (the last complete read-back mismatched), `unknown`, `sync_pending` (a narrowing not yet proven),
+  `name`, `unverified` (accepted, no stored proof), `idle_person` (a person Arx created with no live grant). Visibility: the person's
+  current grant must be visible to the caller (`access_grants.visible`; with no live grant, one of its grants); a link with no grant at
+  all only with people.manage installation-wide. Per row `can.push_name` (the same authority as `push_name`, offered only for a name
+  difference) and `can.read_now` (the same authority as `read_now`). The screen: a side panel (the three most urgent) and a dialog with
+  "push the name", "read back now" and "open the grant"; `#/wiskey/external?drift=1` opens the dialog. Off -> empty, `enabled: false`.
+- **The external-access CSV.** `GET /access-grants/export.csv?lang=he|en&live=` (`access_external.export_rows`): the grants the caller may
+  see (every row through `visible`), newest first, at most 5,000 (413), one export a minute per user (429 `export_rate`), UTF-8 + BOM,
+  every cell quoted and through `text_hygiene.csv_cell` (formula guard), times in the installation's zone, the screen's state words.
+  The number is never more than BOTH rules allow: nothing below people.sensitive on every station of the grant; the screen's mask
+  (····NN) at that level; the full number only when the directory would also show it to this caller (`tickets/contacts.full_phone_for`).
+  The code delivery state likewise only at the sensitive level. Gate: the grant permission or people.read somewhere, or
+  tickets.configure; a refusal is audited (`access.grant.export` denied `no_binding`); an export is audited with the row count only
+  (no names, no numbers). The screen's "Export CSV" button downloads it (Hebrew headers for he, English otherwise; ar/ru columns are
+  English like the tickets export).
+- **The person's data export (CR 2.6 "Rights").** `GET /tickets/contacts/{id}/export` gains `access`: the link's origin, state and time, and
+  every kept grant (window, timing, doors by name, state, end reason, source, the notice acknowledgements). Never WisKey's ids, the
+  employee number, a PIN (Arx holds none) or the closure's free-text reference. A person without access: `{"link": null, "grants": []}`.
+- **Not built:** the denied-attempt alert (needs WisKey W-c, out of scope by instruction). The CSV is not offered on the contact
+  directory screen (the per-person JSON export already is). Arabic / Russian CSV headers (English is served for them).
+
+## SHAREDUI-295 - review of the shipped screens (pilot/SHAREDUI-295, on integ/293)
+
+Owner, 2026-10-20: "fix everything you think needs fixing; the 75-second counter looks problematic to me". Reviewed the external-access
+screen, the identity card and the request form (2.9.3) against the two approved mockups and the design rules (clean operator screens,
+no platform branding, "WisKey", RTL, he/en/ar/ru, 44 px targets, 4.5:1 text contrast). No security behaviour changed: Arx RBAC stays the
+authority, extended identity stays LOCKED, `GO_LIVE_PERMITTED` stays False, nothing calls WisKey; no migration.
+
+**The 75 s counter: not built, on purpose.** The mockup's unknown state showed a ring "a fresh read is allowed in 0:52 (75 s after the
+call)" and kept "read back" disabled until it reached zero. The shipped screen never had it (see "Not built in this slice" above); the
+owner's doubt is right and it stays out. What the 75 s is: `HOLD_S` in `services/intercom_write_journal.py`, the transport's own call
+limit plus a margin. It only matters for a journal row of a process that is GONE (a restart or a standby takeover): such a row may be
+settled by a readback that starts after `started_ts + HOLD_S`. In the normal case (this process sent the write) a readback settles the
+row as soon as the call is over - no 75 s at all. So a visible countdown would be (1) wrong in the common case, (2) uncomputable by the
+browser (the server never sends `started_ts`; the hold is on the server's wall clock, which the build notes already flag as able to jump),
+(3) restarted on every poll / render, and (4) frozen or late in a background tab. It would also invite the operator to wait for a number
+instead of reading the state. Instead: an indeterminate "waiting for a read-back from WisKey" (a pulsing mark, still under reduced
+motion), "Arx reads again on its own", and "read back now" that always ends in a terminal answer - the new state (a toast), "checked at
+HH:MM: still not known / the revocation is not proven yet / not verified yet" kept in the drawer, or "the read did not succeed (HH:MM):
+why" - after which the button reads "read again". The server keeps every hold itself (`read_now` decides nothing while a write may still
+land), so pressing early is harmless. Pinned by `unit-access-external.spec.ts` (no `75`, no `0:ss`, no seconds in any read-back text)
+and `evidence-sharedui-295.spec.ts` (no countdown in the drawer, before and after a read).
+
+**Every state now has plain text and a safe action:**
+- WisKey offline: `GET /access-grants` carries `wiskey: {as_of, reachable, has_copy}` (the request form's existing freshness signal,
+  `access_request.freshness()`; read-only, fails closed to "not reachable", never fails the list). Banner "no connection to WisKey since
+  HH:MM - the states shown are the last known; approvals are kept and sent when it returns" + "check again"; read back / retry wait
+  for the connection (as in the mockup). An older server without the field is not called offline.
+- Stale: a poll that fails keeps the list and says "the list has not refreshed since HH:MM" + "try again" (it was a raw error line).
+  A background tab refreshes at once when shown again or when the network returns; the drawer's "open since · duration" ages with the
+  shared CLOCK-293 ticker.
+- First load failed: the error panel with "try again" (unchanged). Empty: "new request" when the caller may ask.
+- Identity card: "loading the identity", and a load that fails for another reason than 403 / 404 says so with "try again" (it used to
+  vanish silently); times in the installation zone.
+- Request form: a load error has "try again" and "close" (it had neither, only the corner X); the offline banner is a warning with
+  "check again" (it was red, with no action).
+
+**Clean operator screens:** the explanations of a state (what Arx does meanwhile, the revocation notes, "no step proves every station
+applied it") moved behind one "how Arx decides" disclosure in the drawer; the facts (what is known / unknown, reason, open since) stay.
+
+**Accessibility:** white text on the solid state colours measured 1.8-3.8:1 - badges are now the soft fill with tone text and a ring; tone
+text is the `-text` token pulled 40% to the heading colour (>= 5.2:1 light, >= 7.3:1 dark); notes, hints, small print and the legend
+moved from `--sw-text-3` (2.95:1) to `--sw-text-2`; error text uses the danger text tone. Every button, segmented control, day pill,
+disclosure and filter dropdown is a 44 px target (the system-access screens' `--sw-ctl-h-*` pattern). The no-permission dialog has a name.
+## GRANTS3-295 - the arrival step for regular assignments, the vendor's view of the approved access, the owner's history, cards (X5)
+
+Branch `pilot/GRANTS3-295` from `integ/293` + `pilot/GRANTSMIN-295` (ACCESSREQ-293 is already in integ/293). Backlog items
+`grants-arrival-step-public`, `rfq-access-code-doors`, `grants-cards-x5` (private/planning/BACKLOG_RECONCILED_2026-10-20.md). Migration
+**0132_access_arrival_flags_cards** (built as PROVISIONAL 0140; renumbered at the 2.10.0 integration, integ/2100). `GO_LIVE_PERMITTED` stays False; the new cards switch
+cannot be turned on without it; card capture is a separate constant (`access_cards.CAPTURE_PERMITTED = False`). Fakes only
+(`tests/test_grants3_295.py`, `tests/fake_wiskey.FakeAccessEngine` gained cards); nothing contacts WisKey, a station, a reader, a door or
+WhatsApp.
+
+- **The arrival step on a regular external assignment** (build notes' open question 5; owner-approved). `POST /tickets/{id}/assign` takes
+  `access_needed` (an outside contact only, 422 `not_allowed` while the feature is off, for a staff contact, or on a user assignment) and
+  stores it beside the assignment (`access_arrival_flags`, ids only; audited in `ticket.assign` details). The assign preview says
+  `access_needed: {available}`; the dialog shows the tick only then. `access_arrival._source`: an RFQ work order (its window, `rfq_order`
+  grants) or a ticked assignment (no window, `ticket` grants). Everything else of the step is unchanged (request only, the one-live rule,
+  the notice, the uniform 404).
+- **The vendor's page.** `GET /t/api/ticket` says `arrival: true` while the step is available (vendor link past the code gate, not read
+  only); the page then fetches the lazy chunk `arrival-card` (+ its own stylesheet file; own 7 KB gzip cap in `unit-public-ticket.spec.ts`, measured 6,351 B): the
+  form (who - one of his persons or a new technician -, from / until, the fixed hours, the server's privacy notice and the attestation tick),
+  then the state. The main ticket bundle grows by the loader only: 62,108 B gzip vs 61,954 B on integ/293 (+154 B; cap 63,488 B).
+- **After approval (`rfq-access-code-doors`).** `GET /t/api/arrival` `current.access` once a human approved: the doors by NAME (never a
+  station id), the first / last day and the daily hours in the installation's zone, the credential, and for a PIN the delivery: `scheduled`
+  (with the local time it leaves) | `sent` | `not_delivered` (ask the manager), always to the named person's own number as `····NN`; for
+  a card `ready | preparing`. Never the code: the PIN exists only inside the worker's delivery call (unchanged). A widening that waits is not
+  shown.
+- **The owner-visible audit.** `GET /access-grants/{id}/history` (services/access_history.py): system administrators only (the uniform 404
+  first, then 403 `not_system_admin`), every `access.grant.*` audit row of the grant oldest first, `by` = user name | `page` | `system`, and
+  a closed allow-list of facts (states, reason / outcome codes, counts, the notice version, the window, the number of stations). Never a
+  contact id, a WisKey id, a station id, a number, a PIN or a card value. The drawer shows it to system administrators ("full history").
+  An index `audit_log(resource_type, resource_id)` comes with the migration.
+- **Cards (X5).** `credential = card` is requested / approved like any grant behind the switch `access.external.cards` (off; `on` refused
+  without the go-live permit, 409 `access_grants_not_permitted`) for a vendor's technician only (`access_grant_card_not_vendor`); the
+  approve permissions are the grant permission + people.manage + people.sensitive (no pin.generate). A decided grant never switches between
+  a card and another credential (409 `access_grant_credential_change`: end it, request a new one); `none -> card` is a widening.
+  Provisioning writes no credential (as for a PIN). `POST /access-grants/{id}/card {revision, card_no, label}` (services/access_cards.py):
+  interactive, the approve permissions on every station, the current revision, an ACTIVE card grant whose card is `awaiting` (or `unknown`),
+  a person Arx created; then one `Engine.card_add` (WisKey `cards/add`, live adapter NOT_RUN). The number lives only inside that call:
+  never stored (not even masked), logged, audited, answered or echoed in a refusal (a test scans the database file + WAL, the audit, the
+  logs and every answer for a sentinel). A lost answer is `card_state = unknown`; the next attach READS first and never adds a second card
+  (`access_grant_card_present`). `POST /access-grants/{id}/card/capture` answers 409 `access_grant_card_capture_off` (the lease route is not
+  released) and reaches nothing. At the end (R1-R10) the worker removes every card of the person Arx created by its id (WisKey's revoke-all
+  keeps cards) and counts a card grant's revocation done only on a fresh readback that shows no card (`card_unverified` otherwise); the row
+  ends with `card_state = removed`. `EnginePerson` gained `card_ids` / `cards_known` (ids only; an unreadable list is unknown).
+- **Screens.** The assign dialog's "נדרשת כניסה לאתר" tick; the drawer's card section (the number field is cleared on the press; "read at a
+  reader" is shown locked) and the history; the request form's card choice unlocks with the switch (he/en/ar/ru; ar/ru dev-marked as
+  before).
+- **Found, not changed (for the lead):** approving a WIDENING (`access_grants.approve`, amendment branch) writes the doors and the window but
+  not the requested `timing_json` / `credential`, so a wider timing or `none -> pin` approved as a widening keeps the old (narrower) value -
+  fail-safe, but the approval does not do what the dialog showed.
+- **Not built:** capture of a grant's card at a reader (lease route OFF by owner decision); a "regular vendor" mark on the directory (the
+  backlog's "regular vendors" is read as "a vendor's technician"); an "access needed" toggle after the assignment (set at assignment only);
+  native review of the ar / ru texts.
+
+## STATIONSYNC-295 - WisKey round 11 (R11-I2-01, R11-I1-03 / I1-04), branch pilot/STATIONSYNC-295
+
+Fakes only; NOT_RUN against any WisKey, station or door. GO_LIVE_PERMITTED stays False; no migration.
+
+- R11-I2-01 (`access_grant_engine.person_from_raw` / `_row_synced`): `stations_synced` is the CENTRAL applied bookkeeping, never
+  physical proof. True only when every enabled row has desired_revision == person.revision, applied_revision == desired_revision,
+  sync_state "synced" and a valid (timezone-aware ISO 8601) last_sync_at. False only for a well-formed row explicitly behind (applied
+  null = not applied yet, applied < desired, or a known non-synced state). Everything else is UNKNOWN (None): missing / inconsistent
+  bookkeeping (absent applied key, applied > desired, desired > person.revision, unknown state), a row synced for an older person
+  revision, no valid sync time, no enabled row, an unknown door map. `EnginePerson.physical_proof` is always None (no device-side
+  evidence contract). applied > desired is judged here only; `_row_ok` / `access_shape` are unchanged, so the authorization
+  projections are not affected.
+- R11-I1-03: `Engine.revocation_pending(person_id, revision)` takes the revision of the readback being judged. The Arx side of the
+  PROPOSED ACR5-01 contract is a typed seam (`AccessStateReader`), a strict consumer (`access_state_from_raw`: schema_version int 1,
+  fixed observation / scope, exact user_id, positive int person_revision for a present person, the six pending arrays) and the verdict
+  (`revocation_pending_verdict`): False only for presence=present at exactly that revision with all six arrays empty and WisKey's flag
+  False; a revision mismatch, absence (a scoped 404), `unverified` work or no flag is None; any central queue or delete_pending is True.
+  The worker needs the separate central predicate (`central_revoked`, now also requiring overrides_known) on the same readback
+  (`revocation_proven`). The live `WiskeyServiceEngine` has no reader (no ACR5-01 client is built): UNKNOWN, a live revoke stays
+  `revoking`; with an injected fake reader it refuses while a write to the person is unsettled.
+- R11-I1-04: `AccessState` keeps the five central queues and `unverified` apart; nothing displays station ids from it (any future view
+  filters them through Arx RBAC station scope first).
+- Open: the WisKey client for users/access_state (ACR5-01 delivery + Arx review); reading `stations_synced` from the revision-bound
+  access_state answer instead of users/get once that client exists; scope_proof revision binding (R11-I1-05, SHAREDID).
+
+## WKPEER-295 (2026-10-20) - Arx half of the peer / receipt seam (Arx reply 10 sections 2.4 / 2.6, round 11 R11-I4-02/03), branch pilot/WKPEER-295
+
+Cut from `origin/integ/293` (90a50db90). Fakes only (`tests/fake_wiskey_peer.py`, `tests/test_wkpeer_295.py`); nothing ran against a
+WisKey, Home Assistant, station or door. New modules only; no existing module, route, migration, switch value or WisKey contract
+changed; nothing imports the new modules (test-enforced). `GO_LIVE_PERMITTED` is False in all three new modules, the existing locks
+(`access_grants`, `capture_lease`, `EXTENDED_GO_LIVE_PERMITTED`) stay False (test-asserted); `signed_capture_covered()` is False.
+
+- **ARX-N02 typed seam - BUILT (OFF).** `services/wiskey_peer.py`: `VerifiedPeerRef` / `TransportAttestation` are sealed values
+  (direct construction, `dataclasses.replace`, pickling or a copy cannot forge one); `as_peer_binding` refuses strings (even the right
+  one), dicts, Principals, request / op ids and signatures; `FORBIDDEN_PEER_SOURCES` names act.principal, request_id, op_id,
+  local_signature and the rest. Shared receipt: `verify_receipt` checks the WisKey `signed_person_writes/status` draft1 result against
+  one intent's exact references (byte-exact, every key, strict types, state/terminal/commit/reason consistency, epoch not regressed,
+  `recovered_uncommitted` only with a fresh matching exclusive context). `OneCommitLedger`: one terminal fact per original operation,
+  a conflicting second commit or two operations claiming one central transition is a conflict (in memory; durable form = the intent
+  table of CR-ACR7-FENCE-02, not built).
+- **ARX-N02 registry client - BUILT (OFF).** `services/wiskey_peer_registry.py`: owner pin (`wiskey.peer_pin`), dedicated-owner check
+  before any lookup, no automatic rebind, revocation stops new queries, rotation is never followed automatically, historical read only
+  with `historical_read` on an older revision of the same pinned binding. The wire read `peer_bindings/get` is an Arx PROPOSAL.
+  `client_for` answers None; `LiveRegistryTransport` refuses.
+- **ARX-N01 ACR7-FENCE-02 - DESIGN DONE.** `docs/changes/CR-ACR7-FENCE-02.md` (dedicated principal, owner pin, durable immutable
+  intents, sender inventory, old-write policy). Finding recorded there: the person editor's `users/create` has no durable intent today.
+- **ACR5-01..04 consumers - BUILT (OFF).** `services/wiskey_acr5.py`: strict frozen-v1 `access_state` parser with the six queues kept
+  apart (never a boolean), revision-bound `revocation_verdict` (R11-I1-03; False only present + same revision + WisKey false + no
+  tracked queue + Arx's central revoked predicate at that revision), bookkeeping-only `stations_synced_verdict` (R11-I2-01), RBAC
+  filtering of pending station ids, normalize_user parser and the mode/schedule/bindings triple (an identical schedule alone is never
+  equivalence), ACR5-04 plans never executable. Four switches `wiskey.acr5_*` (default off) AND the build constant.
+- Not wired: `Engine.revocation_pending` still returns None; nothing reads access_state, normalize_user, receipts or the registry.

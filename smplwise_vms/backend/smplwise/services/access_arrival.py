@@ -14,6 +14,11 @@ version). Dates fall inside the order's work window (outside it only as a reques
 from a fixed list, the total is at most access.external.max_days (owner answer 8). The doors are SUGGESTED from the ticket's place
 (stations placed in its building, then the site's stations flagged "entrance for external people"); the approver narrows them.
 
+GRANTS3-295: the step is also available on a REGULAR external assignment the manager ticked "access needed" (`access_arrival_flags`;
+no work window, `ticket` grants), the ticket page announces it (`available`), and once a human approved the request the view carries
+`current.access` (`access_view`): the doors by name, the dates and hours, and when / whether the personal code goes to ····NN - never
+the code.
+
 Nothing here contacts WisKey or WhatsApp; the answer never carries a phone number, a station id or an internal user id."""
 from __future__ import annotations
 
@@ -61,6 +66,50 @@ def _order(conn, assignment_id: str) -> dict[str, Any] | None:
     return {"quote_id": q["id"], "ticket_id": q["ticket_id"], **window}
 
 
+def _flagged(conn, assignment_id: str) -> dict[str, Any] | None:
+    """GRANTS3-295: a REGULAR external assignment the manager ticked "access needed" - no order, so no work window and no RFQ trigger."""
+    try:
+        r = conn.execute("SELECT ticket_id FROM access_arrival_flags WHERE assignment_id = ?", (assignment_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - a database before the flags table: no flag
+        return None
+    if r is None:
+        return None
+    return {"quote_id": None, "ticket_id": r["ticket_id"], "work_from": None, "work_to": None, "source_kind": "ticket"}
+
+
+def _source(conn, assignment_id: str) -> dict[str, Any] | None:
+    """What makes the arrival step available on this assignment: an RFQ work order (its window), else the manager's tick."""
+    order = _order(conn, assignment_id)
+    if order is not None:
+        return {**order, "source_kind": "rfq_order"}
+    return _flagged(conn, assignment_id)
+
+
+def flag_available(conn, contact: dict[str, Any] | None) -> bool:
+    """GRANTS3-295: may an external assignment to `contact` carry the "access needed" tick? The feature is on and the contact is a vendor
+    or one of his / an outside person (never a staff contact - a handler, not a vendor - and never an Arx user's directory row)."""
+    if not ag.enabled(conn) or not contact:
+        return False
+    if contact.get("employee") or contact.get("user_id") or contact.get("erased_at"):
+        return False
+    return contact.get("kind") in ("vendor", "person")
+
+
+def set_flag(conn, *, assignment_id: str, ticket_id: str, by: str, at: str) -> None:
+    conn.execute("INSERT OR REPLACE INTO access_arrival_flags(assignment_id, ticket_id, set_by, set_at) VALUES (?, ?, ?, ?)", (assignment_id, ticket_id, by, at))
+
+
+def available(conn, link: Any) -> bool:
+    """The ticket page's announcement (`arrival: true`): the step's own gate, answered without raising."""
+    try:
+        _context(conn, link, ag.now())
+    except Refused:
+        return False
+    except Exception:  # noqa: BLE001 - the announcement never breaks the ticket page
+        return False
+    return True
+
+
 def _vendor_root(contact: dict[str, Any]) -> str | None:
     if contact.get("kind") == "vendor":
         return contact["id"]
@@ -91,7 +140,7 @@ def _context(conn, link: Any, now: dt.datetime) -> tuple[dict[str, Any], dict[st
 
     if not ag.enabled(conn):
         raise Refused(404, "link_unavailable")
-    order = _order(conn, link.assignment_id)
+    order = _source(conn, link.assignment_id)  # GRANTS3-295: an RFQ order, or a regular assignment ticked "access needed"
     if order is None or order["ticket_id"] != link.ticket_id:
         raise Refused(404, "link_unavailable")
     ticket = store_links.ticket_of_link(conn, link.link_id)
@@ -125,10 +174,39 @@ def view(conn, link: Any, *, now: dt.datetime) -> dict[str, Any]:
         person = ag.contact_row(conn, g["subject_id"]) or {}
         current = {"state": {"requested": "waiting", "revoking": "ending"}.get(g["state"], "approved" if g["state"] in ag.DECIDED else g["state"]),
                    "person": _label(person), "pending_change": bool(g["pending_json"])}
+        if g["state"] in ag.DECIDED:
+            current["access"] = access_view(conn, dict(g), person)
     wf, wt = _local_dates(conn, order)
     return {"available": True, "persons": [{"id": p["id"], "label": _label(p)} for p in persons], "can_add": _vendor_root(contact) is not None,
             "window": {"from": wf, "to": wt}, "hours": list(ag.HOURS_CHOICES), "max_days": ag.max_days(conn),
             "notice": {"version": ag.NOTICE_VERSION, "text": ag.notice_text(conn, lang), "attest": ag.NOTICE_ATTEST[lang], "lang": lang}, "current": current}
+
+
+CODE_STATE = {"pending": "scheduled", "queued": "scheduled", "sent": "sent", "not_delivered": "not_delivered", "unknown": "not_delivered"}
+
+
+def access_view(conn, g: dict[str, Any], person: dict[str, Any]) -> dict[str, Any]:
+    """GRANTS3-295 (`rfq-access-code-doors`): what the vendor's page shows once a human APPROVED the arrival - the doors by name (never a
+    station id), the first and last day and the daily hours in the installation's zone, the credential, and for a personal code its
+    delivery: `scheduled` (with the local time it leaves) | `sent` | `not_delivered` (ask the manager), always to the named person's own
+    number shown as ····NN. Never the code: Arx does not hold it (it lives only inside the one delivery call); a card grant says whether
+    the card is ready (the card itself is handed over in person). The approved scope only - a widening waiting for approval is not shown."""
+    tz = ag.zone_of(conn)
+    doors = json.loads(g["doors_json"] or "{}")
+    vf, vu = ag.parse_iso(g["valid_from"]), ag.parse_iso(g["valid_until"])
+    last = (vu - dt.timedelta(seconds=1)) if vu else None
+    timing = json.loads(g["timing_json"]) if g.get("timing_json") else None
+    periods = (timing or {}).get("periods") or []
+    hours = ", ".join(f"{p['start']}-{p['end']}" for p in periods if isinstance(p, dict) and p.get("start") and p.get("end")) or None
+    out: dict[str, Any] = {"doors": [ag._station_name(s) for s in ag.stations_of(doors)], "from": vf.astimezone(tz).date().isoformat() if vf else None,
+                           "to": last.astimezone(tz).date().isoformat() if last else None, "hours": hours, "credential": g["credential"]}
+    if g["credential"] == "pin":
+        state = CODE_STATE.get(g.get("code_state") or "", "scheduled")
+        due = ag.parse_iso(g.get("code_due_at")) if state == "scheduled" else None
+        out["code"] = {"state": state, "at": due.astimezone(tz).strftime("%Y-%m-%dT%H:%M") if due else None, "to": ag.mask_number(person)}
+    elif g["credential"] == "card":
+        out["card"] = {"state": "ready" if g.get("card_state") == "attached" else "preparing"}
+    return out
 
 
 def _new_technician(conn, link: Any, vendor_root: str, body: dict[str, Any], at: str) -> str:
@@ -147,6 +225,10 @@ def _new_technician(conn, link: Any, vendor_root: str, body: dict[str, Any], at:
         key, key_id = contacts.phone_key_for(digits)
     except Exception:  # noqa: BLE001 - no module key: no keyed index (the per-number cap falls back to the contact)
         key, key_id = None, None
+    cap = ag.pending_cap(conn)
+    if cap and ag.pending_count(conn, vendor_root) >= cap:
+        # SECFIX2-295 / PUB-03: a link holder cannot plant unbounded third-party names and numbers between decisions / janitor runs
+        raise Refused(429, "rate_limited", retry_after_s=3600)
     vendor = ag.contact_row(conn, vendor_root) or {}
     cid = new_id()
     conn.execute("""INSERT INTO ticket_contacts(id, kind, vendor_id, display_name, company, phone_e164, phone_key, phone_key_id, lang, active,
@@ -265,7 +347,7 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
         raise Refused(422, "invalid", fields=[{"field": str(exc.details.get("field") or "hours"), "code": str(exc.details.get("code") or "invalid")}]) from None
     try:
         g, outcome = ag.request_grant(conn, actor=ag.ContactActor(f"contact:{link.contact_id}"), requested_by=f"contact:{link.contact_id}", contact_id=person_id,
-                                      source_kind="rfq_order", source_ref=ticket["id"], assignment_id=assignment["id"], scope=scope, outside_window=outside)
+                                      source_kind=order["source_kind"], source_ref=ticket["id"], assignment_id=assignment["id"], scope=scope, outside_window=outside)
     except ag.ApiError as exc:
         raise Refused(409, exc.code) from None
     conn.execute("INSERT OR REPLACE INTO access_grant_notices(grant_id, version, via, by_ref, at) VALUES (?, ?, 'page', ?, ?)",

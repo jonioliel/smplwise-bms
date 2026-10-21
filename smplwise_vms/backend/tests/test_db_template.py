@@ -112,6 +112,28 @@ def test_direct_migrate_calls_and_non_empty_databases_take_the_real_path(tmp_pat
     assert not db_template.is_fresh(db.path)
 
 
+def test_a_patched_migrations_dir_takes_the_real_path(tmp_path, monkeypatch, settings):
+    """integ/2100: an upgrade test that points MIGRATIONS_DIR at an older subset gets exactly that subset from create_app, never the
+    full template (test_cameras / test_anchor_3d / test_tickets_258_review build an old database this way)."""
+    import shutil
+
+    from smplwise import db as dbmod
+
+    monkeypatch.setenv("SW_TEST_DB_TEMPLATE", "1")
+    old = tmp_path / "migrations_0022"
+    old.mkdir()
+    for f in dbmod.MIGRATIONS_DIR.glob("*.sql"):
+        if int(f.name.split("_", 1)[0]) <= 22:
+            shutil.copy(f, old / f.name)
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", old)
+    before = dict(db_template.STATS)
+    with TestClient(create_app(settings)):
+        pass
+    assert db_template.STATS["copies"] == before["copies"]
+    with closing(sqlite3.connect(settings.db_path)) as c:
+        assert c.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 22
+
+
 def test_no_product_code_reads_the_schema_cookie():
     src = Path(__file__).resolve().parents[1] / "smplwise"
     hits = [p.name for p in src.rglob("*.py") if re.search(r"pragma\s+schema_version", p.read_text(encoding="utf-8", errors="replace"), re.I)]

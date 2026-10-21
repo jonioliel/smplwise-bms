@@ -115,7 +115,7 @@ test.describe('CR-013 shell on the demo data', () => {
     const b = (await btn.boundingBox())!;
     expect(b.x).toBeLessThan(110);
     expect(b.y).toBeLessThan(30);
-    expect(b.width).toBeLessThanOrEqual(32);
+    expect(b.width).toBeLessThanOrEqual(phone(info) ? 44 : 32); // UXFIX-A11Y-295: on touch each corner key is 44 px wide
     if (phone(info)) {
       // still a 44 px tap target: the hit area reaches 22 px around the centre
       const hit = await page.evaluate(([x, y]) => (document.querySelector('sw-app')!.shadowRoot!.elementFromPoint(x, y) as HTMLElement | null)?.closest('[data-search-open]') !== null, [b.x + b.width / 2 - 21, b.y + b.height / 2]);
@@ -601,7 +601,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dot).toHaveAttribute('data-status', 'error');
     await expect(dot).toHaveAttribute('aria-label', /מצב המערכת: תקלה/);
     expect(((await dot.textContent()) ?? '').trim()).toBe('');
-    expect((await dot.boundingBox())!.width).toBeLessThanOrEqual(32);
+    expect((await dot.boundingBox())!.width).toBeLessThanOrEqual(info.project.name === 'mobile' ? 44 : 32); // UXFIX-A11Y-295: 44 px corner keys on touch
     await expect(page.locator('sw-app [data-sys-banner]')).toBeVisible();
     // the banner keeps the top edge and the corner drops below it
     const bb = (await page.locator('sw-app [data-sys-banner]').boundingBox())!;

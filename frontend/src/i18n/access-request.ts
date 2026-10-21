@@ -130,6 +130,9 @@ const he = {
   done_selfFailed: 'הבקשה נשמרה ונשלחה למאשרים. האישור לא בוצע: {why}',
   noperm_title: 'אין לך הרשאה לבקש גישת חוץ',
   noperm_text: 'נדרשת הרשאת ניהול קריאות עם ספקים חיצוניים, או הרשאת מתן גישת חוץ בעמדה אחת לפחות.',
+  // SHAREDUI-295
+  retry: 'נסה שוב',
+  checkAgain: 'בדיקה שוב',
 };
 
 export type RtKey = keyof typeof he;
@@ -257,6 +260,9 @@ const en: Record<RtKey, string> = {
   done_selfFailed: 'The request was saved and sent to the approvers. It was not approved: {why}',
   noperm_title: 'You may not request external access',
   noperm_text: 'Requires ticket management with external vendors, or the external-access grant permission on at least one station.',
+  // SHAREDUI-295
+  retry: 'Try again',
+  checkAgain: 'Check again',
 };
 
 const ar: Record<RtKey, string> = {
@@ -382,6 +388,9 @@ const ar: Record<RtKey, string> = {
   done_selfFailed: 'حُفظ الطلب وأُرسل إلى الموافِقين. لم تتم الموافقة: {why}',
   noperm_title: 'لا تملك صلاحية طلب وصول خارجي',
   noperm_text: 'تتطلب صلاحية إدارة البلاغات مع موردين خارجيين، أو صلاحية منح وصول خارجي في محطة واحدة على الأقل.',
+  // SHAREDUI-295
+  retry: 'حاول مرة أخرى',
+  checkAgain: 'التحقق مجددًا',
 };
 
 const ru: Record<RtKey, string> = {
@@ -507,6 +516,9 @@ const ru: Record<RtKey, string> = {
   done_selfFailed: 'Запрос сохранён и отправлен утверждающим. Утверждение не выполнено: {why}',
   noperm_title: 'Вы не можете запрашивать внешний доступ',
   noperm_text: 'Нужно право управления заявками с внешними подрядчиками или право выдачи внешнего доступа хотя бы на одной станции.',
+  // SHAREDUI-295
+  retry: 'Повторить',
+  checkAgain: 'Проверить снова',
 };
 
 const TABLES: Record<XtLang, Record<RtKey, string>> = { he, en, ar, ru };

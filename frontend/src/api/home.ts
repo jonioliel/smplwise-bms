@@ -20,7 +20,8 @@ import {
 
 export * from './home-config';
 
-export const HOME_TITLE_DEFAULT = 'חשמל והתקנים';
+/** UXFIX-NAV-295: the default title of the home screen is its navigation label ("ראשי", shell/nav.ts) - the page and the nav never disagree. */
+export const HOME_TITLE_DEFAULT = 'ראשי';
 export const HOME_TITLE_MAX = 60;
 
 /** The settings, as edit mode edits them (and as the screen reads them). */

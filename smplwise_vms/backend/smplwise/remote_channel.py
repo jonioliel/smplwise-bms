@@ -138,6 +138,10 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/tickets/key/rotate",)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/secrets",)
 # USR2 P3: the service identity (which Home Assistant user acts for Arx-only users) is configured and inspected from local sessions only
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/identity/service-identity",)
+# CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key and its rotation are administered from local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/bridge-key",)
+# NVRMASK-295: a privacy-mask preview / write (masks live view and the recording) is local-only; the undo stays reachable
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/nvr/privacy-masks",)
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 # What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
 # accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.

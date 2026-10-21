@@ -10,6 +10,7 @@ import './sw-wiskey-prefs';
 import './sw-home-personal';
 import { can, canAnywhere } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
+import { ticketsEnabled } from '../tickets/gate';
 import { REMOTE } from '../arx/pre-gate';
 import { logout as arxLogout } from '../arx/auth';
 import { inAndroidApp, switchServer } from '../arx/android-app';
@@ -457,7 +458,7 @@ export class SwUserMenu extends LitElement {
     // home redesign: the personal home screen - only for a holder of screen.personalize (the server checks it again)
     const home = this.api && !this.gated && canAnywhere('screen.personalize');
     // TKSTAFF1 (security review F3 / F4): the user's own mobile for no-login work links - for a user who may hold tickets
-    const staff = this.api && !this.gated && canAnywhere('tickets.view');
+    const staff = this.api && !this.gated && ticketsEnabled() && canAnywhere('tickets.view');
     return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, wiskey, home, staff };
   }
 

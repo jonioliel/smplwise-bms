@@ -403,17 +403,25 @@ export class TicketsList extends LitElement {
     const tools = this.screen === 'ready' || this.screen === 'loading';
     const canCreate = !!this.meta?.can.create;
     const c = this.counts;
-    const withDept = (n: number | undefined) => (n === undefined ? nothing : html`<small>${countText(n)}</small>`);
+    // UXFIX-A11Y-295: until the counts arrive, an invisible two-digit badge holds the place of each count, so the scope and state
+    // segments do not widen afterwards (on a desktop the widening wrapped the view switch to a second row: CLS 0.37)
+    const countsPending = this.counts === NO_COUNTS;
+    const withDept = (n: number | undefined) => (n === undefined ? (countsPending ? html`<small aria-hidden="true" style="visibility:hidden">00</small>` : nothing) : html`<small>${countText(n)}</small>`);
     const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
     const cards = this.view !== 'table' || this.cal; // the card filters (priority, handler, flags) also narrow the calendar
     const active = activeCardFilters(this.filters);
+    // UXFIX-A11Y-295 (UX audit finding 7): the department row and the "new" key arrive with the meta, after the skeleton is on screen -
+    // the header grew by 50 px and pushed the whole skeleton grid down (most of the measured CLS). While the meta is on its way their
+    // places are held by invisible twins of the usual case (several departments, may create); an installation with one department or
+    // without the create right gives the place back once.
+    const pending = !this.meta && this.screen === 'loading';
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-tickets-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
         ${showDepts ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')}>
           <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${Object.keys(c.departments).length ? withDept(total) : nothing}</button>
           ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${Object.keys(c.departments).length ? withDept(c.departments[d.id] ?? 0) : nothing}</button>`)}
-        </div>` : html`<span class="grow"></span>`}
+        </div>` : pending ? html`<div class="rooms" aria-hidden="true" data-rooms-pending style="visibility:hidden"><span class="rc">${tt('allDepartments')}</span></div>` : html`<span class="grow"></span>`}
       </div>
       ${tools ? html`<div class="dh-det">
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
@@ -426,6 +434,7 @@ export class TicketsList extends LitElement {
         ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
+        ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}${tt('newShort')}</span>` : nothing}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
         ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
       </div>
@@ -441,8 +450,11 @@ export class TicketsList extends LitElement {
     switch (this.screen) {
       case 'loading': {
         const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:var(--sw-r-2xl)"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:14px;inline-size:60%"></span></div>`;
+        // UXFIX-A11Y-295: the cards view waits on skeleton CARDS (ticket-card skeleton: the card's own anatomy, so the same height - the
+        // old bars were shorter and the grid jumped, CLS 0.32-0.49) in the count a first page fills on the screen
+        const skel = html`<ticket-card skeleton></ticket-card>`;
         if (this.cal) return html`<div data-tickets-state="loading" aria-busy="true" data-cal-loading><div class="cgrid">${Array.from({ length: this.phone ? 2 : 7 }, () => card)}</div></div>`;
-        return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
+        return html`<div data-tickets-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => skel)}</div></div>`;
       }
       case 'off':
         return this.stateBox('ticket', tt('moduleOff'), 'off', can('system.configure') ? html`<a class="btn sm" href="#/system/tickets" data-open-settings>${tIcon('settings')}${tt('toSettings')}</a>` : undefined);
@@ -490,7 +502,7 @@ export class TicketsList extends LitElement {
       ${this.body()}
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
-      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
+      .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
       @assign-consumed=${() => writeHref(listHref(this.r.scope, this.r.filters, { t: this.r.ticketId }), true)}
       @drawer-close=${this.closeDrawer} @ticket-changed=${this.onTicketChanged} @ticket-gone=${this.onTicketGone}></ticket-detail>` : nothing}
     ${this.module?.enabled && this.meta?.can.create ? html`<ticket-create .open=${this.r.creating && this.screen === 'ready'} .meta=${this.meta} .mode=${ui?.new_ticket ?? 'sheet'} .scope=${this.r.scope} .detailMode=${ui?.detail ?? 'drawer_fullscreen'}

@@ -94,6 +94,22 @@ export const ticketCardListStyles = css`
       font-size: var(--sw-fs-base);
     }
   }
+  /* UXFIX-A11Y-295: the skeleton card - shimmer bars sit IN the text lines, so every line keeps the height of the text it stands for */
+  .tcard.sk .skl.ln {
+    display: inline-block;
+    vertical-align: middle;
+    block-size: 0.8em;
+    max-inline-size: 100%;
+    border-radius: var(--sw-r-xs);
+  }
+  .tcard.sk .chip,
+  .tcard.sk .av {
+    background: var(--dv-surface-3);
+  }
+  .tcard.sk .chip .skl.ln {
+    background: none;
+    animation: none;
+  }
   :host([data-skin='bubble']) .av {
     border-radius: 50%;
   }

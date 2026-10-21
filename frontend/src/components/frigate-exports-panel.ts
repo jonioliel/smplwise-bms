@@ -6,8 +6,8 @@ import './sw-dropdown';
 import { describeError } from '../api/client';
 import type { WireCamera } from '../api/frigate';
 import {
-  createExport, deleteExport, exportRangeError, getExports, isFirstWriteRefusal, renameExport, typedMatches,
-  type FirstWrites, type FrigateExport,
+  assignExport, createExport, deleteExport, exportRangeError, getCases, getExports, isFirstWriteRefusal, renameExport, typedMatches,
+  type FirstWrites, type FrigateCase, type FrigateExport,
 } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { adminStyles, dateText, epochToLocal, firstBlocked, localToEpoch, supervisedBox } from './frigate-admin-shared';
@@ -43,6 +43,8 @@ export class FrigateExportsPanel extends LitElement {
   @state() private draft: CreateDraft | null = null;
   @state() private renaming: { id: string; name: string; supervised: boolean } | null = null;
   @state() private deleting: { row: FrigateExport; typed: string; supervised: boolean; error: string } | null = null;
+  /** FRIGATE-295: putting an Arx export into a Frigate case (or out of it) */
+  @state() private moving: { row: FrigateExport; caseId: string; cases: FrigateCase[] | null; supervised: boolean; error: string } | null = null;
 
   static styles = adminStyles;
 
@@ -145,6 +147,52 @@ export class FrigateExportsPanel extends LitElement {
     }
   }
 
+  private async openMove(row: FrigateExport) {
+    this.moving = { row, caseId: row.case_id ?? '', cases: null, supervised: false, error: '' };
+    try {
+      const r = await getCases(this.recorderId);
+      if (this.moving?.row.id === row.id) this.moving = { ...this.moving, cases: r.cases };
+    } catch (err) {
+      if (this.moving?.row.id === row.id) this.moving = { ...this.moving, cases: [], error: describeError(err) };
+    }
+  }
+
+  private async confirmMove() {
+    const m = this.moving;
+    if (!m || this.busy) return;
+    this.busy = true;
+    try {
+      const res = await assignExport(this.recorderId, m.row.id, m.caseId || null, m.supervised);
+      this.moving = null;
+      this.flash('ok', res.verified ? fx().control.settings.exports.moved : fx().control.unverified);
+      this.changed();
+    } catch (err) {
+      this.moving = { ...m, error: this.refusal(err) };
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private moveDialog() {
+    const m = this.moving;
+    if (!m) return nothing;
+    const t = fx().control.settings.exports;
+    const c = fx().control;
+    const needSup = !!this.first && this.first.can_supervise && !this.first.done.export_assign;
+    const items = [{ id: '', label: t.noCase }, ...(m.cases ?? []).map((x) => ({ id: x.id, label: x.name || x.id }))];
+    return html`<sw-dialog open heading=${t.moveToCase} subheading=${m.row.name} data-fx-move @close=${() => (this.moving = null)}>
+      <div class="form">
+        <label>${t.case}<sw-dropdown block data-fx-case .label=${t.case} .value=${m.caseId} .items=${items} ?disabled=${m.cases === null}
+          @change=${(e: CustomEvent<{ id: string }>) => (this.moving = { ...m, caseId: e.detail.id })}></sw-dropdown></label>
+        ${supervisedBox(this.first, 'export_assign', m.supervised, (v) => (this.moving = { ...m, supervised: v }), 'export_assign')}
+        ${m.error ? html`<div class="err" role="alert" data-fx-error>${m.error}</div>` : nothing}
+      </div>
+      <sw-button slot="footer" @click=${() => (this.moving = null)}>${c.cancel}</sw-button>
+      <sw-button slot="footer" variant="primary" icon="case" data-fx-move-ok ?disabled=${this.busy || m.cases === null || m.caseId === (m.row.case_id ?? '') || (needSup && !m.supervised)}
+        @click=${() => void this.confirmMove()}>${c.confirm}</sw-button>
+    </sw-dialog>`;
+  }
+
   private camName(id: string, key: string | null): string {
     return this.cams.find((c) => c.id === id)?.name ?? key ?? id;
   }
@@ -212,6 +260,7 @@ export class FrigateExportsPanel extends LitElement {
       <div class="c muted" role="cell">${x.arx_created ? t.arx : t.foreign}</div>
       <div class="c acts" role="cell">
         ${canWrite && !ren ? html`<sw-button size="sm" variant="ghost" iconOnly icon="edit" label=${t.rename} data-fx-rename ?disabled=${this.busy || firstBlocked(this.first, 'export_rename')} @click=${() => (this.renaming = { id: x.id, name: x.name, supervised: false })}></sw-button>` : nothing}
+        ${canWrite && !x.in_progress ? html`<sw-button size="sm" variant="ghost" iconOnly icon="case" label=${t.moveToCase} data-fx-move-btn ?disabled=${this.busy || firstBlocked(this.first, 'export_assign')} @click=${() => void this.openMove(x)}></sw-button>` : nothing}
         ${canWrite ? html`<sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${t.delete} data-fx-delete-btn ?disabled=${this.busy || firstBlocked(this.first, 'export_delete')} @click=${() => (this.deleting = { row: x, typed: '', supervised: false, error: '' })}></sw-button>` : nothing}
       </div>
     </div>`;
@@ -244,6 +293,7 @@ export class FrigateExportsPanel extends LitElement {
       ${this.msg ? html`<div class=${`msg ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-fx-msg>${this.msg.text}</div>` : nothing}
       ${this.createDialog()}
       ${this.deleteDialog()}
+      ${this.moveDialog()}
     </div>`;
   }
 }

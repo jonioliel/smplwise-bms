@@ -3,6 +3,7 @@
  * the SMPLWISE bridge integration, pairing status and the push socket.
  */
 import { apiUrl, get, post } from './client';
+import { ltrIsolate } from '../i18n/bidi';
 import { commandId } from './request-id';
 import type { StateKind } from '../components/sw-badge';
 import type { MarkerKind } from '../map/sw-plan-canvas';
@@ -396,7 +397,7 @@ export function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'medium' });
+  return ltrIsolate(d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'medium' }));
 }
 
 /** `structure_changed` (CR-007 HA refresh): a registry refresh moved floors / areas / entities (an entity moved to

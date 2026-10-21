@@ -865,9 +865,9 @@ export class SystemSecurityCameras extends LitElement {
     const shown = sortRows(applyFilters(rf ? all.filter((r) => r.recorderId === rf) : all, this.filters), this.sort);
     const c = counts(all);
     const body = !all.length
-      ? html`<sw-state-panel state="empty" heading="לא נמצאו מצלמות ב־NVR." actionLabel="רענן" data-nvr-empty @action=${() => void this.load()}></sw-state-panel>`
+      ? html`<sw-state-panel icon="camera" state="empty" heading="לא נמצאו מצלמות ב־NVR." actionLabel="רענן" data-nvr-empty @action=${() => void this.load()}></sw-state-panel>`
       : !shown.length
-        ? html`<sw-state-panel state="empty" heading="אין זרמים שמתאימים לסינון." actionLabel="נקה סינון" data-nvr-no-match @action=${() => (this.filters = { ...NO_FILTERS })}></sw-state-panel>`
+        ? html`<sw-state-panel icon="filter" state="empty" heading="אין זרמים שמתאימים לסינון." actionLabel="נקה סינון" data-nvr-no-match @action=${() => (this.filters = { ...NO_FILTERS })}></sw-state-panel>`
         : html`<div class="wrap" data-nvr-table>
               <table>
                 <thead><tr>${COLUMNS.map((col) => this.headerCell(col))}${data.can_write ? html`<th scope="col" data-col="edit"><span class="vh">עריכה</span></th>` : nothing}</tr></thead>
@@ -915,7 +915,7 @@ export class SystemSecurityCameras extends LitElement {
     if (this.loading && !this.data) content = html`<sw-state-panel state="loading" data-nvr-loading></sw-state-panel>`;
     else if (f?.status === 403) content = html`<sw-state-panel state="forbidden" data-nvr-forbidden></sw-state-panel>`;
     else if (f?.code === 'nvr_not_configured')
-      content = html`<sw-state-panel state="empty" heading="אין NVR מחובר" actionLabel="לחיבורים" data-nvr-none @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel>`;
+      content = html`<sw-state-panel icon="camera" state="empty" heading="אין NVR מחובר" actionLabel="לחיבורים" data-nvr-none @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel>`;
     else if (f) content = html`<sw-state-panel state="error" heading="ה־NVR אינו זמין." hint=${f.status === 503 ? '' : f.message} actionLabel="נסה שוב" data-nvr-error @action=${() => void this.load()}></sw-state-panel>`;
     else content = this.renderBody();
     return html`<sw-page crumbs="הגדרות | אבטחה" heading="הגדרות מצלמות" subheading=${this.subheading()}><div data-nvr-cameras data-state=${this.loading && !this.data ? 'loading' : f ? 'error' : this.data?.stale ? 'stale' : 'ready'} style="display:contents">${content}</div></sw-page>

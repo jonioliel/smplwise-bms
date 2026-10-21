@@ -310,7 +310,7 @@ export class SystemDevices extends LitElement {
         </div>
         <div class="stage">
           ${api && !all.length
-            ? html`<sw-state-panel state="empty" heading="אין מצלמות רשומות" hint="הגדירו את פרטי ה־NVR בהגדרות › חיבורים ולחצו 'סנכרון מה־NVR', או רשמו ערוץ ידנית."></sw-state-panel>`
+            ? html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות רשומות" hint="הגדירו את פרטי ה־NVR בהגדרות ‹ חיבורים ולחצו 'סנכרון מה־NVR', או רשמו ערוץ ידנית."></sw-state-panel>`
             : html`<sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.alias = all.find((c) => c.id === e.detail.id)?.api?.alias ?? ''; }}></sw-table>`}
           ${cam
             ? html`<sw-drawer open heading=${cam.name} subheading=${cam.sub} @close=${() => (this.selected = null)}>

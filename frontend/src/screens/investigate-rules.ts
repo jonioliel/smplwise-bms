@@ -272,7 +272,7 @@ export class InvestigateRules extends LitElement {
                     <sw-button size="sm" data-rule-edit @click=${() => this.openEditor(r)}>עריכה</sw-button>
                     <sw-button variant="ghost" size="sm" iconOnly icon="trash" label="מחיקה" data-rule-delete @click=${() => (this.confirmDelete = r)}></sw-button>
                   </sw-card>`)}</div>`
-              : html`<sw-state-panel state="empty" heading="אין חוקים עדיין" hint="חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה."></sw-state-panel>`
+              : html`<sw-state-panel icon="rule" state="empty" heading="אין חוקים עדיין" hint="חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה."></sw-state-panel>`
           : html`<div class="list">${this.alerts.length
               ? this.alerts.map((a) => html`<sw-card flush class="rule" data-alert-row data-acked=${a.acked_at ? 'true' : 'false'} style="--bg:${a.acked_at ? '#f1f5f9' : '#fff4e0'};--fg:${a.acked_at ? '#64748b' : '#d97706'}">
                   <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
@@ -280,7 +280,7 @@ export class InvestigateRules extends LitElement {
                   <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
                   ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : !can('events.ack') ? nothing : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
                 </sw-card>`)
-              : html`<sw-state-panel state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}</div>`}
+              : html`<sw-state-panel icon="rule" state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}</div>`}
         ${this.renderEditor()}
         ${this.confirmDelete
           ? html`<sw-dialog open heading="מחיקת חוק" subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>

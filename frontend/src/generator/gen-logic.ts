@@ -3,7 +3,7 @@
  * the detected controller actually exposes - so that a gauge, a tile, a table column or a diagram card exists only when its role does (owner decision
  * 2026-10-05: capability-driven, no holes). Unit-tested in tests/unit-generator.spec.ts.
  */
-import type { Availability, GenAlert, GenDevice, GenRange, GenValues, HistoryPoint, HistoryResponse, PolicyItem, Severity, ViewMode } from '../api/generator';
+import type { Availability, GenAlert, GenDevice, GenRange, GenValues, HistoryPoint, HistoryResponse, PolicyItem, Severity, SeverityDefaults, ViewMode } from '../api/generator';
 
 export const GEN_V = ['gen_v_l1', 'gen_v_l2', 'gen_v_l3'] as const;
 export const GEN_A = ['gen_a_l1', 'gen_a_l2', 'gen_a_l3'] as const;
@@ -431,8 +431,16 @@ export interface RouteGroup {
 export function routeGroups(groups: { key: string; title: string }[], items: PolicyItem[]): RouteGroup[] {
   return groups.map((g) => ({ ...g, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.some((i) => i.available));
 }
-/** No recipient chosen anywhere: the routing starts empty (owner decision) and the screen says so. */
-export const routingEmpty = (items: PolicyItem[]): boolean => items.filter((i) => i.available).every((i) => !i.policy || (i.policy.recipients.roles.length === 0 && i.policy.recipients.users.length === 0));
+/** The recipients an alert type reaches today: its own, else the default of the severity it fires with (GENALERT-295). */
+export function effectiveRecipients(i: PolicyItem, defaults?: SeverityDefaults | null): { roles: string[]; users: string[]; inherited: boolean } {
+  const own = i.policy?.recipients;
+  if (own && (own.roles.length > 0 || own.users.length > 0)) return { ...own, inherited: false };
+  const d = defaults?.[i.policy?.severity ?? i.default_severity]?.recipients;
+  return { roles: d?.roles ?? [], users: d?.users ?? [], inherited: true };
+}
+/** No recipient chosen anywhere (neither per type nor per severity): the routing starts empty (owner decision) and the screen says so. */
+export const routingEmpty = (items: PolicyItem[], defaults?: SeverityDefaults | null): boolean =>
+  items.filter((i) => i.available && (i.policy?.enabled ?? true)).every((i) => { const r = effectiveRecipients(i, defaults); return r.roles.length === 0 && r.users.length === 0; });
 export const hasRecipients = (p: PolicyItem['policy']): boolean => !!p && (p.recipients.roles.length > 0 || p.recipients.users.length > 0);
 
 export const TEMPLATE_VARS = ['device', 'name', 'detail', 'time', 'battery', 'fuel', 'load', 'site'] as const;

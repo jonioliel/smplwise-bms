@@ -1083,7 +1083,7 @@ export class WiskeyEmbed extends LitElement {
   }
 
   private renderError() {
-    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות › מתגי מסכי כניסה את מסכי Arx.';
+    const common = 'אפשר לנסות שוב, לעבור למסך WisKey העצמאי או לפתוח אותו בחלון חדש, או לבחור בהגדרות ‹ מתגי מסכי כניסה את מסכי Arx.';
     const map: Record<string, { heading: string; hint: string; state: 'error' | 'stale' | 'empty' }> = {
       not_installed: { heading: 'לוח WisKey לא נמצא', hint: `האינטגרציה hikvision_intercom לא רשמה את הלוח ${WISKEY_PANEL_PATH} (לא מותקנת, לא נטענה, או שהמשתמש לא רואה אותו). ${common}`, state: 'empty' },
       unreachable: { heading: 'לא ניתן לטעון את WisKey', hint: `הכתובת ${WISKEY_PANEL_PATH} לא נטענה בתוך המסגרת. ייתכן שההזדהות אינה זמינה בתוך מסגרת; או שהממשק נפתח ישירות, לא דרך תשתית המערכת. ${common}`, state: 'stale' },
@@ -1094,7 +1094,7 @@ export class WiskeyEmbed extends LitElement {
     if (!m) return nothing;
     return html`<div class="over" data-wiskey-embed-error=${this.phase}>
       <div>
-        <sw-state-panel state=${m.state} heading=${m.heading} hint=${m.hint}></sw-state-panel>
+        <sw-state-panel icon="door" state=${m.state} heading=${m.heading} hint=${m.hint}></sw-state-panel>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           <sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>
           ${this.openInHaButton()}
@@ -1138,7 +1138,7 @@ export class WiskeyEmbed extends LitElement {
             ? html`<wiskey-people></wiskey-people>`
             : html`<div class="only" data-wiskey-embed-only=${only}>
                 <div>
-                  <sw-state-panel state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
+                  <sw-state-panel icon="door" state="empty" heading=${`WisKey · ${label}`} hint=${`${note}. המסך "${label}" קיים רק בממשק של WisKey.`}></sw-state-panel>
                   <div class="actions">
                     ${this.openInHaButton('primary')}
                     ${this.direct === 'companion' ? nothing : html`<sw-button size="sm" icon="refresh" data-wiskey-embed-retry @click=${() => this.reload()}>נסה שוב</sw-button>`}

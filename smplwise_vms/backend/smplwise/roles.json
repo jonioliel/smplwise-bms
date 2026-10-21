@@ -99,6 +99,7 @@
         "devices.control",
         "access.cards.capture",
         "access.pin.generate",
+        "access.people.stations",
         "access.stations.read",
         "access.events.read",
         "access.events.export",
@@ -183,6 +184,8 @@
         "access.cards.capture",
         "access.pin.generate",
         "access.external.grant",
+        "access.doors.automate",
+        "access.people.stations",
         "access.stations.read",
         "access.events.read",
         "access.events.export",
@@ -283,6 +286,7 @@
         "tickets.costs",
         "tickets.delete",
         "tickets.handlers",
+        "tickets.directory",
         "tickets.technician_requests",
         "messaging.accounts.manage"
       ]
@@ -366,6 +370,13 @@
       ]
     },
     {
+      "id": "tickets_directory",
+      "name_he": "ניהול ספריית אנשי קשר וספקים ב{tickets}",
+      "permissions": [
+        "tickets.directory"
+      ]
+    },
+    {
       "id": "tickets_technician_requests",
       "name_he": "אישור בקשות טכנאים מספקים ב{tickets}",
       "permissions": [
@@ -386,6 +397,8 @@
     "access.cards.capture",
     "access.pin.generate",
     "access.external.grant",
+    "access.doors.automate",
+    "access.people.stations",
     "access.events.export",
     "access.people.sensitive",
     "access.people.message",
@@ -433,6 +446,7 @@
     "tickets.costs",
     "tickets.delete",
     "tickets.handlers",
+    "tickets.directory",
     "tickets.technician_requests",
     "messaging.accounts.manage"
   ],

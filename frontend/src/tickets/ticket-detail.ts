@@ -35,6 +35,8 @@ import { LinkPanel, linkPanelStyles } from './link-panel';
 import { deviceBlockStyles, historySection } from './ticket-device-context'; // CR-038 slice 3: the frozen device history
 import './delete-dialog'; // owner 14.10: full deletion (tickets.delete)
 import './map-element'; // TKMAP1: the request's map element (its own load, picker and vendor preview)
+import { vft, vfFailText } from './camera-viewfinder'; // CR-CAMVF-295: the opt-in live camera (registers <ticket-camera-viewfinder>)
+import { cameraEnv, viewfinderAvailable, type CameraFailure } from './camera-viewfinder-model';
 import { openOverlay, menuKey } from './overlay-menu';
 import {
   SIZE_WIDTH, effectiveSize, initialTab, menuActions, parseSheet, primaryAction, quietAction, tabItems,
@@ -106,6 +108,8 @@ export class TicketDetailView extends LitElement {
   @property() sheetSetting = '';
   /** TKUI1: the new-request sheet's vendor flow, step two (`?assign=contact:<id>`): open the external-assign dialog prefilled, once */
   @property() assignContact = '';
+  /** CR-CAMVF-295: the module setting `ui.camera_viewfinder` (default off) - the live in-page camera tile in the photos */
+  @property({ type: Boolean }) cameraViewfinder = false;
   private assignedFor = '';
   @state() private t: Detail | null = null;
   @state() private failed = '';
@@ -258,6 +262,16 @@ export class TicketDetailView extends LitElement {
     .half .btn {
       align-self: center;
       min-block-size: 44px;
+    }
+    /* CR-CAMVF-295: the live camera tile (a button beside the unchanged file-input tile) */
+    button.ph.add.live {
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: 600;
+    }
+    button.ph.add.live:focus-visible {
+      outline: 2px solid var(--dv-focus);
+      outline-offset: 2px;
     }
     .photos-more {
       display: grid;
@@ -995,9 +1009,33 @@ export class TicketDetailView extends LitElement {
         ${more > 0 ? html`<button type="button" class="ph photos-more" aria-label=${dwt('photosAll')} data-photos-more @click=${() => (this.photosAll = true)}>${dwt('photosMore', { n: more })}</button>` : nothing}
         ${t.can.attach ? html`<label class="ph add" data-photo-add>${tIcon(this.uploading ? 'clock' : 'camera')}<span>${this.uploading ? tt('uploading') : tt('addPhoto')}</span>
           <input type="file" accept="image/jpeg,image/png" multiple ?disabled=${this.uploading > 0} aria-label=${tt('addPhoto')} @change=${this.onFiles} /></label>` : nothing}
+        ${this.liveCameraTile(t)}
       </div>
     </section>`;
   }
+
+  /** CR-CAMVF-295 (docs/changes/CR-CAMVF-295-SECURITY.md): the opt-in live camera - only with the switch on, a ticket that takes photos and
+   * a browser that can (secure context + getUserMedia). The file-input tile above stays exactly as it was: it is the fallback. */
+  private liveCameraTile(t: TicketDetail): TemplateResult | typeof nothing {
+    if (!viewfinderAvailable(this.cameraViewfinder, t.can.attach, cameraEnv())) return nothing;
+    return html`<button type="button" class="ph add live" data-camvf-open ?disabled=${this.uploading > 0} @click=${this.openViewfinder}>${tIcon('eye')}<span>${vft('open')}</span></button>
+      <ticket-camera-viewfinder .enabled=${this.cameraViewfinder} @camera-photo=${this.onCameraPhoto} @camera-failed=${this.onCameraFailed}></ticket-camera-viewfinder>`;
+  }
+
+  /** The click handler is the ONLY place the camera is asked for (T1). */
+  private readonly openViewfinder = (): void => {
+    void this.renderRoot.querySelector('ticket-camera-viewfinder')?.start();
+  };
+
+  private readonly onCameraPhoto = (e: CustomEvent<{ file: File }>): void => {
+    e.stopPropagation();
+    void this.uploadFiles([e.detail.file], false); // the same upload as the file input (internal photo, server re-encode)
+  };
+
+  private readonly onCameraFailed = (e: CustomEvent<{ reason: CameraFailure }>): void => {
+    e.stopPropagation();
+    this.say(vfFailText(e.detail.reason), 'bad');
+  };
 
   private flashRow(): TemplateResult | typeof nothing {
     if (!this.flash) return nothing;
@@ -1199,7 +1237,7 @@ export class TicketDetailView extends LitElement {
     return html`<div class="page" data-ticket-page=${t.id}>
       <div class="phead lead-head">
         <a class="rb sm" href=${listHref(this.scope)} aria-label=${tt('toList')} data-back>${tIcon('back')}</a>
-        <div class="tt"><h1 data-ticket-title>${t.title}</h1><div class="hsub">${this.subLine(t)}</div></div>
+        <div class="tt"><h1 dir="auto" data-ticket-title title=${t.title}>${bidi(t.title)}</h1><div class="hsub">${this.subLine(t)}</div></div>
         <div class="acts">
           ${this.detailMode === 'drawer_fullscreen' ? html`<a class="btn sm quiet" href=${listHref(this.scope, undefined, { t: t.id })} data-to-drawer>${tIcon('shrink')}${dwt('a_toDrawer')}</a>` : nothing}
           ${this.moreButton()}

@@ -569,7 +569,7 @@ def test_clean_keeps_ordinary_text():
     assert wa.clean("גרסה v1.2 מוכנה", 80) == "גרסה v1.2 מוכנה"
 
 
-@pytest.mark.parametrize("value", ["evil.de/login", "arx-support.dev", "10.1.2.3:8123/auth", "http://x.y", "WWW.EVIL.COM", "pay.example.museum",
+@pytest.mark.parametrize("value", ["evil.de/login", "arx-support.dev", "192.0.2.3:8123/auth", "http://x.y", "WWW.EVIL.COM", "pay.example.museum",
                                    "a.b.c.zz/p?q=1", "ups.battery_level", "x.co"])
 def test_review_f6_any_link_looking_token_is_masked(value):
     out = wa.clean(f"לפני {value} אחרי", 120)

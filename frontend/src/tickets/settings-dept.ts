@@ -186,7 +186,7 @@ export class TicketsDeptEditor extends LitElement {
     const parentName = (c: AdminCategory) => (c.parent_id ? live.find((p) => p.id === c.parent_id)?.name : null);
     return html`<div class="row stack"><span class="lbl">${tt('depCategories')}</span>
       <div class="chipsrow" data-dept-categories>${live.length ? live.map((c) => html`<span class="tag">
-        <button type="button" class="tag" aria-pressed=${String(this.catSel === c.id)} data-cat=${c.id} @click=${() => { this.catSel = this.catSel === c.id ? '' : c.id; this.set({ cat: undefined }); }}>${parentName(c) ? `${bidi(parentName(c) ?? '')} › ` : ''}${bidi(c.name)}</button>
+        <button type="button" class="tag" aria-pressed=${String(this.catSel === c.id)} data-cat=${c.id} @click=${() => { this.catSel = this.catSel === c.id ? '' : c.id; this.set({ cat: undefined }); }}>${parentName(c) ? `${bidi(parentName(c) ?? '')} ‹ ` : ''}${bidi(c.name)}</button>
         <button type="button" class="rm" aria-label=${`${tt('depRemove')} ${c.name}`} data-cat-remove=${c.id} ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteCategory(c.id))}>×</button></span>`) : html`<span class="muted">${tt('depCatNone')}</span>`}</div>
       ${sel && draft ? html`<div class="fields" data-cat-editor=${sel.id}>
         <label class="fld">${tt('catParent')}<select class="in" data-cat-parent @change=${(e: Event) => this.set({ cat: { ...draft, parent: (e.target as HTMLSelectElement).value } })}>

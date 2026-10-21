@@ -93,6 +93,13 @@ test('the award warning counts every pending question and names the selected ven
   expect(awardQuestionWarning(d, ['c'])).toEqual({ total: 3, vendors: [] });
 });
 
+// nav.ts keeps the module switch and the question count as module state: a spec that turns them on puts them back, or the next spec of the
+// same worker (unit-tabs-config's rail: the tickets area is off by default) sees a rail it did not ask for.
+test.afterEach(() => {
+  applyTicketsHidden(null);
+  applyRfqQuestions(0);
+});
+
 test('the navigation: the RFQ tab carries a badge and the tickets area a count while the module is on', () => {
   const tab = TICKETS_TABS.find((t) => t.id === 'rfqs')!;
   applyTicketsHidden({ 'tickets.enabled': 'true' });

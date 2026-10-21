@@ -18,7 +18,11 @@ Self (a local identity on its own session):
 `DELETE auth/passkeys/{id} {code?}`         a fresh sign-in, or the current TOTP code
 `PUT    auth/passkeys/first {on}`           the user's own passkey-first mode (on: owner switch on, a usable passkey, a fresh sign-in)
 
+`PUT    auth/passkeys/only {on}`             usr2-passkeys-only-mode: password sign-in refused for the caller (on: owner switch on, a usable
+                                            passkey, a fresh sign-in; 409 `passkey_first_off` | `no_passkey` | `no_recovery_path`)
+
 Administration:
+`PUT    identity/local-users/{id}/passkey-only {on}`  identity.local.manage; the same mode for a user (off = the recovery); audited
 `GET    identity/local-users/{id}/passkeys`           identity.directory.read
 `DELETE identity/local-users/{id}/passkeys/{pk}`      identity.local.manage; an administrator who has a TOTP factor shows their own code
                                                       (CR-011 M1, routers/second_factor.require_step_up); every session of the user ends
@@ -41,13 +45,20 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..remote_channel import is_remote
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
 from ..services import second_factor as sf
+from .. import guarded_route
 from .local_identity import _error, _public_guard, _rid, _success, _user_row
 
 router = APIRouter()
+
+
+def public_post(path: str, **kwargs: Any):
+    """SECFIX2-295 / PUB-07: the guard before the body (routers/local_identity.public_post, smplwise/guarded_route.py)."""
+    return guarded_route.post(router, _public_guard, path, **kwargs)
 
 SELF_LIMITS: list[tuple[float, int]] = [(60.0, 20), (3600.0, 100)]
 OPTIONS_LIMITS: list[tuple[float, int]] = [(60.0, 30), (3600.0, 300)]
@@ -71,9 +82,8 @@ def _ip_limit(request: Request, key: str, limits: list[tuple[float, int]]) -> JS
     return None
 
 
-@router.post("/auth/local/sign-in/passkey/options")
+@public_post("/auth/local/sign-in/passkey/options")
 async def second_step_options(request: Request) -> Response:
-    _public_guard(request)
     refused = _ip_limit(request, "lpko", OPTIONS_LIMITS)
     if refused is not None:
         return refused
@@ -81,9 +91,8 @@ async def second_step_options(request: Request) -> Response:
     return JSONResponse(out)
 
 
-@router.post("/auth/local/sign-in/passkey")
+@public_post("/auth/local/sign-in/passkey")
 async def second_step_passkey(body: CredentialBody, request: Request) -> Response:
-    _public_guard(request)
     refused = _ip_limit(request, "lsf", SECOND_STEP_LIMITS)  # one budget with the TOTP code step
     if refused is not None:
         return refused
@@ -91,9 +100,8 @@ async def second_step_passkey(body: CredentialBody, request: Request) -> Respons
     return _success(request, r)
 
 
-@router.post("/auth/local/passkey/options")
+@public_post("/auth/local/passkey/options")
 async def passwordless_options(request: Request) -> Response:
-    _public_guard(request)
     refused = _ip_limit(request, "lpkp", OPTIONS_LIMITS)  # review F10: its own budget - never starves the second-step options
     if refused is not None:
         return refused
@@ -101,11 +109,10 @@ async def passwordless_options(request: Request) -> Response:
     return JSONResponse(await run_in_threadpool(lpk.passwordless_options, request.app.state.db, addr))
 
 
-@router.post("/auth/local/passkey")
+@public_post("/auth/local/passkey")
 async def passwordless_sign_in(body: CredentialBody, request: Request) -> Response:
     import asyncio
 
-    _public_guard(request)
     r = await run_in_threadpool(lpk.passwordless_sign_in, request.app.state.db, settings_of(request), request, body.credential, _rid(request))
     if r.status == "rate_limited":
         return _error(request, 429, "rate_limited", li.RATE_LIMITED_HE, {"Retry-After": str(r.retry_after)}, retryable=True)
@@ -212,7 +219,41 @@ def own_first(body: FirstBody, request: Request, principal: Principal = Depends(
     return lpk.set_first(conn, s, body.on, _rid(request))
 
 
+class OnlyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    on: bool
+
+
+@router.put("/auth/passkeys/only")
+def own_only(body: OnlyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """usr2-passkeys-only-mode: the user's own switch (on needs a working passkey, the owner switch and a fresh sign-in)."""
+    s = _self(request, principal, conn)
+    return lpk.set_only(conn, s.user_id, body.on, actor=principal, by="self", request_id=_rid(request), s=s)
+
+
 # ---------------------------------------------------------------- administration
+
+@router.put("/identity/local-users/{user_id}/passkey-only")
+def admin_only(user_id: str, body: OnlyBody, request: Request, principal: Principal = Depends(current_principal),
+               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A system administrator switches the passkeys-only mode of a local user on (the user needs a working passkey) or off (the
+    recovery: the password signs the user in again; sessions stay). Administrative targets: local channel only, like every secret
+    minted for them. Audited on both the identity and the sign-in trail."""
+    require(conn, principal, "identity.local.manage", INSTALLATION)
+    row = _user_row(conn, user_id)
+    if not li.enabled(conn):
+        raise ApiError(409, "local_identity_off", li.OFF_HE)
+    if li.holds_admin(conn, user_id) and is_remote(request):
+        raise ApiError(404, "not_found", "Not found")
+    if not hua.LIMITER.hit(f"factor:{principal.user_id}", SELF_LIMITS):
+        raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    was = lpk.user_only_on(conn, row["id"])
+    out = lpk.set_only(conn, user_id, body.on, actor=principal, by="admin", request_id=_rid(request))
+    if was != body.on:
+        audit(conn, actor=principal, action="identity.local.user.passkey_only_enabled" if body.on else "identity.local.user.passkey_only_disabled",
+              decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request), details={})
+    return {"user_id": user_id, **out}
+
 
 @router.get("/identity/local-users/{user_id}/passkeys")
 def user_passkeys(user_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:

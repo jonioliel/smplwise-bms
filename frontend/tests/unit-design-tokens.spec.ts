@@ -191,12 +191,10 @@ test('contrast: body, secondary and tertiary text, accent text, text on accent, 
       }
     }
   }
-  // classic/light IS the product's look before the foundation (pixel-stable by decision): these pairs are known and are fixed when
-  // the classic skin itself is redesigned, never silently. Everything else must pass.
-  const KNOWN_CLASSIC_LIGHT = ['--sw-text-3 on surface', '--sw-text-3 on surface-2', '--sw-text-3 on bg', 'offline-text on offline-soft', 'unknown-text on unknown-soft', 'success-text on success-soft'];
-  const unexpected = fails.filter((f) => !(f.startsWith('classic/light ') && KNOWN_CLASSIC_LIGHT.some((k) => f.includes(k))));
-  expect(unexpected).toEqual([]);
-  expect(fails.length - unexpected.length, 'a known classic/light pair got fixed: remove it from the list').toBe(KNOWN_CLASSIC_LIGHT.length);
+  // UXFIX-A11Y-295 (UX audit 2026-10-20): the classic/light exceptions (muted text 2.75-2.95:1, offline / unknown / success text on
+  // their soft fills) are fixed in the token table; no pair is exempt any more. tests/unit-muted-contrast.spec.ts adds the
+  // translucent and canvas beds.
+  expect(fails).toEqual([]);
 });
 
 // ---- the performance tier (lite): no blur on cards / pills / rows / lists, tinted fills that keep the contrast guard ----

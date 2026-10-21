@@ -9,6 +9,8 @@ Public routes (remote channel only; 404 on the local channel; 403 `local_identit
                                                       of an eligible user (services/local_reset.py) | 429
 `POST auth/local/reset/confirm {username, code, password}`  200 {must_enrol} | 422 `code_invalid` (uniform) | 400 `password_policy` | 429
 Login CSRF (section 8.2): the public routes require `Sec-Fetch-Site: same-origin` or an `Origin` equal to this origin.
+SECFIX2-295 / PUB-07: the guard runs BEFORE the body is read or validated (`public_post`, smplwise/guarded_route.py): no 422 can tell a
+local-channel caller that a public route exists.
 
 Self:
 `PUT   auth/local/password {current_password, new_password, code?}`   a local identity changes its own password (the session rotates,
@@ -50,6 +52,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
+from .. import guarded_route
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import bump_permission_revision, now_iso
@@ -96,6 +99,13 @@ def _public_guard(request: Request) -> None:
     reason = csrf_reason(request.scope, list(request.scope.get("headers") or []))
     if reason is not None:
         raise ApiError(403, "csrf_refused", CSRF_HE, details={"reason": reason})
+
+
+def public_post(path: str, **kwargs: Any):
+    """SECFIX2-295 / PUB-07: a PUBLIC route runs `_public_guard` BEFORE FastAPI reads or validates its body (smplwise/guarded_route.py),
+    so on the local channel every body - well-formed or not - is the same 404, and on the remote channel the switch / transport / CSRF
+    refusals come before any 422. The endpoint itself does not call the guard again."""
+    return guarded_route.post(router, _public_guard, path, **kwargs)
 
 
 def _rid(request: Request) -> str | None:
@@ -163,9 +173,8 @@ def _success(request: Request, r: li.SignInResult) -> JSONResponse:
     return response
 
 
-@router.post("/auth/local/sign-in")
+@public_post("/auth/local/sign-in")
 async def local_sign_in(body: SignInBody, request: Request) -> Response:
-    _public_guard(request)
     admitted, r = await lp.run_admitted(li.sign_in, request.app.state.db, settings_of(request), request, body.username, body.password, _rid(request))
     if not admitted or r is None:
         return await _overloaded(request)
@@ -190,9 +199,8 @@ class CodeBody(BaseModel):
     code: str = Field(min_length=1, max_length=16)
 
 
-@router.post("/auth/local/sign-in/second-factor")
+@public_post("/auth/local/sign-in/second-factor")
 async def local_sign_in_second_factor(body: CodeBody, request: Request) -> Response:
-    _public_guard(request)
     pid = request.cookies.get(li.PENDING_COOKIE_SECURE) or (None if settings_of(request).in_addon else request.cookies.get(li.PENDING_COOKIE_PLAIN))
     if not hua.LIMITER.hit(f"lsf:{hua.limit_ip(hua.client_ip(request))}", [(60.0, 20)]):
         return _error(request, 429, "rate_limited", li.RATE_LIMITED_HE, {"Retry-After": "60"}, retryable=True)
@@ -206,9 +214,8 @@ class SetPasswordBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-@router.post("/auth/local/set-password")
+@public_post("/auth/local/set-password")
 async def local_set_password(body: SetPasswordBody, request: Request) -> dict[str, Any]:
-    _public_guard(request)
     if not hua.LIMITER.hit(f"lsetpw:{hua.limit_ip(hua.client_ip(request))}", li.SET_PASSWORD_LIMITS):
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
     admitted, out = await lp.run_admitted(li.use_link, request.app.state.db, settings_of(request), request, body.token, body.password, _rid(request))
@@ -225,11 +232,10 @@ class ResetRequestBody(BaseModel):
     username: str = Field(min_length=1, max_length=64)
 
 
-@router.post("/auth/local/reset/request", status_code=202)
+@public_post("/auth/local/reset/request", status_code=202)
 async def local_reset_request(body: ResetRequestBody, request: Request) -> dict[str, Any]:
     """Always the same 202 - an unknown name, a user without self-service, an administrator, no verified number, a cap: alike. The
     message leaves later from the sender thread, so the answer never waits for WhatsApp (local_reset module docstring)."""
-    _public_guard(request)
     if not hua.LIMITER.hit(f"lreset:{hua.limit_ip(hua.client_ip(request))}", lr.REQUEST_LIMITS):
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
     try:
@@ -246,11 +252,10 @@ class ResetConfirmBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
-@router.post("/auth/local/reset/confirm")
+@public_post("/auth/local/reset/confirm")
 async def local_reset_confirm(body: ResetConfirmBody, request: Request) -> dict[str, Any]:
     """200 {must_enrol} | 422 `code_invalid` (uniform) | 400 `password_policy` (only after a correct code; the code stays live) |
     429. No session is created; every session and open link of the user ends."""
-    _public_guard(request)
     if not hua.LIMITER.hit(f"lresetc:{hua.limit_ip(hua.client_ip(request))}", lr.CONFIRM_LIMITS):
         raise ApiError(429, "rate_limited", li.RATE_LIMITED_HE, retryable=True)
     admitted, out = await lp.run_admitted(lr.confirm, request.app.state.db, settings_of(request), request, body.username, body.code, body.password, _rid(request))
@@ -396,7 +401,7 @@ def _user_dict(conn: sqlite3.Connection, row: sqlite3.Row, live: dict[str, int] 
 
     passkeys = lpk.rows(conn, row["id"])  # USR2 phase 4: how many (never a credential id or a key); the list is its own route
     return {
-        "passkeys": len(passkeys), "passkey_first": lpk.user_first_on(conn, row["id"]),
+        "passkeys": len(passkeys), "passkey_first": lpk.user_first_on(conn, row["id"]), "passkey_only": lpk.user_only_on(conn, row["id"]),
         "id": row["id"], "username": row["username"], "display_name": row["display_name"], "email": row["email"], "notes": row["notes"],
         "status": _status(row), "active": bool(row["active"]), "created_at": row["first_seen_at"], "created_by": row["created_by"],
         "last_sign_in_at": row["last_sign_in_at"], "last_sign_in_from": row["last_sign_in_from"],
@@ -613,6 +618,8 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
 
         if fields["passkey_first"]:
             raise ApiError(422, "passkey_first_self_only", "רק המשתמש עצמו מפעיל כניסה במפתח גישה (עם מפתח הגישה שלו); מנהל יכול רק לכבות אותה.")
+        if lpk.user_only_on(conn, user_id):
+            raise ApiError(409, "passkey_only_on", lpk.ONLY_ON_HE)  # usr2-passkeys-only-mode needs passkey-first: switch the mode off first
         if lpk.user_first_on(conn, user_id):
             li.lease_hook("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE T6: the sign-in factor mode changed
             conn.execute("UPDATE auth_local_credentials SET passkey_first = 0, updated_at = ? WHERE user_id = ?", (now_iso(), user_id))

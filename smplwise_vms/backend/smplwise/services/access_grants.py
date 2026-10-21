@@ -61,12 +61,12 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
-from ..db import Database, get_setting, now_iso, permission_revision
+from ..db import Database, get_setting, now_iso, permission_revision, set_setting
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
-from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, plan_overrides, requested_policy
+from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
 
 log = logging.getLogger("smplwise.access_grants")
 
@@ -84,10 +84,20 @@ MAX_DOORS_KEY = "access.external.max_doors"
 FRESH_KEY = "access.external.phone_fresh_days"
 CODE_HOUR_KEY = "access.external.code_hour"
 LOCAL_KEY = "access.external.local_approvers"
-KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY)
+CARDS_KEY = "access.external.cards"  # GRANTS3-295 (X5): card grants for a vendor's technicians; off by default, on only with the go-live permit
+# SECFIX2-295 / PUB-03 (docs/security/PROPOSAL_PUB03_PENDING_TECHNICIAN_RETENTION.md, option A; owner decision pending): a technician a
+# vendor typed on the arrival page and nobody decided is erased after N days (services/pending_retention.py), and a vendor holds at most
+# M undecided technicians. Owner decision 2026-10-21: the recommendation is the default - 90 days, 10 per vendor (a value an administrator
+# saved, including "0" = off, wins; an installation that never saved one gets these at upgrade). Never in a project backup.
+PENDING_RETENTION_KEY = "access.external.pending_retention_days"
+PENDING_CAP_KEY = "access.external.pending_max_per_vendor"
+PENDING_RETENTION_MIN, PENDING_RETENTION_MAX = 7, 365
+PENDING_CAP_MAX = 100
+KEYS = (FLAG_KEY, MAX_DAYS_KEY, MAX_DOORS_KEY, FRESH_KEY, CODE_HOUR_KEY, LOCAL_KEY, CARDS_KEY, PENDING_RETENTION_KEY, PENDING_CAP_KEY)
 MAX_DAYS_CAP = 14  # owner answer 8: a constant; the setting may only lower it
 MAX_DOORS_CAP = 8
-DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off"}
+DEFAULTS = {FLAG_KEY: "off", MAX_DAYS_KEY: "14", MAX_DOORS_KEY: "4", FRESH_KEY: "180", CODE_HOUR_KEY: "18", LOCAL_KEY: "off", CARDS_KEY: "off",
+            PENDING_RETENTION_KEY: "90", PENDING_CAP_KEY: "10"}
 REVOKE_ALL_WORD = "בטל הכל"
 DELETE_WORD = "מחק"
 
@@ -305,6 +315,33 @@ def local_approvers(conn: sqlite3.Connection) -> bool:
         return False
 
 
+def pending_retention_days(conn: sqlite3.Connection) -> int:
+    """PUB-03: default 90 (owner 2026-10-21); a saved 0 = off (an undecided vendor-typed technician is kept until a manager decides); otherwise 7-365 days (a stored
+    value below the floor reads as the floor, so a slip never erases a request the same week). Unreadable -> 0 (nothing is erased)."""
+    try:
+        value = int(get_setting(conn, PENDING_RETENTION_KEY) or DEFAULTS[PENDING_RETENTION_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    if value <= 0:
+        return 0
+    return max(PENDING_RETENTION_MIN, min(PENDING_RETENTION_MAX, value))
+
+
+def pending_cap(conn: sqlite3.Connection) -> int:
+    """PUB-03: at most this many undecided vendor-typed technicians per vendor (default 10, owner 2026-10-21; a saved 0 = no cap). Unreadable -> no cap (the arrival
+    page's own per-link budgets still hold)."""
+    try:
+        value = int(get_setting(conn, PENDING_CAP_KEY) or DEFAULTS[PENDING_CAP_KEY])
+    except (ValueError, TypeError, sqlite3.Error):
+        return 0
+    return max(0, min(PENDING_CAP_MAX, value))
+
+
+def pending_count(conn: sqlite3.Connection, vendor_id: str) -> int:
+    return int(conn.execute("SELECT COUNT(*) FROM access_pending_contacts WHERE vendor_id = ? AND accepted_at IS NULL AND rejected_at IS NULL",
+                            (vendor_id,)).fetchone()[0])
+
+
 def zone_of(conn: sqlite3.Connection):
     from ..routers.settings import read_settings
     from .timeutil import zone
@@ -315,10 +352,24 @@ def zone_of(conn: sqlite3.Connection):
         return zone("Asia/Jerusalem")
 
 
+def cards_enabled(conn: sqlite3.Connection) -> bool:
+    """GRANTS3-295 (X5): card grants - `on` only when the setting says exactly `on`, the feature is on AND the go-live permit is in the
+    build (services/access_cards.py holds the card rules; capture stays off on its own constant)."""
+    try:
+        return (get_setting(conn, CARDS_KEY) or "off") == "on" and enabled(conn)
+    except sqlite3.Error:
+        return False
+
+
 def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    from .access_cards import CAPTURE_PERMITTED
+
     return {"external_grants": "on" if enabled(conn) else "off", "go_live_permitted": go_live_permitted(), "max_days": max_days(conn),
             "max_days_cap": MAX_DAYS_CAP, "max_doors": max_doors(conn), "phone_fresh_days": fresh_days(conn), "code_hour": code_hour(conn),
-            "local_approvers": "on" if local_approvers(conn) else "off"}
+            "local_approvers": "on" if local_approvers(conn) else "off",
+            # GRANTS3-295 (X5): cards, and card capture - which stays off until the owner releases the lease route
+            "cards": "on" if cards_enabled(conn) else "off", "card_capture": "on" if CAPTURE_PERMITTED else "off",
+            "pending_retention_days": pending_retention_days(conn), "pending_max_per_vendor": pending_cap(conn)}
 
 
 # ---------------------------------------------------------------- errors
@@ -468,7 +519,7 @@ def covers(old: Scope, new: Scope) -> bool:
             return False
     if new.valid_from < old.valid_from or new.valid_until > old.valid_until:
         return False
-    if old.credential == "none" and new.credential == "pin":
+    if old.credential == "none" and new.credential in ("pin", "card"):
         return False
     return _timing_covers(old.timing, new.timing)
 
@@ -680,9 +731,19 @@ def mark_revoking(conn: sqlite3.Connection, g: dict[str, Any], reason: str, *, a
         state = final_state_for(reason)
         _touch(conn, g["id"], {"state": state, "end_reason": reason, "ended_at": at, "code_state": code, "pending_json": None})
     _audit(conn, actor, "access.grant.revoke", g["id"], reason=reason, request_id=request_id, state=state, link_id=g.get("link_id"),
-           stations=stations_of(json.loads(g["doors_json"] or "{}")))
+           stations=_stations_or_none(g))
     WORKER.wake()
     return state
+
+
+def _stations_or_none(g: dict[str, Any]) -> list[str] | None:
+    """The stations for the revoke audit row. K7: an unreadable `doors_json` (a restored archive, a hand edit) must never make
+    the revoke itself fail - before, it raised inside the re-decision's fail-closed handler and rolled the whole pass back."""
+    try:
+        doors = json.loads(g["doors_json"] or "{}")
+        return stations_of(doors) if isinstance(doors, dict) else None
+    except (ValueError, TypeError):
+        return None
 
 
 def on_ticket_ended(conn: sqlite3.Connection, ticket_id: str, reason: str) -> int:
@@ -700,6 +761,30 @@ def on_ticket_ended(conn: sqlite3.Connection, ticket_id: str, reason: str) -> in
 
 
 _REDECIDE = threading.Event()
+
+
+def _cursor_after(raw: str | None) -> str | None:
+    """The last grant id an interrupted re-decision applied (K7), or None (no cursor, or one that cannot be read: start over)."""
+    try:
+        after = json.loads(raw)["after"] if raw else None
+    except (ValueError, TypeError, KeyError):
+        return None
+    return after if isinstance(after, str) and after else None
+
+
+def _approver_print(conn: sqlite3.Connection, g: dict[str, Any]) -> tuple[Any, ...]:
+    """What a re-decision reads that the permission revision does not guard (K7): the approver's own row and, for a local
+    identity, the local-approver switch. Equal before and after = a decision made on the snapshot still holds."""
+    approver = g.get("approved_by")
+    if not approver:
+        return (None,)
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (approver,)).fetchone()
+    row = None if user is None else (user["active"], user["deleted_at"] if "deleted_at" in user.keys() else None)
+    return (row, local_approvers(conn) if str(approver).startswith(LOCAL_ID_PREFIX) else None)
+
+
+def _between_decide_and_apply(rows: list[dict[str, Any]]) -> None:
+    """A seam for the K7 tests (a concurrent change, a crash between the two phases); does nothing."""
 
 
 def on_permission_change() -> None:
@@ -732,8 +817,16 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     problem = subject_problem(conn, contact)
     if problem and not (problem == "contact_pending" and str(requested_by).startswith("contact:")):
         raise _conflict("access_grant_subject", "אי אפשר לבקש גישה עבור איש הקשר הזה.", reason=problem)
+    if scope.credential == "card":  # GRANTS3-295 (X5): the switch and "a vendor's technician only"
+        from .access_cards import check_request
+
+        check_request(conn, contact)
     at = iso(now())
     live = live_grant_of(conn, "contact", contact_id)
+    if live is not None and live["state"] in DECIDED and "card" in (live["credential"], scope.credential) and live["credential"] != scope.credential:
+        # GRANTS3-295: a decided grant never changes between a card and another credential (a PIN on a carded person, or a card left on a
+        # PIN person, would outlive what was approved) - the access is ended and a new one requested
+        raise _conflict("access_grant_credential_change", "אי אפשר להחליף כרטיס בקוד (או להפך) בגישה שאושרה. בטלו אותה ובקשו גישה חדשה.")
     if live is None:
         gid = uuid.uuid4().hex
         conn.execute(
@@ -914,8 +1007,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         chosen = Scope(chosen_doors, vf, vu, requested.timing, requested.credential)
         if not covers(requested, chosen):
             raise deny("widened", _invalid("doors", "wider_than_requested", "המאשר יכול רק לצמצם את מה שהתבקש."))
-        if requested.credential == "card":
-            raise deny("card", _conflict("access_grant_card_not_built", "גישה בכרטיס לאדם חיצוני עדיין אינה זמינה (שלב מאוחר יותר)."))
+        if requested.credential == "card" and not cards_enabled(conn):
+            # GRANTS3-295 (X5): built; still refused while the cards switch is off (it cannot be on without the go-live permit)
+            raise deny("cards_off", _conflict("access_grant_cards_off", "גישה בכרטיס לאדם חיצוני כבויה."))
         stations = stations_of(chosen.doors)
         missing = missing_on(conn, principal, (PERMISSION,), stations) + missing_on(
             conn, principal, approve_permissions(chosen.credential)[1:], sorted(set(stations) | set(person_stations or [])))
@@ -953,7 +1047,9 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         else:
             fields.update({"state": "approved", "provision_after": None, "provision_attempts": 0,
                            "code_state": "pending" if chosen.credential == "pin" else "not_needed",
-                           "code_due_at": code_due(conn, vf, at) if chosen.credential == "pin" else None})
+                           "code_due_at": code_due(conn, vf, at) if chosen.credential == "pin" else None,
+                           # GRANTS3-295 (X5): a card grant waits for its card (typed by number by an approver once the grant is active)
+                           "card_state": "awaiting" if chosen.credential == "card" else None})
             action = "access.grant.approve"
         if not _touch(conn, grant_id, fields, expect_revision=revision):
             raise deny("stale", _conflict("stale_revision", "הגישה השתנתה מאז שנטענה. טענו מחדש."))
@@ -1159,6 +1255,45 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
     return {"link_id": link_id, "outcome": outcome, "pending": outcome == "accepted"}
 
 
+def may_decide_pending(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """The authority of accept_pending_contact / reject_pending_contact (one rule for the list and both decisions)."""
+    return PERMISSION in permissions_anywhere(conn, principal) or authorize(conn, principal, "tickets.configure", INSTALLATION).allowed
+
+
+def pending_list(conn: sqlite3.Connection, principal: Principal, at: datetime | None = None) -> dict[str, Any]:
+    """SECFIX2-295 (owner 2026-10-21): every technician a vendor typed on the arrival page that no manager accepted or rejected - the
+    name, the vendor, the ticket number (only while the tickets module is on), since when, and the days left before the retention
+    janitor erases him (None while retention is off). Never a phone number. Oldest first. Refused (403) to anyone who may not decide."""
+    if not may_decide_pending(conn, principal):
+        raise forbidden(permission=PERMISSION, target_type="installation", target_id="*", reason="no_binding")
+    from .tickets.access import module_on
+
+    now_at = at or now()
+    days_keep = pending_retention_days(conn)
+    try:
+        tickets_on = module_on(conn)
+    except Exception:  # noqa: BLE001 - an unreadable module switch hides the ticket reference (fail closed)
+        tickets_on = False
+    rows = conn.execute(
+        "SELECT p.contact_id, p.vendor_id, p.assignment_id, p.created_at, c.display_name, v.display_name AS vendor_name "
+        "FROM access_pending_contacts p JOIN ticket_contacts c ON c.id = p.contact_id LEFT JOIN ticket_contacts v ON v.id = p.vendor_id "
+        "WHERE p.accepted_at IS NULL AND p.rejected_at IS NULL AND c.erased_at IS NULL ORDER BY p.created_at, p.contact_id").fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        since = _parse_any(r["created_at"])
+        days = max(0, (now_at - since).days) if since else 0
+        number = None
+        if tickets_on and r["assignment_id"]:
+            try:
+                t = conn.execute("SELECT t.number FROM ticket_assignments a JOIN tickets t ON t.id = a.ticket_id WHERE a.id = ?", (r["assignment_id"],)).fetchone()
+                number = t[0] if t else None
+            except sqlite3.Error:
+                number = None
+        out.append({"contact_id": r["contact_id"], "name": r["display_name"] or "", "vendor": r["vendor_name"] or "", "ticket_number": number,
+                    "since": r["created_at"], "days": days, "days_left": max(0, days_keep - days) if days_keep else None})
+    return {"pending": out, "retention_days": days_keep, "max_per_vendor": pending_cap(conn), "tickets_on": tickets_on}
+
+
 def accept_pending_contact(db: Database, principal: Principal, contact_id: str, request_id: str | None = None) -> dict[str, Any]:
     """Owner answer 7: a manager accepts a technician the vendor added (the contact becomes active); the technician still confirms
     his own number by code before any access code can go to it."""
@@ -1266,6 +1401,7 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "approved_by": g["approved_by"], "approved_at": g["approved_at"],
         "code_state": g["code_state"] if sensitive else None, "code_due_at": g["code_due_at"] if sensitive else None,
         "code_sends": g["code_sends"] if sensitive else None,
+        "card_state": g.get("card_state") if sensitive else None,  # GRANTS3-295 (X5): never a number, not even masked
         "notice": [{"via": r["via"], "version": r["version"], "at": r["at"]} for r in noticed], "attention": attention,
         "linked": bool(g.get("link_id")),
         **_screen_fields(conn, g),
@@ -1750,6 +1886,8 @@ class Worker:
                 if _REDECIDE.is_set():
                     _REDECIDE.clear()
                     summary["redecided"] = self.redecide(db)
+                elif self.redecide_pending(db):  # K7: an interrupted re-decision resumes after its cursor
+                    summary["redecided"] = self.redecide(db, resume=True)
                 summary["reconciled"] = self.reconcile(db)
                 summary["ended"] = self.end_due(db)
                 with db.connection(mode="read", label="access_grants.worker.scan") as conn:
@@ -1819,42 +1957,139 @@ class Worker:
 
     # ---- re-decision (CR 3.5, owner answer 5; fail closed)
 
-    def redecide(self, db: Database) -> int:
+    # K7 (TRIAGE 2026-10-18): the re-decision of EVERY decided grant used to run inside ONE write transaction - every grant x
+    # station x permission authorisation held SQLite's single write lock (seconds on a large installation, every other writer
+    # queued behind it). It now runs in bounded chunks, ordered by grant id: each chunk is DECIDED in a read transaction (WAL
+    # readers never block the writer) and APPLIED in a short write transaction of its own, which also records the resume cursor.
+    # Results are those of the single transaction (tests/test_k7_redecide_chunked.py proves it against a verbatim copy of the old
+    # code); docs/changes/K7-REDECIDE-CHUNKED.md has the full argument.
+    REDECIDE_CHUNK = 200
+    REDECIDE_CURSOR_KEY = "access.external.redecide_cursor"  # {"rev": n, "after": "<last grant id applied>"} - runtime state
+
+    def redecide_pending(self, db: Database) -> bool:
+        """An interrupted re-decision (a crash or an error between two chunks) left its cursor: the next pass resumes it."""
+        try:
+            with db.connection(mode="read", label="access_grants.redecide.cursor") as conn:
+                return get_setting(conn, self.REDECIDE_CURSOR_KEY) is not None
+        except sqlite3.Error:
+            return False
+
+    def redecide(self, db: Database, *, resume: bool = False) -> int:
+        """Re-decide every decided grant against its approver's CURRENT permissions (CR 3.5, owner answer 5; fail closed).
+        `resume`: continue after the cursor an interrupted pass left - a grant at or before the cursor that is not yet stamped
+        with the current permission revision (a bump since the interruption, a restored row) is re-decided all the same."""
+        skip_upto: str | None = None
+        if resume:
+            with db.connection(mode="read", label="access_grants.redecide.cursor") as conn:
+                skip_upto = _cursor_after(get_setting(conn, self.REDECIDE_CURSOR_KEY))
         n = 0
-        with db.connection(label="access_grants.redecide") as conn:
-            marks = ",".join("?" * len(DECIDED))
-            rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks})", DECIDED).fetchall()]
-            rev = permission_revision(conn)
-            for g in rows:
-                n += 1
-                try:
-                    self._redecide_one(conn, g, rev)
-                except Exception:  # noqa: BLE001 - an error while re-deciding is a revoke
-                    mark_revoking(conn, g, "approver_lost_authority")
+        after = ""  # keyset: the last grant id of the previous chunk
+        committed = False  # a chunk of THIS pass committed (and with it a cursor)
+        marks = ",".join("?" * len(DECIDED))
+        try:
+            while True:
+                # 1. decide: a read transaction (one consistent snapshot per chunk), no write lock
+                with db.connection(mode="read", label="access_grants.redecide.decide") as conn:
+                    rev = permission_revision(conn)
+                    # `+state`: walk the primary key (id > ? ORDER BY id) - the state index would sort every decided row per chunk
+                    sql = f"SELECT * FROM access_grants WHERE +state IN ({marks}) AND id > ?"
+                    args: list[Any] = [*DECIDED, after]
+                    if skip_upto is not None:
+                        sql += " AND (id > ? OR COALESCE(approval_revision, 0) < ?)"
+                        args += [skip_upto, rev]
+                    rows = [dict(r) for r in conn.execute(sql + " ORDER BY id LIMIT ?", (*args, self.REDECIDE_CHUNK)).fetchall()]
+                    plan = [(g, self._decide_safe(conn, g), _approver_print(conn, g)) for g in rows]
+                if not rows:  # nothing (more) to re-decide: a cursor still standing (an exactly full last chunk, a resume) is spent
+                    self._drop_cursor(db)
+                    break
+                last = len(rows) < self.REDECIDE_CHUNK
+                after = rows[-1]["id"]
+                _between_decide_and_apply(rows)
+                # 2. apply: a short write transaction, verified against the snapshot the decisions were made on
+                with db.connection(label="access_grants.redecide.apply") as conn:
+                    self._apply_chunk(conn, plan, rev)
+                    if last:
+                        conn.execute("DELETE FROM settings WHERE key = ?", (self.REDECIDE_CURSOR_KEY,))
+                    else:
+                        set_setting(conn, self.REDECIDE_CURSOR_KEY, json.dumps({"rev": rev, "after": after}))
+                committed = True
+                n += len(rows)
+                if last:
+                    break
+        except BaseException:
+            # fail closed: with no cursor standing (nothing committed and nothing to resume) another pass is asked for at once;
+            # with one standing, the next pass resumes after it (`redecide_pending`)
+            if not committed and not resume:
+                _REDECIDE.set()
+            raise
         return n
 
-    def _redecide_one(self, conn: sqlite3.Connection, g: dict[str, Any], rev: int) -> None:
+    def _drop_cursor(self, db: Database) -> None:
+        with db.connection(mode="read", label="access_grants.redecide.cursor") as conn:
+            if get_setting(conn, self.REDECIDE_CURSOR_KEY) is None:
+                return
+        with db.connection(label="access_grants.redecide.cursor") as conn:
+            conn.execute("DELETE FROM settings WHERE key = ?", (self.REDECIDE_CURSOR_KEY,))
+
+    def _apply_chunk(self, conn: sqlite3.Connection, plan: list[tuple[dict[str, Any], tuple[str, Any], tuple[Any, ...]]], rev: int) -> None:
+        """Apply one chunk's decisions. A decision is applied as made only when nothing it rests on moved since the snapshot:
+        the permission revision (every binding / role / group change bumps it - the rbac cache relies on the same rule), the
+        grant row (its revision) and the approver's own row and the local-approver switch (not revision-guarded). Anything else
+        is re-decided HERE, inside this write transaction, exactly as the single transaction did - bounded by the chunk size."""
+        fresh_rev = permission_revision(conn)
+        for g, decision, printed in plan:
+            cur = grant_row(conn, g["id"])
+            if cur is None or cur["state"] not in DECIDED:
+                continue  # the grant left the decided states meanwhile (revoked, ended): nothing to re-decide
+            try:
+                if fresh_rev != rev or cur["revision"] != g["revision"] or _approver_print(conn, cur) != printed:
+                    self._redecide_one(conn, cur, fresh_rev)
+                else:
+                    self._apply_decision(conn, cur, decision, rev)
+            except Exception:  # noqa: BLE001 - an error while re-deciding is a revoke
+                mark_revoking(conn, cur, "approver_lost_authority")
+
+    def _decide_safe(self, conn: sqlite3.Connection, g: dict[str, Any]) -> tuple[str, Any]:
+        try:
+            return self._decide(conn, g)
+        except Exception:  # noqa: BLE001 - an error while re-deciding is a revoke
+            return ("revoke", None)
+
+    @staticmethod
+    def _decide(conn: sqlite3.Connection, g: dict[str, Any]) -> tuple[str, Any]:
+        """The re-decision of one grant, reads only: ("revoke", None) | ("narrow", kept doors) | ("keep", None)."""
         approver = g.get("approved_by")
         user = conn.execute("SELECT active, deleted_at FROM users WHERE id = ?", (approver,)).fetchone() if approver else None
         if user is None or not user["active"] or (user["deleted_at"] if "deleted_at" in user.keys() else None):
-            mark_revoking(conn, g, "approver_lost_authority")
-            return
+            return ("revoke", None)
         if str(approver).startswith(LOCAL_ID_PREFIX) and not local_approvers(conn):
-            mark_revoking(conn, g, "approver_lost_authority")
-            return
+            return ("revoke", None)
         p = principal_of(approver)
         doors = json.loads(g["doors_json"] or "{}")
         perms = approve_permissions(g["credential"])
         kept = {s: r for s, r in doors.items() if not missing_on(conn, p, perms, [s])}
         if not kept:
+            return ("revoke", None)
+        if kept != doors:  # R9 within the re-decision: narrowed to the stations the approver still holds
+            return ("narrow", kept)
+        return ("keep", None)
+
+    @staticmethod
+    def _apply_decision(conn: sqlite3.Connection, g: dict[str, Any], decision: tuple[str, Any], rev: int) -> None:
+        kind, kept = decision
+        if kind == "revoke":
             mark_revoking(conn, g, "approver_lost_authority")
             return
-        if kept != doors:  # R9 within the re-decision: narrowed to the stations the approver still holds
+        if kind == "narrow":
             _touch(conn, g["id"], {"doors_json": json.dumps(kept, sort_keys=True), "needs_push": 1 if g["state"] in ("active", "unknown") else g["needs_push"],
                                    "approval_revision": rev})
             _audit(conn, None, "access.grant.amend", g["id"], reason="station_changed", kind="narrowed", stations=stations_of(kept))
             return
         _touch(conn, g["id"], {"approval_revision": rev})
+
+    def _redecide_one(self, conn: sqlite3.Connection, g: dict[str, Any], rev: int) -> None:
+        """Decide and apply in the caller's write transaction (the fallback of `_apply_chunk`)."""
+        self._apply_decision(conn, g, self._decide(conn, g), rev)
 
     # ---- the backstop reconciliation of R3-R6, R8 and the approver's active flag
 
@@ -2238,10 +2473,10 @@ class Worker:
 
     @staticmethod
     def _revoked(person: EnginePerson) -> bool:
-        """The readback shows the revoked state: door map KNOWN and empty, no group, no personal override, inactive, PIN known cleared. A
-        restricted projection (doors_known / pin_known False) is UNKNOWN and never counts."""
-        return (person.doors_known and person.pin_known and not person.doors and not person.group_ids and not person.overrides
-                and not person.active and not person.pin_configured)
+        """The readback shows the revoked state: door map KNOWN and empty, no group, no personal override (overrides KNOWN), inactive, PIN
+        known cleared. A restricted projection (doors_known / overrides_known / pin_known False) is UNKNOWN and never counts. R11-I1-03:
+        the one central predicate `access_grant_engine.central_revoked`."""
+        return central_revoked(person)
 
     @staticmethod
     def revoke_backoff_s(attempts: int) -> int:
@@ -2314,10 +2549,16 @@ class Worker:
                         engine.strip(person.id, person.revision)
                 # never "revoked" from the update result alone: a fresh central readback must show the expected state (door map KNOWN and
                 # empty, inactive, PIN known cleared) AND the central sync status must show no pending revocation. After a revoke there is no
-                # revision row, so an empty `assignments` map by itself proves nothing about the stations.
+                # revision row, so an empty `assignments` map by itself proves nothing about the stations. R11-I1-03: the status is asked
+                # for the revision of THIS readback (a mismatch is UNKNOWN), and its False counts only beside the central predicate.
                 person = engine.get_person(link["wiskey_person_id"])
-                if not self._revoked(person) or engine.revocation_pending(person.id) is not False:
+                # GRANTS3-295 (X5, CR 4.5 "card removal at grant end is part of R1"): WisKey's revoke-all keeps the cards, so every card
+                # of the person Arx created is removed by its id (cards/remove), then read again
+                person = self._remove_cards(engine, person)
+                if not self._revoked(person) or not revocation_proven(person, engine.revocation_pending(person.id, person.revision)):
                     raise EngineError("unknown", "revoke_unverified")
+                if g["credential"] == "card" and not (person.cards_known and not person.card_ids):
+                    raise EngineError("unknown", "card_unverified")  # a card grant ends only on a readback that shows no card
             except EngineError as exc:
                 # WisKey round 3: `user_not_found` (users/get or the write) is NOT proof that the person and their station grants are
                 # gone - it may mean "outside the service user's scope", and a delete leaves a tombstone whose station removals are
@@ -2335,9 +2576,29 @@ class Worker:
             if cur is None or cur["state"] != "revoking":
                 return None
             state = final_state_for(cur["end_reason"] or "manual")
-            _touch(conn, g["id"], {"state": state, "ended_at": iso(now()), "needs_push": 0})
+            done: dict[str, Any] = {"state": state, "ended_at": iso(now()), "needs_push": 0}
+            if cur["credential"] == "card":
+                done["card_state"] = "removed"
+            _touch(conn, g["id"], done)
             _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome)
         return "revoked"
+
+    @staticmethod
+    def _remove_cards(engine: Engine, person: EnginePerson) -> EnginePerson:
+        """GRANTS3-295 (X5): remove every card of a person Arx created (the caller checked the origin), one revision-checked cards/remove
+        per card id (a conflict re-reads once), and answer a FRESH readback. An unreadable card list is left to the caller's verdict."""
+        if not person.cards_known or not person.card_ids:
+            return person
+        for card_id in person.card_ids:
+            try:
+                person = engine.card_remove(person.id, person.revision, card_id)
+            except EngineError as exc:
+                if exc.kind != "revision_conflict":
+                    raise
+                person = engine.get_person(person.id)
+                if card_id in person.card_ids:
+                    person = engine.card_remove(person.id, person.revision, card_id)
+        return engine.get_person(person.id)
 
     # ---- the code (owner answers 3, 4, 11)
 

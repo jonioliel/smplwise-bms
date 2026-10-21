@@ -132,7 +132,7 @@ def test_an_export_is_created_read_back_listed_renamed_and_deleted_with_a_confir
     r = _export(world).json()
     eid = r["export_id"]
     assert r["verified"] is True and eid.startswith("cam_front_")
-    assert world.fake.writes[-1] == ("POST", f"/api/export/cam_front/start/{EXPORT['start']:.3f}/end/{EXPORT['end']:.3f}", {"name": "Front door evening", "playback": "realtime"})
+    assert world.fake.writes[-1] == ("POST", f"/api/export/cam_front/start/{EXPORT['start']:.3f}/end/{EXPORT['end']:.3f}", {"name": "Front door evening", "source": "recordings"})
     lst = world.call("GET", f"{BASE}/exports")
     assert lst.status_code == 200
     rows = {x["id"]: x for x in lst.json()["exports"]}
@@ -176,7 +176,7 @@ def test_an_export_whose_answer_has_no_id_is_found_by_name_and_a_bad_range_is_re
 def test_an_export_is_limited_to_the_cameras_of_the_binding_and_the_list_is_filtered(world):
     cams = world.cams()
     world.policy(exports=True)
-    world.fake.exports.append({"id": "cam_yard_foreign", "camera": "cam_yard", "name": "yard", "date": 1.0, "in_progress": False, "export_case_id": None})
+    world.fake.exports.append({"id": "cam_yard_foreign", "camera": "cam_yard", "name": "yard", "date": 1.0, "in_progress": False, "export_case": None})
     bind(world.c, world.s, "tal", "system_admin", "camera", cams["cam_front"])
     h = as_user("tal")
     assert _export(world, "cam_yard", headers=h).status_code == 403

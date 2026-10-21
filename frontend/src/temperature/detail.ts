@@ -7,6 +7,7 @@ import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorR
 import { bigChart, bigFrame, gauge, ring, spark, type BigChartData } from './charts';
 import { tempCss } from './styles';
 import './ticket-dialog';
+import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: no ticket action while the tickets module is off
 import { tt, type TtKey } from '../i18n/temperature';
 
 const WIDE_KEY = 'sw.temperature.detailWide';
@@ -422,7 +423,7 @@ export class TempDetail extends LitElement {
   /** Idea 11: the tickets opened from this unit (only those the person may see). */
   private ticketsPanel(u: TempUnit) {
     const list = u.tickets ?? [];
-    if (!list.length) return nothing;
+    if (!ticketsEnabled() || !list.length) return nothing;
     return html`<div class="panel" data-temp-tickets><div class="ph"><h4>${tt('ticketsLinked')}</h4></div>
       <div class="events">${list.map((x) => html`<a class="ev tk" href=${`#/tickets/${encodeURIComponent(x.ticket_id)}`} data-ticket-link=${x.ticket_id}><sw-icon name="ticket" size="14"></sw-icon>
         <div>${tt('ticketChip', { n: x.number })}</div><span class="chip">${x.status ?? ''}</span></a>`)}</div></div>`;
@@ -557,7 +558,7 @@ export class TempDetail extends LitElement {
             ? html`<button type="button" class="btn" ?disabled=${this.busy} data-temp-maint-end @click=${() => this.act(() => endMaintenance(u.id), 'maintEnded')}><sw-icon name="wrench" size="16"></sw-icon>${tt('maintEnd')}</button>`
             : html`<button type="button" class="btn" ?disabled=${this.busy} aria-expanded=${String(this.maintOpen)} data-temp-maint @click=${() => { this.maintOpen = !this.maintOpen; this.muteOpen = false; }}><sw-icon name="wrench" size="16"></sw-icon>${tt('maintBtn')}</button>`) : nothing}
           <button type="button" class="btn" data-temp-report @click=${() => this.dispatchEvent(new CustomEvent('report', { detail: u.id }))}><sw-icon name="download" size="16"></sw-icon>${tt('report')}</button>
-          ${this.canAck ? html`<button type="button" class="btn" data-temp-ticket-btn @click=${() => { this.ticket = { eventId: openAlert?.id ?? null }; }}><sw-icon name="ticket" size="16"></sw-icon>${tt('ticketBtn')}</button>` : nothing}
+          ${this.canAck && ticketsEnabled() ? html`<button type="button" class="btn" data-temp-ticket-btn @click=${() => { this.ticket = { eventId: openAlert?.id ?? null }; }}><sw-icon name="ticket" size="16"></sw-icon>${tt('ticketBtn')}</button>` : nothing}
           <span class="sp"></span>
           ${this.canManage ? html`<button type="button" class="btn ghost" data-temp-detail-edit @click=${() => this.dispatchEvent(new CustomEvent('edit'))}><sw-icon name="edit" size="16"></sw-icon>${tt('edit')}</button>` : nothing}
           ${this.muteOpen ? html`<div class="pop" role="menu" data-temp-mutepop><div class="hd">${tt('muteTitle')}</div>${u.rules.mute_includes_alarms ? nothing : html`<div class="nt">${tt('muteNote')}</div>`}
@@ -567,7 +568,7 @@ export class TempDetail extends LitElement {
           ${this.maintOpen ? this.maintPop(u, lang) : nothing}
         </div>
       </aside>
-      ${this.ticket ? html`<temp-ticket .unitId=${u.id} .eventId=${this.ticket.eventId} @close=${() => { this.ticket = null; }}
+      ${this.ticket && ticketsEnabled() ? html`<temp-ticket .unitId=${u.id} .eventId=${this.ticket.eventId} @close=${() => { this.ticket = null; }}
           @done=${(e: CustomEvent<{ message: string }>) => { this.ticket = null; this.dispatchEvent(new CustomEvent('changed', { detail: e.detail.message })); }}></temp-ticket>` : nothing}`;
   }
 }

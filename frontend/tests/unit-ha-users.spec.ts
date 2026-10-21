@@ -71,7 +71,7 @@ test('every state, repair and access word exists in Hebrew', () => {
 
 test('the not-authorised text tells the owner what to do; no platform product name on the screen', () => {
   // USR1-263: the token is saved in Settings > Connections > Secrets, never in the add-on options
-  expect(ht('acc_not_authorised_fix')).toContain('הגדרות › חיבורים › סודות');
+  expect(ht('acc_not_authorised_fix')).toContain('הגדרות ‹ חיבורים ‹ סודות');
   expect(ht('acc_not_authorised_fix')).not.toMatch(/ha_users_token|התוסף/);
   for (const k of HA_USERS_TEXT_KEYS) {
     const text = ht(k);

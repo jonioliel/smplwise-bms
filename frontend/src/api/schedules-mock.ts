@@ -809,7 +809,7 @@ export class ScheduleDemoStore {
         if (e.selectable === false) errors.push({ path: `slots[${i}].actions[${j}].entity_id`, code: e.reason?.code ?? 'action_not_allowed', message: e.reason?.message ?? 'לא ניתן לתזמן.' });
         if ('code' in a.data) errors.push({ path: `slots[${i}].actions[${j}].data.code`, code: 'code_not_allowed', message: 'אסור לשמור קוד בתוך תזמון.' });
         if (a.service === 'alarm_control_panel.alarm_disarm' && !this.settings.allowDisarm) {
-          errors.push({ path: `slots[${i}].actions[${j}].service`, code: 'disarm_not_allowed', message: 'מנהל המערכת הגביל נטרול אזעקה בתזמונים (הגדרות › תזמונים).' });
+          errors.push({ path: `slots[${i}].actions[${j}].service`, code: 'disarm_not_allowed', message: 'מנהל המערכת הגביל נטרול אזעקה בתזמונים (הגדרות ‹ תזמונים).' });
         }
         if (e.needsMark && !this.marks.has(e.entity_id)) errors.push({ path: `slots[${i}].actions[${j}].entity_id`, code: 'script_not_approved', message: SCRIPT_NOT_APPROVED });
         if (a.service === 'script.turn_on') {

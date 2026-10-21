@@ -287,7 +287,7 @@ def test_mark_sent_keeps_the_first_time_and_an_email_send_stays_email(s4):
         "D6: a link that went by e-mail needs its code on WhatsApp - a later copy must not open the e-mail fallback"
 
 
-@pytest.mark.parametrize("url", ["http://t.example.test", "https://10.0.0.5", "https://localhost", "https://t.example.test/x",
+@pytest.mark.parametrize("url", ["http://t.example.test", "https://192.0.2.29", "https://localhost", "https://t.example.test/x",
                                  "https://t.example.test:8443", "https://user@t.example.test", "https://homeassistant.local"])
 def test_the_public_address_is_validated(s4, url):
     rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]

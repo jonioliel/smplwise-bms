@@ -353,15 +353,16 @@ TEXT = {
 TEXT_MAX = 700
 
 
-def text_summary(model: dict[str, Any]) -> str:
+def text_summary(model: dict[str, Any], *, external: bool = False) -> str:
     """The WhatsApp message: the range, one line per unit with the key numbers, the PDF note and the footer, capped at TEXT_MAX. Unit names
-    pass through the WhatsApp channel's own hygiene (one line, no markup, no link-looking token)."""
+    pass through the WhatsApp channel's own hygiene (one line, no markup, no link-looking token). `external` (TEMPVENDOR-295, a vendor):
+    no "available in the system" note - the vendor has no access to the system; the document link line, when there is one, is added by the queue."""
     from .notify_whatsapp import clean
 
     lang = model["lang"] if model["lang"] in TEXT else "he"
     T = TEXT[lang]
     lines = [T["head"], "⁦" + range_text(model) + "⁩"]  # the range isolated left-to-right inside a right-to-left message
-    tail = [T["pdf"], T["footer"]]
+    tail = [T["footer"]] if external else [T["pdf"], T["footer"]]
     used = len("\n".join(lines + tail)) + 1
     shown = 0
     for u in model["units"]:

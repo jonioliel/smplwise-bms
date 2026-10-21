@@ -15,6 +15,7 @@ Where the template is NOT used (the real migration path runs):
   * any `Database.migrate()` call that does not come from `create_app` (tests/test_migrations*.py and every test that migrates
     a database itself keep exercising the SQL files);
   * a database that is not empty (an upgrade or restart test keeps its own data and runs the real loop);
+  * a test that points `MIGRATIONS_DIR` elsewhere (an older subset for an upgrade test) - the template holds the full set;
   * a template that cannot be built or that has a trigger on a re-stamped table (then nothing is patched).
 """
 from __future__ import annotations
@@ -114,10 +115,17 @@ def install(db_cls) -> bool:
     if not enabled() or getattr(db_cls.migrate, "_sw_template", False):
         return False
     real = db_cls.migrate
+    dbmod = sys.modules[db_cls.__module__]
+    real_dir = Path(dbmod.MIGRATIONS_DIR)
 
     def migrate(self):  # noqa: ANN001 - same signature as Database.migrate
         global _TPL
         caller = sys._getframe(1).f_code
+        # integ/2100: a test that monkeypatches MIGRATIONS_DIR (an "old database, then upgrade" test: test_cameras, test_anchor_3d,
+        # test_tickets_258_review) must get exactly the migrations of that directory - never the full template
+        if Path(dbmod.MIGRATIONS_DIR) != real_dir:
+            STATS["real"] += 1
+            return real(self)
         if not enabled() or not (caller.co_name == "create_app" and caller.co_filename.replace("\\", "/").endswith("smplwise/main.py")) or not is_fresh(self.path):
             STATS["real"] += 1
             return real(self)

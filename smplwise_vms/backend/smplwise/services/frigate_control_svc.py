@@ -129,6 +129,9 @@ def set_feature(conn: sqlite3.Connection, principal: Principal, adapter: Frigate
     ctl = fc.FrigateControl(adapter)
     base = dict(recorder_id=rid, camera_id=cam["id"], camera_key=cam["source_ref"], cls=cls, kind="feature", target=feature, request_id=request_id)
     before_all = ctl.read_features(cam["source_ref"])
+    if fc.split_feature(feature)[1] is not None and feature not in before_all:
+        # a named zone / mask Frigate does not show: Frigate would answer 200 and ignore it, so nothing is sent
+        raise ApiError(404, "frigate_feature_unknown", "האזור או המסכה לא נמצאו במצלמה ב־Frigate.", details={"feature": feature[:80]})
     before = before_all.get(feature)
     if before is value:
         return {"changed": False, "feature": feature, "value": value, "verified": True, "change_id": None}
@@ -269,7 +272,7 @@ def set_sub_label(conn: sqlite3.Connection, principal: Principal, adapter: Friga
     except ApiError as exc:
         raise _failed(conn, principal, exc, before={"sub_label": cur["sub_label"]}, after={"sub_label": want}, state_hash=None, **base) from None
     try:
-        verified = ctl.event(event_id)["sub_label"] == want
+        verified = ctl.event_settled(event_id, "sub_label", want)
     except ApiError:
         verified = False
     cid = _log(conn, principal, before={"sub_label": cur["sub_label"]}, after={"sub_label": want}, state_hash=None, status="applied" if verified else "unverified", **base)
@@ -423,7 +426,7 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
             if ctl.event(row["target"])["sub_label"] != after["sub_label"]:
                 raise stale()
             ctl.set_sub_label(row["target"], before["sub_label"])
-            verified = ctl.event(row["target"])["sub_label"] == before["sub_label"]
+            verified = ctl.event_settled(row["target"], "sub_label", before["sub_label"])
         elif native_kind:
             verified = native.revert_kind(conn, adapter, row, before, after)
         elif config_kind:

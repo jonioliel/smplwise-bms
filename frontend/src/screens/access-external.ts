@@ -10,17 +10,21 @@ import '../access-external/identity-card';
 import '../access-external/request-dialog';
 import type { RouteState } from '../router';
 import type { DropdownItem } from '../components/sw-dropdown';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { productSettings } from '../api/prefs';
 import {
-  acceptContact, approveGrant, confirmGone, getDigest, getGrant, listGrants, provisionNow, putScreenSettings, readNow, refuseGrant, revokeAll, revokeGrant, rotateCode,
-  type Digest, type Grant, type GrantsReply, type ScreenSettings,
+  acceptContact, approveGrant, attachCard, confirmGone, exportGrantsCsv, getHistory, type HistoryRow, getDigest, getDrift, getGrant, listGrants, listPendingContacts,
+  provisionNow, pushName, putScreenSettings, readNow, refuseGrant, rejectPendingContact, revokeAll, revokeGrant, rotateCode, type Digest, type Drift, type DriftKind,
+  type DriftRow, type Grant, type GrantsReply, type PendingReply, type ScreenSettings,
 } from '../api/access-grants';
 import {
   BUCKETS, DAYS, STATE_ICON, STATE_TONE, actionsOf, codeOf, counts, datesText, doorState, durationText, goneReferenceOk, hoursText, ladder, lastDay, localDate,
-  narrowWindow, stationsOf, timeline, uiState, visible, whyKey, type Bucket, type Filter, type Query,
+  narrowWindow, readOutcome, readbackView, stationsOf, timeline, uiState, visible, whyKey, wiskeyOffline, type Bucket, type Filter, type Query,
 } from '../access-external/model';
+import { subscribeClock } from '../api/clock-ticker';
 import { xCss } from '../access-external/styles';
+import { leftText, leftTone, sortPending, ticketText, waitText } from '../access-external/pending-model';
+import { spt } from '../i18n/security-public';
 import { xt, xtDynamic, xtLang, type XtKey } from '../i18n/access-external';
 import { rt } from '../i18n/access-request';
 import { SkinController } from '../design/skin';
@@ -33,14 +37,33 @@ const KPI_KEY: Record<Bucket, XtKey> = { attention: 'kpiAttention', waiting: 'kp
 const KPI_TONE: Record<Bucket, string> = { attention: 'err', waiting: 'acc', moving: 'acc', active: 'ok', history: 'off' };
 const SRC_KEY: Record<string, XtKey> = { rfq_order: 'srcRfq', ticket: 'srcTicket', manual: 'srcManual' };
 const REVOKE_ALL_WORD = 'בטל הכל';
+// GRANTSMIN-295: the drift view's tone and icon per kind of difference (the server sends them most urgent first)
+const DRIFT_TONE: Record<DriftKind, string> = { missing: 'err', scope: 'err', unknown: 'warn', sync_pending: 'warn', name: 'warn', unverified: 'acc', idle_person: 'off' };
+const DRIFT_ICON: Record<DriftKind, string> = { missing: 'user', scope: 'door', unknown: 'help', sync_pending: 'refresh', name: 'edit', unverified: 'help', idle_person: 'user' };
+const READ_KINDS: DriftKind[] = ['missing', 'scope', 'unknown', 'unverified'];
 
-type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: string; run: () => Promise<unknown>; done: XtKey };
+/** Save a blob under a name through a temporary link (the browser's own download). */
+function saveFile(blob: Blob, name: string): void {
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
+}
+
+type Confirm = { title: string; body: TemplateResult; btn: string; danger?: boolean; word?: string; run: () => Promise<unknown>; done: XtKey; doneText?: string };
 type Dialog =
   | null
   | { kind: 'confirm'; c: Confirm }
   | { kind: 'approve'; id: string }
   | { kind: 'gone'; id: string }
   | { kind: 'digest' }
+  | { kind: 'drift' }
   | { kind: 'settings' }
   | { kind: 'request'; noPerm: boolean };
 
@@ -54,6 +77,9 @@ type Dialog =
  *  5 name drift: the identity card's "push the name", automatic by a setting;
  *  6 the screen sits under access control, service management or both (a setting; shell/nav.ts);
  *  7 attach a recovered person (the identity card, system administrators only).
+ * GRANTSMIN-295: the drift view (a side panel and a dialog: per person, where Arx and WisKey differ, from the server's stored read-back
+ * and name digests - the page never contacts WisKey; "push the name", "read back now", "open the grant") and the CSV export of the
+ * grants the caller may see (the server decides the rows and how much of a number the caller may see).
  * A list with KPI filters, the grant drawer (why, the ladder, doors, window, code, identity, what happened, actions), the approval
  * dialog (narrow only: doors and days), the confirmations. The entry code is never shown anywhere. The server decides every action.
  */
@@ -68,10 +94,16 @@ export class AccessExternalScreen extends LitElement {
   @state() private detail: Grant | null = null;
   @state() private dialog: Dialog = null;
   @state() private digest: Digest | null = null;
+  @state() private drift: Drift | null = null;
+  @state() private exporting = false;
+  @state() private pending: PendingReply | null = null;
   @state() private busy = false;
   @state() private dlgError = '';
   @state() private toasts: { id: number; text: string }[] = [];
   @state() private tz = 'Asia/Jerusalem';
+  // GRANTS3-295: the card typed for a card grant (held only until the save answers) and the owner's per-grant history
+  @state() private cardNo = '';
+  @state() private history: { id: string; rows: HistoryRow[] | null; error: string } | null = null;
   // the approval dialog
   @state() private apDoors = new Set<string>();
   @state() private apFrom = '';
@@ -83,7 +115,16 @@ export class AccessExternalScreen extends LitElement {
   @state() private word = '';
   // the settings dialog
   @state() private draft: ScreenSettings | null = null;
+  // SHAREDUI-295: when the list shown was read (a failed poll keeps it, marked stale), and the last "read back now" answer per grant
+  @state() private loadedAt = 0;
+  @state() private stale = false;
+  @state() private reading: string | null = null;
+  @state() private rb: { id: string; at: string; kind: 'still' | 'error'; key: string; why?: string } | null = null;
   private timer?: number;
+  private unclock?: () => void;
+  private readonly onResume = () => {
+    if (document.visibilityState === 'visible') void this.load();
+  };
   private toastSeq = 0;
   private routed = false;
 
@@ -91,7 +132,9 @@ export class AccessExternalScreen extends LitElement {
     xCss,
     leadReserveStyles,
     css`
-      :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
+      :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box;
+        /* SHAREDUI-295: every button of the screen, its drawer and dialogs is a 44 px target (the system-access screens do the same) */
+        --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px)); --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px)); }
       .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; color: var(--sw-heading); }
       .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
@@ -119,13 +162,25 @@ export class AccessExternalScreen extends LitElement {
       .gl-r[aria-current='true'] { background: var(--sw-accent-soft); }
       .gl-r:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: -2px; }
       .pn b { display: block; color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .pn small, .win small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pn small, .win small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pn .sr { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-2); margin-block-start: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .st { display: grid; gap: 5px; min-inline-size: 0; }
       .st .why { font-size: var(--sw-fs-sm); color: var(--sw-text-2); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .code { display: grid; gap: 4px; justify-items: start; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .chev { color: var(--sw-text-3); align-self: center; }
-      .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); border-block-start: 1px solid var(--sw-border-strong); }
+      /* SHAREDUI-295: the read-back wait - an indeterminate mark (still under reduced motion), never a number */
+      .rb { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px; border-radius: var(--sw-r-md); background: var(--cs); }
+      .rb-mark { inline-size: 28px; block-size: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-surface-solid); }
+      .rb-mark i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c); animation: rbpulse 1.8s ease-in-out infinite; }
+      .rb[data-readback='offline'] .rb-mark i { animation: none; }
+      @keyframes rbpulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+      @media (prefers-reduced-motion: reduce) { .rb-mark i { animation: none; } }
+      .rb-t { display: grid; gap: 2px; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text); }
+      .rb-t b { color: var(--sw-heading); }
+      .rb-line { display: flex; gap: 6px; align-items: center; margin: 4px 0 0; font-size: var(--sw-fs-sm); font-weight: 600; color: var(--sw-text); }
+      .rb-line[data-tone='err'] { color: var(--x-err-t); }
+      @media (max-width: 600px) { .rb { grid-template-columns: auto minmax(0, 1fr); } .rb > sw-button { grid-column: 1 / -1; } }
+      .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-block-start: 1px solid var(--sw-border-strong); }
       .legend span { display: inline-flex; gap: 6px; align-items: center; }
       .panel { border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); padding: 16px; display: grid; gap: 12px; align-content: start; min-inline-size: 0; }
       .panel h3 { margin: 0; font-size: var(--sw-fs-md); color: var(--sw-heading); font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -158,6 +213,22 @@ export class AccessExternalScreen extends LitElement {
       .gap { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 10px; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .gap b { display: block; color: var(--sw-heading); }
       .gap .ik { inline-size: 28px; block-size: 28px; border-radius: var(--sw-r-xs); display: grid; place-items: center; background: var(--cs); color: var(--ct); }
+      .drows { display: grid; gap: 8px; }
+      .drow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; padding: 10px; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); color: var(--sw-text-2); align-items: start; }
+      .drow .ik { inline-size: 28px; block-size: 28px; border-radius: var(--sw-r-xs); display: grid; place-items: center; background: var(--cs); color: var(--ct); }
+      .drow .dmain { display: grid; gap: 6px; min-inline-size: 0; }
+      .drow .dname { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; min-inline-size: 0; }
+      .drow .dname b { color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 100%; }
+      .drow .dname small, .drow .dwhen { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+      .drow .dk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .drow .dlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+      .drow .dlist li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; line-height: 1.45; }
+      .drow .dlist b { color: var(--sw-text); font-weight: 600; }
+      .drow .dact { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+      .pd-r { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 16px; border-block-end: 1px solid var(--sw-border); }
+      .pd-r:last-child { border-block-end: 0; }
+      .pd-w { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
+      .pd-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .seg { display: flex; flex-wrap: wrap; gap: 6px; }
       .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
       .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
@@ -174,6 +245,8 @@ export class AccessExternalScreen extends LitElement {
         .ap { grid-template-columns: 1fr; }
       }
       @media (max-width: 600px) {
+        .pd-r { grid-template-columns: 1fr; }
+        .pd-a { justify-content: flex-start; }
         .top { flex-direction: column; align-items: stretch; }
         .top .sp { display: none; }
         .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -181,6 +254,8 @@ export class AccessExternalScreen extends LitElement {
         .two { grid-template-columns: 1fr; }
         .minis { grid-template-columns: repeat(2, 1fr); }
         .gl-r .code { justify-items: start; }
+        .drow { grid-template-columns: 28px minmax(0, 1fr); }
+        .drow .dact { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
       }
     `,
     bubbleChrome,
@@ -191,13 +266,24 @@ export class AccessExternalScreen extends LitElement {
     void productSettings().then((ps) => (this.tz = String((ps as unknown as Record<string, unknown>)['time.zone'] || 'Asia/Jerusalem'))).catch(() => undefined);
     void this.load();
     void this.loadDigest();
+    void this.loadDrift();
     this.timer = window.setInterval(() => {
       if (document.visibilityState === 'visible' && !this.dialog) void this.load();
     }, POLL_MS);
+    // a background tab skips the polls: it refreshes at once when it is shown again or the network returns
+    document.addEventListener('visibilitychange', this.onResume);
+    window.addEventListener('online', this.onResume);
+    // the open drawer's "open since · duration" ages with the shared wall-clock ticker (CLOCK-293), never with a timer of its own
+    this.unclock = subscribeClock(() => {
+      if (this.sel) this.requestUpdate();
+    });
   }
 
   disconnectedCallback(): void {
     window.clearInterval(this.timer);
+    document.removeEventListener('visibilitychange', this.onResume);
+    window.removeEventListener('online', this.onResume);
+    this.unclock?.();
     super.disconnectedCallback();
   }
 
@@ -212,19 +298,34 @@ export class AccessExternalScreen extends LitElement {
     if (gid && this.data?.grants.some((g) => g.id === gid)) void this.openDrawer(gid);
     if (p?.get('digest') === '1') this.openDigest();
     if (p?.get('request') === '1') this.openRequest();
+    if (p?.get('drift') === '1') this.openDrift();
   }
 
   private async load(): Promise<void> {
+    void this.loadPending();
     try {
       this.data = await listGrants(true);
       this.error = '';
+      this.stale = false;
+      this.loadedAt = Date.now();
       if (!this.routed) this.applyRoute();
       if (this.sel && !this.dialog) {
         const g = this.data.grants.find((x) => x.id === this.sel);
         if (g) this.detail = { ...g, closure: g.closure ? { ...g.closure, reference: this.detail?.closure?.reference } : null };
       }
     } catch (e) {
+      // with a list on the screen, a failed poll keeps it and says how old it is (stale); without one, the error panel
       this.error = describeError(e);
+      this.stale = !!this.data;
+    }
+  }
+
+  /** SECFIX2-295: the undecided vendor-typed technicians - only for those who may decide (a 403 or any failure shows nothing). */
+  private async loadPending(): Promise<void> {
+    try {
+      this.pending = await listPendingContacts();
+    } catch {
+      this.pending = null;
     }
   }
 
@@ -233,6 +334,31 @@ export class AccessExternalScreen extends LitElement {
       this.digest = (await getDigest()).digest;
     } catch {
       this.digest = null;
+    }
+  }
+
+  private async loadDrift(): Promise<void> {
+    try {
+      this.drift = (await getDrift()).drift;
+    } catch {
+      this.drift = null;
+    }
+  }
+
+  private async exportCsv(): Promise<void> {
+    this.exporting = true;
+    try {
+      const res = await exportGrantsCsv(xtLang() === 'he' ? 'he' : 'en');
+      saveFile(res.blob, res.filename);
+      this.toast('exportDone', { n: res.rows });
+    } catch (e) {
+      if (e instanceof ApiError && e.body.code === 'export_rate') this.toast('exportRate');
+      else {
+        this.error = describeError(e);
+        this.toast('failed');
+      }
+    } finally {
+      this.exporting = false;
     }
   }
 
@@ -273,17 +399,22 @@ export class AccessExternalScreen extends LitElement {
   private closeDrawer(): void {
     this.sel = null;
     this.detail = null;
+    this.rb = null;
+    this.cardNo = '';
+    this.history = null;
   }
 
-  private async act(fn: () => Promise<unknown>, done: XtKey, vars?: Record<string, string | number>): Promise<boolean> {
+  private async act(fn: () => Promise<unknown>, done: XtKey, vars?: Record<string, string | number>, doneText?: string): Promise<boolean> {
     this.busy = true;
     this.dlgError = '';
     try {
       await fn();
-      this.toast(done, vars);
+      if (doneText) this.toastText(doneText);
+      else this.toast(done, vars);
       await this.load();
       if (this.sel) await this.openDrawer(this.sel);
       void this.loadDigest();
+      void this.loadDrift();
       return true;
     } catch (e) {
       this.dlgError = describeError(e);
@@ -292,6 +423,53 @@ export class AccessExternalScreen extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * SHAREDUI-295: "read back now" with a terminal answer. The worker keeps its own holds (a read while an earlier write may still land
+   * decides nothing), so the screen never counts down: it asks, then says what came back - the new state (a toast), or "checked at HH:MM:
+   * still ..." (kept in the drawer), or why the read failed - and the button is ready again.
+   */
+  private async readBack(id: string): Promise<void> {
+    const before = this.data?.grants.find((g) => g.id === id) ?? (this.detail?.id === id ? this.detail : null);
+    this.reading = id;
+    this.rb = null;
+    try {
+      const r = await readNow(id);
+      const at = new Date().toISOString();
+      await this.load();
+      const after = this.data?.grants.find((g) => g.id === id) ?? r?.grant ?? null;
+      if (this.sel === id) await this.openDrawer(id);
+      void this.loadDigest();
+      if (!before) return;
+      const o = readOutcome(before, after);
+      if (o.kind === 'changed') this.toast('rb_changed', { state: xt(o.key as XtKey) });
+      else {
+        this.rb = { id, at, kind: 'still', key: o.key };
+        if (this.sel !== id) this.toast(o.key as XtKey, { t: this.fmt(at, false) }); // from the digest: no drawer to keep the line in
+      }
+    } catch (e) {
+      this.rb = { id, at: new Date().toISOString(), kind: 'error', key: 'rb_failed', why: describeError(e) };
+      if (this.sel !== id) this.toast('failed');
+    } finally {
+      this.reading = null;
+    }
+  }
+
+  private rbLine(g: Grant): TemplateResult | typeof nothing {
+    const r = this.rb;
+    if (!r || r.id !== g.id) return nothing;
+    const t = this.fmt(r.at, false);
+    return r.kind === 'error'
+      ? html`<p class="rb-line" data-tone="err" role="alert" data-readback-result="error"><sw-icon name="warning" size="14"></sw-icon>${xt('rb_failed', { t, why: r.why ?? '' })}</p>`
+      : html`<p class="rb-line" role="status" data-readback-result="still"><sw-icon name="clock" size="14"></sw-icon>${xt(r.key as XtKey, { t })}</p>`;
+  }
+
+  private readBtn(g: Grant, primary: boolean, offline: boolean): TemplateResult {
+    const busy = this.reading === g.id;
+    const again = this.rb?.id === g.id;
+    return html`<sw-button variant=${primary ? 'primary' : 'secondary'} icon="refresh" data-action="read" aria-busy=${String(busy)} ?disabled=${busy || offline || this.busy}
+      @click=${() => this.readBack(g.id)}>${busy ? xt('rb_reading') : again ? xt('a_readAgain') : xt('a_readNow')}</sw-button>`;
   }
 
   private confirm(c: Confirm): void {
@@ -343,14 +521,16 @@ export class AccessExternalScreen extends LitElement {
     const sub = [g.company, xt(g.category === 'contractor' ? 'contractor' : 'visitor'), g.source_ref ? `${xt(SRC_KEY[g.source] ?? 'srcManual')} ${g.source_ref}` : xt(SRC_KEY[g.source] ?? 'srcManual')].filter(Boolean).join(' · ');
     const since = g.revoking_since ? Math.max(0, (Date.now() - Date.parse(g.revoking_since)) / 60000) : 0;
     const missing = g.link?.state === 'wiskey_missing';
+    const offline = wiskeyOffline(this.data);
+    const rbv = readbackView(g, offline);
     return html`<sw-drawer modal .open=${true} heading=${this.name(g)} subheading=${sub} data-grant-drawer=${g.id} @close=${() => this.closeDrawer()}>
       <div class="db">
         <div class="dhead">${this.badge(g, true)}${g.pending_amendment ? html`<span class="chip" data-tone="acc">${xt('widening')}</span>` : nothing}</div>
         <div class="callout" data-tone=${tone}><sw-icon name=${STATE_ICON[s]} size="18"></sw-icon><div><b>${xt(`st_${s}` as XtKey)}</b>${xtDynamic(whyKey(g), 'why_pending')}</div></div>
         ${s === 'revoking'
-          ? html`<div class="callout" data-tone="off" data-revoke-box><sw-icon name="bell" size="18"></sw-icon><div><b>${xt('openSince', { t: this.fmt(g.revoking_since), d: durationText(since, xtLang()) })}</b>${this.reasonText(g.end_reason)}
-              <ul>${missing ? html`<li>${xt('rv_missing1')}</li><li>${xt('rv_missing2')}</li>` : html`<li>${xt('rv_note1')}</li><li>${xt('rv_note2')}</li>`}</ul></div></div>`
+          ? html`<div class="callout" data-tone="off" data-revoke-box><sw-icon name="bell" size="18"></sw-icon><div><b>${xt('openSince', { t: this.fmt(g.revoking_since), d: durationText(since, xtLang()) })}</b>${this.reasonText(g.end_reason)}</div></div>`
           : nothing}
+        ${rbv ? this.readbackBox(g, rbv, a.readNow) : nothing}
         ${g.pending_amendment
           ? html`<section class="sec"><h4><sw-icon name="plus" size="14"></sw-icon>${xt('amendTitle')}</h4><div class="diff"><span class="h"></span><span class="h">${xt('amendNow')}</span><span class="h">${xt('amendAsked')}</span>
               <span>${xt('doorsTitle')}</span><span class="chips">${g.doors.map((d) => html`<span class="chip door" data-tone="acc">${d.name}</span>`)}</span><span class="chips">${g.doors.map((d) => html`<span class="chip door" data-tone="acc">${d.name}</span>`)}${this.amendAdds(g).map((d) => html`<span class="chip door add">${d}</span>`)}</span>
@@ -359,12 +539,11 @@ export class AccessExternalScreen extends LitElement {
         ${s === 'sync' ? html`<div class="callout" data-tone="warn"><sw-icon name="refresh" size="18"></sw-icon><div><b>${xt('syncTitle')}</b>${xt('syncText')}</div></div>` : nothing}
         ${s === 'unknown'
           ? html`<div class="ku"><div><h4><sw-icon name="check" size="14"></sw-icon>${xt('un_known')}</h4><ul><li>${xt('un_k1')}</li><li>${xt('un_k2')}</li></ul></div>
-              <div class="unk"><h4><sw-icon name="help" size="14"></sw-icon>${xt('un_unknown')}</h4><ul><li>${xt('un_u1')}</li><li>${xt('un_u2')}</li><li>${xt('un_u3')}</li></ul></div></div>
-              <div class="callout" data-tone="acc"><sw-icon name="shield" size="18"></sw-icon><div><b>${xt('un_arx')}</b><ul><li>${xt('un_a1')}</li><li>${xt('un_a2')}</li><li>${xt('un_a3')}</li><li>${xt('un_a4')}</li></ul></div></div>`
+              <div class="unk"><h4><sw-icon name="help" size="14"></sw-icon>${xt('un_unknown')}</h4><ul><li>${xt('un_u1')}</li><li>${xt('un_u2')}</li><li>${xt('un_u3')}</li></ul></div></div>`
           : nothing}
         <section class="sec"><h4><sw-icon name="layers" size="14"></sw-icon>${xt(lad.revoke ? 'ladderRevokeTitle' : 'ladderTitle')}</h4>
           <div class="ladder" style=${`--n:${lad.steps.length}`} role="list" data-ladder>${lad.steps.map((st) => html`<div class="stp" role="listitem" data-s=${st.mark}><i aria-hidden="true">${{ done: '✓', cur: '•', unk: '?', stop: '!', no: '' }[st.mark]}</i>${xt(st.key as XtKey)}</div>`)}</div>
-          <p class="note"><sw-icon name="info" size="14"></sw-icon>${xt('ladNote')}</p></section>
+          ${this.howBlock(s, missing)}</section>
         <section class="sec"><h4><sw-icon name="door" size="14"></sw-icon>${xt('doorsTitle')}${s === 'unknown' ? html`<span class="chip" data-tone="warn">${xt('mapUnknown')}</span>` : nothing}</h4>
           <div class="dtable">${g.doors.flatMap((d) => d.relays.map((r) => html`<div data-door=${`${d.station_id}:${r}`}><span><b>${d.name}</b><small>${xt('doorN', { n: r })}</small></span><span class="chip" data-tone=${ds.tone}>${xt(ds.key as XtKey)}</span></div>`))}</div></section>
         <section class="sec"><h4><sw-icon name="calendar" size="14"></sw-icon>${xt('windowTitle')}</h4><div class="kv">
@@ -377,12 +556,88 @@ export class AccessExternalScreen extends LitElement {
               ${g.person.number ? html`<div><span>${xt('sentTo')}</span><b class="num">${xt('whatsapp')} ${g.person.number}</b></div>` : nothing}
               <div><span>${xt('theCode')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('neverShown')}</b></div></div></section>`
           : nothing}
+        ${this.cardBlock(g)}
         ${g.closure?.reference ? html`<section class="sec"><h4><sw-icon name="info" size="14"></sw-icon>${xt('gone_ref_label')}</h4><p style="margin:0" data-closure-reference>${g.closure.reference}</p></section>` : nothing}
-        <section class="sec" data-grant-identity><access-identity-card compact contact-id=${g.person.contact_id} name=${this.name(g)} @changed=${() => this.load()}></access-identity-card></section>
+        <section class="sec" data-grant-identity><access-identity-card compact contact-id=${g.person.contact_id} name=${this.name(g)} .tz=${this.tz} @changed=${() => this.load()}></access-identity-card></section>
         ${this.timelineBlock(g)}
-        <div class="dfoot">${this.drawerActions(g, a)}</div>
+        ${rbv ? nothing : this.rbLine(g)}
+        ${this.historyBlock(g)}
+        <div class="dfoot">${this.drawerActions(g, a, !!rbv, offline)}</div>
       </div>
     </sw-drawer>`;
+  }
+
+  /** The explanations of the state (how Arx decides) sit behind one disclosure: the drawer itself stays facts and actions. */
+  private howBlock(s: string, missing: boolean): TemplateResult {
+    const items: XtKey[] = [
+      ...(s === 'unknown' ? (['un_a1', 'un_a2', 'un_a3', 'un_a4'] as XtKey[]) : []),
+      ...(s === 'revoking' ? ((missing ? ['rv_missing1', 'rv_missing2'] : ['rv_note1', 'rv_note2']) as XtKey[]) : []),
+      'ladNote',
+    ];
+    return html`<details class="more" data-how><summary><sw-icon name="info" size="14"></sw-icon>${xt('moreWhy')}</summary><ul>${items.map((k) => html`<li>${xt(k)}</li>`)}</ul></details>`;
+  }
+
+  /**
+   * SHAREDUI-295: the read-back wait - no number (see model.readbackView): an indeterminate mark, what Arx does by itself, "read back
+   * now" with its terminal answer under it. With WisKey offline it says so and the read waits for the connection.
+   */
+  private readbackBox(g: Grant, v: 'pending' | 'offline', canRead: boolean): TemplateResult {
+    const off = v === 'offline';
+    return html`<div class="rb" data-readback=${v} data-tone=${off ? 'off' : 'warn'}>
+      <span class="rb-mark" aria-hidden="true"><i></i></span>
+      <div class="rb-t"><b>${xt('rb_waitTitle')}</b><span>${off ? xt('rb_offline') : xt('rb_waitText')}</span>${this.rbLine(g)}</div>
+      ${canRead ? this.readBtn(g, uiState(g) === 'unknown', off) : nothing}
+    </div>`;
+  }
+
+  /** GRANTS3-295 (X5): a card grant's card - its state, and for an active grant waiting for its card the number field (the number goes to
+   * WisKey only and is cleared from this screen at once); reading the card at a reader stays off (the capture lease route). */
+  private cardBlock(g: Grant): TemplateResult | typeof nothing {
+    if (g.credential !== 'card') return nothing;
+    const cs = g.card_state ?? null;
+    const tone = cs === 'attached' ? 'ok' : cs === 'unknown' ? 'warn' : cs === 'removed' ? 'off' : 'acc';
+    const canSave = g.state === 'active' && (cs === 'awaiting' || cs === 'unknown');
+    return html`<section class="sec" data-card-block=${cs ?? ''}><h4><sw-icon name="lock" size="14"></sw-icon>${xt('cardTitle')}</h4><div class="kv">
+        <div><span>${xt('codeState')}</span><b>${cs ? html`<span class="chip" data-tone=${tone} data-card-state=${cs}>${xt(`card_${cs}` as XtKey)}</span>` : html`<span class="chip" data-tone="off">${xt('code_hidden')}</span>`}</b></div>
+        <div><span>${xt('cardNo')}</span><b style="color:var(--sw-text-3)"><sw-icon name="lock" size="14"></sw-icon> ${xt('cardNeverKept')}</b></div></div>
+      ${canSave ? html`<div class="row" style="margin-block-start:8px;flex-wrap:wrap;gap:8px">
+          <input class="in" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="32" dir="ltr" aria-label=${xt('cardNo')} placeholder=${xt('cardNo')}
+            data-card-no .value=${this.cardNo} @input=${(e: Event) => { this.cardNo = (e.target as HTMLInputElement).value; }} style="flex:1 1 160px;min-inline-size:0" />
+          <sw-button variant="primary" icon="check" data-action="card-save" ?disabled=${this.busy || !this.cardNo.trim()} @click=${() => this.saveCard(g)}>${xt('cardAttach')}</sw-button>
+          <sw-button icon="lock" data-action="card-read" disabled title=${xt('cardReadOff')}>${xt('cardRead')}</sw-button></div>
+          <p class="note" data-card-read-off><sw-icon name="info" size="14"></sw-icon>${xt('cardReadOff')}</p>` : nothing}
+    </section>`;
+  }
+
+  private async saveCard(g: Grant): Promise<void> {
+    const number = this.cardNo.trim();
+    this.cardNo = ''; // the field never keeps the number after the press, whatever the answer
+    await this.act(() => attachCard(g.id, g.revision, number), 'cardAttachDone');
+  }
+
+  /** GRANTS3-295: the owner's per-grant history (system administrators): who, what and the closed reason codes - never a code or a number. */
+  private historyBlock(g: Grant): TemplateResult | typeof nothing {
+    if (!this.data?.system_admin) return nothing;
+    const h = this.history?.id === g.id ? this.history : null;
+    const who = (r: HistoryRow) => (r.by.kind === 'page' ? xt('hist_page') : r.by.kind === 'system' ? xt('hist_system') : r.by.name ?? '—');
+    return html`<section class="sec" data-grant-history><h4><sw-icon name="history" size="14"></sw-icon>${xt('histTitle')}</h4>
+      ${!h ? html`<sw-button size="sm" data-history-show @click=${() => void this.loadHistory(g.id)}>${xt('histShow')}</sw-button>`
+        : h.error ? html`<p class="err-line" role="alert">${h.error}</p>`
+        : !h.rows ? html`<sw-state-panel state="loading"></sw-state-panel>`
+        : !h.rows.length ? html`<p class="note">${xt('histEmpty')}</p>`
+        : html`<ol class="tl" data-history>${h.rows.map((r) => html`<li data-history-action=${r.action}><time>${this.fmt(r.at)}</time><i data-tone=${r.decision === 'denied' ? 'warn' : 'acc'}></i>
+            <span>${xtDynamic(`h_${r.action}`, 'h_other')}${r.decision === 'denied' ? html` · <b>${xt('hist_denied')}</b>` : nothing} · ${who(r)}${r.reason ? html` · <small class="num">${r.reason}</small>` : nothing}</span></li>`)}</ol>`}
+    </section>`;
+  }
+
+  private async loadHistory(id: string): Promise<void> {
+    this.history = { id, rows: null, error: '' };
+    try {
+      const rows = (await getHistory(id)).history;
+      if (this.history?.id === id) this.history = { id, rows, error: '' };
+    } catch (e) {
+      if (this.history?.id === id) this.history = { id, rows: null, error: describeError(e) };
+    }
   }
 
   private timelineBlock(g: Grant): TemplateResult | typeof nothing {
@@ -393,7 +648,7 @@ export class AccessExternalScreen extends LitElement {
     )}</ol></section>`;
   }
 
-  private drawerActions(g: Grant, a: ReturnType<typeof actionsOf>): TemplateResult {
+  private drawerActions(g: Grant, a: ReturnType<typeof actionsOf>, inBox = false, offline = false): TemplateResult {
     const out: TemplateResult[] = [];
     const name = this.name(g);
     if (a.accept)
@@ -401,10 +656,10 @@ export class AccessExternalScreen extends LitElement {
     if (a.approve) out.push(html`<sw-button variant="primary" icon="check" data-action="approve" ?disabled=${this.busy} @click=${() => this.openApprove(g)}>${g.pending_amendment ? xt('a_reviewWidening') : xt('a_approve')}</sw-button>`);
     if (a.refuse)
       out.push(html`<sw-button variant="danger" data-action="refuse" ?disabled=${this.busy} @click=${() => this.confirm({ title: xt('refuseQ'), body: html`<p>${g.pending_amendment && g.state !== 'requested' ? xt('refuseWidenText') : xt('refuseText')}</p>`, btn: xt('a_refuse'), danger: true, run: () => refuseGrant(g.id, g.revision), done: 'refuseDone' })}>${xt('a_refuse')}</sw-button>`);
-    if (a.retry) out.push(html`<sw-button icon="refresh" data-action="retry" ?disabled=${this.busy} @click=${() => this.act(() => provisionNow(g.id), 'retryDone')}>${xt('a_retry')}</sw-button>`);
+    if (a.retry) out.push(html`<sw-button icon="refresh" data-action="retry" ?disabled=${this.busy || offline} @click=${() => this.act(() => provisionNow(g.id), 'retryDone')}>${xt('a_retry')}</sw-button>`);
     if (a.rotate)
       out.push(html`<sw-button icon="refresh" data-action="rotate" ?disabled=${this.busy} @click=${() => this.confirm({ title: xt('rotateQ'), body: html`<p>${xt('rotateText', { n: g.person.number ?? '', left: Math.max(0, 3 - (g.code_sends ?? 0)) })}</p>`, btn: xt('a_rotate'), run: () => rotateCode(g.id, g.revision), done: 'rotateDone' })}>${xt('a_rotate')}</sw-button>`);
-    if (a.readNow) out.push(html`<sw-button icon="refresh" data-action="read" ?disabled=${this.busy} @click=${() => this.act(() => readNow(g.id), 'readDone')}>${xt('a_readNow')}</sw-button>`);
+    if (a.readNow && !inBox) out.push(this.readBtn(g, false, offline));
     out.push(html`<span class="sp"></span>`);
     if (a.gone) out.push(html`<sw-button variant="danger" icon="user" data-action="gone" ?disabled=${this.busy} @click=${() => this.openGone(g)}>${xt('a_gone')}</sw-button>`);
     if (a.revoke)
@@ -544,7 +799,7 @@ export class AccessExternalScreen extends LitElement {
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
       <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button>
         <sw-button variant=${c.danger ? 'danger' : 'primary'} data-confirm-ok ?disabled=${!ok} @click=${async () => {
-          const r = await this.act(c.run, c.done);
+          const r = await this.act(c.run, c.done, undefined, c.doneText);
           if (r) this.dialog = null;
         }}>${c.btn}</sw-button></div>
     </sw-dialog>`;
@@ -573,7 +828,7 @@ export class AccessExternalScreen extends LitElement {
                       const t = x.kind === 'name' ? 'gap_nameText' : x.kind === 'scope' ? 'gap_scopeText' : 'gap_idleText';
                       return html`<div class="gap" data-gap=${x.kind} data-tone=${x.kind === 'idle_person' ? 'acc' : 'warn'}><span class="ik"><sw-icon name=${x.kind === 'idle_person' ? 'user' : 'warning'} size="15"></sw-icon></span>
                         <div><b>${xt(k as XtKey, { name: x.name ?? '—' })}</b>${xt(t as XtKey)}${x.since ? ` ${xt('gap_since', { t: this.fmt(x.since) })}` : ''}
-                        ${x.kind === 'scope' && x.grant_id ? html`<div class="row" style="margin-block-start:6px"><sw-button size="sm" @click=${() => this.act(() => readNow(x.grant_id!), 'readDone')}>${xt('readBack')}</sw-button></div>` : nothing}</div></div>`;
+                        ${x.kind === 'scope' && x.grant_id ? html`<div class="row" style="margin-block-start:6px"><sw-button size="sm" ?disabled=${this.reading === x.grant_id || wiskeyOffline(this.data)} @click=${() => this.readBack(x.grant_id!)}>${this.reading === x.grant_id ? xt('rb_reading') : xt('readBack')}</sw-button></div>` : nothing}</div></div>`;
                     })}</div>`
                   : html`<p class="note">${xt('dg_noGaps')}</p>`}</section>
             </div>
@@ -601,12 +856,83 @@ export class AccessExternalScreen extends LitElement {
 
   private requestDialog(noPerm: boolean): TemplateResult {
     const live = new Set((this.data?.grants ?? []).filter((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state)).map((g) => g.person.contact_id));
-    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} @close=${() => (this.dialog = null)}
+    return html`<access-request-dialog .tz=${this.tz} .codeHour=${this.data?.rules.code_hour ?? 18} .live=${live} ?noPerm=${noPerm} ?cards=${this.data?.rules.cards === 'on'} @close=${() => (this.dialog = null)}
       @done=${(e: CustomEvent<{ text: string; grant?: Grant }>) => {
         this.dialog = null;
         this.toastText(e.detail.text);
         void this.load().then(() => (e.detail.grant ? this.openDrawer(e.detail.grant.id) : undefined));
       }}></access-request-dialog>`;
+  }
+
+  // ---------------------------------------------------------------- GRANTSMIN-295: the drift view (CR 2.3 / T12)
+
+  private openDrift(): void {
+    void this.loadDrift();
+    this.dlgError = '';
+    this.dialog = { kind: 'drift' };
+  }
+
+  private driftChecked(r: DriftRow): string {
+    const t = [r.scope_checked_at, r.name_checked_at].filter((x): x is string => !!x).sort().at(-1);
+    return t ? xt('drChecked', { t: this.fmt(t) }) : xt('drNotChecked');
+  }
+
+  private driftActions(r: DriftRow): TemplateResult[] {
+    const out: TemplateResult[] = [];
+    const kinds = r.diffs.map((d) => d.kind);
+    const grant = r.grant;
+    if (r.can.push_name && kinds.includes('name'))
+      out.push(html`<sw-button size="sm" icon="refresh" data-drift-push=${r.link_id} ?disabled=${this.busy} @click=${() => this.act(() => pushName(r.link_id), 'act_pushDone')}>${xt('act_pushBtn')}</sw-button>`);
+    if (grant && r.can.read_now && kinds.some((k) => READ_KINDS.includes(k)))
+      out.push(html`<sw-button size="sm" icon="refresh" data-drift-read=${grant.id} ?disabled=${this.busy} @click=${() => this.act(() => readNow(grant.id), 'readDone')}>${xt('readBack')}</sw-button>`);
+    if (grant && this.data?.grants.some((g) => g.id === grant.id))
+      out.push(html`<sw-button size="sm" variant="ghost" data-drift-open=${grant.id} @click=${() => {
+        this.dialog = null;
+        void this.openDrawer(grant.id);
+      }}>${xt('drOpen')}</sw-button>`);
+    return out;
+  }
+
+  private driftRow(r: DriftRow, compact = false): TemplateResult {
+    const head = r.diffs[0];
+    return html`<div class="drow" role="listitem" data-drift-row=${r.contact_id} data-drift-kinds=${r.diffs.map((d) => d.kind).join(' ')} data-tone=${DRIFT_TONE[head.kind]}>
+      <span class="ik" aria-hidden="true"><sw-icon name=${DRIFT_ICON[head.kind]} size="15"></sw-icon></span>
+      <div class="dmain">
+        <div class="dname"><b>${r.name ?? '—'}</b>${r.company ? html`<small>${r.company}</small>` : nothing}${compact ? nothing : html`<span class="chip" data-tone="off">${xt(`rec_${r.origin}` as XtKey)}</span>`}</div>
+        ${compact
+          ? html`<span class="dk">${r.diffs.map((d) => xt(`dk_${d.kind}` as XtKey)).join(' · ')}</span>`
+          : html`<ul class="dlist">${r.diffs.map((d) => html`<li data-drift-kind=${d.kind}><span class="chip" data-tone=${DRIFT_TONE[d.kind]}>${xt(`dk_${d.kind}` as XtKey)}</span><span>${xt(`dkt_${d.kind}` as XtKey)}${d.kind === 'name' && r.name ? html` <b>${xt('drArxName', { name: r.name })}</b>` : nothing}${d.kind === 'idle_person' && d.since ? ` ${xt('gap_since', { t: this.fmt(d.since) })}` : ''}</span></li>`)}</ul>
+              ${r.grant?.doors.length ? html`<span class="chips">${r.grant.doors.map((x) => html`<span class="chip door" data-tone="acc"><sw-icon name="door" size="13"></sw-icon>${x.name}</span>`)}</span>` : nothing}
+              <small class="dwhen">${this.driftChecked(r)}</small>`}
+      </div>
+      ${compact ? nothing : html`<div class="dact">${this.driftActions(r)}</div>`}
+    </div>`;
+  }
+
+  private driftDialog(): TemplateResult {
+    const d = this.drift;
+    return html`<sw-dialog open wide heading=${xt('drTitle')} subheading=${xt('drLead')} data-drift-dialog @close=${() => (this.dialog = null)}>
+      ${!d
+        ? html`<sw-state-panel state="loading"></sw-state-panel>`
+        : html`<div class="stack">
+            <div class="row"><span class="chip" data-tone="ok" data-drift-insync>${xt('drInSync', { n: d.in_sync })}</span>${d.name_sync === 'auto' ? html`<span class="chip" data-tone="acc">${xt('drAuto')}</span>` : nothing}</div>
+            ${d.rows.length
+              ? html`<div class="drows" role="list">${d.rows.map((r) => this.driftRow(r))}</div>`
+              : html`<sw-state-panel icon="layers" state="empty" heading=${xt('drNone')} hint=${xt('drNoneText')}></sw-state-panel>`}
+          </div>`}
+      ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
+      <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button></div>
+    </sw-dialog>`;
+  }
+
+  private driftPanel(): TemplateResult | typeof nothing {
+    const d = this.drift;
+    if (!d || !d.enabled) return nothing;
+    return html`<section class="panel" data-drift-panel>
+      <h3><sw-icon name="layers" size="18"></sw-icon>${xt('drTitle')}<span class="sp"></span><span class="chip num" data-tone=${d.rows.length ? 'warn' : 'ok'}>${d.rows.length}</span></h3>
+      ${d.rows.length ? html`<div class="drows" role="list">${d.rows.slice(0, 3).map((r) => this.driftRow(r, true))}</div>` : html`<p class="lead">${xt('drNoneText')}</p>`}
+      <div class="row"><sw-button size="sm" data-open-drift @click=${() => this.openDrift()}>${xt('drAll', { n: d.rows.length })}</sw-button><span class="note">${xt('drInSync', { n: d.in_sync })}</span></div>
+    </section>`;
   }
 
   private openSettings(): void {
@@ -648,6 +974,7 @@ export class AccessExternalScreen extends LitElement {
     if (!dl) return nothing;
     if (dl.kind === 'confirm') return this.confirmDialog(dl.c);
     if (dl.kind === 'digest') return this.digestDialog();
+    if (dl.kind === 'drift') return this.driftDialog();
     if (dl.kind === 'settings') return this.draft ? this.settingsDialog() : nothing;
     if (dl.kind === 'request') return this.requestDialog(dl.noPerm);
     const g = this.data?.grants.find((x) => x.id === dl.id) ?? (this.detail?.id === dl.id ? this.detail : null);
@@ -655,6 +982,26 @@ export class AccessExternalScreen extends LitElement {
     if (dl.kind === 'approve') return this.approveDialog(g);
     if (dl.kind === 'gone') return this.goneDialog(g);
     return nothing;
+  }
+
+  // ---------------------------------------------------------------- SECFIX2-295: undecided vendor-typed technicians
+
+  /** The technicians vendors typed on the public page that nobody decided yet: name, vendor, the request (only while tickets are on;
+   * text, never a link), how long waiting, the auto-delete countdown; approve / reject-and-delete through the existing routes only.
+   * Hidden when empty or when the caller may not decide (the server answered 403). */
+  private pendingPanel(): TemplateResult | typeof nothing {
+    const p = this.pending;
+    if (!p || !p.pending.length) return nothing;
+    return html`<section class="tcard" data-pending-panel>
+      <div class="filters"><b>${spt('pendTitle')}</b><span class="chip" data-tone="acc" data-pending-count>${p.pending.length}</span></div>
+      <div role="list">${sortPending(p.pending).map((r) => html`<div role="listitem" class="pd-r" data-pending=${r.contact_id}>
+        <span class="pn"><b>${r.name || '—'}</b><small>${[r.vendor, ticketText(r)].filter(Boolean).join(' · ')}</small></span>
+        <span class="pd-w"><span class="num">${waitText(r)}</span><span class="chip" data-tone=${leftTone(r)} data-left>${leftText(r)}</span></span>
+        <span class="pd-a">
+          <sw-button size="sm" variant="primary" data-pending-approve ?disabled=${this.busy} @click=${() => this.confirm({ title: spt('approveQ', { name: r.name }), body: html`<p>${spt('approveText')}</p>`, btn: spt('approve'), run: () => acceptContact(r.contact_id), done: 'failed', doneText: spt('approveDone') })}>${spt('approve')}</sw-button>
+          <sw-button size="sm" variant="danger" data-pending-reject ?disabled=${this.busy} @click=${() => this.confirm({ title: spt('rejectQ', { name: r.name }), body: html`<p>${spt('rejectText')}</p>`, btn: spt('reject'), danger: true, run: () => rejectPendingContact(r.contact_id), done: 'failed', doneText: spt('rejectDone') })}>${spt('reject')}</sw-button>
+        </span></div>`)}</div>
+    </section>`;
   }
 
   // ---------------------------------------------------------------- the page
@@ -675,6 +1022,7 @@ export class AccessExternalScreen extends LitElement {
             <p class="lead">${xt('weekLead', { day: xt(`day${sch?.digest_day ?? 0}` as XtKey), hour: `${String(sch?.digest_hour ?? 8).padStart(2, '0')}:00` })}</p>
             <div><sw-button size="sm" data-open-digest @click=${() => this.openDigest()}>${xt('fullDigest')}</sw-button></div>
           </section>`}
+      ${off ? nothing : this.driftPanel()}
       <section class="panel" data-rules-panel>
         <h3><sw-icon name="filter" size="18"></sw-icon>${xt('rulesTitle')}</h3>
         <div class="kv">
@@ -692,6 +1040,27 @@ export class AccessExternalScreen extends LitElement {
     </aside>`;
   }
 
+  /**
+   * SHAREDUI-295: what the list can and cannot tell right now - WisKey offline (the server's freshness of its copy: the states are the
+   * last known) and a list that could not be refreshed (stale: the server did not answer the last poll). Each with its time and a safe
+   * action that only reads again.
+   */
+  private statusBanners(data: GrantsReply): TemplateResult {
+    const wk = data.wiskey;
+    const offline = wiskeyOffline(data);
+    const at = (iso: string | null) => (iso ? this.fmt(iso, localDate(iso, this.tz) !== localDate(new Date().toISOString(), this.tz)) : '');
+    return html`${offline
+      ? html`<div class="banner" data-tone="warn" data-banner="wiskey-offline" role="status"><sw-icon name="offline" size="18"></sw-icon>
+          <span><b>${wk?.as_of && wk.has_copy ? xt('wk_offTitle', { t: at(wk.as_of) }) : xt('wk_offTitleNoTime')}</b> ${xt('wk_offText')}</span><span class="sp"></span>
+          <sw-button size="sm" icon="refresh" @click=${() => this.load()}>${xt('checkAgain')}</sw-button></div>`
+      : nothing}
+      ${this.stale
+        ? html`<div class="banner" data-tone="warn" data-banner="stale" role="alert"><sw-icon name="warning" size="18"></sw-icon>
+            <span><b>${xt('stale_title', { t: at(new Date(this.loadedAt).toISOString()) })}</b> ${xt('stale_text')}</span><span class="sp"></span>
+            <sw-button size="sm" icon="refresh" @click=${() => this.load()}>${xt('retry')}</sw-button></div>`
+        : nothing}`;
+  }
+
   private list(grants: Grant[]): TemplateResult {
     const off = !this.data?.enabled;
     const rows = visible(grants, this.query);
@@ -701,7 +1070,10 @@ export class AccessExternalScreen extends LitElement {
     if (!rows.length) {
       const empty = !grants.length;
       const [h, p] = off && empty ? ['emptyOffTitle', 'emptyOffText'] : empty ? ['emptyTitle', 'emptyText'] : ['noMatchTitle', 'noMatchText'];
-      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)} actionLabel=${!empty ? xt('showAllOpen') : ''} @action=${() => (this.query = { filter: 'live', q: '', station: '', source: '' })}></sw-state-panel></div>`;
+      // the empty list offers the one useful next step: a new request (when the caller may ask), or clearing the filter
+      const canAsk = empty && !off && !!this.data?.may_request;
+      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel icon="link" state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)}
+        actionLabel=${!empty ? xt('showAllOpen') : canAsk ? rt('newBtn') : ''} @action=${() => (canAsk ? this.openRequest() : (this.query = { filter: 'live', q: '', station: '', source: '' }))}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>
         <div role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
@@ -715,8 +1087,8 @@ export class AccessExternalScreen extends LitElement {
     return html`<div class="tcard">
       <div class="filters">
         <input class="in" type="search" aria-label=${xt('search')} placeholder=${xt('search')} .value=${this.query.q} @input=${(e: Event) => (this.query = { ...this.query, q: (e.target as HTMLInputElement).value })} />
-        <sw-dropdown .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>
-        <sw-dropdown .items=${sources} .value=${this.query.source} label=${xt('source')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, source: e.detail.id })}></sw-dropdown>
+        <sw-dropdown tall .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>
+        <sw-dropdown tall .items=${sources} .value=${this.query.source} label=${xt('source')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, source: e.detail.id })}></sw-dropdown>
         <span class="chip" data-tone="acc" data-shown>${xt('shown', { n: rows.length })}</span>
       </div>
       ${body}
@@ -737,6 +1109,7 @@ export class AccessExternalScreen extends LitElement {
         <div><h1>${xt('title')}</h1><p class="sub">${xt('sub')}</p></div>
         <span class="sp"></span>
         ${data.may_request && !off ? html`<sw-button variant="primary" icon="plus" data-open-request @click=${() => this.openRequest()}>${rt('newBtn')}</sw-button>` : nothing}
+        <sw-button icon="download" data-export-csv ?disabled=${this.exporting || !grants.length} @click=${() => void this.exportCsv()}>${xt('exportCsv')}</sw-button>
         ${data.system_admin
           ? html`<sw-button icon="system" data-open-settings @click=${() => this.openSettings()}>${xt('settings')}</sw-button>
               <sw-button variant="danger" icon="lock" data-revoke-all ?disabled=${off || !grants.some((g) => ['requested', 'approved', 'provisioning', 'active', 'unknown'].includes(g.state))}
@@ -747,13 +1120,14 @@ export class AccessExternalScreen extends LitElement {
       ${revoking.length
         ? html`<div class="banner" data-tone="err" data-banner="revoking"><sw-icon name="bell" size="18"></sw-icon><span><b>${xt('revokingBanner', { n: revoking.length })}</b> · ${xt('revokingBannerText')}</span><span class="sp"></span><sw-button size="sm" @click=${() => this.openDrawer(revoking[0].id)}>${xt('open')}</sw-button></div>`
         : nothing}
-      ${this.error ? html`<p class="err-line" role="alert">${this.error}</p>` : nothing}
+      ${this.statusBanners(data)}
       <div class="cols">
         <div class="main">
           <div class="kpis" role="group" aria-label=${xt('filterLabel')}>${BUCKETS.map(
             (b) => html`<button type="button" class="kpi" data-kpi=${b} data-tone=${KPI_TONE[b]} aria-pressed=${String(this.query.filter === b)} @click=${() => (this.query = { ...this.query, filter: (this.query.filter === b ? 'live' : b) as Filter })}><span class="dot" aria-hidden="true"></span><div><b>${c[b]}</b><span>${xt(KPI_KEY[b])}</span></div></button>`,
           )}</div>
           ${this.list(grants)}
+          ${this.pendingPanel()}
         </div>
         ${this.side()}
       </div>

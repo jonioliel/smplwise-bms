@@ -805,7 +805,7 @@ export class SystemAccess extends LitElement {
       <div class="stage">
         ${dir.users.length
           ? html`<sw-table .columns=${columns} .rows=${dir.users as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.wizard = null; }}></sw-table>`
-          : html`<sw-state-panel state="empty" heading="אין משתמשים עדיין" hint=${dir.directory.paired ? 'הספרייה תגיע מהגשר תוך דקה.' : 'צמד את גשר Arx ב־Home Assistant כדי לקבל את רשימת המשתמשים.'}></sw-state-panel>`}
+          : html`<sw-state-panel icon="users" state="empty" heading="אין משתמשים עדיין" hint=${dir.directory.paired ? 'הספרייה תגיע מהגשר תוך דקה.' : 'צמד את גשר Arx ב־Home Assistant כדי לקבל את רשימת המשתמשים.'}></sw-state-panel>`}
         ${u
           ? html`<sw-drawer open heading=${u.name} subheading=${`Home Assistant · ${u.username || u.id} · ${u.active ? 'פעיל' : 'ללא גישה'}`} @close=${() => { this.selected = null; this.wizard = null; }}>
               ${this.wizard && this.wizard.subjectKind === 'user'
@@ -819,7 +819,7 @@ export class SystemAccess extends LitElement {
                     ${dir.delegated ? nothing : html`<dt>גישה מרחוק</dt><dd data-remote-access>${can('system.configure')
                       ? html`<sw-toggle label="SmplWise Arx" .checked=${live(!!u.remote_access && this.remoteOff?.userId !== u.id)} ?disabled=${this.busy || u.remote_access_basis === 'admin_default'} data-remote-access-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => this.requestRemote(u, e.detail.checked)}></sw-toggle>`
                       : u.remote_access_basis === 'admin_default' ? 'ברירת מחדל (מנהל)' : u.remote_access ? 'מופעלת' : 'כבויה'}
-                      ${u.remote_access_basis === 'admin_default' ? html`<div class="sub" data-remote-admin-default>ברירת מחדל (מנהל) · משתנה בהגדרות › גישה מרחוק</div>` : nothing}
+                      ${u.remote_access_basis === 'admin_default' ? html`<div class="sub" data-remote-admin-default>ברירת מחדל (מנהל) · משתנה בהגדרות ‹ גישה מרחוק</div>` : nothing}
                       <div class="sub" data-remote-stats>${this.remoteStats(u)}</div>
                       ${this.remoteOff?.userId === u.id
                         ? html`<div class="remote-off" role="alert" data-remote-off-impact>
@@ -874,7 +874,7 @@ export class SystemAccess extends LitElement {
         <div class="stage groups-stage">
           ${groups.length
             ? html`<sw-table .columns=${columns} .rows=${groups as unknown as Record<string, unknown>[]} .selected=${this.selectedGroup} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selectedGroup = e.detail.id; this.members = null; this.wizard = null; this.renameDraft = null; }}></sw-table>`
-            : html`<sw-state-panel state="empty" heading="אין קבוצות" hint=${delegated ? 'אין קבוצה שכל השיוכים שלה בתוך ההיקף שלך.' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות Arx בלבד, לא קבוצות HA.'}></sw-state-panel>`}
+            : html`<sw-state-panel icon="users" state="empty" heading="אין קבוצות" hint=${delegated ? 'אין קבוצה שכל השיוכים שלה בתוך ההיקף שלך.' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות Arx בלבד, לא קבוצות HA.'}></sw-state-panel>`}
           ${g
             ? html`<sw-drawer open heading=${g.name} subheading=${`${g.members.length} חברים · ${g.bindings.length} שיוכים · רוויזיה ${g.revision}`} data-group-drawer @close=${() => { this.selectedGroup = null; this.members = null; this.wizard = null; this.renameDraft = null; }}>
                 ${this.wizard && this.wizard.subjectKind === 'group'
@@ -1143,7 +1143,7 @@ export class SystemAccess extends LitElement {
     ];
     return html`<sw-lookup-scope></sw-lookup-scope>${this.audit.length
       ? html`<sw-table dense .columns=${columns} .rows=${this.audit as unknown as Record<string, unknown>[]} rowKey="at"></sw-table>`
-      : html`<sw-state-panel state="empty" heading="אין רשומות אודיט הרשאות" hint="כל שיוך, ביטול, קבוצה או שינוי מצב משתמש יופיע כאן."></sw-state-panel>`}`;
+      : html`<sw-state-panel icon="users" state="empty" heading="אין רשומות אודיט הרשאות" hint="כל שיוך, ביטול, קבוצה או שינוי מצב משתמש יופיע כאן."></sw-state-panel>`}`;
   }
 
   private renderApi() {

@@ -23,6 +23,7 @@ import { ApiError, api, apiUrl, describeError, get, post, put, type ApiErrorBody
 import { commandId } from './request-id';
 import { isApi } from './session';
 import type { PushSupport } from '../pwa/push';
+import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: a ticket / RFQ row offers no "open" while the module is off
 import { tt } from '../tickets/text'; // CR-038 (spec 13.4 names this file): the `tickets` category's label is the module's configured name
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
@@ -618,7 +619,7 @@ export function rowActions(n: Notification, now: number): RowActions {
   const open = n.state === 'open';
   return {
     read: n.me.read_at === null, snooze: open && !isSnoozed(n, now), snoozeMorning: open && !isSnoozed(n, now), ack: open && n.can_ack,
-    open: !!n.link, door: doorButtonVisible(n), snapshot: n.has_snapshot,
+    open: !!n.link && ((n.subject.kind !== 'ticket' && n.subject.kind !== 'rfq') || ticketsEnabled()), door: doorButtonVisible(n), snapshot: n.has_snapshot,
   };
 }
 

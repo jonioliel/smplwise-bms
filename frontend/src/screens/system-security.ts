@@ -8,6 +8,7 @@ import '../components/sw-state-panel';
 import './security-alarm';
 import './system-alarm';
 import './system-security-cameras';
+import './system-security-public';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
@@ -135,6 +136,8 @@ export class SystemSecurity extends LitElement {
           ? html`<sw-page crumbs="הגדרות | אבטחה" heading="ניהול אזעקה" subheading="לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק"><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
           : this.sub === 'cameras'
             ? html`<system-security-cameras></system-security-cameras>`
+            : this.sub === 'public'
+              ? html`<system-security-public></system-security-public>`
             : html`<system-security-nvr></system-security-nvr>`}`;
   }
 }
@@ -165,7 +168,7 @@ export class SystemSecurityNvr extends LitElement {
   }
 
   render() {
-    if (!isApi()) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
+    if (!isApi()) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel icon="shield" state="empty" heading="המצב מוצג מול שרת אמיתי" hint="במצב הדגמה אין NVR לקרוא."></sw-state-panel></sw-page>`;
     if (this.error && !this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="error" heading="מצב ה־NVR לא נטען" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     if (!this.h) return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const h = this.h;

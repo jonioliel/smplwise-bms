@@ -1490,9 +1490,9 @@ and scales it down (100 / 90 / 80 / 70 %), `full` covers the whole window (Esc o
 looked an hour off (+3599 s). The clock is now read in the installation's time zone, so the system screen and the setup
 wizard show no phantom drift. "סנכרן לשעון השרת עכשיו" writes the same way, reads the clock back and, when the device is
 still more than 2 minutes off, answers 502 `clock_verify_failed` (audited). That write has not been tried on a real device.
-## Releases 2.6.4 to 2.9.2: what is on, off and locked
+## Releases 2.6.4 to 2.10.0: what is on, off and locked
 
-Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291` and `integ/292` (2.8.0, 2.9.0 and 2.9.1 are released; 2.9.2 is the release candidate). Nothing here was verified against a live
+Written from the release notes and the code of `integ/280`, `integ/290`, `integ/291`, `integ/292`, `integ/293` and `integ/2100` (2.8.0 to 2.9.3 are released; 2.10.0 is the release candidate). Nothing here was verified against a live
 installation. The end-user description of each item is in `docs/user-guide/he/12-whats-new-264-280_HE.md`.
 
 **On after the update (no switch).** The manager "overview" tab of service management (2.7.0; the settings sit under Settings >
@@ -1523,6 +1523,28 @@ and external-person door grants (`access_grants.GO_LIVE_PERMITTED`, permission `
 privacy notice (version n2, four languages) shown on the arrival page. Enabling any of them needs the owner's separate permit, the
 fixes listed in `docs/release/2.7.3-INTEGRATION-NOTES.md` ("Fix before enabling") and a full gate.
 
+**Extended service identity - residual risks the installer must know (stays locked).** Read before the owner's permit is ever given:
+- *The entity policy protects only when you restrict the service user.* For Arx-only people the bridge checks the service user's own
+  Home Assistant entity policy on every device a call or a runnable item targets. A regular (non-administrator) user without a
+  restricting group may control every entity, so this check then adds nothing. Put the service user in a group whose entity policy
+  names only the devices Arx may reach, and leave locks, alarm panels, gate / garage covers and the helpers that drive them out of it.
+- *Accepted by the owner (2026-10-18):* no second factor for doors, zone bypass, disarm and runs; no rate limit; dangerous services
+  inside scripts and template entities (a template switch, button or helper that an automation turns into a door opening is not seen
+  by the bridge's impact check); `notify` with literal content; gate / garage covers on the direct device path.
+- The runnable allowlist names an entity id, not its content: an administrator (or delegated authoring) may change a listed script
+  later. The bridge re-checks every step on every run, against the UI files (`scripts.yaml`, `automations.yaml`, `scenes.yaml`); a
+  hand-edited, not reloaded file may differ from what runs.
+- Home Assistant's logbook shows the service user for every such action; the person is named only in the Arx audit log.
+- *Kill paths* (any one is enough): the remote kill switch `POST /api/v1/identity/extended-mode/off` (system administrator, also from
+  the remote channel; turns the mode off and empties the runnable allowlist); the add-on switch `security.local_identity_extended`
+  off (local channel); the bridge's own option or its runnable list cleared (a Home Assistant administrator, in the bridge's options);
+  deactivating the service user in Home Assistant; turning `security.local_identity` off (ends every Arx-only session). A live view
+  that is already open may run up to 300 seconds after the mode goes off.
+- Bridge 0.9.4 (EXTID-295): the bridge's runnable list is picked from a list of scripts, scenes and automations in its options
+  instead of typed; nothing it stores changes. **Restart Home Assistant once** after the update (the owner does this). While the mode
+  is not in force, Arx-only people are no longer offered zone bypass, its restore or arming with the bypass set on the alarm screen
+  (they were always refused).
+
 **Manager overview (2.9.0).** The overview tab shows the cards of the phase 2 route `GET /api/v1/tickets/dashboard` and a payments
 card (`GET /api/v1/tickets/dashboard/payments`, cost permission). Its three alerts are **off by default**: the morning summary
 (`ticket.dash_digest`, hour `ui.dash_digest_hour`, default 08:00, Sunday - Thursday), the busy department (`ticket.dash_busy_department`,
@@ -1550,6 +1572,28 @@ text summary for managers (use `infra.temperature.reports`, the notifications ac
 "show on map" on quote requests (own location room, else the source request's; `map.read` on the floor), the technician-request card
 grouped by vendor company, WisKey round-9 strictness (a malformed person record is unknown, fail closed). WisKey writes stay locked.
 
+**2.9.3.** Temperature phase 3 (migration 0125: sensor health, door insight, duty cycle from an optional power sensor, early warning OFF by
+default with `predict_warn_min` 20 min, maintenance windows that pause warnings only, escalation, a service request from a unit, comparison,
+floors, home widget, HACCP report); a generators home widget (only for a viewer who sees a generator); the external-access screen and the
+manual access-request form (migrations 0126 and 0127; nothing reaches WisKey while `access.external_grants` is off, locked in this build;
+a second person approves, 403 `access_grant_self_approval`); personal permission overrides are stations of the person in the WisKey write
+gate; the technician phone-verification message carries the short privacy notice; the tabs settings cover multimedia, infrastructure and
+tickets; fixes: home clock ticker, elevator doors by state, one page background, overlays no longer shift the page, temperature drawer
+names, public-surface hardening (trusted-proxy client address, no source maps on the remote channel, no "opened" record before the ticket
+code). WisKey writes and the extended identity stay locked.
+
+**2.10.0.** Access control built on fakes and locked: bulk people import / edit / export (0129, `access.bulk_people`), per-station access
+of a person (0134, `access.station_permissions`, permission `access.people.stations` for system and site administrators), the vendor arrival
+step, access code and permanent cards (0132), door-opening automations (0133, `doors.automation_open`), bridge key rotation (0135,
+`bridge.key_rotation`), the WisKey peer seam and station sync; none of them can be turned on in this build. Reports to vendors through the
+message queue with e-mail and documents by temporary link (0128, `reports.*`, OFF); generator alert routing per severity (0131; CRITICAL
+always escalates and is never held); an optional passkeys-only sign-in per user (0130); a restore drill and off-box backup adapters; NVR
+privacy masks (guarded write, `nvr.config.privacy`, local only); Frigate 0.18 zone / mask switches, exports into cases and review clips
+(Frigate off by default); a sensor events list for installations without an NVR; `tickets.directory`; an optional camera viewfinder
+(`ui.camera_viewfinder`, OFF); no service-request action while the tickets module is off; Settings > Security > Public interface (undecided
+technicians erased after 90 days, 10 per vendor; uniform 404 for an unknown person record by default); RTL, accessibility and loading-state
+fixes; a faster 3D screen on phones. Bridge 0.9.4 (allowlist picker) needs one restart of the home system.
+
 **Install notes.** 2.6.4 adds migrations 0094..0106, 2.7.0 adds 0107..0114, 2.7.1 adds 0115..0117, 2.7.2 adds 0118, 2.7.3 adds none and
-2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control). Bridge 0.9.2 (from 2.7.1) needs one restart of the home system. Reload the
+2.8.0 adds 0119 (elevators) and 0120 (dashboard indexes), 2.9.0 adds 0121 (door-system write journal), 2.9.1 adds 0122 (elevator "show travelling" option) and 0123 (requests opened from alerts), 2.9.2 adds 0124 (temperature control), 2.9.3 adds 0125 (temperature phase 3), 0126 (external-access identity) and 0127 (access-request form), 2.10.0 adds 0128..0135 (vendor report queue, bulk people, passkeys only, generator routing, arrival and cards, door automations, station access, bridge key set). Bridge 0.9.2 (from 2.7.1) and bridge 0.9.4 (2.10.0) each need one restart of the home system. Reload the
 installed web app once after each update.

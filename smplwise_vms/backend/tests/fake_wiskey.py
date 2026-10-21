@@ -1006,8 +1006,12 @@ class FakeAccessEngine:
     cleared; employee_no is server-generated (nine digits) when omitted. More switches: `hide_doors` (access fields redacted ->
     assignments {} + redacted_fields), `restricted_projection` (access AND credential fields redacted: pin_configured False proves nothing),
     `sync_lag` (a strip leaves a pending revocation until `settle_revocations()`), `status_unknown` (revocation_pending -> None).
+    STATIONSYNC-295 (R11-I1-03): `revocation_pending(person_id, revision)` runs the REAL `revocation_pending_from` over
+    `access_state_reader` (default: `access_state`, a fake of WisKey's PROPOSED ACR5-01 answer, revision-bound: another revision
+    raises revision_conflict); `unverified[person_id]` holds settled-but-unverified stations. Assignment rows carry a `last_sync_at`.
     `updates` records the (method, overrides, door keys) of every write, never a PIN."""
 
+    SYNCED_AT = "2026-10-20T06:00:00+00:00"
     PIN_SENTINELS = ("913377", "913378", "913379", "913380", "913381", "913382", "913383", "913384")
 
     def __init__(self) -> None:
@@ -1024,6 +1028,9 @@ class FakeAccessEngine:
         self.sync_lag = False  # a strip leaves a pending revocation until settle_revocations()
         self.status_unknown = False  # revocation_pending answers None
         self.pending_revocations: set[str] = set()
+        self.unverified: dict[str, set[str]] = {}
+        self._stripped_from: dict[str, set[str]] = {}  # settled-only station work per person (never cleanup)
+        self.access_state_reader = self.access_state
         self.updates: list[dict[str, Any]] = []
         self.calls: list[str] = []
         self.deleted: list[str] = []
@@ -1048,21 +1055,27 @@ class FakeAccessEngine:
         rows: dict[str, Any] = {}
         for sid, locks in p["doors"].items():
             rows[sid] = {"config_entry_id": sid, "enabled": True, "allowed_locks": list(locks), "desired_revision": p["revision"],
-                         "applied_revision": p["revision"], "sync_state": "synced", "last_error": None}
+                         "applied_revision": p["revision"], "sync_state": "synced", "last_sync_at": self.SYNCED_AT, "last_error": None}
         for sid in sorted(set(p["overrides"]) - set(p["doors"])) + [x for x in p.get("other_stations", ()) if x not in p["doors"]]:
             rows.setdefault(sid, {"config_entry_id": sid, "enabled": False, "allowed_locks": [1], "desired_revision": p["revision"],
                                   "applied_revision": p["revision"], "sync_state": "synced", "last_error": None})
         raw: dict[str, Any] = {"id": p["id"], "revision": p["revision"], "display_name": p["display_name"], "employee_no": p["employee_no"],
                                "active": p["active"], "valid_from": p["valid_from"], "valid_until": p["valid_until"], "assignments": rows,
                                "group_ids": list(p["group_ids"]), "permission_overrides": dict(p["overrides"]), "pin_configured": p["pin"] is not None,
+                               # GRANTS3-295: WisKey's public record carries the cards MASKED (`•••• 1234`), never the number
+                               "cards": [{"id": c["id"], "masked_number": "•••• " + c["no"][-4:], "label": c["label"], "card_type": "normalCard",
+                                          "enabled": True} for c in p.setdefault("cards", [])],
                                "access_category": p["category"],
                                "access_timing_policy": {"mode": "ha", "schedule": copy.deepcopy(p["timing"]), "bindings": {}} if p["timing"] else None}
+        if "policy" in p:  # STATIONPERM-295: a person whose whole timing policy was seeded (native mode with bindings, malformed ...)
+            raw["access_timing_policy"] = copy.deepcopy(p["policy"])
         redacted: list[str] = []
         if self.hide_doors or self.restricted_projection:
             raw.update({"assignments": {}, "group_ids": [], "permission_overrides": {}})
             redacted += ["assignments", "group_ids", "permission_overrides"]
         if self.restricted_projection:
             raw["pin_configured"] = False
+            raw["cards"] = []
             redacted += ["pin_configured", "cards"]
         if redacted:
             raw["redacted_fields"] = redacted
@@ -1080,10 +1093,21 @@ class FakeAccessEngine:
         return p
 
     # -- test seams
-    def add_person(self, person_id: str, *, stations: Iterable[str] = (), doors: dict[str, list[int]] | None = None, category: str = "contractor") -> None:
+    def add_person(self, person_id: str, *, stations: Iterable[str] = (), doors: dict[str, list[int]] | None = None, category: str = "contractor",
+                   group_doors: dict[str, list[int]] | None = None, overrides: dict[str, str] | None = None, policy: Any = None) -> None:
+        """`group_doors` (STATIONPERM-295): the stations the person's groups give (shown enabled with no personal entry); `overrides` the
+        personal entries; `policy` a whole seeded `access_timing_policy` (omitted = derived from the timing as before)."""
+        merged = {k: list(v) for k, v in (group_doors or {}).items()}
+        merged.update({k: list(v) for k, v in (doors or {}).items()})
+        for sid, mode in (overrides or {}).items():
+            if mode == "deny":
+                merged.pop(sid, None)
         self.people[person_id] = {"id": person_id, "revision": 1, "display_name": person_id, "employee_no": "e-" + person_id, "active": True,
-                                  "valid_from": None, "valid_until": None, "doors": dict(doors or {}), "other_stations": tuple(stations), "pin": None,
-                                  "timing": None, "category": category, "overrides": {}, "group_ids": []}
+                                  "valid_from": None, "valid_until": None, "doors": merged, "other_stations": tuple(stations), "pin": None,
+                                  "timing": None, "category": category, "overrides": dict(overrides or {}), "group_ids": ["g-1"] if group_doors else [],
+                                  "group_doors": {k: list(v) for k, v in (group_doors or {}).items()}}
+        if policy is not None:
+            self.people[person_id]["policy"] = copy.deepcopy(policy)
 
     def edit_elsewhere(self, person_id: str) -> None:
         """Someone edited the person in WisKey's own panel: the revision moves (T12)."""
@@ -1156,17 +1180,75 @@ class FakeAccessEngine:
         if p["revision"] != revision:
             raise self._err("revision_conflict")
         self.updates.append({"method": "strip", "overrides": {}, "doors": []})
+        self._stripped_from[person_id] = set(p["doors"]) | set(p["overrides"])
         p.update({"doors": {}, "overrides": {}, "group_ids": [], "active": False, "pin": None, "timing": None})
         p["revision"] += 1
         if self.sync_lag:
             self.pending_revocations.add(person_id)
         return self._view(p)
 
-    def revocation_pending(self, person_id: str):
+    def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]):
+        """STATIONPERM-295: the complete overrides replacement + the allowed station's relays. A station with no personal entry falls back
+        to the groups (`group_doors`); a deny beats a group; an allow with no relays named keeps the station's relays (else [1])."""
+        from smplwise.services.access_grant_engine import station_access_payload
+
+        self._gate("set_station_access")
+        p = self._get(person_id)
+        if self.unknown_before_apply:
+            self.unknown_before_apply = False
+            raise self._err("unknown")
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        try:
+            data = station_access_payload(overrides=overrides, doors=doors)
+        except ValueError:
+            raise self._err("refused") from None
+        groups = p.get("group_doors", {})
+        new_doors = {k: list(v) for k, v in p["doors"].items()}
+        for sid in set(p["overrides"]) | set(data["permission_overrides"]) | set(groups):
+            mode = data["permission_overrides"].get(sid)
+            if mode == "deny":
+                new_doors.pop(sid, None)
+            elif mode == "allow":
+                new_doors[sid] = list(data["door_permissions"].get(sid) or new_doors.get(sid) or groups.get(sid) or [1])
+            elif sid in groups:
+                new_doors[sid] = list(groups[sid])
+            else:
+                new_doors.pop(sid, None)
+        self.updates.append({"method": "set_station_access", "overrides": copy.deepcopy(data["permission_overrides"]), "doors": sorted(data["door_permissions"])})
+        p.update({"doors": new_doors, "overrides": dict(data["permission_overrides"])})
+        p["revision"] += 1
+        if self.sync_lag and any(m == "deny" for m in data["permission_overrides"].values()):
+            self.pending_revocations.add(person_id)
+        if self.unknown_after_apply:
+            self.unknown_after_apply = False
+            raise self._err("unknown")
+        return self._view(p)
+
+    def access_state(self, user_id: str, revision: int) -> dict[str, Any]:
+        """A fake of WisKey's PROPOSED ACR5-01 users/access_state answer (schema 1). A present person at another revision raises
+        revision_conflict; a deleted person is `absent` (no revision, no history disclosed); a strip under `sync_lag` leaves its
+        stations in `operations` until `settle_revocations()`."""
+        p = self.people.get(user_id)
+        if p is not None and p["revision"] != revision:
+            raise self._err("revision_conflict")
+        pending = {k: [] for k in ("bindings", "tombstones", "cards", "pins", "operations", "unverified")}
+        if user_id in self.pending_revocations:
+            pending["operations"] = sorted(self._stripped_from.get(user_id) or {"st-unknown"})
+        pending["unverified"] = sorted(self.unverified.get(user_id, ()))
+        owed = any(v for k, v in pending.items() if k != "unverified")
+        flag = True if owed else (False if p is not None and not pending["unverified"] else None)
+        return {"schema_version": 1, "observation": "durable_repository_snapshot", "scope": "all_managed_stations", "user_id": user_id,
+                "person_revision": p["revision"] if p is not None else None, "presence": "present" if p is not None else "absent",
+                "revocation_pending": flag, "stations_synced": None, "assignments": [], "timing_policy": None, "pending": pending}
+
+    def revocation_pending(self, person_id: str, revision: int):
+        from smplwise.services.access_grant_engine import revocation_pending_from
+
         self._gate("revocation_pending")
         if self.status_unknown:
             return None
-        return person_id in self.pending_revocations
+        return revocation_pending_from(self.access_state_reader, person_id, revision)
 
     def settle_revocations(self) -> None:
         """The stations took the removals: the central sync status shows no pending revocation any more."""
@@ -1193,6 +1275,42 @@ class FakeAccessEngine:
             raise self._err("revision_conflict")
         del self.people[person_id]
         self.deleted.append(person_id)
+
+    # -- GRANTS3-295 (X5): cards. WisKey's revoke-all (strip) keeps them - Arx removes each one by its id. `unknown_after_card`: the next
+    # card_add LANDS and then answers unknown. `calls` records the method name only (never a card number).
+    unknown_after_card = False
+
+    def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = ""):
+        self._gate("card_add")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        for other in self.people.values():
+            if any(c["no"] == card_no for c in other.setdefault("cards", [])):
+                from smplwise.services.access_grant_engine import EngineError
+
+                raise EngineError("refused", "card_conflict")
+        self._seq += 1
+        p.setdefault("cards", []).append({"id": f"card-{self._seq:04d}", "no": card_no, "label": label})
+        p["revision"] += 1
+        self.updates.append({"method": "card_add", "overrides": None, "doors": []})
+        if self.unknown_after_card:
+            self.unknown_after_card = False
+            raise self._err("unknown")
+        return self._view(p)
+
+    def card_remove(self, person_id: str, revision: int, card_id: str):
+        self._gate("card_remove")
+        p = self._get(person_id)
+        if p["revision"] != revision:
+            raise self._err("revision_conflict")
+        before = len(p.setdefault("cards", []))
+        p["cards"] = [c for c in p["cards"] if c["id"] != card_id]
+        if len(p["cards"]) == before:
+            raise self._err("refused")  # card_not_found
+        p["revision"] += 1
+        self.updates.append({"method": "card_remove", "overrides": None, "doors": []})
+        return self._view(p)
 
 
 class FakeCodeTransport:

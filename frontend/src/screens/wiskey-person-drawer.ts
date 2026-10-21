@@ -7,6 +7,8 @@ import '../components/sw-drawer';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './wiskey-person-messages';
+import './wiskey-station-permissions';
+import { isApi } from '../api/session';
 import { fetchPersonPhoto, type AcPerson, type AcProfileField } from '../api/access-people';
 import type { DisplayZone } from '../api/intercom';
 import type { StateKind } from '../components/sw-badge';
@@ -410,7 +412,8 @@ export class WiskeyPersonDrawer extends LitElement {
               ${st.last_error ? html`<span class="err" data-person-sync-error=${st.last_error} title=${st.last_error}>${knownSyncError(st.last_error) ? syncErrorText(st.last_error) : html`<bdi class="ltr">${st.last_error}</bdi>`}</span>` : nothing}
             </li>`;
           })}</ul>`}
-    </section>`;
+    </section>
+    ${isApi() ? html`<wiskey-station-permissions .personId=${p.id} .stationNames=${this.stationNames}></wiskey-station-permissions>` : nothing}`;
   }
 
   private renderGroups(p: AcPerson): TemplateResult {
@@ -448,7 +451,7 @@ export class WiskeyPersonDrawer extends LitElement {
             </div>
             ${this.resultLine ? html`<p class="result ${this.resultLine.state}" role="status" data-person-result=${this.resultLine.state}>${this.resultLine.text}</p>` : nothing}
             ${this.error
-              ? html`<sw-state-panel compact data-person-error=${this.error} state=${this.error === 'gone' ? 'empty' : 'error'} heading=${this.error === 'gone' ? pt('state.detail_gone') : pt('state.detail_error')}></sw-state-panel>`
+              ? html`<sw-state-panel icon="user" compact data-person-error=${this.error} state=${this.error === 'gone' ? 'empty' : 'error'} heading=${this.error === 'gone' ? pt('state.detail_gone') : pt('state.detail_error')}></sw-state-panel>`
               : nothing}
             <div class="tabs" role="tablist" aria-label=${pt('drawer.tabs')}>
               ${tabs.map(([id, label]) => html`<button type="button" role="tab" id="tab-${id}" aria-selected=${tab === id} aria-controls="panel-${id}" data-person-tab=${id} @click=${() => (this.tab = id)}>${label}</button>`)}
