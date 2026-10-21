@@ -106,6 +106,7 @@ test('a failed read after wake shows the tiny stale dot and the widget failure p
   srv.treeOk = false;
   srv.liftsOk = false;
   await sleep(page);
+  await page.clock.fastForward(60_000); // the phone slept for a minute (the resume guard is 5 s since the last read)
   await wake(page);
   await page.clock.runFor(2_000);
   await expect(page.locator('sw-app devices-building [data-home-stale]')).toHaveCount(1, { timeout: 8000 });
@@ -116,6 +117,7 @@ test('a failed read after wake shows the tiny stale dot and the widget failure p
   srv.treeOk = true;
   srv.liftsOk = true;
   srv.temp = 24;
+  await page.clock.runFor(6_000);
   await page.evaluate(() => window.dispatchEvent(new Event('online'))); // the network is back
   await page.clock.runFor(2_000);
   await expect(page.locator(`${W} [data-home-temp]`).first()).toContainText('24', { timeout: 8000 });
