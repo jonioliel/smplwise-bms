@@ -40,6 +40,8 @@ STATION_PERMISSIONS = frozenset({
     "access.doors.automate",
     # STATIONPERM-295 (CR-STATION-PERMISSIONS-295): allowing / blocking a person's access per station, judged on that station
     "access.people.stations",
+    # CR-039 7.1 (DOORWIN-295): door windows and emergency controls are judged on the station chain too
+    "access.windows.manage", "access.windows.cancel", "access.emergency.lock", "access.emergency.open",
 })
 
 # WXPERM (owner decision 2026-10-13): legacy permission names and the permission each one now stands for. A role that lists

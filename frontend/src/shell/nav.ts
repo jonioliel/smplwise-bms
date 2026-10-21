@@ -13,6 +13,7 @@ import { ot } from '../tickets/overview-text'; // MGRDASH: the overview tab's la
 import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
 import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
 import { xt } from '../i18n/access-external'; // SHAREDID-293: the external-access tab's label
+import { dwt } from '../i18n/door-windows'; // CR-039 DOORWIN-295: the door-windows tab's label
 import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab registry's sections (he / en / ar / ru)
 import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
 
@@ -60,6 +61,26 @@ export function applyExternalPlacement(settings: Record<string, unknown> | null 
   return next;
 }
 WISKEY_TABS.push(externalTab(EXTERNAL_WISKEY_HREF)); // the default placement (access) until the settings say otherwise
+
+/** CR-039 DOORWIN-295: "חלונות פתיחה" (door windows + the emergency controls). The tab exists ONLY while a door feature is switched on
+ * (`doors.ui.tab`, derived by the server from `doors.windows.enabled` / `doors.emergency.enabled`, both off by default) - so with the
+ * shipped defaults the navigation is exactly what it was. The route itself always answers (Settings links to it; the server decides). */
+export const DOOR_WINDOWS_HREF = '#/wiskey/door-windows';
+let DOOR_WINDOWS_TAB = false;
+const doorWindowsTab = (): TabItem => ({ id: 'door-windows', get label() { return dwt('tab'); }, href: DOOR_WINDOWS_HREF });
+export function doorWindowsTabOn(): boolean {
+  return DOOR_WINDOWS_TAB;
+}
+/** Apply `doors.ui.tab` (the shell once the product settings load). */
+export function applyDoorWindowsTab(settings: Record<string, unknown> | null | undefined): boolean {
+  const next = String(settings?.['doors.ui.tab'] ?? 'off') === 'on';
+  if (next !== DOOR_WINDOWS_TAB) {
+    DOOR_WINDOWS_TAB = next;
+    rebuildWiskeyTabs();
+    for (const l of tabsListeners) l();
+  }
+  return next;
+}
 
 /** CR-036 S9: what the native schedules screen's tab is called. */
 export const WISKEY_SCHEDULES_LABEL = 'לוחות זמנים';
@@ -141,7 +162,8 @@ function rebuildWiskeyTabs(): void {
   // CR-036 S6: the native stations screen is named for what it shows ("תחנות ודלתות"); WisKey's own tab keeps WisKey's label
   const named = WISKEY_UI.stations === 'smplwise' ? next.map((t) => (t.id === WISKEY_SCREEN_SEGMENT.stations ? { ...t, label: WISKEY_STATIONS_LABEL } : t)) : next;
   // SHAREDID-293: the external-access tab closes the row while the screen is placed under access control (owner decision 6)
-  const withExternal = EXTERNAL_PLACEMENT === 'tickets' ? named : [...named.filter((t) => t.id !== 'external'), externalTab(EXTERNAL_WISKEY_HREF)];
+  const withDoors = DOOR_WINDOWS_TAB ? [...named.filter((t) => t.id !== 'door-windows'), doorWindowsTab()] : named.filter((t) => t.id !== 'door-windows'); // DOORWIN-295
+  const withExternal = EXTERNAL_PLACEMENT === 'tickets' ? withDoors : [...withDoors.filter((t) => t.id !== 'external'), externalTab(EXTERNAL_WISKEY_HREF)];
   WISKEY_TABS.splice(0, WISKEY_TABS.length, ...withExternal);
 }
 
@@ -1059,6 +1081,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // stations the caller may see). Station-scoped people readers keep their own screens: no new tab for them (clean operator screens).
   [EXTERNAL_WISKEY_HREF]: ['access.external.grant'],
   [EXTERNAL_TICKETS_HREF]: ['access.external.grant'],
+  // CR-039 DOORWIN-295: door windows + emergency - any one of these at ANY scope (the server filters every door by its station chain)
+  [DOOR_WINDOWS_HREF]: ['access.stations.read', 'access.windows.manage', 'access.windows.cancel', 'access.emergency.lock', 'access.emergency.open'],
   '#/system/messaging-accounts': ['system.configure', 'messaging.accounts.manage'], // CR-038 S5a (installation scope)
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
   [UPDATE_SETTINGS_HREF]: ['system.update'],
@@ -1119,7 +1143,7 @@ export function tabAllowed(href: string, can?: Can): boolean {
   const native = NATIVE_WISKEY_TABS[href];
   const isNative = !!native && WISKEY_UI[native.screen] === 'smplwise';
   const need = isNative ? native.need : (TAB_PERMISSIONS[href] ?? (isWiskeyHref(href) ? ['access.read'] : undefined));
-  const installationOnly = !isNative && href !== EXTERNAL_WISKEY_HREF && (INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href)); // SHAREDID-293: any scope
+  const installationOnly = !isNative && href !== EXTERNAL_WISKEY_HREF && href !== DOOR_WINDOWS_HREF && (INSTALLATION_ONLY_HREFS.has(href) || isWiskeyHref(href)); // SHAREDID-293: any scope
   return !need || !can || need.some((p) => can(p, installationOnly));
 }
 
