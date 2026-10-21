@@ -656,7 +656,7 @@ def test_go_live_permits_in_the_build():
     # were opened by the owner decision of 2026-10-21 (option A); every installation switch still defaults OFF. (integ/2111 merge.)
     assert "\nGO_LIVE_PERMITTED = True\n" in Path(br.__file__).read_text(encoding="utf-8")
     assert "\nGO_LIVE_PERMITTED = True" in Path(access_grants.__file__).read_text(encoding="utf-8")
-    # Fable review 2 NO-GO: capture lease stays closed (reverted on ECCACT-295 780f158ed).
+    # Fable review 2 NO-GO: capture lease stays closed (ECCACT-295 3322ba37b).
     assert "\nGO_LIVE_PERMITTED = False" in Path(capture_lease.__file__).read_text(encoding="utf-8")
     assert isinstance(peers.UnavailablePeer().capabilities(), dict) and peers.UnavailablePeer().capabilities()["rotation"] is None
 

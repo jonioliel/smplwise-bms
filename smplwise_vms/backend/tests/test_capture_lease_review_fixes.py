@@ -176,7 +176,7 @@ def test_m4_go_live_permit_is_off_in_the_build_and_blocks_on_whatever_bridge_is_
     import smplwise.services.capture_lease as fresh
 
     src = importlib.util.find_spec(fresh.__name__).origin
-    assert "\nGO_LIVE_PERMITTED = True" in open(src, encoding="utf-8").read(), "ECCACT-295: opened by the owner decision of 2026-10-21"
+    assert "\nGO_LIVE_PERMITTED = False" in open(src, encoding="utf-8").read(), "Fable review 2: the capture lease stays locked"
     monkeypatch.setattr(cl, "GO_LIVE_PERMITTED", False)  # the production value; the bridge IS available in this world
     with w.db.connection(mode="read") as conn:
         assert cl.bridge_available(conn) and cl.mode(conn) == "on"

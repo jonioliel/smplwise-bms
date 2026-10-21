@@ -22,7 +22,7 @@ branch `codex/wiskey-ecc-activation-directive-2026-10-21`, pinned commit `c74107
 |---|---|---|---|
 | `access_grants.GO_LIVE_PERMITTED` | False | True | external grants, station permissions, the live engine; `access.external_grants` stays off |
 | `bulk_people.GO_LIVE_PERMITTED` | False | True | `access.bulk_people` stays off |
-| `capture_lease.GO_LIVE_PERMITTED` | False | True | `access.capture_lease` stays off |
+| `capture_lease.GO_LIVE_PERMITTED` | False | **False** | reverted: Fable review 2 NO-GO (no bridge lease_event, MIN_BRIDGE None, WisKey consumer unverified, separate card permit) |
 | `access_cards.CAPTURE_PERMITTED` | False | **False** | not a permit: `access_cards.capture()` only refuses; the grant -> capture lease -> confirm flow is not built in Arx (open implementation task) |
 | `wiskey_acr5.GO_LIVE_PERMITTED` | False | True | the four `wiskey.acr5_*` switches stay off |
 | `wiskey_peer.GO_LIVE_PERMITTED` | False | True | `wiskey.peer_receipt` stays off |
