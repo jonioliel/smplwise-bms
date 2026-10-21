@@ -14,7 +14,7 @@ import pytest
 from smplwise.services import messaging_runtime as mr
 
 LAZY_MODULES = ("smplwise.services.temperature_whatsapp",)
-IMPORTED_FIRST = ("smplwise.services.local_reset",)  # TEMPREG-295: also joins at import only (its janitor imports it in the app lifespan); the accounts tests expect its "identity" module
+IMPORTED_FIRST = ("smplwise.services.local_reset", "smplwise.services.access_grants")  # TEMPREG-295: also joins at import only (its janitor imports it in the app lifespan); the accounts tests expect its "identity" module
 LAZY_MODULE_KEYS = ("temperature",)
 
 
