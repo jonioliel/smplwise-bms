@@ -49,7 +49,6 @@ export interface DoorsHomeView {
 const ROW_KEY: Record<DoorsRowKind, DwwtKey> = {
   unconfirmed: 'rowUnconfirmed', foreign: 'rowForeign', not_started: 'rowNotStarted', active: 'rowActive', next: 'rowNext',
 };
-const ROW_LOOK: Record<DoorsRowKind, DoorsLook> = { unconfirmed: 'err', foreign: 'warn', not_started: 'warn', active: 'ok', next: 'off' };
 const RANK: Record<DoorsRowKind, number> = { unconfirmed: 0, foreign: 1, not_started: 2, active: 3, next: 4 };
 
 /** Whether the viewer may use the emergency entry on the home screen. */

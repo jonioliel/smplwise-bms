@@ -96,7 +96,8 @@ test('the card: a link to the screen, the emergency button only for a holder, ro
   expect(small).toContain('data-home-door-emergency');
   expect(small).not.toContain('data-home-doors-list');
   const med = flat(renderDoors(host(d), item('m')));
-  expect(med).toContain('data-home-doors-list') && expect(med).toContain('data-home-door-row');
+  expect(med).toContain('data-home-doors-list');
+  expect(med).toContain('data-home-door-row');
   const plain = flat(renderDoors(host(data([occ({})], emergency({ home_widget: false }))), item('m')));
   expect(plain).not.toContain('data-home-door-emergency');
   expect(flat(renderDoors(host(d, { editing: true }), item('s')))).toContain('aria-disabled=');
