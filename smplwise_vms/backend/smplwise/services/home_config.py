@@ -27,6 +27,7 @@ default, an unknown key is refused - this is never free-form client storage):
      "agenda":   {"on", "sizes", "label", "calendars": ["calendar.x", ...], "days": 1|3|7|14},          (BV1, 2026-10-05)
      "launcher": {"on", "sizes", "label", "items": [{"kind": "route|scene|script|quick", "id", "label"}]},  (BV1)
      "generators": {"on", "sizes", "label", "phone_on", "phone_size"},                                   (GENWIDGET 2.9.3)
+     "doors":    {"on", "sizes", "label", "phone_on", "phone_size"},                                   (DOORWIN2-295)
      "calendar": {"date", "parsha", "candles", "havdalah", "holiday", "extras": [{"entity_id", "label"}]}}
 
 BV1 also gives the clock and the weather a `style` ("card" | "tile"): the Bubble skin draws the tile, the other skins keep the card.
@@ -48,7 +49,7 @@ DEFAULT_SIDE = "end"
 # CR-INFRA-TEMPERATURE phase 3 (idea 12): `temperature` is appended the same way (drawn only once the viewer sees a unit, and while the
 # installation setting `home_widget` is on); it has the elevators' shape (mode / hidden / filter).
 # GENWIDGET 2.9.3: `generators` is appended the same way (drawn only once the viewer sees at least one generator; no options of its own).
-WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators", "temperature", "generators")
+WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators", "temperature", "generators", "doors")  # DOORWIN2-295: `doors` appended last (drawn only while the doors tab is on and a door is visible)
 # the widgets of an infrastructure list: HOW (one combined card / a card per item / both), WHICH items are left out, all states or alerts only
 LIST_WIDGETS = ("elevators", "temperature")
 SIZES = ("s", "m", "l")
@@ -68,6 +69,7 @@ DEFAULT_SIZES: dict[str, dict[str, str]] = {
     "elevators": {"a": "m", "b": "s", "c": "m"},
     "temperature": {"a": "m", "b": "s", "c": "m"},
     "generators": {"a": "m", "b": "s", "c": "m"},
+    "doors": {"a": "m", "b": "s", "c": "m"},
 }
 # CR-INFRA-ELEVATORS 2.8.0 (owner decision 10b + owner feedback 2026-10-18): how the elevators appear on the home screen -
 # one card per elevator, ONE combined card for all of them, or both; which elevators are left out; all states or only the alerting ones.
@@ -193,7 +195,7 @@ def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str
 def _widget(wid: str, value: Any) -> dict[str, Any]:
     common = {"on", "sizes", "label", "phone_on", "phone_size"}
     extra = {"clock": {"mode", "seconds", "hebrew", "style"}, "weather": {"entity", "fields", "forecast", "sources", "style"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set(),
-             "agenda": {"calendars", "days"}, "launcher": {"items"}, "elevators": {"mode", "hidden", "filter"}, "temperature": {"mode", "hidden", "filter"}, "generators": set()}[wid]
+             "agenda": {"calendars", "days"}, "launcher": {"items"}, "elevators": {"mode", "hidden", "filter"}, "temperature": {"mode", "hidden", "filter"}, "generators": set(), "doors": set()}[wid]
     given = _obj(value, wid, common | extra)
     out = _default_widget(wid)
     if "on" in given:
