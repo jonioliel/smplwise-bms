@@ -285,11 +285,21 @@ def engine_for(db: Any) -> Engine:
         except Exception:  # noqa: BLE001
             return None
 
+    from . import wiskey_acr5
     from .wiskey_readback import LiveReadback
 
+    def acr5_gate(key: str) -> bool:
+        """Review 3 G-01 (owner decision 2026-10-21): the readback runs only while the matching `wiskey.acr5_*` switch is on (default OFF)
+        AND the wiskey_acr5 permit holds - read fresh on every read; any failure is OFF."""
+        try:
+            with db.connection(mode="read", label="access_grants.acr5_gate") as conn:
+                return wiskey_acr5.consumer_on(conn, key)
+        except Exception:  # noqa: BLE001
+            return False
+
     # ECCACT-295: the live, capability-negotiated readback (v2 proves a revocation; v1 never does; nothing listed = UNKNOWN). It sends
-    # only when WisKey lists the command AND advertises its capability, so a WisKey without the gate on stays UNKNOWN.
-    return WiskeyServiceEngine(_SETTINGS, access_state_reader=LiveReadback(_SETTINGS), last_known_stations=known)
+    # only while its acr5 switch is on (G-01) AND WisKey lists the command AND advertises its capability; otherwise UNKNOWN (a revoke stays `revoking`).
+    return WiskeyServiceEngine(_SETTINGS, access_state_reader=LiveReadback(_SETTINGS, gate=acr5_gate), last_known_stations=known)
 
 
 # ---------------------------------------------------------------- settings readers (fail closed)

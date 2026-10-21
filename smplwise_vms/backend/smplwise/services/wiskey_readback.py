@@ -16,7 +16,13 @@ What it is not
 - No write, no HA user / token handling: the identity is the add-on's existing service session. WisKey admits these commands only for
   an active administrator while its own build gate is on (arx_readback_api.authorize); whether the add-on's identity is one is an
   OPERATIONAL fact that this module reports as `forbidden` (WisKey `unauthorized`) and never works around.
-- It does not read any switch: `wiskey_acr5.consumer_on` (setting AND the permit) is the caller's gate."""
+
+The switch gate (review 3 G-01, owner decision 2026-10-21: the `wiskey.acr5_*` switches GATE the readback)
+- `gate(key)` is asked right before anything is sent - the overview negotiation included - on every read: `access_state` needs
+  `acr5_01` (`wiskey.acr5_access_state`), `normalize_user` needs `acr5_02` (`wiskey.acr5_normalize_user`). The product reader
+  (`access_grants.engine_for`) passes `wiskey_acr5.consumer_on` (the switch AND the permit) read fresh from the database; a closed
+  gate, or a gate that fails, is `ReadbackUnavailable("consumer_off")` = UNKNOWN, so a revoke stays `revoking`. Both switches default
+  OFF. `gate=None` (no switch) is for unit tests of the transport only."""
 from __future__ import annotations
 
 import threading
@@ -50,13 +56,30 @@ def project_api_lists(raw: Any) -> dict[str, Any]:
     return {"commands": strings(api.get("commands")), "capabilities": strings(api.get("capabilities"))}
 
 
+GATE_ACCESS_STATE = "acr5_01"  # wiskey_acr5.FLAGS: wiskey.acr5_access_state
+GATE_NORMALIZE = "acr5_02"     # wiskey_acr5.FLAGS: wiskey.acr5_normalize_user
+
+
 class LiveReadback:
-    def __init__(self, settings: Any, *, sync: Any = None, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, settings: Any, *, sync: Any = None, clock: Callable[[], float] = time.monotonic,
+                 gate: Callable[[str], bool] | None = None) -> None:
         self.settings = settings
         self._sync = sync
         self._clock = clock
+        self._gate = gate
         self._lock = threading.Lock()
         self._cached: tuple[float, was.Negotiated] | None = None
+
+    def _require(self, key: str) -> None:
+        """G-01: the matching `wiskey.acr5_*` switch must be on right now, before anything (the negotiation included) is sent."""
+        if self._gate is None:
+            return
+        try:
+            on = self._gate(key) is True
+        except Exception:  # noqa: BLE001 - an unreadable switch is OFF
+            on = False
+        if not on:
+            raise ReadbackUnavailable("consumer_off")
 
     @property
     def sync(self) -> Any:
@@ -101,7 +124,8 @@ class LiveReadback:
 
     def access_state(self, user_id: str, revision: int) -> tuple[dict[str, Any], int]:
         """`(result, schema)` for `user_id` bound to `revision` (the revision of the caller's fresh users/get). Raises
-        `ReadbackUnavailable` when nothing usable can be asked or answered."""
+        `ReadbackUnavailable` when nothing usable can be asked or answered, or while `wiskey.acr5_access_state` is off (G-01)."""
+        self._require(GATE_ACCESS_STATE)
         negotiated = self.negotiate()
         if negotiated.version is None or negotiated.command is None:
             raise ReadbackUnavailable(f"negotiation:{negotiated.reason}")
@@ -112,7 +136,9 @@ class LiveReadback:
         return self.access_state(user_id, revision)
 
     def normalize_user(self, schedule: Any) -> dict[str, Any]:
-        """`schedules/normalize_user` (ACR5-02); only when WisKey lists the command AND advertises its capability."""
+        """`schedules/normalize_user` (ACR5-02); only while `wiskey.acr5_normalize_user` is on (G-01) and WisKey lists the command AND
+        advertises its capability."""
+        self._require(GATE_NORMALIZE)
         listed = self.negotiate_lists()
         if "schedules/normalize_user" not in listed[0] or "user_schedule_normalization_v1" not in listed[1]:
             raise ReadbackUnavailable("negotiation:unsupported")
