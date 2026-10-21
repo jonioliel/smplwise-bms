@@ -1,0 +1,90 @@
+{
+ "automation_actor_fields": [
+  "kind",
+  "automation_id",
+  "run_id",
+  "trigger_id",
+  "creator_user_id",
+  "approver_user_id",
+  "grant_revision"
+ ],
+ "contract": "wiskey-arx-feature-execution.v1",
+ "feature_fields": [
+  "actor",
+  "authority_ref",
+  "authority_revision",
+  "contract_version",
+  "execution_expires_at",
+  "feature",
+  "issued_at",
+  "operation_binding_ref",
+  "operation_id",
+  "parameter_reference",
+  "params",
+  "request_expires_at",
+  "request_id",
+  "scope_ref"
+ ],
+ "files": {
+  "arx_execution_authority.py": "9168eaa39f969bc50165d99d897ac23cca1376045427a98383679ccffa12b5fe",
+  "arx_feature_execution_contract.py": "71e79a521bbfbf05bbee4261d267e9009b17695a6dd08151c3bbf00b3766eb5d",
+  "arx_feature_plans.py": "121a2d761ea573e33c9169c01feff003e7c8345d46524161fea4624f78b636ea"
+ },
+ "permissions": [
+  "door/emergency_open",
+  "door/emergency_release",
+  "door/emergency_secure",
+  "door/hold_open",
+  "door/pulse",
+  "door/restore",
+  "media/audio_receive",
+  "media/microphone_send",
+  "media/video_receive",
+  "people/write",
+  "validation/door_capabilities",
+  "validation/door_read",
+  "validation/identity",
+  "validation/media",
+  "validation/run"
+ ],
+ "requirements": {
+  "door_automations": [
+   "station_id",
+   "relay",
+   "mapping_revision",
+   "automation_ref",
+   "expiry"
+  ],
+  "door_windows": [
+   "station_id",
+   "relay",
+   "mapping_revision",
+   "start",
+   "end",
+   "timezone"
+  ],
+  "emergency_buttons": [
+   "station_id",
+   "relay",
+   "mapping_revision",
+   "policy_ref"
+  ],
+  "live_media": [
+   "station_id",
+   "direction",
+   "consent_ref",
+   "expiry"
+  ],
+  "live_validation": [
+   "checklist_ref",
+   "owner_go_ref",
+   "expiry"
+  ],
+  "people_csv": [
+   "preview_ref",
+   "ownership_policy_ref",
+   "revision_policy_ref"
+  ]
+ },
+ "source": "WisKey f66bf67bcb442df65b61a24537e29566034ac56e (Mac package 5e38b009, read as data)"
+}
