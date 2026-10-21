@@ -66,6 +66,8 @@ def test_garbage_and_failures_have_no_evidence(bad):
 
 def test_the_live_engine_evidence_follows_the_same_gates(monkeypatch):
     eng = age.WiskeyServiceEngine(settings=None, access_state_reader=lambda uid, rev: v1(), last_known_stations=lambda pid: A)
+    # G2FIX-295: ECCACT-295 (owner decision 2026-10-21, option A) ships the permit True; the permit-off refusal is pinned here in RAM
+    monkeypatch.setattr(ag, "GO_LIVE_PERMITTED", False)
     with pytest.raises(age.EngineError) as err:
         eng.revocation_evidence(PERSON, REV)
     assert err.value.kind == "not_permitted"
@@ -140,8 +142,16 @@ def _v2_reader(env, station="st-a"):
     return reader
 
 
+def _v1_reader(env):
+    """G2FIX-295: ECCACT-295 made the fake's default answer v2 (FakeAccessEngine.access_state answers schema 2), so the v1 middle path is
+    driven explicitly: the same facts, as WisKey's v1 command would state them. Whatever those facts are, a v1 answer must never end a
+    revoke as verified."""
+    return env.engine.access_state_v1
+
+
 def test_a_revoke_proven_only_by_a_v1_answer_ends_revoked_but_is_recorded_as_not_verified(env):
     gid = env.active_grant()
+    env.engine.access_state_reader = _v1_reader(env)
     assert env.grant(gid)["revoke_proof"] is None
     assert env.post(f"/access-grants/{gid}/revoke").status_code == 200
     g = env.grant(gid)
@@ -177,6 +187,7 @@ def test_a_v2_answer_without_proof_never_falls_back_to_the_v1_middle_path(env):
 
 def test_pending_work_or_an_unknown_status_keeps_the_revoke_open_even_with_v1(env):
     gid = env.active_grant()
+    env.engine.access_state_reader = _v1_reader(env)
     env.engine.sync_lag = True  # the stripped person still has a pending revocation: v1 answers owed work
     env.post(f"/access-grants/{gid}/revoke")
     assert env.grant(gid)["state"] == "revoking" and env.grant(gid)["revoke_proof"] is None

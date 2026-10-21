@@ -190,7 +190,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     .sw-switch .track {
       inline-size: 44px;
       block-size: 26px;
-      border-radius: 13px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-border-strong);
       position: relative;
       flex: none;
@@ -203,7 +203,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       inline-size: 20px;
       block-size: 20px;
       border-radius: 50%;
-      background: var(--sw-toggle-thumb, #fff);
+      background: var(--sw-toggle-thumb);
       transition: transform 120ms ease;
     }
     .sw-switch[aria-checked='true'] .track {
@@ -1093,7 +1093,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     if (this.loading && !this.cameras) content = html`<sw-state-panel state="loading" heading=${pm('loading')} data-pm-loading></sw-state-panel>`;
     else if (this.failure?.status === 403) content = html`<sw-state-panel state="forbidden" heading=${pm('forbidden')} quiet data-pm-forbidden></sw-state-panel>`;
     else if (this.failure) content = html`<sw-state-panel state="error" heading=${pm('err_cameras')} actionLabel=${pm('retry')} data-pm-error @action=${() => void this.loadCameras()}></sw-state-panel>`;
-    else if (!this.cameras?.length) content = html`<sw-state-panel state="empty" heading=${pm('empty_cameras')} quiet data-pm-empty></sw-state-panel>`;
+    else if (!this.cameras?.length) content = html`<sw-state-panel icon="camera" state="empty" heading=${pm('empty_cameras')} quiet data-pm-empty></sw-state-panel>`;
     else {
       const lock = this.step === 'edit' ? this.lock : '';
       content = html`${lock ? html`<p class="banner" data-pm-lock=${lock} role="status">${pm(lock)}</p>` : nothing}

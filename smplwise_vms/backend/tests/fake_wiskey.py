@@ -1275,6 +1275,16 @@ class FakeAccessEngine:
                 "revocation_pending": flag, "stations_synced": synced if p is not None else None, "assignments": rows, "timing_policy": None, "pending": pending,
                 "central_revocation_predicate": "inactive-no-enabled-assignments-no-groups-no-overrides-no-pin-v1", "central_revoked": revoked}
 
+    def access_state_v1(self, user_id: str, revision: int) -> dict[str, Any]:
+        """G2FIX-295: the same facts as `access_state`, stated as WisKey's v1 users/access_state answer (the two v2-only fields dropped,
+        schema_version 1). ECCACT-295 made the v2 answer the default; a test that pins the WKV2B-295 middle path ("revoked, not verified
+        by the other side") installs this one: `engine.access_state_reader = engine.access_state_v1`. A v1 answer never proves a revoke."""
+        raw = self.access_state(user_id, revision)
+        raw.pop("central_revocation_predicate", None)
+        raw.pop("central_revoked", None)
+        raw["schema_version"] = 1
+        return raw
+
     def revocation_pending(self, person_id: str, revision: int):
         from smplwise.services.access_grant_engine import revocation_pending_from
 

@@ -185,7 +185,20 @@ def test_allow_writes_the_complete_overrides_and_only_the_new_station_doors(env)
         assert "relays" not in d and "doors" not in d, "no relay map in the audit (D06)"
 
 
-def test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending(env):
+# G2FIX-295: the settled block, per answer schema. ECCACT-295 made the fake's default answer v2 with per-station rows: a block proven by its
+# disabled, applied row is `applied` (station_removal_verdict_v2). WKV2B-295 (owner decision 2026-10-21): the same facts in a v1 answer never
+# prove a revoke - the block is in place, "not verified by the other side" (`unverified` / `revoked_unverified`). Both stay pinned.
+SETTLED_BLOCK = {"v2": {"sync_state": "applied", "code": None}, "v1": {"sync_state": "unverified", "code": "revoked_unverified"}}
+
+
+def answer_as(engine: FakeAccessEngine, schema: str) -> None:
+    if schema == "v1":
+        engine.access_state_reader = engine.access_state_v1
+
+
+@pytest.mark.parametrize("schema", ["v2", "v1"])
+def test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending(env, schema):
+    answer_as(env.engine, schema)
     env.engine.sync_lag = True
     r = env.put("st-a", "deny")
     assert r.status_code == 200 and r.json()["sync_state"] == "unverified" and r.json()["code"] == "revocation_pending", r.text
@@ -193,12 +206,14 @@ def test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending
     env.engine.settle_revocations()
     s = env.post("st-a", "sync")
     # WKV2B-295: the pending work is gone, but a v1 answer never proves a revoke: the block is in place, "not verified by the other side"
-    assert s.status_code == 200 and s.json() == {"sync_state": "unverified", "code": "revoked_unverified"}, s.text
+    assert s.status_code == 200 and s.json() == SETTLED_BLOCK[schema], s.text
     assert env.engine.updates[-1]["method"] == "set_station_access" and len(env.engine.updates) == 1, "already blocked: the sync only read back"
 
 
-def test_follow_groups_removes_the_personal_entry_and_the_group_applies_again(env):
-    assert env.put("st-a", "deny").json() == {"outcome": "decided", "sync_state": "unverified", "code": "revoked_unverified"}
+@pytest.mark.parametrize("schema", ["v2", "v1"])
+def test_follow_groups_removes_the_personal_entry_and_the_group_applies_again(env, schema):
+    answer_as(env.engine, schema)
+    assert env.put("st-a", "deny").json() == {"outcome": "decided", **SETTLED_BLOCK[schema]}
     r = env.put("st-a", "inherit")
     assert r.status_code == 200 and r.json()["sync_state"] == "applied", r.text
     assert "st-a" not in env.person()["overrides"] and env.person()["doors"]["st-a"] == [1]
@@ -296,8 +311,10 @@ def test_a_bearer_client_is_not_an_interactive_session(env):
 # ================================================================ timing policy: mode, schedule and bindings stay together
 
 
-def test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written(settings, monkeypatch):
+@pytest.mark.parametrize("schema", ["v2", "v1"])
+def test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written(settings, monkeypatch, schema):
     e = Env(settings, monkeypatch)
+    answer_as(e.engine, schema)
     e.engine.add_person(P, category="staff", group_doors={"st-a": [1]}, policy=NATIVE)
     r = e.put("st-c", "allow", [1])
     assert r.status_code == 409 and r.json()["code"] == "station_permission_timing_binding", r.text
@@ -305,7 +322,7 @@ def test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written(s
     assert ok.status_code == 200 and ok.json()["sync_state"] == "applied", ok.text
     assert e.person()["policy"] == NATIVE, "the policy is untouched"
     assert all(set(u) == {"method", "overrides", "doors"} for u in e.engine.updates)
-    assert e.put("st-a", "deny").json()["sync_state"] == "unverified", "a block never needs the policy (v1: in place, not verified by the other side)"
+    assert e.put("st-a", "deny").json()["sync_state"] == SETTLED_BLOCK[schema]["sync_state"], "a block never needs the policy (v1: in place, not verified by the other side)"
 
 
 def test_an_unreadable_policy_refuses_an_allow_but_not_a_block(settings, monkeypatch):
@@ -336,14 +353,16 @@ def test_an_unknown_outcome_is_read_back_never_resent(env):
     assert r.json()["sync_state"] == "unverified" and len(env.engine.updates) == 1, r.text
 
 
-def test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it(env):
+@pytest.mark.parametrize("schema", ["v2", "v1"])
+def test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it(env, schema):
+    answer_as(env.engine, schema)
     env.engine.offline = True
     r = env.put("st-a", "deny")
     assert r.status_code == 200 and r.json()["sync_state"] == "pending" and r.json()["code"] == "not_sent", r.text
     assert env.row("st-a")["effect"] == "deny", "the Arx decision stands"
     env.engine.offline = False
     s = env.post("st-a", "sync")
-    assert s.status_code == 200 and s.json()["sync_state"] == "unverified" and s.json()["code"] == "revoked_unverified", s.text
+    assert s.status_code == 200 and s.json() == SETTLED_BLOCK[schema], s.text
 
 
 def test_a_revision_moved_in_wiskey_is_reread_once(env):
