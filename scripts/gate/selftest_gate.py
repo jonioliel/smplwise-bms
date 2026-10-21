@@ -337,7 +337,7 @@ else:
     # a retry that cannot run is never 'passed alone'
     reset()
     g.QUARANTINE = g.policy.load_quarantine(None)
-    g.PY = str(TMP / "no_such_python")
+    g.PY = shutil.which("false") or "/bin/false"   # starts, prints nothing, exits 1: a retry with no pytest summary
     logd = TMP / "logs_lane_noretry"
     logd.mkdir(exist_ok=True)
     log = logd / "backend_s1.log"
