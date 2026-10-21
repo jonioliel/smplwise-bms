@@ -937,6 +937,21 @@ def direct_run(settings: Any, entity_id: str, at: dt.datetime, window: int, done
     return None if done and stamp <= done else stamp
 
 
+WATCH_READ_MAX = 8  # DA-06: at most this many watched entities are read directly per decision
+
+
+def direct_watch(settings: Any, specs: list[tuple[str, bool]], at: dt.datetime, window: int) -> bool:
+    """DA-06 (Fable review 3): the watched-entity half of the corroboration, read from Home Assistant's state machine like `direct_run` (the
+    mirror is only the pre-filter). True when the FIRST watched entity (up to WATCH_READ_MAX) whose `last_changed` (`last_updated` for a trigger
+    on an attribute) is within `window` seconds of `at` is found; every unreadable state or stamp counts as no match (fail closed)."""
+    for eid, attribute in specs[:WATCH_READ_MAX]:
+        st = _read_state(settings, eid)
+        changed = _instant(st.get("last_updated" if attribute else "last_changed")) if st is not None else None
+        if changed is not None and abs((at - changed).total_seconds()) <= window:
+            return True
+    return False
+
+
 def _consume(conn: sqlite3.Connection, row: sqlite3.Row, stamp: str) -> bool:
     """Match this `last_triggered` with exactly one event: false when it (or a later one) was already matched (a replay)."""
     cur = conn.execute("UPDATE door_automations SET corroborated_trigger = ? WHERE id = ? AND (corroborated_trigger IS NULL OR corroborated_trigger < ?)",
@@ -1104,9 +1119,12 @@ def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[s
             refusal = next((reason for _gate, ok, reason in _block_gates(conn, row, at, trigger, context, corroborate=corroborate, matched=matched) if not ok), None)
             item = _item(conn, row["automation_item_id"]) if refusal is None and corroborate else None
             window, done = limits(conn)["corroborate_window_s"], row["corroborated_trigger"]
+            specs, entityless, readable = _watch_specs(_item_cfg(item)) if item is not None else ([], False, False)
         stamp: str | None = None
         if refusal is None and corroborate:
             stamp = direct_run(settings, item["entity_id"], at, window, done) if item is not None and item["entity_id"] else None
+            if stamp is not None and (not readable or (specs and not entityless and not direct_watch(settings, specs, at, window))):
+                stamp = None  # DA-06: the watched entity must also have changed in Home Assistant's own state machine
             if stamp is None:
                 refusal = "uncorroborated"
         if refusal == "uncorroborated" and _monotonic() < deadline:

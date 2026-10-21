@@ -188,6 +188,8 @@ def corroborate(w: dict[str, Any], item: str = "9001", *, run: bool = True, chan
                 w["machine"][f"automation.a_{item}"] = {"entity_id": f"automation.a_{item}", "state": "on", "attributes": {"last_triggered": last.isoformat()}}
         if change:
             conn.execute("UPDATE ha_entities SET last_changed = ?, last_updated = ? WHERE entity_id = 'binary_sensor.lobby_motion'", (at.isoformat(), at.isoformat()))
+            if "machine" in w:  # DA-06: the same change in Home Assistant's own state machine
+                w["machine"]["binary_sensor.lobby_motion"] = {"entity_id": "binary_sensor.lobby_motion", "state": "on", "last_changed": at.isoformat(), "last_updated": at.isoformat()}
 
 
 def fire(w: dict[str, Any], seed: bool = True, **kw: Any) -> list[dict[str, Any]]:
@@ -770,6 +772,7 @@ def test_an_attribute_trigger_is_corroborated_by_the_update_not_the_state_change
     recent, old = live["clock"].at.isoformat(), (live["clock"].at - _dt.timedelta(seconds=60)).isoformat()
     with db.connection() as conn:  # only an attribute of the sensor moved
         conn.execute("UPDATE ha_entities SET last_changed = ?, last_updated = ? WHERE entity_id = 'binary_sensor.lobby_motion'", (old, recent))
+    live["machine"]["binary_sensor.lobby_motion"] = {"last_changed": old, "last_updated": recent}
     corroborate(live, "9001", change=False)
     corroborate(live, "9007", change=False)
     assert fire(live, item="9001", seed=False)[0]["reason"] == "uncorroborated"
@@ -1170,7 +1173,7 @@ def test_a_forged_mirror_without_a_real_run_in_the_state_machine_never_opens(liv
     assert sender.calls == []
     reads_before = len(live["reads"])
     assert fire(live)[0]["outcome"] == "sent"  # a real run: mirror AND state machine
-    assert live["reads"][reads_before:] == ["automation.a_9001"], "exactly one direct read at decision time"
+    assert live["reads"][reads_before:] == ["automation.a_9001", "binary_sensor.lobby_motion"], "one direct read of the automation, one of the first watched entity (DA-06)"
 
 
 def test_a_failing_state_read_refuses(live):
@@ -1217,3 +1220,51 @@ def test_a_replace_restore_keeps_the_fire_history(live):
     assert tomb["state"] != "armed" and tomb["deleted_at"], "kept only as a deleted record"
     assert _arm(c, state_of(c, da["id"])).status_code == 200
     assert fire(live)[0]["reason"] == "cooldown", "the restored block still sees its own last opening"
+
+
+# ---- DA-06 (Fable review 3, F3C-295): the watched entity is corroborated against Home Assistant's state machine too
+
+def test_a_forged_mirror_change_of_the_watched_entity_alone_never_opens(live):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    corroborate(live)  # mirror AND state machine: a real run and a real change
+    live["machine"].pop("binary_sensor.lobby_motion")  # the state machine never saw the sensor change; only the mirror was forged
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated" and sender.calls == []
+
+
+def test_a_stale_or_unreadable_watched_state_refuses_and_a_fresh_one_opens(live):
+    c, sender, clock = live["c"], live["sender"], live["clock"]
+    _armed(c)
+    old = (clock.at - _dt.timedelta(seconds=60)).isoformat()
+    corroborate(live)
+    live["machine"]["binary_sensor.lobby_motion"] = {"last_changed": old, "last_updated": old}
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    corroborate(live)
+    live["machine"]["binary_sensor.lobby_motion"] = {"last_changed": "garbage"}
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated" and sender.calls == []
+    corroborate(live)
+    assert fire(live, seed=False)[0]["outcome"] == "sent"
+
+
+def test_a_failing_watched_read_refuses(live):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    corroborate(live)
+    base = door_automation.STATE_READER
+
+    def only_the_automation(s_: Any, eid: str) -> Any:
+        if eid.startswith("binary_sensor."):
+            raise RuntimeError("Home Assistant unreachable")
+        return base(s_, eid)
+
+    door_automation.STATE_READER = only_the_automation
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated" and sender.calls == []
+
+
+def test_a_time_only_automation_reads_no_watched_entity(live):
+    c = live["c"]
+    _armed(c, item="9005")
+    corroborate(live, "9005", change=False)
+    before = len(live["reads"])
+    assert fire(live, item="9005", seed=False, source="time")[0]["outcome"] == "sent"
+    assert live["reads"][before:] == ["automation.a_9005"]

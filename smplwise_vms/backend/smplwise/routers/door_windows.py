@@ -561,8 +561,15 @@ def emergency_start(body: StartBody, request: Request, principal: Principal = De
     if conn.execute("SELECT id FROM door_emergency_incidents WHERE request_id = ?", (rid,)).fetchone():
         raise ApiError(409, "duplicate_request", "הבקשה כבר התקבלה.")
     settings = settings_of(request)
-    iid = de.start(conn, settings, principal, token=body.confirm_token, confirmed=body.confirmed, reason=body.reason, client_request_id=rid, now=now_utc(),
-                   dev_mode=_dev(request))
+    try:
+        iid = de.start(conn, settings, principal, token=body.confirm_token, confirmed=body.confirmed, reason=body.reason, client_request_id=rid, now=now_utc(),
+                       dev_mode=_dev(request))
+    except sqlite3.IntegrityError as exc:
+        # E-05 (F3C): a duplicate client_request_id that raced the pre-check above hits the UNIQUE constraint (0137): answer 409, not 500
+        if "request_id" not in str(exc):
+            raise
+        conn.rollback()
+        raise ApiError(409, "duplicate_request", "הבקשה כבר התקבלה.") from None
     commit_now(conn)
     db = request.app.state.db
     de.submit(db, settings, iid, "apply")
