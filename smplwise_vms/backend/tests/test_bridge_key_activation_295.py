@@ -166,6 +166,15 @@ def test_full_rotation_real_keyset_both_directions(world):
     assert ks.verify(dict(old)) == "bad_signature" and not _raw_message_ok(w, old)
 
 
+def _age_current_key(w, days: int) -> None:
+    """Make the current key `days` old (the database timestamps are real time; the tests' clock only drives the engine)."""
+    from datetime import datetime, timedelta, timezone
+
+    old = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    with w["db"].connection() as conn:
+        conn.execute("UPDATE bridge_keys SET activated_at = ? WHERE state = 'current'", (old,))
+
+
 def test_first_rotation_waits_for_the_click_and_later_ones_start_by_themselves(world):
     w, ks, clock = world, world["ks"], world["clock"]
     _announce(w)
@@ -191,7 +200,7 @@ def test_first_rotation_waits_for_the_click_and_later_ones_start_by_themselves(w
     with w["db"].connection() as conn:
         set_setting(conn, br.REMINDER_KEY, "30")
     assert br.worker_pass(w["db"], w["settings"], peer, now=clock) is None  # not yet due
-    clock.advance(31 * 86400)
+    _age_current_key(w, 31)
     second = br.worker_pass(w["db"], w["settings"], peer, now=clock)
     assert second and second["state"] == "switched" and second["gen_to"] == 2, second
     with w["db"].connection(mode="read") as conn:
@@ -235,7 +244,7 @@ def test_failed_automatic_attempt_backs_off(world):
     assert _engine(w, p).start(None, "hard_cut")["state"] == "verified"  # the first rotation: the administrator's click
     with w["db"].connection() as conn:
         set_setting(conn, br.REMINDER_KEY, "30")
-    clock.advance(31 * 86400)
+    _age_current_key(w, 31)
     fake.fail["begin"] = "reject"
     r = br.worker_pass(w["db"], w["settings"], p, now=clock)
     assert r and r["state"] == "rolled_back"

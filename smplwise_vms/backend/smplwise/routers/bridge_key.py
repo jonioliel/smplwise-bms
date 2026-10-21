@@ -64,6 +64,11 @@ def _engine(request: Request, conn: sqlite3.Connection, principal: Principal) ->
     return e
 
 
+def _peer(request: Request) -> Any:
+    """The same peer the engine uses (the bridge's announcement is read from this app's database)."""
+    return br.peers.get_peer(request.app.state.db, request.app.state.settings)
+
+
 def _refused(exc: br.RotationRefused) -> ApiError:
     return ApiError(exc.status, exc.code, MESSAGES.get(exc.code, MESSAGES["validation"]))
 
@@ -72,11 +77,11 @@ def _refused(exc: br.RotationRefused) -> ApiError:
 def get_bridge_key(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.key.read")
     if not (br.mode(conn) == "on" and br.go_live_permitted()):
-        return br.view(conn, request.app.state.settings.data_dir)
+        return br.view(conn, request.app.state.settings.data_dir, _peer(request))
     engine = _engine(request, conn, principal)
     engine.tick()
     with engine.db.connection(mode="read") as fresh:  # the request's snapshot predates the tick
-        return br.view(fresh, request.app.state.settings.data_dir)
+        return br.view(fresh, request.app.state.settings.data_dir, _peer(request))
 
 
 class SettingsBody(BaseModel):
@@ -108,7 +113,7 @@ def put_bridge_key_settings(body: SettingsBody, request: Request, principal: Pri
             set_setting(conn, br.REMINDER_KEY, str(body.reminder_days))
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
                   details={"key": br.REMINDER_KEY, "before": before_d, "after": body.reminder_days})
-    return br.view(conn, request.app.state.settings.data_dir)
+    return br.view(conn, request.app.state.settings.data_dir, _peer(request))
 
 
 class StartBody(BaseModel):
