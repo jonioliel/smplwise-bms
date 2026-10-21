@@ -448,7 +448,18 @@ class PublicListener:
         budget = getattr(self.config, "connection_budget", None) if self.running else None
         return {"running": self.running, "port": self.port, "error": self.error,
                 "connections_open": budget.open if budget is not None else None,
-                "stats": self.stats.snapshot() if self.stats else None}
+                "stats": self.stats.snapshot() if self.stats else None,
+                # PUBCOUNT-295 (D-04): the vendor portal start worker's accepted / dropped counters (counts only; all zero while the switch is off)
+                "portal_start": _portal_start_stats()}
+
+
+def _portal_start_stats() -> dict[str, Any] | None:
+    try:
+        from .public_portal import worker_stats
+
+        return worker_stats()
+    except Exception:  # noqa: BLE001 - the listener's health never fails because of the worker's counters
+        return None
 
 
 SERVER = PublicListener()
