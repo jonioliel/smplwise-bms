@@ -234,6 +234,7 @@ test.describe('TKUI5: the public page in the approved look', () => {
     let claimPrefill = 0;
     let doc = 0;
     let arrival = 0;
+    const lang: Record<string, number> = { ar: 0, ru: 0 };
     for (const f of fs.readdirSync(path.join(BUNDLE, 'assets'))) {
       if (!/\.(js|css)$/.test(f)) continue;
       const n = zlib.gzipSync(fs.readFileSync(path.join(BUNDLE, 'assets', f))).length;
@@ -246,9 +247,10 @@ test.describe('TKUI5: the public page in the approved look', () => {
       else if (/^doc-(page|text)[-.]/.test(f)) doc += n; // CR-VENDORQ-294 (as the unit guard): the document page's lazy chunk, own 4 KB cap
       else if (/^arrival-(card|text|model)[-.]/.test(f)) arrival += n; // GRANTS3-295 (as the unit guard): the arrival step's lazy chunk + stylesheet, own 8 KB cap
       else if (/^consent-(page|text)[-.]/.test(f)) consent += n; // WA-CONSENT-LINK (integ/270, as the unit guard): the consent page, own 5 KB cap
+      else if (/^lang-(ar|ru)[-.]/.test(f)) lang[f.slice(5, 7)] += n; // LAZYLANG-295 (as the unit guard): Arabic / Russian words, one lazy chunk each, 6 KB caps
       else gz += n;
     }
-    test.info().annotations.push({ type: 'gzip-bytes', description: `${gz} (rfq-page ${rfq}, rfq-terms ${rfqTerms}, rfq-upload ${rfqUpload}, portal ${portal}, portal-more ${portalMore}, consent ${consent}, claim-prefill ${claimPrefill})` });
+    test.info().annotations.push({ type: 'gzip-bytes', description: `${gz} (rfq-page ${rfq}, rfq-terms ${rfqTerms}, rfq-upload ${rfqUpload}, portal ${portal}, portal-more ${portalMore}, consent ${consent}, claim-prefill ${claimPrefill}, lang-ar ${lang.ar}, lang-ru ${lang.ru})` });
     // 2.9.0: 61 -> 62 KB (the "ask the manager" switch and "back to the list" on the handler page: 62,858 B measured; see unit-public-ticket)
     expect(gz).toBeLessThanOrEqual(62 * 1024);
     // 2.9.1: rfq-page 20 -> 21 KB (the System author on the vendor thread, four languages: 20,519 B measured; see unit-public-ticket)
@@ -260,6 +262,9 @@ test.describe('TKUI5: the public page in the approved look', () => {
     expect(consent).toBeLessThanOrEqual(5 * 1024);
     expect(doc).toBeLessThanOrEqual(4 * 1024);
     expect(arrival).toBeLessThanOrEqual(8 * 1024);
+    // LAZYLANG-295 (2.10.1): the ticket page 62,708 -> 52,087 B measured (headroom 11,401 B); lang-ar 5,239 B, lang-ru 5,717 B
+    expect(lang.ar).toBeLessThanOrEqual(6 * 1024);
+    expect(lang.ru).toBeLessThanOrEqual(6 * 1024);
     expect(claimPrefill).toBeLessThanOrEqual(3 * 1024);
     const html =fs.readFileSync(path.join(BUNDLE, 'index.html'), 'utf8');
     expect(html).not.toMatch(/<style|\sstyle=|\son[a-z]+=|<script>(?!<\/script>)/i);

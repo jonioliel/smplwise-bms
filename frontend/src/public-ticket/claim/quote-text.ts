@@ -9,6 +9,7 @@
  * ARABIC AND RUSSIAN: written by the developer, NOT yet checked by a native speaker (owner decision 2026-10-15: the page shows
  * the "preliminary translation" line until a speaker reviews the payment and quote wording). Initial, needs native review.
  */
+import { FALLBACK_LANG, isLazyLang, langPack, type LazyLang } from '../lang-packs';
 import { type ClaimLang, type ItemLabels, FALLBACK_LABELS, renderItem } from './claim-text';
 
 const he = {
@@ -99,100 +100,22 @@ const en: Record<QuoteTextKey, string> = {
   tr_note: '',
 };
 
-// Arabic - initial, needs native review
-const ar: Record<QuoteTextKey, string> = {
-  cost_title: 'عرض السعر / طلب الدفع',
-  step_quote: 'عرض',
-  step_approval: 'موافقة',
-  step_work: 'عمل',
-  step_demand: 'طلب',
-  step_demand_ok: 'موافقة',
-  step_paid: 'دفع',
-  q_title: 'عرض سعر',
-  q_when: 'قبل العمل',
-  d_title: 'طلب دفع',
-  d_when: 'بعد العمل',
-  pill_open: 'يمكنك الإرسال',
-  pill_sent: 'أُرسل',
-  pill_ok: 'معتمد',
-  pill_fix: 'مطلوب تصحيح',
-  pill_none: 'لم يُرسل',
-  pill_later: 'بعد "تم"',
-  intro_now: 'يمكنك الآن إرسال عرض سعر. يُرسل طلب الدفع بعد أن تحدد العمل "تم".',
-  intro_sent: 'أُرسل عرض السعر وهو بانتظار الموافقة. يُرسل طلب الدفع بعد أن تحدد العمل "تم".',
-  intro_ok: 'تمت الموافقة على عرض السعر. يُرسل طلب الدفع بعد أن تحدد العمل "تم"، مقابل العرض المعتمد.',
-  intro_fix: 'طُلب تصحيح في عرض السعر. يُرسل طلب الدفع بعد أن تحدد العمل "تم".',
-  q_sent_text: 'أُرسل وهو بانتظار الموافقة. يمكنك تعديله حتى تتم الموافقة.',
-  q_on_behalf: 'أدخله المدير',
-  q_valid_until: 'عرض السعر ساري حتى {date}',
-  q_work_from: 'بدء العمل',
-  q_work_to: 'انتهاء العمل',
-  q_ok_text: 'تمت الموافقة على عرض السعر.',
-  q_fix_text: 'طُلب تصحيح:',
-  q_none_after: 'لم يُرسل عرض سعر قبل العمل.',
-  q_send: 'إرسال عرض السعر',
-  q_resend: 'إرسال عرض السعر المحدّث',
-  q_edit: 'تعديل عرض السعر',
-  q_cancel_edit: 'إلغاء التعديل',
-  q_sending: 'جارٍ الإرسال…',
-  q_ref: 'العرض المعتمد: {amount}',
-  q_loading: 'جارٍ التحميل…',
-  q_error: 'تعذّر تحميل عرض السعر الآن.',
-  e_kind_not_allowed: 'نوع البند هذا غير معتمد لهذا الطلب',
-  e_quote_closed: 'لا يمكن إرسال عرض سعر الآن',
-  tr_note: 'ترجمة أولية قيد المراجعة',
+/** LAZYLANG-295: Arabic / Russian arrive with their language chunk (lang-packs.ts); until then a key reads the same-direction fallback. */
+export const QUOTE_TEXT: Readonly<Record<'he' | 'en', Record<QuoteTextKey, string>> & Partial<Record<LazyLang, Record<QuoteTextKey, string>>>> = {
+  he,
+  en,
+  get ar() {
+    return langPack('ar')?.quote as Record<QuoteTextKey, string> | undefined;
+  },
+  get ru() {
+    return langPack('ru')?.quote as Record<QuoteTextKey, string> | undefined;
+  },
 };
-
-// Russian - initial, needs native review
-const ru: Record<QuoteTextKey, string> = {
-  cost_title: 'Предложение / запрос на оплату',
-  step_quote: 'Предл.',
-  step_approval: 'Одобр.',
-  step_work: 'Работа',
-  step_demand: 'Запрос',
-  step_demand_ok: 'Одобр.',
-  step_paid: 'Оплата',
-  q_title: 'Ценовое предложение',
-  q_when: 'до работы',
-  d_title: 'Запрос на оплату',
-  d_when: 'после работы',
-  pill_open: 'Можно отправить',
-  pill_sent: 'Отправлено',
-  pill_ok: 'Одобрено',
-  pill_fix: 'Нужна правка',
-  pill_none: 'Не отправлено',
-  pill_later: 'После «Готово»',
-  intro_now: 'Сейчас можно отправить ценовое предложение. Запрос на оплату отправляется после того, как вы отметите работу «Готово».',
-  intro_sent: 'Предложение отправлено и ждёт одобрения. Запрос на оплату отправляется после отметки «Готово».',
-  intro_ok: 'Предложение одобрено. Запрос на оплату отправляется после отметки «Готово», по одобренному предложению.',
-  intro_fix: 'По предложению запрошена правка. Запрос на оплату отправляется после отметки «Готово».',
-  q_sent_text: 'Отправлено, ждёт одобрения. Можно изменить до одобрения.',
-  q_on_behalf: 'Внесено менеджером',
-  q_valid_until: 'Предложение действует до {date}',
-  q_work_from: 'Начало работ',
-  q_work_to: 'Окончание работ',
-  q_ok_text: 'Предложение одобрено.',
-  q_fix_text: 'Запрошена правка:',
-  q_none_after: 'Ценовое предложение до работы не отправлялось.',
-  q_send: 'Отправить предложение',
-  q_resend: 'Отправить обновлённое предложение',
-  q_edit: 'Изменить предложение',
-  q_cancel_edit: 'Отменить изменение',
-  q_sending: 'Отправка…',
-  q_ref: 'Одобренное предложение: {amount}',
-  q_loading: 'Загрузка…',
-  q_error: 'Сейчас не удаётся загрузить предложение.',
-  e_kind_not_allowed: 'Этот тип строки не одобрен для этой заявки',
-  e_quote_closed: 'Сейчас нельзя отправить предложение',
-  tr_note: 'Предварительный перевод, на проверке',
-};
-
-export const QUOTE_TEXT: Readonly<Record<ClaimLang, Record<QuoteTextKey, string>>> = { he, en, ar, ru };
 export const QUOTE_TEXT_KEYS = Object.keys(he) as QuoteTextKey[];
 
 /** One string of the card: the language's text (Hebrew when missing), the item tokens, then the {name} placeholders. */
 export function qt(lang: ClaimLang, key: QuoteTextKey, vars?: Record<string, string | number>, labels?: ItemLabels): string {
-  const raw = QUOTE_TEXT[lang]?.[key] ?? he[key] ?? key;
+  const raw = (QUOTE_TEXT[lang] ?? (isLazyLang(lang) ? QUOTE_TEXT[FALLBACK_LANG[lang]] : undefined))?.[key] ?? he[key] ?? key;
   const withItem = renderItem(raw, labels ?? FALLBACK_LABELS[lang]);
   if (!vars) return withItem;
   return withItem.replace(/\{([a-z_]+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));

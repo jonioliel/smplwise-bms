@@ -13,7 +13,8 @@ import cssUrl from './portal-page.css?url';
 import { withBase } from '../base';
 import { brandMark } from '../brand';
 import { h, icon } from '../dom';
-import { CATALOGUES, isLang, LANGS, RTL, text, type Key, type Labels, type Lang } from '../strings';
+import { holdForLang } from '../lang-packs';
+import { LANG_SELF, isLang, LANGS, RTL, text, type Key, type Labels, type Lang } from '../strings';
 import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, type ThemeMode } from '../theme';
 import { formatWhen } from '../time';
 import { canonicalRoot, cleanCode, demandKeys, isView, money, plausiblePhone, quoteKey, refusal, split, type Answer, type PortalConfig, type PortalItem,
@@ -287,6 +288,8 @@ class Portal {
 
   private render(): void {
     if (this.dead) return;
+    // LAZYLANG-295: an Arabic / Russian paint waits for its words (lang-packs.ts); the screen on show stays until they are in
+    if (holdForLang(this.lang, this.host.root, () => this.render(), () => h('main', { class: 'center' }, h('section', { class: 'card msg' }, h('div', { class: 'spinner', attrs: { role: 'status' } }))))) return;
     document.documentElement.lang = this.lang;
     document.documentElement.dir = RTL.has(this.lang) ? 'rtl' : 'ltr';
     document.title = this.cfg.organization || this.t('title');
@@ -319,7 +322,7 @@ class Portal {
   private langPicker(): HTMLElement {
     const sel = h('select', { class: 'lang', attrs: { 'aria-label': this.s('language') },
       on: { change: (e) => { const v = (e.target as HTMLSelectElement).value; if (isLang(v)) { this.lang = v; this.host.setLang(v); this.render(); } } } });
-    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, CATALOGUES[l].langName));
+    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, LANG_SELF[l].langName));
     return sel;
   }
 

@@ -17,7 +17,8 @@ import { h, icon, img } from './dom';
 import { mapBlock } from './map-block';
 import { afterFailure, afterStep, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
-import { CATALOGUES, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
+import { holdForLang } from './lang-packs';
+import { LANG_SELF, isLang, LANGS, preferredLang, RTL, text, type Key, type Lang } from './strings';
 import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, storedServerMode, type ThemeMode } from './theme';
 import { etaFor, formatDate, formatWhen, isoToLocalInput, localInputToIso, zoneNote, type EtaChoice } from './time';
 
@@ -452,6 +453,8 @@ class Page {
   // ---------------------------------------------------------------- rendering
 
   private render(): void {
+    // LAZYLANG-295: an Arabic / Russian paint waits for its words (lang-packs.ts); the screen on show stays until they are in
+    if (holdForLang(this.lang, this.root, () => this.render(), () => this.screen(null, [h('div', { class: 'spinner', attrs: { role: 'status' } })]))) return;
     const dir = RTL.has(this.lang) ? 'rtl' : 'ltr';
     document.documentElement.lang = this.lang;
     document.documentElement.dir = dir;
@@ -523,7 +526,7 @@ class Page {
     const sel = h('select', { class: 'lang', attrs: { 'aria-label': this.t('language'), 'data-lang-picker': true },
       on: { change: (e) => { const value = (e.target as HTMLSelectElement).value; if (isLang(value)) this.setLang(value); } } });
     for (const l of LANGS) {
-      const o = h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, CATALOGUES[l].langName);
+      const o = h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, LANG_SELF[l].langName);
       sel.appendChild(o);
     }
     return sel;

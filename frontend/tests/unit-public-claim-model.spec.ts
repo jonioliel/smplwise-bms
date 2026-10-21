@@ -58,6 +58,9 @@ import {
 import { CLAIM_LANGS, CLAIM_TEXT, CLAIM_TEXT_KEYS, claimDir, claimLang, ct, errorText, itemLabels, renderItem } from '../src/public-ticket/claim/claim-text';
 import { autoLevelsGray, dragRect, fitLongSide } from '../src/public-ticket/claim/capture-editor';
 import { ACCEPT, fileKind, looksInApp } from '../src/public-ticket/claim/pick';
+import { loadPublicLangs } from './public-langs';
+
+test.beforeAll(loadPublicLangs); // LAZYLANG-295: the Arabic / Russian words are a lazy chunk
 
 const SETTINGS: ClaimFormSettings = {
   currencies: ['ILS'],
@@ -589,6 +592,8 @@ test('the catalogue is complete in he / en / ar / ru, with the same placeholders
   const ph = (s: string) => (s.match(/\{[a-z_]+(?::[^{}]*)?\}/g) ?? []).sort().join(',');
   for (const lang of CLAIM_LANGS) {
     const cat = CLAIM_TEXT[lang];
+    expect(cat, lang).toBeDefined();
+    if (!cat) continue;
     expect(Object.keys(cat).sort(), lang).toEqual([...CLAIM_TEXT_KEYS].sort());
     for (const k of CLAIM_TEXT_KEYS) {
       expect(cat[k].trim(), `${lang}.${k}`).not.toBe('');
@@ -655,7 +660,8 @@ test('the claim sources: no unsafe HTML sinks, no style attributes, no old Hebre
     expect(src, f).not.toMatch(/\.innerHTML\b|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function\(/);
     expect(src, f).not.toMatch(/setAttribute\(\s*['"]style['"]|\.style\.cssText|\.style\s*=/);
     expect(src, f).not.toMatch(/getUserMedia/);
-    for (const m of src.matchAll(/from\s+'([^']+)'/g)) expect(m[1].startsWith('./'), `${f} imports ${m[1]}`).toBe(true);
+    // LAZYLANG-295: the catalogues read the lazy Arabic / Russian words through the page's own loader
+    for (const m of src.matchAll(/from\s+'([^']+)'/g)) expect(m[1].startsWith('./') || m[1] === '../lang-packs', `${f} imports ${m[1]}`).toBe(true);
   }
   // the editor is loaded lazily: the step imports it only as a type and through import()
   const step = readFileSync(path.join(CLAIM_DIR, 'claim-step.ts'), 'utf8');

@@ -7,12 +7,17 @@ import { afterFailure, afterStep, bootFrom, codeMessage, linkKind, lineOf, parse
 import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
+import { LANG_PACK_FILES, loadPublicLangs } from './public-langs';
 
 // CR-038 slice 4: the handler page's pure logic (node only) and the guards of its bundle.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-public-ticket.spec.ts
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, '../src/public-ticket');
+// LAZYLANG-295: Arabic and Russian are lazy chunks; the word checks below read all four languages
+test.beforeAll(loadPublicLangs);
+/** quote-text.ts (he / en) and the lazy packs (ar / ru): a key written once per language appears four times here */
+const quoteWords = (): string => [readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8'), ...LANG_PACK_FILES.map((f) => readFileSync(path.join(SRC, f), 'utf8'))].join('\n');
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345';
 const fail = (status: number, code: string, extra: Partial<ApiFailure> = {}): ApiFailure => ({ status, code, retryAfter: 0, attemptsLeft: null, offline: false, ...extra });
 const view = (over: Partial<TicketView> = {}): TicketView => ({
@@ -120,8 +125,8 @@ test('2.5.6: the part wait is a toggle under "in progress": on / off, the draft 
 
 test('2.5.6: the toggle strings exist in all four languages; the part wait has no step button of its own', () => {
   for (const lang of LANGS) {
-    for (const k of ['wait_mark', 'wait_back', 's_waiting_part'] as const) expect(CATALOGUES[lang][k], `${lang}.${k}`).toBeTruthy();
-    expect(Object.keys(CATALOGUES[lang])).not.toContain('btn_waiting_part');
+    for (const k of ['wait_mark', 'wait_back', 's_waiting_part'] as const) expect(CATALOGUES[lang]?.[k], `${lang}.${k}`).toBeTruthy();
+    expect(Object.keys(CATALOGUES[lang] ?? {})).not.toContain('btn_waiting_part');
   }
 });
 
@@ -146,7 +151,8 @@ test('ETA chips and the date input are read in the building zone, across a DST c
 
 test('every language has every key; RTL for Hebrew and Arabic only', () => {
   const keys = Object.keys(CATALOGUES.he) as Key[];
-  for (const l of LANGS) for (const k of keys) expect(CATALOGUES[l][k], `${l}.${k}`).toBeDefined();
+  for (const l of LANGS) for (const k of keys) expect(CATALOGUES[l]?.[k], `${l}.${k}`).toBeDefined();
+  for (const l of LANGS) expect(Object.keys(CATALOGUES[l] ?? {}).sort(), l).toEqual([...keys].sort()); // no extra key either
   expect([...RTL].sort()).toEqual(['ar', 'he']);
 });
 
@@ -165,7 +171,7 @@ test('D33: the module name comes from the labels with gender agreement; the defa
   expect(renderName('{ticket} {f:a|m:b|n:c}', { one: 'Заявка', many: 'Заявки', gender: 'n' })).toBe('Заявка c');
   // a word a person reads - not a protocol name like the X-Ticket-Token header or a type name like TicketView
   const defaults = /קריא[הות]|קריאת|בקש(?:ת|ות) ה?שירות|ניהול השירות|(?<![-\w])Tickets?(?![-\w])|بلاغ|Заявк/;
-  for (const f of readdirSync(SRC).filter((x) => x.endsWith('.ts'))) {
+  for (const f of [...readdirSync(SRC).filter((x) => x.endsWith('.ts')), ...LANG_PACK_FILES]) {
     expect(defaults.test(code(f)), `${f} writes a default module word`).toBe(false);
   }
 });
@@ -216,6 +222,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let doc = 0;
   let claimPrefill = 0;
   let arrival = 0;
+  const lang: Record<string, number> = { ar: 0, ru: 0 };
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
     if (statSync(p).isFile() && /\.(js|css)$/.test(f)) {
@@ -239,6 +246,9 @@ test('a built bundle is outside www, script- and style-file only, and within the
       // GRANTS3-295: the arrival step ("who arrives, when", then the approved doors / code schedule) - a lazy chunk + stylesheet the
       // ticket page fetches only when its answer says `arrival: true`; its own 7 KB cap, so the ticket page grows by the loader only
       else if (/^arrival-(card|text|model)[-.]/.test(f)) arrival += n;
+      // LAZYLANG-295: the Arabic / Russian words (page + claim + quote) - one lazy chunk per language, fetched only when the page
+      // speaks it (src/public-ticket/lang-packs.ts); each its own 6 KB cap, so the ticket page carries Hebrew and English only
+      else if (/^lang-(ar|ru)[-.]/.test(f)) lang[f.slice(5, 7)] += n;
       else gz += n;
     }
     expect(f).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]*\.(js|css|svg|png|ico)$/); // the listener's asset name rule
@@ -266,6 +276,14 @@ test('a built bundle is outside www, script- and style-file only, and within the
   // (383 B over 7 KB); the growth is the translations of a lazy chunk the ticket page fetches only with `arrival: true`, so its cap
   // moves to 8 KB and the 62 KB ticket page is untouched (62,708 B at integ/2100 @ ed506da7d, headroom 780 B)
   expect(arrival).toBeLessThanOrEqual(8 * 1024);
+  // LAZYLANG-295 (2.10.1, owner 2026-10-21: ar / ru are optional languages, he / en stay synchronous): measured on the runner with this
+  // test's method (vite build -c vite.public.config.ts on release/2100 @ f3f29b7bf + the change): the ticket page 62,708 -> 52,087 B
+  // (headroom 780 -> 11,401 B under the unchanged 62 KB cap); lang-ar 5,239 B, lang-ru 5,717 B (6 KB caps: headroom 905 / 427 B).
+  // The RFQ page (+19 B), the portal (+30 B) and the claim prefill (+26 B) grew by the loader import only.
+  // a bundle built from this source has both chunks (a bundle built before 2.10.1 has neither: www-public is rebuilt at integration)
+  expect(lang.ar > 0, 'lang-ar and lang-ru are built together').toBe(lang.ru > 0);
+  expect(lang.ar).toBeLessThanOrEqual(6 * 1024);
+  expect(lang.ru).toBeLessThanOrEqual(6 * 1024);
 });
 
 test('2.5.4: a redeem path behind a one-segment public prefix is read like /t/r/<rid>; deeper or odd prefixes are not', () => {
@@ -330,7 +348,7 @@ test('TKUI5: the one status line speaks in the vendor words and follows the quot
   expect(key({ status: 'done', claim: { status: 'paid', required: false, writable: false, claim_until: null } })).toBe('line_paid');
   expect(key({ status: 'closed', read_only: true })).toBe('line_closed');
   expect(statusLine(view({ status: 'assigned', claim: null }), null).tone).toBe('acc');
-  for (const l of LANGS) for (const k of ['line_ack', 'line_part', 'line_demand_ask', 'btn_ack', 'btn_quote_fix', 'btn_demand', 'prelim'] as Key[]) expect(CATALOGUES[l][k].length).toBeGreaterThan(2);
+  for (const l of LANGS) for (const k of ['line_ack', 'line_part', 'line_demand_ask', 'btn_ack', 'btn_quote_fix', 'btn_demand', 'prelim'] as Key[]) expect(CATALOGUES[l]?.[k]?.length).toBeGreaterThan(2);
 });
 
 test('TKUI5: the ONE primary - a draft wins, then receipt, a quote correction, the payment demand, else the update; none when nothing can be written', () => {
@@ -351,7 +369,7 @@ test('TKUI5: the ONE primary - a draft wins, then receipt, a quote correction, t
 });
 
 test('TKUI5: the cost words - "הצעת מחיר" before the work, "דרישת תשלום" after, never "דרישת עלות"; no module default name, no HA branding', () => {
-  const all = JSON.stringify(CATALOGUES) + readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  const all = JSON.stringify(CATALOGUES) + quoteWords();
   expect(all).not.toContain('דרישת עלות');
   expect(all).not.toMatch(/קריא/);
   expect(all).not.toMatch(/Home Assistant/i);
@@ -375,7 +393,7 @@ test('TKFIX260: an on-behalf quote is labelled on the vendor card, and the note 
   expect(card).toContain("t('q_on_behalf')");
   expect(card).not.toMatch(/limits\.notes \?\? 1000\) \* 2/);
   expect(card).toMatch(/notes\.maxLength = s\?\.limits\.notes \?\? 1000;/);
-  const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  const texts = quoteWords();
   expect(texts.match(/q_on_behalf:/g)?.length).toBe(4); // he / en / ar / ru
   expect(texts).toContain("q_on_behalf: 'הוזן על ידי המנהל'");
 });
@@ -386,7 +404,7 @@ test('TKQVALID: the vendor card shows the validity of the link\'s own quote (sho
   expect(card).toContain("t('q_valid_until'");
   expect(card).toContain('Intl.DateTimeFormat(lang');
   expect(card).not.toMatch(/valid_until\s*[:=]\s*form/); // the form never sends it
-  const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  const texts = quoteWords();
   expect(texts.match(/q_valid_until:/g)?.length).toBe(4); // he / en / ar / ru
   expect(texts.match(/q_valid_until:[^\n]*\{date\}/g)?.length).toBe(4);
 });
@@ -401,7 +419,7 @@ test('TKPOLISH: the quote form sends the optional work window and validity, vali
   expect(card).toMatch(/d \+ 367 \* DAY_MS/); // the server's horizon (WORK_HORIZON_DAYS 366 days ahead of now, a day back from d = now - 1 day)
   expect(card).toMatch(/win\.to < win\.from/); // the window order (422 order)
   expect(card).toContain('if (errs.length || windowError()) return;'); // nothing is sent while a date is out of range
-  const texts = readFileSync(path.join(SRC, 'claim/quote-text.ts'), 'utf8');
+  const texts = quoteWords();
   for (const k of ['q_work_from', 'q_work_to']) expect(texts.match(new RegExp(`${k}:`, 'g'))?.length, k).toBe(4);
 });
 

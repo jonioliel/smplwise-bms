@@ -19,7 +19,8 @@ import { newRequestId, rfqApi, type ApiFailure, type Credentials, type RfqQuote,
 import { brandMark } from '../brand';
 import { h, icon } from '../dom';
 import { codeMessage, validSession } from '../state';
-import { CATALOGUES, isLang, LANGS, RTL, text, type Key, type Lang } from '../strings';
+import { holdForLang } from '../lang-packs';
+import { LANG_SELF, isLang, LANGS, RTL, text, type Key, type Lang } from '../strings';
 import { applyMode, nextChoice, prefersDark, resolveMode, saveChoice, saveServerMode, storedChoice, type ThemeMode } from '../theme';
 import { formatDate, formatWhen, zoneNote } from '../time';
 import { computeForm, formatMoney, formatRate, newLine, type LineDraft, type LineKind } from '../claim/claim-model';
@@ -393,6 +394,8 @@ class RfqPage {
   // ---------------------------------------------------------------- rendering
 
   private render(): void {
+    // LAZYLANG-295: an Arabic / Russian paint waits for its words (lang-packs.ts); the screen on show stays until they are in
+    if (holdForLang(this.lang, this.host.root, () => this.render(), () => this.msgScreen([h('div', { class: 'spinner', attrs: { role: 'status' } })]))) return;
     this.needTerms();
     if (!this.up && this.view?.uploads) import('./rfq-upload').then((m) => { this.up = m; this.render(); });
     document.documentElement.lang = this.lang;
@@ -456,7 +459,7 @@ class RfqPage {
   private langPicker(): HTMLElement {
     const sel = h('select', { class: 'lang', attrs: { 'aria-label': this.t('language'), 'data-lang-picker': true },
       on: { change: (e) => { const value = (e.target as HTMLSelectElement).value; if (isLang(value)) { this.lang = value; this.host.chosenLang = value; this.host.store('lang', value); this.render(); } } } });
-    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, CATALOGUES[l].langName));
+    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, LANG_SELF[l].langName));
     return sel;
   }
 
