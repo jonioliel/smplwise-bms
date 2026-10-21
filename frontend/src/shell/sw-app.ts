@@ -1561,6 +1561,10 @@ export class SwApp extends LitElement {
         line-height: 1.1;
         text-align: center;
       }
+      /* release 2.10.0: the two-line display above outranked "labels off" (:host([data-nolabels]) nav.bottom .lbl); labels off wins */
+      :host([data-design='a'][data-nolabels]) nav.bottom .lbl {
+        display: none;
+      }
       /* CR-023: seven items (six areas and the user) share the phone bar: the label size is capped at 10.5 px (the bigger navigation
          presets keep their icons) and the side padding goes, so no label is cut */
       :host([data-design='a']) nav.bottom.crowded a,
