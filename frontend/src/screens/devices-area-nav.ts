@@ -42,7 +42,7 @@ type Open = '' | 'floor' | 'area';
  * value, a chevron; 44 px, the group's dropdown size dial grows or shrinks them), on every width and in every skin - the
  * floor first, the area beside it in reading order. The area picker IS the page title (its value is the screen's h1), so the
  * area's name is on the screen once; the floor's areas are no longer a chip row on the phone nor a chip in the shell's pair
- * row (both lists open under their picker; a bottom sheet on a phone). The floors / areas tree of the home screen is untouched.
+ * row (both lists open under their picker; on a phone a bottom sheet only when the owner's phone choice is "sheet"). The floors / areas tree of the home screen is untouched.
  */
 @customElement('devices-area-nav')
 export class DevicesAreaNav extends LitElement {
@@ -249,6 +249,16 @@ export class DevicesAreaNav extends LitElement {
     .opt .n {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
+      flex: none;
+    }
+    .opt > span:not(.n) {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    @media (min-width: 600px) {
+      .menu {
+        max-inline-size: 480px;
+      }
     }
     .note {
       padding: 8px 10px;
@@ -280,7 +290,12 @@ export class DevicesAreaNav extends LitElement {
         min-inline-size: 0;
         min-block-size: max(var(--pick-h, 44px), 44px);
       }
-      .menu {
+      .opt {
+        min-block-size: 48px;
+      }
+      /* the owner's phone choice (data-dd-phone, DDAREA-295): "sheet" = the bottom sheet; "list" keeps the popover under the picker, the area's list
+         hanging from the picker's far edge so it stays inside the screen */
+      :host([data-sheet]) .menu {
         position: fixed;
         inset-inline: 0;
         inset-block: auto 0;
@@ -288,8 +303,12 @@ export class DevicesAreaNav extends LitElement {
         border-radius: var(--sw-r-lg) var(--sw-r-lg) 0 0;
         padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
       }
-      .opt {
-        min-block-size: 48px;
+      :host(:not([data-sheet])) .menu[data-nav-menu='area'] {
+        inset-inline-start: auto;
+        inset-inline-end: 0;
+      }
+      :host(:not([data-sheet])) .menu {
+        max-inline-size: calc(100vw - 16px);
       }
     }
   `;
@@ -320,6 +339,10 @@ export class DevicesAreaNav extends LitElement {
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('areaId')) this.open = ''; // navigated: a list left open is closed
+    // DDAREA-295: on a phone the lists follow the owner's "dropdown on the phone" choice like every other dropdown (data-dd-phone on <html>, shell/tabs-mode.ts):
+    // list = a popover under the picker, sheet = the bottom sheet. Read at each render, so it is current whenever a list opens.
+    const sheet = this.phone && document.documentElement.getAttribute('data-dd-phone') === 'sheet';
+    this.toggleAttribute('data-sheet', sheet);
   }
 
   private onMq = () => {
@@ -413,7 +436,7 @@ export class DevicesAreaNav extends LitElement {
           </button>`,
         )
       : html`<div class="note">${which === 'floor' && !this.treeError ? 'טוען קומות…' : which === 'floor' ? 'לא ניתן לטעון את הקומות' : 'אין אזורים'}</div>`;
-    return html`${this.phone ? html`<div class="back" @click=${() => (this.open = '')}></div>` : nothing}
+    return html`${this.hasAttribute('data-sheet') ? html`<div class="back" @click=${() => (this.open = '')}></div>` : nothing}
       <div class="menu" role="menu" aria-label=${label} data-nav-menu=${which} @keydown=${(e: KeyboardEvent) => this.onMenuKey(e, which)}>${body}</div>`;
   }
 

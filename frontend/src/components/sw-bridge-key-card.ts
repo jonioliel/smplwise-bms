@@ -36,6 +36,7 @@ export class SwBridgeKeyCard extends LitElement {
   static styles = css`
     :host {
       display: block;
+      min-inline-size: 0;
     }
     .row {
       display: flex;
@@ -48,6 +49,14 @@ export class SwBridgeKeyCard extends LitElement {
     }
     .row:last-of-type {
       border-block-end: 0;
+    }
+    .lbl,
+    .val,
+    .note,
+    .err,
+    .ok {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
     }
     .lbl {
       font-size: var(--sw-fs-md);
@@ -90,6 +99,14 @@ export class SwBridgeKeyCard extends LitElement {
     .ok {
       color: var(--sw-success-text, var(--sw-text-2));
       font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 767px) and (pointer: coarse) {
+      select {
+        min-block-size: 44px;
+      }
+      sw-button {
+        --sw-ctl-h-sm: 44px;
+      }
     }
   `;
 

@@ -12,8 +12,8 @@ export const dwCss = css`
   [data-tone='err'] { --c: var(--sw-danger); --cs: var(--sw-danger-soft); --ct: var(--sw-danger-text); }
   [data-tone='off'] { --c: var(--sw-unknown); --cs: var(--sw-unknown-soft); --ct: var(--sw-unknown-text); }
   .chip {
-    display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm);
-    font-weight: 600; line-height: 20px; white-space: nowrap; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis;
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: min(var(--sw-r-pill), 12px); font-size: var(--sw-fs-sm);
+    font-weight: 600; line-height: 20px; white-space: normal; overflow-wrap: anywhere; max-inline-size: 100%; min-inline-size: 0; overflow: hidden;
     background: var(--cs, var(--sw-surface-2)); color: var(--ct, var(--sw-text-2));
   }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; min-inline-size: 0; }

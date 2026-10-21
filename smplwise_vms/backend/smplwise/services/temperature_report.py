@@ -13,6 +13,7 @@ signature is a new mode, not a new report. The footer carries the UTC instant, t
 PDF was made from; a hash of the PDF itself cannot be printed inside it)."""
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import hashlib
 import html
@@ -27,6 +28,13 @@ from .timeutil import iso_utc
 MAX_UNITS = 30
 MAX_EVENTS = 60
 CHART_POINTS = 360
+# TEMPREP-295: the full sample list. One PDF carries at most SAMPLES_MAX_ROWS rows in all (about 80 pages of the compact table), shared evenly
+# between the units (never fewer than SAMPLES_MIN_ROWS each); the rest is counted and the PDF says so. The dialog's preview carries
+# SAMPLES_PREVIEW_ROWS rows per unit and the true counts - never the whole list.
+SAMPLES_MAX_ROWS = 5000
+SAMPLES_MIN_ROWS = 200
+SAMPLES_PREVIEW_ROWS = 8
+SF_DEFROST, SF_DOOR, SF_OFF, SF_OUT, SF_ALERT, SF_AVG = 1, 2, 4, 8, 16, 32  # the flag bits of one listed sample
 E = html.escape
 
 LABELS: dict[str, dict[str, str]] = {
@@ -41,7 +49,11 @@ LABELS: dict[str, dict[str, str]] = {
            "haccp": "דוח תאימות (HACCP)", "daily": "טבלה יומית", "day": "תאריך", "coverage": "כיסוי נתונים", "verdict": "תוצאה",
            "v_ok": "תקין", "v_exc": "חריגה", "v_none": "אין נתונים", "maint": "חלון תחזוקה: {r}", "by": "על ידי {n}", "days_ok": "ימים תקינים",
            "sign_name": "שם המנהל", "predict": "חריגה צפויה", "battery": "סוללת חיישן חלשה", "frozen": "ערך קפוא בחיישן",
-           "recovery": "התאוששות איטית אחרי דלת", "duty": "זמן פעולת מדחס עולה"},
+           "recovery": "התאוששות איטית אחרי דלת", "duty": "זמן פעולת מדחס עולה",
+           "samples": "פירוט כל הדגימות", "s_unit": "יחידה", "s_flags": "סימונים", "f_defrost": "הפשרה", "f_door": "דלת פתוחה", "f_off": "כבוי",
+           "f_out": "מחוץ לטווח", "f_alert": "התראה", "f_avg": "ממוצע 5 דק׳", "no_samples": "אין דגימות בטווח",
+           "samples_cap": "מוצגות {n} הדגימות הראשונות מתוך {m}. כדי לראות את כולן יש לצמצם את הטווח או את היחידות.",
+           "no_data_range": "אין נתונים בטווח הזה"},
     "en": {"title": "Temperature report", "range": "Range", "band": "Target band", "sensor": "Temperature sensor", "door": "Door sensor", "none": "None",
            "min": "Minimum", "max": "Maximum", "avg": "Average", "out": "Out of range", "out_raw": "incl. defrost", "doors": "Door openings", "alerts": "Alerts",
            "chart": "Temperature chart", "events": "Alerts and events", "time": "Time", "event": "Event", "value": "Value", "dur": "Duration",
@@ -53,7 +65,11 @@ LABELS: dict[str, dict[str, str]] = {
            "haccp": "Compliance report (HACCP)", "daily": "Daily table", "day": "Date", "coverage": "Data coverage", "verdict": "Result",
            "v_ok": "OK", "v_exc": "Excursion", "v_none": "No data", "maint": "Maintenance window: {r}", "by": "by {n}", "days_ok": "Days in range",
            "sign_name": "Manager name", "predict": "Predicted excursion", "battery": "Sensor battery low", "frozen": "Frozen sensor value",
-           "recovery": "Slow recovery after the door", "duty": "Compressor run time rising"},
+           "recovery": "Slow recovery after the door", "duty": "Compressor run time rising",
+           "samples": "Every sample", "s_unit": "Unit", "s_flags": "Flags", "f_defrost": "Defrost", "f_door": "Door open", "f_off": "Off",
+           "f_out": "Out of range", "f_alert": "Alert", "f_avg": "5-min average", "no_samples": "No samples in the range",
+           "samples_cap": "Showing the first {n} of {m} samples. Narrow the range or the units to see all of them.",
+           "no_data_range": "No data in this range"},
 }
 LAYOUTS: tuple[str, ...] = ("standard", "haccp")
 
@@ -93,10 +109,81 @@ def daily(conn: sqlite3.Connection, u: sqlite3.Row, rules: dict[str, Any], lo: i
     return out
 
 
+def _merge(iv: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    out: list[tuple[float, float]] = []
+    for a, b in sorted(iv):
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def _inside(iv: list[tuple[float, float]], starts: list[float], ts: float) -> bool:
+    i = bisect.bisect_right(starts, ts) - 1
+    return i >= 0 and ts <= iv[i][1]
+
+
+def sample_rows(conn: sqlite3.Connection, u: sqlite3.Row, rules: dict[str, Any], lo: int, hi: int, now_ts: float, door_visible: bool, cap: int) -> dict[str, Any]:
+    """TEMPREP-295: every recorded sample of lo..hi for one unit, oldest first, as [ts, value, flags]. The raw minutes answer inside their
+    retention; older time is only kept as five-minute averages (flag SF_AVG), so the list says which is which. `flags`: SF_DEFROST, SF_DOOR
+    (the door sensor, only when the viewer sees it), SF_OFF (a climate unit switched off), SF_OUT (outside the band; defrost excluded per the
+    unit's setting, off never), SF_ALERT (a high / low / offline alert was open at that time). At most `cap` rows are returned; `total` is the
+    true count, so the caller can say what was left out."""
+    raw_lo = max(lo, int(now_ts - t.RAW_KEEP_S))
+    old_hi = min(raw_lo, hi)  # the part of the range older than the raw history: five-minute averages only
+    low, high = u["low"], u["high"]
+    tol = float(rules.get("setpoint_tolerance", 2.0))
+    by_sp = u["band_mode"] == "setpoint"
+    excl = bool(rules.get("exclude_defrost_stats", True))
+    n_raw = conn.execute("SELECT COUNT(*) FROM infra_temp_samples WHERE unit_id = ? AND ts >= ? AND ts < ?", (u["id"], raw_lo, hi)).fetchone()[0]
+    n_old = conn.execute("SELECT COUNT(*) FROM infra_temp_samples_5m WHERE unit_id = ? AND ts >= ? AND ts < ?",
+                         (u["id"], lo - lo % t.BUCKET_S, old_hi)).fetchone()[0] if old_hi > lo else 0
+    a_iso, b_iso = iso_utc(dt.datetime.fromtimestamp(lo, dt.timezone.utc)), iso_utc(dt.datetime.fromtimestamp(hi, dt.timezone.utc))
+    alerts = _merge([(t.parse_utc(r["started_at"]).timestamp(), t.parse_utc(r["ended_at"]).timestamp() if r["ended_at"] else float(hi)) for r in conn.execute(
+        "SELECT started_at, ended_at FROM infra_temp_events WHERE unit_id = ? AND kind IN ('high','low','offline') AND started_at < ? AND (ended_at IS NULL OR ended_at >= ?)",
+        (u["id"], b_iso, a_iso)).fetchall()])
+    a_starts = [a for a, _b in alerts]
+    doors = _merge([(float(a), float(b)) for a, b in t.door_intervals(conn, u["id"], lo, hi, now_ts)]) if door_visible else []
+    d_starts = [a for a, _b in doors]
+    rows: list[list[Any]] = []
+
+    def add(ts: int, v: float, sp: float | None, defrost: bool, door: bool, off: bool, avg: bool) -> None:
+        blo, bhi = (sp - tol, sp + tol) if by_sp and sp is not None else (low, high)
+        f = (SF_DEFROST if defrost else 0) | (SF_DOOR if door else 0) | (SF_OFF if off else 0) | (SF_AVG if avg else 0)
+        if not off and (v > bhi or v < blo) and not (defrost and excl):
+            f |= SF_OUT
+        if _inside(alerts, a_starts, ts):
+            f |= SF_ALERT
+        rows.append([ts, round(v, 2), f])
+
+    if n_old and cap > 0:
+        for r in conn.execute("SELECT ts, v_avg, n, n_def, sp_avg FROM infra_temp_samples_5m WHERE unit_id = ? AND ts >= ? AND ts < ? ORDER BY ts LIMIT ?",
+                              (u["id"], lo - lo % t.BUCKET_S, old_hi, cap)).fetchall():
+            add(int(r["ts"]), r["v_avg"], r["sp_avg"], r["n_def"] * 2 > r["n"], bool(doors) and _inside(doors, d_starts, r["ts"]), False, True)
+    if len(rows) < cap:
+        for r in conn.execute("SELECT ts, v, sp, flags FROM infra_temp_samples WHERE unit_id = ? AND ts >= ? AND ts < ? ORDER BY ts LIMIT ?",
+                              (u["id"], raw_lo, hi, cap - len(rows))).fetchall():
+            add(int(r["ts"]), r["v"], r["sp"], bool(r["flags"] & 1), bool(r["flags"] & 2) and door_visible, bool(r["flags"] & 4), False)
+    total = n_raw + n_old
+    return {"rows": rows, "total": total, "shown": len(rows), "capped": total > len(rows), "cap": cap}
+
+
+def preview_trim(model: dict[str, Any]) -> dict[str, Any]:
+    """The dialog's copy of a model: the sample lists cut to SAMPLES_PREVIEW_ROWS rows (the counts stay true, and so does the digest - it was
+    made over the full lists, so it matches the PDF's)."""
+    for u in model["units"]:
+        sm = u.get("samples")
+        if sm:
+            sm["rows"] = sm["rows"][:SAMPLES_PREVIEW_ROWS]
+    return model
+
+
 def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[str], lo: int, hi: int, lang: str, now_ts: float, *,
-          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard") -> dict[str, Any]:
+          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard", samples: bool = False) -> dict[str, Any]:
     """The report model. `units` are already filtered to what the caller may see; `door_visible` = the unit ids whose door sensor he sees.
-    `layout` haccp (phase 3, idea 3) adds the daily table per unit (and the PDF leads with it)."""
+    `layout` haccp (phase 3, idea 3) adds the daily table per unit (and the PDF leads with it). `samples` (TEMPREP-295) adds the capped list
+    of every recorded sample per unit."""
     lang = lang if lang in LABELS else "he"
     layout = layout if layout in LAYOUTS else "standard"
     tz = t.site_zone(conn)
@@ -106,6 +193,7 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
     areas = {r["area_id"]: r["name"] for r in conn.execute("SELECT area_id, name FROM ha_areas").fetchall()}
     a_iso, b_iso = iso_utc(dt.datetime.fromtimestamp(lo, dt.timezone.utc)), iso_utc(dt.datetime.fromtimestamp(hi, dt.timezone.utc))
     out_units = []
+    cap = max(SAMPLES_MIN_ROWS, SAMPLES_MAX_ROWS // max(1, min(len(units), MAX_UNITS)))
     for u in units[:MAX_UNITS]:
         rules = t.effective(defaults, t.overrides_of(u["rules_json"]))
         st = t.stats(conn, u, rules, lo, hi, now_ts)
@@ -116,7 +204,7 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
             "id": u["id"], "name": u["name"], "area": areas.get(u["area_id"] or ""), "low": u["low"], "high": u["high"], "band_mode": u["band_mode"],
             "tolerance": rules.get("setpoint_tolerance"), "source": "climate" if str(u["temp_entity_id"]).startswith("climate.") else "sensor",
             "sensor": t.friendly(ents.get(u["temp_entity_id"]), u["name"]), "door": t.friendly(ents.get(u["door_entity_id"] or ""), u["name"]) if dv else None,
-            "excl_defrost": bool(rules.get("exclude_defrost_stats", True)), "stats": {k: st[k] for k in ("min", "max", "avg", "out_min", "out_min_raw", "door_opens",
+            "excl_defrost": bool(rules.get("exclude_defrost_stats", True)), "has_data": bool(st["samples"]), "stats": {k: st[k] for k in ("min", "max", "avg", "out_min", "out_min_raw", "door_opens",
                                                                                                       "door_total_min", "door_longest_min", "alarms", "warnings")},
         }
         if chart:
@@ -147,9 +235,12 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
             item["events_more"] = max(0, len(rows) - MAX_EVENTS)
         if layout == "haccp":
             item["daily"] = daily(conn, u, rules, lo, hi, tz, now_ts, dv)
+        if samples:
+            item["samples"] = sample_rows(conn, u, rules, lo, hi, now_ts, dv, cap)
         out_units.append(item)
     model: dict[str, Any] = {"v": 1, "lang": lang, "from": lo, "to": hi, "zone": str(tz), "generated": int(now_ts), "units": out_units,
-                             "chart": chart, "events": events, "signature": {"mode": "line"} if signature else None, "layout": layout}
+                             "chart": chart, "events": events, "signature": {"mode": "line"} if signature else None, "layout": layout,
+                             "samples": samples}
     model["digest"] = digest(model)
     return model
 
@@ -273,9 +364,22 @@ table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; }}
 th, td {{ border-bottom: 0.5pt solid #e3e8f0; padding: 3pt 4pt; text-align: start; }} th {{ color: #5b6a85; font-weight: 700; }}
 .n {{ direction: ltr; unicode-bidi: isolate; white-space: nowrap; }}
 table.daily td, table.daily th {{ padding: 2pt 4pt; font-size: 8pt; }} table.daily tr.exc td {{ color: #b91c1c; }} table.daily tr.none td {{ color: #8a94a8; }}
+table.samples td, table.samples th {{ padding: 1pt 4pt; font-size: 7.5pt; }} table.samples tr {{ break-inside: avoid; }} table.samples tr.out td {{ color: #b91c1c; }}
+table.samples thead {{ display: table-header-group; }} .nodata {{ border: 0.6pt dashed #8a94a8; border-radius: 4pt; padding: 6pt 8pt; margin: 6pt 0; color: #5b6a85; }}
 .sig {{ display: flex; gap: 24pt; margin-top: 22pt; }} .sig div {{ flex: 1; border-top: 0.8pt solid #1d2433; padding-top: 3pt; font-size: 8.5pt; }}
 .foot {{ position: running(foot); font-size: 6.5pt; color: #8a94a8; }}
 """
+
+
+FLAG_LABELS = ((SF_DEFROST, "f_defrost"), (SF_DOOR, "f_door"), (SF_OFF, "f_off"), (SF_OUT, "f_out"), (SF_ALERT, "f_alert"), (SF_AVG, "f_avg"))
+
+
+def flag_text(f: int, lang: str) -> str:
+    return " · ".join(LABELS[lang][k] for bit, k in FLAG_LABELS if f & bit)
+
+
+def samples_note(sm: dict[str, Any], lang: str) -> str:
+    return LABELS[lang]["samples_cap"].replace("{n}", str(sm["shown"])).replace("{m}", str(sm["total"]))
 
 
 def html_of(model: dict[str, Any]) -> str:
@@ -299,6 +403,8 @@ def html_of(model: dict[str, Any]) -> str:
         body = [f'<div class="hd"><div><h1>{E(L["haccp"] if haccp else L["title"])} · {E(u["name"])}</h1><div class="sub">{E(u["area"] or "")} · {E(L["sensor"])}: {E(u["sensor"] or "—")}'
                 f' · {E(L["door"])}: {E(u["door"] or L["none"])} · {E(L["band"])}: {band}</div><div class="sub">{E(L["range"])}: <span class="n">{E(rng)}</span></div></div>'
                 f'<div class="brand">SmplWise</div></div>', f'<div class="stats">{stats}</div>']
+        if not u.get("has_data", True):
+            body.append(f'<div class="nodata" data-nodata>{E(L["no_data_range"])} · <span class="n">{E(rng)}</span></div>')
         if haccp and u.get("daily") is not None:
             ok_days = sum(1 for d in u["daily"] if d["verdict"] == "ok")
             drows = "".join(
@@ -328,6 +434,18 @@ def html_of(model: dict[str, Any]) -> str:
                             f'<tbody>{"".join(rows)}</tbody></table>{more}')
             else:
                 body.append(f'<p class="sub">{E(L["no_events"])}</p>')
+        if model.get("samples") and u.get("samples") is not None:
+            sm = u["samples"]
+            body.append(f'<h2>{E(L["samples"])} · <span class="n">{sm["total"]}</span></h2>')
+            if sm["rows"]:
+                srows = "".join(f'<tr{" class=out" if f & SF_OUT else ""}><td class="n">{_local(ts, tz):%d.%m.%Y %H:%M}</td><td class="n">{deg(v)[:-1]}</td><td class="n">°C</td>'
+                                f'<td>{E(flag_text(f, lang))}</td></tr>' for ts, v, f in sm["rows"])
+                body.append(f'<table class="samples" data-samples><thead><tr><th>{E(L["time"])}</th><th>{E(L["value"])}</th><th>{E(L["s_unit"])}</th><th>{E(L["s_flags"])}</th></tr></thead>'
+                            f'<tbody>{srows}</tbody></table>')
+                if sm["capped"]:
+                    body.append(f'<p class="sub" data-samples-cap>{E(samples_note(sm, lang))}</p>')
+            else:
+                body.append(f'<p class="sub">{E(L["no_samples"])}</p>')
         if model.get("signature") and model["signature"].get("mode") == "line":
             body.append(f'<div class="sig">{"<div>" + E(L["sign_name"]) + "</div>" if haccp else ""}<div>{E(L["sign"])}</div><div>{E(L["date"])}</div></div>')
         pages.append(f'<section class="unit">{"".join(body)}</section>')

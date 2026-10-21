@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { downloadReportPdf, getReportPreview, type ReportModel, type ReportParams, type TempUnit } from '../api/temperature';
+import { downloadReportPdf, getReportPreview, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
 import { REPORT_RANGES, deg, durationText, eventText, friendlyName, localInput } from './model';
 import { bigChart } from './charts';
 import { tempCss } from './styles';
@@ -15,6 +15,12 @@ export { REPORT_RANGES, localInput } from './model';
  * several (a page per unit), Hebrew or English, the content switches (chart, signature LINE - owner decision 4 -, alert list), a live paper
  * preview of the first unit drawn from the server's report MODEL (the same numbers the PDF and the WhatsApp text use), "ייצוא PDF" (made on
  * the server) and "שליחה ב-WhatsApp" (opens the WhatsApp dialog with the same choices).
+ *
+ * TEMPREP-295: (1) the report TYPE is a pure switch - choosing the compliance (HACCP) type used to move the range to "last month" and force the
+ * signature line and the standard type never moved them back, so after one visit to HACCP the regular report stayed on a range that held no
+ * data and looked broken; the type now remembers what it changed and gives it back, and its default range is the month so far. (2) A range with
+ * no samples is shown as one plain "no data in this range" state, not a table of dashes. (3) The "every sample" content switch appends the
+ * server's capped list of all recorded samples; the preview holds only its first rows and the true counts.
  */
 @customElement('temp-report')
 export class TempReport extends LitElement {
@@ -27,6 +33,8 @@ export class TempReport extends LitElement {
   @state() private busy = false;
   private timer?: number;
   private seq = 0;
+  /** what choosing the compliance type changed (so the standard type can give it back) */
+  private haccpAuto?: { range: ReportRange; prevRange: ReportRange; prevSignature: boolean };
 
   static styles = [tempCss, css`
     :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
@@ -70,6 +78,11 @@ export class TempReport extends LitElement {
     .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-block-start: 12px; }
     .sig div { border-block-start: 1px solid var(--sw-text); padding-block-start: 4px; font-size: var(--sw-fs-xs); }
     .foot { font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
+    .nodata { border: 1px dashed var(--sw-border-strong, var(--sw-border)); border-radius: var(--sw-r-md); padding: 14px 12px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); text-align: center; display: grid; gap: 4px; }
+    .nodata b { color: var(--sw-text); }
+    .capnote { font-size: var(--sw-fs-xs); color: var(--sw-warn-text, var(--sw-text-2)); margin: 0; }
+    table.smp td { font-variant-numeric: tabular-nums; }
+    table.smp tr[data-out] td { color: var(--sw-danger-text); }
     .wf { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
     .wf .sp { flex: 1; }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
@@ -78,6 +91,9 @@ export class TempReport extends LitElement {
       .st { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 600px) {
+      .presets button, .seg button, .sw { min-block-size: 44px; }
+      .sw input { inline-size: 22px; block-size: 22px; }
+      .icb { inline-size: 44px; block-size: 44px; }
       :host { padding: 0; }
       .sheet { inline-size: 100%; max-block-size: 100dvh; block-size: 100dvh; border-radius: 0; }
     }
@@ -102,14 +118,25 @@ export class TempReport extends LitElement {
     super.disconnectedCallback();
   }
 
-  /** The server params: a custom range is sent as ISO instants (the inputs are the browser's local time). */
+  /** The server params. A custom range goes as the inputs hold it (no offset): the server reads it in the INSTALLATION's zone, the zone the
+   * daily table's midnights are cut in, wherever this browser is. */
   params(): ReportParams {
-    const p = { ...this.p };
-    if (p.range === 'custom') {
-      p.from = p.from ? new Date(p.from).toISOString() : undefined;
-      p.to = p.to ? new Date(p.to).toISOString() : undefined;
+    return { ...this.p };
+  }
+
+  /** The report type is a switch: HACCP defaults the range to the month so far and requires the signature line, and gives both back on the way out. */
+  private setLayout(layout: 'standard' | 'haccp') {
+    const p = this.p;
+    if (layout === 'haccp') {
+      if (p.layout === 'haccp') return;
+      const range: ReportRange = p.range === '24h' ? 'month' : p.range;
+      this.haccpAuto = { range, prevRange: p.range, prevSignature: p.signature !== false };
+      this.set({ layout, range, signature: true });
+      return;
     }
-    return p;
+    const a = this.haccpAuto;
+    this.haccpAuto = undefined;
+    this.set({ layout, ...(a && p.range === a.range ? { range: a.prevRange } : {}), ...(a && !a.prevSignature ? { signature: false } : {}) });
   }
 
   private set(patch: Partial<ReportParams>) {
@@ -158,6 +185,24 @@ export class TempReport extends LitElement {
     }
   }
 
+  /** TEMPREP-295: the sample list's preview - the first rows (times in the installation's zone) and the true count; when the server will cap the
+   * PDF, one line says how many are listed. Never the whole list (a month is ~43,000 minutes: the server sends only the first rows). */
+  private samplesBlock(m: ReportModel, u: ReportModel['units'][number], T: (k: TtKey) => string, lang: 'he' | 'en') {
+    const sm = u.samples;
+    if (!m.samples || !sm) return nothing;
+    const loc = lang === 'he' ? 'he-IL' : 'en-GB';
+    const flags = (f: number) => ([[1, 'sfDefrost'], [2, 'sfDoor'], [4, 'sfOff'], [8, 'sfOut'], [16, 'sfAlert'], [32, 'sfAvg']] as [number, TtKey][]).filter(([b]) => f & b).map(([, k]) => T(k)).join(' · ');
+    const when = (ts: number) => new Date(ts * 1000).toLocaleString(loc, { timeZone: m.zone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return html`<div data-rep-samples-block>
+      <b class="lbl">${T('repSamples')} · <span dir="ltr">${sm.total}</span></b>
+      ${sm.rows.length ? html`<table class="smp" data-rep-samples-table><thead><tr><th>${T('colTime')}</th><th>${T('colValue')}</th><th></th></tr></thead><tbody>
+        ${sm.rows.map(([ts, v, f]) => html`<tr ?data-out=${(f & 8) > 0}><td dir="ltr">${when(ts)}</td><td dir="ltr">${deg(v)}</td><td>${flags(f)}</td></tr>`)}
+        ${sm.total > sm.rows.length ? html`<tr><td colspan="3" class="hint" dir="ltr">+${sm.total - sm.rows.length}</td></tr>` : nothing}
+      </tbody></table>` : html`<p class="hint">${T('repSamplesNone')}</p>`}
+      ${sm.capped ? html`<p class="capnote" role="status" data-rep-samples-cap>${T('repSamplesCap').replace('{n}', String(sm.shown)).replace('{m}', String(sm.total))}</p>` : nothing}
+    </div>`;
+  }
+
   private paper() {
     const m = this.model;
     if (!m || !m.units.length) return html`<div class="paper" data-rep-paper><p class="hint">${this.p.units.length ? '…' : tt('repNeedUnit')}</p></div>`;
@@ -167,10 +212,12 @@ export class TempReport extends LitElement {
     const T = (k: TtKey) => tt(k, undefined, lang);
     const stats: [TtKey, string][] = [['statMin', deg(s.min)], ['statMax', deg(s.max)], ['statAvg', deg(s.avg)], ['statOut', durationText(s.out_min)],
       ['tlDoor', u.door ? `${s.door_opens} · ${durationText(s.door_total_min)}` : '—'], ['alertsTitle', String(s.alarms + s.warnings)]];
+    const empty = u.has_data === false || (u.has_data === undefined && s.min === null && !(u.points ?? []).length);
     const pts = (u.points ?? []).map((p) => [p[0], p[1]] as [number, number]);
     return html`<div class="paper" dir=${lang === 'he' ? 'rtl' : 'ltr'} lang=${lang} data-rep-paper>
       <div class="ph"><div><h3>${m.layout === 'haccp' ? T('repHaccp') : T('repTitle').replace(' (PDF)', '')} · ${u.name}</h3><small>${[u.area, friendlyName(u.sensor, '')].filter(Boolean).join(' · ')} · ${T('lgBand', )
         .replace('{lo}', deg(u.low)).replace('{hi}', deg(u.high))}</small><small dir="ltr">${m.range_text}</small></div><b>SmplWise</b></div>
+      ${empty ? html`<div class="nodata" data-rep-empty><b>${T('repNoData')}</b><span dir="ltr">${m.range_text}</span></div>` : html`
       <div class="st">${stats.map(([k, v]) => html`<div><span>${T(k)}</span><b class="num" dir="ltr">${v}</b></div>`)}</div>
       ${m.chart && pts.length ? html`<div class="chart">${bigChart({ points: pts, setpoints: u.source === 'climate' ? (u.points ?? []).map((p) => [p[0], p[2]] as [number, number | null]) : undefined,
         low: u.low, high: u.high, doors: u.doors ?? [], defrost: u.defrost ?? [], t0: m.from, t1: m.to, step: 300 }, 600, 170, lang === 'he' ? 'he-IL' : 'en-GB', null)}</div>` : nothing}
@@ -183,6 +230,7 @@ export class TempReport extends LitElement {
           <td>${d.out_min ? durationText(d.out_min) : '0'}</td><td dir="ltr">${Math.round(d.coverage)}%</td><td>${T(d.verdict === 'ok' ? 'dayOk' : d.verdict === 'exc' ? 'dayExc' : 'dayNone')}</td></tr>`)}
         ${u.daily.length > 8 ? html`<tr><td colspan="6" class="hint" dir="ltr">+${u.daily.length - 8}</td></tr>` : nothing}
       </tbody></table>` : nothing}
+      ${this.samplesBlock(m, u, T, lang)}`}
       ${m.signature ? html`<div class="sig" style=${m.layout === 'haccp' ? 'grid-template-columns:1fr 1fr 1fr' : ''}>${m.layout === 'haccp' ? html`<div>${T('repSignName')}</div>` : nothing}<div>${T('repSign')}</div><div>${T('repDate')}</div></div>` : nothing}
       <div class="foot" dir="ltr">SmplWise Arx · ${m.zone} · sha256 ${m.digest.slice(0, 16)}${m.units.length > 1 ? ` · +${m.units.length - 1}` : ''}</div>
     </div>`;
@@ -211,12 +259,13 @@ export class TempReport extends LitElement {
               <div class="field"><span class="lbl">${tt('repContent')}</span>
                 <label class="sw"><input type="checkbox" .checked=${p.chart !== false} @change=${(e: Event) => this.set({ chart: (e.target as HTMLInputElement).checked })} />${tt('repChart')}</label>
                 <label class="sw"><input type="checkbox" .checked=${p.signature !== false} @change=${(e: Event) => this.set({ signature: (e.target as HTMLInputElement).checked })} data-rep-sig />${tt('repSig')}</label>
-                <label class="sw"><input type="checkbox" .checked=${p.events !== false} @change=${(e: Event) => this.set({ events: (e.target as HTMLInputElement).checked })} />${tt('repEvents')}</label></div>
+                <label class="sw"><input type="checkbox" .checked=${p.events !== false} @change=${(e: Event) => this.set({ events: (e.target as HTMLInputElement).checked })} />${tt('repEvents')}</label>
+                <label class="sw"><input type="checkbox" .checked=${p.samples === true} @change=${(e: Event) => this.set({ samples: (e.target as HTMLInputElement).checked })} data-rep-samples />${tt('repSamples')}</label></div>
             </div>
             <div class="field" data-rep-layout><span class="lbl">${tt('repLayout')}</span><span class="seg" role="group">
-              <button type="button" aria-pressed=${String(p.layout !== 'haccp')} data-rep-layout-btn="standard" @click=${() => this.set({ layout: 'standard' })}>${tt('repStandard')}</button>
+              <button type="button" aria-pressed=${String(p.layout !== 'haccp')} data-rep-layout-btn="standard" @click=${() => this.setLayout('standard')}>${tt('repStandard')}</button>
               <button type="button" aria-pressed=${String(p.layout === 'haccp')} data-rep-layout-btn="haccp"
-                @click=${() => this.set({ layout: 'haccp', range: p.range === '24h' ? 'prev_month' : p.range, signature: true })}>${tt('repHaccp')}</button></span>
+                @click=${() => this.setLayout('haccp')}>${tt('repHaccp')}</button></span>
               ${p.layout === 'haccp' ? html`<span class="hint">${tt('repHaccpHint')}</span>` : nothing}</div>
             <span class="hint">${tt('repEngine')}</span>
           </div>

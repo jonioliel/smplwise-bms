@@ -33,7 +33,7 @@ export interface WaMock {
 const PACE = { min_gap_s: 15, jitter_s: 10, per_hour: 30, per_day: 150, per_recipient_hour: 4, hold_when_down_min: 15 };
 const RANGES = { min_gap_s: [5, 600], jitter_s: [0, 300], per_hour: [1, 200], per_day: [1, 1000], per_recipient_hour: [1, 30], hold_when_down_min: [1, 240] };
 
-function baseView(o: WaMockOptions, manage: boolean) {
+export function baseView(o: WaMockOptions, manage: boolean) {
   const on = o.ticketsOn ?? true;
   const accounts = o.empty ? [] : [
     { key: 'entry:01JFAKEOFFICE', kind: 'discovered', label: 'משרד הניהול', label_set: true, last4: '0191', state: 'connected', state_source: 'entity', in_mirror: true, stored: true,

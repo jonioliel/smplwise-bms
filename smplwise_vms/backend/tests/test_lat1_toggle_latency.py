@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import queue
 import socket
+import sqlite3
 import statistics
 import threading
 import time
@@ -41,6 +42,28 @@ RECORD_MS = 40  # SEC246 L3: the allowance for the command's record (committed b
 STATES = [{"entity_id": ENTITY, "state": "off", "attributes": {"friendly_name": "LAT1 relay"}, "last_changed": "2026-10-08T08:00:00+00:00", "last_updated": "2026-10-08T08:00:00+00:00"}] + [
     {"entity_id": f"sensor.noise_{i}", "state": "0", "attributes": {"friendly_name": f"noise {i}"}, "last_changed": "2026-10-08T08:00:00+00:00", "last_updated": "2026-10-08T08:00:00+00:00"} for i in range(20)
 ]
+
+
+def _commit_ms(directory, samples: int = 9) -> float:
+    """TESTDEBT3-295: the median wall time of ONE durable commit (WAL + synchronous=FULL, the class every command record uses) on the
+    filesystem the test database lives on, right now. `sw_load_factor` spins a CPU thread, so it sees CPU contention only; the part of the
+    idle bounds that is an fsync (RECORD_MS) slows with DISK contention (another pytest or a build writing on the same runner), which a
+    CPU spin cannot see - the 2.9.2 / 2.9.3 flakies of this file. Measured the same way the app commits, after the toggles."""
+    conn = sqlite3.connect(str(directory / "lat1_commit_probe.db"))
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("CREATE TABLE IF NOT EXISTS probe(x INTEGER)")
+        conn.commit()
+        took: list[float] = []
+        for i in range(samples):
+            t0 = time.perf_counter()
+            conn.execute("INSERT INTO probe(x) VALUES (?)", (i,))
+            conn.commit()
+            took.append((time.perf_counter() - t0) * 1000)
+        return statistics.median(took)
+    finally:
+        conn.close()
 
 
 def _now_iso() -> str:
@@ -224,6 +247,10 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     # a latency bound is wall-clock by nature; it scales with the load this machine carried during the toggles (sw_load_factor: 1.0 when
     # idle), so a runner busy with another job does not turn the behavioural check (no hidden wait, no new connection) into noise
     f = sw_load_factor()
+    # the record's allowance follows the disk as well as the CPU: 4 x the durable commit measured now (about 5 ms on an idle disk, so
+    # the fixed RECORD_MS wins there and nothing is loosened); only a disk that really is slow gives the fsync part more room. The
+    # 60 / STATE_EVENT + 80 ms behavioural part (no hidden wait, no new connection) stays exactly as it was.
+    record_ms = max(RECORD_MS, 4 * _commit_ms(app.state.settings.db_path.parent))
     dispatch = statistics.median(r["dispatch"] for r in rows)
     push = statistics.median(r["push"] for r in rows)
     # the fake HA's own share of the push is 57 ms; everything else is Arx. Generous bounds: a behavioural check, not a benchmark.
@@ -237,8 +264,8 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     #   wait (pending_wait) 12.8 / 1.7 / 2.2; earlier record-first runs under a heavier runner load: dispatch median 73.7 / 66.2.
     # Hence RECORD_MS on top of both LAT1 idle bounds (the smallest round allowance that passes the worst observed median, 73.7 ms,
     # with about 25 % to spare), under the same load-factor rule. The held-lock and busy cases have their own tests below.
-    assert dispatch < (60 + RECORD_MS) * f, f"f={f:.2f}\n" + _table("idle", rows)
-    assert push < (STATE_EVENT_S * 1000 + 80 + RECORD_MS) * f, f"f={f:.2f}\n" + _table("idle", rows)
+    assert dispatch < (60 + record_ms) * f, f"f={f:.2f} record_ms={record_ms:.0f}\n" + _table("idle", rows)
+    assert push < (STATE_EVENT_S * 1000 + 80 + record_ms) * f, f"f={f:.2f} record_ms={record_ms:.0f}\n" + _table("idle", rows)
     # one keep-alive connection is reused for the bridge calls (no new TCP + HTTP setup per toggle)
     assert fake.connections <= 2, f"{fake.connections} connections for {len(rows)} toggles"
     # the owner's own view of the hops: DevTools -> Network -> the POST -> Timing (Server-Timing), and the answer's timing_ms

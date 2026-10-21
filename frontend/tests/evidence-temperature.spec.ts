@@ -88,6 +88,23 @@ const LOG = [ev('e1', 'u3', 'high', 'alarm', 9, 6.8, 4), ev('e2', 'u3', 'door', 
   ev('e7', 'u1', 'ack', 'info', 258, null, null, false, { ack_by_name: 'יוני', ack_at: iso(258) }), ev('e8', 'u1', 'high', 'alarm', 266, 7.4, 6, false, { ack_at: iso(258), ack_by_name: 'יוני' }),
 ].map((e) => ({ ...e, unit_name: units().find((u) => u.id === e.unit_id)!.name }));
 
+/** TEMPREP-295: what the server does with the range and the samples switch, on top of the base preview. The module is new: a previous-month range holds
+ * no sample at all (an honest empty report); a month holds more samples than one PDF carries (the cap), the dialog's preview only the first rows. */
+const SAMPLES_CAP = 5000;
+function reportVariant(body: Record<string, unknown>, q: URLSearchParams) {
+  const empty = q.get('range') === 'prev_month';
+  const total = empty ? 0 : q.get('range') === 'month' ? 43_200 : 24;
+  const units = (body.units as Record<string, unknown>[]).map((u) => {
+    const base = empty ? { ...u, has_data: false, stats: { ...(u.stats as object), min: null, max: null, avg: null, out_min: 0, alarms: 0, warnings: 0, door_opens: 0, door_total_min: 0 }, points: [], doors: [], defrost: [], events: [],
+      ...(u.daily ? { daily: (u.daily as Record<string, unknown>[]).map((d) => ({ ...d, min: null, max: null, avg: null, out_min: 0, alarms: 0, coverage: 0, verdict: 'none' })) } : {}) } : { ...u, has_data: true };
+    if (q.get('samples') !== '1') return base;
+    const shown = Math.min(total, SAMPLES_CAP);
+    const rows = Array.from({ length: Math.min(total, 8) }, (_x, i) => [NOW_S - 86400 + i * 60, 4 + (i % 3) * 0.1 + (i === 3 ? 3 : 0), i === 3 ? 8 : i === 5 ? 1 : 0]);
+    return { ...base, samples: { rows, total, shown, capped: total > shown, cap: SAMPLES_CAP } };
+  });
+  return { ...body, units, samples: q.get('samples') === '1', signature: q.get('signature') === '0' ? null : body.signature };
+}
+
 async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: boolean; perms?: string[]; tickets?: boolean } = {}) {
   await installGeneratorMock(page, { perms: o.perms ?? ['devices.read', 'infra.temperature.manage', 'infra.temperature.ack', 'system.configure'], count: 0, modules: o.tickets ? { tickets: true } : undefined });
   await page.route('**/api/v1/infra/temperature**', async (route) => {
@@ -114,7 +131,7 @@ async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: 
       const us = list.filter((u) => ids.includes(u.id)).map((u) => ({ id: u.id, name: u.name, area: u.area_name, low: u.low, high: u.high, band_mode: u.band_mode, tolerance: 2, source: u.source,
         sensor: u.temp_sensor_name, door: u.door?.sensor_name ?? null, excl_defrost: true, stats: u.stats_24h, points: u.spark.map((q) => [q[0], q[1], q[2] ?? null]), doors: u.doors_24h,
         defrost: u.defrost_24h, events: LOG.filter((e) => e.unit_id === u.id).map((e) => ({ kind: e.kind, severity: e.severity, started_at: e.started_at, ended_at: e.ended_at, value: e.value, peak: e.peak, threshold: e.threshold })), events_more: 0 }));
-      return json(route, { v: 1, lang: 'he', from: NOW_S - 86400, to: NOW_S, zone: 'Asia/Jerusalem', generated: NOW_S, units: us, chart: true, events: true, signature: { mode: 'line' },
+      const body: Record<string, unknown> = { v: 1, lang: 'he', from: NOW_S - 86400, to: NOW_S, zone: 'Asia/Jerusalem', generated: NOW_S, units: us, chart: true, events: true, signature: { mode: 'line' },
         digest: '3f9a1c0d5e7b2a4c'.repeat(4), range_text: '19.10.2026 13:42 – 20.10.2026 13:42', filename: 'temperature-report-20261020.pdf',
         layout: new URL(route.request().url()).searchParams.get('layout') === 'haccp' ? 'haccp' : 'standard',
         ...(new URL(route.request().url()).searchParams.get('layout') === 'haccp' ? { units: us.map((u, i) => ({ ...u, daily: Array.from({ length: 30 }, (_x, d) => ({
@@ -124,7 +141,8 @@ async function install(page: Page, list: ReturnType<typeof units>, o: { stale?: 
 19.10.2026 13:42 – 20.10.2026 13:42
 ${us.map((u) => `${u.name}: מינ׳ ${u.stats.min}° · מקס׳ ${u.stats.max}° · מחוץ לטווח ${u.stats.out_min} דק׳ · התראות ${u.stats.alarms + u.stats.warnings}`).join(String.fromCharCode(10))}
 הדוח המלא (PDF) זמין במערכת.
-הודעה אוטומטית - אין להשיב.` });
+הודעה אוטומטית - אין להשיב.` };
+      return json(route, reportVariant(body, new URL(route.request().url()).searchParams));
     }
     if (p === 'infra/temperature/report/recipients') {
       return json(route, { users: [{ id: 'p1', name: 'יוני אוליאל', reach: 'ok', selectable: true }, { id: 'p2', name: 'דנה לוי', reach: 'ok', selectable: true },
@@ -438,6 +456,125 @@ test.describe('temperature evidence', () => {
     await expect(r.locator('[data-rep-daily] tbody tr[data-verdict]')).toHaveCount(8);
     await expect(r.locator('[data-rep-paper] .sig > div')).toHaveCount(3); // manager name, signature, date
     await page.screenshot({ path: path.join(OUT, `p3-report-haccp-${test.info().project.name}.png`) });
+  });
+
+  // TEMPREP-295: the report dialog - the type switches freely both ways, an empty range is a plain state, the "every sample" switch.
+  async function openReport(page: Page) {
+    await install(page, phase3Units() as never);
+    const asked: URL[] = [];
+    page.on('request', (r) => { if (r.url().includes('/report/preview')) asked.push(new URL(r.url())); });
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    await page.locator('sw-app infra-temperature temp-detail [data-temp-report]').click();
+    const r = page.locator('sw-app infra-temperature temp-report');
+    await expect(r.locator('[data-rep-paper] .sig')).toBeVisible();
+    return { r, asked };
+  }
+  const pressed = (r: ReturnType<Page['locator']>, sel: string) => r.locator(sel).getAttribute('aria-pressed');
+
+  test('TEMPREP-295: the report type switches both ways and gives back the range and the signature it changed', async ({ page }) => {
+    const { r, asked } = await openReport(page);
+    const sig = r.locator('[data-rep-sig]');
+    await sig.uncheck();
+    await expect(r.locator('[data-rep-paper] .sig')).toHaveCount(0);
+    for (let round = 0; round < 2; round++) { // back and forth, twice
+      await r.locator('[data-rep-layout-btn="haccp"]').click();
+      await expect(r.locator('[data-rep-daily] tbody tr[data-verdict]')).toHaveCount(8);
+      await expect(r.locator('[data-rep-paper] h3')).toContainText('HACCP');
+      expect(await pressed(r, '[data-rep-range="month"]')).toBe('true'); // the month so far: it has data, last month may not
+      expect(await pressed(r, '[data-rep-range="24h"]')).toBe('false');
+      await expect(sig).toBeChecked(); // a compliance report always has the signature line
+      await expect(r.locator('[data-rep-paper] .sig > div')).toHaveCount(3);
+      await r.locator('[data-rep-layout-btn="standard"]').click();
+      await expect(r.locator('[data-rep-daily]')).toHaveCount(0);
+      await expect(r.locator('[data-rep-paper] h3')).not.toContainText('HACCP');
+      expect(await pressed(r, '[data-rep-layout-btn="standard"]')).toBe('true');
+      expect(await pressed(r, '[data-rep-range="24h"]')).toBe('true'); // what HACCP changed is given back
+      await expect(sig).not.toBeChecked();
+      await expect(r.locator('[data-rep-paper] .sig')).toHaveCount(0);
+    }
+    const last = asked[asked.length - 1];
+    expect(last.searchParams.get('layout')).toBeNull();
+    expect(last.searchParams.get('range')).toBe('24h');
+    expect(asked.some((u) => u.searchParams.get('layout') === 'haccp' && u.searchParams.get('range') === 'month')).toBe(true);
+  });
+
+  test('TEMPREP-295: a range the user chose inside HACCP is kept when he goes back to the regular report', async ({ page }) => {
+    const { r } = await openReport(page);
+    await r.locator('[data-rep-layout-btn="haccp"]').click();
+    await r.locator('[data-rep-range="prev_week"]').click();
+    await r.locator('[data-rep-layout-btn="standard"]').click();
+    expect(await pressed(r, '[data-rep-range="prev_week"]')).toBe('true');
+    await expect(r.locator('[data-rep-paper] h3')).not.toContainText('HACCP');
+  });
+
+  test('TEMPREP-295: a range with no data is one plain state for both types, never a table of dashes', async ({ page }) => {
+    const { r } = await openReport(page);
+    await r.locator('[data-rep-range="prev_month"]').click();
+    const empty = r.locator('[data-rep-paper] [data-rep-empty]');
+    await expect(empty).toBeVisible();
+    await expect(empty).toContainText('אין נתונים בטווח הזה');
+    await expect(r.locator('[data-rep-paper] .st')).toHaveCount(0);
+    await page.screenshot({ path: path.join(OUT, `temprep-empty-${test.info().project.name}.png`) });
+    await r.locator('[data-rep-layout-btn="haccp"]').click();
+    await expect(empty).toBeVisible();
+    await expect(r.locator('[data-rep-daily]')).toHaveCount(0);
+    await expect(r.locator('[data-rep-paper] .foot')).toContainText('sha256'); // still a signed, dated document
+    await expect(r.locator('[data-rep-export]')).toBeEnabled();
+    await r.locator('[data-rep-layout-btn="standard"]').click();
+    await r.locator('[data-rep-range="24h"]').click();
+    await expect(r.locator('[data-rep-paper] [data-rep-empty]')).toHaveCount(0);
+    await expect(r.locator('[data-rep-paper] .st')).toBeVisible();
+  });
+
+  test('TEMPREP-295: the "every sample" switch - off by default, a preview, the size guard, both types, in the export', async ({ page }) => {
+    const { r, asked } = await openReport(page);
+    const sw = r.locator('[data-rep-samples]');
+    await expect(sw).not.toBeChecked();
+    await expect(r.locator('[data-rep-samples-block]')).toHaveCount(0);
+    expect(asked.every((u) => u.searchParams.get('samples') === null)).toBe(true);
+    await sw.check();
+    await expect(r.locator('[data-rep-samples-table] tbody tr[data-out]')).toHaveCount(1);
+    await expect(r.locator('[data-rep-samples-table] tbody tr').first()).toContainText('4°');
+    await expect(r.locator('[data-rep-samples-block]')).toContainText('24');
+    await expect(r.locator('[data-rep-samples-cap]')).toHaveCount(0); // 24 samples: nothing capped
+    expect(asked[asked.length - 1].searchParams.get('samples')).toBe('1');
+    await r.locator('[data-rep-range="month"]').click(); // 43,200 samples: the PDF lists the first 5,000 and says so; the preview holds eight rows
+    await expect(r.locator('[data-rep-samples-cap]')).toContainText('5000');
+    await expect(r.locator('[data-rep-samples-cap]')).toContainText('43200');
+    expect(await r.locator('[data-rep-samples-table] tbody tr').count()).toBeLessThanOrEqual(9);
+    await r.locator('[data-rep-layout-btn="haccp"]').click(); // available for the compliance type too, with its signature line
+    await expect(r.locator('[data-rep-samples-table]')).toBeVisible();
+    await expect(r.locator('[data-rep-daily]')).toBeVisible();
+    await expect(r.locator('[data-rep-paper] .sig > div')).toHaveCount(3);
+    await r.locator('[data-rep-samples-block]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(OUT, `temprep-samples-${test.info().project.name}.png`) });
+    const pdf = page.waitForRequest((q) => q.url().includes('/report.pdf'));
+    await page.route('**/api/v1/infra/temperature/report.pdf**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'Content-Disposition': 'attachment; filename="temperature-haccp-20261021.pdf"' }, body: '%PDF-1.7 fake' }));
+    await r.locator('[data-rep-export]').click();
+    const q = new URL((await pdf).url()).searchParams;
+    expect(q.get('samples')).toBe('1');
+    expect(q.get('layout')).toBe('haccp');
+    await sw.uncheck();
+    await expect(r.locator('[data-rep-samples-block]')).toHaveCount(0);
+    expect(asked[asked.length - 1].searchParams.get('samples')).toBeNull();
+    if (test.info().project.name === 'mobile') { // 44px targets on a phone only
+      for (const sel of ['[data-rep-samples]', '[data-rep-sig]', '[data-rep-layout-btn="haccp"]', '[data-rep-range="month"]']) {
+        const box = await (sel.startsWith('[data-rep-samples') || sel === '[data-rep-sig]' ? r.locator(sel).locator('xpath=..') : r.locator(sel)).boundingBox();
+        expect(box!.height).toBeGreaterThanOrEqual(43.5);
+      }
+    }
+  });
+
+  test('TEMPREP-295: a custom range goes to the server as the installation\'s local time (no browser offset)', async ({ page }) => {
+    const { r, asked } = await openReport(page);
+    await r.locator('[data-rep-range="custom"]').click();
+    await r.locator('[data-rep-from]').fill('2026-10-01T00:00');
+    await r.locator('[data-rep-from]').dispatchEvent('change');
+    await r.locator('[data-rep-to]').fill('2026-10-21T00:00');
+    await r.locator('[data-rep-to]').dispatchEvent('change');
+    await expect.poll(() => asked.some((u) => u.searchParams.get('from') === '2026-10-01T00:00' && u.searchParams.get('to') === '2026-10-21T00:00')).toBe(true);
   });
 
   // owner 2026-10-20 (TEMPFIX): the detail drawer shows friendly sensor names only and never scrolls sideways, whatever the name lengths.
