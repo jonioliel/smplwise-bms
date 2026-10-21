@@ -118,7 +118,13 @@ test.describe('BV1 tiles', () => {
     await expect(bulk).toHaveAttribute('open', '', { timeout: 5000 });
     expect(await bulk.getAttribute('data-bulk-dialog')).not.toBe('closed');
     expect(st.actions.length).toBe(before);
+    // TESTDEBT4-295: let the (unmocked) preview request settle BEFORE closing. Escape while the dialog is still "loading" closes it, and the late
+    // preview error then re-opens it (devices-bulk.ts show() only checks that the request object is unchanged) - the dialog came back over the
+    // next click ("intercepts pointer events"), on about one run in a dozen. Wait for the settled phase, close, and prove it stays closed.
+    await expect(bulk).not.toHaveAttribute('data-bulk-dialog', 'loading');
     await page.keyboard.press('Escape');
+    await expect(bulk).toHaveAttribute('data-bulk-dialog', 'closed');
+    await expect(bulk).not.toHaveAttribute('open', '');
     // the agenda: sorted by start, the first is today's, the all-day one says so, the empty state is not shown
     const ev = widgets(page).locator('[data-home-widget="agenda"] [data-home-event]');
     expect(await ev.count()).toBe(3); // size m shows three of the four

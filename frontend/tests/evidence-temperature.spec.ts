@@ -196,6 +196,29 @@ function phase3Units() {
   ];
 }
 
+/**
+ * TESTDEBT4-295: a full-page screenshot resizes the viewport to the document height and captures; if the layout is still moving at that moment
+ * (a font swap, a finishing transition, the shell's late re-render) Chromium answers "Protocol error (Page.captureScreenshot): Unable to capture
+ * screenshot" - seen once in the 2.11.1 targeted run on the stale-infrastructure test and never again in isolation. So the page is taken only when
+ * it is settled: fonts loaded, no finite animation or transition running, and the document height identical over four consecutive frames.
+ * (Bounded by the test timeout; a page that never settles fails loudly instead of being shot mid-move.)
+ */
+async function shotFull(page: Page, file: string) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const running = () => document.getAnimations().some((a) => a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime as number));
+    let last = -1;
+    let same = 0;
+    while (same < 4) {
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      const h = document.documentElement.scrollHeight;
+      same = h === last && !running() ? same + 1 : 0;
+      last = h;
+    }
+  });
+  await page.screenshot({ path: file, fullPage: true });
+}
+
 const noOverflow = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
 test.describe('temperature evidence', () => {
@@ -216,7 +239,7 @@ test.describe('temperature evidence', () => {
       await expect(page.locator('sw-app infra-temperature [data-temp-new]')).toHaveCount(0); // add only in page edit mode
       await expect(page.locator('sw-app infra-temperature')).not.toContainText('sensor.'); // no technical ids on the operator screen
       await noOverflow(page);
-      await page.screenshot({ path: path.join(OUT, `grid-${test.info().project.name}-${scheme}.png`), fullPage: true });
+      await shotFull(page, path.join(OUT, `grid-${test.info().project.name}-${scheme}.png`));
     });
   }
 
@@ -247,7 +270,7 @@ test.describe('temperature evidence', () => {
     await page.locator('sw-app').getByRole('button', { name: /תפריט המשתמש/ }).click();
     await page.locator('[data-menu-screen-edit="temperature-edit"]').click();
     await expect(page.locator('sw-app infra-temperature [data-temp-add]')).toBeVisible();
-    await page.screenshot({ path: path.join(OUT, `edit-mode-${test.info().project.name}.png`), fullPage: true });
+    await shotFull(page, path.join(OUT, `edit-mode-${test.info().project.name}.png`));
     await page.locator('sw-app infra-temperature [data-temp-new]').click();
     const w = page.locator('sw-app infra-temperature temp-wizard');
     await expect(w.locator('[data-grp="climate"]')).toBeVisible(); // sensors AND climate entities, grouped
@@ -361,7 +384,7 @@ test.describe('temperature evidence', () => {
     await expect(page.locator('sw-app temp-log [data-temp-log-table] tbody tr')).toHaveCount(LOG.length);
     await expect(page.locator('sw-app temp-log [data-temp-csv]')).toBeVisible();
     await noOverflow(page);
-    await page.screenshot({ path: path.join(OUT, `log-${test.info().project.name}.png`), fullPage: true });
+    await shotFull(page, path.join(OUT, `log-${test.info().project.name}.png`));
   });
 
   test('stale infrastructure: grey values, a banner, nothing claimed healthy', async ({ page }) => {
@@ -370,7 +393,7 @@ test.describe('temperature evidence', () => {
     await page.goto(url('/infra/temperature'));
     await expect(page.locator('sw-app infra-temperature [data-temp-stale]')).toBeVisible();
     await expect(page.locator('sw-app infra-temperature [data-temp-kpi="ok"] b')).toHaveText('0');
-    await page.screenshot({ path: path.join(OUT, `stale-${test.info().project.name}.png`), fullPage: true });
+    await shotFull(page, path.join(OUT, `stale-${test.info().project.name}.png`));
   });
 
   test('empty: a manager sees the hint; edit mode offers the first unit', async ({ page }) => {
@@ -394,7 +417,7 @@ test.describe('temperature evidence', () => {
     await expect(s.locator('[data-temp-unit="u5"] [data-chip="maint"]')).toBeVisible();
     await expect(s.locator('[data-temp-unit="u3"] [data-chip="esc-e1"]')).toBeVisible();
     await noOverflow(page);
-    await page.screenshot({ path: path.join(OUT, `p3-grid-groups-${test.info().project.name}.png`), fullPage: true });
+    await shotFull(page, path.join(OUT, `p3-grid-groups-${test.info().project.name}.png`));
     await s.locator('[data-temp-floor="fm1"]').click();
     await expect(s.locator('[data-temp-unit]')).toHaveCount(1);
     await s.locator('[data-temp-floor=""]').click();
