@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from smplwise.db import Database, now_iso
 from smplwise.main import create_app
 from smplwise.services import messaging_runtime as mr
+import smplwise.services as services_pkg
 
 API = "/api/v1"
 URL = f"{API}/messaging/whatsapp"
@@ -34,7 +35,9 @@ def _define_unit(c, settings) -> None:
 
 def test_the_use_is_registered_by_application_start_without_any_temperature_route(settings, monkeypatch):
     """Forget the module (as in a fresh process where nothing temperature-related ran yet): building the app alone registers the use."""
+    was_imported = NAME in sys.modules
     monkeypatch.delitem(sys.modules, NAME, raising=False)
+    monkeypatch.delattr(services_pkg, "temperature_whatsapp", raising=False)  # "from .services import x" returns the package attribute without importing
     monkeypatch.setattr(mr, "_USE_PROVIDERS", [p for p in mr._USE_PROVIDERS if getattr(p, "__module__", "") != NAME])  # noqa: SLF001
     monkeypatch.setattr(mr, "_LABELS", {k: v for k, v in mr._LABELS.items() if k != "temperature"})  # noqa: SLF001
     monkeypatch.setattr(mr, "_MODULE_LABELS", {k: v for k, v in mr._MODULE_LABELS.items() if k != "temperature"})  # noqa: SLF001
@@ -42,7 +45,10 @@ def test_the_use_is_registered_by_application_start_without_any_temperature_rout
     create_app(settings)
     assert _joined()
     assert "temperature" in mr._MODULE_LABELS  # noqa: SLF001
-    sys.modules.pop(NAME, None)  # the join above went into this test's patched registry; let the next import (or monkeypatch's restore) start clean
+    if not was_imported:  # the join above went into this test's patched registry; the next import must register again in the real one
+        sys.modules.pop(NAME, None)
+        if hasattr(services_pkg, "temperature_whatsapp"):
+            delattr(services_pkg, "temperature_whatsapp")
 
 
 def test_the_use_is_hidden_while_the_module_is_off_and_shown_once_a_unit_is_defined(settings):
