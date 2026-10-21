@@ -39,10 +39,14 @@ export class MessagingPacingCard extends LitElement {
     .grow { flex: 1; }
     .waits { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--sw-s-2); inline-size: 100%; }
     .waits label { display: flex; flex-direction: column; gap: 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
-    .waits input { inline-size: 100%; min-inline-size: 0; }
-    .acct { border-block-start: 1px solid var(--sw-border); padding-block: var(--sw-s-2); }
+    .waits input { inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
+    .waits label { min-inline-size: 0; }
+    :host { display: block; min-inline-size: 0; }
+    .head strong { min-inline-size: 0; overflow-wrap: anywhere; }
+    .acct { min-inline-size: 0; border-block-start: 1px solid var(--sw-border); padding-block: var(--sw-s-2); }
     .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px var(--sw-s-3); margin-block-start: 6px; }
-    .kv div { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-sm); }
+    .kv div { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-sm); min-inline-size: 0; }
+    .kv span, .kv b { min-inline-size: 0; overflow-wrap: anywhere; }
     .kv b { font-variant-numeric: tabular-nums; }
     .ltr { direction: ltr; unicode-bidi: isolate; }
   `];

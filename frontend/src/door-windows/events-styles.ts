@@ -7,6 +7,7 @@ import { css } from 'lit';
 export const dweCss = css`
   :host { display: block; }
   section { display: grid; gap: 10px; }
+  p { overflow-wrap: anywhere; }
   h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: 700; color: var(--sw-text); }
   .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
   .card { display: grid; gap: 10px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); min-inline-size: 0; }
@@ -28,8 +29,9 @@ export const dweCss = css`
     font: inherit; padding: 6px 12px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); cursor: pointer;
   }
   .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
-  .doors { display: grid; gap: 4px; max-block-size: 260px; overflow: auto; padding: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
+  .doors { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; max-block-size: 260px; overflow: auto; padding: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); }
   .doors label, label.chk { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: var(--sw-r-sm); }
+  .doors label, .doors .st, label.chk { min-inline-size: 0; overflow-wrap: anywhere; }
   .doors .st { font-size: var(--sw-fs-xs); color: var(--sw-text-3); padding: 6px 6px 0; }
   .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
   .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
