@@ -7,7 +7,7 @@ import { ApiError, describeError } from '../api/client';
 import { can, canAnywhere, isApi } from '../api/session';
 import { attachRecovered, deletePersonNow, getIdentity, matchLink, pushName, unlinkPerson, type Identity } from '../api/access-grants';
 import { getAcPeople, type AcPerson } from '../api/access-people';
-import { evidenceRefOk } from './model';
+import { evidenceRefOk, mayOpenIdentityCard } from './model';
 import { xCss } from './styles';
 import { xt, type XtKey } from '../i18n/access-external';
 
@@ -86,8 +86,8 @@ export class AccessIdentityCard extends LitElement {
   }
 
   async load(): Promise<void> {
-    // the same gate as the server's (tickets.configure or the grant permission somewhere): nobody else is asked at all
-    if (!isApi() || !(canAnywhere('access.external.grant') || can('tickets.configure'))) {
+    // the same gate as the server's (tickets.configure, tickets.directory or the grant permission somewhere): nobody else is asked at all
+    if (!isApi() || !mayOpenIdentityCard(canAnywhere('access.external.grant'), can)) {
       this.data = null;
       this.absent = true;
       return;
