@@ -53,7 +53,7 @@ export interface BridgeKeyStatus {
   can_start: boolean;
   blocked_by: string | null;
   /** waiting_for_bridge | scheduled | idle | off - the automatic rotation (starts by itself once the bridge announces support). */
-  automatic: 'waiting_for_bridge' | 'scheduled' | 'idle' | 'off';
+  automatic: 'waiting_for_bridge' | 'awaiting_click' | 'scheduled' | 'idle' | 'off';
 }
 
 export const ACTIVE_STATES: readonly RotationState[] = ['prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring'];

@@ -55,6 +55,8 @@ const he = {
   autoWaiting: 'ממתין לעדכון הגשר. ההחלפה תתחיל מעצמה.',
   autoScheduled: 'ההחלפה תתחיל מעצמה בקרוב.',
   autoIdle: 'המפתח הוחלף. אין צורך בפעולה.',
+  autoAwaitClick: 'הגשר מוכן. החלפת המפתח הראשונה מתחילה בלחיצה אחת.',
+  startFirst: 'התחלת החלפה',
 };
 type Key = keyof typeof he;
 
@@ -108,6 +110,8 @@ const en: Partial<Record<Key, string>> = {
   autoWaiting: 'Waiting for the bridge update. The rotation starts by itself.',
   autoScheduled: 'The rotation will start by itself shortly.',
   autoIdle: 'The key has been rotated. Nothing to do.',
+  autoAwaitClick: 'The bridge is ready. The first key rotation starts with one click.',
+  startFirst: 'Start rotation',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -161,6 +165,8 @@ const ar: Partial<Record<Key, string>> = {
   autoWaiting: 'بانتظار تحديث الجسر. سيبدأ التبديل تلقائيًا.',
   autoScheduled: 'سيبدأ التبديل تلقائيًا قريبًا.',
   autoIdle: 'تم تبديل المفتاح. لا حاجة لأي إجراء.',
+  autoAwaitClick: 'الجسر جاهز. يبدأ أول تبديل للمفتاح بنقرة واحدة.',
+  startFirst: 'بدء التبديل',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -214,6 +220,8 @@ const ru: Partial<Record<Key, string>> = {
   autoWaiting: 'Ожидается обновление моста. Замена начнётся автоматически.',
   autoScheduled: 'Замена скоро начнётся автоматически.',
   autoIdle: 'Ключ заменён. Действий не требуется.',
+  autoAwaitClick: 'Мост готов. Первая замена ключа запускается одним нажатием.',
+  startFirst: 'Начать замену',
 };
 
 export type BktKey = Key;

@@ -17,9 +17,9 @@ the go-live permit, the peer's capability (announced by the bridge in its signed
 the router. Never logs or audits a key, salt, proof, nonce or signature.
 
 Activation slice (HMACACT-295, owner decision 2026-10-21): the key set is wired into `ha_bridge.sign/verify`; the permit is True in
-the SAME commit as that wiring. The rotation starts by itself (`worker_pass`, from `worker_loop`) once the bridge has announced
-`rotation_v1` AND the pairing secret has not been rotated yet (the first rotation moves the channel off the legacy secret) or the
-configured reminder interval has passed; it never starts without the peer's fresh announcement. Answer-binding (H-09): the answer to
+the SAME commit as that wiring. The FIRST rotation (off the legacy pairing secret) is started by one click of a system administrator (owner
+decision 2026-10-21, option A) once the bridge has announced `rotation_v1`; every LATER rotation starts by itself (`worker_pass`, from
+`worker_loop`) when the configured reminder interval has passed; nothing starts without the peer's fresh announcement. Answer-binding (H-09): the answer to
 `begin` / `abort` must be signed under K_cur, the answers to `commit` / `retire` / the post-switch probes under K_next. Repair (H-05)
 aligns Arx to K_next only after a probe under K_next succeeds. Rotation is hygiene, not leak recovery (H-03): suspect a leak -> re-pair."""
 from __future__ import annotations
@@ -646,23 +646,34 @@ def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = Non
 
 def automatic_state(conn: sqlite3.Connection, available: bool) -> str:
     """For the card: `waiting_for_bridge` (the bridge has not announced support - it needs the update), `scheduled` (will start by itself),
-    `idle` (nothing to do until the reminder interval), `off` (switch off)."""
+    `awaiting_click` (the bridge is ready; the FIRST rotation needs one click of a system administrator), `idle` (nothing to do until the
+    reminder interval), `off` (switch off)."""
     if mode(conn) != "on" or not go_live_permitted():
         return "off"
     if not available:
         return "waiting_for_bridge"
+    if first_rotation_pending(conn):
+        return "awaiting_click"
     return "scheduled" if auto_wanted(conn) else "idle"
 
 
-def auto_wanted(conn: sqlite3.Connection, now: float | None = None) -> bool:
-    """Whether a rotation SHOULD run now: the channel still runs on the legacy pairing secret (the first rotation retires it), or the
-    configured reminder interval has passed. Says nothing about the guards (`auto_due` has them)."""
+def first_rotation_pending(conn: sqlite3.Connection) -> bool:
+    """The channel still runs on the legacy pairing secret: the first rotation (which retires it) is the administrator's click (owner decision 2026-10-21)."""
     if not _has_tables(conn):
         return False
     cur = conn.execute("SELECT kid FROM bridge_keys WHERE state = 'current'").fetchone()
     if cur is None:
         return bool(get_setting(conn, "bridge.secret")) and bool(get_setting(conn, "bridge.paired_at"))
-    return cur["kid"] == bk.LEGACY_KID or reminder_due(conn, now)
+    return cur["kid"] == bk.LEGACY_KID
+
+
+def auto_wanted(conn: sqlite3.Connection, now: float | None = None) -> bool:
+    """Whether the WORKER should start a rotation now: only a LATER rotation - the configured reminder interval has passed. The first rotation
+    (the channel still on the legacy pairing secret) is never started by the worker: it needs the administrator's click. Says nothing about
+    the guards (`auto_due` has them)."""
+    if not _has_tables(conn) or first_rotation_pending(conn):
+        return False
+    return reminder_due(conn, now)
 
 
 def _backoff_s(conn: sqlite3.Connection) -> tuple[float, float | None]:

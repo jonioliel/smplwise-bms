@@ -166,19 +166,36 @@ def test_full_rotation_real_keyset_both_directions(world):
     assert ks.verify(dict(old)) == "bad_signature" and not _raw_message_ok(w, old)
 
 
-def test_routine_rotation_retires_through_the_worker_and_the_peer_cap(world):
+def test_first_rotation_waits_for_the_click_and_later_ones_start_by_themselves(world):
     w, ks, clock = world, world["ks"], world["clock"]
     _announce(w)
     peer = _bridge_peer(w)
-    first = br.worker_pass(w["db"], w["settings"], peer, now=clock)
-    assert first and first["state"] == "switched", first
+    # owner decision 2026-10-21 (option A): the bridge announced support, the switch is on - and still nothing starts without the click
+    assert br.worker_pass(w["db"], w["settings"], peer, now=clock) is None
+    assert ks.rotation is None and ks.signing == bk.LEGACY_KID
+    with w["db"].connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM bridge_keys").fetchone()[0] == 0 and ha_bridge.signing_key(conn) == LEGACY
+    view = w["c"].get("/api/v1/system/bridge-key").json()
+    assert view["peer_available"] is True and view["automatic"] == "awaiting_click" and view["can_start"] is True
+    # the click: a system administrator starts the first rotation (the existing manual start; the worker then retires the old key)
+    first = _engine(w, peer).start(None, "routine")
+    assert first["state"] == "switched", first
     assert ks.old == bk.LEGACY_KID and ks.legacy is not None  # the overlap: both keys on the bridge
     clock.advance(95)
     done = br.worker_pass(w["db"], w["settings"], peer, now=clock)
     assert done["state"] == "verified", done
     assert ks.old is None and ks.legacy is None
-    # nothing further starts by itself: the channel is off the legacy secret and no reminder is configured
+    # nothing further while no reminder interval is configured
     assert br.worker_pass(w["db"], w["settings"], peer, now=clock) is None
+    # later rotations are automatic: the interval passes -> the worker starts one by itself (audited as automatic)
+    with w["db"].connection() as conn:
+        set_setting(conn, br.REMINDER_KEY, "30")
+    assert br.worker_pass(w["db"], w["settings"], peer, now=clock) is None  # not yet due
+    clock.advance(31 * 86400)
+    second = br.worker_pass(w["db"], w["settings"], peer, now=clock)
+    assert second and second["state"] == "switched" and second["gen_to"] == 2, second
+    with w["db"].connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'bridge.rotation.requested' AND reason = 'automatic'").fetchone()[0] == 1
 
 
 def test_automatic_start_needs_the_peer_announcement_and_the_switch(world):
@@ -197,21 +214,29 @@ def test_automatic_start_needs_the_peer_announcement_and_the_switch(world):
         set_setting(conn, br.FLAG_KEY, "off")
     assert br.worker_pass(w["db"], w["settings"], _bridge_peer(w), now=clock) is None
     assert not called
+    # the click is refused while the switch is off, and without a fresh announcement
+    with pytest.raises(br.RotationRefused) as exc:
+        _engine(w, _bridge_peer(w)).start(None, "routine")
+    assert exc.value.code == "rotation_off"
     with w["db"].connection() as conn:
         set_setting(conn, br.FLAG_KEY, "on")
-    assert br.worker_pass(w["db"], w["settings"], _bridge_peer(w), now=clock) is not None
-    # a stale announcement is not believed
-    with w["db"].connection() as conn:
-        set_setting(conn, peers.SETTING_CAP_AT, "2026-01-01T00:00:00Z")
+        set_setting(conn, peers.SETTING_CAP_AT, "2026-01-01T00:00:00Z")  # a stale announcement is not believed
         assert peers.announced_capability(conn) is None
+    with pytest.raises(br.RotationRefused) as exc:
+        _engine(w, _bridge_peer(w)).start(None, "routine")
+    assert exc.value.code == "peer_unavailable"
 
 
 def test_failed_automatic_attempt_backs_off(world):
     w, clock = world, world["clock"]
     _announce(w)
     fake = FakePeer(LEGACY, clock)
-    fake.fail["begin"] = "reject"
     p = peers.HaServicePeer(w["db"], w["settings"], call_service=lambda s, d, sv, data, return_response=False, timeout=0: fake.call(data["op"], data))
+    assert _engine(w, p).start(None, "hard_cut")["state"] == "verified"  # the first rotation: the administrator's click
+    with w["db"].connection() as conn:
+        set_setting(conn, br.REMINDER_KEY, "30")
+    clock.advance(31 * 86400)
+    fake.fail["begin"] = "reject"
     r = br.worker_pass(w["db"], w["settings"], p, now=clock)
     assert r and r["state"] == "rolled_back"
     fake.fail.clear()

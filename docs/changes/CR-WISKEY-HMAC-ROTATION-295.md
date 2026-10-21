@@ -251,3 +251,6 @@ remain valid for `g0-legacy`); when the bridge offers those services it must use
 ### 15.1 Fable review 2 follow-up (HA-01, HA-02)
 - HA-01: `keyset.handle_control` answers a message that did not verify with an UNSIGNED refusal (no signing oracle for a Home Assistant user who can call services); `/ha/bridge/directory` refuses (422 `bridge_bad_request`) a body with `protocol` / `op` or without a `users` list, before any deactivation.
 - HA-02: the three re-pair situations (rollback that cannot align, restore to another host or loss of the key file, Home Assistant restored from a pre-rotation backup = pre-rotation backup case) are in the user guide `84-bridge-key_HE.md`; the first rotation is automatic and can be switched off on the card.
+
+### 15.2 Owner decision 2026-10-21 (option A): the first rotation is one click
+The worker never starts the FIRST rotation (channel still on the legacy pairing secret): the card shows one line and one button (`awaiting_click`) once the bridge announced support; the click is the existing manual start (`POST /system/bridge-key/rotations`, system administrator). Every later rotation is started by the worker when the reminder interval has passed (default interval 0 = none, so choose an interval on the card to make later rotations automatic).
