@@ -24,7 +24,7 @@ from typing import Any, Callable, Iterable, Mapping
 from urllib.parse import urlsplit
 
 OPS = ("play", "stop", "off")
-BASE_KEYS = frozenset({"user_id", "op", "entity_id", "request_id", "ts", "nonce", "sig"})
+BASE_KEYS = frozenset({"user_id", "op", "entity_id", "request_id", "ts", "nonce", "sig"})  # + an optional "kid" (0.9.5, a v2 signature)
 OP_KEYS = {"play": frozenset({"url", "title"}), "stop": frozenset(), "off": frozenset()}
 CAST_PLATFORM = "cast"
 ENTITY_RE = re.compile(r"^media_player\.[a-z0-9_]{1,200}$")
@@ -96,7 +96,7 @@ def refusal(msg: Mapping[str, Any], platform_of: Platform, origin: Any, local_ad
     op = msg.get("op")
     if op not in OPS:
         return "cast_op_refused"
-    keys = set(map(str, msg))
+    keys = set(map(str, msg)) - {"kid"}
     if not BASE_KEYS <= keys or keys - BASE_KEYS - OP_KEYS[op]:
         return "invalid_request"
     entity_id = msg.get("entity_id")

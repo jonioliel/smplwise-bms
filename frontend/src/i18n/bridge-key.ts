@@ -46,11 +46,17 @@ const he = {
   // why the buttons are disabled
   bl_rotation_off: 'ההחלפה כבויה',
   bl_rotation_not_permitted: 'דורש אישור הפעלה מבעל המערכת',
-  bl_peer_unavailable: 'הגשר אינו תומך עדיין',
+  bl_peer_unavailable: 'הגשר טרם עודכן',
   bl_rotation_in_progress: 'החלפה מתבצעת',
   bl_repair_required: 'יש להשלים החלפה קודמת',
   bl_key_unreadable: 'המפתח אינו קריא במכונה זו',
   bl_not_paired: 'הגשר לא צומד',
+  hygieneNote: 'החלפת מפתח היא תחזוקה שוטפת בלבד, לא טיפול בדליפה. חושדים שהמפתח דלף? יש לבצע צימוד מחדש.',
+  autoWaiting: 'ממתין לעדכון הגשר. ההחלפה תתחיל מעצמה.',
+  autoScheduled: 'ההחלפה תתחיל מעצמה בקרוב.',
+  autoIdle: 'המפתח הוחלף. אין צורך בפעולה.',
+  autoAwaitClick: 'הגשר מוכן. החלפת המפתח הראשונה מתחילה בלחיצה אחת.',
+  startFirst: 'התחלת החלפה',
 };
 type Key = keyof typeof he;
 
@@ -95,11 +101,17 @@ const en: Partial<Record<Key, string>> = {
   st_needs_repair: 'Re-pairing required',
   bl_rotation_off: 'Rotation is off',
   bl_rotation_not_permitted: 'Needs the owner’s activation permit',
-  bl_peer_unavailable: 'The bridge does not support it yet',
+  bl_peer_unavailable: 'The bridge has not been updated yet',
   bl_rotation_in_progress: 'A rotation is running',
   bl_repair_required: 'Finish the previous rotation first',
   bl_key_unreadable: 'The key cannot be read on this machine',
   bl_not_paired: 'The bridge is not paired',
+  hygieneNote: 'Key rotation is routine hygiene only, not a fix for a leak. If you suspect the key leaked, re-pair the bridge.',
+  autoWaiting: 'Waiting for the bridge update. The rotation starts by itself.',
+  autoScheduled: 'The rotation will start by itself shortly.',
+  autoIdle: 'The key has been rotated. Nothing to do.',
+  autoAwaitClick: 'The bridge is ready. The first key rotation starts with one click.',
+  startFirst: 'Start rotation',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -144,11 +156,17 @@ const ar: Partial<Record<Key, string>> = {
   st_needs_repair: 'يلزم إعادة الاقتران',
   bl_rotation_off: 'التبديل متوقف',
   bl_rotation_not_permitted: 'يحتاج إلى إذن تشغيل من المالك',
-  bl_peer_unavailable: 'الجسر لا يدعمه بعد',
+  bl_peer_unavailable: 'لم يتم تحديث الجسر بعد',
   bl_rotation_in_progress: 'يجري تبديل',
   bl_repair_required: 'أكمل التبديل السابق أولًا',
   bl_key_unreadable: 'لا يمكن قراءة المفتاح على هذا الجهاز',
   bl_not_paired: 'الجسر غير مقترن',
+  hygieneNote: 'تبديل المفتاح صيانة دورية فقط وليس علاجًا لتسرّب. إذا اشتبهت بتسرّب المفتاح فأعد اقتران الجسر.',
+  autoWaiting: 'بانتظار تحديث الجسر. سيبدأ التبديل تلقائيًا.',
+  autoScheduled: 'سيبدأ التبديل تلقائيًا قريبًا.',
+  autoIdle: 'تم تبديل المفتاح. لا حاجة لأي إجراء.',
+  autoAwaitClick: 'الجسر جاهز. يبدأ أول تبديل للمفتاح بنقرة واحدة.',
+  startFirst: 'بدء التبديل',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -193,11 +211,17 @@ const ru: Partial<Record<Key, string>> = {
   st_needs_repair: 'Нужно повторное сопряжение',
   bl_rotation_off: 'Замена выключена',
   bl_rotation_not_permitted: 'Нужно разрешение владельца на включение',
-  bl_peer_unavailable: 'Мост пока не поддерживает',
+  bl_peer_unavailable: 'Мост ещё не обновлён',
   bl_rotation_in_progress: 'Идёт замена',
   bl_repair_required: 'Сначала завершите прошлую замену',
   bl_key_unreadable: 'Ключ не читается на этой машине',
   bl_not_paired: 'Мост не сопряжён',
+  hygieneNote: 'Замена ключа - это только плановая гигиена, а не лечение утечки. Если вы подозреваете утечку ключа, выполните повторное сопряжение моста.',
+  autoWaiting: 'Ожидается обновление моста. Замена начнётся автоматически.',
+  autoScheduled: 'Замена скоро начнётся автоматически.',
+  autoIdle: 'Ключ заменён. Действий не требуется.',
+  autoAwaitClick: 'Мост готов. Первая замена ключа запускается одним нажатием.',
+  startFirst: 'Начать замену',
 };
 
 export type BktKey = Key;

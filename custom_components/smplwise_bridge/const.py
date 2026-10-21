@@ -1,6 +1,10 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.9.4"
+VERSION = "0.9.5"
+# 0.9.5 (HMACACT-295, the activation slice of CR-WISKEY-HMAC-ROTATION-295): the bridge holds a key set (keyset.py) instead of the bare pairing secret
+# and answers the add-on's key-rotation control messages (the `rotate` service; signature v2 with a key id). Until the add-on starts a rotation
+# everything is byte-identical to 0.9.4 (kid-less, the pairing secret), so an add-on updated before or after this bridge keeps working. Needs one
+# Home Assistant restart (by the owner) - the same single restart that loads 0.9.4 when 0.9.4 has not been loaded yet.
 # 0.9.4 (EXTID-295, CR-USR2 12.4 item 4 / 12.3 item 3): the runnable allowlist is picked in the options flow (a multi-entity picker of
 # scripts / scenes / automations) instead of typed; the stored list and every check are unchanged. The options-flow text states the
 # entity-policy residual risk. 0.9.3 stays reserved for the key-rotation branch (WXROT). Needs one Home Assistant restart (by the owner).
@@ -17,6 +21,8 @@ CONF_PAIRING_CODE = "pairing_code"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
 SERVICE_EXECUTE = "execute"
 SERVICE_SYNC = "sync_directory"
+# 0.9.5 (HMACACT-295): the add-on's signed key-rotation control messages (keyset.py).
+SERVICE_ROTATE = "rotate"
 # 0.2.5 (CR-007 slice 4): the one registry (config) write this product ever makes - move an entity to an HA area.
 SERVICE_SET_AREA = "set_entity_area"
 # 0.3.0 (CR-014): signed writes to the Scheduler component (docs/architecture/SCHEDULER_API.md section 8).

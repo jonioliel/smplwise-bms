@@ -24,7 +24,7 @@ from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
-from ..services import bridge_install, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
+from ..services import bridge_install, bridge_rotation_peer as peer_mod, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import service_identity
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
@@ -76,7 +76,7 @@ def status(request: Request, principal: Principal = Depends(current_principal), 
     return {
         "configured": ha_client.configured(settings),
         "sync": ha_sync.STATE.as_dict(),
-        "bridge": {"paired": bool(get_setting(conn, "bridge.secret")) and bool(paired_at), "paired_at": paired_at, "directory_users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0], "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
+        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0], "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
         "integration": bridge_install.status(conn=conn),
         "can_configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
     }
@@ -632,13 +632,15 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
         _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
         audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
     host = socket.gethostname()
-    return {"pairing_code": secret, "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": get_setting(conn, "bridge.paired_at") or None}
+    if regenerate:
+        peer_mod.clear_capability(conn)  # a new pairing: the bridge must announce again
+    return {"pairing_code": secret, "key_set": ha_bridge.key_set_adopted(conn), "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": get_setting(conn, "bridge.paired_at") or None}
 
 
 @router.post("/ha/bridge/ping")
 def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
-    ha_bridge.verify(ha_bridge.signing_key(conn), message)
+    ha_bridge.verify_message(conn, message)
     _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: (re-)paired - every capture lease goes, a new stream
     set_setting(conn, "bridge.paired_at", now_iso())
     set_setting(conn, "bridge.integration_version", str(message.get("version") or ""))
@@ -649,7 +651,12 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_
 @router.post("/ha/bridge/directory")
 def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
-    ha_bridge.verify(ha_bridge.signing_key(conn), message)
+    ha_bridge.verify_message(conn, message)
+    # HA-01: a directory push is a user list and nothing else - a key-rotation control body (or any body without a `users` list) signed with a
+    # live key must never reach the deactivation below (a missing list would read as "nobody exists" and switch every operator off)
+    if message.get("protocol") is not None or message.get("op") is not None or not isinstance(message.get("users"), list):
+        raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
+    peer_mod.note_capability(conn, message.get("rotation"))  # HMACACT-295: the bridge (0.9.5+) announces its key-rotation support in the signed push
     users = message.get("users") or []
     now = now_iso()
     # USR2 R11: an id of the Arx-only form (`l_...`) is never a Home Assistant user - a push naming one is ignored for it, so the

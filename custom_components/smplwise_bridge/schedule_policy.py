@@ -27,7 +27,7 @@ OPS_ON_EXISTING = frozenset({"edit", "remove", "copy", "run", "enable", "disable
 # the signed message; anything else is refused (the signature covers every key, so an unknown key is never innocent)
 MESSAGE_KEYS = frozenset({
     "user_id", "op", "request_id", "schedule_id", "schedule_entity_id", "payload", "name", "time", "skip_conditions",
-    "sensitive", "ts", "nonce", "sig",
+    "sensitive", "ts", "nonce", "sig", "kid",
 })
 
 # ---------------------------------------------------------------- closed schemas (contract 8.3 item 3)

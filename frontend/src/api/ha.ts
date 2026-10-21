@@ -166,7 +166,7 @@ export function listEntities(opts: { domain?: string; q?: string; area?: string;
 }
 export const getEntity = (entityId: string) => get<HaEntity>(`ha/entities/${encodeURIComponent(entityId)}`);
 export const haStatus = () => get<HaStatus>('ha/status');
-export const bridgePairing = (regenerate = false) => get<{ pairing_code: string; addon_host: string; addon_url: string; paired_at: string | null }>(`ha/bridge/pairing${regenerate ? '?regenerate=true' : ''}`);
+export const bridgePairing = (regenerate = false) => get<{ pairing_code: string | null; key_set?: boolean; addon_host: string; addon_url: string; paired_at: string | null }>(`ha/bridge/pairing${regenerate ? '?regenerate=true' : ''}`);
 export const getAction = (id: string) => get<HaActionRecord>(`ha/actions/${id}`);
 export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install');
 

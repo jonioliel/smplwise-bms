@@ -16,6 +16,7 @@ from typing import Any
 from ..db import get_setting
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import alarm as alarm_svc
+from . import bridge_keys as bk
 from . import devices as dsvc
 from . import ha_scope, ha_sync
 from . import schedule_model as model
@@ -480,7 +481,7 @@ def _write_state(conn: sqlite3.Connection, cfg: dict[str, Any]) -> tuple[bool, s
         return False, "component_missing"
     if avail in ("ha_unavailable", "not_configured", "error"):
         return False, "ha_unavailable"
-    if not get_setting(conn, "bridge.secret"):
+    if not bk.paired_secret(conn):
         return False, "bridge_missing"
     if not get_setting(conn, "bridge.paired_at"):
         return False, "bridge_unpaired"

@@ -651,14 +651,15 @@ def test_no_key_material_in_audit_logs_or_answers(world, caplog):
     assert "bridge.rotation.verified" in audit_text and "bridge.rotation.rolled_back" in audit_text
 
 
-def test_go_live_permits_stay_false_in_the_build():
-    src = Path(br.__file__).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False\n" in src
+def test_go_live_permits_other_than_the_bridge_rotation_stay_false_in_the_build():
+    # HMACACT-295: the bridge-key permit is True (owner decision 2026-10-21, same commit as the wiring); the WisKey permits are untouched
+    assert "\nGO_LIVE_PERMITTED = True\n" in Path(br.__file__).read_text(encoding="utf-8")
     assert "\nGO_LIVE_PERMITTED = False\n" in Path(access_grants.__file__).read_text(encoding="utf-8")
     assert "\nGO_LIVE_PERMITTED = False\n" in Path(capture_lease.__file__).read_text(encoding="utf-8")
     assert isinstance(peers.UnavailablePeer().capabilities(), dict) and peers.UnavailablePeer().capabilities()["rotation"] is None
 
 
-def test_the_rotation_module_has_no_timer_that_starts_a_rotation():
+def test_only_the_worker_starts_a_rotation_by_itself():
     src = Path(br.__file__).read_text(encoding="utf-8")
-    assert "threading.Timer" not in src and "Thread(" not in src and "sched" not in src.split("import")[0]
+    assert "threading.Timer" not in src and "Thread(" not in src
+    assert src.count("engine.start(None") == 1 and "def worker_pass" in src and "auto_due(conn" in src

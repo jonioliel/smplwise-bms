@@ -12,8 +12,16 @@ Rollback: R1 before the switch (abort under K_cur, K_next discarded; K_cur never
 K_cur accepted -> switch back; else `needs_repair`, both keys kept sealed). Every step is committed BEFORE the next peer call, so the
 recovery table in `tick` resolves any crash point. One rotation at a time (process lock + partial unique index).
 
-Guards: the switch `bridge.key_rotation` (`off` default; `on` refused while GO_LIVE_PERMITTED is False), the peer's capability, the
-system administrator check in the router. Never logs or audits a key, salt, proof, nonce or signature."""
+Guards: the switch `bridge.key_rotation` (`on` by default since the activation slice, HMACACT-295; an administrator may turn it off),
+the go-live permit, the peer's capability (announced by the bridge in its signed directory push), the system administrator check in
+the router. Never logs or audits a key, salt, proof, nonce or signature.
+
+Activation slice (HMACACT-295, owner decision 2026-10-21): the key set is wired into `ha_bridge.sign/verify`; the permit is True in
+the SAME commit as that wiring. The FIRST rotation (off the legacy pairing secret) is started by one click of a system administrator (owner
+decision 2026-10-21, option A) once the bridge has announced `rotation_v1`; every LATER rotation starts by itself (`worker_pass`, from
+`worker_loop`) when the configured reminder interval has passed; nothing starts without the peer's fresh announcement. Answer-binding (H-09): the answer to
+`begin` / `abort` must be signed under K_cur, the answers to `commit` / `retire` / the post-switch probes under K_next. Repair (H-05)
+aligns Arx to K_next only after a probe under K_next succeeds. Rotation is hygiene, not leak recovery (H-03): suspect a leak -> re-pair."""
 from __future__ import annotations
 
 import base64
@@ -35,8 +43,10 @@ from . import bridge_rotation_peer as peers
 log = logging.getLogger("smplwise.bridge_rotation")
 
 # The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be set to `on`
-# and no rotation starts. Flipped only by the commit carrying the owner's written permit after the Fable security review.
-GO_LIVE_PERMITTED = False
+# and no rotation starts. Flipped by the activation slice (HMACACT-295): the owner's explicit decision 2026-10-21 (option A, "complete the
+# rotation end to end and activate it"), after the Fable security review (docs/security/FABLE_REVIEW_REPORT_2026-10-21.md section 4), in
+# the SAME commit that wired the key set into ha_bridge.sign/verify - never in a release of its own.
+GO_LIVE_PERMITTED = True
 
 FLAG_KEY = "bridge.key_rotation"
 REMINDER_KEY = "bridge.key_rotation.reminder_days"
@@ -52,6 +62,10 @@ ACTIVE = ("prepared", "publishing", "published", "confirmed", "switching", "swit
 PRE_SWITCH = ("prepared", "publishing", "published", "confirmed")
 TERMINAL = ("verified", "verify_failed", "rolled_back", "retired")
 OLD_GONE = ("key_retired", "key_unknown", "bad_signature", "key_expired")  # what the peer may answer for a probe under the old key
+AUTO_RETRY_S = 3600          # after a failed automatic attempt: wait this long, doubled per consecutive failure (max a day)
+AUTO_MAX_WAIT_S = 86400
+WORKER_IDLE_S = 60.0
+WORKER_BUSY_S = 5.0
 
 
 class RotationRefused(Exception):
@@ -66,8 +80,9 @@ def go_live_permitted() -> bool:
 
 
 def mode(conn: sqlite3.Connection) -> str:
+    """`on` unless an administrator turned it off (activation slice: the default is on - the rotation then needs no manual step)."""
     try:
-        return "on" if (get_setting(conn, FLAG_KEY) or "off") == "on" else "off"
+        return "off" if get_setting(conn, FLAG_KEY) == "off" else "on"
     except sqlite3.Error:
         return "off"
 
@@ -133,12 +148,14 @@ def public(row: dict[str, Any]) -> dict[str, Any]:
 class Engine:
     """One engine per call site (router, tests). `now` is the wall clock (injectable for fake time)."""
 
-    def __init__(self, db: Database, data_dir: Path, peer: peers.Peer | None = None, now: Callable[[], float] = time.time) -> None:
+    def __init__(self, db: Database, data_dir: Path, peer: peers.Peer | None = None, now: Callable[[], float] = time.time,
+                 settings: Any = None) -> None:
         self.db = db
         self.data_dir = data_dir
-        self.peer = peer or peers.get_peer()
+        self.peer = peer or peers.get_peer(db, settings)
         self.now = now
         self.actor: Any = None
+        self.automatic = False  # started by the worker (audited as such), not by an administrator
 
     # ------------------------------------------------------------ persistence helpers
 
@@ -163,9 +180,12 @@ class Engine:
         conn.execute(f"UPDATE bridge_rotations SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", (*sets.values(), rot["id"]))
         return rotation_row(conn, rot["id"]) or rot
 
-    def _call(self, op: str, kid: str, material: str, rot: dict[str, Any], **fields: Any) -> dict[str, Any]:
+    def _call(self, op: str, kid: str, material: str, rot: dict[str, Any], expect: tuple[str, ...] | None = None, unsigned_refusal_ok: bool = False, **fields: Any) -> dict[str, Any]:
         """Sign one control message and verify the peer's answer. Raises PeerUnreachable (no answer) or returns the answer, with
-        `ok` False and a closed `code` for a refusal and `peer_bad_answer` for an answer that does not verify / bind."""
+        `ok` False and a closed `code` for a refusal and `peer_bad_answer` for an answer that does not verify / bind. `expect` (H-09)
+        names the keys the answer may be signed with - `begin` / `abort` / the pre-switch probes under K_cur, `commit` / `retire` and
+        the post-switch probes under K_next; without it either of the rotation's two keys is accepted (`status`). The answer carries
+        `signed_by` (the kid it verified under)."""
         body = {"protocol": PROTOCOL, "op": op, "rotation_id": rot["id"], **fields}
         msg = bk.sign_with(kid, material, body, ts=int(self.now()))
         answer = self.peer.call(op, msg)
@@ -175,15 +195,22 @@ class Engine:
             with self.db.connection(mode="read") as conn:
                 signed_by = bk.verify(conn, self.data_dir, answer, now=self.now())
         except bk.VerifyError:
+            # HA-01: the bridge answers a message that did not verify with an UNSIGNED refusal. For the one probe whose whole point is that the old
+            # key no longer verifies (V1c), that refusal is the expected answer; everywhere else an unsigned answer is a bad answer
+            code = answer.get("code")
+            if (unsigned_refusal_ok and answer.get("ok") is False and "sig" not in answer and isinstance(code, str) and code in OLD_GONE):
+                return {"ok": False, "code": code, "unsigned": True}
             return {"ok": False, "code": "peer_bad_answer"}
         if answer.get("protocol") != PROTOCOL or answer.get("op") != op or answer.get("rotation_id") != rot["id"] or answer.get("reply_to") != msg["nonce"]:
             return {"ok": False, "code": "peer_bad_answer"}
-        if signed_by not in (rot["kid_from"], rot["kid_to"]):
+        # H-09 binds a SUCCESS: only an answer that says `ok` can switch, wipe or align anything, so only that one must come from the
+        # key the step's phase calls for. A refusal under either of the rotation's keys just rolls the step back.
+        if signed_by not in ((expect or (rot["kid_from"], rot["kid_to"])) if answer.get("ok") is True else (rot["kid_from"], rot["kid_to"])):
             return {"ok": False, "code": "peer_bad_answer"}
         if answer.get("ok") is not True:
             code = answer.get("code")
-            return {**answer, "ok": False, "code": code if isinstance(code, str) and code.isidentifier() and len(code) <= 40 else "peer_rejected"}
-        return answer
+            return {**answer, "ok": False, "code": code if isinstance(code, str) and code.isidentifier() and len(code) <= 40 else "peer_rejected", "signed_by": signed_by}
+        return {**answer, "signed_by": signed_by}
 
     def _material(self, kid: str) -> str | None:
         with self.db.connection(mode="read") as conn:
@@ -246,7 +273,7 @@ class Engine:
             rot = rotation_row(conn, rot_id)
             assert rot is not None
             rot = self._step(conn, rot, "prepared", "prepare")
-            self._audit(conn, "bridge.rotation.requested", "allowed", rot)
+            self._audit(conn, "bridge.rotation.requested", "allowed", rot, reason="automatic" if self.automatic else None)
             self._audit(conn, "bridge.rotation.prepared", "allowed", rot, step="prepare")
         return self._publish(rot, salt)
 
@@ -260,7 +287,7 @@ class Engine:
         if cur_m is None or next_m is None:
             return self._rollback(rot, "key_unreadable")
         try:
-            ans = self._call("begin", rot["kid_from"], cur_m, rot, kid_next=rot["kid_to"], gen_next=rot["gen_to"],
+            ans = self._call("begin", rot["kid_from"], cur_m, rot, expect=(rot["kid_from"],), kid_next=rot["kid_to"], gen_next=rot["gen_to"],
                              salt=base64.b64encode(salt).decode("ascii"), overlap_s=rot["overlap_s"], mode=rot["mode"])
         except peers.PeerUnreachable:
             return self._rollback(rot, "peer_unreachable")
@@ -275,9 +302,10 @@ class Engine:
             self._audit(conn, "bridge.rotation.published", "allowed", rot, step="publish")
         return self._confirm(rot)
 
-    def _probe(self, rot: dict[str, Any], kid: str, material: str) -> tuple[bool, str | None]:
+    def _probe(self, rot: dict[str, Any], kid: str, material: str, answered_by: str | None = None, unsigned_refusal_ok: bool = False) -> tuple[bool, str | None]:
+        """A probe signed with `kid`. `answered_by` (H-09) is the key the peer must answer with: K_cur before the switch, K_next after it."""
         try:
-            ans = self._call("probe", kid, material, rot)
+            ans = self._call("probe", kid, material, rot, expect=(answered_by,) if answered_by else None, unsigned_refusal_ok=unsigned_refusal_ok)
         except peers.PeerUnreachable:
             return False, "peer_unreachable"
         return (True, None) if ans["ok"] else (False, ans["code"])
@@ -286,10 +314,10 @@ class Engine:
         cur_m, next_m = self._material(rot["kid_from"]), self._material(rot["kid_to"])
         if cur_m is None or next_m is None:
             return self._rollback(rot, "key_unreadable")
-        ok, code = self._probe(rot, rot["kid_to"], next_m)
+        ok, code = self._probe(rot, rot["kid_to"], next_m, rot["kid_from"])
         if not ok:
             return self._rollback(rot, f"probe_next_failed:{code}")
-        ok, code = self._probe(rot, rot["kid_from"], cur_m)
+        ok, code = self._probe(rot, rot["kid_from"], cur_m, rot["kid_from"])
         if not ok:
             return self._rollback(rot, f"probe_current_failed:{code}")
         with self.db.write_aside() as conn:
@@ -310,7 +338,7 @@ class Engine:
         with self.db.write_aside() as conn:
             rot = self._step(conn, rot, "switching", "commit_sent")
         try:
-            ans = self._call("commit", rot["kid_to"], next_m, rot)
+            ans = self._call("commit", rot["kid_to"], next_m, rot, expect=(rot["kid_to"],))
         except peers.PeerUnreachable:
             return self._unknown_commit(rot)
         if not ans["ok"]:
@@ -339,7 +367,7 @@ class Engine:
 
     def _after_switch(self, rot: dict[str, Any]) -> dict[str, Any]:
         next_m = self._material(rot["kid_to"])
-        ok, code = (False, "key_unreadable") if next_m is None else self._probe(rot, rot["kid_to"], next_m)
+        ok, code = (False, "key_unreadable") if next_m is None else self._probe(rot, rot["kid_to"], next_m, rot["kid_to"])
         if not ok:
             return self._switch_back(rot, f"post_switch_probe_failed:{code}")
         if rot["mode"] == "hard_cut":
@@ -356,7 +384,7 @@ class Engine:
         peer_ok = False
         if cur_m is not None:
             try:
-                peer_ok = self._call("retire", rot["kid_to"], cur_m, rot)["ok"]
+                peer_ok = self._call("retire", rot["kid_to"], cur_m, rot, expect=(rot["kid_to"],))["ok"]
             except peers.PeerUnreachable:
                 peer_ok = False
         with self.db.write_aside() as conn:
@@ -364,18 +392,19 @@ class Engine:
             rot = self._step(conn, rot, "retired", "retire", ok=peer_ok, code=None if peer_ok else "peer_retire_unconfirmed",
                              peer_retire_ok=1 if peer_ok else 0)
             self._audit(conn, "bridge.rotation.retired", "allowed", rot, step="retire", reason=None if peer_ok else "peer_retire_unconfirmed")
+        bk.scrub(self.db)  # H-07: the wiped blob does not stay in the write-ahead log
         return self._verify(rot, old_m)
 
     def _verify(self, rot: dict[str, Any], old_material: str | None) -> dict[str, Any]:
         cur_m = self._material(rot["kid_to"])
-        ok_new, code_new = (False, "key_unreadable") if cur_m is None else self._probe(rot, rot["kid_to"], cur_m)
+        ok_new, code_new = (False, "key_unreadable") if cur_m is None else self._probe(rot, rot["kid_to"], cur_m, rot["kid_to"])
         old_rejected: bool
         if old_material is not None and rot["mode"] == "hard_cut":
-            ok_old, code_old = self._probe(rot, rot["kid_from"], old_material)
+            ok_old, code_old = self._probe(rot, rot["kid_from"], old_material, rot["kid_to"], unsigned_refusal_ok=True)
             old_rejected = (not ok_old) and code_old in OLD_GONE
         else:
             try:
-                st = self._call("status", rot["kid_to"], cur_m, rot) if cur_m else {"ok": False}
+                st = self._call("status", rot["kid_to"], cur_m, rot, expect=(rot["kid_to"],)) if cur_m else {"ok": False}
             except peers.PeerUnreachable:
                 st = {"ok": False}
             old_rejected = st.get("ok") is True and st.get("old_key_present") is False and st.get("active_kid") == rot["kid_to"]
@@ -397,7 +426,7 @@ class Engine:
         cur_m = self._material(rot["kid_from"])
         if cur_m is not None:
             try:
-                self._call("abort", rot["kid_from"], cur_m, rot)
+                self._call("abort", rot["kid_from"], cur_m, rot, expect=(rot["kid_from"],))
             except peers.PeerUnreachable:
                 pass  # the peer's own cap discards `next`
         with self.db.write_aside() as conn:
@@ -407,6 +436,7 @@ class Engine:
             rot = rotation_row(conn, rot["id"]) or rot
             rot = self._step(conn, rot, "rolled_back", "rollback", ok=False, code=code, ended_at=now_iso(), result_code=code)
             self._audit(conn, "bridge.rotation.rolled_back", "denied", rot, step="rollback", reason=code)
+        bk.scrub(self.db)
         return rot
 
     def _unknown_commit(self, rot: dict[str, Any]) -> dict[str, Any]:
@@ -418,6 +448,9 @@ class Engine:
                 st = self._call("status", rot["kid_from"], cur_m, rot)
             except peers.PeerUnreachable:
                 st = {"ok": False, "code": "peer_unreachable"}
+        # H-09: a peer that committed signs with K_next, one that did not signs with K_cur - a claim signed under the other key is not believed
+        if st.get("ok") is True and (st.get("rotation") == "committed") != (st.get("signed_by") == rot["kid_to"]):
+            st = {"ok": False, "code": "peer_bad_answer"}
         if st.get("ok") is True and st.get("rotation") == "committed":
             rot = self._finish_switch(rot)
             with self.db.write_aside() as conn:
@@ -438,7 +471,7 @@ class Engine:
         accepted = False
         if cur_m is not None:
             try:
-                accepted = self._call("abort", rot["kid_from"], cur_m, rot)["ok"]
+                accepted = self._call("abort", rot["kid_from"], cur_m, rot, expect=(rot["kid_from"],))["ok"]
             except peers.PeerUnreachable:
                 accepted = False
         with self.db.write_aside() as conn:
@@ -450,6 +483,7 @@ class Engine:
             else:
                 rot = self._step(conn, rot, "needs_repair", "switch_back", ok=False, code=code, ended_at=now_iso(), result_code=code)
                 self._audit(conn, "bridge.rotation.needs_repair", "denied", rot, step="switch_back", reason=code)
+        bk.scrub(self.db)
         return rot
 
     # ------------------------------------------------------------ tick / resume (recovery table, design 5.3)
@@ -510,6 +544,19 @@ class Engine:
             if st.get("ok") is not True:
                 return rot
             active = st.get("active_kid")
+            if active not in (rot["kid_from"], rot["kid_to"]) or st.get("signed_by") != active:  # a peer signs with the key it says it signs with
+                return rot
+            if active == rot["kid_to"]:
+                # H-05: the peer's word is not enough to retire K_cur - the peer must also ANSWER a probe signed with K_next, under K_next
+                next_m = cur.material if cur.kid == rot["kid_to"] else self._material(rot["kid_to"])
+                if next_m is None:
+                    return rot
+                try:
+                    ok, _code = self._probe(rot, rot["kid_to"], next_m, rot["kid_to"])
+                except peers.PeerUnreachable:
+                    ok = False
+                if not ok:
+                    return rot
             with self.db.write_aside() as conn:
                 if active == rot["kid_to"]:
                     if cur.kid != rot["kid_to"]:
@@ -529,6 +576,7 @@ class Engine:
                 else:
                     return rot
                 self._audit(conn, "bridge.rotation.recovered", "allowed", rot, step="repair", reason=rot["result_code"])
+            bk.scrub(self.db)
             return rot
         finally:
             _LOCK.release()
@@ -590,4 +638,105 @@ def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = Non
         "reminder_due": reminder_due(conn),
         "can_start": blocked is None,
         "blocked_by": blocked,
+        "automatic": automatic_state(conn, available),
     }
+
+
+# ---------------------------------------------------------------- automatic start and the worker (HMACACT-295)
+
+def automatic_state(conn: sqlite3.Connection, available: bool) -> str:
+    """For the card: `waiting_for_bridge` (the bridge has not announced support - it needs the update), `scheduled` (will start by itself),
+    `awaiting_click` (the bridge is ready; the FIRST rotation needs one click of a system administrator), `idle` (nothing to do until the
+    reminder interval), `off` (switch off)."""
+    if mode(conn) != "on" or not go_live_permitted():
+        return "off"
+    if not available:
+        return "waiting_for_bridge"
+    if first_rotation_pending(conn):
+        return "awaiting_click"
+    return "scheduled" if auto_wanted(conn) else "idle"
+
+
+def first_rotation_pending(conn: sqlite3.Connection) -> bool:
+    """The channel still runs on the legacy pairing secret: the first rotation (which retires it) is the administrator's click (owner decision 2026-10-21)."""
+    if not _has_tables(conn):
+        return False
+    cur = conn.execute("SELECT kid FROM bridge_keys WHERE state = 'current'").fetchone()
+    if cur is None:
+        return bool(get_setting(conn, "bridge.secret")) and bool(get_setting(conn, "bridge.paired_at"))
+    return cur["kid"] == bk.LEGACY_KID
+
+
+def auto_wanted(conn: sqlite3.Connection, now: float | None = None) -> bool:
+    """Whether the WORKER should start a rotation now: only a LATER rotation - the configured reminder interval has passed. The first rotation
+    (the channel still on the legacy pairing secret) is never started by the worker: it needs the administrator's click. Says nothing about
+    the guards (`auto_due` has them)."""
+    if not _has_tables(conn) or first_rotation_pending(conn):
+        return False
+    return reminder_due(conn, now)
+
+
+def _backoff_s(conn: sqlite3.Connection) -> tuple[float, float | None]:
+    """(wait, since): after consecutive failed rotations (rolled back / verify failed) wait AUTO_RETRY_S * 2^(n-1), at most a day."""
+    n, since = 0, None
+    for r in conn.execute("SELECT state, COALESCE(ended_at, started_at) AS at FROM bridge_rotations ORDER BY started_at DESC, rowid DESC LIMIT 8").fetchall():
+        if r["state"] in ("rolled_back", "verify_failed"):
+            n += 1
+            since = since or bk.epoch_of(r["at"])
+        else:
+            break
+    if n == 0:
+        return 0.0, None
+    return min(AUTO_MAX_WAIT_S, AUTO_RETRY_S * (2 ** (n - 1))), since
+
+
+def auto_due(conn: sqlite3.Connection, peer: peers.Peer, now: float) -> bool:
+    if mode(conn) != "on" or not go_live_permitted() or not peer_available(peer) or not auto_wanted(conn, now):
+        return False
+    if active_row(conn) is not None:
+        return False
+    last = conn.execute("SELECT state FROM bridge_rotations ORDER BY started_at DESC, rowid DESC LIMIT 1").fetchone()
+    if last is not None and last["state"] == "needs_repair":
+        return False
+    wait, since = _backoff_s(conn)
+    return not (wait and since is not None and now - since < wait)
+
+
+def worker_pass(db: Database, settings: Any, peer: peers.Peer | None = None, now: Callable[[], float] = time.time) -> dict[str, Any] | None:
+    """One round of the background worker: drive an unfinished rotation (retire at the deadline, recover a crash), else start the automatic
+    rotation when it is due. Returns the rotation it acted on. Never raises."""
+    engine = Engine(db, settings.data_dir, peer, now=now, settings=settings)
+    try:
+        acted = engine.tick()
+        if acted is not None:
+            return acted
+        with db.connection(mode="read") as conn:
+            due = auto_due(conn, engine.peer, now())
+        if not due:
+            return None
+        engine.automatic = True
+        return engine.start(None, "routine")
+    except RotationRefused:
+        return None
+    except Exception:  # noqa: BLE001 - a worker pass never takes the process down; the next pass looks again
+        log.warning("bridge key rotation worker pass failed", exc_info=True)
+        return None
+
+
+async def worker_loop(db: Database, settings: Any, first_delay_s: float = 45.0) -> None:
+    import asyncio
+
+    from starlette.concurrency import run_in_threadpool
+
+    await asyncio.sleep(first_delay_s)
+    while True:
+        busy = False
+        try:
+            await run_in_threadpool(worker_pass, db, settings)
+            with db.connection(mode="read") as conn:
+                busy = active_row(conn) is not None
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            log.warning("bridge key rotation worker failed", exc_info=True)
+        await asyncio.sleep(WORKER_BUSY_S if busy else WORKER_IDLE_S)

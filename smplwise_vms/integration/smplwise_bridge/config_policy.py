@@ -33,7 +33,7 @@ OPS = WRITE_OPS | RUNTIME_OPS  # `snapshot_scene` (slice C, CR section 14) is no
 KINDS = ("automation", "script", "scene")
 PROFILES = ("builder", "code")
 
-COMMON_KEYS = frozenset({"user_id", "op", "request_id", "ts", "nonce", "sig"})
+COMMON_KEYS = frozenset({"user_id", "op", "request_id", "ts", "nonce", "sig", "kid"})
 OP_KEYS: dict[str, frozenset[str]] = {
     "upsert": COMMON_KEYS | {"kind", "item_id", "base_revision", "profile", "config", "preserved", "sensitive"},
     "delete": COMMON_KEYS | {"kind", "item_id", "base_revision", "profile"},

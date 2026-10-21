@@ -50,7 +50,7 @@ RATE_WINDOW_S = 60.0
 RATE_MAX = 60  # all cameras together, per window
 RATE_MAX_PER_ENTITY = 4  # one camera: a failing one cannot use up the budget of the others
 _BAD_CHARS_RE = re.compile(r"[\s\x00-\x1f\x7f#]")
-REQUEST_KEYS = frozenset({"user_id", "entity_id", "request_id", "ts", "nonce", "sig"})
+REQUEST_KEYS = frozenset({"user_id", "entity_id", "request_id", "ts", "nonce", "sig"})  # + an optional "kid" (0.9.5, a v2 signature)
 
 _calls: deque[float] = deque()
 _calls_by_entity: dict[str, deque[float]] = {}
@@ -225,7 +225,7 @@ async def async_handle_stream_source(hass: Any, verifier: Any, msg: dict[str, An
         _LOGGER.warning("smplwise_bridge.stream_source refused: %s", reason)
         return _refuse(msg, reason)
     entity_id = msg.get("entity_id")
-    if set(msg) != REQUEST_KEYS or not isinstance(entity_id, str) or not ENTITY_RE.fullmatch(entity_id) or not isinstance(msg.get("user_id"), str):
+    if set(msg) - {"kid"} != REQUEST_KEYS or not isinstance(entity_id, str) or not ENTITY_RE.fullmatch(entity_id) or not isinstance(msg.get("user_id"), str):
         return _refuse(msg, "invalid_request")
     if _rate_limited(time.monotonic(), entity_id):
         _LOGGER.warning("smplwise_bridge.stream_source refused: rate_limited")

@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 from ..db import get_setting
 from ..errors import ApiError
+from . import bridge_keys as bk
 from . import ha_client, ha_sync
 
 BRIDGE_REQUIRED = "0.6.0"
@@ -141,7 +142,7 @@ def write_block(conn: sqlite3.Connection, cfg: dict[str, Any]) -> str | None:
         return "ha_unavailable"
     if avail == "config_api_unavailable":
         return "config_api_unavailable"
-    if not get_setting(conn, "bridge.secret"):
+    if not bk.paired_secret(conn):
         return "bridge_missing"
     if not get_setting(conn, "bridge.paired_at"):
         return "bridge_unpaired"

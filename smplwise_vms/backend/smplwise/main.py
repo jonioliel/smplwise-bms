@@ -600,6 +600,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
 
     tickets_public.configure(settings, app.state.db)
+    from .services import ha_bridge as ha_bridge_svc
+
+    ha_bridge_svc.configure(settings.data_dir)  # HMACACT-295: the key set needs the data directory for a connection that does not know its database
     from .routers import messaging_accounts as messaging_accounts_router  # CR-038 S5a: WhatsApp accounts per use (installation-level, no module gate)
 
     app.include_router(messaging_accounts_router.router, prefix=api, tags=["messaging"])
@@ -745,6 +748,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import backup as backup_svc
 
         app.state.backup_task = asyncio.create_task(backup_svc.daily_loop(app.state.db, settings))
+        if os.environ.get("SW_BRIDGE_ROTATION_WORKER", "1") != "0":
+            from .services import bridge_rotation
+
+            # HMACACT-295: finishes a rotation left mid-way, retires the old key at its deadline and starts the automatic rotation once
+            # the bridge announces support (nothing is started while the switch is off or the bridge has not announced it)
+            app.state.bridge_rotation_task = asyncio.create_task(bridge_rotation.worker_loop(app.state.db, settings))
         from .services import backup_drill
 
         # DATASTORE-295: the monthly restore drill - the loop only reads its switch (`backup.drill.monthly`, OFF by default)
@@ -797,7 +806,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        for name in ("janitor", "remote_revalidation", "backup_drill_task"):
+        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task"):
             task = getattr(app.state, name, None)
             if task:
                 task.cancel()

@@ -6,8 +6,9 @@ token or group grants anything here.
 
 - `GET  /system/bridge-key` - the state: switch, permit, peer capability, current key id / generation / since (never material), the
   active and last rotations, the reminder. Drives the active rotation one round first (`tick`: never starts one).
-- `PUT  /system/bridge-key/settings` - `enabled` (the switch `bridge.key_rotation`; `true` refused 409 `rotation_not_permitted`
-  while `bridge_rotation.GO_LIVE_PERMITTED` is False) and `reminder_days` (0 / 30 / 90 / 180 / 365; passive badge only).
+- `PUT  /system/bridge-key/settings` - `enabled` (the switch `bridge.key_rotation`, on by default since the activation slice; `true`
+  refused 409 `rotation_not_permitted` only if `bridge_rotation.GO_LIVE_PERMITTED` were False) and `reminder_days` (0 / 30 / 90 / 180 / 365:
+  the interval after which the automatic worker rotates again; 0 = only the first rotation, which retires the legacy pairing secret).
 - `POST /system/bridge-key/rotations` - `{mode: routine | hard_cut, confirm: true}`: runs the staged rotation (section 5).
 - `POST /system/bridge-key/rotations/{id}/resume` - drives a rotation left mid-way (crash, `needs_repair`).
 
@@ -33,7 +34,7 @@ CONFIGURE = "system.configure"
 MESSAGES = {
     "rotation_off": "החלפת מפתח הגשר כבויה.",
     "rotation_not_permitted": "החלפת מפתח הגשר דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.",
-    "peer_unavailable": "הגשר אינו תומך עדיין בהחלפת מפתח.",
+    "peer_unavailable": "הגשר לא דיווח עדיין שהוא תומך בהחלפת מפתח. הוא יתעדכן עם העדכון הרגיל.",
     "rotation_in_progress": "החלפת מפתח כבר מתבצעת.",
     "repair_required": "החלפה קודמת לא הושלמה. יש להשלים אותה קודם.",
     "not_paired": "הגשר לא צומד עדיין.",
@@ -58,9 +59,14 @@ def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, acti
 
 def _engine(request: Request, conn: sqlite3.Connection, principal: Principal) -> br.Engine:
     db = database_of(conn) or request.app.state.db
-    e = br.Engine(db, request.app.state.settings.data_dir)
+    e = br.Engine(db, request.app.state.settings.data_dir, settings=request.app.state.settings)
     e.actor = principal
     return e
+
+
+def _peer(request: Request) -> Any:
+    """The same peer the engine uses (the bridge's announcement is read from this app's database)."""
+    return br.peers.get_peer(request.app.state.db, request.app.state.settings)
 
 
 def _refused(exc: br.RotationRefused) -> ApiError:
@@ -71,11 +77,11 @@ def _refused(exc: br.RotationRefused) -> ApiError:
 def get_bridge_key(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.key.read")
     if not (br.mode(conn) == "on" and br.go_live_permitted()):
-        return br.view(conn, request.app.state.settings.data_dir)
+        return br.view(conn, request.app.state.settings.data_dir, _peer(request))
     engine = _engine(request, conn, principal)
     engine.tick()
     with engine.db.connection(mode="read") as fresh:  # the request's snapshot predates the tick
-        return br.view(fresh, request.app.state.settings.data_dir)
+        return br.view(fresh, request.app.state.settings.data_dir, _peer(request))
 
 
 class SettingsBody(BaseModel):
@@ -107,7 +113,7 @@ def put_bridge_key_settings(body: SettingsBody, request: Request, principal: Pri
             set_setting(conn, br.REMINDER_KEY, str(body.reminder_days))
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
                   details={"key": br.REMINDER_KEY, "before": before_d, "after": body.reminder_days})
-    return br.view(conn, request.app.state.settings.data_dir)
+    return br.view(conn, request.app.state.settings.data_dir, _peer(request))
 
 
 class StartBody(BaseModel):

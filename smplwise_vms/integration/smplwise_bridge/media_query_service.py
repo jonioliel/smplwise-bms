@@ -40,7 +40,7 @@ RATE_MAX = 120  # reads per window, all devices together
 RATE_USER_MAX = 40  # ... of which one Home Assistant user may take this many: a reader cannot drain the whole budget (CR-016 review L3)
 MAX_TEXT = 120
 MAX_ITEMS = 100
-COMMON_KEYS = frozenset({"user_id", "query", "request_id", "ts", "nonce", "sig"})
+COMMON_KEYS = frozenset({"user_id", "query", "request_id", "ts", "nonce", "sig", "kid"})
 
 _calls: deque[float] = deque()
 _user_calls: dict[str, deque[float]] = {}
