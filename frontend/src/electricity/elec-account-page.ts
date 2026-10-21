@@ -115,7 +115,7 @@ export class ElecAccountPage extends ElecBase {
     const c = s.customer;
     const rows = s.rows;
     const main = html`${s.stale ? alertBox('warn', html`<b>${s.stale.meter}</b> לא מדווח${s.stale.since ? html` מאז ${n(s.stale.since)}` : ''}. הצריכה תיספר כשהמונה יחזור לדווח.`) : nothing}
-      ${s.notes.map((t) => alertBox('warn', t))}
+      ${s.notes.map((t) => alertBox('warn', t.text_he))}
       <div class="tiles" data-elec-tiles>
         <div class="tile"><div class="k">צריכה בתקופה</div><div class="v">${n(f2(s.kwh))}<span class="u">קוט״ש</span></div></div>
         <div class="tile"><div class="k">יום ${n(s.period.day)} מתוך ${n(s.period.days)}</div><div class="prog" style="margin-block-start:14px" role="progressbar" aria-valuenow=${s.period.day} aria-valuemin="0" aria-valuemax=${s.period.days}><i style="inline-size:${Math.round((s.period.day / s.period.days) * 100)}%"></i></div></div>
