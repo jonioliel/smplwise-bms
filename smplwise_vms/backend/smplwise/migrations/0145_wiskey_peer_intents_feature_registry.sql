@@ -1,4 +1,4 @@
--- PROVISIONAL number 0137 (pilot/ECCACT-295, built on origin/main bd4636e7f + DOORWIN 0136; the lead renumbers at integration).
+-- Final number 0145 (built as PROVISIONAL 0137 on pilot/ECCACT-295; renumbered at the 2.11.0 integration, integ/2111). The content does not depend on the number.
 --
 -- ECCACT-295: the durable half of the WisKey peer / feature seam. No table here carries a secret, a key, a PIN, a card number, a name,
 -- a phone, a CSV/media payload or a payload hash - ids, refs, revisions, states, codes and times only. None is a backup table.

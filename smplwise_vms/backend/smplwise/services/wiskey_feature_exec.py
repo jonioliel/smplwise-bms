@@ -16,7 +16,7 @@ What this module is
   the request is the Arx user; a service identity is never the actor and never contributes a permission.
 - `admit_request` records the durable intent (wiskey_feature_intents) BEFORE any I/O; a request id is never admitted twice, so there is
   no replay. The outcome stays `unknown` until a verified answer says otherwise.
-- the relay map and the feature registry (migration 0137) are explicit operator facts: nothing is derived silently, and
+- the relay map and the feature registry (migration 0145) are explicit operator facts: nothing is derived silently, and
   `host_registered` is recorded only from a verified answer of the WisKey host.
 
 What it is not

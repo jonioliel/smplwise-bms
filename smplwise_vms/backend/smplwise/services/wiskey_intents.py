@@ -5,7 +5,7 @@ Why
 - A people write that left Arx without a verified reply is UNKNOWN. Arx must be able to ask WisKey about THAT write and nothing else:
   by the exact original references it recorded before the frame left (repository, dedicated query owner ref, operation id, request id,
   origin ref, operation-binding ref, peer binding ref + revision, writer epoch) - never by name, employee number, PIN, card, policy
-  similarity or "the newest person". `wiskey_fence_intents` (migration 0137, provisional) holds those references immutably; only the
+  similarity or "the newest person". `wiskey_fence_intents` (migration 0145, built as provisional 0137) holds those references immutably; only the
   state columns move, only forward, and exactly one terminal fact is ever accepted for an intent.
 - `verify_receipt` (wiskey_peer.py) judges updates; it never proves a create (`proves_create` False). The create has its own verifier
   here: `verify_create_resolution` accepts a `committed` answer only when it names the SAME origin ref and operation and carries the

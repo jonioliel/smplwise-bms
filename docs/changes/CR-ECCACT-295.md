@@ -1,7 +1,7 @@
 # CR-ECCACT-295 - the Arx half of the WisKey ECC activation (owner decision 2026-10-21, option A)
 
 Branch `pilot/ECCACT-295` (base `origin/main` v2.10.0 `bd4636e7f`, plus `pilot/WKV2-295` and `pilot/DOORWIN-295` merged). Migrations are
-PROVISIONAL (0136 = door windows renumbered from 0130, 0137 = this change); the lead renumbers at integration.
+final at integ/2111: door windows = 0137 (it was 0136 on this branch), this change = 0145 (built as provisional 0137).
 
 ## Decision and what it does and does not mean
 
@@ -41,10 +41,10 @@ branch `codex/wiskey-ecc-activation-directive-2026-10-21`, pinned commit `c74107
    read only); a live, negotiated reader (`wiskey_readback.LiveReadback`) on a new `readback` channel (three reads, no write), wired into
    `access_grants.engine_for`; the schema of the command that was sent is pinned in the parse (no silent v2 -> v1); revisions are JSON-safe
    (1..2^53-1) on the consumer and the peer seam.
-2. **Durable intents and the exact-original create resolution** (`wiskey_intents`, migration 0137): one immutable intent per people write
+2. **Durable intents and the exact-original create resolution** (`wiskey_intents`, migration 0145): one immutable intent per people write
    written before the frame leaves; one terminal fact; one central transition per person revision; a created person's id is recorded only
    from a verified exact-original answer (`verify_create_resolution`, PROPOSED protocol `wiskey-create-resolution-draft1`); no replay.
-3. **Feature execution, Arx half** (`wiskey_feature_exec`, migration 0137): the strict `wiskey-arx-feature-execution.v1` request builder for the six
+3. **Feature execution, Arx half** (`wiskey_feature_exec`, migration 0145): the strict `wiskey-arx-feature-execution.v1` request builder for the six
    adapters (compared field by field with the Mac source), the CURRENT POLICY from Arx RBAC (station chain, deny wins, creator AND approver for
    automations) plus the explicit relay map, the durable no-replay attempt, and an honest `status` that never says active from a switch.
 4. **Permits** as above, tests re-framed (the shipped constant is True; tests that pin the permit-off behaviour patch it).

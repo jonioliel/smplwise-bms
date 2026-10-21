@@ -20,7 +20,7 @@ from smplwise.services import wiskey_peer as wp
 
 HERE = Path(__file__).resolve().parent
 MAC = json.loads((HERE / "fixtures" / "wiskey_feature_exec" / "mac_contract_f66bf67b.json").read_text(encoding="utf-8"))
-MIG = HERE.parent / "smplwise" / "migrations" / "0137_wiskey_peer_intents_feature_registry.sql"
+MIG = HERE.parent / "smplwise" / "migrations" / "0145_wiskey_peer_intents_feature_registry.sql"
 NOW = datetime(2026, 10, 21, 12, 0, 0, tzinfo=timezone.utc)
 REPO = "11111111-2222-4333-8444-555555555555"
 PEER = wp._mint_peer(value="peer-1", peer_binding_ref="bind-1", peer_binding_revision=3, repository_id=REPO, query_owner_id="a" * 32)
