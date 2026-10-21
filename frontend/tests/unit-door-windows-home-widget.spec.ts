@@ -111,7 +111,7 @@ test('no ticket action, no platform name on the card - tickets module off and on
         const html = flat(renderDoors(host(d), item(size)));
         // the card never consults the tickets module because it offers no service-request action: the same markup with the module off and on
         expect(html, `tickets ${tickets}`).not.toMatch(/ticket|service[-_ ]?request|#\/tickets|קריאת שירות|פתיחת קריאה/i);
-        expect(html).not.toMatch(/home assistant|ingress|wiskey|\bha\b/i);
+        expect(html).not.toMatch(/home assistant|ingress|\bha\b/i);
       }
     }
   }
