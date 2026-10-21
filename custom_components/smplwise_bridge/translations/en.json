@@ -63,6 +63,14 @@
     "cast_stream": {
       "name": "Cast a camera to a screen (SMPLWISE add-on only)",
       "description": "Signed: plays the SMPLWISE add-on's cast-relay address on one Google Cast media player, stops it or switches it off. Not meant to be called from automations."
+    },
+    "lease_event": {
+      "name": "Capture lease event (SMPLWISE add-on only)",
+      "description": "Signed: one message of the capture lease's revocation stream, checked and handed to the WisKey consumer. Not meant to be called from automations."
+    },
+    "lease_request": {
+      "name": "Capture lease request (SMPLWISE add-on only)",
+      "description": "Signed: one request of the capture lease, checked and handed to the WisKey consumer. Not meant to be called from automations."
     }
   }
 }

@@ -267,3 +267,23 @@ rotate:
       description: Random nonce.
     sig:
       description: HMAC-SHA256 signature (version 2, bound to the key id).
+
+lease_event:
+  name: Capture lease event (SMPLWISE add-on only)
+  description: >-
+    One signed message of the capture lease's revocation stream (lease_revoke, lease_heartbeat or lease_stream_reset). The bridge checks the
+    contract's stages (transport, encoding, parse, schema, binding, signature, time, replay) and hands the verified message to the WisKey
+    consumer; only a closed answer comes back. Called by the add-on only; the signature decides, nothing
+    here is for automations.
+  fields:
+    signed_message_json:
+      description: The whole signed message as one JSON text (at most 8192 bytes). Nothing else is accepted.
+
+lease_request:
+  name: Capture lease request (SMPLWISE add-on only)
+  description: >-
+    One signed request of the capture lease (capture_start, capture_status, capture_confirm or capture_cancel). The bridge checks the
+    contract's stages and hands the verified request to the WisKey consumer; only a closed answer comes back. Called by the add-on only; the signature decides, nothing here is for automations.
+  fields:
+    signed_message_json:
+      description: The whole signed message as one JSON text (at most 8192 bytes). Nothing else is accepted.
