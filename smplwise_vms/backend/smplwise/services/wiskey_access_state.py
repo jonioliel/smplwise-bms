@@ -433,6 +433,32 @@ def revocation_verdict_v2(state: Any, *, person_id: str, revision: Any, last_kno
     return False
 
 
+def station_removal_verdict_v2(state: Any, *, person_id: str, revision: Any, station_id: str) -> bool | None:
+    """ECCACT-295: whether the removal of ONE station's access for a still-present person is proven at `revision` (a station block /
+    inherit-to-deny, not a revocation of the whole person).
+    True = tracked removal work naming this station is still owed; False = the answer carries a disabled row for exactly this station,
+    applied at this revision (desired == applied == person_revision, synced), no removal queue names the station, nothing for it is
+    unverified and WisKey's own `revocation_pending` is False; None = cannot tell. v1 is never judged here (None): only v2 proves."""
+    if not isinstance(state, AccessState) or state.schema_version != SCHEMA_V2 or state.user_id != person_id or not revision_ok(revision) or not id_ok(station_id):
+        return None
+    queues = state.pending.removal_queues()
+    named = any(station_id in ids for ids in queues.values())
+    if state.presence == "delete_pending":
+        return True
+    if state.presence != "present" or state.person_revision != revision:
+        return True if named else None
+    if named:
+        return True
+    if state.revocation_pending is not False or station_id in state.pending.unverified:
+        return None
+    row = state.row(station_id)
+    if row is None or row.enabled or row.applied is not True:
+        return None
+    if not (row.desired_revision == revision and row.applied_revision == revision and row.sync_state == "synced"):
+        return None
+    return False
+
+
 # ---------------------------------------------------------------- Arx's own last-known doors record (no migration)
 
 
@@ -460,3 +486,44 @@ def last_known_stations(conn: sqlite3.Connection, wiskey_person_id: str) -> froz
     except (sqlite3.Error, ValueError, TypeError):
         return None
     return frozenset(stations)
+
+
+# ---------------------------------------------------------------- ECCACT-295: capability negotiation
+
+@dataclass(frozen=True)
+class Negotiated:
+    """The outcome of `negotiate`: which readback command Arx may send, and whether the answer could ever prove a revocation.
+    `version` None = no usable readback (`reason` says why); the caller then keeps every revoke at UNKNOWN (no weaker fallback)."""
+
+    version: int | None
+    command: str | None
+    reason: str
+
+    @property
+    def can_prove_revocation(self) -> bool:
+        return self.version == SCHEMA_V2  # a v1 answer is never a revocation proof (ECCACT-295 / WKV2B owner decision 2026-10-20)
+
+
+NEGOTIATED_NONE = "unsupported"
+
+
+def _listed(commands: Any) -> frozenset[str] | None:
+    if isinstance(commands, (set, frozenset, list, tuple)) and all(isinstance(c, str) for c in commands):
+        return frozenset(c[len("hikvision_intercom/"):] if c.startswith("hikvision_intercom/") else c for c in commands)
+    return None
+
+
+def negotiate(commands: Any, capabilities: Any) -> Negotiated:
+    """WisKey's `overview.api.commands` and `.capabilities` decide: a version is usable only when BOTH its command is listed AND its
+    capability advertised (a disabled candidate is neither). v2 is preferred; v1 is a compatibility READ only (it never proves a
+    revocation). Missing, mistyped or empty lists, or neither pair, give `version=None` - never a guess from the WisKey version."""
+    listed, caps = _listed(commands), _listed(capabilities)
+    if listed is None or caps is None:
+        return Negotiated(None, None, "not_listed")
+    for version in (SCHEMA_V2, SCHEMA_V1):
+        command = COMMANDS[version][len("hikvision_intercom/"):]
+        if command in listed and CAPABILITIES[version] in caps:
+            return Negotiated(version, COMMANDS[version], "ok")
+    if COMMANDS[SCHEMA_V2][len("hikvision_intercom/"):] in listed or COMMANDS[SCHEMA_V1][len("hikvision_intercom/"):] in listed:
+        return Negotiated(None, None, "capability_missing")
+    return Negotiated(None, None, NEGOTIATED_NONE)

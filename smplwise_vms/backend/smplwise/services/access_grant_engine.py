@@ -109,6 +109,11 @@ class Engine(Protocol):
         is never enough alone: the caller also needs `central_revoked` on that same readback (`revocation_proven`)."""
         ...
 
+    def station_removal_pending(self, person_id: str, revision: int, station_id: str) -> bool | None:
+        """ECCACT-295: removal of ONE station's access still owed at `revision` (True) / proven done (False) / cannot tell (None); only a
+        negotiated v2 answer can be False. Optional: an engine without it leaves a station block `unverified`."""
+        ...
+
     def pin_generate(self, person_id: str) -> str: ...
 
     def rename(self, person_id: str, revision: int, display_name: str) -> EnginePerson: ...
@@ -452,9 +457,10 @@ def requested_policy(timing: dict[str, Any] | None) -> dict[str, Any] | None:
 
 # ---------------------------------------------------------------- R11-I1-03 / R11-I1-04: the revision-bound revocation predicate
 #
-# WisKey's ACR5-01 `users/access_state(user_id, revision)` is PROPOSED, not delivered; Arx has NO client for it. What is built here is
-# the Arx side of the contract only: a strict consumer of the answer, the verdict, and a typed reader seam that only fakes fill.
-# Nothing below sends anything; the live engine passes no reader (UNKNOWN) and stays behind GO_LIVE_PERMITTED (False).
+# WisKey's `users/access_state` (v1) and `users/access_state_v2` readback (delivered in the Mac package f66bf67b, behind WisKey's own build
+# gate and an administrator-only dispatch). ECCACT-295: Arx has a live, capability-negotiated reader (services/wiskey_readback.LiveReadback, the
+# `readback` channel) wired by access_grants.engine_for; it sends only when WisKey lists the command AND advertises the capability, and the
+# live v2 path stays technically blocked until the verified no-admin bridge route is pinned with the Mac. A v1 answer never proves a revocation.
 
 ACCESS_STATE_SCHEMA = was.SCHEMA_V1  # kept for readers of this module; the version dispatch lives in wiskey_access_state
 PRESENCES = was.PRESENCES
@@ -463,8 +469,9 @@ PENDING_UNVERIFIED = "unverified"  # work that disappeared without a positive de
 
 
 class AccessStateReader(Protocol):
-    """The typed seam for ACR5-01: returns WisKey's raw access_state answer for `user_id` bound to `revision`, or raises (an
-    `EngineError("revision_conflict")` when WisKey's person is at another revision). Only fakes implement it in this build."""
+    """The typed seam for ACR5-01: returns WisKey's raw access_state answer for `user_id` bound to `revision` - or `(answer, schema)`
+    with the schema of the command that was sent (ECCACT-295: services/wiskey_readback.LiveReadback) - or raises (an
+    `EngineError("revision_conflict")` when WisKey's person is at another revision)."""
 
     def __call__(self, user_id: str, revision: int) -> Any: ...
 
@@ -518,6 +525,8 @@ def _v1_status(state: AccessState, *, person_id: str, revision: int) -> bool | N
         return None
     if state.has_pending or state.presence == "delete_pending" or state.revocation_pending is True:
         return True
+    # ECCACT-295 / WKV2B-295 (owner decision 2026-10-20): v1 never proves a revocation. This False is only the clean-looking shape for
+    # `revocation_evidence_verdict` (EVIDENCE_UNVERIFIED); `revocation_pending_verdict` never returns it for a v1 answer.
     if state.presence != "present" or state.unverified or state.revocation_pending is not False:
         return None
     return False
@@ -552,7 +561,11 @@ def revocation_pending_from(reader: AccessStateReader | None, person_id: str, re
     if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
         return None
     try:
-        state = access_state_from_raw(reader(person_id, revision), user_id=person_id, revision=revision)
+        answer = reader(person_id, revision)
+        expect = None
+        if isinstance(answer, tuple):  # ECCACT-295: (result, schema) - the schema of the command that was SENT; the parser refuses the other one
+            answer, expect = answer
+        state = access_state_from_raw(answer, user_id=person_id, revision=revision, expect=expect)
     except Exception:  # noqa: BLE001 - every failure is UNKNOWN, never "not pending"
         return None
     return revocation_pending_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
@@ -564,10 +577,29 @@ def revocation_evidence_from(reader: AccessStateReader | None, person_id: str, r
     if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
         return None
     try:
-        state = access_state_from_raw(reader(person_id, revision), user_id=person_id, revision=revision)
+        answer = reader(person_id, revision)
+        expect = None
+        if isinstance(answer, tuple):  # ECCACT-295: (result, schema) - the schema of the command that was SENT
+            answer, expect = answer
+        state = access_state_from_raw(answer, user_id=person_id, revision=revision, expect=expect)
     except Exception:  # noqa: BLE001 - every failure is UNKNOWN
         return None
     return revocation_evidence_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
+
+
+def station_removal_from(reader: AccessStateReader | None, person_id: str, revision: Any, station_id: str) -> bool | None:
+    """The per-station counterpart of `revocation_pending_from`: any failure, an off-contract answer or a v1 answer is None."""
+    if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
+        return None
+    try:
+        answer = reader(person_id, revision)
+        expect = None
+        if isinstance(answer, tuple):
+            answer, expect = answer
+        state = access_state_from_raw(answer, user_id=person_id, revision=revision, expect=expect)
+    except Exception:  # noqa: BLE001
+        return None
+    return was.station_removal_verdict_v2(state.parsed, person_id=person_id, revision=revision, station_id=station_id)
 
 
 def central_revoked(person: EnginePerson) -> bool:
@@ -729,6 +761,19 @@ class WiskeyServiceEngine:
             except Exception:  # noqa: BLE001 - an unreadable record is UNKNOWN
                 known = None
         return True, known
+
+    def station_removal_pending(self, person_id: str, revision: int, station_id: str) -> bool | None:
+        """ECCACT-295: whether the removal of ONE station's access (a station block) is still owed at `revision` - the per-station
+        verdict `wiskey_access_state.station_removal_verdict_v2` over a negotiated v2 answer. None (cannot tell) without a reader, for a v1
+        answer, for a missing / unapplied row or while a write to the person is unsettled; a v1 answer never proves."""
+        self._guard()
+        if self.access_state_reader is None or not isinstance(station_id, str) or not station_id:
+            return None
+        from . import intercom_sync
+
+        if intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
+            return None
+        return station_removal_from(self.access_state_reader, person_id, revision, station_id)
 
     def pin_generate(self, person_id: str) -> str:
         """users/pin_generate is a read in WisKey (the value is not reserved); it is NOT a readback of the person, so it carries no

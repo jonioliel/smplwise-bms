@@ -77,9 +77,17 @@ MESSAGING = frozenset({"whatsapp/status", "whatsapp/preview", "whatsapp/send"})
 # WebSocket channel - they leave through the bridge's trusted-caller transport (services/lease_events.py), never through a
 # guarded `call`, so they are deliberately absent from ALLOWLISTS; the classic `cards/capture_*` WS commands stay on `service`.
 LEASE_SIGNED = frozenset({"capture_start", "capture_status", "capture_confirm", "capture_cancel"})
+# ECCACT-295: the readback channel - WisKey's Mac-delivered candidate READS (round 11, `arx_preview_features.CANDIDATE_READS`):
+# `users/access_state` (v1), `users/access_state_v2` and `schedules/normalize_user`. They are NOT in the pinned static catalog
+# (they were added after the pin), so the catalog-membership test skips this channel; every one is a read that WisKey admits only for
+# an active administrator while its build gate is on, and WisKey lists it in `overview.api.commands` only then (capability negotiation,
+# services/wiskey_readback.py). No write is on it. Same socket and identity as `service`.
+READBACK = frozenset({"users/access_state", "users/access_state_v2", "schedules/normalize_user"})
+UNPINNED_CHANNELS = frozenset({"readback"})
 
-ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING}
-ADAPTER_CHANNELS = ("read", "technical", "messaging")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
+                                         "readback": READBACK}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -89,6 +97,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "read": frozenset(),
     "technical": frozenset(),
     "messaging": frozenset(),
+    "readback": frozenset(),
 }
 
 
@@ -127,4 +136,5 @@ def describe() -> dict[str, Any]:
         "read": {"commands": sorted(READ), "in_use": True},
         "technical": {"commands": sorted(TECHNICAL), "in_use": True},
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
+        "readback": {"commands": sorted(READBACK), "in_use": True},
     }

@@ -35,7 +35,7 @@ from typing import Any
 
 from ..db import get_setting
 
-GO_LIVE_PERMITTED = False  # the owner's separate go-live permit; a build constant, never a setting
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); wiskey.peer_receipt still defaults OFF and signed_capture_covered() stays False
 SIGNED_CAPTURE_COVERED = False  # stays False until both halves exist and are reviewed
 WISKEY_HALF_REVIEWED = False  # WisKey's verifier/transport seam + shared receipt: not delivered / not reviewed by Arx
 FLAG_KEY = "wiskey.peer_receipt"
@@ -86,8 +86,11 @@ def is_ref(value: Any) -> bool:
     return isinstance(value, str) and REF_RE.fullmatch(value) is not None
 
 
+MAX_JSON_INT = 2 ** 53 - 1  # ECCACT-295 (agreed with WisKey 2026-10-21): every revision/epoch on the new interface is a JSON-safe number
+
+
 def is_pos_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= MAX_JSON_INT
 
 
 def is_uuid(value: Any) -> bool:

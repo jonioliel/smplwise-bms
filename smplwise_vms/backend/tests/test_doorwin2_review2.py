@@ -189,10 +189,11 @@ def test_e03_an_aged_open_row_follows_the_bounded_e1_retry(open_on):
 
 # ================================================================ nothing was enabled
 
-def test_every_switch_still_ships_off_and_the_permit_is_pinned_false_in_the_source(em):
+def test_every_switch_still_ships_off_and_the_permit_is_the_owners_decision_in_the_source(em):
     from pathlib import Path
 
     s = em.get("/doors/emergency/settings").json()["settings"]
     assert s["doors.emergency.open_enabled"] == "off" and s["doors.emergency.automations"] == "off"
     src = Path(dwe.__file__).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False" in src, "the module constant is never flipped by an agent; the world patches it inside a test only"
+    # integ/2111: ECCACT-295 carries the owner decision of 2026-10-21 (option A) that opened this permit; the switches above still ship off
+    assert "\nGO_LIVE_PERMITTED = True" in src, "ECCACT-295: opened by the owner decision of 2026-10-21; the world patches it inside a test only"

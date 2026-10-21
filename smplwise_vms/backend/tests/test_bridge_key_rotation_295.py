@@ -651,11 +651,12 @@ def test_no_key_material_in_audit_logs_or_answers(world, caplog):
     assert "bridge.rotation.verified" in audit_text and "bridge.rotation.rolled_back" in audit_text
 
 
-def test_go_live_permits_other_than_the_bridge_rotation_stay_false_in_the_build():
-    # HMACACT-295: the bridge-key permit is True (owner decision 2026-10-21, same commit as the wiring); the WisKey permits are untouched
+def test_go_live_permits_in_the_build():
+    # HMACACT-295: the bridge-key permit is True (owner decision 2026-10-21, same commit as the wiring). ECCACT-295: the WisKey permits
+    # were opened by the owner decision of 2026-10-21 (option A); every installation switch still defaults OFF. (integ/2111 merge.)
     assert "\nGO_LIVE_PERMITTED = True\n" in Path(br.__file__).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False\n" in Path(access_grants.__file__).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False\n" in Path(capture_lease.__file__).read_text(encoding="utf-8")
+    assert "\nGO_LIVE_PERMITTED = True" in Path(access_grants.__file__).read_text(encoding="utf-8")
+    assert "\nGO_LIVE_PERMITTED = True" in Path(capture_lease.__file__).read_text(encoding="utf-8")
     assert isinstance(peers.UnavailablePeer().capabilities(), dict) and peers.UnavailablePeer().capabilities()["rotation"] is None
 
 

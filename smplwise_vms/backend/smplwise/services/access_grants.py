@@ -76,7 +76,7 @@ log = logging.getLogger("smplwise.access_grants")
 # The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be turned on,
 # the live WisKey engine refuses every call and the live WhatsApp transport sends nothing. Flipped only by the commit that carries
 # the owner's written go-live permit - never by a setting, an environment variable or a version.
-GO_LIVE_PERMITTED = False
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A) removed the historical block; the switch access.external_grants stays OFF until an administrator turns it on
 
 PERMISSION = "access.external.grant"
 FLAG_KEY = "access.external_grants"
@@ -285,7 +285,11 @@ def engine_for(db: Any) -> Engine:
         except Exception:  # noqa: BLE001
             return None
 
-    return WiskeyServiceEngine(_SETTINGS, last_known_stations=known)
+    from .wiskey_readback import LiveReadback
+
+    # ECCACT-295: the live, capability-negotiated readback (v2 proves a revocation; v1 never does; nothing listed = UNKNOWN). It sends
+    # only when WisKey lists the command AND advertises its capability, so a WisKey without the gate on stays UNKNOWN.
+    return WiskeyServiceEngine(_SETTINGS, access_state_reader=LiveReadback(_SETTINGS), last_known_stations=known)
 
 
 # ---------------------------------------------------------------- settings readers (fail closed)

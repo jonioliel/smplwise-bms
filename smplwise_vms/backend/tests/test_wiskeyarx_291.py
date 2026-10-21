@@ -239,5 +239,5 @@ def test_n07_arx_sends_api_contract_one_or_omits_it():
 def test_locks_stay_closed():
     from smplwise.services import service_identity
 
-    assert ag.GO_LIVE_PERMITTED is False and ag.go_live_permitted() is False
+    assert ag.GO_LIVE_PERMITTED is True and ag.go_live_permitted() is True  # ECCACT-295: opened by the owner decision of 2026-10-21
     assert service_identity.EXTENDED_GO_LIVE_PERMITTED is False

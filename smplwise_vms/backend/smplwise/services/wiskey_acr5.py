@@ -53,7 +53,7 @@ from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved t
     schedule_ok,
 )
 
-GO_LIVE_PERMITTED = False
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); each wiskey.acr5_* switch still defaults OFF
 FLAGS = {
     "acr5_01": "wiskey.acr5_access_state",
     "acr5_02": "wiskey.acr5_normalize_user",
@@ -108,7 +108,7 @@ def capability_ok(advertised: Iterable[str], key: str) -> bool:
 
 
 def _pos_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= was.MAX_REVISION
 
 
 def _id(value: Any) -> bool:
@@ -176,6 +176,8 @@ def _v1_status(state: AccessState, *, requested_revision: int, central_revoked_a
         return True
     if state.revocation_pending is None or state.pending.anything_tracked():
         return None
+    # ECCACT-295 / WKV2B-295 (owner decision 2026-10-20): a v1 answer never proves a revocation. This False is only the clean-looking shape
+    # for `revocation_evidence` (revoked_unverified); `revocation_verdict` never returns it for a v1 answer.
     if not _pos_int(central_revoked_at) or central_revoked_at != requested_revision:
         return None
     return False

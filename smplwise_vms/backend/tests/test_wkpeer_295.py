@@ -91,21 +91,36 @@ def _expect(peer: wp.VerifiedPeerRef | None = None, **over: Any) -> wp.ReceiptEx
 
 # ------------------------------------------------------------------ everything is OFF
 
-def test_every_go_live_constant_is_false_and_signed_capture_is_not_covered(conn):
-    assert wp.GO_LIVE_PERMITTED is False and wp.go_live_permitted() is False
-    assert wr.GO_LIVE_PERMITTED is False
-    assert a5.GO_LIVE_PERMITTED is False and a5.go_live_permitted() is False
+def test_the_permits_are_open_but_signed_capture_is_not_covered(conn):
+    # ECCACT-295 (owner decision 2026-10-21): the permits are open; every switch still defaults OFF and signed capture stays uncovered
+    assert wp.GO_LIVE_PERMITTED is True and wp.go_live_permitted() is True
+    assert wr.GO_LIVE_PERMITTED is True
+    assert a5.GO_LIVE_PERMITTED is True and a5.go_live_permitted() is True
+    assert wp.mode(conn) == "off" and wp.enabled(conn) is False
     assert wp.SIGNED_CAPTURE_COVERED is False and wp.WISKEY_HALF_REVIEWED is False
     assert wp.signed_capture_covered() is False
     # the pre-existing locks are untouched
-    assert access_grants.GO_LIVE_PERMITTED is False and capture_lease.GO_LIVE_PERMITTED is False
+    assert access_grants.GO_LIVE_PERMITTED is True and capture_lease.GO_LIVE_PERMITTED is True
     assert service_identity.EXTENDED_GO_LIVE_PERMITTED is False
 
 
-def test_switches_default_off_and_cannot_be_turned_on_by_a_setting(conn):
+def test_with_the_permit_open_a_switch_alone_turns_the_seam_and_the_consumers_on(conn):
+    # ECCACT-295: the permits are open; only the installation switches decide (all default off)
+    assert wp.enabled(conn) is False
+    _set(conn, wp.FLAG_KEY, "on")
+    assert wp.enabled(conn) is True
+    for key, setting in a5.FLAGS.items():
+        assert a5.consumer_on(conn, key) is False
+        _set(conn, setting, "on")
+        assert a5.consumer_on(conn, key) is True
+
+
+def test_switches_default_off_and_cannot_be_turned_on_by_a_setting_while_the_permit_is_off(conn, monkeypatch):
+    monkeypatch.setattr(wp, "GO_LIVE_PERMITTED", False)
+    monkeypatch.setattr(a5, "GO_LIVE_PERMITTED", False)
     assert wp.mode(conn) == "off" and wp.enabled(conn) is False
     _set(conn, wp.FLAG_KEY, "on")
-    assert wp.mode(conn) == "on" and wp.enabled(conn) is False  # the build constant still refuses
+    assert wp.mode(conn) == "on" and wp.enabled(conn) is False  # the permit constant refuses
     for key, setting in a5.FLAGS.items():
         assert a5.consumer_mode(conn, key) == "off"
         _set(conn, setting, "on")
@@ -120,20 +135,32 @@ def test_a_broken_settings_table_reads_off():
     assert wp.mode(c) == "off" and a5.consumer_mode(c, "acr5_01") == "off"
 
 
-def test_signed_capture_stays_false_even_if_every_half_were_claimed(monkeypatch):
+def test_signed_capture_needs_all_three_and_the_build_claims_none_of_the_halves(monkeypatch):
+    assert wp.SIGNED_CAPTURE_COVERED is False and wp.WISKEY_HALF_REVIEWED is False and wp.signed_capture_covered() is False
     monkeypatch.setattr(wp, "SIGNED_CAPTURE_COVERED", True)
-    assert wp.signed_capture_covered() is False  # the WisKey half is not reviewed and go-live is not permitted
+    assert wp.signed_capture_covered() is False  # the WisKey half is not reviewed
+    monkeypatch.setattr(wp, "GO_LIVE_PERMITTED", False)
     monkeypatch.setattr(wp, "WISKEY_HALF_REVIEWED", True)
-    assert wp.signed_capture_covered() is False  # go-live still False
+    assert wp.signed_capture_covered() is False  # both halves claimed, permit off
+    monkeypatch.setattr(wp, "GO_LIVE_PERMITTED", True)
+    assert wp.signed_capture_covered() is True  # only the AND of the three (all patched here, none in the build)
 
 
-def test_registry_client_factory_returns_nothing_while_off(conn):
-    _set(conn, wp.FLAG_KEY, "on")
+def test_registry_client_factory_returns_nothing_while_off(conn, monkeypatch):
     _set(conn, wr.PIN_KEY, wr.encode_pin(_pin()))
-    assert wr.client_for(conn, FakeRegistry(), _att()) is None
+    assert wr.client_for(conn, FakeRegistry(), _att()) is None  # switch off
+    _set(conn, wp.FLAG_KEY, "on")
+    monkeypatch.setattr(wp, "GO_LIVE_PERMITTED", False)
+    assert wr.client_for(conn, FakeRegistry(), _att()) is None  # permit off
+    monkeypatch.setattr(wp, "GO_LIVE_PERMITTED", True)
+    assert isinstance(wr.client_for(conn, FakeRegistry(), _att()), wr.RegistryClient)  # ECCACT-295: switch on + permit open
 
 
-def test_the_live_registry_transport_refuses(conn):
+def test_the_live_registry_transport_refuses(conn, monkeypatch):
+    with pytest.raises(wr.RegistryRefused) as exc:
+        wr.LiveRegistryTransport().peer_binding_get(BINDING, 2)
+    assert exc.value.code == "not_built"  # ECCACT-295: the permit is open; the wire read (peer_bindings/get) exists on neither side yet
+    monkeypatch.setattr(wr, "GO_LIVE_PERMITTED", False)
     with pytest.raises(wr.RegistryRefused) as exc:
         wr.LiveRegistryTransport().peer_binding_get(BINDING, 2)
     assert exc.value.code == "not_permitted"

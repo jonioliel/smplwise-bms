@@ -471,5 +471,5 @@ def test_the_window_end_removes_the_card_too(env):
 def test_the_shipped_build_keeps_cards_and_capture_off():
     from smplwise.services import access_cards
 
-    assert ag.GO_LIVE_PERMITTED is False and access_cards.CAPTURE_PERMITTED is False
+    assert ag.GO_LIVE_PERMITTED is True and access_cards.CAPTURE_PERMITTED is False  # ECCACT-295: the permit is open; card capture is an unbuilt flow, not a permit
     assert ag.DEFAULTS[ag.CARDS_KEY] == "off"

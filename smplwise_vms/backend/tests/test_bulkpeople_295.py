@@ -216,9 +216,11 @@ def parse_export(r) -> list[dict[str, str]]:
 
 
 def test_the_switch_is_off_by_default_and_the_permit_is_not_in_the_build(settings, monkeypatch, station_scope):  # noqa: F811
-    world = World(settings, monkeypatch, station_scope, on=False)
     src = (Path(bp.__file__)).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False  #" in src and bp.go_live_permitted() is False
+    assert "\nGO_LIVE_PERMITTED = True  #" in src  # ECCACT-295: the owner removed the historical block (2026-10-21)
+    monkeypatch.setattr(bp, "GO_LIVE_PERMITTED", False)  # this test pins the permit-off behaviour
+    world = World(settings, monkeypatch, station_scope, on=False)
+    assert bp.go_live_permitted() is False
     s = world.c.get(f"{API}/settings", headers=as_user("root")).json()
     assert s["enabled"] == "off" and s["go_live_permitted"] is False
     for r in (world.c.get(f"{API}/export.csv", headers=as_user("root")), world.upload(csv_rows({"person_id": "u1", "display_name": "X"}))):
@@ -396,14 +398,16 @@ def test_a_bearer_token_session_cannot_confirm(w, monkeypatch):
 # ================================================================ apply: refused without the permit; bounded, resumable, partial
 
 
-def test_apply_is_refused_without_the_owners_permit(w):
+def test_apply_is_refused_without_the_owners_permit(w, monkeypatch):
+    monkeypatch.setattr(bp, "GO_LIVE_PERMITTED", False)  # ECCACT-295: the shipped constant is True; this pins the permit-off behaviour
     job = w.ready(csv_rows({"person_id": "u1", "active": "false"}))
     r = w.apply(job["id"])
     assert r.status_code == 409 and r.json()["code"] == "bulk_people_not_permitted"
     assert w.engine.writes == [] and w.job_row(job["id"])["state"] == "confirmed"
 
 
-def test_the_live_engine_refuses_every_write_without_the_permit(settings):
+def test_the_live_engine_refuses_every_write_without_the_permit(settings, monkeypatch):
+    monkeypatch.setattr(bp, "GO_LIVE_PERMITTED", False)  # ECCACT-295: pins the permit-off behaviour
     eng = WiskeyBulkEngine(settings)
     for call in (lambda: eng.create({"display_name": "x"}, "u"), lambda: eng.update("u1", 1, {"active": False}, "u")):
         with pytest.raises(EngineError) as err:

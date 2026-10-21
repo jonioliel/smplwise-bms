@@ -33,7 +33,7 @@ from typing import Any, Protocol
 from ..db import get_setting
 from . import wiskey_peer as wp
 
-GO_LIVE_PERMITTED = False
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the live registry read is still not built (not_built)
 PIN_KEY = "wiskey.peer_pin"
 PROPOSED_COMMAND = "hikvision_intercom/peer_bindings/get"  # Arx PROPOSAL, not on the wire, not advertised by WisKey
 PROPOSED_CAPABILITY = "peer_binding_read_v1"

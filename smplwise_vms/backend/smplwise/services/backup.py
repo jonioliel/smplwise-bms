@@ -78,7 +78,9 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
                                    "bridge_keys", "bridge_rotations",
                                    # DOORHARD-295: the door-automation fire history (cooldown / cap counters, decisions) is never in an archive
-                                   "door_automation_fires"})
+                                   "door_automation_fires",
+                                   # ECCACT-295: durable WisKey intents / relay map / feature registry - a restore must never revive an old intent
+                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class

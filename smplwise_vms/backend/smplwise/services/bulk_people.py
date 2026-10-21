@@ -39,7 +39,7 @@ log = logging.getLogger("smplwise.bulk_people")
 # ---------------------------------------------------------------- the switches (both OFF in this build)
 
 FLAG_KEY = "access.bulk_people"  # off | on - a product switch (system administrator); default off
-GO_LIVE_PERMITTED = False  # the owner's separate go-live permit for bulk WRITES - flipped only by the commit carrying it
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch access.bulk_people stays OFF until an administrator turns it on
 
 
 def go_live_permitted() -> bool:

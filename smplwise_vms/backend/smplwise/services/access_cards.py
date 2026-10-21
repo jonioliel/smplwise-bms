@@ -34,7 +34,7 @@ from ..rbac import STATION, Principal
 from . import access_grants as ag
 from .access_grant_engine import EngineError
 
-CAPTURE_PERMITTED = False  # the capture lease route is OFF (owner permit + lab run pending); a card is typed by number only
+CAPTURE_PERMITTED = False  # ECCACT-295: NOT a permit but a missing implementation - `capture()` below only refuses; the grant -> capture lease -> confirm flow is not built in Arx. A card is typed by number only.
 _CARD_NO = re.compile(r"[A-Za-z0-9_-]{1,32}")  # WisKey validate_card (client/access.py), the people editor's IDENTIFIER
 LABEL_MAX = 32
 

@@ -356,7 +356,7 @@ def test_engine_malformed_v2_is_unknown_and_never_re_asked_as_v1():
 
 
 def test_the_live_engine_stays_refused_and_reads_the_last_known_record_only_with_a_reader(monkeypatch):
-    assert ag.GO_LIVE_PERMITTED is False and a5.GO_LIVE_PERMITTED is False
+    monkeypatch.setattr(ag, "GO_LIVE_PERMITTED", False)  # ECCACT-295: pins the permit-off behaviour
     asked: list = []
 
     def known(pid):
@@ -384,7 +384,9 @@ def test_engine_for_wires_a_last_known_provider(monkeypatch):
             raise sqlite3.OperationalError("no db")
 
     eng = ag.engine_for(DB())
-    assert eng.access_state_reader is None, "no live access_state client is built"
+    from smplwise.services.wiskey_readback import LiveReadback
+
+    assert isinstance(eng.access_state_reader, LiveReadback), "ECCACT-295: the live, negotiated readback is wired (still behind GO_LIVE)"
     assert eng.last_known_stations("person-a") is None
 
 
