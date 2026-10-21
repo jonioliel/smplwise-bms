@@ -34,9 +34,15 @@ class FakeAuth:
         return self.users.get(user_id)
 
 
+# 0.9.6 (CR-USR2 13.6): the service user in a group whose entity policy names only some devices - "restricted". Home Assistant's default
+# for a regular user is the built-in `system-users` group, which allows every entity.
+RESTRICTED = [SimpleNamespace(id="arx_service", name="Arx service", policy={"entities": {"entity_ids": {"light.x": True, "lock.front": True}}})]
+DEFAULT_GROUPS = [SimpleNamespace(id="system-users", name="Users", policy={"entities": True})]
+
+
 def _hass(**over):
     users = {
-        SID: SimpleNamespace(id=SID, is_active=True, is_admin=False, system_generated=False),
+        SID: SimpleNamespace(id=SID, is_active=True, is_admin=False, system_generated=False, groups=RESTRICTED),
         OTHER: SimpleNamespace(id=OTHER, is_active=True, is_admin=False, system_generated=False),
         ADMIN: SimpleNamespace(id=ADMIN, is_active=True, is_admin=True, system_generated=False),
     }
@@ -290,6 +296,83 @@ def test_switch_on_admits_each_extended_item_as_the_service_identity(service, fe
 ])
 def test_switch_on_still_refuses_items_outside_their_feature(feature, domain, service):
     assert _error(_screen_x(_execute(domain=domain, service=service, obo=_obo(feature)))) == "service_identity_refused"
+
+
+# ---------------------------------------------------------------- 0.9.6 (EXTID-295, CR-USR2 13.6): the default-policy refusal
+
+def _sid(groups=..., **over):
+    attrs = {"id": SID, "is_active": True, "is_admin": False, "system_generated": False, **over}
+    if groups is not ...:
+        attrs["groups"] = groups
+    return SimpleNamespace(**attrs)
+
+
+@pytest.mark.parametrize("service,feature,body", EXTENDED_ITEMS)
+@pytest.mark.parametrize("user", [
+    _sid(DEFAULT_GROUPS),  # Home Assistant's default for a regular user
+    _sid(RESTRICTED + DEFAULT_GROUPS),  # a restricting group does not help while system-users is still there (the most permissive wins)
+    _sid([SimpleNamespace(id="all_devices", policy={"entities": {"all": True}})]),
+    _sid([SimpleNamespace(id="all_control", policy={"entities": {"all": {"read": True, "control": True}}})]),
+    _sid([]),  # no group at all
+    _sid(),  # groups not readable
+    _sid([SimpleNamespace(id="odd", policy="not a mapping")]),
+], ids=["system-users", "restricted+system-users", "all", "all-control", "no-group", "no-groups-attr", "odd-policy"])
+def test_1306_an_extended_item_is_refused_while_the_service_policy_is_default_or_unknown(service, feature, body, user):
+    """CR-USR2 13.6 (owner decision 3 of 2026-10-21) - negative first: the bridge refuses every item only the extended mode admits."""
+    msg = _signed({"user_id": SID, "request_id": "r1", "on_behalf_of": _obo(feature), **body})
+    result = asyncio.run(si.screen(_hass(**{SID: user}), signing.Verifier(SECRET), msg, service, SID, True))
+    assert _error(result) == "service_identity_policy_default"
+
+
+def test_1306_basic_items_and_home_assistant_users_are_not_affected():
+    hass = _hass(**{SID: _sid(DEFAULT_GROUPS)})
+    out, refused = asyncio.run(si.screen(hass, signing.Verifier(SECRET), _execute(obo=_obo()), "execute", SID, True))  # light.turn_on: a basic item
+    assert refused is None and out["user_id"] == SID
+    out, refused = asyncio.run(si.screen(hass, signing.Verifier(SECRET), _execute(obo=_obo()), "execute", SID, False))  # the switch off: as 0.9.5
+    assert refused is None
+    body = {"domain": "lock", "service": "unlock", "data": {"entity_id": "lock.front"}, "request_id": "r1"}
+    out, refused = asyncio.run(si.screen(hass, signing.Verifier(SECRET), _signed({"user_id": OTHER, **body}), "execute", SID, True))
+    assert refused is None and out["user_id"] == OTHER  # a Home Assistant user's own message: never judged here
+
+
+@pytest.mark.parametrize("user,expected", [
+    (_sid(RESTRICTED), True),
+    (_sid([SimpleNamespace(id="g1", policy={"entities": {"domains": {"light": True}}}), SimpleNamespace(id="g2", policy={"entities": None})]), True),
+    (_sid([SimpleNamespace(id="read_all", policy={"entities": {"all": {"read": True}}})]), True),  # read everything, control nothing
+    (_sid(DEFAULT_GROUPS), False),
+    (_sid([SimpleNamespace(id="system-admin", policy={"entities": True})]), False),
+    (_sid([SimpleNamespace(id="g", policy={"entities": True})]), False),
+    (_sid([SimpleNamespace(id="g", policy={"entities": {"all": True}})]), False),
+    (_sid([SimpleNamespace(id="g", policy={"entities": {"all": {"control": True}}})]), False),
+    (_sid([]), False),
+    (_sid(RESTRICTED, is_admin=True), False),
+    (_sid(RESTRICTED, is_active=False), False),
+    (None, False),
+    (_sid(), None),
+    (_sid([SimpleNamespace(id="g", policy=None)]), None),
+    (_sid([SimpleNamespace(id="g", policy={"entities": "yes"})]), None),
+    (_sid([SimpleNamespace(id="g", policy={"entities": {"all": "yes"}})]), None),
+], ids=lambda v: None)
+def test_1306_service_policy_restricted_table(user, expected):
+    assert si.service_policy_restricted(user) is expected
+
+
+def test_1306_a_raising_groups_api_is_unknown():
+    class Raising:
+        id, is_active, is_admin = SID, True, False
+
+        @property
+        def groups(self):
+            raise RuntimeError("boom")
+
+    assert si.service_policy_restricted(Raising()) is None
+
+
+def test_1306_the_push_reports_a_boolean_only():
+    text = (SRC / "__init__.py").read_text(encoding="utf-8")
+    assert '"service_policy_restricted": policy_restricted' in text
+    assert "service_identity.service_policy_restricted(await hass.auth.async_get_user(sid)) if sid else None" in text
+    assert si.POLICY_DEFAULT == "service_identity_policy_default"
 
 
 def test_switch_on_never_admits_the_area_write_or_automations(monkeypatch):

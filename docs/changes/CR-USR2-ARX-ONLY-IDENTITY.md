@@ -883,3 +883,60 @@ Revert the branch. The bridge stores the same list in both versions, so a 0.9.2 
 - **Tests (negative first):** default policy / admin / missing API = refused on both sides with both switches on; a restricted group = admitted;
   the step and its text; the push field; the code in `automation_ops.BRIDGE_ERRORS`. Needs one Home Assistant restart (bridge change).
 - Effort M; decide together with the go-live permit (it changes owner decision 4 "recommendation only" into a condition - owner call).
+- **Superseded by 13.7: built** (owner decision 3 of 2026-10-21).
+
+### 13.7 Fable security review 4 - the owner's decisions of 2026-10-21 and what was built (`pilot/EXTID-295`, from `release/2111` @ 5cbfe7df4)
+
+Review: `private/planning/FABLE_REVIEW_4_2026-10-21.md` (verdict on the code: GO-WITH-CONDITIONS; on the permit: NO-GO until its ordered
+checklist, section 7). No migration. Bridge **0.9.6**. **The extended mode stays locked:** `EXTENDED_GO_LIVE_PERMITTED = False` is not
+touched, no switch or permit changed; the permit is the lead's separate commit after the gate. Fakes only; no Home Assistant contacted.
+
+**Owner decisions of 2026-10-21 (chat, relayed by the lead):**
+
+1. V-01 (medium) - fix on a small branch before the permit: **built** (below).
+2. The draft amendment is approved WITH the review's six wording corrections A-1..A-6, to be applied as binding specification 1.2: the
+   corrections are applied to the draft; the 1.2 text is prepared as a separate docs commit on this branch (section 7 of the draft).
+3. Build the automatic refusal while the service user is not restricted (the 13.6 design) before the permit: **built** (below). This
+   reverses owner decision 4 of 2026-10-18 ("entity policy: recommendation only") for the extended mode: R5 is no longer a text-only risk.
+4. NO second factor for doors and zone bypass - the decision of 2026-10-18 stays (R3 accepted, unchanged).
+5. `notify` inside scripts stays as built; the record in 12.8 item 7 is corrected (it now reads decided).
+6. The schedules path (V-02): a task card now (`SCHEDIMPACT-295` in `management/tasks.json`), the fix after the permit.
+7. The supervised run is planned this week after steps 1-3 of the review's checklist, with the owner present.
+
+**V-01 - built (bridge `runnable.py`).** `ACTION_TYPE_KEYS` lists the keys that decide a step's type in Home Assistant (its `ACTIONS_MAP`).
+A step dict that carries more than one of them is refused `impact_step_unknown`, whatever order Home Assistant would pick in - so a device
+action `{device_id, domain: lock, type: unlock, entity_id, action: lock.lock}` (the review's decoy) is refused instead of being judged as
+`lock.lock`. With a single type key the walker tests `event` and `device_id` before a service call. A device condition used as a step
+(`condition` + `device_id`) moves from `impact_device_action` to `impact_step_unknown` (still refused). NOT VERIFIED against an installed
+Home Assistant (no `homeassistant` package on the workstation): the test `test_v01_against_the_installed_home_assistant_schema_when_present`
+asserts the premise (Home Assistant classifies the decoy as a device action; our key list equals `ACTIONS_MAP`) and is skipped where the
+package is absent. The fix itself does not depend on the order.
+
+**13.6 - built (both sides, behind the existing switch).**
+
+| Side | What |
+|---|---|
+| Bridge 0.9.6 | `service_identity.service_policy_restricted(user)`: `True` only for an active non-administrator in at least one group, none of them `system-admin` / `system-users`, and no group policy allowing every entity (`entities: True`, `entities.all: True`, `entities.all.control: True`); `False` for the default (or an all-entities policy, no group, an administrator, an inactive user); `None` when groups / policies cannot be read or the API raises (treated as `False`). `screen()` refuses an item only the extended mode admits (`execute` doors / scripts / scenes / bypass arming / bypass controls, `stream_source`, `config_item` run ops) with `service_identity_policy_default` unless it is `True` - read live on every message. The directory push carries `service_policy_restricted` (boolean or null, never the policy). The options-flow text says so (en / he / strings). |
+| Add-on | `bridge.service_policy_restricted` ("true" / "false" / "" - only a literal boolean in the push counts; never restored from a backup, `SETTINGS_KEEP`); `_local_subject` refuses every item only the extended mode admits with 503 `service_identity_policy_default` (audited `identity.service_identity.refused`, reason `policy_default`) while it is not "true"; basic-mode (2.6.4) items are unaffected. `BRIDGE_EXTENDED_REQUIRED` = **0.9.6** (the V-01 fix and the report). `status()`: `extended.service_policy_restricted` (true / false / null) and the step `service_policy_default` (he / en) while the mode is requested. `automation_ops.BRIDGE_ERRORS` maps the bridge's code (503). |
+
+Not covered by 13.6 (recorded): a WisKey door does not go through the bridge or the service user (section 11.2, S4), so the service user's
+policy does not bound it; R6 (the camera stream source reads no per-entity policy) stays, now inside a mode that requires a restricted user.
+
+**Bridge 0.9.6 - what the owner must do on his home system:** update the bridge (it ships inside the add-on update; the add-on installs it
+into Home Assistant's `custom_components`) and **restart Home Assistant once** (`[platform-restart]` in the release notes). Before the
+supervised run: put the service user in a dedicated group whose entity policy names only the devices Arx may reach, and NOT in the regular
+users group (Home Assistant's default) - otherwise the card shows `service_policy_default` and every extended action is refused. The
+extended-identity permit must require **bridge >= 0.9.6** (already enforced: `BRIDGE_EXTENDED_REQUIRED`).
+
+**Tests (local, one file at a time, fakes only):** `tests/test_bridge_runnable.py` (V-01: the decoy with `action` / `service` / a target,
+inside choose / if / repeat / parallel, one nested level, an automation; every pair of type keys; the single-key table; the HA-package test,
+skipped here); `tests/test_bridge_service_identity.py` (13.6 negative first: every extended item refused for system-users, restricted +
+system-users, all, all-control, no group, unreadable groups, an odd policy; basic items and HA users unaffected; the classification table; a
+raising API; the push); `tests/test_service_identity_extended.py` (every extended item refused for "false" / "" / "True" / "1", audited
+`policy_default`, a basic item unaffected; the push and the card; older bridges 0.9.0-0.9.5 refused; the route test refuses before sending);
+`tests/test_service_identity_runnable.py`, `tests/test_extid_followups.py` (0.9.6 requirement), the version pins of the `test_bridge_*` /
+`test_lovelace_card` files. The two failures of `tests/test_bridge_schedule_service.py` (`kid`, `SERVICE_ROTATE`) exist unchanged at
+5cbfe7df4 (stale since HMACACT) - not caused or fixed here.
+
+**Rollback:** revert the branch. A 0.9.5 bridge with this add-on: every extended item refused (fail closed) - and the mode is locked anyway.
+The setting `bridge.service_policy_restricted` is ignored by older code.

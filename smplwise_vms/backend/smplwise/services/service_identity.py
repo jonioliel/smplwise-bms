@@ -36,6 +36,10 @@ Rules (both sides enforce; the bridge has the same table in custom_components/sm
   applies the service user's Home Assistant entity policy to every entity of a message sent on behalf of an Arx-only person (S2). Every
   extended item therefore needs a 0.9.2 bridge. EXTENDED_GO_LIVE_PERMITTED stays False: flipping it needs the owner's explicit permit, an
   approved amendment of docs/security/HA_IDENTITY_RBAC_HE.md sections 7-8 and a Fable re-review.
+- EXTID-295 (Fable review 4, owner decisions 1 and 3 of 2026-10-21; CR-USR2 13.6 / 13.7): every extended item needs bridge 0.9.6 (the V-01
+  fix of the impact check) AND the bridge's report that the service user is restricted (a group whose entity policy does not allow every
+  entity - `bridge.service_policy_restricted`); while that report is not "true" every item only the extended mode admits is refused 503
+  `service_identity_policy_default` (audited reason `policy_default`). The bridge refuses the same with its live check.
 """
 from __future__ import annotations
 
@@ -73,8 +77,14 @@ AREA_WRITE = ("smplwise_bridge", "set_entity_area")
 NEVER_LOCAL_EXTENDED = frozenset({AREA_WRITE})
 EXTENDED_SETTING = "security.local_identity_extended"
 BRIDGE_EXTENDED = "bridge.local_identity_extended"  # what the bridge reported in its last directory push (its options-flow copy)
-# SVCIDENT3: every extended item needs the bridge that carries the run fences (S1 b: the impact check, S2: the entity policy) - 0.9.2
-BRIDGE_EXTENDED_REQUIRED = "0.9.2"
+# SVCIDENT3: every extended item needs the bridge that carries the run fences (S1 b: the impact check, S2: the entity policy) - 0.9.2.
+# EXTID-295 (Fable review 4, owner decisions 1 and 3 of 2026-10-21): 0.9.6 - the V-01 fix of the impact check (a step with more than one
+# type key is refused) and the report of whether the service user is restricted (CR-USR2 13.6). An older bridge gets no extended item.
+BRIDGE_EXTENDED_REQUIRED = "0.9.6"
+# EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21): the bridge's report (with every directory push, 0.9.6+) of whether the service
+# user's Home Assistant entity policy is restricted - "true" / "false" / "" (unknown, or an older bridge). Every item only the extended mode
+# admits is refused while it is not "true" (`service_identity_policy_default`); basic-mode items are not affected.
+BRIDGE_POLICY = "bridge.service_policy_restricted"
 # SVCIDENT3 (review S1 a): the scripts / scenes / automations (entity ids) Arx-only users may run in the extended mode - EMPTY by default
 RUNNABLE_SETTING = "security.local_identity_runnable"
 BRIDGE_RUNNABLE = "bridge.local_identity_runnable"  # the bridge's options-flow copy, as reported in its last directory push (JSON list)
@@ -170,7 +180,8 @@ MESSAGES = {
     "service_identity_unconfigured": "פעולות בתשתית המערכת למשתמשי Arx דורשות זהות שירות. מנהל המערכת מגדיר אותה בהגדרות › משתמשי Arx.",
     "service_identity_admin": "זהות השירות שהוגדרה היא משתמש עם הרשאות ניהול, ולכן הפעולה נחסמה. מנהל המערכת יבחר משתמש רגיל.",
     "service_identity_bridge_outdated": "נדרש עדכון של רכיב החיבור (0.9.0 ומעלה) כדי שמשתמשי Arx יוכלו לפעול בתשתית המערכת.",
-    "service_identity_extended_bridge_off": "הפעולה דורשת שהמצב המורחב של משתמשי Arx יופעל גם ברכיב החיבור (0.9.2 ומעלה) - מנהל בתשתית המערכת מפעיל אותו שם.",
+    "service_identity_extended_bridge_off": f"הפעולה דורשת שהמצב המורחב של משתמשי Arx יופעל גם ברכיב החיבור ({BRIDGE_EXTENDED_REQUIRED} ומעלה) - מנהל בתשתית המערכת מפעיל אותו שם.",
+    "service_identity_policy_default": "זהות השירות אינה מוגבלת בתשתית המערכת, ולכן הפעולות המורחבות של משתמשי Arx נחסמות. מנהל בתשתית המערכת משייך אותה לקבוצה שמתירה רק את ההתקנים ש-Arx רשאי להפעיל.",
     "service_identity_not_runnable": "הפריט הזה אינו ברשימת הסקריפטים, הסצנות והאוטומציות שמשתמשי Arx רשאים להריץ. מנהל המערכת מוסיף אותו בהגדרות › משתמשי Arx.",
     "service_identity_runnable_bridge_missing": "הפריט ברשימת ההרצה של Arx אך לא ברשימה של רכיב החיבור - מנהל בתשתית המערכת מוסיף אותו גם שם.",
     "automation_write_requires_ha_identity": "שמירה והפעלה של אוטומציות, סצנות וסקריפטים זמינות רק למשתמשי תשתית המערכת.",
@@ -231,6 +242,23 @@ def extended_requested(conn: sqlite3.Connection) -> bool:
         return (get_setting(conn, EXTENDED_SETTING) or "off") == "on"
     except sqlite3.OperationalError:
         return False
+
+
+def policy_restricted(conn: sqlite3.Connection) -> bool:
+    """EXTID-295 (CR-USR2 13.6): the bridge reported (0.9.6+, last directory push) that the service user is restricted to a group whose entity
+    policy does not allow every entity. Unknown, "false" or an older bridge = False (fail closed)."""
+    try:
+        return (get_setting(conn, BRIDGE_POLICY) or "") == "true"
+    except sqlite3.OperationalError:
+        return False
+
+
+def _policy_report(conn: sqlite3.Connection) -> bool | None:
+    try:
+        value = get_setting(conn, BRIDGE_POLICY) or ""
+    except sqlite3.OperationalError:
+        value = ""
+    return {"true": True, "false": False}.get(value)
 
 
 def extended_go_live_permitted() -> bool:
@@ -394,6 +422,10 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
         if (_version_tuple(get_setting(conn, "bridge.integration_version")) < _version_tuple(BRIDGE_EXTENDED_REQUIRED)
                 or (get_setting(conn, BRIDGE_EXTENDED) or "") != "true"):
             raise _refuse(conn, actor, user_id, "service_identity_extended_bridge_off", 503, **args)
+        if not policy_restricted(conn):
+            # EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21): the service user's entity policy is the default (or unknown) - the
+            # second fence would refuse nothing, so no extended item is sent. The bridge refuses the same with its live check.
+            raise _refuse(conn, actor, user_id, "service_identity_policy_default", 503, reason="policy_default", **args)
         if run is not None and entity_id not in bridge_runnable_ids(conn):
             # the bridge (0.9.2) refuses an item missing from its own copy of the allowlist: not sent (both copies must list it)
             raise _refuse(conn, actor, user_id, "service_identity_runnable_bridge_missing", 503, **args)
@@ -691,6 +723,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     ext_on = extended_on(conn)
     bridge_ext = (get_setting(conn, BRIDGE_EXTENDED) or "") == "true"
     bridge_ext_ok = _version_tuple(bridge_version) >= _version_tuple(BRIDGE_EXTENDED_REQUIRED)
+    policy_ok = policy_restricted(conn)
     if ext_requested:
         step("extended_on", "המצב המורחב פעיל: משתמשי Arx יכולים לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות, להריץ אוטומציות ממסך האוטומציות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו. נדרשת סקירת אבטחה לפני הפעלה.",
              "Extended mode is on: Arx users may open doors, bypass alarm zones, run scripts and scenes, run automations from the automations screen and show live cameras - each only under their own permission. A security review is required before enabling it.")
@@ -700,6 +733,10 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         elif paired and not bridge_ext:
             step("extended_bridge_off", "בתשתית המערכת: הגדרות › התקנים ושירותים › SMPLWISE Bridge › הגדרות - הפעילו גם שם את המצב המורחב של משתמשי Arx. עד אז הפעולות המורחבות נחסמות.",
                  "In the infrastructure: Settings > Devices & services > SMPLWISE Bridge > Configure - turn the Arx users' extended mode on there too. Until then the extended actions are refused.")
+        if paired and bridge_ext_ok and not policy_ok:
+            # EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21)
+            step("service_policy_default", "הגבילו את זהות השירות בתשתית המערכת לקבוצה שמתירה רק את ההתקנים ש-Arx רשאי להפעיל (לא הקבוצה הרגילה של המשתמשים). עד אז הפעולות המורחבות נחסמות.",
+                 "Restrict the service user in the infrastructure to a group that names only the devices Arx may reach (not the regular users group). Until then the extended actions are refused.")
     elif bridge_ext:
         step("extended_bridge_only", "המצב המורחב פעיל ברכיב החיבור בלבד. כל עוד הוא כבוי כאן, הפעולות המורחבות נחסמות.",
              "Extended mode is on in the bridge only. While it is off here, the extended actions are refused.")
@@ -722,7 +759,9 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         "extended": {"permitted": extended_go_live_permitted(), "requested": ext_requested, "on": ext_on, "bridge_on": bridge_ext, "bridge_version_ok": bridge_ext_ok,
                      "agrees": ext_requested == bridge_ext, "required": BRIDGE_EXTENDED_REQUIRED,
                      # SVCIDENT3 (review S4): the two-switch rule is the bridge's - a WisKey door follows the add-on's switch alone
-                     "doors_addon_only": True},
+                     "doors_addon_only": True,
+                     # EXTID-295 (CR-USR2 13.6): the bridge's last report - True / False, None while no 0.9.6+ bridge reported it
+                     "service_policy_restricted": _policy_report(conn)},
         "runnable": {"ids": sorted(run_ids), "bridge_ids": sorted(bridge_run_ids), "agrees": run_ids == bridge_run_ids, "max": MAX_RUNNABLE},
         "ready": ready,
         "steps": steps,
@@ -742,11 +781,17 @@ def note_directory_push(conn: sqlite3.Connection, message: dict[str, Any]) -> No
     ext = "true" if message.get("local_identity_extended") is True else "false"
     # SVCIDENT3 (bridge >= 0.9.2): the bridge's copy of the runnable allowlist; an older bridge or a malformed list = none
     run = json.dumps(parse_runnable(message.get("local_identity_runnable")) or [])
+    # EXTID-295 (bridge >= 0.9.6, CR-USR2 13.6): whether the service user is restricted - only a literal boolean counts; anything else
+    # (null = the bridge could not tell, an older bridge sends no key) is unknown = refused
+    raw_policy = message.get("service_policy_restricted")
+    policy = "true" if raw_policy is True else ("false" if raw_policy is False else "")
     if (capable != (get_setting(conn, BRIDGE_CAPABLE) or "") or reported != (get_setting(conn, BRIDGE_SETTING) or "") or ext != (get_setting(conn, BRIDGE_EXTENDED) or "false")
-            or run != (get_setting(conn, BRIDGE_RUNNABLE) or "[]")):
+            or run != (get_setting(conn, BRIDGE_RUNNABLE) or "[]") or policy != (get_setting(conn, BRIDGE_POLICY) or "")):
         set_setting(conn, BRIDGE_CAPABLE, capable)
         set_setting(conn, BRIDGE_SETTING, reported)
         set_setting(conn, BRIDGE_EXTENDED, ext)
         set_setting(conn, BRIDGE_RUNNABLE, run)
+        set_setting(conn, BRIDGE_POLICY, policy)
         audit(conn, actor=None, action="bridge.service_identity_seen", decision="allowed", resource_type="installation", resource_id="service_identity",
-              details={"capable": capable == "true", "user_id": reported or None, "extended": ext == "true", "runnable": json.loads(run)})
+              details={"capable": capable == "true", "user_id": reported or None, "extended": ext == "true", "runnable": json.loads(run),
+                       "policy_restricted": {"true": True, "false": False}.get(policy)})

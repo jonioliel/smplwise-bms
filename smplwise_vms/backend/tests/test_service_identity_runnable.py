@@ -27,10 +27,11 @@ from test_service_identity import LID, SID, _local, _seed, db, lx_app  # noqa: F
 SCRIPT = ("execute", ("script", "turn_on"))
 
 
-def _on(db, *, addon: list[str] | None = None, bridge: list[str] | None = None, version: str = "0.9.2") -> None:
+def _on(db, *, addon: list[str] | None = None, bridge: list[str] | None = None, version: str = "0.9.6") -> None:
     with db.connection() as conn:
         set_setting(conn, si.EXTENDED_SETTING, "on")
         set_setting(conn, si.BRIDGE_EXTENDED, "true")
+        set_setting(conn, si.BRIDGE_POLICY, "true")  # EXTID-295 (CR-USR2 13.6): the bridge reported a restricted service user
         set_setting(conn, "bridge.integration_version", version)
         if addon is not None:
             set_setting(conn, si.RUNNABLE_SETTING, json.dumps(addon))
@@ -114,14 +115,15 @@ def test_a_listed_item_needs_the_bridge_copy_too_then_goes_as_the_service_identi
     assert details["entity_id"] == "script.evening" and details["item"] == ["script", "turn_on"]
 
 
-@pytest.mark.parametrize("version", ["0.9.0", "0.9.1"])
+@pytest.mark.parametrize("version", ["0.9.0", "0.9.1", "0.9.2", "0.9.5"])
 def test_an_older_bridge_gets_no_extended_item(db, permit, version):
-    """0.9.1 has the switch but not the run fences (impact check, entity policy): no extended item is sent to it, listed or not."""
+    """0.9.1 has the switch but not the run fences (impact check, entity policy); 0.9.2-0.9.5 lack the V-01 fix and the policy report
+    (EXTID-295, Fable review 4): no extended item is sent to them, listed or not."""
     _seed(db)
     _on(db, addon=["script.evening"], bridge=["script.evening"], version=version)
     assert _code(db) == "service_identity_extended_bridge_off"
     assert _code(db, item=("lock", "unlock"), entity_id=None) == "service_identity_extended_bridge_off"
-    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.2"
+    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.6"
 
 
 def test_a_malformed_stored_list_is_empty(db, permit):
@@ -230,7 +232,9 @@ def test_a_camera_a_local_user_enabled_stops_with_the_mode_and_is_removed_once(l
     bridge_si = load("service_identity")
 
     def stream_source(_settings, payload):
-        hass = FakeHass({SID: FakeUser(SID, admin=False)}, {ENTITY})
+        user = FakeUser(SID, admin=False)
+        user.groups = [SimpleNamespace(id="arx_service", policy={"entities": {"domains": {"camera": True}}})]  # 0.9.6: a restricted service user
+        hass = FakeHass({SID: user}, {ENTITY})
 
         async def getter(_hass, entity_id):
             return URL
