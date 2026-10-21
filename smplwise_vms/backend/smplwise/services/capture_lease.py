@@ -62,7 +62,7 @@ MIN_BRIDGE_FOR_CAPTURE_LEASE: str | None = None
 # The owner's SEPARATE go-live permit (CR 7.3, review 2026-10-16 M4), enforced in code: while False the route is off and `on`
 # is refused (409 `capture_lease_not_permitted`) whatever bridge is known. Flipped only by the commit that carries the owner's
 # written go-live permit - never by a setting, an environment variable or a bridge version.
-GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch access.capture_lease stays OFF until an administrator turns it on
+GO_LIVE_PERMITTED = False  # Fable review 2 (2026-10-21) NO-GO: no bridge lease_event, MIN_BRIDGE None, WisKey consumer unverified, separate card permit; ECCACT-295 reverted the opening
 # Development-mode principals (`source == "dev"`, SW_DEV_USER) never hold a lease (CR 4, review L5); the HTTP tests that drive
 # the route with the dev identity switch this on inside the test only.
 DEV_PRINCIPAL_ALLOWED = False

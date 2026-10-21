@@ -100,7 +100,7 @@ def test_the_permits_are_open_but_signed_capture_is_not_covered(conn):
     assert wp.SIGNED_CAPTURE_COVERED is False and wp.WISKEY_HALF_REVIEWED is False
     assert wp.signed_capture_covered() is False
     # the pre-existing locks are untouched
-    assert access_grants.GO_LIVE_PERMITTED is True and capture_lease.GO_LIVE_PERMITTED is True
+    assert access_grants.GO_LIVE_PERMITTED is True and capture_lease.GO_LIVE_PERMITTED is False  # Fable review 2: capture lease stays locked
     assert service_identity.EXTENDED_GO_LIVE_PERMITTED is False
 
 
