@@ -52,20 +52,13 @@ Error classes (`intercom_messaging_adapter.classify`): `rate_limited` (already),
 `whatsapp_send_uncertain` and `status_unknown` are always `unknown` - never a refusal, never resent by Arx. The existing `rate_limited` of
 the preview cache is not treated as a provider slowdown and starts no backoff.
 
-## 4. The reservation port (so WisKey's own sends share the budget atomically)
+## 4. The reservation port
 
-`POST /api/v1/messaging/whatsapp/pacing/reserve` `{sender_ref, class, request_id}` -> `{granted: true, lease: {request_id, expires_at}}` or
-`{granted: false, reason, retry_after_s}`; `POST .../release` `{request_id, outcome}` with outcome `sent | unknown | not_sent | rate_limited |
-pair_rate_limited` -> `{released, repeated, outcome}`. Service: `wa_pacing.WaReservations`.
-
-- Admission and the lease row are one step on the route's write connection (SQLite single writer): two callers cannot both take the last slot.
-- **Idempotent by `request_id`**: a repeat of a live grant returns the same lease; the first release outcome stands; a released or expired id is never granted again.
-- A lease lives `lease_ttl_s` (60 s, setting 10-300). It counts as a send from the grant. Released `not_sent` hands the slot back; `sent` / `unknown` stay counted; an **expired unreleased lease stays counted** (the send may have left). `rate_limited` also starts the account backoff.
-- Same classes and shares as everything else; alerts are admitted while the account is in backoff.
-- Unknown `sender_ref` (not in `senders`) -> denied `sender_unknown`. Mode `off` -> granted without limiting (the lease is still recorded).
-- **Fail-open choice (WisKey's side, documented here so both agree):** when Arx cannot be reached, WisKey sends under its own conservative local cap and reports those sends through its counters. Arx never makes a physical alert depend on the port being up. The consequence: during an outage the shared budget is not guaranteed, which is exactly why `shared_budget_guaranteed` is a separate flag and stays false until adoption.
-- Auth: local channel, `messaging.accounts.manage`. **Open decision**: Arx has no machine credential for calls from WisKey; a narrow dedicated permission or credential should replace this before WisKey uses the port.
-- Fakes only: no WisKey client exists in this repo; tests call the service and the routes.
+The full wire, authentication, lease, outcome, reconciliation and fail-open contract is **`CR-WA-PACING-295-PORT-CONTRACT.md`**. Summary: `POST
+.../pacing/reserve`, `POST .../pacing/release`, `GET .../pacing/lease/{request_id}`; idempotent by `request_id`; 60 s leases (max 300, no renewal);
+release outcomes `accepted_by_provider | not_sent | unknown | expired` (unknown and an unreleased expiry are never credited); authentication is the
+HA bearer token of a dedicated owner-created HA user on the remote channel, authorised by the single new permission `messaging.pacing.reserve`
+(not `messaging.accounts.manage`); `charged_unreserved_*` prevents double charging against WisKey's `wiskey_own.charged_*`.
 
 ## 5. Files
 
@@ -74,11 +67,12 @@ pair_rate_limited` -> `{released, repeated, outcome}`. Service: `wa_pacing.WaRes
 - `services/intercom_messaging_adapter.py`, `routers/access_control_messaging.py`, `services/intercom_consent.py` (pacing block, error classes).
 - `services/messaging_runtime.py` (`pacer_on`, `pacing_for`, `wiskey_pacing`), `routers/messaging_accounts.py` (`GET/PUT .../pacing`, `POST .../reserve`, `POST .../release`; audit `messaging.pacing.update`), `services/backup.py` (setting kept out of backups), `services/messaging_accounts.py` (Pacing defaults and ranges).
 - Frontend: `api/messaging-pacing.ts`, `messaging/pacing-model.ts`, `i18n/messaging-pacing.ts` (he/en/ar/ru; ar/ru dev-marked), `screens/messaging-pacing-card.ts` in Settings > messaging channel.
+- `roles.json` / `routers/access.py`: the sensitive permission `messaging.pacing.reserve` (no built-in role holds it).
 - Tests: `tests/test_wa_pacing.py`, `frontend/tests/unit-messaging-pacing.spec.ts`.
 
 ## 6. Open questions
 
-1. How does WisKey authenticate to the reservation routes (dedicated permission or credential)?
+1. `remote_access` on (the only existing channel a non-human caller can use) or a bridge relay - see the port contract, section 2.
 2. Does WisKey's `sender_ref` for the tickets number exist yet, and who sets the `senders` map - the administrator by hand, or a pairing step?
 3. The hour and day numbers (300 / 1500) are the lead's extrapolation from 10 a minute; confirm against the account's real history.
 4. How `ha-whatsapp` reports a rate answer is unverified (section 2).

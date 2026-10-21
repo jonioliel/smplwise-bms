@@ -329,36 +329,71 @@ def test_release_is_idempotent_and_not_sent_hands_the_slot_back():
     r, p, ledger, store = port()
     r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW)
     out = r.release(request_id=rid(1), outcome="not_sent", now=NOW + sec(2))
-    assert out["released"] is True and out["repeated"] is False
+    assert out["released"] is True and out["repeated"] is False and out["conflict"] is False
     assert store.lease_times(KEY_A, NOW - sec(5)) == []
-    again = r.release(request_id=rid(1), outcome="sent", now=NOW + sec(3))
-    assert again["repeated"] is True and again["outcome"] == "not_sent", "the first outcome stands"
+    again = r.release(request_id=rid(1), outcome="accepted_by_provider", now=NOW + sec(3))
+    assert again == {"released": True, "repeated": True, "outcome": "not_sent", "conflict": True}, "the first outcome stands; the conflict is reported"
+    assert r.release(request_id=rid(1), outcome="not_sent", now=NOW + sec(3))["conflict"] is False
     assert r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW + sec(4))["reason"] == "already_released"
-    assert r.release(request_id="nope-nope-nope", outcome="sent", now=NOW)["reason"] == "unknown_request"
+    assert r.release(request_id="nope-nope-nope", outcome="unknown", now=NOW)["reason"] == "unknown_request"
     assert r.release(request_id=rid(1), outcome="exploded", now=NOW)["reason"] == "outcome_unknown"
+    assert r.release(request_id=rid(1), outcome="sent", now=NOW)["reason"] == "outcome_unknown", "the old word is not part of the vocabulary"
 
 
-def test_a_sent_or_unknown_release_stays_counted_and_a_rate_release_starts_the_backoff():
+def test_which_outcomes_credit_and_which_stay_counted():
+    r, p, ledger, store = port()
+    for n, outcome in enumerate(("accepted_by_provider", "unknown", "not_sent", "expired"), start=1):
+        r.reserve(sender_ref=REF, klass="ticket", request_id=rid(n), now=NOW)
+        r.release(request_id=rid(n), outcome=outcome, now=NOW + sec(1))
+    assert len(store.lease_times(KEY_A, NOW - sec(5))) == 2, "accepted and unknown count; not_sent and expired (never dispatched) are handed back"
+    assert {m: n for (_h, _a, _k, m), n in store.counts.items()}["sent"] == 1
+
+
+def test_an_unreleased_lease_that_expires_is_never_an_automatic_credit_but_a_late_proof_settles_it():
     r, p, ledger, store = port()
     r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW)
-    r.reserve(sender_ref=REF, klass="ticket", request_id=rid(2), now=NOW)
-    r.release(request_id=rid(1), outcome="sent", now=NOW)
-    r.release(request_id=rid(2), outcome="unknown", now=NOW)
-    assert len(store.lease_times(KEY_A, NOW - sec(5))) == 2
-    r.reserve(sender_ref=REF, klass="ticket", request_id=rid(3), now=NOW)
-    r.release(request_id=rid(3), outcome="rate_limited", now=NOW)
-    assert not check(p, wp.CLASS_TICKET).allowed and check(p, wp.CLASS_TICKET).reason == "backoff"
-    assert r.reserve(sender_ref=REF, klass="reminder", request_id=rid(4), now=NOW)["reason"] == "backoff"
-    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(5), now=NOW)["granted"] is True
+    later = NOW + sec(300)
+    assert r.status(request_id=rid(1), now=later)["state"] == "expired" and r.status(request_id=rid(1), now=later)["counted"] is True
+    assert len(store.lease_times(KEY_A, later - sec(600))) == 1
+    out = r.release(request_id=rid(1), outcome="not_sent", now=later)
+    assert out["late"] is True and out["released"] is True
+    assert r.status(request_id=rid(1), now=later) == {**r.status(request_id=rid(1), now=later), "state": "released", "outcome": "not_sent", "counted": False}
 
 
-def test_leases_replace_wiskeys_own_counters_so_nothing_is_counted_twice():
+def test_status_reconciles_by_request_id():
+    r, p, ledger, store = port()
+    assert r.status(request_id=rid(9), now=NOW) == {"found": False}
+    r.reserve(sender_ref=REF, klass="reminder", request_id=rid(1), now=NOW)
+    st = r.status(request_id=rid(1), now=NOW + sec(5))
+    assert st["found"] and st["state"] == "granted" and st["counted"] is True and st["class"] == "reminder" and st["outcome"] is None
+
+
+def test_a_reported_slowdown_starts_the_backoff_with_the_providers_hint_and_never_changes_the_outcome():
+    r, p, ledger, store = port()
+    r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW)
+    out = r.release(request_id=rid(1), outcome="not_sent", now=NOW, slowdown={"scope": "account", "retry_after_s": 90})
+    assert out["outcome"] == "not_sent"
+    assert store.get_state(f"account:{KEY_A}")[1] == NOW + sec(90)
+    assert check(p, wp.CLASS_TICKET).reason == "backoff" and check(p, wp.CLASS_ALERT).allowed
+    assert r.reserve(sender_ref=REF, klass="reminder", request_id=rid(2), now=NOW)["reason"] == "backoff"
+    r.reserve(sender_ref=REF, klass="alert", request_id=rid(3), now=NOW)
+    r.release(request_id=rid(3), outcome="not_sent", now=NOW, slowdown={"scope": "pair"})
+    assert store.get_state(f"account:{KEY_A}")[1] == NOW + sec(90), "a pair slowdown is only counted"
+    assert r.release(request_id=rid(3), outcome="unknown", now=NOW, slowdown={"scope": "galaxy"})["reason"] == "slowdown_invalid"
+
+
+def test_leases_replace_wiskeys_charged_counters_and_only_its_unreserved_sends_are_added():
     full = wk(wiskey_own={"charged_1m": 7, "charged_1h": 7, "charged_24h": 7})
     r, p, ledger, store = port(wiskey=full)
     assert p.wiskey_view(KEY_A, NOW)["charged"] == {"1m": 7, "1h": 7, "24h": 7}
     r.reserve(sender_ref=REF, klass="alert", request_id=rid(1), now=NOW)
     v = p.wiskey_view(KEY_A, NOW)
-    assert v["charged"] is None and v["superseded_by_leases"] is True
+    assert v["charged"] is None and v["unknown"] is True and v["superseded_by_leases"] is True, "no unreserved counters: its fail-open sends are unknown, not zero"
+    split = wk(wiskey_own={"charged_1m": 7, "charged_1h": 7, "charged_24h": 7, "charged_unreserved_1m": 2, "charged_unreserved_1h": 2, "charged_unreserved_24h": 2})
+    r2, p2, _, _ = port(wiskey=split)
+    r2.reserve(sender_ref=REF, klass="alert", request_id=rid(1), now=NOW)
+    v2 = p2.wiskey_view(KEY_A, NOW)
+    assert v2["charged"] == {"1m": 2, "1h": 2, "24h": 2} and v2["unknown"] is False, "the reserved sends are the lease; only the unreserved ones are added"
 
 
 def test_the_port_with_the_mode_off_grants_without_limiting():
@@ -578,23 +613,49 @@ def test_route_with_the_tickets_module_off_says_it_does_not_apply(client):
     assert body["mode"] == "conservative" and body["applies"] is False
 
 
-def test_reservation_routes_end_to_end(client, settings):
+def _role_and_bind(settings, c, user, role_id, perms):
+    import json as _json
+
+    from conftest import bind
+
+    from smplwise.db import Database, now_iso
+
+    db = Database(settings.db_path)
+    now = now_iso()
+    with db.connection() as conn:
+        conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, sensitive_json, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+                     (role_id, role_id, _json.dumps([]), _json.dumps(perms), now, now))
+        conn.execute("UPDATE settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'permission_revision'")
+    bind(c, settings, user, role_id, "installation", "*")
+
+
+def test_reservation_routes_need_their_own_narrow_permission(client, settings):
     assert client.put(URL, json={"senders": {"entry:01JFAKEENTRYA": REF}}, headers=as_user("joni")).status_code == 200
-    j = as_user("joni")
+    _role_and_bind(settings, client, "wisk", "r-wk-port", ["messaging.pacing.reserve"])
+    _role_and_bind(settings, client, "mia", "r-msg-manage", ["messaging.accounts.manage"])
     body = {"sender_ref": REF, "class": "ticket", "request_id": "req-route-0001"}
-    got = client.post(f"{URL}/reserve", json=body, headers=j)
+    wkh = as_user("wisk")
+    got = client.post(f"{URL}/reserve", json=body, headers=wkh)
     assert got.status_code == 200, got.text
     assert got.json()["granted"] is True
-    assert client.post(f"{URL}/reserve", json=body, headers=j).json()["repeated"] is True
-    assert client.post(f"{URL}/reserve", json={**body, "sender_ref": "who-is-this"}, headers=j).json()["reason"] == "sender_unknown"
-    assert client.post(f"{URL}/reserve", json={**body, "request_id": "short"}, headers=j).status_code == 422
-    assert client.post(f"{URL}/reserve", json=body, headers=as_user("otto")).status_code in (401, 403)
-    rel = client.post(f"{URL}/release", json={"request_id": "req-route-0001", "outcome": "sent"}, headers=j)
+    assert client.post(f"{URL}/reserve", json=body, headers=wkh).json()["repeated"] is True
+    assert client.post(f"{URL}/reserve", json={**body, "sender_ref": "who-is-this"}, headers=wkh).json()["reason"] == "sender_unknown"
+    assert client.post(f"{URL}/reserve", json={**body, "request_id": "short"}, headers=wkh).status_code == 422
+    assert client.post(f"{URL}/reserve", json={**body, "extra": 1}, headers=wkh).status_code == 422
+    for who in ("otto", "mia"):  # an operator, and a holder of messaging.accounts.manage: neither may use the port
+        assert client.post(f"{URL}/reserve", json=body, headers=as_user(who)).status_code == 403, who
+        assert client.post(f"{URL}/release", json={"request_id": "req-route-0001", "outcome": "unknown"}, headers=as_user(who)).status_code == 403, who
+        assert client.get(f"{URL}/lease/req-route-0001", headers=as_user(who)).status_code == 403, who
+    assert client.get(URL, headers=wkh).status_code in (401, 403), "the port principal reads nothing else of the pacing settings"
+    assert client.put(URL, json={"mode": "off"}, headers=wkh).status_code in (401, 403)
+    st = client.get(f"{URL}/lease/req-route-0001", headers=wkh).json()
+    assert st["found"] is True and st["state"] == "granted"
+    rel = client.post(f"{URL}/release", json={"request_id": "req-route-0001", "outcome": "accepted_by_provider"}, headers=wkh)
     assert rel.status_code == 200 and rel.json()["released"] is True
-    assert client.post(f"{URL}/release", json={"request_id": "req-route-0001", "outcome": "not_sent"}, headers=j).json()["repeated"] is True
-    snap = client.get(URL, headers=j).json()
-    acct = next(a for a in snap["accounts"] if a["account_key"] == "entry:01JFAKEENTRYA") if snap["accounts"] else None
-    assert acct is None or acct["wiskey"]["mapped"] is True
+    again = client.post(f"{URL}/release", json={"request_id": "req-route-0001", "outcome": "not_sent"}, headers=wkh).json()
+    assert again["repeated"] is True and again["conflict"] is True and again["outcome"] == "accepted_by_provider"
+    assert client.post(f"{URL}/release", json={"request_id": "req-route-0001", "outcome": "unknown", "slowdown": {"scope": "account", "retry_after_s": 0}}, headers=wkh).status_code == 422
+    assert client.get(f"{URL}/lease/x", headers=wkh).status_code == 422
 
 
 def test_snapshot_counts_waiting_backoff_and_wiskey(settings):

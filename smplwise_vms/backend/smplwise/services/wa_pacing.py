@@ -401,6 +401,8 @@ class WiskeyStatus:
     throttled_until: dt.datetime | None = None
     throttle_scope: str | None = None
     retry_after_s: int | None = None
+    # charged_unreserved_*: the same count WITHOUT the sends that carry an Arx lease (reconciled by request_id); null = unknown
+    unreserved: Mapping[str, int | None] = field(default_factory=dict)
 
 
 def _when(v: Any) -> dt.datetime | None:
@@ -431,7 +433,8 @@ def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
     own = raw.get("wiskey_own") if isinstance(raw.get("wiskey_own"), Mapping) else {}
     scope = raw.get("throttle_scope")
     return WiskeyStatus(sender_ref=ref, verified=raw.get("sender_match_verified") is True, complete=raw.get("counters_complete") is True,
-                        charged={w: _count(own.get(f"charged_{w}")) for w in WINDOWS}, throttled_until=_when(raw.get("throttled_until")),
+                        charged={w: _count(own.get(f"charged_{w}")) for w in WINDOWS}, unreserved={w: _count(own.get(f"charged_unreserved_{w}")) for w in WINDOWS},
+                        throttled_until=_when(raw.get("throttled_until")),
                         throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s")))
 
 
@@ -444,7 +447,7 @@ def project_pacing_accounts(accounts: Any) -> list[dict[str, Any]]:
         if st is None:
             continue
         out.append({"pacing_schema_version": 1, "sender_ref": st.sender_ref, "sender_match_verified": st.verified, "counters_complete": st.complete,
-                    "wiskey_own": {f"charged_{w}": v for w, v in st.charged.items()},
+                    "wiskey_own": {**{f"charged_{w}": v for w, v in st.charged.items()}, **{f"charged_unreserved_{w}": v for w, v in st.unreserved.items()}},
                     "throttled_until": st.throttled_until.isoformat() if st.throttled_until else None, "throttle_scope": st.throttle_scope,
                     "retry_after_s": st.retry_after_s})
     return out[:10]
@@ -506,8 +509,14 @@ class WaPacer:
             out.update(throttled_until=st.throttled_until, throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
         if not st.complete or any(v is None for v in st.charged.values()):
             out["unknown"] = True
-        elif not leases:  # once WisKey reserves through the port, the leases ARE its sends: its counters would count them twice
+        elif not leases:
             out["charged"] = dict(st.charged)
+        elif all(st.unreserved.get(w) is not None for w in WINDOWS):
+            # WisKey reserves through the port: the leases ARE those sends, so only its UNRESERVED sends (a fail-open local send, a send
+            # with no lease) are added on top - never `charged_*`, which includes the reserved ones and would count them twice
+            out["charged"] = dict(st.unreserved)
+        else:
+            out["unknown"] = True  # leases exist but WisKey cannot say what it sent outside them: its unreserved sends are unknown, not zero
         return out
 
     # ---- the decision
@@ -614,10 +623,19 @@ class WaPacer:
                 self.store.clear_state(f"pair:{account_key}:{recipient_key}")
         return None
 
-    def _step(self, scope: str, steps: tuple[int, int], now: dt.datetime, account_key: str, klass: str, metric: str) -> dt.datetime:
+    def note_slowdown(self, *, account_key: str, klass: str, scope: str, retry_after_s: int | None, now: dt.datetime) -> dt.datetime | None:
+        """The provider slowed a sender down (reported by WisKey on a release). Account scope starts/extends the account backoff, using the
+        provider's `retry_after_s` when given (capped at the ladder ceiling); pair scope is only counted (WisKey names no recipient Arx can key)."""
+        now = now.astimezone(UTC)
+        if scope == "pair":
+            self.store.bump(account_key, klass, "pair_backoff", now)
+            return None
+        return self._step(f"account:{account_key}", ACCOUNT_BACKOFF_S, now, account_key, klass, "backoff", delay_s=retry_after_s)
+
+    def _step(self, scope: str, steps: tuple[int, int], now: dt.datetime, account_key: str, klass: str, metric: str, delay_s: int | None = None) -> dt.datetime:
         old = self.store.get_state(scope)
         level = (old[0] + 1) if old is not None else 1
-        delay = min(steps[0] * 2 ** (level - 1), steps[1])
+        delay = min(delay_s, steps[1]) if delay_s else min(steps[0] * 2 ** (level - 1), steps[1])
         until = now + dt.timedelta(seconds=delay)
         self.store.set_state(scope, level, until, now)
         self.store.bump(account_key, klass, metric, now)
@@ -655,7 +673,12 @@ def wiskey_foreign_use(conn: sqlite3.Connection) -> ForeignUse:
 
 # ---------------------------------------------------------------- the reservation port (WisKey's own sends share the budget)
 
-RELEASE_OUTCOMES = ("sent", "unknown", "not_sent", "rate_limited", "pair_rate_limited")
+# accepted_by_provider: counted (sent). not_sent: WisKey PROVES nothing reached the provider - the slot is handed back. unknown: dispatched, not
+# proven either way - counted, never credited. expired: the lease ran out BEFORE any dispatch - handed back like not_sent. A lease that simply
+# expires with no release is never an automatic credit.
+RELEASE_OUTCOMES = ("accepted_by_provider", "not_sent", "unknown", "expired")
+CREDITED_OUTCOMES = ("not_sent", "expired")
+SLOWDOWN_SCOPES = ("account", "pair")
 
 
 class WaReservations:
@@ -695,22 +718,39 @@ class WaReservations:
     def _granted(lease: Lease, *, repeated: bool) -> dict[str, Any]:
         return {"granted": True, "repeated": repeated, "lease": {"request_id": lease.request_id, "expires_at": _iso(lease.expires_at)}}
 
-    def release(self, *, request_id: str, outcome: str, now: dt.datetime) -> dict[str, Any]:
+    def release(self, *, request_id: str, outcome: str, now: dt.datetime, slowdown: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """Settle a lease. Idempotent by `request_id`: the first outcome stands (`conflict` says a later repeat named another one). A
+        late release (after `expires_at`) settles the same way - proof is proof - and is flagged `late`. `slowdown` ({scope, retry_after_s})
+        reports a provider slow-down that made the send fail; it never changes the outcome."""
         now = now.astimezone(UTC)
         if outcome not in RELEASE_OUTCOMES:
             return {"released": False, "reason": "outcome_unknown"}
+        if slowdown is not None and slowdown.get("scope") not in SLOWDOWN_SCOPES:
+            return {"released": False, "reason": "slowdown_invalid"}
         lease = self.store.lease_get(request_id)
         if lease is None:
             return {"released": False, "reason": "unknown_request"}
-        if lease.state == "released":  # idempotent: the first outcome stands
-            return {"released": True, "repeated": True, "outcome": lease.outcome}
-        counted = outcome != "not_sent"
-        self.store.lease_put(replace(lease, state="released", outcome=outcome, counted=counted))
-        if outcome == "rate_limited":
-            self.pacer.on_result(account_key=lease.account_key, recipient_key="", klass=lease.klass, outcome="not_sent", outcome_code=RATE_ACCOUNT, now=now)
-        elif outcome == "sent":
+        if lease.state == "released":
+            return {"released": True, "repeated": True, "outcome": lease.outcome, "conflict": lease.outcome != outcome}
+        self.store.lease_put(replace(lease, state="released", outcome=outcome, counted=outcome not in CREDITED_OUTCOMES))
+        if outcome == "accepted_by_provider":
             self.store.bump(lease.account_key, lease.klass, "sent", now)
-        return {"released": True, "repeated": False, "outcome": outcome, "late": lease.expires_at <= now}
+        if slowdown is not None:
+            retry = slowdown.get("retry_after_s")
+            self.pacer.note_slowdown(account_key=lease.account_key, klass=lease.klass, scope=str(slowdown["scope"]),
+                                     retry_after_s=retry if isinstance(retry, int) and not isinstance(retry, bool) and retry > 0 else None, now=now)
+        return {"released": True, "repeated": False, "outcome": outcome, "late": lease.expires_at <= now, "conflict": False}
+
+    def status(self, *, request_id: str, now: dt.datetime) -> dict[str, Any]:
+        """Reconciliation by `request_id`: what Arx holds for one lease. `state`: granted (live) | expired (no release yet; still counted) |
+        released. Unknown ids answer `found: false`."""
+        now = now.astimezone(UTC)
+        lease = self.store.lease_get(request_id)
+        if lease is None:
+            return {"found": False}
+        state = lease.state if lease.state == "released" else ("expired" if lease.expires_at <= now else "granted")
+        return {"found": True, "state": state, "outcome": lease.outcome, "counted": lease.counted, "class": lease.klass,
+                "granted_at": _iso(lease.granted_at), "expires_at": _iso(lease.expires_at)}
 
 
 # ---------------------------------------------------------------- the visible counters

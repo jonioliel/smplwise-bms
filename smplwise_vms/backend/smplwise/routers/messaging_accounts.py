@@ -21,6 +21,7 @@ to Home Assistant or `ha-whatsapp`."""
 from __future__ import annotations
 
 import datetime as dt
+import re
 import sqlite3
 from typing import Any
 
@@ -272,33 +273,47 @@ class ReserveBody(BaseModel):
     request_id: str = Field(pattern=r"^[A-Za-z0-9_.:\-]{8,128}$")
 
 
+class SlowdownBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope: str = Field(max_length=16)
+    retry_after_s: int | None = Field(default=None, ge=1, le=86400)
+
+
 class ReleaseBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     request_id: str = Field(pattern=r"^[A-Za-z0-9_.:\-]{8,128}$")
     outcome: str = Field(max_length=24)
+    slowdown: SlowdownBody | None = None
 
 
-def _local_only(request: Request) -> None:
-    from ..remote_channel import is_remote
+RESERVE = "messaging.pacing.reserve"
 
-    if is_remote(request):
-        raise ApiError(404, "not_found", "Not found")
+
+def _port(conn: sqlite3.Connection, principal: Principal) -> wa_pacing.WaReservations:
+    """The port's gate: ONLY `messaging.pacing.reserve` (a dedicated service principal's single-permission role) - `messaging.accounts.manage`
+    does not open it and it opens nothing else."""
+    require(conn, principal, RESERVE, INSTALLATION)
+    return wa_pacing.WaReservations(mr.pacer_on(conn), mr.pacing_for(conn))
 
 
 @router.post("/messaging/whatsapp/pacing/reserve")
-def reserve(body: ReserveBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """`granted` + a short-lived lease, or `denied` with `retry_after_s`. Idempotent by `request_id`. Local channel,
-    `messaging.accounts.manage` (how WisKey authenticates here is an open decision: no machine credential exists yet)."""
-    _local_only(request)
-    require(conn, principal, MANAGE, INSTALLATION)
-    port = wa_pacing.WaReservations(mr.pacer_on(conn), mr.pacing_for(conn))
-    return port.reserve(sender_ref=body.sender_ref, klass=body.klass, request_id=body.request_id, now=dt.datetime.now(dt.timezone.utc))
+def reserve(body: ReserveBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """`granted` + a short-lived lease, or `denied` with `reason` and `retry_after_s` (both HTTP 200: a decision is an answer, not an error).
+    Idempotent by `request_id`. Contract: docs/changes/CR-WA-PACING-295-PORT-CONTRACT.md."""
+    return _port(conn, principal).reserve(sender_ref=body.sender_ref, klass=body.klass, request_id=body.request_id, now=dt.datetime.now(dt.timezone.utc))
 
 
 @router.post("/messaging/whatsapp/pacing/release")
-def release(body: ReleaseBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Hand a lease back with the outcome (sent | unknown | not_sent | rate_limited | pair_rate_limited). Idempotent: the first outcome stands."""
-    _local_only(request)
-    require(conn, principal, MANAGE, INSTALLATION)
-    port = wa_pacing.WaReservations(mr.pacer_on(conn), mr.pacing_for(conn))
-    return port.release(request_id=body.request_id, outcome=body.outcome, now=dt.datetime.now(dt.timezone.utc))
+def release(body: ReleaseBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Settle a lease with the outcome (accepted_by_provider | not_sent | unknown | expired), optionally with the provider slow-down that
+    caused it. Idempotent: the first outcome stands."""
+    return _port(conn, principal).release(request_id=body.request_id, outcome=body.outcome, now=dt.datetime.now(dt.timezone.utc),
+                                          slowdown=body.slowdown.model_dump() if body.slowdown else None)
+
+
+@router.get("/messaging/whatsapp/pacing/lease/{request_id}")
+def lease_status(request_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Reconciliation: what Arx holds for one `request_id`."""
+    if not re.match(r"^[A-Za-z0-9_.:\-]{8,128}$", request_id):
+        raise _problems([{"code": "invalid", "field": "request_id"}])
+    return _port(conn, principal).status(request_id=request_id, now=dt.datetime.now(dt.timezone.utc))

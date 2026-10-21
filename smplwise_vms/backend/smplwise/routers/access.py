@@ -340,6 +340,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",
+    # CR-WA-PACING-295: the dedicated WisKey service principal may reserve and release a send on the shared WhatsApp budget - nothing else.
+    # Sensitive, in no built-in role (a custom role holding only this permission is bound to the principal the owner created).
+    "messaging.pacing.reserve": "הקצאת שליחה בתקציב הוואטסאפ המשותף (שירות WisKey בלבד)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
