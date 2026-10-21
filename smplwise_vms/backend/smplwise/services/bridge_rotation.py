@@ -198,7 +198,9 @@ class Engine:
             return {"ok": False, "code": "peer_bad_answer"}
         if answer.get("protocol") != PROTOCOL or answer.get("op") != op or answer.get("rotation_id") != rot["id"] or answer.get("reply_to") != msg["nonce"]:
             return {"ok": False, "code": "peer_bad_answer"}
-        if signed_by not in (expect or (rot["kid_from"], rot["kid_to"])):
+        # H-09 binds a SUCCESS: only an answer that says `ok` can switch, wipe or align anything, so only that one must come from the
+        # key the step's phase calls for. A refusal under either of the rotation's keys just rolls the step back.
+        if signed_by not in ((expect or (rot["kid_from"], rot["kid_to"])) if answer.get("ok") is True else (rot["kid_from"], rot["kid_to"])):
             return {"ok": False, "code": "peer_bad_answer"}
         if answer.get("ok") is not True:
             code = answer.get("code")

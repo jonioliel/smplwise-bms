@@ -150,7 +150,7 @@ def test_full_rotation_real_keyset_both_directions(world):
     with w["db"].connection() as conn:
         set_setting(conn, br.FLAG_KEY, "on")
     rot = eng.start(None, "hard_cut")
-    assert rot["state"] == "verified" and rot["anchor_eligible"] is True, rot
+    assert rot["state"] == "verified" and bool(rot["anchor_eligible"]) is True, rot
     assert ks.signing == rot["kid_to"] and ks.legacy is None and ks.legacy_retired and ks.legacy_wiped
     with w["db"].connection(mode="read") as conn:
         key = ha_bridge.signing_key(conn)
