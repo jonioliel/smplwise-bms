@@ -54,6 +54,9 @@ It does two things and nothing else:
 14. Default-policy refusal (0.9.6, EXTID-295 - CR-USR2 13.6, owner decision 3 of 2026-10-21): an item only the extended mode admits is refused
    (`service_identity_policy_default`, in service_identity.screen) while the service user's entity policy is the default one; the directory
    push reports `service_policy_restricted` (a boolean or null). The impact check refuses a step with more than one type key (V-01).
+15. The capture lease (0.9.6, LEASEBR-295; docs/contracts/wiskey-capture-lease/): `smplwise_bridge.lease_event` and `smplwise_bridge.lease_request` (final names, const.py). Signed, closed, `supports_response: ONLY`, data exactly `{signed_message_json}`. The contract's stages 1-7 run in lease_contract.py with
+   the key set (`KeySet.verify`); the immutable DTO goes to the WisKey consumer that registered itself (lease_service.py) and only a closed answer comes back
+   (lease_answers.py). No consumer = the call fails and nothing is acknowledged. Nothing here decides about a card, a person or a door.
 """
 from __future__ import annotations
 
@@ -65,7 +68,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
@@ -76,7 +79,8 @@ from homeassistant.helpers.storage import Store
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
 from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
-                    SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
+                    SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_LEASE_EVENT, SERVICE_LEASE_REQUEST, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
+from . import lease_service
 from . import media_policy, runnable, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
@@ -114,6 +118,11 @@ ROTATE_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,
 )
+
+# 0.9.6 (LEASEBR-295): the capture lease's two services take the call data as it comes - the closed `transport_shape` check (exactly
+# `{signed_message_json: <str>}`) is stage 1 of lease_contract.validate, so a wrong shape gets the contract's closed `rejected` answer instead of a Home
+# Assistant validation error, and no value is coerced (cv.string would turn a number into text before the contract could refuse it).
+LEASE_SCHEMA = vol.Schema(dict)
 
 # 0.2.5 (CR-007 slice 4, tightened on review NIT 8): the one registry write this bridge ever performs - move an
 # entity to a NAMED HA area. area_id is a non-empty string, never null: the product only ever assigns an entity to
@@ -580,6 +589,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_ROTATE, rotate, schema=ROTATE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    async def lease(service_name: str, kind: str, call: ServiceCall) -> ServiceResponse:
+        """0.9.6 (LEASEBR-295): one signed message of the capture lease -> the closed answer (see lease_service.py). The signature is judged by the key set
+        (`KeySet.verify`), so a rotation in progress keeps working; a new high-water mark is saved soon, like for the other signed services."""
+        try:
+            return await lease_service.async_handle(hass, service_name, kind, dict(call.data), keyset)
+        except lease_service.LeaseUnavailable as exc:
+            raise HomeAssistantError(f"lease_unavailable: {exc.code}") from None  # a fixed token; Arx reads it as "no answer"
+        finally:
+            if keyset.dirty:
+                store.async_delay_save(keyset.state, 2)
+                keyset.dirty = False
+
+    async def lease_event(call: ServiceCall) -> ServiceResponse:
+        return await lease(SERVICE_LEASE_EVENT, "event", call)
+
+    async def lease_request(call: ServiceCall) -> ServiceResponse:
+        return await lease(SERVICE_LEASE_REQUEST, "request", call)
+
+    hass.services.async_register(DOMAIN, SERVICE_LEASE_EVENT, lease_event, schema=LEASE_SCHEMA, supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(DOMAIN, SERVICE_LEASE_REQUEST, lease_request, schema=LEASE_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     async def housekeeping(_now: Any = None) -> None:
         """The peer's own 180 s cap and the saved high-water marks, without waiting for a message."""
         keyset.verifiable()
@@ -610,4 +640,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_CAST_STREAM)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     hass.services.async_remove(DOMAIN, SERVICE_ROTATE)
+    hass.services.async_remove(DOMAIN, SERVICE_LEASE_EVENT)
+    hass.services.async_remove(DOMAIN, SERVICE_LEASE_REQUEST)
     return True

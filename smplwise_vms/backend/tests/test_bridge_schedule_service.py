@@ -548,9 +548,9 @@ def test_the_service_is_registered_with_response_and_removed_on_unload():
     assert 'SERVICE_SCHEDULE = "schedule"' in (SRC / "const.py").read_text(encoding="utf-8") and const.SERVICE_SCHEDULE == "schedule"
     unload = next(n for n in ast.walk(init_tree()) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_unload_entry")
     removed = [ast.unparse(n.args[1]) for n in ast.walk(unload) if isinstance(n, ast.Call) and ast.unparse(n.func) == "hass.services.async_remove"]
-    # G2FIX-295: bridge 0.9.5 (HMACACT-295, the bridge key rotation) registers and removes SERVICE_ROTATE as well
+    # G2FIX-295: bridge 0.9.5 (HMACACT-295, the bridge key rotation) registers and removes SERVICE_ROTATE as well; 0.9.6 (LEASEBR-295) the two lease services
     assert set(removed) == {"SERVICE_EXECUTE", "SERVICE_SET_AREA", "SERVICE_SCHEDULE", "SERVICE_STREAM_SOURCE", "SERVICE_SYNC", "SERVICE_MEDIA_QUERY", "SERVICE_CONFIG_ITEM", "SERVICE_CAST_STREAM",
-                            "SERVICE_ROTATE"}
+                            "SERVICE_ROTATE", "SERVICE_LEASE_EVENT", "SERVICE_LEASE_REQUEST"}
     # the existing services stay as they were
     assert 'hass.services.async_register(DOMAIN, SERVICE_EXECUTE, execute, schema=EXECUTE_SCHEMA' in src and "async_register(DOMAIN, SERVICE_SET_AREA" in src
 
