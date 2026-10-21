@@ -169,7 +169,7 @@ def after_backup(db: Database, settings: Settings, archive_name: str | None = No
     try:
         with db.connection(mode="read", label="offbox.targets") as conn:
             targets = offbox_store.list_targets(conn, enabled_only=True)
-    except Exception:  # noqa: BLE001 - a database before migration 0132, or a locked moment: the next day tries again
+    except Exception:  # noqa: BLE001 - a database before migration 0136, or a locked moment: the next day tries again
         log.warning("off-box targets could not be read", exc_info=True)
         return out
     archive = backup_svc.backups_dir(settings) / archive_name if archive_name else None

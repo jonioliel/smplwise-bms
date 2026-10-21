@@ -1,4 +1,4 @@
-"""DATASTORE-295 phase 2: the storage of the off-box targets (migration 0132, provisional). All SQL of the three tables lives here.
+"""DATASTORE-295 phase 2: the storage of the off-box targets (migration 0136, built as provisional 0132). All SQL of the three tables lives here.
 
 - targets: the non-secret configuration (`config_json`) and the retention; the credential fields hold `store:offbox.<target>.<field>`
   references, never a value;

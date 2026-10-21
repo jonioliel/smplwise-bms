@@ -476,7 +476,7 @@ def offbox_drill_targets(db: Database, settings: Settings) -> list[str]:
             return []
         with db.connection(mode="read", label="backup_drill.offbox_targets") as conn:
             return [t["id"] for t in offbox_store.list_targets(conn, enabled_only=True)]
-    except Exception:  # noqa: BLE001 - a database before migration 0132 / an unreadable keyring: no off-box drill
+    except Exception:  # noqa: BLE001 - a database before migration 0136 / an unreadable keyring: no off-box drill
         return []
 
 

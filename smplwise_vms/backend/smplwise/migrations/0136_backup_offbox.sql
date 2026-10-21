@@ -1,5 +1,5 @@
--- PROVISIONAL number 0132 (DATASTORE-295 phase 2, pilot/DATASTORE-295; integ/293 ends at 0127). The lead renumbers at integration;
--- the content does not depend on the number.
+-- Final number 0136 (built as PROVISIONAL 0132 on pilot/DATASTORE-295; renumbered at the 2.10.2 integration, integ/2102: 0135 is the last on integ/2101).
+-- The content does not depend on the number.
 --
 -- Off-box copies of the project backups (owner decision 2026-10-20: both S3-compatible and SFTP targets). Design:
 -- docs/architecture/DATA_STORE_HARDENING.md. Installation-local: none of these tables is a backup table (services/backup.py lists
