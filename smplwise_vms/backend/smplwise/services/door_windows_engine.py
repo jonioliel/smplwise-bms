@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-GO_LIVE_PERMITTED = False  # the owner's per-action activation permit; flipping it is the owner's act, never an agent's
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch door_windows.enabled stays OFF and no rule exists until an administrator acts
 
 ERROR_KINDS = ("not_permitted", "not_implemented", "not_sent", "unknown", "refused", "revision_conflict")
 PROGRAM_STATUSES = ("idle", "opening", "held_acknowledged", "restoring", "unknown")

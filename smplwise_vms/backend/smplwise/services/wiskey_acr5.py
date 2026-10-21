@@ -53,7 +53,7 @@ from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved t
     schedule_ok,
 )
 
-GO_LIVE_PERMITTED = False
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); each wiskey.acr5_* switch still defaults OFF
 FLAGS = {
     "acr5_01": "wiskey.acr5_access_state",
     "acr5_02": "wiskey.acr5_normalize_user",

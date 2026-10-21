@@ -261,7 +261,7 @@ def test_the_port_takes_the_revision():
 
 
 def test_the_live_engine_stays_refused_and_without_a_reader_is_unknown(monkeypatch):
-    assert ag.GO_LIVE_PERMITTED is False
+    monkeypatch.setattr(ag, "GO_LIVE_PERMITTED", False)  # ECCACT-295: the shipped constant is True now; this test pins the permit-off behaviour
     eng = WiskeyServiceEngine(settings=None)
     with pytest.raises(EngineError) as err:
         eng.revocation_pending("u", 4)

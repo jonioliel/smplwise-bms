@@ -654,8 +654,9 @@ def test_no_key_material_in_audit_logs_or_answers(world, caplog):
 def test_go_live_permits_stay_false_in_the_build():
     src = Path(br.__file__).read_text(encoding="utf-8")
     assert "\nGO_LIVE_PERMITTED = False\n" in src
-    assert "\nGO_LIVE_PERMITTED = False\n" in Path(access_grants.__file__).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False\n" in Path(capture_lease.__file__).read_text(encoding="utf-8")
+    # ECCACT-295: key rotation stays locked until HMACACT-295 fixes review item H-01; the other WisKey permits were opened by the owner (2026-10-21)
+    assert "\nGO_LIVE_PERMITTED = True" in Path(access_grants.__file__).read_text(encoding="utf-8")
+    assert "\nGO_LIVE_PERMITTED = True" in Path(capture_lease.__file__).read_text(encoding="utf-8")
     assert isinstance(peers.UnavailablePeer().capabilities(), dict) and peers.UnavailablePeer().capabilities()["rotation"] is None
 
 

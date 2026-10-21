@@ -283,10 +283,11 @@ def test_without_a_permitted_engine_windows_are_prepared_only(settings, monkeypa
     assert pw.get("/doors/windows/state").json()["tier"] == "prepared"
 
 
-def test_the_live_engine_refuses_in_this_build():
+def test_the_live_engine_refuses_while_the_permit_is_off(monkeypatch):
     from smplwise.services import door_windows_engine as dwe
 
-    assert dwe.GO_LIVE_PERMITTED is False
+    assert dwe.GO_LIVE_PERMITTED is True  # ECCACT-295: opened by the owner decision of 2026-10-21 (door_windows.enabled stays OFF)
+    monkeypatch.setattr(dwe, "GO_LIVE_PERMITTED", False)
     with pytest.raises(dwe.EngineError) as e:
         dwe.WiskeyProgramEngine(None).read("x", 1)
     assert e.value.kind == "not_permitted"

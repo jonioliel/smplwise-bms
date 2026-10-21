@@ -75,7 +75,7 @@ log = logging.getLogger("smplwise.access_grants")
 # The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be turned on,
 # the live WisKey engine refuses every call and the live WhatsApp transport sends nothing. Flipped only by the commit that carries
 # the owner's written go-live permit - never by a setting, an environment variable or a version.
-GO_LIVE_PERMITTED = False
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A) removed the historical block; the switch access.external_grants stays OFF until an administrator turns it on
 
 PERMISSION = "access.external.grant"
 FLAG_KEY = "access.external_grants"

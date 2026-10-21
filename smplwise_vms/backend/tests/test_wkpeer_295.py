@@ -91,14 +91,16 @@ def _expect(peer: wp.VerifiedPeerRef | None = None, **over: Any) -> wp.ReceiptEx
 
 # ------------------------------------------------------------------ everything is OFF
 
-def test_every_go_live_constant_is_false_and_signed_capture_is_not_covered(conn):
-    assert wp.GO_LIVE_PERMITTED is False and wp.go_live_permitted() is False
-    assert wr.GO_LIVE_PERMITTED is False
-    assert a5.GO_LIVE_PERMITTED is False and a5.go_live_permitted() is False
+def test_the_permits_are_open_but_signed_capture_is_not_covered(conn):
+    # ECCACT-295 (owner decision 2026-10-21): the permits are open; every switch still defaults OFF and signed capture stays uncovered
+    assert wp.GO_LIVE_PERMITTED is True and wp.go_live_permitted() is True
+    assert wr.GO_LIVE_PERMITTED is True
+    assert a5.GO_LIVE_PERMITTED is True and a5.go_live_permitted() is True
+    assert wp.mode(conn) == "off" and wp.enabled(conn) is False
     assert wp.SIGNED_CAPTURE_COVERED is False and wp.WISKEY_HALF_REVIEWED is False
     assert wp.signed_capture_covered() is False
     # the pre-existing locks are untouched
-    assert access_grants.GO_LIVE_PERMITTED is False and capture_lease.GO_LIVE_PERMITTED is False
+    assert access_grants.GO_LIVE_PERMITTED is True and capture_lease.GO_LIVE_PERMITTED is True
     assert service_identity.EXTENDED_GO_LIVE_PERMITTED is False
 
 

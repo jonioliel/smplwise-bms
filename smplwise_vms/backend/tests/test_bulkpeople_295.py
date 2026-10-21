@@ -216,9 +216,11 @@ def parse_export(r) -> list[dict[str, str]]:
 
 
 def test_the_switch_is_off_by_default_and_the_permit_is_not_in_the_build(settings, monkeypatch, station_scope):  # noqa: F811
-    world = World(settings, monkeypatch, station_scope, on=False)
     src = (Path(bp.__file__)).read_text(encoding="utf-8")
-    assert "\nGO_LIVE_PERMITTED = False  #" in src and bp.go_live_permitted() is False
+    assert "\nGO_LIVE_PERMITTED = True  #" in src  # ECCACT-295: the owner removed the historical block (2026-10-21)
+    monkeypatch.setattr(bp, "GO_LIVE_PERMITTED", False)  # this test pins the permit-off behaviour
+    world = World(settings, monkeypatch, station_scope, on=False)
+    assert bp.go_live_permitted() is False
     s = world.c.get(f"{API}/settings", headers=as_user("root")).json()
     assert s["enabled"] == "off" and s["go_live_permitted"] is False
     for r in (world.c.get(f"{API}/export.csv", headers=as_user("root")), world.upload(csv_rows({"person_id": "u1", "display_name": "X"}))):

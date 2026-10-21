@@ -353,7 +353,7 @@ def test_engine_malformed_v2_is_unknown_and_never_re_asked_as_v1():
 
 
 def test_the_live_engine_stays_refused_and_reads_the_last_known_record_only_with_a_reader(monkeypatch):
-    assert ag.GO_LIVE_PERMITTED is False and a5.GO_LIVE_PERMITTED is False
+    monkeypatch.setattr(ag, "GO_LIVE_PERMITTED", False)  # ECCACT-295: pins the permit-off behaviour
     asked: list = []
 
     def known(pid):

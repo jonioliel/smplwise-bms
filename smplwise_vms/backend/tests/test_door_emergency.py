@@ -59,8 +59,9 @@ def test_a_drill_works_while_off_and_never_reaches_any_engine(settings, monkeypa
     assert drills and not w.rows("SELECT * FROM notifications WHERE source = 'door.emergency.started'")
 
 
-def test_the_live_emergency_engine_refuses_in_this_build():
-    assert dwe.GO_LIVE_PERMITTED is False
+def test_the_live_emergency_engine_refuses_while_the_permit_is_off(monkeypatch):
+    assert dwe.GO_LIVE_PERMITTED is True  # ECCACT-295: opened by the owner decision of 2026-10-21
+    monkeypatch.setattr(dwe, "GO_LIVE_PERMITTED", False)
     eng = dwe.WiskeyEmergencyEngine(None)
     assert eng.open_supported is False
     with pytest.raises(dwe.EngineError) as e:
