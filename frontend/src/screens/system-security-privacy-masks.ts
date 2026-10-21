@@ -245,7 +245,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .swrow .err {
-      color: var(--sw-danger, #c0392b);
+      color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
     @media (max-width: 767px) {
