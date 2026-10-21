@@ -32,7 +32,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require
 from ..services import ha_client
 from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
@@ -289,10 +289,26 @@ class ReleaseBody(BaseModel):
 RESERVE = "messaging.pacing.reserve"
 
 
+def port_principal_barred(conn: sqlite3.Connection, principal: Principal) -> str | None:
+    """F3B WP-03: why this principal may never be the reservation port's caller, else None. The port user is a dedicated, single-permission
+    service user (CR-WA-PACING-295-PORT-CONTRACT 2.2): never an infrastructure administrator (an active `system_admin` binding at the
+    installation scope) and never a home-system administrator. Fail closed on both."""
+    if is_system_admin(conn, principal.user_id):
+        return "system_admin_not_allowed"
+    row = conn.execute("SELECT is_admin FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
+    if row is not None and row["is_admin"]:
+        return "ha_admin_not_allowed"
+    return None
+
+
 def _port(conn: sqlite3.Connection, principal: Principal) -> wa_pacing.WaReservations:
     """The port's gate: ONLY `messaging.pacing.reserve` (a dedicated service principal's single-permission role) - `messaging.accounts.manage`
     does not open it and it opens nothing else."""
     require(conn, principal, RESERVE, INSTALLATION)
+    barred = port_principal_barred(conn, principal)
+    if barred is not None:  # F3B WP-03: the contract's "dedicated, not an administrator" rule, enforced
+        audit(conn, actor=principal, action=RESERVE, decision="denied", resource_type="installation", resource_id="messaging.whatsapp.port", reason=barred)
+        raise ApiError(403, "port_principal_forbidden", "משתמש זה אינו יכול לשמש את שער ההקצאות.", details={"reason": barred})
     return wa_pacing.WaReservations(mr.pacer_on(conn), mr.pacing_for(conn))
 
 

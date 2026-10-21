@@ -437,6 +437,41 @@ def test_the_port_with_the_mode_off_grants_without_limiting():
     assert r.reserve(sender_ref=REF, klass="reminder", request_id=rid(1), now=NOW)["granted"] is True
 
 
+def test_f3b_wp02_the_port_principal_cannot_take_more_than_its_share_of_a_window_even_for_alerts():
+    r, p, ledger, store = port()
+    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(1), now=NOW)["granted"] is True
+    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(2), now=NOW)["granted"] is True
+    third = r.reserve(sender_ref=REF, klass="alert", request_id=rid(3), now=NOW)  # burst 5 -> the port may take 2 of them
+    assert third["granted"] is False and third["reason"] == "lease_ceiling" and third["retry_after_s"] >= 1
+    assert store.lease_get(rid(3)) is None, "a denial records nothing"
+    assert check(p, wp.CLASS_ALERT).allowed, "Arx's own alert still has its floor"
+    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(3), now=NOW + sec(third["retry_after_s"]))["granted"] is True
+
+
+def test_f3b_wp02_a_lease_storm_over_a_minute_stops_at_half_the_minute_cap():
+    r, p, ledger, store = port()
+    got = [r.reserve(sender_ref=REF, klass="alert", request_id=rid(i), now=NOW + sec(11 * i))["granted"] for i in range(1, 7)]  # 11 s apart: past the burst window
+    assert got == [True] * 5 + [False], "per_minute 10 -> 5 leases in any minute"
+    assert check(p, wp.CLASS_ALERT, now=NOW + sec(60)).allowed
+
+
+def test_f3b_wp05_the_ceiling_holds_with_the_mode_off_and_a_released_not_sent_lease_frees_its_slot():
+    r, p, ledger, store = port(mode="off")
+    assert [r.reserve(sender_ref=REF, klass="reminder", request_id=rid(i), now=NOW)["granted"] for i in (1, 2, 3)] == [True, True, False]
+    assert r.release(request_id=rid(1), outcome="not_sent", now=NOW)["released"] is True
+    assert r.reserve(sender_ref=REF, klass="reminder", request_id=rid(3), now=NOW)["granted"] is True
+
+
+def test_f3b_wp05_live_leases_per_account_are_capped(monkeypatch):
+    monkeypatch.setattr(wp, "LEASE_ACTIVE_MAX", 1)
+    r, p, ledger, store = port()
+    assert r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW)["granted"] is True
+    d = r.reserve(sender_ref=REF, klass="ticket", request_id=rid(2), now=NOW + sec(20))
+    assert d["granted"] is False and d["reason"] == "lease_ceiling"
+    r.release(request_id=rid(1), outcome="accepted_by_provider", now=NOW + sec(21))
+    assert r.reserve(sender_ref=REF, klass="ticket", request_id=rid(2), now=NOW + sec(22))["granted"] is True
+
+
 # ---------------------------------------------------------------- reading the platform's rate answers
 
 def reply(status, body=None, text=""):
@@ -721,3 +756,31 @@ def test_snapshot_counts_waiting_backoff_and_wiskey(settings):
     assert next(x for x in snap["accounts"] if x["account_key"] == KEY_B)["sends_1h"] == 0
     assert snap["shared_budget_guaranteed"] is False
     assert "r2" not in str(snap) and "15555" not in str(snap)
+
+
+def test_f3b_wp03_an_infrastructure_or_home_system_administrator_can_never_be_the_port_principal(client, settings):
+    from smplwise.db import Database
+
+    assert client.put(URL, json={"senders": {"entry:01JFAKEENTRYA": REF}}, headers=as_user("joni")).status_code == 200
+    body = {"sender_ref": REF, "class": "ticket", "request_id": "req-admin-0001"}
+    _role_and_bind(settings, client, "wisk", "r-wk-port", ["messaging.pacing.reserve"])
+    _role_and_bind(settings, client, "boss", "r-wk-port-2", ["messaging.pacing.reserve"])
+    from conftest import bind
+
+    bind(client, settings, "boss", "system_admin", "installation", "*")
+    assert client.post(f"{URL}/reserve", json=body, headers=as_user("wisk")).json()["granted"] is True, "the dedicated principal still works"
+    for path, call in (("reserve", lambda h: client.post(f"{URL}/reserve", json=body, headers=h)),
+                       ("release", lambda h: client.post(f"{URL}/release", json={"request_id": body["request_id"], "outcome": "unknown"}, headers=h)),
+                       ("lease", lambda h: client.get(f"{URL}/lease/{body['request_id']}", headers=h))):
+        r = call(as_user("boss"))
+        assert r.status_code == 403 and r.json()["code"] == "port_principal_forbidden", path
+    with Database(settings.db_path).connection(mode="read") as conn:
+        reasons = [x[0] for x in conn.execute("SELECT reason FROM audit_log WHERE action = 'messaging.pacing.reserve' AND decision = 'denied'")]
+    assert reasons.count("system_admin_not_allowed") == 3
+    # a home-system administrator flag bars the principal as well
+    with Database(settings.db_path).connection() as conn:
+        uid = "dev-wisk"
+        conn.execute("INSERT INTO ha_users(id, name, username, is_active, is_admin, group_ids_json, synced_at) VALUES (?,?,?,1,1,'[]','2026-10-21T00:00:00Z') "
+                     "ON CONFLICT(id) DO UPDATE SET is_admin = 1", (uid, "w", "wisk"))
+    r = client.post(f"{URL}/reserve", json={**body, "request_id": "req-admin-0002"}, headers=as_user("wisk"))
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "ha_admin_not_allowed"

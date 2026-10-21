@@ -56,6 +56,10 @@ COUNTER_KEEP = dt.timedelta(days=8)
 COUNTER_MAX = 10_000
 RETRY_AFTER_MAX_S = 86_400
 EXCESS_FACTOR = 2  # a count-only excess above this many window caps is ignored
+# F3B WP-02/WP-05: the reservation-port principal may take at most this share of EACH window (counted leases), whatever the class and even in
+# mode `off`, so a stolen WisKey token or a WisKey loop can never starve Arx's own notifications. At most one live lease per ... see LEASE_ACTIVE_MAX.
+LEASE_CEILING_PCT = 50
+LEASE_ACTIVE_MAX = 20  # live (granted, unexpired) leases per account, any mode
 
 # the outcome codes of channel_whatsapp.classify that mean "the platform asked us to slow down" (the message did NOT leave)
 RATE_ACCOUNT, RATE_PAIR = "rate_limited", "pair_rate_limited"
@@ -717,7 +721,12 @@ class WaReservations:
             if old.state == "granted" and old.expires_at > now:
                 return self._granted(old, repeated=True)
             return {"granted": False, "reason": "already_released" if old.state == "released" else "lease_expired", "retry_after_s": None}
-        d = self.pacer.admit(account_key=account_key, pacing=self._pacing_for(account_key), klass=klass, now=now)
+        pacing = self._pacing_for(account_key)
+        ceiling = self._lease_ceiling(account_key=account_key, pacing=pacing, cfg=cfg, now=now)
+        if ceiling is not None:
+            self.store.bump(account_key, klass, "lease_denied", now)
+            return {"granted": False, "reason": "lease_ceiling", "retry_after_s": max(1, math.ceil((ceiling - now).total_seconds()))}
+        d = self.pacer.admit(account_key=account_key, pacing=pacing, klass=klass, now=now)
         if not d.allowed:
             self.store.bump(account_key, klass, "lease_denied", now)
             return {"granted": False, "reason": d.reason, "retry_after_s": max(1, math.ceil((d.not_before - now).total_seconds()))}
@@ -725,6 +734,23 @@ class WaReservations:
         self.store.lease_put(lease)
         self.store.bump(account_key, klass, "lease_granted", now)
         return self._granted(lease, repeated=False)
+
+    def _lease_ceiling(self, *, account_key: str, pacing: Any, cfg: PacerConfig, now: dt.datetime) -> dt.datetime | None:
+        """F3B WP-02/WP-05: None while the port principal is under its ceiling, else when a slot frees. Counts only leases (never Arx's own
+        sends), so it limits WHAT THE PORT CAN TAKE, not what Arx may send. Applies to every class and in mode `off`."""
+        base = cfg.budget() or PROFILES[DEFAULT_MODE]
+        if self.store.lease_active(account_key, now) >= LEASE_ACTIVE_MAX:
+            return now + dt.timedelta(seconds=max(1, cfg.lease_ttl_s))
+        day = dt.timedelta(days=1)
+        leases = self.store.lease_times(account_key, now - day)
+        until: list[dt.datetime] = []
+        for span, cap in ((dt.timedelta(seconds=base.burst_window_s), base.burst), (dt.timedelta(minutes=1), base.per_minute),
+                          (dt.timedelta(hours=1), int(pacing.per_hour)), (day, int(pacing.per_day))):
+            limit = max(1, cap * LEASE_CEILING_PCT // 100)
+            inside = [t for t in leases if t > now - span]
+            if len(inside) >= limit:
+                until.append(inside[len(inside) - limit] + span)
+        return max(until) if until else None
 
     @staticmethod
     def _granted(lease: Lease, *, repeated: bool) -> dict[str, Any]:
