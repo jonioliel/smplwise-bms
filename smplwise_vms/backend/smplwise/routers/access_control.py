@@ -48,7 +48,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import Database, commit_now, get_setting, now_iso, unlocked
 from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, STATION, Principal, authorize, note_grant, require
-from ..services import capture_lease, capture_lease_route, door_authority, ha_bridge, lease_events, trusted_door
+from ..services import bridge_rotation, capture_lease, capture_lease_route, door_authority, ha_bridge, lease_events, trusted_door
 from ..services import go2rtc as g2
 from ..services import intercom_adapter, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services import intercom_authority as ia
@@ -890,6 +890,8 @@ def _perform_signed(act: _Action, station_id: str, lock: int, request_id: str, n
         secret = ha_bridge.signing_key(act.conn)
         if not secret or not get_setting(act.conn, "bridge.paired_at"):
             raise act.refuse(ApiError(503, "bridge_not_paired", "אין חיבור לתשתית המערכת"))
+        if bridge_rotation.door_commands_paused(act.conn):  # HMACACT2-295: no door command is signed while the key set may be half switched
+            raise act.refuse(ApiError(503, bridge_rotation.PAUSE_CODE, bridge_rotation.PAUSE_TEXT))
         if datetime.now(timezone.utc) >= not_after:
             raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שנשלחה."))
         p = act.principal
@@ -1595,6 +1597,8 @@ def _lease_start(request: Request, act: _Action, conn: sqlite3.Connection, auth:
                                        request_id=lease.start_request_id)
         except lease_events.NotSendable as exc:
             capture_lease.discard(conn, lease.lease_ref, "start_refused")
+            if exc.code == bridge_rotation.PAUSE_CODE:  # HMACACT2-295: a clear reason, nothing sent
+                raise _lease_refused(act, capture_lease.unavailable(bridge_rotation.PAUSE_CODE, bridge_rotation.PAUSE_TEXT)) from None
             raise _lease_refused(act, capture_lease.unavailable("bridge_not_paired" if exc.code == "bridge_not_paired" else "capture_lease_unavailable")) from None
         act.details["body_sha256"] = signed.body_sha256  # computed after signing, recorded only in the audit
         act.attempt()  # commits the ledger row and the attempt row together: no record, no command

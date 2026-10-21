@@ -38,7 +38,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
-from ..services import door_authority, door_blocks, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
+from ..services import bridge_rotation, door_authority, door_blocks, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
 from . import access as acc
 
 router = APIRouter()
@@ -401,6 +401,8 @@ def door_status(request: Request, request_id: str = Path(min_length=36, max_leng
     secret = ha_bridge.signing_key(conn)
     if not secret:
         raise ApiError(503, "bridge_not_paired", "אין חיבור לתשתית המערכת")
+    if bridge_rotation.door_commands_paused(conn):
+        raise ApiError(503, bridge_rotation.PAUSE_CODE, bridge_rotation.PAUSE_TEXT, details={"outcome": "not_sent"})
     trusted_door.status_rate(principal.user_id)  # SEC-WXD I7: a read, but it signs and calls the bridge
     p = principal
     signed = trusted_door.sign_message(secret, "door_open_status", p.user_id, trusted_door.actor_name(p), str(details.get("station") or ""),

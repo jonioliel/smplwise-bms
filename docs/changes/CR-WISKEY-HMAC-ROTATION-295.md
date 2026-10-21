@@ -254,3 +254,46 @@ remain valid for `g0-legacy`); when the bridge offers those services it must use
 
 ### 15.2 Owner decision 2026-10-21 (option A): the first rotation is one click
 The worker never starts the FIRST rotation (channel still on the legacy pairing secret): the card shows one line and one button (`awaiting_click`) once the bridge announced support; the click is the existing manual start (`POST /system/bridge-key/rotations`, system administrator). Every later rotation is started by the worker when the reminder interval has passed (default interval 0 = none, so choose an interval on the card to make later rotations automatic).
+
+
+## 16. HMACACT2-295 (branch `pilot/HMACACT2-295`, from integ/2111): the dedicated permission and the door pause
+
+No switch, permit or default changed (`GO_LIVE_PERMITTED` and every WisKey permit are as before). No new secret scheme, no migration.
+
+### 16.1 Permission `bridge.key.rotate` (CR-034 section 7)
+- Starting a rotation (`POST /system/bridge-key/rotations`) and resuming one (`.../resume`) now require `bridge.key.rotate` at installation scope,
+  then still the system-administrator check. Reads and the switch/reminder settings stay `system.configure` + system administrator.
+- Registered like the other sensitive system permissions: `roles.json` (held by the built-in `system_admin` only; listed in
+  `sensitive_permissions_not_implied`), `PERMISSION_LABELS`, `SYSTEM_PERMISSIONS` (so no custom role can carry it and it is never delegable),
+  and `LOCAL_ADMIN_PERMISSIONS` (a local identity needs the second factor). A holder of `system.configure` alone is refused (403, audited).
+- Not built: the emergency button and the owner-contacts notice (section 16.3).
+
+### 16.2 Door pause during a rotation (CR-034 A1, smallest safe form)
+- `bridge_rotation.door_commands_paused(conn)`: true while a rotation is in any unfinished state (`prepared` .. `retiring`) or the last one is
+  `needs_repair`, and the rotation switch is on. Turning the switch off lifts the pause, so nothing that no longer drives a rotation can lock
+  the doors out.
+- Refused before anything is signed: `door_open` (signed transport) and `door_open_status` answer 503 `bridge_key_rotating`,
+  `details.outcome = not_sent`, audited (`intercom.release` denied). A capture-lease start answers 503 `bridge_key_rotating`; confirm / cancel
+  keep their existing "unavailable" refusal. The lease event worker treats the pause as `NotSendable` and retries (held, not dropped).
+- Scope: the trusted door path only (door_open, door_open_status, capture-lease messages). Other bridge calls (media, devices, alarm) are not
+  paused; they are not door commands, and a message signed under either key is verified by the peer during the overlap.
+- Known residual: a command signed with the old key just before the switch can reach a `hard_cut` peer after it dropped that key; the peer
+  rejects it (fail closed, never a mis-signed accept). Operators see the existing "not sent / refused" outcome.
+- `needs_repair` pauses doors until an administrator resumes it or switches the rotation off; the card already shows "re-pair required".
+
+### 16.3 `fresh_repair` and `emergency`: feasibility note (not built)
+Both are large and each needs decisions, so neither is built here.
+- `fresh_repair` (CR-034 5.2) replaces `GET /ha/bridge/pairing?regenerate=true`, which today wipes the key set and shows a new code. Smallest
+  safe design: a rotation mode `fresh_repair` that reuses the engine (door pause, write-ahead steps, audit), generates a CSPRNG key as `pending`,
+  delivers it ONLY through the owner typing the code into the bridge config flow (audited reveal `bridge.key.revealed`, never the value in the
+  audit), then verifies with a probe under the new key and flips `current`. It needs: a migration widening the `mode` CHECK on
+  `bridge_rotations` (or a new table), a reveal screen with re-authentication, a bridge-side "accept new pairing key while paired" path (a
+  bridge release; today the config flow only pairs), and the regenerate route made to call it. Decisions needed: may the delivery use the
+  existing signed directory push (leaked-key risk: the push is signed by the key being replaced) or manual entry only; who may reveal.
+- `emergency` (CR-034 section 8): destroy `cur` and `next` at once and pause all trusted calls until a re-pair. Smallest safe design: a button
+  that wipes the key set (the existing `bk.reset_set`), keeps doors paused until a `fresh_repair` completes, and writes `bridge.key.revoked`.
+  It needs: `fresh_repair` first, the `security.owner_contacts` setting, an owner notice queued in the same transaction (notification center,
+  push, email), a confirmation stating the blast radius, and a decision whether the emergency may be started by a holder of
+  `bridge.key.rotate` without a second person. Anchor eligibility stays false (R-25).
+- Suggested order: owner answers on the two decisions above, then `fresh_repair` (about 6 units in CR-034 section 15, slice H4), then the
+  notice and `emergency` (H3 remainder). Neither can be tested end to end without the bridge release.
