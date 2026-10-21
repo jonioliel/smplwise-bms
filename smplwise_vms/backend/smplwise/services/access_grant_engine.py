@@ -457,9 +457,10 @@ def requested_policy(timing: dict[str, Any] | None) -> dict[str, Any] | None:
 
 # ---------------------------------------------------------------- R11-I1-03 / R11-I1-04: the revision-bound revocation predicate
 #
-# WisKey's ACR5-01 `users/access_state(user_id, revision)` is PROPOSED, not delivered; Arx has NO client for it. What is built here is
-# the Arx side of the contract only: a strict consumer of the answer, the verdict, and a typed reader seam that only fakes fill.
-# Nothing below sends anything; the live engine passes no reader (UNKNOWN) and stays behind GO_LIVE_PERMITTED (False).
+# WisKey's `users/access_state` (v1) and `users/access_state_v2` readback (delivered in the Mac package f66bf67b, behind WisKey's own build
+# gate and an administrator-only dispatch). ECCACT-295: Arx has a live, capability-negotiated reader (services/wiskey_readback.LiveReadback, the
+# `readback` channel) wired by access_grants.engine_for; it sends only when WisKey lists the command AND advertises the capability, and the
+# live v2 path stays technically blocked until the verified no-admin bridge route is pinned with the Mac. A v1 answer never proves a revocation.
 
 ACCESS_STATE_SCHEMA = was.SCHEMA_V1  # kept for readers of this module; the version dispatch lives in wiskey_access_state
 PRESENCES = was.PRESENCES
