@@ -89,7 +89,7 @@ test('nothing is requested while the page is hidden; the timers keep looking, so
 test('visibility / focus / pageshow resume refreshes stale sources, staggered; a focus + visibility pair is one refresh', async () => {
   const f = fakeEnv();
   const calls: string[] = [];
-  const c = new LiveController(f.env).add(source('tree', calls)).add(source('elevators', calls)).add(source('generators', calls));
+  const c = new LiveController(f.env).add(source('tree', calls, { pollMs: 1_000_000 })).add(source('elevators', calls, { pollMs: 1_000_000 })).add(source('generators', calls, { pollMs: 1_000_000 }));
   c.start();
   f.state.visible = false;
   await f.advance(120_000); // asleep: nothing ran
