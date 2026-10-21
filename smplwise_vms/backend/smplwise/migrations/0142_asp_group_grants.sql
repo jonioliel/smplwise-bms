@@ -1,5 +1,4 @@
--- PROVISIONAL number 0140 (GRANTDENY-295, built on origin/main @ bd4636e7f / v2.10.0; the lead renumbers at integration).
--- The content does not depend on the number.
+-- Final number 0142 (built as PROVISIONAL 0140 on pilot/GRANTDENY-295; renumbered at the 2.11.0 integration, integ/2111). The content does not depend on the number.
 --
 -- Owner decision 2026-10-21 (9a), lab finding LAB_GRANTS_DRYRUN_2026-10-21: removing a person's personal allow does NOT revoke a station
 -- that one of the person's groups still grants - only an explicit personal `deny` does. When Arx writes that deny itself (a removal of
