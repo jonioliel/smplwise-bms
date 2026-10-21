@@ -49,7 +49,7 @@ fakes are the `fake_doorwin_*` files, `fake_wiskey.py` / `fake_trusted_bridge.py
 in the pinned error catalog; what only the W9 lab can test), 3.3 (two W13 items added).
 
 ### 0.3 Revision from DOORWIN2-295 (2026-10-21)
-The second build (`CR-DOORWIN2-295-BUILD-NOTES.md`, branch `pilot/DOORWIN2-295`, migration PROVISIONAL 0138) adds, on fakes and shipped off: event-triggered
+The second build (`CR-DOORWIN2-295-BUILD-NOTES.md`, branch `pilot/DOORWIN2-295`, migration 0143, built as provisional 0138) adds, on fakes and shipped off: event-triggered
 windows (section 9, simulate-by-default; `armed` waits for the W1 automation actor), the generated holiday list (5.4, a wrapper over the energy calendar), the
 four single-permission roles (7.2), the emergency pause of a FOREIGN program with its list (8.2 / 19.3; Arx never re-activates it), the spoken phrase (11, empty
 until the owner types it), the doors home widget (8.1), and the Fable review 2 fixes W-01 (a cancel of a future window leaves the program), E-01 (a release never

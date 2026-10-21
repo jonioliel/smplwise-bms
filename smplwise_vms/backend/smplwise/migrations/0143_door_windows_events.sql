@@ -1,5 +1,4 @@
--- PROVISIONAL number 0138 (pilot/DOORWIN2-295, built on integ/2102 whose last file is 0137_door_windows_emergency.sql). The lead renumbers at integration;
--- the content does not depend on the number. Other agents' provisional ranges start at 0140.
+-- Final number 0143 (built as PROVISIONAL 0138 on pilot/DOORWIN2-295; renumbered at the 2.11.0 integration, integ/2111). The content does not depend on the number.
 --
 -- CR-039 slice W4 and the foreign-program rule (docs/changes/CR-DOORWIN2-295-BUILD-NOTES.md): event-triggered windows, their trigger log, and the
 -- bookkeeping of a program a person made in the intercom panel that an emergency LOCK paused. Shipped OFF like 0137: nothing is written while

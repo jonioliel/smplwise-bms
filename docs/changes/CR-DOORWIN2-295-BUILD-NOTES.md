@@ -6,7 +6,7 @@ blocked. Nothing here touched a WisKey, a station, a door, a bridge, Home Assist
 switch default changed (`doors.windows.enabled`, `doors.emergency.*`, `doors.automation_actor`, `doors.windows.event_extend_owned`, `doors.emergency.home_widget`
 ship off; `doors.emergency.announce_phrase` ships empty). Activation is ECCACT-295's job.
 
-**Migration number: PROVISIONAL 0138** (`0138_door_windows_events.sql`, after `0137_door_windows_emergency` on integ/2102). The lead renumbers at integration;
+**Migration number: 0143** (`0143_door_windows_events.sql`; built as PROVISIONAL 0138 after `0137_door_windows_emergency` on integ/2102, renumbered at integ/2111);
 the content does not depend on the number. It rebuilds `door_window_occurrences` (wider `origin` CHECK, new `trigger_ref`) with the same rows, and adds
 `door_window_triggers`, `door_window_trigger_log`, `door_window_exclusions` and two columns on `door_window_engine`.
 
