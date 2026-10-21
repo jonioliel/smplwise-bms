@@ -92,3 +92,31 @@ test('19: a media read that fails shows that widget failed with a retry; the oth
   await expect(page.locator(`${W} [data-home-widget="media"]`)).toHaveCount(1);
   await page.screenshot({ path: `${OUT}/home-media-retried.png` });
 });
+
+test('19: the elevators widget whose later read fails says so with a retry, keeps the other widgets, and recovers on retry', async ({ page }) => {
+  let ok = true;
+  const NOW = '2026-10-18T09:00:00Z';
+  const e = (id: string, name: string) => ({ id, name, area_id: null, area_name: 'לובי', state: 'active', reason: 'active', partial: false, stale: false, since: NOW, roles: ['fault'], extras: [], flags: { fault: false }, history: null });
+  await installBubbleMock(page, { perms: ['devices.read', 'devices.control', 'devices.control_bulk', 'map.read'] });
+  const home = { direction: 'a', side: 'end', time_zone: 'Asia/Jerusalem', personalize: false, config: { clock: { on: true }, elevators: { on: true, mode: 'both', hidden: [], filter: 'all' } }, data: {} };
+  await page.route('**/api/v1/devices/tree', (route) => json(route, { ...tree(), home }));
+  await page.route('**/api/v1/infra/elevators**', (route) => (ok ? json(route, { elevators: [e('e1', 'מעלית צפונית')], summary: {}, stale: false, at: NOW }) : json(route, ENVELOPE, 500)));
+  await page.clock.install();
+  await page.goto('about:blank');
+  await page.goto('/?design=a&skin=classic#/devices/building');
+  const W = 'sw-app devices-building home-widgets';
+  await expect(page.locator(`${W} [data-home-widget="elevators"]`)).toHaveCount(1);
+  ok = false;
+  await page.clock.runFor(31_000); // the widget polls every 30 s
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/home-elevators-failed.png` });
+  const failedPanel = page.locator(`${W} [data-home-widget-failed="elevators"]`);
+  console.log(`elevators failed panel ${PHASE}: ${await failedPanel.count()}, widget present: ${await page.locator(`${W} [data-home-widget="elevators"]`).count()}`);
+  if (PHASE !== 'after') return;
+  await expect(failedPanel).toHaveCount(1);
+  await expect(page.locator(`${W} [data-home-widget="clock"]`)).toHaveCount(1);
+  ok = true;
+  await failedPanel.evaluate((el) => el.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true })));
+  await expect(failedPanel).toHaveCount(0, { timeout: 8000 });
+  await expect(page.locator(`${W} [data-home-elevator-card="e1"], ${W} [data-home-elevators-top]`).first()).toBeVisible();
+});

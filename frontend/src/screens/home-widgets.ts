@@ -1381,7 +1381,7 @@ export class HomeWidgetsView extends LitElement {
   /** A widget card, or its ghost; the media widget (CR-015) asks for itself: without a screen this user may see it is absent
    * from the screen, and a ghost that says so while editing. */
   private item(it: WidgetItem) {
-    if (it.id === 'media' && it.avail === 'ok' && !this.hasMedia) {
+    if (it.id === 'media' && it.avail === 'ok' && !this.hasMedia && !this.mediaFailed) {
       return this.editing ? this.ghost({ ...it, avail: 'nomedia' }) : nothing;
     }
     return it.avail === 'ok' ? this.card(it) : this.ghost(it);
