@@ -1,5 +1,9 @@
 """WKPEER-295 (WisKey round 10 section 2.2, round 11 R11-I1-03 / R11-I1-04 / R11-I2-01 / R11-I3-01..04): the Arx CONSUMER interfaces of
-ACR5-01..04, each behind its own OFF switch. Fake-backed; NOT wired into the grant engine, the revoke path or any view.
+ACR5-01..04, each behind its own OFF switch. The parsers are shared with the grant engine; the switches GATE the live readback
+(review 3 G-01, owner decision 2026-10-21): `access_grants.engine_for` hands `consumer_on` to `wiskey_readback.LiveReadback`, so
+`users/access_state(_v2)` (and its overview negotiation) is sent only while `wiskey.acr5_access_state` is on, `schedules/normalize_user`
+only while `wiskey.acr5_normalize_user` is on; off = UNKNOWN (a revoke stays `revoking`). ACR5-03 presence has no product reader;
+ACR5-04 `consume_plan` refuses either way. No route writes these switches today (review 3 G-03): they stay OFF.
 
 Source contract: the frozen v1 read contract (ARX_REPLY6_FROZEN_READ_CONTRACT_V1.txt + ARX_REPLY6_WIRE_SHAPES_V1.json, WisKey round 6,
 FROZEN_FOR_REVIEW / NOT_RELEASED). Arx accepts the interface only after reviewing WisKey's delivered code; nothing here asserts that it
@@ -27,7 +31,8 @@ ACR5-04 feature dry plans - parsed strictly; a plan that claims `execution_avail
   never executable and `consume_plan` refuses (no adapter exists on either side).
 
 Switches: `wiskey.acr5_access_state`, `wiskey.acr5_normalize_user`, `wiskey.acr5_presence`, `wiskey.acr5_feature_plans` (default off)
-AND the build constant `GO_LIVE_PERMITTED` (False). A switch set to `on` alone changes nothing."""
+AND the build constant `GO_LIVE_PERMITTED` (`consumer_on` needs both). With the permit True (ECCACT-295) a switch set to `on` lets
+that one read be sent; nothing here writes to WisKey."""
 from __future__ import annotations
 
 import copy
@@ -53,7 +58,7 @@ from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved t
     schedule_ok,
 )
 
-GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); each wiskey.acr5_* switch still defaults OFF
+GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); each wiskey.acr5_* switch still defaults OFF and gates its read (G-01)
 FLAGS = {
     "acr5_01": "wiskey.acr5_access_state",
     "acr5_02": "wiskey.acr5_normalize_user",

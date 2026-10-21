@@ -36,7 +36,7 @@ import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeout
+from concurrent.futures import wait as futures_wait
 from typing import Any
 
 from ..audit import audit
@@ -59,7 +59,7 @@ ENABLED = "doors.emergency.enabled"
 OPEN_ENABLED = "doors.emergency.open_enabled"
 AUTOMATIONS = "doors.emergency.automations"
 HOLD_MS = "doors.emergency.hold_ms"
-ENGINE_DEADLINE_S = 8     # E-03: no engine call is waited for longer than this at the seam; a call that did not answer is UNKNOWN
+ENGINE_DEADLINE_S = 8     # E-03 / DW-03: no engine call is waited for longer than this (call_with_deadline); a call that did not answer is UNKNOWN
 PENDING_MAX_S = 30        # E-03: a door row still `pending` this long after its phase began is aged into UNKNOWN
 ANNOUNCE_PHRASE = "doors.emergency.announce_phrase"
 HOME_WIDGET = "doors.emergency.home_widget"
@@ -84,7 +84,6 @@ SETTINGS: dict[str, tuple[str, Any]] = {
 CONFIRM_TTL_S = 20
 RETRY_GAP_S = 10
 MAX_ATTEMPTS = 3
-LANE_SLOTS = 4  # the incident lane (CR-039 8.7): only incidents use it
 REASON_MAX = 200
 LIMITS = {"user_gap_s": 10, "user_hour": 5, "installation_hour": 12, "drill_user_hour": 10, "prepare_per_min": 10}
 
@@ -461,16 +460,46 @@ def release(conn: sqlite3.Connection, settings: Any, principal: Principal, *, to
 # ---------------------------------------------------------------- dispatch (the incident lane)
 
 DISPATCH_INLINE = False  # tests: dispatch in the request's thread, deterministic
-_POOL: ThreadPoolExecutor | None = None
-_POOL_LOCK = threading.Lock()
+
+# DW-03 (Fable review 3): a hung engine must not saturate a shared pool, and a call that was not sent by its deadline must never go out later.
+# (1) every dispatch runs its doors on its OWN executor (up to LANE_MAX at once) - no shared pool a hung call of another dispatch could hold;
+#     when the dispatcher stops waiting, every call that has not started is cancelled and nothing starts afterwards (`closed`);
+# (2) right before each send the row is claimed `pending -> sent` in one write, only while the incident is still in the phase's states - a
+#     door already settled, retried, aged or whose incident was released meanwhile is skipped, never sent late;
+# (3) each engine call runs through `call_with_deadline`, the hard per-call deadline of the channel: the caller gets UNKNOWN `deadline` after
+#     ENGINE_DEADLINE_S whatever the engine does, and the live transport must time out on its own sooner
+#     (door_windows_engine.WiskeyEmergencyEngine.transport_timeout_s <= ENGINE_DEADLINE_S). INFLIGHT_MAX caps the calls alive in the process
+#     (a hung call holds its slot until its thread ends); past it a door is not sent and is UNKNOWN `not_sent:lane_full` (normal retry plan).
+LANE_MAX = 32
+INFLIGHT_MAX = 64
+DISPATCH_GRACE_S = 2  # the dispatcher's bound over the per-call deadline (the claim write before each send)
+PHASE_STATES = {"apply": ("applying", "in_effect", "in_effect_partial"), "release": ("releasing",)}
+_INFLIGHT = threading.BoundedSemaphore(INFLIGHT_MAX)
 
 
-def _pool() -> ThreadPoolExecutor:
-    global _POOL
-    with _POOL_LOCK:
-        if _POOL is None:
-            _POOL = ThreadPoolExecutor(max_workers=LANE_SLOTS, thread_name_prefix="door-emergency")
-        return _POOL
+def call_with_deadline(fn: Any, deadline_s: float) -> dwe.DoorOutcome:
+    """DW-03 (3): run one engine call on its own daemon thread and wait at most `deadline_s`. A call that has not answered is UNKNOWN
+    `deadline` (never refused, never acknowledged); its late answer is discarded. An exception of the call is raised to the caller."""
+    if not _INFLIGHT.acquire(blocking=False):
+        return dwe.DoorOutcome("unknown", "not_sent:lane_full")
+    box: dict[str, Any] = {}
+    done = threading.Event()
+
+    def run() -> None:
+        try:
+            box["out"] = fn()
+        except BaseException as exc:  # noqa: BLE001 - handed to the waiting caller
+            box["exc"] = exc
+        finally:
+            _INFLIGHT.release()
+            done.set()
+
+    threading.Thread(target=run, name="door-emergency-call", daemon=True).start()
+    if not done.wait(deadline_s):
+        return dwe.DoorOutcome("unknown", "deadline")
+    if "exc" in box:
+        raise box["exc"]
+    return box["out"]
 
 
 def engine_for(row: sqlite3.Row, settings: Any) -> dwe.EmergencyEngine:
@@ -478,9 +507,24 @@ def engine_for(row: sqlite3.Row, settings: Any) -> dwe.EmergencyEngine:
     return dwe.DrillEngine() if row["drill"] else dwe.emergency_engine(settings)
 
 
+def _claim(db: Database, incident_id: str, phase: str, station_id: str, relay: int) -> bool:
+    """DW-03 (2): the stale-row guard, right before the send. True only when the incident is still in the phase's states AND this door's
+    row was still `pending` (it is now `sent`). Any failure is False: nothing is sent, the row is aged later (`age_pending`)."""
+    try:
+        with db.connection() as conn:
+            inc = conn.execute("SELECT state FROM door_emergency_incidents WHERE id = ?", (incident_id,)).fetchone()
+            if inc is None or inc["state"] not in PHASE_STATES.get(phase, ()):
+                return False
+            return conn.execute("""UPDATE door_emergency_doors SET state = 'sent' WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?
+                                   AND state = 'pending'""", (incident_id, station_id, relay, phase)).rowcount == 1
+    except Exception:  # noqa: BLE001
+        log.warning("door emergency: claim failed for %s/%s", incident_id, phase)
+        return False
+
+
 def dispatch(db: Database, settings: Any, incident_id: str, phase: str, confirmed_at: float | None = None) -> None:
-    """Send the incident's pending door rows of `phase` (each once), up to LANE_SLOTS at a time, and settle the incident. Engine calls run
-    with no database lock held. `confirmed_at` (monotonic) measures the latency evidence (CR-039 8.7)."""
+    """Send the incident's pending door rows of `phase` (each once), up to LANE_MAX at a time on this dispatch's own executor, and settle the
+    incident. Engine calls run with no database lock held. `confirmed_at` (monotonic) measures the latency evidence (CR-039 8.7)."""
     with db.connection(mode="read") as conn:
         row = incident_row(conn, incident_id)
         if row is None:
@@ -490,36 +534,49 @@ def dispatch(db: Database, settings: Any, incident_id: str, phase: str, confirme
     engine = engine_for(row, settings)
     t0 = confirmed_at if confirmed_at is not None else time.monotonic()
     sent_ms: list[int] = []
+    deadline_s = ENGINE_DEADLINE_S
+    closed = threading.Event()  # set when the dispatcher stops waiting: no call starts after it (DW-03 (1))
 
-    def one(d: sqlite3.Row) -> tuple[str, int, dwe.DoorOutcome]:
+    def call(d: sqlite3.Row) -> dwe.DoorOutcome:
+        if phase == "apply":
+            return engine.apply(row["kind"], d["station_id"], d["relay"], f"{row['request_id']}:{d['station_id']}:{d['relay']}", row["reason"] or "")
+        return engine.release(row["kind"], d["station_id"], d["relay"], f"{row['release_request_id'] or row['request_id']}:r:{d['station_id']}:{d['relay']}")
+
+    def one(d: sqlite3.Row) -> tuple[str, int, dwe.DoorOutcome] | None:
+        """One door: claimed right before the send (None = stale or too late: nothing was sent and the row is left as it is)."""
+        if closed.is_set() or not _claim(db, incident_id, phase, d["station_id"], d["relay"]) or closed.is_set():
+            return None
         sent_ms.append(int((time.monotonic() - t0) * 1000))
         try:
-            if phase == "apply":
-                out = engine.apply(row["kind"], d["station_id"], d["relay"], f"{row['request_id']}:{d['station_id']}:{d['relay']}", row["reason"] or "")
-            else:
-                out = engine.release(row["kind"], d["station_id"], d["relay"], f"{row['release_request_id'] or row['request_id']}:r:{d['station_id']}:{d['relay']}")
+            out = call(d) if DISPATCH_INLINE else call_with_deadline(lambda: call(d), deadline_s)
         except dwe.EngineError as exc:
             out = dwe.DoorOutcome("unknown" if exc.kind == "unknown" else "refused", f"{exc.kind}:{exc.code}"[:64])
         except Exception as exc:  # noqa: BLE001 - a transport failure after sending is unknown, never "refused"
             out = dwe.DoorOutcome("unknown", type(exc).__name__[:64])
         return d["station_id"], d["relay"], out
 
-    def bounded(d: sqlite3.Row) -> tuple[str, int, dwe.DoorOutcome]:
-        """E-03: one door's call with a deadline. A call that has not answered in ENGINE_DEADLINE_S is UNKNOWN (never refused, never acknowledged);
-        the worker thread may finish later, its answer is discarded."""
-        if DISPATCH_INLINE:
-            return one(d)
-        fut = _pool().submit(one, d)
+    results: list[tuple[str, int, dwe.DoorOutcome]] = []
+    if DISPATCH_INLINE:
+        results = [r for r in (one(d) for d in pending) if r is not None]
+    elif pending:
+        ex = ThreadPoolExecutor(max_workers=max(1, min(len(pending), LANE_MAX)), thread_name_prefix="door-emergency")
         try:
-            return fut.result(timeout=ENGINE_DEADLINE_S)
-        except FuturesTimeout:
-            return d["station_id"], d["relay"], dwe.DoorOutcome("unknown", "deadline")
-
-    if DISPATCH_INLINE or len(pending) <= 1:
-        results = [bounded(d) for d in pending]
-    else:
-        with ThreadPoolExecutor(max_workers=LANE_SLOTS, thread_name_prefix="door-emergency-wait") as waiters:
-            results = list(waiters.map(bounded, pending))
+            futs = [(d, ex.submit(one, d)) for d in pending]
+            futures_wait([f for _, f in futs], timeout=deadline_s + DISPATCH_GRACE_S)
+            closed.set()
+            for d, fut in futs:
+                if fut.done() and not fut.cancelled():
+                    try:
+                        r = fut.result()
+                    except Exception:  # noqa: BLE001 - one() maps every engine failure; anything else is unknown
+                        r = (d["station_id"], d["relay"], dwe.DoorOutcome("unknown", "dispatch_error"))
+                    if r is not None:
+                        results.append(r)
+                else:  # E-03 / DW-03: UNKNOWN at the deadline; a call that had not started never starts
+                    fut.cancel()
+                    results.append((d["station_id"], d["relay"], dwe.DoorOutcome("unknown", "deadline")))
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
     _settle(db, settings, row, phase, results, sent_ms, first_dispatch=confirmed_at is not None)
 
 

@@ -459,8 +459,9 @@ def requested_policy(timing: dict[str, Any] | None) -> dict[str, Any] | None:
 #
 # WisKey's `users/access_state` (v1) and `users/access_state_v2` readback (delivered in the Mac package f66bf67b, behind WisKey's own build
 # gate and an administrator-only dispatch). ECCACT-295: Arx has a live, capability-negotiated reader (services/wiskey_readback.LiveReadback, the
-# `readback` channel) wired by access_grants.engine_for; it sends only when WisKey lists the command AND advertises the capability, and the
-# live v2 path stays technically blocked until the verified no-admin bridge route is pinned with the Mac. A v1 answer never proves a revocation.
+# `readback` channel) wired by access_grants.engine_for; it sends only while `wiskey.acr5_access_state` is on (review 3 G-01, default OFF) AND
+# WisKey lists the command AND advertises the capability, and the live v2 path stays technically blocked until the verified no-admin bridge
+# route is pinned with the Mac. A v1 answer never proves a revocation.
 
 ACCESS_STATE_SCHEMA = was.SCHEMA_V1  # kept for readers of this module; the version dispatch lives in wiskey_access_state
 PRESENCES = was.PRESENCES
@@ -624,7 +625,7 @@ class WiskeyServiceEngine:
     def __init__(self, settings: Any, access_state_reader: AccessStateReader | None = None,
                  last_known_stations: LastKnownStations | None = None) -> None:
         self.settings = settings
-        # R11-I1-03: no ACR5-01 client is built, so production passes none (revocation status UNKNOWN); only tests inject a fake.
+        # R11-I1-03 / ECCACT-295: production passes the switch-gated LiveReadback (access_grants.engine_for, G-01); None = UNKNOWN.
         self.access_state_reader = access_state_reader
         # WKV2-295 (F-02): Arx's own last-known doors record for the v2 cross-check; None = UNKNOWN (a v2 answer never proves clean)
         self.last_known_stations = last_known_stations

@@ -19,7 +19,8 @@ and a log; the compile (services/door_windows.sync) turns the running holds into
 - caps, all durable (counted from the trigger log / occurrences, they survive a restart): per door per day (the rule's `max_per_day` and the
   installation's `max_per_day_per_door` over every origin), `cooldown_s`, the allowed hours, the quiet hours, `doors.windows.max_hours`, no window
   across local midnight (WisKey's windows have no overnight period), no window on a `closed` day, and an installation-wide storm cap of
-  STORM_PER_HOUR starts per hour (refused + a `door.windows.storm` alert);
+  STORM_PER_HOUR starts per hour (refused + a `door.windows.storm` alert; simulated triggers are counted apart and never block a real
+start, review 3 DW-06);
 - never while the door's previous occurrence is `relock_unconfirmed` (SR-5), under an override pause, or under an emergency incident;
 - a trigger that falls inside / touching another window is refused, except a second event touching a not-yet-running event hold, which EXTENDS
   it once; extending a RUNNING hold makes the program blink (~15 s), so it is refused unless `doors.windows.event_extend_owned` is on;
@@ -244,7 +245,11 @@ def decide_door(conn: sqlite3.Connection, settings: Any, now: dt.datetime, door:
     if trigger_ref and conn.execute("""SELECT 1 FROM door_window_trigger_log WHERE source = ? AND rule_id IS ? AND station_id = ? AND relay = ? AND trigger_ref = ?
                                        AND decision <> 'refused'""", (source, rule_id, door.station_id, door.relay, trigger_ref)).fetchone():
         return Decision(key, "duplicate", "already_handled")  # a redelivery is not a second trigger (and writes nothing)
-    if conn.execute("SELECT COUNT(*) FROM door_window_trigger_log WHERE decision IN ('started','simulated','extended') AND at > ?", (_since(now, hours=1),)).fetchone()[0] >= STORM_PER_HOUR:
+    # DW-06 (Fable review 3): simulations never reach an engine, so they never count against the real storm cap - a token holder firing
+    # simulated events cannot block a person's `open-for`. Simulations have their own cap of the same size (counted over simulations only).
+    storm_kinds = ("simulated",) if simulate else ("started", "extended")
+    if conn.execute(f"SELECT COUNT(*) FROM door_window_trigger_log WHERE decision IN ({','.join('?' * len(storm_kinds))}) AND at > ?",
+                    (*storm_kinds, _since(now, hours=1))).fetchone()[0] >= STORM_PER_HOUR:
         _notify_storm(conn, now)
         return out("refused", "storm")
     if key in dw.exterior_doors(conn) and dw.setting(conn, "doors.windows.exterior_allowed") != "true":
