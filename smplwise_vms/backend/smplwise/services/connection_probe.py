@@ -17,13 +17,13 @@ The test is an SSRF oracle by nature (it makes the add-on connect where the call
   (`port_refused`, review F9): the test must not become a port scanner of the machine it runs on, whose LAN address is not
   always knowable from inside the add-on's container;
 - the probe is GET only (`/ISAPI/System/deviceInfo`, then the channel listing) with its own client: Digest only, redirects
-  not followed, no proxy from the environment, 5 s to connect, 5 s per read, ONE 8 s wall-clock deadline for the whole probe
+  not followed, no proxy from the environment, 5 s to connect, 5 s per read, ONE wall-clock deadline for the whole probe (default 30 s, setting SW_PROBE_DEADLINE_S, range 1-120 s)
   and at most 256 KB read per answer (review F4). The deadline is hard (second review N2): every socket read and write is
   bounded by the time left, also while waiting for the response headers (an endless stream of `100 Continue` answers), and
   the probe runs in its own thread whose sockets are shut down if it is still running at the deadline. Only identity encoding
   is accepted and the raw bytes are counted (second review N3: a compressed answer is never inflated before the cap). Both
   rules hold at the transport for EVERY answer, also the 401 challenge that the Digest handshake reads by itself (third
-  review). Name resolution (this host's name and the typed name, each at most 2 s) runs inside the same 8 s budget
+  review). Name resolution (this host's name and the typed name, each at most 2 s) runs inside the same budget
   (`check_and_probe`, third review); the probe's resolver is its own bounded pool, not the camera source policy's;
 - the answer is coarse: `ok` plus model, firmware and channel count, or one of `source_unavailable`, `source_forbidden`,
   `source_error`, `timeout`, `host_refused`. No response body, header, resolved address or exception text is echoed;
@@ -98,7 +98,24 @@ OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "tim
 # the probe's limits (CR-022 section 6.3, review F4)
 CONNECT_S = 5.0
 READ_S = 5.0
-DEADLINE_S = 8.0
+DEADLINE_MIN_S, DEADLINE_MAX_S, DEADLINE_DEFAULT_S = 1.0, 120.0, 30.0
+
+
+def probe_deadline_s(raw: str | None = None) -> float:
+    """The wall-clock deadline of one connection test, in seconds: the setting SW_PROBE_DEADLINE_S, default 30, allowed range
+    1 to 120 (a value outside the range is clamped; an unreadable, NaN or infinite value falls back to the default). The
+    behaviour at the deadline is unchanged and fails closed: the test answers `timeout` and the sockets are shut down."""
+    text = os.environ.get("SW_PROBE_DEADLINE_S") if raw is None else raw
+    try:
+        value = float(str(text).strip())
+    except (TypeError, ValueError):
+        return DEADLINE_DEFAULT_S
+    if value != value or value in (float("inf"), float("-inf")):
+        return DEADLINE_DEFAULT_S
+    return min(DEADLINE_MAX_S, max(DEADLINE_MIN_S, value))
+
+
+DEADLINE_S = probe_deadline_s()
 MAX_BYTES = 256 * 1024
 DEVICE_INFO_PATH = "/ISAPI/System/deviceInfo"
 CHANNELS_PATH = "/ISAPI/ContentMgmt/InputProxy/channels"
