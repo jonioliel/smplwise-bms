@@ -256,18 +256,21 @@ def test_an_event_that_never_reached_the_engine_is_not_started_the_safe_directio
     assert live.rows("SELECT * FROM notifications WHERE source = 'door.window_not_started'")
 
 
-def test_a_second_event_extends_a_waiting_hold_once(live, monkeypatch):
+def test_a_second_event_extends_a_waiting_hold_once(live):
     fire(live, live.rid, live.token, "a")
-    live.world.advance(30)
+    live.sync()                      # armed: the program holds the first window
+    live.world.advance(50)           # 07:00:50 - the next whole minute is 07:02, so the second hold would end later
     r = fire(live, live.rid, live.token, "b")
     assert r["doors"][0]["decision"] == "extended", r
     (o,) = events(live)
-    assert o["end_at"] == "2026-11-02T07:02:00Z" and o["token"] == "2026-11-02/07:01/09:02"
-    live.world.advance(15)
-    r = fire(live, live.rid, live.token, "c")
-    assert r["doors"][0]["decision"] == "refused" and r["doors"][0]["reason"] in ("extended_already", "already_covered")
-    live.sync()
+    assert o["end_at"] == "2026-11-02T07:02:00Z" and o["token"] == "2026-11-02/07:01/09:02" and o["start_at"] == "2026-11-02T05:01:00Z"
+    live.sync()                      # still before the start: the rewrite of the program has no physical effect
+    assert live.world.programs.program(live.ENTRY, 1)["policy"]["schedule"]["holidays"][0]["periods"] == [{"start": "07:01", "end": "09:02"}]
+    live.world.advance(10)
+    again = fire(live, live.rid, live.token, "c")
+    assert again["doors"][0]["decision"] == "refused" and again["doors"][0]["reason"] in ("extended_already", "already_covered")
     assert len(events(live)) == 1 and live.world.programs.program(live.ENTRY, 1)["enabled"]
+    assert [x["decision"] for x in live.rows("SELECT decision FROM door_window_trigger_log ORDER BY at, rowid") if x["decision"] != "refused"] == ["started", "extended"]
 
 
 def test_a_running_hold_is_not_extended_by_default_and_the_refusal_is_audited(live):
@@ -293,7 +296,7 @@ def test_a_running_hold_is_extended_when_the_owner_accepts_the_blink(live):
     assert program_requests(live, "action"), "the extension needs the pause step (the door blinks)"
     live.world.run_until(dt.datetime(2026, 11, 2, 5, 21, 0, tzinfo=UTC))
     assert live.world.bank.truth_open((live.ENTRY, 1)) and events(live)[0]["state"] == "active"
-    live.world.run_until(dt.datetime(2026, 11, 2, 7, 10, 0, tzinfo=UTC))
+    live.world.run_until(dt.datetime(2026, 11, 2, 7, 40, 0, tzinfo=UTC))
     assert events(live)[0]["state"] == "closed_confirmed"
 
 

@@ -35,6 +35,7 @@ import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from typing import Any
 
 from ..audit import audit
@@ -57,6 +58,9 @@ ENABLED = "doors.emergency.enabled"
 OPEN_ENABLED = "doors.emergency.open_enabled"
 AUTOMATIONS = "doors.emergency.automations"
 HOLD_MS = "doors.emergency.hold_ms"
+OPEN_RETRY = "doors.emergency.open_retry"
+ENGINE_DEADLINE_S = 8     # E-03: no engine call is waited for longer than this at the seam; a call that did not answer is UNKNOWN
+PENDING_MAX_S = 30        # E-03: a door row still `pending` this long after its phase began is aged into UNKNOWN
 ANNOUNCE_PHRASE = "doors.emergency.announce_phrase"
 HOME_WIDGET = "doors.emergency.home_widget"
 PHRASE_MAX = 120
@@ -67,6 +71,9 @@ def _phrase_ok(value: str) -> bool:
 
 
 SETTINGS: dict[str, tuple[str, Any]] = {
+    # E-04 (Fable review 2): the E-1 exception (CR-039 8.4) repeats an OPEN after UNKNOWN. Safe only if the engine de-duplicates an apply by its
+    # request_id (the same id is sent on every attempt) - WisKey has not confirmed that. OFF by default: an unknown OPEN is NOT repeated.
+    OPEN_RETRY: ("off", lambda v: v in ("off", "on")),
     # DOORWIN2-295 (CR-039 11 / 13): the spoken phrase of an emergency start ("" = none; owner decision 2026-10-13: OFF until heard in a drill) and the
     # home-screen entry (off by default). Neither can make a button act: they only add a way to reach / announce the sheet.
     ANNOUNCE_PHRASE: ("", _phrase_ok),
@@ -152,6 +159,8 @@ def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, 
             raise ApiError(409, "attestation_required", "יש לאשר את הצהרת הבטיחות לפני הפעלת פתיחת חירום.")
     if changes.get(AUTOMATIONS) == "on":
         raise ApiError(409, "automation_actor_unavailable", "הפעלה מאוטומציה אינה זמינה: אין עדיין זהות אוטומציה מאומתת.")
+    if changes.get(ENABLED) == "off" and active_incident(conn) is not None:
+        raise ApiError(409, "incident_active", "יש מצב חירום פעיל - יש לשחרר אותו לפני כיבוי הלחצנים.")  # E-01: release first (release works either way)
     out: dict[str, tuple[str, str]] = {}
     for key, value in changes.items():
         before = setting(conn, key)
@@ -308,7 +317,7 @@ def prepare(conn: sqlite3.Connection, settings: Any, principal: Principal, *, ac
         raise ApiError(422, "invalid_request", "בקשה לא תקינה.")
     check_actor(conn, principal, actor_kind, audit_action, dev_mode=dev_mode)
     _prepare_rate(principal.user_id)
-    if not drill:
+    if not drill and action == "start":  # E-01 (Fable review 2): a RELEASE never depends on the master switch - an incident in effect must always be endable
         if not enabled(conn):
             raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
         if kind == "open" and not open_enabled(conn, settings):
@@ -401,8 +410,12 @@ def start(conn: sqlite3.Connection, settings: Any, principal: Principal, *, toke
     conn.executemany("INSERT INTO door_emergency_doors(incident_id, station_id, relay, phase, state) VALUES (?, ?, ?, 'apply', 'pending')",
                      [(iid, d.station_id, d.relay) for d in doors_])
     if supersede:  # OPEN over LOCK (CR-039 8.3): the LOCK is released as part of the OPEN, both audited
-        conn.execute("UPDATE door_emergency_incidents SET state = 'released', released_by = ?, released_at = ?, superseded_by = ? WHERE id = ?",
-                     (principal.user_id, at, iid, supersede))
+        # E-02 (Fable review 2): the LOCK is released AT THE ENGINE too - release-phase rows are written and sent before the OPEN apply (`submit`)
+        conn.execute("UPDATE door_emergency_incidents SET state = 'releasing', released_by = ?, released_at = ?, superseded_by = ?, release_request_id = ? WHERE id = ?",
+                     (principal.user_id, at, iid, f"{client_request_id}:sup", supersede))
+        conn.executemany("INSERT OR IGNORE INTO door_emergency_doors(incident_id, station_id, relay, phase, state) VALUES (?, ?, ?, 'release', 'pending')",
+                         [(supersede, r["station_id"], r["relay"]) for r in conn.execute(
+                             "SELECT station_id, relay FROM door_emergency_doors WHERE incident_id = ? AND phase = 'apply' AND state <> 'skipped'", (supersede,)).fetchall()])
         audit(conn, actor=principal, action="door.emergency.released", decision="allowed", resource_type="door_emergency", resource_id=supersede,
               reason="superseded_by_open", details={"by": iid})
     if not drill and kind == "lock_secure":
@@ -490,17 +503,31 @@ def dispatch(db: Database, settings: Any, incident_id: str, phase: str, confirme
             out = dwe.DoorOutcome("unknown", type(exc).__name__[:64])
         return d["station_id"], d["relay"], out
 
+    def bounded(d: sqlite3.Row) -> tuple[str, int, dwe.DoorOutcome]:
+        """E-03: one door's call with a deadline. A call that has not answered in ENGINE_DEADLINE_S is UNKNOWN (never refused, never acknowledged);
+        the worker thread may finish later, its answer is discarded."""
+        if DISPATCH_INLINE:
+            return one(d)
+        fut = _pool().submit(one, d)
+        try:
+            return fut.result(timeout=ENGINE_DEADLINE_S)
+        except FuturesTimeout:
+            return d["station_id"], d["relay"], dwe.DoorOutcome("unknown", "deadline")
+
     if DISPATCH_INLINE or len(pending) <= 1:
-        results = [one(d) for d in pending]
+        results = [bounded(d) for d in pending]
     else:
-        results = list(_pool().map(one, pending))
+        with ThreadPoolExecutor(max_workers=LANE_SLOTS, thread_name_prefix="door-emergency-wait") as waiters:
+            results = list(waiters.map(bounded, pending))
     _settle(db, settings, row, phase, results, sent_ms, first_dispatch=confirmed_at is not None)
 
 
-def _retryable(row: sqlite3.Row, phase: str) -> bool:
+def _retryable(row: sqlite3.Row, phase: str, open_retry: bool = False) -> bool:
     """Which unknown outcomes may be retried (bounded): LOCK apply (the close direction), OPEN apply (E-1, the one exception to SR-3), and
     the release of an OPEN (the close direction). Never the release of a LOCK (it re-activates schedules)."""
-    return phase == "apply" or (phase == "release" and row["kind"] == "open")
+    if phase == "apply":
+        return row["kind"] != "open" or open_retry  # E-04: an OPEN apply is repeated only when the owner accepted the idempotency condition
+    return phase == "release" and row["kind"] == "open"
 
 
 def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: list[tuple[str, int, dwe.DoorOutcome]], sent_ms: list[int],
@@ -511,7 +538,7 @@ def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: 
         for station_id, relay, out in results:
             attempts = conn.execute("SELECT attempts FROM door_emergency_doors WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?",
                                     (row["id"], station_id, relay, phase)).fetchone()["attempts"] + 1
-            retry = out.state == "unknown" and attempts < MAX_ATTEMPTS and _retryable(row, phase) and not row["drill"]
+            retry = out.state == "unknown" and attempts < MAX_ATTEMPTS and _retryable(row, phase, setting(conn, OPEN_RETRY) == "on") and not row["drill"]
             conn.execute("""UPDATE door_emergency_doors SET state = ?, code = ?, attempts = ?, last_at = ?, next_at = ?, settled_at = ?
                             WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?""",
                          (out.state, out.code or None, attempts, at, dw.iso(now + dt.timedelta(seconds=RETRY_GAP_S)) if retry else None,
@@ -556,8 +583,34 @@ def _recount(conn: sqlite3.Connection, incident_id: str, phase: str) -> None:
         _notify_released(conn, incident_id)
 
 
+def age_pending(db: Database, now: dt.datetime) -> int:
+    """E-03: a door row still `pending` PENDING_MAX_S after its phase began (a dispatch that died, a thread lost with a restart) becomes UNKNOWN with the
+    code `deadline`, so the incident settles (partial headline, notification) instead of waiting for ever. The retry plan is the normal one."""
+    cutoff = dw.iso(now - dt.timedelta(seconds=PENDING_MAX_S))
+    n = 0
+    with db.connection() as conn:
+        rows = conn.execute("""SELECT d.incident_id, d.station_id, d.relay, d.phase, d.attempts, i.kind, i.drill FROM door_emergency_doors d
+                               JOIN door_emergency_incidents i ON i.id = d.incident_id
+                               WHERE d.state IN ('pending','sent') AND d.next_at IS NULL
+                                 AND ((d.phase = 'apply' AND i.requested_at < ? AND i.state IN ('applying','in_effect','in_effect_partial'))
+                                   OR (d.phase = 'release' AND i.released_at < ? AND i.state = 'releasing'))""", (cutoff, cutoff)).fetchall()
+        for r in rows:
+            attempts = r["attempts"] + 1
+            retry = attempts < MAX_ATTEMPTS and _retryable(r, r["phase"], setting(conn, OPEN_RETRY) == "on") and not r["drill"]
+            conn.execute("""UPDATE door_emergency_doors SET state = 'unknown', code = 'deadline', attempts = ?, last_at = ?, next_at = ?, settled_at = ?
+                            WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?""",
+                         (attempts, dw.iso(now), dw.iso(now + dt.timedelta(seconds=RETRY_GAP_S)) if retry else None, None if retry else dw.iso(now),
+                          r["incident_id"], r["station_id"], r["relay"], r["phase"]))
+            audit(conn, actor=None, action="door.emergency.door_result", decision="failed", resource_type="door", resource_id=dw.door_key(r["station_id"], r["relay"]),
+                  reason="unknown", details={"incident_id": r["incident_id"], "phase": r["phase"], "code": "deadline", "attempt": attempts, "retry_planned": retry})
+            _recount(conn, r["incident_id"], r["phase"])
+            n += 1
+    return n
+
+
 def retry_tick(db: Database, settings: Any, now: dt.datetime) -> int:
     """The bounded retries of unknown door outcomes (10 s apart, three attempts at most). Called by the door-windows worker."""
+    age_pending(db, now)
     with db.connection(mode="read") as conn:
         due = conn.execute("""SELECT d.incident_id, d.phase FROM door_emergency_doors d JOIN door_emergency_incidents i ON i.id = d.incident_id
                               WHERE d.state = 'unknown' AND d.next_at IS NOT NULL AND d.next_at <= ? AND i.drill = 0
@@ -575,10 +628,19 @@ def retry_tick(db: Database, settings: Any, now: dt.datetime) -> int:
 def submit(db: Database, settings: Any, incident_id: str, phase: str) -> None:
     """After the commit: dispatch now (tests) or on the incident lane."""
     confirmed_at = time.monotonic()
-    if DISPATCH_INLINE:
+
+    def run() -> None:
+        if phase == "apply":
+            with db.connection(mode="read") as conn:
+                sup = [r["id"] for r in conn.execute("SELECT id FROM door_emergency_incidents WHERE superseded_by = ? AND state = 'releasing'", (incident_id,))]
+            for sid in sup:  # E-02: evacuation beats lockdown, but the engine is told to end the LOCK first (one attempt; the OPEN goes out whatever the answer)
+                dispatch(db, settings, sid, "release")
         dispatch(db, settings, incident_id, phase, confirmed_at)
+
+    if DISPATCH_INLINE:
+        run()
     else:
-        threading.Thread(target=dispatch, args=(db, settings, incident_id, phase, confirmed_at), name="door-emergency-dispatch", daemon=True).start()
+        threading.Thread(target=run, name="door-emergency-dispatch", daemon=True).start()
 
 
 # ---------------------------------------------------------------- notifications

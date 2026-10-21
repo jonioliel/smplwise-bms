@@ -640,7 +640,7 @@ def policy_sha(policy: dict[str, Any] | None) -> str | None:
 
 
 def compile_door(rules: list[RuleDoc], door: Door, calendar: dict[str, str], today: dt.date, *, max_per_day: int = MAX_PERIODS_PER_DAY,
-                 horizon: int = HORIZON_DAYS) -> Compiled:
+                 horizon: int = HORIZON_DAYS, excluded: frozenset[str] = frozenset()) -> Compiled:
     """The door's program: the weekly union of its weekly rules, plus a date exception for every date in [today, today+horizon] whose
     periods differ from that union (a special day, a one-off window, a closed day). `policy` is None when no rule covers the door."""
     mine = [r for r in rules if (door.station_id, door.relay) in r.doors]
@@ -658,9 +658,10 @@ def compile_door(rules: list[RuleDoc], door: Door, calendar: dict[str, str], tod
             c.weekly[wd] = spans
     dates = {d for d in calendar if today.isoformat() <= d <= (today + dt.timedelta(days=horizon)).isoformat()}
     dates |= {p.on_date for r in mine if r.kind in ("once", "event") for p in r.periods if p.on_date and p.on_date >= today.isoformat()}
+    dates |= {t.split("/")[0] for t in excluded if today.isoformat() <= t.split("/")[0] <= (today + dt.timedelta(days=horizon)).isoformat()}
     for d in sorted(dates):
         day = dt.date.fromisoformat(d)
-        spans = day_spans(mine, day, calendar.get(d))
+        spans = [sp for sp in day_spans(mine, day, calendar.get(d)) if window_token(day, sp[0], sp[1]) not in excluded]  # W-01: a cancelled window is not in the program
         if [(s, e) for s, e, _ in spans] != [(s, e) for s, e, _ in c.weekly.get(sun0(day), [])]:
             c.exceptions[d] = spans
     cap = min(max_per_day, MAX_PERIODS_PER_DAY)
@@ -786,7 +787,7 @@ def _store_plan(conn: sqlite3.Connection, door: Door, planned: list[Planned], ti
                       p.origin, tier, state, at, at))
         # an occurrence cancelled earlier whose window came back (a rule re-enabled) is planned again, if it has not started
         conn.execute("""UPDATE door_window_occurrences SET state = ?, tier = ?, updated_at = ? WHERE station_id = ? AND relay = ? AND token = ?
-                        AND state = 'cancelled' AND start_at > ?""", (state, tier, at, door.station_id, door.relay, p.token, at))
+                        AND state = 'cancelled' AND start_at > ? AND COALESCE(resolution, '') <> 'override'""", (state, tier, at, door.station_id, door.relay, p.token, at))
 
 
 # ---------------------------------------------------------------- the sync: rules -> compile -> engine -> plan
@@ -859,7 +860,7 @@ def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:
             door = known.get(key) or Door(station_id, int(relay), f"דלת {relay}", "", installation_zone(conn))
             first = local_date(now, ZoneInfo(door.zone))
             compiled = compile_door(rules, door, calendar_for(conn, door.station_id, first, HORIZON_DAYS), first,
-                                    max_per_day=int_setting(conn, "doors.windows.max_per_day_per_door"))
+                                    max_per_day=int_setting(conn, "doors.windows.max_per_day_per_door"), excluded=exclusions_of(conn, door.station_id, door.relay, first))
             row = _engine_row(conn, door.station_id, door.relay)
             work.append(DoorWork(door, compiled, door_blocked(conn, door.station_id, door.relay, now), row["written_sha256"] if row else None,
                                  bool(row["foreign_program"]) if row else False))
@@ -882,6 +883,7 @@ def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:
         outcomes.append((w, outcome, revision, code))
     at = iso(now)
     with db.connection() as conn:
+        conn.execute("DELETE FROM door_window_exclusions WHERE token < ?", ((now - dt.timedelta(days=3)).date().isoformat(),))
         for rid in stale:
             conn.execute("UPDATE door_window_rules SET state = 'paused', updated_by = ?, updated_at = ? WHERE id = ? AND state = 'enabled'", (actor, at, rid))
             audit(conn, actor=None, action="door.window.rule_paused", decision="allowed", resource_type="door_window_rule", resource_id=rid, reason="approval_stale")
@@ -986,6 +988,12 @@ def refresh_foreign_paused(db: Database, settings: Any, now: dt.datetime) -> lis
                           reason="program_enabled_again")
                     cleared.append(door_key(station_id, relay))
     return cleared
+
+
+def exclusions_of(conn: sqlite3.Connection, station_id: str, relay: int, first: dt.date) -> frozenset[str]:
+    """The window tokens a guard cancelled before they started (W-01), from the day before `first` on; older rows are pruned by `sync`."""
+    return frozenset(r["token"] for r in conn.execute("SELECT token FROM door_window_exclusions WHERE station_id = ? AND relay = ? AND token >= ?",
+                                                      (station_id, relay, (first - dt.timedelta(days=1)).isoformat())))
 
 
 def clear_pause(conn: sqlite3.Connection, station_id: str, relay: int) -> None:

@@ -88,6 +88,17 @@ CREATE INDEX idx_dwtl_at ON door_window_trigger_log (at);
 -- one delivery of one event is one trigger, however many times it arrives (Home Assistant redelivery, T5)
 CREATE UNIQUE INDEX idx_dwtl_ref ON door_window_trigger_log (source, rule_id, station_id, relay, trigger_ref) WHERE trigger_ref IS NOT NULL AND decision <> 'refused';
 
+-- ---- 3b. W-01 (Fable review 2): a guard's cancel of a FUTURE occurrence is part of the compile - the program written to the engine omits that
+-- one window (a per-door, per-token exclusion), so the door is not held open at the planned time and the next compile never re-plans it
+CREATE TABLE door_window_exclusions (
+  station_id      TEXT NOT NULL,
+  relay           INTEGER NOT NULL,
+  token           TEXT NOT NULL,                                    -- WisKey's window token 'YYYY-MM-DD/HH:MM/HH:MM' of the cancelled window
+  excluded_by     TEXT NOT NULL,
+  excluded_at     TEXT NOT NULL,
+  PRIMARY KEY (station_id, relay, token)
+);
+
 -- ---- 4. a foreign program (made in the intercom panel) that an emergency LOCK paused: Arx never re-activates it (CR-039 19.3)
 ALTER TABLE door_window_engine ADD COLUMN foreign_paused_incident TEXT;
 ALTER TABLE door_window_engine ADD COLUMN foreign_paused_at TEXT;

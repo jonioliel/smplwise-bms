@@ -291,6 +291,9 @@ def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1
     if occ["state"] in ("prepared", "planned", "armed") and occ["start_at"] > at:
         conn.execute("UPDATE door_window_occurrences SET state = 'cancelled', resolution = 'override', resolved_by = ?, resolved_at = ?, updated_at = ? WHERE id = ?",
                      (principal.user_id, at, at, occ_id))
+        # W-01: the cancel must reach the engine - the window leaves the compiled program (an exclusion by token), and the next compile never re-plans it
+        conn.execute("INSERT OR REPLACE INTO door_window_exclusions(station_id, relay, token, excluded_by, excluded_at) VALUES (?, ?, ?, ?, ?)",
+                     (occ["station_id"], occ["relay"], occ["token"], principal.user_id, at))
         outcome = "cancelled"
     elif occ["state"] in ("starting", "active", "not_started", "prepared", "armed", "planned"):
         conn.execute("""UPDATE door_window_occurrences SET state = CASE WHEN tier = 'prepared' THEN 'elapsed' ELSE 'ending' END, end_at = ?, last_reason = 'override',
@@ -307,7 +310,9 @@ def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1
     commit_now(conn)
     if outcome == "ending":
         dw.pause_door(request.app.state.db, settings_of(request), occ["station_id"], occ["relay"], occ["end_at"], why="override")
-    dw.WORKER.wake(sync=False)
+    dw.WORKER.wake(sync=outcome == "cancelled")
+    if outcome == "cancelled":  # W-01: rewrite the engine's program now, so the cancelled window cannot open the door
+        dw.sync(request.app.state.db, settings_of(request), now_utc())
     with request.app.state.db.connection(mode="read") as rconn:
         return {"occurrence": _occ_view(dw.occurrence_row(rconn, occ_id), dw.doors_by_key(rconn), {})}
 
@@ -504,6 +509,7 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
     drill = de.active_incident(conn, drill=True)
     out: dict[str, Any] = {
         "enabled": de.enabled(conn), "open_enabled": de.open_enabled(conn, settings), "hold_ms": int(de.setting(conn, de.HOLD_MS)),
+        "home_widget": de.setting(conn, de.HOME_WIDGET) == "on",  # DOORWIN2-295: the optional home-screen entry (off by default)
         "can": {"lock": can_lock, "open": can_open},
         "active": de.incident_view(conn, active, with_doors=can_lock or can_open) | {"can_release": authorize(conn, principal, de.PERMISSION[active["kind"]],
                                                                                                                 de.scope_target(active["scope_type"], active["scope_id"])).allowed}
