@@ -366,6 +366,11 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       border-color: var(--sw-accent);
       background: var(--sw-accent-soft);
     }
+    /* 44 px targets on every screen, not only on touch ones */
+    sw-button {
+      --sw-ctl-h-lg: 44px;
+      --sw-ctl-h-md: 44px;
+    }
     .vh {
       position: absolute;
       inline-size: 1px;

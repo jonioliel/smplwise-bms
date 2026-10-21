@@ -188,12 +188,13 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     // continue opens the dialog; cancel sends nothing
     await q(page, '[data-pm-next]').click();
     const dlg = page.locator(`${SCREEN} sw-dialog[open][data-pm-confirm-dialog]`);
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveCount(1); // the host has no box of its own (fixed children): the buttons are what shows
+    await expect(page.locator(`${SCREEN} [data-pm-confirm]`)).toBeVisible();
     await expect(page.locator(`${SCREEN} [data-pm-confirm-camera]`)).toHaveText(['כניסה ראשית', 'חצר אחורית']);
     await expect(page.locator(`${SCREEN} [data-pm-confirm-count]`)).toHaveText('2 מצלמות ייכתבו');
     await shot(page, '05-confirm-light');
     await page.locator(`${SCREEN} [data-pm-cancel]`).click();
-    await expect(dlg).toBeHidden();
+    await expect(dlg).toHaveCount(0);
     expect(st.applies).toHaveLength(0);
     expect(writes(st)).toEqual([]);
 
@@ -336,7 +337,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await expect(q(page, '[data-pm-review-step]')).toBeVisible();
     await shot(page, '13-review-dark');
     await q(page, '[data-pm-next]').click();
-    await expect(page.locator(`${SCREEN} sw-dialog[open]`)).toBeVisible();
+    await expect(page.locator(`${SCREEN} [data-pm-confirm]`)).toBeVisible();
     await shot(page, '14-confirm-dark');
     await page.locator(`${SCREEN} [data-pm-confirm]`).click();
     await expect(q(page, '[data-pm-done-step]')).toBeVisible();
