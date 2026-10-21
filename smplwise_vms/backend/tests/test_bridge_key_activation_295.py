@@ -250,7 +250,7 @@ def test_failed_automatic_attempt_backs_off(world):
     assert r and r["state"] == "rolled_back"
     fake.fail.clear()
     assert br.worker_pass(w["db"], w["settings"], p, now=clock) is None  # inside the first hour
-    clock.advance(br.AUTO_RETRY_S + 1)
+    clock.advance(br.AUTO_RETRY_S * 2)  # real-time stamps in the database, a fake clock for the engine: leave generous slack
     r2 = br.worker_pass(w["db"], w["settings"], p, now=clock)
     assert r2 and r2["state"] == "switched"
     with w["db"].connection(mode="read") as conn:
