@@ -784,3 +784,28 @@ def test_f3b_wp03_an_infrastructure_or_home_system_administrator_can_never_be_th
                      "ON CONFLICT(id) DO UPDATE SET is_admin = 1", (uid, "w", "wisk"))
     r = client.post(f"{URL}/reserve", json={**body, "request_id": "req-admin-0002"}, headers=as_user("wisk"))
     assert r.status_code == 403 and r.json()["details"]["reason"] == "ha_admin_not_allowed"
+
+
+def test_f3b_wp04_reserve_release_and_status_leave_an_actor_trace_without_secrets(client, settings):
+    import json as _json
+
+    from smplwise.db import Database
+
+    assert client.put(URL, json={"senders": {"entry:01JFAKEENTRYA": REF}}, headers=as_user("joni")).status_code == 200
+    _role_and_bind(settings, client, "wisk", "r-wk-port", ["messaging.pacing.reserve"])
+    wkh = as_user("wisk")
+    rid_ = "req-audit-0001"
+    assert client.post(f"{URL}/reserve", json={"sender_ref": REF, "class": "alert", "request_id": rid_}, headers=wkh).json()["granted"] is True
+    assert client.post(f"{URL}/release", json={"request_id": rid_, "outcome": "not_sent", "slowdown": {"scope": "account", "retry_after_s": 90}}, headers=wkh).json()["released"] is True
+    assert client.post(f"{URL}/release", json={"request_id": rid_, "outcome": "accepted_by_provider"}, headers=wkh).json()["conflict"] is True
+    assert client.get(f"{URL}/lease/{rid_}", headers=wkh).json()["found"] is True
+    with Database(settings.db_path).connection(mode="read") as conn:
+        rows = conn.execute("SELECT action, actor_user_id, resource_id, decision, details_json FROM audit_log WHERE action LIKE 'messaging.pacing.%' "
+                            "AND action != 'messaging.pacing.update' AND decision = 'allowed' ORDER BY rowid").fetchall()
+    assert [r["action"] for r in rows] == ["messaging.pacing.reserve", "messaging.pacing.release", "messaging.pacing.release", "messaging.pacing.lease_status"]
+    assert all(r["actor_user_id"] == "dev-wisk" and r["resource_id"] == rid_ for r in rows)
+    d = [_json.loads(r["details_json"]) for r in rows]
+    assert d[0]["granted"] is True and d[0]["klass"] == "alert"
+    assert d[1]["released"] is True and d[1]["outcome"] == "not_sent" and d[1]["slowdown"] == "account"
+    assert d[2]["conflict"] is True and d[3]["found"] is True and d[3]["state"] == "released"
+    assert "entry:" not in str(d) and REF not in str(d)
