@@ -586,12 +586,12 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
-        door_blocks_dropped = _sanitise_door_blocks(data)
+        door_blocks_dropped, door_blocks_sanitised = _sanitise_door_blocks(data)
         counts: dict[str, int] = {}
         for t in tables:
             if t in data:
                 counts[t] = _insert_rows(conn, t, data[t], replace=(mode == "replace"))
-        door_blocks_disarmed = _disarm_restored_blocks(conn) if "door_automations" in tables else 0
+        door_blocks_disarmed = door_blocks_sanitised + (_disarm_restored_blocks(conn) if "door_automations" in tables else 0)
         if "notify_settings" in tables:  # CR-018: an archive without the table must not leave the notification settings without their one row
             from .notify_settings import ensure_row
 
@@ -683,14 +683,16 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             "passwords": passwords}
 
 
-def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> int:
-    """DOORHARD-295 / CR-AUTODOORS-295 12.3: an archive is unsigned. Its door-automation rows come in as `disarmed` whatever they say, and a row whose
-    policy does not pass the block's own validation (or whose state is unknown) is dropped. Returns how many rows were dropped."""
+def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> tuple[int, int]:
+    """DOORHARD-295 / CR-AUTODOORS-295 12.3: an archive is unsigned. Its door-automation rows come in as `disarmed` (reason `restored`) whatever
+    they say, and a row whose policy does not pass the block's own validation (or whose state is unknown) is dropped. Returns (dropped, disarmed)."""
     rows = data.get("door_automations")
     if not rows:
-        return 0
+        return 0, 0
     from . import door_automation
 
+    at = door_automation.iso(door_automation.now())
+    disarmed = 0
     kept: list[dict[str, Any]] = []
     for r in rows:
         try:
@@ -700,10 +702,11 @@ def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> int:
         except Exception:  # noqa: BLE001 - ApiError, ValueError, TypeError: all the same verdict
             continue
         if r["state"] == "armed":
-            r = {**r, "state": "disarmed"}
+            r = {**r, "state": "disarmed", "disarm_reason": "restored", "disarmed_at": at, "disarmed_by": "system", "armed_until": None, "corroborated_trigger": None}
+            disarmed += 1
         kept.append(r)
     data["door_automations"] = kept
-    return len(rows) - len(kept)
+    return len(rows) - len(kept), disarmed
 
 
 def _disarm_restored_blocks(conn: sqlite3.Connection) -> int:
