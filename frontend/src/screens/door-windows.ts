@@ -7,6 +7,9 @@ import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import '../door-windows/emergency';
+import '../door-windows/event-rules';
+import '../door-windows/holidays';
+import '../door-windows/open-for';
 import type { RouteState } from '../router';
 import { ApiError, describeError } from '../api/client';
 import { isApi } from '../api/session';
@@ -21,6 +24,8 @@ import {
   type Draft, type Range,
 } from '../door-windows/logic';
 import { dwCss } from '../door-windows/styles';
+import { dwe } from '../i18n/door-windows-events';
+import { limitsOf, openableDoors } from '../door-windows/events-logic';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -57,7 +62,7 @@ export class DoorWindowsScreen extends LitElement {
     .rules { display: grid; gap: 10px; }
     .rule { display: grid; gap: 8px; }
     .rule .hours { display: grid; gap: 2px; font-size: var(--sw-fs-sm); font-variant-numeric: tabular-nums; }
-    .rule .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .rule .acts, .card .top .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     @media (min-width: 900px) {
       .rule { grid-template-columns: minmax(10em, 1.2fr) minmax(10em, 1.4fr) minmax(9em, 1fr) auto; align-items: center; }
       .rules .head { display: grid; grid-template-columns: minmax(10em, 1.2fr) minmax(10em, 1.4fr) minmax(9em, 1fr) auto; padding-inline: 14px;
@@ -101,6 +106,9 @@ export class DoorWindowsScreen extends LitElement {
   @state() private confirm: Confirm | null = null;
   @state() private manual: { occ: Occurrence; checked: 'camera' | 'door' | '' } | null = null;
   @state() private sheet = false;
+  @state() private holidaysOpen = false;
+  @state() private openForOpen = false;
+  @state() private openForDoor = '';
   @state() private toast = '';
   @state() private settingsOpen = false;
   @state() private ws: Record<string, string> | null = null;
@@ -176,6 +184,11 @@ export class DoorWindowsScreen extends LitElement {
   private askRule(rule: Rule, action: 'enable' | 'pause' | 'retire'): void {
     const text: Record<typeof action, DwtKey> = { enable: 'confirmEnable', pause: 'confirmPause', retire: 'confirmRetire' };
     this.confirm = { title: dwt('confirmTitle'), text: dwt(text[action]), btn: dwt(action), danger: action === 'retire', run: () => ruleAction(rule.id, action) };
+  }
+
+  private askOpenFor(key: string): void {
+    this.openForDoor = key;
+    this.openForOpen = true;
   }
 
   private askEndNow(o: Occurrence): void {
@@ -359,6 +372,8 @@ export class DoorWindowsScreen extends LitElement {
     return html`<sw-page wide heading=${title} subheading=${dwt('sub')} data-dw data-dw-tier=${d.tier} data-dw-enabled=${String(d.enabled)}>
       ${canEm ? html`<sw-button slot="actions" variant="danger" icon="warning" data-dw-emergency @click=${() => (this.sheet = true)}>${dwt('emergency')}</sw-button>` : nothing}
       ${d.can.manage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-dw-new @click=${() => this.openEditor()}>${dwt('newRule')}</sw-button>` : nothing}
+      ${openableDoors(d).length ? html`<sw-button slot="actions" variant="secondary" icon="clock" data-dw-openfor-btn @click=${() => this.askOpenFor('')}>${dwe('ofBtn')}</sw-button>` : nothing}
+      <sw-button slot="actions" variant="ghost" icon="calendar" data-dw-holidays-btn @click=${() => (this.holidaysOpen = true)}>${dwe('hlBtn')}</sw-button>
       ${d.can.configure ? html`<sw-button slot="actions" variant="ghost" icon="system" data-dw-settings-btn @click=${() => void this.openSettings()}>${dwt('settings')}</sw-button>` : nothing}
       <sw-button slot="actions" variant="ghost" icon="refresh" iconOnly label=${dwt('refresh')} @click=${() => void this.load()}></sw-button>
       <div class="stack">
@@ -369,11 +384,16 @@ export class DoorWindowsScreen extends LitElement {
         ${this.renderAlarms()}
         ${this.renderWeek()}
         ${this.renderRules()}
+        <door-event-rules .data=${d} @changed=${() => void this.load()} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-event-rules>
       </div>
       ${this.renderEditor()}
       ${this.draft ? nothing : this.renderConfirm()}
       ${this.renderManual()}
       ${this.renderSettings()}
+      <door-holidays .open=${this.holidaysOpen} .canManage=${d.can.manage} .canConfigure=${d.can.configure} .today=${this.today()}
+        @close=${() => (this.holidaysOpen = false)} @changed=${() => void this.load()} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-holidays>
+      <door-open-for .open=${this.openForOpen} .doors=${openableDoors(d)} .preset=${this.openForDoor} .maxHours=${limitsOf(d.settings).maxHours} .nowIso=${d.now}
+        @close=${() => (this.openForOpen = false)} @changed=${() => void this.load()} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-open-for>
       <door-emergency-sheet .open=${this.sheet} .data=${em} @close=${() => (this.sheet = false)} @changed=${() => void this.loadEmergency()}></door-emergency-sheet>
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}
     </sw-page>`;
@@ -403,7 +423,8 @@ export class DoorWindowsScreen extends LitElement {
     const groups = byDoor(this.data!.occurrences.filter((o) => o.state !== 'relock_unconfirmed'), this.data!.doors, this.data!.now);
     return html`<section data-dw-week><h2>${dwt('weekTitle')}</h2>
       ${groups.length ? groups.map((g) => html`<div class="card doorrow" data-dw-door=${g.door.key}>
-        <div class="top"><b>${g.door.label}</b>${'exterior' in g.door && g.door.exterior ? html`<span class="chip" data-tone="warn">${dwt('exterior')}</span>` : nothing}</div>
+        <div class="top"><b>${g.door.label}</b><span class="acts">${'exterior' in g.door && g.door.exterior ? html`<span class="chip" data-tone="warn">${dwt('exterior')}</span>` : nothing}
+          ${openableDoors(this.data!).some((x) => x.key === g.door.key) ? html`<sw-button size="sm" variant="ghost" icon="clock" data-dw-openfor-door-btn @click=${() => this.askOpenFor(g.door.key)}>${dwe('ofBtn')}</sw-button>` : nothing}</span></div>
         ${g.items.slice(0, 8).map((o) => html`<div class="occ" data-dw-occ=${o.state}>
           <span class="when">${dwt(`wd${weekdayOf(localDay(o.start_at, o.zone))}` as DwtKey)} ${hm(o.start_at, o.zone)}–${hm(o.end_at, o.zone)}</span>
           <span class="chip" data-tone=${OCC_TONE[o.state]}>${this.occWord(o)}</span>
@@ -420,7 +441,7 @@ export class DoorWindowsScreen extends LitElement {
   }
 
   private renderRules(): TemplateResult {
-    const rules = this.data!.rules;
+    const rules = this.data!.rules.filter((r) => r.kind !== 'event'); // the event rules have their own section (door-event-rules)
     return html`<section data-dw-rules><h2>${dwt('rulesTitle')}</h2>
       ${rules.length ? html`<div class="rules">
         <div class="head"><span>${dwt('colName')}</span><span>${dwt('colDoors')}</span><span>${dwt('colHours')}</span><span>${dwt('colState')}</span></div>
