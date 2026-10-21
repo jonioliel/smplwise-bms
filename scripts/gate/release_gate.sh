@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Release gate for SmplWise Arx: the whole tier-L check on the test machine, one command, one verdict.
-#   release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--allow-count-drop "<reason>"] [--visual-block|--no-visual]
+#   release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--full] [--allow-count-drop "<reason>"] [--visual-block|--no-visual]
+#     (GATEEFF-295: the schedule defaults to v2 once gate_schedule_evidence.json (shadow_compare.py --record) sits next to the engine, else v1;
+#      GATE_SCHEDULE / --schedule always win. Diff selection is automatic for tier L and only while the last full nightly finished;
+#      --full never selects. A failure is classified: red / PREEXISTING / QUARANTINED (gate_quarantine.json) / PIXEL_REVIEW (verdict
+#      "review"); the one-page file is gate_<b>_<sha>.summary.md and LATEST_SUMMARY.md. Resolve a review:
+#      release_gate.py --resolve-review <gate_*.json> --accept|--reject --by NAME --note "..."; docs/release/GATE_SPEED.md section 7)
 #     (--schedule v2 = GATESPEED-293: 6 backend shards on tmpfs, one Playwright pool; default v1; --select-base <ref> = opt-in
 #      diff selection with select_tests.py; docs/release/GATE_SPEED.md)
 #     (default tier L; the branch must be pushed: the machine sees origin only)
@@ -39,9 +44,10 @@
 # see scripts/gate/INSTALL_ON_RUNNER.md. The self-test is scripts/gate/selftest_gate.py.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,39p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,44p "$0"; exit 0;; esac
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 [ -f "$DIR/release_gate.py" ] || { echo "release_gate.py must sit next to release_gate.sh ($DIR)"; exit 2; }
+[ -f "$DIR/gate_policy.py" ] || { echo "gate_policy.py (GATEEFF-295) must sit next to release_gate.py ($DIR)"; exit 2; }
 mkdir -p "$HOME/smplwise-results" "$HOME/work"
 exec 9>"$HOME/.smplwise-gate.lock"
 flock -n 9 || { echo "another release gate is running"; exit 3; }

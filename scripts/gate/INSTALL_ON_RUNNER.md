@@ -6,6 +6,10 @@ Files (keep them together in one directory, the runner convention is `~/`):
 |---|---|
 | `release_gate.sh` | entry point: locks (gate + nightly), total timeout, hands over to the Python engine |
 | `release_gate.py` | the engine: worktree, backend shards, Playwright groups, retries, verdict, reports, false-green guards |
+| `gate_policy.py` | GATEEFF-295 policy layer (lanes, quarantine, base comparison, summary, schedule default); `release_gate.py` imports it, so it MUST sit in the same directory (`~/`, `~/nightly-gate/`, a per-release copy); `release_gate.sh` and `nightly_tests.sh` refuse to start without it |
+| `gate_quarantine.json` | GATEEFF-295 managed quarantine (owner, ticket, expiry <= 14 days per entry); the gate reads the copy in the tested branch first, then this one; ships empty |
+| `gate_schedule_evidence.json` | written only by `shadow_compare.py --record`; its presence makes v2 the default schedule; NOT shipped (no v2 run exists yet); delete it to go back to v1 |
+| `shadow_compare.py`, `select_tests.py` | phase 2 helpers (next to the engine) |
 | `gate_baselines.json` | per-category passed counts of the previous accepted release (used when the branch under test has none of its own in `scripts/gate/`) |
 | `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); since GATESPEED-293 also `backend_seconds` (per backend test file, v2 shard split), `backend_shard_seconds_total` and `pixel_phase_seconds` (`--plan` estimates); optional, the engine runs without it |
 | `selftest_gate.py` | self-test with a fake suite; proves the gate fails on a crash and on zero tests |
@@ -141,3 +145,31 @@ ssh runner '~/runner_cleanup.sh --apply'    # removes exactly that list; the lis
 The script refuses to start, and stops between items, while a release gate or a nightly run is active (it does not probe the
 gate lock, so it can never make a starting gate refuse to run). Run it after each release round, or when `df -h /` passes
 80 percent. Remote branches are never deleted by it.
+
+## GATEEFF-295 install, backups and rollback (do NOT install without the lead's go; idle runner only)
+
+Preconditions: no `~/.gate-pending`, `~/smplwise-results/gate_status.json` shows a finished state, `~/.smplwise-tests.lock` free, no nightly running.
+
+Backups (one directory, restored by one `cp`):
+```
+ssh runner 'D=~/gate-backup-$(date +%Y%m%d-%H%M); mkdir -p $D $D/nightly-gate &&   cp -p ~/release_gate.sh ~/release_gate.py ~/nightly_tests.sh ~/select_tests.py ~/shadow_compare.py ~/gate_baselines.json ~/gate_durations.json ~/selftest_gate.py $D/ 2>/dev/null;   cp -p ~/nightly-gate/* $D/nightly-gate/ 2>/dev/null; echo $D'
+```
+Install (from a checkout of `pilot/GATEEFF-295` or the branch that contains it):
+```
+scp scripts/gate/{release_gate.sh,release_gate.py,gate_policy.py,gate_quarantine.json,shadow_compare.py,select_tests.py,selftest_gate.py,gate_baselines.json,gate_durations.json} runner:~/
+scp scripts/gate/{release_gate.py,gate_policy.py,gate_baselines.json,gate_durations.json} runner:~/nightly-gate/
+scp scripts/gate/nightly_tests.sh runner:~/
+ssh runner 'chmod +x ~/release_gate.sh ~/nightly_tests.sh && ~/smplwisebms/.venv/bin/python ~/selftest_gate.py | tail -3 && ~/nightly_tests.sh --dry-run'
+```
+Expected: `SELFTEST PASSED` (49+ OK, no NOT_RUN: use the repo venv so pytest exists). Also run
+`~/smplwisebms/.venv/bin/python -m pytest -o addopts= -q tests/test_gate_efficiency.py tests/test_gate_speed.py tests/test_select_tests.py` from a checkout of the same branch.
+
+Rollback: `cp -p $D/* ~/ && cp -p $D/nightly-gate/* ~/nightly-gate/` (and `rm -f ~/gate_policy.py ~/nightly-gate/gate_policy.py` if the old engine is restored; harmless otherwise).
+Switching a single behaviour off without a rollback: `GATE_SCHEDULE=v1`, `--full`, `GATE_SELECT=off`, `GATE_BASE_VERIFY=0`, `GATE_PIXEL_LANE=0`, `GATE_PREEXISTING=block`.
+
+First use, in order:
+1. Gate as usual (`~/release_gate.sh <branch>`): v1 schedule, automatic selection only if the last nightly finished (the report's `selection_policy` line says what happened).
+2. Shadow run for v2 on a sha that has a GREEN v1 gate: `~/release_gate.sh <branch> --schedule v2 --full`, then
+   `python3 ~/shadow_compare.py ~/smplwise-results/gate_<b>_<sha>.json <the v2 report .json> --record ~/gate_schedule_evidence.json` (and copy the evidence file
+   to `~/nightly-gate/` only if the nightly should follow; the nightly sets `GATE_SCHEDULE` itself and is unaffected). Commit the evidence file to `scripts/gate/`.
+3. After a red gate: read `LATEST_SUMMARY.md`; `python3 ~/gate_policy.py propose <report.json> --owner N --ticket T --reason R` drafts quarantine entries for the stale tests.

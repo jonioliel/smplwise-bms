@@ -555,3 +555,59 @@ def test_propose_drafts_valid_entries_for_red_test_items_only(tmp_path, capsys):
     assert pol._cli(["propose", str(p), "--owner", "lead"]) == 2                                              # ticket + reason are required
     assert pol._cli(["propose", str(p), "--owner", "lead", "--ticket", "GATEEFF-295", "--reason", "stale"]) == 0
     assert len(json.loads(capsys.readouterr().out)["entries"]) == 2
+
+
+def test_junit_slow_lists_testcases_over_the_budget(g, tmp_path):
+    x = tmp_path / "s.xml"
+    x.write_text('<testsuites><testsuite><testcase classname="tests.test_a" name="test_fast" time="1.2"/>'
+                 '<testcase classname="tests.test_a" name="test_slow" time="75.5"/></testsuite></testsuites>')
+    assert g.junit_slow(x, 60) == [{"id": "tests/test_a::test_slow", "seconds": 75.5}]
+    assert g.junit_slow(tmp_path / "none.xml", 60) == []
+
+
+# ---------------------------------------------------------------- main() end to end with the heavy parts faked
+def _fake_main(g, monkeypatch, tmp_path, pre_items=()):
+    wt = tmp_path / "wt"
+    (wt / "frontend").mkdir(parents=True)
+    (wt / "scripts" / "gate").mkdir(parents=True)
+    today = dt.date.today()
+    qfile(wt / "scripts" / "gate", [entry(id="Q-7", nodeid="tests/test_q.py::test_stale", added=today.isoformat(), expires=(today + dt.timedelta(days=5)).isoformat())])
+    monkeypatch.setattr(g, "setup_worktree", lambda: (wt, "abc1234"))
+    monkeypatch.setattr(g, "need_modules", lambda w, log: True)
+    monkeypatch.setattr(g, "run", lambda cmd, cwd, log, env=None, timeout=None: (0, False))
+    monkeypatch.setattr(g, "classify", lambda fe, tier: {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "tablet_dropped": [], "fixture_other": {}})
+    monkeypatch.setattr(g, "free_port", lambda pair=False: 1)
+    monkeypatch.setattr(g, "VISUAL", "")
+    monkeypatch.setattr(g, "SKIP_BACKEND", True)
+    monkeypatch.setattr(g, "_resolve_ref", lambda w, ref: ("origin/main", "b" * 40))
+    monkeypatch.setattr(g, "base_reports", lambda sha: [])
+    monkeypatch.setattr(g, "run_on_base", lambda w, ref, todo, logd, info: {pol.test_key(i["id"], i["category"]): "fail" for i in todo if "old" in i["id"]}
+                        | {pol.test_key(i["id"], i["category"]): "pass" for i in todo if "fresh" in i["id"]})
+    for st, cat, ident in pre_items:
+        g.count(cat, {"FAIL": "fail", "QUARANTINED": "quarantined", "PIXEL_REVIEW": "pixel_review", "FLAKY": "flaky"}[st])
+        g.item(cat, ident, st, "pre", kind="backend", nodeid=ident)
+    return g.main()
+
+
+def test_main_end_to_end_writes_summary_status_flaky_counter_and_a_fail_verdict(g, monkeypatch, tmp_path):
+    rc = _fake_main(g, monkeypatch, tmp_path, [("FAIL", "backend", "tests/test_x.py::test_fresh"), ("FAIL", "backend", "tests/test_x.py::test_old"),
+                                               ("FLAKY", "backend", "tests/test_f.py::test_f")])
+    assert rc == 1
+    doc = json.loads((g.RES / "gate_pilot-X_abc1234.json").read_text())
+    st = {i["id"]: i["status"] for i in doc["items"]}
+    assert st["tests/test_x.py::test_fresh"] == "FAIL" and st["tests/test_x.py::test_old"] == "PREEXISTING"
+    assert doc["verdict"] == "fail" and doc["quarantine_managed"]["active"] == 1 and doc["selection_policy"].startswith("full tier")
+    assert doc["base_compare"]["preexisting"] == 1 and "base-compare" in [p["name"] for p in doc["phases"]]
+    assert "quarantine_unused" in doc and doc["quarantine_unused"][0].startswith("Q-7")
+    sm = (g.RES / "gate_pilot-X_abc1234.summary.md").read_text(encoding="utf-8")
+    assert "-> FAIL" in sm and "tests/test_x.py::test_fresh" in sm and (g.RES / "LATEST_SUMMARY.md").read_text(encoding="utf-8") == sm
+    assert json.loads((g.RES / "flaky_counts.json").read_text())["tests"]["tests/test_f.py::test_f"]["count"] == 1
+    assert json.loads((g.RES / "gate_status.json").read_text())["state"] == "fail"
+
+
+def test_main_end_to_end_review_verdict_and_a_green_gate_with_only_lanes(g, monkeypatch, tmp_path):
+    rc = _fake_main(g, monkeypatch, tmp_path, [("PIXEL_REVIEW", "pixel", "s.spec.ts:3 [desktop] a"), ("QUARANTINED", "backend", "tests/test_q.py::test_stale")])
+    assert rc == 1                                    # review is not a pass
+    assert json.loads((g.RES / "gate_status.json").read_text())["state"] == "review"
+    doc = json.loads((g.RES / "gate_pilot-X_abc1234.json").read_text())
+    assert doc["verdict"] == "review" and "base_compare" not in doc          # nothing red: no base comparison needed

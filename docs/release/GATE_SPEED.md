@@ -1,8 +1,10 @@
 # Release gate wall time (GATESPEED-293)
 
 Goal: cut the tier-L release gate (151 min 12 s for 2.9.2) without dropping a test. Status: the v2 schedule is implemented
-behind `--schedule v2`. The default stays `v1`, the 2.9.2 gate unchanged. v2 has NOT run on the runner yet (the runner was busy).
-The first v2 run is the validation run (see "Rollout").
+behind `--schedule v2`. The default stays `v1`, the 2.9.2 gate unchanged, until a shadow comparison is recorded (section 7.8,
+GATEEFF-295). v2 has NOT run on the runner yet. The first v2 run is the validation run (see "Rollout").
+**GATEEFF-295 (section 7, 2026-10-21) adds the policy layer on top: failure lanes, managed quarantine, base comparison, pixel
+review lane, automatic selection under a nightly-health rule, the schedule default switch and a one-page summary.**
 
 ## 1. Where the 151 minutes go (2.9.2 gate, integ/292-rel @ 7d62c315)
 
@@ -245,7 +247,8 @@ the routers and the API tests behind them. This is deliberate, because the gate 
 **Selection must stay off for release gates until the nightly completes** (v2 schedule via `SW_NIGHTLY_SCHEDULE=v2`, the
 template, or a larger `SW_NIGHTLY_BRANCH_MAX_MIN`) **and its standing reds are fixed or listed.**
 
-The engine enforces this: `--select-base` exits with rc 2 unless `GATE_SELECT_ENABLE=1` is set on purpose.
+The engine enforced this with rc 2 unless `GATE_SELECT_ENABLE=1` was set. GATEEFF-295 (7.7) replaced the refusal by a measured rule:
+selection runs only while the last full nightly on main finished; otherwise the gate runs the full tier and says why.
 
 ### 5.2a Making the nightly finish (lead follow-up)
 - **Limits**: `nightly_tests.sh` now defaults to a 240 min hard limit and a 225 min engine budget per branch (was 150 / 120).
@@ -309,3 +312,122 @@ counts as a clean gate for it.
     - frontend element, spec-helper and nav rules;
     - the nightly audit and the engine filters;
     - the baseline "selection" state, the quarantine streak rules, the gate history, and the shadow comparison.
+
+
+## 7. GATEEFF-295: the gate decides what a failure means (owner order 2026-10-21)
+
+Order: improve the gate so that irrelevant and old tests never delay a release. Trigger: the 2.10.0 gate on `fef91ec0c` took
+186 min and was red on 154 failures that were almost all stale tests, regenerated baselines and flakes; it then needed a manual
+triage and a targeted run. Nothing below weakens a product test, deletes one, or hides one: every skip, quarantine and
+classification is a visible line in the report.
+
+### 7.1 What the 2.10.0 gate would have looked like (replay of its real report, `gate_release-2100_fef91ec0c.json`)
+
+| Reds in that gate | Count | With this engine |
+|---|---|---|
+| pixel mismatches (reviewed UX changes, stale baselines) | 104 | `PIXEL_REVIEW` lane: verdict `review` (not red) until a person accepts or rejects them |
+| baseline count drop (pixel 84 of 188 = 45 percent) | 1 | gone: a pixel test that produced an image counts as run (84 + 104 = 188 = 100 percent) |
+| stale preview / dev tests (nn1-p2, public-ui5, frigate-ui, ...) | 47 | still RED: they fail because THIS diff changed the behaviour on purpose. The lead decides, visibly, to quarantine them (7.3) or to fix them; `gate_policy.py propose` drafts the entries in one command |
+| backend (passkeys-only hook, Frigate zone delete) | 2 | still RED, same rule |
+| flaky (passed alone) | 13 | FLAKY, counted across gates (7.4), never red |
+
+So the lane for stale baselines is automatic and honest (a person must look), and a stale TEST is never excused by the machine.
+That is deliberate: a test that fails because of the diff is exactly the signal a gate exists to give.
+
+### 7.2 The lanes (every red test is in exactly one, after its retry alone)
+
+| Lane (item status) | Meaning | Blocks the verdict? |
+|---|---|---|
+| `FAIL` | new red: caused by this diff, or not shown to be old | yes |
+| `PREEXISTING` | also fails on the base commit (7.5) | no, listed with the evidence; `GATE_PREEXISTING=block` makes it red |
+| `QUARANTINED` | a valid, unexpired entry in `gate_quarantine.json` names it (7.3) | no, listed with owner, ticket, expiry |
+| `PIXEL_REVIEW` | screenshot mismatch that repeated alone (7.6) | verdict `review`: not pass, not fail |
+| `FLAKY` | failed first, passed alone | no, counter |
+| `KNOWN` | runner `known_issues.json` (unchanged; no expiry, so prefer the managed quarantine) | no |
+
+Verdicts: `pass`, `fail`, `review`. `review` exits 1 (not a pass) with `state: review` in `gate_status.json`; the release is NOT ready until
+`--resolve-review` turns it into `pass` or `fail`. The nightly keeps `GATE_PIXEL_LANE=0` (a mismatch stays a plain FAIL there) so
+that nothing watching the nightly sees a new verdict value.
+
+### 7.3 Managed quarantine (`scripts/gate/gate_quarantine.json`)
+
+Every entry: `id`, `kind` (`backend` | `playwright`), the selector (`nodeid`; or `file` plus `line` or `title_contains`, optional
+`project`; a whole spec file can never be quarantined), `reason`, `owner`, `added`, `expires` (at most 14 days after `added`),
+`ticket` (URL or task id). Rules enforced by the engine:
+- The file of the TESTED BRANCH is used (else the copy next to the engine). Entries the branch added compared with `--base`
+  (default `origin/main`) are printed in the report and in the summary, so a branch cannot excuse its own red unseen.
+- The test still runs and is still retried alone. Only if it still fails does it become `QUARANTINED`. A pass alone is `FLAKY`.
+- An expired entry, a malformed entry (missing field, more than 14 days, whole file, bad ticket, duplicate id, `added` in the
+  future) or an unreadable file is a RED item of category `quarantine`, and the entry excuses nothing.
+- Entries that matched no failure in the run are listed ("remove them?").
+- Nothing is ever added automatically. `python3 gate_policy.py propose <gate_*.json> --owner N --ticket T --reason R` prints draft
+  entries for the red test items of a report; the lead edits and commits them.
+
+### 7.4 Rerun alone and the flaky counter
+The v1 rule stays and is now documented as the policy: every failed test is re-run once, alone (a separate process after the pool
+drained; Playwright with one worker). Pass = `FLAKY`, fail again = red (or a lane). `flaky_counts.json` in the results directory
+counts the GATES in which each test flaked; the summary prints `(xN)`. A retry that produces no result (cannot start, crashes, no
+pytest summary) is never "passed alone": both tests stay red (this closed a gap in `backend_finish`).
+
+### 7.5 Base comparison (is this red caused by this diff?)
+After the main run and only for test-level `FAIL` items: `--base <ref>` / `GATE_BASE_REF` (default `origin/main`, the previous release).
+1. The base's own gate / nightly report (same sha, in the results directory or `nightly/`): failed there = `PREEXISTING`; the category was
+   run completely there and the test did not fail = new. Flaky / known there = inconclusive.
+2. Otherwise the failed tests are run on the base commit in a second worktree (`~/work/gate-base-<tag>`): backend node ids in one pytest
+   process, Playwright files on a fresh build of the base (preview) or its Vite dev server (dev), 2 workers. A test file that does not exist
+   on the base = new.
+3. Bounds: `GATE_BASE_VERIFY_SECS` (1200), `GATE_BASE_VERIFY_MAX` (80 failures; more = nothing compared, all red) and the gate's own budget.
+   Anything not verified stays red and is counted as `unverified`. `GATE_BASE_VERIFY=0` switches it off. The nightly (branch = base) never does it.
+
+### 7.6 Pixel lane: review and regenerate
+A screenshot mismatch (`toHaveScreenshot` / snapshot comparison error) that repeats alone is `PIXEL_REVIEW`. The expected / actual / diff images are
+copied to `gate_<b>_<sha>.logs/pixel_review/` before the next Playwright run wipes its output directory. The verdict is `review`.
+A person looks at the images, then:
+```
+python3 ~/release_gate.py --resolve-review ~/smplwise-results/gate_<b>_<sha>.json --accept --by NAME --note "reviewed N images: heading style"
+python3 ~/release_gate.py --resolve-review ... --reject --by NAME --note "layout regression on the map"
+```
+`--accept` makes the verdict `pass` and records who and why in the report; the baselines are regenerated on the branch in a reviewed commit
+(`npx playwright test <spec> --project=<p> --update-snapshots`, see `docs/release/VISUAL_REGRESSION.md`). `--reject` makes the verdict `fail`
+and counts the items as FAIL. Name and note are mandatory.
+
+### 7.7 Change-based selection for a release gate
+`decide_selection()` (runs at the start of every gate): tier L, not main, not the nightly, not partial, not `--full`, `GATE_SELECT` not `off`.
+It then asks `nightly_health()`: selection is allowed only while the newest full nightly report on main is at most 48 h old, was not
+terminated by its time budget and ran at least 70 percent of the backend / preview / dev baselines. Otherwise the run is the FULL tier and
+the report says why (`selection_policy`). `GATE_SELECT_ENABLE=1` forces it on purpose. The previous hard refusal (rc 2) is gone.
+What runs when it is allowed is unchanged from section 5.2: every touched test, the smoke set, every security / permission suite in full
+(the fixed safety core, constants in `select_tests.py`), the import closure of the changed modules, and the full-tier triggers.
+The nightly always runs everything (`GATE_FULL=1`) and audits what selection dropped.
+
+### 7.8 Schedule default (v2) and the wall-clock target
+- `release_gate.py` reads `gate_schedule_evidence.json` next to itself. With a record whose verdict is `SAME` the default schedule is `v2`; without it
+  `v1`. `--schedule` and `GATE_SCHEDULE` always win, so `GATE_SCHEDULE=v1` goes back at once and removing the file reverts the default.
+- The record is written only by `shadow_compare.py <v1 reference.json> <v2 shadow.json> --record gate_schedule_evidence.json`, and only when:
+  the reference is a PASS on v1, the shadow is a PASS (or `review`) on v2, same sha, same tier, full tier (no selection), every category SAME.
+- **Status: NOT validated.** No v2 gate has ever run on the runner (checked 2026-10-21: no `schedule: v2` report anywhere), so the evidence file
+  is not shipped and the default is still v1. The first v2 run is the shadow run (recipe 5.4). A nightly with `SW_NIGHTLY_SCHEDULE=v2` on an
+  unchanged main sha also works as the shadow if the v1 reference of that sha is complete.
+- Target: tier L under 90 min on the 16-core runner (`GATE_WALL_TARGET_MIN`, reported in the summary; `GATE_TOTAL_SECS` 5400 stays the hard stop).
+  `--plan` on `origin/integ/2101` (2026-10-21): v1 about 144 min (over the target), v2 about 80 min (within; excludes retries and the base comparison).
+- Per-test budget: Playwright keeps its 60 s cap from `playwright.config.ts`; `GATE_PW_TEST_TIMEOUT_S` lowers it for a run. Slower passing tests
+  (`GATE_SLOW_TEST_S` 45 s Playwright, `GATE_BACKEND_SLOW_S` 60 s backend from the v2 junit XML) are listed in the report and the summary.
+  A backend per-test TIMEOUT is not available: `pytest-timeout` is not installed in the runner venv (checked), and installing it changes the runner.
+
+### 7.9 The one-page summary
+`gate_<b>_<sha>.summary.md` (and `LATEST_SUMMARY.md` in the results directory) is written the moment the verdict exists, before the long
+report, and refreshed every 30 s while the gate runs. Counts per class, the reds that matter (at most 25 lines), pre-existing, quarantined,
+the pixel lane with the exact `--resolve-review` command, flaky with counters, quarantine entries added by the branch, the selection sentence,
+the slowest phases and tests, wall time against the target.
+
+### 7.10 Tests of the tooling
+- `smplwise_vms/backend/tests/test_gate_efficiency.py` (runs anywhere): entry validation (every field, 14-day maximum, ticket form, whole file),
+  load / expiry / duplicates / broken file, matching, lane classification, `red()` counts and verdicts, `settle()` with a faked Playwright
+  (flaky vs repeat vs pixel vs quarantine), baseline ratio with the pixel lane, expired entries as reds, base comparison (reports, run on
+  base, cannot verify, same sha, too many, block policy), flaky counter, nightly health, `decide_selection`, schedule default, `--record`,
+  summary size and content, `--resolve-review` (accept / reject / mandatory note), `collect_pw` images and durations, slow list, `--timeout`,
+  `--plan` target, `propose`.
+- `scripts/gate/selftest_gate.py` (POSIX, with the repo venv so pytest exists): backend lanes with a real mini pytest project (flaky, quarantined,
+  expired, over-long entry, retry without result), pixel lane and the nightly switch, summary files.
+- Two older tests were changed because their rule changed (not weakened): the v1 default now follows the evidence file, and the
+  "selection is refused" test became the fall-back-to-full-tier test.

@@ -20,7 +20,14 @@ Partial runs for the nightly (scripts/gate/nightly_tests.sh drives this engine; 
   GATE_COSTS_DIR=<dir>  a second results directory whose gate_*.logs also feed the --workers=1 chunk balance (the nightly writes
   its reports to its own directory and borrows the release gates' per-file times).
 
-Schedules (GATESPEED-293, docs/release/GATE_SPEED.md). `--schedule v1` (the default, GATE_SCHEDULE unset) is the 2.9.2 gate
+GATEEFF-295 (gate_policy.py, docs/release/GATE_SPEED.md section 7): what a failure MEANS. After the retry alone every red test lands in
+exactly one lane, all listed in the report: FAIL (red), QUARANTINED (gate_quarantine.json: owner, ticket, expiry <= 14 days; an expired or
+invalid entry is itself red), PIXEL_REVIEW (screenshot mismatch: the verdict becomes `review` until --resolve-review), PREEXISTING (also
+fails on the base commit: reported, not red unless GATE_PREEXISTING=block). FLAKY (passed alone) is counted across gates. Diff selection
+is automatic for tier L while the last full nightly finished (--full never selects). The one-page file is gate_<b>_<sha>.summary.md.
+
+Schedules (GATESPEED-293, docs/release/GATE_SPEED.md). `--schedule v1` (the default until a shadow comparison is recorded, see
+GATEEFF-295; GATE_SCHEDULE / --schedule always win) is the 2.9.2 gate
 unchanged. `--schedule v2` (or GATE_SCHEDULE=v2) keeps every spec, project, server kind, retry rule and false-green guard, and
 only changes WHEN and HOW WIDE things run:
   * backend: GATE_BACKEND_SHARDS shards (v2: 6) balanced by the earlier gates' per-file pytest times (junit XML that v2 writes
@@ -93,6 +100,7 @@ except (OSError, ValueError, KeyError):
 SCHEDULE, SCHEDULE_WHY = policy.resolve_schedule("", os.environ.get("GATE_SCHEDULE"), HERE / policy.EVIDENCE_NAME)
 BASE_REF = os.environ.get("GATE_BASE_REF") or VISUAL_BASE          # the previous release: selection base, base verification
 WALL_TARGET_MIN = int(os.environ.get("GATE_WALL_TARGET_MIN", "90"))  # tier L target on the 16-core runner (reported, TOTAL is the hard stop)
+BACKEND_SLOW_S = float(os.environ.get("GATE_BACKEND_SLOW_S", "60"))   # backend tests slower than this are listed too (no pytest-timeout on the runner)
 SLOW_TEST_S = float(os.environ.get("GATE_SLOW_TEST_S", "45"))         # tests slower than this are listed in the summary (Playwright's own cap is 60 s)
 PW_TEST_TIMEOUT_S = os.environ.get("GATE_PW_TEST_TIMEOUT_S", "")      # optional per-test cap for Playwright (--timeout); unset = playwright.config.ts
 PREEXISTING_BLOCKS = os.environ.get("GATE_PREEXISTING") == "block"    # default: a failure that also fails on the base is reported, not red
@@ -400,6 +408,9 @@ def backend_finish(procs, wt, logd):
         reap(p)
         text = log.read_text(errors="replace")
         c, fails = parse_pytest(text)
+        xp = logd / f"backend_s{k}.xml"          # v2 writes junit next to the shard log: the per-test time budget is reported, not enforced
+        if xp.exists():
+            SLOW.extend(junit_slow(xp, BACKEND_SLOW_S))
         for w in tot:
             tot[w] += c.get(w, 0)
         rc = p.returncode
@@ -725,6 +736,24 @@ def junit_costs(path):
                 el.clear()
     except (OSError, ET.ParseError):
         return {}
+    return out
+
+
+def junit_slow(path, thr):
+    """[{id, seconds}] of the testcases in one pytest junit XML that took more than `thr` seconds (setup + call + teardown)."""
+    out = []
+    try:
+        for _, el in ET.iterparse(str(path)):
+            if el.tag == "testcase":
+                try:
+                    t = float(el.get("time") or 0)
+                except ValueError:
+                    t = 0.0
+                if t > thr:
+                    out.append({"id": f"{(el.get('classname') or '').replace('.', '/')}::{el.get('name')}", "seconds": round(t, 1)})
+                el.clear()
+    except (OSError, ET.ParseError):
+        return []
     return out
 
 

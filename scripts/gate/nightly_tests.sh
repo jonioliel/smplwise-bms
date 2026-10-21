@@ -125,6 +125,7 @@ for BR in "${BRANCHES[@]}"; do
   # classified like the gate: preview, fixture, pixel, dev server; failed tests retried alone; known issues; count-drop guard)
   BUDGET=$(( RUN_END - $(date +%s) )); [ "$BUDGET" -gt $((BRANCH_MAX_MIN * 60)) ] && BUDGET=$((BRANCH_MAX_MIN * 60))
   if [ ! -f "$ENGINE" ]; then echo "# Nightly $BR: NOT RUN - the engine $ENGINE is missing (see scripts/gate/INSTALL_ON_RUNNER.md)" > "$OUT"; continue; fi
+  if [ ! -f "$(dirname "$ENGINE")/gate_policy.py" ]; then echo "# Nightly $BR: NOT RUN - gate_policy.py must sit next to the engine (GATEEFF-295, see scripts/gate/INSTALL_ON_RUNNER.md)" > "$OUT"; continue; fi
   if [ "$BUDGET" -lt 1200 ]; then echo "# Nightly $BR: NOT RUN - only $((BUDGET/60)) min left of the ${MAX_MIN} min limit" > "$OUT"; continue; fi
   SHA=$(git -C "$DIR" rev-parse --short "origin/$BR" 2>/dev/null)
   REP="$NRES/gate_$(echo "$BR" | sed 's/[^A-Za-z0-9._-]/-/g')_$SHA"
