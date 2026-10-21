@@ -32,7 +32,7 @@ const WALK: [string, string, Outcome, Outcome, Outcome, Outcome][] = [
   ['/live/views', 'live-views', 'no_nvr', 'no_nvr', 'no_media', 'ok'],
   ['/kiosk', 'kiosk-wall', 'no_nvr', 'no_nvr', 'no_media', 'ok'],
   ['/live/cameras/cam-1', 'live-camera', 'no_nvr', 'no_nvr', 'ok', 'ok'],
-  ['/investigate/events', 'investigate-events', 'no_nvr', 'no_nvr', 'ok', 'ok'],
+  ['/investigate/events', 'investigate-events', 'ok', 'ok', 'ok', 'ok'], // NVRLESS-295: A / B (no recorder, Home Assistant configured) get the sensor events list
   ['/investigate/events/ev-1', 'investigate-event-detail', 'no_nvr', 'no_nvr', 'ok', 'ok'],
   ['/investigate/reviews', 'investigate-events', 'no_nvr', 'no_nvr', 'ok', 'ok'],
   ['/investigate/search', 'investigate-search', 'no_nvr', 'no_nvr', 'ok', 'ok'],
@@ -116,7 +116,9 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       await installInstallationMock(page, combo);
       const shot1 = new Set(['/live/wall', '/investigate/events', '/investigate/playback', '/system/security/cameras']);
       for (const row of WALK) {
-        const [hash, tag] = row;
+        const [hash] = row;
+        // NVRLESS-295: without recorder events the events list is the sensor events list (investigate-ha-events)
+        const tag = hash === '/investigate/events' && (combo === 'A' || combo === 'B') ? 'investigate-ha-events' : row[1];
         const outcome = row[COL[combo]] as Outcome;
         await open(page, hash);
         if (outcome === 'ok') {
@@ -152,9 +154,9 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       await page.waitForTimeout(500); // the alarm presence answer ("no panel") arrives after the first paint
       const hrefs = await navHrefs(page, sel);
       seen[combo] = hrefs;
-      // the security area (cameras, investigation) is in the bar only when some page of it exists in this installation
-      if (combo === 'A' || combo === 'B') expect(hrefs, `${combo}: ${hrefs.join(', ')}`).not.toContain('#/security');
-      else expect(hrefs, `${combo}: ${hrefs.join(', ')}`).toContain('#/security');
+      // the security area (cameras, investigation) is in the bar only when some page of it exists in this installation; since NVRLESS-295
+      // A and B (Home Assistant configured) keep the sensor events list, so the area stays
+      expect(hrefs, `${combo}: ${hrefs.join(', ')}`).toContain('#/security');
       for (const h of ['#/devices/building', '#/explore/sites']) expect(hrefs, `${combo} keeps ${h}`).toContain(h);
       expect(await deepText(page), `${combo}: no infrastructure branding in the shell`).not.toMatch(BRAND);
       if (info.project.name !== 'tablet') await shot(page, `${combo}-nav`, info.project.name);
@@ -169,7 +171,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
     expect(seen.A).toEqual(seen.B); // media server alone changes nothing in the navigation (a sources list is a later design question)
   });
 
-  test('Home Assistant states: connected, down and not configured never move the navigation', async ({ page }, info) => {
+  test('Home Assistant states: connected and down never move the navigation; not configured only drops the sensor-only security area', async ({ page }, info) => {
     const sel = info.project.name === 'mobile' ? BOTTOM : RAIL;
     for (const combo of ['A', 'C', 'D'] as Combo[]) {
       const rows: Record<HaState, string[]> = { connected: [], down: [], none: [] };
@@ -183,7 +185,9 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
         await page.unroute('**/api/v1/**');
       }
       expect(rows.down, `${combo} down`).toEqual(rows.connected);
-      expect(rows.none, `${combo} none`).toEqual(rows.connected);
+      // NVRLESS-295: without a recorder the security area lives on the sensor events list, which needs a configured Home Assistant
+      if (combo === 'A') expect(rows.none, `${combo} none`).toEqual(rows.connected.filter((h) => h !== '#/security'));
+      else expect(rows.none, `${combo} none`).toEqual(rows.connected);
     }
   });
 
@@ -205,7 +209,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
     const log = await installInstallationMock(page, 'A');
     await open(page, '/live/wall');
     await expect(page.locator(PANEL)).toHaveCount(1, { timeout: 15_000 });
-    await open(page, '/investigate/events');
+    await open(page, '/investigate/reviews'); // NVRLESS-295: the events LIST is open in A (sensor list); the reviews stay recorder-only
     await expect(page.locator(PANEL)).toHaveCount(1, { timeout: 15_000 });
     const hit = log.filter((l) => /(^| )(cameras|events|media\/|playback|recordings|cases|exports|nvr)/.test(l));
     expect(hit, `requests to NVR routes: ${hit.join(' | ')}`).toEqual([]);

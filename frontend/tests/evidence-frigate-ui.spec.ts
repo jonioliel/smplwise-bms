@@ -440,7 +440,7 @@ test.describe('settings: the Frigate management card', () => {
     const box = await openCard(page);
     await tab(box, 'פיקוח').click();
     const panel = box.locator('[data-frigate-supervision]');
-    await expect(panel.locator('[data-fs-kind]')).toHaveCount(12); // FRGS: + config_zone, config_settings
+    await expect(panel.locator('[data-fs-kind]')).toHaveCount(13); // FRGS: + config_zone, config_settings; FRIGATE-295 phase 3: + export_assign
     await expect(panel.locator('[data-fs-kind="export_create"]')).toHaveAttribute('data-done', 'true');
     await expect(panel.locator('[data-fs-kind="clip_read"]')).toHaveAttribute('data-done', 'false');
     await expect(panel.locator('[data-fs-open]')).toHaveAttribute('disabled', ''); // the supervision box first

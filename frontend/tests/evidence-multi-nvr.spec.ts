@@ -152,8 +152,8 @@ test.describe('multi-NVR screens (mocked backend)', () => {
 
   test('the experimental cross-recorder sync setting: off by default, saved on, and the sync picker follows it', async ({ page }) => {
     const st = await installMulti(page);
-    await open(page, '/system/diagnostics');
-    await page.locator('system-diagnostics sw-tabs').getByText('וידאו ומדיה').first().click();
+    // UXFIX-NAV-295: on a phone the settings sub-pages are one dropdown, so the media sub-page is opened by its deep link
+    await open(page, '/system/diagnostics?tab=media');
     const sel = page.locator('system-diagnostics select[data-set-cross-sync]');
     await expect(sel).toHaveValue('false');
     await shot(page, 'cross-sync-setting');

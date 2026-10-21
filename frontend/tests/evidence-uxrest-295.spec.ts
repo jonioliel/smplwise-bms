@@ -35,6 +35,9 @@ async function pageTexts(page: Page): Promise<string[]> {
   });
 }
 
+// the release gate runs every project: the clips and the tab order below are the desktop layout's
+test.skip(({ viewport }) => (viewport?.width ?? 0) < 1200, 'desktop evidence (fixed clips, desktop tab order)');
+
 test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
 
 test('dark scheme: the count badge on the live KPI tile reads on its fill', async ({ page }) => {
