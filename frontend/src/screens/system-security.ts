@@ -8,6 +8,7 @@ import '../components/sw-state-panel';
 import './security-alarm';
 import './system-alarm';
 import './system-security-cameras';
+import './system-security-privacy-masks';
 import './system-security-public';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
@@ -136,6 +137,8 @@ export class SystemSecurity extends LitElement {
           ? html`<sw-page crumbs="הגדרות | אבטחה" heading="ניהול אזעקה" subheading="לוחות, קוד הלוח, שיוך חיישנים לעקיפה ומדיניות מרחוק"><system-alarm-settings ?canEdit=${this.api && canNav('system.configure', true)}></system-alarm-settings></sw-page>`
           : this.sub === 'cameras'
             ? html`<system-security-cameras></system-security-cameras>`
+            : this.sub === 'privacy-masks'
+              ? html`<system-security-privacy-masks></system-security-privacy-masks>`
             : this.sub === 'public'
               ? html`<system-security-public></system-security-public>`
             : html`<system-security-nvr></system-security-nvr>`}`;

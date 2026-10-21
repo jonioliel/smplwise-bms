@@ -324,6 +324,8 @@ export const SECURITY_SETTINGS_HREF = '#/system/security';
 export const SECURITY_CAMERAS_HREF = '#/system/security/cameras';
 /** SECFIX2-295 (owner 2026-10-21): the public-interface hardening settings (system.configure; the server checks each group). */
 export const SECURITY_PUBLIC_HREF = '#/system/security/public';
+/** MASKUI-295: the privacy-mask editor (the page needs system.configure to open; writing needs nvr.config.privacy, checked by the server and shown on the page). */
+export const SECURITY_PRIVACY_MASKS_HREF = '#/system/security/privacy-masks';
 /** הגדרות › קטלוג התקנים (2026-09-30): the Home Assistant entity catalogue, formerly the map's "התקנים" tab
  * (#/explore/entities, which redirects here for holders of system.configure - see legacyRedirect). */
 export const ENTITIES_SETTINGS_HREF = '#/system/entities';
@@ -335,6 +337,8 @@ export const SECURITY_SETTINGS_TABS: TabItem[] = [
   { id: 'cameras', label: 'מצלמות', href: SECURITY_CAMERAS_HREF },
   /** SECFIX2-295: retention / cap of vendor-typed technicians, the portal's sign-in queue, the uniform answer switch. */
   { id: 'public', label: 'ממשק ציבורי', href: SECURITY_PUBLIC_HREF },
+  /** MASKUI-295: draw, review and write the cameras' privacy masks. */
+  { id: 'privacy-masks', label: 'מסכות פרטיות', href: SECURITY_PRIVACY_MASKS_HREF },
 ];
 
 /** Is there an alarm panel on this platform? null = not known yet (api/alarm-presence.ts fills it once per session and
@@ -1097,6 +1101,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // CR-020 S1: GET /nvr/cameras needs system.configure at installation scope (owner Q6: system administrators only)
   [SECURITY_CAMERAS_HREF]: ['system.configure'],
   [SECURITY_PUBLIC_HREF]: ['system.configure'], // SECFIX2-295
+  [SECURITY_PRIVACY_MASKS_HREF]: ['system.configure'], // MASKUI-295 (GET /nvr/cameras); the write permission is shown on the page
   [SECURITY_SETTINGS_HREF]: [...ALARM_PERMISSIONS, 'sources.configure'],
   '#/investigate/events': ['events.read'],
   '#/investigate/playback': ['video.playback'],
@@ -1133,7 +1138,7 @@ export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: st
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts']); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts']); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;

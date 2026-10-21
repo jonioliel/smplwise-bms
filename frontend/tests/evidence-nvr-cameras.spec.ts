@@ -315,7 +315,7 @@ test.describe('CR-020 S1 cameras table (mocked backend)', () => {
 
   test('the tab is offered to system administrators only', async ({ page }) => {
     await open(page, '/system/security/nvr');
-    await expect(page.locator('sw-app system-security [data-security-settings-tabs] sw-tabs a')).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR', 'מצלמות', 'ממשק ציבורי']); // SECFIX2-295: + the public-interface tab (system.configure, as the cameras tab)
+    await expect(page.locator('sw-app system-security [data-security-settings-tabs] sw-tabs a')).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR', 'מצלמות', 'ממשק ציבורי', 'מסכות פרטיות']); // SECFIX2-295: + the public-interface tab (system.configure, as the cameras tab)
     // the NVR status page links to it
     await expect(page.locator('sw-app system-security-nvr sw-button', { hasText: 'הגדרות מצלמות' })).toHaveCount(1);
     // an operator: no tab, the address falls back to what they may open
