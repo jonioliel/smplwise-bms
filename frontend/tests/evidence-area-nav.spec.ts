@@ -178,6 +178,7 @@ test.describe('the area screen navigation', () => {
     test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
     await seed(request);
     await open(page);
+    await page.evaluate(() => document.documentElement.setAttribute('data-dd-phone', 'sheet')); // the owner's phone choice (DDAREA-295): the sheet; the default is the small list
     for (const c of ['home', 'floor', 'area']) expect((await nav(page).locator(`[data-crumb="${c}"]`).boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(nav(page).locator('sw-chip[data-nav-option]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
