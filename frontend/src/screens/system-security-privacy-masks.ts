@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
@@ -900,7 +900,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   private thumb(id: string, frame: Frame, shapes: number[][][], shot: number) {
     return html`<div class="thumb" style=${`aspect-ratio:${frame.width} / ${frame.height}`}>
       ${this.renderPicture(id, shot)}
-      <svg viewBox=${`0 0 ${frame.width} ${frame.height}`} preserveAspectRatio="none" aria-hidden="true">${shapes.map((p) => html`<polygon points=${pointsAttr(p)}></polygon>`)}</svg>
+      <svg viewBox=${`0 0 ${frame.width} ${frame.height}`} preserveAspectRatio="none" aria-hidden="true">${shapes.map((p) => svg`<polygon points=${pointsAttr(p)}></polygon>`)}</svg>
     </div>`;
   }
 
@@ -939,7 +939,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
         @pointerdown=${(e: PointerEvent) => this.onFrameDown(e)} @pointermove=${(e: PointerEvent) => this.onPointerMove(e)} @pointerup=${(e: PointerEvent) => this.onPointerUp(e)} @pointercancel=${() => ((this.drag = null), (this.ghost = null))}>
         ${this.renderPicture(this.selected, l.shot)}
         <svg viewBox=${`0 0 ${l.frame.width} ${l.frame.height}`} preserveAspectRatio="none" aria-hidden="true">
-          ${d.regions.map((r) => html`<polygon class=${[r.key === this.regionKey ? 'sel' : '', d.enabled ? '' : 'off'].join(' ')} points=${pointsAttr(r.rect ? [[r.rect.x, r.rect.y], [r.rect.x + r.rect.w, r.rect.y], [r.rect.x + r.rect.w, r.rect.y + r.rect.h], [r.rect.x, r.rect.y + r.rect.h]] : r.points)}></polygon>`)}
+          ${d.regions.map((r) => svg`<polygon class=${[r.key === this.regionKey ? 'sel' : '', d.enabled ? '' : 'off'].join(' ')} points=${pointsAttr(r.rect ? [[r.rect.x, r.rect.y], [r.rect.x + r.rect.w, r.rect.y], [r.rect.x + r.rect.w, r.rect.y + r.rect.h], [r.rect.x, r.rect.y + r.rect.h]] : r.points)}></polygon>`)}
         </svg>
         ${repeat(d.regions, (r) => r.key, (r, i) => this.renderRegion(r.key, i, r.rect, r.points, l.frame, !!lock))}
         ${this.ghost ? html`<div class="ghost" style=${this.styleOf(percentBox(this.ghost, l.frame))}></div>` : nothing}
