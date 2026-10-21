@@ -1,5 +1,4 @@
--- PROVISIONAL number 0136 (next contiguous; the lead renumbers if another branch holds it) (HMACACT-295, built on origin/main bd4636e7f / v2.10.0, last migration there 0135): the lead renumbers at integration;
--- the content does not depend on the number.
+-- Final number 0139 (built as PROVISIONAL 0136 on pilot/HMACACT-295; renumbered at the 2.11.0 integration, integ/2111). The content does not depend on the number.
 --
 -- Bridge HMAC key rotation, activation slice (owner decision 2026-10-21, option A):
 --  - bridge_keys.hw_ts: the per-key HIGH-WATER of the largest accepted message timestamp (Fable review H-04). After a restart the nonce cache
