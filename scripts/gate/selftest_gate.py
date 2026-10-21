@@ -49,6 +49,10 @@ if mode == "rc1_no_failure":  # exit 1 although every reported test passed
     write(report([spec(1), spec(2)])); sys.exit(1)
 if mode == "rc_weird":
     write(report([spec(1)])); sys.exit(7)
+if mode == "pixel_fail":      # GATEEFF-295: a screenshot mismatch that repeats alone (the review lane)
+    a = spec(3, "unexpected")
+    a["tests"][0]["results"][0]["error"] = {"message": "Error: expect(page).toHaveScreenshot(expected)\n  Screenshot comparison failed: 812 pixels (ratio 0.02) are different"}
+    write(report([spec(1), spec(2), a])); sys.exit(1)
 if mode == "param_fail":      # a test() in a loop: two siblings share file:line, the first fails every time, the last passes
     a, b = spec(7, "unexpected"), spec(7)
     a["title"], b["title"] = "classic is pixel-stable", "bubble is pixel-stable"
@@ -72,6 +76,8 @@ if m == "crash":
     print("Traceback (most recent call last):\nImportError: boom"); sys.exit(1)
 if m == "interrupted":
     print("Interrupted: 1 error during collection\n1 error in 0.20s"); sys.exit(2)
+if m == "two_fail":           # GATEEFF-295: test_x flakes (passes alone), test_y fails again alone
+    print("FAILED tests/test_a.py::test_x - flake\nFAILED tests/test_a.py::test_y - AssertionError: always red\n3 passed, 2 failed in 0.10s"); sys.exit(1)
 if m == "rc1_nofail":
     print("5 passed in 0.10s"); sys.exit(1)
 sys.exit(99)
@@ -279,6 +285,94 @@ os.environ["GATE_TMPFS_MIN_GB"] = "1000000"
 check("v2 tmpfs: under the free-space floor it falls back to disk (None)", g.tmpfs_root("selftest") is None)
 for k in ("GATE_TMPFS_DIR", "GATE_TMPFS_MIN_GB"):
     os.environ.pop(k, None)
+
+# ---- GATEEFF-295: lanes (quarantine, flaky counter, pixel review, expired entry, summary). Needs pytest for the mini project.
+import datetime as dt  # noqa: E402
+
+try:
+    import pytest as _pt  # noqa: F401
+except ImportError:
+    _pt = None
+if _pt is None:
+    print("NOT_RUN  GATEEFF-295 backend lane cases: pytest is not installed for this interpreter (run with the repo venv)")
+else:
+    wtq = TMP / "wtq"
+    bdq = wtq / "smplwise_vms" / "backend"
+    (bdq / "tests").mkdir(parents=True)
+    (wtq / "scripts" / "gate").mkdir(parents=True)
+    (bdq / "tests" / "test_a.py").write_text("def test_x():\n    assert True\n\n\ndef test_y():\n    assert False, 'always red'\n")
+    g.PY = sys.executable
+    today = dt.date.today()
+
+    def lane_case(entries):
+        reset()
+        g.QUARANTINE = g.policy.load_quarantine(None)
+        g.QUARANTINE_HIT.clear()
+        qf = wtq / "scripts" / "gate" / "gate_quarantine.json"
+        qf.write_text(json.dumps({"entries": entries}))
+        meta, new = g.load_managed_quarantine(wtq)
+        logd = TMP / f"logs_lane_{len(entries)}_{id(entries) % 1000}"
+        logd.mkdir(exist_ok=True)
+        log = logd / "backend_s1.log"
+        p = g.spawn([sys.executable, str(TMP / "fake_pytest.py"), "two_fail"], TMP, log)
+        g.backend_finish([(1, p, log)], wtq, logd)
+        return g.final_verdict([]), {i["id"]: i["status"] for i in g.ITEMS}
+
+    q_y = {"id": "Q-1", "kind": "backend", "nodeid": "tests/test_a.py::test_y", "reason": "selftest stale test", "owner": "lead",
+           "added": today.isoformat(), "expires": (today + dt.timedelta(days=7)).isoformat(), "ticket": "GATEEFF-295"}
+    v, st = lane_case([])
+    check("lanes: a test that passes alone is FLAKY (counted), one that fails again alone is a red FAIL", v == "fail"
+          and st.get("tests/test_a.py::test_x") == "FLAKY" and st.get("tests/test_a.py::test_y") == "FAIL", (v, st))
+    v, st = lane_case([q_y])
+    check("lanes: a quarantined test that fails again alone is QUARANTINED (listed) and the gate is green", v == "pass"
+          and st.get("tests/test_a.py::test_y") == "QUARANTINED" and st.get("tests/test_a.py::test_x") == "FLAKY", (v, st))
+    q_old = dict(q_y, id="Q-2", added=(today - dt.timedelta(days=30)).isoformat(), expires=(today - dt.timedelta(days=16)).isoformat())
+    v, st = lane_case([q_old])
+    check("lanes: an EXPIRED quarantine entry is red by itself and no longer excuses the test", v == "fail" and st.get("Q-2") == "FAIL"
+          and st.get("tests/test_a.py::test_y") == "FAIL", (v, st))
+    q_bad = dict(q_y, id="Q-3", expires=(today + dt.timedelta(days=60)).isoformat())
+    v, st = lane_case([q_bad])
+    check("lanes: an entry that runs longer than 14 days is invalid, red, and excuses nothing", v == "fail" and st.get("Q-3") == "FAIL"
+          and st.get("tests/test_a.py::test_y") == "FAIL", (v, st))
+    # a retry that cannot run is never 'passed alone'
+    reset()
+    g.QUARANTINE = g.policy.load_quarantine(None)
+    g.PY = str(TMP / "no_such_python")
+    logd = TMP / "logs_lane_noretry"
+    logd.mkdir(exist_ok=True)
+    log = logd / "backend_s1.log"
+    p = g.spawn([sys.executable, str(TMP / "fake_pytest.py"), "two_fail"], TMP, log)
+    g.backend_finish([(1, p, log)], wtq, logd)
+    check("lanes: a retry that produced no result verifies nothing - both stay FAIL, none becomes FLAKY",
+          g.final_verdict([]) == "fail" and not any(i["status"] == "FLAKY" for i in g.ITEMS), g.ITEMS)
+    g.PY = sys.executable
+
+    # pixel lane: the screenshot mismatch repeats alone -> review, not fail
+    reset()
+    g.QUARANTINE = g.policy.load_quarantine(None)
+    logd = TMP / "logs_pixel"
+    logd.mkdir(exist_ok=True)
+    rows, rc, to = g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", logd, "lab", env={"FAKE_PW_MODE": "pixel_fail"}, timeout=60)
+    g.settle("pixel", rows, rc, to, TMP, logd, "http://127.0.0.1:1/", {"FAKE_PW_MODE": "pixel_fail"}, "lab")
+    c = g.COUNTS.get("pixel", {})
+    check("pixel lane: a repeating screenshot mismatch is PIXEL_REVIEW, the verdict is 'review' (not pass, not fail)",
+          g.final_verdict([]) == "review" and c.get("pixel_review") == 1 and c.get("fail", 0) == 0 and c.get("pass") == 2, (g.final_verdict([]), c))
+    g.PIXEL_LANE = False
+    reset()
+    rows, rc, to = g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", logd, "lab", env={"FAKE_PW_MODE": "pixel_fail"}, timeout=60)
+    g.settle("pixel", rows, rc, to, TMP, logd, "http://127.0.0.1:1/", {"FAKE_PW_MODE": "pixel_fail"}, "lab")
+    check("pixel lane: GATE_PIXEL_LANE=0 (the nightly) keeps a screenshot mismatch a plain FAIL", g.final_verdict([]) == "fail", g.COUNTS)
+    g.PIXEL_LANE = True
+
+    # the one-page summary exists the moment the reports are written
+    reset()
+    g.COUNTS["backend"] = {"pass": 5, "fail": 1, "flaky": 1, "known": 0, "skipped": 0}
+    g.ITEMS += [{"category": "backend", "id": "tests/test_a.py::test_y", "status": "FAIL", "reason": "red"}]
+    g.BR, g.TAG = "selftest", "selftest"
+    fin, bp = g.write_reports("abc1234", "fail", {"schedule": "v1"})
+    sm = Path(str(bp) + ".summary.md")
+    check("summary: gate_<b>_<sha>.summary.md and LATEST_SUMMARY.md are written with the verdict and the reds that matter",
+          sm.exists() and "tests/test_a.py::test_y" in sm.read_text() and (Path(os.environ["GATE_RESULTS_DIR"]) / "LATEST_SUMMARY.md").exists(), sm)
 
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))

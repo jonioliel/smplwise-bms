@@ -315,7 +315,7 @@ def render_summary(doc, flaky_counts=None, running=False):
     new_red = [i for i in by("FAIL")]
     verdict = doc.get("verdict", "?")
     head = {"pass": "PASS", "fail": "FAIL", "review": "REVIEW NEEDED (pixel lane)", "running": "RUNNING"}.get(verdict, verdict.upper())
-    lines = [f"# Gate summary: {doc.get('branch')} @ {doc.get('sha')}  ->  {head}", ""]
+    lines = [f"# Gate summary: {doc.get('branch')} @ {doc.get('sha')} -> {head}", ""]
     wall = int(doc.get("wall_seconds", 0))
     target = int(doc.get("wall_target_min", 90))
     lines.append(f"tier {doc.get('tier')} | schedule {doc.get('schedule', 'v1')} | wall {wall // 60} min "

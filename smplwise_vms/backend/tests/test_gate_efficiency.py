@@ -389,6 +389,7 @@ def test_an_explicit_select_base_without_a_healthy_nightly_falls_back_to_the_ful
 
 
 def test_cli_no_longer_exits_for_select_base_and_has_full_and_a_usage_without_branch(g):
+    g.BR = ""
     assert g.main_cli(["--select-base"]) == 2              # a ref is still required
     assert g.main_cli(["--full"]) == 2                     # no branch: usage
     assert g.FULL is True

@@ -437,10 +437,12 @@ def backend_finish(procs, wt, logd):
         log = logd / "backend_retry.log"
         ids = [n for n, _ in todo]
         run([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / "tmp_bretry")] + ids, bd, log, timeout=900)
-        _, still = parse_pytest(log.read_text(errors="replace"))
+        c2, still = parse_pytest(log.read_text(errors="replace") if log.exists() else "")
         still_ids = {n for n, _ in still}
         for nid, why in todo:
-            if nid in still_ids:
+            if not c2:   # GATEEFF-295: a retry that produced no pytest summary (could not start, crashed) verified nothing: it is never "passed alone"
+                red("backend", nid, (why or "") + " (retry alone produced no result; see backend_retry.log)", "backend", nodeid=nid)
+            elif nid in still_ids:
                 red("backend", nid, why or "failed twice", "backend", nodeid=nid)
             else:
                 count("backend", "flaky"); item("backend", nid, "FLAKY", "failed in the shard run, passed alone")
