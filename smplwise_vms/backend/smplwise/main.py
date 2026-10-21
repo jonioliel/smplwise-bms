@@ -455,6 +455,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(notify_whatsapp_router.router, prefix=api, tags=["notifications"])  # NOTIFWA: the WhatsApp channel - master switch, own-number test, own opt-out
     from .services import temperature_whatsapp as _temperature_whatsapp  # noqa: F401 - TEMPREG-295: joins the messaging use registry at startup (gated by the module state), not when a temperature route first runs
+    from .services import access_grants as _access_grants  # noqa: F401 - REGSTART-295: the "access" messaging use joins at import; import it at startup, not via whichever router or worker ran first
+    from .services import local_reset as _local_reset  # noqa: F401 - REGSTART-295: the "identity" messaging use joins at import; it was imported only by the housekeeping step and the identity router
 
     from .routers import presence as presence_router
 

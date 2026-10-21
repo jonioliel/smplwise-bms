@@ -14,7 +14,7 @@ import pytest
 from smplwise.services import messaging_runtime as mr
 
 LAZY_MODULES = ("smplwise.services.temperature_whatsapp",)
-IMPORTED_FIRST = ("smplwise.services.local_reset", "smplwise.services.access_grants")  # TEMPREG-295: also joins at import only (its janitor imports it in the app lifespan); the accounts tests expect its "identity" module
+IMPORTED_FIRST = ("smplwise.services.local_reset", "smplwise.services.access_grants")  # REGSTART-295: create_app imports both at startup now; tests that build a Database without an app still need them first (the "identity" and "access" modules)
 LAZY_MODULE_KEYS = ("temperature",)
 
 
