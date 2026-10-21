@@ -247,3 +247,7 @@ Remaining (not in this slice): door commands paused during a rotation (CR-034 A1
 notice, a dedicated `bridge.key.rotate` permission, WisKey high-water hand-over, a live run against a real bridge (no HA access was used here).
 The trusted-door / capture-lease messages ride `ha_bridge.sign`: after the first rotation they carry a `kid` (the DTO v3 golden vectors
 remain valid for `g0-legacy`); when the bridge offers those services it must use `keyset.KeySet.verify`.
+
+### 15.1 Fable review 2 follow-up (HA-01, HA-02)
+- HA-01: `keyset.handle_control` answers a message that did not verify with an UNSIGNED refusal (no signing oracle for a Home Assistant user who can call services); `/ha/bridge/directory` refuses (422 `bridge_bad_request`) a body with `protocol` / `op` or without a `users` list, before any deactivation.
+- HA-02: the three re-pair situations (rollback that cannot align, restore to another host or loss of the key file, Home Assistant restored from a pre-rotation backup = pre-rotation backup case) are in the user guide `84-bridge-key_HE.md`; the first rotation is automatic and can be switched off on the card.

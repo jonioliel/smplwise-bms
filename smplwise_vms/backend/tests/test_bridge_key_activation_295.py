@@ -477,3 +477,47 @@ def test_no_key_material_in_audit_logs_after_an_activation_run(world, caplog):
     bad = [v for v in [LEGACY, *ks.keys.values()] if v in text or v in caplog.text]
     assert bad == []
     assert re.search(r"bridge\.rotation\.verified", text)
+
+
+# ================================================================ Fable review 2: HA-01
+
+def test_ha01_the_bridge_never_signs_a_refusal_of_an_unverified_message():
+    clock = Clock()
+    ks = keyset_mod.KeySet("L", None, now=clock, mono=clock)
+    hostile = [
+        {"protocol": "smplwise-bridge-rotation-v1", "op": "status", "rotation_id": "r1", "users": [], "x": "chosen body"},
+        {"protocol": "smplwise-bridge-rotation-v1", "op": "probe", "rotation_id": "r1", "kid": "g0-legacy", "ts": int(clock()), "nonce": "a" * 32, "sig": "0" * 64},
+        {"protocol": "smplwise-bridge-rotation-v1", "op": "begin", "rotation_id": "r1", "kid": "g9-deadbeef", "ts": int(clock()), "nonce": "b" * 32, "sig": "1" * 64},
+        "not a dict", None, {},
+    ]
+    for m in hostile:
+        ans = ks.handle_control(m)
+        assert ans["ok"] is False and ans["code"] in ("bad_signature", "bad_format")
+        assert not ({"sig", "kid", "nonce", "ts"} & set(ans)), ans  # nothing signed, nothing echoed
+        assert "chosen body" not in json.dumps(ans)
+    # an authenticated malformed request is still answered (signed), because the sender proved the key
+    good = bk.sign_with("g0-legacy", "L", {"protocol": "other", "op": "probe", "rotation_id": "r"}, ts=int(clock()))
+    assert ks.handle_control(good)["code"] == "bad_request"
+
+
+def test_ha01_the_directory_route_refuses_control_bodies_and_non_list_users(world):
+    w = world
+    c = w["c"]
+    with w["db"].connection() as conn:
+        conn.execute("INSERT OR IGNORE INTO users(id, name, active, source) VALUES ('opuser1', 'Op', 1, 'ingress')")
+    for body in ({"protocol": "smplwise-bridge-rotation-v1", "op": "status", "rotation_id": "r1"},
+                 {"version": "0.9.5"},  # no users list at all
+                 {"users": None}, {"users": {"a": 1}}, {"users": [], "op": "probe"}):
+        r = c.post("/api/v1/ha/bridge/directory", json=signing_mod.sign(LEGACY, body))
+        assert r.status_code == 422 and r.json()["code"] == "bridge_bad_request", (body, r.text)
+    with w["db"].connection(mode="read") as conn:
+        assert conn.execute("SELECT active FROM users WHERE id = 'opuser1'").fetchone()[0] == 1  # nobody was deactivated
+    assert c.post("/api/v1/ha/bridge/directory", json=signing_mod.sign(LEGACY, {"users": [], "version": "0.9.5"})).status_code == 200
+
+
+def test_ha02_the_three_repair_situations_are_documented():
+    guide = (ROOT / "docs/user-guide/he/84-bridge-key_HE.md").read_text(encoding="utf-8")
+    cr = (ROOT / "docs/changes/CR-WISKEY-HMAC-ROTATION-295.md").read_text(encoding="utf-8")
+    for needle in ("שחזור לגיבוי", "אובדן קובץ המפתחות", "החלפה שבוטלה"):
+        assert needle in guide, needle
+    assert "HA-02" in cr and "pre-rotation backup" in cr

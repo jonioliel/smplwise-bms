@@ -652,6 +652,10 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_
 def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
     ha_bridge.verify_message(conn, message)
+    # HA-01: a directory push is a user list and nothing else - a key-rotation control body (or any body without a `users` list) signed with a
+    # live key must never reach the deactivation below (a missing list would read as "nobody exists" and switch every operator off)
+    if message.get("protocol") is not None or message.get("op") is not None or not isinstance(message.get("users"), list):
+        raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
     peer_mod.note_capability(conn, message.get("rotation"))  # HMACACT-295: the bridge (0.9.5+) announces its key-rotation support in the signed push
     users = message.get("users") or []
     now = now_iso()

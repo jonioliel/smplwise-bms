@@ -244,13 +244,16 @@ class KeySet:
         return self._sign_v2(self.signing, body)
 
     def handle_control(self, msg: Any, now: float | None = None) -> dict[str, Any]:
-        """One signed control message -> the signed answer (always signed with the key this peer signs with AFTER the op)."""
+        """One signed control message -> the signed answer (always signed with the key this peer signs with AFTER the op). A message that does
+        not verify gets an UNSIGNED refusal (HA-01)."""
         kid, code = self._check(msg, now)
-        op = msg.get("op") if isinstance(msg, dict) else None
-        if not isinstance(msg, dict) or msg.get("protocol") != PROTOCOL or op not in ("begin", "probe", "commit", "retire", "abort", "status"):
-            return self._answer(str(op)[:12] if isinstance(op, str) else "unknown", msg if isinstance(msg, dict) else {}, False, code="bad_request")
         if kid is None:
-            return self._answer(op, msg, False, code=code or "bad_signature")
+            # HA-01: a message that did not prove a key gets NO signed answer - a signed refusal would make this service a signing
+            # oracle (any Home Assistant user who can call services could have the bridge sign a body of their choosing)
+            return {"ok": False, "code": code or "bad_signature"}
+        op = msg.get("op")
+        if msg.get("protocol") != PROTOCOL or op not in ("begin", "probe", "commit", "retire", "abort", "status"):
+            return self._answer("unknown", msg, False, code="bad_request")
         rid = msg.get("rotation_id")
         if not isinstance(rid, str) or not 1 <= len(rid) <= 64:
             return self._answer(op, msg, False, code="bad_request")
