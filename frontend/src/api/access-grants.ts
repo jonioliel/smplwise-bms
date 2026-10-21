@@ -200,6 +200,8 @@ export interface Identity {
   name_sync: NameSync;
   can: { link: boolean; unlink: boolean; delete: boolean; attach: boolean; push_name: boolean };
   history: { action: string; at: string }[];
+  /** VENDMARK-295: the directory marker - permanent (true) or temporary (false); information only */
+  permanent_vendor?: boolean;
 }
 
 const enc = encodeURIComponent;

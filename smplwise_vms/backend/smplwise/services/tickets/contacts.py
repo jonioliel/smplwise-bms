@@ -237,6 +237,7 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
         "open_tickets": open_count,
         "last_assigned_at": row.get("last_assigned_at"),
         "revision": row["revision"],
+        "permanent_vendor": bool(row.get("permanent_vendor")),  # VENDMARK-295 (0136): a marker to show and filter on, never an authority
         # S9 (11A.1 / 11A.2): the cost-claim defaults of this contact; the hourly rate only for tickets.costs.view holders (11A.8)
         "cost_claim": row.get("cost_claim"),
         "vat_exempt": bool(row.get("vat_exempt")),
@@ -252,7 +253,7 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
 
 
 def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, department_id: str | None = None,
-             include_inactive: bool = True) -> dict[str, Any]:
+             include_inactive: bool = True, permanent: bool | None = None) -> dict[str, Any]:
     conn = viewer.conn
     configure = may_edit_directory(viewer)
     managed = None if configure else managed_departments(viewer)
@@ -273,6 +274,8 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
         if not configure and not readable(viewer, depts, managed):
             continue
         if department_id and not allowed_in(depts, department_id):
+            continue
+        if permanent is not None and bool(r.get("permanent_vendor")) != permanent:  # VENDMARK-295: the marker filter
             continue
         item = present(conn, r, depts=depts, full_phone=full_phone_for(viewer, depts, managed, configure, unmask),
                        open_count=counts.get(r["id"], 0), vendors=vendors, configure=configure, rates="tickets.costs.view" in viewer.anywhere)
@@ -369,6 +372,16 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
             f["vendor_id"] = vid
         elif (kind == "vendor" or employee) and (current or {}).get("vendor_id"):
             f["vendor_id"] = None  # a vendor or an employee works for no vendor
+        # VENDMARK-295 (0136, owner GRANTS3 Q1): the permanent-vendor marker - an external technician or vendor company only
+        internal = employee or bool(body.get("user_id") if "user_id" in body else (current or {}).get("user_id"))
+        if "permanent_vendor" in body:
+            if not isinstance(body["permanent_vendor"], bool):
+                raise ContactInvalid("permanent_vendor", "type")
+            if body["permanent_vendor"] and internal:
+                raise ContactInvalid("permanent_vendor", "not_external")  # an employee or an internal user is not a vendor
+            f["permanent_vendor"] = 1 if body["permanent_vendor"] else 0
+        elif internal and (current or {}).get("permanent_vendor"):
+            f["permanent_vendor"] = 0  # the row became an employee / an internal user: the marker goes with it
         # S9 (11A.1 / 11A.2, D32): the claim requirement default, VAT handling and the hourly-rate prefill
         if "cost_claim" in body:
             if body["cost_claim"] not in (None, "required", "optional", "off"):
@@ -634,7 +647,7 @@ def export(conn, viewer: Viewer, contact_id: str, rid: str | None = None) -> dic
     audit(conn, actor=viewer.principal, action="ticket.contact.export", decision="allowed", resource_type="ticket_contact", resource_id=contact_id,
           request_id=rid)
     keep = ("id", "kind", "display_name", "company", "phone_e164", "email", "preferred_channel", "require_code", "share_history", "lang",
-            "notes", "active", "created_at", "updated_at", "last_assigned_at", "erased_at")
+            "notes", "active", "created_at", "updated_at", "last_assigned_at", "erased_at", "permanent_vendor")
     return {
         "contact": {**{k: row.get(k) for k in keep}, "kind": api_kind(row)},
         "departments": store_links.contact_departments(conn, contact_id),

@@ -53,6 +53,8 @@ export interface Contact {
   labor_rate_minor?: number | null;
   rate_currency?: string | null;
   persons?: { id: string; display_name: string }[];
+  /** VENDMARK-295 (owner GRANTS3 Q1): a permanent vendor / technician (true) or a temporary one (false); information, no authority */
+  permanent_vendor?: boolean;
   /** TKNOTIFOTP: "verify the number with a code" - the row's switch, whether a code is required (installation OR row), the confirmation */
   phone_verify?: boolean;
   phone_verify_required?: boolean;
@@ -92,6 +94,8 @@ export interface ContactBody {
   rate_currency?: string | null;
   /** TKNOTIFOTP: the row's "verify the number with a code" switch */
   phone_verify?: boolean;
+  /** VENDMARK-295 */
+  permanent_vendor?: boolean;
   revision?: number;
 }
 export interface ContactExport { contact: Record<string, unknown>; departments: string[]; assignments: Record<string, unknown>[]; timeline: Record<string, unknown>[] }

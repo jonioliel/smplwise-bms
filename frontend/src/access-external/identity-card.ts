@@ -10,6 +10,7 @@ import { getAcPeople, type AcPerson } from '../api/access-people';
 import { evidenceRefOk } from './model';
 import { xCss } from './styles';
 import { xt, type XtKey } from '../i18n/access-external';
+import { markerView } from '../tickets/vendor-marker';
 
 type Dialog = null | 'link' | 'unlink' | 'delete' | 'attach';
 
@@ -231,12 +232,14 @@ export class AccessIdentityCard extends LitElement {
     if (!d) return this.loading ? html`<section class="card"><h3><sw-icon name="lock" size="18"></sw-icon>${xt('id_title')}</h3><div class="state" role="status" data-identity-loading>${xt('id_loading')}</div></section>` : nothing;
     const v = this.stateView(d);
     const drift = !!d.link?.name_drift;
+    const marker = markerView(d.permanent_vendor); // VENDMARK-295: permanent / temporary, information only
     const auto = d.name_sync === 'auto';
     const why = (k: XtKey) => xt(k);
     const card = html`<section class="card" data-identity=${d.link ? `${d.link.origin}:${d.link.state}` : d.unresolved ? 'unresolved' : 'none'}>
       <h3><sw-icon name="lock" size="18"></sw-icon>${xt('id_title')}</h3>
       <div class="idstate" data-tone=${v.tone}><span class="big"><sw-icon name=${v.icon} size="22"></sw-icon></span><div><b>${xt(v.t)}</b><small>${v.desc}</small>
-        ${drift ? html`<span class="chip" data-tone="warn" data-identity-drift style="margin-block-start:6px">${xt('id_drift')}</span>` : nothing}</div></div>
+        ${drift ? html`<span class="chip" data-tone="warn" data-identity-drift style="margin-block-start:6px">${xt('id_drift')}</span>` : nothing}
+        ${marker ? html`<span class="chip" data-tone=${marker.tone} data-identity-marker=${marker.permanent ? 'permanent' : 'temporary'} style="margin-block-start:6px">${xt(marker.key)}</span>` : nothing}</div></div>
       ${this.notice ? html`<p class="ok-line" role="status">${this.notice}</p>` : nothing}
       <div class="acts">
         ${this.act('link', 'act_link', 'act_linkText', 'act_linkBtn', d.can.link, d.link ? why('act_linkWhy') : why('act_noRight'), () => this.open('link'), 'link')}

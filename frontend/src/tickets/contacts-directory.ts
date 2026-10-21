@@ -28,6 +28,8 @@ import { seesLoad, type MemberLoad } from './handler-load';
 import { ct } from './cost-text';
 import { decimalToMinor, minorToInput } from './cost-model';
 import { tt, type TicketTextKey } from './text';
+import { xt } from '../i18n/access-external';
+import { MARKER_FILTERS, byMarker, carriesMarker, filterKey, markerView, type MarkerFilter } from './vendor-marker';
 
 /** The languages by their own names (the page and the messages of a contact speak it). */
 const initials = (name: string): string => name.trim().split(/\s+/).slice(0, 2).map((x) => x[0] ?? '').join('');
@@ -39,6 +41,8 @@ interface Draft {
   cost_claim: CostMode | ''; vat_exempt: boolean; vat_default: 'included' | 'excluded'; labor_rate: string; rate_currency: string;
   /** TKNOTIFOTP: "verify the number with a code" for this row */
   phone_verify: boolean;
+  /** VENDMARK-295: permanent vendor / technician (false = temporary) */
+  permanent_vendor: boolean;
 }
 
 function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
@@ -50,6 +54,7 @@ function draftOf(c: Contact | null, kind: ContactKind = 'person'): Draft {
     cost_claim: c?.cost_claim ?? '', vat_exempt: c?.vat_exempt ?? false, vat_default: c?.vat_default ?? 'excluded',
     labor_rate: minorToInput(c?.labor_rate_minor), rate_currency: c?.rate_currency ?? 'ILS',
     phone_verify: c?.phone_verify ?? false,
+    permanent_vendor: c?.permanent_vendor ?? false,
   };
 }
 
@@ -92,6 +97,8 @@ export class TicketsContacts extends LitElement {
   @state() private vendorRows: Contact[] = [];
   @state() private canEdit = false;
   @state() private filter: KindFilter = 'all';
+  /** VENDMARK-295: the permanent / temporary filter of the list (client side: the rows are already here) */
+  @state() private marker: MarkerFilter = 'all';
   @state() private selected = '';
   @state() private creating = false;
   @state() private draft: Draft | null = null;
@@ -343,6 +350,7 @@ export class TicketsContacts extends LitElement {
     if (d.preferred_channel !== before.preferred_channel) out.preferred_channel = d.preferred_channel;
     if (d.require_code !== before.require_code) out.require_code = d.require_code;
     if (d.phone_verify !== before.phone_verify) out.phone_verify = d.phone_verify;
+    if (carriesMarker(d.kind) && d.permanent_vendor !== before.permanent_vendor) out.permanent_vendor = d.permanent_vendor;
     if (d.share_history !== before.share_history) out.share_history = d.share_history === 'default' ? null : d.share_history === 'on';
     if (d.lang !== before.lang) out.lang = d.lang;
     if (d.notes !== before.notes) out.notes = d.notes;
@@ -531,7 +539,7 @@ export class TicketsContacts extends LitElement {
 
   /** The rows the page's department chip leaves: a contact of no department belongs to all of them. */
   private shown(): Contact[] {
-    const rows = this.rows ?? [];
+    const rows = this.kind === 'employee' ? (this.rows ?? []) : byMarker(this.rows ?? [], this.marker);
     return this.dept ? rows.filter((c) => !c.departments.length || c.departments.includes(this.dept)) : rows;
   }
 
@@ -596,7 +604,7 @@ export class TicketsContacts extends LitElement {
           ${created ? html`<span class="chip xs" title=${tt('dmCreatedIn')} data-contact-created>${tt('dmCreatedIn')}: ${bidi(created)}</span>` : nothing}</span>
         ${employee
           ? (c.preferred_channel === 'whatsapp' && c.has_phone ? html`<span class="chip wa">${tIcon('send')}${tt('ch_whatsapp')}</span>` : nothing)
-          : html`<span class="push"></span>${this.channelSel(c)}<span class=${`chip ${c.require_code ? 'info' : ''}`} title=${tt('u6CodeTitle')} data-contact-code>${tIcon('lock')}${c.require_code ? tt('u6CodeOn') : tt('u6CodeOff')}</span>`}
+          : html`<span class="push"></span>${this.channelSel(c)}<span class=${`chip ${c.require_code ? 'info' : ''}`} title=${tt('u6CodeTitle')} data-contact-code>${tIcon('lock')}${c.require_code ? tt('u6CodeOn') : tt('u6CodeOff')}</span>${this.markerChip(c)}`}
       </footer>
     </article>`;
   }
@@ -607,9 +615,22 @@ export class TicketsContacts extends LitElement {
       <span class="av" aria-hidden="true">${initials(c.display_name)}</span>
       <span><b>${bidi(c.display_name)}</b><small>${bidi(c.vendor_name ?? c.company ?? '') || ' '}</small></span>
       <span class="ltr hide-p">${c.phone ?? '–'}</span>
-      <span class="hide-p mut">${LANG_NAMES[c.lang]}</span>
+      <span class="hide-p mut">${LANG_NAMES[c.lang]}${this.markerChip(c)}</span>
       <span class="chs" aria-label=${tt(`ch_${c.preferred_channel}` as TicketTextKey)}>${CONTACT_CHANNELS.map((ch) => html`<span class=${c.preferred_channel === ch ? 'on' : ''}>${this.chIcon(ch)}</span>`)}</span>
     </button>`;
+  }
+
+  /** VENDMARK-295: the permanent / temporary chip of a vendor or an external person (nothing for an employee or an older server). */
+  private markerChip(c: Contact): TemplateResult | typeof nothing {
+    const v = carriesMarker(c.kind) ? markerView(c.permanent_vendor) : null;
+    return v ? html`<span class=${`chip xs ${v.permanent ? 'info' : ''}`} data-contact-marker=${v.permanent ? 'permanent' : 'temporary'}>${xt(v.key)}</span>` : nothing;
+  }
+
+  /** VENDMARK-295: the filter above the vendor / contact list. */
+  private markerBar(): TemplateResult | typeof nothing {
+    if (this.kind === 'employee' || this.rows === null || !this.rows.length) return nothing;
+    return html`<span class="seg" role="radiogroup" aria-label=${xt('vm_kind')} data-contacts-marker-filter>${MARKER_FILTERS.map((f) => html`<button type="button" role="radio"
+      aria-checked=${String(this.marker === f)} aria-pressed=${String(this.marker === f)} data-marker-filter=${f} @click=${() => (this.marker = f)}>${xt(filterKey(f))}</button>`)}</span>`;
   }
 
   private listCard(): TemplateResult {
@@ -617,7 +638,7 @@ export class TicketsContacts extends LitElement {
     const locked = this.kind;
     const title = locked === 'employee' ? tt('u6SecEmployees') : locked === 'vendor' ? tt('hdSeg_vendors') : tt('hdSeg_contacts');
     const sub = locked === 'employee' ? tt('u6SecEmployeesSub') : locked === 'vendor' ? tt('u6SecVendorsSub') : tt('u6SecContactsSub');
-    const filtered = !!this.query.trim() || !!this.dept;
+    const filtered = !!this.query.trim() || !!this.dept || this.marker !== 'all';
     let list: TemplateResult;
     if (this.rows === null) list = html`<div class="cgrid" data-contacts-loading aria-busy="true"><div class="glass hcard"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:44px"></span></div></div>`;
     else if (!rows.length) list = html`<sw-state-panel icon="users" state="empty" heading=${filtered ? tt('ctNone') : locked ? tt(`ctEmpty_${locked}` as TicketTextKey) : tt('ctEmpty')}></sw-state-panel>`;
@@ -627,6 +648,7 @@ export class TicketsContacts extends LitElement {
       ${this.head ? html`<div class="sh"><h2>${title}<span class="n" data-contacts-count>${rows.length}</span></h2><small>${sub}</small>
         <span class="grow"></span>
         ${this.newbtn && (this.canEdit || this.mgr) ? html`<button type="button" class="btn sm" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tIcon('plus')}${tt(`ctNew_${locked || 'person'}` as TicketTextKey)}</button>` : nothing}</div>` : nothing}
+      ${this.markerBar()}
       ${list}
     </div>`;
   }
@@ -640,6 +662,7 @@ export class TicketsContacts extends LitElement {
         <dt>${tt('ctPhone')}</dt><dd dir="ltr">${c.phone ?? '–'}${c.phone && !c.phone_full ? html` <span class="tag">${tt('ctMasked')}</span>` : nothing}</dd>
         <dt>${tt('ctLang')}</dt><dd>${LANG_NAMES[c.lang]}</dd>
         <dt>${tt('ctRequireCode')}</dt><dd>${c.require_code ? tt('ctYes') : tt('ctNo')}</dd>
+        ${carriesMarker(c.kind) && markerView(c.permanent_vendor) ? html`<dt>${xt('vm_kind')}</dt><dd data-contact-marker-ro>${xt(markerView(c.permanent_vendor)!.key)}</dd>` : nothing}
         <dt>${tt('ctDepartments')}</dt><dd>${deptNames}</dd>
         ${this.createdText(c) ? html`<dt>${tt('dmCreatedIn')}</dt><dd data-contact-created-ro>${bidi(this.createdText(c) ?? '')}</dd>` : nothing}
       </dl>
@@ -704,6 +727,7 @@ export class TicketsContacts extends LitElement {
         ${seg(tt('ctChannel'), CONTACT_CHANNELS, d.preferred_channel, (v) => tt(`ch_${v}` as TicketTextKey), (v) => this.set({ preferred_channel: v }), 'channel')}
         <label class="fld"><span>${tt('ctLang')}</span><select class="in" data-field="lang" @change=${(e: Event) => this.set({ lang: (e.target as HTMLSelectElement).value as ContactLang })}>
           ${CONTACT_LANGS.map((l) => html`<option value=${l} ?selected=${l === d.lang}>${LANG_NAMES[l]}</option>`)}</select></label>
+        ${employee || this.mgr ? nothing : seg(xt('vm_kind'), ['temporary', 'permanent'] as const, d.permanent_vendor ? 'permanent' : 'temporary', (v) => xt(v === 'permanent' ? 'vm_permanent' : 'vm_temporary'), (v) => this.set({ permanent_vendor: v === 'permanent' }), 'marker')}
         ${employee ? nothing : html`${seg(tt('ctHistory'), ['default', 'on', 'off'] as const, d.share_history, (v) => tt(`hist_${v}` as TicketTextKey), (v) => this.set({ share_history: v }), 'history')}
         <div class="row wide"><span class="lbl">${tt('ctRequireCode')}<span class="muted">${tt('ctRequireCodeSub')}</span></span>
           <sw-toggle label=${tt('ctRequireCode')} labelHidden .checked=${d.require_code} data-field="require_code" @change=${(e: CustomEvent<{ checked: boolean }>) => this.set({ require_code: e.detail.checked })}></sw-toggle></div>
