@@ -30,6 +30,23 @@ CHANNEL = "announce"
 GENERIC = {"he": "התראה חדשה", "en": "New notification"}
 
 
+EMERGENCY_SOURCES = ("door.emergency.started", "door.emergency.drill")  # DOORWIN2-295 (CR-039 11): spoken only with the owner's own phrase
+
+
+def emergency_phrase(conn: Any, d: nc.Dispatch) -> str | None:
+    """The owner's phrase for an emergency door notification, or None when this is not one. "" = no phrase = the owner has not chosen one yet
+    (owner decision 2026-10-13: OFF until heard in a drill): such a notification is never spoken, and the lock-screen level does not apply
+    (the phrase is the owner's text, not a notification title)."""
+    if d.n.get("source") not in EMERGENCY_SOURCES:
+        return None
+    from . import door_emergency
+
+    phrase = door_emergency.setting(conn, door_emergency.ANNOUNCE_PHRASE).strip()
+    if not phrase:
+        return ""
+    return f"תרגיל. {phrase}" if d.n.get("source") == "door.emergency.drill" else phrase
+
+
 def spoken_text(d: nc.Dispatch, language: str) -> str:
     if d.settings.get("lockscreen") == "generic":
         return GENERIC["en" if language.lower().startswith("en") else "he"]
@@ -58,7 +75,10 @@ class AnnounceChannel(nc.Channel):
         exempt = d.severity == "critical" or d.mode == "escalate"
         if not exempt and cfg["quiet"]["mode"] == "suppress" and ann.quiet_active(conn, d.now, cfg):
             return [nc.Target(self.name, None, ref, "skipped", "quiet_hours")]
-        return [nc.Target(self.name, None, ref, "queued", None, {"scope": route["scope"], "ref": route["ref"], "text": spoken_text(d, cfg["language"]),
+        phrase = emergency_phrase(conn, d)
+        if phrase == "":
+            return [nc.Target(self.name, None, ref, "skipped", "no_phrase")]
+        return [nc.Target(self.name, None, ref, "queued", None, {"scope": route["scope"], "ref": route["ref"], "text": phrase or spoken_text(d, cfg["language"]),
                                                                  "critical": exempt, "nid": d.nid})]
 
     def send(self, notifier: "push.PushNotifier", d: nc.Dispatch, targets: list[nc.Target]) -> None:

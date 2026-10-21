@@ -390,6 +390,42 @@
       "permissions": [
         "tickets.technician_requests"
       ]
+    },
+    {
+      "id": "door_windows_manager",
+      "name_he": "ניהול חלונות פתיחה",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.windows.manage"
+      ]
+    },
+    {
+      "id": "door_windows_guard",
+      "name_he": "הפסקת חלון פתיחה",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.windows.cancel"
+      ]
+    },
+    {
+      "id": "emergency_lock",
+      "name_he": "נעילת חירום",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.emergency.lock"
+      ]
+    },
+    {
+      "id": "emergency_open",
+      "name_he": "פתיחת חירום",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "access.emergency.open"
+      ]
     }
   ],
   "sensitive_permissions_not_implied": [

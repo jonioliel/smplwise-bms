@@ -57,7 +57,20 @@ ENABLED = "doors.emergency.enabled"
 OPEN_ENABLED = "doors.emergency.open_enabled"
 AUTOMATIONS = "doors.emergency.automations"
 HOLD_MS = "doors.emergency.hold_ms"
+ANNOUNCE_PHRASE = "doors.emergency.announce_phrase"
+HOME_WIDGET = "doors.emergency.home_widget"
+PHRASE_MAX = 120
+
+
+def _phrase_ok(value: str) -> bool:
+    return len(value) <= PHRASE_MAX and not any(ord(c) < 32 for c in value)
+
+
 SETTINGS: dict[str, tuple[str, Any]] = {
+    # DOORWIN2-295 (CR-039 11 / 13): the spoken phrase of an emergency start ("" = none; owner decision 2026-10-13: OFF until heard in a drill) and the
+    # home-screen entry (off by default). Neither can make a button act: they only add a way to reach / announce the sheet.
+    ANNOUNCE_PHRASE: ("", _phrase_ok),
+    HOME_WIDGET: ("off", lambda v: v in ("off", "on")),
     ENABLED: ("off", lambda v: v in ("off", "on")),
     OPEN_ENABLED: ("off", lambda v: v in ("off", "on")),
     AUTOMATIONS: ("off", lambda v: v in ("off", "on")),
@@ -222,6 +235,10 @@ def incident_view(conn: sqlite3.Connection, row: sqlite3.Row, *, with_doors: boo
         rows = conn.execute("SELECT * FROM door_emergency_doors WHERE incident_id = ? ORDER BY phase, station_id, relay", (row["id"],)).fetchall()
         out["doors"] = [{"door": dw.door_key(r["station_id"], r["relay"]), "label": labels[k].label if (k := dw.door_key(r["station_id"], r["relay"])) in labels else k,
                          "phase": r["phase"], "state": r["state"], "attempts": r["attempts"], "code": r["code"]} for r in rows]
+    # CR-039 19.3: doors whose program a person made in the intercom window and that this LOCK paused - Arx does not re-activate them; they are
+    # listed (during the incident and after the release) until the program is enabled again or a person marks the door handled
+    out["foreign_paused"] = [{"door": f["door"], "label": labels[f["door"]].label if f["door"] in labels else f["door"]}
+                             for f in dw.foreign_paused_list(conn) if f["incident_id"] == row["id"]]
     return out
 
 
@@ -609,4 +626,6 @@ def pause_windows_for_lock(db: Database, settings: Any, incident_id: str) -> Non
             return
         doors_ = conn.execute("SELECT station_id, relay FROM door_emergency_doors WHERE incident_id = ? AND phase = 'apply'", (incident_id,)).fetchall()
     for d in doors_:
-        dw.pause_door(db, settings, d["station_id"], d["relay"], None, why="emergency_lock")
+        # the one exception to "a program a person made is never touched" (CR-039 8.2 / 19.3): a LOCK pauses a foreign program too, audited with
+        # the incident, and never re-activates it - the door is listed until the person who made it enables it again in the intercom window
+        dw.pause_door(db, settings, d["station_id"], d["relay"], None, why="emergency_lock", allow_foreign=True, incident_id=incident_id)

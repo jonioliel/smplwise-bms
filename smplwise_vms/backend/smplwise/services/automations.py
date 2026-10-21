@@ -446,6 +446,12 @@ class Mirror:
                     door_automation.on_event(self.db, self.settings, frame)
                 except Exception:  # noqa: BLE001
                     log.exception("door automation hook failed")
+                try:  # DOORWIN2-295: an event rule whose trigger names this automation (judged on a worker thread; simulated unless armed)
+                    from . import door_window_triggers
+
+                    door_window_triggers.on_automation_event(self.db, self.settings, frame)
+                except Exception:  # noqa: BLE001
+                    log.exception("door window automation hook failed")
             eid = data.get("entity_id")
             if isinstance(eid, str) and self.db is not None:
                 with self.db.connection(label="automations event") as conn:

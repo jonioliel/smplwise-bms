@@ -121,6 +121,12 @@ SOURCES: tuple[Source, ...] = (
        who="managers", subject="door", resolves=False),
     _s("door.window_overridden", "חלון פתיחה הופסק ידנית", "doors", "info", "חלון הופסק", "{name}: החלון הופסק לפני הזמן.", who="managers",
        push=False, subject="door", resolves=False),
+    # DOORWIN2-295 (CR-039 9.2 / 9.4): event-triggered windows. A simulated trigger is an inbox notice to the person whose approval covers the rule
+    # ("this window would have opened"); the storm cap alerts the managers once an hour. Neither names a person or carries an event payload.
+    _s("door.windows.simulated", "חלון פתיחה לפי אירוע (מצב הדגמה)", "doors", "info", "היה נפתח חלון", "{name} עד {until} (מצב הדגמה).", who="initiator",
+       push=False, subject="door", resolves=False),
+    _s("door.windows.storm", "יותר מדי הפעלות של חלונות לפי אירוע", "doors", "alert", "יותר מדי הפעלות", "הפעלות לפי אירוע נעצרו לשעה.", who="managers",
+       subject="door", window_s=3600, resolves=False),
     _s("door.emergency.started", "מצב חירום בדלתות", "doors", "critical", "מצב חירום: {kind}", "{kind} ל־{count} דלתות ({scope}).",
        who="managers", subject="door", resolve_text="מצב החירום הסתיים", app=True),
     _s("door.emergency.partial", "חירום: לא כל הדלתות אישרו", "doors", "critical", "חירום: לא כל הדלתות אישרו",

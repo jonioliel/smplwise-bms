@@ -46,6 +46,7 @@ PERMISSIONS = (MANAGE, CANCEL)
 
 # ---------------------------------------------------------------- settings (CR-039 13; `doors.` is kept out of backup restores)
 ENABLED = "doors.windows.enabled"
+AUTOMATION_ACTOR = "doors.automation_actor"
 HM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -64,6 +65,10 @@ SETTINGS: dict[str, tuple[str, Callable[[str], bool]]] = {
     "doors.windows.relock_retries": ("3", _int_in(0, 5)),
     "doors.windows.reraise_min": ("15", _int_in(5, 60)),
     "doors.windows.exterior_allowed": ("false", lambda v: v in ("false", "true")),
+    # DOORWIN2-295 (CR-039 5.4 / 9.3 / 9.4)
+    "doors.windows.calendar_generator": ("israel", lambda v: v in ("israel", "none")),
+    "doors.windows.event_extend_owned": ("false", lambda v: v in ("false", "true")),  # an event may extend a RUNNING window (the program blinks ~15 s)
+    "doors.automation_actor": ("off", lambda v: v in ("off", "on")),                   # cannot be on while the contract reports no automation actor
 }
 
 
@@ -81,6 +86,26 @@ def enabled(conn: sqlite3.Connection) -> bool:
     return setting(conn, ENABLED) == "on"
 
 
+def _no_automation_actor() -> bool:
+    return False
+
+
+# Whether the installed WisKey contract reports the W1 automation actor (CR-039 9.4). This build has no such capability (W1 is unanswered):
+# False, always. A test replaces the probe to exercise the armed path on fakes; nothing in the product does.
+AUTOMATION_ACTOR_PROBE: Callable[[], bool] = _no_automation_actor
+
+
+def automation_actor_available() -> bool:
+    try:
+        return AUTOMATION_ACTOR_PROBE() is True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def automation_actor_on(conn: sqlite3.Connection) -> bool:
+    return automation_actor_available() and setting(conn, AUTOMATION_ACTOR) == "on"
+
+
 def settings_view(conn: sqlite3.Connection) -> dict[str, str]:
     return {k: setting(conn, k) for k in SETTINGS}
 
@@ -91,6 +116,9 @@ def update_settings(conn: sqlite3.Connection, changes: dict[str, Any]) -> dict[s
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
             raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+    if changes.get(AUTOMATION_ACTOR) == "on" and not automation_actor_available():
+        # T16: the refusal of an automation opening a door is lifted by a setting only when the contract reports the capability - fail closed
+        raise ApiError(409, "automation_actor_unavailable", "הפעלה מאוטומציה אינה זמינה: אין עדיין זהות אוטומציה מאומתת.")
     for key, value in changes.items():
         before = setting(conn, key)
         if before != value:
@@ -281,7 +309,7 @@ def local_date(at: dt.datetime, tz: ZoneInfo) -> dt.date:
 
 # ---------------------------------------------------------------- rules
 
-KINDS = ("weekly", "once")  # 'event' is reserved in the schema (CR-039 9, slice W4: not built)
+KINDS = ("weekly", "once", "event")  # 'event' = CR-039 9 (DOORWIN2-295): an event starts a hold of N minutes; its trigger lives in services/door_window_triggers.py
 CALENDAR_POLICIES = ("skip_holidays", "holidays_like_friday", "ignore_calendar")
 RULE_STATES = ("draft", "enabled", "paused", "retired")
 MAX_PERIODS_PER_DAY = 8  # WisKey's own cap per weekday (R)
@@ -343,6 +371,10 @@ def validate_rule(body: dict[str, Any], *, max_hours: int, max_per_day: int, qui
             raise bad("invalid_doors", "דלת מופיעה פעמיים.")
         doors_out.append((sid, relay))
     raw_periods = body.get("periods")
+    if kind == "event":  # an event rule has no periods of its own: the event decides when (its trigger carries the length and the allowed hours)
+        if raw_periods not in (None, []):
+            raise bad("invalid_periods", "לחלון לפי אירוע אין שעות קבועות.")
+        return name.strip(), kind, policy, notes, doors_out, []
     if not isinstance(raw_periods, list) or not 1 <= len(raw_periods) <= 7 * MAX_PERIODS_PER_DAY:
         raise bad("invalid_periods", "יש להגדיר לפחות חלון זמן אחד.")
     periods: list[Period] = []
@@ -412,17 +444,30 @@ def rule_row(conn: sqlite3.Connection, rule_id: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM door_window_rules WHERE id = ?", (rule_id,)).fetchone()
 
 
-def _document(name: str, kind: str, policy: str, notes: str, doors_: list[tuple[str, int]], periods: list[Period]) -> str:
-    return json.dumps({"name": name, "kind": kind, "calendar_policy": policy, "notes": notes, "doors": [list(d) for d in doors_],
-                       "periods": [[p.weekday, p.on_date, p.start, p.end] for p in periods]}, ensure_ascii=False, sort_keys=True)
+def _document(name: str, kind: str, policy: str, notes: str, doors_: list[tuple[str, int]], periods: list[Period], trigger: dict[str, Any] | None = None) -> str:
+    doc: dict[str, Any] = {"name": name, "kind": kind, "calendar_policy": policy, "notes": notes, "doors": [list(d) for d in doors_],
+                           "periods": [[p.weekday, p.on_date, p.start, p.end] for p in periods]}
+    if trigger is not None:
+        doc["trigger"] = {k: v for k, v in trigger.items() if k != "token"}  # the version history never holds a secret
+    return json.dumps(doc, ensure_ascii=False, sort_keys=True)
 
 
-def save_rule(conn: sqlite3.Connection, principal: Principal, body: dict[str, Any], *, rule_id: str | None = None, today: dt.date) -> str:
+def save_rule(conn: sqlite3.Connection, principal: Principal, body: dict[str, Any], *, rule_id: str | None = None, today: dt.date,
+              secrets_out: dict[str, str] | None = None) -> str:
     """Create (rule_id None) or replace a rule's definition. The caller checked the person and the permission on every door. A save never
-    enables: a new rule is a draft; an edited enabled rule stays enabled with its new revision - and the approver becomes the editor."""
+    enables: a new rule is a draft; an edited enabled rule stays enabled with its new revision - and the approver becomes the editor.
+    An `event` rule also stores its trigger (services/door_window_triggers.py); the plaintext trigger token of a new rule is put in
+    `secrets_out["token"]` ONCE (only its SHA-256 is stored)."""
+    quiet = (setting(conn, "doors.windows.quiet_from"), setting(conn, "doors.windows.quiet_to"))
     name, kind, policy, notes, doors_, periods = validate_rule(
         body, max_hours=int_setting(conn, "doors.windows.max_hours"), max_per_day=int_setting(conn, "doors.windows.max_per_day_per_door"),
-        quiet=(setting(conn, "doors.windows.quiet_from"), setting(conn, "doors.windows.quiet_to")), today=today)
+        quiet=quiet, today=today)
+    trigger = None
+    if kind == "event":
+        from . import door_window_triggers as dwt
+
+        trigger = dwt.validate_trigger(body.get("trigger"), max_hours=int_setting(conn, "doors.windows.max_hours"),
+                                       max_per_day=int_setting(conn, "doors.windows.max_per_day_per_door"), quiet=quiet)
     known = doors_by_key(conn)
     missing = [door_key(*d) for d in doors_ if door_key(*d) not in known]
     if missing:
@@ -455,8 +500,14 @@ def save_rule(conn: sqlite3.Connection, principal: Principal, body: dict[str, An
     conn.executemany("INSERT INTO door_window_rule_doors(rule_id, station_id, relay) VALUES (?, ?, ?)", [(rule_id, s, r) for s, r in doors_])
     conn.executemany("INSERT INTO door_window_periods(rule_id, weekday, on_date, start_hm, end_hm) VALUES (?, ?, ?, ?, ?)",
                      [(rule_id, p.weekday, p.on_date, p.start, p.end) for p in periods])
+    if trigger is not None:
+        from . import door_window_triggers as dwt
+
+        token = dwt.store_trigger(conn, principal, rule_id, trigger, created=revision == 1)
+        if token and secrets_out is not None:
+            secrets_out["token"] = token
     conn.execute("INSERT INTO door_window_rule_versions(rule_id, revision, document, saved_by, saved_at) VALUES (?, ?, ?, ?, ?)",
-                 (rule_id, revision, _document(name, kind, policy, notes, doors_, periods), principal.user_id, at))
+                 (rule_id, revision, _document(name, kind, policy, notes, doors_, periods, trigger), principal.user_id, at))
     return rule_id
 
 
@@ -468,6 +519,7 @@ def set_rule_state(conn: sqlite3.Connection, principal: Principal, rule_id: str,
     if state == "enabled":
         conn.execute("UPDATE door_window_rules SET state = 'enabled', approved_by = ?, approved_at = ?, updated_by = ?, updated_at = ? WHERE id = ?",
                      (principal.user_id, at, principal.user_id, at, rule_id))
+        conn.execute("UPDATE door_window_triggers SET authorising_actor = ? WHERE rule_id = ?", (principal.user_id, rule_id))  # the approver covers the live revision
     elif state == "paused":
         conn.execute("UPDATE door_window_rules SET state = 'paused', updated_by = ?, updated_at = ? WHERE id = ?", (principal.user_id, at, rule_id))
     elif state == "retired":
@@ -504,9 +556,13 @@ DAY_TYPES = ("holiday", "holiday_eve", "regular", "closed")
 
 
 def calendar_for(conn: sqlite3.Connection, station_id: str, start: dt.date, days: int) -> dict[str, str]:
-    """{YYYY-MM-DD: day_type}; a station-scoped entry beats the installation-wide one."""
+    """{YYYY-MM-DD: day_type}: the generated Israeli holidays and eves (services/special_days.py, `doors.windows.calendar_generator`) under the
+    manager's overrides; among the overrides a station-scoped entry beats the installation-wide one. A `regular` override cancels a generated
+    holiday: the day stays in the result so the compile sees a regular day (not a missing one)."""
+    from . import special_days
+
     end = (start + dt.timedelta(days=days)).isoformat()
-    out: dict[str, str] = {}
+    out: dict[str, str] = dict(special_days.day_types(special_days.generator_of(conn), start, start + dt.timedelta(days=days)))
     rows = conn.execute("SELECT on_date, scope_key, day_type FROM door_window_calendar WHERE on_date >= ? AND on_date <= ? AND scope_key IN ('*', ?)",
                         (start.isoformat(), end, station_id)).fetchall()
     for r in sorted(rows, key=lambda r: r["scope_key"] != "*"):  # '*' first, the station's entry overrides it
@@ -551,7 +607,7 @@ def day_spans(rules: list[RuleDoc], day: dt.date, day_type: str | None) -> list[
             elif day_type == "holiday_eve" and r.calendar_policy != "ignore_calendar":
                 src = FRIDAY
             spans += [(minutes(p.start), minutes(p.end), r.id) for p in r.periods if p.weekday == src]
-        elif r.kind == "once":
+        elif r.kind in ("once", "event"):  # an event hold is a one-off period on its date (services/door_window_triggers.py feeds it as a synthetic rule)
             spans += [(minutes(p.start), minutes(p.end), r.id) for p in r.periods if p.on_date == day.isoformat()]
     return merge(spans)
 
@@ -567,6 +623,7 @@ class Compiled:
     policy: dict[str, Any] | None = None
     sha: str | None = None
     once_rules: frozenset[str] = frozenset()
+    event_rules: frozenset[str] = frozenset()
 
     def spans_on(self, day: dt.date) -> list[Span]:
         return self.exceptions.get(day.isoformat(), self.weekly.get(sun0(day), []))
@@ -587,7 +644,11 @@ def compile_door(rules: list[RuleDoc], door: Door, calendar: dict[str, str], tod
     """The door's program: the weekly union of its weekly rules, plus a date exception for every date in [today, today+horizon] whose
     periods differ from that union (a special day, a one-off window, a closed day). `policy` is None when no rule covers the door."""
     mine = [r for r in rules if (door.station_id, door.relay) in r.doors]
-    c = Compiled(door.key, door.zone, {}, {}, tuple(r.id for r in mine), once_rules=frozenset(r.id for r in mine if r.kind == "once"))
+    # an event rule is only a definition; what reaches the program is its running HOLDS (synthetic rules of kind 'event' carrying periods)
+    holds = [r for r in mine if r.kind == "event" and r.periods]
+    mine = [r for r in mine if r.kind != "event" or r.periods]
+    c = Compiled(door.key, door.zone, {}, {}, tuple(r.id for r in mine), once_rules=frozenset(r.id for r in mine if r.kind == "once"),
+                 event_rules=frozenset(r.id for r in holds))
     if not mine:
         return c
     weekly_rules = [r for r in mine if r.kind == "weekly"]
@@ -596,7 +657,7 @@ def compile_door(rules: list[RuleDoc], door: Door, calendar: dict[str, str], tod
         if spans:
             c.weekly[wd] = spans
     dates = {d for d in calendar if today.isoformat() <= d <= (today + dt.timedelta(days=horizon)).isoformat()}
-    dates |= {p.on_date for r in mine if r.kind == "once" for p in r.periods if p.on_date and p.on_date >= today.isoformat()}
+    dates |= {p.on_date for r in mine if r.kind in ("once", "event") for p in r.periods if p.on_date and p.on_date >= today.isoformat()}
     for d in sorted(dates):
         day = dt.date.fromisoformat(d)
         spans = day_spans(mine, day, calendar.get(d))
@@ -650,7 +711,7 @@ def plan(compiled: Compiled, first: dt.date, days: int = PLAN_DAYS) -> list[Plan
             start_at, end_at = wall_instant(day, hm_of(s), tz), wall_instant(day, hm_of(e), tz)
             if end_at <= start_at:
                 continue
-            origin = "once" if all(r in compiled.once_rules for r in rids) else "weekly"
+            origin = "event" if all(r in compiled.event_rules for r in rids) else ("once" if all(r in compiled.once_rules for r in rids) else "weekly")
             out.append(Planned(start_at, end_at, window_token(day, s, e), rids[0], origin))
     return out
 
@@ -719,9 +780,9 @@ def _store_plan(conn: sqlite3.Connection, door: Door, planned: list[Planned], ti
             continue
         state = "prepared" if tier == "prepared" else ("armed" if written else "planned")
         conn.execute("""INSERT INTO door_window_occurrences(id, rule_id, station_id, relay, start_at, end_at, zone, token, origin, tier, state, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, (SELECT id FROM door_window_rules WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(station_id, relay, token) DO NOTHING""",
-                     (new_id(), p.rule_id if p.rule_id != "preview" else None, door.station_id, door.relay, iso(p.start_at), iso(p.end_at), door.zone, p.token,
+                     (new_id(), p.rule_id, door.station_id, door.relay, iso(p.start_at), iso(p.end_at), door.zone, p.token,
                       p.origin, tier, state, at, at))
         # an occurrence cancelled earlier whose window came back (a rule re-enabled) is planned again, if it has not started
         conn.execute("""UPDATE door_window_occurrences SET state = ?, tier = ?, updated_at = ? WHERE station_id = ? AND relay = ? AND token = ?
@@ -777,11 +838,16 @@ def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:
     With the master switch off the desired program of every door is "none": an Arx program that was written is paused (switching off
     never leaves a door scheduled open), and future occurrences are cancelled."""
     engine = dwe.window_engine(settings)
+    refresh_foreign_paused(db, settings, now)
     with db.connection(mode="read") as conn:
         on = enabled(conn)
         rules = load_rules(conn) if on else []
         stale = set(stale_approvals(conn, rules)) if rules else set()
         rules = [r for r in rules if r.id not in stale]
+        if on:  # the running event holds join the compile as one-off periods of synthetic rules (a hold is a plan row until it ends)
+            from . import door_window_triggers as dwt
+
+            rules = rules + dwt.running_holds(conn, now)
         known = doors_by_key(conn)
         keys = {door_key(s, r) for rule in rules for s, r in rule.doors}
         keys |= {door_key(r["station_id"], r["relay"]) for r in conn.execute("SELECT station_id, relay FROM door_window_engine")}
@@ -848,16 +914,25 @@ def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:
     return results
 
 
-def pause_door(db: Database, settings: Any, station_id: str, relay: int, until: str | None, *, why: str) -> tuple[str, str]:
+def pause_door(db: Database, settings: Any, station_id: str, relay: int, until: str | None, *, why: str, allow_foreign: bool = False,
+               incident_id: str | None = None) -> tuple[str, str]:
     """Pause the door's Arx program now (the close direction: an override, an emergency LOCK) and keep it paused until `until` (None: until
-    the caller clears it). Returns (outcome, code). Engine I/O first, outside any write lock; the pause is recorded either way."""
+    the caller clears it). Returns (outcome, code). Engine I/O first, outside any write lock; the pause is recorded either way.
+
+    `allow_foreign` is the ONE exception to "a program a person made in the intercom panel is never touched" (CR-039 8.2 / 19.3): an emergency
+    LOCK pauses it too (outcome `paused_foreign`, audited with the incident). Arx never re-activates it: the door is listed as needing the person
+    who made the program (`foreign_paused_list`) until the program is enabled again or a person marks it handled."""
     engine = dwe.window_engine(settings)
     outcome, code, revision = "prepared", "", None
     if engine.tier == "program":
         try:
             st = engine.read(station_id, relay)
             if st.exists and not st.arx:
-                outcome, code = "foreign", "foreign_program"  # a program a person made is never touched here (build notes 3.10)
+                if allow_foreign and (st.enabled or st.owned):
+                    revision = engine.pause(station_id, relay, st.revision).revision
+                    outcome, code = "paused_foreign", "foreign_program"
+                else:
+                    outcome, code = "foreign", "foreign_program"  # a program a person made is never touched here (build notes 3.10)
             elif st.exists and (st.enabled or st.owned):
                 revision = engine.pause(station_id, relay, st.revision).revision
                 outcome = "paused"
@@ -867,11 +942,50 @@ def pause_door(db: Database, settings: Any, station_id: str, relay: int, until: 
             outcome, code = "error", f"{exc.kind}:{exc.code}"
     with db.connection() as conn:
         door = doors_by_key(conn).get(door_key(station_id, relay)) or Door(station_id, relay, "", "", installation_zone(conn))
-        _upsert_engine(conn, door, engine.tier, paused_until=until or "9999-12-31T00:00:00Z", written_sha256=None, last_error=code[:64] or None,
-                       **({"program_revision": revision} if revision is not None else {}))
-        audit(conn, actor=None, action="door.window.engine_write", decision="allowed" if outcome in ("paused", "nothing", "prepared") else "failed",
-              resource_type="door", resource_id=door_key(station_id, relay), reason=why, details={"outcome": outcome, "code": code[:64] or None, "why": why})
+        extra: dict[str, Any] = {"program_revision": revision} if revision is not None else {}
+        if outcome == "paused_foreign":
+            extra.update(foreign_paused_incident=incident_id or "", foreign_paused_at=iso(dt.datetime.now(UTC)), foreign_program=1)
+        _upsert_engine(conn, door, engine.tier, paused_until=until or "9999-12-31T00:00:00Z", written_sha256=None, last_error=code[:64] or None, **extra)
+        audit(conn, actor=None, action="door.window.engine_write", decision="allowed" if outcome in ("paused", "paused_foreign", "nothing", "prepared") else "failed",
+              resource_type="door", resource_id=door_key(station_id, relay), reason=why,
+              details={"outcome": outcome, "code": code[:64] or None, "why": why, **({"incident_id": incident_id} if incident_id else {})})
     return outcome, code
+
+
+def foreign_paused_list(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Doors whose foreign program an emergency LOCK paused and that nobody has re-activated yet (CR-039 19.3: the strip lists them after the release)."""
+    return [{"door": door_key(r["station_id"], r["relay"]), "station_id": r["station_id"], "relay": r["relay"], "incident_id": r["foreign_paused_incident"] or None,
+             "paused_at": r["foreign_paused_at"]}
+            for r in conn.execute("SELECT station_id, relay, foreign_paused_incident, foreign_paused_at FROM door_window_engine WHERE foreign_paused_at IS NOT NULL "
+                                  "ORDER BY foreign_paused_at")]
+
+
+def clear_foreign_paused(conn: sqlite3.Connection, station_id: str, relay: int) -> bool:
+    return conn.execute("UPDATE door_window_engine SET foreign_paused_incident = NULL, foreign_paused_at = NULL WHERE station_id = ? AND relay = ? AND foreign_paused_at IS NOT NULL",
+                        (station_id, relay)).rowcount > 0
+
+
+def refresh_foreign_paused(db: Database, settings: Any, now: dt.datetime) -> list[str]:
+    """Doors listed as "foreign program paused by an emergency": once nothing blocks the door, read the program; if the person re-enabled it in
+    the intercom panel the entry is cleared (Arx itself never re-activates it). Reads only; a read that fails keeps the entry."""
+    engine = dwe.window_engine(settings)
+    if engine.tier != "program":
+        return []
+    with db.connection(mode="read") as conn:
+        pending = [(r["station_id"], r["relay"]) for r in foreign_paused_list(conn) if door_blocked(conn, r["station_id"], r["relay"], now) is None]
+    cleared: list[str] = []
+    for station_id, relay in pending:
+        try:
+            st = engine.read(station_id, relay)
+        except dwe.EngineError:
+            continue
+        if st.exists and not st.arx and st.enabled:
+            with db.connection() as conn:
+                if clear_foreign_paused(conn, station_id, relay):
+                    audit(conn, actor=None, action="door.window.foreign_reactivated", decision="allowed", resource_type="door", resource_id=door_key(station_id, relay),
+                          reason="program_enabled_again")
+                    cleared.append(door_key(station_id, relay))
+    return cleared
 
 
 def clear_pause(conn: sqlite3.Connection, station_id: str, relay: int) -> None:

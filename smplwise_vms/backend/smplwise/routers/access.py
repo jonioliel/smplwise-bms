@@ -354,7 +354,9 @@ SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directo
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a
 # system permission or with rbac.assign itself (no delegating the delegation), a custom role with a sensitive grant.
-DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage"]  # CR-038 8.2: the three plain ticket grants
+# DOORWIN2-295 (CR-039 7.2): door_windows_guard (end a running window) is delegable by default; door_windows_manager, emergency_lock and emergency_open are NOT
+# (a delegated administrator cannot hand out building-wide hold-open or emergency rights unless the owner adds them to `rbac.delegable_roles`).
+DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard"]  # CR-038 8.2: the three plain ticket grants
 NEVER_DELEGABLE = {"system_admin", "site_admin"}
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))
 SCOPE_TABLES = {"site": "sites", "building": "buildings", "floor": "floors"}
