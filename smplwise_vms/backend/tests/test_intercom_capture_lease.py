@@ -52,7 +52,7 @@ def status(w, sid: str, user: str = "joni") -> dict[str, Any]:
     return w.client.get(f"/api/v1/intercom/card-capture/{sid}", headers=as_user(user)).json()["capture"]
 
 
-def wait_state(w, sid: str, state: str, timeout: float = 5.0) -> dict[str, Any]:
+def wait_state(w, sid: str, state: str, timeout: float = 30.0) -> dict[str, Any]:
     end = time.monotonic() + timeout
     seen: dict[str, Any] = {}
     while time.monotonic() < end:

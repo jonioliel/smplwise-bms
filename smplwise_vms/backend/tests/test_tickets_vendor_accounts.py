@@ -21,7 +21,6 @@ def s4(settings, monkeypatch):
     return build_s4(settings, monkeypatch)
 
 
-TODAY = installation_day()  # GATEHYGIENE: the installation's day, never the machine's (tests/hygiene.py)
 
 
 def _two_currencies(s4):
@@ -46,7 +45,8 @@ def claims(s4, qs: str = "", user: str = "joni"):
     return s4.c.get(f"{API}/tickets/costs/claims{qs}", headers=s4.h(user))
 
 
-def mark(s4, items, user: str = "joni", ref: str = "העברה 7781", day: str = TODAY):
+def mark(s4, items, user: str = "joni", ref: str = "העברה 7781", day: str | None = None):
+    day = day or installation_day()  # GATEHYGIENE: the installation's day AT THE CALL, never the machine's (tests/hygiene.py) and never the collection day
     return s4.c.post(f"{API}/tickets/costs/mark-paid", json={"items": items, "payment_ref": ref, "payment_date": day}, headers=s4.h(user))
 
 
@@ -121,7 +121,7 @@ def test_bulk_mark_paid_answers_per_item_and_is_idempotent(s4):
     assert [x["result"] for x in res["results"]] == ["paid", "stale", "not_approved", "not_found", "not_found"]
     assert (res["paid"], res["already_paid"], res["failed"]) == (1, 0, 4)
     paid = _claim(s4, a["id"])
-    assert paid["status"] == "paid" and paid["payment_ref"] == "העברה 7781" and paid["payment_date"] == TODAY
+    assert paid["status"] == "paid" and paid["payment_ref"] == "העברה 7781" and paid["payment_date"] == installation_day()
     assert _claim(s4, b["id"])["status"] == "approved" and _claim(s4, c["id"])["status"] == "submitted"
     # the same request again changes nothing: already_paid (also with the old revision), no second decision
     again = mark(s4, [items[0], items[0]]).json()
