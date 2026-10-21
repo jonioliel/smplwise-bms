@@ -375,3 +375,58 @@ def render_summary(doc, flaky_counts=None, running=False):
     if doc.get("slow_tests"):
         lines += ["slowest tests: " + "; ".join(f"{_short(s['id'], 60)} {s['seconds']:.0f}s" for s in doc["slow_tests"][:5])]
     return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------------------------------------ CLI: draft quarantine entries
+def propose(doc, owner, ticket, reason, today, days=MAX_QUARANTINE_DAYS):
+    """Draft quarantine entries for the test-level FAIL items of a red gate report. NOTHING is written or applied: the lead reads the
+    draft, edits the reasons, and commits it to gate_quarantine.json on purpose. Gate-level reds (crash, timeout, count drop, an
+    expired entry) are never drafted."""
+    out = []
+    short = str(doc.get("sha", ""))[:9]
+    for n, it in enumerate([i for i in doc.get("items", []) if i.get("status") == "FAIL" and is_test_item(i)], 1):
+        e = {"id": f"Q-{short}-{n}", "reason": reason, "owner": owner, "added": today.isoformat(),
+             "expires": (today + _dt.timedelta(days=min(days, MAX_QUARANTINE_DAYS))).isoformat(), "ticket": ticket}
+        m = _PW_ID.match(it["id"])
+        if m:
+            e.update(kind="playwright", file=m["file"], project=m["project"], title_contains=m["title"].strip()[:160])
+        else:
+            e.update(kind="backend", nodeid=it["id"])
+        out.append(e)
+    return out
+
+
+def _cli(argv):
+    import sys
+    if argv[:1] != ["propose"] or len(argv) < 2:
+        print("usage: gate_policy.py propose <gate_<b>_<sha>.json> --owner NAME --ticket ID --reason TEXT [--days 14]\n"
+              "       prints draft quarantine entries for the red test items of a report (nothing is written or applied)")
+        return 2
+    opts = {"owner": "", "ticket": "", "reason": "", "days": str(MAX_QUARANTINE_DAYS)}
+    a = argv[2:]
+    while a:
+        k = a.pop(0)
+        if k.startswith("--") and k[2:] in opts and a:
+            opts[k[2:]] = a.pop(0)
+    if not (opts["owner"] and opts["ticket"] and opts["reason"]):
+        print("--owner, --ticket and --reason are required: a quarantine entry without them is not valid")
+        return 2
+    try:
+        doc = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
+        days = int(opts["days"])
+    except (OSError, ValueError) as e:
+        print(f"cannot read: {e}")
+        return 2
+    entries = propose(doc, opts["owner"], opts["ticket"], opts["reason"], _dt.date.today(), days)
+    bad = [p for e in entries for p in validate_entry(e, _dt.date.today())]
+    if bad:
+        print("the draft is invalid: " + "; ".join(sorted(set(bad))))
+        return 2
+    print(json.dumps({"entries": entries}, indent=1, ensure_ascii=False))
+    sys.stderr.write(f"{len(entries)} draft entr{'y' if len(entries) == 1 else 'ies'}; review, then add them to scripts/gate/gate_quarantine.json by a normal commit\n")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(_cli(sys.argv[1:]))

@@ -535,3 +535,23 @@ def test_the_plan_states_the_wall_clock_target_and_the_schedule_in_force(g, monk
     g.plan(str(ROOT), "L")
     out = capsys.readouterr().out
     assert "against the 90 min target" in out and "schedule used by a gate started now" in out
+
+
+def test_propose_drafts_valid_entries_for_red_test_items_only(tmp_path, capsys):
+    doc = {"sha": "fef91ec0cdeadbeef", "items": [
+        {"category": "preview", "id": "evidence-nn1-p2.spec.ts:114 [tablet] NN1 P2: the shell follows", "status": "FAIL", "reason": "x"},
+        {"category": "backend", "id": "tests/test_a.py::test_x", "status": "FAIL", "reason": "x"},
+        {"category": "backend", "id": "shard 1", "status": "FAIL", "reason": "timeout"},
+        {"category": "baseline", "id": "pixel", "status": "FAIL", "reason": "low"},
+        {"category": "backend", "id": "tests/test_b.py::test_y", "status": "FLAKY", "reason": ""}]}
+    out = pol.propose(doc, "lead", "GATEEFF-295", "stale vs intended change", TODAY)
+    assert [e["kind"] for e in out] == ["playwright", "backend"]
+    assert all(pol.validate_entry(e, TODAY) == [] for e in out)
+    assert out[0]["file"] == "evidence-nn1-p2.spec.ts" and out[0]["project"] == "tablet" and out[1]["nodeid"] == "tests/test_a.py::test_x"
+    assert (dt.date.fromisoformat(out[0]["expires"]) - TODAY).days == 14
+    assert pol.propose(doc, "lead", "GATEEFF-295", "r", TODAY, days=99)[0]["expires"] == out[0]["expires"]      # never longer than 14 days
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps(doc))
+    assert pol._cli(["propose", str(p), "--owner", "lead"]) == 2                                              # ticket + reason are required
+    assert pol._cli(["propose", str(p), "--owner", "lead", "--ticket", "GATEEFF-295", "--reason", "stale"]) == 0
+    assert len(json.loads(capsys.readouterr().out)["entries"]) == 2
