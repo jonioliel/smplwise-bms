@@ -613,9 +613,9 @@ export class TicketsContacts extends LitElement {
   private row(c: Contact): TemplateResult {
     return html`<button type="button" role="listitem" class=${`crow ${c.active ? '' : 'off'}`} aria-current=${String(c.id === this.selected)} data-contact-item=${c.id} @click=${() => this.open(c)}>
       <span class="av" aria-hidden="true">${initials(c.display_name)}</span>
-      <span><b>${bidi(c.display_name)}</b><small>${bidi(c.vendor_name ?? c.company ?? '') || ' '}</small></span>
+      <span><b>${bidi(c.display_name)}</b><small>${bidi(c.vendor_name ?? c.company ?? '') || ' '}</small>${this.markerChip(c)}</span>
       <span class="ltr hide-p">${c.phone ?? '–'}</span>
-      <span class="hide-p mut">${LANG_NAMES[c.lang]}${this.markerChip(c)}</span>
+      <span class="hide-p mut">${LANG_NAMES[c.lang]}</span>
       <span class="chs" aria-label=${tt(`ch_${c.preferred_channel}` as TicketTextKey)}>${CONTACT_CHANNELS.map((ch) => html`<span class=${c.preferred_channel === ch ? 'on' : ''}>${this.chIcon(ch)}</span>`)}</span>
     </button>`;
   }
