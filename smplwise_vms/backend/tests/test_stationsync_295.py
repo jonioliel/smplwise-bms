@@ -185,8 +185,16 @@ def _verdict(raw: dict, revision: int = 4, person_id: str = "u") -> bool | None:
     return age.revocation_pending_verdict(age.access_state_from_raw(raw, user_id="u"), person_id=person_id, revision=revision)
 
 
-def test_false_only_for_present_same_revision_and_six_empty_arrays():
-    assert _verdict(_state()) is False
+def _evidence(raw: dict, revision: int = 4, person_id: str = "u") -> str | None:
+    return age.revocation_evidence_verdict(age.access_state_from_raw(raw, user_id="u"), person_id=person_id, revision=revision)
+
+
+def test_the_clean_looking_shape_is_only_for_present_same_revision_and_six_empty_arrays_and_is_never_a_proof():
+    """WKV2B-295: what used to be False (proven clean) is now UNKNOWN as a verdict and `revoked_unverified` as evidence (v1 proves nothing)."""
+    assert _verdict(_state()) is None
+    assert _evidence(_state()) == "revoked_unverified"
+    assert _evidence(_state(), revision=5) is None
+    assert _evidence(_state(), person_id="v") is None
 
 
 def test_a_revision_mismatch_is_unknown_never_false():
@@ -228,8 +236,9 @@ def test_the_reader_seam_is_asked_for_the_exact_person_and_revision():
         asked.append((user_id, revision))
         return _state()
 
-    assert age.revocation_pending_from(reader, "u", 4) is False
-    assert asked == [("u", 4)]
+    assert age.revocation_pending_from(reader, "u", 4) is None  # WKV2B-295: v1 never proves a revoke
+    assert age.revocation_evidence_from(reader, "u", 4) == "revoked_unverified"
+    assert asked == [("u", 4), ("u", 4)]
 
 
 @pytest.mark.parametrize("revision", [True, 0, -1, "4", None, 4.0])
@@ -274,9 +283,10 @@ def test_the_live_engine_stays_refused_and_without_a_reader_is_unknown(monkeypat
 def test_the_live_engine_passes_an_injected_fake_reader_through_the_predicate(monkeypatch):
     monkeypatch.setattr(ag, "GO_LIVE_PERMITTED", True)
     eng = WiskeyServiceEngine(settings=None, access_state_reader=lambda uid, rev: _state(user_id=uid, person_revision=rev))
-    assert eng.revocation_pending("u", 4) is False
+    assert eng.revocation_pending("u", 4) is None  # WKV2B-295: v1 never proves a revoke
+    assert eng.revocation_evidence("u", 4) == "revoked_unverified"
     eng = WiskeyServiceEngine(settings=None, access_state_reader=lambda uid, rev: _state(user_id=uid, person_revision=rev + 1))
-    assert eng.revocation_pending("u", 4) is None
+    assert eng.revocation_pending("u", 4) is None and eng.revocation_evidence("u", 4) is None
 
 
 # ================================================================ the central revocation predicate (separate, same readback)

@@ -149,7 +149,8 @@ def revocation_verdict(state: AccessState | Unknown, *, requested_revision: int,
                        last_known_stations: frozenset[str] | None = None) -> bool | None:
     """True = a revocation is still pending, False = none, None = cannot tell. See the module docstring. A v2 answer is judged by
     `wiskey_access_state.revocation_verdict_v2` (WisKey's central_revoked, the F-02 last-known cross-check) AND Arx's own central
-    predicate at the same revision (`central_revoked_at`); `last_known_stations` None leaves a v2 answer UNKNOWN."""
+    predicate at the same revision (`central_revoked_at`); `last_known_stations` None leaves a v2 answer UNKNOWN.
+    WKV2B-295: a v1 answer is True or None, never False - it does not prove a revoke (its clean-looking shape is `revocation_evidence`)."""
     if not isinstance(state, AccessState):
         return None
     if state.schema_version == was.SCHEMA_V2:
@@ -159,6 +160,12 @@ def revocation_verdict(state: AccessState | Unknown, *, requested_revision: int,
         return verdict
     if state.schema_version != was.SCHEMA_V1:
         return None
+    return True if _v1_status(state, requested_revision=requested_revision, central_revoked_at=central_revoked_at) is True else None
+
+
+def _v1_status(state: AccessState, *, requested_revision: int, central_revoked_at: int | None) -> bool | None:
+    """This consumer's v1 judgement, unchanged (R11-I1-03): True = pending, False = the clean-looking shape, None = cannot tell.
+    WKV2B-295: that False is not a proof; it never leaves this module as a boolean verdict (see `revocation_evidence`)."""
     if state.presence == "delete_pending":
         return True
     if state.presence == "absent":
@@ -172,6 +179,19 @@ def revocation_verdict(state: AccessState | Unknown, *, requested_revision: int,
     if not _pos_int(central_revoked_at) or central_revoked_at != requested_revision:
         return None
     return False
+
+
+def revocation_evidence(state: AccessState | Unknown, *, requested_revision: int, central_revoked_at: int | None,
+                        last_known_stations: frozenset[str] | None = None) -> str | None:
+    """WKV2B-295: pending / verified_clean (v2 only, with Arx's own central predicate at the same revision) / revoked_unverified (a v1
+    answer in the clean-looking shape beside Arx's central predicate: "revoked, not verified by the other side") / None (UNKNOWN)."""
+    if not isinstance(state, AccessState):
+        return None
+    v1 = _v1_status(state, requested_revision=requested_revision, central_revoked_at=central_revoked_at) if state.schema_version == was.SCHEMA_V1 else None
+    evidence = was.evidence_of(state, v1, person_id=state.user_id, revision=requested_revision, last_known_stations=last_known_stations)
+    if evidence == was.EVIDENCE_VERIFIED and (not _pos_int(central_revoked_at) or central_revoked_at != requested_revision):
+        return None
+    return evidence
 
 
 class RevisionBoundAccessState(Protocol):
@@ -189,6 +209,17 @@ def revocation_pending_at(port: RevisionBoundAccessState, user_id: str, revision
         return None
     return revocation_verdict(parse_access_state(frame, user_id=user_id, revision=revision, expect=expect), requested_revision=revision,
                               central_revoked_at=central_revoked_at, last_known_stations=last_known_stations)
+
+
+def revocation_evidence_at(port: RevisionBoundAccessState, user_id: str, revision: int, *, central_revoked_at: int | None,
+                           expect: int | None = None, last_known_stations: frozenset[str] | None = None) -> str | None:
+    """WKV2B-295: `revocation_pending_at`, answered as evidence (pending / verified_clean / revoked_unverified) or None (UNKNOWN)."""
+    try:
+        frame = port.access_state(user_id, revision)
+    except Exception:  # noqa: BLE001 - a transport loss is UNKNOWN
+        return None
+    return revocation_evidence(parse_access_state(frame, user_id=user_id, revision=revision, expect=expect), requested_revision=revision,
+                               central_revoked_at=central_revoked_at, last_known_stations=last_known_stations)
 
 
 def _row_current(row: Assignment, person_revision: int) -> bool:

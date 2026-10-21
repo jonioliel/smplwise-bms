@@ -790,11 +790,11 @@ EXPORT_HEADERS: dict[str, dict[str, str]] = {
 # the screen's own state words (frontend/src/i18n/access-external.ts st_*), so the file reads like the list
 STATE_TEXT: dict[str, dict[str, str]] = {
     "he": {"draft": "טיוטה", "pending": "ממתין לאישור", "pushing": "נשלח · ממתין לתשובה", "verified": "פעיל · אומת", "accepted": "פעיל · טרם אומת",
-           "sync": "פעיל · שינוי ממתין", "unknown": "לא ידוע", "revoking": "בביטול · התראה כל שעה", "revoked": "בוטל", "ended": "הסתיים",
+           "sync": "פעיל · שינוי ממתין", "unknown": "לא ידוע", "revoking": "בביטול · התראה כל שעה", "revoked": "בוטל", "revoked_unverified": "בוטל · לא אומת בצד השני", "ended": "הסתיים",
            "refused": "נדחה", "failed": "נכשל", "gone": "נסגר · אושר ידנית שאינו קיים"},
     "en": {"draft": "Draft", "pending": "Awaiting approval", "pushing": "Sent · awaiting answer", "verified": "Active · verified",
            "accepted": "Active · not yet verified", "sync": "Active · change pending", "unknown": "Unknown", "revoking": "Revoking · hourly alert",
-           "revoked": "Revoked", "ended": "Ended", "refused": "Refused", "failed": "Failed", "gone": "Closed · confirmed gone"},
+           "revoked": "Revoked", "revoked_unverified": "Revoked · not verified by the other side", "ended": "Ended", "refused": "Refused", "failed": "Failed", "gone": "Closed · confirmed gone"},
 }
 CATEGORY_TEXT = {"he": {"contractor": "קבלן", "visitor": "מבקר"}, "en": {"contractor": "Contractor", "visitor": "Visitor"}}
 SOURCE_TEXT = {"he": {"manual": "ידני", "ticket": "קריאה", "rfq_order": "הזמנת עבודה"}, "en": {"manual": "Manual", "ticket": "Ticket", "rfq_order": "Work order"}}
@@ -839,6 +839,8 @@ def ui_state(p: dict[str, Any]) -> str:
         return "pushing"
     if s == "active":
         return "sync" if p.get("needs_push") else "verified" if p.get("scope_verified") else "accepted"
+    if s in ("ended", "revoked") and p.get("revoke_proof") == "unverified":
+        return "revoked_unverified"  # WKV2B-295: the strip ended on a v1 answer - revoked, not verified by the other side
     return s if s in ("unknown", "revoking", "ended", "revoked", "refused") else "failed"
 
 

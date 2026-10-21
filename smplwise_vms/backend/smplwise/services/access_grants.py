@@ -67,6 +67,7 @@ from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize,
 from . import intercom_authority as ia
 from . import intercom_write_journal as wj
 from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
+from .wiskey_access_state import EVIDENCE_UNVERIFIED
 
 log = logging.getLogger("smplwise.access_grants")
 
@@ -113,6 +114,11 @@ PROVISION_RETRY_S = 300     # E1: at most every 5 minutes ...
 PROVISION_ATTEMPTS = 12     # ... for one hour, then `failed`
 REVOKE_BACKOFF_BASE_S = 15  # F1: a revoke that is not yet verified is retried with exponential backoff (15 s, 30 s, ... capped) ...
 REVOKE_BACKOFF_CAP_S = 300  # ... at most every 5 minutes
+# WKV2B-295: how a finished revoke was proven. `verified` = a v2 answer (NULL = finished before WKV2B, or not through a strip: no claim);
+# `unverified` = "revoked, not verified by the other side": Arx's own readback showed the revoked state and a v1 answer looked clean, but
+# v1 never proves a revoke. The two are different results on every screen.
+REVOKE_VERIFIED = "verified"
+REVOKE_UNVERIFIED = "unverified"
 REVOKE_REALERT_S = 3600     # F1: the managers are told again each hour a grant stays `revoking`
 REVOKE_ALERT_S = 120        # a revoke WisKey did not acknowledge alerts the managers after 2 minutes
 RETENTION_DAYS = 365        # CR 2.6: grant rows (ids only) 12 months after their end
@@ -1473,6 +1479,8 @@ def sync_status(g: dict[str, Any]) -> dict[str, Any]:
     verified = accepted and scope_is_proven(g)
     pending = state in ("approved", "provisioning", "unknown") or (state == "active" and needs_push)
     return {"needs_push": needs_push, "pending_sync": pending, "scope_verified": verified,
+            # WKV2B-295: only on a grant that finished through a strip; None otherwise
+            "revoke_proof": g.get("revoke_proof") if state in FINAL else None,
             "scope_verified_at": g.get("scope_proof_at") if verified else None,
             "doors_state": "verified_central" if verified else "accepted" if accepted else "desired" if state in LIVE else None}
 
@@ -2549,6 +2557,7 @@ class Worker:
             return None
         engine = engine_for(db)
         outcome = "stripped"
+        proof = REVOKE_VERIFIED
         if link is not None:  # always, since R5-A1 (a missing link is decided above): never a "done" without the readback
             try:
                 person = engine.get_person(link["wiskey_person_id"])
@@ -2570,8 +2579,17 @@ class Worker:
                 # GRANTS3-295 (X5, CR 4.5 "card removal at grant end is part of R1"): WisKey's revoke-all keeps the cards, so every card
                 # of the person Arx created is removed by its id (cards/remove), then read again
                 person = self._remove_cards(engine, person)
-                if not self._revoked(person) or not revocation_proven(person, engine.revocation_pending(person.id, person.revision)):
+                if not self._revoked(person):
                     raise EngineError("unknown", "revoke_unverified")
+                if not revocation_proven(person, engine.revocation_pending(person.id, person.revision)):
+                    # WKV2B-295 (owner decision 2026-10-21): only a v2 answer proves a revoke. A v1 answer in the clean-looking shape, beside
+                    # Arx's own central predicate on the same readback, ends the grant as "revoked, not verified by the other side"
+                    # (`revoke_proof` = unverified); anything else stays `revoking`.
+                    evidence = getattr(engine, "revocation_evidence", None)
+                    if evidence is None or evidence(person.id, person.revision) != EVIDENCE_UNVERIFIED:
+                        raise EngineError("unknown", "revoke_unverified")
+                    proof = REVOKE_UNVERIFIED
+                    outcome = "stripped_unverified"
                 if g["credential"] == "card" and not (person.cards_known and not person.card_ids):
                     raise EngineError("unknown", "card_unverified")  # a card grant ends only on a readback that shows no card
             except EngineError as exc:
@@ -2591,11 +2609,11 @@ class Worker:
             if cur is None or cur["state"] != "revoking":
                 return None
             state = final_state_for(cur["end_reason"] or "manual")
-            done: dict[str, Any] = {"state": state, "ended_at": iso(now()), "needs_push": 0}
+            done: dict[str, Any] = {"state": state, "ended_at": iso(now()), "needs_push": 0, "revoke_proof": proof}
             if cur["credential"] == "card":
                 done["card_state"] = "removed"
             _touch(conn, g["id"], done)
-            _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome)
+            _audit(conn, None, "access.grant.end" if state == "ended" else "access.grant.revoked", g["id"], reason=cur["end_reason"], outcome=outcome, proof=proof)
         return "revoked"
 
     @staticmethod

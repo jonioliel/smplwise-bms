@@ -1252,6 +1252,16 @@ class FakeAccessEngine:
         known = self.last_known_stations(person_id) if self.last_known_stations is not None else None
         return revocation_pending_from(self.access_state_reader, person_id, revision, last_known_stations=known)
 
+    def revocation_evidence(self, person_id: str, revision: int):
+        """WKV2B-295: the same reader and gates as `revocation_pending`, answered as evidence (pending / verified_clean / revoked_unverified)."""
+        from smplwise.services.access_grant_engine import revocation_evidence_from
+
+        self._gate("revocation_pending")
+        if self.status_unknown:
+            return None
+        known = self.last_known_stations(person_id) if self.last_known_stations is not None else None
+        return revocation_evidence_from(self.access_state_reader, person_id, revision, last_known_stations=known)
+
     def settle_revocations(self) -> None:
         """The stations took the removals: the central sync status shows no pending revocation any more."""
         self.pending_revocations.clear()

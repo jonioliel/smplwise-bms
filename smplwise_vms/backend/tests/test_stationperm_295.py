@@ -192,12 +192,13 @@ def test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending
     assert "st-a" not in env.person()["doors"] and env.person()["overrides"]["st-a"] == "deny"
     env.engine.settle_revocations()
     s = env.post("st-a", "sync")
-    assert s.status_code == 200 and s.json()["sync_state"] == "applied", s.text
+    # WKV2B-295: the pending work is gone, but a v1 answer never proves a revoke: the block is in place, "not verified by the other side"
+    assert s.status_code == 200 and s.json() == {"sync_state": "unverified", "code": "revoked_unverified"}, s.text
     assert env.engine.updates[-1]["method"] == "set_station_access" and len(env.engine.updates) == 1, "already blocked: the sync only read back"
 
 
 def test_follow_groups_removes_the_personal_entry_and_the_group_applies_again(env):
-    assert env.put("st-a", "deny").json()["sync_state"] == "applied"
+    assert env.put("st-a", "deny").json() == {"outcome": "decided", "sync_state": "unverified", "code": "revoked_unverified"}
     r = env.put("st-a", "inherit")
     assert r.status_code == 200 and r.json()["sync_state"] == "applied", r.text
     assert "st-a" not in env.person()["overrides"] and env.person()["doors"]["st-a"] == [1]
@@ -304,7 +305,7 @@ def test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written(s
     assert ok.status_code == 200 and ok.json()["sync_state"] == "applied", ok.text
     assert e.person()["policy"] == NATIVE, "the policy is untouched"
     assert all(set(u) == {"method", "overrides", "doors"} for u in e.engine.updates)
-    assert e.put("st-a", "deny").json()["sync_state"] == "applied", "a block never needs the policy"
+    assert e.put("st-a", "deny").json()["sync_state"] == "unverified", "a block never needs the policy (v1: in place, not verified by the other side)"
 
 
 def test_an_unreadable_policy_refuses_an_allow_but_not_a_block(settings, monkeypatch):
@@ -342,7 +343,7 @@ def test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it(env)
     assert env.row("st-a")["effect"] == "deny", "the Arx decision stands"
     env.engine.offline = False
     s = env.post("st-a", "sync")
-    assert s.status_code == 200 and s.json()["sync_state"] == "applied", s.text
+    assert s.status_code == 200 and s.json()["sync_state"] == "unverified" and s.json()["code"] == "revoked_unverified", s.text
 
 
 def test_a_revision_moved_in_wiskey_is_reread_once(env):
