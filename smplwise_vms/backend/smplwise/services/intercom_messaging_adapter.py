@@ -306,5 +306,10 @@ class MessagingAdapter:
             self.forget()  # the next dialog asks again
         return result
 
+    def send_template(self, sender: Any, **kw: Any) -> SendResult:
+        """CR-W11TPL-295: a template send through `wa_template_send.TemplateSender` (injected, so a test hands it a fake transport).
+        Everything is gated there by the switch AND TEMPLATE_SEND_SUPPORTED (False): nothing reaches WisKey today. No route calls this yet."""
+        return sender.send(**kw).as_send_result()
+
 
 MESSAGING = MessagingAdapter()
