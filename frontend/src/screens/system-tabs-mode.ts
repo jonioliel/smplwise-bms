@@ -1,4 +1,5 @@
 import { placeStrings } from './tabs-place-strings';
+import { settingsNavStrings } from './settings-nav-strings';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
@@ -8,6 +9,7 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
+  SETTINGS_NAVS, ownSettingsNav, saveOwnSettingsNav, type SettingsNav,
   DD_PANELS, DD_PANEL_LABEL, DD_PHONES, DD_PHONE_LABEL, DD_PLACES, asDdPlace, installationDdPlace, ownDdPlace, saveOwnDdPlace, DD_PICKERS, DD_PICKER_LABEL, DD_RINGS, DD_RING_LABEL, DD_SEARCHES, DD_SEARCH_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPanel, asDdPhone, asDdPicker, asDdRing, asDdSearch, asDdSize, asDdStyle, asTabMode, installationDdPanel, installationDdPhone, installationDdPicker, installationDdRing, installationDdSearch, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPanel, ownDdPhone, ownDdPicker, ownDdRing, ownDdSearch, ownDdSize, ownDdStyle, ownTabsMode, resolveDdPanel, resolveDdRing, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPanel, saveOwnDdPhone, saveOwnDdPicker, saveOwnDdRing, saveOwnDdSearch, saveOwnDdSize, saveOwnDdStyle,
   saveOwnTabsMode, setInstallationTabsMode,
   type DdPlace, type DdPanel, type DdPanelGroups, type DdPhone, type DdPicker, type DdRing, type DdRingGroups, type DdSearch, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
@@ -62,11 +64,13 @@ export class SystemTabsMode extends LitElement {
   /** 2026-10-17: the header dropdown placement (one global value, installation + own). */
   @state() private plInst: DdPlace = installationDdPlace();
   @state() private plOwn: DdPlace | null = ownDdPlace();
+  /** PHONENAV-295: the user's own Settings navigation on a phone (null = the tab row). */
+  @state() private snOwn: SettingsNav | null = ownSettingsNav();
   @state() private canEdit = false;
   @state() private busy = false;
   @state() private message = '';
   /** Which card the status line belongs to (the tabs / style cards, the phone card, or the camera picker card). */
-  @state() private scope: 'style' | 'phone' | 'picker' | 'place' = 'style';
+  @state() private scope: 'style' | 'phone' | 'picker' | 'place' | 'settings-nav' = 'style';
   @state() private error = '';
   private stop?: () => void;
 
@@ -226,6 +230,7 @@ export class SystemTabsMode extends LitElement {
       this.seOwn = ownDdSearch();
       this.plInst = installationDdPlace();
       this.plOwn = ownDdPlace();
+      this.snOwn = ownSettingsNav();
     });
     void this.load();
   }
@@ -492,6 +497,32 @@ export class SystemTabsMode extends LitElement {
     }
   }
 
+  private async saveSettingsNav(v: SettingsNav) {
+    this.scope = 'settings-nav';
+    this.busy = true;
+    this.error = '';
+    try {
+      await saveOwnSettingsNav(v);
+      this.snOwn = ownSettingsNav();
+      this.flash(settingsNavStrings().saved);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderSettingsNavCard() {
+    const L = settingsNavStrings();
+    const cur = this.snOwn ?? 'tabs';
+    return html`<sw-card heading=${L.title} data-settings-nav-card>
+      <fieldset data-settings-nav-own>
+        ${SETTINGS_NAVS.map((m) => html`<label class="opt"><input type="radio" name="settings-nav-own" value=${m} data-settings-nav=${m} .checked=${cur === m} ?disabled=${this.busy} @change=${() => void this.saveSettingsNav(m)} /><span class="t">${L.options[m]}</span></label>`)}
+      </fieldset>
+      <div aria-live="polite">${this.message && this.scope === 'settings-nav' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'settings-nav' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
+    </sw-card>`;
+  }
+
   private renderPlaceCard(ddInstDisabled: boolean) {
     const L = placeStrings();
     return html`<sw-card heading=${L.title} subheading=${L.sub} data-dd-place-card>
@@ -731,7 +762,7 @@ export class SystemTabsMode extends LitElement {
       </div>
       <div class="effective" data-dd-picker-effective><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PICKER_LABEL[this.pkOwn ?? this.pkInst]}, חיפוש ${DD_SEARCH_LABEL[this.seOwn ?? this.seInst]}</span></div>
       <div aria-live="polite">${this.message && this.scope === 'picker' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'picker' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
-    </sw-card>${this.renderPlaceCard(ddInstDisabled)}`;
+    </sw-card>${this.renderPlaceCard(ddInstDisabled)}${this.renderSettingsNavCard()}`;
   }
 }
 
