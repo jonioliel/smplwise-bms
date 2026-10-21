@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { actionsOf, bucketOf, counts, datesText, evidenceRefOk, goneReferenceOk, ladder, narrowWindow, readOutcome, readbackView, uiState, visible, whyKey, wiskeyOffline } from '../src/access-external/model';
+import { mayOpenIdentityCard, actionsOf, bucketOf, counts, datesText, evidenceRefOk, goneReferenceOk, ladder, narrowWindow, readOutcome, readbackView, uiState, visible, whyKey, wiskeyOffline } from '../src/access-external/model';
 import { XT_KEYS, XT_TABLES, xt } from '../src/i18n/access-external';
 import type { Grant } from '../src/api/access-grants';
 import { grantOf } from './access-external-mocks';
@@ -140,4 +140,13 @@ test('WisKey is called offline only when the server says so, and only while the 
   expect(wiskeyOffline({ enabled: false, wiskey: { reachable: false } })).toBe(false);
   expect(wiskeyOffline({ enabled: true })).toBe(false); // an older server without the field: not claimed
   expect(wiskeyOffline(null)).toBe(false);
+});
+
+test('DIRPERM-295: the identity card opens for tickets.configure, tickets.directory or the grant permission - nobody else', () => {
+  const held = (...p: string[]) => (x: string) => p.includes(x);
+  expect(mayOpenIdentityCard(false, held('tickets.directory'))).toBe(true);
+  expect(mayOpenIdentityCard(false, held('tickets.configure'))).toBe(true);
+  expect(mayOpenIdentityCard(true, held())).toBe(true);
+  expect(mayOpenIdentityCard(false, held('tickets.handlers', 'tickets.manage'))).toBe(false);
+  expect(mayOpenIdentityCard(false, held())).toBe(false);
 });

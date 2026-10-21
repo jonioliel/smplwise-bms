@@ -1155,11 +1155,17 @@ def provision_now(db: Database, principal: Principal, grant_id: str, request_id:
         return grant_row(conn, grant_id)
 
 
+def may_edit_contacts(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """The right to edit a directory contact (integ/2100 SMALL-294): `tickets.configure` or the narrower `tickets.directory`, both at the
+    installation. Same rule as services/tickets/contacts.may_edit_directory, from a connection and a principal."""
+    return any(authorize(conn, principal, perm, INSTALLATION).allowed for perm in ("tickets.configure", "tickets.directory"))
+
+
 # ---------------------------------------------------------------- links (owner answer 1: manual, no authority union)
 
 def match_link(db: Database, principal: Principal, contact_id: str, wiskey_person_id: str, request_id: str | None = None) -> dict[str, Any]:
     """Link an existing WisKey person to a contact (manual only, never by name or phone): `access.people.manage` on every station
-    of that person AND the right to edit the contact (`tickets.configure`)."""
+    of that person AND the right to edit the contact (`tickets.configure` or `tickets.directory`)."""
     if not ia.valid_id(wiskey_person_id):
         raise _invalid("wiskey_person_id", "format")
     try:
@@ -1169,7 +1175,7 @@ def match_link(db: Database, principal: Principal, contact_id: str, wiskey_perso
             raise ApiError(404, "access_person_not_found", "האדם לא נמצא במערכת הכניסה.") from None
         raise ApiError(503, "access_grant_engine_unavailable", "מערכת הכניסה אינה זמינה כעת.", details={"outcome": "not_sent"}) from None
     with db.connection(label="access_grants.match") as conn:
-        if not authorize(conn, principal, "tickets.configure", INSTALLATION).allowed:
+        if not may_edit_contacts(conn, principal):
             _audit(conn, principal, "access.person_link.match", contact_id, decision="denied", reason="no_binding", resource_type="contact", request_id=request_id)
             raise forbidden(permission="tickets.configure", target_type="installation", target_id="*", reason="no_binding")
         stations = _complete_stations(person)  # R5-A4: None = an incomplete record - people.manage must be unrestricted
@@ -1200,7 +1206,7 @@ def unlink(db: Database, principal: Principal, link_id: str, request_id: str | N
         link = link_row(conn, link_id)
         if link is None:
             raise ApiError(404, "access_link_not_found", "הקישור לא נמצא.")
-        if not authorize(conn, principal, "tickets.configure", INSTALLATION).allowed:
+        if not may_edit_contacts(conn, principal):
             raise forbidden(permission="tickets.configure", target_type="installation", target_id="*", reason="no_binding")
         marks = ",".join("?" * len(LIVE))
         for r in conn.execute(f"SELECT * FROM access_grants WHERE link_id = ? AND state IN ({marks})", (link_id, *LIVE)).fetchall():

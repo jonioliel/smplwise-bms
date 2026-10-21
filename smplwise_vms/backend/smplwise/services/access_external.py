@@ -556,7 +556,7 @@ def identity_of(conn: sqlite3.Connection, principal: Principal, contact_id: str)
     and an unknown id - gets the same 404."""
     contact = ag.contact_row(conn, contact_id)
     anywhere = permissions_anywhere(conn, principal)
-    configure = authorize(conn, principal, "tickets.configure", INSTALLATION).allowed
+    configure = ag.may_edit_contacts(conn, principal)  # tickets.configure or tickets.directory
     if contact is None or contact.get("kind") != "person" or not (configure or ag.PERMISSION in anywhere):
         raise ApiError(404, "access_identity_not_found", "לא נמצא.")
     link = ag.link_of_subject(conn, "contact", contact_id)
@@ -822,9 +822,9 @@ def export_mark(user_id: str) -> None:
 
 def may_export(conn: sqlite3.Connection, principal: Principal) -> bool:
     """Who may take the file: a holder of the grant permission or of people.read somewhere (each row is still checked with `visible`),
-    or a directory editor (tickets.configure)."""
+    or a directory editor (tickets.configure / tickets.directory)."""
     anywhere = permissions_anywhere(conn, principal)
-    return ag.PERMISSION in anywhere or ia.PEOPLE_READ in anywhere or authorize(conn, principal, "tickets.configure", INSTALLATION).allowed
+    return ag.PERMISSION in anywhere or ia.PEOPLE_READ in anywhere or ag.may_edit_contacts(conn, principal)
 
 
 def ui_state(p: dict[str, Any]) -> str:

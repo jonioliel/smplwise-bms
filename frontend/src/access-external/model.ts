@@ -312,3 +312,9 @@ export function wiskeyOffline(reply: { enabled: boolean; wiskey?: { reachable: b
 
 /** The weekday names start on Sunday (0), the installation's digest day. */
 export const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+/** The server's rule for the identity card (services/access_external.identity_of): the grant permission somewhere, or a directory editor -
+ * `tickets.configure` or the narrower `tickets.directory` (SMALL-294 follow-up). `can` is the installation-scope check of the session. */
+export function mayOpenIdentityCard(canAnywhereGrant: boolean, can: (permission: string) => boolean): boolean {
+  return canAnywhereGrant || can('tickets.configure') || can('tickets.directory');
+}
