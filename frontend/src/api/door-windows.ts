@@ -8,7 +8,8 @@ import { get, post, put } from './client';
 import { commandId } from './request-id';
 
 export type Tier = 'program' | 'prepared';
-export type RuleKind = 'weekly' | 'once';
+export type RuleKind = 'weekly' | 'once' | 'event';
+export type TriggerSource = 'ha_event' | 'arx_automation';
 export type RuleState = 'draft' | 'enabled' | 'paused' | 'retired';
 export type CalendarPolicy = 'skip_holidays' | 'holidays_like_friday' | 'ignore_calendar';
 export type OccState =
@@ -48,6 +49,52 @@ export interface Rule {
   manageable?: boolean;
   doors: { station_id: string; relay: number; key: string; label: string; visible: boolean }[];
   periods: Period[];
+  /** DOORWIN2-295: an `event` rule's trigger (never the token: only whether one exists) and the Home Assistant action text with a placeholder. */
+  trigger?: RuleTrigger | null;
+  snippet?: string;
+}
+
+export interface RuleTrigger {
+  source: TriggerSource;
+  duration_s: number;
+  automation_id: string | null;
+  allowed_from: string | null;
+  allowed_to: string | null;
+  max_per_day: number;
+  cooldown_s: number;
+  arm_state: 'simulate' | 'armed';
+  has_token: boolean;
+  token_set_at: string | null;
+  can_arm: boolean;
+}
+
+export interface TriggerBody {
+  source: TriggerSource;
+  duration_s: number;
+  allowed_from?: string | null;
+  allowed_to?: string | null;
+  max_per_day?: number;
+  cooldown_s?: number;
+  automation_id?: string | null;
+  regenerate_token?: boolean;
+}
+
+export interface TriggerLogRow {
+  at: string;
+  source: 'arx_button' | 'arx_automation' | 'ha_event';
+  door: string;
+  decision: 'started' | 'extended' | 'simulated' | 'refused';
+  reason: string | null;
+  end_at: string | null;
+}
+
+export interface ForeignPaused {
+  door: string;
+  station_id: string;
+  relay: number;
+  label: string;
+  incident_id: string | null;
+  paused_at: string | null;
 }
 
 export interface Occurrence {
@@ -78,6 +125,10 @@ export interface WindowsState {
   rules: Rule[];
   occurrences: Occurrence[];
   now: string;
+  /** DOORWIN2-295 */
+  automation_actor?: boolean;
+  foreign_paused?: ForeignPaused[];
+  triggers?: TriggerLogRow[];
 }
 
 export interface RuleBody {
@@ -87,6 +138,7 @@ export interface RuleBody {
   notes?: string;
   doors: { station_id: string; relay: number }[];
   periods: { weekday?: number; on_date?: string; start: string; end: string }[];
+  trigger?: TriggerBody;
   revision?: number;
   enable?: boolean;
 }
@@ -100,12 +152,40 @@ const W = 'doors/windows';
 
 export const getWindowsState = () => get<WindowsState>(`${W}/state`);
 export const previewRule = (body: RuleBody) => post<PreviewReply>(`${W}/rules/preview`, body);
-export const createRule = (body: RuleBody) => post<{ rule: Rule }>(`${W}/rules`, { ...body, confirmed: true });
-export const updateRule = (id: string, body: RuleBody) => put<{ rule: Rule }>(`${W}/rules/${encodeURIComponent(id)}`, { ...body, confirmed: true });
+export const createRule = (body: RuleBody) => post<RuleSaved>(`${W}/rules`, { ...body, confirmed: true });
+export const updateRule = (id: string, body: RuleBody) => put<RuleSaved>(`${W}/rules/${encodeURIComponent(id)}`, { ...body, confirmed: true });
 export const ruleAction = (id: string, action: 'enable' | 'pause' | 'retire') => post<{ rule: Rule }>(`${W}/rules/${encodeURIComponent(id)}/${action}`, { confirmed: true });
 export const endNow = (occurrenceId: string) => post<{ occurrence: Occurrence }>(`${W}/occurrences/${encodeURIComponent(occurrenceId)}/end-now`, { confirmed: true });
 export const confirmClosed = (occurrenceId: string, checked: 'camera' | 'door') =>
   post<{ occurrence: Occurrence }>(`${W}/occurrences/${encodeURIComponent(occurrenceId)}/confirm-closed`, { checked, confirmed: true });
+/** DOORWIN2-295: the answer of a save carries the trigger token ONCE (and the Home Assistant action text with it) for a new `ha_event` rule. */
+export interface RuleSaved {
+  rule: Rule;
+  token?: string;
+  snippet?: string;
+}
+export const armRule = (id: string, armed: boolean) => post<{ rule: Rule }>(`${W}/rules/${encodeURIComponent(id)}/arm`, { armed, confirmed: true });
+export const newToken = (id: string) => post<{ token: string; snippet: string }>(`${W}/rules/${encodeURIComponent(id)}/token`, { confirmed: true });
+export const openFor = (station: string, relay: number, durationS: number) =>
+  post<{ decision: { decision: string; end_at: string | null } }>(`${W}/doors/${encodeURIComponent(station)}/${relay}/open-for`, { duration_s: durationS, confirmed: true });
+export const foreignHandled = (station: string, relay: number) => post<{ handled: boolean }>(`${W}/doors/${encodeURIComponent(station)}/${relay}/foreign-handled`, { confirmed: true });
+
+export interface HolidayRow {
+  date: string;
+  kind: 'holiday' | 'holiday_eve' | 'regular' | 'closed';
+  name_he: string;
+  source: 'generated' | 'manual';
+  generated_kind: 'holiday' | 'holiday_eve' | null;
+}
+export interface CalendarReply {
+  days: { on_date: string; scope_key: string; day_type: string; label: string | null }[];
+  generator: 'israel' | 'none';
+  holidays: HolidayRow[];
+}
+export const getCalendar = () => get<CalendarReply>(`${W}/calendar`);
+export const putCalendarDay = (onDate: string, dayType: HolidayRow['kind'] | 'none', label = '') =>
+  put<{ saved: number }>(`${W}/calendar`, { days: [{ on_date: onDate, day_type: dayType, label }], confirmed: true });
+
 export const getWindowSettings = () => get<{ settings: Record<string, string>; go_live_permitted: boolean }>(`${W}/settings`);
 export const putWindowSettings = (changes: Record<string, string>) =>
   put<{ settings: Record<string, string>; changed: string[] }>(`${W}/settings`, { changes, confirmed: true });
@@ -139,6 +219,7 @@ export interface Incident {
   first_sent_ms: number | null;
   last_sent_ms: number | null;
   superseded_by: string | null;
+  foreign_paused?: { door: string; label: string }[];
   can_release?: boolean;
   doors?: { door: string; label: string; phase: 'apply' | 'release'; state: DoorResult; attempts: number; code: string | null }[];
 }
@@ -152,6 +233,9 @@ export interface EmergencyState {
   drill?: Incident | null;
   scopes?: Record<EmergencyKind, Scope[]>;
   recent?: Incident[];
+  /** DOORWIN2-295: the optional home-screen entry (`doors.emergency.home_widget`); the doors whose own program an emergency LOCK paused. */
+  home_widget?: boolean;
+  foreign_paused?: ForeignPaused[];
 }
 
 export interface Prepared {
@@ -185,6 +269,8 @@ export interface EmergencySettings {
   'doors.emergency.open_enabled': string;
   'doors.emergency.automations': string;
   'doors.emergency.hold_ms': string;
+  'doors.emergency.announce_phrase'?: string;
+  'doors.emergency.home_widget'?: string;
   go_live_permitted: boolean;
   open_available: boolean;
   attested: boolean;

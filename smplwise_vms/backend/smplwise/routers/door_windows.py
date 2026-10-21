@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import secrets
 import sqlite3
 from typing import Any, Literal
 
@@ -26,9 +27,11 @@ from ..db import commit_now
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import door_emergency as de
+from ..services import door_window_triggers as dwt
 from ..services import door_windows as dw
 from ..services import door_windows_engine as dwe
 from ..services import door_windows_watch as dww
+from ..services import special_days
 
 router = APIRouter()
 
@@ -71,6 +74,7 @@ def _rule_view(conn: sqlite3.Connection, row: sqlite3.Row, labels: dict[str, dw.
         "doors": [{"station_id": s, "relay": r, "key": dw.door_key(s, r), "label": labels[dw.door_key(s, r)].label if dw.door_key(s, r) in labels else dw.door_key(s, r),
                    "visible": dw.door_key(s, r) in visible} for s, r in doc.doors],
         "periods": [{"weekday": p.weekday, "on_date": p.on_date, "start": p.start, "end": p.end} for p in doc.periods],
+        **({"trigger": dwt.trigger_view(conn, row["id"]), "snippet": dwt.snippet(row["id"])} if row["kind"] == "event" else {}),
     }
 
 
@@ -110,6 +114,12 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
         "enabled": dw.enabled(conn), "tier": engine_tier if dw.enabled(conn) else "prepared", "go_live_permitted": dwe.go_live_permitted(),
         "settings": {k.split(".")[-1]: v for k, v in dw.settings_view(conn).items()},
         "can": {"manage": bool(manage), "cancel": bool(cancel), "configure": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed},
+        "automation_actor": dw.automation_actor_on(conn),
+        "foreign_paused": [f | {"label": labels[f["door"]].label if f["door"] in labels else f["door"]} for f in dw.foreign_paused_list(conn) if f["door"] in vis_keys],
+        "triggers": [{"at": t["at"], "source": t["source"], "door": dw.door_key(t["station_id"], t["relay"]), "decision": t["decision"], "reason": t["reason"],
+                      "end_at": t["end_at"]} for t in conn.execute(
+            "SELECT at, source, station_id, relay, decision, reason, end_at FROM door_window_trigger_log WHERE station_id IS NOT NULL ORDER BY at DESC LIMIT 60").fetchall()
+            if dw.door_key(t["station_id"], t["relay"]) in vis_keys][:20],
         "doors": [{"key": d.key, "station_id": d.station_id, "relay": d.relay, "label": d.label, "station_name": d.station_name, "name": d.name, "zone": d.zone,
                    "manage": d.key in manage, "cancel": d.key in cancel, "exterior": d.key in ext} for d in sorted(visible, key=lambda d: d.label)],
         "rules": rules, "occurrences": occ, "now": dw.iso(now),
@@ -118,11 +128,12 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
 
 class RuleBody(BaseModel):
     name: str = Field(min_length=1, max_length=60)
-    kind: Literal["weekly", "once"]
+    kind: Literal["weekly", "once", "event"]
     calendar_policy: Literal["skip_holidays", "holidays_like_friday", "ignore_calendar"] = "skip_holidays"
     notes: str = Field(default="", max_length=300)
     doors: list[dict[str, Any]] = Field(min_length=1, max_length=64)
-    periods: list[dict[str, Any]] = Field(min_length=1, max_length=56)
+    periods: list[dict[str, Any]] = Field(default_factory=list, max_length=56)
+    trigger: dict[str, Any] | None = None   # an `event` rule: {source, duration_s, allowed_from, allowed_to, max_per_day, cooldown_s, automation_id, regenerate_token}
     revision: int | None = None
     enable: bool = False
     confirmed: Any = None
@@ -158,7 +169,8 @@ def _save(request: Request, principal: Principal, conn: sqlite3.Connection, body
             raise ApiError(404, "not_found", "החלון לא נמצא.")
         dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.rule_saved")  # the old scope too
     dw.require_doors(conn, principal, _body_doors(body), dw.MANAGE, "door.window.rule_saved")
-    rid = dw.save_rule(conn, principal, body.model_dump(), rule_id=rule_id, today=_today(conn, now_utc()))
+    secrets_out: dict[str, str] = {}
+    rid = dw.save_rule(conn, principal, body.model_dump(), rule_id=rule_id, today=_today(conn, now_utc()), secrets_out=secrets_out)
     row = dw.rule_row(conn, rid)
     audit(conn, actor=principal, action="door.window.rule_saved", decision="allowed", resource_type="door_window_rule", resource_id=rid, request_id=_rid(request),
           details={"revision": row["revision"], "kind": row["kind"], "doors": len(body.doors), "periods": len(body.periods), "created": rule_id is None})
@@ -168,7 +180,11 @@ def _save(request: Request, principal: Principal, conn: sqlite3.Connection, body
               details={"revision": row["revision"]})
     view = _rule_view(conn, row, dw.doors_by_key(conn), {d.key for d in dw.visible_doors(conn, principal)})
     _after_write(request, conn)
-    return {"rule": view}
+    out: dict[str, Any] = {"rule": view}
+    if secrets_out.get("token"):  # the trigger token, ONCE: it is never stored or audited in the clear
+        out["token"] = secrets_out["token"]
+        out["snippet"] = dwt.snippet(rid, secrets_out["token"])
+    return out
 
 
 @router.post("/doors/windows/rules", status_code=201)
@@ -184,6 +200,57 @@ def update_rule(body: RuleBody, request: Request, rule_id: str = Path(min_length
 
 class ConfirmBody(BaseModel):
     confirmed: Any = None
+
+
+# NOTE: the two routes below are declared BEFORE the generic `/rules/{rule_id}/{action}` route on purpose (first match wins).
+class ArmBody(BaseModel):
+    armed: bool
+    confirmed: Any = None
+
+
+@router.post("/doors/windows/rules/{rule_id}/arm")
+def arm_rule(body: ArmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Arm (or return to simulation) an event rule whose trigger is Home Assistant / an Arx automation (CR-039 9.4). Arming is refused while the
+    contract reports no automation actor: a simulated rule cannot be armed by any setting (fail closed). `access.windows.manage` on every door."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.rule_armed", dev_mode=_dev(request))
+    row = dw.rule_row(conn, rule_id)
+    if row is None or row["state"] == "retired" or row["kind"] != "event":
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.rule_armed")
+    try:
+        state = dwt.set_arm_state(conn, principal, rule_id, body.armed)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="door.window.rule_armed", decision="denied", resource_type="door_window_rule", resource_id=rule_id, reason=exc.code,
+              request_id=_rid(request))
+        commit_now(conn)
+        raise
+    audit(conn, actor=principal, action="door.window.rule_armed", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request),
+          details={"arm_state": state, "revision": row["revision"]})
+    view = _rule_view(conn, dw.rule_row(conn, rule_id), dw.doors_by_key(conn), {d.key for d in dw.visible_doors(conn, principal)})
+    _after_write(request, conn)
+    return {"rule": view}
+
+
+@router.post("/doors/windows/rules/{rule_id}/token")
+def regenerate_token(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A new secret for a Home Assistant event rule (the old one stops working at once). Shown ONCE in this answer, stored as SHA-256 only."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.token_regenerated", dev_mode=_dev(request))
+    row = dw.rule_row(conn, rule_id)
+    trig = conn.execute("SELECT source FROM door_window_triggers WHERE rule_id = ?", (rule_id,)).fetchone()
+    if row is None or row["state"] == "retired" or row["kind"] != "event" or trig is None or trig["source"] != "ha_event":
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.token_regenerated")
+    token = secrets.token_urlsafe(24)
+    at = dw.iso(now_utc())
+    conn.execute("UPDATE door_window_triggers SET token_sha256 = ?, token_set_at = ?, authorising_actor = ?, arm_state = 'simulate' WHERE rule_id = ?",
+                 (dwt.token_sha(token), at, principal.user_id, rule_id))
+    audit(conn, actor=principal, action="door.window.token_regenerated", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request))
+    commit_now(conn)
+    return {"token": token, "snippet": dwt.snippet(rule_id, token)}
 
 
 @router.post("/doors/windows/rules/{rule_id}/{action}")
@@ -224,6 +291,9 @@ def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1
     if occ["state"] in ("prepared", "planned", "armed") and occ["start_at"] > at:
         conn.execute("UPDATE door_window_occurrences SET state = 'cancelled', resolution = 'override', resolved_by = ?, resolved_at = ?, updated_at = ? WHERE id = ?",
                      (principal.user_id, at, at, occ_id))
+        # W-01: the cancel must reach the engine - the window leaves the compiled program (an exclusion by token), and the next compile never re-plans it
+        conn.execute("INSERT OR REPLACE INTO door_window_exclusions(station_id, relay, token, excluded_by, excluded_at) VALUES (?, ?, ?, ?, ?)",
+                     (occ["station_id"], occ["relay"], occ["token"], principal.user_id, at))
         outcome = "cancelled"
     elif occ["state"] in ("starting", "active", "not_started", "prepared", "armed", "planned"):
         conn.execute("""UPDATE door_window_occurrences SET state = CASE WHEN tier = 'prepared' THEN 'elapsed' ELSE 'ending' END, end_at = ?, last_reason = 'override',
@@ -240,7 +310,9 @@ def end_now(body: ConfirmBody, request: Request, occ_id: str = Path(min_length=1
     commit_now(conn)
     if outcome == "ending":
         dw.pause_door(request.app.state.db, settings_of(request), occ["station_id"], occ["relay"], occ["end_at"], why="override")
-    dw.WORKER.wake(sync=False)
+    dw.WORKER.wake(sync=outcome == "cancelled")
+    if outcome == "cancelled":  # W-01: rewrite the engine's program now, so the cancelled window cannot open the door
+        dw.sync(request.app.state.db, settings_of(request), now_utc())
     with request.app.state.db.connection(mode="read") as rconn:
         return {"occurrence": _occ_view(dw.occurrence_row(rconn, occ_id), dw.doors_by_key(rconn), {})}
 
@@ -273,13 +345,69 @@ def confirm_closed(body: CheckedBody, request: Request, occ_id: str = Path(min_l
     return {"occurrence": view}
 
 
+class OpenForBody(BaseModel):
+    duration_s: int = Field(ge=60, le=43200)
+    confirmed: Any = None
+
+
+_REFUSAL_TEXT = {
+    "closed_day": "המבנה סגור היום.", "quiet_hours": "החלון נוגע בשעות השקטות.", "crosses_midnight": "החלון חוצה חצות.", "too_long": "החלון ארוך מהמותר.",
+    "daily_cap": "הדלת הגיעה למספר החלונות המותר ליום.", "storm": "יותר מדי הפעלות בשעה האחרונה.", "relock_unconfirmed": "חזרת הדלת למצב רגיל טרם אושרה.",
+    "emergency": "מצב חירום פעיל.", "paused": "החלון הופסק ידנית.", "inside_window": "הדלת כבר בחלון פתיחה.", "overlaps_window": "החלון חופף חלון אחר.",
+    "already_covered": "הדלת כבר פתוחה לפחות עד אז.", "would_extend_running": "הארכת חלון שרץ כבויה.", "exterior_not_allowed": "דלת חיצונית אינה יכולה להיות בחלון פתיחה.",
+}
+
+
+@router.post("/doors/windows/doors/{station_id}/{relay}/open-for")
+def open_for(body: OpenForBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
+             principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The `arx_button` source (CR-039 9.1): "hold this door open for N hours", a person's confirmed click. `access.windows.manage` on the door
+    (`.cancel` is not enough). The hold is a plan row like any window; the engine holds and relocks, the watchdog confirms - nothing opens from here."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.open_for", dev_mode=_dev(request))
+    dw.require_doors(conn, principal, [(station_id, relay)], dw.MANAGE, "door.window.open_for")
+    if not dw.enabled(conn):
+        raise ApiError(409, "windows_off", "חלונות הפתיחה כבויים.")
+    door = dw.doors_by_key(conn).get(dw.door_key(station_id, relay))
+    if door is None:
+        raise ApiError(422, "door_unknown", "הדלת אינה מוכרת כרגע.")
+    commit_now(conn)
+    d = dwt.open_for(request.app.state.db, settings_of(request), now_utc(), principal, door, body.duration_s)
+    with request.app.state.db.connection() as wconn:
+        audit(wconn, actor=principal, action="door.window.open_for", decision="allowed" if d.decision in ("started", "extended") else "denied",
+              resource_type="door", resource_id=door.key, reason=d.reason or d.decision, request_id=_rid(request),
+              details={"decision": d.decision, "reason": d.reason, "occurrence_id": d.occurrence_id, "duration_s": body.duration_s})
+    if d.decision not in ("started", "extended"):
+        raise ApiError(409, "not_started", _REFUSAL_TEXT.get(d.reason or "", "החלון לא התחיל."), details={"reason": d.reason})
+    return {"decision": d.as_dict()}
+
+
+@router.post("/doors/windows/doors/{station_id}/{relay}/foreign-handled")
+def foreign_handled(body: ConfirmBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
+                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A person marks a door's foreign program as dealt with after an emergency LOCK paused it (CR-039 19.3): they enabled it again in the
+    intercom window, or decided to leave it off. Arx never re-activates a program a person made."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.foreign_handled", dev_mode=_dev(request))
+    if not (dw.may(conn, principal, dw.MANAGE, station_id) or dw.may(conn, principal, dw.CANCEL, station_id)):
+        audit(conn, actor=principal, action="door.window.foreign_handled", decision="denied", resource_type="door", resource_id=dw.door_key(station_id, relay), reason="no_permission")
+        raise ApiError(403, "forbidden", "אין הרשאה לדלת זו.")
+    if not dw.clear_foreign_paused(conn, station_id, relay):
+        raise ApiError(409, "nothing_to_clear", "אין תוכנית שהושהתה בדלת זו.")
+    audit(conn, actor=principal, action="door.window.foreign_handled", decision="allowed", resource_type="door", resource_id=dw.door_key(station_id, relay), request_id=_rid(request))
+    return {"door": dw.door_key(station_id, relay), "handled": True}
+
+
 @router.get("/doors/windows/calendar")
 def get_calendar(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:
         raise ApiError(403, "forbidden", "אין הרשאה.")
-    rows = conn.execute("SELECT on_date, scope_key, day_type, label FROM door_window_calendar WHERE on_date >= ? ORDER BY on_date",
-                        ((now_utc() - dt.timedelta(days=1)).date().isoformat(),)).fetchall()
-    return {"days": [dict(r) for r in rows]}
+    start = (now_utc() - dt.timedelta(days=1)).date()
+    rows = conn.execute("SELECT on_date, scope_key, day_type, label FROM door_window_calendar WHERE on_date >= ? ORDER BY on_date", (start.isoformat(),)).fetchall()
+    overrides = {r["on_date"]: dict(r) for r in rows if r["scope_key"] == "*"}
+    # the holiday list (CR-039 5.4): the generated Israeli holidays and eves under the manager's overrides, for the next 400 days
+    return {"days": [dict(r) for r in rows], "generator": special_days.generator_of(conn),
+            "holidays": special_days.listing(conn, start, dw.HORIZON_DAYS, overrides)}
 
 
 class CalendarDay(BaseModel):
@@ -381,6 +509,7 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
     drill = de.active_incident(conn, drill=True)
     out: dict[str, Any] = {
         "enabled": de.enabled(conn), "open_enabled": de.open_enabled(conn, settings), "hold_ms": int(de.setting(conn, de.HOLD_MS)),
+        "home_widget": de.setting(conn, de.HOME_WIDGET) == "on",  # DOORWIN2-295: the optional home-screen entry (off by default)
         "can": {"lock": can_lock, "open": can_open},
         "active": de.incident_view(conn, active, with_doors=can_lock or can_open) | {"can_release": authorize(conn, principal, de.PERMISSION[active["kind"]],
                                                                                                                 de.scope_target(active["scope_type"], active["scope_id"])).allowed}
@@ -390,6 +519,8 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
         out["scopes"] = {"lock_secure": de.scopes_for(conn, principal, "lock_secure") if can_lock else [],
                          "open": de.scopes_for(conn, principal, "open") if can_open else []}
         out["drill"] = de.incident_view(conn, drill) if drill is not None and drill["requested_by"] == principal.user_id else None
+        labels = dw.doors_by_key(conn)
+        out["foreign_paused"] = [f | {"label": labels[f["door"]].label if f["door"] in labels else f["door"]} for f in dw.foreign_paused_list(conn)]
         out["recent"] = [de.incident_view(conn, r, with_doors=False) for r in conn.execute(
             "SELECT * FROM door_emergency_incidents ORDER BY requested_at DESC LIMIT 10").fetchall()]
     return out

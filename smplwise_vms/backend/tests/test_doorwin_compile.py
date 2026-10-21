@@ -61,7 +61,7 @@ def test_a_valid_weekly_body_is_accepted():
     ({"doors": [{"station_id": "st-entry", "relay": True}]}, "invalid_doors"),
     ({"name": "  "}, "invalid_name"),
     ({"name": "x" * 61}, "invalid_name"),
-    ({"kind": "event"}, "invalid_kind"),  # CR-039 9 is not built: an event rule cannot be saved
+    ({"kind": "monthly"}, "invalid_kind"),  # an unknown kind (DOORWIN2-295 built "event": it is validated with its trigger in test_doorwin2_events.py)
     ({"periods": []}, "invalid_periods"),
 ])
 def test_invalid_bodies_are_refused_with_a_code(over, code):

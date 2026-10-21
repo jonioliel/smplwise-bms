@@ -271,7 +271,8 @@ def test_open_over_lock_in_one_step(open_on):
     assert pw.press().json()["code"] == "incident_active", "LOCK over OPEN is never one step"
 
 
-def test_e1_an_unknown_open_is_retried_at_most_three_times_10_s_apart(open_on):
+def test_e1_an_unknown_open_is_retried_at_most_three_times_10_s_apart_with_the_same_request_id(open_on):
+    """Owner decision 2026-10-21 (E-04, option C): in an emergency we always open. The repeat is bounded and carries the SAME request id every time."""
     pw = open_on
     pw.emergency.script = {f"{pw.ENTRY}:1": ["unknown"]}
     inc = pw.press("open").json()["incident"]
@@ -280,6 +281,7 @@ def test_e1_an_unknown_open_is_retried_at_most_three_times_10_s_apart(open_on):
         de.retry_tick(pw.db, pw.settings, pw.t[0])
     calls = [c for c in pw.emergency.calls if c["door"] == f"{pw.ENTRY}:1" and c["phase"] == "apply"]
     assert len(calls) == 3 and all((b["at"] - a["at"]).total_seconds() >= 10 for a, b in zip(calls, calls[1:]))
+    assert len({c["request_id"] for c in calls}) == 1, "the same request id on every attempt: the idempotency condition"
     assert incident(pw, inc["id"])["state"] == "in_effect_partial"
 
 

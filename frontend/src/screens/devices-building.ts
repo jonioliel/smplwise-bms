@@ -13,6 +13,9 @@ import { refreshTemperatureVisibility, temperatureAccess } from '../temperature/
 import type { TempUnit } from '../api/temperature';
 import { loadHomeGeneratorsChecked } from '../generator/access'; // GENWIDGET 2.9.3: the home generator widget
 import { generatorsAvailable } from '../generator/home-widget-model';
+import { loadHomeDoorsChecked } from '../door-windows/access'; // DOORWIN2-295: the home doors widget
+import { doorsWidgetAvailable, type DoorsWidgetData } from '../door-windows/home-widget-model';
+import { doorWindowsTabOn } from '../shell/nav';
 import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
 import '../components/sw-button';
@@ -1008,6 +1011,9 @@ export class DevicesBuilding extends LitElement {
   /** GENWIDGET 2.9.3: the generators the viewer sees (empty = no widget at all). */
   @state() private generators: LiveSummaryItem[] = [];
   private generatorsTimer?: number;
+  /** DOORWIN2-295: the doors widget's data (none = no widget at all) and its poll. */
+  @state() private doorsData: DoorsWidgetData = { windows: null, emergency: null };
+  private doorsTimer?: number;
   @state() private sync: HaSyncState | null = null;
   private stop: (() => void) | null = null;
   private timer = 0;
@@ -1285,7 +1291,7 @@ export class DevicesBuilding extends LitElement {
   private widgetItems(t: DeviceTree, h: HomeView): WidgetItem[] {
     return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
       elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
-      generatorsAvailable: generatorsAvailable(this.generators) });
+      generatorsAvailable: generatorsAvailable(this.generators), doorsAvailable: doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()) });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1351,6 +1357,18 @@ export class DevicesBuilding extends LitElement {
     }
   }
 
+  /** DOORWIN2-295: the doors widget - read once (nothing at all while the doors tab is off), then every 30 s only while it is offered. */
+  private async loadDoors() {
+    const d = await loadHomeDoorsChecked();
+    this.setWidgetFailed('doors', d === null && doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()));
+    if (d !== null) this.doorsData = d;
+    if (doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()) && this.doorsTimer === undefined && this.isConnected) {
+      this.doorsTimer = window.setInterval(() => {
+        if (document.visibilityState === 'visible') void this.loadDoors();
+      }, 30_000);
+    }
+  }
+
   /** UXREST2-295: the home widgets whose own read failed (home-widgets draws a failure panel with a retry in each one's slot). */
   @state() private failedWidgets: WidgetId[] = [];
   private setWidgetFailed(id: WidgetId, failed: boolean) {
@@ -1363,6 +1381,7 @@ export class DevicesBuilding extends LitElement {
     if (e.detail.id === 'elevators') void this.loadElevators();
     else if (e.detail.id === 'temperature') void this.loadTemperature();
     else if (e.detail.id === 'generators') void this.loadGenerators();
+    else if (e.detail.id === 'doors') void this.loadDoors();
   };
 
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
@@ -1382,7 +1401,7 @@ export class DevicesBuilding extends LitElement {
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
     return html`<home-widgets layout=${layout} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
-      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .failed=${this.failedWidgets}
+      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .failed=${this.failedWidgets}
       @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }
 
@@ -1428,7 +1447,7 @@ export class DevicesBuilding extends LitElement {
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)}
+    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>`;
   }
 
@@ -2428,6 +2447,7 @@ export class DevicesBuilding extends LitElement {
     void this.loadElevators();
     void this.loadTemperature();
     void this.loadGenerators();
+    void this.loadDoors();
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
     this.registerView();
     void this.prefsReady.then(() => this.registerView()); // K88: the plan view appears once plan.surfaces says so
@@ -2498,6 +2518,8 @@ export class DevicesBuilding extends LitElement {
     this.tempTimer = undefined;
     window.clearInterval(this.generatorsTimer);
     this.generatorsTimer = undefined;
+    window.clearInterval(this.doorsTimer);
+    this.doorsTimer = undefined;
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     this.offView?.();
     this.offView = null;

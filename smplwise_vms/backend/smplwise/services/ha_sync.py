@@ -95,6 +95,9 @@ AUTOMATION_EVENTS = ("automation_reloaded", "scene_reloaded", "automation_trigge
 # use has an account; handed to services/tickets/messaging.submit_inbound (a bounded queue). The event is never logged or stored here
 # (it holds a phone number and a message text) and its media_url is never fetched.
 TICKET_EVENTS = ("whatsapp_message_received", "whatsapp_button_pressed")
+# DOORWIN2-295 (CR-039 9.1 / 9.5): the ONE custom event an Home Assistant automation fires to start an event-triggered door window
+# ({rule_id, token}); handed to services/door_window_triggers.on_door_window_event (shape-checked, judged on a worker thread, never logged or stored).
+DOOR_WINDOW_EVENTS = ("smplwise_arx_door_window",)
 MEDIA_LIST_KEYS = {"source_list": 80, "activity_list": 200, "sound_mode_list": 80}  # attribute -> the longest item kept; 100 items at most (MAX_MEDIA_LIST)
 HELPER_GROUP_MEMBERS_MAX = 120  # a `group` helper player's `entity_id` attribute (its member list): kept for media_player entities only
 MAX_MEDIA_LIST = 100
@@ -819,6 +822,14 @@ class HaSync:
                 except Exception:  # noqa: BLE001 - never the event in a log line
                     log.warning("ticket reply hand-off failed")
                 return
+            if isinstance(event, dict) and event.get("event_type") in DOOR_WINDOW_EVENTS:
+                from . import door_window_triggers
+
+                try:
+                    door_window_triggers.on_door_window_event(db, settings, msg)
+                except Exception:  # noqa: BLE001 - never the event in a log line
+                    log.warning("door window event hand-off failed")
+                return
             if isinstance(event, dict) and event.get("event_type") in AUTOMATION_EVENTS:
                 from . import automations as automations_svc  # CR-017: reloads, automation runs, script starts
 
@@ -853,6 +864,7 @@ class HaSync:
             self._refresh_lock = asyncio.Lock()
             # subscribed BEFORE the first listing, so a change made while it runs is not lost between the two
             await subscribe_registry_events(call)
+            await self._subscribe_door_window_events(call)
             await self._refresh_and_notify(call, "connect", notify=False)
             states = await call("get_states")
             seen = now_iso()
@@ -996,6 +1008,18 @@ class HaSync:
         if loop is None or call is None or not STATE.connected:
             return
         asyncio.run_coroutine_threadsafe(self._schedules_start(call, "enabled"), loop)
+
+    # ------------------------------------------------------------------ DOORWIN2-295: the event that starts an event-triggered door window
+
+    async def _subscribe_door_window_events(self, call) -> None:
+        """One allow-listed event type, subscribed at every connect (a refusal is logged; the feature needs it only when an event rule exists)."""
+        for et in DOOR_WINDOW_EVENTS:
+            try:
+                reply = await call("subscribe_events", event_type=et)
+                if not (isinstance(reply, dict) and reply.get("success")):
+                    log.info("HA did not accept the %s subscription", et)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("%s subscription failed: %s", et, type(exc).__name__)
 
     # ------------------------------------------------------------------ CR-017: automations, scripts, scenes (reads + events only)
 
