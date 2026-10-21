@@ -201,7 +201,7 @@ export interface AccountStatusWire {
   period: { from: string; to: string };
   kwh_so_far: string;
   meters: StatusMeterWire[];
-  notes: string[];
+  notes: { code: string; text_he: string }[]; // the server sends note objects (services/energy_billing.py), like BillSnapshot.notes
   amount_so_far?: string;
 }
 export interface PeriodRow {
@@ -452,7 +452,7 @@ export interface AccountStatus {
   amount_so_far?: string;
   rows: StatusRow[];
   stale: { meter: string; since: string } | null;
-  notes: string[];
+  notes: { code: string; text_he: string }[];
   next: { from: string; to: string; number: string; draft_on: string };
   customer: Customer | null;
   price?: { tariff: string; ex_vat: string; inc_vat: string; vat: string };
