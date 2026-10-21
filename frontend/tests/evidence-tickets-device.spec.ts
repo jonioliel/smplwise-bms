@@ -46,7 +46,14 @@ async function hold(page: Page, loc: Locator, ms = LONG) {
   const y = b.y + 14;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.waitForTimeout(ms);
+  const t0 = Date.now();
+  // TESTDEBT3-295: the press completes on a page timer (LONG_PRESS_MS = 500). On a loaded runner the page can run that timer AFTER the
+  // release is already queued (input is served before timers), and the release cancels the press: the menu / window never opens (the
+  // 2.9.3 and 2.10.0 flakies "domus light" and "toBeVisible"). So the button stays down until the outcome shows - the menu or the
+  // window - and only then is it released; a press that has no outcome (the negative cases) still ends after `ms` plus the bounded wait.
+  await menu(page).or(opened(page)).first().waitFor({ state: 'visible', timeout: 4000 }).catch(() => undefined);
+  const rest = ms - (Date.now() - t0);
+  if (rest > 0) await page.waitForTimeout(rest);
   await page.mouse.up();
 }
 

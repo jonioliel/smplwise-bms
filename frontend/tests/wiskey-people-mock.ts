@@ -161,12 +161,14 @@ export interface PeopleMock {
   revision: number;
   /** The change-notice sockets the screen opened (intercom/ws): `push(st)` sends WisKey's data-free refresh notice on each. */
   sockets: WebSocketRoute[];
+  /** TESTDEBT3-295: how many typed people-list requests were fully ANSWERED (the request count in `hits` rises when it is sent). */
+  answered: number;
 }
 
 export function newMock(role: Role = 'admin'): PeopleMock {
   return {
     role, scope: ['gate', 'lobby'], employeeNoVisible: true, people: directory(), mode: 'ready', delay: 0, stale: false, incomplete: null, detail: 'ok', photo: 'ok', photoEnabled: true,
-    pageCap: 50, messaging: false, hits: [], writes: [], revision: 1, sockets: [],
+    pageCap: 50, messaging: false, hits: [], writes: [], revision: 1, sockets: [], answered: 0,
     msg: {
       mode: 'ok', failFor: {}, burst: 0, feature: true, enabled: true, freeText: true, bulkMax: 10, quota: { limit: 6, used: 1 }, credentialTemplate: false, templatesRevision: 3,
       paceMs: 0, revealPhone: null, delayMs: 0, history: {}, optOut: {}, historyFails: 0,
@@ -458,7 +460,9 @@ export async function install(page: Page, st: PeopleMock) {
       }
       if (st.mode === 'empty') return json({ ...head('ready'), people: { records: [], total: 0, total_all: 0, offset: 0, limit: 50, next_offset: null, previous_offset: null, snapshot: '', stale: false, complete: true, incomplete_reason: null, sort: 'employee', employee_no_visible: true } });
       if (st.mode === 'down_after_ready' && st.hits.filter((h) => h.startsWith('GET access-control/people?')).length > 1) return json({ ...head('ha_unavailable', 'ha_unreachable'), people: null });
-      return json({ ...head(feedState), people: listPeople(st, url.searchParams) });
+      const answer = await json({ ...head(feedState), people: listPeople(st, url.searchParams) });
+      st.answered += 1;
+      return answer;
     }
     const one = /^access-control\/people\/([^/]+)(\/photo)?$/.exec(p);
     if (one) {

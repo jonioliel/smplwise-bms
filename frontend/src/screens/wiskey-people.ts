@@ -363,6 +363,10 @@ export class WiskeyPeople extends LitElement {
       this.fail(err);
     } finally {
       if (generation === this.generation) this.moreBusy = false;
+      if (this.queued && !this.inflight && !this.moreBusy) {
+        this.queued = false; // TESTDEBT3-295: a refresh that arrived while this page was loading runs now, not never
+        void this.refresh();
+      }
     }
   }
 
@@ -375,7 +379,9 @@ export class WiskeyPeople extends LitElement {
    * server's largest page); a list longer than that is marked "changed" instead and the sender decides. */
   private async refresh() {
     if (this.phase === 'forbidden' || !this.access.people) return;
-    if (this.inflight) {
+    // TESTDEBT3-295: a refresh also waits for a "load more" in flight. Its generation bump would drop that page's reply AND leave
+    // `moreBusy` set for good (only a reload clears it): the button stayed disabled and the "directory changed" notice never came.
+    if (this.inflight || this.moreBusy) {
       this.queued = true;
       return;
     }

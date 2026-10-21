@@ -36,6 +36,15 @@ const ready = async (page: Page) => {
   await expect(root(page)).toHaveAttribute('data-people-phase', 'ready', { timeout: 20_000 });
   await expect(rows(page).first()).toBeVisible();
 };
+// TESTDEBT3-295: the screen asks the list ONE more time about 800 ms after its change-notice socket opens ("notices sent while the
+// socket was down are gone: catch up now", NOTICE_COALESCE_MS). A spec that clicks "load more" right after `ready` raced that refetch:
+// on a loaded runner the second request landed inside the first click's round trip (see the product fix in wiskey-people.ts) or wiped the
+// "changed" notice before the spec looked at it. The paging specs wait for the catch-up to be answered, then act on a quiet screen.
+const caughtUp = async (page: Page, st: PeopleMock) => {
+  await expect.poll(() => st.sockets.length, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(() => st.answered, { timeout: 20_000 }).toBeGreaterThanOrEqual(2); // the first load and the catch-up
+  await settle(page);
+};
 const drawer = (page: Page) => page.locator('wiskey-person-drawer');
 const peopleHits = (st: PeopleMock) => st.hits.filter((h) => h.startsWith('GET access-control/people?'));
 const lastQuery = (st: PeopleMock): URLSearchParams => new URLSearchParams(peopleHits(st).at(-1)!.split('?')[1]);
@@ -166,6 +175,7 @@ test.describe('paging and the snapshot', () => {
     st.pageCap = 4;
     await open(page, st);
     await ready(page);
+    await caughtUp(page, st);
     await expect(rows(page)).toHaveCount(4);
     await expect(page.locator(`${SCREEN} sw-page`)).toContainText('4 מתוך 9');
     await page.locator(`${SCREEN} [data-wiskey-people-more]`).click();
@@ -185,6 +195,7 @@ test.describe('paging and the snapshot', () => {
     st.pageCap = 4;
     await open(page, st);
     await ready(page);
+    await caughtUp(page, st);
     st.stale = true;
     await page.locator(`${SCREEN} [data-wiskey-people-more]`).click();
     await expect(page.locator(`${SCREEN} [data-wiskey-people-stale]`)).toBeVisible();
