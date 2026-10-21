@@ -126,7 +126,8 @@ def test_on_a_full_queue_still_answers_the_same_202_and_counts_the_drop(env, mon
 def test_d04_the_drop_counter_survives_a_replaced_worker_and_is_zero_when_off(env):
     """FABLEFIX-295 D-04: with the switch OFF nothing runs and nothing is counted; the totals are process-wide, so a worker that died
     and was replaced does not wipe the administrator's count."""
-    assert public_portal.worker_stats() == {"running": False, "depth": 0, "max": public_portal.START_QUEUE_MAX, "accepted": 0, "dropped": 0}
+    assert public_portal.worker_stats() == {"running": False, "depth": 0, "max": public_portal.START_QUEUE_MAX, "accepted": 0, "dropped": 0,
+                                             "dropped_1h": 0, "last_drop_at": None}
     w = public_portal.worker_for(env.s4.db)
     w.stop(2.0)
     assert w.submit(lambda: None) is False  # a dead worker drops and counts
@@ -175,3 +176,49 @@ def test_the_worker_is_one_thread_per_database_and_stops_cleanly(env):
     assert len(names) == 1, names
     w.stop()
     assert not w.thread.is_alive()
+
+
+# ---------------------------------------------------------------- PUBCOUNT-295: D-04 notice and listener stats, D-07 registry key
+
+
+def test_pubcount_drops_in_the_last_hour_reach_the_listener_stats_the_health_card_and_the_notice(env, monkeypatch):
+    from smplwise.services.tickets.public_server import SERVER
+
+    now = [1_000_000.0]
+    monkeypatch.setattr(public_portal, "_clock", lambda: now[0])
+    # nothing counted and no worker: no health check, no notice, zeros in the listener stats
+    assert not any(c["id"] == "portal_start" for c in env.c.get(f"{API}/health/report").json()["checks"])
+    assert not any(i["id"] == "portal_start" for i in env.c.get(f"{API}/health/summary").json()["items"])
+    assert SERVER.snapshot()["portal_start"]["dropped"] == 0
+    w = public_portal.worker_for(env.s4.db)
+    w.stop(2.0)
+    assert w.submit(lambda: None) is False and w.submit(lambda: None) is False
+    stats = SERVER.snapshot()["portal_start"]
+    assert stats["dropped"] == 2 and stats["dropped_1h"] == 2 and stats["last_drop_at"] == 1_000_000
+    check = next(c for c in env.c.get(f"{API}/health/report").json()["checks"] if c["id"] == "portal_start")
+    assert check["status"] == "warn" and check["meta"]["dropped"] == 2 and check["meta"]["dropped_1h"] == 2
+    notice = next(i for i in env.c.get(f"{API}/health/summary").json()["items"] if i["id"] == "portal_start")
+    assert notice["status"] == "warn" and "2" in notice["label"]
+    assert env.c.get(f"{API}/health").json()["backpressure"]["portal_start"]["dropped_1h"] == 2
+    # an hour later the notice is gone, the lifetime total stays
+    now[0] += public_portal.DROP_HORIZON_S + 1
+    assert public_portal.worker_stats()["dropped_1h"] == 0 and public_portal.worker_stats()["dropped"] == 2
+    assert not any(i["id"] == "portal_start" for i in env.c.get(f"{API}/health/summary").json()["items"])
+    check = next(c for c in env.c.get(f"{API}/health/report").json()["checks"] if c["id"] == "portal_start")
+    assert check["status"] == "ok"
+
+
+def test_pubcount_d07_the_registry_is_keyed_by_the_listener_and_a_new_database_replaces_the_old_worker(env):
+    class FakeDb:
+        pass
+
+    db1, db2 = FakeDb(), FakeDb()
+    w1 = public_portal.worker_for(db1)
+    assert public_portal.worker_for(db1) is w1 and public_portal.worker_started(db1)
+    w2 = public_portal.worker_for(db2)  # the same listener, another Database object
+    assert w2 is not w1 and public_portal.worker_started(db2) and not public_portal.worker_started(db1)
+    w1.thread.join(2.0)
+    assert not w1.thread.is_alive(), "the previous worker was stopped, not left running"
+    assert len(public_portal._workers) == 1 and public_portal._workers[public_portal.DEFAULT_LISTENER][0] is db2
+    other = public_portal.worker_for(db1, "another-listener")  # a different listener keeps its own worker
+    assert other is not w2 and w2.thread.is_alive() and len(public_portal._workers) == 2

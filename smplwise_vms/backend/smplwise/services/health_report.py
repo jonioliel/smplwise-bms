@@ -256,6 +256,15 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     bage = _age_s(last["created_at"]) if last else None
     checks.append(_check("backups", "גיבויים", "error" if not last else ("warn" if bage is not None and bage > 2 * 86400 else "ok"), f"{len(backups)} גיבויים · אחרון {last['name'] + ' (' + last['kind'] + ')' if last else 'אין עדיין'}{' · לפני ' + str(int(bage // 3600)) + ' שע׳' if bage is not None else ''}", count=len(backups), last=last["name"] if last else None, last_kind=last["kind"] if last else None, last_age_s=bage))
 
+    # PUBCOUNT-295 / D-04: the vendor portal's start worker (switch OFF by default) answers "sent" even when its queue dropped the request;
+    # the administrator sees the counts here (shown once a worker ran or anything was counted; a drop within the last hour is a warning)
+    from .tickets import public_portal
+
+    ps = public_portal.worker_stats()
+    if ps["running"] or ps["accepted"] or ps["dropped"]:
+        checks.append(_check("portal_start", "קליטת בקשות כניסה לפורטל ספקים", "warn" if ps["dropped_1h"] else "ok",
+                             f"{ps['accepted']} התקבלו · {ps['dropped']} נפלו (בשעה האחרונה: {ps['dropped_1h']}) · תור {ps['depth']}/{ps['max']}", **ps))
+
     # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
     from . import secrets_store
 
@@ -323,6 +332,11 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
         items.append({"id": "backups", "status": "warn", "label": "אין עדיין גיבוי של הפרויקט"})
     elif last_age is not None and last_age > 2 * 86400:
         items.append({"id": "backups", "status": "warn", "label": "הגיבוי האחרון ישן מיומיים"})
+    from .tickets import public_portal
+
+    dropped_1h = public_portal.worker_stats()["dropped_1h"]
+    if dropped_1h:  # PUBCOUNT-295 / D-04: the operator notice - a vendor's code request was dropped (the vendor saw "sent")
+        items.append({"id": "portal_start", "status": "warn", "label": f"{dropped_1h} בקשות קוד של ספקים לא טופלו בשעה האחרונה (התור מלא)"})
     worst = "ok"
     for it in items:
         if it["status"] == "error":

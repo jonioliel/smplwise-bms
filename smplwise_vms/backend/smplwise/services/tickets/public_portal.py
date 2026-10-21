@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import collections
 import queue
 import threading
 import time
@@ -63,11 +64,30 @@ _STOP = object()
 # the administrator's storage screen (`storage/local` -> `portal_start`) and /health `backpressure` - counts only, never a number
 _TOTALS = {"accepted": 0, "dropped": 0}
 _TOTALS_LOCK = threading.Lock()
+# PUBCOUNT-295 (D-04): when each drop happened (epoch seconds, newest last), so the administrator's notice can say "dropped within the
+# last hour". Bounded by the horizon and by DROP_LOG_MAX; counts and times only, never a number.
+DROP_HORIZON_S = 3600.0
+DROP_LOG_MAX = 4096
+_DROP_TIMES: collections.deque[float] = collections.deque(maxlen=DROP_LOG_MAX)
+# D-07: the registry key of the one listener this process runs (the public listener is a singleton: services/tickets/public_runtime).
+# A rebuilt listener app (a new Database object) replaces the entry under the SAME key and stops the old worker.
+DEFAULT_LISTENER = "tickets-public"
+_clock: Callable[[], float] = time.time  # tests may replace it
 
 
 def _count(kind: str) -> None:
     with _TOTALS_LOCK:
         _TOTALS[kind] += 1
+        if kind == "dropped":
+            _DROP_TIMES.append(_clock())
+
+
+def _recent_drops(now: float | None = None) -> tuple[int, float | None]:
+    """(drops within DROP_HORIZON_S, the time of the latest drop ever recorded in the log or None). Caller holds _TOTALS_LOCK."""
+    at = _clock() if now is None else now
+    while _DROP_TIMES and _DROP_TIMES[0] < at - DROP_HORIZON_S:
+        _DROP_TIMES.popleft()
+    return len(_DROP_TIMES), (_DROP_TIMES[-1] if _DROP_TIMES else None)
 
 
 class StartWorker:
@@ -129,22 +149,31 @@ class StartWorker:
             self.thread.join(timeout_s)
 
 
-_workers: dict[int, tuple[Any, StartWorker]] = {}
+_workers: dict[str, tuple[Any, StartWorker]] = {}
 _workers_lock = threading.Lock()
 
 
-def worker_for(db: Any) -> StartWorker:
+def worker_for(db: Any, listener: str = DEFAULT_LISTENER) -> StartWorker:
+    """D-07: the registry is keyed by the LISTENER, never by `id(db)`. A new Database object for the same listener (a rebuilt app, a
+    restored database) takes over the slot and the previous worker is stopped, so no stale Database stays referenced and no thread
+    outlives its listener's app."""
+    stale: StartWorker | None = None
     with _workers_lock:
-        entry = _workers.get(id(db))
-        if entry is None or entry[0] is not db or not entry[1].thread.is_alive():
-            entry = (db, StartWorker(START_QUEUE_MAX))
-            _workers[id(db)] = entry
-        return entry[1]
+        entry = _workers.get(listener)
+        if entry is not None and entry[0] is db and entry[1].thread.is_alive():
+            return entry[1]
+        if entry is not None:
+            stale = entry[1]
+        worker = StartWorker(START_QUEUE_MAX)
+        _workers[listener] = (db, worker)
+    if stale is not None:
+        stale.stop(timeout_s=0.5)  # queued jobs finish first (FIFO); a full queue is logged by stop() and the daemon thread ends with the process
+    return worker
 
 
-def worker_started(db: Any) -> bool:
+def worker_started(db: Any, listener: str = DEFAULT_LISTENER) -> bool:
     with _workers_lock:
-        entry = _workers.get(id(db))
+        entry = _workers.get(listener)
         return entry is not None and entry[0] is db
 
 
@@ -157,20 +186,24 @@ def stop_workers(timeout_s: float = 5.0) -> None:
 
 
 def worker_stats() -> dict[str, Any]:
-    """D-04: what the administrator sees - whether a worker runs, its queue depth against the bound, and the process totals of accepted
-    and DROPPED start requests (a drop answers the same 202, so this counter is the only trace of a flood). Counts only."""
+    """D-04: what the administrator sees - whether a worker runs, its queue depth against the bound, the process totals of accepted
+    and DROPPED start requests (a drop answers the same 202, so these counters are the only trace of a flood) and how many drops fell
+    within the last hour (`dropped_1h`) and when the latest one was (`last_drop_at`, epoch seconds). Counts and times only."""
     with _workers_lock:
         workers = [w for _db, w in _workers.values()]
     with _TOTALS_LOCK:
         totals = dict(_TOTALS)
+        recent, last = _recent_drops()
     return {"running": any(w.thread.is_alive() for w in workers), "depth": sum(w.queue.qsize() for w in workers), "max": START_QUEUE_MAX,
-            "accepted": totals["accepted"], "dropped": totals["dropped"]}
+            "accepted": totals["accepted"], "dropped": totals["dropped"], "dropped_1h": recent,
+            "last_drop_at": int(last) if last is not None else None}
 
 
 def reset_workers_for_tests() -> None:
     stop_workers(timeout_s=2.0)
     with _TOTALS_LOCK:
         _TOTALS.update(accepted=0, dropped=0)
+        _DROP_TIMES.clear()
 
 
 class _Strict(BaseModel):
@@ -208,7 +241,8 @@ def cookie(prefix: str, value: str, max_age: int) -> str:
     return f"{PORTAL_COOKIE}={value}; Path=/{prefix}/api/portal; Max-Age={max_age}; Secure; HttpOnly; SameSite=Strict"
 
 
-def build_router(db: Database, *, clock: Callable[[], float] | None = None, data_dir: Path | None = None) -> APIRouter:
+def build_router(db: Database, *, clock: Callable[[], float] | None = None, data_dir: Path | None = None,
+                 listener: str = DEFAULT_LISTENER) -> APIRouter:
     r = APIRouter()
 
     def now() -> dt.datetime:
@@ -267,7 +301,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None, data
         net = public_request(request).net
         if mode:
             # PUB-04 option A: enqueue and answer; the ASGI call ends now for every number (a full queue drops silently, same answer)
-            worker_for(db).submit(lambda: request_in_background(digits, net))
+            worker_for(db, listener).submit(lambda: request_in_background(digits, net))
             return JSONResponse(SENT, status_code=202)
         # the same answer for every well-formed number; who it belongs to is looked up only after this answer was sent
         return JSONResponse(SENT, status_code=202, background=BackgroundTask(request_in_background, digits, net))
