@@ -1,4 +1,4 @@
--- PROVISIONAL number 0150 (DOORHARD-295; the lead renumbers at integration - the content does not depend on the number).
+-- Final number 0138 (built as PROVISIONAL 0150 on pilot/DOORHARD-295; renumbered at the 2.11.0 integration, integ/2111). The content does not depend on the number.
 --
 -- DOORHARD-295 (Fable security review 2026-10-21, section 5, owner decisions 2026-10-21):
 -- door_automations.corroborated_trigger: the `last_triggered` instant (UTC, fixed-width ISO with microseconds) of the Home Assistant

@@ -164,7 +164,7 @@ door decision that reached the per-door stage: outcome `sent|refused|unknown|not
 storm and the block's history. Backup (owner answer 12.3, DOORHARD-295): `door_automations` travels with the project
 backup and a restore brings EVERY block back `disarmed` (reason `restored`; a draft stays a draft; archive rows with an invalid policy are
 dropped) - a person arms it again and the arming checks run again. `door_automation_fires` (the cooldown / cap counters and the
-decisions) is in `NEVER_EXPORTED_TABLES`. The `doors.*` switches and limits are never carried. Migration 0150 (PROVISIONAL, DOORHARD-295)
+decisions) is in `NEVER_EXPORTED_TABLES`. The `doors.*` switches and limits are never carried. Migration 0138 (DOORHARD-295, built as provisional 0150)
 adds `door_automations.corroborated_trigger` and, on the fire rows, `operator_id` / `armed_by` / `armed_by_name` (owner answer 12.1: both
 the operator and the approving person are stored on every decision, and the audit details carry both). Rollback: older code ignores
 both tables; drop them to remove the feature.
@@ -235,7 +235,7 @@ Remaining notes:
    inside HA. This step keeps R-17: the door step never enters Home Assistant.
 6. Backup: steps are backed up and restored `disarmed` (section 9, owner answer 12.3). The `doors.automation.*` settings start with
    `doors.` and are therefore never carried by a backup (CR-033 section 9).
-7. Migration number 0133 (built as provisional 0145; renumbered at integ/2100). DOORHARD-295 adds a PROVISIONAL 0150.
+7. Migration number 0133 (built as provisional 0145; renumbered at integ/2100). DOORHARD-295 adds 0138 (built as provisional 0150; renumbered at integ/2111).
 9. Owner decision 2026-10-21 on the hardening questions ("accept the safe behaviour, but not hard to manage"): kept - corroboration
    before opening (now against the state machine, DA-01), the per-door cap, the bounded event queue, every restore brings blocks back
    DISARMED. Relaxed - a parent context and an unfamiliar source wording no longer refuse a run (step 6); a replace restore no longer wipes
