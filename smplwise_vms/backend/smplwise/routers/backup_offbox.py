@@ -62,7 +62,7 @@ def _db(request: Request) -> Any:
 
 class RetentionIn(BaseModel):
     keep_last: int = Field(default=3, ge=1, le=1000)
-    keep_daily: int = Field(default=7, ge=0, le=1000)
+    keep_daily: int = Field(default=14, ge=0, le=1000)
     keep_weekly: int = Field(default=4, ge=0, le=1000)
     keep_monthly: int = Field(default=6, ge=0, le=1000)
 

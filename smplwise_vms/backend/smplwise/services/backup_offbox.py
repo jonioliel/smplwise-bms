@@ -13,7 +13,7 @@ module puts an ENCRYPTED copy of an archive on another machine and proves it can
   never enters an archive). Rotation adds a key and keeps the old ones, so every older copy stays readable; `open_file` picks the
   key by the id in the file's header. Losing the keyring loses every off-box copy: the administrator exports each key once.
 - Marker objects (`arx-test-<hex>.txt`): the connection test writes one, reads it back and deletes it; never listed, never pruned.
-- `RetentionPolicy`: keep the newest N plus one per day / ISO week / month for D / W / M periods; objects whose names this
+- `RetentionPolicy` (default: newest 3, 14 daily, 4 weekly, 6 monthly; configurable): keep the newest N plus one per day / ISO week / month for D / W / M periods; objects whose names this
   module did not write are never deleted.
 - `push()`: dry-run (lists the destination, plans the upload and the pruning, writes nothing), upload, verify-after-upload
   (`hash`: the downloaded ciphertext's SHA-256 equals the local one; `deep`: also decrypts it and compares the archive's SHA-256)
@@ -638,7 +638,7 @@ def open_file(src: Path, dst: Path, key: bytes | Mapping[str, bytes]) -> dict[st
 @dataclasses.dataclass(frozen=True)
 class RetentionPolicy:
     keep_last: int = 3
-    keep_daily: int = 7
+    keep_daily: int = 14
     keep_weekly: int = 4
     keep_monthly: int = 6
 

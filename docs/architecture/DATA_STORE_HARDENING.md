@@ -94,7 +94,7 @@ Keyring `<data>/keys/offbox_keyring.json` (mode 0600; `keys/` never enters an ar
 `push(archive, dest, key, policy, dry_run, verify="deep")`: list -> plan (upload + retention) -> (dry run stops here) -> seal ->
 upload -> download again -> SHA-256 of the ciphertext equals what was sent -> (deep) decrypt and compare the archive's SHA-256 ->
 only then delete what the retention plan says. A failed or unverified upload never prunes; an uploaded copy that does not verify is
-removed. `RetentionPolicy(keep_last, keep_daily, keep_weekly, keep_monthly)` per target (default 3/7/4/6); names this module did not
+removed. `RetentionPolicy(keep_last, keep_daily, keep_weekly, keep_monthly)` per target (default 3/14/4/6: the newest 3, 14 daily, 4 weekly, 6 monthly; owner decision 2026-10-21 - 14 daily + 4 weekly, every value configurable); names this module did not
 write are never deleted.
 
 Connection test (`check_connection`): writes `arx-test-<16 hex>.txt`, reads it back, compares, deletes it, lists. Markers are never
