@@ -285,3 +285,17 @@ test('the stale words exist in every column; ar / ru stay dev-marked', () => {
   expect(hl('updated', 'en')).toBe('Updated');
   expect(src('i18n/home-live.ts')).not.toMatch(/Home Assistant|\bHA\b/);
 });
+
+test('a silent source (nothing known to exist) backs off but never makes failing() true', async () => {
+  const f = fakeEnv();
+  const calls: string[] = [];
+  let known = false;
+  const c = new LiveController(f.env).add({ ...source('temperature', calls, { fail: () => true }), silent: () => !known });
+  c.start();
+  await f.advance(31_000);
+  expect(calls.length).toBe(1);
+  expect(c.failing()).toBe(false);
+  known = true; // data was on screen: now a failure matters
+  expect(c.failing()).toBe(true);
+  c.stop();
+});

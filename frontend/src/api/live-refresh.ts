@@ -26,6 +26,8 @@ export interface LiveSource {
   pollMs: number | (() => number);
   /** Asked before every poll / resume run; a disabled source is skipped and asked again at the next period (default: enabled). */
   enabled?: () => boolean;
+  /** True while nothing is known to exist behind this source (a module the installation may not have): its failures back it off but never count as "not current". */
+  silent?: () => boolean;
 }
 
 export interface LiveEnv {
@@ -178,7 +180,7 @@ export class LiveController {
 
   /** True while at least one source is in a failure streak. */
   failing(): boolean {
-    for (const s of this.slots.values()) if (s.failures > 0) return true;
+    for (const s of this.slots.values()) if (s.failures > 0 && !s.src.silent?.()) return true;
     return false;
   }
 

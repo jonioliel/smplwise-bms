@@ -1355,10 +1355,10 @@ export class DevicesBuilding extends LitElement {
   /** HOMELIVE-295: wire the sources (once per connect). The widgets poll every 30 s; the tree is pushed by the socket, so its poll is a slow
    * fallback (5 min) that tightens to 60 s while the socket is down. */
   private setupLive() {
-    const poll = (id: string, run: () => Promise<boolean>, enabled: () => boolean) => this.live.add({ id, run, pollMs: 30_000, enabled });
-    poll('elevators', () => this.loadElevators(), () => elevatorsAccess().view && (!!this.elevators?.length || this.firstReadFailed.has('elevators')));
-    poll('temperature', () => this.loadTemperature(), () => temperatureAccess().view && ((this.tempUnits.length > 0 && this.tempWidget) || this.firstReadFailed.has('temperature')));
-    poll('generators', () => this.loadGenerators(), () => generatorsAvailable(this.generators) || this.firstReadFailed.has('generators'));
+    const poll = (id: string, run: () => Promise<boolean>, enabled: () => boolean, silent: () => boolean) => this.live.add({ id, run, pollMs: 30_000, enabled, silent });
+    poll('elevators', () => this.loadElevators(), () => elevatorsAccess().view && (!!this.elevators?.length || this.firstReadFailed.has('elevators')), () => !this.elevators?.length);
+    poll('temperature', () => this.loadTemperature(), () => temperatureAccess().view && ((this.tempUnits.length > 0 && this.tempWidget) || this.firstReadFailed.has('temperature')), () => !this.tempUnits.length);
+    poll('generators', () => this.loadGenerators(), () => generatorsAvailable(this.generators) || this.firstReadFailed.has('generators'), () => !generatorsAvailable(this.generators));
     this.live.add({ id: 'tree', run: () => this.reloadTree(), pollMs: () => (haPushLive() ? 300_000 : 60_000), enabled: () => isApi() && !this.forbidden && !this.lay.editing });
     this.live.onChange(() => this.requestUpdate());
     this.live.start();
