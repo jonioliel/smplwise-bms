@@ -10,6 +10,7 @@ import sqlite3
 
 import pytest
 from fake_ha_whatsapp import FakeHaWhatsapp, PairedAccount
+from messaging_registry_isolation import registry_without_lazy_modules  # noqa: F401
 
 from smplwise import db as dbmod
 from smplwise.db import Database, now_iso
@@ -24,7 +25,7 @@ KEY_A, KEY_B = f"entry:{ENTRY_A}", f"entry:{ENTRY_B}"
 
 
 @pytest.fixture()
-def database(settings, monkeypatch):
+def database(settings, monkeypatch, registry_without_lazy_modules):
     monkeypatch.setattr(mr, "ws_connected", lambda: True)
     monkeypatch.setattr(mr, "_janitor_at", None)
     d = Database(settings.db_path)

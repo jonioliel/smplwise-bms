@@ -12,6 +12,7 @@ import pytest
 from conftest import as_user, bind
 from fake_ha_whatsapp import FakeHaWhatsapp, PairedAccount
 from fastapi.testclient import TestClient
+from messaging_registry_isolation import registry_without_lazy_modules  # noqa: F401
 
 from smplwise.db import Database, now_iso
 from smplwise.main import create_app
@@ -28,7 +29,7 @@ PHONE_A, PHONE_B = "15555550191", "15555550192"  # fake numbers (the 555-01xx fi
 
 
 @pytest.fixture(autouse=True)
-def _hooks(monkeypatch):
+def _hooks(monkeypatch, registry_without_lazy_modules):
     monkeypatch.setattr(mr, "QUEUED_COUNTER", None)
     monkeypatch.setattr(mr, "TEST_SENDER", None)
     monkeypatch.delenv(mr.TEST_SEND_ENV, raising=False)
@@ -325,3 +326,15 @@ def test_messaging_whatsapp_never_travels_in_settings_or_backups(env):
 
     assert "messaging.whatsapp" in backup.SETTINGS_KEEP
     assert "messaging_send_ledger" not in backup.PROJECT_TABLES
+
+
+def test_the_registry_does_not_depend_on_a_lazily_joined_module_having_been_imported_testdebt2(env):
+    """A temperature test that ran earlier in the process imports services.temperature_whatsapp, whose report use joins the registry at
+    import; the accounts screen of this file (tickets + notification uses) must read the same either way."""
+    import importlib
+
+    importlib.import_module("smplwise.services.temperature_whatsapp")
+    c, _, _ = env
+    assert c.patch(f"{API}/settings", json={"tickets.enabled": "false"}).status_code == 200
+    d = _doc(c)
+    assert d["uses"] == [] and "temperature" not in d["modules"]
