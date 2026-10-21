@@ -184,9 +184,12 @@ def test_filters_keep_only_selected_files_and_mark_reduced_categories(g):
     assert g.backend_only({"error": "boom"}) is None
 
 
-def test_selection_is_refused_for_a_release_gate_unless_explicitly_enabled(g, monkeypatch):
+def test_selection_for_a_release_gate_needs_a_healthy_nightly_else_the_full_tier(g, monkeypatch):
+    # GATEEFF-295 replaced the blanket refusal: decide_selection() falls back to the full tier (said in the report) unless the last full
+    # nightly on main finished; the details are in test_gate_efficiency.py
     monkeypatch.delenv("GATE_SELECT_ENABLE", raising=False)
-    assert g.main_cli(["integ/293", "--select-base", "v2.9.2"]) == 2
+    g.SELECT_BASE = "v2.9.2"
+    assert "full tier: selection not allowed" in g.decide_selection() and g.SELECT_BASE == ""
     assert g.main_cli(["integ/293", "--select-base"]) == 2       # a ref is required as well
 
 

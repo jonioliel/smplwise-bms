@@ -35,7 +35,9 @@ def g(monkeypatch, tmp_path):
 
 
 def test_v1_is_the_default_and_its_knobs_are_the_292_values(g):
-    assert g.SCHEDULE == "v1"
+    # GATEEFF-295: v2 is the default only once a recorded shadow comparison exists next to the script (gate_schedule_evidence.json)
+    assert g.SCHEDULE == ("v2" if (GATE / "gate_schedule_evidence.json").exists() else "v1")
+    g.SCHEDULE = "v1"
     assert g.knob("GATE_BACKEND_SHARDS", 3, 6) == 3
     assert g.knob("GATE_W1_MAX_CHUNKS", 3, 8) == 3
     assert g.knob("GATE_BACKEND_TMPFS", 0, 1) == 0

@@ -37,6 +37,9 @@ import concurrent.futures as cf, glob, json, math, os, re, shutil, signal, socke
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gate_policy as policy   # GATEEFF-295: quarantine, classification, summary, schedule default (pure functions)
+
 HB_STOP = threading.Event()
 ABORT = threading.Event()   # set when main() leaves its run section (normally or by a signal) right before kill_all()
 
@@ -85,7 +88,21 @@ try:
     FIXTURE_SPECS = {n for g in _fx.values() for n, s in g["specs"].items() if s.get("gate")} or FIXTURE_SPECS
 except (OSError, ValueError, KeyError):
     pass
-SCHEDULE = (os.environ.get("GATE_SCHEDULE") or "v1").strip().lower()   # v1 = the 2.9.2 gate; v2 = GATESPEED-293 (--schedule)
+# GATEEFF-295: v1 = the 2.9.2 gate; v2 = GATESPEED-293. The default is v2 only once a shadow comparison was recorded as SAME
+# (gate_schedule_evidence.json, written by `shadow_compare.py --record`); --schedule / GATE_SCHEDULE always win, so v1 is one flag away.
+SCHEDULE, SCHEDULE_WHY = policy.resolve_schedule("", os.environ.get("GATE_SCHEDULE"), HERE / policy.EVIDENCE_NAME)
+BASE_REF = os.environ.get("GATE_BASE_REF") or VISUAL_BASE          # the previous release: selection base, base verification
+WALL_TARGET_MIN = int(os.environ.get("GATE_WALL_TARGET_MIN", "90"))  # tier L target on the 16-core runner (reported, TOTAL is the hard stop)
+SLOW_TEST_S = float(os.environ.get("GATE_SLOW_TEST_S", "45"))         # tests slower than this are listed in the summary (Playwright's own cap is 60 s)
+PW_TEST_TIMEOUT_S = os.environ.get("GATE_PW_TEST_TIMEOUT_S", "")      # optional per-test cap for Playwright (--timeout); unset = playwright.config.ts
+PREEXISTING_BLOCKS = os.environ.get("GATE_PREEXISTING") == "block"    # default: a failure that also fails on the base is reported, not red
+BASE_VERIFY_SECS = int(os.environ.get("GATE_BASE_VERIFY_SECS", "1200"))   # cap for running failed tests on the base commit
+BASE_VERIFY_MAX = int(os.environ.get("GATE_BASE_VERIFY_MAX", "80"))       # more failures than this: not verified (and therefore red)
+PIXEL_LANE = os.environ.get("GATE_PIXEL_LANE", "1") != "0"                 # the nightly sets 0: a screenshot mismatch stays a plain FAIL there
+FULL = os.environ.get("GATE_FULL") == "1"                                  # --full: never select, run the whole tier
+QUARANTINE = {"entries": [], "expired": [], "invalid": [], "error": "", "source": "", "sha256": ""}   # filled in main()
+QUARANTINE_HIT = set()    # ids of quarantine entries that matched a failure in this run
+SLOW = []                 # [{id, seconds}] tests slower than SLOW_TEST_S
 _LOCK = threading.RLock()     # count()/item() are called from the v2 pool's threads too
 STATUS = RES / "gate_status.json"
 STARTED = time.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -207,12 +224,33 @@ def wait_http(url, secs):
 
 def count(cat, key, n=1):
     with _LOCK:
-        COUNTS.setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})[key] += n
+        c = COUNTS.setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})
+        c[key] = c.get(key, 0) + n      # GATEEFF-295 lanes (quarantined / pixel_review / preexisting) appear only when used
 
 
-def item(cat, ident, st, reason=""):
+def item(cat, ident, st, reason="", **meta):
     with _LOCK:
-        ITEMS.append({"category": cat, "id": ident, "status": st, "reason": reason[:300]})
+        ITEMS.append({"category": cat, "id": ident, "status": st, "reason": reason[:300], **meta})
+
+
+LANE_COUNT = {"FAIL": "fail", "QUARANTINED": "quarantined", "PIXEL_REVIEW": "pixel_review", "PREEXISTING": "preexisting"}
+
+
+def red(cat, ident, reason, kind, err="", images=None, **meta):
+    """A TEST failed and failed again alone (or could not be retried). It is a real FAIL unless the managed quarantine names it
+    (QUARANTINED) or the failure is a screenshot mismatch (PIXEL_REVIEW, the review lane). The test is never hidden: every lane is an
+    item in the report. Gate-level problems (a crash, a timeout, a count drop) do not come through here: they are always FAIL."""
+    st, ent = policy.classify_final(QUARANTINE, kind, err, pixel_lane=PIXEL_LANE, **meta)
+    extra = {"kind": kind, **{k: v for k, v in meta.items() if v not in (None, "")}}
+    if images:
+        extra["images"] = images
+    if ent:
+        QUARANTINE_HIT.add(ent["id"])
+        reason = f"{reason} | quarantine {ent['id']}: {ent['reason']} (owner {ent['owner']}, ticket {ent['ticket']}, expires {ent['expires']})"
+        extra["quarantine_id"] = ent["id"]
+    count(cat, LANE_COUNT[st])
+    item(cat, ident, st, reason, **extra)
+    return st
 
 
 class Phase:
@@ -403,12 +441,164 @@ def backend_finish(procs, wt, logd):
         still_ids = {n for n, _ in still}
         for nid, why in todo:
             if nid in still_ids:
-                count("backend", "fail"); item("backend", nid, "FAIL", why or "failed twice")
+                red("backend", nid, why or "failed twice", "backend", nodeid=nid)
             else:
                 count("backend", "flaky"); item("backend", nid, "FLAKY", "failed in the shard run, passed alone")
     else:
         for nid, why in todo:
-            count("backend", "fail"); item("backend", nid, "FAIL", (why or "") + " (no time left to retry)")
+            red("backend", nid, (why or "") + " (no time left to retry)", "backend", nodeid=nid)
+
+
+# ---------------------------------------------------------------- GATEEFF-295: base comparison (is this red caused by this diff?)
+def _resolve_ref(wt, ref):
+    for r in (ref, f"origin/{ref}"):
+        x = subprocess.run(["git", "-C", str(wt), "rev-parse", "--verify", "-q", f"{r}^{{commit}}"], capture_output=True, text=True)
+        if x.returncode == 0:
+            return r, x.stdout.strip()
+    return "", ""
+
+
+def base_reports(base_sha):
+    """Earlier gate / nightly reports whose sha is the base commit: [(label, doc)]."""
+    out = []
+    for d in (RES, RES / "nightly"):
+        try:
+            files = list(d.glob("gate_*.json"))
+        except OSError:
+            continue
+        for p in files:
+            if p.name.endswith(".selection.json") or p.name == STATUS.name:
+                continue
+            try:
+                doc = json.loads(p.read_text())
+            except Exception:
+                continue
+            s = str(doc.get("sha") or "")
+            if len(s) >= 7 and "items" in doc and (base_sha.startswith(s) or s.startswith(base_sha[:len(s)])):
+                out.append((f"{doc.get('branch')}@{s}", doc))
+    return out
+
+
+def run_on_base(wt, base_ref, todo, logd, info):
+    """Run the failed tests on the base commit in a second worktree: backend node ids in one pytest process, Playwright files
+    (preview on a fresh build of the base, dev on its Vite dev server) with 2 workers. -> {test_key: fail|pass|missing|unverified}.
+    Bounded by BASE_VERIFY_SECS and the gate's own budget; anything not run stays 'unverified' (and so red)."""
+    out = {}
+    end = time.time() + min(BASE_VERIFY_SECS, max(left() - 150, 0))
+    bwt = WORK / f"gate-base-{TAG}"
+    if not (bwt / ".git").exists():
+        subprocess.run(["git", "worktree", "prune"], cwd=BASE)
+        subprocess.run(["git", "worktree", "add", "--detach", "-f", str(bwt), base_ref, "-q"], cwd=BASE, check=True)
+    else:
+        subprocess.run(["git", "-C", str(bwt), "checkout", "-q", "-f", "--detach", base_ref], check=True)
+        subprocess.run(["git", "-C", str(bwt), "clean", "-fdq", "-e", "node_modules"], check=False)
+    info["base_worktree"] = str(bwt)
+    key = lambda i: policy.test_key(i["id"], i["category"])   # noqa: E731
+    be = [i for i in todo if i["category"] == "backend"]
+    ids = []
+    for i in be:
+        f = bwt / "smplwise_vms" / "backend" / i["id"].split("::")[0]
+        if f.is_file():
+            ids.append(i["id"])
+        else:
+            out[key(i)] = "missing"
+    if ids and end - time.time() > 60:
+        log = logd / "base_backend.log"
+        status("running", f"base commit: {len(ids)} failed backend test(s)")
+        run([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / "tmp_base_be")] + ids,
+            bwt / "smplwise_vms" / "backend", log, timeout=int(min(900, end - time.time())))
+        c, fails = parse_pytest(log.read_text(errors="replace"))
+        bad = {n for n, _ in fails}
+        for n in ids:
+            out[policy.test_key(n)] = "unverified" if not c else ("fail" if n in bad else "pass")
+    pw = [i for i in todo if i["category"] in ("preview", "dev")]
+    by = {}
+    for i in pw:
+        m = policy._PW_ID.match(i["id"])
+        if not m:
+            continue
+        if not (bwt / "frontend" / "tests" / m["file"]).is_file():
+            out[key(i)] = "missing"
+        else:
+            by.setdefault(i["category"], {}).setdefault(m["file"], set()).add(m["project"])
+    if by and end - time.time() > 120:
+        fe = bwt / "frontend"
+        if need_modules(bwt, logd / "npm_base.log"):
+            dead = free_port()
+            costs = prior_costs()
+            for cat, files in by.items():
+                if end - time.time() < 120:
+                    break
+                names = [n for n in sorted(files) if costs.get(n, 60.0) < end - time.time()]
+                if not names:
+                    continue
+                vp = None
+                try:
+                    if cat == "preview":
+                        rc, _ = run(["npx", "vite", "build"], fe, logd / "base_build.log", timeout=int(min(600, end - time.time())))
+                        if rc != 0:
+                            continue
+                    port = free_port()
+                    vp, ok = start_vite(fe, "preview" if cat == "preview" else "dev", port, logd, dead)
+                    if not ok:
+                        continue
+                    projs = sorted({p for n in names for p in files[n]}, key=ALL_PROJECTS.index)
+                    rows, rc, to = run_pw(fe, names, projs, f"http://127.0.0.1:{port}/", logd, f"base_{cat}", workers=2, timeout=int(max(end - time.time(), 60)))
+                finally:
+                    if vp:
+                        reap(vp)
+                for r in rows or []:
+                    out[policy.test_key(ident_of(r))] = "pass" if r["status"] in ("expected", "flaky") else ("fail" if r["status"] == "unexpected" else "unverified")
+    return out
+
+
+def base_verify(wt, sha, logd):
+    """Failed tests that also fail on the base commit are PREEXISTING (not this diff's fault); the rest stay FAIL. Evidence: the base's
+    own gate / nightly report first, then the failed tests run on the base. Pixel mismatches and gate-level reds are not tests
+    of this kind. Returns the info dict for the report."""
+    info = {"base_ref": BASE_REF, "checked": 0, "preexisting": 0, "new": 0, "unverified": 0, "notes": []}
+    if os.environ.get("GATE_BASE_VERIFY") == "0":
+        info["notes"].append("disabled (GATE_BASE_VERIFY=0): every failure stays red")
+        return info
+    with _LOCK:
+        fails = [i for i in ITEMS if i["status"] == "FAIL" and policy.is_test_item(i) and i["category"] in ("backend", "preview", "dev", "fixture", "pixel")]
+    if not fails:
+        return info
+    ref, bsha = _resolve_ref(wt, BASE_REF)
+    info["checked"] = len(fails)
+    if not ref or bsha.startswith(sha) or sha.startswith(bsha[:len(sha)]):
+        info["notes"].append(f"no distinct base commit ({BASE_REF}); every failure stays red")
+        info["unverified"] = len(fails)
+        return info
+    if len(fails) > BASE_VERIFY_MAX:
+        info["notes"].append(f"{len(fails)} failures is more than GATE_BASE_VERIFY_MAX={BASE_VERIFY_MAX}: not compared with the base, all stay red")
+        info["unverified"] = len(fails)
+        return info
+    info["base_sha"] = bsha[:9]
+    bf, complete, soft = policy.base_failures(base_reports(bsha))
+    res = policy.reclassify(fails, bf, complete, soft)
+    todo = [i for i in fails if res[i["id"]][0] == "unverified" and i["category"] in ("backend", "preview", "dev")]
+    if todo and left() > 300:
+        try:
+            ran = run_on_base(wt, ref, todo, logd, info)
+            res = policy.reclassify(fails, bf, complete, soft, ran)
+        except BaseException as e:   # noqa: BLE001 - the comparison is an aid: when it breaks, the failures simply stay red
+            if isinstance(e, KeyboardInterrupt):
+                raise
+            info["notes"].append(f"running on the base failed ({type(e).__name__}: {str(e)[:120]}): unverified failures stay red")
+    elif todo:
+        info["notes"].append("no time left to run the failed tests on the base: unverified failures stay red")
+    with _LOCK:
+        for i in fails:
+            cls, ev = res[i["id"]]
+            i["base"], i["base_evidence"] = cls, ev
+            info[cls] = info.get(cls, 0) + 1
+            if cls == "preexisting" and not PREEXISTING_BLOCKS:
+                i["status"] = "PREEXISTING"
+                i["reason"] = (i.get("reason", "") + f" | PRE-EXISTING: {ev}")[:400]
+                count(i["category"], "fail", -1)
+                count(i["category"], "preexisting")
+    return info
 
 
 # ---------------------------------------------------------------- quarantine (GATESPEED-293 phase 2)
@@ -418,7 +608,7 @@ QUARANTINE_CATS = ("backend", "preview", "dev", "pixel", "fixture")
 def first_run_reds(items):
     """Test ids that failed on their first run in one gate (FLAKY = passed alone, FAIL = failed again); gate-level items
     (a shard, a process, a server) are not tests."""
-    return {i["id"]: i["category"] for i in items if i.get("status") in ("FAIL", "FLAKY") and i.get("category") in QUARANTINE_CATS
+    return {i["id"]: i["category"] for i in items if i.get("status") in ("FLAKY",) + policy.RED_STATUSES and i.get("category") in QUARANTINE_CATS
             and ("::" in i["id"] or ".spec.ts:" in i["id"])}
 
 
@@ -725,9 +915,11 @@ def collect_pw(json_path):
                     e = re.sub(r"\x1b\[[0-9;]*m", "", e).strip()
                     err = e.splitlines()[0][:200] if e else str(last.get("status") or "failed")
                 ann = [a.get("type") for a in tst.get("annotations", [])]
+                imgs = [a.get("path") for a in (last.get("attachments") or []) if a.get("path") and str(a.get("contentType", "")).startswith("image/")]                     if st == "unexpected" else []
                 rows.append({"file": os.path.basename(sp.get("file", "")), "line": sp.get("line"), "project": tst.get("projectName"),
                              "title": " > ".join(x for x in t + [sp.get("title", "")] if x), "status": st, "error": err,
-                             "norun": st == "skipped" and "skip" not in ann and "fixme" not in ann})
+                             "norun": st == "skipped" and "skip" not in ann and "fixme" not in ann,
+                             "seconds": round(sum((r_.get("duration") or 0) for r_ in res) / 1000.0, 1), "images": imgs})
         for s in suite.get("suites", []):
             walk(s, t)
 
@@ -761,6 +953,8 @@ def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, g
     e.update(env or {})
     cmd = ["npx", "playwright", "test"] + (line_args if line_args is not None else [file_arg(s) for s in specs])
     cmd += [f"--project={p}" for p in projects] + [f"--workers={workers or PW_WORKERS}", "--reporter=list,json"]
+    if PW_TEST_TIMEOUT_S.isdigit() and int(PW_TEST_TIMEOUT_S) > 0:   # GATEEFF-295 per-test budget; unset = playwright.config.ts (60 s)
+        cmd += [f"--timeout={int(PW_TEST_TIMEOUT_S) * 1000}"]
     if grep:
         cmd += ["-g", grep]
     if grep_invert:
@@ -771,6 +965,31 @@ def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, g
 
 def ident_of(r):
     return f"{r['file']}:{r['line']} [{r['project']}] {r['title']}"
+
+
+def pw_meta(r):
+    return {"file": r["file"], "line": r["line"], "project": r["project"], "title": r["title"]}
+
+
+def keep_images(logd, ident, images):
+    """Copy the expected / actual / diff images of a pixel failure next to the report BEFORE the next Playwright run wipes its output
+    directory. Returns the copied paths relative to the logs directory (at most 3 per test, 400 files per gate)."""
+    out = []
+    try:
+        dest = Path(logd) / "pixel_review"
+        dest.mkdir(exist_ok=True)
+        if len(list(dest.glob("*"))) > 400:
+            return out
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "_", ident)[:90]
+        for i, src in enumerate((images or [])[:3]):
+            sp = Path(src)
+            if sp.is_file():
+                d = dest / f"{stem}__{i}_{sp.name}"[:200]
+                shutil.copyfile(sp, d)
+                out.append(f"pixel_review/{d.name}")
+    except OSError:
+        pass
+    return out
 
 
 def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
@@ -806,6 +1025,8 @@ def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
                 count(cat, "skipped")
         elif r["status"] == "expected":
             count(cat, "pass")
+            if r.get("seconds", 0) > SLOW_TEST_S:
+                SLOW.append({"id": ident_of(r), "seconds": r["seconds"]})
         elif r["status"] == "flaky":
             count(cat, "flaky"); item(cat, ident_of(r), "FLAKY", "Playwright's own retry passed")
         else:
@@ -825,7 +1046,7 @@ def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
         return
     if left() < 180:
         for r in failed:
-            count(cat, "fail"); item(cat, ident_of(r), "FAIL", r["error"] + " (no time left to retry)")
+            red(cat, ident_of(r), r["error"] + " (no time left to retry)", "playwright", err=r["error"], images=keep_images(logd, ident_of(r), r.get("images")), **pw_meta(r))
         for r in pend:
             count(cat, "fail"); item(cat, ident_of(r), "FAIL", "did not run (no time left to retry)")
         return
@@ -853,9 +1074,12 @@ def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
                 count(cat, "flaky"); item(cat, ident_of(r), "FLAKY", "failed in the full run (" + r["error"][:120] + "), passed alone")
             elif r2 is None and (to2 or rows2 is None):
                 # the retry process was stopped (time budget) or wrote no report: nothing was verified, say so (0.1.162 gate said "failed again")
-                count(cat, "fail"); item(cat, ident_of(r), "FAIL", r["error"] + " (retry alone not completed: " + ("time limit" if to2 else f"no report, rc={rc2}") + ")")
+                red(cat, ident_of(r), r["error"] + " (retry alone not completed: " + ("time limit" if to2 else f"no report, rc={rc2}") + ")", "playwright",
+                    err=r["error"], images=keep_images(logd, ident_of(r), r.get("images")), **pw_meta(r))
             else:
-                count(cat, "fail"); item(cat, ident_of(r), "FAIL", r["error"] + " (failed again alone)")
+                err2 = (r2["error"] if r2 and r2.get("error") else r["error"])
+                red(cat, ident_of(r), err2 + " (failed again alone)", "playwright", err=err2,
+                    images=keep_images(logd, ident_of(r), (r2 or {}).get("images") or r.get("images")), **pw_meta(r))
 
 
 def group_by_run(table):
@@ -1284,7 +1508,7 @@ def load_baseline(wt=None):
 
 def passed_of(cat):
     v = COUNTS.get(cat) or {}
-    return v.get("pass", 0) + v.get("flaky", 0)       # flaky = failed once, passed alone: it did run and pass
+    return v.get("pass", 0) + v.get("flaky", 0) + v.get("pixel_review", 0)   # flaky = failed once, passed alone; pixel_review = ran, image differs
 
 
 def check_baselines(baseline, tier):
@@ -1317,9 +1541,94 @@ def check_baselines(baseline, tier):
                  f"(re-run with --allow-count-drop \"<reason>\" only when the drop is intended)")
         BASELINE_ROWS[cat] = {"baseline": exp, "actual": act, "ratio": round(ratio, 3), "state": state}
     for cat in COUNTS:
-        if cat not in base and cat != "baseline":
+        if cat not in base and cat not in ("baseline", "quarantine"):
             warns.append(f"category {cat} has no baseline entry")
     return warns
+
+
+FLAKY_DOC = {}
+_SUMMARY_LOCK = threading.Lock()
+_SUMMARY_FINAL = [False]
+
+
+def write_summary(doc, running=False, final=False):
+    """The one-page summary (gate_<b>_<sha>.summary.md + LATEST_SUMMARY.md). Written the moment the verdict exists, and refreshed
+    by the heartbeat while the gate runs (so a half-finished gate already shows its reds)."""
+    with _SUMMARY_LOCK:
+        if _SUMMARY_FINAL[0] and not final:
+            return
+        try:
+            txt = policy.render_summary(doc, FLAKY_DOC, running=running)
+            (RES / f"gate_{TAG}_{doc.get('sha')}.summary.md").write_text(txt, encoding="utf-8")
+            (RES / "LATEST_SUMMARY.md").write_text(txt, encoding="utf-8")
+        except OSError:
+            pass
+        if final:
+            _SUMMARY_FINAL[0] = True
+
+
+def live_doc():
+    with _LOCK:
+        return {"branch": BR, "sha": STATE["sha"], "tier": TIER, "verdict": "running", "wall_seconds": int(time.time() - T0),
+                "wall_target_min": WALL_TARGET_MIN, "counts": json.loads(json.dumps(COUNTS)), "items": list(ITEMS), "phases": list(PHASES),
+                "schedule": SCHEDULE, "selection_policy": SELECTION_POLICY[0]}
+
+
+SELECTION_POLICY = [""]
+
+
+def decide_selection():
+    """Diff selection for this run: returns the sentence for the report and sets SELECT_BASE. A release gate selects only while the
+    full nightly on main is healthy (policy.nightly_health); the nightly, partial runs, tiers other than L, main itself and --full never
+    select. The fixed safety core and the full-tier triggers live in select_tests.py. Any doubt = the full tier."""
+    global SELECT_BASE
+    explicit = bool(SELECT_BASE)
+    if FULL:
+        SELECT_BASE = ""
+        return "full tier (--full)"
+    if TABLET_FULL or SKIP_BACKEND or SKIP_DEV or TIER != "L" or BR in ("main", "master"):
+        SELECT_BASE = ""
+        return "full tier (nightly / partial / non-L run / main)"
+    if not explicit and os.environ.get("GATE_SELECT", "auto").strip().lower() == "off":
+        return "full tier (GATE_SELECT=off)"
+    nightly = RES if RES.name == "nightly" else RES / "nightly"
+    import datetime as _dt
+    health = policy.nightly_health(nightly, _dt.datetime.now())
+    if os.environ.get("GATE_SELECT_ENABLE") == "1":
+        health = {"ok": True, "reason": "forced by GATE_SELECT_ENABLE=1 (" + health["reason"] + ")"}
+    if not health["ok"]:
+        SELECT_BASE = ""
+        return "full tier: selection not allowed - " + health["reason"]
+    SELECT_BASE = SELECT_BASE or BASE_REF
+    return f"diff selection against {SELECT_BASE}: {health['reason']}"
+
+
+def load_managed_quarantine(wt):
+    """gate_quarantine.json of the tested branch (else the copy next to this script). Expired / malformed entries and an unreadable
+    file are RED (category 'quarantine'). Returns the extra report block."""
+    import datetime as _dt
+    global QUARANTINE
+    cands = [Path(wt) / "scripts" / "gate" / policy.QUARANTINE_NAME, HERE / policy.QUARANTINE_NAME]
+    path = next((c for c in cands if c.exists()), cands[0])
+    QUARANTINE = policy.load_quarantine(path, _dt.date.today())
+    q = QUARANTINE
+    if q["error"]:
+        count("quarantine", "fail"); item("quarantine", "gate_quarantine.json", "FAIL", "the quarantine file is unreadable: " + q["error"])
+    for e in q["expired"]:
+        count("quarantine", "fail")
+        item("quarantine", e.get("id", "?"), "FAIL", f"EXPIRED on {e.get('expires')} (owner {e.get('owner')}, ticket {e.get('ticket')}): fix the test or renew the entry on purpose; "
+             f"{e.get('kind')} {e.get('nodeid') or e.get('file')}")
+    for eid, why in q["invalid"]:
+        count("quarantine", "fail"); item("quarantine", eid, "FAIL", "invalid entry: " + "; ".join(why))
+    new = []
+    try:     # entries the tested branch added: the lead must see them (a branch could otherwise excuse its own red)
+        r = subprocess.run(["git", "-C", str(wt), "show", f"{_resolve_ref(wt, BASE_REF)[0] or BASE_REF}:scripts/gate/{policy.QUARANTINE_NAME}"], capture_output=True, text=True)
+        have = {e.get("id") for e in (json.loads(r.stdout).get("entries") or [])} if r.returncode == 0 else set()
+        new = [f"{e['id']}: {e.get('nodeid') or e.get('file')} (owner {e.get('owner')}, ticket {e.get('ticket')}, expires {e.get('expires')})"
+               for e in q["entries"] if e["id"] not in have]
+    except Exception:   # noqa: BLE001 - informational only
+        pass
+    return {"source": q["source"], "sha256": q["sha256"], "active": len(q["entries"]), "expired": len(q["expired"]), "invalid": len(q["invalid"]), "error": q["error"]}, new
 
 
 def write_reports(sha, verdict, extra):
@@ -1327,24 +1636,26 @@ def write_reports(sha, verdict, extra):
     dur = int(time.time() - T0)
     base = RES / f"gate_{TAG}_{sha}"
     doc = {"branch": BR, "sha": sha, "tier": TIER, "verdict": verdict, "time_dependent_known": len(TIMEDEP), "started": STARTED, "finished": fin, "wall_seconds": dur,
-           "counts": COUNTS, "baseline_check": BASELINE_ROWS, "drop_threshold": DROP_THRESHOLD, "count_drop_waiver": ALLOW_DROP,
-           "baseline_candidate": {k: passed_of(k) for k in COUNTS if k != "baseline"},
-           "phases": PHASES, "items": ITEMS, **extra}
+           "wall_target_min": WALL_TARGET_MIN, "counts": COUNTS, "baseline_check": BASELINE_ROWS, "drop_threshold": DROP_THRESHOLD, "count_drop_waiver": ALLOW_DROP,
+           "baseline_candidate": {k: passed_of(k) for k in COUNTS if k not in ("baseline", "quarantine")},
+           "phases": PHASES, "items": ITEMS, "slow_tests": sorted(SLOW, key=lambda x: -x["seconds"])[:15], "schedule_why": SCHEDULE_WHY, **extra}
     write_json(Path(str(base) + ".json"), doc)
-    heb = "עבר" if verdict == "pass" else "נכשל"
+    write_summary(doc, final=True)       # the one-page file first: the lead reads this one (the long .md follows)
+    heb = {"pass": "עבר", "fail": "נכשל", "review": "דורש סקירה (הבדלי פיקסלים)"}.get(verdict, verdict)
     md = [f"# שער שחרור: {BR} @ {sha}", "", f"## פסק דין: **{heb}**", "",
           f"- דרגה: {TIER} | התחלה: {STARTED} | סיום: {fin} | משך: {dur // 60} דקות {dur % 60} שניות", ""]
     if TIMEDEP:
         md += [f"> **אזהרה:** {len(TIMEDEP)} בדיקות תלויות-שעה (שעות שקט) נכשלו בגלל שעת ההרצה ולכן סומנו KNOWN ולא נבדקו באמת. להריץ את השער שוב בשעות היום לפני שחרור.", ""]
     if ALLOW_DROP:
         md += [f"> **אזהרה:** בדיקת ירידת הספירה נוטרלה ב-`--allow-count-drop`: {ALLOW_DROP}", ""]
-    md += ["## ספירה לפי קטגוריה", "", f"| קטגוריה | עבר | נכשל | FLAKY | KNOWN | דולג | בסיס (שחרור קודם) | יחס (סף {DROP_THRESHOLD:.0%}) |", "|---|---|---|---|---|---|---|---|"]
+    md += ["## ספירה לפי קטגוריה", "", f"| קטגוריה | עבר | נכשל | FLAKY | KNOWN | דולג | בסיס (שחרור קודם) | יחס (סף {DROP_THRESHOLD:.0%}) | הסגר/פיקסלים/קיים-מראש |", "|---|---|---|---|---|---|---|---|---|"]
     zero = {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
     for k in list(COUNTS) + [c for c in BASELINE_ROWS if c not in COUNTS]:
         v = COUNTS.get(k, zero)
         b = BASELINE_ROWS.get(k)
         bcols = f"{b['baseline']} | {b['ratio']:.0%} ({b['state']})" if b else "- | -"
-        md.append(f"| {k} | {v['pass']} | {v['fail']} | {v['flaky']} | {v['known']} | {v['skipped']} | {bcols} |")
+        md.append(f"| {k} | {v['pass']} | {v['fail']} | {v['flaky']} | {v['known']} | {v['skipped']} | {bcols} | "
+                  f"{v.get('quarantined', 0)}/{v.get('pixel_review', 0)}/{v.get('preexisting', 0)} |")
     for w in extra.get("baseline_warnings", []):
         md += ["", f"> אזהרה: {w}"]
     md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" for p in PHASES]
@@ -1357,9 +1668,19 @@ def write_reports(sha, verdict, extra):
             md += [f"- base: {s['base']} | full backend: {', '.join(s['full'].get('backend', [])[:3]) or 'no'} | full frontend: {', '.join(s['full'].get('frontend', [])[:3]) or 'no'}",
                    f"- reduced: {s['reduced'] or 'nothing (full tier)'} | the dropped files: {s['file']}",
                    "> the nightly full run on main is the safety net (select_tests.py audit)"]
+    qm = extra.get("quarantine_managed")
+    if qm:
+        md += ["", f"## הסגר מנוהל (gate_quarantine.json {qm.get('source', '')}, sha256 {qm.get('sha256', '')})", "",
+               f"- בתוקף: {qm.get('active', 0)} | פג תוקף: {qm.get('expired', 0)} | פגום: {qm.get('invalid', 0)} | שגיאת קובץ: {qm.get('error') or '-'}"]
+        md += [f"- נוסף בענף הנבדק (לא ב-{BASE_REF}): {e}" for e in extra.get("quarantine_new_in_branch", [])]
+    if extra.get("base_compare"):
+        b = extra["base_compare"]
+        md += ["", f"## השוואה לבסיס ({b.get('base_ref')} {b.get('base_sha', '')})", "",
+               f"- נבדקו {b.get('checked', 0)} כשלונות: חדשים {b.get('new', 0)} | קיימים מראש {b.get('preexisting', 0)} | לא אומתו {b.get('unverified', 0)}"]
+        md += [f"- {n}" for n in b.get("notes", [])]
     if extra.get("quarantine"):
         q = extra["quarantine"]
-        md += ["", f"## הסגר (quarantine): {len(q)} - failed on the first run in two consecutive gates; a fix ticket each, never skipped", ""]
+        md += ["", f"## חוזרים (repeat offenders): {len(q)} - failed on the first run in two consecutive gates; a fix ticket each (the managed quarantine is a separate, explicit list)", ""]
         md += [f"- [{e['category']}] {e['id'][:180]} ({', '.join(e['gates'][-3:])})" for e in q]
     md += ["", f"- תזמון (schedule): {extra.get('schedule', 'v1')}"]
     if extra.get("resources"):
@@ -1371,7 +1692,9 @@ def write_reports(sha, verdict, extra):
         p = extra["pool"]
         md += [f"- Playwright pool: {p['slots']} worker slots, {len(p['jobs'])} jobs (label / workers / files / est s / start s / wall s):"]
         md += [f"  - {j['label']} / {j['workers']} / {j['files']} / {j['est_s']} / {j['start_s']} / {j['wall_s']}" for j in p["jobs"]]
-    for st, title in (("FAIL", "נכשלו"), ("WAIVED", "ויתור מפורש"),("FLAKY", "FLAKY (נכשל ועבר בהרצה חוזרת בודדת)"), ("KNOWN", "KNOWN (ברשימת הבעיות המוכרות)"), ("SKIPPED", "דולגו")):
+    for st, title in (("FAIL", "נכשלו (אדום: חדש, או לא הוכח שהוא ישן)"), ("PIXEL_REVIEW", "הבדלי פיקסלים - ממתינים לסקירה אנושית (לא נכשל, לא עבר)"),
+                      ("PREEXISTING", "קיימים מראש (נכשלים גם על הבסיס; לא נגרמו ע\"י השינוי, נדרש טיקט)"),
+                      ("QUARANTINED", "הסגר מנוהל (נכשל, מדווח, לא חוסם; בעלים + תפוגה בכל רשומה)"), ("WAIVED", "ויתור מפורש"),("FLAKY", "FLAKY (נכשל ועבר בהרצה חוזרת בודדת)"), ("KNOWN", "KNOWN (ברשימת הבעיות המוכרות)"), ("SKIPPED", "דולגו")):
         lst = [i for i in ITEMS if i["status"].startswith(st)]
         md += ["", f"## {title}: {len(lst)}", ""]
         md += [f"- [{i['category']}] {i['id']}" + (f" - {i['reason']}" if i["reason"] else "") for i in lst] or ["- (אין)"]
@@ -1398,6 +1721,15 @@ def compute_verdict(hard_fail):
     return "pass" if sum(v["fail"] for v in COUNTS.values()) == 0 and not hard_fail else "fail"
 
 
+def final_verdict(hard_fail):
+    """pass / fail / review. `review` = nothing is red, but screenshot differences wait for a person (PIXEL_REVIEW lane):
+    the release is not ready until release_gate.py --resolve-review accepts them."""
+    v = compute_verdict(hard_fail)
+    if v == "pass" and sum(c.get("pixel_review", 0) for c in COUNTS.values()) > 0:
+        return "review"
+    return v
+
+
 def main():
     RES.mkdir(exist_ok=True)
     STATE["sha"] = "?"
@@ -1408,6 +1740,7 @@ def main():
             try:
                 status("running")
                 sample_resources()
+                write_summary(live_doc(), running=True)
             except Exception:
                 pass
 
@@ -1426,6 +1759,13 @@ def main():
     hard_fail = []
     shm = None
     only = None
+    try:
+        extra["quarantine_managed"], extra["quarantine_new_in_branch"] = load_managed_quarantine(wt)
+    except Exception as e:   # noqa: BLE001 - never a silent pass: an unreadable policy is a red
+        count("quarantine", "fail"); item("quarantine", "load", "FAIL", f"{type(e).__name__}: {str(e)[:160]}")
+    SELECTION_POLICY[0] = decide_selection()
+    extra["selection_policy"] = SELECTION_POLICY[0]
+    extra["base_ref"] = BASE_REF
     if SELECT_BASE:
         with Phase("select", f"diff selection against {SELECT_BASE}"):
             try:
@@ -1534,6 +1874,9 @@ def main():
                 backend_finish(procs, wt, logd)
                 procs = None
                 extra["backend_files"] = nbackend
+        if any(i["status"] == "FAIL" and policy.is_test_item(i) for i in ITEMS):
+            with Phase("base-compare", "failed tests against the base commit"):
+                extra["base_compare"] = base_verify(wt, sha, logd)
     except SystemExit as e:
         hard_fail.append(str(e))
     except BaseException as e:  # incl. the SIGTERM that `timeout` sends (turned into KeyboardInterrupt)
@@ -1554,15 +1897,31 @@ def main():
     baseline, bsrc = load_baseline(wt)
     extra["baseline_file"] = bsrc or "(none found)"
     extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
-    verdict = compute_verdict(hard_fail)
+    verdict = final_verdict(hard_fail)
     for h in hard_fail:
         item("gate", h, "FAIL", "")
+    extra["quarantine_unused"] = [f"{e['id']}: {e.get('nodeid') or e.get('file')} (owner {e.get('owner')}, expires {e.get('expires')})"
+                                  for e in policy.quarantine_unused(QUARANTINE, QUARANTINE_HIT)]
+    try:   # flaky counter across gates (flaky_counts.json): a test that flakes again and again is a defect to ticket
+        global FLAKY_DOC
+        fpath = RES / "flaky_counts.json"
+        try:
+            FLAKY_DOC = json.loads(fpath.read_text())
+        except Exception:
+            FLAKY_DOC = {}
+        FLAKY_DOC = policy.update_flaky_counter(FLAKY_DOC, f"{BR}@{sha}", [i["id"] for i in ITEMS if i["status"] == "FLAKY"], now())
+        write_json(fpath, FLAKY_DOC)
+    except Exception as e:  # noqa: BLE001 - reporting aid only
+        extra["flaky_counter_error"] = f"{type(e).__name__}: {e}"[:200]
     parts = [f"{k} {v['pass']}p/{v['fail']}f/{v['flaky']}flaky/{v['known']}known"
              + (f"/{BASELINE_ROWS[k]['ratio']:.0%}of-baseline" if k in BASELINE_ROWS else "") for k, v in COUNTS.items()]
     if ALLOW_DROP:
         parts.append("count-drop check WAIVED")
     dur = int(time.time() - T0)
-    summary = f"{'PASS' if verdict == 'pass' else 'FAIL'} in {dur // 60}m: " + "; ".join(parts)
+    lanes = {k: sum(c.get(k, 0) for c in COUNTS.values()) for k in ("quarantined", "pixel_review", "preexisting")}
+    summary = f"{verdict.upper()} in {dur // 60}m: " + "; ".join(parts)
+    if any(lanes.values()):
+        summary += " | lanes: " + "/".join(f"{k} {v}" for k, v in lanes.items() if v)
     if VISUAL_INFO.get("diffs") and VISUAL != "block":
         summary += f" | WARNING (non-blocking): {len(VISUAL_INFO['diffs'])} visual difference(s), see the report's visual section"
     if TIMEDEP:
@@ -1572,7 +1931,7 @@ def main():
     fin, base = write_reports(sha, verdict, extra)
     HB_STOP.set()
     STATE["phase"] = "done"
-    status("pass" if verdict == "pass" else "fail", summary, finished=fin)
+    status(verdict, summary, finished=fin)
     print(summary)
     print(f"report: {base}.md")
     return 0 if verdict == "pass" else 1
@@ -1624,6 +1983,10 @@ def plan(root, tier):
                       " + ~1 min tsc/build/release_check + retries"] + extra_lines
         finally:
             SCHEDULE = keep
+    for sched, o in out.items():
+        est = max(o["frontend_s"], o["backend_s"]) / 60.0 + 2.0     # + tsc/build/release_check; retries and the base comparison are extra
+        lines.append(f"{sched}: ~{est:.0f} min against the {WALL_TARGET_MIN} min target -> {'within target' if est <= WALL_TARGET_MIN else 'OVER target'}")
+    lines.append(f"schedule used by a gate started now: {SCHEDULE} ({SCHEDULE_WHY})")
     lines.append("estimates use the recorded per-file times of earlier gates as they ran then (under that gate's load); v2 runs more at once,"
                  " so expect individual tests to be slower; the backend estimate assumes the shards scale (disk); tmpfs is not counted")
     print("\n".join(lines))
@@ -1673,16 +2036,85 @@ def seed_from(logs_dir, source):
     return 0
 
 
+def resolve_review(argv):
+    """--resolve-review <gate_*.json> --accept|--reject --by NAME --note TEXT: a person looked at the images of the pixel lane.
+    accept: the verdict becomes pass (the baselines are regenerated ON THE BRANCH by whoever accepts: `npx playwright test <spec>
+    --project=<p> --update-snapshots`, reviewed in the commit); reject: the differences are real regressions, the verdict becomes fail.
+    The decision, the name and the note are written into the report; nothing else about the report changes."""
+    args = list(argv)
+    path = args.pop(0) if args else ""
+    opts = {"decision": "", "by": "", "note": ""}
+    while args:
+        a = args.pop(0)
+        if a in ("--accept", "--reject"):
+            opts["decision"] = a[2:]
+        elif a == "--by":
+            opts["by"] = (args.pop(0) if args else "").strip()
+        elif a == "--note":
+            opts["note"] = (args.pop(0) if args else "").strip()
+    if not path or not opts["decision"] or not opts["by"] or not opts["note"]:
+        print('usage: release_gate.py --resolve-review <gate_<b>_<sha>.json> --accept|--reject --by NAME --note "what was reviewed"')
+        return 2
+    jp = Path(path)
+    try:
+        doc = json.loads(jp.read_text())
+    except (OSError, ValueError) as e:
+        print(f"cannot read {path}: {e}")
+        return 2
+    if doc.get("verdict") != "review":
+        print(f"the verdict is {doc.get('verdict')!r}, not 'review': nothing to resolve")
+        return 2
+    pix = [i for i in doc.get("items", []) if i.get("status") == "PIXEL_REVIEW"]
+    ok = opts["decision"] == "accept"
+    doc["review"] = {"decision": opts["decision"], "by": opts["by"], "note": opts["note"], "at": now(), "items": len(pix), "verdict_before": "review"}
+    for i in pix:
+        i["status"] = "PIXEL_ACCEPTED" if ok else "FAIL"
+        i["reason"] = (i.get("reason", "") + f" | pixel review {opts['decision']}ed by {opts['by']}")[:400]
+        if not ok:
+            c = doc["counts"].get(i["category"], {})
+            c["fail"] = c.get("fail", 0) + 1
+            c["pixel_review"] = max(c.get("pixel_review", 0) - 1, 0)
+    doc["verdict"] = "pass" if ok else "fail"
+    write_json(jp, doc)
+    md = jp.with_suffix(".md")
+    if md.exists():
+        t = md.read_text(encoding="utf-8")
+        t = t.replace("## פסק דין: **דורש סקירה (הבדלי פיקסלים)**", f"## פסק דין: **{'עבר' if ok else 'נכשל'}** (סקירת פיקסלים: {opts['decision']} ע\"י {opts['by']}: {opts['note']})")
+        md.write_text(t, encoding="utf-8")
+    sm = jp.with_suffix(".summary.md")
+    txt = policy.render_summary(doc, {}) + f"\nPixel review {opts['decision']}ed by {opts['by']} at {doc['review']['at']}: {opts['note']}\n"
+    sm.write_text(txt, encoding="utf-8")
+    try:
+        st = json.loads((jp.parent / STATUS.name).read_text())
+        if st.get("sha") == doc.get("sha"):
+            st.update(state=doc["verdict"], summary=(st.get("summary", "") + f" | pixel review {opts['decision']}ed by {opts['by']}")[:900], updated=now())
+            write_json(jp.parent / STATUS.name, st)
+            (jp.parent / "LATEST_SUMMARY.md").write_text(txt, encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+    print(f"{jp.name}: verdict is now {doc['verdict'].upper()} ({len(pix)} pixel item(s) {opts['decision']}ed by {opts['by']})")
+    return 0 if ok else 1
+
+
 def main_cli(argv):
     if argv[:1] == ["--seed-from"] and len(argv) >= 2:
         return seed_from(argv[1], argv[2] if len(argv) > 2 else "")
-    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE, SELECT_BASE
+    if argv[:1] == ["--resolve-review"]:
+        return resolve_review(argv[1:])
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE, SCHEDULE_WHY, SELECT_BASE, FULL, BASE_REF
     args = list(argv)
     plan_root = None
     while args:
         a = args.pop(0)
         if a == "--schedule":
             SCHEDULE = (args.pop(0) if args else "").strip().lower()
+            SCHEDULE_WHY = "set by --schedule"
+            continue
+        if a == "--full":
+            FULL = True
+            continue
+        if a == "--base":
+            BASE_REF = args.pop(0) if args else BASE_REF
             continue
         if a == "--select-base":
             SELECT_BASE = (args.pop(0) if args else "").strip()
@@ -1725,14 +2157,12 @@ def main_cli(argv):
     if plan_root is not None:
         plan(plan_root, TIER)
         return 0
-    if SELECT_BASE and os.environ.get("GATE_SELECT_ENABLE") != "1":
-        # lead 2026-10-20: selection stays OFF for release gates until the full nightly on main finishes reliably (its safety
-        # net); a run that really wants it sets GATE_SELECT_ENABLE=1 on purpose (docs/release/GATE_SPEED.md 5.2)
-        print("--select-base is disabled for release gates (set GATE_SELECT_ENABLE=1 only after the nightly safety net is proven)")
-        return 2
+    # GATEEFF-295: no refusal here any more. decide_selection() (called by main) allows diff selection only while the last full
+    # nightly on main finished (policy.nightly_health), else the run is the full tier and the report says why.
     if not BR:
-        print('usage: release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--select-base <ref>] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]\n'
-              '       release_gate.py --plan --root <checkout> [--tier L]   (estimates only, runs nothing)')
+        print('usage: release_gate.sh <branch> [--tier S|M|L] [--schedule v1|v2] [--full | --select-base <ref>] [--base <ref>] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]\n'
+              '       release_gate.py --plan --root <checkout> [--tier L]   (estimates only, runs nothing)\n'
+              '       release_gate.py --resolve-review <gate_<b>_<sha>.json> --accept|--reject --by NAME --note "..."   (pixel lane)')
         return 2
     TAG = re.sub(r"[^A-Za-z0-9._-]", "-", BR)
     signal.signal(signal.SIGTERM, on_term)

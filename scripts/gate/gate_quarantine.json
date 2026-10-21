@@ -1,0 +1,4 @@
+{
+  "_doc": "GATEEFF-295 managed quarantine (docs/release/GATE_SPEED.md section 7). Every entry: id, kind (backend | playwright), the test selector (backend: nodeid; playwright: file + line or title_contains, optionally project), reason, owner, added (YYYY-MM-DD), expires (at most 14 days after added), ticket (URL or task id). A quarantined test still runs and is retried alone; if it keeps failing it is listed as QUARANTINED and does not turn the gate red. An expired or invalid entry turns the gate red. Nothing is quarantined automatically; every change to this file is a reviewed commit.",
+  "entries": []
+}

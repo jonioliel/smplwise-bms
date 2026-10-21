@@ -132,7 +132,7 @@ for BR in "${BRANCHES[@]}"; do
   # GATESPEED-293: SW_NIGHTLY_SCHEDULE=v2 runs the nightly on the v2 schedule (6 shards on tmpfs, one Playwright pool); default v1.
   # The nightly is the safety net of --select-base, so it must FINISH: in 2026-10-16..20 every nightly hit the 117 min engine
   # budget (the backend was cut, e.g. 3564 of ~12000 tests on 10-20); raise SW_NIGHTLY_MAX_MIN / SW_NIGHTLY_BRANCH_MAX_MIN or use v2
-  GATE_SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v1}" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
+  GATE_SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v1}" GATE_FULL=1 GATE_PIXEL_LANE=0 GATE_BASE_VERIFY=0 GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L --no-visual > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)
