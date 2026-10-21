@@ -143,7 +143,9 @@ def test_r5_a1_a_recovered_target_is_matched_and_then_cleaned_up(env):
     _later(env, minutes=10)
     env.run()
     g = env.grant(gid)
-    assert g["state"] == "failed" and env.engine.people[created[0]]["active"] is False, "stripped and verified like any other revoke"
+    # ECCACT-295: stripped, but a person with NO station on record and empty v2 bookkeeping is never proof (WisKey F-02, kept strict by
+    # agreement): the grant stays `revoking` (hourly alert) - exactly as in production before, where no reader existed.
+    assert g["state"] == "revoking" and env.engine.people[created[0]]["active"] is False, "stripped, not verified: no per-station evidence"
     assert env.engine.calls.count("create_person") == 1
 
 
