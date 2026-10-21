@@ -36,7 +36,7 @@ CONTACT_FIELDS = ("kind", "vendor_id", "user_id", "display_name", "company", "ph
                   "phone_confirmed_at",  # + TKSTAFF1 (0087, review F3): the user confirmed this number; cleared on every change
                   "phone_verify", "phone_confirmed_via",  # + TKNOTIFOTP (0091): the row's "verify with a code" switch; how it was confirmed
                   "created_department_id",  # + CR-DEPT-MANAGER-HANDLERS (0111): the department a manager created the row in
-                  "permanent_vendor")  # + VENDMARK-295 (0136, provisional): 1 = a permanent vendor / technician, 0 = temporary (display and filter only)
+                  "permanent_vendor")  # + VENDMARK-295 (0141): 1 = a permanent vendor / technician, 0 = temporary (display and filter only)
 
 
 def insert_contact(conn: sqlite3.Connection, fields: Mapping[str, Any], created_by: str) -> str:

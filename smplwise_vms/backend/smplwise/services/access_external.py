@@ -586,7 +586,7 @@ def identity_of(conn: sqlite3.Connection, principal: Principal, contact_id: str)
         "live_grant": {"id": live["id"], "state": live["state"]} if live else None,
         "unresolved": unresolved,
         "name_sync": name_sync(conn),
-        "permanent_vendor": bool(contact.get("permanent_vendor")),  # VENDMARK-295 (0136): shown on the card, no authority
+        "permanent_vendor": bool(contact.get("permanent_vendor")),  # VENDMARK-295 (0141): shown on the card, no authority
         "can": {
             "link": link is None and unresolved is None and configure,
             "unlink": link is not None and link["state"] != "unlinking" and configure,

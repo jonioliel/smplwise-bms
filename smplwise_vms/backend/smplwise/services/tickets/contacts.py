@@ -237,7 +237,7 @@ def present(conn, row: dict[str, Any], *, depts: list[str], full_phone: bool, op
         "open_tickets": open_count,
         "last_assigned_at": row.get("last_assigned_at"),
         "revision": row["revision"],
-        "permanent_vendor": bool(row.get("permanent_vendor")),  # VENDMARK-295 (0136): a marker to show and filter on, never an authority
+        "permanent_vendor": bool(row.get("permanent_vendor")),  # VENDMARK-295 (0141): a marker to show and filter on, never an authority
         # S9 (11A.1 / 11A.2): the cost-claim defaults of this contact; the hourly rate only for tickets.costs.view holders (11A.8)
         "cost_claim": row.get("cost_claim"),
         "vat_exempt": bool(row.get("vat_exempt")),
@@ -372,7 +372,7 @@ def _fields(conn, body: dict[str, Any], *, creating: bool, current: dict[str, An
             f["vendor_id"] = vid
         elif (kind == "vendor" or employee) and (current or {}).get("vendor_id"):
             f["vendor_id"] = None  # a vendor or an employee works for no vendor
-        # VENDMARK-295 (0136, owner GRANTS3 Q1): the permanent-vendor marker - an external technician or vendor company only
+        # VENDMARK-295 (0141, owner GRANTS3 Q1): the permanent-vendor marker - an external technician or vendor company only
         internal = employee or bool(body.get("user_id") if "user_id" in body else (current or {}).get("user_id"))
         if "permanent_vendor" in body:
             if not isinstance(body["permanent_vendor"], bool):

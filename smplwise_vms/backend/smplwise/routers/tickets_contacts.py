@@ -51,7 +51,7 @@ class ContactBody(BaseModel):
     labor_rate: str | None = Field(default=None, max_length=20)
     rate_currency: str | None = Field(default=None, max_length=3)
     phone_verify: bool | None = None  # TKNOTIFOTP: "verify the number with a code" for this row (raises the installation switch)
-    permanent_vendor: bool | None = None  # VENDMARK-295 (0136): permanent vs temporary vendor / technician (display and filter only)
+    permanent_vendor: bool | None = None  # VENDMARK-295 (0141): permanent vs temporary vendor / technician (display and filter only)
     revision: int | None = Field(default=None, ge=1)
 
 

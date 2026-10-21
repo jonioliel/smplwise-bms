@@ -1,5 +1,4 @@
--- PROVISIONAL number 0136 (VENDMARK-295; the last number on main v2.10.0 is 0135) - the lead renumbers at integration. The content does not
--- depend on the number.
+-- Final number 0141 (built as PROVISIONAL 0136 on pilot/VENDMARK-295; renumbered at the 2.11.0 integration, integ/2111). The content does not depend on the number.
 --
 -- VENDMARK-295 (owner decision GRANTS3 Q1, 2026-10-21): an explicit "permanent vendor" marker in the directory ("more information is always
 -- better"). One flag on the directory row of an external technician or vendor company: 1 = permanent, 0 = temporary (the default, which is

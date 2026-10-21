@@ -1,6 +1,6 @@
 """VENDMARK-295 (owner decision GRANTS3 Q1, 2026-10-21): the explicit "permanent vendor" marker in the directory.
 
-One flag on the directory row of an external technician or vendor company (0136, provisional): permanent vs temporary (the default).
+One flag on the directory row of an external technician or vendor company (migration 0141, built as provisional 0136): permanent vs temporary (the default).
 It is information only - no authority reads it. Permissions are the existing ones (`tickets.configure` / `tickets.directory`); a
 department manager's route cannot set it. Employees and internal users never carry it. With the tickets module OFF the marker must not
 bring any ticket action: the identity answer carries it without any ticket link and the directory stays closed (uniform 404)."""
@@ -11,7 +11,7 @@ import pytest
 from conftest import bind
 from tickets_s4_world import API, build_s4
 
-MIG = "0136_vendor_permanent_marker.sql"
+MIG = "0141_vendor_permanent_marker.sql"
 
 
 @pytest.fixture()
@@ -29,7 +29,7 @@ def test_migration_is_additive_with_a_temporary_default():
     import smplwise
 
     sql = (Path(smplwise.__file__).parent / "migrations" / MIG).read_text(encoding="utf-8")
-    assert "PROVISIONAL number 0136" in sql.splitlines()[0]
+    assert "Final number 0141" in sql.splitlines()[0]
     assert "ADD COLUMN permanent_vendor INTEGER NOT NULL DEFAULT 0" in sql and "DROP" not in sql.upper()
 
 
