@@ -90,12 +90,29 @@ Every save bumps `policy_revision` and disarms (reason `edited`). The block bind
 3. Feature: `doors.automation_open == "on"` AND `GO_LIVE_PERMITTED` (else `feature_off`).
 4. Kill switch `doors.automation_kill` (anything but absent / `off` = stopped: fail closed on a garbage value) -> `killed`.
 5. Arming not expired -> else `arm_expired` + disarm.
-6. Autonomous trigger only: an event whose context carries a user id, or whose source is a manual run (`trigger action`,
-   `manual`), is refused (`manual_trigger`): a person who wants a door open uses the human door path, judged as that person.
+6. Autonomous trigger only (DOORHARD-295, A-04): an event is refused (`manual_trigger`) when its context carries a user id OR a parent
+   context id (a run caused by a service call, script or automation cannot be traced to nobody from here), when its source is a manual run
+   (`trigger action`, `manual`), and - fail closed - when its source is empty or not one of Home Assistant's known automatic trigger
+   descriptions (`AUTOMATIC_SOURCES`). A person who wants a door open uses the human door path, judged as that person.
 7. The automation's live revision equals the armed one, and it still exists -> else `item_changed` / `item_missing` + disarm.
-8. Time window in the installation zone -> else `outside_window`.
+8. Time window in the installation zone -> else `outside_window`. DST (A-10, documented): the window is read on the local wall-clock
+   minute; spring forward, a window that starts inside the skipped hour never matches that day (safe); fall back, a window that ends in
+   the repeated hour stays open for one real hour longer than its wall-clock length; an unknown zone refuses (`clock_untrusted`).
+8a. Corroboration of the event with the Arx mirror (DOORHARD-295, A-01; last block gate) -> else `uncorroborated`, which counts as a storm
+   reason. The `automation_triggered` event alone is not evidence (any integration or script in Home Assistant can fire it with no
+   context). Required: the automation entity's `last_triggered` in the mirror within `corroborate_window_s` (default 10, administrator
+   setting 2..120) of now AND newer than the last one matched (`door_automations.corroborated_trigger`: one real run authorises one
+   event; a replay is refused); and, for an automation with state / numeric_state triggers, a watched entity changed in the mirror in the
+   same window (`last_changed`; `last_updated` for a trigger on an attribute). An automation that ALSO has a time / sun trigger cannot say
+   which trigger ran, so for it the run alone counts. Anything unreadable fails closed. The event can arrive before the state frame, so an
+   event that fails only this gate is re-checked for up to 3 s before it is refused. A simulation has no event and does not evaluate it.
+   Clocks: Home Assistant's stamps are compared with the add-on's clock; both run on the same host in the add-on deployment.
 9. Per door: the armer's authority (section 3) -> else `armer_lost_authority` + disarm; cooldown -> `cooldown`; hourly cap ->
-   `rate_hour`; daily cap -> `rate_day`; station / relay still in the WisKey copy and online -> `door_unavailable`.
+   `rate_hour`; daily cap -> `rate_day`; the DOOR's own cap across EVERY block that names it (A-03: default 6 an hour and 30 a day,
+   administrator settings `door_max_per_hour` / `door_max_per_day`; a deleted block's fires still count) -> `door_rate_hour` /
+   `door_rate_day`; station / relay still in the WisKey copy and online -> `door_unavailable`. Inside this per-door transaction the kill
+   switch, the feature switch and the arming expiry are read again (A-02) -> `killed` / `feature_off` / `arm_expired`, so a switch set
+   while an earlier door was being sent stops the next one.
 10. Send once through the sender with the operator as actor: attempt row committed first, then the outcome row. Never retried,
     never queued; an unknown outcome stays unknown; one door's failure does not stop the next door.
 11. Storm: `storm_refusals` (default 5) refusals of kind cooldown / rate within `storm_window_s` (default 10 minutes) disarm the
@@ -107,7 +124,9 @@ Every save bumps `policy_revision` and disarms (reason `edited`). The block bind
   (`loop_risk`) when a trigger watches an entity of a door on the list (`intercom_doors.entities_for`) or any entity of the same
   WisKey station (`ha_entities.config_entry_id`), and refused (`triggers_unresolvable`) when a trigger cannot be resolved to
   entities (template, device, event, webhook, MQTT, purpose-specific, a templated entity id) - fail closed.
-- **Runtime:** cooldown and the two caps bound any loop the static check missed; the storm rule disarms a block that keeps hitting
+- **Limit (documented, A-03):** the static check is ONE hop - the automation's own triggers. A chain through an intermediary (an
+  `input_boolean`, another automation, a script) is not resolved; for it only the runtime bounds below apply.
+- **Runtime:** cooldown, the block caps and the per-door cap bound any loop the static check missed; the storm rule disarms a block that keeps hitting
   them; a manual / human-context trigger never fires (step 6).
 
 ## 7. Kill switch, feature switch, simulation
@@ -137,9 +156,13 @@ simulate|kill|settings|auto_disarm`. Never a signature, key, nonce, body or code
 `door_automations` (one per automation, soft delete, state `draft|armed|disarmed`, policy JSON, `policy_revision`,
 `bound_item_revision`, armer id / name / source, armed and expiry instants, disarm reason) and `door_automation_fires` (one row per
 door decision that reached the per-door stage: outcome `sent|refused|unknown|not_sent`, reason, request id) for cooldown / caps /
-storm and the block's history. Not in the backup allow-list: a restore can never revive an armed block (a decision to record:
-the definitions are lost on a restore too; alternative: back them up and restore as `disarmed`). Rollback: older code ignores both
-tables; drop them to remove the feature.
+storm and the block's history. Backup (owner answer 12.3, DOORHARD-295): `door_automations` travels with the project
+backup and a restore brings EVERY block back `disarmed` (reason `restored`; a draft stays a draft; archive rows with an invalid policy are
+dropped) - a person arms it again and the arming checks run again. `door_automation_fires` (the cooldown / cap counters and the
+decisions) is in `NEVER_EXPORTED_TABLES`. The `doors.*` switches and limits are never carried. Migration 0150 (PROVISIONAL, DOORHARD-295)
+adds `door_automations.corroborated_trigger` and, on the fire rows, `operator_id` / `armed_by` / `armed_by_name` (owner answer 12.1: both
+the operator and the approving person are stored on every decision, and the audit details carry both). Rollback: older code ignores
+both tables; drop them to remove the feature.
 
 ## 10. Tests (fakes only; `tests/test_door_automation_295.py`)
 
@@ -198,10 +221,16 @@ Owner decisions of 2026-10-21 (taken, not open):
    step's door list is what it opens - there is no separate allow-list to configure). The global kill switch stays.
 Remaining notes:
 
-4. The automation operator model (section 3) replaces CR-033 6.4's "stored approving actor" for automations (the operator plus the
-   arming person's re-check; the audit names both). Not yet confirmed by the owner as such.
+4. The automation operator model (section 3) with CR-033 6.4's "stored approving actor": owner answer 12.1 (2026-10-21): BOTH are stored
+   - the operator (`automation:<block id>`) and the arming person - on the block, on every fire row and in the audit details.
+   Owner answer 12.4: `automation.manage` counts at the installation AND at a floor (`manage_reach`): a floor editor creates and arms
+   steps only for automations they may see and manage (their entities on their floors), on doors they may open themselves; the
+   arming person's reach is re-checked at every fire.
 5. CR-017 decision 6ג allows sensitive steps in HA automations under manual-control grants; CR-033 R-17 forbids WisKey door steps
    inside HA. This step keeps R-17: the door step never enters Home Assistant.
-6. Backup: steps are not backed up (section 9), so a restore never revives an armed step; the definitions are lost on a restore.
-   The `doors.automation.*` settings start with `doors.` and are therefore never carried by a backup (CR-033 section 9).
-7. Migration number 0133 (built as provisional 0145; renumbered at integ/2100).
+6. Backup: steps are backed up and restored `disarmed` (section 9, owner answer 12.3). The `doors.automation.*` settings start with
+   `doors.` and are therefore never carried by a backup (CR-033 section 9).
+7. Migration number 0133 (built as provisional 0145; renumbered at integ/2100). DOORHARD-295 adds a PROVISIONAL 0150.
+8. Fable review (2026-10-21) section 5 closed in DOORHARD-295: A-01 (8a), A-02, A-03, A-04, A-09 (the mirror's hook hands the frame to a
+   bounded queue, 256 deep, and ONE worker; a full queue drops the frame and counts it - shown to the administrator as `dropped_events`),
+   A-10. `GO_LIVE_PERMITTED` stays False and every switch stays OFF.

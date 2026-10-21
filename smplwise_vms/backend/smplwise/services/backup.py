@@ -50,6 +50,11 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_view_prefs"]
 # regenerate requests (plan_bake_jobs) are runtime state and stay out. An archive written before the table restores no bake: the
 # floors show their live view until an editor bakes again (a replace restore sweeps the files nobody names).
 PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
+# DOORHARD-295 (owner answer CR-AUTODOORS-295 12.3, 2026-10-21): the "open a door" blocks travel with the project (migration 0133) but a restore
+# NEVER revives one: every restored block comes back `disarmed` (reason `restored`) and a person arms it again - see `_disarm_restored_blocks`.
+# Their fire history (`door_automation_fires`: the cooldown / cap counters and the block's decisions) is runtime state: never exported, never
+# restored (NEVER_EXPORTED_TABLES). The `doors.*` switches (feature, kill, limits) are SETTINGS_KEEP_PREFIXES and are never carried either.
+PROJECT_TABLES = PROJECT_TABLES + ["door_automations"]
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
 # new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
@@ -71,12 +76,14 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
-                                   "bridge_keys", "bridge_rotations"})
+                                   "bridge_keys", "bridge_rotations",
+                                   # DOORHARD-295: the door-automation fire history (cooldown / cap counters, decisions) is never in an archive
+                                   "door_automation_fires"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
-KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT
+KEEP_WHEN_ABSENT = frozenset({"door_automations", "device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES["audit"] + OPTIONAL_TABLES["events"]):
     raise RuntimeError("a never-exported table is listed for backup")
@@ -579,10 +586,12 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
+        door_blocks_dropped = _sanitise_door_blocks(data)
         counts: dict[str, int] = {}
         for t in tables:
             if t in data:
                 counts[t] = _insert_rows(conn, t, data[t], replace=(mode == "replace"))
+        door_blocks_disarmed = _disarm_restored_blocks(conn) if "door_automations" in tables else 0
         if "notify_settings" in tables:  # CR-018: an archive without the table must not leave the notification settings without their one row
             from .notify_settings import ensure_row
 
@@ -667,11 +676,45 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     if files_skipped:
         log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
-            "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
+            "kept_current": kept_current, "roles_pruned": roles_pruned, "door_automations": {"disarmed": door_blocks_disarmed, "dropped": door_blocks_dropped}, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
             "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings,
             "sensitive": {"state": sens_state, "restored": payload is not None or legacy_hashes > 0, "skipped": sens_skipped,
                           "plaintext_ignored": plaintext_ignored, "settings_kept_current": keep_sensitive},
             "passwords": passwords}
+
+
+def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> int:
+    """DOORHARD-295 / CR-AUTODOORS-295 12.3: an archive is unsigned. Its door-automation rows come in as `disarmed` whatever they say, and a row whose
+    policy does not pass the block's own validation (or whose state is unknown) is dropped. Returns how many rows were dropped."""
+    rows = data.get("door_automations")
+    if not rows:
+        return 0
+    from . import door_automation
+
+    kept: list[dict[str, Any]] = []
+    for r in rows:
+        try:
+            if not isinstance(r, dict) or r.get("state") not in ("draft", "armed", "disarmed") or not isinstance(r.get("id"), str):
+                raise ValueError("row")
+            door_automation.validate_policy(json.loads(r.get("policy_json") or ""))
+        except Exception:  # noqa: BLE001 - ApiError, ValueError, TypeError: all the same verdict
+            continue
+        if r["state"] == "armed":
+            r = {**r, "state": "disarmed"}
+        kept.append(r)
+    data["door_automations"] = kept
+    return len(rows) - len(kept)
+
+
+def _disarm_restored_blocks(conn: sqlite3.Connection) -> int:
+    """DOORHARD-295 / CR-AUTODOORS-295 12.3: after a restore no door-opening block is armed. Covers the archive's rows, the rows a `merge` keeps and the
+    rows an older archive (without the table) leaves in place: a person arms each block again (the arming checks run again)."""
+    from . import door_automation
+
+    at = door_automation.iso(door_automation.now())
+    cur = conn.execute("""UPDATE door_automations SET state = 'disarmed', disarm_reason = 'restored', disarmed_at = ?, disarmed_by = 'system', armed_until = NULL,
+                          corroborated_trigger = NULL, updated_at = ? WHERE state = 'armed'""", (at, at))
+    return max(cur.rowcount, 0)
 
 
 def _lease_settings_report(conn: sqlite3.Connection, data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
