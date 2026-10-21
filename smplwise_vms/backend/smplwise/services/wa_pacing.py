@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
+import re
 import sqlite3
 from collections import defaultdict
 from contextlib import AbstractContextManager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
 UTC = dt.timezone.utc
@@ -48,14 +50,13 @@ MAX_WAIT_RANGE = (1, 2880)
 
 ACCOUNT_BACKOFF_S = (60, 1800)  # first step, ceiling (doubling)
 PAIR_BACKOFF_S = (300, 3600)
-SEVERE_LEVEL = 3  # at this many consecutive rate answers even alerts wait
 COUNTER_KEEP = dt.timedelta(days=8)
 
 # the outcome codes of channel_whatsapp.classify that mean "the platform asked us to slow down" (the message did NOT leave)
 RATE_ACCOUNT, RATE_PAIR = "rate_limited", "pair_rate_limited"
 RATE_CODES = (RATE_ACCOUNT, RATE_PAIR)
 
-METRICS = ("sent", "deferred", "backoff", "pair_backoff", "expired")
+METRICS = ("sent", "deferred", "backoff", "pair_backoff", "expired", "lease_granted", "lease_denied")
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,12 @@ class Budget:
     burst_window_s: int = 10
 
 
-PROFILES: Mapping[str, Budget] = {"conservative": Budget(per_minute=3, burst=2), "standard": Budget(per_minute=6, burst=3)}
+# owner 2026-10-21: WhatsApp was tested at 10 messages a minute. Hour and day are the account's own `Pacing` (300 / 1500 by default).
+PROFILES: Mapping[str, Budget] = {"conservative": Budget(per_minute=10, burst=5), "standard": Budget(per_minute=20, burst=8)}
+RANGE_PER_MINUTE, RANGE_BURST, RANGE_LEASE_TTL = (1, 120), (1, 60), (10, 300)
+DEFAULT_LEASE_TTL_S = 60
+ACCOUNT_KEY_RE = re.compile(r"^(entry:[A-Za-z0-9_\-]{1,64}|manual:[a-z0-9]{4,16})$")
+SENDER_REF_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,128}$")
 
 
 @dataclass(frozen=True)
@@ -73,16 +79,33 @@ class PacerConfig:
     mode: str = DEFAULT_MODE
     wiskey_shared: bool = True
     max_wait_min: Mapping[str, int] = field(default_factory=lambda: dict(DEFAULT_MAX_WAIT_MIN))
+    per_minute: int | None = None  # None = the profile's number
+    burst: int | None = None
+    lease_ttl_s: int = DEFAULT_LEASE_TTL_S
+    # Arx account key -> WisKey's opaque `sender_ref` of the same number. The ONLY way an account is matched with WisKey's (never a name
+    # or the last four digits); WisKey must also report `sender_match_verified` for it before its counters are used.
+    senders: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def enabled(self) -> bool:
         return self.mode != "off"
 
     def budget(self) -> Budget | None:
-        return PROFILES.get(self.mode)
+        base = PROFILES.get(self.mode)
+        if base is None:
+            return None
+        return Budget(per_minute=self.per_minute or base.per_minute, burst=self.burst or base.burst, burst_window_s=base.burst_window_s)
 
     def max_wait(self, klass: str) -> dt.timedelta:
         return dt.timedelta(minutes=int(self.max_wait_min.get(klass, DEFAULT_MAX_WAIT_MIN[klass])))
+
+    def wiskey_counts(self, account_key: str) -> bool:
+        """Do WisKey's sends spend this account's budget? On by default; with a sender mapping, only for the mapped accounts."""
+        return self.wiskey_shared and (not self.senders or account_key in self.senders)
+
+
+def _int_in(v: Any, rng: tuple[int, int]) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and rng[0] <= v <= rng[1] else None
 
 
 def parse_config(raw: Any) -> PacerConfig:
@@ -103,7 +126,11 @@ def parse_config(raw: Any) -> PacerConfig:
             v = given.get(k)
             if isinstance(v, int) and not isinstance(v, bool) and MAX_WAIT_RANGE[0] <= v <= MAX_WAIT_RANGE[1]:
                 waits[k] = v
-    return PacerConfig(mode=mode, wiskey_shared=shared, max_wait_min=waits)
+    senders = {}
+    if isinstance(raw.get("senders"), Mapping):
+        senders = {k: v for k, v in raw["senders"].items() if isinstance(k, str) and isinstance(v, str) and ACCOUNT_KEY_RE.match(k) and SENDER_REF_RE.match(v)}
+    return PacerConfig(mode=mode, wiskey_shared=shared, max_wait_min=waits, per_minute=_int_in(raw.get("per_minute"), RANGE_PER_MINUTE),
+                       burst=_int_in(raw.get("burst"), RANGE_BURST), lease_ttl_s=_int_in(raw.get("lease_ttl_s"), RANGE_LEASE_TTL) or DEFAULT_LEASE_TTL_S, senders=senders)
 
 
 def validate_config(raw: Any) -> tuple[PacerConfig, list[dict[str, str]]]:
@@ -115,6 +142,9 @@ def validate_config(raw: Any) -> tuple[PacerConfig, list[dict[str, str]]]:
         problems.append({"code": "mode_unknown", "field": "mode"})
     if "wiskey_shared" in raw and not isinstance(raw["wiskey_shared"], bool):
         problems.append({"code": "invalid", "field": "wiskey_shared"})
+    for name, rng in (("per_minute", RANGE_PER_MINUTE), ("burst", RANGE_BURST), ("lease_ttl_s", RANGE_LEASE_TTL)):
+        if raw.get(name) is not None and _int_in(raw[name], rng) is None:
+            problems.append({"code": "out_of_range", "field": name})
     given = raw.get("max_wait_min")
     if given is not None:
         if not isinstance(given, Mapping):
@@ -125,11 +155,24 @@ def validate_config(raw: Any) -> tuple[PacerConfig, list[dict[str, str]]]:
                     problems.append({"code": "class_unknown", "field": f"max_wait_min.{k}"})
                 elif not (isinstance(v, int) and not isinstance(v, bool) and MAX_WAIT_RANGE[0] <= v <= MAX_WAIT_RANGE[1]):
                     problems.append({"code": "out_of_range", "field": f"max_wait_min.{k}"})
+    if raw.get("senders") is not None:
+        if not isinstance(raw["senders"], Mapping):
+            problems.append({"code": "invalid", "field": "senders"})
+        else:
+            refs = list(raw["senders"].values())
+            for k, v in raw["senders"].items():
+                if not (isinstance(k, str) and ACCOUNT_KEY_RE.match(k)):
+                    problems.append({"code": "account_key_invalid", "field": f"senders.{k}"})
+                elif not (isinstance(v, str) and SENDER_REF_RE.match(v)):
+                    problems.append({"code": "sender_ref_invalid", "field": f"senders.{k}"})
+                elif refs.count(v) > 1:
+                    problems.append({"code": "sender_ref_duplicate", "field": f"senders.{k}"})
     return (parse_config(raw) if not problems else PacerConfig()), problems
 
 
 def config_to_json(cfg: PacerConfig) -> dict[str, Any]:
-    return {"mode": cfg.mode, "wiskey_shared": cfg.wiskey_shared, "max_wait_min": {k: int(cfg.max_wait_min.get(k, DEFAULT_MAX_WAIT_MIN[k])) for k in CLASSES}}
+    return {"mode": cfg.mode, "wiskey_shared": cfg.wiskey_shared, "max_wait_min": {k: int(cfg.max_wait_min.get(k, DEFAULT_MAX_WAIT_MIN[k])) for k in CLASSES},
+            "per_minute": cfg.per_minute, "burst": cfg.burst, "lease_ttl_s": cfg.lease_ttl_s, "senders": dict(cfg.senders)}
 
 
 def load_config(conn: sqlite3.Connection) -> PacerConfig:
@@ -173,6 +216,22 @@ class Ledger(Protocol):
 ForeignUse = Callable[[dt.datetime], list[dt.datetime]]  # WisKey sends (Arx's own record) after `since`
 
 
+@dataclass(frozen=True)
+class Lease:
+    """A reservation WisKey holds for one send of its own (the reservation port). It counts as a send from `granted_at` until it is
+    released as `not_sent`; a lease that expires unreleased stays counted (the send may have left)."""
+
+    request_id: str
+    account_key: str
+    klass: str
+    sender_ref: str
+    granted_at: dt.datetime
+    expires_at: dt.datetime
+    state: str = "granted"  # granted | released
+    outcome: str | None = None
+    counted: bool = True
+
+
 class PacerStore(Protocol):
     def get_state(self, scope: str) -> tuple[int, dt.datetime] | None: ...
     def set_state(self, scope: str, level: int, until: dt.datetime, now: dt.datetime) -> None: ...
@@ -182,6 +241,10 @@ class PacerStore(Protocol):
     def wait_clear(self, ref: str) -> None: ...
     def bump(self, account_key: str, klass: str, metric: str, now: dt.datetime, n: int = 1) -> None: ...
     def prune(self, before: dt.datetime) -> int: ...
+    def lease_get(self, request_id: str) -> Lease | None: ...
+    def lease_put(self, lease: Lease) -> None: ...
+    def lease_times(self, account_key: str, since: dt.datetime) -> list[dt.datetime]: ...
+    def lease_active(self, account_key: str, now: dt.datetime) -> int: ...
 
 
 def _hour(moment: dt.datetime) -> str:
@@ -201,6 +264,7 @@ class MemoryPacerStore:
         self.state: dict[str, tuple[int, dt.datetime]] = {}
         self.waits: dict[str, tuple[str, str, dt.datetime]] = {}
         self.counts: dict[tuple[str, str, str, str], int] = defaultdict(int)  # (hour, account, class, metric)
+        self.leases: dict[str, Lease] = {}
 
     def get_state(self, scope: str) -> tuple[int, dt.datetime] | None:
         return self.state.get(scope)
@@ -231,7 +295,22 @@ class MemoryPacerStore:
         gone = [r for r, w in self.waits.items() if w[2] < before]
         for r in gone:
             del self.waits[r]
-        return len(old) + len(gone)
+        dead = [r for r, x in self.leases.items() if x.expires_at < before]
+        for r in dead:
+            del self.leases[r]
+        return len(old) + len(gone) + len(dead)
+
+    def lease_get(self, request_id: str) -> Lease | None:
+        return self.leases.get(request_id)
+
+    def lease_put(self, lease: Lease) -> None:
+        self.leases[lease.request_id] = lease
+
+    def lease_times(self, account_key: str, since: dt.datetime) -> list[dt.datetime]:
+        return sorted(x.granted_at for x in self.leases.values() if x.account_key == account_key and x.counted and x.granted_at > since)
+
+    def lease_active(self, account_key: str, now: dt.datetime) -> int:
+        return sum(1 for x in self.leases.values() if x.account_key == account_key and x.state == "granted" and x.expires_at > now)
 
 
 class SqlitePacerStore:
@@ -279,7 +358,106 @@ class SqlitePacerStore:
         a = c.execute("DELETE FROM wa_pacing_counter WHERE hour < ?", (_hour(before),)).rowcount
         b = c.execute("DELETE FROM wa_pacing_wait WHERE since < ?", (_iso(before),)).rowcount
         d = c.execute("DELETE FROM wa_pacing_state WHERE until < ?", (_iso(before),)).rowcount
-        return a + b + d
+        e = c.execute("DELETE FROM wa_pacing_lease WHERE expires_at < ?", (_iso(before),)).rowcount
+        return a + b + d + e
+
+    def lease_get(self, request_id: str) -> Lease | None:
+        with self._read() as conn:
+            r = conn.execute("SELECT request_id, account_key, klass, sender_ref, granted_at, expires_at, state, outcome, counted FROM wa_pacing_lease WHERE request_id = ?",
+                             (request_id,)).fetchone()
+        return Lease(r[0], r[1], r[2], r[3], _parse(r[4]), _parse(r[5]), r[6], r[7], bool(r[8])) if r else None
+
+    def lease_put(self, lease: Lease) -> None:
+        self._w().execute("INSERT INTO wa_pacing_lease(request_id, account_key, klass, sender_ref, granted_at, expires_at, state, outcome, counted) VALUES (?,?,?,?,?,?,?,?,?) "
+                          "ON CONFLICT(request_id) DO UPDATE SET state = excluded.state, outcome = excluded.outcome, counted = excluded.counted",
+                          (lease.request_id, lease.account_key, lease.klass, lease.sender_ref, _iso(lease.granted_at), _iso(lease.expires_at), lease.state, lease.outcome, int(lease.counted)))
+
+    def lease_times(self, account_key: str, since: dt.datetime) -> list[dt.datetime]:
+        with self._read() as conn:
+            rows = conn.execute("SELECT granted_at FROM wa_pacing_lease WHERE account_key = ? AND counted = 1 AND granted_at > ? ORDER BY granted_at", (account_key, _iso(since))).fetchall()
+        return [_parse(r[0]) for r in rows]
+
+    def lease_active(self, account_key: str, now: dt.datetime) -> int:
+        with self._read() as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM wa_pacing_lease WHERE account_key = ? AND state = 'granted' AND expires_at > ?", (account_key, _iso(now))).fetchone()[0])
+
+
+# ---------------------------------------------------------------- WisKey's side: `whatsapp_pacing_status_v1` (tolerant reader)
+
+PACING_SCHEMA = "whatsapp_pacing_status_v1"
+WINDOWS = ("1m", "1h", "24h")
+
+
+@dataclass(frozen=True)
+class WiskeyStatus:
+    """One WisKey sender as `whatsapp/status` describes it (a specification of additions on WisKey's side, 2026-10-21, not implemented
+    there yet). Only `wiskey_own.charged_*` is ever counted against the Arx budget - never `sent_*` (Arx already counts the messages it
+    handed on) and never a counter that is null or whose `counters_complete` is not true: that is UNKNOWN, not zero."""
+
+    sender_ref: str
+    verified: bool  # sender_match_verified: WisKey itself vouches that sender_ref is the number Arx's account is
+    complete: bool  # counters_complete
+    charged: Mapping[str, int | None]  # "1m" | "1h" | "24h" -> accepted + reservations + in-flight + unknown, or None (unknown)
+    throttled_until: dt.datetime | None = None
+    throttle_scope: str | None = None
+    retry_after_s: int | None = None
+
+
+def _when(v: Any) -> dt.datetime | None:
+    if not isinstance(v, str):
+        return None
+    try:
+        d = dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d.astimezone(UTC) if d.tzinfo else d.replace(tzinfo=UTC)
+
+
+def _count(v: Any) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
+    """One `accounts[]` entry -> WiskeyStatus, or None when it carries no usable pacing contract (older WisKey, other schema, no
+    sender_ref). Unknown keys are dropped; nothing here ever raises on a malformed answer."""
+    if not isinstance(raw, Mapping):
+        return None
+    version = raw.get("pacing_schema_version")
+    if version not in (1, "1", "v1", PACING_SCHEMA):
+        return None
+    ref = raw.get("sender_ref")
+    if not (isinstance(ref, str) and SENDER_REF_RE.match(ref)):
+        return None
+    own = raw.get("wiskey_own") if isinstance(raw.get("wiskey_own"), Mapping) else {}
+    scope = raw.get("throttle_scope")
+    return WiskeyStatus(sender_ref=ref, verified=raw.get("sender_match_verified") is True, complete=raw.get("counters_complete") is True,
+                        charged={w: _count(own.get(f"charged_{w}")) for w in WINDOWS}, throttled_until=_when(raw.get("throttled_until")),
+                        throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s")))
+
+
+def project_pacing_accounts(accounts: Any) -> list[dict[str, Any]]:
+    """The keys of `whatsapp_pacing_status_v1` Arx reads, as plain JSON-safe dicts (everything else is dropped). Entries that do not speak
+    the contract are dropped; `parse_wiskey_status` reads the result."""
+    out: list[dict[str, Any]] = []
+    for a in accounts if isinstance(accounts, list) else []:
+        st = parse_wiskey_account(a)
+        if st is None:
+            continue
+        out.append({"pacing_schema_version": 1, "sender_ref": st.sender_ref, "sender_match_verified": st.verified, "counters_complete": st.complete,
+                    "wiskey_own": {f"charged_{w}": v for w, v in st.charged.items()},
+                    "throttled_until": st.throttled_until.isoformat() if st.throttled_until else None, "throttle_scope": st.throttle_scope,
+                    "retry_after_s": st.retry_after_s})
+    return out[:10]
+
+
+def parse_wiskey_status(accounts: Any) -> dict[str, WiskeyStatus]:
+    """`accounts[]` of `whatsapp/status` -> {sender_ref: WiskeyStatus} for the entries that speak the contract."""
+    out: dict[str, WiskeyStatus] = {}
+    for a in accounts if isinstance(accounts, list) else []:
+        st = parse_wiskey_account(a)
+        if st is not None:
+            out[st.sender_ref] = st
+    return out
 
 
 # ---------------------------------------------------------------- the pacer
@@ -294,13 +472,77 @@ class Decision:
 
 class WaPacer:
     def __init__(self, ledger: Ledger, store: PacerStore, *, config: Callable[[], PacerConfig] = PacerConfig,
-                 foreign: ForeignUse | None = None) -> None:
-        self.ledger, self.store, self._config, self._foreign = ledger, store, config, foreign
+                 foreign: ForeignUse | None = None, wiskey: Callable[[], Mapping[str, WiskeyStatus]] | None = None) -> None:
+        self.ledger, self.store, self._config, self._foreign, self._wiskey = ledger, store, config, foreign, wiskey
 
     def config(self) -> PacerConfig:
         return self._config()
 
+    # ---- what WisKey spends on this account
+    def wiskey_view(self, account_key: str, now: dt.datetime, cfg: PacerConfig | None = None) -> dict[str, Any]:
+        """The foreign load on one account: the timestamps Arx knows (its record of messages handed to WisKey, and granted leases) and
+        WisKey's own charged counters when its status speaks the contract for a VERIFIED, mapped sender with complete counters.
+        `unknown` = WisKey's counters are missing for a mapped sender: its own sends are not in the budget, and the snapshot says
+        unknown - never zero."""
+        cfg = cfg or self.config()
+        day = dt.timedelta(days=1)
+        out: dict[str, Any] = {"times": [], "charged": None, "unknown": False, "mapped": account_key in cfg.senders, "verified": False,
+                               "throttled_until": None, "throttle_scope": None, "retry_after_s": None, "superseded_by_leases": False}
+        if not cfg.wiskey_counts(account_key):
+            return out
+        times = [t for t in (self._foreign(now - day) if self._foreign is not None else []) if t > now - day]
+        leases = self.store.lease_times(account_key, now - day)
+        out["times"] = sorted(times + leases)
+        out["superseded_by_leases"] = bool(leases)
+        ref = cfg.senders.get(account_key)
+        if ref is None:
+            return out
+        st = (self._wiskey() if self._wiskey is not None else {}).get(ref)
+        if st is None or not st.verified:
+            out["unknown"] = True
+            return out
+        out["verified"] = True
+        if st.throttled_until is not None and st.throttled_until > now and st.throttle_scope in (None, "account", "sender"):
+            out.update(throttled_until=st.throttled_until, throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
+        if not st.complete or any(v is None for v in st.charged.values()):
+            out["unknown"] = True
+        elif not leases:  # once WisKey reserves through the port, the leases ARE its sends: its counters would count them twice
+            out["charged"] = dict(st.charged)
+        return out
+
     # ---- the decision
+    def _waits(self, *, account_key: str, pacing: Any, klass: str, now: dt.datetime, recipient_key: str | None, cfg: PacerConfig,
+               budget: Budget) -> list[tuple[dt.datetime, str]]:
+        waits: list[tuple[dt.datetime, str]] = []
+        view = self.wiskey_view(account_key, now, cfg)
+        if klass != CLASS_ALERT:  # owner 2026-10-21: operational alerts are counted but never delayed by a backoff or a throttle
+            acct = self.store.get_state(f"account:{account_key}")
+            if acct is not None and acct[1] > now:
+                waits.append((acct[1], "backoff"))
+            if recipient_key is not None:
+                pair = self.store.get_state(f"pair:{account_key}:{recipient_key}")
+                if pair is not None and pair[1] > now:
+                    waits.append((pair[1], "pair_backoff"))
+            if view["throttled_until"] is not None:
+                waits.append((view["throttled_until"], "wiskey_throttle"))
+        day = dt.timedelta(days=1)
+        times = sorted(self.ledger.times(since=now - day, account_key=account_key) + view["times"])
+        charged = view["charged"] or {}
+        share = SHARE_PCT.get(klass, SHARE_PCT[CLASS_TICKET])
+        for span, cap, reason, window in ((dt.timedelta(seconds=budget.burst_window_s), budget.burst, "burst", None),
+                                          (dt.timedelta(minutes=1), budget.per_minute, "minute", "1m"),
+                                          (dt.timedelta(hours=1), int(pacing.per_hour), "hour", "1h"),
+                                          (day, int(pacing.per_day), "day", "24h")):
+            limit = max(1, cap * share // 100)
+            inside = [t for t in times if t > now - span]
+            extra = int(charged.get(window) or 0) if window else 0
+            if len(inside) + extra >= limit:
+                if len(inside) >= limit:
+                    waits.append((inside[len(inside) - limit] + span, reason))
+                else:  # the excess is WisKey's own, known as a count only: spread it evenly over the window
+                    waits.append((now + dt.timedelta(seconds=max(1.0, span.total_seconds() / max(1, len(inside) + extra))), reason))
+        return waits
+
     def check(self, *, account_key: str, pacing: Any, recipient_key: str, klass: str, ref: str, now: dt.datetime,
               retrying: bool = False) -> Decision:
         """May a message of `klass` start a send on this account now? Pure apart from the age clock of `ref` (the waiting message).
@@ -310,26 +552,7 @@ class WaPacer:
         budget = cfg.budget()
         if budget is None:
             return Decision(True, now)
-        waits: list[tuple[dt.datetime, str]] = []
-        acct = self.store.get_state(f"account:{account_key}")
-        if acct is not None and acct[1] > now and (klass != CLASS_ALERT or acct[0] >= SEVERE_LEVEL):
-            waits.append((acct[1], "backoff"))
-        pair = self.store.get_state(f"pair:{account_key}:{recipient_key}")
-        if pair is not None and pair[1] > now:
-            waits.append((pair[1], "pair_backoff"))
-        day = dt.timedelta(days=1)
-        times = self.ledger.times(since=now - day, account_key=account_key)
-        if cfg.wiskey_shared and self._foreign is not None:
-            times = sorted(times + [t for t in self._foreign(now - day) if t > now - day])
-        share = SHARE_PCT.get(klass, SHARE_PCT[CLASS_TICKET])
-        for span, cap, reason in ((dt.timedelta(seconds=budget.burst_window_s), budget.burst, "burst"),
-                                  (dt.timedelta(minutes=1), budget.per_minute, "minute"),
-                                  (dt.timedelta(hours=1), int(pacing.per_hour), "hour"),
-                                  (day, int(pacing.per_day), "day")):
-            limit = max(1, cap * share // 100)
-            inside = [t for t in times if t > now - span]
-            if len(inside) >= limit:
-                waits.append((inside[len(inside) - limit] + span, reason))
+        waits = self._waits(account_key=account_key, pacing=pacing, klass=klass, now=now, recipient_key=recipient_key, cfg=cfg, budget=budget)
         if not waits:
             if not retrying:
                 self.store.wait_clear(ref)
@@ -343,6 +566,19 @@ class WaPacer:
             self.store.bump(account_key, klass, "expired", now)
             self.store.wait_clear(ref)
             return Decision(False, until, reason, expired=True)
+        return Decision(False, until, reason)
+
+    def admit(self, *, account_key: str, pacing: Any, klass: str, now: dt.datetime) -> Decision:
+        """The same budget as `check`, for a sender that is not a queued message (a reservation): no age clock, no counter."""
+        cfg = self.config()
+        now = now.astimezone(UTC)
+        budget = cfg.budget()
+        if budget is None:
+            return Decision(True, now)
+        waits = self._waits(account_key=account_key, pacing=pacing, klass=klass, now=now, recipient_key=None, cfg=cfg, budget=budget)
+        if not waits:
+            return Decision(True, now)
+        until, reason = max(waits)
         return Decision(False, until, reason)
 
     # ---- what happened
@@ -417,19 +653,81 @@ def wiskey_foreign_use(conn: sqlite3.Connection) -> ForeignUse:
     return read
 
 
+# ---------------------------------------------------------------- the reservation port (WisKey's own sends share the budget)
+
+RELEASE_OUTCOMES = ("sent", "unknown", "not_sent", "rate_limited", "pair_rate_limited")
+
+
+class WaReservations:
+    """`POST reserve` / `POST release` as a service: WisKey asks for one send of its own on a sender and Arx answers granted (with a
+    short lease) or denied (with `retry_after_s`). Admission and the lease row happen in ONE call on the caller's write connection, so
+    two senders cannot both take the last slot. Idempotent by `request_id`; a lease expires after `lease_ttl_s` (an unreleased lease
+    stays counted - the send may have left); `release` with `not_sent` hands the slot back, a rate outcome also starts the account's
+    backoff. FAIL-OPEN CHOICE (documented, WisKey's side): when Arx cannot be reached WisKey sends under its own conservative local cap
+    and reports those sends through its counters; Arx never blocks a physical alert because the port is down."""
+
+    def __init__(self, pacer: WaPacer, pacing_for: Callable[[str], Any]) -> None:
+        self.pacer, self.store, self._pacing_for = pacer, pacer.store, pacing_for
+
+    def reserve(self, *, sender_ref: str, klass: str, request_id: str, now: dt.datetime) -> dict[str, Any]:
+        now = now.astimezone(UTC)
+        cfg = self.pacer.config()
+        if klass not in CLASSES:
+            return {"granted": False, "reason": "class_unknown", "retry_after_s": None}
+        account_key = next((k for k, v in cfg.senders.items() if v == sender_ref), None)
+        if account_key is None:
+            return {"granted": False, "reason": "sender_unknown", "retry_after_s": None}
+        old = self.store.lease_get(request_id)
+        if old is not None:
+            if old.state == "granted" and old.expires_at > now:
+                return self._granted(old, repeated=True)
+            return {"granted": False, "reason": "already_released" if old.state == "released" else "lease_expired", "retry_after_s": None}
+        d = self.pacer.admit(account_key=account_key, pacing=self._pacing_for(account_key), klass=klass, now=now)
+        if not d.allowed:
+            self.store.bump(account_key, klass, "lease_denied", now)
+            return {"granted": False, "reason": d.reason, "retry_after_s": max(1, math.ceil((d.not_before - now).total_seconds()))}
+        lease = Lease(request_id, account_key, klass, sender_ref, now, now + dt.timedelta(seconds=cfg.lease_ttl_s))
+        self.store.lease_put(lease)
+        self.store.bump(account_key, klass, "lease_granted", now)
+        return self._granted(lease, repeated=False)
+
+    @staticmethod
+    def _granted(lease: Lease, *, repeated: bool) -> dict[str, Any]:
+        return {"granted": True, "repeated": repeated, "lease": {"request_id": lease.request_id, "expires_at": _iso(lease.expires_at)}}
+
+    def release(self, *, request_id: str, outcome: str, now: dt.datetime) -> dict[str, Any]:
+        now = now.astimezone(UTC)
+        if outcome not in RELEASE_OUTCOMES:
+            return {"released": False, "reason": "outcome_unknown"}
+        lease = self.store.lease_get(request_id)
+        if lease is None:
+            return {"released": False, "reason": "unknown_request"}
+        if lease.state == "released":  # idempotent: the first outcome stands
+            return {"released": True, "repeated": True, "outcome": lease.outcome}
+        counted = outcome != "not_sent"
+        self.store.lease_put(replace(lease, state="released", outcome=outcome, counted=counted))
+        if outcome == "rate_limited":
+            self.pacer.on_result(account_key=lease.account_key, recipient_key="", klass=lease.klass, outcome="not_sent", outcome_code=RATE_ACCOUNT, now=now)
+        elif outcome == "sent":
+            self.store.bump(lease.account_key, lease.klass, "sent", now)
+        return {"released": True, "repeated": False, "outcome": outcome, "late": lease.expires_at <= now}
+
+
 # ---------------------------------------------------------------- the visible counters
 
-def snapshot(conn: sqlite3.Connection, ledger: Ledger, cfg: PacerConfig, accounts: Iterable[str], now: dt.datetime) -> dict[str, Any]:
+def snapshot(conn: sqlite3.Connection, pacer: WaPacer, accounts: Iterable[str], now: dt.datetime) -> dict[str, Any]:
     """The administrator's view (`GET /messaging/whatsapp/pacing`): per account the sends of the last hour and day (Arx's own, and
-    WisKey's when counted), the queue that waits on the budget (count, oldest age), the counters of the last 24 hours by metric, and
-    the backoff in force. Never a number, a text or a recipient."""
+    WisKey's as far as known), the queue that waits on the budget (count, oldest age), the counters of the last 24 hours by metric, and
+    the backoff in force. WisKey's own counters that are missing are reported `unknown`, never as zero. Never a number, a text or a
+    recipient. `shared_budget_guaranteed` stays false until WisKey reserves through the port for every shared sender."""
     now = now.astimezone(UTC)
+    cfg = pacer.config()
     since_h, since_d = now - dt.timedelta(hours=1), now - dt.timedelta(days=1)
-    foreign = wiskey_foreign_use(conn) if cfg.wiskey_shared else (lambda _s: [])
-    f_day = foreign(since_d)
     out: list[dict[str, Any]] = []
     for key in accounts:
-        arx = ledger.times(since=since_d, account_key=key)
+        arx = pacer.ledger.times(since=since_d, account_key=key)
+        view = pacer.wiskey_view(key, now, cfg)
+        known = view["times"]
         waits = conn.execute(
             "SELECT w.klass, w.since FROM wa_pacing_wait w JOIN ticket_outbox o ON o.id = w.ref "
             "WHERE w.account_key = ? AND o.state IN ('queued', 'held')", (key,)).fetchall()
@@ -437,8 +735,8 @@ def snapshot(conn: sqlite3.Connection, ledger: Ledger, cfg: PacerConfig, account
         oldest = None
         for klass, since in waits:
             by_class[klass] += 1
-            s = _parse(since)
-            oldest = s if oldest is None or s < oldest else oldest
+            sd = _parse(since)
+            oldest = sd if oldest is None or sd < oldest else oldest
         metrics = {m: 0 for m in METRICS}
         for metric, n in conn.execute("SELECT metric, SUM(n) FROM wa_pacing_counter WHERE account_key = ? AND hour >= ? GROUP BY metric",
                                       (key, _hour(since_d))).fetchall():
@@ -447,12 +745,18 @@ def snapshot(conn: sqlite3.Connection, ledger: Ledger, cfg: PacerConfig, account
         st = conn.execute("SELECT level, until FROM wa_pacing_state WHERE scope = ?", (f"account:{key}",)).fetchone()
         backoff = {"level": int(st[0]), "until": _parse(st[1]).isoformat().replace("+00:00", "Z")} if st and _parse(st[1]) > now else None
         pairs = conn.execute("SELECT COUNT(*) FROM wa_pacing_state WHERE scope LIKE ? AND until > ?", (f"pair:{key}:%", _iso(now))).fetchone()[0]
+        charged = view["charged"]
         out.append({"account_key": key, "sends_1h": sum(1 for t in arx if t > since_h), "sends_24h": len(arx),
-                    "wiskey_1h": sum(1 for t in f_day if t > since_h), "wiskey_24h": len(f_day),
+                    "wiskey_1h": sum(1 for t in known if t > since_h), "wiskey_24h": len(known),
+                    "wiskey": {"mapped": view["mapped"], "verified": view["verified"], "unknown": view["unknown"],
+                               "charged": charged, "superseded_by_leases": view["superseded_by_leases"],
+                               "throttled_until": view["throttled_until"].isoformat().replace("+00:00", "Z") if view["throttled_until"] else None,
+                               "leases_active": pacer.store.lease_active(key, now)},
                     "waiting": sum(by_class.values()), "waiting_by_class": dict(by_class),
                     "oldest_wait_s": int((now - oldest).total_seconds()) if oldest else None,
                     "counters_24h": metrics, "backoff": backoff, "pairs_in_backoff": int(pairs)})
     budget = cfg.budget()
     return {"mode": cfg.mode, "wiskey_shared": cfg.wiskey_shared, "max_wait_min": {k: int(cfg.max_wait_min.get(k, DEFAULT_MAX_WAIT_MIN[k])) for k in CLASSES},
             "budget": {"per_minute": budget.per_minute, "burst": budget.burst, "burst_window_s": budget.burst_window_s} if budget else None,
-            "share_pct": dict(SHARE_PCT), "accounts": out}
+            "per_minute": cfg.per_minute, "burst": cfg.burst, "lease_ttl_s": cfg.lease_ttl_s, "senders": dict(cfg.senders),
+            "share_pct": dict(SHARE_PCT), "shared_budget_guaranteed": False, "accounts": out}

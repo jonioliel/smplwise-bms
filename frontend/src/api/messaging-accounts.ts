@@ -123,8 +123,8 @@ const rest: MessagingAccountsBackend = {
 
 // ---------------------------------------------------------------- the demo store (no backend; fake data only)
 
-const PACE: Pacing = { min_gap_s: 15, jitter_s: 10, per_hour: 30, per_day: 150, per_recipient_hour: 4, hold_when_down_min: 15 };
-const RANGES: Record<PacingKey, [number, number]> = { min_gap_s: [5, 600], jitter_s: [0, 300], per_hour: [1, 200], per_day: [1, 1000], per_recipient_hour: [1, 30], hold_when_down_min: [1, 240] };
+const PACE: Pacing = { min_gap_s: 5, jitter_s: 1, per_hour: 300, per_day: 1500, per_recipient_hour: 4, hold_when_down_min: 15 };
+const RANGES: Record<PacingKey, [number, number]> = { min_gap_s: [5, 600], jitter_s: [0, 300], per_hour: [1, 2000], per_day: [1, 10000], per_recipient_hour: [1, 30], hold_when_down_min: [1, 240] };
 
 function demoView(): WhatsappView {
   return {

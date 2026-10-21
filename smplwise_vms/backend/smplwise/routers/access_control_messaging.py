@@ -310,6 +310,11 @@ def _error_for(result: SendResult, quota: dict[str, Any] | None) -> ApiError:
         if quota is not None:
             details["quota"] = quota
         return ApiError(429, "message_rate_limited", "יותר מדי הודעות בזמן קצר. ההודעה לא נשלחה - אפשר לנסות שוב בעוד רגע.", retryable=True, details=details)
+    if code == "pair_rate_limited":  # CR-WA-PACING-295: the provider slowed this recipient; nothing left
+        details.update(scope="pair", retry_after_s=result.retry_after_s or 300)
+        return ApiError(429, "message_pair_rate_limited", "הפלטפורמה האטה שליחה לנמען הזה. ההודעה לא נשלחה - אפשר לנסות שוב מאוחר יותר.", retryable=True, details=details)
+    if code == "pacing_expired":  # CR-WA-PACING-295: it waited on the shared send budget past its limit; nothing left
+        return ApiError(410, "message_pacing_expired", "ההודעה המתינה לתורה זמן רב מדי ולא נשלחה. אפשר לנסות שוב.", retryable=True, details=details)
     if code == "expired":
         return ApiError(410, "message_expired", "ההודעה פגה לפני שנשלחה, ולכן לא נשלחה. אפשר לנסות שוב.", retryable=True, details=details)
     if code == "person_not_found":

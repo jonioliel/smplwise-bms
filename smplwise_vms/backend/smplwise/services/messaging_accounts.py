@@ -52,15 +52,15 @@ _DOWN_CODES = frozenset({"service_not_found", "account_not_found", "ha_unavailab
 class Pacing:
     """9.2 defaults for a personal-number Baileys session (`[WA-DOC]` gives no numbers)."""
 
-    min_gap_s: int = 15
-    jitter_s: int = 10
-    per_hour: int = 30
-    per_day: int = 150
+    min_gap_s: int = 5
+    jitter_s: int = 1
+    per_hour: int = 300
+    per_day: int = 1500
     per_recipient_hour: int = 4  # codes excluded (review C9 / T5b)
     hold_when_down_min: int = 15
 
 
-PACING_RANGES = {"min_gap_s": (5, 600), "jitter_s": (0, 300), "per_hour": (1, 200), "per_day": (1, 1000),
+PACING_RANGES = {"min_gap_s": (5, 600), "jitter_s": (0, 300), "per_hour": (1, 2000), "per_day": (1, 10000),
                  "per_recipient_hour": (1, 30), "hold_when_down_min": (1, 240)}
 
 

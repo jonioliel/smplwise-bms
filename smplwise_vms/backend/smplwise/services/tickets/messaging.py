@@ -493,7 +493,7 @@ class MessagingRuntime:
             with io.read("messaging.pacing") as conn:
                 return wa_pacing.wiskey_foreign_use(conn)(since)
 
-        return wa_pacing.WaPacer(obs.BoundSendLedger(db), store, config=config, foreign=foreign)
+        return wa_pacing.WaPacer(obs.BoundSendLedger(db), store, config=config, foreign=foreign, wiskey=mr.wiskey_pacing)
 
     def _transport(self) -> Any:
         if self.transport is not None:
