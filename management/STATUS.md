@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-10-18T08:05:32.390656+00:00
+Generated: 2026-10-21T18:10:28.982372+00:00
 
-Tasks: 253 | Requirements: 363 | Tests: 379 | Screens: 32
+Tasks: 254 | Requirements: 364 | Tests: 380 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 134
+- BACKLOG: 135
 - BLOCKED: 11
 - DONE: 38
 - IN_PROGRESS: 7
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 159
+- V1: 160
 - V2: 29
 - V3: 2
 
@@ -291,3 +291,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [USR2-P1](tasks/USR2-P1.md) | V1 | REVIEW | USR2 phases P0+P1: Arx-only identities (CR-USR2) - identity store, passwords, sign-in, sessions, brute-force tiers, administration, sign-in page mode, settings tab; behind security.local_identity (off) | — |
 | [USR2-P3](tasks/USR2-P3.md) | V1 | REVIEW | USR2 phase P3: the service identity - Arx-only users act in Home Assistant through ONE non-administrator HA user under a per-feature allow-list enforced by the add-on and the bridge (0.9.0); behind security.local_identity (off) | — |
 | [WISKEYID-BUILD](tasks/WISKEYID-BUILD.md) | V1 | REVIEW | CR-ARX-WISKEY-SHARED-IDENTITY X1-X4 (backend): Arx <-> WisKey person links and time-bounded door grants for external people with a WhatsApp code; OFF, go-live not permitted in code | — |
+| [SCHEDIMPACT-295](tasks/SCHEDIMPACT-295.md) | V1 | BACKLOG | V-02 (Fable security review 4, medium, pre-existing basic mode): scheduled script / scene runs of Arx-only people go through the runnable allowlist and the bridge impact check | — |

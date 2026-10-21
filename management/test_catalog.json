@@ -10205,5 +10205,26 @@
     "expected": "Works end to end; revoke removes access.",
     "status": "NOT_RUN",
     "notes": "Needs the owner's installation and permit; not run by the agent."
+  },
+  {
+    "id": "AT-SCHEDIMPACT-1",
+    "requirement_ids": [
+      "R-SCHEDIMPACT-1"
+    ],
+    "task_ids": [
+      "SCHEDIMPACT-295"
+    ],
+    "title": "V-02: scheduled script / scene runs of Arx-only people - negative-first fixture tests (add-on and bridge)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device, no Home Assistant, no Scheduler"
+    ],
+    "procedure": [
+      "backend tests for the schedule path of a local principal (add-on schedule routes and bridge schedule_service): an ordinary script not on the allowlist, a listed script whose steps fail the impact check (including the V-01 decoy and a nested call), a scene, an HA user's schedule unchanged"
+    ],
+    "expected": "Every listed test passes on the branch; no script / scene reaches the service user through a schedule outside the run fences.",
+    "status": "NOT_RUN",
+    "notes": "Card opened 2026-10-21 (owner decision 6): fix after the extended-identity permit."
   }
 ]
