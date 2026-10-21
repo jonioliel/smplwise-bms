@@ -76,6 +76,8 @@ interface Slot {
   src: LiveSource;
   timer: unknown;
   running: boolean;
+  /** a staggered resume run is already scheduled for this source */
+  queued: boolean;
   lastStart: number;
   lastOk: number;
   failures: number;
@@ -93,7 +95,7 @@ export class LiveController {
   }
 
   add(src: LiveSource): this {
-    this.slots.set(src.id, { src, timer: null, running: false, lastStart: 0, lastOk: 0, failures: 0 });
+    this.slots.set(src.id, { src, timer: null, running: false, queued: false, lastStart: 0, lastOk: 0, failures: 0 });
     if (this.started) this.arm(this.slots.get(src.id)!);
     return this;
   }
@@ -254,13 +256,16 @@ export class LiveController {
       if (resetFailures) s.failures = 0;
       if (skip.includes(s.src.id)) continue;
       if (!force && t - s.lastStart < MIN_GAP_MS) continue;
-      if (!this.canRun(s)) continue;
+      if (s.queued || !this.canRun(s)) continue;
       const delay = i++ * STAGGER_MS;
       if (!delay) void this.runSlot(s);
-      else
+      else {
+        s.queued = true;
         this.env.setTimeout(() => {
+          s.queued = false;
           if (this.started && this.canRun(s) && (force || this.env.now() - s.lastStart >= MIN_GAP_MS)) void this.runSlot(s);
         }, delay);
+      }
     }
   }
 }
