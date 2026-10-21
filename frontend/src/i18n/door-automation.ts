@@ -90,6 +90,10 @@ const he = {
   r_deleted: 'נמחק',
   r_loop_risk: 'האוטומציה מופעלת מהדלת עצמה',
   r_triggers_unresolvable: 'לא ניתן לזהות מה מפעיל את האוטומציה',
+  r_uncorroborated: 'ההפעלה לא אומתה מול מצב המערכת',
+  r_door_rate_hour: 'הדלת הגיעה למכסה השעתית שלה',
+  r_door_rate_day: 'הדלת הגיעה למכסה היומית שלה',
+  r_restored: 'כובה אחרי שחזור גיבוי',
   o_sent: 'נשלח',
   o_refused: 'לא נשלח',
   o_unknown: 'לא ידוע אם נשלח',
@@ -184,6 +188,10 @@ const en: Partial<Record<Key, string>> = {
   r_deleted: 'Deleted',
   r_loop_risk: 'The automation is started by the door itself',
   r_triggers_unresolvable: 'What starts the automation cannot be determined',
+  r_uncorroborated: 'The run could not be confirmed against the system state',
+  r_door_rate_hour: 'The door reached its hourly limit',
+  r_door_rate_day: 'The door reached its daily limit',
+  r_restored: 'Turned off after a backup restore',
   o_sent: 'Sent',
   o_refused: 'Not sent',
   o_unknown: 'Unknown whether sent',
@@ -253,6 +261,10 @@ const ar: Partial<Record<Key, string>> = {
   o_refused: 'لم يُرسل',
   o_unknown: 'غير معروف إن أُرسل',
   o_not_sent: 'لم يُرسل',
+  r_uncorroborated: 'لم يتم التحقق من التشغيل مقابل حالة النظام',
+  r_door_rate_hour: 'وصل الباب إلى حده في الساعة',
+  r_door_rate_day: 'وصل الباب إلى حده اليومي',
+  r_restored: 'أُوقف بعد استعادة نسخة احتياطية',
 };
 
 const ru: Partial<Record<Key, string>> = {
@@ -317,6 +329,10 @@ const ru: Partial<Record<Key, string>> = {
   o_refused: 'Не отправлено',
   o_unknown: 'Неизвестно, отправлено ли',
   o_not_sent: 'Не отправлено',
+  r_uncorroborated: 'Запуск не подтверждён состоянием системы',
+  r_door_rate_hour: 'Дверь достигла часового лимита',
+  r_door_rate_day: 'Дверь достигла дневного лимита',
+  r_restored: 'Отключено после восстановления из резервной копии',
 };
 
 export type DatKey = Key;

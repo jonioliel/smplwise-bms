@@ -24,9 +24,11 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import queue
 import re
 import sqlite3
 import threading
+import time
 import uuid
 from typing import Any, Callable, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -61,14 +63,28 @@ DEFAULTS = {"cooldown_s": 10, "max_per_hour": 30, "max_per_day": 300, "arm_days"
 BOUNDS = {"cooldown_s": (1, 3600), "max_per_hour": (1, 600), "max_per_day": (1, 10000), "arm_days": (1, 365)}
 STORM_DEFAULTS = {"storm_refusals": 5, "storm_window_s": 600}
 STORM_BOUNDS = {"storm_refusals": (2, 100), "storm_window_s": (60, 3600)}
-ALL_BOUNDS = {**BOUNDS, **STORM_BOUNDS}
+# DOORHARD-295 (Fable review A-01, A-03; owner decisions 2026-10-21). All administrator settings within bounds, like the numbers above:
+# - door_max_per_hour / door_max_per_day: the per-DOOR cap across EVERY block that names the door (two blocks on one door share it);
+# - corroborate_window_s: how close (seconds, either direction) the automation entity's `last_triggered` - and, for state /
+#   numeric_state triggers, the watched entity's change - must be to the instant Arx handles the event.
+DOOR_DEFAULTS = {"door_max_per_hour": 6, "door_max_per_day": 30, "corroborate_window_s": 10}
+DOOR_BOUNDS = {"door_max_per_hour": (1, 600), "door_max_per_day": (1, 10000), "corroborate_window_s": (2, 120)}
+ALL_BOUNDS = {**BOUNDS, **STORM_BOUNDS, **DOOR_BOUNDS}
 SETTING_PREFIX = "doors.automation."
 EXCLUDED_ROLES_KEY = "doors.automation.excluded_roles"  # JSON list: roles whose automation.manage does NOT imply arming
 REMOVED_USERS_KEY = "doors.automation.removed_users"  # JSON list: people who may never arm (the per-user removal)
-STORM_REASONS = ("cooldown", "rate_hour", "rate_day")
+# refusals that count towards the storm disarm: the rate refusals and a trigger that could not be corroborated (A-01)
+STORM_REASONS = ("cooldown", "rate_hour", "rate_day", "door_rate_hour", "door_rate_day", "uncorroborated")
 SEND_WITHIN_S = 15
 SOURCE_MAX = 120
 MANUAL_SOURCES = ("trigger action", "manual")
+# A-04 (relaxed 2026-10-21, see is_manual): a person's context (`context.user_id`), a source in MANUAL_SOURCES or no source at all is a manual
+# run; the trust in an automatic run comes from the corroboration with Home Assistant's state machine (DA-01).
+# A-09: the mirror's hook queues the frame; ONE worker handles them in order. A full queue drops the frame and counts it.
+QUEUE_MAX = 256
+CORROBORATE_WAIT_S = 3.0  # the event can arrive before the automation entity's state frame: re-check this long before refusing
+CORROBORATE_POLL_S = 0.2
+
 DISARMING = ("arm_expired", "item_changed", "item_missing", "armer_lost_authority", "storm")
 # trigger platforms that can never be caused by a door (no entity): safe for the loop check
 ENTITYLESS_TRIGGERS = ("time", "time_pattern", "sun", "homeassistant")
@@ -95,7 +111,13 @@ class LiveSender:
 
 
 SENDER: DoorSender | None = None  # None: LiveSender (refuses)
-DISPATCH: Callable[[Callable[[], Any]], Any] | None = None  # None: a daemon thread per event (never on the WS loop)
+DISPATCH: Callable[[Callable[[], Any]], Any] | None = None  # None: the bounded queue and its one worker (never on the WS loop)
+STATS = {"dropped": 0, "handled": 0}  # A-09: frames dropped because the queue was full (shown to the administrator in status)
+_QUEUE: queue.Queue[Callable[[], Any]] | None = None
+_WORKER: threading.Thread | None = None
+_QLOCK = threading.Lock()
+_sleep: Callable[[float], None] = time.sleep  # seams for the corroboration wait (tests)
+_monotonic: Callable[[], float] = time.monotonic
 
 
 def _real_now() -> dt.datetime:
@@ -115,8 +137,9 @@ def now() -> dt.datetime:
 
 
 def reset_for_tests() -> None:
-    global SENDER, DISPATCH
-    SENDER, DISPATCH = None, None
+    global SENDER, DISPATCH, STATE_READER
+    SENDER, DISPATCH, STATE_READER = None, None, None
+    STATS["dropped"] = STATS["handled"] = 0
     set_clock(None)
 
 
@@ -181,7 +204,12 @@ def _minutes(hhmm: str) -> int:
 
 def in_window(windows: list[dict[str, Any]], at: dt.datetime, tz: str) -> bool:
     """Whether the UTC instant `at` falls in one of the windows, read in the IANA zone `tz` (Mon = 0; start inclusive, end
-    exclusive). An unknown zone raises ClockUntrusted (the caller refuses)."""
+    exclusive). An unknown zone raises ClockUntrusted (the caller refuses).
+
+    DST (Fable review A-10, documented behaviour): the window is compared on the LOCAL wall-clock minute of the instant. Spring forward: a
+    window that starts inside the skipped hour never matches that day (safe: it refuses, it never opens early). Fall back: the repeated
+    local hour occurs twice, so a window that ends inside it stays open for one real hour longer than its wall-clock length (the
+    instant is read twice by the same rule). Nothing else is adjusted - no fixed offset is ever applied (AGENTS.md time rule)."""
     try:
         zone = ZoneInfo(tz)  # checked even without a window: an untrusted zone refuses (fail closed)
     except (ZoneInfoNotFoundError, ValueError, TypeError):
@@ -209,7 +237,7 @@ def _int_ok(value: Any, lo: int, hi: int) -> bool:
 def limits(conn: sqlite3.Connection) -> dict[str, int]:
     """The installation's limits (administrator settings), each within its bounds; garbage or out of bounds = the default."""
     out: dict[str, int] = {}
-    for key, default in {**DEFAULTS, **STORM_DEFAULTS}.items():
+    for key, default in {**DEFAULTS, **STORM_DEFAULTS, **DOOR_DEFAULTS}.items():
         lo, hi = ALL_BOUNDS[key]
         try:
             value = int(get_setting(conn, SETTING_PREFIX + key) or default)
@@ -331,7 +359,7 @@ def view(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"], "automation_id": row["automation_item_id"], "automation_name": cfg.get("alias") if isinstance(cfg.get("alias"), str) else None,
         "name": row["name"], "state": row["state"], "policy": policy, "policy_revision": row["policy_revision"], "doors": doors,
-        "bound_item_revision": row["bound_item_revision"], "armed_by": row["armed_by"], "armed_by_name": row["armed_by_name"],
+        "bound_item_revision": row["bound_item_revision"], "operator_id": f"{OPERATOR_PREFIX}{row['id']}", "armed_by": row["armed_by"], "armed_by_name": row["armed_by_name"],
         "armed_at": row["armed_at"], "armed_until": row["armed_until"], "disarm_reason": row["disarm_reason"], "disarmed_at": row["disarmed_at"],
         "created_at": row["created_at"], "updated_at": row["updated_at"], "effective_limits": {k: v for k, v in effective(conn, policy).items() if k in DEFAULTS},
     }
@@ -355,23 +383,63 @@ def excluded_roles(conn: sqlite3.Connection) -> list[str]:
     return _json_list(conn, EXCLUDED_ROLES_KEY)
 
 
-def _implied(conn: sqlite3.Connection, principal: Principal) -> bool:
-    """Owner decision 2026-10-21 (section 12, item 1): whoever may create automations (`automation.manage` at the installation,
-    through a role the administrator did not exclude) may arm a door step without holding `access.doors.automate` itself."""
-    if not authorize(conn, principal, "automation.manage", INSTALLATION).allowed:
-        return False
+def manage_reach(conn: sqlite3.Connection, principal: Principal, item_id: str | None = None) -> str | None:
+    """Owner answer CR-AUTODOORS-295 12.4 (2026-10-21): `automation.manage` counts at the INSTALLATION and at a FLOOR (or a building /
+    site above floors). Returns "installation", "floor" or None. "floor" means the person manages automations only where their floors
+    are; with `item_id` that automation must be one they may see and manage - the same visibility rule as the automations screen
+    (its entities on their floors). An explicit deny at any scope above a floor removes that floor (rbac deny wins)."""
+    if is_operator(principal):
+        return None
+    if authorize(conn, principal, "automation.manage", INSTALLATION).allowed:
+        return "installation"
+    if "automation.manage" not in permissions_anywhere(conn, principal):
+        return None  # cheap exit for everyone who holds it nowhere (the floor walk below is per floor)
+    from . import automation_scope as scope
+    from . import automation_view
+
+    ctx = scope.Ctx(conn, principal)
+    if not ctx.access.anywhere(scope.MANAGE):
+        return None
+    if item_id is None:
+        return "floor"
+    try:
+        automation_view.get_item(ctx, "automation", item_id)
+    except ApiError:
+        return None
+    return "floor"
+
+
+def _implied(conn: sqlite3.Connection, principal: Principal, item_id: str | None = None) -> str | None:
+    """Owner decision 2026-10-21 (section 12, item 1): whoever may create automations (`automation.manage`, at the installation or - owner
+    answer 12.4 - at a floor, through a role the administrator did not exclude) may arm a door step without holding `access.doors.automate`
+    itself. Returns the scope that carries it ("installation" | "floor") or None."""
+    reach = manage_reach(conn, principal, item_id)
+    if reach is None:
+        return None
     excluded = set(excluded_roles(conn))
     for b in rbac_active_bindings(conn, principal):
-        if (b["effect"] == "allow" and (b["scope_type"], b["scope_id"]) == INSTALLATION and b["role_id"] not in excluded
-                and "automation.manage" in role_permissions(conn, b["role_id"])):
-            return True
-    return False
+        if b["effect"] != "allow" or b["role_id"] in excluded or "automation.manage" not in role_permissions(conn, b["role_id"]):
+            continue
+        at = (b["scope_type"], b["scope_id"])
+        if reach == "installation" and at == INSTALLATION:
+            return "installation"
+        if reach == "floor" and at != INSTALLATION and b["scope_type"] != STATION:
+            return "floor"
+    return None
 
 
-def may_automate(conn: sqlite3.Connection, principal: Principal, station_id: str | None = None) -> bool:
+def _explicit(conn: sqlite3.Connection, principal: Principal, station_id: str | None) -> bool:
+    """Whether `access.doors.automate` itself is granted (not merely implied by automation.manage)."""
+    if station_id is not None:
+        return authorize(conn, principal, AUTOMATE, (STATION, station_id)).allowed
+    return AUTOMATE in permissions_anywhere(conn, principal)
+
+
+def may_automate(conn: sqlite3.Connection, principal: Principal, station_id: str | None = None, item_id: str | None = None) -> bool:
     """May this person arm (and manage) door steps - for one station's doors, or anywhere (`station_id` None)? Never an operator;
     never a person the administrator removed; an explicit deny of `access.doors.automate` wins; else `access.doors.automate`
-    (granted per role or per user) or the implied right of `automation.manage`."""
+    (granted per role or per user) or the implied right of `automation.manage` (installation or floor scope; with `item_id` the
+    floor scope must reach that automation)."""
     if is_operator(principal) or principal.user_id in removed_users(conn):
         return False
     if station_id is not None:
@@ -384,7 +452,7 @@ def may_automate(conn: sqlite3.Connection, principal: Principal, station_id: str
         return True
     if authorize(conn, principal, AUTOMATE, INSTALLATION).reason == "explicit_deny":
         return False
-    return _implied(conn, principal)
+    return _implied(conn, principal, item_id) is not None
 
 
 def holds_anywhere(conn: sqlite3.Connection, principal: Principal) -> bool:
@@ -396,7 +464,7 @@ def door_name(door: dict[str, Any]) -> str:
     return (s or {}).get("name") or ""
 
 
-def armer_reason(conn: sqlite3.Connection, principal: Principal, door: dict[str, Any], dev_mode: bool) -> str | None:
+def armer_reason(conn: sqlite3.Connection, principal: Principal, door: dict[str, Any], dev_mode: bool, item_id: str | None = None) -> str | None:
     """Why this person may NOT put this door in an armed block (None: they may): an identified, active person, holding
     `access.doors.automate` on the door's station chain (deny wins) and passing the one door rule for that door."""
     if is_operator(principal) or not door_authority.identity_ok(principal, dev_mode, conn):
@@ -404,7 +472,7 @@ def armer_reason(conn: sqlite3.Connection, principal: Principal, door: dict[str,
     user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if user is None or not user["active"]:
         return "user_inactive"
-    if not may_automate(conn, principal, door["station_id"]):
+    if not may_automate(conn, principal, door["station_id"], item_id):
         return "automate_not_allowed"
     if not door_authority.check(conn, principal, door["station_id"], door["relay"], dev_mode=dev_mode).allowed:
         return "door_not_allowed"
@@ -475,15 +543,16 @@ def _name_ok(name: Any) -> str:
     return name.strip()
 
 
-def _require_manage(conn: sqlite3.Connection, principal: Principal, policy: dict[str, Any], action: str, block_id: str | None, rid: str | None) -> None:
-    """Creating or editing a block: `access.doors.automate` somewhere, `automation.manage` at the installation (v1, fail closed)
-    and `access.doors.automate` on every door's station chain."""
+def _require_manage(conn: sqlite3.Connection, principal: Principal, policy: dict[str, Any], action: str, block_id: str | None, rid: str | None,
+                    item_id: str | None = None) -> None:
+    """Creating or editing a block: `access.doors.automate` somewhere, `automation.manage` at the installation or on a floor that reaches the
+    automation (owner answer 12.4) and `access.doors.automate` on every door's station chain."""
     _require_holder(conn, principal, action, block_id, rid)
-    if not authorize(conn, principal, "automation.manage", INSTALLATION).allowed:
+    if manage_reach(conn, principal, item_id) is None:  # installation or floor scope (owner answer 12.4); a floor reaches only its own automations
         _audit(conn, principal, action, "denied", block_id, "automation_manage", rid)
         raise forbidden(permission="automation.manage", target_type="installation", target_id="*")
     for d in policy["doors"]:
-        if not may_automate(conn, principal, d["station_id"]):
+        if not may_automate(conn, principal, d["station_id"], item_id):
             _audit(conn, principal, action, "denied", block_id, "automate_not_allowed", rid)
             raise forbidden(permission=AUTOMATE, reason="automate_not_allowed", door=door_name(d))
 
@@ -497,7 +566,7 @@ def _require_holder(conn: sqlite3.Connection, principal: Principal, action: str,
 def create(conn: sqlite3.Connection, principal: Principal, item_id: str, name: Any, raw_policy: Any, rid: str | None = None) -> dict[str, Any]:
     _require_holder(conn, principal, "door_automation.create", None, rid)  # a caller without the permission learns nothing from validation
     policy = validate_policy(raw_policy)
-    _require_manage(conn, principal, policy, "door_automation.create", None, rid)
+    _require_manage(conn, principal, policy, "door_automation.create", None, rid, item_id)
     clean = _name_ok(name)
     if _item(conn, item_id) is None:
         raise ApiError(404, "not_found", "האוטומציה לא נמצאה.")
@@ -520,7 +589,7 @@ def _disarm(conn: sqlite3.Connection, row: sqlite3.Row, reason: str, by: str) ->
 def update(conn: sqlite3.Connection, principal: Principal, row: sqlite3.Row, name: Any, raw_policy: Any, base_revision: Any, rid: str | None = None) -> dict[str, Any]:
     _require_holder(conn, principal, "door_automation.update", row["id"], rid)
     policy = validate_policy(raw_policy)
-    _require_manage(conn, principal, policy, "door_automation.update", row["id"], rid)
+    _require_manage(conn, principal, policy, "door_automation.update", row["id"], rid, row["automation_item_id"])
     clean = _name_ok(name)
     if base_revision != row["policy_revision"]:
         raise ApiError(409, "door_automation_changed", "ההגדרה השתנתה בינתיים; טענו אותה מחדש.", details={"policy_revision": row["policy_revision"]})
@@ -554,7 +623,7 @@ def arm(conn: sqlite3.Connection, principal: Principal, row: sqlite3.Row, confir
     except ApiError as exc:
         raise refuse(exc, exc.code) from None
     for d in policy["doors"]:
-        why = armer_reason(conn, principal, d, dev_mode)
+        why = armer_reason(conn, principal, d, dev_mode, row["automation_item_id"])
         if why is not None:
             raise refuse(forbidden("אין לך הרשאה לתת לאוטומציה לפתוח את הדלת הזו.", reason=why, door=door_name(d)), why)
     item = _item(conn, row["automation_item_id"])
@@ -680,7 +749,8 @@ def status(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     out = {"visible": True, "feature": feature_setting(conn), "go_live_permitted": go_live_permitted(), "available": enabled(conn), "killed": killed(conn),
            "can_manage": holder, "can_lift_kill": admin, "can_configure": admin, "limits": limits(conn)}
     if admin:
-        out.update(excluded_roles=excluded_roles(conn), removed_users=removed_users(conn), bounds={k: list(v) for k, v in ALL_BOUNDS.items()})
+        out.update(excluded_roles=excluded_roles(conn), removed_users=removed_users(conn), bounds={k: list(v) for k, v in ALL_BOUNDS.items()},
+                   dropped_events=STATS["dropped"])
     return out
 
 
@@ -693,6 +763,7 @@ def doors_for(conn: sqlite3.Connection, principal: Principal, *, dev_mode: bool)
     for s in intercom_sync.SYNC.stations():
         if not may_automate(conn, principal, s["id"]):
             continue
+        floor_only = not _explicit(conn, principal, s["id"])  # implied by automation.manage: a floor editor sees a door only when they may open it
         relays = intercom_doors.station_relays(s)
         for lock in s.get("locks") or []:
             relay = int(lock["physical_index"])
@@ -700,7 +771,10 @@ def doors_for(conn: sqlite3.Connection, principal: Principal, *, dev_mode: bool)
                 continue
             door = {"station_id": s["id"], "relay": relay}
             label = s["name"] if len(relays) == 1 else f"{s['name']} · {lock.get('name') or relay}"
-            out.append({**door, "name": label, "online": bool(s.get("online")), "can_arm": armer_reason(conn, principal, door, dev_mode) is None})
+            can_arm = armer_reason(conn, principal, door, dev_mode) is None
+            if floor_only and not can_arm and manage_reach(conn, principal) == "floor":
+                continue
+            out.append({**door, "name": label, "online": bool(s.get("online")), "can_arm": can_arm})
     return out
 
 
@@ -711,7 +785,8 @@ def fires(conn: sqlite3.Connection, row: sqlite3.Row, limit: int = 50) -> list[d
         if f["door_key"]:
             sid, _, relay = f["door_key"].rpartition("#")
             name = door_name({"station_id": sid, "relay": int(relay)}) or None
-        out.append({"at": f["at"], "door": name, "attempted": bool(f["attempted"]), "outcome": f["outcome"], "reason": f["reason"], "code": f["code"]})
+        out.append({"at": f["at"], "door": name, "attempted": bool(f["attempted"]), "outcome": f["outcome"], "reason": f["reason"], "code": f["code"],
+                    "operator_id": f["operator_id"], "armed_by": f["armed_by"], "armed_by_name": f["armed_by_name"]})
     return out
 
 
@@ -723,15 +798,164 @@ def _trigger_of(source: Any, time_fired: Any) -> dict[str, Any]:
     return {"source": text, "time_fired": str(time_fired)[:40] if time_fired else None}
 
 
-def _block_gates(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime, trigger: dict[str, Any], context_user: Any) -> list[tuple[str, bool, str | None]]:
-    """The block-level gates in order: (gate, ok, refusal reason). Read only."""
+_UTC_MICRO = "%Y-%m-%dT%H:%M:%S.%fZ"  # fixed width: stored stamps compare as text in time order
+
+
+def _instant(text: Any) -> dt.datetime | None:
+    """A Home Assistant timestamp (ISO 8601 with an offset) as a UTC instant; None for anything else. A stamp without an offset is read as UTC."""
+    if not isinstance(text, str) or not text:
+        return None
+    try:
+        v = dt.datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (v if v.tzinfo else v.replace(tzinfo=dt.timezone.utc)).astimezone(dt.timezone.utc)
+
+
+def _stamp(at: dt.datetime) -> str:
+    return at.astimezone(dt.timezone.utc).strftime(_UTC_MICRO)
+
+
+def _context_of(value: Any) -> tuple[Any, Any]:
+    """(user_id, parent_id) of an event context. A bare value (older callers) is the user id."""
+    if isinstance(value, dict):
+        return value.get("user_id"), value.get("parent_id")
+    return value, None
+
+
+def is_manual(trigger: dict[str, Any], context: Any) -> bool:
+    """A-04, relaxed by the owner's decision of 2026-10-21 ("safe, but not hard to manage"): a run is a person's when its context names a
+    person (`user_id`), when it is a manual run (MANUAL_SOURCES) or when it carries no source at all. A parent context is NOT refused:
+    Home Assistant gives almost every automation run one (the state change that triggered it, or a script / automation that caused that
+    change), so refusing it would refuse ordinary runs; and an unfamiliar source wording (a new Home Assistant version) is not refused
+    either. What makes the event trustworthy is the corroboration against Home Assistant's own state machine (DA-01), not its wording;
+    the parent id and the source are kept in the audit."""
+    user, _parent = _context_of(context)
+    if user:
+        return True
+    src = str(trigger.get("source") or "").strip().lower()
+    return not src or src in MANUAL_SOURCES
+
+
+def _watch_specs(cfg: dict[str, Any]) -> tuple[list[tuple[str, bool]], bool, bool]:
+    """(the watched entities as (entity_id, watches an attribute) of the state / numeric_state triggers, whether the automation also has a
+    trigger without an entity (time, sun ...), whether every trigger could be read)."""
+    triggers = cfg.get("triggers", cfg.get("trigger"))
+    if isinstance(triggers, dict):
+        triggers = [triggers]
+    if not isinstance(triggers, list):
+        return [], False, False
+    specs: list[tuple[str, bool]] = []
+    entityless = False
+    for t in triggers:
+        if not isinstance(t, dict):
+            return [], False, False
+        kind = t.get("trigger", t.get("platform"))
+        if kind in ENTITYLESS_TRIGGERS:
+            entityless = True
+            continue
+        if kind not in ENTITY_TRIGGERS:
+            return [], False, False
+        ids = t.get("entity_id")
+        ids = [ids] if isinstance(ids, str) else ids
+        if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+            return [], False, False
+        specs.extend((i, bool(t.get("attribute"))) for i in ids)
+    return specs, entityless, True
+
+
+def corroboration(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime) -> tuple[str | None, str | None]:
+    """A-01 (Fable review; CR 11.1 / 12.6): is this `automation_triggered` event backed by what the mirror saw? Read only. Returns
+    (refusal reason or None, the matched `last_triggered` stamp).
+
+    Home Assistant lets any integration or script fire the event, with no person's context, so the event alone is not evidence. Required, all of it:
+    1. the automation entity's `last_triggered` in the mirror is within `corroborate_window_s` of now (either direction) AND is newer than the last
+       one a fire was matched with (`door_automations.corroborated_trigger`) - one real run authorises at most one event (no replay);
+    2. for an automation with state / numeric_state triggers, at least one watched entity changed in the mirror within the same window
+       (`last_changed`; `last_updated` for a trigger on an attribute). An automation that ALSO has a time / sun / homeassistant trigger cannot
+       tell which trigger ran, so for it (1) alone applies.
+    Anything unreadable fails closed."""
+    item = _item(conn, row["automation_item_id"])
+    if item is None or not item["entity_id"]:
+        return "uncorroborated", None
+    window = limits(conn)["corroborate_window_s"]
+    ent = conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (item["entity_id"],)).fetchone()
+    try:
+        attrs = json.loads(ent["attributes_json"] or "{}") if ent is not None else {}
+    except ValueError:
+        attrs = {}
+    lt = _instant(attrs.get("last_triggered") if isinstance(attrs, dict) else None)
+    if lt is None or abs((at - lt).total_seconds()) > window:
+        return "uncorroborated", None
+    stamp = _stamp(lt)
+    done = row["corroborated_trigger"]
+    if done and stamp <= done:
+        return "uncorroborated", None
+    specs, entityless, readable = _watch_specs(_item_cfg(item))
+    if not readable:
+        return "uncorroborated", None
+    if specs and not entityless:
+        for eid, attribute in specs:
+            w = conn.execute("SELECT last_changed, last_updated FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
+            changed = _instant(w["last_updated" if attribute else "last_changed"]) if w is not None else None
+            if changed is not None and abs((at - changed).total_seconds()) <= window:
+                break
+        else:
+            return "uncorroborated", None
+    return None, stamp
+
+
+# DA-01 (Fable review 2, 2026-10-21): the mirror is fed by the same event bus an attacker can fire `state_changed` on, so it is only the
+# cheap pre-filter. At decision time Arx reads the automation entity ONCE from Home Assistant's state machine (an authenticated REST read,
+# GET /api/states/<entity_id>) and matches the run with THAT `last_triggered`; firing an event cannot change the state machine. Any error,
+# a missing entity or an unreadable stamp refuses (fail closed). Tests install a fake (`STATE_READER`).
+STATE_READER: Callable[[Any, str], Any] | None = None
+
+
+def _read_state(settings: Any, entity_id: str) -> dict[str, Any] | None:
+    try:
+        if STATE_READER is not None:
+            answer = STATE_READER(settings, entity_id)
+        else:
+            from . import ha_client
+
+            answer = ha_client.get_state(settings, entity_id)
+    except Exception:  # noqa: BLE001 - a failed read is a refusal, never an opening
+        return None
+    return answer if isinstance(answer, dict) else None
+
+
+def direct_run(settings: Any, entity_id: str, at: dt.datetime, window: int, done: str | None) -> str | None:
+    """The `last_triggered` stamp of the automation entity read directly from Home Assistant, when it is within `window` seconds of `at` and
+    newer than the last matched run (`done`); None otherwise (refused)."""
+    st = _read_state(settings, entity_id)
+    attrs = st.get("attributes") if st is not None else None
+    lt = _instant(attrs.get("last_triggered")) if isinstance(attrs, dict) else None
+    if lt is None or abs((at - lt).total_seconds()) > window:
+        return None
+    stamp = _stamp(lt)
+    return None if done and stamp <= done else stamp
+
+
+def _consume(conn: sqlite3.Connection, row: sqlite3.Row, stamp: str) -> bool:
+    """Match this `last_triggered` with exactly one event: false when it (or a later one) was already matched (a replay)."""
+    cur = conn.execute("UPDATE door_automations SET corroborated_trigger = ? WHERE id = ? AND (corroborated_trigger IS NULL OR corroborated_trigger < ?)",
+                       (stamp, row["id"], stamp))
+    return cur.rowcount == 1
+
+
+def _block_gates(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime, trigger: dict[str, Any], context: Any, *, corroborate: bool = False,
+                 matched: list[str] | None = None) -> list[tuple[str, bool, str | None]]:
+    """The block-level gates in order: (gate, ok, refusal reason). Read only. `context` is the event's context ({user_id, parent_id}).
+    `corroborate` (the real fire path) adds the last gate, the A-01 corroboration of the event with the mirror; the matched stamp is
+    appended to `matched`. A simulation has no event, so it does not evaluate that gate."""
     gates: list[tuple[str, bool, str | None]] = [("armed", row["state"] == "armed", None if row["state"] == "armed" else "not_armed")]
     gates.append(("feature", enabled(conn), None if enabled(conn) else "feature_off"))
     gates.append(("kill", not killed(conn), "killed" if killed(conn) else None))
     until = _parse(row["armed_until"])
     expired = row["state"] == "armed" and (until is None or at >= until)
     gates.append(("expiry", not expired, "arm_expired" if expired else None))
-    manual = bool(context_user) or trigger.get("source", "").strip().lower() in MANUAL_SOURCES
+    manual = is_manual(trigger, context)
     gates.append(("trigger", not manual, "manual_trigger" if manual else None))
     item = _item(conn, row["automation_item_id"])
     if item is None:
@@ -745,6 +969,11 @@ def _block_gates(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime, tr
         gates.append(("window", ok, None if ok else "outside_window"))
     except ClockUntrusted:
         gates.append(("window", False, "clock_untrusted"))
+    if corroborate:
+        why, stamp = corroboration(conn, row, at)
+        gates.append(("corroboration", why is None, why))
+        if stamp is not None and matched is not None:
+            matched.append(stamp)
     return gates
 
 
@@ -753,7 +982,7 @@ def _door_gate(conn: sqlite3.Connection, row: sqlite3.Row, door: dict[str, Any],
     s = station_of(door)
     if s is None or not s.get("online"):
         return "door_unavailable"
-    if armer_reason(conn, _armer(row), door, dev_mode) is not None:
+    if armer_reason(conn, _armer(row), door, dev_mode, row["automation_item_id"]) is not None:
         return "armer_lost_authority"
     policy = effective(conn, policy_of(row))
     key = door_key(door)
@@ -767,6 +996,13 @@ def _door_gate(conn: sqlite3.Connection, row: sqlite3.Row, door: dict[str, Any],
     day = conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE automation_id = ? AND attempted = 1 AND at > ?", (row["id"], iso(at - dt.timedelta(days=1)))).fetchone()[0]
     if day >= policy["max_per_day"]:
         return "rate_day"
+    # A-03: the cap of the DOOR itself, across every block that names it (a second block on the same door shares it; a deleted block's fires count too)
+    door_hour = conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE door_key = ? AND attempted = 1 AND at > ?", (key, iso(at - dt.timedelta(hours=1)))).fetchone()[0]
+    if door_hour >= policy["door_max_per_hour"]:
+        return "door_rate_hour"
+    door_day = conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE door_key = ? AND attempted = 1 AND at > ?", (key, iso(at - dt.timedelta(days=1)))).fetchone()[0]
+    if door_day >= policy["door_max_per_day"]:
+        return "door_rate_day"
     return None
 
 
@@ -776,15 +1012,16 @@ def _auto_disarm(conn: sqlite3.Connection, row: sqlite3.Row, reason: str) -> Non
 
 
 def _record_refusal(conn: sqlite3.Connection, row: sqlite3.Row, door: dict[str, Any] | None, reason: str, trigger: dict[str, Any], at: dt.datetime) -> None:
-    conn.execute("INSERT INTO door_automation_fires(id, automation_id, door_key, at, attempted, outcome, reason) VALUES (?, ?, ?, ?, 0, 'refused', ?)",
-                 (uuid.uuid4().hex, row["id"], door_key(door) if door else None, iso(at), reason))
+    conn.execute("""INSERT INTO door_automation_fires(id, automation_id, door_key, at, attempted, outcome, reason, operator_id, armed_by, armed_by_name)
+                    VALUES (?, ?, ?, ?, 0, 'refused', ?, ?, ?, ?)""",
+                 (uuid.uuid4().hex, row["id"], door_key(door) if door else None, iso(at), reason, f"{OPERATOR_PREFIX}{row['id']}", row["armed_by"], row["armed_by_name"]))
     _audit(conn, operator_of(row["id"], row["name"]), "door_automation.fire", "denied", row["id"], reason, None, actor_kind="automation",
            automation_item_id=row["automation_item_id"], trigger=trigger, **({"station": door["station_id"], "relay": door["relay"]} if door else {}))
     if reason in DISARMING and row["state"] == "armed":
         _auto_disarm(conn, row, reason)
     elif reason in STORM_REASONS:
         lim = limits(conn)
-        n = conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE automation_id = ? AND reason IN (?, ?, ?) AND at > ?",
+        n = conn.execute(f"SELECT COUNT(*) FROM door_automation_fires WHERE automation_id = ? AND reason IN ({', '.join('?' * len(STORM_REASONS))}) AND at > ?",
                          (row["id"], *STORM_REASONS, iso(at - dt.timedelta(seconds=lim["storm_window_s"])))).fetchone()[0]
         if n >= lim["storm_refusals"]:
             _auto_disarm(conn, row, "storm")
@@ -793,8 +1030,22 @@ def _record_refusal(conn: sqlite3.Connection, row: sqlite3.Row, door: dict[str, 
 def _details(row: sqlite3.Row, door: dict[str, Any], trigger: dict[str, Any], request_id: str) -> dict[str, Any]:
     return {"command": "release", "actor_kind": "automation", "automation_id": row["id"], "automation_name": row["name"],
             "automation_item_id": row["automation_item_id"], "item_revision": row["bound_item_revision"], "policy_revision": row["policy_revision"],
-            "trigger": trigger, "armed_by": row["armed_by"], "entry_point": ENTRY_POINT, "origin": f"automation:{row['automation_item_id']}",
+            "trigger": trigger, "operator_id": f"{OPERATOR_PREFIX}{row['id']}", "armed_by": row["armed_by"], "armed_by_name": row["armed_by_name"],
+            "armed_source": row["armed_source"], "entry_point": ENTRY_POINT, "origin": f"automation:{row['automation_item_id']}",
             "transport": "automation", "door_request_id": request_id, "station": door["station_id"], "relay": door["relay"]}
+
+
+def _switch_reason(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime) -> str | None:
+    """A-02: the three cheap switches, read again inside the per-door transaction (the block gates ran in an earlier one, and with N doors
+    the window spans N sends): the kill switch, the feature switch (and the go-live permit) and the arming expiry."""
+    if killed(conn):
+        return "killed"
+    if not enabled(conn):
+        return "feature_off"
+    until = _parse(row["armed_until"])
+    if until is None or at >= until:
+        return "arm_expired"
+    return None
 
 
 def _fire_door(db: Database, block_id: str, door: dict[str, Any], trigger: dict[str, Any], dev_mode: bool) -> dict[str, Any]:
@@ -804,14 +1055,15 @@ def _fire_door(db: Database, block_id: str, door: dict[str, Any], trigger: dict[
         if row is None or row["state"] != "armed":
             return {"door": name, "outcome": "refused", "reason": "not_armed"}
         at = now()
-        reason = _door_gate(conn, row, door, at, dev_mode)
+        reason = _switch_reason(conn, row, at) or _door_gate(conn, row, door, at, dev_mode)
         if reason is not None:
             _record_refusal(conn, row, door, reason, trigger, at)
             return {"door": name, "outcome": "refused", "reason": reason}
         request_id = str(uuid.uuid4())
         fire_id = uuid.uuid4().hex
-        conn.execute("INSERT INTO door_automation_fires(id, automation_id, door_key, at, attempted, outcome, door_request_id) VALUES (?, ?, ?, ?, 1, 'pending', ?)",
-                     (fire_id, block_id, door_key(door), iso(at), request_id))
+        conn.execute("""INSERT INTO door_automation_fires(id, automation_id, door_key, at, attempted, outcome, door_request_id, operator_id, armed_by, armed_by_name)
+                        VALUES (?, ?, ?, ?, 1, 'pending', ?, ?, ?, ?)""",
+                     (fire_id, block_id, door_key(door), iso(at), request_id, f"{OPERATOR_PREFIX}{row['id']}", row["armed_by"], row["armed_by_name"]))
         op = operator_of(row["id"], row["name"])
         details = _details(row, door, trigger, request_id)
         audit(conn, actor=op, action="intercom.release", decision="allowed", resource_type="intercom_station", resource_id=door["station_id"],
@@ -834,20 +1086,43 @@ def _fire_door(db: Database, block_id: str, door: dict[str, Any], trigger: dict[
     return {"door": name, "outcome": outcome, "code": code, "door_request_id": request_id}
 
 
-def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[str, Any], context_user: Any) -> list[dict[str, Any]]:
-    """One run of the automation `item_id` reported by Home Assistant. Returns one entry per decision (tests, logs)."""
+def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[str, Any], context: Any, *, corroborate: bool = True) -> list[dict[str, Any]]:
+    """One run of the automation `item_id` reported by Home Assistant. Returns one entry per decision (tests, logs). `context` is the event's
+    context ({user_id, parent_id}). Order: the block gates with the mirror as the pre-filter (read only), then ONE direct read of the
+    automation entity from Home Assistant's state machine outside any transaction (DA-01), then - under the write lock - the run is matched
+    with exactly one event (`_consume`, a replay is refused) and the doors are handled. The event can reach Arx before the state frame does,
+    so an event that fails ONLY the corroboration is re-checked for CORROBORATE_WAIT_S (nothing held while waiting) before it is refused."""
     dev_mode = bool(getattr(settings, "dev_user", None))
-    with db.connection(label="door automation gates") as conn:
-        row = by_item(conn, item_id)
-        if row is None or row["state"] != "armed":
-            return []
+    deadline = _monotonic() + CORROBORATE_WAIT_S
+    while True:
         at = now()
-        refusal = next((reason for _gate, ok, reason in _block_gates(conn, row, at, trigger, context_user) if not ok), None)
-        if refusal is not None:
-            _record_refusal(conn, row, None, refusal, trigger, at)
-            return [{"door": None, "outcome": "refused", "reason": refusal}]
-        block_id, doors = row["id"], policy_of(row)["doors"]
-    return [_fire_door(db, block_id, d, trigger, dev_mode) for d in doors]
+        with db.connection(mode="read", label="door automation gates") as conn:
+            row = by_item(conn, item_id)
+            if row is None or row["state"] != "armed":
+                return []
+            matched: list[str] = []
+            refusal = next((reason for _gate, ok, reason in _block_gates(conn, row, at, trigger, context, corroborate=corroborate, matched=matched) if not ok), None)
+            item = _item(conn, row["automation_item_id"]) if refusal is None and corroborate else None
+            window, done = limits(conn)["corroborate_window_s"], row["corroborated_trigger"]
+        stamp: str | None = None
+        if refusal is None and corroborate:
+            stamp = direct_run(settings, item["entity_id"], at, window, done) if item is not None and item["entity_id"] else None
+            if stamp is None:
+                refusal = "uncorroborated"
+        if refusal == "uncorroborated" and _monotonic() < deadline:
+            _sleep(CORROBORATE_POLL_S)
+            continue
+        with db.connection(label="door automation decide run") as conn:
+            row = by_item(conn, item_id)
+            if row is None or row["state"] != "armed":
+                return []
+            if refusal is None and corroborate and not _consume(conn, row, stamp):  # type: ignore[arg-type]
+                refusal = "uncorroborated"  # this run was already matched with an earlier event: a replay
+            if refusal is not None:
+                _record_refusal(conn, row, None, refusal, trigger, at)
+                return [{"door": None, "outcome": "refused", "reason": refusal}]
+            block_id, doors = row["id"], policy_of(row)["doors"]
+        return [_fire_door(db, block_id, d, trigger, dev_mode) for d in doors]
 
 
 def handle_trigger(db: Database, settings: Any, frame: Any) -> list[dict[str, Any]]:
@@ -865,11 +1140,45 @@ def handle_trigger(db: Database, settings: Any, frame: Any) -> list[dict[str, An
             return []
         item_id = item["item_id"]
     context = event.get("context") if isinstance(event.get("context"), dict) else {}
-    return handle_item_event(db, settings, item_id, _trigger_of(data.get("source"), event.get("time_fired")), context.get("user_id"))
+    trigger = _trigger_of(data.get("source"), event.get("time_fired"))
+    if isinstance(context.get("parent_id"), str):
+        trigger["parent_context"] = context["parent_id"][:64]  # audit only (never authority)
+    return handle_item_event(db, settings, item_id, trigger, context)
+
+
+def _worker_loop(q: queue.Queue[Callable[[], Any]]) -> None:
+    while True:
+        job = q.get()
+        try:
+            job()
+            STATS["handled"] += 1
+        except Exception:  # noqa: BLE001 - a job logs its own failure; the worker never dies
+            log.exception("door automation: a queued event failed")
+
+
+def _enqueue(job: Callable[[], Any]) -> bool:
+    """A-09: hand the job to the ONE worker through a bounded queue. A full queue drops the job and counts it (`STATS["dropped"]`, shown to the
+    administrator): under an event storm in Home Assistant Arx sheds load instead of starting a thread per event."""
+    global _QUEUE, _WORKER
+    with _QLOCK:
+        if _QUEUE is None:
+            _QUEUE = queue.Queue(maxsize=QUEUE_MAX)
+        if _WORKER is None or not _WORKER.is_alive():
+            _WORKER = threading.Thread(target=_worker_loop, args=(_QUEUE,), name="door-automation", daemon=True)
+            _WORKER.start()
+        q = _QUEUE
+    try:
+        q.put_nowait(job)
+        return True
+    except queue.Full:
+        STATS["dropped"] += 1
+        if STATS["dropped"] == 1 or STATS["dropped"] % 100 == 0:
+            log.warning("door automation: the event queue is full; %s event(s) dropped so far", STATS["dropped"])
+        return False
 
 
 def on_event(db: Database | None, settings: Any, frame: Any) -> None:
-    """The mirror's hook (services/automations.py). Never raises into the mirror and never runs on the WS loop."""
+    """The mirror's hook (services/automations.py). Never raises into the mirror and never runs on the WS loop (a bounded queue and one worker)."""
     if db is None:
         return
 
@@ -883,7 +1192,7 @@ def on_event(db: Database | None, settings: Any, frame: Any) -> None:
         if DISPATCH is not None:
             DISPATCH(run)
         else:
-            threading.Thread(target=run, name="door-automation", daemon=True).start()
+            _enqueue(run)
     except Exception:  # noqa: BLE001
         log.exception("door automation: dispatch failed")
 

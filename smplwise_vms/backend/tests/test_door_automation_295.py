@@ -8,7 +8,12 @@ Proven here (no Home Assistant, bridge, WisKey, door or key is contacted; the se
 - the fire path: every gate in order (feature, kill switch, expiry, autonomous trigger only, revision binding, window, armer's
   authority, cooldown, caps, storm), the two audit rows as an automation, never retried, one door's failure not stopping the next;
 - the feature switch cannot be turned on in this build (GO_LIVE_PERMITTED is False) and the live sender refuses;
-- simulation is side-effect free; the access audit lists the automation rows; the mirror hook never raises."""
+- simulation is side-effect free; the access audit lists the automation rows; the mirror hook never raises.
+
+DOORHARD-295 (Fable review section 5, owner decisions 2026-10-21) is proven at the end of this file: A-01 corroboration of the event with the mirror
+(a spoofed event without a person's context is refused), A-02 the switches re-read inside the per-door transaction, A-03 the per-door cap across blocks,
+A-04 manual detection by context and an allow-list of sources, A-09 the bounded queue with one worker, A-10 DST, CR 12.1 operator AND armer stored,
+12.3 a restore brings blocks back disarmed, 12.4 `automation.manage` at a floor."""
 from __future__ import annotations
 
 import datetime as _dt
@@ -16,7 +21,8 @@ import json
 from typing import Any
 
 import pytest
-from conftest import as_user
+from automations_fixture import place
+from conftest import as_user, seed_tree
 from fake_trusted_bridge import FakeWisKeyFeed, station
 from fastapi.testclient import TestClient
 
@@ -58,8 +64,8 @@ class Clock:
         self.at = self.at + _dt.timedelta(**kw)
 
 
-def _item(conn: Any, item_id: str, alias: str, triggers: list[dict[str, Any]], revision: str = "rev0000000000001") -> None:
-    cfg = {"id": item_id, "alias": alias, "triggers": triggers, "conditions": [], "actions": [{"action": "light.turn_on", "target": {"entity_id": "light.lobby"}}], "mode": "single"}
+def _item(conn: Any, item_id: str, alias: str, triggers: list[dict[str, Any]], revision: str = "rev0000000000001", target: str = "light.lobby") -> None:
+    cfg = {"id": item_id, "alias": alias, "triggers": triggers, "conditions": [], "actions": [{"action": "light.turn_on", "target": {"entity_id": target}}], "mode": "single"}
     conn.execute("INSERT OR REPLACE INTO ha_config_items(kind, item_id, config_id, entity_id, source, revision, config_json, seen_at, changed_at) VALUES ('automation',?,?,?,'ui',?,?,?,?)",
                  (item_id, item_id, f"automation.a_{item_id}", revision, json.dumps(cfg, ensure_ascii=False), now_iso(), now_iso()))
 
@@ -77,6 +83,7 @@ def _clean():
 
 @pytest.fixture()
 def world(settings, monkeypatch):
+    monkeypatch.setattr(door_automation, "CORROBORATE_WAIT_S", 0.0)  # an uncorroborated event is refused at once (the wait has its own test)
     feed = FakeWisKeyFeed([station(ENTRY, "כניסה ראשית"), station(DOCK, "רציף", relays=[1, 2])]).install(monkeypatch)
     app = create_app(settings)
     c = TestClient(app)
@@ -86,6 +93,16 @@ def world(settings, monkeypatch):
     door_automation.SENDER = sender
     door_automation.set_clock(clock)
     door_automation.DISPATCH = lambda fn: fn()  # synchronous in tests
+    # DA-01: Home Assistant's state machine, read directly at decision time. `corroborate()` records a real run here AND in the mirror;
+    # a test that forges the mirror alone leaves this unchanged.
+    machine: dict[str, dict[str, Any]] = {}
+    reads: list[str] = []
+
+    def read_state(_settings: Any, entity_id: str) -> dict[str, Any] | None:
+        reads.append(entity_id)
+        return machine.get(entity_id)
+
+    door_automation.STATE_READER = read_state
     c.get(f"{API}/me")  # joni: the bootstrap system administrator
     with db.connection() as conn:
         for eid, platform, entry in (("lock.entrance", "hikvision_intercom", ENTRY), ("lock.dock_gate", "hikvision_intercom", DOCK),
@@ -100,7 +117,15 @@ def world(settings, monkeypatch):
         _item(conn, "9003", "טריגר מחושב", [{"trigger": "template", "value_template": "{{ true }}"}])
         _item(conn, "9004", "לולאה דרך המנעול", [{"trigger": "state", "entity_id": "lock.entrance", "to": "unlocked"}])
         _item(conn, "9005", "בשעה קבועה", [{"trigger": "time", "at": "08:00:00"}])
-    return {"app": app, "c": c, "db": db, "sender": sender, "clock": clock, "feed": feed, "settings": settings}
+        _item(conn, "9006", "חיישן או שעה", [{"trigger": "state", "entity_id": "binary_sensor.lobby_motion", "to": "on"}, {"trigger": "time", "at": "08:00:00"}])
+        _item(conn, "9007", "מאפיין של חיישן", [{"trigger": "state", "entity_id": "binary_sensor.lobby_motion", "attribute": "battery", "to": "low"}])
+        # the mirror's own entities of the automations (their `last_triggered` is what an event is matched with) and a light
+        for item in ("9001", "9002", "9003", "9004", "9005", "9006", "9007"):
+            conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, state, attributes_json, state_seen_at, first_seen_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                         (f"automation.a_{item}", "automation", f"a_{item}", "automation", "on", "{}", now_iso(), now_iso(), now_iso()))
+        conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, state, state_seen_at, first_seen_at, updated_at) VALUES ('light.lobby','light','lobby','zha','off',?,?,?)",
+                     (now_iso(), now_iso(), now_iso()))
+    return {"app": app, "c": c, "db": db, "sender": sender, "clock": clock, "feed": feed, "settings": settings, "machine": machine, "reads": reads}
 
 
 @pytest.fixture()
@@ -150,7 +175,25 @@ def frame(item: str = "9001", user: str | None = None, source: str = "state of b
                                        "context": {"id": "01JCTX", "parent_id": None, "user_id": user}}}
 
 
-def fire(w: dict[str, Any], **kw: Any) -> list[dict[str, Any]]:
+def corroborate(w: dict[str, Any], item: str = "9001", *, run: bool = True, change: bool = True, offset_s: float = 0.0) -> None:
+    """What the mirror holds when a REAL run happened: the automation entity's `last_triggered` (a new, later stamp every call) and the watched sensor's
+    change. `offset_s` moves the stamp away from now (stale / future); `run=False` / `change=False` leave that half out."""
+    at = w["clock"].at
+    w["seq"] = w.get("seq", 0) + 1
+    last = at - _dt.timedelta(seconds=1) + _dt.timedelta(seconds=offset_s, microseconds=w["seq"])
+    with w["db"].connection() as conn:
+        if run:
+            conn.execute("UPDATE ha_entities SET attributes_json = ? WHERE entity_id = ?", (json.dumps({"last_triggered": last.isoformat()}), f"automation.a_{item}"))
+            if "machine" in w:
+                w["machine"][f"automation.a_{item}"] = {"entity_id": f"automation.a_{item}", "state": "on", "attributes": {"last_triggered": last.isoformat()}}
+        if change:
+            conn.execute("UPDATE ha_entities SET last_changed = ?, last_updated = ? WHERE entity_id = 'binary_sensor.lobby_motion'", (at.isoformat(), at.isoformat()))
+
+
+def fire(w: dict[str, Any], seed: bool = True, **kw: Any) -> list[dict[str, Any]]:
+    """An `automation_triggered` frame. `seed` (default) first puts a real run in the mirror; `seed=False` is the event alone."""
+    if seed:
+        corroborate(w, kw.get("item", "9001"))
     return door_automation.handle_trigger(w["db"], w["settings"], frame(**kw))
 
 
@@ -551,6 +594,7 @@ def test_simulation_shows_every_gate_and_changes_nothing(world):
     gates = {g["gate"]: g for g in sim["gates"]}
     assert gates["feature"]["ok"] is False and gates["feature"]["reason"] == "feature_off"
     assert gates["armed"]["ok"] and gates["window"]["ok"] and gates["revision"]["ok"] and gates["trigger"]["ok"]
+    assert "corroboration" not in gates, "a simulation has no event to corroborate"
     assert sim["would_send"] is False and [d["decision"] for d in sim["doors"]] == ["would_open"]
     late = c.post(f"{API}/door-automations/{da['id']}/simulate", json={"at": "2026-10-05T09:00:00Z", "source": "trigger action"}).json()
     lg = {g["gate"]: g for g in late["gates"]}
@@ -577,6 +621,7 @@ def test_the_mirror_hook_fires_and_never_raises(live, monkeypatch):
     _armed(c)
     monkeypatch.setattr(automations.MIRROR, "db", live["app"].state.db)  # restored after the test (the mirror is process-wide)
     monkeypatch.setattr(automations.MIRROR, "settings", live["settings"])
+    corroborate(live)
     automations.MIRROR.on_ha_event(frame())
     assert len(sender.calls) == 1
 
@@ -635,7 +680,8 @@ def test_whoever_creates_automations_may_arm_unless_removed_per_user_or_per_role
 def test_every_limit_is_an_administrator_setting(live):
     c, db, clock = live["c"], live["db"], live["clock"]
     st = c.get(f"{API}/door-automations/status").json()
-    assert st["limits"] == {"cooldown_s": 10, "max_per_hour": 30, "max_per_day": 300, "arm_days": 180, "storm_refusals": 5, "storm_window_s": 600}
+    assert st["limits"] == {"cooldown_s": 10, "max_per_hour": 30, "max_per_day": 300, "arm_days": 180, "storm_refusals": 5, "storm_window_s": 600,
+                           "door_max_per_hour": 6, "door_max_per_day": 30, "corroborate_window_s": 10}
     _bind(db, "dana", "operator")
     assert c.put(f"{API}/door-automations/settings", json={"limits": {"cooldown_s": 120}, "confirmed": True}, headers=as_user("dana")).status_code == 403
     r = c.put(f"{API}/door-automations/settings", json={"limits": {"cooldown_s": 0}, "confirmed": True})
@@ -659,3 +705,515 @@ def test_a_step_without_time_windows_opens_any_time(live):
     _armed(c, policy={"doors": POLICY["doors"]})
     clock.at = _dt.datetime(2026, 10, 10, 0, 30, tzinfo=_dt.timezone.utc)  # Saturday 03:30 local
     assert fire(live)[0]["outcome"] == "sent"
+
+
+# ================================================================ DOORHARD-295: Fable review section 5 + owner answers 2026-10-21
+
+TWO_DOORS = {**POLICY, "doors": [{"station_id": ENTRY, "relay": 1}, {"station_id": DOCK, "relay": 2}]}
+
+
+def _setting(db: Database, key: str, value: str) -> None:
+    with db.connection() as conn:
+        set_setting(conn, key, value)
+
+
+# ---- A-01: the event alone is not evidence
+
+def test_a_spoofed_event_without_a_person_is_refused_and_sends_nothing(live):
+    """A-01: any integration or script in Home Assistant can fire `automation_triggered` with no user context. It used to pass every gate."""
+    c, sender, db = live["c"], live["sender"], live["db"]
+    da = _armed(c)
+    out = fire(live, seed=False)
+    assert out == [{"door": None, "outcome": "refused", "reason": "uncorroborated"}] and sender.calls == []
+    row = audit_rows(db, "door_automation.fire")[-1]
+    assert row["decision"] == "denied" and row["reason"] == "uncorroborated" and row["actor_user_id"] == f"automation:{da['id']}"
+    assert fire(live)[0]["outcome"] == "sent" and len(sender.calls) == 1, "the same event with a real run behind it opens"
+
+
+def test_uncorroborated_events_count_as_a_storm_and_disarm_the_block(live):
+    c, sender = live["c"], live["sender"]
+    da = _armed(c)
+    for _ in range(5):
+        assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    st = state_of(c, da["id"])
+    assert st["state"] == "disarmed" and st["disarm_reason"] == "storm" and sender.calls == []
+    assert "uncorroborated" in door_automation.STORM_REASONS
+
+
+@pytest.mark.parametrize("offset", [-30, 30])
+def test_a_stale_or_future_last_triggered_does_not_corroborate(live, offset):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    corroborate(live, offset_s=offset)
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated" and sender.calls == []
+
+
+def test_a_state_trigger_also_needs_the_watched_entity_to_have_changed(live):
+    c, sender, db = live["c"], live["sender"], live["db"]
+    _armed(c)  # 9001 watches binary_sensor.lobby_motion
+    corroborate(live, change=False)  # the automation "ran" but its sensor never changed in the mirror
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    old = (live["clock"].at - _dt.timedelta(seconds=60)).isoformat()
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET last_changed = ?, last_updated = ? WHERE entity_id = 'binary_sensor.lobby_motion'", (old, old))
+    corroborate(live, change=False)
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated", "a change older than the window is no corroboration"
+    assert sender.calls == []
+    corroborate(live)
+    assert fire(live, seed=False)[0]["outcome"] == "sent"
+
+
+def test_an_attribute_trigger_is_corroborated_by_the_update_not_the_state_change(live):
+    c, db = live["c"], live["db"]
+    _armed(c)
+    _armed(c, item="9007")
+    recent, old = live["clock"].at.isoformat(), (live["clock"].at - _dt.timedelta(seconds=60)).isoformat()
+    with db.connection() as conn:  # only an attribute of the sensor moved
+        conn.execute("UPDATE ha_entities SET last_changed = ?, last_updated = ? WHERE entity_id = 'binary_sensor.lobby_motion'", (old, recent))
+    corroborate(live, "9001", change=False)
+    corroborate(live, "9007", change=False)
+    assert fire(live, item="9001", seed=False)[0]["reason"] == "uncorroborated"
+    assert fire(live, item="9007", seed=False)[0]["outcome"] == "sent"
+
+
+def test_a_time_trigger_alongside_a_state_trigger_is_corroborated_by_the_run_alone(live):
+    c = live["c"]
+    _armed(c, item="9006")  # state OR time: Home Assistant does not say which one ran
+    corroborate(live, "9006", change=False)
+    assert fire(live, item="9006", seed=False)[0]["outcome"] == "sent"
+    _armed(c, item="9005")  # time only: the run alone
+    corroborate(live, "9005", change=False)
+    assert fire(live, item="9005", seed=False, source="time")[0]["outcome"] == "sent"
+
+
+def test_one_real_run_authorises_one_event_a_replay_is_refused(live):
+    c, sender, clock, db = live["c"], live["sender"], live["clock"], live["db"]
+    _setting(db, "doors.automation.corroborate_window_s", "60")
+    _armed(c)
+    corroborate(live)
+    assert fire(live, seed=False)[0]["outcome"] == "sent"
+    clock.advance(seconds=11)  # past the cooldown, still inside the (widened) window: the same run cannot be matched twice
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    corroborate(live)  # a new run
+    assert fire(live, seed=False)[0]["outcome"] == "sent" and len(sender.calls) == 2
+
+
+def test_unreadable_mirror_data_fails_closed(live):
+    c, db, sender = live["c"], live["db"], live["sender"]
+    _armed(c)
+    corroborate(live)
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET attributes_json = 'not json' WHERE entity_id = 'automation.a_9001'")
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET attributes_json = ? WHERE entity_id = 'automation.a_9001'", (json.dumps({"last_triggered": "yesterday"}),))
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    with db.connection() as conn:
+        conn.execute("DELETE FROM ha_entities WHERE entity_id = 'automation.a_9001'")
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated" and sender.calls == []
+
+
+def test_the_event_may_arrive_before_the_state_frame(live, monkeypatch):
+    """The wait: an event that fails only the corroboration is re-checked for a few seconds; the state frame lands meanwhile."""
+    import time
+
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    monkeypatch.setattr(door_automation, "CORROBORATE_WAIT_S", 2.0)
+    slept: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        corroborate(live)  # the mirror receives the automation's state frame while Arx waits
+
+    monkeypatch.setattr(door_automation, "_sleep", sleep)
+    assert fire(live, seed=False)[0]["outcome"] == "sent" and len(slept) == 1 and len(sender.calls) == 1
+    # no state frame ever: refused after the wait, recorded once
+    monkeypatch.setattr(door_automation, "CORROBORATE_WAIT_S", 0.2)
+    monkeypatch.setattr(door_automation, "_sleep", lambda _s: time.sleep(0.05))
+    live["clock"].advance(seconds=11)
+    before = len(audit_rows(live["db"], "door_automation.fire"))
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated" and len(sender.calls) == 1
+    assert len(audit_rows(live["db"], "door_automation.fire")) == before + 1
+
+
+# ---- A-02: the switches are read again inside the per-door transaction
+
+def test_the_kill_switch_set_while_the_first_door_is_sent_stops_the_second(live):
+    c, db = live["c"], live["db"]
+    _armed(c, policy=TWO_DOORS)
+
+    class KillOnSend(FakeSender):
+        def open(self, **kw: Any) -> tuple[str, str | None]:
+            with db.connection() as conn:  # the send runs outside any transaction: an administrator stops everything now
+                set_setting(conn, door_automation.KILL_KEY, "on")
+            return super().open(**kw)
+
+    sender = KillOnSend()
+    door_automation.SENDER = sender
+    out = fire(live)
+    assert [(o["door"], o["outcome"], o.get("reason")) for o in out] == [("כניסה ראשית", "sent", None), ("רציף", "refused", "killed")]
+    assert len(sender.calls) == 1
+
+
+def test_the_feature_switch_and_the_expiry_are_read_again_per_door(live):
+    c, db, clock, sender = live["c"], live["db"], live["clock"], live["sender"]
+    da = _armed(c)
+    door, trigger, dev = POLICY["doors"][0], {"source": "state", "time_fired": None}, bool(live["settings"].dev_user)
+    _setting(db, door_automation.FLAG_KEY, "off")
+    assert door_automation._fire_door(db, da["id"], door, trigger, dev)["reason"] == "feature_off"
+    _setting(db, door_automation.FLAG_KEY, "on")
+    clock.advance(days=181)
+    out = door_automation._fire_door(db, da["id"], door, trigger, dev)
+    assert out["reason"] == "arm_expired" and state_of(c, da["id"])["disarm_reason"] == "arm_expired" and sender.calls == []
+
+
+# ---- A-03: the per-door cap across every block
+
+def test_a_door_has_one_installation_wide_cap_across_all_blocks(live):
+    c, clock, sender = live["c"], live["clock"], live["sender"]
+    assert (door_automation.DOOR_DEFAULTS["door_max_per_hour"], door_automation.DOOR_DEFAULTS["door_max_per_day"]) == (6, 30)
+    _armed(c, item="9001")
+    _armed(c, item="9005")  # a second block on the SAME door
+    for _ in range(3):
+        assert fire(live, item="9001")[0]["outcome"] == "sent"
+        assert fire(live, item="9005", source="time")[0]["outcome"] == "sent"
+        clock.advance(seconds=11)
+    assert len(sender.calls) == 6
+    assert fire(live, item="9001")[0]["reason"] == "door_rate_hour", "6 an hour on the door, whichever block asks"
+    assert fire(live, item="9005", source="time")[0]["reason"] == "door_rate_hour"
+    assert len(sender.calls) == 6
+    assert "door_rate_hour" in door_automation.STORM_REASONS and "door_rate_day" in door_automation.STORM_REASONS
+
+
+def test_the_door_day_cap_and_both_caps_are_administrator_settings(live):
+    c, clock, db = live["c"], live["clock"], live["db"]
+    bad = c.put(f"{API}/door-automations/settings", json={"limits": {"door_max_per_hour": 0}, "confirmed": True})
+    assert bad.status_code == 422 and bad.json()["details"]["fields"] == ["limits"]
+    r = c.put(f"{API}/door-automations/settings", json={"limits": {"door_max_per_hour": 50, "door_max_per_day": 2, "corroborate_window_s": 20}, "confirmed": True})
+    assert r.status_code == 200 and r.json()["limits"]["door_max_per_day"] == 2 and r.json()["limits"]["corroborate_window_s"] == 20, r.text
+    _armed(c)
+    assert fire(live)[0]["outcome"] == "sent"
+    clock.advance(seconds=11)
+    assert fire(live)[0]["outcome"] == "sent"
+    clock.advance(seconds=11)
+    assert fire(live)[0]["reason"] == "door_rate_day"
+    with db.connection() as conn:
+        set_setting(conn, "doors.automation.door_max_per_day", "garbage")
+        assert door_automation.limits(conn)["door_max_per_day"] == 30, "garbage falls back to the default, never to no limit"
+
+
+def test_a_deleted_blocks_fires_still_count_for_the_door(live):
+    c, clock, sender = live["c"], live["clock"], live["sender"]
+    _setting(live["db"], "doors.automation.door_max_per_day", "2")
+    da = _armed(c)
+    assert fire(live)[0]["outcome"] == "sent"
+    clock.advance(seconds=11)
+    assert fire(live)[0]["outcome"] == "sent"
+    assert c.delete(f"{API}/door-automations/{da['id']}").status_code == 200
+    _armed(c)  # delete and recreate does not give the door a fresh budget
+    clock.advance(seconds=11)
+    assert fire(live)[0]["reason"] == "door_rate_day" and len(sender.calls) == 2
+
+
+# ---- A-04: manual detection by context, and an allow-list of automatic sources
+
+@pytest.mark.parametrize("source, user, parent, manual", [
+    ("state of binary_sensor.lobby_motion", None, None, False),
+    ("numeric state of sensor.temp", None, None, False),
+    ("time pattern", None, None, False),
+    ("time", None, None, False),
+    ("sun", None, None, False),
+    ("state of binary_sensor.lobby_motion", "0123456789abcdef0123456789abcdef", None, True),  # a person's context
+    ("state of binary_sensor.lobby_motion", None, "01JPARENT", False),  # owner 2026-10-21: a parent context is normal for a run, not refused
+    ("trigger action", None, None, True),
+    ("manual", None, None, True),
+    ("Trigger Action", None, None, True),
+    ("", None, None, True),  # unknown wording fails closed
+    ("something new in a later Home Assistant", None, None, False),  # owner 2026-10-21: unfamiliar wording is not refused
+])
+def test_manual_detection_is_a_persons_context_or_a_manual_run(source, user, parent, manual):
+    ctx = {"user_id": user, "parent_id": parent}
+    assert door_automation.is_manual({"source": source}, ctx) is manual
+    if user:
+        assert door_automation.is_manual({"source": source}, user) is True, "a bare user id (older callers) still counts"
+
+
+def test_a_parent_context_fires_when_corroborated_and_is_kept_in_the_audit(live):
+    """Owner decision 2026-10-21: a run with a parent context (the usual case in Home Assistant) is not refused; corroboration decides.
+    An empty source is still a manual run."""
+    c, sender, clock = live["c"], live["sender"], live["clock"]
+    _armed(c)
+    corroborate(live)
+    f = frame()
+    f["event"]["context"]["parent_id"] = "01JPARENT"
+    assert door_automation.handle_trigger(live["db"], live["settings"], f)[0]["outcome"] == "sent"
+    attempt = [r for r in audit_rows(live["db"], "intercom.release") if r["details"]["phase"] == "attempt"][-1]
+    assert attempt["details"]["trigger"]["parent_context"] == "01JPARENT"
+    clock.advance(seconds=11)
+    assert fire(live, source="")[0]["reason"] == "manual_trigger"
+    assert len(sender.calls) == 1
+
+
+# ---- A-09: one bounded queue, one worker, a dropped counter
+
+def test_events_go_through_one_bounded_queue_and_a_full_queue_counts_drops(live, monkeypatch):
+    import queue
+    import threading
+    import time
+
+    db, settings, c = live["db"], live["settings"], live["c"]
+    door_automation.DISPATCH = None
+    handled: list[int] = []
+    threads: set[int] = set()
+    started, gate = threading.Event(), threading.Event()
+
+    def slow_handle(_db: Any, _settings: Any, frm: Any) -> list[Any]:
+        started.set()
+        gate.wait(10)
+        handled.append(frm["n"])
+        threads.add(threading.get_ident())
+        return []
+
+    monkeypatch.setattr(door_automation, "handle_trigger", slow_handle)
+    monkeypatch.setattr(door_automation, "_QUEUE", queue.Queue(maxsize=3))
+    monkeypatch.setattr(door_automation, "_WORKER", None)
+    door_automation.on_event(db, settings, {"n": 0})
+    assert started.wait(5), "the worker took the first event"
+    before = threading.active_count()
+    for n in range(1, 10):
+        door_automation.on_event(db, settings, {"n": n})
+    assert threading.active_count() == before, "no thread per event"
+    assert door_automation.STATS["dropped"] == 6, "1 in hand + 3 queued, the other 6 dropped and counted"
+    assert c.get(f"{API}/door-automations/status").json()["dropped_events"] == 6
+    gate.set()
+    for _ in range(100):
+        if len(handled) == 4:
+            break
+        time.sleep(0.05)
+    assert handled == [0, 1, 2, 3] and len(threads) == 1, "in order, by one worker"
+
+
+def test_on_event_without_a_database_or_with_a_failing_dispatch_never_raises(live):
+    door_automation.on_event(None, live["settings"], frame())
+
+    def broken(_fn: Any) -> None:
+        raise RuntimeError("no queue")
+
+    door_automation.DISPATCH = broken
+    door_automation.on_event(live["db"], live["settings"], frame())
+
+
+# ---- A-10: DST
+
+def test_dst_edges_are_safe_and_documented():
+    tz = "Asia/Jerusalem"
+
+    def minutes_in(windows: list[dict[str, Any]], day_start_utc: _dt.datetime) -> int:
+        return sum(1 for m in range(24 * 60) if door_automation.in_window(windows, day_start_utc + _dt.timedelta(minutes=m), tz))
+
+    # spring forward (Friday 2026-03-27, 02:00 -> 03:00): a window inside the skipped hour never matches that day
+    skipped = [{"days": [4], "start": "02:15", "end": "02:45"}]
+    assert minutes_in(skipped, _dt.datetime(2026, 3, 26, 21, 0, tzinfo=_dt.timezone.utc)) == 0
+    # fall back (Sunday 2026-10-25, 02:00 -> 01:00): a window inside the repeated hour is open in BOTH passes (documented)
+    repeated = [{"days": [6], "start": "01:15", "end": "01:45"}]
+    assert minutes_in(repeated, _dt.datetime(2026, 10, 24, 21, 0, tzinfo=_dt.timezone.utc)) == 60, "30 minutes twice"
+    assert "DST" in (door_automation.in_window.__doc__ or "")
+
+
+# ---- CR 12.1: the operator AND the approving person are stored
+
+def test_every_decision_stores_the_operator_and_the_armer(live):
+    c, db = live["c"], live["db"]
+    da = _armed(c)
+    assert state_of(c, da["id"])["operator_id"] == f"automation:{da['id']}"
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    assert fire(live)[0]["outcome"] == "sent"
+    with db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT attempted, reason, operator_id, armed_by, armed_by_name FROM door_automation_fires ORDER BY rowid").fetchall()
+    assert len(rows) == 2
+    for r in rows:
+        assert r["operator_id"] == f"automation:{da['id']}" and r["armed_by"] == "dev-joni" and r["armed_by_name"]
+    fires = c.get(f"{API}/door-automations/{da['id']}/fires").json()["fires"]
+    assert all(f["operator_id"] == f"automation:{da['id']}" and f["armed_by"] == "dev-joni" for f in fires)
+    for rr in audit_rows(db, "intercom.release"):
+        d = rr["details"]
+        assert rr["actor_user_id"] == f"automation:{da['id']}" and d["operator_id"] == f"automation:{da['id']}" and d["armed_by"] == "dev-joni" and d["armed_by_name"]
+
+
+# ---- CR 12.3: backup / restore brings blocks back disarmed
+
+def test_a_restore_brings_every_block_back_disarmed_and_never_the_fire_history(live):
+    import io
+    import zipfile
+
+    from smplwise.db import get_setting
+    from smplwise.services import backup
+
+    c, db = live["c"], live["db"]
+    assert "door_automations" in backup.PROJECT_TABLES and "door_automation_fires" in backup.NEVER_EXPORTED_TABLES
+    assert "door_automation_fires" not in backup.PROJECT_TABLES + backup.ACCESS_TABLES
+    da = _armed(c)
+    other = _create(c, item="9005").json()  # a draft stays a draft
+    assert fire(live)[0]["outcome"] == "sent"
+    e = c.post(f"{API}/backups", json={"note": "doors"}).json()
+    assert e["tables"]["door_automations"] == 2 and "door_automation_fires" not in e["tables"]
+    raw = c.get(f"{API}/backups/{e['name']}/download").content
+    with zipfile.ZipFile(io.BytesIO(raw)) as z:
+        assert "data/door_automations.json" in z.namelist() and "data/door_automation_fires.json" not in z.namelist()
+        rows = json.loads(z.read("data/door_automations.json"))
+    assert {r["id"]: r["state"] for r in rows} == {da["id"]: "armed", other["id"]: "draft"}, "the archive says what the block was"
+    # tamper with the archive: an armed block with a bad policy is dropped, a valid armed one is disarmed whatever it says
+    bad = {**rows[0], "id": "da_" + "b" * 32, "automation_item_id": "9006", "state": "armed", "policy_json": json.dumps({"doors": []})}
+    patched = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(raw)) as zin, zipfile.ZipFile(patched, "w") as zout:
+        for n in zin.namelist():
+            zout.writestr(n, json.dumps([*rows, bad]) if n == "data/door_automations.json" else zin.read(n))
+    up = c.post(f"{API}/backups/upload", files={"file": ("doors.zip", patched.getvalue(), "application/zip")})
+    assert up.status_code == 201, up.text
+    res = c.post(f"{API}/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert res.json()["door_automations"] == {"disarmed": 1, "dropped": 1}
+    by_id = {b["id"]: b for b in c.get(f"{API}/door-automations").json()["items"]}
+    assert set(by_id) == {da["id"], other["id"]}
+    assert by_id[da["id"]]["state"] == "disarmed" and by_id[da["id"]]["disarm_reason"] == "restored" and by_id[da["id"]]["armed_until"] is None
+    assert by_id[other["id"]]["state"] == "draft"
+    assert fire(live) == [], "a restored block is silent until a person arms it again"
+    with db.connection(mode="read") as conn:
+        assert get_setting(conn, door_automation.FLAG_KEY) == "on", "the doors.* switches are never touched by a restore"
+    assert _arm(c, by_id[da["id"]]).status_code == 200, "a person arms it again (the arming checks run again)"
+
+
+def test_an_older_archive_without_the_table_keeps_the_blocks_but_disarms_them(live):
+    import io
+    import zipfile
+
+    c = live["c"]
+    da = _armed(c)
+    e = c.post(f"{API}/backups", json={}).json()
+    raw = c.get(f"{API}/backups/{e['name']}/download").content
+    old = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(raw)) as zin, zipfile.ZipFile(old, "w") as zout:
+        for n in zin.namelist():
+            if n != "data/door_automations.json":
+                zout.writestr(n, zin.read(n))
+    up = c.post(f"{API}/backups/upload", files={"file": ("old.zip", old.getvalue(), "application/zip")})
+    res = c.post(f"{API}/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200 and "door_automations" in res.json()["kept_current"], res.text
+    assert state_of(c, da["id"])["state"] == "disarmed" and state_of(c, da["id"])["disarm_reason"] == "restored"
+
+
+# ---- CR 12.4: automation.manage at the installation AND at a floor
+
+def test_automation_manage_at_a_floor_reaches_only_the_automations_on_that_floor(live):
+    c, db = live["c"], live["db"]
+    ids = seed_tree(c)
+    place(c, ids["floor2"], "light.lobby", "binary_sensor.lobby_motion")
+    with db.connection() as conn:
+        conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, state, state_seen_at, first_seen_at, updated_at) VALUES ('light.garage','light','garage','zha','off',?,?,?)",
+                     (now_iso(), now_iso(), now_iso()))
+        _item(conn, "9101", "חצר", [{"trigger": "time", "at": "08:00:00"}], target="light.garage")  # not on dana's floor
+    role = _role(c, "עורך קומה", ["automation.manage"], ["entity.state.read", "devices.read"])
+    _bind(db, "dana", role, "floor", ids["floor2"])
+    _bind(db, "dana", "door_opener", STATION, ENTRY)  # she may open the entrance herself, not the dock
+    mine = {"headers": as_user("dana")}
+    st = c.get(f"{API}/door-automations/status", **mine).json()
+    assert st["visible"] is True and st["can_manage"] is True, "the implied right of automation.manage counts at a floor too"
+    # her own automation: created and armed
+    r = _create(c, user="dana")
+    assert r.status_code == 201, r.text
+    # an automation outside her floor: refused (the floor is the limit)
+    r2 = _create(c, item="9101", user="dana", name="חצר", policy={"doors": POLICY["doors"]})
+    assert r2.status_code == 403 and r2.json()["details"]["permission"] == "automation.manage", r2.text
+    da = r.json()
+    assert _arm(c, da, user="dana").status_code == 200
+    # the door rule still applies: she cannot give the automation a door she may not open
+    dock = _create(c, item="9006", user="dana", policy={**POLICY, "doors": [{"station_id": DOCK, "relay": 2}]})
+    assert dock.status_code == 201, dock.text
+    refused = _arm(c, dock.json(), user="dana")
+    assert refused.status_code == 403 and refused.json()["details"]["reason"] == "door_not_allowed", refused.text
+    # the picker shows her only what she may open
+    assert [d["name"] for d in c.get(f"{API}/door-automations/doors", **mine).json()["doors"]] == ["כניסה ראשית"]
+    # the arming person is re-checked at every fire, including that the automation is still on her floor
+    assert fire(live)[0]["outcome"] == "sent"
+    with db.connection() as conn:
+        conn.execute("DELETE FROM map_anchors WHERE resource_id = 'light.lobby'")
+    live["clock"].advance(seconds=11)
+    assert fire(live)[0]["reason"] == "armer_lost_authority"
+    # an installation-wide deny of automation.manage takes the floor away too (deny wins)
+    _bind(db, "dana", "site_admin", effect="deny")
+    assert c.get(f"{API}/door-automations/status", **mine).json() == {"visible": False}
+
+
+def test_manage_reach_names_the_scope_and_never_lets_the_operator_in(live):
+    db = live["db"]
+    with db.connection(mode="read") as conn:
+        joni = Principal("dev-joni", "joni", "joni", "dev")
+        assert door_automation.manage_reach(conn, joni) == "installation"
+        assert door_automation.manage_reach(conn, door_automation.operator_of("x", "x")) is None
+        assert door_automation.manage_reach(conn, Principal("dev-nobody", "nobody", "nobody", "dev")) is None
+
+
+# ---- DA-01 (Fable review 2): one direct read of Home Assistant's state machine at decision time
+
+def test_a_forged_mirror_without_a_real_run_in_the_state_machine_never_opens(live):
+    """The attacker of A-01 can fire `state_changed` too, so the mirror alone is not evidence: the run must be in Home Assistant's state machine."""
+    c, sender, db, clock = live["c"], live["sender"], live["db"], live["clock"]
+    _armed(c)
+    corroborate(live)
+    live["machine"].clear()  # the mirror says it ran; the state machine does not know the automation
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    live["machine"]["automation.a_9001"] = {"attributes": {"last_triggered": (clock.at - _dt.timedelta(hours=2)).isoformat()}}  # an old run
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    live["machine"]["automation.a_9001"] = {"attributes": {"last_triggered": "garbage"}}
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    assert sender.calls == []
+    reads_before = len(live["reads"])
+    assert fire(live)[0]["outcome"] == "sent"  # a real run: mirror AND state machine
+    assert live["reads"][reads_before:] == ["automation.a_9001"], "exactly one direct read at decision time"
+
+
+def test_a_failing_state_read_refuses(live):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+
+    def boom(_s: Any, _e: str) -> Any:
+        raise RuntimeError("Home Assistant unreachable")
+
+    door_automation.STATE_READER = boom
+    assert fire(live)[0]["reason"] == "uncorroborated" and sender.calls == []
+
+
+def test_one_state_machine_run_opens_once_even_for_two_events(live):
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    corroborate(live)
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame())[0]["outcome"] == "sent"
+    live["clock"].advance(seconds=11)
+    # a second event for the SAME run (no new run in the state machine): a replay, refused
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame())[0]["reason"] == "uncorroborated"
+    assert fire(live)[0]["outcome"] == "sent", "a later real run opens again"
+    assert len(sender.calls) == 2
+
+
+def test_a_replace_restore_keeps_the_fire_history(live):
+    """Owner decision 2026-10-21: a replace restore brings the blocks back disarmed but does not wipe the history an administrator reads, nor the
+    counters the per-door cap and the cooldown use; a block the archive does not have keeps its history as a deleted record."""
+    c = live["c"]
+    da = _armed(c)
+    assert fire(live)[0]["outcome"] == "sent"
+    e = c.post(f"{API}/backups", json={}).json()
+    gone = _create(c, item="9005").json()
+    with live["db"].connection() as conn:  # a decision of a block the archive does not have
+        conn.execute("INSERT INTO door_automation_fires(id, automation_id, door_key, at, attempted, outcome, reason) VALUES ('f-gone', ?, ?, ?, 0, 'refused', 'cooldown')",
+                     (gone["id"], f"{ENTRY}#1", door_automation.iso(live["clock"].at)))
+    res = c.post(f"{API}/backups/{e['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert state_of(c, da["id"])["state"] == "disarmed" and state_of(c, da["id"])["disarm_reason"] == "restored"
+    assert [f["outcome"] for f in c.get(f"{API}/door-automations/{da['id']}/fires").json()["fires"]] == ["sent"]
+    with live["db"].connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM door_automation_fires WHERE id = 'f-gone'").fetchone()[0] == 1
+        tomb = conn.execute("SELECT state, deleted_at FROM door_automations WHERE id = ?", (gone["id"],)).fetchone()
+    assert tomb["state"] != "armed" and tomb["deleted_at"], "kept only as a deleted record"
+    assert _arm(c, state_of(c, da["id"])).status_code == 200
+    assert fire(live)[0]["reason"] == "cooldown", "the restored block still sees its own last opening"
