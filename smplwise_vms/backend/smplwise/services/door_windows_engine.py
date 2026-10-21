@@ -12,8 +12,9 @@ does not invent their wire shapes. NOTHING here has run against a WisKey (NOT_RU
 `LIVE_ENGINE_BUILT` (DWFIX-295, review 3 DW-01 / DW-02) says whether those live classes can act at all. It is False while they answer
 `not_implemented`, and then - whatever the permit says - the window factory hands out the tier-D `PreparedEngine` (Arx plans, the manager
 applies it in the panel) and the emergency switch cannot be turned on (a button that cannot act would be a false sense of safety, T21).
-It turns True only together with a real coordinator behind these classes, and not before review 3 DW-03 is closed (door_emergency:
-cancel a queued call at the seam deadline, a stale-row guard before each send, a transport timeout <= ENGINE_DEADLINE_S) - not done here.
+It turns True only together with a real coordinator behind these classes. Review 3 DW-03 is closed at the seam (F3A-295, door_emergency:
+a per-dispatch executor whose not-started calls are cancelled at the deadline, a stale-row claim right before each send, and the hard per-call
+deadline `call_with_deadline`); the live transport must still honour `WiskeyEmergencyEngine.transport_timeout_s` (<= ENGINE_DEADLINE_S) itself.
 
 SR-1 (CR-039 4.1): no method of this seam opens a door from a timer. The window engine knows three schedule operations (`read`, `save`,
 `pause`); the emergency engine's `apply("open", ...)` is only ever called by the emergency service for an incident a person confirmed
@@ -181,6 +182,9 @@ class WiskeyEmergencyEngine:
 
     simulated = False
     open_supported = False
+    # DW-03 (review 3): the W13-e transport's own per-call timeout. It must end a call BEFORE door_emergency.ENGINE_DEADLINE_S (8 s), so a
+    # thread of the hard per-call deadline (door_emergency.call_with_deadline) never outlives it for long. No transport exists yet.
+    transport_timeout_s = 6.0
 
     def __init__(self, settings: Any) -> None:
         self.settings = settings
