@@ -212,6 +212,8 @@ config_item:
       description: Random nonce.
     sig:
       description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+    kid:
+      description: (version 2 signatures only) the key id the message is signed with.
 
 cast_stream:
   name: Cast a camera to a screen (SMPLWISE add-on only)

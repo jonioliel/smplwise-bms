@@ -180,7 +180,7 @@ class Engine:
         conn.execute(f"UPDATE bridge_rotations SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", (*sets.values(), rot["id"]))
         return rotation_row(conn, rot["id"]) or rot
 
-    def _call(self, op: str, kid: str, material: str, rot: dict[str, Any], expect: tuple[str, ...] | None = None, **fields: Any) -> dict[str, Any]:
+    def _call(self, op: str, kid: str, material: str, rot: dict[str, Any], expect: tuple[str, ...] | None = None, unsigned_refusal_ok: bool = False, **fields: Any) -> dict[str, Any]:
         """Sign one control message and verify the peer's answer. Raises PeerUnreachable (no answer) or returns the answer, with
         `ok` False and a closed `code` for a refusal and `peer_bad_answer` for an answer that does not verify / bind. `expect` (H-09)
         names the keys the answer may be signed with - `begin` / `abort` / the pre-switch probes under K_cur, `commit` / `retire` and
@@ -195,6 +195,11 @@ class Engine:
             with self.db.connection(mode="read") as conn:
                 signed_by = bk.verify(conn, self.data_dir, answer, now=self.now())
         except bk.VerifyError:
+            # HA-01: the bridge answers a message that did not verify with an UNSIGNED refusal. For the one probe whose whole point is that the old
+            # key no longer verifies (V1c), that refusal is the expected answer; everywhere else an unsigned answer is a bad answer
+            code = answer.get("code")
+            if (unsigned_refusal_ok and answer.get("ok") is False and "sig" not in answer and isinstance(code, str) and code in OLD_GONE):
+                return {"ok": False, "code": code, "unsigned": True}
             return {"ok": False, "code": "peer_bad_answer"}
         if answer.get("protocol") != PROTOCOL or answer.get("op") != op or answer.get("rotation_id") != rot["id"] or answer.get("reply_to") != msg["nonce"]:
             return {"ok": False, "code": "peer_bad_answer"}
@@ -297,10 +302,10 @@ class Engine:
             self._audit(conn, "bridge.rotation.published", "allowed", rot, step="publish")
         return self._confirm(rot)
 
-    def _probe(self, rot: dict[str, Any], kid: str, material: str, answered_by: str | None = None) -> tuple[bool, str | None]:
+    def _probe(self, rot: dict[str, Any], kid: str, material: str, answered_by: str | None = None, unsigned_refusal_ok: bool = False) -> tuple[bool, str | None]:
         """A probe signed with `kid`. `answered_by` (H-09) is the key the peer must answer with: K_cur before the switch, K_next after it."""
         try:
-            ans = self._call("probe", kid, material, rot, expect=(answered_by,) if answered_by else None)
+            ans = self._call("probe", kid, material, rot, expect=(answered_by,) if answered_by else None, unsigned_refusal_ok=unsigned_refusal_ok)
         except peers.PeerUnreachable:
             return False, "peer_unreachable"
         return (True, None) if ans["ok"] else (False, ans["code"])
@@ -395,7 +400,7 @@ class Engine:
         ok_new, code_new = (False, "key_unreadable") if cur_m is None else self._probe(rot, rot["kid_to"], cur_m, rot["kid_to"])
         old_rejected: bool
         if old_material is not None and rot["mode"] == "hard_cut":
-            ok_old, code_old = self._probe(rot, rot["kid_from"], old_material, rot["kid_to"])
+            ok_old, code_old = self._probe(rot, rot["kid_from"], old_material, rot["kid_to"], unsigned_refusal_ok=True)
             old_rejected = (not ok_old) and code_old in OLD_GONE
         else:
             try:

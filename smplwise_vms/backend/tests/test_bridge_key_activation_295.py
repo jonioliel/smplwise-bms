@@ -504,7 +504,7 @@ def test_ha01_the_directory_route_refuses_control_bodies_and_non_list_users(worl
     w = world
     c = w["c"]
     with w["db"].connection() as conn:
-        conn.execute("INSERT OR IGNORE INTO users(id, name, active, source) VALUES ('opuser1', 'Op', 1, 'ingress')")
+        conn.execute("INSERT OR IGNORE INTO users(id, username, display_name, active, source, first_seen_at, last_seen_at) VALUES ('opuser1', 'op', 'Op', 1, 'ingress', '2026-10-21T00:00:00Z', '2026-10-21T00:00:00Z')")
     for body in ({"protocol": "smplwise-bridge-rotation-v1", "op": "status", "rotation_id": "r1"},
                  {"version": "0.9.5"},  # no users list at all
                  {"users": None}, {"users": {"a": 1}}, {"users": [], "op": "probe"}):
