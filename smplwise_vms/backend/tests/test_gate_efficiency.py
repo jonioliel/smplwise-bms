@@ -553,6 +553,7 @@ def test_propose_drafts_valid_entries_for_red_test_items_only(tmp_path, capsys):
     p = tmp_path / "r.json"
     p.write_text(json.dumps(doc))
     assert pol._cli(["propose", str(p), "--owner", "lead"]) == 2                                              # ticket + reason are required
+    capsys.readouterr()
     assert pol._cli(["propose", str(p), "--owner", "lead", "--ticket", "GATEEFF-295", "--reason", "stale"]) == 0
     assert len(json.loads(capsys.readouterr().out)["entries"]) == 2
 
@@ -578,6 +579,7 @@ def _fake_main(g, monkeypatch, tmp_path, pre_items=()):
     monkeypatch.setattr(g, "classify", lambda fe, tier: {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "tablet_dropped": [], "fixture_other": {}})
     monkeypatch.setattr(g, "free_port", lambda pair=False: 1)
     monkeypatch.setattr(g, "VISUAL", "")
+    monkeypatch.setattr(g, "load_baseline", lambda w=None: ({}, ""))
     monkeypatch.setattr(g, "SKIP_BACKEND", True)
     monkeypatch.setattr(g, "_resolve_ref", lambda w, ref: ("origin/main", "b" * 40))
     monkeypatch.setattr(g, "base_reports", lambda sha: [])
