@@ -283,6 +283,28 @@ def test_without_a_permitted_engine_windows_are_prepared_only(settings, monkeypa
     assert pw.get("/doors/windows/state").json()["tier"] == "prepared"
 
 
+def test_the_shipped_build_keeps_windows_prepared_with_the_real_factory(settings, monkeypatch):
+    """DWFIX-295 (review 3 DW-02 / DW-08): the SHIPPED constants (permit True, live engine not built) and the SHIPPED factory - switching
+    windows on plans in tier D: no engine write fails, nothing is `planned`, no "window not started" alarm at the window's start."""
+    from smplwise.services import door_windows_engine as dwe
+
+    assert dwe.GO_LIVE_PERMITTED is True and dwe.LIVE_ENGINE_BUILT is False and dwe.live_ready() is False
+    pw = ProductWorld(settings, monkeypatch, go_live=False, start=T_START)
+    monkeypatch.setattr(dwe, "WINDOW_ENGINE_FACTORY", dwe._window_engine)  # the factory as shipped, not the world's injected engine
+    assert isinstance(dwe.window_engine(None), dwe.PreparedEngine)
+    pw.windows_on()
+    assert pw.rule(periods=[{"weekday": 1, "start": "08:00", "end": "11:00"}]).status_code == 201
+    pw.sync()
+    occ = [o for o in pw.occurrences() if o["start_at"] == "2026-11-02T06:00:00Z"]
+    assert len(occ) == 1 and occ[0]["state"] == "prepared" and occ[0]["tier"] == "prepared"
+    assert not pw.rows("SELECT * FROM audit_log WHERE action = 'door.window.engine_write' AND decision = 'failed'")
+    pw.t[0] = dt.datetime(2026, 11, 2, 6, 5, tzinfo=UTC)
+    pw.watch()
+    assert not notifications(pw, "door.window_not_started")
+    st = pw.get("/doors/windows/state").json()
+    assert st["tier"] == "prepared" and st["go_live_permitted"] is False
+
+
 def test_the_live_engine_refuses_while_the_permit_is_off(monkeypatch):
     from smplwise.services import door_windows_engine as dwe
 

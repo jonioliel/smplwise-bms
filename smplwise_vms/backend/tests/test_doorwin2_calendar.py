@@ -6,6 +6,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 
+import hygiene
 import pytest
 from fake_doorwin_adapters import ProductWorld
 from fake_doorwin_world import DoorwinWorld
@@ -111,7 +112,8 @@ def test_a_holiday_has_no_window_and_its_eve_is_a_friday():
     assert c.errors == []
     assert c.exceptions["2027-04-22"] == [] and c.exceptions["2027-04-21"] == [], "Pesach (Thursday) is skipped; its eve (Wednesday) uses Friday - and this rule has no Friday"
     assert "2027-04-20" not in c.exceptions and "2027-04-25" not in c.exceptions
-    days = {p.start_at.astimezone(dt.timezone(dt.timedelta(hours=3))).date().isoformat() for p in dw.plan(c, D(2027, 4, 17), 9)}
+    # G2FIX-295 (gate hygiene): the day is read in the installation's zone, never through a fixed +03:00 offset
+    days = {p.start_at.astimezone(hygiene.installation_zone()).date().isoformat() for p in dw.plan(c, D(2027, 4, 17), 9)}
     assert days == {"2027-04-18", "2027-04-19", "2027-04-20", "2027-04-25"}
 
 

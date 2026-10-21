@@ -5,9 +5,15 @@ through the two Protocols below, so the whole feature runs against fakes in test
 fakes) and against the simulated `DrillEngine` in drills - and nothing in a test or a drill can reach a station, a door or a reader.
 
 The live classes (`WiskeyProgramEngine`, `WiskeyEmergencyEngine`) refuse every call while the owner's go-live permit is not in the build
-(`GO_LIVE_PERMITTED`, a code constant that is False, the access_grants / capture_lease pattern). Below that guard they answer
-`not_implemented`: the WisKey execution coordinators for hold-open programs and the W13 emergency family are NOT_IMPLEMENTED on the WisKey
-side (owner directive 2026-10-20), and Arx does not invent their wire shapes. NOTHING here has run against a WisKey (NOT_RUN).
+(`GO_LIVE_PERMITTED`, the access_grants / capture_lease pattern). Below that guard they answer `not_implemented`: the WisKey execution
+coordinators for hold-open programs and the W13 emergency family are NOT_IMPLEMENTED on the WisKey side (owner directive 2026-10-20), and Arx
+does not invent their wire shapes. NOTHING here has run against a WisKey (NOT_RUN).
+
+`LIVE_ENGINE_BUILT` (DWFIX-295, review 3 DW-01 / DW-02) says whether those live classes can act at all. It is False while they answer
+`not_implemented`, and then - whatever the permit says - the window factory hands out the tier-D `PreparedEngine` (Arx plans, the manager
+applies it in the panel) and the emergency switch cannot be turned on (a button that cannot act would be a false sense of safety, T21).
+It turns True only together with a real coordinator behind these classes, and not before review 3 DW-03 is closed (door_emergency:
+cancel a queued call at the seam deadline, a stale-row guard before each send, a transport timeout <= ENGINE_DEADLINE_S) - not done here.
 
 SR-1 (CR-039 4.1): no method of this seam opens a door from a timer. The window engine knows three schedule operations (`read`, `save`,
 `pause`); the emergency engine's `apply("open", ...)` is only ever called by the emergency service for an incident a person confirmed
@@ -22,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch door_windows.enabled stays OFF and no rule exists until an administrator acts
+LIVE_ENGINE_BUILT = False  # DWFIX-295: the WisKey program / emergency coordinators answer not_implemented; True only when they exist
 
 ERROR_KINDS = ("not_permitted", "not_implemented", "not_sent", "unknown", "refused", "revision_conflict")
 PROGRAM_STATUSES = ("idle", "opening", "held_acknowledged", "restoring", "unknown")
@@ -31,6 +38,15 @@ NAME_MAX = 32
 
 def go_live_permitted() -> bool:
     return GO_LIVE_PERMITTED is True
+
+
+def live_engine_built() -> bool:
+    return LIVE_ENGINE_BUILT is True
+
+
+def live_ready() -> bool:
+    """The live engines may be used: the owner's permit is in the build AND the engines exist (not `not_implemented`)."""
+    return go_live_permitted() and live_engine_built()
 
 
 class EngineError(Exception):
@@ -214,7 +230,7 @@ class DrillEngine:
 # ---------------------------------------------------------------- factories (tests replace them with fakes)
 
 def _window_engine(settings: Any) -> WindowEngine:
-    return WiskeyProgramEngine(settings) if go_live_permitted() else PreparedEngine()
+    return WiskeyProgramEngine(settings) if live_ready() else PreparedEngine()  # DW-02: tier D while the live engine is not built
 
 
 def _emergency_engine(settings: Any) -> EmergencyEngine:

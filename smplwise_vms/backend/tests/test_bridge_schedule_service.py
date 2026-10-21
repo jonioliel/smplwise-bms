@@ -548,7 +548,9 @@ def test_the_service_is_registered_with_response_and_removed_on_unload():
     assert 'SERVICE_SCHEDULE = "schedule"' in (SRC / "const.py").read_text(encoding="utf-8") and const.SERVICE_SCHEDULE == "schedule"
     unload = next(n for n in ast.walk(init_tree()) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_unload_entry")
     removed = [ast.unparse(n.args[1]) for n in ast.walk(unload) if isinstance(n, ast.Call) and ast.unparse(n.func) == "hass.services.async_remove"]
-    assert set(removed) == {"SERVICE_EXECUTE", "SERVICE_SET_AREA", "SERVICE_SCHEDULE", "SERVICE_STREAM_SOURCE", "SERVICE_SYNC", "SERVICE_MEDIA_QUERY", "SERVICE_CONFIG_ITEM", "SERVICE_CAST_STREAM"}
+    # G2FIX-295: bridge 0.9.5 (HMACACT-295, the bridge key rotation) registers and removes SERVICE_ROTATE as well
+    assert set(removed) == {"SERVICE_EXECUTE", "SERVICE_SET_AREA", "SERVICE_SCHEDULE", "SERVICE_STREAM_SOURCE", "SERVICE_SYNC", "SERVICE_MEDIA_QUERY", "SERVICE_CONFIG_ITEM", "SERVICE_CAST_STREAM",
+                            "SERVICE_ROTATE"}
     # the existing services stay as they were
     assert 'hass.services.async_register(DOMAIN, SERVICE_EXECUTE, execute, schema=EXECUTE_SCHEMA' in src and "async_register(DOMAIN, SERVICE_SET_AREA" in src
 
@@ -559,7 +561,10 @@ def test_the_schema_has_no_defaults_so_the_signed_data_is_never_altered():
     assert "vol.ALLOW_EXTRA" in text
     for key in ("user_id", "op", "request_id", "schedule_id", "schedule_entity_id", "payload", "name", "time", "skip_conditions", "sensitive", "ts", "nonce", "sig"):
         assert f"'{key}'" in text, key
-    assert {k for k in policy.MESSAGE_KEYS} == {"user_id", "op", "request_id", "schedule_id", "schedule_entity_id", "payload", "name", "time", "skip_conditions", "sensitive", "ts", "nonce", "sig"}
+    # G2FIX-295: bridge 0.9.5 (HMACACT-295) adds `kid`, the key id of a v2 signature: optional in the schema, never defaulted
+    assert "vol.Optional('kid')" in text
+    assert {k for k in policy.MESSAGE_KEYS} == {"user_id", "op", "request_id", "schedule_id", "schedule_entity_id", "payload", "name", "time", "skip_conditions", "sensitive", "ts", "nonce", "sig",
+                                                "kid"}
 
 
 def test_no_integration_source_ever_names_the_forbidden_component_services():

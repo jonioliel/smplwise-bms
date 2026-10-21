@@ -4,8 +4,9 @@
   the same refusals, the same lost answers. Nothing here reaches WisKey, Home Assistant, a station or a door.
 - `ScriptedEmergencyEngine` - `EmergencyEngine` answering per door from a script (a list of outcomes per door, consumed per attempt), with
   a call log (instants included) for the E-1 / SR-3 assertions.
-- `ProductWorld` - a FastAPI app on a temporary database with the door directory, the engines and the clock replaced, the go-live permit
-  switched on INSIDE the test only (the build as shipped keeps it False), and helpers to seed people and bindings.
+- `ProductWorld` - a FastAPI app on a temporary database with the door directory, the engines and the clock replaced, and helpers to seed
+  people and bindings. `go_live=True` switches the permit AND `LIVE_ENGINE_BUILT` on INSIDE the test only (the fakes stand in for a built
+  live engine); `go_live=False` leaves both constants exactly as shipped (DWFIX-295 / review 3 DW-08: permit True, engine not built).
 """
 from __future__ import annotations
 
@@ -108,7 +109,9 @@ class ProductWorld:
 
         self.settings, self.world, self.dw, self.de = settings, world, dw, de
         self.ENTRY, self.SIDE, self.DOCK = ENTRY, SIDE, DOCK
-        monkeypatch.setattr(dwe, "GO_LIVE_PERMITTED", go_live)
+        if go_live:
+            monkeypatch.setattr(dwe, "GO_LIVE_PERMITTED", True)
+            monkeypatch.setattr(dwe, "LIVE_ENGINE_BUILT", True)
         self.t = [start or dt.datetime(2026, 11, 2, 6, 0, tzinfo=dt.timezone.utc)]  # Monday 08:00 in Asia/Jerusalem (UTC+2 after 25.10)
         self.now = (lambda: world.clock.now()) if world is not None else (lambda: self.t[0])
         monkeypatch.setattr(router, "now_utc", self.now)

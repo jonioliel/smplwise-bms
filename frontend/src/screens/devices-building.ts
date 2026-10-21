@@ -1603,7 +1603,7 @@ export class DevicesBuilding extends LitElement {
       inline-size: 7px;
       block-size: 7px;
       border-radius: 50%;
-      background: var(--sw-warn, #d97706);
+      background: var(--sw-warning);
       pointer-events: none;
     }
     .ha-refresh .refreshed {
