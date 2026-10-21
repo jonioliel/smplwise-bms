@@ -1031,6 +1031,7 @@ class FakeAccessEngine:
         self.unverified: dict[str, set[str]] = {}
         self._stripped_from: dict[str, set[str]] = {}  # settled-only station work per person (never cleanup)
         self.access_state_reader = self.access_state
+        self.last_known_stations = None  # WKV2-295: optional (person_id) -> frozenset | None for the v2 F-02 cross-check
         self.updates: list[dict[str, Any]] = []
         self.calls: list[str] = []
         self.deleted: list[str] = []
@@ -1248,7 +1249,8 @@ class FakeAccessEngine:
         self._gate("revocation_pending")
         if self.status_unknown:
             return None
-        return revocation_pending_from(self.access_state_reader, person_id, revision)
+        known = self.last_known_stations(person_id) if self.last_known_stations is not None else None
+        return revocation_pending_from(self.access_state_reader, person_id, revision, last_known_stations=known)
 
     def settle_revocations(self) -> None:
         """The stations took the removals: the central sync status shows no pending revocation any more."""

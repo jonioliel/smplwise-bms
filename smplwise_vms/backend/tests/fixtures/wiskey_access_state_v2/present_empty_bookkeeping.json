@@ -1,0 +1,22 @@
+{
+ "assignments": [],
+ "central_revocation_predicate": "inactive-no-enabled-assignments-no-groups-no-overrides-no-pin-v1",
+ "central_revoked": true,
+ "observation": "durable_repository_snapshot",
+ "pending": {
+  "bindings": [],
+  "cards": [],
+  "operations": [],
+  "pins": [],
+  "tombstones": [],
+  "unverified": []
+ },
+ "person_revision": 4,
+ "presence": "present",
+ "revocation_pending": false,
+ "schema_version": 2,
+ "scope": "all_managed_stations",
+ "stations_synced": null,
+ "timing_policy": null,
+ "user_id": "person-a"
+}

@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
+from . import wiskey_access_state as was  # WKV2-295: the ONE strict access_state parser (v1 + v2)
+
 KEEP = object()  # `apply(pin=KEEP)`: leave the person's PIN as it is (a narrowing push)
 
 ERROR_KINDS = ("not_found", "revision_conflict", "pin_conflict", "not_sent", "unknown", "refused", "not_permitted")
@@ -454,11 +456,9 @@ def requested_policy(timing: dict[str, Any] | None) -> dict[str, Any] | None:
 # the Arx side of the contract only: a strict consumer of the answer, the verdict, and a typed reader seam that only fakes fill.
 # Nothing below sends anything; the live engine passes no reader (UNKNOWN) and stays behind GO_LIVE_PERMITTED (False).
 
-ACCESS_STATE_SCHEMA = 1
-ACCESS_STATE_OBSERVATION = "durable_repository_snapshot"
-ACCESS_STATE_SCOPE = "all_managed_stations"
-PRESENCES = ("present", "delete_pending", "absent")
-PENDING_QUEUES = ("bindings", "tombstones", "cards", "pins", "operations")  # central work still owed to a station
+ACCESS_STATE_SCHEMA = was.SCHEMA_V1  # kept for readers of this module; the version dispatch lives in wiskey_access_state
+PRESENCES = was.PRESENCES
+PENDING_QUEUES = was.REMOVAL_QUEUES  # central work still owed to a station
 PENDING_UNVERIFIED = "unverified"  # work that disappeared without a positive device readback - never cleanup, never "pending" either
 
 
@@ -469,11 +469,18 @@ class AccessStateReader(Protocol):
     def __call__(self, user_id: str, revision: int) -> Any: ...
 
 
+class LastKnownStations(Protocol):
+    """WKV2-295 (F-02): the stations Arx itself last knew for a WisKey person (`wiskey_access_state.last_known_stations`), or None."""
+
+    def __call__(self, person_id: str) -> frozenset[str] | None: ...
+
+
 @dataclass(frozen=True)
 class AccessState:
-    """A strictly parsed access_state answer (R11-I3-01). All six pending arrays are kept (R11-I1-04): the five central queues in
-    `pending`, `unverified` apart - never collapsed to a boolean, and an empty array is never cleanup on its own. Station ids are
-    WisKey's; nothing shows them before Arx RBAC station scope (intercom_authority) has filtered them - no view does today."""
+    """The engine's projection of a strictly parsed access_state answer (R11-I3-01). All six pending arrays are kept (R11-I1-04): the
+    five central queues in `pending`, `unverified` apart - never collapsed to a boolean, and an empty array is never cleanup on its own.
+    Station ids are WisKey's; nothing shows them before Arx RBAC station scope (intercom_authority) has filtered them - no view does
+    today. `parsed` is the full value from the single parser (`wiskey_access_state.parse_result`)."""
 
     user_id: str
     person_revision: int | None
@@ -482,56 +489,38 @@ class AccessState:
     stations_synced: bool | None
     pending: dict[str, tuple[str, ...]]
     unverified: tuple[str, ...]
+    schema_version: int = was.SCHEMA_V1
+    central_revoked: bool | None = None
+    parsed: Any = field(default=None, compare=False, repr=False)
 
     @property
     def has_pending(self) -> bool:
         return any(self.pending.values())
 
 
-def _station_ids(value: Any) -> tuple[str, ...]:
-    if not isinstance(value, list) or not all(isinstance(s, str) and 1 <= len(s) <= 128 and s.strip() for s in value) or len(set(value)) != len(value):
-        raise ValueError("access_state pending array")
-    return tuple(sorted(value))
+def access_state_from_raw(raw: Any, *, user_id: str, revision: int | None = None, expect: int | None = None) -> AccessState:
+    """WKV2-295: parsed by the ONE strict consumer `wiskey_access_state.parse_result` (version dispatch: v1 as before, v2 closed and
+    cross-checked, anything else a typed `AccessStateError`, a ValueError) and projected for the engine."""
+    st = was.parse_result(raw, user_id=user_id, revision=revision, expect=expect)
+    was.v1_engine_consistent(st)  # this consumer's own v1 rule, unchanged
+    return AccessState(user_id=st.user_id, person_revision=st.person_revision, presence=st.presence, revocation_pending=st.revocation_pending,
+                       stations_synced=st.stations_synced, pending=st.pending.removal_queues(), unverified=st.pending.unverified,
+                       schema_version=st.schema_version, central_revoked=st.central_revoked, parsed=st)
 
 
-def access_state_from_raw(raw: Any, *, user_id: str) -> AccessState:
-    """The strict consumer (ValueError on anything off contract): schema_version exactly int 1, the fixed observation and scope, the
-    exact user_id asked for, presence in PRESENCES, person_revision a positive int for a present person and null otherwise,
-    revocation_pending / stations_synced a strict bool or null, `pending` with exactly the six arrays of unique non-blank station ids.
-    A not-pending (False) answer must be internally consistent: present, and every array - unverified included - empty."""
-    if not isinstance(raw, dict):
-        raise ValueError("access_state record")
-    if not _strict_int(raw.get("schema_version")) or raw["schema_version"] != ACCESS_STATE_SCHEMA:
-        raise ValueError("access_state schema_version")
-    if raw.get("observation") != ACCESS_STATE_OBSERVATION or raw.get("scope") != ACCESS_STATE_SCOPE:
-        raise ValueError("access_state observation / scope")
-    if not isinstance(raw.get("user_id"), str) or raw["user_id"] != user_id:
-        raise ValueError("access_state user_id")
-    presence = raw.get("presence")
-    if presence not in PRESENCES:
-        raise ValueError("access_state presence")
-    revision = raw.get("person_revision")
-    if (presence == "present") != _positive_int(revision) or (presence != "present" and revision is not None):
-        raise ValueError("access_state person_revision")
-    flags = (raw.get("revocation_pending"), raw.get("stations_synced"))
-    if not all(f is None or isinstance(f, bool) for f in flags):
-        raise ValueError("access_state flags")
-    pending_raw = raw.get("pending")
-    if not isinstance(pending_raw, dict) or set(pending_raw) != {*PENDING_QUEUES, PENDING_UNVERIFIED}:
-        raise ValueError("access_state pending")
-    pending = {k: _station_ids(pending_raw[k]) for k in PENDING_QUEUES}
-    unverified = _station_ids(pending_raw[PENDING_UNVERIFIED])
-    if flags[0] is False and (presence != "present" or any(pending.values()) or unverified):
-        raise ValueError("access_state inconsistent")
-    return AccessState(user_id=user_id, person_revision=revision, presence=presence, revocation_pending=flags[0], stations_synced=flags[1],
-                       pending=pending, unverified=unverified)
-
-
-def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: int) -> bool | None:
-    """R11-I1-03: the central revocation status of `person_id` at `revision`. None (UNKNOWN) for another person, or a present person
-    at any other revision; True when anything is still owed (a central queue, delete_pending, or WisKey's own True); None when the
-    person is absent (absence / a scoped 404 is never cleanup), when only `unverified` work remains, or when WisKey did not say False;
-    False only for a present person at exactly `revision` with all six arrays empty and WisKey's flag False."""
+def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: int,
+                               last_known_stations: frozenset[str] | None = None) -> bool | None:
+    """R11-I1-03: the central revocation status of `person_id` at `revision`.
+    v1 (unchanged): None (UNKNOWN) for another person, or a present person at any other revision; True when anything is still owed (a
+    central queue, delete_pending, or WisKey's own True); None when the person is absent (absence / a scoped 404 is never cleanup), when
+    only `unverified` work remains, or when WisKey did not say False; False only for a present person at exactly `revision` with all six
+    arrays empty and WisKey's flag False.
+    v2 (WKV2-295): `wiskey_access_state.revocation_verdict_v2` - additionally WisKey's central_revoked True and the F-02 cross-check
+    against `last_known_stations` (None = UNKNOWN)."""
+    if state.schema_version == was.SCHEMA_V2:
+        return was.revocation_verdict_v2(state.parsed, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
+    if state.schema_version != was.SCHEMA_V1:
+        return None
     if state.user_id != person_id or (state.presence == "present" and state.person_revision != revision):
         return None
     if state.has_pending or state.presence == "delete_pending" or state.revocation_pending is True:
@@ -541,16 +530,18 @@ def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: 
     return False
 
 
-def revocation_pending_from(reader: AccessStateReader | None, person_id: str, revision: Any) -> bool | None:
+def revocation_pending_from(reader: AccessStateReader | None, person_id: str, revision: Any, *,
+                            last_known_stations: frozenset[str] | None = None) -> bool | None:
     """Ask `reader` for `person_id` at `revision` and judge the answer. No reader, an unusable revision (not a positive int), any
-    failure of the reader (a revision_conflict included) or an off-contract answer: None - a revoke stays `revoking`."""
+    failure of the reader (a revision_conflict included) or an off-contract answer: None - a revoke stays `revoking`. A malformed v2
+    answer is never re-asked or re-judged as v1."""
     if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
         return None
     try:
-        state = access_state_from_raw(reader(person_id, revision), user_id=person_id)
+        state = access_state_from_raw(reader(person_id, revision), user_id=person_id, revision=revision)
     except Exception:  # noqa: BLE001 - every failure is UNKNOWN, never "not pending"
         return None
-    return revocation_pending_verdict(state, person_id=person_id, revision=revision)
+    return revocation_pending_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
 
 
 def central_revoked(person: EnginePerson) -> bool:
@@ -572,10 +563,13 @@ class WiskeyServiceEngine:
 
     WHO = "system:access_grants"
 
-    def __init__(self, settings: Any, access_state_reader: AccessStateReader | None = None) -> None:
+    def __init__(self, settings: Any, access_state_reader: AccessStateReader | None = None,
+                 last_known_stations: LastKnownStations | None = None) -> None:
         self.settings = settings
         # R11-I1-03: no ACR5-01 client is built, so production passes none (revocation status UNKNOWN); only tests inject a fake.
         self.access_state_reader = access_state_reader
+        # WKV2-295 (F-02): Arx's own last-known doors record for the v2 cross-check; None = UNKNOWN (a v2 answer never proves clean)
+        self.last_known_stations = last_known_stations
 
     def _guard(self) -> None:
         from . import access_grants
@@ -688,7 +682,13 @@ class WiskeyServiceEngine:
 
         if intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
             return None
-        return revocation_pending_from(self.access_state_reader, person_id, revision)
+        known = None
+        if self.last_known_stations is not None:
+            try:
+                known = self.last_known_stations(person_id)
+            except Exception:  # noqa: BLE001 - an unreadable record is UNKNOWN
+                known = None
+        return revocation_pending_from(self.access_state_reader, person_id, revision, last_known_stations=known)
 
     def pin_generate(self, person_id: str) -> str:
         """users/pin_generate is a read in WisKey (the value is not reserved); it is NOT a readback of the person, so it carries no

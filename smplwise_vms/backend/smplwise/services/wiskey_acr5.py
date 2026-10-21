@@ -5,6 +5,9 @@ Source contract: the frozen v1 read contract (ARX_REPLY6_FROZEN_READ_CONTRACT_V1
 FROZEN_FOR_REVIEW / NOT_RELEASED). Arx accepts the interface only after reviewing WisKey's delivered code; nothing here asserts that it
 is on the wire.
 
+WKV2-295: ACR5-01 parsing is done by the ONE strict consumer `wiskey_access_state` (shared with access_grant_engine); this module only
+  projects its value. It also accepts `users/access_state_v2` (schema 2, closed, cross-checked; `acr5_01_v2` capability
+  `person_access_state_v2`); a v2 False additionally needs WisKey's central_revoked and the F-02 last-known-stations cross-check.
 ACR5-01 `users/access_state` (user_id, revision) - `parse_access_state` is strict: every required key (nulls included), schema_version 1,
   the observation / scope constants, the EXACT user_id, a positive non-bool person_revision that equals the revision Arx asked about
   (else `revision_conflict`), presence-consistent nulls, every assignment row and all SIX pending queues (bindings, tombstones, cards,
@@ -34,6 +37,21 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Protocol
 
 from ..db import get_setting
+from . import wiskey_access_state as was
+from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved them into the single parser
+    POLICY_KEYS,
+    PRESENCES,
+    QUEUES,
+    REMOVAL_QUEUES,
+    ROW_KEYS,
+    SCHEDULE_KEYS,
+    SYNC_STATES,
+    AccessState,
+    Assignment,
+    PendingQueues,
+    policy_ok,
+    schedule_ok,
+)
 
 GO_LIVE_PERMITTED = False
 FLAGS = {
@@ -42,23 +60,15 @@ FLAGS = {
     "acr5_03": "wiskey.acr5_presence",
     "acr5_04": "wiskey.acr5_feature_plans",
 }
-CAPABILITIES = {"acr5_01": "person_access_state_v1", "acr5_02": "user_schedule_normalization_v1", "acr5_03": "person_access_state_v1"}
-ACCESS_STATE_TYPE = "hikvision_intercom/users/access_state"
+CAPABILITIES = {"acr5_01": "person_access_state_v1", "acr5_02": "user_schedule_normalization_v1", "acr5_03": "person_access_state_v1",
+                "acr5_01_v2": "person_access_state_v2"}
+ACCESS_STATE_TYPE = was.COMMANDS[was.SCHEMA_V1]
+ACCESS_STATE_V2_TYPE = was.COMMANDS[was.SCHEMA_V2]
 NORMALIZE_TYPE = "hikvision_intercom/schedules/normalize_user"
 NORMALIZATION = "wiskey-user-schedule-v1"
-ACCESS_KEYS = frozenset({"schema_version", "observation", "scope", "user_id", "person_revision", "presence", "revocation_pending",
-                         "stations_synced", "assignments", "timing_policy", "pending"})
-ROW_KEYS = frozenset({"station_id", "enabled", "allowed_locks", "desired_revision", "applied_revision", "sync_state", "applied"})
-QUEUES = ("bindings", "tombstones", "cards", "pins", "operations", "unverified")
-REMOVAL_QUEUES = QUEUES[:5]
-PRESENCES = ("present", "delete_pending", "absent")
-SYNC_STATES = ("synced", "pending", "syncing", "offline", "conflict", "error", "delete_pending")
-DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-SCHEDULE_KEYS = frozenset({"mode", "timezone", "days", "dates", "periods"})
-POLICY_KEYS = frozenset({"mode", "schedule", "bindings"})
+ACCESS_KEYS = was.V1_KEYS
 PLAN_KEYS = frozenset({"schema_version", "feature", "draft", "execution_available", "authority_verified", "status"})
 ID_RE = re.compile(r"[^\x00-\x1f]{1,128}")
-DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 FEATURE_RE = re.compile(r"[a-z][a-z0-9_]{0,63}")
 
 
@@ -106,176 +116,48 @@ def _id(value: Any) -> bool:
 
 
 def _result(frame: Any) -> dict[str, Any] | Unknown:
-    if not isinstance(frame, dict) or frame.get("type") != "result" or not _pos_int(frame.get("id")):
-        return Unknown("malformed_envelope")
-    if frame.get("success") is False:
-        err = frame.get("error")
-        code = err.get("code") if isinstance(err, dict) else None
-        return Unknown(code if _id(code) else "error")
-    if frame.get("success") is not True or not isinstance(frame.get("result"), dict):
-        return Unknown("malformed_envelope")
-    return frame["result"]
+    """The HA result envelope, checked by the single parser's `unwrap_frame` (WKV2-295)."""
+    try:
+        return was.unwrap_frame(frame)
+    except was.AccessStateError as exc:
+        return Unknown(exc.code)
 
 
 # ---------------------------------------------------------------- schedules (shared by ACR5-01 timing_policy and ACR5-02)
 
-def schedule_ok(s: Any) -> bool:
-    """Structural check of a canonical-shape schedule (the five required keys); semantics stay WisKey's normalizer's."""
-    if not isinstance(s, dict) or set(s) != SCHEDULE_KEYS or s["mode"] not in ("weekly", "dates"):
-        return False
-    if not isinstance(s["timezone"], str) or not s["timezone"] or len(s["timezone"]) > 128:
-        return False
-    days, dates, periods = s["days"], s["dates"], s["periods"]
-    if not isinstance(days, list) or len(days) > 7 or len(set(map(str, days))) != len(days) or any(d not in DAYS for d in days):
-        return False
-    if (not isinstance(dates, list) or len(dates) > 64 or any(not isinstance(d, str) or not DATE_RE.fullmatch(d) for d in dates)
-            or len(set(dates)) != len(dates)):
-        return False
-    if not isinstance(periods, list) or not 1 <= len(periods) <= 8:
-        return False
-    return all(isinstance(p, dict) and set(p) == {"start", "end"} and isinstance(p["start"], str) and isinstance(p["end"], str) for p in periods)
-
-
-def policy_ok(p: Any) -> bool:
-    if not isinstance(p, dict) or set(p) != POLICY_KEYS or p["mode"] not in ("ha", "native") or not isinstance(p["bindings"], dict):
-        return False
-    if p["mode"] == "ha" and p["bindings"] != {}:
-        return False
-    return schedule_ok(p["schedule"])
-
-
 # ---------------------------------------------------------------- ACR5-01 / ACR5-03 users/access_state
 
-def access_state_request(user_id: Any, revision: Any) -> dict[str, Any]:
-    """The request payload (the transport adds `id`); `api_contract` is omitted (a READ)."""
-    if not _id(user_id) or not _pos_int(revision):
+def access_state_request(user_id: Any, revision: Any, *, version: int = 1) -> dict[str, Any]:
+    """The request payload (the transport adds `id`); `api_contract` is omitted (a READ). `version` 2 names users/access_state_v2."""
+    if not _id(user_id) or not _pos_int(revision) or not (_pos_int(version) and version in was.COMMANDS):
         raise ValueError("invalid access_state request")
-    return {"type": ACCESS_STATE_TYPE, "user_id": user_id, "revision": revision}
+    return {"type": was.COMMANDS[version], "user_id": user_id, "revision": revision}
 
 
-@dataclass(frozen=True)
-class Assignment:
-    station_id: str
-    enabled: bool
-    allowed_locks: tuple[int, ...]
-    desired_revision: int | None
-    applied_revision: int | None
-    sync_state: str | None
-    applied: bool | None
+def parse_access_state(frame: Any, *, user_id: str, revision: int, expect: int | None = None) -> AccessState | Unknown:
+    """WKV2-295: the ONE strict parser (`wiskey_access_state.parse_frame`, v1 and v2); every refusal is `Unknown(<typed code>)`.
+    `expect` pins the schema of the command that was sent (no fallback between v1 and v2)."""
+    try:
+        state = was.parse_frame(frame, user_id=user_id, revision=revision, expect=expect)
+        was.v1_acr5_consistent(state)  # this consumer's own v1 rule, unchanged
+        return state
+    except was.AccessStateError as exc:
+        return Unknown(exc.code)
 
 
-@dataclass(frozen=True)
-class PendingQueues:
-    bindings: tuple[str, ...]
-    tombstones: tuple[str, ...]
-    cards: tuple[str, ...]
-    pins: tuple[str, ...]
-    operations: tuple[str, ...]
-    unverified: tuple[str, ...]
-
-    def __bool__(self) -> bool:
-        raise TypeError("the six pending queues are never collapsed into one boolean")
-
-    def removal_queues(self) -> dict[str, tuple[str, ...]]:
-        return {q: getattr(self, q) for q in REMOVAL_QUEUES}
-
-    def as_dict(self) -> dict[str, tuple[str, ...]]:
-        return {q: getattr(self, q) for q in QUEUES}
-
-    def anything_tracked(self) -> bool:
-        return any(getattr(self, q) for q in QUEUES)
-
-
-@dataclass(frozen=True)
-class AccessState:
-    user_id: str
-    person_revision: int | None
-    presence: str
-    revocation_pending: bool | None
-    stations_synced: bool | None
-    assignments: tuple[Assignment, ...]
-    timing_policy: dict[str, Any] | None
-    pending: PendingQueues
-
-
-def _row(raw: Any) -> Assignment | None:
-    if not isinstance(raw, dict) or not ROW_KEYS <= set(raw):
-        return None
-    locks = raw["allowed_locks"]
-    if not (_id(raw["station_id"]) and isinstance(raw["enabled"], bool) and isinstance(locks, list)):
-        return None
-    if any(not _pos_int(x) or x not in (1, 2) for x in locks) or locks != sorted(set(locks)):
-        return None
-    for k in ("desired_revision", "applied_revision"):
-        if raw[k] is not None and not _pos_int(raw[k]):
-            return None
-    if raw["sync_state"] is not None and raw["sync_state"] not in SYNC_STATES:
-        return None
-    if raw["applied"] is not None and not isinstance(raw["applied"], bool):
-        return None
-    return Assignment(raw["station_id"], raw["enabled"], tuple(locks), raw["desired_revision"], raw["applied_revision"], raw["sync_state"],
-                      raw["applied"])
-
-
-def _queues(raw: Any) -> PendingQueues | None:
-    if not isinstance(raw, dict) or set(raw) != set(QUEUES):
-        return None
-    out: dict[str, tuple[str, ...]] = {}
-    for q in QUEUES:
-        items = raw[q]
-        if not isinstance(items, list) or any(not _id(i) for i in items) or len(set(items)) != len(items):
-            return None
-        out[q] = tuple(items)
-    return PendingQueues(**out)
-
-
-def parse_access_state(frame: Any, *, user_id: str, revision: int) -> AccessState | Unknown:
-    res = _result(frame)
-    if isinstance(res, Unknown):
-        return res
-    if not ACCESS_KEYS <= set(res):
-        return Unknown("missing_field")
-    if not (_pos_int(res["schema_version"]) and res["schema_version"] == 1):
-        return Unknown("unsupported_schema")
-    if res["observation"] != "durable_repository_snapshot" or res["scope"] != "all_managed_stations":
-        return Unknown("unsupported_observation")
-    if not isinstance(res["user_id"], str) or res["user_id"] != user_id:
-        return Unknown("user_mismatch")
-    presence, rev, pending_flag, synced = res["presence"], res["person_revision"], res["revocation_pending"], res["stations_synced"]
-    if presence not in PRESENCES:
-        return Unknown("malformed")
-    if presence == "present":
-        if not _pos_int(rev):
-            return Unknown("malformed")
-        if rev != revision:
-            return Unknown("revision_conflict")
-    elif rev is not None:
-        return Unknown("malformed")
-    if pending_flag is not None and not isinstance(pending_flag, bool):
-        return Unknown("malformed")
-    if presence == "delete_pending" and pending_flag is not True:
-        return Unknown("malformed")
-    if presence == "absent" and pending_flag is False:
-        return Unknown("malformed")  # absence is never "no revocation pending"
-    if synced is not None and not isinstance(synced, bool):
-        return Unknown("malformed")
-    if not isinstance(res["assignments"], list):
-        return Unknown("malformed")
-    rows = [_row(r) for r in res["assignments"]]
-    if any(r is None for r in rows) or len({r.station_id for r in rows if r}) != len(rows):
-        return Unknown("malformed")
-    policy = res["timing_policy"]
-    if policy is not None and not policy_ok(policy):
-        return Unknown("malformed")
-    queues = _queues(res["pending"])
-    if queues is None:
-        return Unknown("malformed")
-    return AccessState(user_id, rev, presence, pending_flag, synced, tuple(r for r in rows if r), copy.deepcopy(policy), queues)
-
-
-def revocation_verdict(state: AccessState | Unknown, *, requested_revision: int, central_revoked_at: int | None) -> bool | None:
-    """True = a revocation is still pending, False = none, None = cannot tell. See the module docstring."""
+def revocation_verdict(state: AccessState | Unknown, *, requested_revision: int, central_revoked_at: int | None,
+                       last_known_stations: frozenset[str] | None = None) -> bool | None:
+    """True = a revocation is still pending, False = none, None = cannot tell. See the module docstring. A v2 answer is judged by
+    `wiskey_access_state.revocation_verdict_v2` (WisKey's central_revoked, the F-02 last-known cross-check) AND Arx's own central
+    predicate at the same revision (`central_revoked_at`); `last_known_stations` None leaves a v2 answer UNKNOWN."""
     if not isinstance(state, AccessState):
+        return None
+    if state.schema_version == was.SCHEMA_V2:
+        verdict = was.revocation_verdict_v2(state, person_id=state.user_id, revision=requested_revision, last_known_stations=last_known_stations)
+        if verdict is False and (not _pos_int(central_revoked_at) or central_revoked_at != requested_revision):
+            return None
+        return verdict
+    if state.schema_version != was.SCHEMA_V1:
         return None
     if state.presence == "delete_pending":
         return True
@@ -296,14 +178,17 @@ class RevisionBoundAccessState(Protocol):
     def access_state(self, user_id: str, revision: int) -> Any: ...
 
 
-def revocation_pending_at(port: RevisionBoundAccessState, user_id: str, revision: int, *, central_revoked_at: int | None) -> bool | None:
-    """R11-I1-03: the revision travels WITH the question; any failure is UNKNOWN. Not wired to `Engine.revocation_pending`."""
+def revocation_pending_at(port: RevisionBoundAccessState, user_id: str, revision: int, *, central_revoked_at: int | None,
+                          expect: int | None = None, last_known_stations: frozenset[str] | None = None) -> bool | None:
+    """R11-I1-03: the revision travels WITH the question; any failure is UNKNOWN. Not wired to `Engine.revocation_pending`.
+    WKV2-295: `expect` = the schema of the command the port sent (2 for users/access_state_v2: a v1 answer is then refused, never
+    used as a weaker proof); `last_known_stations` feeds the v2 F-02 cross-check."""
     try:
         frame = port.access_state(user_id, revision)
     except Exception:  # noqa: BLE001 - a transport loss is UNKNOWN
         return None
-    return revocation_verdict(parse_access_state(frame, user_id=user_id, revision=revision), requested_revision=revision,
-                              central_revoked_at=central_revoked_at)
+    return revocation_verdict(parse_access_state(frame, user_id=user_id, revision=revision, expect=expect), requested_revision=revision,
+                              central_revoked_at=central_revoked_at, last_known_stations=last_known_stations)
 
 
 def _row_current(row: Assignment, person_revision: int) -> bool:

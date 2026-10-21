@@ -269,8 +269,17 @@ def engine_for(db: Any) -> Engine:
     if ENGINE_FACTORY is not None:
         return ENGINE_FACTORY(db)
     from .access_grant_engine import WiskeyServiceEngine
+    from .wiskey_access_state import last_known_stations
 
-    return WiskeyServiceEngine(_SETTINGS)
+    def known(person_id: str) -> frozenset[str] | None:
+        """WKV2-295 (F-02): Arx's own last-known doors record for the v2 cross-check; any failure is UNKNOWN (None)."""
+        try:
+            with db.connection(mode="read", label="access_grants.last_known_stations") as conn:
+                return last_known_stations(conn, person_id)
+        except Exception:  # noqa: BLE001
+            return None
+
+    return WiskeyServiceEngine(_SETTINGS, last_known_stations=known)
 
 
 # ---------------------------------------------------------------- settings readers (fail closed)
