@@ -37,6 +37,7 @@ Requirements and limits, stated honestly:
    relay through Arx's own bridge integration (a new bridge service call that signs with the existing pairing key and posts to a bridge-only route). That is a
    change in the bridge integration, not in this repo, and is NOT built or proposed for build now.
 2. The principal MUST NOT be the configured service identity user (that user is refused at sign-in, `service_account`) and MUST NOT be an HA administrator.
+   Enforced (F3B-295): a caller that holds an active `system_admin` binding or whose home-system `is_admin` flag is set is refused 403 `port_principal_forbidden` on the three port routes (audited, reason `system_admin_not_allowed` / `ha_admin_not_allowed`). The permission stays in no role.
 3. Never in a log or document: the token. Arx stores none (it is validated against HA and cached in memory only).
 4. WisKey keeps and reuses the token; repeated failed validation hits Arx's sign-in rate limit (`rate_limited` 429).
 5. On a fresh installation the first caller to reach Arx is bootstrapped as system administrator (`maybe_bootstrap`); this installation is already bootstrapped.
@@ -63,6 +64,7 @@ Denied (HTTP 200): `{"granted": false, "reason": "<code>", "retry_after_s": 12}`
 | `wiskey_throttle` | WisKey's own verified `throttled_until` is in force | until then |
 | `sender_unknown` | `sender_ref` not mapped to an Arx account | null |
 | `class_unknown` | `class` is not one of the four | null |
+| `lease_ceiling` | the port principal already holds its share (50 % of each window's cap, counted leases only, any class, any mode) or 20 live leases on the account | seconds until a slot frees (>= 1) |
 | `already_released` | this `request_id` was settled; use a new one | null |
 | `lease_expired` | this `request_id`'s lease ran out unreleased; use a new one (and release the old id) | null |
 

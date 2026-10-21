@@ -32,7 +32,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require
 from ..services import ha_client
 from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
@@ -289,26 +289,58 @@ class ReleaseBody(BaseModel):
 RESERVE = "messaging.pacing.reserve"
 
 
+def port_principal_barred(conn: sqlite3.Connection, principal: Principal) -> str | None:
+    """F3B WP-03: why this principal may never be the reservation port's caller, else None. The port user is a dedicated, single-permission
+    service user (CR-WA-PACING-295-PORT-CONTRACT 2.2): never an infrastructure administrator (an active `system_admin` binding at the
+    installation scope) and never a home-system administrator. Fail closed on both."""
+    if is_system_admin(conn, principal.user_id):
+        return "system_admin_not_allowed"
+    row = conn.execute("SELECT is_admin FROM ha_users WHERE id = ?", (principal.user_id,)).fetchone()
+    if row is not None and row["is_admin"]:
+        return "ha_admin_not_allowed"
+    return None
+
+
 def _port(conn: sqlite3.Connection, principal: Principal) -> wa_pacing.WaReservations:
     """The port's gate: ONLY `messaging.pacing.reserve` (a dedicated service principal's single-permission role) - `messaging.accounts.manage`
     does not open it and it opens nothing else."""
     require(conn, principal, RESERVE, INSTALLATION)
+    barred = port_principal_barred(conn, principal)
+    if barred is not None:  # F3B WP-03: the contract's "dedicated, not an administrator" rule, enforced
+        audit(conn, actor=principal, action=RESERVE, decision="denied", resource_type="installation", resource_id="messaging.whatsapp.port", reason=barred)
+        raise ApiError(403, "port_principal_forbidden", "משתמש זה אינו יכול לשמש את שער ההקצאות.", details={"reason": barred})
     return wa_pacing.WaReservations(mr.pacer_on(conn), mr.pacing_for(conn))
+
+
+_AUDITED_KEYS = ("granted", "released", "found", "reason", "repeated", "late", "conflict", "state")
+
+
+def _port_audit(conn: sqlite3.Connection, principal: Principal, action: str, request_id: str, out: dict[str, Any], **extra: Any) -> None:
+    """F3B WP-04: every port call that passed the gate leaves an actor trace - the lease id (chosen by WisKey, not a secret), the answer's
+    flags and reason codes, the class / outcome / slow-down scope. Never a number, a text, a recipient or a token."""
+    details = {k: out[k] for k in _AUDITED_KEYS if k in out and isinstance(out[k], (bool, str))}
+    details.update({k: v for k, v in extra.items() if v is not None})
+    audit(conn, actor=principal, action=action, decision="allowed", resource_type="installation", resource_id=request_id, details=details)
 
 
 @router.post("/messaging/whatsapp/pacing/reserve")
 def reserve(body: ReserveBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """`granted` + a short-lived lease, or `denied` with `reason` and `retry_after_s` (both HTTP 200: a decision is an answer, not an error).
     Idempotent by `request_id`. Contract: docs/changes/CR-WA-PACING-295-PORT-CONTRACT.md."""
-    return _port(conn, principal).reserve(sender_ref=body.sender_ref, klass=body.klass, request_id=body.request_id, now=dt.datetime.now(dt.timezone.utc))
+    out = _port(conn, principal).reserve(sender_ref=body.sender_ref, klass=body.klass, request_id=body.request_id, now=dt.datetime.now(dt.timezone.utc))
+    _port_audit(conn, principal, "messaging.pacing.reserve", body.request_id, out, klass=body.klass[:16])
+    return out
 
 
 @router.post("/messaging/whatsapp/pacing/release")
 def release(body: ReleaseBody, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Settle a lease with the outcome (accepted_by_provider | not_sent | unknown | expired), optionally with the provider slow-down that
     caused it. Idempotent: the first outcome stands."""
-    return _port(conn, principal).release(request_id=body.request_id, outcome=body.outcome, now=dt.datetime.now(dt.timezone.utc),
-                                          slowdown=body.slowdown.model_dump() if body.slowdown else None)
+    out = _port(conn, principal).release(request_id=body.request_id, outcome=body.outcome, now=dt.datetime.now(dt.timezone.utc),
+                                         slowdown=body.slowdown.model_dump() if body.slowdown else None)
+    _port_audit(conn, principal, "messaging.pacing.release", body.request_id, out, outcome=body.outcome[:24],
+                slowdown=body.slowdown.scope if body.slowdown else None)
+    return out
 
 
 @router.get("/messaging/whatsapp/pacing/lease/{request_id}")
@@ -316,4 +348,6 @@ def lease_status(request_id: str, principal: Principal = Depends(current_princip
     """Reconciliation: what Arx holds for one `request_id`."""
     if not re.match(r"^[A-Za-z0-9_.:\-]{8,128}$", request_id):
         raise _problems([{"code": "invalid", "field": "request_id"}])
-    return _port(conn, principal).status(request_id=request_id, now=dt.datetime.now(dt.timezone.utc))
+    out = _port(conn, principal).status(request_id=request_id, now=dt.datetime.now(dt.timezone.utc))
+    _port_audit(conn, principal, "messaging.pacing.lease_status", request_id, out)
+    return out

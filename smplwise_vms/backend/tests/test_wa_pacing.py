@@ -271,6 +271,41 @@ def test_wiskey_throttle_holds_everything_but_alerts():
     assert check(other, wp.CLASS_TICKET).allowed, "a scope this side cannot judge is not applied account-wide"
 
 
+def test_f3b_wp01_a_forged_counter_is_unknown_and_never_defers_anything():
+    kw = dict(senders={KEY_A: REF})
+    for label, own in (("billions", {"charged_1m": 4_000_000_000, "charged_1h": 4_000_000_000, "charged_24h": 4_000_000_000}),
+                       ("just above the ceiling", {"charged_1m": wp.COUNTER_MAX + 1, "charged_1h": 0, "charged_24h": 0}),
+                       ("negative", {"charged_1m": -1, "charged_1h": 0, "charged_24h": 0}),
+                       ("a bool", {"charged_1m": True, "charged_1h": 0, "charged_24h": 0})):
+        p, _, _ = pacer(wiskey=wk(wiskey_own=own), **kw)
+        view = p.wiskey_view(KEY_A, NOW)
+        assert view["unknown"] is True and view["charged"] is None, label
+        assert check(p, wp.CLASS_TICKET).allowed and check(p, wp.CLASS_ALERT).allowed, label
+
+
+def test_f3b_wp01_an_in_range_but_implausible_excess_is_ignored_and_an_alert_is_never_delayed_by_a_count():
+    kw = dict(senders={KEY_A: REF})
+    p, _, _ = pacer(wiskey=wk(wiskey_own={"charged_1m": 9_000, "charged_1h": 9_000, "charged_24h": 9_000}), **kw)
+    assert check(p, wp.CLASS_TICKET).allowed, "beyond two window caps is not believed"
+    plausible = dict(wiskey_own={"charged_1m": 12, "charged_1h": 12, "charged_24h": 12})  # a believable excess: over the minute cap of 10
+    q, _, _ = pacer(wiskey=wk(**plausible), **kw)
+    assert not check(q, wp.CLASS_TICKET).allowed
+    assert check(q, wp.CLASS_ALERT).allowed, "WisKey's count alone never delays an operational alert"
+    own, ledger, _ = pacer(wiskey=wk(**plausible), **kw)
+    fill(ledger, 10)
+    assert not check(own, wp.CLASS_ALERT).allowed, "Arx's own sends still count against an alert"
+
+
+def test_f3b_wp01_a_far_future_throttle_is_clamped_to_the_backoff_ceiling():
+    far = NOW + dt.timedelta(days=400)
+    p, _, _ = pacer(wiskey=wk(throttled_until=far.isoformat(), throttle_scope="account", retry_after_s=10**9), senders={KEY_A: REF})
+    view = p.wiskey_view(KEY_A, NOW)
+    assert view["throttled_until"] == NOW + sec(wp.ACCOUNT_BACKOFF_S[1]) and view["retry_after_s"] is None
+    d = check(p, wp.CLASS_TICKET)
+    assert not d.allowed and d.not_before == NOW + sec(wp.ACCOUNT_BACKOFF_S[1])
+    assert check(p, wp.CLASS_ALERT).allowed
+
+
 # ---------------------------------------------------------------- the reservation port
 
 def port(**kw):
@@ -400,6 +435,41 @@ def test_the_port_with_the_mode_off_grants_without_limiting():
     r, p, ledger, store = port(mode="off")
     fill(ledger, 30)
     assert r.reserve(sender_ref=REF, klass="reminder", request_id=rid(1), now=NOW)["granted"] is True
+
+
+def test_f3b_wp02_the_port_principal_cannot_take_more_than_its_share_of_a_window_even_for_alerts():
+    r, p, ledger, store = port()
+    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(1), now=NOW)["granted"] is True
+    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(2), now=NOW)["granted"] is True
+    third = r.reserve(sender_ref=REF, klass="alert", request_id=rid(3), now=NOW)  # burst 5 -> the port may take 2 of them
+    assert third["granted"] is False and third["reason"] == "lease_ceiling" and third["retry_after_s"] >= 1
+    assert store.lease_get(rid(3)) is None, "a denial records nothing"
+    assert check(p, wp.CLASS_ALERT).allowed, "Arx's own alert still has its floor"
+    assert r.reserve(sender_ref=REF, klass="alert", request_id=rid(3), now=NOW + sec(third["retry_after_s"]))["granted"] is True
+
+
+def test_f3b_wp02_a_lease_storm_over_a_minute_stops_at_half_the_minute_cap():
+    r, p, ledger, store = port()
+    got = [r.reserve(sender_ref=REF, klass="alert", request_id=rid(i), now=NOW + sec(11 * i))["granted"] for i in range(1, 7)]  # 11 s apart: past the burst window
+    assert got == [True] * 5 + [False], "per_minute 10 -> 5 leases in any minute"
+    assert check(p, wp.CLASS_ALERT, now=NOW + sec(60)).allowed
+
+
+def test_f3b_wp05_the_ceiling_holds_with_the_mode_off_and_a_released_not_sent_lease_frees_its_slot():
+    r, p, ledger, store = port(mode="off")
+    assert [r.reserve(sender_ref=REF, klass="reminder", request_id=rid(i), now=NOW)["granted"] for i in (1, 2, 3)] == [True, True, False]
+    assert r.release(request_id=rid(1), outcome="not_sent", now=NOW)["released"] is True
+    assert r.reserve(sender_ref=REF, klass="reminder", request_id=rid(3), now=NOW)["granted"] is True
+
+
+def test_f3b_wp05_live_leases_per_account_are_capped(monkeypatch):
+    monkeypatch.setattr(wp, "LEASE_ACTIVE_MAX", 1)
+    r, p, ledger, store = port()
+    assert r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW)["granted"] is True
+    d = r.reserve(sender_ref=REF, klass="ticket", request_id=rid(2), now=NOW + sec(20))
+    assert d["granted"] is False and d["reason"] == "lease_ceiling"
+    r.release(request_id=rid(1), outcome="accepted_by_provider", now=NOW + sec(21))
+    assert r.reserve(sender_ref=REF, klass="ticket", request_id=rid(2), now=NOW + sec(22))["granted"] is True
 
 
 # ---------------------------------------------------------------- reading the platform's rate answers
@@ -686,3 +756,56 @@ def test_snapshot_counts_waiting_backoff_and_wiskey(settings):
     assert next(x for x in snap["accounts"] if x["account_key"] == KEY_B)["sends_1h"] == 0
     assert snap["shared_budget_guaranteed"] is False
     assert "r2" not in str(snap) and "15555" not in str(snap)
+
+
+def test_f3b_wp03_an_infrastructure_or_home_system_administrator_can_never_be_the_port_principal(client, settings):
+    from smplwise.db import Database
+
+    assert client.put(URL, json={"senders": {"entry:01JFAKEENTRYA": REF}}, headers=as_user("joni")).status_code == 200
+    body = {"sender_ref": REF, "class": "ticket", "request_id": "req-admin-0001"}
+    _role_and_bind(settings, client, "wisk", "r-wk-port", ["messaging.pacing.reserve"])
+    _role_and_bind(settings, client, "boss", "r-wk-port-2", ["messaging.pacing.reserve"])
+    from conftest import bind
+
+    bind(client, settings, "boss", "system_admin", "installation", "*")
+    assert client.post(f"{URL}/reserve", json=body, headers=as_user("wisk")).json()["granted"] is True, "the dedicated principal still works"
+    for path, call in (("reserve", lambda h: client.post(f"{URL}/reserve", json=body, headers=h)),
+                       ("release", lambda h: client.post(f"{URL}/release", json={"request_id": body["request_id"], "outcome": "unknown"}, headers=h)),
+                       ("lease", lambda h: client.get(f"{URL}/lease/{body['request_id']}", headers=h))):
+        r = call(as_user("boss"))
+        assert r.status_code == 403 and r.json()["code"] == "port_principal_forbidden", path
+    with Database(settings.db_path).connection(mode="read") as conn:
+        reasons = [x[0] for x in conn.execute("SELECT reason FROM audit_log WHERE action = 'messaging.pacing.reserve' AND decision = 'denied'")]
+    assert reasons.count("system_admin_not_allowed") == 3
+    # a home-system administrator flag bars the principal as well
+    with Database(settings.db_path).connection() as conn:
+        uid = "dev-wisk"
+        conn.execute("INSERT INTO ha_users(id, name, username, is_active, is_admin, group_ids_json, synced_at) VALUES (?,?,?,1,1,'[]','2026-10-21T00:00:00Z') "
+                     "ON CONFLICT(id) DO UPDATE SET is_admin = 1", (uid, "w", "wisk"))
+    r = client.post(f"{URL}/reserve", json={**body, "request_id": "req-admin-0002"}, headers=as_user("wisk"))
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "ha_admin_not_allowed"
+
+
+def test_f3b_wp04_reserve_release_and_status_leave_an_actor_trace_without_secrets(client, settings):
+    import json as _json
+
+    from smplwise.db import Database
+
+    assert client.put(URL, json={"senders": {"entry:01JFAKEENTRYA": REF}}, headers=as_user("joni")).status_code == 200
+    _role_and_bind(settings, client, "wisk", "r-wk-port", ["messaging.pacing.reserve"])
+    wkh = as_user("wisk")
+    rid_ = "req-audit-0001"
+    assert client.post(f"{URL}/reserve", json={"sender_ref": REF, "class": "alert", "request_id": rid_}, headers=wkh).json()["granted"] is True
+    assert client.post(f"{URL}/release", json={"request_id": rid_, "outcome": "not_sent", "slowdown": {"scope": "account", "retry_after_s": 90}}, headers=wkh).json()["released"] is True
+    assert client.post(f"{URL}/release", json={"request_id": rid_, "outcome": "accepted_by_provider"}, headers=wkh).json()["conflict"] is True
+    assert client.get(f"{URL}/lease/{rid_}", headers=wkh).json()["found"] is True
+    with Database(settings.db_path).connection(mode="read") as conn:
+        rows = conn.execute("SELECT action, actor_user_id, resource_id, decision, details_json FROM audit_log WHERE action LIKE 'messaging.pacing.%' "
+                            "AND action != 'messaging.pacing.update' AND decision = 'allowed' ORDER BY rowid").fetchall()
+    assert [r["action"] for r in rows] == ["messaging.pacing.reserve", "messaging.pacing.release", "messaging.pacing.release", "messaging.pacing.lease_status"]
+    assert all(r["actor_user_id"] == "dev-wisk" and r["resource_id"] == rid_ for r in rows)
+    d = [_json.loads(r["details_json"]) for r in rows]
+    assert d[0]["granted"] is True and d[0]["klass"] == "alert"
+    assert d[1]["released"] is True and d[1]["outcome"] == "not_sent" and d[1]["slowdown"] == "account"
+    assert d[2]["conflict"] is True and d[3]["found"] is True and d[3]["state"] == "released"
+    assert "entry:" not in str(d) and REF not in str(d)

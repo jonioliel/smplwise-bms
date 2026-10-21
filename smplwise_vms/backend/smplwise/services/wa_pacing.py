@@ -51,6 +51,15 @@ MAX_WAIT_RANGE = (1, 2880)
 ACCOUNT_BACKOFF_S = (60, 1800)  # first step, ceiling (doubling)
 PAIR_BACKOFF_S = (300, 3600)
 COUNTER_KEEP = dt.timedelta(days=8)
+# F3B WP-01: what Arx accepts of the counters WisKey reports. A figure above these is not believable (a WisKey bug, or whoever answers the WisKey
+# command inside the home system) and is treated as UNKNOWN - never as a huge count that could hold Arx's own sends back.
+COUNTER_MAX = 10_000
+RETRY_AFTER_MAX_S = 86_400
+EXCESS_FACTOR = 2  # a count-only excess above this many window caps is ignored
+# F3B WP-02/WP-05: the reservation-port principal may take at most this share of EACH window (counted leases), whatever the class and even in
+# mode `off`, so a stolen WisKey token or a WisKey loop can never starve Arx's own notifications. At most one live lease per ... see LEASE_ACTIVE_MAX.
+LEASE_CEILING_PCT = 50
+LEASE_ACTIVE_MAX = 20  # live (granted, unexpired) leases per account, any mode
 
 # the outcome codes of channel_whatsapp.classify that mean "the platform asked us to slow down" (the message did NOT leave)
 RATE_ACCOUNT, RATE_PAIR = "rate_limited", "pair_rate_limited"
@@ -417,8 +426,9 @@ def _when(v: Any) -> dt.datetime | None:
     return d.astimezone(UTC) if d.tzinfo else d.replace(tzinfo=UTC)
 
 
-def _count(v: Any) -> int | None:
-    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+def _count(v: Any, hi: int = COUNTER_MAX) -> int | None:
+    """A non-negative whole number up to `hi`; anything else (negative, a bool, a float, out of range) is unknown (None), never clamped to a figure."""
+    return v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= hi else None
 
 
 def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
@@ -437,7 +447,7 @@ def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
     return WiskeyStatus(sender_ref=ref, verified=raw.get("sender_match_verified") is True, complete=raw.get("counters_complete") is True,
                         charged={w: _count(own.get(f"charged_{w}")) for w in WINDOWS}, unreserved={w: _count(own.get(f"charged_unreserved_{w}")) for w in WINDOWS},
                         throttled_until=_when(raw.get("throttled_until")),
-                        throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s")))
+                        throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s"), RETRY_AFTER_MAX_S))
 
 
 def project_pacing_accounts(accounts: Any) -> list[dict[str, Any]]:
@@ -508,7 +518,9 @@ class WaPacer:
             return out
         out["verified"] = True
         if st.throttled_until is not None and st.throttled_until > now and st.throttle_scope in (None, "account", "sender"):
-            out.update(throttled_until=st.throttled_until, throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
+            # F3B WP-01: a throttle is never believed beyond the account backoff ceiling (a forged far-future date cannot hold Arx's sends)
+            ceiling = now + dt.timedelta(seconds=ACCOUNT_BACKOFF_S[1])
+            out.update(throttled_until=min(st.throttled_until, ceiling), throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
         if not st.complete or any(v is None for v in st.charged.values()):
             out["unknown"] = True
         elif not leases:
@@ -547,6 +559,10 @@ class WaPacer:
             limit = max(1, cap * share // 100)
             inside = [t for t in times if t > now - span]
             extra = int(charged.get(window) or 0) if window else 0
+            # F3B WP-01: WisKey's count-only excess never delays an operational alert (counted, never delayed), and an excess beyond
+            # EXCESS_FACTOR window caps is not believable: it is ignored (unknown), not applied
+            if klass == CLASS_ALERT or extra > EXCESS_FACTOR * max(1, cap):
+                extra = 0
             if len(inside) + extra >= limit:
                 if len(inside) >= limit:
                     waits.append((inside[len(inside) - limit] + span, reason))
@@ -707,7 +723,12 @@ class WaReservations:
             if old.state == "granted" and old.expires_at > now:
                 return self._granted(old, repeated=True)
             return {"granted": False, "reason": "already_released" if old.state == "released" else "lease_expired", "retry_after_s": None}
-        d = self.pacer.admit(account_key=account_key, pacing=self._pacing_for(account_key), klass=klass, now=now)
+        pacing = self._pacing_for(account_key)
+        ceiling = self._lease_ceiling(account_key=account_key, pacing=pacing, cfg=cfg, now=now)
+        if ceiling is not None:
+            self.store.bump(account_key, klass, "lease_denied", now)
+            return {"granted": False, "reason": "lease_ceiling", "retry_after_s": max(1, math.ceil((ceiling - now).total_seconds()))}
+        d = self.pacer.admit(account_key=account_key, pacing=pacing, klass=klass, now=now)
         if not d.allowed:
             self.store.bump(account_key, klass, "lease_denied", now)
             return {"granted": False, "reason": d.reason, "retry_after_s": max(1, math.ceil((d.not_before - now).total_seconds()))}
@@ -715,6 +736,23 @@ class WaReservations:
         self.store.lease_put(lease)
         self.store.bump(account_key, klass, "lease_granted", now)
         return self._granted(lease, repeated=False)
+
+    def _lease_ceiling(self, *, account_key: str, pacing: Any, cfg: PacerConfig, now: dt.datetime) -> dt.datetime | None:
+        """F3B WP-02/WP-05: None while the port principal is under its ceiling, else when a slot frees. Counts only leases (never Arx's own
+        sends), so it limits WHAT THE PORT CAN TAKE, not what Arx may send. Applies to every class and in mode `off`."""
+        base = cfg.budget() or PROFILES[DEFAULT_MODE]
+        if self.store.lease_active(account_key, now) >= LEASE_ACTIVE_MAX:
+            return now + dt.timedelta(seconds=max(1, cfg.lease_ttl_s))
+        day = dt.timedelta(days=1)
+        leases = self.store.lease_times(account_key, now - day)
+        until: list[dt.datetime] = []
+        for span, cap in ((dt.timedelta(seconds=base.burst_window_s), base.burst), (dt.timedelta(minutes=1), base.per_minute),
+                          (dt.timedelta(hours=1), int(pacing.per_hour)), (day, int(pacing.per_day))):
+            limit = max(1, cap * LEASE_CEILING_PCT // 100)
+            inside = [t for t in leases if t > now - span]
+            if len(inside) >= limit:
+                until.append(inside[len(inside) - limit] + span)
+        return max(until) if until else None
 
     @staticmethod
     def _granted(lease: Lease, *, repeated: bool) -> dict[str, Any]:

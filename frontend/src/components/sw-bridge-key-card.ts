@@ -7,7 +7,7 @@ import './sw-toggle';
 import type { StateKind } from './sw-badge';
 import { onRemote } from '../api/session';
 import { describeError } from '../api/client';
-import { ACTIVE_STATES, getBridgeKey, resumeRotation, setBridgeKeySettings, startRotation, type BridgeKeyStatus, type RotationMode } from '../api/bridge-key';
+import { ACTIVE_STATES, doorsPaused, getBridgeKey, resumeRotation, setBridgeKeySettings, startRotation, type BridgeKeyStatus, type RotationMode } from '../api/bridge-key';
 import { bkt, bktCode, bktLang } from '../i18n/bridge-key';
 
 function when(iso: string | null | undefined): string {
@@ -195,6 +195,7 @@ export class SwBridgeKeyCard extends LitElement {
           ? html`<sw-button size="sm" variant="primary" ?disabled=${this.busy} data-bridge-key-start-first @click=${() => void this.run(() => startRotation('routine'))}>${bkt('startFirst')}</sw-button>`
           : nothing}
       </div>
+      ${doorsPaused(s) ? html`<div class="note" role="status" data-bridge-key-doors-paused>${bkt('doorsPaused')}</div>` : nothing}
       <div class="note" data-bridge-key-hygiene>${bkt('hygieneNote')}</div>
       ${rot?.retire_at ? html`<div class="note" role="status">${bkt('retireAt', { t: when(rot.retire_at) })}</div>` : nothing}
       <div class="row">
