@@ -202,6 +202,57 @@ class ConfirmBody(BaseModel):
     confirmed: Any = None
 
 
+# NOTE: the two routes below are declared BEFORE the generic `/rules/{rule_id}/{action}` route on purpose (first match wins).
+class ArmBody(BaseModel):
+    armed: bool
+    confirmed: Any = None
+
+
+@router.post("/doors/windows/rules/{rule_id}/arm")
+def arm_rule(body: ArmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Arm (or return to simulation) an event rule whose trigger is Home Assistant / an Arx automation (CR-039 9.4). Arming is refused while the
+    contract reports no automation actor: a simulated rule cannot be armed by any setting (fail closed). `access.windows.manage` on every door."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.rule_armed", dev_mode=_dev(request))
+    row = dw.rule_row(conn, rule_id)
+    if row is None or row["state"] == "retired" or row["kind"] != "event":
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.rule_armed")
+    try:
+        state = dwt.set_arm_state(conn, principal, rule_id, body.armed)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="door.window.rule_armed", decision="denied", resource_type="door_window_rule", resource_id=rule_id, reason=exc.code,
+              request_id=_rid(request))
+        commit_now(conn)
+        raise
+    audit(conn, actor=principal, action="door.window.rule_armed", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request),
+          details={"arm_state": state, "revision": row["revision"]})
+    view = _rule_view(conn, dw.rule_row(conn, rule_id), dw.doors_by_key(conn), {d.key for d in dw.visible_doors(conn, principal)})
+    _after_write(request, conn)
+    return {"rule": view}
+
+
+@router.post("/doors/windows/rules/{rule_id}/token")
+def regenerate_token(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A new secret for a Home Assistant event rule (the old one stops working at once). Shown ONCE in this answer, stored as SHA-256 only."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.token_regenerated", dev_mode=_dev(request))
+    row = dw.rule_row(conn, rule_id)
+    trig = conn.execute("SELECT source FROM door_window_triggers WHERE rule_id = ?", (rule_id,)).fetchone()
+    if row is None or row["state"] == "retired" or row["kind"] != "event" or trig is None or trig["source"] != "ha_event":
+        raise ApiError(404, "not_found", "החלון לא נמצא.")
+    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.token_regenerated")
+    token = secrets.token_urlsafe(24)
+    at = dw.iso(now_utc())
+    conn.execute("UPDATE door_window_triggers SET token_sha256 = ?, token_set_at = ?, authorising_actor = ?, arm_state = 'simulate' WHERE rule_id = ?",
+                 (dwt.token_sha(token), at, principal.user_id, rule_id))
+    audit(conn, actor=principal, action="door.window.token_regenerated", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request))
+    commit_now(conn)
+    return {"token": token, "snippet": dwt.snippet(rule_id, token)}
+
+
 @router.post("/doors/windows/rules/{rule_id}/{action}")
 def rule_action(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), action: Literal["enable", "pause", "retire"] = Path(),
                 principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
@@ -287,56 +338,6 @@ def confirm_closed(body: CheckedBody, request: Request, occ_id: str = Path(min_l
     view = _occ_view(dw.occurrence_row(conn, occ_id), dw.doors_by_key(conn), {})
     _after_write(request, conn)
     return {"occurrence": view}
-
-
-class ArmBody(BaseModel):
-    armed: bool
-    confirmed: Any = None
-
-
-@router.post("/doors/windows/rules/{rule_id}/arm")
-def arm_rule(body: ArmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
-             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Arm (or return to simulation) an event rule whose trigger is Home Assistant / an Arx automation (CR-039 9.4). Arming is refused while the
-    contract reports no automation actor: a simulated rule cannot be armed by any setting (fail closed). `access.windows.manage` on every door."""
-    _confirmed(body.confirmed)
-    dw.require_person(conn, principal, "door.window.rule_armed", dev_mode=_dev(request))
-    row = dw.rule_row(conn, rule_id)
-    if row is None or row["state"] == "retired" or row["kind"] != "event":
-        raise ApiError(404, "not_found", "החלון לא נמצא.")
-    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.rule_armed")
-    try:
-        state = dwt.set_arm_state(conn, principal, rule_id, body.armed)
-    except ApiError as exc:
-        audit(conn, actor=principal, action="door.window.rule_armed", decision="denied", resource_type="door_window_rule", resource_id=rule_id, reason=exc.code,
-              request_id=_rid(request))
-        commit_now(conn)
-        raise
-    audit(conn, actor=principal, action="door.window.rule_armed", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request),
-          details={"arm_state": state, "revision": row["revision"]})
-    view = _rule_view(conn, dw.rule_row(conn, rule_id), dw.doors_by_key(conn), {d.key for d in dw.visible_doors(conn, principal)})
-    _after_write(request, conn)
-    return {"rule": view}
-
-
-@router.post("/doors/windows/rules/{rule_id}/token")
-def regenerate_token(body: ConfirmBody, request: Request, rule_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
-                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """A new secret for a Home Assistant event rule (the old one stops working at once). Shown ONCE in this answer, stored as SHA-256 only."""
-    _confirmed(body.confirmed)
-    dw.require_person(conn, principal, "door.window.token_regenerated", dev_mode=_dev(request))
-    row = dw.rule_row(conn, rule_id)
-    trig = conn.execute("SELECT source FROM door_window_triggers WHERE rule_id = ?", (rule_id,)).fetchone()
-    if row is None or row["state"] == "retired" or row["kind"] != "event" or trig is None or trig["source"] != "ha_event":
-        raise ApiError(404, "not_found", "החלון לא נמצא.")
-    dw.require_doors(conn, principal, dw._rule_doc(conn, row).doors, dw.MANAGE, "door.window.token_regenerated")
-    token = secrets.token_urlsafe(24)
-    at = dw.iso(now_utc())
-    conn.execute("UPDATE door_window_triggers SET token_sha256 = ?, token_set_at = ?, authorising_actor = ?, arm_state = 'simulate' WHERE rule_id = ?",
-                 (dwt.token_sha(token), at, principal.user_id, rule_id))
-    audit(conn, actor=principal, action="door.window.token_regenerated", decision="allowed", resource_type="door_window_rule", resource_id=rule_id, request_id=_rid(request))
-    commit_now(conn)
-    return {"token": token, "snippet": dwt.snippet(rule_id, token)}
 
 
 class OpenForBody(BaseModel):

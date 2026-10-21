@@ -197,13 +197,12 @@ def test_refusal_audits_are_bounded(pw):
 
 def test_the_home_assistant_frame_path_checks_shape_and_never_renders_templates(pw):
     rid, token = made(pw)
-    handed = []
     pw.world.events.subscribe(DOOR_WINDOW_EVENT, lambda frame: dwt.on_door_window_event(pw.db, pw.settings, frame))
     pw.world.events.forged_types()
     pw.world.events.forged_template(rid)
     pw.world.events.forged_wrong_token(rid)
     pw.world.events.forged_unknown_rule()
-    assert pw.rows("SELECT * FROM door_window_trigger_log") == [] and handed == []
+    assert pw.rows("SELECT * FROM door_window_trigger_log") == []
     pw.world.events.forged_extra_keys(rid, token)  # extra keys are ignored: the rule's own duration applies, never the payload's
     log = pw.rows("SELECT * FROM door_window_trigger_log")
     assert [x["decision"] for x in log] == ["simulated"] and pw.world.events.subscribed_types() == {DOOR_WINDOW_EVENT}
@@ -306,7 +305,7 @@ def test_allowed_hours_quiet_hours_and_closed_days(pw, monkeypatch):
     pw.world.run_until(dt.datetime(2026, 11, 2, 7, 0, tzinfo=UTC))           # 09:00 local
     assert fire(pw, rid, token)["doors"][0]["decision"] == "simulated"
     pw.world.run_until(dt.datetime(2026, 11, 2, 20, 30, tzinfo=UTC))         # 22:30 local, inside the quiet hours
-    rid2, token2 = made(pw, name="לילה")
+    rid2, token2 = made(pw, name="לילה", duration_s=1800)
     assert fire(pw, rid2, token2)["doors"][0]["reason"] == "quiet_hours"
     pw.world.run_until(dt.datetime(2026, 11, 3, 5, 0, tzinfo=UTC))
     pw.put("/doors/windows/calendar", days=[{"on_date": "2026-11-03", "day_type": "closed", "label": "סגור"}], confirmed=True)
