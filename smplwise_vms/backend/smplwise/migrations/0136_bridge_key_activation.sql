@@ -1,4 +1,4 @@
--- PROVISIONAL number 0155 (HMACACT-295, built on origin/main bd4636e7f / v2.10.0, last migration there 0135): the lead renumbers at integration;
+-- PROVISIONAL number 0136 (next contiguous; the lead renumbers if another branch holds it) (HMACACT-295, built on origin/main bd4636e7f / v2.10.0, last migration there 0135): the lead renumbers at integration;
 -- the content does not depend on the number.
 --
 -- Bridge HMAC key rotation, activation slice (owner decision 2026-10-21, option A):

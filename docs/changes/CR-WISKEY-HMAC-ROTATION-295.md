@@ -219,7 +219,7 @@ reminder; secret scan of audit and logs. Frontend: `i18n` key parity unit spec.
 11. Interaction with the capture-lease T9 revocation and the trusted-door path once wired (activation slice).
 
 
-## 15. Activation slice (HMACACT-295, owner decision 2026-10-21, option A) - provisional migration 0155
+## 15. Activation slice (HMACACT-295, owner decision 2026-10-21, option A) - provisional migration 0136
 
 What changed, in ONE commit series (the permit flips together with the wiring, never alone):
 
@@ -233,7 +233,7 @@ What changed, in ONE commit series (the permit flips together with the wiring, n
 | Automatic start | `worker_loop` / `worker_pass`: drives an unfinished rotation, then starts a routine rotation when (the channel is still on the legacy secret OR the reminder interval passed) AND the peer announced support AND no rotation is active / needs repair AND the back-off (1 h doubling, max 1 day after consecutive failures) allows. Never without the peer's fresh announcement. |
 | H-02 | already in `bridge_keys.verify` (MAC first with a dummy key, one wire code `bad_signature`, `stale` after the MAC); regression test added; the HTTP routes answer one code. |
 | H-03 | text on the card (he/en/ar/ru `hygieneNote`), in this CR and in the user guide `84-bridge-key_HE.md`: suspect a leak -> re-pair; rotation is hygiene only. |
-| H-04 | `bridge_keys.hw_ts` (migration 0155) and the same rule in the bridge's key set: a message at or below the high-water the process found at first sight of the kid is a replay across a restart. |
+| H-04 | `bridge_keys.hw_ts` (migration 0136) and the same rule in the bridge's key set: a message at or below the high-water the process found at first sight of the kid is a replay across a restart. |
 | H-05 | `_repair` aligns to K_next only after a probe under K_next is answered `ok` under K_next. |
 | H-07 | `PRAGMA secure_delete = ON` on the wipe and a `wal_checkpoint(TRUNCATE)` after retire / discard / rollback / repair. |
 | H-09 | `begin` / `abort` / pre-switch probes must be answered under K_cur; `commit` / `retire` / post-switch probes / the verify status under K_next; a `status` claiming `committed` must be signed under K_next. |
