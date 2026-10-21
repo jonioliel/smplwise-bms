@@ -40,6 +40,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin
 from . import access_grants as ag
 from . import intercom_authority as ia
+from . import wiskey_access_state as was
 from .access_grant_engine import RELAYS, EngineError, EnginePerson
 
 PERMISSION = "access.people.stations"
@@ -47,6 +48,7 @@ FLAG_KEY = "access.station_permissions"
 KEYS = (FLAG_KEY,)
 EFFECTS = ("allow", "deny", "inherit")
 SYNC_STATES = ("none", "pending", "applied", "unverified", "failed")
+UNVERIFIED_CODE = "revoked_unverified"  # WKV2B-295: the closed code of an `unverified` block that only a v1 answer carried
 RESOURCE = STATION
 
 
@@ -519,6 +521,26 @@ def _revocation_pending(engine: Any, person_id: str, revision: int) -> bool | No
     return value if isinstance(value, bool) else None
 
 
+def _revocation_evidence(engine: Any, person_id: str, revision: int) -> str | None:
+    """WKV2B-295: the central sync evidence (pending / verified_clean / revoked_unverified) when the engine offers it, else None."""
+    fn = getattr(engine, "revocation_evidence", None)
+    if fn is None:
+        return None
+    try:
+        value = fn(person_id, revision)
+    except Exception:  # noqa: BLE001 - unknown, never a proof
+        return None
+    return value if isinstance(value, str) else None
+
+
+def deny_unverified(engine: Any, person: EnginePerson, station_id: str) -> bool:
+    """WKV2B-295 (owner decision 2026-10-21): a block whose readback shows it in place (override deny, station absent from the door map) but
+    whose only status is a v1 access_state answer in the clean-looking shape. A v1 answer never proves a revoke, so this is NOT `applied`:
+    it is `unverified` with the code `revoked_unverified` ("revoked, not verified by the other side") - and nothing is written again."""
+    return (person.overrides_known and person.doors_known and person.overrides.get(station_id) == "deny" and station_id not in person.doors
+            and _revocation_evidence(engine, person.id, person.revision) == was.EVIDENCE_UNVERIFIED)
+
+
 def proven(person: EnginePerson, station_id: str, effect: str, relays: list[int], pending: bool | None) -> bool:
     if not person.overrides_known:
         return False
@@ -595,6 +617,8 @@ def _send(engine: Any, person_id: str, station_id: str, effect: str, relays: lis
             return "pending", exc.code or exc.kind, person
         if proven(person, station_id, effect, relays, _revocation_pending(engine, person_id, person.revision) if effect == "deny" else None):
             return "applied", None, person  # already so in WisKey: nothing to write
+        if effect == "deny" and deny_unverified(engine, person, station_id):
+            return "unverified", UNVERIFIED_CODE, person  # in place, not verified by the other side (v1): nothing to write either
         try:
             engine.set_station_access(person_id, person.revision, overrides=overrides, doors=doors)
         except EngineError as exc:
@@ -613,4 +637,6 @@ def _send(engine: Any, person_id: str, station_id: str, effect: str, relays: lis
     pending = _revocation_pending(engine, person_id, after.revision) if effect == "deny" else None
     if proven(after, station_id, effect, relays, pending):
         return "applied", None, after
+    if effect == "deny" and deny_unverified(engine, after, station_id):
+        return "unverified", UNVERIFIED_CODE, after
     return "unverified", ("revocation_pending" if effect == "deny" and pending is not False else "readback"), after
