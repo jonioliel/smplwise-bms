@@ -423,7 +423,8 @@ def test_every_usr2_authority_site_calls_the_lease_hook():
         assert "lease_hook(" in body, fn
     assert li_src.split("def resolve(", 1)[1].split("\ndef ", 1)[0].count("lease_hook(") == 5
     pk_src = (backend / "services" / "local_passkeys.py").read_text(encoding="utf-8")
-    assert pk_src.count('li.lease_hook("second_factor_changed"') == 3, "register, _set_first, remove"
+    # PASSKEYONLY-295: switching the passkeys-only sign-in mode is a fourth site (it changes the sign-in factor set too)
+    assert pk_src.count('li.lease_hook("second_factor_changed"') == 4, "register, _set_first, remove, the passkeys-only switch"
     router = (backend / "routers" / "local_identity.py").read_text(encoding="utf-8")
     assert 'li.lease_hook("actor_disabled"' in router and 'li.lease_hook("actor_removed"' in router and 'li.lease_hook("second_factor_changed"' in router
     assert set(cl.TRIGGER_WIRED_SOURCES) == {"ingress", "remote", "local"}
