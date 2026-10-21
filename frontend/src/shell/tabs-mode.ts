@@ -96,6 +96,14 @@ export const DD_PLACE_DEFAULT: DdPlace = '1';
 export function asDdPlace(v: unknown): DdPlace | null {
   return typeof v === 'string' && (DD_PLACES as readonly string[]).includes(v) ? (v as DdPlace) : null;
 }
+/** PHONENAV-295 (owner 2026-10-21): how the Settings sub-pages are navigated on a phone - the scrolling tab row (default) or one dropdown.
+ * Personal only (/me/prefs `ui.dd_settings_nav`, null = tabs); applies at phone width only. Backend twin: services/user_prefs.py. */
+export type SettingsNav = 'tabs' | 'dropdown';
+export const SETTINGS_NAVS: readonly SettingsNav[] = ['tabs', 'dropdown'];
+export const SETTINGS_NAV_DEFAULT: SettingsNav = 'tabs';
+export function asSettingsNav(v: unknown): SettingsNav | null {
+  return typeof v === 'string' && (SETTINGS_NAVS as readonly string[]).includes(v) ? (v as SettingsNav) : null;
+}
 export const DD_PICKERS: readonly DdPicker[] = DD_PICKER_IDS;
 export const DD_PICKER_LABEL: Record<DdPicker, string> = { dropdown: 'תפריט נפתח', chips: 'כפתורים' };
 export function asDdSearch(v: unknown): DdSearch | null {
@@ -472,6 +480,12 @@ class Choice<T extends string> {
 const searchChoice = new Choice<DdSearch>('search', asDdSearch, DD_SEARCH_DEFAULT, 'sw.dd.search');
 const pickerChoice = new Choice<DdPicker>('picker', asDdPicker, DD_PICKER_DEFAULT, 'sw.dd.picker');
 const placeChoice = new Choice<DdPlace>('place', asDdPlace, DD_PLACE_DEFAULT, 'sw.dd.place');
+const settingsNavChoice = new Choice<SettingsNav>('settings_nav', asSettingsNav, SETTINGS_NAV_DEFAULT, 'sw.dd.settings_nav');
+/** The user's effective Settings navigation on a phone (no installation owner: their own choice, else the tab row). */
+export const settingsNavOf = (): SettingsNav => settingsNavChoice.own ?? SETTINGS_NAV_DEFAULT;
+/** The user's own choice; null = the default (tabs). */
+export const ownSettingsNav = (): SettingsNav | null => settingsNavChoice.own;
+export const saveOwnSettingsNav = (mode: SettingsNav | null): Promise<void> => settingsNavChoice.save(mode);
 
 /** The effective header-dropdown placement: the user's own over the installation's (an unreadable value is the default, 1). */
 export const ddPlaceOf = (): DdPlace => placeChoice.resolve().value;
@@ -694,6 +708,7 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   searchChoice.loadCache(userId);
   pickerChoice.loadCache(userId);
   placeChoice.loadCache(userId);
+  settingsNavChoice.loadCache(userId);
   const phoneCached = readDdPhoneCache();
   ddPhoneOwn = phoneCached && phoneCached.u === userId ? phoneCached.mode : null;
   notify();
@@ -725,6 +740,7 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     searchChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     pickerChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     placeChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
+    settingsNavChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     ddPhoneOwn = stored.includes('ui.dd_phone') ? asDdPhone(p.prefs['ui.dd_phone']) : null;
     writeDdPhoneCache(userId, ddPhoneOwn);
     notify();

@@ -56,6 +56,8 @@ export class SwTabs extends LitElement {
   /** Dropdown only (Unreleased, capsule style): the ring thickness and the open panel width (sw-dropdown `dd-ring`, `dd-panel`). */
   @property({ attribute: 'dd-ring' }) ddRing: DdRing = '2';
   @property({ attribute: 'dd-panel' }) ddPanel: DdPanel = '240';
+  /** Dropdown only (PHONENAV-295): the chip box itself is a 44 px touch target (sw-dropdown `tall`). */
+  @property({ type: Boolean }) tall = false;
 
   static styles = css`
     :host {
@@ -372,7 +374,7 @@ export class SwTabs extends LitElement {
 
   render() {
     if (this.mode === 'dropdown') {
-      return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
+      return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}</span>`;
     return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>

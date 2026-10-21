@@ -115,6 +115,12 @@ DEFAULTS["ui.dd_picker"] = None
 VALIDATORS["ui.dd_place"] = dd_style.normalize_place
 DEFAULTS["ui.dd_place"] = None
 
+# `ui.dd_settings_nav` (PHONENAV-295, owner 2026-10-21): how the Settings sub-pages are navigated on a phone, tabs (the scrolling row, the
+# default) | dropdown (one select); personal only, presentation only (no permission); null = tabs.
+SETTINGS_NAV_MODES: tuple[str, ...] = ("tabs", "dropdown")
+VALIDATORS["ui.dd_settings_nav"] = _choice("ui.dd_settings_nav", SETTINGS_NAV_MODES)
+DEFAULTS["ui.dd_settings_nav"] = None
+
 # `generator.view_mode` (CR-031, owner 2026-10-05): the generator live screen shows ONE of dials (gauges) or charts, the user's choice; default gauges.
 VALIDATORS["generator.view_mode"] = _choice("generator.view_mode", ("gauges", "charts"))
 DEFAULTS["generator.view_mode"] = "gauges"

@@ -21,7 +21,7 @@ import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/pr
 import { ApiError, describeError, get } from '../api/client';
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
-import { TabsModeController } from '../shell/tabs-mode';
+import { TabsModeController, settingsNavOf } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
@@ -125,6 +125,11 @@ export class SystemDiagnostics extends LitElement {
   // release 2.10.0: UXFIX-NAV-295's phone-only dropdown was reverted (owner rule 0.1.157: no phone-only gate; owner decision pending).
   private tabsMode = new TabsModeController(this, 'settings');
   @state() private tab = 'general';
+  /** PHONENAV-295 (owner 2026-10-21): at phone width a user who chose "dropdown" (Settings > General > Tabs, a personal preference) gets the sub-pages as ONE select instead of the tab row. */
+  @state() private phone = typeof matchMedia === 'function' && matchMedia('(max-width: 767px)').matches;
+  private phoneMq: MediaQueryList | null = null;
+  private readonly onPhoneMq = (e: MediaQueryListEvent) => { this.phone = e.matches; };
+  private get phoneSelect(): boolean { return this.phone && settingsNavOf() === 'dropdown'; }
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
   /** The viewer's own 3D mode (null = the installation default; undefined = not read / no backend). */
@@ -457,12 +462,19 @@ export class SystemDiagnostics extends LitElement {
     super.connectedCallback();
     this.readTab();
     window.addEventListener('hashchange', this.onHash);
+    if (typeof matchMedia === 'function') {
+      this.phoneMq = matchMedia('(max-width: 767px)');
+      this.phone = this.phoneMq.matches;
+      this.phoneMq.addEventListener('change', this.onPhoneMq);
+    }
     void this.loadSettings();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('hashchange', this.onHash);
+    this.phoneMq?.removeEventListener('change', this.onPhoneMq);
+    this.phoneMq = null;
   }
 
   /** SET-polish: the sub-tab is a deep link (`#/system/diagnostics?tab=backup`): read on arrival and whenever the address changes while this
@@ -1584,7 +1596,7 @@ export class SystemDiagnostics extends LitElement {
     const cur = TABS.find((t) => t.id === this.tab) ?? TABS[0];
     return html`
       <sw-page crumbs=${cur.id === 'general' ? 'הגדרות' : 'הגדרות | כללי'} heading=${cur.label} subheading=${`${TAB_SUB[cur.id] ?? ''}${isApi() ? '' : ' · נתוני הדגמה'}`}>
-        <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
+        <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
