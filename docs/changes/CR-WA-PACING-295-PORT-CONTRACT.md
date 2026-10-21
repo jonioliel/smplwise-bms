@@ -1,6 +1,6 @@
 # CR-WA-PACING-295 - the reservation port: wire, auth, lease and outcome contract (Arx side)
 
-Status: Arx implements this contract with fakes (branch `pilot/WAPACE-295`; migration 0150 provisional). WisKey has not built a client; nothing here
+Status: Arx implements this contract with fakes (branch `pilot/WAPACE-295`; migration 0144, built as provisional 0150). WisKey has not built a client; nothing here
 is live. Companion of `CR-WA-PACING-295.md` (budget, classes, counters) and WisKey's `whatsapp_pacing_status_v1` (counters, read by Arx).
 Until WisKey adopts this contract for every shared sender, Arx reports `shared_budget_guaranteed: false`.
 

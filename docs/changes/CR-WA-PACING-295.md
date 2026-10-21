@@ -1,7 +1,7 @@
 # CR-WA-PACING-295 - one WhatsApp send budget for Arx and WisKey
 
 Task: `tickets-wiskey-send-pacing` (plan `private/planning/versions_plan_data_2026-10-20.json`, blocked on WisKey, accelerated by the owner
-2026-10-21). Branch `pilot/WAPACE-295` from `origin/main` (v2.10.0). Migration **0150 is provisional** (the lead renumbers at integration).
+2026-10-21). Branch `pilot/WAPACE-295` from `origin/main` (v2.10.0). Migration **0144** (built as provisional 0150; renumbered at integ/2111).
 Revision 2 (2026-10-21, after the owner's numbers and WisKey's reply, `private/planning/wa_pacing_2026-10-21/WISKEY_REPLY_2026-10-21.md`).
 
 ## 1. Problem
@@ -62,7 +62,7 @@ HA bearer token of a dedicated owner-created HA user on the remote channel, auth
 
 ## 5. Files
 
-- `services/wa_pacing.py` (pacer, WisKey reader, reservations, stores, config, snapshot); migration `0150_wa_pacing.sql` (state, wait, counter, lease; operational tables, not project tables).
+- `services/wa_pacing.py` (pacer, WisKey reader, reservations, stores, config, snapshot); migration `0144_wa_pacing.sql` (state, wait, counter, lease; operational tables, not project tables).
 - `services/tickets/channel_whatsapp.py`, `services/tickets/outbox.py`, `services/tickets/messaging.py` (rate answers, Ports.pacer, backoff requeue, release, wiring, janitor prune).
 - `services/intercom_messaging_adapter.py`, `routers/access_control_messaging.py`, `services/intercom_consent.py` (pacing block, error classes).
 - `services/messaging_runtime.py` (`pacer_on`, `pacing_for`, `wiskey_pacing`), `routers/messaging_accounts.py` (`GET/PUT .../pacing`, `POST .../reserve`, `POST .../release`; audit `messaging.pacing.update`), `services/backup.py` (setting kept out of backups), `services/messaging_accounts.py` (Pacing defaults and ranges).

@@ -1,7 +1,7 @@
 -- CR-WA-PACING-295 (docs/changes/CR-WA-PACING-295.md): the shared WhatsApp send budget - backoff state, the age clock of messages
 -- that wait on the budget, and the hourly counters the administrator sees. Operational data (like messaging_send_ledger of 0082):
 -- not a project-backup table, additive only (rollback = run the previous version; the tables are ignored by it).
--- PROVISIONAL NUMBER 0150: the lead renumbers at integration. No phone number, text or recipient is stored: a pair scope carries
+-- Final number 0144 (built as PROVISIONAL 0150; renumbered at integ/2111). No phone number, text or recipient is stored: a pair scope carries
 -- the ledger's HMAC recipient key.
 CREATE TABLE wa_pacing_state (
   scope       TEXT PRIMARY KEY,             -- 'account:<account_key>' | 'pair:<account_key>:<recipient_key>'

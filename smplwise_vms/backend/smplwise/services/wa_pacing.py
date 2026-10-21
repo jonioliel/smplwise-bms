@@ -12,7 +12,7 @@ This module adds what that gate does not know, without touching it:
   (131056 type) slows only that sender/recipient pair (5 min doubling to 1 h);
 - a QUEUE AGE LIMIT per class: a message that has waited on this budget longer than its limit ends visibly (`not_sent` /
   `pacing_expired`, with the module's normal fallback and manager notice) - it is never dropped silently;
-- COUNTERS: per account and class, per hour, persisted (migration 0150, provisional).
+- COUNTERS: per account and class, per hour, persisted (migration 0144, built as provisional 0150).
 
 The class of a message is a rule of code (`class_of`); the numbers come from a profile (`conservative` default, `standard`, `off`)
 plus the account's own `Pacing` (per hour / per day), which stays the single place those two caps are set. `off` = the legacy gate
@@ -314,7 +314,7 @@ class MemoryPacerStore:
 
 
 class SqlitePacerStore:
-    """Migration 0150 (provisional). `read()` yields a connection for reads; `write()` returns the caller's bound write connection
+    """Migration 0144 (built as provisional 0150). `read()` yields a connection for reads; `write()` returns the caller's bound write connection
     (the same split `tickets.outbox_store.Access` makes for the send ledger: the worker writes inside its own transaction)."""
 
     def __init__(self, read: Callable[[], AbstractContextManager[sqlite3.Connection]], write: Callable[[], sqlite3.Connection] | None = None) -> None:
