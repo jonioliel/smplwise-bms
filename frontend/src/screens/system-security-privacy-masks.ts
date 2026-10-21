@@ -230,7 +230,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       position: relative;
       inline-size: 100%;
       max-inline-size: 960px;
-      background: var(--sw-surface-3, #222);
+      background: var(--sw-surface-3);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       overflow: hidden;
@@ -268,12 +268,12 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .frame svg polygon {
       fill: rgba(0, 0, 0, 0.78);
-      stroke: #fff;
+      stroke: var(--sw-on-video);
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
     }
     .frame svg polygon.sel {
-      stroke: var(--sw-accent, #3b82f6);
+      stroke: var(--sw-accent);
       stroke-width: 3;
     }
     .frame svg polygon.off {
@@ -292,7 +292,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       pointer-events: none;
     }
     .reg:focus-visible {
-      outline: 3px solid var(--sw-accent, #3b82f6);
+      outline: 3px solid var(--sw-accent);
       outline-offset: 2px;
     }
     .handle {
@@ -309,8 +309,8 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       inline-size: 16px;
       block-size: 16px;
       border-radius: 50%;
-      background: var(--sw-accent, #3b82f6);
-      border: 2px solid #fff;
+      background: var(--sw-accent);
+      border: 2px solid var(--sw-on-video);
       box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
     }
     .handle.tl {
@@ -333,7 +333,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .ghost {
       position: absolute;
-      border: 2px dashed var(--sw-accent, #3b82f6);
+      border: 2px dashed var(--sw-accent);
       background: rgba(59, 130, 246, 0.2);
       pointer-events: none;
     }
@@ -463,7 +463,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       direction: ltr;
       position: relative;
       inline-size: 100%;
-      background: var(--sw-surface-3, #222);
+      background: var(--sw-surface-3);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-2xs);
       overflow: hidden;
@@ -483,7 +483,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .thumb svg polygon {
       fill: rgba(0, 0, 0, 0.78);
-      stroke: #fff;
+      stroke: var(--sw-on-video);
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
     }
