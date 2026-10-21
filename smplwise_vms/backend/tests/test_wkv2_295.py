@@ -335,7 +335,7 @@ def test_engine_reader_judges_v2_with_the_last_known_record(name, known, expecte
 
 
 def test_engine_v1_is_unchanged():
-    assert age.revocation_pending_from(lambda uid, rev: v1(), PERSON, REV) is False  # existing compatibility (STATIONSYNC-295)
+    assert age.revocation_pending_from(lambda uid, rev: v1(), PERSON, REV) is None  # ECCACT-295 (WKV2B): v1 never proves a revocation
     assert age.revocation_pending_from(lambda uid, rev: v1(), PERSON, 5) is None
 
 
@@ -381,7 +381,9 @@ def test_engine_for_wires_a_last_known_provider(monkeypatch):
             raise sqlite3.OperationalError("no db")
 
     eng = ag.engine_for(DB())
-    assert eng.access_state_reader is None, "no live access_state client is built"
+    from smplwise.services.wiskey_readback import LiveReadback
+
+    assert isinstance(eng.access_state_reader, LiveReadback), "ECCACT-295: the live, negotiated readback is wired (still behind GO_LIVE)"
     assert eng.last_known_stations("person-a") is None
 
 

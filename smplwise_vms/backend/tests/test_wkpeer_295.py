@@ -537,7 +537,7 @@ def test_additive_fields_are_ignored_and_never_strengthen():
 def test_revocation_false_needs_present_same_revision_and_the_central_predicate():
     revoked = access_state_frame(assignments=[], timing_policy=None, stations_synced=None)
     s = a5.parse_access_state(revoked, user_id=PERSON, revision=5)
-    assert a5.revocation_verdict(s, requested_revision=5, central_revoked_at=5) is False
+    assert a5.revocation_verdict(s, requested_revision=5, central_revoked_at=5) is None  # ECCACT-295 (WKV2B): v1 never proves a revocation
     assert a5.revocation_verdict(s, requested_revision=5, central_revoked_at=None) is None  # no central proof
     assert a5.revocation_verdict(s, requested_revision=5, central_revoked_at=4) is None  # proof at another revision
     assert a5.revocation_verdict(s, requested_revision=6, central_revoked_at=6) is None  # the answer is for another revision
@@ -612,7 +612,7 @@ def test_revision_bound_port_failures_are_unknown():
 
     revoked = access_state_frame(assignments=[], timing_policy=None, stations_synced=None)
     port = Port(revoked)
-    assert a5.revocation_pending_at(port, PERSON, 5, central_revoked_at=5) is False
+    assert a5.revocation_pending_at(port, PERSON, 5, central_revoked_at=5) is None  # v1 never proves (ECCACT-295)
     assert port.calls == [(PERSON, 5)]  # the revision travels with the question
     assert a5.revocation_pending_at(Port(exc=TimeoutError()), PERSON, 5, central_revoked_at=5) is None
     assert a5.revocation_pending_at(Port(failure("feature_disabled")), PERSON, 5, central_revoked_at=5) is None
