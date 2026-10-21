@@ -301,8 +301,10 @@ class WaPacer:
         return self._config()
 
     # ---- the decision
-    def check(self, *, account_key: str, pacing: Any, recipient_key: str, klass: str, ref: str, now: dt.datetime) -> Decision:
-        """May a message of `klass` start a send on this account now? Pure apart from the age clock of `ref` (the waiting message)."""
+    def check(self, *, account_key: str, pacing: Any, recipient_key: str, klass: str, ref: str, now: dt.datetime,
+              retrying: bool = False) -> Decision:
+        """May a message of `klass` start a send on this account now? Pure apart from the age clock of `ref` (the waiting message).
+        `retrying`: the message is back after a rate answer - its age clock keeps running through an allowed check."""
         cfg = self.config()
         now = now.astimezone(UTC)
         budget = cfg.budget()
@@ -329,7 +331,8 @@ class WaPacer:
             if len(inside) >= limit:
                 waits.append((inside[len(inside) - limit] + span, reason))
         if not waits:
-            self.store.wait_clear(ref)
+            if not retrying:
+                self.store.wait_clear(ref)
             return Decision(True, now)
         until, reason = max(waits)
         started = self.store.wait_since(ref)

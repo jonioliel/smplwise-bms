@@ -611,7 +611,8 @@ class Outbox:
         rkey = keyed_hash(self.p.messaging_key, digits)
         decision = self.p.gate.check(account_key=account.key, pacing=pacing, recipient_key=rkey, kind=ledger_kind(row.purpose), now=now)
         klass = wa_pacing.class_of(purpose=row.purpose)
-        pace = (self.p.pacer.check(account_key=account.key, pacing=pacing, recipient_key=rkey, klass=klass, ref=row.id, now=now)
+        pace = (self.p.pacer.check(account_key=account.key, pacing=pacing, recipient_key=rkey, klass=klass, ref=row.id, now=now,
+                                       retrying=row.outcome_code in wa_pacing.RATE_CODES)
                 if self.p.pacer is not None else None)
         if pace is not None and pace.expired:  # CR-WA-PACING-295: waited on the shared budget past its class limit - ends visibly, never dropped
             return self._fail_before_claim(row, "pacing_expired", now)

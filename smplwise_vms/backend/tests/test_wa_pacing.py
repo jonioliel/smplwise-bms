@@ -10,7 +10,7 @@ import random
 import pytest
 from conftest import as_user
 from fake_ha_whatsapp import PairedAccount
-from tickets_msg_fakes import KEY_A, KEY_B, T0, assign, default_doc, make_env
+from tickets_msg_fakes import KEY_A, KEY_B, PHONE_OTHER, T0, assign, default_doc, make_env
 
 from smplwise.services import messaging_accounts as ma
 from smplwise.services import wa_pacing as wp
@@ -171,13 +171,13 @@ def test_a_message_waiting_past_its_limit_ends_visibly_and_is_counted():
     d = check(p, wp.CLASS_REMINDER, ref="m1")
     assert not d.allowed and not d.expired
     assert store.wait_since("m1") == NOW
-    again = check(p, wp.CLASS_REMINDER, ref="m1", now=NOW + sec(11 * 60))
-    send(ledger, 5, now=NOW + sec(11 * 60))
-    again = check(p, wp.CLASS_REMINDER, ref="m1", now=NOW + sec(11 * 60))
+    later = NOW + sec(11 * 60)
+    send(ledger, 40, now=later)
+    again = check(p, wp.CLASS_REMINDER, ref="m1", now=later)
     assert again.expired and not again.allowed
     assert store.wait_since("m1") is None
-    counts = {(m): n for (h, a, k, m), n in store.counts.items()}
-    assert counts == {"deferred": 1, "expired": 2} or counts["expired"] >= 1
+    by_metric = {m: n for (_h, _a, _k, m), n in store.counts.items()}
+    assert by_metric == {"deferred": 1, "expired": 1}
 
 
 def test_waiting_clears_when_the_message_is_allowed():
@@ -252,15 +252,16 @@ def test_a_rate_answer_never_drops_the_message_it_ends_visibly_at_the_age_limit(
             break
     done = env.row(row.id)
     assert done.state == "not_sent" and done.outcome_code == "pacing_expired"
-    assert ("send_failed", row.id) in [(e[0], e[1]) for e in env.hooks.events] or any(e[0] == "send_failed" for e in env.hooks.events)
+    assert any(e[0] == "send_failed" for e in env.hooks.events), env.hooks.events
     assert env.ledger.rows == []
 
 
-def test_pair_rate_answer_holds_only_that_recipient():
+def test_a_rate_answer_holds_every_recipient_until_the_backoff_ends():
     env = env_with_pacer(doc=fast_doc())
+    env.directory.add("c1")
+    env.directory.add("c2", phone=PHONE_OTHER)
     first = assign(env, contact="c1", link="L1", assignment="A1", ticket="T1")
     second = assign(env, contact="c2", link="L2", assignment="A2", ticket="T2")
-    env.directory.contacts["c2"].phone = "15555550102"
     env.fake.queue("http429")
     env.tick()
     # the 429 answer is account-wide: both wait; after the backoff both go
@@ -299,6 +300,7 @@ def test_mode_off_is_byte_for_byte_the_legacy_behaviour():
     off = env_with_pacer("off", doc=fast_doc(), seed=3)
     for env in (legacy, off):
         for i in range(6):
+            env.directory.add(f"c{i}", phone=f"1555555{i:04d}")
             assign(env, contact=f"c{i}", link=f"L{i}", assignment=f"A{i}", ticket=f"T{i}", purpose="reminder")
         env.drain(step_s=7)
     assert [(c["data"]["target"], c["data"]["message"]) for c in off.fake.calls] == [(c["data"]["target"], c["data"]["message"]) for c in legacy.fake.calls]
@@ -311,9 +313,9 @@ def test_the_default_conservative_mode_slows_a_burst_of_reminders():
     paced = env_with_pacer(doc=fast_doc(), seed=3)
     for env in (legacy, paced):
         for i in range(6):
+            env.directory.add(f"c{i}", phone=f"1555555{i:04d}")
             assign(env, contact=f"c{i}", link=f"L{i}", assignment=f"A{i}", ticket=f"T{i}", purpose="reminder")
         env.drain(step_s=5)
-        env.clock.t = T0 + sec(60)
     # same six messages all arrive; the paced run needs longer for them (a reminder gets one send per minute window)
     assert len(paced.fake.calls) == len(legacy.fake.calls) == 6
     assert paced.ledger.rows[-1][4] > legacy.ledger.rows[-1][4]
@@ -359,7 +361,7 @@ def test_route_defaults_put_validation_and_audit(client, settings):
 
     with Database(settings.db_path).connection(mode="read") as conn:
         acts = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action = 'messaging.pacing.update'")]
-    assert len(acts) == 3 - 0 or len(acts) >= 2
+    assert len(acts) == 2
 
 
 def test_route_with_the_tickets_module_off_says_it_does_not_apply(client):
@@ -369,7 +371,12 @@ def test_route_with_the_tickets_module_off_says_it_does_not_apply(client):
 
 
 def test_snapshot_counts_waiting_backoff_and_wiskey(settings):
+    from fastapi.testclient import TestClient
+
     from smplwise.db import Database
+    from smplwise.main import create_app
+
+    TestClient(create_app(settings))  # runs the migrations
 
     db = Database(settings.db_path)
     now = dt.datetime.now(UTC)
