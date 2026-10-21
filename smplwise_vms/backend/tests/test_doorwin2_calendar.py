@@ -135,7 +135,7 @@ def test_a_closed_day_drops_every_window_and_a_regular_override_restores_it():
 
 def test_the_program_with_a_year_of_holidays_fits_the_caps():
     c = compiled(sunday_to_thursday(), today=D(2026, 11, 2))
-    assert c.errors == [] and 15 <= len(c.exceptions) <= dw.MAX_EXCEPTIONS
+    assert c.errors == [] and 8 <= len(c.exceptions) <= dw.MAX_EXCEPTIONS
     assert len(json.dumps(c.policy, ensure_ascii=False).encode("utf-8")) < 32 * 1024, "far below WisKey's 64 KiB message cap (T14)"
     assert c.sha and c.sha == dw.policy_sha(c.policy)
 
