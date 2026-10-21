@@ -40,12 +40,16 @@ EXT_ITEMS = [  # (feature, bridge service, item) admitted only by the extended m
 RUN_ENTITY = {("execute", ("script", "turn_on")): "script.open_front", ("execute", ("scene", "turn_on")): "scene.evening",
               ("config_item", "trigger"): "automation.a1", ("config_item", "run_script"): "script.s1", ("config_item", "apply_scene"): "scene.x"}
 RUN_IDS = sorted(RUN_ENTITY.values())
+# EXTID-295 (CR-USR2 13.6): a Home Assistant group whose entity policy names only some devices - the restricted service user the bridge needs
+RESTRICTED_GROUPS = [SimpleNamespace(id="arx_service", name="Arx service", policy={"entities": {"domains": {"light": True, "lock": True}}})]
 
 
-def _ext(db, *, on: bool = True, bridge_on: bool = True, version: str = "0.9.2", runnable: list[str] | None = None) -> None:
+def _ext(db, *, on: bool = True, bridge_on: bool = True, version: str = "0.9.6", runnable: list[str] | None = None, policy: str = "true") -> None:
+    """`policy` (EXTID-295, CR-USR2 13.6): what the bridge reported about the service user's entity policy ("true" = restricted)."""
     with db.connection() as conn:
         set_setting(conn, si.EXTENDED_SETTING, "on" if on else "off")
         set_setting(conn, si.BRIDGE_EXTENDED, "true" if bridge_on else "false")
+        set_setting(conn, si.BRIDGE_POLICY, policy)
         set_setting(conn, "bridge.integration_version", version)
         ids = RUN_IDS if runnable is None else runnable
         set_setting(conn, si.RUNNABLE_SETTING, json.dumps(ids))
@@ -137,11 +141,51 @@ def test_switch_on_needs_the_bridge_copy_and_a_091_bridge(db, feature, service, 
     _seed(db)
     _ext(db, bridge_on=False)
     assert _xcode(db, _local(), feature=feature, service=service, item=item) == "service_identity_extended_bridge_off"
-    for old in ("0.9.0", "0.9.1"):  # SVCIDENT3: the run fences (S1 b, S2) are in 0.9.2 - an older bridge gets no extended item at all
+    # SVCIDENT3: the run fences (S1 b, S2) are in 0.9.2; EXTID-295: the V-01 fix and the policy report are in 0.9.6 - an older bridge gets no
+    # extended item at all, even when it (impossibly) reported a restricted policy
+    for old in ("0.9.0", "0.9.1", "0.9.2", "0.9.5"):
         _ext(db, bridge_on=True, version=old)
         assert _xcode(db, _local(), feature=feature, service=service, item=item) == "service_identity_extended_bridge_off"
     # an item the 2.6.4 tables already allow does not depend on the bridge's copy
     assert _subject(db, _local())["on_behalf_of"]["feature"] == "devices.control"
+
+
+@pytest.mark.parametrize("feature,service,item", EXT_ITEMS)
+def test_1306_switch_on_refuses_each_extended_item_while_the_service_policy_is_not_restricted(db, feature, service, item):
+    """EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21) - negative first: the default (or an unknown) entity policy of the service
+    user refuses every item only the extended mode admits, 503, audited `policy_default`, nothing sent; basic items are not affected."""
+    _seed(db)
+    for policy in ("false", "", "True", "1"):  # only the exact report "true" counts
+        _ext(db, policy=policy)
+        assert _xcode(db, _local(), feature=feature, service=service, item=item) == "service_identity_policy_default"
+        assert _audit(db, "identity.service_identity.refused")[-1]["reason"] == "policy_default"
+    assert _audit(db, "identity.service_identity.extended") == []
+    assert _subject(db, _local())["on_behalf_of"]["feature"] == "devices.control"  # a 2.6.4 item: unaffected by the report
+    _ext(db, policy="true")
+    assert _xsubject(db, _local(), feature=feature, service=service, item=item)["user_id"] == SID
+
+
+def test_1306_the_policy_report_arrives_with_the_push_and_is_shown_on_the_card(db):
+    _seed(db)
+    with db.connection() as conn:
+        base = {"service_identity": True, "service_user_id": SID, "local_identity_extended": True}
+        for sent, stored in ((True, "true"), (False, "false"), (None, ""), ("true", ""), (1, "")):
+            si.note_directory_push(conn, {**base, "service_policy_restricted": sent})
+            assert get_setting(conn, si.BRIDGE_POLICY) == stored, sent
+        si.note_directory_push(conn, {**base, "service_policy_restricted": True})
+        si.note_directory_push(conn, base)  # an older bridge sends no key: unknown
+        assert get_setting(conn, si.BRIDGE_POLICY) == ""
+    rows = _audit(db, "bridge.service_identity_seen")
+    assert json.loads(rows[-1]["details_json"])["policy_restricted"] is None
+    _ext(db, policy="false")
+    with db.connection(mode="read") as conn:
+        st = si.status(conn)
+    assert st["extended"]["service_policy_restricted"] is False and "service_policy_default" in {s["code"] for s in st["steps"]}
+    _ext(db, policy="true")
+    with db.connection(mode="read") as conn:
+        st = si.status(conn)
+    assert st["extended"]["service_policy_restricted"] is True and "service_policy_default" not in {s["code"] for s in st["steps"]}
+    assert si.BRIDGE_POLICY in backup.SETTINGS_KEEP  # an archive's "true" never stands in for the live report
 
 
 # ---------------------------------------------------------------- 2. switch on: each item, as the service identity, audited with ids only
@@ -249,8 +293,9 @@ def test_the_self_check_shows_both_copies_and_the_lists_follow_the_mode(db):
     _seed(db)
     with db.connection(mode="read") as conn:
         st = si.status(conn)
-    assert st["extended"] == {"permitted": True, "requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.2",
-                              "doors_addon_only": True}  # SVCIDENT3 (review S4)
+    assert st["extended"] == {"permitted": True, "requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.6",
+                              "doors_addon_only": True,  # SVCIDENT3 (review S4)
+                              "service_policy_restricted": None}  # EXTID-295 (CR-USR2 13.6): nothing reported yet
     assert {a["key"] for a in st["allowed"]} == set(si.FEATURES) and not any(s["code"].startswith("extended") for s in st["steps"])
     _ext(db, bridge_on=False)
     with db.connection(mode="read") as conn:
@@ -285,8 +330,8 @@ def test_never_lists_and_extended_tables_are_identical_on_both_sides():
     for k, d in si.EXTENDED_FEATURES.items():  # nothing on the extended never-list is in an extended table
         for svc, items in d.items():
             assert not any(si.never_local(svc, i, True) for i in items), k
-    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.2"  # SVCIDENT3: the run fences ship in 0.9.2
-    assert load("const").VERSION == "0.9.5"  # EXTID-295: the picker bridge; no stored format changed, so the requirement stays 0.9.2
+    # SVCIDENT3: the run fences ship in 0.9.2; EXTID-295 (Fable review 4): the V-01 fix and the policy report ship in 0.9.6
+    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.6" == load("const").VERSION
 
 
 # ---------------------------------------------------------------- 4. through the routes: the user's own permission still decides
@@ -308,7 +353,7 @@ def _service_user(lx) -> None:
 
 def test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_permission(lx_app, monkeypatch):
     lx = lx_app
-    secret, calls = _bridge(lx, monkeypatch, version="0.9.2")
+    secret, calls = _bridge(lx, monkeypatch, version="0.9.6")
     lx.enable()
     _service_user(lx)
     door_user, c = lx.ready("dora", "operator")  # operator: ha.entity.control, no door.unlock
@@ -328,6 +373,11 @@ def test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_
     assert r.status_code == 503 and r.json()["code"] == "service_identity_extended_bridge_off" and calls == []
     with lx.db.connection() as conn:
         set_setting(conn, si.BRIDGE_EXTENDED, "true")
+    # EXTID-295 (CR-USR2 13.6): the bridge has not reported a restricted service user - still nothing sent
+    r = _action(c, crid="d-1p", **unlock)
+    assert r.status_code == 503 and r.json()["code"] == "service_identity_policy_default" and calls == []
+    with lx.db.connection() as conn:
+        set_setting(conn, si.BRIDGE_POLICY, "true")
     # SVCIDENT3 (review S1 a): a script / scene outside the runnable allowlist (empty by default) is refused with both switches on, nothing sent
     # owner answer 2026-10-18: a script from device control also needs script.run / script.manage - an operator holds neither (audited 403)
     r = _action(p, entity="script.open_front", action="script.turn_on", crid="sr-0", confirmation_grant="confirmed")
@@ -504,7 +554,9 @@ def test_a_local_user_enables_a_live_camera_only_with_the_switch_on(live):
     def stream_source(_settings, payload):
         """What the bridge's __init__ does: screen (with its own copy of the switch), then the handler with the waiver for a screened message."""
         seen.append(dict(payload))
-        hass = FakeHass({SID: FakeUser(SID, admin=False)}, {ENTITY})
+        user = FakeUser(SID, admin=False)
+        user.groups = RESTRICTED_GROUPS  # 0.9.6 (CR-USR2 13.6): the service user is restricted
+        hass = FakeHass({SID: user}, {ENTITY})
 
         async def getter(_hass, entity_id):
             return URL
@@ -572,7 +624,7 @@ def _screened_transport(tr, *, bridge_extended: list[bool]) -> list[dict]:
 
     class _Auth:
         async def async_get_user(self, uid):
-            return SimpleNamespace(id=uid, is_active=True, is_admin=False, system_generated=False) if uid == SID else None
+            return SimpleNamespace(id=uid, is_active=True, is_admin=False, system_generated=False, groups=RESTRICTED_GROUPS) if uid == SID else None
 
     def bridge(payload):
         seen.append({k: v for k, v in payload.items() if k not in ("sig", "nonce", "ts")})
@@ -619,7 +671,7 @@ def test_runs_from_the_automations_screen_need_the_switch_on_both_sides_and_the_
     ids = _items(c)  # by the bootstrap administrator, before any override
     local = _local_runner(app, c, sensitive=["automation.manage", "scene.manage", "ha.entity.control"])  # a scene needs the control of its entity
     with app.state.db.connection() as conn:
-        set_setting(conn, "bridge.integration_version", "0.9.2")
+        set_setting(conn, "bridge.integration_version", "0.9.6")
     bridge_extended = [False]
     seen = _screened_transport(tr, bridge_extended=bridge_extended)
     _as(app, local)

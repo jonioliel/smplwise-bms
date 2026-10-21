@@ -72,6 +72,8 @@ BRIDGE_ERRORS = {
     "unauthorized": lambda d: ApiError(403, "entity_not_controllable", "אין לך הרשאת שליטה בהתקן; תשתית המערכת דחתה את הפעולה."),
     # SVCIDENT3 (bridge 0.9.2, review S1): the bridge's run fences for an Arx-only person - the allowlist and the impact check
     "service_identity_not_runnable": lambda d: ApiError(403, "service_identity_not_runnable", "הפריט אינו ברשימת ההרצה של רכיב החיבור."),
+    # EXTID-295 (bridge 0.9.6, CR-USR2 13.6): the bridge's live check found the service user's entity policy unrestricted
+    "service_identity_policy_default": lambda d: ApiError(503, "service_identity_policy_default", "זהות השירות אינה מוגבלת בתשתית המערכת, ולכן רכיב החיבור סירב להריץ את הפריט עבור משתמש Arx."),
     **{code: (lambda c: lambda d: ApiError(403, "run_impact_refused", "רכיב החיבור סירב להריץ את הפריט עבור משתמש Arx: אחד הצעדים שלו אינו מותר (דלת, נטרול, שירות מחוץ לרשימה או התקן שזהות השירות אינה רשאית לשלוט בו).",
                                          details={"reason": c}))(code)
        for code in ("impact_unknown_item", "impact_never_local", "impact_service_not_allowed", "impact_template", "impact_target_unresolved", "impact_device_action",

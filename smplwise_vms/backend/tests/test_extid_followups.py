@@ -166,13 +166,14 @@ def test_the_picker_value_is_judged_like_the_text_was():
 
 def test_bridge_094_everywhere_and_the_addon_still_needs_only_092():
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.5"
-        assert 'VERSION = "0.9.5"' in (root / "const.py").read_text(encoding="utf-8")
-        assert "const VERSION = '0.9.5'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.6"
+        assert 'VERSION = "0.9.6"' in (root / "const.py").read_text(encoding="utf-8")
+        assert "const VERSION = '0.9.6'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     for path in sorted(p for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
         rel = path.relative_to(SRC)
         assert (MIRROR / rel).read_bytes() == path.read_bytes(), rel
-    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.2"  # the picker changes no stored format: no add-on requirement moves
+    # the picker changed no stored format (0.9.4 kept 0.9.2); Fable review 4 (V-01 + CR-USR2 13.6) moved the requirement to 0.9.6
+    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.6"
 
 
 # ---------------------------------------------------------------- 3. the residual-risk text (12.3 item 3, risk R5)

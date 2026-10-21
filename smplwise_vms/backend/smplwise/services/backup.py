@@ -147,6 +147,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.external.pending_retention_days", "access.external.pending_max_per_vendor",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
                  "bridge.local_identity_extended",
+                 # EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21): the bridge's last report that the service user is restricted -
+                 # runtime state; an archive's "true" must never stand in for the live report (it would admit extended items until the next push)
+                 "bridge.service_policy_restricted",
                 # CR-WISKEY-HMAC-ROTATION-295: the key rotation switch and its reminder are this installation's policy - never from an archive
                 "bridge.key_rotation", "bridge.key_rotation.reminder_days"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"

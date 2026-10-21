@@ -30,6 +30,9 @@ compared by a drift test):
   has its own copy of the switch: both must be on. 0.9.2 (SVCIDENT3): a script / scene / automation run on behalf of an Arx-only person also
   needs the options-flow allowlist `local_identity_runnable` and the impact check of runnable.py (review S1). A security review is required
   before the switch is turned on (CR-USR2 sections 11.9 and 12).
+- 0.9.6 (EXTID-295, CR-USR2 13.6, owner decision 3 of 2026-10-21): an item only the extended mode admits is refused
+  `service_identity_policy_default` while the service user's entity policy is the default one (service_policy_restricted, read live on
+  every message); the directory push reports the same boolean (`service_policy_restricted`) so the add-on refuses before sending.
 
 Dependency-free (no Home Assistant import), so the same functions run in plain unit tests. Refusals log the code only.
 """
@@ -191,6 +194,61 @@ def obo_refusal(obo: Any, bridge_service: str, item: Any, extended: bool = False
     return None if allowed else "service_identity_refused"
 
 
+# 0.9.6 (EXTID-295, CR-USR2 13.6, owner decision 3 of 2026-10-21): the extended mode refuses by default while the service user's Home
+# Assistant entity policy is the default one - the second fence (runnable.policy_refusal) would refuse nothing then (risk R5).
+POLICY_DEFAULT = "service_identity_policy_default"
+# Home Assistant's built-in groups: `system-admin` and `system-users` allow every entity; membership in either makes the merged policy
+# unrestricted (Home Assistant merges a user's group policies, the most permissive wins).
+UNRESTRICTED_GROUPS = frozenset({"system-admin", "system-users"})
+
+
+def _grants_every_entity(policy: Any) -> bool | None:
+    """Whether ONE group policy allows controlling every entity: `entities: True`, `entities: {all: True}` or `entities: {all: {control:
+    True}}`. None when the policy is not a readable mapping (unknown)."""
+    if not isinstance(policy, dict):
+        return None
+    entities = policy.get("entities")
+    if entities is True:
+        return True
+    if entities is None or entities is False:
+        return False
+    if not isinstance(entities, dict):
+        return None
+    every = entities.get("all")
+    if every is True:
+        return True
+    if isinstance(every, dict):
+        return every.get("control") is True
+    return False if every in (None, False) else None
+
+
+def service_policy_restricted(user: Any) -> bool | None:
+    """True only when the service user is active, not an administrator and belongs to at least one group, none of which is a built-in group
+    that allows every entity and none of whose policies allows controlling every entity. False when it is the default (or allows all
+    entities). None when it cannot be told (no user, no readable groups or policies, an API that raises) - every caller treats None as
+    False (fail closed). Reports a boolean only - never the policy itself."""
+    try:
+        if user is None or not getattr(user, "is_active", False) or getattr(user, "is_admin", True):
+            return False
+        groups = getattr(user, "groups", None)
+        if groups is None:
+            return None
+        groups = list(groups)
+        if not groups:
+            return False
+        for group in groups:
+            if getattr(group, "id", None) in UNRESTRICTED_GROUPS:
+                return False
+            every = _grants_every_entity(getattr(group, "policy", None))
+            if every is None:
+                return None
+            if every:
+                return False
+        return True
+    except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: unknown (closed)
+        return None
+
+
 def configured_id(value: Any) -> str | None:
     """The service identity of the options flow, or None when unset / malformed (then every local request is refused)."""
     return value if isinstance(value, str) and HA_USER_ID_RE.fullmatch(value) else None
@@ -226,16 +284,21 @@ async def screen(hass: Any, verifier: Any, msg: dict[str, Any], bridge_service: 
             # the service identity never acts as itself; a local id is never a Home Assistant user
             return None, _refuse(msg, bridge_service, "service_identity_refused")
         return msg, None
-    why = obo_refusal(obo, bridge_service, item_of(bridge_service, msg), extended is True)
+    item = item_of(bridge_service, msg)
+    why = obo_refusal(obo, bridge_service, item, extended is True)
     if why:
         return None, _refuse(msg, bridge_service, why)
     if service_id is None:
         return None, _refuse(msg, bridge_service, "service_identity_unconfigured")
     if user_id != service_id:
         return None, _refuse(msg, bridge_service, "service_identity_refused")
-    why = user_refusal(await hass.auth.async_get_user(service_id))
+    user = await hass.auth.async_get_user(service_id)
+    why = user_refusal(user)
     if why:
         return None, _refuse(msg, bridge_service, why)
+    if extended is True and obo_refusal(obo, bridge_service, item, False) is not None and service_policy_restricted(user) is not True:
+        # 0.9.6 (CR-USR2 13.6): an item only the extended mode admits, while the service user's entity policy is the default (or unknown)
+        return None, _refuse(msg, bridge_service, POLICY_DEFAULT)
     return msg, None
 
 

@@ -6835,5 +6835,21 @@
     "test_ids": [
       "AT-WISKEYID-2"
     ]
+  },
+  {
+    "id": "R-SCHEDIMPACT-1",
+    "title": "Arx-only people cannot reach through schedules what the extended-mode run fences forbid (Fable review 4, V-02)",
+    "statement": "A schedule created, edited or run for an Arx-only (local) principal that runs a script or scene is bounded exactly like a direct run in the extended mode - both runnable allowlists and the bridge impact check under the service user's entity policy - or is refused; Home Assistant users are unaffected.",
+    "task_ids": [
+      "SCHEDIMPACT-295"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SCHEDIMPACT-1"
+    ]
   }
 ]

@@ -51,6 +51,9 @@ It does two things and nothing else:
    options-flow allowlist `local_identity_runnable` (empty by default) AND the impact check of its steps (one nested level) found no door, no
    disarm, no arming with the bypass set, no service outside the closed step list and no target the service user may not control. The list
    travels to the add-on with the directory push (the add-on has its own copy; both must list the item).
+14. Default-policy refusal (0.9.6, EXTID-295 - CR-USR2 13.6, owner decision 3 of 2026-10-21): an item only the extended mode admits is refused
+   (`service_identity_policy_default`, in service_identity.screen) while the service user's entity policy is the default one; the directory
+   push reports `service_policy_restricted` (a boolean or null). The impact check refuses a step with more than one type key (V-01).
 """
 from __future__ import annotations
 
@@ -535,11 +538,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     username = cred.data.get("username")
                     break
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
+        # 0.9.6 (EXTID-295, CR-USR2 13.6): whether the configured service user is restricted - a boolean or null, never the policy itself
+        sid = service_identity.configured_id(service_user_id())
+        policy_restricted = service_identity.service_policy_restricted(await hass.auth.async_get_user(sid)) if sid else None
         try:
             async with session.post(f"{url}/api/v1/ha/bridge/directory", json=keyset.sign({"users": users, "rotation": ROTATION_CAPABILITY, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
                                                                                 "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
                                                                                 "local_identity_extended": local_extended(),
-                                                                                "local_identity_runnable": sorted(runnable_ids())}), timeout=10) as resp:
+                                                                                "local_identity_runnable": sorted(runnable_ids()),
+                                                                                "service_policy_restricted": policy_restricted}), timeout=10) as resp:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0

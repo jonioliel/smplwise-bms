@@ -205,6 +205,101 @@ def test_closed_refusal_codes(step, code):
     assert _impact("script.x", {"script.x": ("x", _script(step))}) == code
 
 
+# ---------------------------------------------------------------- V-01 (Fable review 4, 2026-10-21): a step with more than one type key
+
+# The review's exact shape: for Home Assistant a valid DEVICE ACTION (it runs `lock.unlock` on the device), which carries a decoy `action` key
+# naming an allowed service on a matching target. Before 0.9.6 the check tested `action` first and passed it as `lock.lock`.
+DECOY = {"device_id": "abc", "domain": "lock", "type": "unlock", "entity_id": "lock.x", "action": "lock.lock"}
+
+
+@pytest.mark.parametrize("step", [
+    DECOY,
+    {**{k: v for k, v in DECOY.items() if k != "action"}, "service": "lock.lock"},  # the legacy key as the decoy
+    {**DECOY, "target": {"entity_id": "lock.x"}},
+    {"device_id": "abc", "domain": "light", "type": "turn_on", "entity_id": "0f3e", "action": "light.turn_on", "target": {"entity_id": "light.a"}},
+    {"event": "open_all_doors", "action": "light.turn_on", "target": {"entity_id": "light.a"}},  # an event dressed as a service call
+    {"scene": "scene.movie", "action": "light.turn_on", "target": {"entity_id": "light.a"}},
+    {"action": "lock.lock", "service": "lock.unlock", "entity_id": "lock.x"},  # two service keys: which one runs is not ours to guess
+    {"condition": "device", "device_id": "abc", "domain": "lock", "type": "is_locked", "entity_id": "0f3e"},  # was impact_device_action
+])
+def test_v01_a_step_with_more_than_one_type_key_is_refused(step):
+    assert _impact("script.x", {"script.x": ("x", _script(step))}) == "impact_step_unknown"
+
+
+@pytest.mark.parametrize("wrap", [
+    lambda s: {"choose": [{"conditions": [], "sequence": [s]}]},
+    lambda s: {"if": [{"condition": "state", "entity_id": "x.y", "state": "on"}], "then": [_svc("light.turn_on", "light.a")], "else": [s]},
+    lambda s: {"repeat": {"count": 1, "sequence": [s]}},
+    lambda s: {"parallel": [{"sequence": [s]}]},
+])
+def test_v01_the_decoy_is_refused_at_any_depth_and_one_level_down(wrap):
+    assert _impact("script.x", {"script.x": ("x", _script(_svc("light.turn_on", "light.a"), wrap(DECOY)))}) == "impact_step_unknown"
+    items = {"script.a": ("a", _script(_svc("script.turn_on", "script.b"))), "script.b": ("b", _script(wrap(DECOY)))}
+    assert _impact("script.a", items) == "impact_step_unknown"
+    automation = {"automation.n": ("a1", {"id": "a1", "actions": [wrap(DECOY)]})}
+    assert _impact("automation.n", automation) == "impact_step_unknown"
+
+
+def test_v01_a_plain_device_action_is_still_a_device_action_and_the_decoy_target_alone_passes():
+    plain = {k: v for k, v in DECOY.items() if k != "action"}
+    assert _impact("script.x", {"script.x": ("x", _script(plain))}) == "impact_device_action"
+    assert _impact("script.x", {"script.x": ("x", _script(_svc("lock.lock", "lock.x")))}) is None  # the decoy's own service, alone: allowed
+
+
+def test_v01_every_pair_of_type_keys_is_refused_whatever_home_assistants_order():
+    """Table-driven, documented: the fix must not depend on the order in which Home Assistant picks among several type keys (that order is
+    NOT VERIFIED here - no Home Assistant package on this workstation). Every pair of distinct type keys refuses the step."""
+    values = {"delay": "00:00:01", "wait_template": "{{ true }}", "condition": "state", "and": [], "or": [], "not": [], "event": "e",
+              "device_id": "abc", "action": "light.turn_on", "service": "light.turn_on", "service_template": "light.turn_on", "scene": "scene.s",
+              "repeat": {"count": 1, "sequence": []}, "choose": [], "wait_for_trigger": [], "variables": {"x": 1}, "if": [], "parallel": [],
+              "stop": "done", "sequence": [], "set_conversation_response": "ok"}
+    assert set(values) == set(rn.ACTION_TYPE_KEYS) and len(rn.ACTION_TYPE_KEYS) == len(set(rn.ACTION_TYPE_KEYS))
+    keys = list(rn.ACTION_TYPE_KEYS)
+    for i, a in enumerate(keys):
+        for b in keys[i + 1:]:
+            step = {a: values[a], b: values[b], "target": {"entity_id": "light.a"}}
+            assert _impact("script.x", {"script.x": ("x", _script(step))}) == "impact_step_unknown", (a, b)
+
+
+# The single-key classification as this check applies it (one type key only). Home Assistant's order matters only when several keys meet,
+# and those steps are refused above; this table documents what each single kind means here.
+SINGLE_KEY_OUTCOME = [
+    ({"delay": "00:00:01"}, None),
+    ({"wait_template": "{{ is_state('light.a', 'on') }}", "timeout": 5}, None),
+    ({"condition": "state", "entity_id": "lock.front", "state": "locked"}, None),
+    ({"and": []}, "impact_step_unknown"),  # the shorthand condition forms are not walked: refused (conservative)
+    ({"event": "e"}, "impact_event"),
+    ({"device_id": "abc", "domain": "light", "type": "turn_on", "entity_id": "0f3e"}, "impact_device_action"),
+    (_svc("light.turn_on", "light.a"), None),
+    ({"service": "light.turn_on", "entity_id": "light.a"}, None),
+    ({"service_template": "light.turn_on", "entity_id": "light.a"}, "impact_step_unknown"),
+    ({"scene": "scene.unknown"}, "impact_nested_not_runnable"),  # a nested call: judged against the allowlist first
+    ({"repeat": {"count": 1, "sequence": [_svc("light.turn_on", "light.a")]}}, None),
+    ({"choose": [], "default": [_svc("light.turn_on", "light.a")]}, None),
+    ({"wait_for_trigger": [], "timeout": 5}, None),
+    ({"variables": {"x": 1}}, None),
+    ({"if": [], "then": [_svc("light.turn_on", "light.a")]}, None),
+    ({"parallel": [_svc("light.turn_on", "light.a")]}, None),
+    ({"stop": "done"}, None),
+    ({"sequence": [_svc("light.turn_on", "light.a")]}, None),
+    ({"set_conversation_response": "ok"}, None),
+]
+
+
+@pytest.mark.parametrize("step,code", SINGLE_KEY_OUTCOME)
+def test_v01_single_type_key_classification_table(step, code):
+    assert _impact("script.x", {"script.x": ("x", _script(step))}, runnable={"script.x"}) == code
+
+
+def test_v01_against_the_installed_home_assistant_schema_when_present():
+    """Runs only where the `homeassistant` package is installed (NOT on the development workstation - reported NOT_RUN there). It checks the
+    review's premise: Home Assistant decides the decoy step's type as a DEVICE action, and our list of type keys is exactly Home Assistant's."""
+    cv = pytest.importorskip("homeassistant.helpers.config_validation")
+    assert set(cv.ACTIONS_MAP) == set(rn.ACTION_TYPE_KEYS)
+    assert cv.determine_script_action(DECOY) == cv.SCRIPT_ACTION_DEVICE_AUTOMATION
+    assert _impact("script.x", {"script.x": ("x", _script(DECOY))}) == "impact_step_unknown"
+
+
 def test_a_scene_setting_a_garage_or_unknown_cover_is_refused():
     for cover in ("cover.garage", "cover.gate", "cover.front_door", "cover.unknown_class", "cover.not_in_ha"):
         scene = {"id": "s1", "entities": {"light.a": "on", cover: "open"}}
@@ -394,9 +489,9 @@ def test_init_wires_the_fences_for_screened_messages_only():
 
 def test_version_092_both_copies_identical_and_strings():
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.5"
-        assert 'VERSION = "0.9.5"' in (root / "const.py").read_text(encoding="utf-8")
-        assert "const VERSION = '0.9.5'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.9.6"
+        assert 'VERSION = "0.9.6"' in (root / "const.py").read_text(encoding="utf-8")
+        assert "const VERSION = '0.9.6'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     for path in sorted(p for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
         rel = path.relative_to(SRC)
         assert (MIRROR / rel).read_bytes() == path.read_bytes(), rel
