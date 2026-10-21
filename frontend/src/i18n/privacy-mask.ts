@@ -84,6 +84,11 @@ const he = {
   e_not_rollbackable: 'אי אפשר להחזיר את השינוי הזה.',
   e_nvr_verify_mismatch: 'ההחזרה לא אומתה. יש לבדוק את המצלמה.',
   e_generic: 'הפעולה נכשלה. לא נשלח דבר נוסף.',
+  sw_label: 'כתיבת מסכות פרטיות ל-NVR',
+  sw_confirm: 'שום דבר לא נכתב לפני לחיצה על כפתור הכתיבה בכל פעם.',
+  sw_turn_on: 'הפעלה',
+  sw_saving: 'שומר…',
+  sw_err: 'השינוי לא נשמר. נסו שוב.',
 };
 
 export type PmKey = keyof typeof he;
@@ -168,6 +173,11 @@ const en: Record<PmKey, string> = {
   e_not_rollbackable: 'This change cannot be undone.',
   e_nvr_verify_mismatch: 'The restore was not verified. Check the camera.',
   e_generic: 'The action failed. Nothing else was sent.',
+  sw_label: 'Write privacy masks to the NVR',
+  sw_confirm: 'Nothing is written until you press the write button each time.',
+  sw_turn_on: 'Turn on',
+  sw_saving: 'Saving…',
+  sw_err: 'The change was not saved. Try again.',
 };
 
 const ar: Record<PmKey, string> = {
@@ -250,6 +260,11 @@ const ar: Record<PmKey, string> = {
   e_not_rollbackable: 'لا يمكن التراجع عن هذا التغيير.',
   e_nvr_verify_mismatch: 'لم يتم التحقق من الاستعادة. افحص الكاميرا.',
   e_generic: 'فشل الإجراء. لم يُرسل أي شيء آخر.',
+  sw_label: 'كتابة أقنعة الخصوصية إلى NVR',
+  sw_confirm: 'لا يُكتب شيء قبل الضغط على زر الكتابة في كل مرة.',
+  sw_turn_on: 'تشغيل',
+  sw_saving: 'جارٍ الحفظ…',
+  sw_err: 'لم يتم حفظ التغيير. حاول مرة أخرى.',
 };
 
 const ru: Record<PmKey, string> = {
@@ -332,6 +347,11 @@ const ru: Record<PmKey, string> = {
   e_not_rollbackable: 'Это изменение нельзя отменить.',
   e_nvr_verify_mismatch: 'Восстановление не подтверждено. Проверьте камеру.',
   e_generic: 'Действие не удалось. Больше ничего не отправлено.',
+  sw_label: 'Запись масок приватности в NVR',
+  sw_confirm: 'Ничего не записывается, пока вы каждый раз не нажмёте кнопку записи.',
+  sw_turn_on: 'Включить',
+  sw_saving: 'Сохранение…',
+  sw_err: 'Изменение не сохранено. Повторите попытку.',
 };
 
 export type PmLang = 'he' | 'en' | 'ar' | 'ru';

@@ -42,6 +42,9 @@ export interface MaskMock {
   seq: number;
   /** a snapshot request answers 404 for this camera */
   noPicture: string[];
+  /** MASKSWITCH-295: PATCH settings bodies, and whether the PATCH answers 500 */
+  settingPatches: Record<string, unknown>[];
+  settingFail: boolean;
 }
 
 const FRAME = { width: 704, height: 576 };
@@ -62,7 +65,7 @@ export function newMaskMock(over: Partial<Pick<MaskMock, 'switchOn' | 'canWrite'
       'cam-2': mk(false, []),
       'cam-3': mk(true, [{ id: '1', points: rect(420, 300, 200, 150) }, { id: '2', points: [[60, 400], [200, 380], [230, 520], [40, 540]] }]),
     },
-    mode: {}, readDown: [], hits: [], previews: [], applies: [], rollbacks: [], changes: [], seq: 0, noPicture: [],
+    mode: {}, readDown: [], settingPatches: [], settingFail: false, hits: [], previews: [], applies: [], rollbacks: [], changes: [], seq: 0, noPicture: [],
   };
 }
 
@@ -85,6 +88,18 @@ export async function installMask(page: Page, st: MaskMock) {
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     const camName = (id: string) => st.base.cameras.find((c) => c.camera_id === id)?.name ?? id;
     st.hits.push(`${method} ${p}`);
+
+    if (p === 'settings' && method === 'GET') {
+      return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.tabs': {}, 'nvr.privacy_mask_write': st.switchOn ? 'true' : 'false' }, can_edit: true });
+    }
+    if (p === 'settings' && method === 'PATCH') {
+      const body = req.postDataJSON() as Record<string, unknown>;
+      st.settingPatches.push(body);
+      if (st.settingFail) return json(err('internal', 'x'), 500);
+      if (!st.base.perms.includes('system.configure')) return json(err('forbidden', 'x'), 403);
+      if ('nvr.privacy_mask_write' in body) st.switchOn = body['nvr.privacy_mask_write'] === 'true';
+      return json({ settings: { 'nvr.privacy_mask_write': st.switchOn ? 'true' : 'false' }, can_edit: true });
+    }
 
     let m = /^cameras\/([^/]+)\/snapshot\.jpg$/.exec(p);
     if (m) return st.noPicture.includes(m[1]) ? route.fulfill({ status: 404, body: '' }) : route.fulfill({ status: 200, contentType: 'image/svg+xml', body: scene(m[1]) });
