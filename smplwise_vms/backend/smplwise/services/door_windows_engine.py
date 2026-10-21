@@ -5,7 +5,8 @@ through the two Protocols below, so the whole feature runs against fakes in test
 fakes) and against the simulated `DrillEngine` in drills - and nothing in a test or a drill can reach a station, a door or a reader.
 
 The live classes (`WiskeyProgramEngine`, `WiskeyEmergencyEngine`) refuse every call while the owner's go-live permit is not in the build
-(`GO_LIVE_PERMITTED`, the access_grants / capture_lease pattern). Below that guard they answer `not_implemented`: the WisKey execution
+(`GO_LIVE_PERMITTED`, the access_grants / capture_lease pattern) - except an emergency RELEASE, which never needs the permit (review 3
+DW-05: an incident must always be endable, E-01). Below that guard they answer `not_implemented`: the WisKey execution
 coordinators for hold-open programs and the W13 emergency family are NOT_IMPLEMENTED on the WisKey side (owner directive 2026-10-20), and Arx
 does not invent their wire shapes. NOTHING here has run against a WisKey (NOT_RUN).
 
@@ -190,17 +191,19 @@ class WiskeyEmergencyEngine:
         self.settings = settings
 
     @staticmethod
-    def _guard() -> None:
-        if not go_live_permitted():
+    def _guard(phase: str) -> None:
+        # DW-05 (review 3, review 2 E-01): a RELEASE never needs the permit - a build whose permit is False must still be able to end an
+        # incident a build with the permit started. Only the release command itself has to exist.
+        if phase != "release" and not go_live_permitted():
             raise EngineError("not_permitted", "door_emergency_not_permitted")
         raise EngineError("not_implemented", "wiskey_emergency_coordinator_not_implemented")
 
     def apply(self, kind: str, station_id: str, relay: int, request_id: str, reason: str) -> DoorOutcome:
-        self._guard()
+        self._guard("apply")
         raise AssertionError("unreachable")
 
     def release(self, kind: str, station_id: str, relay: int, request_id: str) -> DoorOutcome:
-        self._guard()
+        self._guard("release")
         raise AssertionError("unreachable")
 
 
