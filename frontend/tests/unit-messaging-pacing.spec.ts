@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { MP_KEYS, MP_TABLES, mp } from '../src/i18n/messaging-pacing';
-import { changedWaits, slowed, span, tone, waitValue } from '../src/messaging/pacing-model';
+import { changedWaits, intValue, slowed, span, tone, waitValue } from '../src/messaging/pacing-model';
 import { messagingPacingApi, resetDemoMessagingPacing, type PacingAccount, type PacingView } from '../src/api/messaging-pacing';
 
 // CR-WA-PACING-295: the pure logic, the words and the demo backend of the shared send-budget card. Runs in Node (no page):
 //   npx playwright test -c playwright.unit.config.ts tests/unit-messaging-pacing.spec.ts
 
 const account = (over: Partial<PacingAccount> = {}): PacingAccount => ({
-  account_key: 'entry:A', sends_1h: 0, sends_24h: 0, wiskey_1h: 0, wiskey_24h: 0, waiting: 0, waiting_by_class: {}, oldest_wait_s: null,
+  account_key: 'entry:A', wiskey: { mapped: false, verified: false, unknown: false, charged: null, throttled_until: null, leases_active: 0 }, sends_1h: 0, sends_24h: 0, wiskey_1h: 0, wiskey_24h: 0, waiting: 0, waiting_by_class: {}, oldest_wait_s: null,
   counters_24h: { sent: 0, deferred: 0, backoff: 0, pair_backoff: 0, expired: 0 }, backoff: null, pairs_in_backoff: 0, ...over,
 });
 
@@ -43,6 +43,11 @@ test('queue limits: whole numbers 1..2880 only', () => {
   for (const bad of ['', '0', '2881', '1.5', '-3', 'abc', '12345']) expect(waitValue(bad), bad).toBeNull();
 });
 
+test('rate fields: whole numbers in range only', () => {
+  expect(intValue('10', 1, 120)).toBe(10);
+  for (const bad of ['', '0', '121', '1.5', 'x']) expect(intValue(bad, 1, 120), bad).toBeNull();
+});
+
 test('only changed limits are sent', () => {
   const view = { max_wait_min: { alert: 60, code: 5, ticket: 360, reminder: 720 } } as PacingView;
   expect(changedWaits(view, { code: 5, ticket: 90 })).toEqual({ ticket: 90 });
@@ -63,11 +68,15 @@ test('the demo backend starts conservative and follows a save', async () => {
   const v = await api.view();
   expect(v.mode).toBe('conservative');
   expect(v.applies).toBe(true);
+  expect(v.budget).toEqual({ per_minute: 10, burst: 5, burst_window_s: 10 });
+  expect(v.shared_budget_guaranteed).toBe(false);
   const off = await api.save({ mode: 'off' });
   expect(off.applies).toBe(false);
   expect(off.budget).toBeNull();
   const std = await api.save({ mode: 'standard', max_wait_min: { ticket: 90 } });
-  expect(std.budget?.per_minute).toBe(6);
+  expect(std.budget?.per_minute).toBe(20);
+  const own = await api.save({ per_minute: 15, burst: 6 });
+  expect(own.budget).toEqual({ per_minute: 15, burst: 6, burst_window_s: 10 });
   expect(std.max_wait_min.ticket).toBe(90);
   expect(std.max_wait_min.code).toBe(5);
   resetDemoMessagingPacing();

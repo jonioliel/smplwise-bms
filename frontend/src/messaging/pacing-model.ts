@@ -13,6 +13,15 @@ export function span(seconds: number): { n: number; u: 's' | 'm' | 'h' } {
   return { n: Math.round(s / 3600), u: 'h' };
 }
 
+/** A whole number in [lo, hi] from a field, or null. */
+export function intValue(raw: string, lo: number, hi: number): number | null {
+  if (!/^\d{1,4}$/.test(raw.trim())) return null;
+  const n = Number(raw);
+  return n >= lo && n <= hi ? n : null;
+}
+export const MINUTE_RANGE: [number, number] = [1, 120];
+export const BURST_RANGE: [number, number] = [1, 60];
+
 /** A queue-limit field's value -> the minutes to send, or null when it is not a whole number in range. */
 export function waitValue(raw: string): number | null {
   if (!/^\d{1,4}$/.test(raw.trim())) return null;

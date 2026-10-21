@@ -10,7 +10,7 @@ import { messagingPacingApi, PACING_CLASSES, PACING_MODES, type PacingAccount, t
 import { settingsStyles } from '../styles/settings';
 import { bidi } from '../i18n/bidi';
 import { mp, type MpKey } from '../i18n/messaging-pacing';
-import { changedWaits, span, tone, waitValue } from '../messaging/pacing-model';
+import { BURST_RANGE, MINUTE_RANGE, changedWaits, intValue, span, tone, waitValue } from '../messaging/pacing-model';
 
 /**
  * CR-WA-PACING-295: the shared send budget (Settings > messaging channel). One card: the mode (conservative by default), whether WisKey
@@ -107,6 +107,16 @@ export class MessagingPacingCard extends LitElement {
     else this.edited = {};
   }
 
+  private commitRate(field: 'per_minute' | 'burst', raw: string): void {
+    const range = field === 'per_minute' ? MINUTE_RANGE : BURST_RANGE;
+    const n = intValue(raw, range[0], range[1]);
+    if (n === null) {
+      this.error = mp(field === 'per_minute' ? 'err_minute' : 'err_burst');
+      return;
+    }
+    void this.save({ [field]: n });
+  }
+
   private duration(seconds: number): string {
     const s = span(seconds);
     return mp(`unit_${s.u}` as MpKey, { n: s.n });
@@ -119,6 +129,7 @@ export class MessagingPacingCard extends LitElement {
     return html`<div class="acct" data-pacing-account=${a.account_key} data-tone=${t}>
       <div class="head"><strong>${bidi(this.labels[a.account_key] ?? a.account_key)}</strong>
         ${a.backoff ? html`<span class="tag warn" data-backoff><sw-icon name="warning" size="14"></sw-icon>${mp('backoffUntil', { time: until })}</span>` : nothing}
+        ${a.wiskey.unknown ? html`<span class="tag" data-wiskey-unknown>${mp('wiskeyUnknown')}</span>` : nothing}
         ${a.pairs_in_backoff ? html`<span class="tag warn" data-pairs>${mp('pairs', { n: a.pairs_in_backoff })}</span>` : nothing}
         ${c.expired ? html`<span class="tag bad" data-expired>${mp('expired')}: ${c.expired}</span>` : nothing}</div>
       <div class="kv">
@@ -154,6 +165,12 @@ export class MessagingPacingCard extends LitElement {
       <div class="row"><span class="lbl">${mp('wiskey')}</span>
         <sw-toggle label=${mp('wiskey')} labelHidden data-pacing-wiskey .checked=${v.wiskey_shared} ?disabled=${!this.editable || this.busy}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ wiskey_shared: e.detail.checked })}></sw-toggle></div>
+      <div class="row stack"><span class="lbl">${mp('perMinute')} / ${mp('burstLbl')}</span>
+        <div class="waits" data-pacing-rate>
+          <label>${mp('perMinute')}<input class="in" inputmode="numeric" data-rate="per_minute" .value=${String(v.budget?.per_minute ?? '')} ?disabled=${!this.editable || this.busy || !v.budget}
+            @change=${(e: Event) => this.commitRate('per_minute', (e.target as HTMLInputElement).value)}></label>
+          <label>${mp('burstLbl')}<input class="in" inputmode="numeric" data-rate="burst" .value=${String(v.budget?.burst ?? '')} ?disabled=${!this.editable || this.busy || !v.budget}
+            @change=${(e: Event) => this.commitRate('burst', (e.target as HTMLInputElement).value)}></label></div></div>
       <div class="row stack"><span class="lbl">${mp('limits')}</span>
         <div class="waits" data-pacing-limits>${PACING_CLASSES.map((k) => html`<label>${mp(`cls_${k}` as MpKey)}
           <input class="in" inputmode="numeric" data-wait=${k} .value=${this.edited[k] ?? String(v.max_wait_min[k])} ?disabled=${!this.editable || this.busy}
