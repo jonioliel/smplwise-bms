@@ -390,6 +390,15 @@ None holds secret material; a restore never loosens any of them (CR-033 §9 rule
 | WisKey's rejection of a lease whose actor is a system-generated / service HA user | 4 | W? |
 | Bridge 0.9.x line with `door_open` (CR-033 D5b) and CR-034's multi-key verifier | L4 | planned |
 
+**Amendment LEASEARX-295 (2026-10-21), after WisKey's answer of the same day** (contract detail and change record:
+`docs/contracts/wiskey-capture-lease/SCHEMA.md` section 7): the bridge services are FINAL as `smplwise_bridge.lease_event` (the stream)
+and `smplwise_bridge.lease_request` (the four lease requests), both on the DTO v3 wire with `protocol = wiskey-capture-lease-v1` and service
+data exactly `{signed_message_json}` - not a generalized W1 envelope, no grant / decision field. The v1 lease wire is closed: no `kid` on
+it (the key id of a rotated key is bound into the MAC and the bridge tries the key ids of its key set; review L-05). The answers are the
+four closed answer schemas and the closed code table, enforced in `services/lease_answers.py`. WisKey approved the contract for
+implementation with corrections; its consumer is not proven, the Arx route stays off (`GO_LIVE_PERMITTED = False`,
+`MIN_BRIDGE_FOR_CAPTURE_LEASE = None`) and a go-live needs the owner's separate permit.
+
 ### 7.5 Open questions for the owner (numbered; short lettered options; the lead's recommendation marked *)
 
 1. **אורך ברירת המחדל של ה-lease** (התקרה 120 ש' קבועה):

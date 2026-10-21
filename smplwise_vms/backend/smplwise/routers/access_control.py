@@ -1620,7 +1620,7 @@ def _lease_start(request: Request, act: _Action, conn: sqlite3.Connection, auth:
             answer = None
     finally:
         conn.execute("BEGIN")  # deferred, lock-free: nothing more is written on the request connection
-    kind, data = capture_lease_route.classify_request(answer, signed.request_id) if answer is not None else ("unknown", {"code": "no_answer"})
+    kind, data = capture_lease_route.classify_request(answer, signed.request_id, "capture_start") if answer is not None else ("unknown", {"code": "no_answer"})
     capture_lease_route._clock_check(kind, data)
     session = None
     if kind == "ok":
@@ -1732,7 +1732,7 @@ def _lease_confirm_admitted(act: _Action, auth: ia.Authority, capture: Any, db: 
             log.warning("capture lease confirm: no clear answer (%s)", type(exc).__name__)
     finally:
         act.conn.execute("BEGIN")
-    kind, data = capture_lease_route.classify_request(answer, signed.request_id) if answer is not None else ("unknown", {"code": "no_answer"})
+    kind, data = capture_lease_route.classify_request(answer, signed.request_id, "capture_confirm") if answer is not None else ("unknown", {"code": "no_answer"})
     capture_lease_route._clock_check(kind, data)
     if kind in ("refused", "rejected"):
         code = data["code"]
@@ -1787,7 +1787,7 @@ def _lease_cancel(request: Request, act: _Action, capture: Any) -> dict[str, Any
             log.warning("capture lease cancel: no clear answer (%s)", type(exc).__name__)
     finally:
         act.conn.execute("BEGIN")
-    kind, data = capture_lease_route.classify_request(answer, signed.request_id) if answer is not None else ("unknown", {"code": "no_answer"})
+    kind, data = capture_lease_route.classify_request(answer, signed.request_id, "capture_cancel") if answer is not None else ("unknown", {"code": "no_answer"})
     capture_lease_route._clock_check(kind, data)
     if kind == "ok" and data.get("cancelled") is True:
         CAPTURES.set_state(capture, "cancelled", only_from=POLLED)

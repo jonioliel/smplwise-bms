@@ -10,12 +10,16 @@ What leaves Arx here, all signed with the pairing secret through services/truste
   independent "lose authority" signal). Retrying is allowed because the message only REMOVES authority (CR section 8.1).
 - `lease_heartbeat` - every HEARTBEAT_S while at least one lease is live; repeats the last sequence, carries the live lease
   refs (<= 8), grants nothing, never extends a lease. WisKey destroys every live lease after SILENCE_S without a revoke or a
-  heartbeat (WisKey's rule, W?). Heartbeats are not audited per message: `.heartbeat_start` / `.heartbeat_stop` only.
+  heartbeat (WisKey's rule, confirmed 2026-10-21). Heartbeats are not audited per message: `.heartbeat_start` / `.heartbeat_stop` only.
 - `lease_stream_reset` - a new stream (start-up with live rows or the route on, re-pair, restore, key rotation, a host that
   lost the stream): every lease from an earlier stream is destroyed on the host; the new stream's sequence 1.
 
-THE TRANSPORT IS AN INTERFACE (slice L4 - the bridge service `smplwise_bridge.lease_event` - waits for WisKey's consumer):
-`BridgeLeaseTransport` is what the bridge line 0.9.x will be called through; it is never reached in this build because the
+THE WIRE IS CLOSED (LEASEARX-295, WisKey's answer of 2026-10-21): DTO v3, `protocol = wiskey-capture-lease-v1`, the service data exactly
+`{signed_message_json}`, no generalized W1 envelope field, and no `kid` on the wire (lease.schema.json is closed). The final service names
+are SERVICE_EVENT and SERVICE_REQUEST below; they are written in this one place only.
+
+THE TRANSPORT IS AN INTERFACE (slice L4 - the bridge services below - waits for the bridge release and WisKey's consumer):
+`BridgeLeaseTransport` is what the bridge line 0.9.x is called through; it is never reached in this build because the
 route cannot be switched on (capture_lease.MIN_BRIDGE_FOR_CAPTURE_LEASE is None) and nothing is sent while no lease is live.
 Tests install a fake transport (tests/fake_trusted_bridge.py `FakeLeaseBridge` + tests/fake_wiskey.py `FakeLeaseHost`).
 
@@ -33,7 +37,7 @@ from typing import Any, Protocol
 from ..db import Database, get_setting, is_busy
 from . import capture_lease as cl
 from . import bridge_rotation as _rotation
-from . import ha_bridge, trusted_caller
+from . import ha_bridge, lease_answers, trusted_caller
 from .wiskey_channels import LEASE_SIGNED
 
 log = logging.getLogger("smplwise.capture_lease")
@@ -48,7 +52,7 @@ ALL_ACTIONS = EVENT_ACTIONS + REQUEST_ACTIONS
 RETRY_S = 2.0
 CANCEL_AFTER_S = 5.0
 HEARTBEAT_S = 5.0  # owner decision 2026-10-16 q3
-SILENCE_S = 15.0  # WisKey destroys after this much silence (W?); Arx uses it only to name a reconciliation `host_silence`
+SILENCE_S = 15.0  # WisKey destroys after this much silence (confirmed 2026-10-21); Arx uses it only to name a reconciliation `host_silence`
 DEADLINE_GRACE_S = 15.0  # retries stop lease_expires_at + this
 TICK_S = 0.25
 JANITOR_S = 1.0
@@ -69,27 +73,32 @@ TEST_SUPPRESS_HEARTBEAT = False
 
 class LeaseTransport(Protocol):
     def event(self, settings: Any, text: str) -> Any:
-        """`smplwise_bridge.lease_event` with {signed_message_json: text}, return_response."""
+        """`smplwise_bridge.lease_event` (SERVICE_EVENT) with {signed_message_json: text}, return_response."""
 
     def request(self, settings: Any, action: str, text: str) -> Any:
-        """One of the four lease requests (capture_start / status / confirm / cancel) through the trusted-caller transport."""
+        """One of the four lease requests (capture_start / status / confirm / cancel): `smplwise_bridge.lease_request` (SERVICE_REQUEST)."""
+
+
+BRIDGE_DOMAIN = "smplwise_bridge"
+SERVICE_EVENT = "lease_event"  # lease_revoke | lease_heartbeat | lease_stream_reset (FINAL, WisKey 2026-10-21)
+SERVICE_REQUEST = "lease_request"  # capture_start | capture_status | capture_confirm | capture_cancel (FINAL, WisKey 2026-10-21)
+SERVICE_DATA_KEY = "signed_message_json"  # the service data is exactly {signed_message_json}
 
 
 class BridgeLeaseTransport:
-    """The real transport, for the bridge line that will offer it (slice L4, PENDING). `lease_event` is the CR's service
-    name; the service that carries the four lease REQUESTS is WisKey's generalized W1 envelope, whose bridge service name
-    WisKey's revised C04 has not fixed - `lease_request` here is PROVISIONAL. Unreachable in this build (the route cannot be
-    switched on while MIN_BRIDGE_FOR_CAPTURE_LEASE is None)."""
+    """The real transport, for the bridge line that will offer it (slice L4, PENDING). Two services, both with `supports_response: ONLY`
+    and data exactly `{signed_message_json}`: `smplwise_bridge.lease_event` (the revocation stream) and `smplwise_bridge.lease_request`
+    (the four lease requests). Unreachable in this build (the route cannot be switched on while MIN_BRIDGE_FOR_CAPTURE_LEASE is None)."""
 
     def event(self, settings: Any, text: str) -> Any:
         from . import ha_client
 
-        return ha_client.call_service(settings, "smplwise_bridge", "lease_event", {"signed_message_json": text}, return_response=True)
+        return ha_client.call_service(settings, BRIDGE_DOMAIN, SERVICE_EVENT, {SERVICE_DATA_KEY: text}, return_response=True)
 
     def request(self, settings: Any, action: str, text: str) -> Any:
         from . import ha_client
 
-        return ha_client.call_service(settings, "smplwise_bridge", "lease_request", {"signed_message_json": text}, return_response=True)
+        return ha_client.call_service(settings, BRIDGE_DOMAIN, SERVICE_REQUEST, {SERVICE_DATA_KEY: text}, return_response=True)
 
 
 TRANSPORT: LeaseTransport = BridgeLeaseTransport()
@@ -111,6 +120,7 @@ class NotSendable(Exception):
 
 
 def _secret(conn: sqlite3.Connection) -> str:
+    """The signing key (a `ha_bridge.BridgeKey` once the key set exists). Its key id never goes on a lease wire: see `sign`."""
     if _rotation.door_commands_paused(conn):  # HMACACT2-295: held, not dropped - the event worker retries a NotSendable
         raise NotSendable(_rotation.PAUSE_CODE)
     secret = ha_bridge.signing_key(conn)
@@ -121,45 +131,30 @@ def _secret(conn: sqlite3.Connection) -> str:
 
 def sign(conn: sqlite3.Connection, action: str, actor_id: str, display_name: str, station: str, params: dict[str, Any],
          request_id: str | None = None, nonce: str | None = None, at: Any = None) -> trusted_caller.Signed:
-    """One signed lease-route message with the host clock (capture_lease.now). Raises NotSendable before anything leaves."""
+    """One signed lease-route message with the host clock (capture_lease.now). Raises NotSendable before anything leaves.
+
+    The v1 lease wire is CLOSED (lease.schema.json has no `kid`): after a key rotation the message is signed with the v2 recipe of the
+    current key (the key id is bound into the MAC) but the `kid` field is NOT put on the wire (review L-05); the bridge verifies by
+    trying the key ids its key set accepts."""
     secret = _secret(conn)
     try:
         return trusted_caller.sign(secret, protocol=cl.PROTOCOL, actions=ALL_ACTIONS, action=action, actor_id=actor_id, display_name=display_name,
                                    station=station, params=params, request_id=request_id or str(uuid.uuid4()), lifetime_s=MESSAGE_LIFETIME_S,
-                                   max_lifetime_s=MESSAGE_LIFETIME_S, max_bytes=MAX_MESSAGE_BYTES, now=at or cl.now(), nonce=nonce)
+                                   max_lifetime_s=MESSAGE_LIFETIME_S, max_bytes=MAX_MESSAGE_BYTES, now=at or cl.now(), nonce=nonce, kid_on_wire=False)
     except (trusted_caller.MessageInvalid, ValueError):
         raise NotSendable("message_invalid") from None
 
 
 # ---------------------------------------------------------------- answers (closed set, CR 1.2)
 
-def classify(answer: Any, request_id: str, sequence: int | None = None) -> tuple[str, dict[str, Any]]:
+def classify(answer: Any, request_id: str, sequence: int | None = None, action: str | None = None) -> tuple[str, dict[str, Any]]:
     """(kind, data). kind: one of ACK_RESULTS, `rejected` (data: code = "<stage>/<code>"), or `invalid` (not one of the
-    closed shapes, or it names another request / another sequence: NOT an acknowledgement - F6)."""
+    closed shapes of lease.schema.json `answer_event`, or it names another request / another sequence: NOT an acknowledgement - F6).
+    The closed shapes and the stage / request_id rules live in services/lease_answers.py."""
     r = trusted_caller.response_of(answer)
     if r is None:
         return "invalid", {"code": "invalid_response"}
-    result = r.get("result")
-    rid = r.get("request_id")
-    if result == "rejected":
-        stage, code = cl.bridge_text(r.get("stage")), cl.bridge_text(r.get("code"))  # bounded before audit / API (review L1)
-        if rid not in (None, request_id) or stage is None or code is None:
-            return "invalid", {"code": "invalid_response"}
-        return "rejected", {"code": f"{stage}/{code}"}
-    if rid != request_id or result not in ACK_RESULTS:
-        return "invalid", {"code": "invalid_response"}
-    if result == "unknown_stream":
-        return result, {}
-    seq = r.get("sequence")
-    if type(seq) is not int or (sequence is not None and seq != sequence):
-        return "invalid", {"code": "invalid_response"}
-    data: dict[str, Any] = {"sequence": seq}
-    for key in ("destroyed", "last_sequence"):
-        if type(r.get(key)) is int and r[key] >= 0:
-            data[key] = r[key]
-    if isinstance(r.get("live_leases"), list):
-        data["live_leases"] = [x for x in r["live_leases"] if isinstance(x, str)][:64]
-    return result, data
+    return lease_answers.classify_event(r, request_id, sequence, action)
 
 
 # ---------------------------------------------------------------- the worker
@@ -386,7 +381,7 @@ class LeaseWorker:
             return
         self._audit_aside("intercom.capture_lease.event_sent", f"stream:{p.stream_id}",
                           {"action": p.action, "request_id": signed.request_id, "body_sha256": signed.body_sha256, "attempt": p.attempts, "sequence": p.sequence})
-        kind, data = classify(answer, signed.request_id, p.sequence)
+        kind, data = classify(answer, signed.request_id, p.sequence, p.action)
         self._on_answer(p, kind, data)
 
     def _on_answer(self, p: Pending, kind: str, data: dict[str, Any]) -> None:
@@ -529,7 +524,7 @@ class LeaseWorker:
         except Exception as exc:  # noqa: BLE001 - a heartbeat that cannot be sent is simply missed; the host's silence rule is the backstop
             log.debug("capture lease heartbeat not sent (%s)", getattr(exc, "code", type(exc).__name__))
             return
-        kind, data = classify(answer, signed.request_id, params["sequence"])
+        kind, data = classify(answer, signed.request_id, params["sequence"], "lease_heartbeat")
         if kind == "rejected":
             if data["code"] in CLOCK_CODES:
                 self._clock_invalid()

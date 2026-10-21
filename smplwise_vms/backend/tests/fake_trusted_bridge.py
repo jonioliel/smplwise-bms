@@ -175,10 +175,12 @@ class FakeLeaseBridge:
             dto = self._lc.validate(service, {"signed_message_json": text}, self.clock.now(), self.secret, self.nonces)
         except self._lc.Reject as exc:
             answer: Any = {"result": "rejected", "stage": exc.stage, "code": exc.code}
+            if exc.request_id is not None:  # closed answers: request_id iff the schema stage passed
+                answer["request_id"] = exc.request_id
             self.calls.append({"service": service, "text": text, "answer": answer})
             return answer
         if self.clock_invalid:
-            answer = {"result": "rejected", "stage": "time", "code": "clock_invalid"}
+            answer = {"result": "rejected", "stage": "time", "code": "clock_invalid", "request_id": dto.request_id}
             self.calls.append({"service": service, "text": text, "answer": answer, "dto": dto})
             return answer
         answer = self.host.handle_event(dto) if service == "lease_event" else self.host.handle_request(dto)

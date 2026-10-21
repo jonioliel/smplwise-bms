@@ -274,9 +274,9 @@ def test_m3_a_locked_ack_record_is_retried_before_degrading(lease_world, monkeyp
 def test_l1_bridge_stage_and_code_are_bounded_before_audit_and_replies():
     long = "a" * 65
     for bad in ({"stage": long, "code": "x"}, {"stage": "time", "code": long}, {"stage": "time", "code": "Bad-Code"}, {"stage": "time", "code": "x\n<y>"}):
-        assert le.classify({"result": "rejected", **bad}, "rid") == ("invalid", {"code": "invalid_response"})
-        assert capture_lease_route.classify_request({"result": "rejected", **bad}, "rid") == ("unknown", {"code": "invalid_response"})
-    assert le.classify({"result": "rejected", "stage": "time", "code": "clock_invalid"}, "rid") == ("rejected", {"code": "time/clock_invalid"})
+        assert le.classify({"result": "rejected", "request_id": "rid", **bad}, "rid") == ("invalid", {"code": "invalid_response"})
+        assert capture_lease_route.classify_request({"result": "rejected", "request_id": "rid", **bad}, "rid", "capture_status") == ("unknown", {"code": "invalid_response"})
+    assert le.classify({"result": "rejected", "stage": "time", "code": "clock_invalid", "request_id": "rid"}, "rid") == ("rejected", {"code": "time/clock_invalid"})
 
 
 def test_l2_the_heartbeat_lists_issued_leases_too(lease_world):

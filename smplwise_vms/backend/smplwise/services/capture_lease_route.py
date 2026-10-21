@@ -20,48 +20,34 @@ Rules, in the router's order (routers/access_control.py card capture section):
   נוסף"; acknowledged -> `destroyed(confirmed)`.
 - cancel: ONE signed `capture_cancel`; acknowledged -> `destroyed(cancelled)`; unknown -> the lease is revoked (`cancel_unknown`).
 
-The request answers' exact shapes are WisKey's (its revised C04, W?); the closed shapes Arx accepts are written in
-docs/contracts/wiskey-capture-lease/SCHEMA.md section 4 for alignment. The card number never reaches Arx beyond WisKey's masked
+The request answers are CLOSED (WisKey's approval of 2026-10-21): one schema per action and one code table, in
+docs/contracts/wiskey-capture-lease/ (SCHEMA.md section 4); services/lease_answers.py enforces them and anything else is `unknown`. The card number never reaches Arx beyond WisKey's masked
 form in the owner's own reply; nothing here audits or logs it."""
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any
 
 from ..errors import ApiError
 from . import capture_lease as cl
-from . import intercom_sync, lease_events, trusted_caller
+from . import intercom_sync, lease_answers, lease_events, trusted_caller
 
 log = logging.getLogger("smplwise.capture_lease")
 
-REQUEST_RESULTS = ("acknowledged", "refused", "sent_unknown")
-REFUSED_CODES = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 CONFIRM_UNKNOWN_TEXT = "לא ידוע אם הכרטיס נוסף"
 GONE_TEXT = "קריאת הכרטיס הופסקה. אפשר להתחיל קריאה חדשה."
 
 
-def classify_request(answer: Any, request_id: str) -> tuple[str, dict[str, Any]]:
-    """(kind, data) for one lease request: `ok` (data: the answer), `refused` (WisKey refused before doing anything; data:
-    code), `rejected` (the bridge refused at a stage: nothing happened; data: code "<stage>/<code>"), `sent_unknown` (the
-    host passed its confirm barrier and cannot say), `unknown` (not one of the closed shapes / another request)."""
+def classify_request(answer: Any, request_id: str, action: str) -> tuple[str, dict[str, Any]]:
+    """(kind, data) for one lease request, against the CLOSED answer schema of `action` (services/lease_answers.py): `ok` (data: the
+    answer, its shape checked), `refused` (WisKey refused before doing anything; data: a code of the action's closed table),
+    `rejected` (the bridge refused at a stage: nothing happened; data: code "<stage>/<code>"), `sent_unknown` (capture_confirm only: the
+    host passed its confirm barrier and cannot say), `unknown` (not one of the closed shapes, another request's answer, a code outside
+    the table, a request_id where it is forbidden or missing where it is required)."""
     r = trusted_caller.response_of(answer)
     if r is None:
         return "unknown", {"code": "invalid_response"}
-    result, rid = r.get("result"), r.get("request_id")
-    if result == "rejected":
-        stage, code = cl.bridge_text(r.get("stage")), cl.bridge_text(r.get("code"))  # bounded before audit / API (review L1)
-        if rid not in (None, request_id) or stage is None or code is None:
-            return "unknown", {"code": "invalid_response"}
-        return "rejected", {"code": f"{stage}/{code}"}
-    if rid != request_id or result not in REQUEST_RESULTS:
-        return "unknown", {"code": "invalid_response"}
-    if result == "refused":
-        code = r.get("code")
-        return "refused", {"code": code if isinstance(code, str) and REFUSED_CODES.fullmatch(code) else "refused"}
-    if result == "sent_unknown":
-        return "sent_unknown", {"code": "sent_unknown"}
-    return "ok", r
+    return lease_answers.classify_request(r, request_id, action)
 
 
 def send_request(conn: Any, settings: Any, action: str, principal_id: str, display_name: str, station: str, params: dict[str, Any]) -> tuple[trusted_caller.Signed, Any]:
@@ -106,9 +92,11 @@ def tick(registry: Any, capture: Any, now: float, busy: bool = False) -> None:
     except Exception as exc:  # noqa: BLE001 - not sent / HA unreachable / a timeout: the next tick asks again
         log.debug("capture lease status not read (%s)", getattr(exc, "code", type(exc).__name__))
         return
-    kind, data = classify_request(answer, signed.request_id)
+    kind, data = classify_request(answer, signed.request_id, "capture_status")
     _clock_check(kind, data)
-    if kind == "refused" and data["code"] in ("capture_not_found", "lease_gone"):
+    # not_found / lease_gone / binding_denied: the host holds no session any more (binding_denied ends it - fail closed);
+    # capture_operation_busy (a confirm runs) leaves it as it is and is simply asked again
+    if kind == "refused" and data["code"] in ("capture_not_found", "lease_gone", "binding_denied"):
         state = "expired" if capture.elapsed(now) >= ic.SESSION_S - 2 * ic.POLL_S else "lost"
         if registry.set_state(capture, state, None, only_from=ic.POLLED):
             cl.finish(capture.db, capture.lease_ref, "destroyed" if state == "lost" else "expired", "lost" if state == "lost" else "expired")
