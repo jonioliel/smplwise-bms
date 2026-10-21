@@ -1139,6 +1139,10 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         from ..remote_channel import set_csp_enforce
 
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
+    if any(k in changes for k in ("access.station_media", "ui.hide_wiskey")):  # LAZYMIC-295: the microphone policy follows at once
+        from ..remote_channel import load_mic_mode_from
+
+        load_mic_mode_from(conn)
     if any(k.startswith("security.local_") for k in changes):
         from ..services import local_identity
 

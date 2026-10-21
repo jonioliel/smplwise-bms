@@ -271,6 +271,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
+    try:  # LAZYMIC-295: the remote channel's microphone policy follows this installation's settings from the first response
+        from . import remote_channel as _rc
+
+        with app.state.db.connection(mode="read", label="mic mode") as conn:
+            _rc.load_mic_mode_from(conn)
+    except Exception:  # noqa: BLE001 - never block the start; the default allows the microphone
+        log.warning("could not read the microphone policy settings", exc_info=True)
     try:  # review M2: objects of 0036 (alarm) and 0037 (user_prefs) exist whatever schema_migrations recorded
         guarded = app.state.db.ensure_migration_objects()
         if guarded:

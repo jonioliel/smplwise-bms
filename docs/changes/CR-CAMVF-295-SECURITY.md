@@ -25,6 +25,14 @@ The task card assumed the authenticated app is served with `camera=()`. The code
 | Remote channel (`/arx/...`, CR-008 section 3e) | `camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()` on every response | Arx | none |
 | Public vendor page (`/support/...`, `/t/...`, CR-038 section 10.4) | `camera=(), microphone=(), geolocation=(), payment=(), usb=()` on every response | Arx (`public_http.SECURITY_HEADERS`) | none - stays `camera=()` |
 
+LAZYMIC-295 (2.10.1, owner 2026-10-21): the remote channel's **microphone** part now follows the features that use it -
+`microphone=(self)` while Arx push-to-talk is on (`access.station_media` = `video_talk`) or the embedded WisKey panel is
+reachable (`ui.hide_wiskey` is not `true`; the panel's own talk and microphone test run in a same-origin iframe the
+document policy bounds), otherwise `microphone=()`. The camera part and the public listener are unchanged. The mode is a
+process snapshot read at start-up, on every PATCH of either setting and by the 30 s background pass (a restored backup),
+and the header is assembled per response from it; the SPA document is served `Cache-Control: no-cache` and the service
+worker's shell is network-first, so a stale header is never replayed online. Tests: `tests/test_remote_mic_policy.py`.
+
 `Permissions-Policy` is evaluated per **document**, not per API route. The authenticated app is a single-page app: one
 `index.html` document hosts every screen, so "camera only on the ticket route" cannot be expressed in a header - a
 `camera=(self)` on the document grants the whole SPA, and a `camera=()` anywhere in the SPA would deny the ticket screen

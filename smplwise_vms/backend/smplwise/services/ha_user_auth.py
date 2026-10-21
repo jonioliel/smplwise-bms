@@ -1821,6 +1821,7 @@ def reset_for_tests() -> None:
     from .. import remote_channel
 
     remote_channel.set_csp_enforce(False)
+    remote_channel.set_mic_allowed(True)  # LAZYMIC-295: the default settings allow it
     STORE.clear()
     LIMITER.clear()
     REFUSAL_AUDITS.clear()
