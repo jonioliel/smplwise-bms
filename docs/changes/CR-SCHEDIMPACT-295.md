@@ -73,7 +73,7 @@ in for the live report).
 
 ## 4. Tests (fakes only)
 
-- `smplwise_vms/backend/tests/test_schedimpact_295_bridge.py` (28): basic mode refuses script / scene / door / bypass in `add` and `edit`,
+- `smplwise_vms/backend/tests/test_schedimpact_295_bridge.py` (27): basic mode refuses script / scene / door / bypass in `add` and `edit`,
   and `enable` / `run` / `copy` / days-only `edit` of an existing script schedule; unreadable attributes; extended mode: unlisted item,
   a listed script reaching a door, a nested unlisted script, an unlocking scene, the V-01 crafted step (`impact_step_unknown` with the V-01 fix,
   `impact_target_unresolved` without it - refused either way), the service user's entity policy, unjudgeable shapes (automation,
