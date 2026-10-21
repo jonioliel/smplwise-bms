@@ -842,9 +842,11 @@ def test_the_provisional_names_live_in_one_constant_each_and_nothing_else_spells
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Constant) and node.value in ("lease_event", "lease_request"):
                 pytest.fail(f"{path.name} spells a provisional service name as a literal")
-    # ... and Arx's side still calls the very same names (a rename must change both, and this fails until it does)
+    # ... and Arx's side still calls the very same names (a rename must change both, and this fails until it does).
+    # Release 2.12.0: LEASEARX-295 moved Arx's names into one constant each (BRIDGE_DOMAIN / SERVICE_EVENT / SERVICE_REQUEST in lease_events.py).
     arx = (REPO / "smplwise_vms" / "backend" / "smplwise" / "services" / "lease_events.py").read_text(encoding="utf-8")
-    assert f'"smplwise_bridge", "{const.SERVICE_LEASE_EVENT}"' in arx and f'"smplwise_bridge", "{const.SERVICE_LEASE_REQUEST}"' in arx
+    assert 'BRIDGE_DOMAIN = "smplwise_bridge"' in arx
+    assert f'SERVICE_EVENT = "{const.SERVICE_LEASE_EVENT}"' in arx and f'SERVICE_REQUEST = "{const.SERVICE_LEASE_REQUEST}"' in arx
     # the action-to-service grouping does not depend on the names: it is the contract's, by kind
     assert set(lc.KIND_OF) == set(lc.EVENT_ACTIONS) | set(lc.REQUEST_ACTIONS)
 
