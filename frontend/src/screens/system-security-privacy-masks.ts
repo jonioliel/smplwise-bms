@@ -6,8 +6,8 @@ import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError } from '../api/client';
-import { isApi, onRemote } from '../api/session';
-import { snapshotUrl } from '../api/media';
+import { can, isApi, onRemote } from '../api/session';
+import { getSettings, patchSettings, snapshotUrl } from '../api/media';
 import { nvrSettings, type NvrCamera } from '../api/nvr-settings';
 import { privacyMaskApi, type ApplyResult, type MaskChange, type MaskView, type PreviewResult, type PreviewRow } from '../api/nvr-privacy-mask';
 import { pm, pmError, type PmKey } from '../i18n/privacy-mask';
@@ -81,6 +81,11 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   @state() private undoing = '';
   @state() private undone = new Set<string>();
   @state() private brokenShot = new Set<string>();
+  /** MASKSWITCH-295: the installation setting `nvr.privacy_mask_write` as last read or saved (null = not read, or the person may not change it). */
+  @state() private switchOn: boolean | null = null;
+  @state() private switchAsk = false;
+  @state() private switchBusy = false;
+  @state() private switchErr = false;
   private drag: { kind: 'move' | 'corner' | 'draw'; key: string; px: number; py: number; rect: Rect | null; corner?: Corner } | null = null;
 
   static styles = css`
@@ -214,6 +219,30 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     :host-context([dir='rtl']) .sw-switch[aria-checked='true'] .track::after {
       transform: translateX(-18px);
+    }
+    .swrow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 12px;
+      margin: 0 0 var(--sw-s-3, 12px);
+    }
+    .swrow .ask {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .swrow .err {
+      color: var(--sw-danger, #c0392b);
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 767px) {
+      .swrow .ask sw-button {
+        min-block-size: 44px;
+      }
     }
     .sw-switch:disabled {
       opacity: 0.55;
@@ -534,6 +563,55 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.loadCameras();
+    void this.loadSwitch();
+  }
+
+  /** The switch row is for `system.configure` (installation scope); anyone else never sees it and the page follows the server's own `write_enabled`. */
+  private async loadSwitch() {
+    if (!isApi() || onRemote() || !can('system.configure')) return;
+    try {
+      const r = await getSettings();
+      this.switchOn = r.can_edit === false ? null : r.settings['nvr.privacy_mask_write'] === 'true';
+    } catch {
+      this.switchOn = null;
+    }
+  }
+
+  private async saveSwitch(on: boolean) {
+    if (this.switchBusy) return;
+    this.switchBusy = true;
+    this.switchErr = false;
+    try {
+      const r = await patchSettings({ 'nvr.privacy_mask_write': on ? 'true' : 'false' });
+      this.switchOn = (r.settings?.['nvr.privacy_mask_write'] ?? (on ? 'true' : 'false')) === 'true';
+      this.switchAsk = false;
+    } catch {
+      this.switchErr = true;
+    } finally {
+      this.switchBusy = false;
+    }
+  }
+
+  private onSwitch() {
+    if (this.switchBusy || this.switchOn === null) return;
+    if (this.switchOn) void this.saveSwitch(false);
+    else {
+      this.switchErr = false;
+      this.switchAsk = !this.switchAsk;
+    }
+  }
+
+  private renderSwitch() {
+    if (this.switchOn === null || this.step !== 'edit') return nothing;
+    return html`<div class="swrow" data-pm-switch-row>
+      <button type="button" class="sw-switch" role="switch" aria-checked=${this.switchOn ? 'true' : 'false'} data-pm-switch ?disabled=${this.switchBusy || this.applying} @click=${this.onSwitch}><span class="track" aria-hidden="true"></span>${pm('sw_label')}</button>
+      ${this.switchAsk && !this.switchOn
+        ? html`<div class="ask" data-pm-switch-ask role="group"><span>${pm('sw_confirm')}</span>
+            <sw-button size="lg" variant="ghost" data-pm-switch-cancel ?disabled=${this.switchBusy} @click=${() => (this.switchAsk = false)}>${pm('cancel')}</sw-button>
+            <sw-button size="lg" variant="primary" data-pm-switch-confirm ?disabled=${this.switchBusy} @click=${() => void this.saveSwitch(true)}>${this.switchBusy ? pm('sw_saving') : pm('sw_turn_on')}</sw-button></div>`
+        : nothing}
+      ${this.switchErr ? html`<span class="err" data-pm-switch-err role="alert">${pm('sw_err')}</span>` : nothing}
+    </div>`;
   }
 
   // ------------------------------------------------------------------------------------------------ loading
@@ -614,7 +692,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     if (!l) return '';
     if (onRemote()) return 'off_remote';
     if (!l.view.can_write) return 'off_perm';
-    if (!l.view.write_enabled) return 'off_switch';
+    if (!(this.switchOn ?? l.view.write_enabled)) return 'off_switch';
     return '';
   }
 
@@ -1096,7 +1174,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     else if (!this.cameras?.length) content = html`<sw-state-panel icon="camera" state="empty" heading=${pm('empty_cameras')} quiet data-pm-empty></sw-state-panel>`;
     else {
       const lock = this.step === 'edit' ? this.lock : '';
-      content = html`${lock ? html`<p class="banner" data-pm-lock=${lock} role="status">${pm(lock)}</p>` : nothing}
+      content = html`${this.renderSwitch()}${lock ? html`<p class="banner" data-pm-lock=${lock} role="status">${pm(lock)}</p>` : nothing}
         <div class="layout">
           ${this.renderCameras()}
           <div class="main" data-pm-step=${this.step}>${this.step === 'edit' ? this.renderEditor() : this.step === 'review' ? this.renderReview() : this.renderDone()}</div>

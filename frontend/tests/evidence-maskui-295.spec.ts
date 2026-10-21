@@ -286,6 +286,52 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await expect(q(page, '[data-pm-camera="cam-1"] [data-pm-edited]')).toHaveCount(1); // the draft is kept, nothing was marked written
   });
 
+  test('MASKSWITCH-295: the switch row turns writing on (inline confirm, no browser dialog) and off, and the view-only state follows it live', async ({ page }) => {
+    st.switchOn = false;
+    let dialogs = 0;
+    page.on('dialog', (d) => {
+      dialogs += 1;
+      void d.dismiss();
+    });
+    await open(page);
+    const sw = q(page, '[data-pm-switch]');
+    await expect(sw).toHaveText(PM_TABLES.he.sw_label);
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveCount(1);
+    await expect(q(page, '[data-pm-add]')).toHaveAttribute('disabled', '');
+    if (phone(page)) expect((await sw.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await sw.click();
+    await expect(q(page, '[data-pm-switch-ask]')).toContainText(PM_TABLES.he.sw_confirm);
+    expect(st.settingPatches).toHaveLength(0); // asking saves nothing
+    await q(page, '[data-pm-switch-cancel]').click();
+    await expect(q(page, '[data-pm-switch-ask]')).toHaveCount(0);
+    expect(st.settingPatches).toHaveLength(0);
+    await sw.click();
+    if (phone(page)) expect((await q(page, '[data-pm-switch-confirm]').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await q(page, '[data-pm-switch-confirm]').click();
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    expect(st.settingPatches).toEqual([{ 'nvr.privacy_mask_write': 'true' }]);
+    await expect(q(page, '[data-pm-lock]')).toHaveCount(0);
+    await expect(q(page, '[data-pm-add]')).not.toHaveAttribute('disabled', '');
+    expect(writes(st)).toHaveLength(0); // turning the switch on writes no mask
+    await sw.click(); // off: one press, no confirm step
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    expect(st.settingPatches[1]).toEqual({ 'nvr.privacy_mask_write': 'false' });
+    await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveCount(1);
+    expect(dialogs).toBe(0);
+  });
+
+  test('MASKSWITCH-295: a failed save keeps the switch off with one line', async ({ page }) => {
+    st.switchOn = false;
+    st.settingFail = true;
+    await open(page);
+    await q(page, '[data-pm-switch]').click();
+    await q(page, '[data-pm-switch-confirm]').click();
+    await expect(q(page, '[data-pm-switch-err]')).toHaveText(PM_TABLES.he.sw_err);
+    await expect(q(page, '[data-pm-switch]')).toHaveAttribute('aria-checked', 'false');
+    await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveCount(1);
+  });
+
   test('switch off: a plain line, the controls are disabled, nothing can be reviewed or written', async ({ page }) => {
     st.switchOn = false;
     await open(page);
