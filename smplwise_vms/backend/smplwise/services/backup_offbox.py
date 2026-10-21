@@ -3,22 +3,26 @@
 Design: docs/architecture/DATA_STORE_HARDENING.md. A copy that lives on the same disk as the database dies with that disk; this
 module puts an ENCRYPTED copy of an archive on another machine and proves it can be read back.
 
-- `Destination`: the pluggable interface (put / get / list / delete / describe). Implemented fully: `LocalPathDestination` (a
-  mounted share or USB disk - never a folder inside the data directory) and `FakeDestination` (in memory, with failure knobs, for
-  tests and dry runs). `SftpDestination` and `S3Destination` are documented adapters over an injected client protocol: their logic
-  is tested against fake clients; the real transport (paramiko / an S3 SDK) is NOT part of this build and `connect()` says so.
+- `Destination`: the pluggable interface (put / get / list / delete / describe / close). `LocalPathDestination` (a mounted share
+  or USB disk - never a folder inside the data directory), `FakeDestination` (in memory, with failure knobs, for tests),
+  `S3Destination` (any S3-compatible service; the transport is services/offbox_s3.py: SigV4 over httpx, path-style or virtual-host)
+  and `SftpDestination` (services/offbox_sftp.py: paramiko, key authentication, the server's host key PINNED - never trust on first
+  use). Both adapters also take an injected client (the tests' fakes).
 - Encryption at rest (`seal_file` / `open_file`): AES-256-GCM in 1 MiB chunks (format SWXB v1, below), under a 32-byte key that
-  is held OUTSIDE the database - a key file (default `<data>/keys/offbox_backup.key`, mode 0600; the keys folder never enters an
-  archive) or a path the administrator points to. Losing the key loses every off-box copy: the owner keeps a copy offline.
+  is held OUTSIDE the database - the keyring `<data>/keys/offbox_keyring.json` (services/offbox_keys.py, mode 0600; the keys folder
+  never enters an archive). Rotation adds a key and keeps the old ones, so every older copy stays readable; `open_file` picks the
+  key by the id in the file's header. Losing the keyring loses every off-box copy: the administrator exports each key once.
+- Marker objects (`arx-test-<hex>.txt`): the connection test writes one, reads it back and deletes it; never listed, never pruned.
 - `RetentionPolicy`: keep the newest N plus one per day / ISO week / month for D / W / M periods; objects whose names this
   module did not write are never deleted.
 - `push()`: dry-run (lists the destination, plans the upload and the pruning, writes nothing), upload, verify-after-upload
   (`hash`: the downloaded ciphertext's SHA-256 equals the local one; `deep`: also decrypts it and compares the archive's SHA-256)
   and only then prunes - a copy that did not verify never causes an older good copy to be deleted.
-- Credentials are never stored in the repository, the database, a log line or a result: a destination's configuration holds a
-  REFERENCE (`env:NAME` or `file:/path`) resolved only when the transport connects; `describe()` / `repr()` name the reference only.
+- Credentials are never stored in the repository, a log line or a result: a destination's configuration holds a REFERENCE -
+  `store:<name>` (sealed in the database with the installation key, services/offbox_store.py), `env:NAME` or `file:/path` -
+  resolved only when the transport connects; `describe()` / `repr()` name the reference only.
 
-SWXB v1 layout: b"SWXB" 0x01 | u32 header length | header JSON (alg, key_id, chunk, nonce_prefix, created_at, plain_bytes?) |
+SWXB v1 layout: b"SWXB" 0x01 | u32 header length | header JSON (alg, key_id, chunk, nonce_prefix, created_at) |
 records: u32 ciphertext length | ciphertext. Nonce = 7-byte random prefix | 1-byte final flag | u32 counter; AAD = SHA-256 of the
 header bytes. The last record carries the final flag, so truncation, reordering, a record appended after the end and a header
 edit all fail authentication."""
@@ -38,7 +42,7 @@ import struct
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable, Protocol
+from typing import Any, Callable, Iterable, Mapping, Protocol
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -50,15 +54,19 @@ ALG = "AES-256-GCM"
 KEY_BYTES = 32
 CHUNK = 1024 * 1024
 MAX_HEADER = 4096
-MAX_RECORD = CHUNK + 16
 SUFFIX = ".swxb"
-KEY_FILE = "offbox_backup.key"
+KEY_FILE = "offbox_backup.key"  # phase 1's single key file; services/offbox_keys.py imports it into the keyring
 # what this module writes: <archive stem>.zip.swxb, the archive stem carrying the time stamp (manual-20261020-120000[-2])
 OBJECT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,150}\.zip\.swxb$")
+MARKER_RE = re.compile(r"^arx-test-[0-9a-f]{16}\.txt$")
 STAMP_RE = re.compile(r"(\d{8})-(\d{6})")
+
+SecretLookup = Callable[[str], "str | None"]
 
 
 class OffboxError(Exception):
+    """`code` is a fixed identifier the API and the UI translate; the message is fixed text - never a credential or a body."""
+
     def __init__(self, code: str, message: str = ""):
         super().__init__(message or code)
         self.code = code
@@ -69,22 +77,28 @@ class OffboxError(Exception):
 
 @dataclasses.dataclass(frozen=True)
 class CredentialRef:
-    """`env:NAME` or `file:/absolute/path`. The value is read only by `resolve()`, at connect time, and never kept or printed."""
+    """`store:<name>`, `env:NAME` or `file:/absolute/path`. The value is read only by `resolve()`, at connect time, and never kept
+    or printed. `store:` values come from the lookup the caller passes (services/offbox_store.py: sealed with the installation key)."""
 
     ref: str
 
     def __post_init__(self) -> None:
         kind, _, rest = self.ref.partition(":")
+        if kind == "store" and re.fullmatch(r"[a-z0-9][a-z0-9_.|-]{0,120}", rest):
+            return
         if kind == "env" and re.fullmatch(r"[A-Z_][A-Z0-9_]{0,63}", rest):
             return
         if kind == "file" and rest and (rest.startswith("/") or Path(rest).is_absolute()) and "\x00" not in rest:
             return
         # never echo the rejected text: it may be the secret itself, pasted where a reference belongs
-        raise OffboxError("credential_ref_invalid", "a credential must be a reference: env:NAME or file:/absolute/path")
+        raise OffboxError("credential_ref_invalid", "a credential must be a reference: store:NAME, env:NAME or file:/absolute/path")
 
-    def resolve(self) -> str:
+    def resolve(self, store: SecretLookup | None = None) -> str:
         kind, _, rest = self.ref.partition(":")
-        if kind == "env":
+        value: str | None
+        if kind == "store":
+            value = store(rest) if store is not None else None
+        elif kind == "env":
             value = os.environ.get(rest)
         else:
             try:
@@ -116,12 +130,17 @@ class Destination(Protocol):
     def get(self, name: str, dest: Path) -> None: ...
     def list(self) -> list[RemoteObject]: ...
     def delete(self, name: str) -> None: ...
+    def close(self) -> None: ...
 
 
-def check_name(name: str) -> str:
-    if not isinstance(name, str) or not OBJECT_RE.fullmatch(name):
-        raise OffboxError("object_name_invalid", "not an off-box backup object name")
-    return name
+def check_name(name: str, *, marker_ok: bool = False) -> str:
+    if isinstance(name, str) and (OBJECT_RE.fullmatch(name) or (marker_ok and MARKER_RE.fullmatch(name))):
+        return name
+    raise OffboxError("object_name_invalid", "not an off-box backup object name")
+
+
+def new_marker_name() -> str:
+    return f"arx-test-{secrets.token_hex(8)}.txt"
 
 
 class LocalPathDestination:
@@ -131,7 +150,7 @@ class LocalPathDestination:
 
     def __init__(self, root: Path, *, data_dir: Path | None = None):
         root = Path(root)
-        if not root.is_absolute():
+        if not (root.is_absolute() or str(root).startswith("/")):
             raise OffboxError("destination_invalid", "the destination path must be absolute")
         if data_dir is not None:
             r, d = root.resolve(), Path(data_dir).resolve()
@@ -142,13 +161,16 @@ class LocalPathDestination:
     def describe(self) -> dict[str, Any]:
         return {"kind": self.kind, "path": str(self.root)}
 
+    def close(self) -> None:
+        return None
+
     def _ensure(self) -> None:
         if not self.root.is_dir():
             raise OffboxError("destination_unavailable", "the destination folder is not mounted / does not exist")
 
     def put(self, src: Path, name: str) -> RemoteObject:
         self._ensure()
-        dest = self.root / check_name(name)
+        dest = self.root / check_name(name, marker_ok=True)
         tmp = self.root / f".{name}.partial"
         with open(src, "rb") as fin, open(tmp, "wb") as fout:
             shutil.copyfileobj(fin, fout, CHUNK)
@@ -159,7 +181,7 @@ class LocalPathDestination:
 
     def get(self, name: str, dest: Path) -> None:
         self._ensure()
-        src = self.root / check_name(name)
+        src = self.root / check_name(name, marker_ok=True)
         if not src.is_file():
             raise OffboxError("object_missing", "the object is not at the destination")
         shutil.copyfile(src, dest)
@@ -171,7 +193,7 @@ class LocalPathDestination:
 
     def delete(self, name: str) -> None:
         self._ensure()
-        (self.root / check_name(name)).unlink(missing_ok=True)
+        (self.root / check_name(name, marker_ok=True)).unlink(missing_ok=True)
 
 
 class FakeDestination:
@@ -185,9 +207,13 @@ class FakeDestination:
         self.fail_put = self.fail_get = self.fail_list = False
         self.corrupt_put = self.truncate_put = False
         self.calls: list[tuple[str, str]] = []
+        self.closed = 0
 
     def describe(self) -> dict[str, Any]:
         return {"kind": self.kind, "objects": len(self.objects)}
+
+    def close(self) -> None:
+        self.closed += 1
 
     def put(self, src: Path, name: str) -> RemoteObject:
         self.calls.append(("put", name))
@@ -198,7 +224,7 @@ class FakeDestination:
             data[len(data) // 2] ^= 0x01
         if self.truncate_put:
             data = data[: max(0, len(data) - 7)]
-        self.objects[check_name(name)] = bytes(data)
+        self.objects[check_name(name, marker_ok=True)] = bytes(data)
         return RemoteObject(name, len(data))
 
     def get(self, name: str, dest: Path) -> None:
@@ -217,10 +243,10 @@ class FakeDestination:
 
     def delete(self, name: str) -> None:
         self.calls.append(("delete", name))
-        self.objects.pop(check_name(name), None)
+        self.objects.pop(check_name(name, marker_ok=True), None)
 
 
-# ---- SFTP (stub transport)
+# ---- SFTP
 
 
 class SftpClient(Protocol):
@@ -231,52 +257,74 @@ class SftpClient(Protocol):
     def listdir_attr(self, path: str) -> list[Any]: ...  # items with .filename and .st_size
     def remove(self, path: str) -> Any: ...
     def posix_rename(self, oldpath: str, newpath: str) -> Any: ...
+    def close(self) -> Any: ...
 
 
-def _no_sftp_transport(dest: "SftpDestination") -> SftpClient:
-    raise OffboxError("transport_not_available",
-                      "SFTP transport is not part of this build (design: paramiko, key authentication, host key pinned from known_hosts)")
+HOST_KEY_RE = re.compile(r"^(SHA256:[A-Za-z0-9+/]{43}=?|(ssh-ed25519|ecdsa-sha2-nistp(256|384|521)|ssh-rsa) [A-Za-z0-9+/]+={0,3})$")
 
 
 class SftpDestination:
-    """SFTP to `host:port` as `username` with a private key (`key` reference) and a PINNED host key (`known_hosts` reference) -
-    never a password, never trust-on-first-use. Files are uploaded under a temporary name and renamed (posix-rename)."""
+    """SFTP to `host:port` as `username` with a private key (`key` reference) and the server's host key PINNED (`host_key`: the
+    public key line `ssh-ed25519 AAAA...` or its `SHA256:...` fingerprint - public, not a secret). Never a password, never trust on
+    first use: a server presenting another key is refused before authentication. Uploads go to `.name.partial` and are renamed."""
 
     kind = "sftp"
 
-    def __init__(self, host: str, username: str, key: CredentialRef, known_hosts: CredentialRef, remote_dir: str, port: int = 22,
-                 client_factory: Callable[["SftpDestination"], SftpClient] | None = None):
+    def __init__(self, host: str, username: str, key: CredentialRef, host_key: str, remote_dir: str, port: int = 22,
+                 client_factory: Callable[["SftpDestination"], SftpClient] | None = None, secret_store: SecretLookup | None = None,
+                 timeout_s: float = 20.0):
         if not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host or "") or not (0 < int(port) < 65536):
             raise OffboxError("destination_invalid", "host / port not valid")
         if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", username or ""):
             raise OffboxError("destination_invalid", "user name not valid")
-        if not remote_dir.startswith("/") or ".." in remote_dir.split("/"):
+        if not remote_dir.startswith("/") or ".." in remote_dir.split("/") or len(remote_dir) > 400:
             raise OffboxError("destination_invalid", "remote_dir must be an absolute path without '..'")
-        if not isinstance(key, CredentialRef) or not isinstance(known_hosts, CredentialRef):
-            raise OffboxError("credential_ref_invalid", "key and known_hosts must be credential references")
-        self.host, self.port, self.username, self.key, self.known_hosts = host, int(port), username, key, known_hosts
+        if not isinstance(key, CredentialRef):
+            raise OffboxError("credential_ref_invalid", "key must be a credential reference")
+        host_key = (host_key or "").strip()
+        if not HOST_KEY_RE.fullmatch(host_key):
+            raise OffboxError("host_key_required", "the server's host key (or its SHA256 fingerprint) must be pinned")
+        self.host, self.port, self.username, self.key, self.host_key = host, int(port), username, key, host_key
         self.remote_dir = remote_dir.rstrip("/") or "/"
-        self._factory = client_factory or _no_sftp_transport
+        self.timeout_s = timeout_s
+        self._factory = client_factory
+        self._store = secret_store
         self._client: SftpClient | None = None
 
     def describe(self) -> dict[str, Any]:
         return {"kind": self.kind, "host": self.host, "port": self.port, "username": self.username, "remote_dir": self.remote_dir,
-                "key": self.key.ref, "known_hosts": self.known_hosts.ref}
+                "key": self.key.ref, "host_key": self.host_key[:80]}
 
     def __repr__(self) -> str:
         return f"SftpDestination({self.describe()!r})"
 
+    def private_key_text(self) -> str:
+        return self.key.resolve(self._store)
+
     def connect(self) -> SftpClient:
         if self._client is None:
-            self._client = self._factory(self)
+            if self._factory is not None:
+                self._client = self._factory(self)
+            else:
+                from . import offbox_sftp
+
+                self._client = offbox_sftp.connect(self)
         return self._client
 
+    def close(self) -> None:
+        c, self._client = self._client, None
+        if c is not None:
+            try:
+                c.close()
+            except Exception:  # noqa: BLE001 - closing never fails a run
+                pass
+
     def _path(self, name: str) -> str:
-        return f"{self.remote_dir}/{check_name(name)}"
+        return f"{self.remote_dir}/{check_name(name, marker_ok=True)}"
 
     def put(self, src: Path, name: str) -> RemoteObject:
         c = self.connect()
-        tmp = f"{self.remote_dir}/.{check_name(name)}.partial"
+        tmp = f"{self.remote_dir}/.{check_name(name, marker_ok=True)}.partial"
         c.put(str(src), tmp)
         c.posix_rename(tmp, self._path(name))
         return RemoteObject(name, Path(src).stat().st_size)
@@ -293,64 +341,83 @@ class SftpDestination:
         self.connect().remove(self._path(name))
 
 
-# ---- S3-compatible (stub transport)
+# ---- S3-compatible
 
 
 class S3Client(Protocol):
-    """The subset of an S3 client the adapter needs (boto3's client has these names and keyword arguments)."""
+    """The subset of an S3 client the adapter needs (boto3's names and keyword arguments; services/offbox_s3.SigV4Client)."""
 
-    def put_object(self, *, Bucket: str, Key: str, Body: bytes) -> Any: ...
+    def put_object(self, *, Bucket: str, Key: str, Body: Any) -> Any: ...
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]: ...  # {"Body": <readable>}
     def list_objects_v2(self, *, Bucket: str, Prefix: str, **kw: Any) -> dict[str, Any]: ...
     def delete_object(self, *, Bucket: str, Key: str) -> Any: ...
 
 
-def _no_s3_transport(dest: "S3Destination") -> S3Client:
-    raise OffboxError("transport_not_available",
-                      "S3 transport is not part of this build (design: an S3 SDK client with endpoint_url, TLS verified, keys by reference)")
-
-
 class S3Destination:
-    """An S3-compatible bucket (AWS, Backblaze B2, Wasabi, MinIO, Cloudflare R2) at `endpoint` (https only), objects under
-    `prefix/`. Keys by reference only. The archive is already encrypted (SWXB) before it leaves; server-side encryption is extra."""
+    """An S3-compatible bucket (Cloudflare R2, AWS, Backblaze B2, Wasabi, MinIO) at `endpoint` (https only), objects under
+    `prefix/`. `path_style`: https://endpoint/bucket/key (R2 and MinIO need it) instead of https://bucket.endpoint/key. Keys by
+    reference only. The archive is already encrypted (SWXB) before it leaves; server-side encryption is extra."""
 
     kind = "s3"
 
     def __init__(self, endpoint: str, bucket: str, access_key: CredentialRef, secret_key: CredentialRef, prefix: str = "arx-backups",
-                 region: str = "auto", client_factory: Callable[["S3Destination"], S3Client] | None = None):
+                 region: str = "auto", client_factory: Callable[["S3Destination"], S3Client] | None = None, path_style: bool = True,
+                 secret_store: SecretLookup | None = None):
         if not re.fullmatch(r"https://[A-Za-z0-9.-]{1,253}(:\d{1,5})?/?", endpoint or ""):
             raise OffboxError("destination_invalid", "endpoint must be an https:// host")
         if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket or ""):
             raise OffboxError("destination_invalid", "bucket name not valid")
         if not re.fullmatch(r"[A-Za-z0-9._/-]{0,200}", prefix or "") or ".." in prefix.split("/"):
             raise OffboxError("destination_invalid", "prefix not valid")
+        if not re.fullmatch(r"[a-z0-9-]{1,32}", region or ""):
+            raise OffboxError("destination_invalid", "region not valid")
         if not isinstance(access_key, CredentialRef) or not isinstance(secret_key, CredentialRef):
             raise OffboxError("credential_ref_invalid", "access_key and secret_key must be credential references")
-        self.endpoint, self.bucket, self.region = endpoint.rstrip("/"), bucket, region
+        self.endpoint, self.bucket, self.region, self.path_style = endpoint.rstrip("/"), bucket, region, bool(path_style)
         self.prefix = prefix.strip("/")
         self.access_key, self.secret_key = access_key, secret_key
-        self._factory = client_factory or _no_s3_transport
+        self._factory = client_factory
+        self._store = secret_store
         self._client: S3Client | None = None
 
     def describe(self) -> dict[str, Any]:
         return {"kind": self.kind, "endpoint": self.endpoint, "bucket": self.bucket, "prefix": self.prefix, "region": self.region,
-                "access_key": self.access_key.ref, "secret_key": self.secret_key.ref}
+                "path_style": self.path_style, "access_key": self.access_key.ref, "secret_key": self.secret_key.ref}
 
     def __repr__(self) -> str:
         return f"S3Destination({self.describe()!r})"
 
+    def credentials(self) -> tuple[str, str]:
+        return self.access_key.resolve(self._store), self.secret_key.resolve(self._store)
+
     def connect(self) -> S3Client:
         if self._client is None:
-            self._client = self._factory(self)
+            if self._factory is not None:
+                self._client = self._factory(self)
+            else:
+                from . import offbox_s3
+
+                self._client = offbox_s3.client_for(self)
         return self._client
 
+    def close(self) -> None:
+        c, self._client = self._client, None
+        close = getattr(c, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:  # noqa: BLE001
+                pass
+
     def _key(self, name: str) -> str:
-        return f"{self.prefix}/{check_name(name)}" if self.prefix else check_name(name)
+        n = check_name(name, marker_ok=True)
+        return f"{self.prefix}/{n}" if self.prefix else n
 
     def put(self, src: Path, name: str) -> RemoteObject:
-        data = Path(src).read_bytes()  # a real client would stream / multipart; the archive limit is backup.MAX_UPLOAD
-        self.connect().put_object(Bucket=self.bucket, Key=self._key(name), Body=data)
-        return RemoteObject(name, len(data))
+        size = Path(src).stat().st_size
+        with open(src, "rb") as f:  # streamed by the SigV4 client; a fake may read it whole
+            self.connect().put_object(Bucket=self.bucket, Key=self._key(name), Body=f)
+        return RemoteObject(name, size)
 
     def get(self, name: str, dest: Path) -> None:
         body = self.connect().get_object(Bucket=self.bucket, Key=self._key(name))["Body"]
@@ -362,13 +429,13 @@ class S3Destination:
         out: list[RemoteObject] = []
         kw: dict[str, Any] = {}
         pre = f"{self.prefix}/" if self.prefix else ""
-        while True:
+        for _ in range(10000):  # a misbehaving server can never loop us forever
             page = c.list_objects_v2(Bucket=self.bucket, Prefix=pre, **kw)
             for o in page.get("Contents") or []:
                 name = str(o.get("Key", ""))[len(pre):]
                 if OBJECT_RE.fullmatch(name):
                     out.append(RemoteObject(name, int(o.get("Size") or 0)))
-            if not page.get("IsTruncated"):
+            if not page.get("IsTruncated") or not page.get("NextContinuationToken"):
                 break
             kw = {"ContinuationToken": page.get("NextContinuationToken")}
         return sorted(out, key=lambda o: o.name)
@@ -377,13 +444,13 @@ class S3Destination:
         self.connect().delete_object(Bucket=self.bucket, Key=self._key(name))
 
 
-CREDENTIAL_FIELDS = {"sftp": ("key", "known_hosts"), "s3": ("access_key", "secret_key")}
-ALLOWED_FIELDS = {"local": {"kind", "path"}, "sftp": {"kind", "host", "port", "username", "key", "known_hosts", "remote_dir"},
-                  "s3": {"kind", "endpoint", "bucket", "prefix", "region", "access_key", "secret_key"}}
+CREDENTIAL_FIELDS = {"sftp": ("key",), "s3": ("access_key", "secret_key")}
+ALLOWED_FIELDS = {"local": {"kind", "path"}, "sftp": {"kind", "host", "port", "username", "key", "host_key", "remote_dir"},
+                  "s3": {"kind", "endpoint", "bucket", "prefix", "region", "path_style", "access_key", "secret_key"}}
 
 
 def build_destination(cfg: dict[str, Any], *, data_dir: Path | None = None, sftp_client: Callable | None = None,
-                      s3_client: Callable | None = None) -> Destination:
+                      s3_client: Callable | None = None, secret_store: SecretLookup | None = None) -> Destination:
     """A destination from its (non-secret) configuration. Unknown fields are refused - nobody adds a `password` field that
     would end up stored - and every credential field must be a reference."""
     kind = cfg.get("kind") if isinstance(cfg, dict) else None
@@ -396,11 +463,15 @@ def build_destination(cfg: dict[str, Any], *, data_dir: Path | None = None, sftp
     if kind == "local":
         return LocalPathDestination(Path(str(cfg.get("path") or "")), data_dir=data_dir)
     if kind == "sftp":
-        return SftpDestination(str(cfg.get("host") or ""), str(cfg.get("username") or ""), refs["key"], refs["known_hosts"],
-                               str(cfg.get("remote_dir") or ""), int(cfg.get("port") or 22), client_factory=sftp_client)
+        try:
+            port = int(cfg.get("port") or 22)
+        except (TypeError, ValueError):
+            raise OffboxError("destination_invalid", "host / port not valid") from None
+        return SftpDestination(str(cfg.get("host") or ""), str(cfg.get("username") or ""), refs["key"], str(cfg.get("host_key") or ""),
+                               str(cfg.get("remote_dir") or ""), port, client_factory=sftp_client, secret_store=secret_store)
     return S3Destination(str(cfg.get("endpoint") or ""), str(cfg.get("bucket") or ""), refs["access_key"], refs["secret_key"],
                          str(cfg.get("prefix") if cfg.get("prefix") is not None else "arx-backups"), str(cfg.get("region") or "auto"),
-                         client_factory=s3_client)
+                         client_factory=s3_client, path_style=bool(cfg.get("path_style", True)), secret_store=secret_store)
 
 
 # ---------------------------------------------------------------- the key and the SWXB format
@@ -411,7 +482,8 @@ def key_id(key: bytes) -> str:
 
 
 def load_or_create_key(path: Path, *, create: bool = True) -> bytes:
-    """The off-box key: 32 random bytes, base64 in a file of its own (mode 0600). Never in the database, never in an archive."""
+    """A single key file (phase 1 format: base64 of 32 bytes, mode 0600). The installation uses the keyring
+    (services/offbox_keys.py), which imports such a file once."""
     path = Path(path)
     if path.exists():
         try:
@@ -497,16 +569,26 @@ def read_header(f: Any) -> tuple[dict[str, Any], bytes]:
     return header, raw
 
 
-def open_file(src: Path, dst: Path, key: bytes) -> dict[str, Any]:
-    """Decrypt an SWXB file into `dst`; raises OffboxError (key_mismatch / sealed_invalid / sealed_damaged) on any problem and
-    removes the partial output. Returns {plain_sha256, plain_bytes}."""
+def header_key_id(src: Path) -> str | None:
+    with open(src, "rb") as f:
+        header, _ = read_header(f)
+    kid = header.get("key_id")
+    return kid if isinstance(kid, str) else None
+
+
+def open_file(src: Path, dst: Path, key: bytes | Mapping[str, bytes]) -> dict[str, Any]:
+    """Decrypt an SWXB file into `dst` with `key`, or with the key of a keyring ({key id: key}) the header names. Raises
+    OffboxError (key_mismatch / sealed_invalid / sealed_damaged) on any problem and removes the partial output. Returns
+    {plain_sha256, plain_bytes, key_id}."""
     h = hashlib.sha256()
     n = 0
     try:
         with open(src, "rb") as fin, open(dst, "wb") as fout:
             header, raw = read_header(fin)
-            if header.get("key_id") != key_id(key):
-                raise OffboxError("key_mismatch", "the file was sealed with another key")
+            kid = header.get("key_id")
+            k = key.get(kid) if isinstance(key, Mapping) else (key if kid == key_id(key) else None)
+            if k is None:
+                raise OffboxError("key_mismatch", "the file was sealed with a key this installation does not hold")
             try:
                 prefix = base64.b64decode(header.get("nonce_prefix") or "", validate=True)
             except ValueError as exc:
@@ -514,7 +596,7 @@ def open_file(src: Path, dst: Path, key: bytes) -> dict[str, Any]:
             if len(prefix) != 7:
                 raise OffboxError("sealed_invalid", "nonce prefix unreadable")
             aad = hashlib.sha256(raw).digest()
-            aead = AESGCM(key)
+            aead = AESGCM(k)
             counter = 0
             while True:
                 rl = fin.read(4)
@@ -527,6 +609,7 @@ def open_file(src: Path, dst: Path, key: bytes) -> dict[str, Any]:
                 if len(ct) != ln:
                     raise OffboxError("sealed_damaged", "the file ends inside a record (truncated)")
                 plain = None
+                final = False
                 for final in (False, True):
                     try:
                         plain = aead.decrypt(_nonce(prefix, counter, final), ct, aad)
@@ -546,7 +629,7 @@ def open_file(src: Path, dst: Path, key: bytes) -> dict[str, Any]:
     except BaseException:
         Path(dst).unlink(missing_ok=True)
         raise
-    return {"plain_sha256": h.hexdigest(), "plain_bytes": n}
+    return {"plain_sha256": h.hexdigest(), "plain_bytes": n, "key_id": kid}
 
 
 # ---------------------------------------------------------------- retention
@@ -560,8 +643,12 @@ class RetentionPolicy:
     keep_monthly: int = 6
 
     def __post_init__(self) -> None:
-        if self.keep_last < 1 or min(self.keep_daily, self.keep_weekly, self.keep_monthly) < 0:
-            raise OffboxError("retention_invalid", "keep_last >= 1, the others >= 0")
+        vals = (self.keep_last, self.keep_daily, self.keep_weekly, self.keep_monthly)
+        if not all(isinstance(v, int) for v in vals) or self.keep_last < 1 or min(vals[1:]) < 0 or max(vals) > 1000:
+            raise OffboxError("retention_invalid", "keep_last 1-1000, the others 0-1000")
+
+    def as_dict(self) -> dict[str, int]:
+        return dataclasses.asdict(self)
 
     def plan(self, names: Iterable[str]) -> dict[str, list[str]]:
         """{keep, delete, unmanaged}: unmanaged = names without a time stamp this module can read (never deleted)."""
@@ -602,12 +689,15 @@ def object_name(archive: Path) -> str:
     return check_name(f"{Path(archive).stem}.zip{SUFFIX}")
 
 
-def _sha256(path: Path) -> str:
+def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for b in iter(lambda: f.read(CHUNK), b""):
             h.update(b)
     return h.hexdigest()
+
+
+_sha256 = sha256_file
 
 
 def push(archive: Path, dest: Destination, key: bytes, *, policy: RetentionPolicy | None = None, dry_run: bool = False,
@@ -628,6 +718,19 @@ def push(archive: Path, dest: Destination, key: bytes, *, policy: RetentionPolic
 
     out: dict[str, Any] = {"ok": False, "dry_run": dry_run, "object": name, "destination": dest.describe(), "verify": verify,
                            "uploaded": False, "verified": False, "deleted": [], "error": None, "timings_ms": timings}
+
+    def fail(code: str, message: str) -> dict[str, Any]:
+        out["error"] = code
+        out["message"] = message[:200]
+        if out["uploaded"] and not out["verified"]:  # a copy that does not read back is removed, never left to look like a backup
+            try:
+                dest.delete(name)
+                out["bad_copy_removed"] = True
+            except Exception:  # noqa: BLE001
+                out["bad_copy_removed"] = False
+        log.warning("off-box backup %s: %s", name, code)
+        return out
+
     try:
         if not archive.is_file():
             raise OffboxError("archive_missing", "the archive does not exist")
@@ -652,11 +755,11 @@ def push(archive: Path, dest: Destination, key: bytes, *, policy: RetentionPolic
             t = time.monotonic()
             back = Path(tmp) / "verify.swxb"
             dest.get(name, back)
-            if _sha256(back) != info["sealed_sha256"]:
+            if sha256_file(back) != info["sealed_sha256"]:
                 raise OffboxError("verify_hash_mismatch", "the uploaded copy differs from what was sent")
             if verify == "deep":
                 opened = open_file(back, Path(tmp) / "verify.zip", key)
-                if opened["plain_sha256"] != _sha256(archive):
+                if opened["plain_sha256"] != info["plain_sha256"]:
                     raise OffboxError("verify_plain_mismatch", "the decrypted copy differs from the archive")
             lap("verify", t)
             out["verified"] = True
@@ -670,20 +773,54 @@ def push(archive: Path, dest: Destination, key: bytes, *, policy: RetentionPolic
         out["ok"] = True
         return out
     except OffboxError as exc:
-        out["error"] = exc.code
-        out["message"] = str(exc)[:200]
-        if out["uploaded"] and not out["verified"]:  # a copy that does not read back is removed, never left to look like a backup
-            try:
-                dest.delete(name)
-                out["bad_copy_removed"] = True
-            except (OffboxError, OSError):
-                out["bad_copy_removed"] = False
-        log.warning("off-box backup %s: %s", name, exc.code)
-        return out
+        return fail(exc.code, str(exc))
     except OSError as exc:
-        out["error"] = "io_error"
-        out["message"] = type(exc).__name__
-        log.warning("off-box backup %s: %s", name, type(exc).__name__)
-        return out
+        return fail("io_error", type(exc).__name__)
+    except Exception as exc:  # noqa: BLE001 - a transport library's own error: named by type only (never its text: it may echo a URL)
+        return fail("transport_error", type(exc).__name__)
     finally:
         timings["total"] = int(round((time.monotonic() - t0) * 1000))
+
+
+def check_connection(dest: Destination, *, workdir: Path | None = None) -> dict[str, Any]:
+    """Write a tiny marker object, read it back, compare, delete it, then list. Returns {ok, steps, error, timings_ms}; never raises."""
+    t0 = time.monotonic()
+    name = new_marker_name()
+    payload = f"arx off-box connection test {name}\n".encode()
+    steps: list[str] = []
+    out: dict[str, Any] = {"ok": False, "steps": steps, "error": None, "destination": dest.describe()}
+    written = False
+    try:
+        with tempfile.TemporaryDirectory(dir=str(workdir) if workdir else None) as tmp:
+            src = Path(tmp) / "marker.txt"
+            src.write_bytes(payload)
+            dest.put(src, name)
+            written = True
+            steps.append("write")
+            back = Path(tmp) / "back.txt"
+            dest.get(name, back)
+            if back.read_bytes() != payload:
+                raise OffboxError("verify_hash_mismatch", "the marker read back differs")
+            steps.append("read")
+            dest.delete(name)
+            written = False
+            steps.append("delete")
+            out["objects"] = len(dest.list())
+            steps.append("list")
+        out["ok"] = True
+    except OffboxError as exc:
+        out["error"] = exc.code
+    except OSError as exc:
+        out["error"] = "io_error"
+        out["detail"] = type(exc).__name__
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = "transport_error"
+        out["detail"] = type(exc).__name__
+    finally:
+        if written:
+            try:
+                dest.delete(name)
+            except Exception:  # noqa: BLE001
+                pass
+        out["timings_ms"] = {"total": int(round((time.monotonic() - t0) * 1000))}
+    return out

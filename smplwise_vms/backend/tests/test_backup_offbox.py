@@ -17,6 +17,7 @@ import pytest
 from smplwise.services import backup_offbox as ob
 
 SECRET = "PLANTED-S3-SECRET-4f1c"
+HOST_KEY_LINE = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK0p8t6eH0vFakeHostKeyForTestsOnly0000000000"
 
 
 def _archive(tmp_path: Path, name: str = "manual-20261020-120000.zip", size: int = 3 * 1024 * 1024 + 17) -> Path:
@@ -238,7 +239,7 @@ class FakeS3:
         self.store: dict[tuple[str, str], bytes] = {}
 
     def put_object(self, *, Bucket, Key, Body):
-        self.store[(Bucket, Key)] = bytes(Body)
+        self.store[(Bucket, Key)] = Body.read() if hasattr(Body, "read") else bytes(Body)
 
     def get_object(self, *, Bucket, Key):
         return {"Body": io.BytesIO(self.store[(Bucket, Key)])}
@@ -260,7 +261,7 @@ def test_sftp_adapter_against_a_fake_client(tmp_path):
     fake = FakeSftp(tmp_path / "sftp")
     (tmp_path / "sftp" / "backups").mkdir(parents=True)
     d = ob.build_destination({"kind": "sftp", "host": "backup.example.net", "username": "arx", "key": "file:/run/secrets/id_ed25519",
-                              "known_hosts": "file:/run/secrets/known_hosts", "remote_dir": "/backups"}, sftp_client=lambda dest: fake)
+                              "host_key": HOST_KEY_LINE, "remote_dir": "/backups"}, sftp_client=lambda dest: fake)
     policy = ob.RetentionPolicy(keep_last=1, keep_daily=0, keep_weekly=0, keep_monthly=0)
     assert ob.push(_archive(tmp_path, "auto-daily-20261019-030000.zip"), d, key, policy=policy)["ok"]
     r = ob.push(_archive(tmp_path, "auto-daily-20261020-030000.zip"), d, key, policy=policy)
@@ -282,14 +283,35 @@ def test_s3_adapter_against_a_fake_client_follows_pages(tmp_path):
     assert ("arx-bk", "arx-backups/foreign.bin") in fake.store
 
 
-def test_the_real_transports_are_not_in_this_build(tmp_path):
-    s = ob.SftpDestination("backup.example.net", "arx", ob.CredentialRef("file:/k"), ob.CredentialRef("file:/kh"), "/b")
-    with pytest.raises(ob.OffboxError) as e:
-        s.list()
-    assert e.value.code == "transport_not_available"
-    r = ob.push(_archive(tmp_path), ob.S3Destination("https://s3.example.net", "arx-bk", ob.CredentialRef("env:A"), ob.CredentialRef("env:B")),
-                _key(tmp_path), dry_run=True)
-    assert not r["ok"] and r["error"] == "transport_not_available"
+def test_sftp_needs_a_pinned_host_key_and_s3_needs_its_credentials(tmp_path, monkeypatch):
+    for pin in ("", "trust-on-first-use", "ssh-ed25519", "SHA256:short"):
+        with pytest.raises(ob.OffboxError) as e:
+            ob.SftpDestination("backup.example.net", "arx", ob.CredentialRef("file:/k"), pin, "/b")
+        assert e.value.code == "host_key_required", pin
+    ob.SftpDestination("backup.example.net", "arx", ob.CredentialRef("file:/k"), "SHA256:" + "A" * 43, "/b")
+    monkeypatch.delenv("SW_TEST_NOPE_A", raising=False)
+    s3 = ob.S3Destination("https://s3.example.net", "arx-bk", ob.CredentialRef("env:SW_TEST_NOPE_A"), ob.CredentialRef("env:SW_TEST_NOPE_B"))
+    r = ob.push(_archive(tmp_path), s3, _key(tmp_path), dry_run=True)
+    assert not r["ok"] and r["error"] == "credential_missing", "the real S3 client resolves its keys at connect time"
+    store = ob.S3Destination("https://s3.example.net", "arx-bk", ob.CredentialRef("store:offbox.t1.access_key"),
+                             ob.CredentialRef("store:offbox.t1.secret_key"), secret_store=lambda name: None)
+    assert ob.push(_archive(tmp_path), store, _key(tmp_path), dry_run=True)["error"] == "credential_missing"
+
+
+def test_marker_objects_are_written_read_and_removed_never_listed(tmp_path):
+    dest = ob.FakeDestination()
+    r = ob.check_connection(dest)
+    assert r["ok"] and r["steps"] == ["write", "read", "delete", "list"] and dest.objects == {}
+    puts = [n for op, n in dest.calls if op == "put"]
+    assert len(puts) == 1 and ob.MARKER_RE.fullmatch(puts[0])
+    with pytest.raises(ob.OffboxError):
+        ob.check_name(puts[0])  # a marker is not a backup object (never listed, never pruned)
+    dest.corrupt_put = True
+    r2 = ob.check_connection(dest)
+    assert not r2["ok"] and r2["error"] == "verify_hash_mismatch" and dest.objects == {}, "a failed test still removes its marker"
+    bad = ob.FakeDestination()
+    bad.fail_put = True
+    assert ob.check_connection(bad)["error"] == "destination_unavailable"
 
 
 # ---------------------------------------------------------------- credentials never leak

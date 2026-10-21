@@ -102,6 +102,8 @@ def create_backup(body: CreateIn, request: Request, principal: Principal = Depen
 
 class DrillRunIn(BaseModel):
     name: str | None = Field(default=None, max_length=160)  # an archive of the list; default: the newest valid one
+    # phase 2: drill the newest encrypted copy at this off-box target instead (downloaded and decrypted with the keyring)
+    target_id: str | None = Field(default=None, max_length=64)
 
 
 class DrillScheduleIn(BaseModel):
@@ -113,7 +115,7 @@ def _drill_status(request: Request, conn: sqlite3.Connection) -> dict[str, Any]:
     last = drill.read_last(st)
     enabled = drill.schedule_enabled(conn)
     nxt = drill.next_due(last) if enabled else None
-    return {"running": drill.running(), "last": last, "history": drill.read_history(st),
+    return {"running": drill.running(), "last": last, "last_offbox": drill.read_last(st, drill.LAST_OFFBOX_FILE), "history": drill.read_history(st),
             "schedule": {"monthly": enabled, "next_due_at": nxt.replace(microsecond=0).isoformat().replace("+00:00", "Z") if nxt else None,
                          "due_now": enabled and nxt is None}}
 
@@ -128,10 +130,16 @@ def drill_status(request: Request, principal: Principal = Depends(current_princi
 def drill_run(body: DrillRunIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     archive = _path(request, body.name) if body.name else None
-    if not drill.start_background(settings_of(request), archive, trigger="manual"):
+    if body.target_id:
+        from ..services import offbox_store
+
+        if offbox_store.get_target(conn, body.target_id) is None:
+            raise not_found("היעד לא נמצא.")
+    if not drill.start_background(settings_of(request), archive, trigger="manual", db=request.app.state.db, offbox_target=body.target_id):
         raise ApiError(409, "drill_running", "בדיקת שחזור כבר רצה.")
-    audit(conn, actor=principal, action="backup.drill.run", decision="allowed", resource_type="backup", resource_id=body.name or "latest", request_id=_rid(request))
-    return {"started": True, "archive": body.name}
+    audit(conn, actor=principal, action="backup.drill.run", decision="allowed", resource_type="backup",
+          resource_id=f"offbox:{body.target_id}" if body.target_id else (body.name or "latest"), request_id=_rid(request))
+    return {"started": True, "archive": body.name, "target_id": body.target_id}
 
 
 @router.put("/backups/drill/schedule")
