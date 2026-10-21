@@ -371,7 +371,7 @@
     },
     {
       "id": "tickets_directory",
-      "name_he": "ניהול ספריית אנשי קשר וספקים ב{tickets}",
+      "name_he": "ספריית ספקים ואנשי קשר חיצוניים ב{tickets}",
       "permissions": [
         "tickets.directory"
       ]

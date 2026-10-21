@@ -355,10 +355,16 @@ def check_code(conn, viewer: Viewer, row: Mapping[str, Any] | None, presented: A
 
 
 def _admin_row(conn, viewer: Viewer, contact_id: str) -> dict[str, Any]:
-    require(conn, viewer.principal, access.CONFIGURE, INSTALLATION)
+    """TICKPERM-295: the directory's editors (configure or directory) verify a vendor / contact number; a handler's row (employee or
+    user-linked) stays with `tickets.configure` - the same split as services/tickets/contacts.py."""
+    from . import contacts
+
+    contacts.require_directory(conn, viewer)
     row = store_links.contact(conn, contact_id)
     if row is None or row.get("erased_at"):
         raise ApiError(404, "contact_not_found", text(conn, "איש הקשר לא נמצא."))
+    if contacts.is_staff_row(row):
+        contacts.require_staff_rows(conn, viewer)
     return row
 
 

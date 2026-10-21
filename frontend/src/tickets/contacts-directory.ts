@@ -19,7 +19,7 @@ import { ticketsApi } from '../api/tickets';
 import { CONTACT_CHANNELS, CONTACT_LANGS, ticketsS4Api, type Contact, type ContactBody, type ContactChannel, type ContactKind, type ContactLang } from '../api/tickets-s4';
 import { canAnywhere, isApi } from '../api/session';
 import { deptHandlersApi, type ManagerContactBody, type VendorMatch } from '../api/tickets-dept-handlers';
-import { SHARED_BY_DEFAULT, createdLabel, lookupReady, mayShare, rowActions } from './dept-handlers-model';
+import { SHARED_BY_DEFAULT, createdLabel, creatableKinds, lookupReady, mayShare, rowActions } from './dept-handlers-model';
 import { CURRENCIES, type CostMode } from '../api/tickets-costs';
 import { ticketSettingsCss } from './settings-styles';
 import { handlersGlass } from './handlers-glass';
@@ -91,6 +91,8 @@ export class TicketsContacts extends LitElement {
   /** the vendors a person may work for, when the list itself is locked to persons */
   @state() private vendorRows: Contact[] = [];
   @state() private canEdit = false;
+  /** TICKPERM-295: may edit handlers' rows (employees without an account); false for a directory-only holder (an older server: true) */
+  @state() private canEditStaff = true;
   @state() private filter: KindFilter = 'all';
   @state() private selected = '';
   @state() private creating = false;
@@ -277,6 +279,7 @@ export class TicketsContacts extends LitElement {
       const page = await ticketsS4Api().contacts({ q: this.query, kind });
       this.rows = page.contacts;
       this.canEdit = page.can_edit;
+      this.canEditStaff = page.can_edit_staff ?? true;
       this.mine = page.handler_departments ?? [];
       if (this.kind === 'person' && page.can_edit && !this.vendorRows.length) {
         void ticketsS4Api().contacts({ kind: 'vendor' }).then((v) => (this.vendorRows = v.contacts)).catch(() => undefined);
@@ -626,7 +629,7 @@ export class TicketsContacts extends LitElement {
     return html`<div class="sec" data-card="contacts" data-contacts-kind=${locked || 'all'}>
       ${this.head ? html`<div class="sh"><h2>${title}<span class="n" data-contacts-count>${rows.length}</span></h2><small>${sub}</small>
         <span class="grow"></span>
-        ${this.newbtn && (this.canEdit || this.mgr) ? html`<button type="button" class="btn sm" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tIcon('plus')}${tt(`ctNew_${locked || 'person'}` as TicketTextKey)}</button>` : nothing}</div>` : nothing}
+        ${this.newbtn && (this.canEdit || this.mgr) && (locked !== 'employee' || this.canEditStaff || this.mgr) ? html`<button type="button" class="btn sm" data-contact-new ?disabled=${this.busy} @click=${() => this.open(null)}>${tIcon('plus')}${tt(`ctNew_${locked || 'person'}` as TicketTextKey)}</button>` : nothing}</div>` : nothing}
       ${list}
     </div>`;
   }
@@ -673,7 +676,7 @@ export class TicketsContacts extends LitElement {
     const d = this.draft!;
     const vendors = (this.kind === 'person' ? this.vendorRows : this.rows ?? []).filter((x) => x.kind === 'vendor' && x.id !== c?.id && !x.erased);
     const employee = d.kind === 'employee'; // an employee without an account: name, phone, e-mail, channel, language, departments, notes
-    const kinds: readonly ContactKind[] = this.kind ? [] : ['person', 'vendor', 'employee'];
+    const kinds: readonly ContactKind[] = this.kind ? [] : creatableKinds(this.canEditStaff, this.mgr);
     const seg = <T extends string>(label: string, values: readonly T[], current: T, text: (v: T) => string, on: (v: T) => void, attr: string) => html`
       <div class="fld"><span>${label}</span><span class="seg" role="radiogroup" aria-label=${label}>${values.map((v) => html`<button type="button" role="radio"
         aria-checked=${String(current === v)} aria-pressed=${String(current === v)} data-field=${`${attr}:${v}`} @click=${() => on(v)}>${text(v)}</button>`)}</span></div>`;

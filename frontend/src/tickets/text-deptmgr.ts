@@ -25,7 +25,7 @@ export const DM_HE = {
   dmFullPhones: 'מנהלי מחלקה רואים מספרים מלאים',
   dmFullPhonesHint: 'רק ברשומות של המחלקות שהם מנהלים. כבוי: ארבע הספרות האחרונות בלבד.',
   dmMasked: 'מוסתר',
-  p_directory: 'ניהול ספריית אנשי קשר וספקים', // SMALL-294 (tickets.directory)
+  p_directory: 'ספרייה: ספקים ואנשי קשר חיצוניים', // SMALL-294 (tickets.directory)
   p_handlers: 'מטפלים וספקים במחלקות שלי', // the "הרשאות" tab's words of the permission (tickets/perm-label.ts)
 } as const;
 
@@ -51,7 +51,7 @@ export const DM_EN: Record<keyof typeof DM_HE, string> = {
   dmFullPhones: 'Department managers see full numbers',
   dmFullPhonesHint: 'Only in the entries of the departments they manage. Off: the last four digits only.',
   dmMasked: 'Hidden',
-  p_directory: 'Manage the contact and vendor directory',
+  p_directory: 'Directory: vendors and outside contacts',
   p_handlers: 'Handlers in my departments',
 };
 
@@ -69,7 +69,7 @@ export const DM_AR_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
   dmLookupNone: 'لا يوجد مورّد بهذا الرقم.',
   dmLookupAttach: 'ربط بالقسم',
   dmLookupAttached: 'مرتبط بالفعل',
-  p_directory: 'إدارة دليل جهات الاتصال والموردين', // SMALL-294 / SMALL2-295 (tickets.directory)
+  p_directory: 'الدليل: الموردون وجهات الاتصال الخارجية', // SMALL-294 / SMALL2-295 (tickets.directory)
   p_handlers: 'المعالجون والموردون في أقسامي',
 };
 export const DM_RU_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
@@ -81,6 +81,6 @@ export const DM_RU_DEV: Partial<Record<keyof typeof DM_HE, string>> = {
   dmLookupNone: 'Поставщик с этим номером не найден.',
   dmLookupAttach: 'Привязать к отделу',
   dmLookupAttached: 'Уже привязан',
-  p_directory: 'Управление справочником контактов и поставщиков', // SMALL-294 / SMALL2-295 (tickets.directory)
+  p_directory: 'Справочник: поставщики и внешние контакты', // SMALL-294 / SMALL2-295 (tickets.directory)
   p_handlers: 'Исполнители и поставщики в моих отделах',
 };
