@@ -38,7 +38,7 @@ export function inPageCheck(args: GuardArgs): Finding[] {
   const MIN = touch ? 44 : desktopTouch;
   const BUBBLE = 'sw-pill, .sheet, .tree-row, .floor-head, nav.tree, .btn, .chip, .sb, .pk-head, .stack, nav.bottom, .fab, .kv > div, .big, .x, .ring, sw-card, .pv-sheet, .seg' + (args.bubble ? ', ' + args.bubble : '');
   // .float = the shell's existing search / status corner (UI round 1), not a phase-B component: its 28 px button is a known shell item
-  const SKIP = '.tx.over, .pv-bg, sw-icon, svg, .sr, .grab, .float' + (args.skip ? ', ' + args.skip : '');
+  const SKIP = '.tx.over, .pv-bg, sw-icon, svg, .sr, .sr-h1, .grab, .float' + (args.skip ? ', ' + args.skip : '');
   const INTER = 'button, a[href], [role="slider"], [role="button"], [role="switch"], [role="option"], input, select, [tabindex="0"]';
   const all: Element[] = [];
   const collect = (root: Document | ShadowRoot | Element) => {
