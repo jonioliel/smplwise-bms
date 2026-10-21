@@ -14,7 +14,7 @@ import pytest
 from smplwise.services import messaging_runtime as mr
 
 LAZY_MODULES = ("smplwise.services.temperature_whatsapp",)
-IMPORTED_FIRST = ("smplwise.services.local_reset", "smplwise.services.access_grants")  # REGSTART-295: create_app imports both at startup now; tests that build a Database without an app still need them first (the "identity" and "access" modules)
+IMPORTED_FIRST = ("smplwise.services.local_reset", "smplwise.services.access_grants", "smplwise.services.notify_whatsapp")  # TESTDEBT3-295: notify_whatsapp (the "notifications" module) joined only because something imported it at collection; named here so the test registry never depends on that chain. REGSTART-295: create_app imports both at startup now; tests that build a Database without an app still need them first (the "identity" and "access" modules)
 LAZY_MODULE_KEYS = ("temperature",)
 
 
