@@ -240,8 +240,11 @@ def check_access(settings: Settings) -> str:
 
 
 def username_in_use(settings: Settings, username: str) -> bool:
+    from ..auth import normalize_username  # HA 2026.10 trims and lower-cases usernames: compare the same way (strip + casefold)
+
     async def fn(call: Call) -> bool:
-        return any((u.username or "").lower() == username.lower() for u in await _list(call))
+        want = normalize_username(username)
+        return bool(want) and any(normalize_username(u.username) == want for u in await _list(call))
 
     return bool(run(settings, fn))
 
