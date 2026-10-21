@@ -21,7 +21,9 @@ message is never judged here):
    - names its service or target by a template: `impact_template`;
    - targets anything but literal entity ids (an area, a device, a floor, a label, `all`, nothing): `impact_target_unresolved`;
    - is a device action (opaque: its `entity_id` is a registry id): `impact_device_action`; fires an event: `impact_event`;
-   - is not a step shape this check knows: `impact_step_unknown`; nests a second level: `impact_nesting_too_deep`;
+   - is not a step shape this check knows: `impact_step_unknown` - including (0.9.6, Fable review 4 V-01) a step that carries more than one
+     type key (ACTION_TYPE_KEYS: e.g. a device action with a decoy `action` key), since Home Assistant might run it as another kind than the
+     one judged here; nests a second level: `impact_nesting_too_deep`;
    - is too deep / too many steps to judge: `impact_too_large`;
    or when the item (or a nested one) cannot be found or read in those files: `impact_unknown_item`; or when the service user's Home Assistant
    entity policy does not allow controlling every entity the steps target: `impact_entity_policy`.
@@ -102,6 +104,14 @@ TARGET_KEYS = frozenset({"area_id", "device_id", "floor_id", "label_id"})
 CONTROL_KEYS = frozenset({"choose", "default", "if", "then", "else", "repeat", "parallel", "sequence", "conditions", "delay", "wait_template", "wait_for_trigger",
                           "timeout", "continue_on_timeout", "variables", "stop", "error", "response_variable", "alias", "enabled", "continue_on_error",
                           "set_conversation_response"})
+# 0.9.6 (Fable review 4, V-01): the keys that decide a step's TYPE in Home Assistant (the keys of `ACTIONS_MAP` in
+# homeassistant/helpers/config_validation.py, which `determine_script_action` consults). Home Assistant picks the first key of its own map
+# when a step carries several; a step judged here by one key and run there by another (a device action `unlock` with a decoy
+# `action: lock.lock`) is the gap the review found. Rule: a step dict that carries MORE THAN ONE of these keys is refused
+# (`impact_step_unknown`) - whatever order Home Assistant uses, so the fix does not rest on knowing that order. Listed in the order the review
+# states for Home Assistant core (NOT VERIFIED against an installed Home Assistant on this workstation - see test_bridge_runnable.py).
+ACTION_TYPE_KEYS = ("delay", "wait_template", "condition", "and", "or", "not", "event", "device_id", "action", "service", "service_template", "scene",
+                    "repeat", "choose", "wait_for_trigger", "variables", "if", "parallel", "stop", "sequence", "set_conversation_response")
 
 
 class Impact(Exception):
@@ -288,12 +298,18 @@ def _walk(raw: Any, level: int, facts: Facts, depth: int = 0) -> None:
     facts.steps += 1
     if facts.steps > MAX_STEPS:
         raise Impact("impact_too_large")
-    if "action" in raw or "service" in raw:
-        return _service_step(raw, level, facts)
+    kinds = [k for k in ACTION_TYPE_KEYS if k in raw]
+    if len(kinds) > 1:
+        # 0.9.6 (Fable review 4, V-01): an ambiguous step - Home Assistant would run it as ONE of these kinds (its own order), the check could
+        # judge it as another. Refused, never guessed (a device action `unlock` carrying a decoy `action: lock.lock` lands here)
+        raise Impact("impact_step_unknown")
+    # one type key at most: the order below is Home Assistant's own (device action and event before a service call)
     if "event" in raw:
         raise Impact("impact_event")
     if "device_id" in raw:
         raise Impact("impact_device_action")
+    if "action" in raw or "service" in raw:
+        return _service_step(raw, level, facts)
     if "scene" in raw:
         if set(raw) - {"scene", "alias", "enabled", "continue_on_error"}:
             raise Impact("impact_step_unknown")

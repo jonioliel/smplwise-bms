@@ -1,6 +1,8 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.9.5"
+VERSION = "0.9.6"
+# 0.9.6 (EXTID-295, Fable security review 4 of 2026-10-21): V-01 - the impact check refuses a step that carries more than one type key
+# (runnable.ACTION_TYPE_KEYS: a device action with a decoy `action` key was judged as the decoy). Needs one Home Assistant restart (by the owner).
 # 0.9.5 (HMACACT-295, the activation slice of CR-WISKEY-HMAC-ROTATION-295): the bridge holds a key set (keyset.py) instead of the bare pairing secret
 # and answers the add-on's key-rotation control messages (the `rotate` service; signature v2 with a key id). Until the add-on starts a rotation
 # everything is byte-identical to 0.9.4 (kid-less, the pairing secret), so an add-on updated before or after this bridge keeps working. Needs one
