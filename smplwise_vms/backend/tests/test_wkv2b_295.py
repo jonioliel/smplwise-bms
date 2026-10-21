@@ -191,4 +191,6 @@ def test_pending_work_or_an_unknown_status_keeps_the_revoke_open_even_with_v1(en
 
 
 def test_the_live_engine_stays_refused_and_no_switch_is_on():
-    assert ag.GO_LIVE_PERMITTED is False and a5.GO_LIVE_PERMITTED is False
+    # DWFIX-295 (review 3 T-01): ECCACT-295 (owner decision 2026-10-21, option A) opened both permits; the installation switches
+    # (`access.external_grants`, every `wiskey.acr5_*`) still default OFF. The permit-off behaviour is pinned by the tests that monkeypatch it.
+    assert ag.GO_LIVE_PERMITTED is True and a5.GO_LIVE_PERMITTED is True

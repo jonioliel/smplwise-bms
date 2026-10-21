@@ -197,3 +197,4 @@ def test_every_switch_still_ships_off_and_the_permit_is_the_owners_decision_in_t
     src = Path(dwe.__file__).read_text(encoding="utf-8")
     # integ/2111: ECCACT-295 carries the owner decision of 2026-10-21 (option A) that opened this permit; the switches above still ship off
     assert "\nGO_LIVE_PERMITTED = True" in src, "ECCACT-295: opened by the owner decision of 2026-10-21; the world patches it inside a test only"
+    assert "\nLIVE_ENGINE_BUILT = False" in src, "DWFIX-295: the live engine answers not_implemented - tier D, and no emergency switch"

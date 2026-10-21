@@ -9,7 +9,7 @@
     of cleanup; False needs presence=present at the SAME revision, all six pending arrays empty and the separate central predicate.
 
 Nothing here contacts WisKey, Home Assistant, a station or a door: the engine is tests/fake_wiskey.FakeAccessEngine or a dict fake,
-and the live engine stays refused (GO_LIVE_PERMITTED is False)."""
+and the permit-off behaviour is pinned by monkeypatching GO_LIVE_PERMITTED to False (the shipped constant is True since ECCACT-295)."""
 from __future__ import annotations
 
 import inspect

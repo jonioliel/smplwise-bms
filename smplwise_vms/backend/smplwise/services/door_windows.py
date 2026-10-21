@@ -9,8 +9,9 @@ start and "close" at its end from its own timer. Arx holds:
 - the WATCHDOG (services/door_windows_watch.py): confirms the relock from the engine's own status and, when it cannot, raises a critical
   notification and retries the CLOSE direction (bounded), never the open.
 
-Shipped OFF: `doors.windows.enabled` = off. With it on but no permitted live engine (this build: door_windows_engine.GO_LIVE_PERMITTED is
-False) the tier is D ("prepared"): rules, calendar and occurrences work, nothing is written to or read from WisKey.
+Shipped OFF: `doors.windows.enabled` = off. With it on but no permitted AND built live engine (this build: door_windows_engine.
+LIVE_ENGINE_BUILT is False, review 3 DW-02) the tier is D ("prepared"): rules, calendar and occurrences work, nothing is written to or read
+from WisKey.
 
 DST (CR-039 4.5, W0 finding 8): occurrences follow WisKey's window token - a wall-clock string compare in the station's IANA zone. A
 window partly inside the spring-forward gap is held for the part that exists; a window crossing the fall-back repeat is one token, one

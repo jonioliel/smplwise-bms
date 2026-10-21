@@ -1,8 +1,9 @@
 """CR-039 8 / DOORWIN-295: emergency door controls - LOCK all doors ("Secure") and OPEN all doors (evacuation).
 
 Shipped OFF, and fail-closed several times over:
-- `doors.emergency.enabled` (off) cannot be switched on while the live engine is not permitted (door_windows_engine.GO_LIVE_PERMITTED is
-  False in this build) - a button that cannot act would be a false sense of safety (build notes T21);
+- `doors.emergency.enabled` (off) cannot be switched on while the live engine is not permitted (door_windows_engine.GO_LIVE_PERMITTED) or
+  not built (door_windows_engine.LIVE_ENGINE_BUILT is False in this build: the WisKey W13-e coordinator answers not_implemented) - a button
+  that cannot act would be a false sense of safety (build notes T21; review 3 DW-01). A release never needs either (E-01);
 - OPEN additionally needs `doors.emergency.open_enabled`, which cannot be on without the engine's OPEN capability (WisKey has no hold-until /
   emergency_open command: U3 / W13) AND the life-safety attestation (CR-039 8.9);
 - `doors.emergency.automations` (off) - an actor that is not an interactive person is refused; the switch cannot be on while no automation
@@ -116,7 +117,8 @@ def attested(conn: sqlite3.Connection) -> bool:
 
 
 def live_ok() -> bool:
-    return dwe.go_live_permitted()
+    """The real control can act: the permit is in the build AND the live engine exists (DW-01). Never read on the release path."""
+    return dwe.live_ready()
 
 
 def open_available(settings: Any) -> bool:
@@ -138,7 +140,8 @@ def open_enabled(conn: sqlite3.Connection, settings: Any) -> bool:
 
 
 def settings_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
-    return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(), "open_available": open_available(settings),
+    return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(), "live_engine_built": dwe.live_engine_built(),
+            "open_available": open_available(settings),
             "attested": attested(conn), "attestation": {"version": ATTESTATION_VERSION, "text": ATTESTATION_TEXT_HE}}
 
 
@@ -146,8 +149,10 @@ def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, 
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
             raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
-    if changes.get(ENABLED) == "on" and not live_ok():
+    if changes.get(ENABLED) == "on" and not dwe.go_live_permitted():
         raise ApiError(409, "go_live_not_permitted", "הפעלה אמיתית של לחצני החירום אינה מאושרת בגרסה זו. תרגילים זמינים.")
+    if changes.get(ENABLED) == "on" and not live_ok():  # DW-01: the permit alone is not enough - the live engine must exist
+        raise ApiError(409, "engine_not_implemented", "נעילת חירום אמיתית אינה זמינה בגרסה זו: מנגנון הביצוע במערכת הכניסה עדיין לא קיים. תרגילים זמינים.")
     if changes.get(OPEN_ENABLED) == "on":
         if not live_ok() or not open_available(settings):
             raise ApiError(409, "open_unavailable", "פתיחת חירום ממתינה לממשק מצד מערכת הכניסה.")

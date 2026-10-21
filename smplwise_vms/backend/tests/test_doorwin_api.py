@@ -27,8 +27,14 @@ def test_everything_ships_off(pw):
 
 
 def test_the_emergency_switch_cannot_be_turned_on_in_this_build(pw):
+    from smplwise.services import door_windows_engine as dwe
+
+    # DWFIX-295 (review 3 DW-01 / DW-08): the SHIPPED constants, not a patched permit - the permit is in, the live engine is not built
+    assert dwe.GO_LIVE_PERMITTED is True and dwe.LIVE_ENGINE_BUILT is False
+    e = pw.get("/doors/emergency/settings").json()["settings"]
+    assert e["go_live_permitted"] is False and e["live_engine_built"] is False
     r = pw.put("/doors/emergency/settings", changes={"doors.emergency.enabled": "on"}, confirmed=True)
-    assert r.status_code == 409 and r.json()["code"] == "go_live_not_permitted"
+    assert r.status_code == 409 and r.json()["code"] == "engine_not_implemented"
     assert pw.put("/doors/emergency/settings", changes={"doors.emergency.automations": "on"}, confirmed=True).json()["code"] == "automation_actor_unavailable"
     assert pw.put("/doors/emergency/settings", changes={"doors.emergency.open_enabled": "on"}, confirmed=True).json()["code"] == "open_unavailable"
     assert pw.get("/doors/emergency/settings").json()["settings"]["doors.emergency.enabled"] == "off"
