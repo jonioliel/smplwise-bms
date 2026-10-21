@@ -85,6 +85,17 @@ if [ -z "${SW_NIGHTLY_INNER:-}" ]; then
   exit "$RC"
 fi
 RUN_END=$(( ${SW_NIGHTLY_T0:-$(date +%s)} + MAX_MIN * 60 - 300 ))   # the engine must be done 5 min before the hard limit
+# NIGHTLYFIX-295: disk preflight. On 2026-10-21 the runner disk was at 100 percent (0 bytes free): a full run writes about 8 GB
+# (pytest scratch of three shards, Playwright reports, a build) and would die half way with an unreadable error. Refuse early and say
+# why (runner_cleanup.sh cannot be called from here: it stays out of the way while a nightly runs). SW_NIGHTLY_MIN_FREE_GB=0 disables.
+MIN_FREE_GB="${SW_NIGHTLY_MIN_FREE_GB:-25}"
+FREE_GB=$(df -Pk "$RESULTS" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')
+if [ "$MIN_FREE_GB" -gt 0 ] && [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt "$MIN_FREE_GB" ]; then
+  { echo "# Nightly NOT RUN: disk almost full ($(date '+%F %H:%M'))"; echo "- free: ${FREE_GB} GB on the results volume, needed: ${MIN_FREE_GB} GB"; echo "- run ~/runner_cleanup.sh --apply (and clear stale ~/work worktrees / caches), then start the nightly again"; } > "$RESULTS/$(date +%F)_nightly-NODISK.md"
+  printf '{"state":"nodisk","free_gb":%s,"need_gb":%s,"time":"%s","epoch":%s}
+' "$FREE_GB" "$MIN_FREE_GB" "$(date -Is)" "$(date +%s)" > "$RESULTS/nightly_status.json"
+  echo "nightly not run: only ${FREE_GB} GB free (need ${MIN_FREE_GB})"; exit 5
+fi
 cd "$DIR"; git fetch --all --prune >/dev/null 2>&1
 if [ "$#" -gt 0 ]; then BRANCHES=("$@"); else
   # default (FIX1): origin/main only; pass branch names to test others
