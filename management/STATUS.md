@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-21T18:10:28.982372+00:00
+Generated: 2026-10-21T20:26:16.318928+00:00
 
-Tasks: 254 | Requirements: 364 | Tests: 380 | Screens: 32
+Tasks: 255 | Requirements: 365 | Tests: 381 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 61
+- REVIEW: 62
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 160
+- V1: 161
 - V2: 29
 - V3: 2
 
@@ -292,3 +292,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [USR2-P3](tasks/USR2-P3.md) | V1 | REVIEW | USR2 phase P3: the service identity - Arx-only users act in Home Assistant through ONE non-administrator HA user under a per-feature allow-list enforced by the add-on and the bridge (0.9.0); behind security.local_identity (off) | — |
 | [WISKEYID-BUILD](tasks/WISKEYID-BUILD.md) | V1 | REVIEW | CR-ARX-WISKEY-SHARED-IDENTITY X1-X4 (backend): Arx <-> WisKey person links and time-bounded door grants for external people with a WhatsApp code; OFF, go-live not permitted in code | — |
 | [SCHEDIMPACT-295](tasks/SCHEDIMPACT-295.md) | V1 | BACKLOG | V-02 (Fable security review 4, medium, pre-existing basic mode): scheduled script / scene runs of Arx-only people go through the runnable allowlist and the bridge impact check | — |
+| [ENTPOL-295](tasks/ENTPOL-295.md) | V1 | REVIEW | Owner decision 3 of 2026-10-21 (Fable security review 4, V-08): the automatic refusal while the service user is not restricted by an entity policy - fail closed on ambiguous policies and on a stale report (Home Assistant unreachable) | — |

@@ -10226,5 +10226,26 @@
     "expected": "Every listed test passes on the branch; no script / scene reaches the service user through a schedule outside the run fences.",
     "status": "NOT_RUN",
     "notes": "Card opened 2026-10-21 (owner decision 6): fix after the extended-identity permit."
+  },
+  {
+    "id": "AT-ENTPOL-1",
+    "requirement_ids": [
+      "R-ENTPOL-1"
+    ],
+    "task_ids": [
+      "ENTPOL-295"
+    ],
+    "title": "The service user's entity-policy refusal - negative-first fixture tests (add-on and bridge): default, ambiguous, unreachable Home Assistant, restricted",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends and fixtures only; no live device, no Home Assistant"
+    ],
+    "procedure": [
+      "backend tests: tests/test_entpol295_bridge_policy.py, tests/test_entpol295_addon_policy.py, tests/test_service_identity_extended.py, tests/test_service_identity_runnable.py, tests/test_bridge_service_identity.py, tests/test_extid_followups.py"
+    ],
+    "expected": "Every listed test passes on the branch; no extended item is admitted unless the service user is restricted and the report is current.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-21: run locally on the branch (see the commit message); not part of a gate yet."
   }
 ]

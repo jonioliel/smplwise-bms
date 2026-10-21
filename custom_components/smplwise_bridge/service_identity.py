@@ -218,8 +218,13 @@ def _grants_every_entity(policy: Any) -> bool | None:
     if every is True:
         return True
     if isinstance(every, dict):
-        return every.get("control") is True
-    return False if every in (None, False) else None
+        # ENTPOL-295: Home Assistant reads this value by truthiness (permissions.util.test_all), so only an exact True / absent / False is
+        # clear; anything else (1, "yes", a list) would grant control there while `is True` said no - unknown (closed)
+        control = every.get("control")
+        if control is True:
+            return True
+        return False if control is None or control is False else None
+    return False if every is None or every is False else None
 
 
 def service_policy_restricted(user: Any) -> bool | None:
@@ -244,9 +249,23 @@ def service_policy_restricted(user: Any) -> bool | None:
                 return None
             if every:
                 return False
-        return True
+        return _home_assistant_agrees(user)
     except Exception:  # noqa: BLE001 - an API that raises is an API we cannot rely on: unknown (closed)
         return None
+
+
+def _home_assistant_agrees(user: Any) -> bool | None:
+    """ENTPOL-295: the group reading above said "restricted"; Home Assistant's own merged permission object has the last word, so a policy
+    shape this module reads differently from Home Assistant (a merge rule, a future key) cannot pass. `access_all_entities("control")`
+    truthy = every entity (False); a raising call = unknown (None). A user object without a `permissions` attribute (not a Home Assistant
+    user - the add-on's fakes) keeps the group reading; Home Assistant's User always has it."""
+    permissions = getattr(user, "permissions", None)
+    if permissions is None:
+        return True
+    check = getattr(permissions, "access_all_entities", None)
+    if not callable(check):
+        return None
+    return False if check("control") else True
 
 
 def configured_id(value: Any) -> str | None:

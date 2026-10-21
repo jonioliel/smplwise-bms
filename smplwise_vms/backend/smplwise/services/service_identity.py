@@ -40,6 +40,11 @@ Rules (both sides enforce; the bridge has the same table in custom_components/sm
   fix of the impact check) AND the bridge's report that the service user is restricted (a group whose entity policy does not allow every
   entity - `bridge.service_policy_restricted`); while that report is not "true" every item only the extended mode admits is refused 503
   `service_identity_policy_default` (audited reason `policy_default`). The bridge refuses the same with its live check.
+- ENTPOL-295 (owner decision 3 of 2026-10-21, fail closed): a "true" report counts only while it is current - the last accepted directory
+  push (`bridge.directory_at`) at most POLICY_REPORT_MAX_AGE_S old; otherwise (Home Assistant unreachable, pushes stopped, an unreadable or
+  future time) every extended item is refused 503 `service_identity_policy_default` - the binding text's "cannot be determined" (§3א ו) -
+  audited with its own reason `policy_stale` and its own message. The bridge's live check also
+  asks Home Assistant's own permission object whether the service user may control every entity, and refuses on any ambiguous policy value.
 """
 from __future__ import annotations
 
@@ -47,6 +52,7 @@ import json
 import logging
 import re
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any
 
 from ..audit import audit
@@ -85,6 +91,15 @@ BRIDGE_EXTENDED_REQUIRED = "0.9.6"
 # user's Home Assistant entity policy is restricted - "true" / "false" / "" (unknown, or an older bridge). Every item only the extended mode
 # admits is refused while it is not "true" (`service_identity_policy_default`); basic-mode items are not affected.
 BRIDGE_POLICY = "bridge.service_policy_restricted"
+# ENTPOL-295 (owner decision 3 of 2026-10-21, fail closed): the report above is trusted only while the bridge keeps pushing. The bridge pushes
+# the directory every 60 s (`bridge.directory_at` is written on every accepted push); a report older than this - Home Assistant unreachable,
+# the bridge stopped, the push refused - or a push time that cannot be read or lies in the future counts as no report, and every extended
+# item is refused 503 with the same code as the default policy, `service_identity_policy_default` (HA_IDENTITY_RBAC_HE.md §3א ו: "or it cannot
+# be determined"), audited reason `policy_stale`, message STALE_MESSAGE. Basic-mode items are not affected.
+DIRECTORY_AT = "bridge.directory_at"
+POLICY_REPORT_MAX_AGE_S = 300
+POLICY_REPORT_SKEW_S = 60
+STALE_MESSAGE = "רכיב החיבור לא אישר לאחרונה שזהות השירות מוגבלת (אין קשר עם תשתית המערכת), ולכן הפעולות המורחבות של משתמשי Arx נחסמות עד שהקשר יחזור."
 # SVCIDENT3 (review S1 a): the scripts / scenes / automations (entity ids) Arx-only users may run in the extended mode - EMPTY by default
 RUNNABLE_SETTING = "security.local_identity_runnable"
 BRIDGE_RUNNABLE = "bridge.local_identity_runnable"  # the bridge's options-flow copy, as reported in its last directory push (JSON list)
@@ -182,7 +197,7 @@ MESSAGES = {
     "service_identity_bridge_outdated": "נדרש עדכון של רכיב החיבור (0.9.0 ומעלה) כדי שמשתמשי Arx יוכלו לפעול בתשתית המערכת.",
     "service_identity_extended_bridge_off": f"הפעולה דורשת שהמצב המורחב של משתמשי Arx יופעל גם ברכיב החיבור ({BRIDGE_EXTENDED_REQUIRED} ומעלה) - מנהל בתשתית המערכת מפעיל אותו שם.",
     "service_identity_policy_default": "זהות השירות אינה מוגבלת בתשתית המערכת, ולכן הפעולות המורחבות של משתמשי Arx נחסמות. מנהל בתשתית המערכת משייך אותה לקבוצה שמתירה רק את ההתקנים ש-Arx רשאי להפעיל.",
-    "service_identity_not_runnable": "הפריט הזה אינו ברשימת הסקריפטים, הסצנות והאוטומציות שמשתמשי Arx רשאים להריץ. מנהל המערכת מוסיף אותו בהגדרות › משתמשי Arx.",
+    "service_identity_not_runnable":"הפריט הזה אינו ברשימת הסקריפטים, הסצנות והאוטומציות שמשתמשי Arx רשאים להריץ. מנהל המערכת מוסיף אותו בהגדרות › משתמשי Arx.",
     "service_identity_runnable_bridge_missing": "הפריט ברשימת ההרצה של Arx אך לא ברשימה של רכיב החיבור - מנהל בתשתית המערכת מוסיף אותו גם שם.",
     "automation_write_requires_ha_identity": "שמירה והפעלה של אוטומציות, סצנות וסקריפטים זמינות רק למשתמשי תשתית המערכת.",
     "local_identity_off": "משתמשי Arx כבויים בהגדרות המערכת.",
@@ -253,6 +268,29 @@ def policy_restricted(conn: sqlite3.Connection) -> bool:
         return False
 
 
+def policy_report_age_s(conn: sqlite3.Connection, now: datetime | None = None) -> float | None:
+    """ENTPOL-295: seconds since the bridge's last accepted directory push (which carries the policy report), or None when there was none or
+    the stored time cannot be read."""
+    try:
+        raw = get_setting(conn, DIRECTORY_AT) or ""
+    except sqlite3.OperationalError:
+        return None
+    try:
+        at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)) - at).total_seconds()
+
+
+def policy_report_fresh(conn: sqlite3.Connection, now: datetime | None = None) -> bool:
+    """ENTPOL-295 (fail closed): the policy report is current - the last push is at most POLICY_REPORT_MAX_AGE_S old and not from the future
+    (beyond a small clock skew). No push, an unreadable time or an old one = not fresh."""
+    age = policy_report_age_s(conn, now)
+    return age is not None and -POLICY_REPORT_SKEW_S <= age <= POLICY_REPORT_MAX_AGE_S
+
+
 def _policy_report(conn: sqlite3.Connection) -> bool | None:
     try:
         value = get_setting(conn, BRIDGE_POLICY) or ""
@@ -304,14 +342,14 @@ def feature_for_pair(domain: str, service: str, *, media: bool = False) -> str:
 
 
 def _refuse(conn: sqlite3.Connection, principal: Principal | None, user_id: str, code: str, status: int, *, feature: str, bridge_service: str, item: Any,
-            request_id: str | None, reason: str | None = None) -> ApiError:
+            request_id: str | None, reason: str | None = None, message: str | None = None) -> ApiError:
     try:
         audit(conn, actor=principal, action="identity.service_identity.refused", decision="denied", resource_type="user", resource_id=user_id,
               reason=reason or code, request_id=request_id,
               details={"feature": feature, "bridge_service": bridge_service, "item": _audit_item(item)})
     except Exception:  # noqa: BLE001 - the refusal itself must never fail because its audit row could not be written
         log.warning("service identity refusal not audited (%s)", code)
-    return ApiError(status, code, MESSAGES.get(code, MESSAGES["service_identity_refused"]), details={"feature": feature})
+    return ApiError(status, code, message or MESSAGES.get(code, MESSAGES["service_identity_refused"]), details={"feature": feature})
 
 
 def subject(conn: sqlite3.Connection, principal: Principal, feature: str, *, bridge_service: str, item: Any, request_id: str | None = None,
@@ -426,6 +464,10 @@ def _local_subject(conn: sqlite3.Connection, user_id: str, feature: str, *, brid
             # EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21): the service user's entity policy is the default (or unknown) - the
             # second fence would refuse nothing, so no extended item is sent. The bridge refuses the same with its live check.
             raise _refuse(conn, actor, user_id, "service_identity_policy_default", 503, reason="policy_default", **args)
+        if not policy_report_fresh(conn):
+            # ENTPOL-295 (fail closed): the "restricted" report is stale or its time unreadable - Home Assistant unreachable, the bridge
+            # stopped pushing - so it is not trusted; nothing is sent until a current push confirms it again
+            raise _refuse(conn, actor, user_id, "service_identity_policy_default", 503, reason="policy_stale", message=STALE_MESSAGE, **args)
         if run is not None and entity_id not in bridge_runnable_ids(conn):
             # the bridge (0.9.2) refuses an item missing from its own copy of the allowlist: not sent (both copies must list it)
             raise _refuse(conn, actor, user_id, "service_identity_runnable_bridge_missing", 503, **args)
@@ -724,6 +766,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     bridge_ext = (get_setting(conn, BRIDGE_EXTENDED) or "") == "true"
     bridge_ext_ok = _version_tuple(bridge_version) >= _version_tuple(BRIDGE_EXTENDED_REQUIRED)
     policy_ok = policy_restricted(conn)
+    policy_fresh = policy_report_fresh(conn)  # ENTPOL-295
     if ext_requested:
         step("extended_on", "המצב המורחב פעיל: משתמשי Arx יכולים לפתוח דלתות, לעקוף אזורי אזעקה, להפעיל סקריפטים וסצנות, להריץ אוטומציות ממסך האוטומציות ולהציג מצלמות בזרם חי - כל אחד רק לפי ההרשאה שלו. נדרשת סקירת אבטחה לפני הפעלה.",
              "Extended mode is on: Arx users may open doors, bypass alarm zones, run scripts and scenes, run automations from the automations screen and show live cameras - each only under their own permission. A security review is required before enabling it.")
@@ -737,6 +780,10 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
             # EXTID-295 (CR-USR2 13.6, owner decision 3 of 2026-10-21)
             step("service_policy_default", "הגבילו את זהות השירות בתשתית המערכת לקבוצה שמתירה רק את ההתקנים ש-Arx רשאי להפעיל (לא הקבוצה הרגילה של המשתמשים). עד אז הפעולות המורחבות נחסמות.",
                  "Restrict the service user in the infrastructure to a group that names only the devices Arx may reach (not the regular users group). Until then the extended actions are refused.")
+        elif paired and bridge_ext_ok and not policy_fresh:
+            # ENTPOL-295 (fail closed): a "restricted" report that is no longer current is not trusted
+            step("service_policy_stale", "רכיב החיבור לא אישר לאחרונה שזהות השירות מוגבלת (אין קשר עם תשתית המערכת). עד שהקשר יחזור הפעולות המורחבות נחסמות.",
+                 "The bridge has not confirmed recently that the service user is restricted (no contact with the infrastructure). Until it does, the extended actions are refused.")
     elif bridge_ext:
         step("extended_bridge_only", "המצב המורחב פעיל ברכיב החיבור בלבד. כל עוד הוא כבוי כאן, הפעולות המורחבות נחסמות.",
              "Extended mode is on in the bridge only. While it is off here, the extended actions are refused.")
@@ -761,7 +808,9 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
                      # SVCIDENT3 (review S4): the two-switch rule is the bridge's - a WisKey door follows the add-on's switch alone
                      "doors_addon_only": True,
                      # EXTID-295 (CR-USR2 13.6): the bridge's last report - True / False, None while no 0.9.6+ bridge reported it
-                     "service_policy_restricted": _policy_report(conn)},
+                     "service_policy_restricted": _policy_report(conn),
+                     # ENTPOL-295: whether that report is current (a push within POLICY_REPORT_MAX_AGE_S); a stale "true" is not trusted
+                     "service_policy_fresh": policy_fresh},
         "runnable": {"ids": sorted(run_ids), "bridge_ids": sorted(bridge_run_ids), "agrees": run_ids == bridge_run_ids, "max": MAX_RUNNABLE},
         "ready": ready,
         "steps": steps,

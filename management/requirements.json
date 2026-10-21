@@ -6851,5 +6851,21 @@
     "test_ids": [
       "AT-SCHEDIMPACT-1"
     ]
+  },
+  {
+    "id": "R-ENTPOL-1",
+    "title": "The extended mode refuses while the service user is not restricted by an entity policy - fail closed (Fable review 4, V-08; owner decision 3 of 2026-10-21)",
+    "statement": "Every item only the extended mode admits is refused on both sides unless the service user is restricted (a group whose entity policy does not allow every entity, confirmed by Home Assistant's own permission object) and the add-on's report of it is current; an ambiguous or unreadable policy, a raising check or a stale report (Home Assistant unreachable) counts as not restricted; basic-mode items and Home Assistant users are unaffected.",
+    "task_ids": [
+      "ENTPOL-295"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ENTPOL-1"
+    ]
   }
 ]

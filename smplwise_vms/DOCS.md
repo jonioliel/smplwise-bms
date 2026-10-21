@@ -1528,6 +1528,10 @@ fixes listed in `docs/release/2.7.3-INTEGRATION-NOTES.md` ("Fix before enabling"
   Home Assistant entity policy on every device a call or a runnable item targets. A regular (non-administrator) user without a
   restricting group may control every entity, so this check then adds nothing. Put the service user in a group whose entity policy
   names only the devices Arx may reach, and leave locks, alarm panels, gate / garage covers and the helpers that drive them out of it.
+  Since bridge 0.9.6 this is a condition, not advice (owner decision of 2026-10-21): while the service user is in the regular users or
+  administrators group, in no group, in a group whose policy allows every entity, or the bridge cannot tell (an unreadable or ambiguous
+  policy) - or the bridge has not confirmed it for five minutes (Home Assistant unreachable) - every extended action is refused on both
+  sides and the service-identity card names the reason. Ordinary (non-extended) actions are not affected.
 - *Accepted by the owner (2026-10-18):* no second factor for doors, zone bypass, disarm and runs; no rate limit; dangerous services
   inside scripts and template entities (a template switch, button or helper that an automation turns into a door opening is not seen
   by the bridge's impact check); `notify` with literal content; gate / garage covers on the direct device path.
