@@ -287,7 +287,7 @@ def test_camera_disconnect_and_reconnect_go_through_camera_offline(w, settings, 
 
 
 def test_certificate_expiry_is_announced(w, settings, fake, monkeypatch):
-    soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    soon = (w.clock.now + dt.timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
     monkeypatch.setattr(pisr, "PEER_CERTIFICATE", lambda host, port, timeout: {"sha256": PIN, "self_signed": True, "not_after": soon})
     a = adapter(settings, fake, scheme="https", tls_mode="pin", tls_pin=PIN)
     rh.probe("nvr-1", "מקליט ראשי", "provision_isr", a, now_ts=w.clock.now.timestamp())
