@@ -71,7 +71,9 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
-                                   "bridge_keys", "bridge_rotations"})
+                                   "bridge_keys", "bridge_rotations",
+                                   # ECCACT-295: durable WisKey intents / relay map / feature registry - a restore must never revive an old intent
+                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class

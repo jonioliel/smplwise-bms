@@ -440,7 +440,9 @@ def test_an_unknown_provisioning_outcome_never_sends_a_code(env):
     env.run()
     env.run()
     g = env.grant(gid)
-    assert g["state"] == "failed" and env.transport.sent == [], "a fresh read showed nothing: failed, never a blind retry, no code"
+    # ECCACT-295: the fresh read shows a person with no station and EMPTY bookkeeping; a v2 answer with empty bookkeeping is never revocation
+    # proof (WisKey F-02, kept strict by agreement), so the grant stays `revoking` - never a blind retry, never a code.
+    assert g["state"] == "revoking" and env.transport.sent == [], "no proof of revocation: revoking, never a blind retry, no code"
     assert env.engine.calls.count("apply") == 1
 
 
