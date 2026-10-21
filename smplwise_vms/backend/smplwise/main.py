@@ -461,6 +461,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import notify_whatsapp as notify_whatsapp_router
 
     app.include_router(notify_whatsapp_router.router, prefix=api, tags=["notifications"])  # NOTIFWA: the WhatsApp channel - master switch, own-number test, own opt-out
+    from .services import temperature_whatsapp as _temperature_whatsapp  # noqa: F401 - TEMPREG-295: joins the messaging use registry at startup (gated by the module state), not when a temperature route first runs
+
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy

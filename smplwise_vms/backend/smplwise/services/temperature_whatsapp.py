@@ -57,8 +57,17 @@ MAX_RECIPIENTS = 30
 VENDOR_CHANNELS: tuple[str, ...] = ("whatsapp", "email")
 
 
+def module_on(conn: sqlite3.Connection) -> bool:
+    """TEMPREG-295: the temperature module is ON once a unit is defined - the same rule that shows the temperatures tab (frontend
+    shell/nav.ts: hidden until a unit exists). There is no separate temperature master switch; a database before the migrations is off."""
+    try:
+        return conn.execute("SELECT 1 FROM infra_temp_units LIMIT 1").fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+
 def _uses(conn: sqlite3.Connection) -> tuple[ma.UseSpec, ...]:
-    return (ma.UseSpec(USE_KEY, MODULE, "דוחות טמפרטורה", inherits="notifications.whatsapp"),)
+    return (ma.UseSpec(USE_KEY, MODULE, "דוחות טמפרטורה", inherits="notifications.whatsapp", active=lambda: module_on(conn)),)
 
 
 mr.register_uses(_uses)
