@@ -94,8 +94,8 @@ def test_a_department_managers_route_cannot_set_it(s4):
 def test_tickets_module_off_the_identity_card_shows_the_marker_and_offers_no_ticket_action(s4):
     cid = s4.contact["id"]
     patch(s4, cid, permanent_vendor=True)
-    r = s4.c.get(f"{API}/settings")
-    assert s4.c.put(f"{API}/settings", json={"tickets.enabled": "false"}).status_code == 200, r.text
+    off = s4.c.patch(f"{API}/settings", json={"tickets.enabled": "false"})
+    assert off.status_code == 200, off.text[:200]
     # the directory belongs to the module: closed while it is off (the uniform 404), the marker adds no way around it
     assert s4.c.get(f"{API}/tickets/contacts", headers=s4.h("joni")).status_code == 404
     ident = s4.c.get(f"{API}/access-grants/contacts/{cid}/identity", headers=s4.h("joni"))
