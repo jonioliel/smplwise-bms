@@ -334,9 +334,12 @@ def test_engine_reader_judges_v2_with_the_last_known_record(name, known, expecte
     assert age.revocation_pending_from(lambda uid, rev: fx(name), PERSON, REV, last_known_stations=known) is expected
 
 
-def test_engine_v1_is_unchanged():
-    assert age.revocation_pending_from(lambda uid, rev: v1(), PERSON, REV) is False  # existing compatibility (STATIONSYNC-295)
+def test_engine_v1_never_proves_a_revoke():
+    """WKV2B-295: the clean-looking v1 shape is no longer False (proven clean); it is UNKNOWN as a boolean and `revoked_unverified` as evidence."""
+    assert age.revocation_pending_from(lambda uid, rev: v1(), PERSON, REV) is None
     assert age.revocation_pending_from(lambda uid, rev: v1(), PERSON, 5) is None
+    assert age.revocation_evidence_from(lambda uid, rev: v1(), PERSON, REV) == was.EVIDENCE_UNVERIFIED
+    assert age.revocation_evidence_from(lambda uid, rev: v1(), PERSON, 5) is None
 
 
 def test_engine_malformed_v2_is_unknown_and_never_re_asked_as_v1():

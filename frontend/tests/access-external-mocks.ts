@@ -23,6 +23,7 @@ interface G {
   number?: string | null;
   sends?: number;
   verified?: boolean;
+  revoke_proof?: 'verified' | 'unverified' | null;
   needs_push?: boolean;
   pending?: boolean;
   amend?: [string, number[]][];
@@ -62,6 +63,7 @@ export function grantOf(s: G, sensitive = true): Record<string, unknown> {
   return {
     grant_state: s.state, needs_push: !!s.needs_push, pending_sync: ['approved', 'provisioning', 'unknown'].includes(s.state) || (s.state === 'active' && !!s.needs_push), scope_verified: verified,
     scope_verified_at: verified ? '2026-10-20T07:02:00Z' : null, doors_state: verified ? 'verified_central' : accepted ? 'accepted' : ['requested', 'approved', 'provisioning', 'active', 'revoking', 'unknown'].includes(s.state) ? 'desired' : null,
+    revoke_proof: s.revoke_proof ?? null,
     id: tid, revision: 3, state: s.state, end_reason: s.end_reason ?? null, source: s.source ?? 'manual', source_ref: s.ref ?? null,
     person: { contact_id: `c-${s.id}`, name: s.name, pending: !!s.pending, number: sensitive ? s.number ?? null : null },
     doors, valid_from: iso(s.vf), valid_until: iso(s.vu), timing: s.timing ? { periods: [{ start: s.timing[0], end: s.timing[1] }] } : null, credential: 'pin', outside_window: false,

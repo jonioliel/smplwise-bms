@@ -67,6 +67,8 @@ export interface Grant {
   scope_verified: boolean;
   scope_verified_at: string | null;
   doors_state: DoorsState;
+  /** WKV2B-295: how a finished revoke was proven; 'unverified' = ended on a v1 answer (revoked, not verified by the other side). */
+  revoke_proof?: 'verified' | 'unverified' | null;
   created_at: string | null;
   updated_at: string | null;
   ended_at: string | null;

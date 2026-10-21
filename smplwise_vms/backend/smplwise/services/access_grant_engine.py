@@ -508,19 +508,12 @@ def access_state_from_raw(raw: Any, *, user_id: str, revision: int | None = None
                        schema_version=st.schema_version, central_revoked=st.central_revoked, parsed=st)
 
 
-def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: int,
-                               last_known_stations: frozenset[str] | None = None) -> bool | None:
-    """R11-I1-03: the central revocation status of `person_id` at `revision`.
-    v1 (unchanged): None (UNKNOWN) for another person, or a present person at any other revision; True when anything is still owed (a
-    central queue, delete_pending, or WisKey's own True); None when the person is absent (absence / a scoped 404 is never cleanup), when
-    only `unverified` work remains, or when WisKey did not say False; False only for a present person at exactly `revision` with all six
-    arrays empty and WisKey's flag False.
-    v2 (WKV2-295): `wiskey_access_state.revocation_verdict_v2` - additionally WisKey's central_revoked True and the F-02 cross-check
-    against `last_known_stations` (None = UNKNOWN)."""
-    if state.schema_version == was.SCHEMA_V2:
-        return was.revocation_verdict_v2(state.parsed, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
-    if state.schema_version != was.SCHEMA_V1:
-        return None
+def _v1_status(state: AccessState, *, person_id: str, revision: int) -> bool | None:
+    """The v1 judgement of this consumer, unchanged from STATIONSYNC-295: None (UNKNOWN) for another person, or a present person at any
+    other revision; True when anything is still owed (a central queue, delete_pending, or WisKey's own True); None when the person is
+    absent (absence / a scoped 404 is never cleanup), when only `unverified` work remains, or when WisKey did not say False; False only
+    for a present person at exactly `revision` with all six arrays empty and WisKey's flag False. WKV2B-295: that False is NOT a proof -
+    it is only the clean-looking shape, and it never leaves this module as a boolean verdict."""
     if state.user_id != person_id or (state.presence == "present" and state.person_revision != revision):
         return None
     if state.has_pending or state.presence == "delete_pending" or state.revocation_pending is True:
@@ -528,6 +521,27 @@ def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: 
     if state.presence != "present" or state.unverified or state.revocation_pending is not False:
         return None
     return False
+
+
+def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: int,
+                               last_known_stations: frozenset[str] | None = None) -> bool | None:
+    """R11-I1-03: the central revocation status of `person_id` at `revision`: True = work still owed, False = proven clean, None = UNKNOWN.
+    WKV2B-295: ONLY a v2 answer can be False (`wiskey_access_state.revocation_verdict_v2`: WisKey's central_revoked and the F-02
+    cross-check against `last_known_stations`; None = UNKNOWN). A v1 answer is True when work is owed and otherwise None - a v1 answer
+    never proves a revoke; what it showed is `revocation_evidence_verdict` (EVIDENCE_UNVERIFIED), a different result from verified clean."""
+    if state.schema_version == was.SCHEMA_V2:
+        return was.revocation_verdict_v2(state.parsed, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
+    if state.schema_version != was.SCHEMA_V1:
+        return None
+    return True if _v1_status(state, person_id=person_id, revision=revision) is True else None
+
+
+def revocation_evidence_verdict(state: AccessState, *, person_id: str, revision: int,
+                                last_known_stations: frozenset[str] | None = None) -> str | None:
+    """WKV2B-295: what the answer shows about the revoke - EVIDENCE_PENDING, EVIDENCE_VERIFIED (v2 only), EVIDENCE_UNVERIFIED (a v1
+    answer in the clean-looking shape: "revoked, not verified by the other side") or None (UNKNOWN)."""
+    v1 = _v1_status(state, person_id=person_id, revision=revision) if state.schema_version == was.SCHEMA_V1 else None
+    return was.evidence_of(state.parsed, v1, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
 
 
 def revocation_pending_from(reader: AccessStateReader | None, person_id: str, revision: Any, *,
@@ -542,6 +556,18 @@ def revocation_pending_from(reader: AccessStateReader | None, person_id: str, re
     except Exception:  # noqa: BLE001 - every failure is UNKNOWN, never "not pending"
         return None
     return revocation_pending_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
+
+
+def revocation_evidence_from(reader: AccessStateReader | None, person_id: str, revision: Any, *,
+                             last_known_stations: frozenset[str] | None = None) -> str | None:
+    """WKV2B-295: like `revocation_pending_from`, but answers the evidence (pending / verified_clean / revoked_unverified) or None."""
+    if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
+        return None
+    try:
+        state = access_state_from_raw(reader(person_id, revision), user_id=person_id, revision=revision)
+    except Exception:  # noqa: BLE001 - every failure is UNKNOWN
+        return None
+    return revocation_evidence_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
 
 
 def central_revoked(person: EnginePerson) -> bool:
@@ -674,21 +700,35 @@ class WiskeyServiceEngine:
         """WisKey's ACR5-01 access_state is PROPOSED and Arx has built no client for it (R11-I3-01), and the overview projection drops
         tombstones / revocations (B0, D-006): with no reader this is UNKNOWN - a live revoke stays `revoking`. With a reader (tests
         only) the answer is bound to `revision` and judged by `revocation_pending_verdict`; while a write to the person is unsettled
-        no status can be judged (None)."""
+        no status can be judged (None). WKV2B-295: False only from a v2 answer."""
+        ok, known = self._status_inputs(person_id)
+        if not ok:
+            return None
+        return revocation_pending_from(self.access_state_reader, person_id, revision, last_known_stations=known)
+
+    def revocation_evidence(self, person_id: str, revision: int) -> str | None:
+        """WKV2B-295: the same question as `revocation_pending`, answered as evidence (pending / verified_clean / revoked_unverified)."""
+        ok, known = self._status_inputs(person_id)
+        if not ok:
+            return None
+        return revocation_evidence_from(self.access_state_reader, person_id, revision, last_known_stations=known)
+
+    def _status_inputs(self, person_id: str) -> tuple[bool, frozenset[str] | None]:
+        """(may a status be judged at all, Arx's last-known stations). Not while there is no reader or a write to the person is unsettled."""
         self._guard()
         if self.access_state_reader is None:
-            return None
+            return False, None
         from . import intercom_sync
 
         if intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
-            return None
+            return False, None
         known = None
         if self.last_known_stations is not None:
             try:
                 known = self.last_known_stations(person_id)
             except Exception:  # noqa: BLE001 - an unreadable record is UNKNOWN
                 known = None
-        return revocation_pending_from(self.access_state_reader, person_id, revision, last_known_stations=known)
+        return True, known
 
     def pin_generate(self, person_id: str) -> str:
         """users/pin_generate is a read in WisKey (the value is not reserved); it is NOT a readback of the person, so it carries no

@@ -6,7 +6,7 @@
 import type { Grant, GrantState } from '../api/access-grants';
 import { dateInZone, instantInZone, minuteInZone } from '../api/recordings';
 
-export type UiState = 'draft' | 'pending' | 'pushing' | 'verified' | 'accepted' | 'sync' | 'unknown' | 'revoking' | 'revoked' | 'ended' | 'refused' | 'failed' | 'gone';
+export type UiState = 'draft' | 'pending' | 'pushing' | 'verified' | 'accepted' | 'sync' | 'unknown' | 'revoking' | 'revoked' | 'revoked_unverified' | 'ended' | 'refused' | 'failed' | 'gone';
 export type Bucket = 'attention' | 'waiting' | 'moving' | 'active' | 'history';
 export type Filter = Bucket | 'live';
 export type Tone = 'ok' | 'acc' | 'warn' | 'err' | 'off';
@@ -30,9 +30,9 @@ export function uiState(g: Grant): UiState {
     case 'revoking':
       return 'revoking';
     case 'ended':
-      return 'ended';
     case 'revoked':
-      return 'revoked';
+      // WKV2B-295: a strip that ended on a v1 answer is "revoked, not verified by the other side" - its own state, never the clean one
+      return g.revoke_proof === 'unverified' ? 'revoked_unverified' : g.state;
     case 'refused':
       return 'refused';
     default:
@@ -42,12 +42,12 @@ export function uiState(g: Grant): UiState {
 
 export const STATE_TONE: Record<UiState, Tone> = {
   draft: 'off', pending: 'acc', pushing: 'acc', verified: 'ok', accepted: 'ok', sync: 'warn', unknown: 'warn',
-  revoking: 'err', revoked: 'off', ended: 'off', refused: 'off', failed: 'err', gone: 'off',
+  revoking: 'err', revoked: 'off', revoked_unverified: 'warn', ended: 'off', refused: 'off', failed: 'err', gone: 'off',
 };
 
 export const STATE_ICON: Record<UiState, string> = {
   draft: 'edit', pending: 'clock', pushing: 'refresh', verified: 'check', accepted: 'check', sync: 'refresh', unknown: 'help',
-  revoking: 'bell', revoked: 'lock', ended: 'clock', refused: 'close', failed: 'warning', gone: 'user',
+  revoking: 'bell', revoked: 'lock', revoked_unverified: 'lock', ended: 'clock', refused: 'close', failed: 'warning', gone: 'user',
 };
 
 export function bucketOf(g: Grant, now = Date.now()): Bucket {
@@ -126,7 +126,7 @@ export function ladder(g: Grant): { revoke: boolean; steps: { key: string; mark:
   };
   const unproven = g.link?.state === 'wiskey_missing' || g.create_unresolved || g.link?.origin === 'matched';
   const R: Partial<Record<UiState, StepMark[]>> = {
-    revoking: unproven ? ['done', 'unk', 'unk', 'no'] : ['done', 'done', 'cur', 'no'], revoked: ['done', 'done', 'done', 'done'], ended: ['done', 'done', 'done', 'done'],
+    revoking: unproven ? ['done', 'unk', 'unk', 'no'] : ['done', 'done', 'cur', 'no'], revoked: ['done', 'done', 'done', 'done'], revoked_unverified: ['done', 'done', 'unk', 'no'], ended: ['done', 'done', 'done', 'done'],
     gone: ['done', 'unk', 'unk', 'no'],
   };
   const revoke = s in R;

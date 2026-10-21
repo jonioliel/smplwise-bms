@@ -23,6 +23,11 @@ The v2 revocation verdict (`revocation_verdict_v2`) is the only place a v2 answe
   an enabled row or an unproven row is UNKNOWN (None) - "not verified", never "revoked/clean". Even False is central bookkeeping
   only: not physical proof at a door, and not a fence against an older in-flight mutation.
 
+WKV2B-295 (owner decision 2026-10-21, the revoke-proof middle path): a v1 answer NEVER proves a revoke. What v1 could only ever say
+("no tracked work", the clean-looking shape) is a DIFFERENT result from a verified clean one: `EVIDENCE_UNVERIFIED` ("revoked, not
+verified by the other side") against `EVIDENCE_VERIFIED` (v2 only). `evidence_of` and the callers' `revocation_evidence` carry the
+distinction; the callers' boolean verdicts never return False for v1.
+
 Pure functions, no I/O except `last_known_stations` (a read of Arx's own grant / station-permission rows). Nothing here sends anything
 to WisKey; no switch, no GO_LIVE constant is read or changed."""
 from __future__ import annotations
@@ -373,6 +378,28 @@ def try_parse(raw: Any, **kw: Any) -> AccessState | AccessStateError:
         return parse_result(raw, **kw)
     except AccessStateError as exc:
         return exc
+
+
+# ---------------------------------------------------------------- the revocation evidence (WKV2B-295)
+
+EVIDENCE_PENDING = "pending"                # tracked revocation work is still owed (v1 or v2)
+EVIDENCE_VERIFIED = "verified_clean"        # v2 only: WisKey's central_revoked + no tracked work + the F-02 per-station cross-check
+EVIDENCE_UNVERIFIED = "revoked_unverified"  # v1 only: the answer looked clean, but v1 cannot prove a revoke - "not verified by the other side"
+EVIDENCES = (EVIDENCE_PENDING, EVIDENCE_VERIFIED, EVIDENCE_UNVERIFIED)
+
+
+def evidence_of(state: Any, verdict_v1: bool | None, *, person_id: str, revision: Any, last_known_stations: frozenset[str] | None) -> str | None:
+    """One answer -> what it shows about the revoke. `verdict_v1` is the calling consumer's own v1 judgement (True = work owed, False = the
+    clean-looking shape, None = cannot tell), kept per caller exactly as before; a v2 answer is judged here by `revocation_verdict_v2`.
+    v1 True -> pending; v1 False -> UNVERIFIED (never VERIFIED); v2 False -> VERIFIED. None = UNKNOWN."""
+    if not isinstance(state, AccessState):
+        return None
+    if state.schema_version == SCHEMA_V2:
+        v = revocation_verdict_v2(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
+        return EVIDENCE_PENDING if v is True else EVIDENCE_VERIFIED if v is False else None
+    if state.schema_version != SCHEMA_V1:
+        return None
+    return EVIDENCE_PENDING if verdict_v1 is True else EVIDENCE_UNVERIFIED if verdict_v1 is False else None
 
 
 # ---------------------------------------------------------------- the v2 revocation verdict (F-01 / F-02)

@@ -47,6 +47,25 @@ test('why a revocation is not done: a missing person, an unresolved create, a pe
   expect(ladder(base({ state: 'revoking', link: { origin: 'created_from_arx', state: 'wiskey_missing' } })).steps.map((s) => s.mark)).toEqual(['done', 'unk', 'unk', 'no']);
 });
 
+test('WKV2B-295: a revoke that ended on a v1 answer is "revoked, not verified by the other side", never the clean revoked state', () => {
+  for (const state of ['revoked', 'ended']) {
+    expect(uiState(base({ state }))).toBe(state);
+    expect(uiState(base({ state, revoke_proof: 'verified' }))).toBe(state);
+    expect(uiState(base({ state, revoke_proof: 'unverified' }))).toBe('revoked_unverified');
+  }
+  expect(uiState(base({ state: 'revoking', revoke_proof: 'unverified' }))).toBe('revoking');
+  expect(whyKey(base({ state: 'revoked', revoke_proof: 'unverified' }))).toBe('why_revoked_unverified');
+  expect(bucketOf(base({ state: 'revoked', revoke_proof: 'unverified' }))).toBe('history');
+  expect(ladder(base({ state: 'revoked', revoke_proof: 'unverified' })).steps.map((s) => s.mark)).toEqual(['done', 'done', 'unk', 'no']);
+  expect(ladder(base({ state: 'revoked' })).steps.map((s) => s.mark)).toEqual(['done', 'done', 'done', 'done']);
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    const t = XT_TABLES[lang];
+    expect(t.st_revoked_unverified, lang).toBeTruthy();
+    expect(t.st_revoked_unverified, lang).not.toBe(t.st_revoked);
+    expect(t.why_revoked_unverified, lang).toBeTruthy();
+  }
+});
+
 test('owner decision 3: the manual "confirmed gone" is offered to a system administrator only, and only for a missing person', () => {
   const missing = base({ state: 'revoking', link: { origin: 'created_from_arx', state: 'wiskey_missing' } });
   expect(actionsOf(missing, true).gone).toBe(true);
