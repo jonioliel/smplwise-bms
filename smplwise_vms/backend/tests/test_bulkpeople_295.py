@@ -398,14 +398,16 @@ def test_a_bearer_token_session_cannot_confirm(w, monkeypatch):
 # ================================================================ apply: refused without the permit; bounded, resumable, partial
 
 
-def test_apply_is_refused_without_the_owners_permit(w):
+def test_apply_is_refused_without_the_owners_permit(w, monkeypatch):
+    monkeypatch.setattr(bp, "GO_LIVE_PERMITTED", False)  # ECCACT-295: the shipped constant is True; this pins the permit-off behaviour
     job = w.ready(csv_rows({"person_id": "u1", "active": "false"}))
     r = w.apply(job["id"])
     assert r.status_code == 409 and r.json()["code"] == "bulk_people_not_permitted"
     assert w.engine.writes == [] and w.job_row(job["id"])["state"] == "confirmed"
 
 
-def test_the_live_engine_refuses_every_write_without_the_permit(settings):
+def test_the_live_engine_refuses_every_write_without_the_permit(settings, monkeypatch):
+    monkeypatch.setattr(bp, "GO_LIVE_PERMITTED", False)  # ECCACT-295: pins the permit-off behaviour
     eng = WiskeyBulkEngine(settings)
     for call in (lambda: eng.create({"display_name": "x"}, "u"), lambda: eng.update("u1", 1, {"active": False}, "u")):
         with pytest.raises(EngineError) as err:
