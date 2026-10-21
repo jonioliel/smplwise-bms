@@ -430,6 +430,8 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
   let ws: WebSocket | null = null;
   let stopped = false;
   let delay = 2000;
+  let retry = 0; // the pending reconnect timer
+  let lastFrameAt = Date.now();
   const url = (() => {
     const u = new URL(apiUrl('ha/ws'));
     u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -437,13 +439,30 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
   })();
   const open = () => {
     if (stopped) return;
+    let sock: WebSocket;
     try {
-      ws = new WebSocket(url);
+      sock = ws = new WebSocket(url);
     } catch {
       return;
     }
+    lastFrameAt = Date.now();
     let counted = false;
+    /** HOMELIVE-295: let go of this socket at once (a half-open one never says close): its handlers go quiet, the count is released. */
+    release = () => {
+      sock.onopen = sock.onmessage = sock.onclose = null;
+      if (counted) {
+        counted = false;
+        liveSockets = Math.max(0, liveSockets - 1);
+        onSocket?.(false);
+      }
+      try {
+        sock.close();
+      } catch {
+        /* already gone */
+      }
+    };
     ws.onopen = () => {
+      lastFrameAt = Date.now();
       delay = 2000;
       if (!counted) {
         counted = true;
@@ -452,6 +471,7 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
       onSocket?.(true);
     };
     ws.onmessage = (m) => {
+      lastFrameAt = Date.now();
       try {
         const env = JSON.parse(m.data as string) as { type: string; payload: Record<string, unknown> };
         if (env.type === 'entity_state_changed') {
@@ -480,14 +500,53 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
       }
       onSocket?.(false);
       if (!stopped && ev.code !== 4403 && ev.code !== 4401) {
-        window.setTimeout(open, delay);
+        window.clearTimeout(retry);
+        retry = window.setTimeout(open, delay);
         delay = Math.min(30000, delay * 2);
       }
     };
   };
+  let release: () => void = () => undefined;
+  /** HOMELIVE-295: a phone that slept leaves the socket half-open (no close event for minutes) or closed with the back-off timer frozen. The server
+   * sends a heartbeat every 30 s, so a socket silent for longer than SILENT_MS is dead: drop it and connect again now (the screen's onSocket(true)
+   * refetches what the dead socket missed). A socket that is already closed and waiting for its back-off reconnects at once. */
+  const revive = (force: boolean) => {
+    if (stopped) return;
+    const dead = !ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING;
+    const silent = !!ws && ws.readyState === WebSocket.OPEN && Date.now() - lastFrameAt > SILENT_MS;
+    const connecting = !!ws && ws.readyState === WebSocket.CONNECTING && Date.now() - lastFrameAt > CONNECT_MS;
+    if (!(dead || silent || connecting || (force && !!ws && ws.readyState !== WebSocket.OPEN))) return;
+    window.clearTimeout(retry);
+    release();
+    ws = null;
+    delay = 2000;
+    open();
+  };
+  const onResume = () => {
+    if (document.visibilityState !== 'hidden') revive(false);
+  };
+  const onOnline = () => revive(true);
+  const watchdog = window.setInterval(() => {
+    if (document.visibilityState !== 'hidden') revive(false);
+  }, WATCHDOG_MS);
+  document.addEventListener('visibilitychange', onResume);
+  window.addEventListener('focus', onResume);
+  window.addEventListener('pageshow', onResume);
+  window.addEventListener('online', onOnline);
   open();
   return () => {
     stopped = true;
+    window.clearTimeout(retry);
+    window.clearInterval(watchdog);
+    document.removeEventListener('visibilitychange', onResume);
+    window.removeEventListener('focus', onResume);
+    window.removeEventListener('pageshow', onResume);
+    window.removeEventListener('online', onOnline);
     ws?.close();
   };
 }
+
+/** HOMELIVE-295: the server's heartbeat is every 30 s; more than this without ANY frame means the socket is dead (checked on resume and by the watchdog). */
+export const SILENT_MS = 75_000;
+const CONNECT_MS = 20_000;
+const WATCHDOG_MS = 20_000;

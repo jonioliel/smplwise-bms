@@ -24,7 +24,9 @@ import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
-import { subscribeHa, type HaSyncState } from '../api/ha';
+import { LiveController } from '../api/live-refresh'; // HOMELIVE-295
+import { hl, hlLang } from '../i18n/home-live';
+import { haPushLive, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { mapHrefForArea } from '../api/plan-links';
 import { loadTree as loadCatalogTree } from '../api/catalog';
@@ -1002,18 +1004,21 @@ export class DevicesBuilding extends LitElement {
   /** CR-INFRA-ELEVATORS: the elevators the viewer sees (empty = no tiles at all; null = not read yet). */
   @state() private elevators: Elevator[] | null = null;
   @state() private elevatorsStale = false;
-  private elevatorsTimer?: number;
   /** CR-INFRA-TEMPERATURE phase 3: the temperature units for the home widget (empty = no widget; the installation may switch it off). */
   @state() private tempUnits: TempUnit[] = [];
   @state() private tempStale = false;
   @state() private tempWidget = false;
-  private tempTimer?: number;
   /** GENWIDGET 2.9.3: the generators the viewer sees (empty = no widget at all). */
   @state() private generators: LiveSummaryItem[] = [];
-  private generatorsTimer?: number;
-  /** DOORWIN2-295: the doors widget's data (none = no widget at all) and its poll. */
+  /** DOORWIN2-295: the doors widget's data (none = no widget at all); polled by the HOMELIVE-295 live controller below. */
   @state() private doorsData: DoorsWidgetData = { windows: null, emergency: null };
-  private doorsTimer?: number;
+  /** HOMELIVE-295: ONE controller for every live read of this screen (the tree, the elevators, the temperature units, the generators): polls
+   * only while the page is visible and online, catches up on visibility / focus / pageshow / online, backs off on failures (api/live-refresh.ts). */
+  private readonly live = new LiveController();
+  /** The sources whose FIRST read failed: they keep being polled (a phone that woke up offline must recover without a manual refresh). */
+  private readonly firstReadFailed = new Set<string>();
+  /** The last tree read failed while an older tree is on screen: shown as the tiny stale dot on the refresh button. */
+  private treeFailed = false;
   @state() private sync: HaSyncState | null = null;
   private stop: (() => void) | null = null;
   private timer = 0;
@@ -1314,22 +1319,25 @@ export class DevicesBuilding extends LitElement {
 
   /** CR-INFRA-ELEVATORS: the elevators for the home widget (2.8.0: the widget replaces the 2.7.x KPI-row tiles, owner feedback) - read once,
    * then every 30 s only while at least one exists (an installation without elevators asks once and never again; a failure shows nothing). */
-  private async loadElevators() {
+  private async loadElevators(): Promise<boolean> {
     const r = await refreshElevatorsVisibility();
     // UXREST2-295: a failed read keeps what was shown and marks the widget failed (a first read that fails stays "no widget": nothing is known to exist)
     this.setWidgetFailed('elevators', !r && elevatorsAccess().view && !!this.elevators?.length);
     this.elevators = r ? r.elevators : (this.elevators ?? []);
     this.elevatorsStale = r?.stale ?? false;
-    if (this.elevators.length && this.elevatorsTimer === undefined && this.isConnected) {
-      this.elevatorsTimer = window.setInterval(() => {
-        if (document.visibilityState === 'visible') void this.loadElevators();
-      }, 30_000);
-    }
+    return this.noteRead('elevators', !!r || !elevatorsAccess().view);
+  }
+
+  /** HOMELIVE-295: a failed first read keeps the source polled; a good read clears that. Returns `ok` for the controller. */
+  private noteRead(id: string, ok: boolean): boolean {
+    if (ok) this.firstReadFailed.delete(id);
+    else this.firstReadFailed.add(id);
+    return ok;
   }
 
   /** CR-INFRA-TEMPERATURE phase 3 (idea 12): the units for the home widget - read once, then every 30 s only while at least one exists and the
    * installation offers the widget (an installation without units asks once and never again; a failure shows nothing). */
-  private async loadTemperature() {
+  private async loadTemperature(): Promise<boolean> {
     const r = await refreshTemperatureVisibility();
     this.setWidgetFailed('temperature', !r && temperatureAccess().view && this.tempUnits.length > 0);
     if (r || !this.tempUnits.length) {
@@ -1337,36 +1345,54 @@ export class DevicesBuilding extends LitElement {
       this.tempWidget = r?.home_widget !== false;
     }
     this.tempStale = r?.stale ?? false;
-    if (this.tempUnits.length && this.tempWidget && this.tempTimer === undefined && this.isConnected) {
-      this.tempTimer = window.setInterval(() => {
-        if (document.visibilityState === 'visible') void this.loadTemperature();
-      }, 30_000);
-    }
+    return this.noteRead('temperature', !!r || !temperatureAccess().view);
   }
 
   /** GENWIDGET 2.9.3: the generators for the home widget - read once, then every 30 s only while at least one exists (an installation without
    * a generator, or a viewer without generator.view, asks once and never again; a failure shows nothing). */
-  private async loadGenerators() {
+  private async loadGenerators(): Promise<boolean> {
     const g = await loadHomeGeneratorsChecked();
     this.setWidgetFailed('generators', g === null && this.generators.length > 0);
     if (g !== null) this.generators = g;
-    if (generatorsAvailable(this.generators) && this.generatorsTimer === undefined && this.isConnected) {
-      this.generatorsTimer = window.setInterval(() => {
-        if (document.visibilityState === 'visible') void this.loadGenerators();
-      }, 30_000);
-    }
+    return this.noteRead('generators', g !== null);
   }
 
-  /** DOORWIN2-295: the doors widget - read once (nothing at all while the doors tab is off), then every 30 s only while it is offered. */
-  private async loadDoors() {
+  /** HOMELIVE-295: wire the sources (once per connect). The widgets poll every 30 s; the tree is pushed by the socket, so its poll is a slow
+   * fallback (5 min) that tightens to 60 s while the socket is down. */
+  private setupLive() {
+    const poll = (id: string, run: () => Promise<boolean>, enabled: () => boolean, silent: () => boolean) => this.live.add({ id, run, pollMs: 30_000, enabled, silent });
+    poll('elevators', () => this.loadElevators(), () => elevatorsAccess().view && (!!this.elevators?.length || this.firstReadFailed.has('elevators')), () => !this.elevators?.length);
+    poll('temperature', () => this.loadTemperature(), () => temperatureAccess().view && ((this.tempUnits.length > 0 && this.tempWidget) || this.firstReadFailed.has('temperature')), () => !this.tempUnits.length);
+    poll('generators', () => this.loadGenerators(), () => generatorsAvailable(this.generators) || this.firstReadFailed.has('generators'), () => !generatorsAvailable(this.generators));
+    poll('doors', () => this.loadDoors(), () => doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()) || (doorWindowsTabOn() && this.firstReadFailed.has('doors')), () => !doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()));
+    this.live.add({ id: 'tree', run: () => this.reloadTree(), pollMs: () => (haPushLive() ? 300_000 : 60_000), enabled: () => isApi() && !this.forbidden && !this.lay.editing });
+    this.live.onChange(() => this.requestUpdate());
+    this.live.start();
+  }
+
+  private async reloadTree(): Promise<boolean> {
+    await this.load();
+    this.live.markRead('tree', !this.treeFailed);
+    return !this.treeFailed;
+  }
+
+  /** HOMELIVE-295: the data on screen is not current (a read failed, or a source that should poll has not read for far longer than its period). */
+  private isStale(): boolean {
+    if (this.treeFailed || this.live.failing()) return true;
+    const old = (id: string, ms: number) => {
+      const a = this.live.ageOf(id);
+      return Number.isFinite(a) && a > ms;
+    };
+    return old('tree', 600_000) || old('elevators', 150_000) || old('temperature', 150_000) || old('generators', 150_000) || old('doors', 150_000);
+  }
+
+  /** DOORWIN2-295: the doors widget - read once (nothing at all while the doors tab is off), then every 30 s only while it is offered
+   * (HOMELIVE-295: the poll is the live controller's 'doors' source, set up in setupLive). */
+  private async loadDoors(): Promise<boolean> {
     const d = await loadHomeDoorsChecked();
     this.setWidgetFailed('doors', d === null && doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()));
     if (d !== null) this.doorsData = d;
-    if (doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()) && this.doorsTimer === undefined && this.isConnected) {
-      this.doorsTimer = window.setInterval(() => {
-        if (document.visibilityState === 'visible') void this.loadDoors();
-      }, 30_000);
-    }
+    return this.noteRead('doors', d !== null);
   }
 
   /** UXREST2-295: the home widgets whose own read failed (home-widgets draws a failure panel with a retry in each one's slot). */
@@ -1378,10 +1404,7 @@ export class DevicesBuilding extends LitElement {
   }
 
   private onWidgetRetry = (e: CustomEvent<{ id: WidgetId }>) => {
-    if (e.detail.id === 'elevators') void this.loadElevators();
-    else if (e.detail.id === 'temperature') void this.loadTemperature();
-    else if (e.detail.id === 'generators') void this.loadGenerators();
-    else if (e.detail.id === 'doors') void this.loadDoors();
+    if (e.detail.id === 'elevators' || e.detail.id === 'temperature' || e.detail.id === 'generators' || e.detail.id === 'doors') this.live.refreshOne(e.detail.id);
   };
 
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
@@ -1569,6 +1592,19 @@ export class DevicesBuilding extends LitElement {
       align-items: center;
       flex-wrap: wrap;
       gap: 8px;
+    }
+    .ha-refresh {
+      position: relative;
+    }
+    .ha-refresh .stale-dot {
+      position: absolute;
+      inset-block-start: 4px;
+      inset-inline-end: 4px;
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--sw-warn, #d97706);
+      pointer-events: none;
     }
     .ha-refresh .refreshed {
       font-size: var(--sw-fs-xs);
@@ -2444,10 +2480,11 @@ export class DevicesBuilding extends LitElement {
     window.addEventListener('resize', this.onResize);
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     void this.loadMediaScreens();
-    void this.loadElevators();
-    void this.loadTemperature();
-    void this.loadGenerators();
-    void this.loadDoors();
+    this.setupLive();
+    void this.loadElevators().then((ok) => this.live.markRead('elevators', ok));
+    void this.loadTemperature().then((ok) => this.live.markRead('temperature', ok));
+    void this.loadGenerators().then((ok) => this.live.markRead('generators', ok));
+    void this.loadDoors().then((ok) => this.live.markRead('doors', ok));
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
     this.registerView();
     void this.prefsReady.then(() => this.registerView()); // K88: the plan view appears once plan.surfaces says so
@@ -2477,12 +2514,15 @@ export class DevicesBuilding extends LitElement {
       this.forbidden = true;
       return;
     }
-    void this.load();
+    void this.reloadTree();
     this.tickTimer = window.setInterval(() => (this.tick += 1), 15_000);
     this.stop = subscribeHa(
       (m) => {
-        if (m.type === 'entity_state_changed') this.scheduleReload();
-        else if (m.type === 'structure_changed') {
+        if (m.type === 'entity_state_changed') {
+          this.scheduleReload();
+          // HOMELIVE-295: a state moved - the elevators / temperature / generators derive from states, so they re-read (bounded: at most one read per source per 15 s)
+          for (const id of ['elevators', 'temperature', 'generators']) this.live.nudge(id);
+        } else if (m.type === 'structure_changed') {
           // an entity moved / an area renamed / a device added or removed in HA: same throttled refetch, plus a note.
           // The push of this user's own "רענן" is skipped: refreshFromHa refetches once itself.
           if (Date.now() >= this.manualUntil) this.scheduleReload();
@@ -2513,13 +2553,8 @@ export class DevicesBuilding extends LitElement {
     window.cancelAnimationFrame(this.fitTimer);
     this.noteTimer = this.fitTimer = 0;
     window.removeEventListener('resize', this.onResize);
-    window.clearInterval(this.elevatorsTimer);
-    window.clearInterval(this.tempTimer);
-    this.tempTimer = undefined;
-    window.clearInterval(this.generatorsTimer);
-    this.generatorsTimer = undefined;
-    window.clearInterval(this.doorsTimer);
-    this.doorsTimer = undefined;
+    this.live.stop();
+    for (const id of ['elevators', 'temperature', 'generators', 'doors', 'tree']) this.live.remove(id);
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     this.offView?.();
     this.offView = null;
@@ -2553,6 +2588,7 @@ export class DevicesBuilding extends LitElement {
       if (r.changed) this.flashStructure();
       else this.noteRefresh('אין שינויים במבנה');
       await this.load();
+      this.live.refreshAll(['tree']); // HOMELIVE-295: the button refreshes every widget, not only the structure
     } catch (err) {
       this.noteRefresh(describeError(err));
       // No answer (429, 502, 503 ...): nothing was refetched here, so a real HA change pushed meanwhile must not be
@@ -2573,7 +2609,7 @@ export class DevicesBuilding extends LitElement {
     if (this.timer) return; // a refetch is already on its way: this push rides it
     this.timer = window.setTimeout(() => {
       this.timer = 0;
-      void this.load();
+      void this.reloadTree();
     }, REFRESH_WINDOW_MS);
   }
 
@@ -2589,9 +2625,13 @@ export class DevicesBuilding extends LitElement {
       this.tree = t;
       this.sync = t.sync;
       this.error = '';
+      this.treeFailed = false;
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) this.forbidden = true;
-      else this.error = describeError(err);
+      else {
+        this.error = describeError(err);
+        this.treeFailed = true;
+      }
     } finally {
       this.loading = false;
       if (this.loadAgain) {
@@ -2706,11 +2746,15 @@ export class DevicesBuilding extends LitElement {
     const timing = structureTiming(this.sync);
     // owner notes 2026-09-30: one small icon-only button; when the structure was last read is only its tooltip. A short
     // outcome (an error / "no change") shows for a few seconds after a press, and "מבנה עודכן" after a real change.
-    const tip = [this.refreshing ? 'מרענן…' : 'רענן', timing.changed, timing.checked].filter(Boolean).join(' · ');
+    const stale = this.isStale();
+    const at = this.live.lastOkAt();
+    const updated = at ? `${hl('updated')} ${new Date(at).toLocaleTimeString(hlLang() === 'he' ? 'he-IL' : hlLang(), { hour: '2-digit', minute: '2-digit' })}` : '';
+    const tip = [this.refreshing ? 'מרענן…' : 'רענן', stale ? hl('stale') : '', updated, timing.changed, timing.checked].filter(Boolean).join(' · ');
     return html`<span class="ha-refresh">
       ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       ${this.refreshNote ? html`<span class="refreshed" role="status" data-devices-refresh-note>${this.refreshNote}</span>` : nothing}
       <sw-button size="sm" variant="ghost" icon="refresh" iconOnly label=${tip} data-devices-refresh ?disabled=${this.refreshing} @click=${() => void this.refreshFromHa()}></sw-button>
+      ${stale ? html`<span class="stale-dot" data-home-stale aria-hidden="true"></span>` : nothing}
     </span>`;
   }
 
