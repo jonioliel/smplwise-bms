@@ -45,10 +45,16 @@ export async function refreshGeneratorVisibility(): Promise<void> {
 /** GENWIDGET 2.9.3: the generators of the home widget (GET /generator/devices/live). Without generator.view, without a backend or on a failed
  * read: an empty list - the widget is then absent (never an error on a home screen of an installation that may have no generator). */
 export async function loadHomeGenerators(): Promise<LiveSummaryItem[]> {
+  return (await loadHomeGeneratorsChecked()) ?? [];
+}
+
+/** UXREST2-295: the same read, but a failed read is `null` (the home screen then says the widget failed, with a retry) while "no access" or
+ * "no backend" stays an empty list. */
+export async function loadHomeGeneratorsChecked(): Promise<LiveSummaryItem[] | null> {
   if (!generatorAccess().view) return [];
   try {
     return (await listLive()).devices;
   } catch {
-    return [];
+    return null;
   }
 }

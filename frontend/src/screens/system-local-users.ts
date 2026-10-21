@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and username shown once when equal
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -533,7 +534,7 @@ export class SystemLocalUsers extends LitElement {
       <div class="panel">
         <div class="full cell">
           <strong>${u.display_name}</strong>
-          <span class="muted"><bdi>${u.username}</bdi> · ${u.role_name ?? '—'} · ${u.scope_name ?? '—'} · ${lit('sessions')}: ${u.sessions}</span>
+          <span class="muted">${secondaryIdentity(u.display_name, u.username) ? html`<bdi>${u.username}</bdi> · ` : nothing}${u.role_name ?? '—'} · ${u.scope_name ?? '—'} · ${lit('sessions')}: ${u.sessions}</span>
           ${u.admin ? html`<span class="muted">${lit('adminNote')}</span>` : nothing}
         </div>
         ${manage
@@ -601,7 +602,7 @@ export class SystemLocalUsers extends LitElement {
       {
         key: 'name',
         label: lit('colName'),
-        render: (x) => html`<span style=${CELL}><span>${row(x).display_name}</span><span style=${MUTED}><bdi>${row(x).username}</bdi></span></span>`,
+        render: (x) => html`<span style=${CELL}><span>${row(x).display_name}</span>${secondaryIdentity(row(x).display_name, row(x).username) ? html`<span style=${MUTED}><bdi>${row(x).username}</bdi></span>` : nothing}</span>`,
       },
       {
         key: 'role',

@@ -7,11 +7,11 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
 import { isScrollLocked } from '../components/scroll-lock';
-import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
+import { elevatorsAccess, refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
 import type { Elevator } from '../api/elevators';
-import { refreshTemperatureVisibility } from '../temperature/access'; // CR-INFRA-TEMPERATURE phase 3: the home widget (idea 12)
+import { refreshTemperatureVisibility, temperatureAccess } from '../temperature/access'; // CR-INFRA-TEMPERATURE phase 3: the home widget (idea 12)
 import type { TempUnit } from '../api/temperature';
-import { loadHomeGenerators } from '../generator/access'; // GENWIDGET 2.9.3: the home generator widget
+import { loadHomeGeneratorsChecked } from '../generator/access'; // GENWIDGET 2.9.3: the home generator widget
 import { generatorsAvailable } from '../generator/home-widget-model';
 import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
@@ -1310,7 +1310,9 @@ export class DevicesBuilding extends LitElement {
    * then every 30 s only while at least one exists (an installation without elevators asks once and never again; a failure shows nothing). */
   private async loadElevators() {
     const r = await refreshElevatorsVisibility();
-    this.elevators = r?.elevators ?? [];
+    // UXREST2-295: a failed read keeps what was shown and marks the widget failed (a first read that fails stays "no widget": nothing is known to exist)
+    this.setWidgetFailed('elevators', !r && elevatorsAccess().view && !!this.elevators?.length);
+    this.elevators = r ? r.elevators : (this.elevators ?? []);
     this.elevatorsStale = r?.stale ?? false;
     if (this.elevators.length && this.elevatorsTimer === undefined && this.isConnected) {
       this.elevatorsTimer = window.setInterval(() => {
@@ -1323,9 +1325,12 @@ export class DevicesBuilding extends LitElement {
    * installation offers the widget (an installation without units asks once and never again; a failure shows nothing). */
   private async loadTemperature() {
     const r = await refreshTemperatureVisibility();
-    this.tempUnits = r?.units ?? [];
+    this.setWidgetFailed('temperature', !r && temperatureAccess().view && this.tempUnits.length > 0);
+    if (r || !this.tempUnits.length) {
+      this.tempUnits = r?.units ?? [];
+      this.tempWidget = r?.home_widget !== false;
+    }
     this.tempStale = r?.stale ?? false;
-    this.tempWidget = r?.home_widget !== false;
     if (this.tempUnits.length && this.tempWidget && this.tempTimer === undefined && this.isConnected) {
       this.tempTimer = window.setInterval(() => {
         if (document.visibilityState === 'visible') void this.loadTemperature();
@@ -1336,13 +1341,29 @@ export class DevicesBuilding extends LitElement {
   /** GENWIDGET 2.9.3: the generators for the home widget - read once, then every 30 s only while at least one exists (an installation without
    * a generator, or a viewer without generator.view, asks once and never again; a failure shows nothing). */
   private async loadGenerators() {
-    this.generators = await loadHomeGenerators();
+    const g = await loadHomeGeneratorsChecked();
+    this.setWidgetFailed('generators', g === null && this.generators.length > 0);
+    if (g !== null) this.generators = g;
     if (generatorsAvailable(this.generators) && this.generatorsTimer === undefined && this.isConnected) {
       this.generatorsTimer = window.setInterval(() => {
         if (document.visibilityState === 'visible') void this.loadGenerators();
       }, 30_000);
     }
   }
+
+  /** UXREST2-295: the home widgets whose own read failed (home-widgets draws a failure panel with a retry in each one's slot). */
+  @state() private failedWidgets: WidgetId[] = [];
+  private setWidgetFailed(id: WidgetId, failed: boolean) {
+    const has = this.failedWidgets.includes(id);
+    if (failed && !has) this.failedWidgets = [...this.failedWidgets, id];
+    else if (!failed && has) this.failedWidgets = this.failedWidgets.filter((x) => x !== id);
+  }
+
+  private onWidgetRetry = (e: CustomEvent<{ id: WidgetId }>) => {
+    if (e.detail.id === 'elevators') void this.loadElevators();
+    else if (e.detail.id === 'temperature') void this.loadTemperature();
+    else if (e.detail.id === 'generators') void this.loadGenerators();
+  };
 
   /** A phone (under 600 px): the widgets have their own presentation there - layout, size and on / off (home redesign). */
   private get isPhone(): boolean {
@@ -1361,8 +1382,8 @@ export class DevicesBuilding extends LitElement {
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
     return html`<home-widgets layout=${layout} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
-      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators}
-      @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
+      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .failed=${this.failedWidgets}
+      @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }
 
   private onWidgetSize = (e: CustomEvent<{ id: WidgetId; size: 's' | 'm' | 'l' }>) => {
