@@ -76,17 +76,20 @@ test('dropdown: one select, 44 px chip and rows, every sub-page listed, current 
   expect(s?.variant).toBe('dropdown');
   expect(s!.chipH).toBeGreaterThanOrEqual(44);
   const chip = page.locator('sw-tabs[data-settings-tabs] >> sw-dropdown >> button').first();
-  await expect(chip).toContainText('כללי');
+  const before = ((await chip.textContent()) ?? '').trim();
+  expect(before.length).toBeGreaterThan(0);
   await chip.click();
   const opts = page.locator('sw-tabs[data-settings-tabs] >> sw-dropdown >> [role="option"]');
   await expect(opts).toHaveCount(s!.items);
   const hs = await opts.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   for (const h of hs) expect(h).toBeGreaterThanOrEqual(44);
-  await expect(opts.first()).toHaveAttribute('aria-selected', 'true');
+  const selected = page.locator('sw-tabs[data-settings-tabs] >> sw-dropdown >> [role="option"][aria-selected="true"]');
+  await expect(selected).toHaveCount(1);
+  await expect(selected).toContainText(before);
   await page.screenshot({ path: path.join(OUT, '03-phone-dropdown-open.png') });
   await opts.nth(2).click();
   await page.waitForTimeout(600);
-  await expect(chip).not.toContainText('כללי');
+  expect(((await chip.textContent()) ?? '').trim()).not.toBe(before);
   await page.screenshot({ path: path.join(OUT, '04-phone-dropdown-other-page.png') });
 
   await choose(page, 'tabs');
