@@ -64,7 +64,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await expect(q(page, '[data-pm-rect]')).toHaveAttribute('data-pm-rect', '36,30,150,110');
     await expect(q(page, '[data-pm-count]')).toHaveText('1 מתוך 4 אזורים');
     await expect(q(page, '[data-pm-lock]')).toHaveCount(0);
-    await expect(q(page, '[data-pm-review]')).toBeDisabled(); // nothing edited
+    await expect(q(page, '[data-pm-review]')).toHaveAttribute('disabled', ''); // nothing edited
     // 44 px: the camera rows, the buttons, the region rows, the switch and (after a press) the corner handles
     const boxes = [q(page, '[data-pm-camera]').first(), q(page, '[data-pm-enabled]'), q(page, '[data-pm-add]'), q(page, '[data-pm-pick]').first(), q(page, '[data-pm-remove]').first(), q(page, '[data-pm-review]')];
     for (const b of boxes) expect((await b.boundingBox())!.height, 'height').toBeGreaterThanOrEqual(43.5);
@@ -99,7 +99,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
       await addRegion(page);
     }
     await expect(q(page, '[data-pm-camera="cam-1"] [data-pm-edited]')).toHaveCount(1);
-    await expect(q(page, '[data-pm-review]')).toBeEnabled();
+    await expect(q(page, '[data-pm-review]')).not.toHaveAttribute('disabled');
     await expect(q(page, '[data-pm-review]')).toContainText('(1)');
     const second = q(page, '[data-pm-region]').last();
     const r0 = await rectOf(second);
@@ -123,7 +123,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await q(page, '[data-pm-remove]').last().click();
     await expect(q(page, '[data-pm-region]')).toHaveCount(1);
     await expect(q(page, '[data-pm-camera="cam-1"] [data-pm-edited]')).toHaveCount(0); // back to the NVR's state = not edited
-    await expect(q(page, '[data-pm-review]')).toBeDisabled();
+    await expect(q(page, '[data-pm-review]')).toHaveAttribute('disabled', '');
     await addRegion(page);
     await q(page, '[data-pm-discard]').click();
     await expect(q(page, '[data-pm-region]')).toHaveCount(1);
@@ -146,7 +146,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await expect(reg).toHaveAttribute('data-pm-rect', '43,36,157,104');
     await page.keyboard.press('Control+ArrowLeft');
     await expect(reg).toHaveAttribute('data-pm-rect', '0,36,157,104'); // ten percent step, clamped at the frame edge
-    await expect(q(page, '[data-pm-review]')).toBeEnabled();
+    await expect(q(page, '[data-pm-review]')).not.toHaveAttribute('disabled');
     // the review button is reachable by Tab from the region
     let reached = false;
     for (let i = 0; i < 12 && !reached; i++) {
@@ -158,7 +158,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await page.keyboard.press('Delete');
     await expect(q(page, '[data-pm-region]')).toHaveCount(0);
     await expect(q(page, '[data-pm-invalid]')).toBeVisible(); // an active mask with no region cannot be reviewed
-    await expect(q(page, '[data-pm-review]')).toBeDisabled();
+    await expect(q(page, '[data-pm-review]')).toHaveAttribute('disabled', '');
     await expect(q(page, '[data-pm-add] button')).toBeFocused(); // focus moved to a live control
     expect(st.hits.filter((h) => h.startsWith('POST'))).toEqual([]);
   });
@@ -287,10 +287,10 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     st.switchOn = false;
     await open(page);
     await expect(q(page, '[data-pm-lock="off_switch"]')).toHaveText(PM_TABLES.he.off_switch);
-    await expect(q(page, '[data-pm-add]')).toBeDisabled();
-    await expect(q(page, '[data-pm-enabled]')).toBeDisabled();
-    await expect(q(page, '[data-pm-remove]').first()).toBeDisabled();
-    await expect(q(page, '[data-pm-review]')).toBeDisabled();
+    await expect(q(page, '[data-pm-add]')).toHaveAttribute('disabled', '');
+    await expect(q(page, '[data-pm-enabled]')).toHaveAttribute('disabled', '');
+    await expect(q(page, '[data-pm-remove]').first()).toHaveAttribute('disabled', '');
+    await expect(q(page, '[data-pm-review]')).toHaveAttribute('disabled', '');
     await expect(q(page, '[data-pm-region]')).toHaveCount(1); // the NVR's mask is still shown
     await expect(q(page, '[data-pm-region]').first()).toHaveAttribute('tabindex', '-1');
     if (!phone(page)) {
@@ -311,8 +311,8 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     await installMask(page, st);
     await open(page);
     await expect(q(page, '[data-pm-lock="off_perm"]')).toHaveText(PM_TABLES.he.off_perm);
-    await expect(q(page, '[data-pm-add]')).toBeDisabled();
-    await expect(q(page, '[data-pm-review]')).toBeDisabled();
+    await expect(q(page, '[data-pm-add]')).toHaveAttribute('disabled', '');
+    await expect(q(page, '[data-pm-review]')).toHaveAttribute('disabled', '');
     await shot(page, '10-no-permission-light');
   });
 
@@ -321,7 +321,7 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     st.noPicture = ['cam-1'];
     await open(page);
     await expect(q(page, '.nopic')).toBeVisible();
-    await expect(q(page, '[data-pm-add]')).toBeEnabled(); // editing over a blank frame still works
+    await expect(q(page, '[data-pm-add]')).not.toHaveAttribute('disabled'); // editing over a blank frame still works
     await q(page, '[data-pm-camera="cam-3"]').click();
     await expect(q(page, '[data-pm-mask-error]')).toBeVisible();
     await shot(page, '11-states-light');

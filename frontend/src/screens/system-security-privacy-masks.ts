@@ -81,7 +81,6 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   @state() private undoing = '';
   @state() private undone = new Set<string>();
   @state() private brokenShot = new Set<string>();
-  private seq = 0;
   private drag: { kind: 'move' | 'corner' | 'draw'; key: string; px: number; py: number; rect: Rect | null; corner?: Corner } | null = null;
 
   static styles = css`
