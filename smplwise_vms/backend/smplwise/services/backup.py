@@ -116,6 +116,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "security.local_identity_extended",
                  # SVCIDENT3 (review S1 a): the scripts / scenes / automations Arx-only users may run - a restore never widens it
                  "security.local_identity_runnable",
+                 # SCHEDIMPACT-295: the bridge's last report that it judges a local person's schedules (its schedule fences) - runtime
+                 # state; an archive's "true" must never stand in for the live report (a script schedule would go to a bridge without them)
+                 "bridge.schedule_fences",
                  # USR2 phase 2: where links sent by WhatsApp point - an archive never re-aims reset links
                  "security.local_public_url",
                  # USR2 phase 4: passwordless sign-in and the Android app association - an archive never switches them on / re-aims them

@@ -57,6 +57,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import voluptuous as vol
@@ -461,10 +462,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def schedule(call: ServiceCall) -> ServiceResponse:
         """0.3.0 (CR-014): a signed write to the Scheduler component as the VMS user (see schedule_service.py)."""
+        on_behalf = "on_behalf_of" in call.data
         msg, refused = await screened(SERVICE_SCHEDULE, call)
         if refused is not None or msg is None:
             return refused
-        return await async_handle_schedule(hass, service_identity.PREVERIFIED, msg)
+        # SCHEDIMPACT-295 (Fable review 4, V-02): a schedule written / copied / run / enabled on behalf of an Arx-only person runs nothing the
+        # run fences would refuse to a direct run - the never-list, this bridge's runnable allowlist and the impact check (schedule_fence.py)
+        local = SimpleNamespace(runnable=runnable_ids(), extended=local_extended()) if on_behalf else None
+        return await async_handle_schedule(hass, service_identity.PREVERIFIED, msg, local=local)
 
     hass.services.async_register(DOMAIN, SERVICE_SCHEDULE, schedule, schema=SCHEDULE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
@@ -537,6 +542,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
         try:
             async with session.post(f"{url}/api/v1/ha/bridge/directory", json=keyset.sign({"users": users, "rotation": ROTATION_CAPABILITY, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
+                                                                                "schedule_fences": True,  # SCHEDIMPACT-295: this bridge judges a local person's schedules
                                                                                 "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
                                                                                 "local_identity_extended": local_extended(),
                                                                                 "local_identity_runnable": sorted(runnable_ids())}), timeout=10) as resp:

@@ -7,7 +7,8 @@ lazily (`_ha()`), everything else is duck-typed (`hass.auth`, `hass.services`, `
 The order of the checks (contract 8.3): signature / replay window -> active HA user -> op allow-list -> closed schema
 and caps (schedule_policy.py) -> every action entity exists with the service's domain -> sensitive flag consistency ->
 non-admin entity permission (control) -> for every op but `add` the registry entry of the schedule's own switch (platform
-`scheduler`, unique_id == schedule_id) -> the component call with `Context(user_id)`.
+`scheduler`, unique_id == schedule_id) -> the component call with `Context(user_id)`. SCHEDIMPACT-295: a message screened on behalf of an
+Arx-only person (`local`) is also judged by schedule_fence.py - after the switch's registry check, before the permissions.
 
 Never called from here: the component's `enable_all`, `disable_all`, `reload_storage`, or its HTTP views. Errors are
 class names or fixed codes; payloads, names, values and exception texts are never logged or returned.
@@ -24,6 +25,7 @@ import weakref
 from types import SimpleNamespace
 from typing import Any, Mapping
 
+from . import schedule_fence
 from . import schedule_policy as policy
 
 _LOGGER = logging.getLogger(__name__)
@@ -220,8 +222,11 @@ def _component_data(msg: Mapping[str, Any], op: str) -> dict[str, Any]:
     return {"entity_id": entity_id}  # remove, enable, disable
 
 
-async def async_handle_schedule(hass: Any, verifier: Any, msg: dict[str, Any]) -> dict[str, Any]:
-    """Run one signed `schedule` request. Always answers a dict, never raises for a refusal."""
+async def async_handle_schedule(hass: Any, verifier: Any, msg: dict[str, Any], local: Any = None) -> dict[str, Any]:
+    """Run one signed `schedule` request. Always answers a dict, never raises for a refusal. `local` (SCHEDIMPACT-295): for a message
+    service_identity.screen accepted on behalf of an Arx-only person, an object with `runnable` (this bridge's allowlist), `extended` (this
+    bridge's switch) and optionally `deps` - the content the op makes run is then judged by schedule_fence.schedule_refusal; None (a Home
+    Assistant user's own message) = not judged."""
     reason = verifier.verify(msg)
     if reason:
         _LOGGER.warning("smplwise_bridge.schedule refused: %s", reason)
@@ -256,6 +261,18 @@ async def async_handle_schedule(hass: Any, verifier: Any, msg: dict[str, Any]) -
         entry = registry.async_get(schedule_entity)
         if entry is None or getattr(entry, "platform", None) != SCHEDULER_PLATFORM or str(getattr(entry, "unique_id", "")) != msg["schedule_id"]:
             return _refuse(msg, "not_a_schedule", "schedule_entity_id")
+
+    if local is not None:
+        # SCHEDIMPACT-295 (review 4 V-02): an Arx-only person's schedule runs nothing the run fences would refuse to a direct run
+        try:
+            fenced = await schedule_fence.schedule_refusal(hass, user, op, refs, msg, frozenset(getattr(local, "runnable", None) or ()),
+                                                           getattr(local, "extended", False) is True, deps=getattr(local, "deps", None))
+        except Exception as exc:  # noqa: BLE001 - whatever could not be judged is refused (class name only in the log)
+            _LOGGER.warning("smplwise_bridge.schedule %s fence failed: %s", op, type(exc).__name__)
+            fenced = schedule_fence.UNVERIFIABLE
+        if fenced:
+            _LOGGER.warning("smplwise_bridge.schedule %s refused: %s", op, fenced)
+            return _refuse(msg, fenced)
 
     # permissions: the action entities of an add / edit, and the schedule's own switch for every op but add
     # (the switch check is stricter than the contract's minimum: enable / disable is an entity service anyway, and

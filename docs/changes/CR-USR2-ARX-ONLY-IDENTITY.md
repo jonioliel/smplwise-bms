@@ -734,6 +734,10 @@ route, no new permission, no migration.
 5. Arx-only users holding `schedules` (2.6.4, not the extended mode) can schedule scripts / scenes; that path is governed by the existing
    "script allowed in schedules" administrator mark for disarm / unlock scripts (`schedule_ops.mark_script`) and the bridge's schedule handler
    checks the service user's entity policy - not by the runnable allowlist. Recorded, not changed (out of this branch's scope).
+   **Changed by SCHEDIMPACT-295 (Fable review 4, V-02 - medium):** a local person's schedule content (create / edit / copy / split / restore,
+   and the current content of an enable or a run-now) is judged on both sides: the never-list of the current mode applies to every action
+   (basic mode: no script, scene, door unlock / open or bypass arming), and in the extended mode a script / scene needs both runnable
+   allowlists, a bridge announcing `schedule_fences`, and the bridge's own allowlist + impact check. See docs/changes/CR-SCHEDIMPACT-295.md.
 6. A live viewing session that is already open when the mode goes off is not cut by S5 (new opens are refused at once; reconcile deletes the
    stream within its 300 s throttle).
 
