@@ -79,7 +79,7 @@ def test_unsendable_messages_never_reach_the_transport(kw, code):
     ("connect", ("not_sent", "ha_unavailable")), ("timeout", ("unknown", "timeout")), ("http500", ("unknown", "ha_error")),
     ("http502", ("unknown", "ha_error")), ("http408", ("unknown", "ha_error")), ("http302", ("unknown", "ha_error")),
     ("http404", ("not_sent", "service_not_found")), ("http401", ("not_sent", "ha_forbidden")), ("http403", ("not_sent", "ha_forbidden")),
-    ("http429", ("not_sent", "ha_rejected")), ("unknown_account", ("not_sent", "account_not_found")),
+    ("http429", ("not_sent", "rate_limited")), ("unknown_account", ("not_sent", "account_not_found")),
     ("multiple_accounts", ("not_sent", "account_not_found")), ("bad_request", ("not_sent", "bad_request")),
     ("malformed", ("unknown", "malformed"))])
 def test_outcome_classification(outcome, expected):

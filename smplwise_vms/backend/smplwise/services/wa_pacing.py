@@ -248,37 +248,37 @@ class SqlitePacerStore:
 
     def get_state(self, scope: str) -> tuple[int, dt.datetime] | None:
         with self._read() as conn:
-            r = conn.execute("SELECT level, until FROM messaging_pacing_state WHERE scope = ?", (scope,)).fetchone()
+            r = conn.execute("SELECT level, until FROM wa_pacing_state WHERE scope = ?", (scope,)).fetchone()
         return (int(r[0]), _parse(r[1])) if r else None
 
     def set_state(self, scope: str, level: int, until: dt.datetime, now: dt.datetime) -> None:
-        self._w().execute("INSERT INTO messaging_pacing_state(scope, level, until, updated_at) VALUES (?,?,?,?) "
+        self._w().execute("INSERT INTO wa_pacing_state(scope, level, until, updated_at) VALUES (?,?,?,?) "
                           "ON CONFLICT(scope) DO UPDATE SET level = excluded.level, until = excluded.until, updated_at = excluded.updated_at",
                           (scope, level, _iso(until), _iso(now)))
 
     def clear_state(self, scope: str) -> None:
-        self._w().execute("DELETE FROM messaging_pacing_state WHERE scope = ?", (scope,))
+        self._w().execute("DELETE FROM wa_pacing_state WHERE scope = ?", (scope,))
 
     def wait_since(self, ref: str) -> dt.datetime | None:
         with self._read() as conn:
-            r = conn.execute("SELECT since FROM messaging_pacing_wait WHERE ref = ?", (ref,)).fetchone()
+            r = conn.execute("SELECT since FROM wa_pacing_wait WHERE ref = ?", (ref,)).fetchone()
         return _parse(r[0]) if r else None
 
     def wait_start(self, ref: str, account_key: str, klass: str, now: dt.datetime) -> None:
-        self._w().execute("INSERT OR IGNORE INTO messaging_pacing_wait(ref, account_key, klass, since) VALUES (?,?,?,?)", (ref, account_key, klass, _iso(now)))
+        self._w().execute("INSERT OR IGNORE INTO wa_pacing_wait(ref, account_key, klass, since) VALUES (?,?,?,?)", (ref, account_key, klass, _iso(now)))
 
     def wait_clear(self, ref: str) -> None:
-        self._w().execute("DELETE FROM messaging_pacing_wait WHERE ref = ?", (ref,))
+        self._w().execute("DELETE FROM wa_pacing_wait WHERE ref = ?", (ref,))
 
     def bump(self, account_key: str, klass: str, metric: str, now: dt.datetime, n: int = 1) -> None:
-        self._w().execute("INSERT INTO messaging_pacing_counter(hour, account_key, klass, metric, n) VALUES (?,?,?,?,?) "
+        self._w().execute("INSERT INTO wa_pacing_counter(hour, account_key, klass, metric, n) VALUES (?,?,?,?,?) "
                           "ON CONFLICT(hour, account_key, klass, metric) DO UPDATE SET n = n + excluded.n", (_hour(now), account_key, klass, metric, n))
 
     def prune(self, before: dt.datetime) -> int:
         c = self._w()
-        a = c.execute("DELETE FROM messaging_pacing_counter WHERE hour < ?", (_hour(before),)).rowcount
-        b = c.execute("DELETE FROM messaging_pacing_wait WHERE since < ?", (_iso(before),)).rowcount
-        d = c.execute("DELETE FROM messaging_pacing_state WHERE until < ?", (_iso(before),)).rowcount
+        a = c.execute("DELETE FROM wa_pacing_counter WHERE hour < ?", (_hour(before),)).rowcount
+        b = c.execute("DELETE FROM wa_pacing_wait WHERE since < ?", (_iso(before),)).rowcount
+        d = c.execute("DELETE FROM wa_pacing_state WHERE until < ?", (_iso(before),)).rowcount
         return a + b + d
 
 
@@ -431,7 +431,7 @@ def snapshot(conn: sqlite3.Connection, ledger: Ledger, cfg: PacerConfig, account
     for key in accounts:
         arx = ledger.times(since=since_d, account_key=key)
         waits = conn.execute(
-            "SELECT w.klass, w.since FROM messaging_pacing_wait w JOIN ticket_outbox o ON o.id = w.ref "
+            "SELECT w.klass, w.since FROM wa_pacing_wait w JOIN ticket_outbox o ON o.id = w.ref "
             "WHERE w.account_key = ? AND o.state IN ('queued', 'held')", (key,)).fetchall()
         by_class: dict[str, int] = defaultdict(int)
         oldest = None
@@ -440,13 +440,13 @@ def snapshot(conn: sqlite3.Connection, ledger: Ledger, cfg: PacerConfig, account
             s = _parse(since)
             oldest = s if oldest is None or s < oldest else oldest
         metrics = {m: 0 for m in METRICS}
-        for metric, n in conn.execute("SELECT metric, SUM(n) FROM messaging_pacing_counter WHERE account_key = ? AND hour >= ? GROUP BY metric",
+        for metric, n in conn.execute("SELECT metric, SUM(n) FROM wa_pacing_counter WHERE account_key = ? AND hour >= ? GROUP BY metric",
                                       (key, _hour(since_d))).fetchall():
             if metric in metrics:
                 metrics[metric] = int(n or 0)
-        st = conn.execute("SELECT level, until FROM messaging_pacing_state WHERE scope = ?", (f"account:{key}",)).fetchone()
+        st = conn.execute("SELECT level, until FROM wa_pacing_state WHERE scope = ?", (f"account:{key}",)).fetchone()
         backoff = {"level": int(st[0]), "until": _parse(st[1]).isoformat().replace("+00:00", "Z")} if st and _parse(st[1]) > now else None
-        pairs = conn.execute("SELECT COUNT(*) FROM messaging_pacing_state WHERE scope LIKE ? AND until > ?", (f"pair:{key}:%", _iso(now))).fetchone()[0]
+        pairs = conn.execute("SELECT COUNT(*) FROM wa_pacing_state WHERE scope LIKE ? AND until > ?", (f"pair:{key}:%", _iso(now))).fetchone()[0]
         out.append({"account_key": key, "sends_1h": sum(1 for t in arx if t > since_h), "sends_24h": len(arx),
                     "wiskey_1h": sum(1 for t in f_day if t > since_h), "wiskey_24h": len(f_day),
                     "waiting": sum(by_class.values()), "waiting_by_class": dict(by_class),
