@@ -278,6 +278,13 @@ PERMISSION_LABELS: dict[str, str] = {
     # system_admin only; may be carried by a station-scope role (rbac.STATION_PERMISSIONS).
     "access.doors.automate": "בקרת כניסה: אוטומציות שפותחות דלתות (הגדרה, חימוש ועצירה)",
     "access.people.stations": "בקרת כניסה: מתן וחסימת גישה לאדם לפי עמדה",
+    # CR-039 / DOORWIN-295 (owner decisions 2026-10-13): door windows and emergency controls - four separate sensitive permissions, never
+    # implied, on the access-control station chain. Built-in holders: system_admin all four (emergency OPEN: system administrators only),
+    # site_admin manage + cancel + emergency lock, operator the guard override (cancel). Everyone else through a custom role.
+    "access.windows.manage": "בקרת כניסה: ניהול חלונות פתיחה של דלתות (שעות פתיחה מתוזמנות)",
+    "access.windows.cancel": "בקרת כניסה: הפסקת חלון פתיחה פעיל ואימות ידני שהדלת חזרה למצב רגיל",
+    "access.emergency.lock": "בקרת כניסה: נעילת חירום של כל הדלתות בהיקף",
+    "access.emergency.open": "בקרת כניסה: פתיחת חירום של כל הדלתות בהיקף (פינוי)",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

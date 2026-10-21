@@ -426,6 +426,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)
 
     app.include_router(door_automations_router.router, prefix=api, tags=["access-control"])
+    from .routers import door_windows as door_windows_router
+
+    app.include_router(door_windows_router.router, prefix=api, tags=["access-control"])  # CR-039 DOORWIN-295: door windows + emergency controls (OFF)
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
@@ -690,6 +693,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # resumes ends and revokes). SW_ACCESS_GRANTS_WORKER=0 keeps the thread off (tests call WORKER.run_once explicitly).
         if os.environ.get("SW_ACCESS_GRANTS_WORKER", "1") != "0":
             await run_in_threadpool(access_grants_svc.WORKER.start, app.state.db, settings)
+        from .services import door_windows as door_windows_svc
+
+        # CR-039 DOORWIN-295: the door-windows watchdog / compile / emergency-retry thread (idle while nothing is planned; resumes from the
+        # database after a restart). SW_DOORWIN_WORKER=0 keeps it off (tests call door_windows.WORKER.run_once with explicit instants).
+        if os.environ.get("SW_DOORWIN_WORKER", "1") != "0":
+            door_windows_svc.WORKER.start(app.state.db, settings)
         from .services import intercom_sync, intercom_write_journal
 
         # WisKey round 5 R5-A6: the durable journal of person writes (intent before dispatch, outcome after; an unresolved write of an
@@ -803,6 +812,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import access_grants as access_grants_svc
 
         access_grants_svc.WORKER.stop()
+        from .services import door_windows as door_windows_svc
+
+        door_windows_svc.WORKER.stop()
         from .services import intercom_consent, intercom_sync
 
         intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
