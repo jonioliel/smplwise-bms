@@ -67,9 +67,9 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
     // the mask is really drawn: an SVG polygon (not an unknown HTML element) with a visible fill
     expect(await q(page, '[data-pm-frame] svg polygon').first().evaluate((e) => e instanceof SVGPolygonElement && getComputedStyle(e).fill !== 'none')).toBe(true);
     await expect(q(page, '[data-pm-review]')).toHaveAttribute('disabled', ''); // nothing edited
-    // 44 px: the camera rows, the buttons, the region rows, the switch and (after a press) the corner handles
+    // 44 px (phone): the camera rows, the buttons, the region rows, the switch and (after a press) the corner handles
     const boxes = [q(page, '[data-pm-camera]').first(), q(page, '[data-pm-enabled]'), q(page, '[data-pm-add]'), q(page, '[data-pm-pick]').first(), q(page, '[data-pm-remove]').first(), q(page, '[data-pm-review]')];
-    for (const b of boxes) expect((await b.boundingBox())!.height, 'height').toBeGreaterThanOrEqual(43.5);
+    if (phone(page)) for (const b of boxes) expect((await b.boundingBox())!.height, 'height').toBeGreaterThanOrEqual(43.5); // owner: 44 px on the phone only
     await q(page, '[data-pm-region]').first().focus();
     await expect(q(page, '[data-pm-handle]')).toHaveCount(4);
     for (const h of await q(page, '[data-pm-handle]').all()) {
