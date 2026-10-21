@@ -52,7 +52,7 @@ def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
 
     def line(text: str, size: float = 10) -> None:
         pdf.set_font("HeeboHe" if rtl else "HeeboLa", size=size)
-        pdf.multi_cell(0, size * 0.55, text, align=align)
+        pdf.multi_cell(0, size * 0.55, text, align=align, new_x="LMARGIN", new_y="NEXT")
 
     for u in model["units"]:
         pdf.add_page()
