@@ -84,11 +84,14 @@ test('the glass pages and the plain pages share one heading size, weight and fam
   }
 });
 
-test('settings on a phone: the sub-pages are one dropdown (no third strip) and the title is not the strip label', async ({ page }, info) => {
+// release 2.10.0: the phone-only dropdown of UXFIX-NAV-295 was reverted (owner rule 0.1.157: the settings tabs follow the tabs
+// mode on every width, no phone-only gate; owner decision pending). The distinct title stays.
+test('settings on a phone: one sub-page row that follows the tabs mode (no phone-only dropdown), the title is not the strip label', async ({ page }, info) => {
   test.skip(info.project.name !== 'mobile', 'the phone layout');
   await open(page, '/system/diagnostics');
   const variants = await settingsTabsVariants(page);
-  expect(variants).toEqual(['dropdown']);
+  expect(variants).toHaveLength(1);
+  expect(variants[0]).not.toBe('dropdown');
   const h1 = (await deep(page, 'h1')).find((x) => x.text);
   expect(h1!.text).not.toBe('כללי');
 });

@@ -1376,7 +1376,7 @@ export class SwApp extends LitElement {
         z-index: 4;
         display: flex;
         flex: none;
-        padding-inline: 12px 84px;
+        padding-inline: 12px 112px;
         background: var(--sw-bg);
         --sw-tab-min-h: 44px;
       }
@@ -1397,7 +1397,7 @@ export class SwApp extends LitElement {
         align-items: center;
         gap: 8px;
         padding: 0 12px;
-        padding-inline-end: 84px;
+        padding-inline-end: 112px;
         background: var(--sw-bg);
       }
       :host([data-design='a']) .tabpair > sw-tabs,
@@ -1430,9 +1430,10 @@ export class SwApp extends LitElement {
         position: absolute;
         inset: -6px;
       }
-      /* the floating search / status corner sits over the first row's far end: that row keeps clear of it */
+      /* the floating search / status corner sits over the first row's far end: that row keeps clear of it (release 2.10.0: the
+         phone reserve is 112 px - 84 px fitted the 28 px keys; UXFIX-A11Y-295 made each key 44 px wide, the corner reaches 108 px) */
       :host([data-design='a'][data-top='tabs']) .subnav {
-        padding-inline-end: 84px;
+        padding-inline-end: 112px;
       }
       :host([data-design='a']) nav.secrow {
         position: sticky;
@@ -1442,7 +1443,7 @@ export class SwApp extends LitElement {
         flex: none;
         gap: 0;
         padding-block: 0;
-        padding-inline: 12px 84px;
+        padding-inline: 12px 112px;
         border-radius: 0;
         background: var(--sw-bg);
         border-block-end: 1px solid var(--sw-border);
@@ -1452,7 +1453,7 @@ export class SwApp extends LitElement {
         content: '';
         position: absolute;
         inset-block: 5px;
-        inset-inline: 12px 84px;
+        inset-inline: 12px 112px;
         border-radius: var(--sw-r-md);
         background: var(--sw-surface-3);
       }
