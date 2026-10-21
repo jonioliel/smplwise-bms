@@ -16,6 +16,7 @@ import csv
 import datetime as dt
 import io
 import json
+import re
 import sqlite3
 import time
 from typing import Any, Literal
@@ -389,6 +390,9 @@ def _log_query(conn: sqlite3.Connection, principal: Principal, unit: str | None,
 
 # ---------------------------------------------------------------- phase 2: the report (PDF) and the WhatsApp text summary (registered before /{unit_id})
 
+_NAIVE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$")
+
+
 class ReportSendIn(_Body):
     units: list[str] = Field(min_length=1, max_length=30)
     range: str = Field(default="24h", max_length=12)
@@ -409,12 +413,25 @@ class ScheduleIn(_Body):
     recipients: list[dict[str, str]] = Field(min_length=1, max_length=30)
 
 
+def _in_zone(value: str | None, zone: Any) -> str | None:
+    """TEMPREP-295: a custom range bound written WITHOUT an offset ("2026-10-01T00:00", what the dialog's date inputs hold) is the installation's
+    local time, not the browser's: it becomes an instant by the installation's zone, so the day edges of a compliance report fall on the
+    installation's midnights wherever the browser is. A bound with an offset or Z is already an instant and passes through."""
+    if not value or not _NAIVE.match(value.strip()):
+        return value
+    try:
+        return iso_utc(dt.datetime.fromisoformat(value.strip()).replace(tzinfo=zone).astimezone(dt.timezone.utc))
+    except (ValueError, OverflowError):
+        return value
+
+
 def _report_range(conn: sqlite3.Connection, rng: str, start: str | None, end: str | None, ts: float) -> tuple[int, int]:
     from ..services import temperature_whatsapp as twa
 
     try:
         if rng == "custom":
-            return t.parse_range("custom", start, end, ts)
+            zone = t.site_zone(conn)
+            return t.parse_range("custom", _in_zone(start, zone), _in_zone(end, zone), ts)
         return twa.range_of(rng, ts, t.site_zone(conn))
     except ValueError as e:
         raise ApiError(422, "validation", "טווח לא תקין.", details={"fields": [str(e)], "message_en": "Invalid range."}) from None
@@ -437,7 +454,7 @@ def _wa_error(e: Any) -> ApiError:
 def report_preview(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
                    end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
                    events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
-                   external: int = Query(0, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+                   samples: int = Query(0, ge=0, le=1), external: int = Query(0, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The report MODEL (what the PDF and the WhatsApp text are made from) - the dialog's preview. devices.read, scoped like the units.
     `external=1` (TEMPVENDOR-295): the text as a vendor gets it (no "available in the system" note)."""
     from ..services import temperature_report as rep
@@ -445,15 +462,15 @@ def report_preview(units: str = Query(..., max_length=2000), range: str = Query(
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
-    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout)
-    return {**model, "range_text": rep.range_text(model), "text_summary": rep.text_summary(model, external=bool(external)), "filename": rep.filename(model)}
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout, samples=bool(samples))
+    return {**rep.preview_trim(model), "range_text": rep.range_text(model), "text_summary": rep.text_summary(model, external=bool(external)), "filename": rep.filename(model)}
 
 
 @router.get(f"{API}/report.pdf")
 def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
                end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
                events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
-               principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+               samples: int = Query(0, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     """The audit PDF of one or more units (a page per unit): presets or a custom range, Hebrew or English, chart / events / signature LINE
     (owner decision 4: a line only; the model keeps room for a future electronic signature). Rendered in the isolated child process."""
     from ..services import temperature_pdf, temperature_report as rep
@@ -461,7 +478,7 @@ def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
-    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout)
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout, samples=bool(samples))
     try:
         content = temperature_pdf.render(model)
     except temperature_pdf.PdfError as e:
@@ -469,7 +486,7 @@ def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h
         raise ApiError(status, e.code, "לא ניתן להפיק את הדוח כרגע." if status == 503 else "הדוח גדול מדי; יש לצמצם טווח או יחידות.",
                        details={"message_en": "The report cannot be produced now." if status == 503 else "The report is too large; narrow the range or the units."}) from None
     audit(conn, actor=principal, action="infra.temperature.report", decision="allowed", resource_type="infra_temp_unit",
-          details={"units": len(rows), "digest": model["digest"][:16], "layout": layout})
+          details={"units": len(rows), "digest": model["digest"][:16], "layout": layout, "samples": bool(samples)})
     return Response(content=content, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{rep.filename(model)}"', "Cache-Control": "private, no-store", "X-Report-Digest": model["digest"]})
 
