@@ -99,3 +99,41 @@ Full backend suite: NOT_RUN on this branch (only the Frigate files).
    the effective value differs from Arx's documented default (a global override). Rare; the route should compare with `inherited()` first.
 5. The `review_summary` / single-review shapes above are not consumed by Arx; no change made.
 6. `EXT-X-PROGRAM-DATE-TIME` is still absent (CR-029 section 7 stands).
+
+## 6. Second run: the supervised first session driven through Arx itself (2026-10-21)
+
+Sections 1-5 exercised the adapter and control code directly. This run drives the same instance **through Arx's own HTTP API** on a throwaway
+local backend (isolated data directory, `SW_FRIGATE=1`, bootstrap administrator, one extra dev user bound to the `viewer` role), so the
+permission model, class policy, first-write rule, read-back and change log are the ones an operator meets. Raw scrubbed log (gitignored):
+`private-evidence/frigate-2026-10-20/live/ARX_SUPERVISED_SESSION_2026-10-21.md`. Frigate was written to only through Arx routes; the only direct
+calls were read-only (`/api/config`, `/api/config/raw`, review and event reads) to compare before and after.
+
+| # | Step | Result |
+|---|---|---|
+| S1 | Recorder added in TLS **pin** mode: the connection test returns the certificate fingerprint without sending credentials, the pin is saved, then the login | PASS. The first save answered `source_unavailable` (the probe took about 5.6 s on a direct run, its budget is 8 s); the second save succeeded (see open item 7) |
+| S2 | Discover and read sync through Arx: status (version 0.18.0, `version_ok`), 7 cameras (6 online), reviews, review summary, motion activity, still picture, recordings and coverage, playback plan, export plan, storage, profiles, exports, cases, config schema, per-camera config, WebSocket (`connected`, 260 frames, 0 unknown) | PASS (19 reads, all 200 except PTZ read: 403 as designed) |
+| S3 | RBAC: a `viewer` may read cameras but gets 403 on the policy (read and write), a camera switch (also with the class on), and a case create | PASS |
+| S4 | All write classes off by default: an administrator's switch is `409 frigate_write_class_off` | PASS |
+| S5 | `analytics`: `improve_contrast` off, read-back verified, undo from the change log | PASS, identical |
+| S6 | `analytics`: named motion mask off, verified, undo | PASS, identical |
+| S7 | `record`: `snapshots` on needs `confirm` (409 without), verified, undo needs `confirm` again | PASS, identical |
+| S8 | `review`: mark reviewed with the mirror to Frigate, then unmark | PASS (Frigate's per-user flag true, then false) |
+| S9 | `events`: retain on and undo, sub label set and undo, on a real tracked object | PASS (event document equal to before; the known `sub_label_score` residue is not visible in the fields compared) |
+| S10 | `cases` + `exports`: first write refused unless `supervised: true`; case create, rename; export of a 5 s window straight into the case, rename, out of the case, back, delete (409 without `confirm`), case delete | PASS, exports 5 and cases 0 as at the start |
+| S11 | `config` (persists in Frigate's YAML): first write refused unless supervised; `motion.threshold` 30 -> 31 and undo; zone create and undo | PASS |
+| S12 | PTZ route | 403 as designed (`PTZ_RELEASED = False`) |
+
+After every step the camera switches and settings of all 7 cameras, the exports and cases lists and a hash of the effective config were compared
+with the baseline taken before the first write: identical each time. At the end the **raw YAML was byte-identical to the original saved on
+2026-10-21** (SHA-256 equal), and all write classes were switched off again. On the throwaway instance 9 of the 13 first-write kinds are now marked
+done (export create/rename/delete/assign, case create/rename/delete, config zone/settings).
+Arx's change log held 22 rows, `applied` or `reverted`.
+
+Not run: profile switch (the instance defines no profiles), PTZ, manual events (done through the adapter in W13/W14 and not repeated because a
+manual event cannot be removed through Arx), Frigate's restream, a real Frigate viewer account.
+
+### Open items added
+7. **Connection probe budget**: adding a Frigate recorder can fail once with `source_unavailable` when the instance is slow to log in (about
+   5.6 s for login, version, config, routes and restream list, against a probe deadline of 8 s). The error offers "save untested", which hides
+   the cause. Consider a longer deadline for Frigate or a `timeout` outcome. No code change made here.
+8. After adding a recorder the add-on must be restarted (`restart_required`) before `/api/v1/frigate/{id}/...` answers; the run did exactly that.

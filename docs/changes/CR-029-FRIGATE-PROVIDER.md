@@ -344,3 +344,7 @@ export rows name the case `export_case`; a clip without recordings is `no_record
 (that is a 500) and removing the last zone removes the `zones` key; a settings undo removes a key whose old value was only inherited.
 The section 7 line on the WebSocket `reviews` payload is now verified live (one `update` frame, JSON-string payload, parsed by Arx).
 Still NOT VERIFIED live: profile switch (no profiles defined), PTZ, a viewer account, Frigate's restream (its go2rtc lists no streams).
+
+Second run (2026-10-21): the supervised first session was repeated through Arx's own API (recorder in TLS pin mode, RBAC denials for a viewer,
+every write class switched on one at a time, change-log undo, first-write rule). All steps PASS and the raw YAML ended byte-identical to the
+saved original; see section 6 of the live report. No code changed in this run.
