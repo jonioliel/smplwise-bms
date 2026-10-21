@@ -54,6 +54,8 @@ export interface BridgeKeyStatus {
   blocked_by: string | null;
   /** waiting_for_bridge | scheduled | idle | off - the automatic rotation (starts by itself once the bridge announces support). */
   automatic: 'waiting_for_bridge' | 'awaiting_click' | 'scheduled' | 'idle' | 'off';
+  /** F3B K-01: the server's own answer (HMACACT2-295 `door_commands_paused`); absent on a server that does not send it. */
+  door_commands_paused?: boolean;
 }
 
 export const ACTIVE_STATES: readonly RotationState[] = ['prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring'];
@@ -62,3 +64,14 @@ export const getBridgeKey = () => get<BridgeKeyStatus>('system/bridge-key');
 export const setBridgeKeySettings = (body: { enabled?: boolean; reminder_days?: number }) => put<BridgeKeyStatus>('system/bridge-key/settings', body);
 export const startRotation = (mode: RotationMode) => post<{ rotation: Rotation }>('system/bridge-key/rotations', { mode, confirm: true });
 export const resumeRotation = (id: string) => post<{ rotation: Rotation }>(`system/bridge-key/rotations/${encodeURIComponent(id)}/resume`);
+
+/**
+ * F3B K-01: are remote door commands paused by the key rotation? The server's `door_commands_paused` wins when it sends one; otherwise the
+ * same rule it applies: the switch is on and a rotation is running or the latest one waits for repair.
+ */
+export function doorsPaused(s: Pick<BridgeKeyStatus, 'enabled' | 'rotation' | 'last' | 'door_commands_paused'>): boolean {
+  if (typeof s.door_commands_paused === 'boolean') return s.door_commands_paused;
+  if (!s.enabled) return false;
+  if (s.rotation && ACTIVE_STATES.includes(s.rotation.state)) return true;
+  return s.last?.state === 'needs_repair';
+}
