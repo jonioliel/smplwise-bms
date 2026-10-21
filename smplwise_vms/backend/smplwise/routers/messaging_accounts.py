@@ -12,12 +12,15 @@ tickets module gate. Read: `system.configure` or `messaging.accounts.manage` (in
   POST /messaging/whatsapp/test     one test message from one account to a typed number - OFF until slice 5b's outbox exists AND the
                                     owner approved live sends (messaging_runtime.test_send_enabled); local channel only
                                     (remote_channel.BLOCKED_ON_REMOTE)
+  GET/PUT /messaging/whatsapp/pacing  CR-WA-PACING-295: the shared send budget - mode (conservative | standard | off), WisKey shares the number,
+                                    queue age limits per class; GET also the counters (same read gate)
 
 Audit: `messaging.accounts.update` (use keys and account KEYS before / after, account keys added / removed / changed - never a number,
 a typed value or a label), `messaging.accounts.refresh` (counts), `messaging.accounts.test` (account key, outcome). Nothing here writes
 to Home Assistant or `ha-whatsapp`."""
 from __future__ import annotations
 
+import datetime as dt
 import sqlite3
 from typing import Any
 
@@ -32,6 +35,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import ha_client
 from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
+from ..services import wa_pacing
 from ..services.tickets.channel import phone_digits
 
 router = APIRouter()
@@ -206,3 +210,47 @@ def test_send(body: TestBody, request: Request, principal: Principal = Depends(c
     audit(conn, actor=principal, action="messaging.accounts.test", decision="allowed", resource_type="installation", resource_id="messaging.whatsapp",
           request_id=_rid(request), details={"account": ref.key, "state": result.get("state")})
     return {"id": result.get("id"), "state": result.get("state")}
+
+
+# ---------------------------------------------------------------- CR-WA-PACING-295: the shared send budget
+
+class PacingModeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: str | None = Field(default=None, max_length=16)
+    wiskey_shared: bool | None = None
+    max_wait_min: dict[str, int] | None = None
+
+
+def _pacing_view(conn: sqlite3.Connection, can_manage: bool) -> dict[str, Any]:
+    svc = mr.service(conn)
+    keys = [a.key for a in svc.doc().accounts if not a.removed] + [k for k in svc.discovered() if svc.doc().account(k) is None]
+    cfg = wa_pacing.load_config(conn)
+    out = wa_pacing.snapshot(conn, ma.SqliteSendLedger(conn), cfg, keys, dt.datetime.now(dt.timezone.utc))
+    out["can_manage"] = can_manage
+    out["applies"] = bool(mr._tickets_module_on(conn)) and cfg.enabled  # the budget governs the tickets module's sends; with it off nothing here changes
+    return out
+
+
+@router.get("/messaging/whatsapp/pacing")
+def get_pacing(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The shared send budget: mode, the numbers it works with, and per account the counters of the last 24 hours (sent, deferred,
+    backoff, expired), the queue waiting on the budget and the backoff in force. No number, text or recipient."""
+    return _pacing_view(conn, _reader(conn, principal))
+
+
+@router.put("/messaging/whatsapp/pacing")
+def put_pacing(body: PacingModeBody, request: Request, principal: Principal = Depends(current_principal),
+               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, MANAGE, INSTALLATION)
+    current = wa_pacing.load_config(conn)
+    raw = {**wa_pacing.config_to_json(current), **{k: v for k, v in body.model_dump().items() if v is not None}}
+    if body.max_wait_min is not None:
+        raw["max_wait_min"] = {**raw["max_wait_min"], **body.max_wait_min}
+    new, problems = wa_pacing.validate_config(raw)
+    if problems:
+        raise _problems(problems)
+    wa_pacing.store_config(conn, new)
+    audit(conn, actor=principal, action="messaging.pacing.update", decision="allowed", resource_type="installation", resource_id=wa_pacing.SETTING_KEY,
+          request_id=_rid(request), details={"mode": [current.mode, new.mode], "wiskey_shared": [current.wiskey_shared, new.wiskey_shared],
+                                             "max_wait_changed": sorted(k for k in wa_pacing.CLASSES if current.max_wait_min.get(k) != new.max_wait_min.get(k))})
+    return _pacing_view(conn, True)
