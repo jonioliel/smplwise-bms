@@ -465,6 +465,8 @@ export interface ReportParams {
   signature?: boolean;
   /** phase 3 (idea 3): the HACCP compliance layout - a daily table per unit */
   layout?: 'standard' | 'haccp';
+  /** TEMPREP-295: append the list of every recorded sample (capped on the server) */
+  samples?: boolean;
   /** TEMPVENDOR-295: the text as a vendor gets it (no "available in the system" note) */
   external?: boolean;
 }
@@ -480,12 +482,17 @@ export interface ReportUnit {
   sensor: string;
   door: string | null;
   excl_defrost: boolean;
+  /** TEMPREP-295: false = no sample at all in the range (an honest empty report, not a broken one) */
+  has_data?: boolean;
   stats: Stats;
   points?: [number, number, number | null][];
   doors?: [number, number][];
   defrost?: [number, number][];
   events?: { kind: EventKind; severity: Severity; started_at: string; ended_at: string | null; value: number | null; peak: number | null; threshold: number | null; reason?: string | null; by_name?: string | null }[];
   events_more?: number;
+  /** TEMPREP-295: every recorded sample (the dialog's preview holds only the first rows; total / shown are true): [instant, value, flags]
+   * with the flag bits 1 defrost, 2 door open, 4 switched off, 8 out of range, 16 alert open, 32 five-minute average (older than the raw history) */
+  samples?: { rows: [number, number, number][]; total: number; shown: number; capped: boolean; cap: number };
   /** phase 3: the HACCP daily table (layout haccp only) */
   daily?: { day: string; min: number | null; max: number | null; avg: number | null; out_min: number; out_min_raw: number; alarms: number; door_opens: number | null; coverage: number; verdict: 'ok' | 'exc' | 'none' }[];
 }
@@ -502,6 +509,7 @@ export interface ReportModel {
   /** a LINE only today (owner decision 4); a future electronic signature is a new mode */
   signature: { mode: 'line' } | null;
   layout?: 'standard' | 'haccp';
+  samples?: boolean;
   digest: string;
   range_text: string;
   text_summary: string;
@@ -573,6 +581,7 @@ export function reportQs(p: ReportParams): string {
   if (p.events === false) q.set('events', '0');
   if (p.signature === false) q.set('signature', '0');
   if (p.layout === 'haccp') q.set('layout', 'haccp');
+  if (p.samples) q.set('samples', '1');
   if (p.external) q.set('external', '1');
   return `?${q.toString()}`;
 }

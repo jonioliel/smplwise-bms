@@ -32,7 +32,9 @@ def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
     """The plain fallback: per unit a page with the title, range, band, the statistics, the events and the signature line."""
     from fpdf import FPDF
 
-    from .temperature_report import LABELS, deg, dur_text, event_text, range_text
+    from zoneinfo import ZoneInfo
+
+    from .temperature_report import LABELS, _local, deg, dur_text, event_text, flag_text, range_text, samples_note
 
     lang = model.get("lang") or "he"
     L = LABELS[lang]
@@ -58,6 +60,8 @@ def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
         line(f'{L["haccp"] if model.get("layout") == "haccp" else L["title"]} · {u["name"]}', 15)
         line(f'{L["range"]}: {range_text(model)}', 9)
         line(f'{L["sensor"]}: {u.get("sensor") or "—"} · {L["door"]}: {u.get("door") or L["none"]} · {L["band"]}: {deg(u["low"])} – {deg(u["high"])}', 9)
+        if not u.get("has_data", True):
+            line(f'{L["no_data_range"]} · {range_text(model)}', 10)
         pdf.ln(2)
         line(f'{L["min"]} {deg(s["min"])} · {L["max"]} {deg(s["max"])} · {L["avg"]} {deg(s["avg"])} · {L["out"]} {dur_text(s["out_min"], lang)} · '
              f'{L["alerts"]} {s["alarms"] + s["warnings"]}', 10)
@@ -65,13 +69,24 @@ def render_fpdf2(model: dict[str, Any], max_pages: int = MAX_PAGES) -> bytes:
             pdf.ln(2)
             line(L["daily"], 11)
             for d in u["daily"]:
-                line(f'{d["day"]} · {deg(d["min"])} / {deg(d["max"])} / {deg(d["avg"])} · {L["out"]} {d["out_min"]} · {L["alerts"]} {d["alarms"]} · '
+                line(f'{d["day"]} · {deg(d["min"])} / {deg(d["max"])} / {deg(d["avg"])} · {L["out"]} {dur_text(d["out_min"], lang) if d["out_min"] else 0} · {L["alerts"]} {d["alarms"]} · '
                      f'{d["coverage"]:.0f}% · {L["v_" + d["verdict"]]}', 8.5)
         if model.get("events"):
             pdf.ln(2)
             line(L["events"], 11)
             for e in u.get("events") or []:
                 line(f'{e["started_at"][:16].replace("T", " ")} UTC · {event_text(e, lang)} · {L["sev_" + e["severity"]]}', 8.5)
+        if model.get("samples") and u.get("samples") is not None:  # TEMPREP-295: the list of every sample, one line each
+            sm = u["samples"]
+            pdf.ln(2)
+            line(f'{L["samples"]} · {sm["total"]}', 11)
+            tz = ZoneInfo(model["zone"])
+            for ts, v, f in sm["rows"]:
+                line(f'{_local(ts, tz):%d.%m.%Y %H:%M} · {deg(v)[:-1]} °C · {flag_text(f, lang)}'.rstrip(" ·"), 7.5)
+            if sm["capped"]:
+                line(samples_note(sm, lang), 8)
+            elif not sm["rows"]:
+                line(L["no_samples"], 8)
         if model.get("signature"):
             pdf.ln(10)
             line(f'{L["sign"]}: ____________________    {L["date"]}: ____________', 10)
