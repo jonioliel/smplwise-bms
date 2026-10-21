@@ -51,6 +51,11 @@ MAX_WAIT_RANGE = (1, 2880)
 ACCOUNT_BACKOFF_S = (60, 1800)  # first step, ceiling (doubling)
 PAIR_BACKOFF_S = (300, 3600)
 COUNTER_KEEP = dt.timedelta(days=8)
+# F3B WP-01: what Arx accepts of the counters WisKey reports. A figure above these is not believable (a WisKey bug, or whoever answers the WisKey
+# command inside the home system) and is treated as UNKNOWN - never as a huge count that could hold Arx's own sends back.
+COUNTER_MAX = 10_000
+RETRY_AFTER_MAX_S = 86_400
+EXCESS_FACTOR = 2  # a count-only excess above this many window caps is ignored
 
 # the outcome codes of channel_whatsapp.classify that mean "the platform asked us to slow down" (the message did NOT leave)
 RATE_ACCOUNT, RATE_PAIR = "rate_limited", "pair_rate_limited"
@@ -415,8 +420,9 @@ def _when(v: Any) -> dt.datetime | None:
     return d.astimezone(UTC) if d.tzinfo else d.replace(tzinfo=UTC)
 
 
-def _count(v: Any) -> int | None:
-    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+def _count(v: Any, hi: int = COUNTER_MAX) -> int | None:
+    """A non-negative whole number up to `hi`; anything else (negative, a bool, a float, out of range) is unknown (None), never clamped to a figure."""
+    return v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= hi else None
 
 
 def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
@@ -435,7 +441,7 @@ def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
     return WiskeyStatus(sender_ref=ref, verified=raw.get("sender_match_verified") is True, complete=raw.get("counters_complete") is True,
                         charged={w: _count(own.get(f"charged_{w}")) for w in WINDOWS}, unreserved={w: _count(own.get(f"charged_unreserved_{w}")) for w in WINDOWS},
                         throttled_until=_when(raw.get("throttled_until")),
-                        throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s")))
+                        throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s"), RETRY_AFTER_MAX_S))
 
 
 def project_pacing_accounts(accounts: Any) -> list[dict[str, Any]]:
@@ -506,7 +512,9 @@ class WaPacer:
             return out
         out["verified"] = True
         if st.throttled_until is not None and st.throttled_until > now and st.throttle_scope in (None, "account", "sender"):
-            out.update(throttled_until=st.throttled_until, throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
+            # F3B WP-01: a throttle is never believed beyond the account backoff ceiling (a forged far-future date cannot hold Arx's sends)
+            ceiling = now + dt.timedelta(seconds=ACCOUNT_BACKOFF_S[1])
+            out.update(throttled_until=min(st.throttled_until, ceiling), throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
         if not st.complete or any(v is None for v in st.charged.values()):
             out["unknown"] = True
         elif not leases:
@@ -545,6 +553,10 @@ class WaPacer:
             limit = max(1, cap * share // 100)
             inside = [t for t in times if t > now - span]
             extra = int(charged.get(window) or 0) if window else 0
+            # F3B WP-01: WisKey's count-only excess never delays an operational alert (counted, never delayed), and an excess beyond
+            # EXCESS_FACTOR window caps is not believable: it is ignored (unknown), not applied
+            if klass == CLASS_ALERT or extra > EXCESS_FACTOR * max(1, cap):
+                extra = 0
             if len(inside) + extra >= limit:
                 if len(inside) >= limit:
                     waits.append((inside[len(inside) - limit] + span, reason))

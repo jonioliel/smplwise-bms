@@ -271,6 +271,41 @@ def test_wiskey_throttle_holds_everything_but_alerts():
     assert check(other, wp.CLASS_TICKET).allowed, "a scope this side cannot judge is not applied account-wide"
 
 
+def test_f3b_wp01_a_forged_counter_is_unknown_and_never_defers_anything():
+    kw = dict(senders={KEY_A: REF})
+    for label, own in (("billions", {"charged_1m": 4_000_000_000, "charged_1h": 4_000_000_000, "charged_24h": 4_000_000_000}),
+                       ("just above the ceiling", {"charged_1m": wp.COUNTER_MAX + 1, "charged_1h": 0, "charged_24h": 0}),
+                       ("negative", {"charged_1m": -1, "charged_1h": 0, "charged_24h": 0}),
+                       ("a bool", {"charged_1m": True, "charged_1h": 0, "charged_24h": 0})):
+        p, _, _ = pacer(wiskey=wk(wiskey_own=own), **kw)
+        view = p.wiskey_view(KEY_A, NOW)
+        assert view["unknown"] is True and view["charged"] is None, label
+        assert check(p, wp.CLASS_TICKET).allowed and check(p, wp.CLASS_ALERT).allowed, label
+
+
+def test_f3b_wp01_an_in_range_but_implausible_excess_is_ignored_and_an_alert_is_never_delayed_by_a_count():
+    kw = dict(senders={KEY_A: REF})
+    p, _, _ = pacer(wiskey=wk(wiskey_own={"charged_1m": 9_000, "charged_1h": 9_000, "charged_24h": 9_000}), **kw)
+    assert check(p, wp.CLASS_TICKET).allowed, "beyond two window caps is not believed"
+    plausible = dict(wiskey_own={"charged_1m": 12, "charged_1h": 12, "charged_24h": 12})  # a believable excess: over the minute cap of 10
+    q, _, _ = pacer(wiskey=wk(**plausible), **kw)
+    assert not check(q, wp.CLASS_TICKET).allowed
+    assert check(q, wp.CLASS_ALERT).allowed, "WisKey's count alone never delays an operational alert"
+    own, ledger, _ = pacer(wiskey=wk(**plausible), **kw)
+    fill(ledger, 10)
+    assert not check(own, wp.CLASS_ALERT).allowed, "Arx's own sends still count against an alert"
+
+
+def test_f3b_wp01_a_far_future_throttle_is_clamped_to_the_backoff_ceiling():
+    far = NOW + dt.timedelta(days=400)
+    p, _, _ = pacer(wiskey=wk(throttled_until=far.isoformat(), throttle_scope="account", retry_after_s=10**9), senders={KEY_A: REF})
+    view = p.wiskey_view(KEY_A, NOW)
+    assert view["throttled_until"] == NOW + sec(wp.ACCOUNT_BACKOFF_S[1]) and view["retry_after_s"] is None
+    d = check(p, wp.CLASS_TICKET)
+    assert not d.allowed and d.not_before == NOW + sec(wp.ACCOUNT_BACKOFF_S[1])
+    assert check(p, wp.CLASS_ALERT).allowed
+
+
 # ---------------------------------------------------------------- the reservation port
 
 def port(**kw):
