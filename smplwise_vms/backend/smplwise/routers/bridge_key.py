@@ -9,8 +9,8 @@ token or group grants anything here.
 - `PUT  /system/bridge-key/settings` - `enabled` (the switch `bridge.key_rotation`, on by default since the activation slice; `true`
   refused 409 `rotation_not_permitted` only if `bridge_rotation.GO_LIVE_PERMITTED` were False) and `reminder_days` (0 / 30 / 90 / 180 / 365:
   the interval after which the automatic worker rotates again; 0 = only the first rotation, which retires the legacy pairing secret).
-- `POST /system/bridge-key/rotations` - `{mode: routine | hard_cut, confirm: true}`: runs the staged rotation (section 5).
-- `POST /system/bridge-key/rotations/{id}/resume` - drives a rotation left mid-way (crash, `needs_repair`).
+- `POST /system/bridge-key/rotations` - needs `bridge.key.rotate` (HMACACT2-295; system_admin only, still with the system-administrator check). `{mode: routine | hard_cut, confirm: true}`: runs the staged rotation (section 5).
+- `POST /system/bridge-key/rotations/{id}/resume` - needs `bridge.key.rotate`; drives a rotation left mid-way (crash, `needs_repair`).
 
 The switch and the reminder are never taken from a backup (services/backup.SETTINGS_KEEP)."""
 from __future__ import annotations
@@ -30,6 +30,7 @@ from ..services import bridge_rotation as br
 
 router = APIRouter()
 CONFIGURE = "system.configure"
+ROTATE = "bridge.key.rotate"  # HMACACT2-295: starting / resuming a rotation (system_admin only, in SYSTEM_PERMISSIONS)
 
 MESSAGES = {
     "rotation_off": "החלפת מפתח הגשר כבויה.",
@@ -49,8 +50,8 @@ def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
-def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, action: str) -> None:
-    require(conn, principal, CONFIGURE, INSTALLATION)
+def _gate(conn: sqlite3.Connection, request: Request, principal: Principal, action: str, permission: str = CONFIGURE) -> None:
+    require(conn, principal, permission, INSTALLATION)
     if not is_system_admin(conn, principal.user_id):
         audit(conn, actor=principal, action=action, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
               request_id=_rid(request), details={"area": "bridge_key"})
@@ -125,7 +126,7 @@ class StartBody(BaseModel):
 @router.post("/system/bridge-key/rotations")
 def start_rotation(body: StartBody, request: Request, principal: Principal = Depends(current_principal_ro),
                    conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    _gate(conn, request, principal, "bridge.rotation.requested")
+    _gate(conn, request, principal, "bridge.rotation.requested", ROTATE)
     if body.confirm is not True:
         raise ApiError(422, "confirm_required", "יש לאשר את ההחלפה.")
     try:
@@ -140,7 +141,7 @@ def start_rotation(body: StartBody, request: Request, principal: Principal = Dep
 @router.post("/system/bridge-key/rotations/{rotation_id}/resume")
 def resume_rotation(rotation_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
                     conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    _gate(conn, request, principal, "bridge.rotation.resume")
+    _gate(conn, request, principal, "bridge.rotation.resume", ROTATE)
     if len(rotation_id) > 64:
         raise ApiError(404, "not_found", MESSAGES["not_found"])
     if br.mode(conn) != "on" or not br.go_live_permitted():

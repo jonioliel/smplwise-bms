@@ -562,15 +562,36 @@ def test_api_rbac_system_administrator_only(world, settings):
     bind(c, settings, "cfgu", "cfg_x", "installation", "*")
     c.get("/api/v1/me", headers=as_user("vera"))
     bind(c, settings, "vera", "viewer", "installation", "*")
-    for method, path, body in (("GET", API, None), ("PUT", f"{API}/settings", {"reminder_days": 30}),
-                               ("POST", f"{API}/rotations", {"mode": "routine", "confirm": True})):
+    for method, path, body in (("GET", API, None), ("PUT", f"{API}/settings", {"reminder_days": 30})):
         r = c.request(method, path, json=body, headers=as_user("cfgu"))
         assert r.status_code == 403 and r.json()["code"] == "not_system_admin", r.text
         r = c.request(method, path, json=body, headers=as_user("vera"))
         assert r.status_code == 403, r.text
+    # HMACACT2-295: starting / resuming needs the dedicated permission, which system.configure does not carry
+    for method, path, body in (("POST", f"{API}/rotations", {"mode": "routine", "confirm": True}), ("POST", f"{API}/rotations/x/resume", None)):
+        for user in ("cfgu", "vera"):
+            r = c.request(method, path, json=body, headers=as_user(user))
+            assert r.status_code == 403 and r.json()["details"]["permission"] == "bridge.key.rotate", r.text
     with w["db"].connection(mode="read") as conn:
-        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE decision = 'denied' AND reason = 'not_system_admin' AND actor_username = 'cfgu'").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE decision = 'denied' AND reason = 'not_system_admin' AND actor_username = 'cfgu'").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE decision = 'denied' AND action = 'bridge.key.rotate' AND actor_username IN ('cfgu', 'vera')").fetchone()[0] == 4
     assert not w["peer"].calls and _keys(w["db"]) == {}
+
+
+def test_rotate_permission_is_registered_like_the_other_system_permissions(world):
+    """HMACACT2-295 (CR-034 section 7): `bridge.key.rotate` is sensitive, installation scope, held by the built-in system_admin and by no
+    other built-in role, a SYSTEM permission (never in a custom role, never delegable) and gated by the second factor for a local identity."""
+    from smplwise.rbac import LOCAL_ADMIN_PERMISSIONS, ROLES
+    from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE, SYSTEM_PERMISSIONS
+
+    perm = "bridge.key.rotate"
+    assert [r for r, perms in ROLES.items() if perm in perms] == ["system_admin"]
+    assert perm in SENSITIVE and perm in SYSTEM_PERMISSIONS and perm in LOCAL_ADMIN_PERMISSIONS and PERMISSION_LABELS[perm]
+    for body in ({"permissions": ["map.read", perm]}, {"permissions": ["map.read"], "sensitive": [perm]}):  # neither list can carry it
+        r = world["c"].post("/api/v1/access/roles", json={"name": "מחליף מפתח", **body})
+        assert r.status_code == 422 and r.json()["code"] in ("sensitive_in_permissions", "system_permission_not_allowed"), r.text
+    r = world["c"].post("/api/v1/access/roles", json={"name": "מחליף מפתח", "permissions": ["map.read"], "sensitive": [perm]})
+    assert r.json()["code"] == "system_permission_not_allowed", r.text
 
 
 def test_api_switch_is_refused_without_the_go_live_permit(world, monkeypatch):
