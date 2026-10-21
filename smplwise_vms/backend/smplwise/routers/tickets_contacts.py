@@ -51,6 +51,7 @@ class ContactBody(BaseModel):
     labor_rate: str | None = Field(default=None, max_length=20)
     rate_currency: str | None = Field(default=None, max_length=3)
     phone_verify: bool | None = None  # TKNOTIFOTP: "verify the number with a code" for this row (raises the installation switch)
+    permanent_vendor: bool | None = None  # VENDMARK-295 (0136): permanent vs temporary vendor / technician (display and filter only)
     revision: int | None = Field(default=None, ge=1)
 
 
@@ -58,7 +59,7 @@ def _body(body: ContactBody) -> dict[str, Any]:
     """Only the fields the client sent (an explicit null clears a nullable field)."""
     sent = body.model_fields_set - {"revision"}
     out = {k: getattr(body, k) for k in sent}
-    for flag in ("require_code", "active", "vat_exempt", "vat_default", "phone_verify"):
+    for flag in ("require_code", "active", "vat_exempt", "vat_default", "phone_verify", "permanent_vendor"):
         if flag in out and out[flag] is None:
             out.pop(flag)
     return out
@@ -67,12 +68,13 @@ def _body(body: ContactBody) -> dict[str, Any]:
 @router.get("/tickets/contacts")
 def list_contacts(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                   q: str = Query("", max_length=60), kind: Literal["person", "vendor", "employee"] | None = Query(None),
-                  department_id: str | None = Query(None, pattern=ID), include_inactive: bool = Query(True)) -> dict[str, Any]:
+                  department_id: str | None = Query(None, pattern=ID), include_inactive: bool = Query(True),
+                  permanent: bool | None = Query(None)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
     if not (contacts.may_edit_directory(viewer) or access.MANAGE in viewer.anywhere):
         audit(conn, actor=principal, action="ticket.contacts", decision="denied", resource_type="installation", resource_id="*", reason="no_permission")
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": access.CONFIGURE})
-    return contacts.list_for(viewer, query=q, kind=kind, department_id=department_id, include_inactive=include_inactive)
+    return contacts.list_for(viewer, query=q, kind=kind, department_id=department_id, include_inactive=include_inactive, permanent=permanent)
 
 
 @router.get("/tickets/readiness")
