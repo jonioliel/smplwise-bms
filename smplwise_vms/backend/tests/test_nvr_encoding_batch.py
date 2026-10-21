@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
-from nvr_batch_helpers import SECRETS, audits, batch_rows, camera_ids, details, fast_unknown, make_app, puts, ready, rows, setup_fake, wait_done, wait_put, with_nvr  # noqa: F401
+from nvr_batch_helpers import SECRETS, audits, batch_rows, camera_ids, details, fast_unknown, make_app, puts, quiet_alert_stream, ready, rows, setup_fake, wait_done, wait_put, with_nvr  # noqa: F401
 
 from smplwise.routers import nvr_batch as batch_router
 from smplwise.services import nvr_batch
@@ -37,6 +38,7 @@ def ew(settings, fake, fast_unknown):
     app = make_app(settings)
     with TestClient(app) as c:
         ready(app, 5)
+        quiet_alert_stream()  # the background listener's own reads must not interleave with what a test counts
         yield app, c, fake, camera_ids(app)
     assert nvr_batch.wait_idle(10)
 
@@ -117,6 +119,19 @@ def test_preview_offline_camera_and_unchanged_stream(ew):
     fake.nvr["offline"] = [2]
     body = preview(c, {"codec": "H.264"}, refs(ids, (1, 2, 5))).json()
     assert [(i["stream_ref"], i["status"], i["reason"]) for i in body["items"]] == [("101", "unchanged", None), ("201", "skip", "offline"), ("501", "change", None)]
+
+
+def test_the_background_alert_stream_listener_is_quiet_while_a_test_counts_device_reads_testdebt2(ew):
+    """The listener (started with the app) retries its alertStream GET every few seconds; a count of `fake.hits` around one request
+    was therefore only stable when no retry landed inside it. The fixture stops it; nothing may reach the NVR on its own afterwards."""
+    from smplwise.services import events_ingest
+
+    app, c, fake, ids = ew
+    listener = events_ingest.LISTENER
+    assert listener.stop.is_set() and not (listener.thread is not None and listener.thread.is_alive())
+    before = len(fake.hits)
+    time.sleep(0.3)
+    assert [h for h in fake.hits[before:] if "alertStream" in h] == []
 
 
 def test_preview_refuses_bad_settings_and_unknown_cameras_with_zero_device_reads(ew):

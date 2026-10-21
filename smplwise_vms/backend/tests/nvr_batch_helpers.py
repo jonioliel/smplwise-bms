@@ -35,6 +35,21 @@ def fast_unknown(monkeypatch):
     monkeypatch.setattr(nvr_batch, "UNKNOWN_CHECK_DELAY_S", 0.0)
 
 
+def quiet_alert_stream(timeout: float = 15.0) -> None:
+    """TESTDEBT2-295: stop the app's background alertStream listener, so the fake NVR sees only what the test itself causes.
+
+    `create_app` + lifespan starts `events_ingest.LISTENER`; it talks to the fake NVR on its own schedule (the first connect and
+    every retry, 5 s apart, each a `GET /ISAPI/Event/notification/alertStream` in `fake.hits`). A test that counts the device reads
+    of one request (`len(fake.hits)` before and after, "zero device reads") then failed whenever a retry landed in the window - only
+    in a long, loaded run, never alone. The listener has its own tests (test_events_ingest*); here it is only noise."""
+    from smplwise.services import events_ingest
+
+    events_ingest.LISTENER.shutdown()
+    t = events_ingest.LISTENER.thread
+    if t is not None and t.is_alive():
+        t.join(timeout)
+
+
 def make_app(settings, channels: int = CHANNELS):
     return create_app(with_nvr(settings))
 
