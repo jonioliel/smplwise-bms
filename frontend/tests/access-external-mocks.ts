@@ -225,7 +225,7 @@ export async function installExternalMock(page: Page, o: ExternalOptions = {}): 
       const unresolved = g.create_unresolved ? { count: 1, grant_id: g.id, started_at: '2026-10-19T06:14:00Z', op_id: admin ? '7c1e9a90'.padEnd(32, '4') : null } : null;
       return json(route, {
         identity: {
-          contact_id: ident[1], link, live_grant: ['requested', 'approved', 'provisioning', 'active', 'revoking', 'unknown'].includes(g.state) ? { id: g.id, state: g.state } : null, unresolved, name_sync: screen.name_sync,
+          contact_id: ident[1], permanent_vendor: ident[1].endsWith('01'), link, live_grant: ['requested', 'approved', 'provisioning', 'active', 'revoking', 'unknown'].includes(g.state) ? { id: g.id, state: g.state } : null, unresolved, name_sync: screen.name_sync,
           can: { link: !link && !unresolved, unlink: !!link, delete: !!link && link.origin === 'created_from_arx', attach: admin && !!unresolved, push_name: !!link && link.origin === 'created_from_arx' },
           history: link ? [{ action: 'access.person_link.create', at: '2026-10-17T06:00:00Z' }, { action: 'access.grant.request', at: '2026-10-19T13:12:00Z' }] : [],
         },

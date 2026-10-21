@@ -58,13 +58,13 @@ export interface S4Mock {
 interface Contact {
   id: string; kind: 'person' | 'vendor' | 'employee'; vendor_id: string | null; display_name: string; company: string; phone: string | null; email: string | null;
   preferred_channel: 'whatsapp' | 'email' | 'manual'; require_code: boolean; share_history: boolean | null; lang: 'he' | 'en' | 'ar' | 'ru'; notes: string; active: boolean;
-  departments: string[]; open_tickets: number; revision: number;
+  departments: string[]; open_tickets: number; revision: number; permanent_vendor?: boolean;
 }
 const CONTACTS: Contact[] = [
   { id: 'c000000000000v01', kind: 'vendor', vendor_id: null, display_name: 'קליימה-טק מיזוג אוויר', company: 'קבלן מיזוג', phone: '050-000-0032', email: 'service@clima.example.test', preferred_channel: 'whatsapp',
-    require_code: false, share_history: true, lang: 'he', notes: 'חוזה שירות שנתי.', active: true, departments: ['dept-maintenance'], open_tickets: 1, revision: 2 },
+    require_code: false, share_history: true, lang: 'he', notes: 'חוזה שירות שנתי.', active: true, departments: ['dept-maintenance'], open_tickets: 1, revision: 2, permanent_vendor: true },
   { id: 'c000000000000p01', kind: 'person', vendor_id: 'c000000000000v01', display_name: 'משה אברהם', company: 'טכנאי', phone: '050-000-0031', email: null, preferred_channel: 'whatsapp',
-    require_code: false, share_history: null, lang: 'he', notes: '', active: true, departments: ['dept-maintenance'], open_tickets: 1, revision: 1 },
+    require_code: false, share_history: null, lang: 'he', notes: '', active: true, departments: ['dept-maintenance'], open_tickets: 1, revision: 1, permanent_vendor: true },
   { id: 'c000000000000p02', kind: 'person', vendor_id: null, display_name: 'יוסי חשמל', company: 'חשמלאי מוסמך', phone: '050-000-0045', email: null, preferred_channel: 'whatsapp',
     require_code: true, share_history: null, lang: 'he', notes: '', active: true, departments: [], open_tickets: 0, revision: 1 },
   { id: 'c000000000000p03', kind: 'person', vendor_id: null, display_name: 'Ivan Petrov', company: 'Lift service', phone: '050-000-0060', email: 'ivan@lift.example.test', preferred_channel: 'email',
@@ -84,7 +84,7 @@ function present(c: Contact, full: boolean, configure: boolean) {
     phone: c.phone ? (full ? c.phone : `•••• ${digits.slice(-4)}`) : null, phone_full: !!c.phone && full, has_phone: !!c.phone,
     email: c.email ? (full ? c.email : `•••@${c.email.split('@')[1]}`) : null, preferred_channel: c.preferred_channel, require_code: c.require_code, share_history: c.share_history,
     lang: c.lang, notes: configure ? c.notes : '', active: c.active, erased: false, departments: c.departments, open_tickets: c.open_tickets, last_assigned_at: null, revision: c.revision,
-    live_links: c.open_tickets, persons: c.kind === 'vendor' ? CONTACTS.filter((p) => p.vendor_id === c.id).map((p) => ({ id: p.id, display_name: p.display_name })) : [],
+    permanent_vendor: !!c.permanent_vendor, live_links: c.open_tickets, persons: c.kind === 'vendor' ? CONTACTS.filter((p) => p.vendor_id === c.id).map((p) => ({ id: p.id, display_name: p.display_name })) : [],
   };
 }
 
