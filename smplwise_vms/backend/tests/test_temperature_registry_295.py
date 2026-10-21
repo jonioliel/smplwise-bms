@@ -42,6 +42,7 @@ def test_the_use_is_registered_by_application_start_without_any_temperature_rout
     create_app(settings)
     assert _joined()
     assert "temperature" in mr._MODULE_LABELS  # noqa: SLF001
+    sys.modules.pop(NAME, None)  # the join above went into this test's patched registry; let the next import (or monkeypatch's restore) start clean
 
 
 def test_the_use_is_hidden_while_the_module_is_off_and_shown_once_a_unit_is_defined(settings):
