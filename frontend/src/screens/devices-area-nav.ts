@@ -249,6 +249,16 @@ export class DevicesAreaNav extends LitElement {
     .opt .n {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
+      flex: none;
+    }
+    .opt > span:not(.n) {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    @media (min-width: 600px) {
+      .menu {
+        max-inline-size: 480px;
+      }
     }
     .note {
       padding: 8px 10px;

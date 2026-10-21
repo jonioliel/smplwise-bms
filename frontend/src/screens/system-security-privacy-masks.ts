@@ -129,6 +129,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       }
       .cams li {
         flex: 0 0 auto;
+        max-inline-size: 85%;
       }
     }
     .cam {
@@ -147,6 +148,13 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       cursor: pointer;
       text-align: start;
       white-space: nowrap;
+      box-sizing: border-box;
+      min-inline-size: 0;
+    }
+    .cam > span:not([class]) {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .cam[aria-current='true'] {
       border-color: var(--sw-accent);
@@ -165,6 +173,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .main {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--sw-s-3, 12px);
       min-inline-size: 0;
     }
@@ -257,6 +266,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     .frame {
       direction: ltr;
       position: relative;
+      box-sizing: border-box;
       inline-size: 100%;
       max-inline-size: 960px;
       background: var(--sw-surface-3);
@@ -446,6 +456,8 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .results .name {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
       font-weight: var(--sw-fw-medium);
     }
     .results .st {
@@ -456,6 +468,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .review {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--sw-s-3, 12px);
     }
     .rv-card {
@@ -473,7 +486,11 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       align-items: baseline;
     }
     .rv-card .name {
+      overflow-wrap: anywhere;
       font-weight: var(--sw-fw-semibold);
+    }
+    [data-pm-confirm-cameras] li {
+      overflow-wrap: anywhere;
     }
     .pair {
       display: grid;
@@ -491,6 +508,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     .thumb {
       direction: ltr;
       position: relative;
+      box-sizing: border-box;
       inline-size: 100%;
       background: var(--sw-surface-3);
       border: 1px solid var(--sw-border-strong);
