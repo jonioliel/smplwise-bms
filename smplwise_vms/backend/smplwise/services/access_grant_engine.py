@@ -463,8 +463,9 @@ PENDING_UNVERIFIED = "unverified"  # work that disappeared without a positive de
 
 
 class AccessStateReader(Protocol):
-    """The typed seam for ACR5-01: returns WisKey's raw access_state answer for `user_id` bound to `revision`, or raises (an
-    `EngineError("revision_conflict")` when WisKey's person is at another revision). Only fakes implement it in this build."""
+    """The typed seam for ACR5-01: returns WisKey's raw access_state answer for `user_id` bound to `revision` - or `(answer, schema)`
+    with the schema of the command that was sent (ECCACT-295: services/wiskey_readback.LiveReadback) - or raises (an
+    `EngineError("revision_conflict")` when WisKey's person is at another revision)."""
 
     def __call__(self, user_id: str, revision: int) -> Any: ...
 
@@ -513,8 +514,8 @@ def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: 
     """R11-I1-03: the central revocation status of `person_id` at `revision`.
     v1 (unchanged): None (UNKNOWN) for another person, or a present person at any other revision; True when anything is still owed (a
     central queue, delete_pending, or WisKey's own True); None when the person is absent (absence / a scoped 404 is never cleanup), when
-    only `unverified` work remains, or when WisKey did not say False; False only for a present person at exactly `revision` with all six
-    arrays empty and WisKey's flag False.
+    only `unverified` work remains, or when WisKey did not say False. ECCACT-295 (WKV2B): a v1 answer is NEVER False - "revoked, not
+    verified by the other side"; only a v2 answer can prove that no revocation work is owed.
     v2 (WKV2-295): `wiskey_access_state.revocation_verdict_v2` - additionally WisKey's central_revoked True and the F-02 cross-check
     against `last_known_stations` (None = UNKNOWN)."""
     if state.schema_version == was.SCHEMA_V2:
@@ -525,9 +526,9 @@ def revocation_pending_verdict(state: AccessState, *, person_id: str, revision: 
         return None
     if state.has_pending or state.presence == "delete_pending" or state.revocation_pending is True:
         return True
-    if state.presence != "present" or state.unverified or state.revocation_pending is not False:
-        return None
-    return False
+    # ECCACT-295 (WKV2B, owner decision 2026-10-20): v1 never proves a revocation (no central_revoked, no per-station evidence); only a
+    # v2 answer may return False. True (work still owed) and None (cannot tell) are unchanged.
+    return None
 
 
 def revocation_pending_from(reader: AccessStateReader | None, person_id: str, revision: Any, *,
@@ -538,7 +539,11 @@ def revocation_pending_from(reader: AccessStateReader | None, person_id: str, re
     if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
         return None
     try:
-        state = access_state_from_raw(reader(person_id, revision), user_id=person_id, revision=revision)
+        answer = reader(person_id, revision)
+        expect = None
+        if isinstance(answer, tuple):  # ECCACT-295: (result, schema) - the schema of the command that was SENT; the parser refuses the other one
+            answer, expect = answer
+        state = access_state_from_raw(answer, user_id=person_id, revision=revision, expect=expect)
     except Exception:  # noqa: BLE001 - every failure is UNKNOWN, never "not pending"
         return None
     return revocation_pending_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)

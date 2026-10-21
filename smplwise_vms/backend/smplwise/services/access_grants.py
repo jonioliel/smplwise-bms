@@ -279,7 +279,11 @@ def engine_for(db: Any) -> Engine:
         except Exception:  # noqa: BLE001
             return None
 
-    return WiskeyServiceEngine(_SETTINGS, last_known_stations=known)
+    from .wiskey_readback import LiveReadback
+
+    # ECCACT-295: the live, capability-negotiated readback (v2 proves a revocation; v1 never does; nothing listed = UNKNOWN). It sends
+    # only when WisKey lists the command AND advertises its capability, so a WisKey without the gate on stays UNKNOWN.
+    return WiskeyServiceEngine(_SETTINGS, access_state_reader=LiveReadback(_SETTINGS), last_known_stations=known)
 
 
 # ---------------------------------------------------------------- settings readers (fail closed)

@@ -86,8 +86,11 @@ def is_ref(value: Any) -> bool:
     return isinstance(value, str) and REF_RE.fullmatch(value) is not None
 
 
+MAX_JSON_INT = 2 ** 53 - 1  # ECCACT-295 (agreed with WisKey 2026-10-21): every revision/epoch on the new interface is a JSON-safe number
+
+
 def is_pos_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= MAX_JSON_INT
 
 
 def is_uuid(value: Any) -> bool:

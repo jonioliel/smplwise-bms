@@ -108,7 +108,7 @@ def capability_ok(advertised: Iterable[str], key: str) -> bool:
 
 
 def _pos_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= was.MAX_REVISION
 
 
 def _id(value: Any) -> bool:
@@ -169,9 +169,9 @@ def revocation_verdict(state: AccessState | Unknown, *, requested_revision: int,
         return True
     if state.revocation_pending is None or state.pending.anything_tracked():
         return None
-    if not _pos_int(central_revoked_at) or central_revoked_at != requested_revision:
-        return None
-    return False
+    # ECCACT-295 (WKV2B, owner decision 2026-10-20): a v1 answer never proves a revocation. Its "no tracked work" is not WisKey's own
+    # central_revoked predicate nor the F-02 per-station evidence; only a v2 answer can return False. The pending/True branches above stay.
+    return None
 
 
 class RevisionBoundAccessState(Protocol):
