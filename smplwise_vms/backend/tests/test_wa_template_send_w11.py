@@ -23,7 +23,12 @@ REG = [T.TemplateRef("consent", "consent_req", "he", ("name", "organization", "l
        T.TemplateRef("notice", "visit_notice", "en_US", ("name",), "notice")]
 
 
-def sender(transport=None, *, switch=True, permit=True, by_link=False, pacer=None):
+_DEFAULT = object()
+
+
+def sender(transport=None, *, switch=True, permit=True, by_link=False, pacer=_DEFAULT):
+    if pacer is _DEFAULT:  # F3C TP-01: the pacer is required; the default test sender carries an off-mode one
+        pacer = wp.WaPacer(ma.MemorySendLedger(), wp.MemoryPacerStore(), config=lambda: wp.PacerConfig(mode="off"))
     return T.TemplateSender(transport, registry=lambda: REG, switch=lambda: switch, permit_fn=lambda: permit, pacer=pacer,
                             pacing_for=(lambda _k: ma.Pacing()) if pacer else None, consent_by_link=lambda: by_link, clock=lambda: NOW)
 

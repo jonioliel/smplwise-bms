@@ -47,6 +47,7 @@ PARAM_MAX = 1024  # a filled slot (Meta's own limit is the template's; Arx never
 NAME_RE = re.compile(r"^[a-z0-9_]{1,128}$")  # same as intercom_messaging.WA_TEMPLATE_NAME
 LANG_RE = re.compile(r"^[a-z]{2,3}(?:_[A-Z]{2})?$")  # same as intercom_messaging.WA_TEMPLATE_LANG
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,31}$")
+WIRE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$")  # person id / account / request id as they travel: no spaces, no control characters
 KLASS = wa_pacing.CLASS_TICKET  # "a normal class": the people-screen messages' class, no special one
 
 # a failure that provably comes BEFORE the provider call (proposal: WisKey must confirm each one - open question 4)
@@ -274,20 +275,23 @@ class TemplateSender:
             return None, _refuse("no_consent")
         if consent == "unknown" and tpl.purpose != "consent_request" and self._consent_by_link():
             return None, _refuse("consent_required")
-        if self._pacer is not None and self._pacing_for is not None:
-            now = self._clock()
-            d = self._pacer.check(account_key=account_key, pacing=self._pacing_for(account_key), recipient_key=recipient_key, klass=KLASS, ref=ref, now=now)
-            if not d.allowed:
-                reason = "pacing_expired" if d.expired else "paced"
-                return None, TemplateResult("not_sent", code=reason, reason=reason, retry_after_s=max(1, int((d.not_before - now).total_seconds())), wait_until=d.not_before)
+        if self._pacer is None or self._pacing_for is None:
+            return None, _refuse("paced_unavailable")  # F3C TP-01: a paid template never leaves outside the shared budget
+        now = self._clock()
+        d = self._pacer.check(account_key=account_key, pacing=self._pacing_for(account_key), recipient_key=recipient_key, klass=KLASS, ref=ref, now=now)
+        if not d.allowed:
+            reason = "pacing_expired" if d.expired else "paced"
+            return None, TemplateResult("not_sent", code=reason, reason=reason, retry_after_s=max(1, int((d.not_before - now).total_seconds())), wait_until=d.not_before)
         return tpl, None
 
     def send(self, *, template_id: str, consent: str, values: Mapping[str, str], account: str, account_key: str, person_id: str, recipient_key: str,
              request_id: str, window: str = "unknown") -> TemplateResult:
+        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in (person_id, account, request_id)):
+            return _refuse("invalid_reference")  # F3C TP-03: the ids on the wire are closed strings (ids only)
         tpl, refused = self.admit(template_id=template_id, consent=consent, values=values, account_key=account_key, recipient_key=recipient_key, ref=request_id)
         if refused is not None or tpl is None:
             return refused or _refuse("template_unsupported")
-        if window == "open" and tpl.purpose != "consent_request":
+        if not needs_template(window) and tpl.purpose != "consent_request":  # F3C TP-04
             return _refuse("window_open")  # the caller should have chosen free text; a template inside the window is not Arx's decision to make here
         now = self._clock()
         req = TemplateRequest(request_id, account, person_id, tpl.name, tpl.language, tuple(values[s] for s in tpl.params), now + dt.timedelta(seconds=15))
