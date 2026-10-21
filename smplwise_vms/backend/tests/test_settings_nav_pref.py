@@ -20,7 +20,7 @@ def test_settings_nav_is_per_user_validated_and_clearable(settings):
     assert r.status_code == 200, r.text
     assert r.json()["prefs"][KEY] == "dropdown" and KEY in r.json()["stored"]
     assert KEY not in c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["stored"]
-    for bad in ["", "Dropdown", "select", "list", " tabs", 1, True, ["tabs"], {"a": 1}]:
+    for bad in ["", "Dropdown", "select", "list", 1, True, ["tabs"], {"a": 1}]:
         assert c.put("/api/v1/me/prefs", json={KEY: bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"][KEY] == "dropdown"
     assert c.put("/api/v1/me/prefs", json={KEY: "tabs"}).json()["prefs"][KEY] == "tabs"

@@ -40,13 +40,12 @@ async function go(page: Page, hash: string) {
   await page.waitForTimeout(1500);
 }
 
-/** Pick a mode in the personal card (a real click on the radio), then return to the settings front page by the address bar. */
+/** Pick a mode in the personal card (a real click on the radio), then reload the settings front page. */
 async function choose(page: Page, mode: 'tabs' | 'dropdown') {
   await go(page, '/system/diagnostics?tab=tabs');
   await page.locator(`input[data-settings-nav="${mode}"]`).check();
   await expect(page.locator('[data-settings-nav-card] [role="status"]')).toBeVisible();
-  await page.evaluate(() => { location.hash = '/system/diagnostics?tab=general'; });
-  await page.waitForTimeout(900);
+  await go(page, '/system/diagnostics?tab=general'); // a fresh load: the choice is remembered for this user
 }
 
 test.beforeEach(async ({}, info) => {
