@@ -740,16 +740,42 @@ def test_a_slow_wiskey_is_a_timeout_and_a_timeout_is_unknown(mc, monkeypatch):
     assert messages(s)[0]["outcome"] == "unknown"
 
 
+def _freeze_message_buckets(who: str) -> None:
+    """TESTDEBT2-295: stop the message buckets (the caller's and the shared one) from refilling. They refill at 0.5 token a second off the
+    wall clock, so a request that reached the budget check more than 2 s after the burst was spent (a loaded runner) found a token and
+    sent: 'burst refusal' held only on a fast machine. The budget's burst is what is tested here, not its refill (that has its own test)."""
+    with intercom_sync.SYNC._bucket_lock:
+        for b in (intercom_sync.SYNC._message_user_buckets[who], intercom_sync.SYNC._message_global_bucket):
+            b.rate = 0.0
+
+
 def test_the_feeds_own_budget_is_a_burst_refusal_that_leaves_no_record(mc):
     fake, c, s = mc
     enable(c)
     for _ in range(int(intercom_sync.MESSAGE_USER_BURST)):
         assert intercom_sync.SYNC._spend_token("dev-root", "message")
+    _freeze_message_buckets("dev-root")
     r = send(c, "u1", text="שלום", refill=False)
     assert r.status_code == 429 and r.json()["details"]["scope"] == "burst" and r.json()["details"]["outcome"] == "not_sent"
     assert sent(fake, "whatsapp/preview") == [] and messages(s) == []
     outcome = [details(a) for a in audits(s)][-1]
     assert outcome["phase"] == "outcome" and outcome["outcome"] == "not_sent"
+
+
+def test_the_burst_refusal_does_not_depend_on_how_fast_the_request_arrives_testdebt2(mc):
+    """The same refusal when the request reaches the budget check seconds after the burst was spent (a busy runner): the buckets are aged
+    by 5 s, which at 0.5 token a second would have refilled two tokens."""
+    fake, c, s = mc
+    enable(c)
+    for _ in range(int(intercom_sync.MESSAGE_USER_BURST)):
+        assert intercom_sync.SYNC._spend_token("dev-root", "message")
+    _freeze_message_buckets("dev-root")
+    with intercom_sync.SYNC._bucket_lock:
+        for b in (intercom_sync.SYNC._message_user_buckets["dev-root"], intercom_sync.SYNC._message_global_bucket):
+            b.at -= 5.0
+    r = send(c, "u1", text="שלום", refill=False)
+    assert r.status_code == 429 and r.json()["details"]["scope"] == "burst"
+    assert sent(fake, "whatsapp/preview") == [] and messages(s) == []
 
 
 def test_messages_have_a_lane_of_their_own(mc):

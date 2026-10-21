@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import as_user, bind, sw_time_factor
+from conftest import as_user, bind, sw_load_factor, sw_time_factor
 from fastapi.testclient import TestClient
 
 from smplwise import capabilities as capmod
@@ -304,7 +304,10 @@ def test_route_sweep(combo, settings, monkeypatch, fake):
         # devices pays httpx's client set-up per call (measured ~0.5 s each on the Windows workstation), so it only has to
         # stay far from a device timeout (8 s per NVR call)
         device_bound = not code and any(n in ("nvr", "live_video", "playback", "go2rtc") for n in needs)
-        assert took < (8 if device_bound else 2) * sw_time_factor(), (combo, path, took)
+        limit = (8 if device_bound else 2) * sw_time_factor()
+        if took >= limit:  # a wall-clock bound scales with the load the runner carried (conftest.sw_load_factor); measured only when it is exceeded
+            limit = (8 if device_bound else 2) * sw_load_factor()
+        assert took < limit, (combo, path, took)
         if code:
             assert r.status_code == 409 and r.json()["code"] == code, (combo, path, r.status_code, r.text[:300])
             if code == "capability_unavailable":

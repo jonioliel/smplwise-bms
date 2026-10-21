@@ -700,6 +700,9 @@ class FakeHA:
         self.in_flight = 0
         self.max_in_flight = 0
         self.delay = 0.0
+        self.rendezvous = 0  # TESTDEBT2-295: hold each call until this many are in flight at once (or `rendezvous_wait_s` ran out)
+        self.rendezvous_wait_s = 10.0
+        self._together = _th.Event()
         self.on_call = None
         self._lock = _th.Lock()
 
@@ -712,7 +715,11 @@ class FakeHA:
             self.calls.append(payload)
             self.in_flight += 1
             self.max_in_flight = max(self.max_in_flight, self.in_flight)
+            if self.rendezvous and self.in_flight >= self.rendezvous:
+                self._together.set()
         try:
+            if self.rendezvous:
+                self._together.wait(self.rendezvous_wait_s)
             if self.on_call:
                 self.on_call(payload)
             if self.hold_prefix and eid.startswith(self.hold_prefix):
@@ -1086,12 +1093,14 @@ def test_bulk_bounded_concurrency(bulk_app):
     assert c.post("/api/v1/ha/dev/states", json={"states": lights[20:]}).status_code == 200
     reg = ENTITY_REGISTRY + [_reg(e["entity_id"], "empty_room") for e in lights]
     assert c.post("/api/v1/ha/dev/registry", json={"entities": reg, "devices": [], "areas": AREAS, "floors": FLOORS}).status_code == 200
-    fake.delay = 0.05
+    # TESTDEBT2-295: the overlap is FORCED (the first calls wait for each other) instead of hoped for from a 50 ms sleep, which a loaded
+    # runner that starts the worker threads late turned into max_in_flight == 1
+    fake.rendezvous = 3
     r = c.post("/api/v1/devices/actions", json=_bulk(scope="area", id="empty_room", kind="lights_off"))
     assert r.status_code == 202, r.text
     got = _finish(c, r.json()["id"])
     assert len(fake.calls) == 30 and got["counts"]["confirmed"] == 30
-    assert 1 < fake.max_in_flight <= device_bulk.BULK_MAX_IN_FLIGHT == 8
+    assert 3 <= fake.max_in_flight <= device_bulk.BULK_MAX_IN_FLIGHT == 8
 
 
 def test_bulk_not_sent_after_its_deadline_and_orphans_settled(bulk_app, monkeypatch):

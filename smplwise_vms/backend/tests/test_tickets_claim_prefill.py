@@ -238,12 +238,12 @@ def test_basis_refuses_a_zero_or_missing_instalment_and_no_charge(s4, monkeypatc
 
 def test_q6_a_partial_award_prefills_and_references_the_approved_part_only(s4):
     from test_tickets_rfq_public import pub, sent_rfq, token, vid
-    from test_tickets_rfq_terms import PLAN, award, pquote, switch
+    from test_tickets_rfq_terms import award, fresh_plan, pquote, switch
 
     switch(s4)
     d = sent_rfq(s4)
     v1 = vid(d, s4.vendor["id"])
-    q = pquote(pub(s4), token(s4, v1), payment=PLAN)
+    q = pquote(pub(s4), token(s4, v1), payment=fresh_plan())
     assert q.status_code == 201, q.text
     quoted_total = q.json()["quote"]["total_minor"]
     r = award(s4, d["id"], v1, kinds=["labor"], payment_source="vendor")  # labour only: a partial approval

@@ -12,7 +12,7 @@ import json
 
 from smplwise.services.tickets import rfq_notify, rfq_terms, store_rfq
 from test_tickets_rfq_public import detail, pub, sent_rfq, token, vid, view
-from test_tickets_rfq_terms import PLAN, _day, arrival, award, pquote, s4, switch  # noqa: F401 - s4 is the fixture
+from test_tickets_rfq_terms import _day, fresh_plan, arrival, award, pquote, s4, switch  # noqa: F401 - s4 is the fixture
 from tickets_s4_world import API
 
 
@@ -21,7 +21,8 @@ def _rows(s4, sql: str, *args):
         return [dict(r) for r in conn.execute(sql, args).fetchall()]
 
 
-def _awarded(s4, plan=PLAN):
+def _awarded(s4, plan=None):
+    plan = plan if plan is not None else fresh_plan()
     switch(s4)
     d = sent_rfq(s4)
     v1 = vid(d, s4.vendor["id"])

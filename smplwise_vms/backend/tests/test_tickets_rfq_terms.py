@@ -41,9 +41,14 @@ def _at(days: float) -> str:
     return (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=days)).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-PLAN = {"items": [{"kind": "advance", "percent": "30", "due": "date", "date": _day(6)},
-                  {"kind": "progress", "amount": "100", "due": "date", "date": _day(8)},
-                  {"kind": "final", "due": "after_completion", "days": 30}]}
+def fresh_plan() -> dict:
+    """The approved payment plan of the RFQ tests, with its days counted from the installation's day AT THE CALL.
+    TESTDEBT2-295: it was a module constant (`PLAN`), so its two dates were fixed when the file was COLLECTED; a shard that runs for
+    hours and crosses the installation's midnight then compared a stale day with `_day(6)` computed in the test and failed only
+    there, never when a file was run alone."""
+    return {"items": [{"kind": "advance", "percent": "30", "due": "date", "date": _day(6)},
+                      {"kind": "progress", "amount": "100", "due": "date", "date": _day(8)},
+                      {"kind": "final", "due": "after_completion", "days": 30}]}
 
 
 @pytest.fixture()
@@ -237,12 +242,12 @@ def test_with_the_switch_off_every_new_field_is_refused_and_nothing_is_stored(s4
     c = pub(s4)
     v = view(c, tok)
     assert v["form"]["payment"] is None and v["terms"] is None
-    r = pquote(c, tok, payment=PLAN)
+    r = pquote(c, tok, payment=fresh_plan())
     assert r.status_code == 422 and r.json()["fields"] == [{"field": "payment", "code": "disabled"}], r.text
-    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{v1}/quotes", json={"lines": QUOTE, "payment": PLAN}, headers=s4.h("joni"))
+    r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{v1}/quotes", json={"lines": QUOTE, "payment": fresh_plan()}, headers=s4.h("joni"))
     assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == "disabled", r.text
     assert pquote(c, tok).status_code == 201
-    for body in ({"payment": PLAN}, {"arrival": {"work_from": _at(6)}}, {"payment_source": "vendor"}):
+    for body in ({"payment": fresh_plan()}, {"arrival": {"work_from": _at(6)}}, {"payment_source": "vendor"}):
         r = award(s4, d["id"], v1, **body)
         assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == "disabled", r.text
     meta = s4.c.get(f"{API}/tickets/rfqs/meta", headers=s4.h("mona")).json()
@@ -269,7 +274,7 @@ def test_a_vendor_who_was_not_awarded_learns_nothing_and_cannot_write(s4):
     t1, t2 = token(s4, v1), token(s4, v2)
     c = pub(s4)
     assert view(c, t1)["form"]["payment"] == {"max_items": 6, "days_max": 180, "horizon_days": 366}
-    assert pquote(c, t1, payment=PLAN).status_code == 201
+    assert pquote(c, t1, payment=fresh_plan()).status_code == 201
     assert pquote(c, t2).status_code == 201
     assert award(s4, d["id"], v1, payment_source="vendor").status_code == 201
     other = view(c, t2)
@@ -289,7 +294,7 @@ def test_a_pending_second_approval_shows_nothing_and_a_decline_drops_the_terms(s
     v1 = vid(d, s4.vendor["id"])
     tok = token(s4, v1)
     c = pub(s4)
-    assert pquote(c, tok, payment=PLAN).status_code == 201
+    assert pquote(c, tok, payment=fresh_plan()).status_code == 201
     r = award(s4, d["id"], v1, payment_source="vendor")
     a = r.json()["award"]
     assert a["state"] == "pending_second" and a["terms"]["schedule"]["source"] == "vendor", r.text
@@ -310,7 +315,7 @@ def test_the_award_approves_an_edited_schedule_and_the_vendor_confirms_the_plann
     v1 = vid(d, s4.vendor["id"])
     tok = token(s4, v1)
     c = pub(s4)
-    q = pquote(c, tok, payment=PLAN, work_from=_at(6), work_to=_at(7))
+    q = pquote(c, tok, payment=fresh_plan(), work_from=_at(6), work_to=_at(7))
     assert q.status_code == 201 and q.json()["quote"]["payment"]["items"][0] == {
         "kind": "advance", "due": "date", "date": _day(6), "days": None, "percent": "30", "amount_minor": None}, q.text
     cmp = comparison(s4, d["id"])
@@ -448,7 +453,7 @@ def test_purge_removes_the_terms_and_an_ordered_quote_keeps_its_schedule(s4):
     v1 = vid(d, s4.vendor["id"])
     tok = token(s4, v1)
     c = pub(s4)
-    assert pquote(c, tok, payment=PLAN).status_code == 201
+    assert pquote(c, tok, payment=fresh_plan()).status_code == 201
     a = award(s4, d["id"], v1, payment_source="vendor").json()["award"]
     r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/awards/{a['id']}/order", json={"request_key": f"ord-{uuid.uuid4().hex[:16]}"}, headers=s4.h("mona"))
     assert r.status_code == 201, r.text
@@ -493,11 +498,11 @@ def test_f1_an_award_over_a_proposal_must_carry_an_explicit_payment_choice(s4):
     d = sent_rfq(s4)
     v1, v2 = vid(d, s4.vendor["id"]), vid(d, s4.contact["id"])
     c = pub(s4)
-    assert pquote(c, token(s4, v1), payment=PLAN).status_code == 201
+    assert pquote(c, token(s4, v1), payment=fresh_plan()).status_code == 201
     assert pquote(c, token(s4, v2)).status_code == 201  # no proposal
     r = award(s4, d["id"], v1)  # a stale tab / an old client: no explicit choice
     assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment", "code": "required"}], r.text
-    r = award(s4, d["id"], v1, payment=PLAN, payment_source="vendor")
+    r = award(s4, d["id"], v1, payment=fresh_plan(), payment_source="vendor")
     assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment_source", "code": "conflict"}], r.text
     r = award(s4, d["id"], v1, payment_source="proposal")
     assert r.status_code == 422, r.text  # the router's strict literal
@@ -514,7 +519,7 @@ def test_f1_accepting_the_proposal_explicitly_approves_it(s4):
     switch(s4)
     d = sent_rfq(s4)
     v1 = vid(d, s4.vendor["id"])
-    assert pquote(pub(s4), token(s4, v1), payment=PLAN).status_code == 201
+    assert pquote(pub(s4), token(s4, v1), payment=fresh_plan()).status_code == 201
     r = award(s4, d["id"], v1, payment_source="vendor")
     assert r.status_code == 201, r.text
     assert r.json()["award"]["terms"]["schedule"]["source"] == "vendor"
@@ -738,3 +743,18 @@ def test_the_vendor_page_marks_the_system_message_without_naming_an_author(s4):
     by_text = {m["text"]: m for m in shown}
     assert by_text["reminder"]["system"] is True and "system" not in by_text["from a person"]
     assert all(set(m) <= {"id", "mine", "text", "at", "answered", "system"} for m in shown)
+
+
+def test_the_payment_plan_follows_the_clock_it_is_built_at_testdebt2(monkeypatch):
+    """The plan of these tests is built at CALL time: a long shard that crosses the installation's midnight must see the new day, not the
+    day the file was collected (the old module constant `PLAN` made the instalment tests fail only late in a full run)."""
+    import sys
+
+    from conftest import datetime_shim
+
+    mod = sys.modules[__name__]
+    assert not hasattr(mod, "PLAN"), "a module-level plan is frozen at collection time; build it with fresh_plan()"
+    base = dt.datetime.now(dt.timezone.utc)
+    first = fresh_plan()["items"][0]["date"]
+    monkeypatch.setattr(mod, "dt", datetime_shim(lambda: base + dt.timedelta(days=2)))
+    assert fresh_plan()["items"][0]["date"] != first and fresh_plan()["items"][0]["date"] == _day(6)
