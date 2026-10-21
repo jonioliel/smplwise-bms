@@ -352,3 +352,16 @@ def test_object_names_are_confined():
         with pytest.raises(ob.OffboxError):
             ob.check_name(bad)
     assert ob.object_name(Path("/data/backups/manual-20261020-120000-2.zip")) == "manual-20261020-120000-2.zip.swxb"
+
+
+def test_retention_defaults_are_14_daily_and_4_weekly_and_stay_configurable():
+    """Owner decision 2026-10-21 (CLEANUP-295): default 14 daily + 4 weekly (newest 3 and 6 monthly unchanged)."""
+    p = ob.RetentionPolicy()
+    assert (p.keep_last, p.keep_daily, p.keep_weekly, p.keep_monthly) == (3, 14, 4, 6)
+    from smplwise.routers.backup_offbox import RetentionIn
+    r = RetentionIn()
+    assert (r.keep_daily, r.keep_weekly) == (14, 4)
+    assert ob.RetentionPolicy(keep_daily=7, keep_weekly=2).keep_daily == 7  # still configurable
+    names = [f"auto-daily-202610{d:02d}-030000.zip.swxb" for d in range(1, 21)]
+    keep = set(p.plan(names)["keep"])
+    assert {f"auto-daily-202610{d:02d}-030000.zip.swxb" for d in range(7, 21)} <= keep  # 14 daily
