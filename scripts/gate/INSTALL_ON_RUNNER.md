@@ -165,6 +165,9 @@ Expected: `SELFTEST PASSED` (49+ OK, no NOT_RUN: use the repo venv so pytest exi
 `~/smplwisebms/.venv/bin/python -m pytest -o addopts= -q tests/test_gate_efficiency.py tests/test_gate_speed.py tests/test_select_tests.py` from a checkout of the same branch.
 
 Rollback: `cp -p $D/* ~/ && cp -p $D/nightly-gate/* ~/nightly-gate/` (and `rm -f ~/gate_policy.py ~/nightly-gate/gate_policy.py` if the old engine is restored; harmless otherwise).
+
+GATEEFF2-295: the step-by-step install, verification, one-command rollback (`rollback_gate_install.sh`), shadow run and acceptance criteria are in
+`docs/release/GATE_V2_ROLLOUT.md`; the tier policy and changed-path map in `docs/release/GATE_TIERS_V2.md` (`tier_domain_map.py`).
 Switching a single behaviour off without a rollback: `GATE_SCHEDULE=v1`, `--full`, `GATE_SELECT=off`, `GATE_BASE_VERIFY=0`, `GATE_PIXEL_LANE=0`, `GATE_PREEXISTING=block`.
 
 First use, in order:
