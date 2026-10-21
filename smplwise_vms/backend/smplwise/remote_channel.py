@@ -64,14 +64,64 @@ REPORT_GROUP = "arx-csp"
 REPORT_PATH = "/api/v1/csp-report"  # under the remote prefix: POST <remote_path>/api/v1/csp-report (routers/remote.py)
 _CSP_MODE = {"enforce_strict": False}
 
-BASE_HEADERS: list[tuple[bytes, bytes]] = [
+# LAZYMIC-295 (owner 2026-10-21): the microphone follows the features that use it. Two things in the authenticated app
+# open the browser microphone: Arx's own push-to-talk (wiskey/talk-mic.ts, behind `access.station_media` = video_talk,
+# off by default) and the embedded WisKey panel (screens/wiskey-embed.ts, iframe allow="microphone" on the same
+# origin - its talk and microphone test), reachable whenever the WisKey area is not hidden (`ui.hide_wiskey`). The
+# document's policy also bounds what that iframe may be delegated, so the microphone stays (self) while either is on
+# and becomes () only when both are off. The camera policy is unchanged (CR-008 section 3e, CR-CAMVF-295).
+PERMISSIONS_POLICY_MIC = b"camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+PERMISSIONS_POLICY_NO_MIC = b"camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+MIC_SETTINGS = ("access.station_media", "ui.hide_wiskey")
+# the defaults (station_media off, WisKey area shown) allow it; refreshed at start-up, on PATCH settings and every 30 s
+_MIC_MODE = {"allowed": True}
+
+_STATIC_HEADERS: list[tuple[bytes, bytes]] = [
     (b"x-frame-options", b"SAMEORIGIN"),
     (b"referrer-policy", b"same-origin"),
-    (b"permissions-policy", b"camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"),
     (b"x-content-type-options", b"nosniff"),
     (b"cross-origin-opener-policy", b"same-origin"),
 ]
-SECURITY_HEADERS: list[tuple[bytes, bytes]] = [(b"content-security-policy", CSP.encode()), *BASE_HEADERS]  # without reporting
+
+
+def mic_allowed_by(station_media: str | None, hide_wiskey: str | None) -> bool:
+    """True when a feature that is ON needs the microphone: talk (`video_talk`) or the embedded WisKey panel (the area
+    is not hidden). Unknown / corrupt values fail open to "allowed" only for the WisKey area (its default is shown)."""
+    return (station_media or "off") == "video_talk" or (hide_wiskey or "false") != "true"
+
+
+def set_mic_allowed(on: bool) -> None:
+    _MIC_MODE["allowed"] = bool(on)
+
+
+def mic_allowed() -> bool:
+    return _MIC_MODE["allowed"]
+
+
+def load_mic_mode_from(conn: Any) -> None:
+    """Recompute the microphone mode from an open connection (sees the caller's own uncommitted writes)."""
+    from .db import get_setting
+
+    set_mic_allowed(mic_allowed_by(get_setting(conn, "access.station_media", "off"), get_setting(conn, "ui.hide_wiskey", "false")))
+
+
+def permissions_policy() -> bytes:
+    return PERMISSIONS_POLICY_MIC if mic_allowed() else PERMISSIONS_POLICY_NO_MIC
+
+
+def base_headers() -> list[tuple[bytes, bytes]]:
+    """The non-CSP security headers, built per response (the Permissions-Policy follows the current settings)."""
+    return [*_STATIC_HEADERS[:2], (b"permissions-policy", permissions_policy()), *_STATIC_HEADERS[2:]]
+
+
+BASE_HEADERS: list[tuple[bytes, bytes]] = base_headers()  # the header names (and the default values) - see base_headers()
+
+
+def plain_security_headers() -> list[tuple[bytes, bytes]]:
+    return [(b"content-security-policy", CSP.encode()), *base_headers()]  # without reporting
+
+
+SECURITY_HEADERS: list[tuple[bytes, bytes]] = plain_security_headers()  # the defaults; responses use plain_security_headers()
 
 
 def set_csp_enforce(on: bool) -> None:
@@ -90,6 +140,7 @@ def load_csp_mode(db: Any) -> None:
             from .db import get_setting
 
             set_csp_enforce((get_setting(conn, "remote.csp_enforce", "false") or "false") == "true")
+            load_mic_mode_from(conn)  # LAZYMIC-295: the microphone mode follows the database the same way (a restore)
     except Exception:  # noqa: BLE001 - keep the current mode when the database cannot be read
         pass
 
@@ -106,7 +157,7 @@ def security_headers(prefix: str) -> list[tuple[bytes, bytes]]:
     else:
         out.append((b"content-security-policy", (CSP + report).encode()))
         out.append((b"content-security-policy-report-only", (CSP_STRICT + report).encode()))
-    return out + BASE_HEADERS
+    return out + base_headers()
 
 
 _OWN = {b"content-security-policy-report-only", b"reporting-endpoints"} | {h for h, _ in BASE_HEADERS}
@@ -255,7 +306,7 @@ def _clean_headers(headers: list[tuple[bytes, bytes]]) -> list[tuple[bytes, byte
 
 
 async def _plain(send, status: int, body: bytes, extra: list[tuple[bytes, bytes]] | None = None) -> None:
-    headers = [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()), *SECURITY_HEADERS, *(extra or [])]
+    headers = [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()), *plain_security_headers(), *(extra or [])]
     await send({"type": "http.response.start", "status": status, "headers": headers})
     await send({"type": "http.response.body", "body": body})
 

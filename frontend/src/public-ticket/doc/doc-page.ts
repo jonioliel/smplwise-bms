@@ -12,7 +12,7 @@ import cssUrl from '../consent/consent-page.css?url';
 import { withBase } from '../base';
 import { brandMark } from '../brand';
 import { h } from '../dom';
-import { CATALOGUES, isLang, LANGS, RTL, type Lang } from '../strings';
+import { LANG_SELF, isLang, LANGS, RTL, type Lang } from '../strings';
 import { applyMode, resolveMode, saveServerMode, storedChoice } from '../theme';
 import { dt, safeName, sizeText, type DocKey } from './doc-text';
 
@@ -141,9 +141,9 @@ class DocPage {
     document.documentElement.lang = this.lang;
     document.documentElement.dir = RTL.has(this.lang) ? 'rtl' : 'ltr';
     document.title = org || dt(this.lang, 'title');
-    const sel = h('select', { class: 'lang', attrs: { 'aria-label': CATALOGUES[this.lang].language },
+    const sel = h('select', { class: 'lang', attrs: { 'aria-label': LANG_SELF[this.lang].language },
       on: { change: (e) => { const v = (e.target as HTMLSelectElement).value; if (isLang(v)) { this.lang = v; this.host.setLang(v); this.render(); } } } });
-    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, CATALOGUES[l].langName));
+    for (const l of LANGS) sel.appendChild(h('option', { attrs: { value: l, selected: l === this.lang, lang: l } }, LANG_SELF[l].langName));
     const header = h('header', { class: 'top' },
       h('div', { class: 'brand' }, brandMark(org, this.meta?.logo),
         h('div', { class: 'who' }, org ? h('div', { class: 'org', attrs: { dir: 'auto' } }, org) : null, h('div', { class: 'sub' }, dt(this.lang, 'title')))),

@@ -7,6 +7,7 @@ import { describeElement, mapHref, type MapElementInfo } from '../src/api/ticket
 import { mapBlock } from '../src/public-ticket/map-block';
 import { CATALOGUES, LANGS } from '../src/public-ticket/strings';
 import type { Anchor } from '../src/api/types';
+import { loadPublicLangs } from './public-langs';
 
 // TKMAP1 (owner 16.10): a map element attached to a service request - the picker's pure model, the request's map line and "הצג במפה",
 // and the vendor page's map card (text + a server-drawn picture only).
@@ -62,9 +63,10 @@ test('the vendor card: the stored text, a picture only when the server says so, 
   for (const bad of [null, undefined, 'x', 3, {}, { name: '', floor: ' ', room: '' }]) expect(mapBlock(bad)).toBeNull();
 });
 
-test('the vendor card words exist in all four languages', () => {
+test('the vendor card words exist in all four languages', async () => {
+  await loadPublicLangs(); // LAZYLANG-295: Arabic / Russian are a lazy chunk
   for (const lang of LANGS) {
-    for (const k of ['mapTitle', 'mapAlt', 'mapNoImage'] as const) expect(CATALOGUES[lang][k], `${lang}.${k}`).toBeTruthy();
+    for (const k of ['mapTitle', 'mapAlt', 'mapNoImage'] as const) expect(CATALOGUES[lang]?.[k], `${lang}.${k}`).toBeTruthy();
   }
 });
 
