@@ -103,7 +103,7 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
     await expect(page.locator('sw-app .subnav sw-tabs a[href="#/system/security"]')).toHaveClass(/on/);
     const sub = page.locator('sw-app system-security [data-security-settings-tabs] sw-tabs a');
     // 0.1.153: the read-only 'מצלמות' tab (CR-020 S1) is the fourth page of the section
-    await expect(sub).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR', 'מצלמות', 'ממשק ציבורי']); // SECFIX2-295: + the public-interface tab (system.configure, as the cameras tab)
+    await expect(sub).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR', 'מצלמות', 'ממשק ציבורי', 'מסכות פרטיות']); // SECFIX2-295: + the public-interface tab (system.configure, as the cameras tab)
     await expect(sub.first()).toHaveClass(/on/);
     await expect(page.locator('sw-app system-security security-alarm')).toHaveCount(1);
     await sub.nth(1).click();

@@ -41,7 +41,7 @@ export function needsOfSegments(s: string[]): Need[] {
       if (EVENT_SEGMENTS.has(s[1] ?? '')) return ['events_recorder']; // events, reviews, rules, search, cases, exports
       return ['playback']; // playback, synchronised playback, the historical map (and the bare #/investigate, which opens playback)
     case 'system':
-      if (s[1] === 'devices' || (s[1] === 'security' && s[2] === 'cameras')) return NVR; // camera health (legacy URL), camera settings
+      if (s[1] === 'devices' || (s[1] === 'security' && (s[2] === 'cameras' || s[2] === 'privacy-masks'))) return NVR; // camera health (legacy URL), camera settings
       return [];
     default:
       return [];
