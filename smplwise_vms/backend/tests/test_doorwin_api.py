@@ -52,10 +52,10 @@ def test_settings_need_system_configure_and_a_confirmation(pw):
 def test_permission_defaults(pw):
     from smplwise.rbac import ROLES
 
-    assert {r for r, p in ROLES.items() if "access.windows.manage" in p} == {"site_admin", "system_admin"}
-    assert {r for r, p in ROLES.items() if "access.windows.cancel" in p} == {"operator", "site_admin", "system_admin"}
-    assert {r for r, p in ROLES.items() if "access.emergency.lock" in p} == {"site_admin", "system_admin"}
-    assert {r for r, p in ROLES.items() if "access.emergency.open" in p} == {"system_admin"}, "owner decision: system administrators only"
+    assert {r for r, p in ROLES.items() if "access.windows.manage" in p} == {"site_admin", "system_admin", "door_windows_manager"}
+    assert {r for r, p in ROLES.items() if "access.windows.cancel" in p} == {"operator", "site_admin", "system_admin", "door_windows_guard"}
+    assert {r for r, p in ROLES.items() if "access.emergency.lock" in p} == {"site_admin", "system_admin", "emergency_lock"}
+    assert {r for r, p in ROLES.items() if "access.emergency.open" in p} == {"system_admin", "emergency_open"}, "owner decision: system administrators only among the built-in roles (+ the single-permission grant role)"
     labels = pw.get("/access/roles").json()
     for p in ("access.windows.manage", "access.windows.cancel", "access.emergency.lock", "access.emergency.open"):
         assert labels["labels"][p] and p in labels["sensitive"]

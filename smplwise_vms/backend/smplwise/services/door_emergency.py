@@ -58,7 +58,6 @@ ENABLED = "doors.emergency.enabled"
 OPEN_ENABLED = "doors.emergency.open_enabled"
 AUTOMATIONS = "doors.emergency.automations"
 HOLD_MS = "doors.emergency.hold_ms"
-OPEN_RETRY = "doors.emergency.open_retry"
 ENGINE_DEADLINE_S = 8     # E-03: no engine call is waited for longer than this at the seam; a call that did not answer is UNKNOWN
 PENDING_MAX_S = 30        # E-03: a door row still `pending` this long after its phase began is aged into UNKNOWN
 ANNOUNCE_PHRASE = "doors.emergency.announce_phrase"
@@ -71,9 +70,6 @@ def _phrase_ok(value: str) -> bool:
 
 
 SETTINGS: dict[str, tuple[str, Any]] = {
-    # E-04 (Fable review 2): the E-1 exception (CR-039 8.4) repeats an OPEN after UNKNOWN. Safe only if the engine de-duplicates an apply by its
-    # request_id (the same id is sent on every attempt) - WisKey has not confirmed that. OFF by default: an unknown OPEN is NOT repeated.
-    OPEN_RETRY: ("off", lambda v: v in ("off", "on")),
     # DOORWIN2-295 (CR-039 11 / 13): the spoken phrase of an emergency start ("" = none; owner decision 2026-10-13: OFF until heard in a drill) and the
     # home-screen entry (off by default). Neither can make a button act: they only add a way to reach / announce the sheet.
     ANNOUNCE_PHRASE: ("", _phrase_ok),
@@ -522,12 +518,13 @@ def dispatch(db: Database, settings: Any, incident_id: str, phase: str, confirme
     _settle(db, settings, row, phase, results, sent_ms, first_dispatch=confirmed_at is not None)
 
 
-def _retryable(row: sqlite3.Row, phase: str, open_retry: bool = False) -> bool:
+def _retryable(row: sqlite3.Row, phase: str) -> bool:
     """Which unknown outcomes may be retried (bounded): LOCK apply (the close direction), OPEN apply (E-1, the one exception to SR-3), and
     the release of an OPEN (the close direction). Never the release of a LOCK (it re-activates schedules)."""
-    if phase == "apply":
-        return row["kind"] != "open" or open_retry  # E-04: an OPEN apply is repeated only when the owner accepted the idempotency condition
-    return phase == "release" and row["kind"] == "open"
+    # E-04 (Fable review 2, owner decision 2026-10-21 option C: "in an emergency we always open"): the E-1 exception stays - an UNKNOWN OPEN apply is
+    # repeated, bounded (3 attempts, 10 s apart). EVERY attempt carries the SAME per-door request_id, so an engine that de-duplicates by request_id cannot open
+    # twice; WisKey must confirm that idempotency in the W13-e contract (docs/changes/CR-DOORWIN2-295-BUILD-NOTES.md).
+    return phase == "apply" or (phase == "release" and row["kind"] == "open")
 
 
 def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: list[tuple[str, int, dwe.DoorOutcome]], sent_ms: list[int],
@@ -538,7 +535,7 @@ def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: 
         for station_id, relay, out in results:
             attempts = conn.execute("SELECT attempts FROM door_emergency_doors WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?",
                                     (row["id"], station_id, relay, phase)).fetchone()["attempts"] + 1
-            retry = out.state == "unknown" and attempts < MAX_ATTEMPTS and _retryable(row, phase, setting(conn, OPEN_RETRY) == "on") and not row["drill"]
+            retry = out.state == "unknown" and attempts < MAX_ATTEMPTS and _retryable(row, phase) and not row["drill"]
             conn.execute("""UPDATE door_emergency_doors SET state = ?, code = ?, attempts = ?, last_at = ?, next_at = ?, settled_at = ?
                             WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?""",
                          (out.state, out.code or None, attempts, at, dw.iso(now + dt.timedelta(seconds=RETRY_GAP_S)) if retry else None,
@@ -596,7 +593,7 @@ def age_pending(db: Database, now: dt.datetime) -> int:
                                    OR (d.phase = 'release' AND i.released_at < ? AND i.state = 'releasing'))""", (cutoff, cutoff)).fetchall()
         for r in rows:
             attempts = r["attempts"] + 1
-            retry = attempts < MAX_ATTEMPTS and _retryable(r, r["phase"], setting(conn, OPEN_RETRY) == "on") and not r["drill"]
+            retry = attempts < MAX_ATTEMPTS and _retryable(r, r["phase"]) and not r["drill"]
             conn.execute("""UPDATE door_emergency_doors SET state = 'unknown', code = 'deadline', attempts = ?, last_at = ?, next_at = ?, settled_at = ?
                             WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?""",
                          (attempts, dw.iso(now), dw.iso(now + dt.timedelta(seconds=RETRY_GAP_S)) if retry else None, None if retry else dw.iso(now),

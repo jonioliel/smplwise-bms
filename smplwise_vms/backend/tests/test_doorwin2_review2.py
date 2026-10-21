@@ -176,14 +176,15 @@ def test_e03_rows_nobody_answered_age_into_unknown(em):
     assert em.rows("SELECT state FROM door_emergency_incidents WHERE id = ?", iid)[0]["state"] == "in_effect_partial", "the headline becomes partial"
 
 
-def test_e03_an_aged_open_row_is_not_scheduled_for_a_repeat_by_default(open_on):
+def test_e03_an_aged_open_row_follows_the_bounded_e1_retry(open_on):
     pw = open_on
     iid = pw.press("open").json()["incident"]["id"]
     with pw.db.connection() as conn:
         conn.execute("UPDATE door_emergency_doors SET state = 'pending', code = NULL, attempts = 0, settled_at = NULL, next_at = NULL WHERE incident_id = ? AND station_id = ?", (iid, pw.SIDE))
         conn.execute("UPDATE door_emergency_incidents SET state = 'applying' WHERE id = ?", (iid,))
     de.age_pending(pw.db, pw.now() + dt.timedelta(seconds=de.PENDING_MAX_S + 5))
-    assert pw.rows("SELECT state, next_at FROM door_emergency_doors WHERE incident_id = ? AND station_id = ?", iid, pw.SIDE)[0] == {"state": "unknown", "next_at": None}
+    row = pw.rows("SELECT state, next_at FROM door_emergency_doors WHERE incident_id = ? AND station_id = ?", iid, pw.SIDE)[0]
+    assert row["state"] == "unknown" and row["next_at"], "owner decision 2026-10-21: an unknown OPEN is retried (bounded), with the same request id"
 
 
 # ================================================================ nothing was enabled
@@ -192,6 +193,6 @@ def test_every_switch_still_ships_off_and_the_permit_is_pinned_false_in_the_sour
     from pathlib import Path
 
     s = em.get("/doors/emergency/settings").json()["settings"]
-    assert s["doors.emergency.open_enabled"] == "off" and s["doors.emergency.open_retry"] == "off" and s["doors.emergency.automations"] == "off"
+    assert s["doors.emergency.open_enabled"] == "off" and s["doors.emergency.automations"] == "off"
     src = Path(dwe.__file__).read_text(encoding="utf-8")
     assert "\nGO_LIVE_PERMITTED = False" in src, "the module constant is never flipped by an agent; the world patches it inside a test only"
