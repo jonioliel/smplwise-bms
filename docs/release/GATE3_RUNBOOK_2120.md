@@ -42,9 +42,12 @@ Conflicts and resolutions:
 
 No branch adds a migration (still 0001..0145, contiguous). No new route (API inventory header stays 1196). Then the 2.12.0 prep commit (version in
 `__init__.py`, `config.yaml`, `Dockerfile`, API inventory header; bilingual CHANGELOG section with a `[platform-restart]` line for bridge 0.9.6;
-`docs/release/2.12.0-RELEASE-NOTES.md`; this file). **2.11.1 is NOT in this branch** (DDAREA, TESTDEBT3, SMALL3, MASKSWITCH, TEMPREP, HAUSER, BREAKUI):
-step 2 merges `main` once 2.11.1 is released and tagged. The UI bundles in `smplwise_vms/www` and `www-public` are the 2.11.0 build and do not contain
-the F3B / F3C card changes: rebuild in step 3 (mandatory for this release).
+`docs/release/2.12.0-RELEASE-NOTES.md`; this file). **2.11.1 is in this branch**: `origin/main` @ `0f28d1fb1`
+(tag v2.11.1: DDAREA, TESTDEBT3, SMALL3, MASKSWITCH, TEMPREP, HAUSER, BREAKUI) merged `--no-ff` on 2026-10-21 (GATE3PREP-295; conflicts only in the version
+files - kept 2.12.0 - and the CHANGELOG - 2.12.0 on top, the 2.11.1 section below it, then 2.11.0; bridge unchanged at 0.9.6, no migration, no route),
+then `pilot/GUIDES2120-295` (`f456e5e31`, guide page 14 for 2.11.1 / 2.12.0; no conflict, `build_guide.py --check` clean). Step 2 is therefore done unless
+`main` moves again. The UI bundles in `smplwise_vms/www` and `www-public` were rebuilt on the runner from the merged branch (the `build(ui)` commit on top),
+so step 3 is done too unless the branch changes before the gate.
 
 Owner actions at home (in the release notes; not part of the gate): update the bridge to 0.9.6 and restart Home Assistant once; before the extended-identity
 supervised run, put the service user in a restricted group (until then the extended mode refuses by design).
