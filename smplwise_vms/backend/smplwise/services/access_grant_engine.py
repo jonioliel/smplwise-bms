@@ -109,6 +109,11 @@ class Engine(Protocol):
         is never enough alone: the caller also needs `central_revoked` on that same readback (`revocation_proven`)."""
         ...
 
+    def station_removal_pending(self, person_id: str, revision: int, station_id: str) -> bool | None:
+        """ECCACT-295: removal of ONE station's access still owed at `revision` (True) / proven done (False) / cannot tell (None); only a
+        negotiated v2 answer can be False. Optional: an engine without it leaves a station block `unverified`."""
+        ...
+
     def pin_generate(self, person_id: str) -> str: ...
 
     def rename(self, person_id: str, revision: int, display_name: str) -> EnginePerson: ...
@@ -549,6 +554,21 @@ def revocation_pending_from(reader: AccessStateReader | None, person_id: str, re
     return revocation_pending_verdict(state, person_id=person_id, revision=revision, last_known_stations=last_known_stations)
 
 
+def station_removal_from(reader: AccessStateReader | None, person_id: str, revision: Any, station_id: str) -> bool | None:
+    """The per-station counterpart of `revocation_pending_from`: any failure, an off-contract answer or a v1 answer is None."""
+    if reader is None or not isinstance(person_id, str) or not person_id or not _positive_int(revision):
+        return None
+    try:
+        answer = reader(person_id, revision)
+        expect = None
+        if isinstance(answer, tuple):
+            answer, expect = answer
+        state = access_state_from_raw(answer, user_id=person_id, revision=revision, expect=expect)
+    except Exception:  # noqa: BLE001
+        return None
+    return was.station_removal_verdict_v2(state.parsed, person_id=person_id, revision=revision, station_id=station_id)
+
+
 def central_revoked(person: EnginePerson) -> bool:
     """The separate CENTRAL revocation predicate over one fresh readback: door map, overrides and PIN all KNOWN, and no door, no group,
     no personal override, inactive, no PIN. A restricted projection is UNKNOWN and never counts."""
@@ -694,6 +714,19 @@ class WiskeyServiceEngine:
             except Exception:  # noqa: BLE001 - an unreadable record is UNKNOWN
                 known = None
         return revocation_pending_from(self.access_state_reader, person_id, revision, last_known_stations=known)
+
+    def station_removal_pending(self, person_id: str, revision: int, station_id: str) -> bool | None:
+        """ECCACT-295: whether the removal of ONE station's access (a station block) is still owed at `revision` - the per-station
+        verdict `wiskey_access_state.station_removal_verdict_v2` over a negotiated v2 answer. None (cannot tell) without a reader, for a v1
+        answer, for a missing / unapplied row or while a write to the person is unsettled; a v1 answer never proves."""
+        self._guard()
+        if self.access_state_reader is None or not isinstance(station_id, str) or not station_id:
+            return None
+        from . import intercom_sync
+
+        if intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
+            return None
+        return station_removal_from(self.access_state_reader, person_id, revision, station_id)
 
     def pin_generate(self, person_id: str) -> str:
         """users/pin_generate is a read in WisKey (the value is not reserved); it is NOT a readback of the person, so it carries no

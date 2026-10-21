@@ -406,6 +406,32 @@ def revocation_verdict_v2(state: Any, *, person_id: str, revision: Any, last_kno
     return False
 
 
+def station_removal_verdict_v2(state: Any, *, person_id: str, revision: Any, station_id: str) -> bool | None:
+    """ECCACT-295: whether the removal of ONE station's access for a still-present person is proven at `revision` (a station block /
+    inherit-to-deny, not a revocation of the whole person).
+    True = tracked removal work naming this station is still owed; False = the answer carries a disabled row for exactly this station,
+    applied at this revision (desired == applied == person_revision, synced), no removal queue names the station, nothing for it is
+    unverified and WisKey's own `revocation_pending` is False; None = cannot tell. v1 is never judged here (None): only v2 proves."""
+    if not isinstance(state, AccessState) or state.schema_version != SCHEMA_V2 or state.user_id != person_id or not revision_ok(revision) or not id_ok(station_id):
+        return None
+    queues = state.pending.removal_queues()
+    named = any(station_id in ids for ids in queues.values())
+    if state.presence == "delete_pending":
+        return True
+    if state.presence != "present" or state.person_revision != revision:
+        return True if named else None
+    if named:
+        return True
+    if state.revocation_pending is not False or station_id in state.pending.unverified:
+        return None
+    row = state.row(station_id)
+    if row is None or row.enabled or row.applied is not True:
+        return None
+    if not (row.desired_revision == revision and row.applied_revision == revision and row.sync_state == "synced"):
+        return None
+    return False
+
+
 # ---------------------------------------------------------------- Arx's own last-known doors record (no migration)
 
 

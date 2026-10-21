@@ -519,6 +519,19 @@ def _revocation_pending(engine: Any, person_id: str, revision: int) -> bool | No
     return value if isinstance(value, bool) else None
 
 
+def _station_removal_pending(engine: Any, person_id: str, revision: int, station_id: str) -> bool | None:
+    """ECCACT-295: the PER-STATION removal status (`engine.station_removal_pending`, a negotiated v2 answer). An engine without that
+    port, or any failure, is None (unverified) - a v1 answer or a person-level status never proves one station's removal."""
+    port = getattr(engine, "station_removal_pending", None)
+    if port is None:
+        return None
+    try:
+        value = port(person_id, revision, station_id)
+    except Exception:  # noqa: BLE001 - unknown, never "no pending"
+        return None
+    return value if isinstance(value, bool) else None
+
+
 def proven(person: EnginePerson, station_id: str, effect: str, relays: list[int], pending: bool | None) -> bool:
     if not person.overrides_known:
         return False
@@ -593,7 +606,7 @@ def _send(engine: Any, person_id: str, station_id: str, effect: str, relays: lis
             overrides, doors = plan(person, station_id, effect, relays)
         except EngineError as exc:
             return "pending", exc.code or exc.kind, person
-        if proven(person, station_id, effect, relays, _revocation_pending(engine, person_id, person.revision) if effect == "deny" else None):
+        if proven(person, station_id, effect, relays, _station_removal_pending(engine, person_id, person.revision, station_id) if effect == "deny" else None):
             return "applied", None, person  # already so in WisKey: nothing to write
         try:
             engine.set_station_access(person_id, person.revision, overrides=overrides, doors=doors)
@@ -610,7 +623,7 @@ def _send(engine: Any, person_id: str, station_id: str, effect: str, relays: lis
         after = engine.get_person(person_id)
     except EngineError as exc:
         return "unverified", exc.kind, None
-    pending = _revocation_pending(engine, person_id, after.revision) if effect == "deny" else None
+    pending = _station_removal_pending(engine, person_id, after.revision, station_id) if effect == "deny" else None
     if proven(after, station_id, effect, relays, pending):
         return "applied", None, after
     return "unverified", ("revocation_pending" if effect == "deny" and pending is not False else "readback"), after

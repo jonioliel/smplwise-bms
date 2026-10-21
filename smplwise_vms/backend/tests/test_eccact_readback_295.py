@@ -160,3 +160,41 @@ def test_the_engine_proves_a_revocation_only_through_a_negotiated_v2_answer():
     assert _engine(FakeSync(answer=owed, **only_v1), frozenset()).revocation_pending(PERSON, REV) is True
     # a WisKey that lists nothing usable
     assert _engine(FakeSync(answer=answer, commands=["users/get"]), frozenset({sid})).revocation_pending(PERSON, REV) is None
+
+
+# ---------------------------------------------------------------- one station's removal (a station block), v2 only
+
+def _v2_state(name: str):
+    return was.parse_result(fx(name), user_id=PERSON, revision=REV, expect=2)
+
+
+def test_station_removal_is_proven_only_by_a_disabled_applied_row_of_that_station_in_a_v2_answer():
+    st = _v2_state("present_revoked_disabled_row_applied")
+    sid = st.assignments[0].station_id
+    assert was.station_removal_verdict_v2(st, person_id=PERSON, revision=REV, station_id=sid) is False
+    assert was.station_removal_verdict_v2(st, person_id=PERSON, revision=REV, station_id="other") is None  # no row: UNKNOWN, never invented
+    assert was.station_removal_verdict_v2(st, person_id=PERSON, revision=REV + 1, station_id=sid) is None
+    assert was.station_removal_verdict_v2(st, person_id="someone", revision=REV, station_id=sid) is None
+    assert was.station_removal_verdict_v2(st, person_id=PERSON, revision=True, station_id=sid) is None
+    enabled = _v2_state("present_enabled_row_synced")
+    assert was.station_removal_verdict_v2(enabled, person_id=PERSON, revision=REV, station_id=enabled.assignments[0].station_id) is None
+
+
+def test_station_removal_reports_work_that_names_the_station_and_never_trusts_v1():
+    owed = _v2_state("present_revoked_pin_pending")
+    named = [s for ids in owed.pending.removal_queues().values() for s in ids]
+    if named:
+        assert was.station_removal_verdict_v2(owed, person_id=PERSON, revision=REV, station_id=named[0]) is True
+    v1 = was.parse_result(v1_clean(), user_id=PERSON, revision=REV, expect=1)
+    assert was.station_removal_verdict_v2(v1, person_id=PERSON, revision=REV, station_id="station-a") is None
+    assert was.station_removal_verdict_v2(None, person_id=PERSON, revision=REV, station_id="station-a") is None
+
+
+def test_the_engine_port_for_one_station_follows_the_same_rules():
+    answer = fx("present_revoked_disabled_row_applied")
+    sid = answer["assignments"][0]["station_id"]
+    eng = _engine(FakeSync(answer=answer), frozenset())
+    assert eng.station_removal_pending(PERSON, REV, sid) is False
+    assert eng.station_removal_pending(PERSON, REV, "unknown-station") is None
+    assert _engine(FakeSync(answer=v1_clean(), commands=["users/access_state"], caps=["person_access_state_v1"]), frozenset()).station_removal_pending(PERSON, REV, sid) is None
+    assert age.WiskeyServiceEngine(None).station_removal_pending(PERSON, REV, sid) is None  # no reader

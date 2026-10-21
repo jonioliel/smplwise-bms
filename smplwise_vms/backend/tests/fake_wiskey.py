@@ -1030,8 +1030,9 @@ class FakeAccessEngine:
         self.pending_revocations: set[str] = set()
         self.unverified: dict[str, set[str]] = {}
         self._stripped_from: dict[str, set[str]] = {}  # settled-only station work per person (never cleanup)
+        self._ever: dict[str, set[str]] = {}  # ECCACT-295: every station a person ever held a door / override on (the v2 rows' source)
         self.access_state_reader = self.access_state
-        self.last_known_stations = lambda pid: frozenset(self._stripped_from.get(pid, ()))  # F-02 cross-check input; tests may replace it
+        self.last_known_stations = lambda pid: frozenset(self._stripped_from.get(pid, ())) | frozenset(self._ever.get(pid, ()))  # F-02 cross-check input; tests may replace it
         self.updates: list[dict[str, Any]] = []
         self.calls: list[str] = []
         self.deleted: list[str] = []
@@ -1110,6 +1111,19 @@ class FakeAccessEngine:
         if policy is not None:
             self.people[person_id]["policy"] = copy.deepcopy(policy)
 
+    def _remember(self, person_id: str) -> None:
+        p = self.people.get(person_id)
+        if p is not None:
+            self._ever.setdefault(person_id, set()).update(set(p["doors"]) | set(p["overrides"]) | set(p.get("group_doors", {})) | set(p.get("other_stations", ())))
+
+    def station_removal_pending(self, person_id: str, revision: int, station_id: str):
+        from smplwise.services.access_grant_engine import station_removal_from
+
+        self._gate("station_removal_pending")
+        if self.status_unknown:
+            return None
+        return station_removal_from(self.access_state_reader, person_id, revision, station_id)
+
     def edit_elsewhere(self, person_id: str) -> None:
         """Someone edited the person in WisKey's own panel: the revision moves (T12)."""
         self._get(person_id)["revision"] += 1
@@ -1163,6 +1177,7 @@ class FakeAccessEngine:
             if not locks:
                 raise self._err("refused")  # unmanaged_lock: an empty lock list is rejected
             new_doors[sid] = list(locks)  # REPLACES this station's list; stations not supplied are untouched (dropping one does not revoke it)
+        self._remember(person_id)
         self.updates.append({"method": "apply", "overrides": copy.deepcopy(overrides), "doors": sorted(doors)})
         p.update({"doors": new_doors, "overrides": new_overrides, "valid_from": valid_from, "valid_until": valid_until, "timing": copy.deepcopy(timing),
                   "active": bool(active)})
@@ -1180,6 +1195,7 @@ class FakeAccessEngine:
         p = self._get(person_id)
         if p["revision"] != revision:
             raise self._err("revision_conflict")
+        self._remember(person_id)
         self.updates.append({"method": "strip", "overrides": {}, "doors": []})
         self._stripped_from[person_id] = set(p["doors"]) | set(p["overrides"])
         p.update({"doors": {}, "overrides": {}, "group_ids": [], "active": False, "pin": None, "timing": None})
@@ -1216,6 +1232,7 @@ class FakeAccessEngine:
                 new_doors[sid] = list(groups[sid])
             else:
                 new_doors.pop(sid, None)
+        self._remember(person_id)
         self.updates.append({"method": "set_station_access", "overrides": copy.deepcopy(data["permission_overrides"]), "doors": sorted(data["door_permissions"])})
         p.update({"doors": new_doors, "overrides": dict(data["permission_overrides"])})
         p["revision"] += 1
@@ -1242,17 +1259,20 @@ class FakeAccessEngine:
         flag = True if owed else (False if p is not None and not pending["unverified"] else None)
         rows: list[dict[str, Any]] = []
         revoked = None
+        synced = None
         if p is not None:
-            for sid in sorted(set(self._stripped_from.get(user_id, ())) | set(p["doors"]) | set(p["overrides"])):
+            for sid in sorted(set(self._stripped_from.get(user_id, ())) | set(p["doors"]) | set(p["overrides"]) | set(self._ever.get(user_id, ()))):
                 enabled = sid in p["doors"]
                 lag = sid in pending["operations"]
                 rows.append({"station_id": sid, "enabled": enabled, "allowed_locks": list(p["doors"].get(sid, [1])), "desired_revision": p["revision"],
                              "applied_revision": p["revision"] - 1 if lag else p["revision"], "sync_state": "pending" if lag else "synced",
-                             "applied": (not lag) and not enabled})
+                             "applied": not lag})
+            enabled_rows = [r for r in rows if r["enabled"]]
+            synced = None if not enabled_rows else (False if any(r["applied"] is False for r in enabled_rows) else True)
             revoked = (not p["active"] and not p["doors"] and not p["group_ids"] and not p["overrides"] and p["pin"] is None)
         return {"schema_version": 2, "observation": "durable_repository_snapshot", "scope": "all_managed_stations", "user_id": user_id,
                 "person_revision": p["revision"] if p is not None else None, "presence": "present" if p is not None else "absent",
-                "revocation_pending": flag, "stations_synced": None, "assignments": rows, "timing_policy": None, "pending": pending,
+                "revocation_pending": flag, "stations_synced": synced if p is not None else None, "assignments": rows, "timing_policy": None, "pending": pending,
                 "central_revocation_predicate": "inactive-no-enabled-assignments-no-groups-no-overrides-no-pin-v1", "central_revoked": revoked}
 
     def revocation_pending(self, person_id: str, revision: int):

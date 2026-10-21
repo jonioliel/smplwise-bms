@@ -185,8 +185,8 @@ def _verdict(raw: dict, revision: int = 4, person_id: str = "u") -> bool | None:
     return age.revocation_pending_verdict(age.access_state_from_raw(raw, user_id="u"), person_id=person_id, revision=revision)
 
 
-def test_false_only_for_present_same_revision_and_six_empty_arrays():
-    assert _verdict(_state()) is False
+def test_a_clean_v1_answer_is_never_false_any_more():
+    assert _verdict(_state()) is None  # ECCACT-295 (WKV2B): v1 never proves a revocation; only a v2 answer can be False
 
 
 def test_a_revision_mismatch_is_unknown_never_false():
@@ -228,7 +228,7 @@ def test_the_reader_seam_is_asked_for_the_exact_person_and_revision():
         asked.append((user_id, revision))
         return _state()
 
-    assert age.revocation_pending_from(reader, "u", 4) is False
+    assert age.revocation_pending_from(reader, "u", 4) is None  # ECCACT-295: v1 never proves
     assert asked == [("u", 4)]
 
 
@@ -274,7 +274,7 @@ def test_the_live_engine_stays_refused_and_without_a_reader_is_unknown(monkeypat
 def test_the_live_engine_passes_an_injected_fake_reader_through_the_predicate(monkeypatch):
     monkeypatch.setattr(ag, "GO_LIVE_PERMITTED", True)
     eng = WiskeyServiceEngine(settings=None, access_state_reader=lambda uid, rev: _state(user_id=uid, person_revision=rev))
-    assert eng.revocation_pending("u", 4) is False
+    assert eng.revocation_pending("u", 4) is None  # ECCACT-295: a clean v1 answer is UNKNOWN
     eng = WiskeyServiceEngine(settings=None, access_state_reader=lambda uid, rev: _state(user_id=uid, person_revision=rev + 1))
     assert eng.revocation_pending("u", 4) is None
 
