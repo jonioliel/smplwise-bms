@@ -30,7 +30,7 @@ _calls: deque[float] = deque()
 
 def note_origin(verifier: Any, block: Any) -> None:
     """The add-on's signed `cast` block from a directory answer: `{purpose: "cast_origin", cast_origin: str|null, ts, nonce, sig}`."""
-    if not isinstance(block, dict) or block.get("purpose") != "cast_origin" or set(block) != {"purpose", "cast_origin", "ts", "nonce", "sig"}:
+    if not isinstance(block, dict) or block.get("purpose") != "cast_origin" or set(block) != {"purpose", "cast_origin", "ts", "nonce", "sig"} | ({"kid"} & set(block)):
         return
     if verifier.verify(dict(block)):
         return

@@ -8,6 +8,12 @@
 - Directory: the integration pushes the HA user list to the add-on (`POST /api/v1/ha/bridge/directory`),
   signed the same way, for the user/role screens.
 
+Key set (HMACACT-295): once the pairing secret is adopted into the sealed key set (services/bridge_keys.py: the first key rotation does
+it, and clears `settings.bridge.secret`), `signing_key(conn)` returns the CURRENT key as a `BridgeKey` (a str that remembers its key id)
+and `verify_message(conn, message)` verifies against every key that may verify now. `sign()` keeps the OLD kid-less recipe for a plain
+secret and for the key set's `g0-legacy` (so a bridge that predates the rotation keeps verifying); any later key signs v2 with its kid.
+Callers pass `signing_key(conn)` to `sign()` exactly as before.
+
 Allow-listed actions are the only writes the product knows; arguments are validated here. An action with a
 `grant` (lock.unlock -> door.unlock) needs that separate permission on top of ha.entity.control (T079)."""
 from __future__ import annotations
@@ -22,21 +28,71 @@ import sqlite3
 import time
 from typing import Any
 
-from ..db import get_setting, set_setting
+from pathlib import Path
+
+from ..db import database_of, get_setting, set_setting
 from ..errors import ApiError
+from . import bridge_keys as bk
 from . import media_profiles
 
 SIGNATURE_WINDOW_S = 60
-_recent_nonces: dict[str, float] = {}
+_DATA_DIR: Path | None = None  # set by main.create_app for connections that do not know their database (the key set needs the data directory)
+
+
+def configure(data_dir: Path | None) -> None:
+    global _DATA_DIR
+    _DATA_DIR = data_dir
+
+
+class BridgeKey(str):
+    """The current bridge key: its material as the str value (so `if not secret` and `secret or ""` keep working) and its key id."""
+
+    kid: str
+
+    def __new__(cls, material: str, kid: str) -> "BridgeKey":
+        obj = super().__new__(cls, material)
+        obj.kid = kid
+        return obj
+
+    def __repr__(self) -> str:  # never the material (a traceback, a debug log)
+        return f"BridgeKey(kid={self.kid!r})"
+
+
+def _data_dir(conn: sqlite3.Connection) -> Path | None:
+    db = database_of(conn)
+    return db.path.parent if db is not None else _DATA_DIR
+
+
+def key_set_adopted(conn: sqlite3.Connection) -> bool:
+    return bk.adopted(conn)
+
+
+def is_paired_secret(conn: sqlite3.Connection) -> bool:
+    return bk.paired_secret(conn)
 
 
 def signing_key(conn: sqlite3.Connection) -> str | None:
+    """The key to sign with: the plain pairing secret before the key set exists, afterwards the current key (a `BridgeKey`). None when
+    nothing can sign (not paired, or the sealed key cannot be opened on this machine - fail closed: the bridge refuses an empty signature)."""
+    data_dir = _data_dir(conn)
+    if data_dir is not None and bk.adopted(conn):
+        try:
+            key = bk.current(conn, data_dir)
+        except bk.KeySetError:
+            return None
+        return BridgeKey(key.material or "", key.kid) if key.material else None
     return get_setting(conn, "bridge.secret")
 
 
-def ensure_pairing(conn: sqlite3.Connection, regenerate: bool = False) -> str:
-    """Create (once) the pairing secret the admin types into the integration's config flow."""
+def ensure_pairing(conn: sqlite3.Connection, regenerate: bool = False) -> str | None:
+    """Create (once) the pairing secret the admin types into the integration's config flow. After the first key rotation the pairing
+    secret exists only sealed: it is not shown again (None) - a regenerate wipes the key set and starts a new pairing."""
+    if regenerate and bk.adopted(conn):
+        bk.reset_set(conn)
+        conn.execute("DELETE FROM settings WHERE key = 'bridge.secret'")
     secret = get_setting(conn, "bridge.secret")
+    if not secret and bk.adopted(conn):
+        return None
     if not secret or regenerate:
         secret = secrets.token_urlsafe(24)
         set_setting(conn, "bridge.secret", secret)
@@ -45,7 +101,10 @@ def ensure_pairing(conn: sqlite3.Connection, regenerate: bool = False) -> str:
 
 
 def sign(secret: str, body: dict[str, Any], ts: int | None = None, nonce: str | None = None) -> dict[str, Any]:
-    """Canonical JSON of `body` + ts + nonce, HMAC-SHA256 with the pairing secret."""
+    """Canonical JSON of `body` + ts + nonce, HMAC-SHA256 with the pairing secret. A key of the key set other than `g0-legacy` signs v2
+    (the wire carries its `kid`); the pairing secret and `g0-legacy` sign the old kid-less recipe."""
+    if isinstance(secret, BridgeKey) and secret.kid != bk.LEGACY_KID:
+        return bk.sign_with(secret.kid, str(secret), body, ts, nonce)
     ts = ts or int(time.time())
     nonce = nonce or secrets.token_hex(8)
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -65,16 +124,30 @@ def verify(secret: str | None, message: dict[str, Any], now: float | None = None
     if abs(now - ts) > SIGNATURE_WINDOW_S or not nonce:
         raise ApiError(401, "bridge_stale", "ההודעה מהגשר ישנה מדי.")
     body = {k: v for k, v in message.items() if k not in ("ts", "nonce", "sig")}
-    expected = sign(secret, body, ts, nonce)["sig"]
+    expected = sign(str(secret), body, ts, nonce)["sig"]
     if not hmac.compare_digest(expected, sig):
         raise ApiError(401, "bridge_bad_signature", "חתימת הגשר לא תואמת.")
-    # replay protection within the window
-    for n, t in list(_recent_nonces.items()):
-        if now - t > SIGNATURE_WINDOW_S * 2:
-            _recent_nonces.pop(n, None)
-    if nonce in _recent_nonces:
+    # replay protection within the window: the ONE nonce cache of the key set, so a message cannot pass once here and once there
+    if not bk.NONCES.check_and_add(nonce, now):
         raise ApiError(401, "bridge_replay", "הודעה חוזרת.")
-    _recent_nonces[nonce] = now
+
+
+_WIRE_CODE = {"stale": ("bridge_stale", "ההודעה מהגשר ישנה מדי."), "replay": ("bridge_replay", "הודעה חוזרת.")}
+
+
+def verify_message(conn: sqlite3.Connection, message: dict[str, Any], now: float | None = None) -> None:
+    """Verify one inbound bridge message: against the key set once it is adopted (every key that may verify now; a kid-less message only
+    against `g0-legacy` inside its window), else against the plain pairing secret. Raises ApiError(401). One wire code for everything
+    that did not prove a key (`bridge_bad_signature`); `bridge_stale` / `bridge_replay` only for a message that did."""
+    data_dir = _data_dir(conn)
+    if data_dir is not None and bk.adopted(conn):
+        try:
+            bk.verify(conn, data_dir, message, now=now)
+        except bk.VerifyError as exc:
+            code, text = _WIRE_CODE.get(exc.code, ("bridge_bad_signature", "חתימת הגשר לא תואמת."))
+            raise ApiError(401, code, text) from None
+        return
+    verify(signing_key(conn), message, now)
 
 
 # ---------------------------------------------------------------- allow-listed actions

@@ -1,6 +1,6 @@
 # CR-WISKEY-HMAC-ROTATION-295 - Bridge HMAC key rotation: key ids, two-key overlap, staged rollout (Arx side, fakes only)
 
-Status: BUILT AGAINST FAKES (2026-10-20), branch `pilot/HMACROT-295` from `origin/main` 61ddf6a91 (2.9.3). Task id
+Status: ACTIVATED by HMACACT-295 on 2026-10-21 (section 15; original text below is the fakes-only slice). BUILT AGAINST FAKES (2026-10-20), branch `pilot/HMACROT-295` from `origin/main` 61ddf6a91 (2.9.3). Task id
 `wxrot-hmac-key-rotation`, owner decision 2026-10-20 "build now"; **activation only after a Fable security review**.
 Nothing here contacts a real bridge, WisKey or Home Assistant. `bridge_rotation.GO_LIVE_PERMITTED` is False; the switch
 `bridge.key_rotation` defaults to `off` and `on` is refused (409) while the permit is not in the build. The eight WisKey switches
@@ -217,3 +217,33 @@ reminder; secret scan of audit and logs. Frontend: `i18n` key parity unit spec.
 9. RBAC: system administrator only; denial audit; the switch and go-live permit cannot be bypassed by settings, env or restore.
 10. The peer interface: answers are verified, unsigned answers rejected, a hostile peer cannot make Arx switch or wipe K_cur early.
 11. Interaction with the capture-lease T9 revocation and the trusted-door path once wired (activation slice).
+
+
+## 15. Activation slice (HMACACT-295, owner decision 2026-10-21, option A) - provisional migration 0155
+
+What changed, in ONE commit series (the permit flips together with the wiring, never alone):
+
+| Item | Change |
+|---|---|
+| H-01 wiring | `ha_bridge.signing_key(conn)` returns the current key of the sealed set (a `BridgeKey`: a str that remembers its kid); `ha_bridge.sign` signs v2 for any key other than `g0-legacy` and the OLD kid-less recipe for the pairing secret and `g0-legacy`; the two inbound routes (`/ha/bridge/ping`, `/ha/bridge/directory`) verify through `ha_bridge.verify_message` (key set once adopted, plain secret before). One nonce cache for both paths. |
+| `bridge.secret` | cleared (row deleted) in the same transaction that adopts it as `g0-legacy` (first rotation start). Every "is it paired" check uses `bridge_keys.paired_secret`. The pairing endpoint no longer shows a code after adoption; `regenerate=true` wipes the key set and starts a new pairing. |
+| Permit | `GO_LIVE_PERMITTED = True` (bridge rotation only; the WisKey permits are unchanged). |
+| Switch | `bridge.key_rotation` is ON unless an administrator set it OFF. |
+| Peer | `HaServicePeer`: the HA service `smplwise_bridge.rotate` (bridge 0.9.5, `keyset.py`). Capability = the bridge's signed directory push carries `rotation: "rotation_v1"`; believed for 10 minutes. |
+| Automatic start | `worker_loop` / `worker_pass`: drives an unfinished rotation, then starts a routine rotation when (the channel is still on the legacy secret OR the reminder interval passed) AND the peer announced support AND no rotation is active / needs repair AND the back-off (1 h doubling, max 1 day after consecutive failures) allows. Never without the peer's fresh announcement. |
+| H-02 | already in `bridge_keys.verify` (MAC first with a dummy key, one wire code `bad_signature`, `stale` after the MAC); regression test added; the HTTP routes answer one code. |
+| H-03 | text on the card (he/en/ar/ru `hygieneNote`), in this CR and in the user guide `84-bridge-key_HE.md`: suspect a leak -> re-pair; rotation is hygiene only. |
+| H-04 | `bridge_keys.hw_ts` (migration 0155) and the same rule in the bridge's key set: a message at or below the high-water the process found at first sight of the kid is a replay across a restart. |
+| H-05 | `_repair` aligns to K_next only after a probe under K_next is answered `ok` under K_next. |
+| H-07 | `PRAGMA secure_delete = ON` on the wipe and a `wal_checkpoint(TRUNCATE)` after retire / discard / rollback / repair. |
+| H-09 | `begin` / `abort` / pre-switch probes must be answered under K_cur; `commit` / `retire` / post-switch probes / the verify status under K_next; a `status` claiming `committed` must be signed under K_next. |
+
+Upgrade order (both safe, tested with the real bridge key set and the 0.9.4 verifier): until a rotation completes, BOTH sides sign the
+old kid-less recipe with the pairing secret, so an Arx updated before the bridge (no announcement -> no rotation, nothing adopted) and a
+bridge updated before Arx (it never receives `begin`; the extra `rotation` field in its push is ignored) keep working. The bridge needs
+one Home Assistant restart on install (0.9.5 supersedes 0.9.4, which has not been loaded on every site yet).
+
+Remaining (not in this slice): door commands paused during a rotation (CR-034 A1), `fresh_repair` / `emergency` modes and the owner
+notice, a dedicated `bridge.key.rotate` permission, WisKey high-water hand-over, a live run against a real bridge (no HA access was used here).
+The trusted-door / capture-lease messages ride `ha_bridge.sign`: after the first rotation they carry a `kid` (the DTO v3 golden vectors
+remain valid for `g0-legacy`); when the bridge offers those services it must use `keyset.KeySet.verify`.

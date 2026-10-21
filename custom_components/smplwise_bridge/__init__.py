@@ -68,15 +68,16 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
 from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
-                    SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
+                    SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 from . import media_policy, runnable, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
-from .signing import Verifier, sign
+from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet
 from .stream_source_service import async_handle_stream_source
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,6 +89,22 @@ EXECUTE_SCHEMA = vol.Schema(
         vol.Required("service"): cv.string,
         vol.Required("data"): dict,
         vol.Required("request_id"): cv.string,
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+# 0.9.5 (HMACACT-295): the key-rotation control message of the add-on. protocol / op / rotation_id plus the v2 wire fields; every other field of the
+# six ops is judged by keyset.handle_control (this schema only keeps a non-message away from it).
+ROTATE_SCHEMA = vol.Schema(
+    {
+        vol.Required("protocol"): cv.string,
+        vol.Required("op"): cv.string,
+        vol.Required("rotation_id"): cv.string,
+        vol.Required("kid"): cv.string,
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
@@ -108,6 +125,7 @@ SET_AREA_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -130,6 +148,7 @@ SCHEDULE_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -144,6 +163,7 @@ STREAM_SOURCE_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
         vol.Optional("on_behalf_of"): dict,  # 0.9.0 (USR2 P3): judged by service_identity.screen
     },
     extra=vol.PREVENT_EXTRA,
@@ -165,6 +185,7 @@ MEDIA_QUERY_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
         vol.Optional("on_behalf_of"): dict,  # 0.9.0 (USR2 P3): judged by service_identity.screen
     },
     extra=vol.PREVENT_EXTRA,
@@ -190,6 +211,7 @@ CONFIG_ITEM_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -207,6 +229,7 @@ CAST_STREAM_SCHEMA = vol.Schema(
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
         vol.Required("sig"): cv.string,
+        vol.Optional("kid"): cv.string,  # 0.9.5: the key id of a v2 signature (keyset.py); absent = the old kid-less recipe
         vol.Optional("on_behalf_of"): dict,  # 0.9.0 (USR2 P3): judged by service_identity.screen
     },
     extra=vol.PREVENT_EXTRA,
@@ -305,8 +328,12 @@ async def _async_register_card(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_card(hass)
     url = entry.data[CONF_ADDON_URL].rstrip("/")
-    secret = entry.data[CONF_PAIRING_CODE]
-    verifier = Verifier(secret)
+    # 0.9.5 (HMACACT-295): the key set replaces the bare pairing secret. Its persisted part lives in a Store of its own (a config-entry update
+    # would reload the entry); with no stored state (a bridge just updated) it signs and verifies exactly as 0.9.4 did, kid-less, with the
+    # pairing secret, until the add-on starts a rotation. See keyset.py for the rules.
+    store = Store(hass, 1, f"{DOMAIN}_keys_{entry.entry_id}")
+    keyset = KeySet(entry.data.get(CONF_PAIRING_CODE) or "", await store.async_load())
+    verifier = keyset
     session = async_get_clientsession(hass)
 
     def service_user_id() -> Any:
@@ -321,9 +348,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run, read live from the options (empty by default; malformed = empty)."""
         return runnable.allowlist(entry.options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
 
+    async def persist() -> None:
+        """Save the key set when it changed (a rotation step, a retired key, a new high-water mark). Raises when the save fails."""
+        if not keyset.dirty:
+            return
+        keyset.dirty = False
+        try:
+            await store.async_save(keyset.state())
+        except Exception:
+            keyset.dirty = True
+            raise
+        if keyset.legacy_wiped:  # the first rotation completed: the pairing code is no longer a key - do not keep it in the entry either
+            keyset.legacy_wiped = False
+            hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_PAIRING_CODE: ""})
+
     async def screened(name: str, call: ServiceCall) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Verify the signature once and judge the service-identity rules (service_identity.screen)."""
-        return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id(), local_extended())
+        try:
+            return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id(), local_extended())
+        finally:
+            if keyset.dirty:
+                store.async_delay_save(keyset.state, 2)  # a new high-water mark: saved soon, not on every message
+                keyset.dirty = False
 
     async def execute(call: ServiceCall) -> ServiceResponse:
         on_behalf = "on_behalf_of" in call.data
@@ -490,7 +536,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     break
             users.append({"id": u.id, "name": u.name, "username": username, "is_active": u.is_active, "is_admin": u.is_admin, "group_ids": [g.id for g in u.groups]})
         try:
-            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=sign(secret, {"users": users, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
+            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=keyset.sign({"users": users, "rotation": ROTATION_CAPABILITY, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
                                                                                 "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
                                                                                 "local_identity_extended": local_extended(),
                                                                                 "local_identity_runnable": sorted(runnable_ids())}), timeout=10) as resp:
@@ -512,6 +558,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return {"users": await push_directory()}
 
     hass.services.async_register(DOMAIN, SERVICE_SYNC, sync_directory, supports_response=SupportsResponse.OPTIONAL)
+
+    async def rotate(call: ServiceCall) -> ServiceResponse:
+        """0.9.5: one signed key-rotation control message from the add-on (begin / probe / commit / retire / abort / status) -> the signed
+        answer. The new state is saved BEFORE the answer leaves (write-ahead); if the save fails the in-memory state goes back to the saved one."""
+        saved = keyset.state()
+        answer = keyset.handle_control(dict(call.data))
+        try:
+            await persist()
+        except Exception:  # noqa: BLE001 - the step did not happen as far as the add-on can tell (it asks `status` and recovers)
+            keyset.reload(saved)
+            raise
+        return answer
+
+    hass.services.async_register(DOMAIN, SERVICE_ROTATE, rotate, schema=ROTATE_SCHEMA, supports_response=SupportsResponse.ONLY)
+
+    async def housekeeping(_now: Any = None) -> None:
+        """The peer's own 180 s cap and the saved high-water marks, without waiting for a message."""
+        keyset.verifiable()
+        try:
+            await persist()
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("bridge key state not saved (%s)", type(exc).__name__)
+
+    entry.async_on_unload(async_track_time_interval(hass, housekeeping, timedelta(seconds=30)))
     entry.async_on_unload(async_track_time_interval(hass, push_directory, timedelta(seconds=DIRECTORY_INTERVAL_S)))
 
     async def options_updated(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
@@ -532,4 +602,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_CONFIG_ITEM)
     hass.services.async_remove(DOMAIN, SERVICE_CAST_STREAM)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
+    hass.services.async_remove(DOMAIN, SERVICE_ROTATE)
     return True

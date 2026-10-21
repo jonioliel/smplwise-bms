@@ -205,7 +205,7 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
         if is_ha_only(settings) and not hs.get("connected") and ha_sync.STATE.down_for() > HA_GRACE_S:
             st = "error"  # NVR-less mode: Home Assistant is the product
         checks.append(_check("ha_sync", "סנכרון Home Assistant", st, f"{'מחובר' if hs.get('connected') else 'מנותק'} · {hs.get('entities', 0)} ישויות · HA {hs.get('ha_version') or '?'} · עדכון אחרון {'לפני ' + str(int(age)) + ' שנ׳' if age is not None else '—'}{' · ' + str(hs.get('last_error')) if hs.get('last_error') else ''}", **hs))
-    paired = bool(get_setting(conn, "bridge.secret")) and bool(get_setting(conn, "bridge.paired_at"))
+    paired = ha_bridge.is_paired_secret(conn) and bool(get_setting(conn, "bridge.paired_at"))
     users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0] if "ha_users" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} else 0
     dir_age = _age_s(get_setting(conn, "bridge.directory_at") or None)
     bridge_v = get_setting(conn, "bridge.integration_version")

@@ -38,7 +38,7 @@ from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
-from . import autosync, bridge_install, events_ingest, ha_client, ha_sync, nvr, nvr_system, stream_codecs
+from . import autosync, bridge_install, bridge_keys as bk, events_ingest, ha_client, ha_sync, nvr, nvr_system, stream_codecs
 from . import go2rtc as g2
 from .timeutil import zone
 from ..mode import installation_mode, is_ha_only
@@ -512,7 +512,7 @@ def _bridge_view(conn: sqlite3.Connection) -> dict[str, Any]:
     from ..db import get_setting
 
     st = bridge_install.status(conn=conn)
-    paired = bool(get_setting(conn, "bridge.secret")) and bool(get_setting(conn, "bridge.paired_at"))
+    paired = bk.paired_secret(conn) and bool(get_setting(conn, "bridge.paired_at"))
     try:
         users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0]
     except sqlite3.OperationalError:

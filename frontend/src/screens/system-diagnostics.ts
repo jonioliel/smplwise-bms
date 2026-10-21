@@ -143,7 +143,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private error = '';
   @state() private version = '';
   @state() private ha: HaStatus | null = null;
-  @state() private pairing: { pairing_code: string; addon_host: string; addon_url: string; paired_at: string | null } | null = null;
+  @state() private pairing: { pairing_code: string | null; key_set?: boolean; addon_host: string; addon_url: string; paired_at: string | null } | null = null;
   @state() private showCode = false;
   @state() private regenArmed = false;
   @state() private copied = false;
@@ -577,7 +577,7 @@ export class SystemDiagnostics extends LitElement {
   private async copyCode() {
     if (!this.pairing) return;
     try {
-      await navigator.clipboard.writeText(this.pairing.pairing_code);
+      await navigator.clipboard.writeText(this.pairing.pairing_code ?? '');
       this.copied = true;
       setTimeout(() => (this.copied = false), 2000);
     } catch {
@@ -652,7 +652,7 @@ export class SystemDiagnostics extends LitElement {
           : nothing}
         ${p
           ? html`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${p.addon_url}</code></div>
-            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span class="end"><code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
+            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span class="end"><code class="ltr">${p.pairing_code === null ? '—' : this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
             <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed ? html`<span class="end"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
           : onRemote()
             ? html`<div class="muted" data-ha-local-only>${LOCAL_ONLY_GENERIC}</div>`

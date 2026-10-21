@@ -21,6 +21,7 @@ from typing import Any
 from ..db import get_setting, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Decision, Principal, authorize, permissions_anywhere
+from . import bridge_keys as bk
 from . import ha_scope, ha_sync, media_layout, media_model as mm, media_profiles as profiles
 from .timeutil import zone as _zone
 
@@ -56,7 +57,7 @@ def bridge_state(conn: sqlite3.Connection) -> dict[str, Any]:
     reads 0.5.0 (an unknown version fails closed)."""
     row = conn.execute("SELECT key, value FROM settings WHERE key IN ('bridge.secret', 'bridge.paired_at', 'bridge.integration_version')").fetchall()
     s = {r[0]: r[1] for r in row}
-    paired = bool(s.get("bridge.secret")) and bool(s.get("bridge.paired_at"))
+    paired = (bool(s.get("bridge.secret")) or bk.adopted(conn)) and bool(s.get("bridge.paired_at"))
     version = s.get("bridge.integration_version") or None
     return {"paired": paired, "version": version, "media_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_REQUIRED),
             "players_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_PLAYERS_REQUIRED)}

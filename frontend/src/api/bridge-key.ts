@@ -1,7 +1,7 @@
 /**
  * CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key and its rotation (Settings › Connections, system administrator only, local
- * sessions only). No answer ever carries a key: key ids, generations, states and times only. The switch stays off in this
- * build (`go_live_permitted` false; turning it on is refused with 409 `rotation_not_permitted`).
+ * sessions only). No answer ever carries a key: key ids, generations, states and times only. Active since HMACACT-295: the switch is on
+ * by default and the rotation starts by itself once the bridge has been updated (`automatic`).
  */
 import { get, post, put } from './client';
 
@@ -52,6 +52,8 @@ export interface BridgeKeyStatus {
   reminder_due: boolean;
   can_start: boolean;
   blocked_by: string | null;
+  /** waiting_for_bridge | scheduled | idle | off - the automatic rotation (starts by itself once the bridge announces support). */
+  automatic: 'waiting_for_bridge' | 'scheduled' | 'idle' | 'off';
 }
 
 export const ACTIVE_STATES: readonly RotationState[] = ['prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring'];

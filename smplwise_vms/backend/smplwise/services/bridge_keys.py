@@ -12,8 +12,16 @@
   sender holds the key answers the one wire code `bad_signature`; the precise reason stays in `VerifyError.detail` and the
   process-local `REFUSALS` counter, never on the wire.
 
+- High-water (H-04): the largest accepted `ts` per kid is persisted (`bridge_keys.hw_ts`); a message at or below the value the
+  process found when it first saw that kid is a replay, so a restart does not reopen the +-60 s window for a captured message.
+- Wired (HMACACT-295, the activation slice): `ha_bridge.sign/verify` and every caller sign and verify through this key set once the
+  legacy pairing secret is adopted (`adopt_legacy` also clears `settings.bridge.secret`). While the current key is `g0-legacy` the
+  OUTBOUND recipe stays the kid-less one, so a bridge that predates the rotation keeps verifying; the first completed rotation moves
+  every message to v2. Rotation is hygiene, not leak recovery (H-03): whoever holds the current key and can read the local channel
+  can derive the next one - suspect a leak -> re-pair.
+
 Nothing here logs, audits, raises or returns key material, a salt, a proof, a nonce or a signature in an error: refusals are closed
-codes (`VerifyError.code`). Not wired to `ha_bridge.sign/verify` in this slice (activation slice, design section 13 item 3)."""
+codes (`VerifyError.code`)."""
 from __future__ import annotations
 
 import base64
@@ -97,6 +105,7 @@ class Key:
     material: str | None  # None when retired / discarded; never logged or returned by a route
     verify_until: str | None = None
     activated_at: str | None = None
+    hw_ts: int = 0
 
     def __repr__(self) -> str:  # a Key never prints its material (a traceback, a debug log)
         return f"Key(kid={self.kid!r}, generation={self.generation}, state={self.state!r})"
@@ -181,11 +190,15 @@ class NonceCache:
 
 
 NONCES = NonceCache()
+_BOOT_HW: dict[tuple[str, str], int] = {}  # (data dir, kid) -> the persisted high-water the process found when it first saw the kid (H-04)
+_BOOT_LOCK = threading.Lock()
 
 
 def reset_for_tests() -> None:
     NONCES.clear()
     REFUSALS.clear()
+    with _BOOT_LOCK:
+        _BOOT_HW.clear()
 
 
 # ---------------------------------------------------------------- rows
@@ -215,6 +228,11 @@ def adopted(conn: sqlite3.Connection) -> bool:
     return any(r["state"] == "current" for r in rows(conn))
 
 
+def paired_secret(conn: sqlite3.Connection) -> bool:
+    """There is a pairing secret at all: the plain setting (before the first rotation) or the sealed key set (after it)."""
+    return bool(get_setting(conn, "bridge.secret")) or adopted(conn)
+
+
 def _open(data_dir: Path, kid: str, blob: str | None) -> str:
     if not blob:
         raise KeySetError("key_retired")
@@ -226,11 +244,11 @@ def _open(data_dir: Path, kid: str, blob: str | None) -> str:
 
 def load(conn: sqlite3.Connection, data_dir: Path, kid: str) -> Key | None:
     """The key `kid` with its material (None when unknown). Raises KeySetError(`key_unreadable`) for a live key that cannot be opened."""
-    r = conn.execute("SELECT kid, generation, state, value_enc, verify_until, activated_at FROM bridge_keys WHERE kid = ?", (kid,)).fetchone()
+    r = conn.execute("SELECT kid, generation, state, value_enc, verify_until, activated_at, hw_ts FROM bridge_keys WHERE kid = ?", (kid,)).fetchone()
     if r is None:
         return None
     material = _open(data_dir, r["kid"], r["value_enc"]) if r["state"] in LIVE_STATES else None
-    return Key(r["kid"], r["generation"], r["state"], material, r["verify_until"], r["activated_at"])
+    return Key(r["kid"], r["generation"], r["state"], material, r["verify_until"], r["activated_at"], int(r["hw_ts"] or 0))
 
 
 def current(conn: sqlite3.Connection, data_dir: Path) -> Key:
@@ -256,7 +274,9 @@ def insert(conn: sqlite3.Connection, data_dir: Path, *, kid: str, generation: in
 
 def set_state(conn: sqlite3.Connection, kid: str, state: str, *, verify_until: str | None = None) -> None:
     if state in ("retired", "discarded"):
-        # the wipe: the sealed blob goes in the same statement as the state (the CHECK in 0135 refuses one without the other)
+        # the wipe: the sealed blob goes in the same statement as the state (the CHECK in 0135 refuses one without the other); H-07: with
+        # secure_delete on, the freed bytes of the old blob are overwritten with zeros in the database page (the WAL is scrubbed by `scrub`)
+        _secure_delete(conn)
         conn.execute("UPDATE bridge_keys SET state = ?, value_enc = NULL, verify_until = NULL, ended_at = ? WHERE kid = ?", (state, now_iso(), kid))
     elif state == "current":
         conn.execute("UPDATE bridge_keys SET state = 'current', verify_until = NULL, activated_at = COALESCE(activated_at, ?) WHERE kid = ?", (now_iso(), kid))
@@ -264,16 +284,55 @@ def set_state(conn: sqlite3.Connection, kid: str, state: str, *, verify_until: s
         conn.execute("UPDATE bridge_keys SET state = ?, verify_until = ? WHERE kid = ?", (state, verify_until, kid))
 
 
+def _secure_delete(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("PRAGMA secure_delete = ON")
+    except sqlite3.Error:  # a pragma refused inside a transaction on some builds: the scrub after the commit still runs
+        pass
+
+
+def scrub(db: Any) -> None:
+    """H-07: after a retire / discard has committed, push the old pages out of the write-ahead log (a TRUNCATE checkpoint) so the sealed
+    blob of a wiped key is not left in the WAL file. Best effort: a busy database simply keeps the blob until its next checkpoint."""
+    try:
+        with db.connection() as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception:  # noqa: BLE001 - never fails a rotation
+        pass
+
+
 def adopt_legacy(conn: sqlite3.Connection, data_dir: Path) -> Key:
-    """The first key of the set: the current pairing secret (`settings.bridge.secret`) as `g0-legacy`, sealed. The setting itself is
-    left as it is (it is cleared only by the activation slice). Raises KeySetError(`not_paired`) when there is no pairing secret."""
+    """The first key of the set: the current pairing secret (`settings.bridge.secret`) as `g0-legacy`, sealed - and the setting is
+    cleared in the same transaction (HMACACT-295: the secret then exists only sealed, and no settings export or dump carries it).
+    Raises KeySetError(`not_paired`) when there is no pairing secret."""
     if adopted(conn):
         return current(conn, data_dir)
     secret = get_setting(conn, "bridge.secret")
     if not secret:
         raise KeySetError("not_paired")
     insert(conn, data_dir, kid=LEGACY_KID, generation=0, state="current", material=secret, rotation_id=None)
+    _secure_delete(conn)
+    conn.execute("DELETE FROM settings WHERE key = 'bridge.secret'")
     return current(conn, data_dir)
+
+
+def reset_set(conn: sqlite3.Connection) -> int:
+    """A re-pair: every live key of the set is wiped (a new pairing secret starts a new `g0-legacy`) and an unfinished rotation is
+    closed. Returns the number of live keys wiped."""
+    _secure_delete(conn)
+    n = conn.execute("UPDATE bridge_keys SET state = 'discarded', value_enc = NULL, verify_until = NULL, ended_at = ? WHERE state IN "
+                     "('pending', 'next', 'current', 'retiring')", (now_iso(),)).rowcount
+    try:
+        conn.execute("UPDATE bridge_rotations SET state = 'rolled_back', ended_at = ?, result_code = 'repaired' WHERE state IN "
+                     "('prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring')", (now_iso(),))
+    except sqlite3.OperationalError:
+        pass
+    # the fixed legacy kid must be free for the next pairing: the old row stays for the trail under a retired name
+    conn.execute("UPDATE bridge_keys SET kid = 'g0-old-' || substr(hex(randomblob(4)), 1, 8) WHERE kid = ?", (LEGACY_KID,))
+    with _BOOT_LOCK:
+        for k in [k for k in _BOOT_HW if k[1] == LEGACY_KID]:
+            _BOOT_HW.pop(k, None)
+    return n
 
 
 def sign(conn: sqlite3.Connection, data_dir: Path, body: dict[str, Any], ts: int | None = None, nonce: str | None = None) -> dict[str, Any]:
@@ -328,9 +387,26 @@ def verify(conn: sqlite3.Connection, data_dir: Path, message: Any, now: float | 
         _refuse("kidless_refused")
     if abs(now - ts) > WINDOW_S:
         _refuse("stale")
+    if ts <= _boot_hw(data_dir, key):  # H-04: at or below the persisted high-water of this kid - a replay across a restart
+        _refuse("replay", "replay_highwater")
     if not nonces.check_and_add(nonce, now):
         _refuse("replay")
+    _note_highwater(conn, kid, ts)
     return kid
+
+
+def _boot_hw(data_dir: Path, key: Key) -> int:
+    with _BOOT_LOCK:
+        return _BOOT_HW.setdefault((str(data_dir), key.kid), key.hw_ts)
+
+
+def _note_highwater(conn: sqlite3.Connection, kid: str, ts: int) -> None:
+    """Persist the largest accepted ts of a kid. A read-only connection (the engine verifies a peer's answer on one) skips the write:
+    the next write-capable verify records it."""
+    try:
+        conn.execute("UPDATE bridge_keys SET hw_ts = ? WHERE kid = ? AND hw_ts < ?", (int(ts), kid, int(ts)))
+    except sqlite3.Error:
+        pass
 
 
 def _refuse(code: str, detail: str | None = None) -> None:

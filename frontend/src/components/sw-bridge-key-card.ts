@@ -189,6 +189,8 @@ export class SwBridgeKeyCard extends LitElement {
           ? `${when((rot ?? last)!.ended_at ?? (rot ?? last)!.started_at)} · ${bkt((rot ?? last)!.mode === 'hard_cut' ? 'modeHardCut' : 'modeRoutine')} · ${bktCode('st_', (rot ?? last)!.state)}`
           : bkt('none')}</span>
       </div>
+      <div class="note" role="status" data-bridge-key-auto>${s.automatic === 'waiting_for_bridge' ? bkt('autoWaiting') : s.automatic === 'scheduled' ? bkt('autoScheduled') : s.automatic === 'idle' ? bkt('autoIdle') : ''}</div>
+      <div class="note" data-bridge-key-hygiene>${bkt('hygieneNote')}</div>
       ${rot?.retire_at ? html`<div class="note" role="status">${bkt('retireAt', { t: when(rot.retire_at) })}</div>` : nothing}
       <div class="row">
         <span class="lbl">${bkt('reminder')}</span>
