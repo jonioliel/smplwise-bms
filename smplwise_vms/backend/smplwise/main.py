@@ -145,6 +145,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # APPREFRESH-295: expired app access tokens, families that ran out, ended families past their audit keep
+        from .services import app_refresh as app_refresh_svc
+
+        app_refresh_svc.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("app refresh janitor failed", exc_info=True)
     try:  # TFA2: expired second-factor lockout rows
         from .services import second_factor as second_factor_svc
 
@@ -474,6 +480,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
+    from .routers import app_refresh as app_refresh_router
+
+    app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)
     from .routers import ha_users as ha_users_router
 
     app.include_router(ha_users_router.router, prefix=api, tags=["access"])  # USR1: home-system users created from Arx (users.ha_manage + an HA administrator)

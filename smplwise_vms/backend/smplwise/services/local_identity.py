@@ -764,6 +764,11 @@ def revoke_user_sessions(conn, user_id: str, reason: str, *, keep_chain: str | N
     # change / reset, factor enrolled / reset, passkey removed) - so the lease goes even when no other chain is left to end
     # (a password change from the user's only session keeps that chain).
     lease_hook("session_ended", user_ids=[user_id])
+    # APPREFRESH-295: every caller is an authority change - the phone app's persistent sign-ins end too (also the kept chain's: a
+    # password change or reset re-signs the phone in)
+    from . import app_refresh
+
+    app_refresh.hook("revoke_user", conn, user_id, reason)
     rows = conn.execute("SELECT DISTINCT chain_id FROM auth_local_sessions WHERE user_id = ? AND revoked_at IS NULL", (user_id,)).fetchall()
     chains = {r["chain_id"] for r in rows if r["chain_id"] != keep_chain}
     if not chains:
@@ -779,6 +784,9 @@ def revoke_chain(conn, chain_id: str, reason: str) -> int:
     owner = conn.execute("SELECT user_id FROM auth_local_sessions WHERE chain_id = ? LIMIT 1", (chain_id,)).fetchone()
     if owner is not None:
         lease_hook("session_ended", user_ids=[owner["user_id"]])  # T4: logout / one sign-in revoked by its owner or an administrator
+    from . import app_refresh
+
+    app_refresh.hook("revoke_anchor", conn, app_refresh.local_anchor(chain_id), reason)  # APPREFRESH-295: the families minted from this sign-in
     n = conn.execute("UPDATE auth_local_sessions SET revoked_at = ?, revoked_reason = ? WHERE chain_id = ? AND revoked_at IS NULL",
                      (iso(time.time()), reason, chain_id)).rowcount
     CACHE.drop_chains({chain_id})
@@ -788,6 +796,9 @@ def revoke_chain(conn, chain_id: str, reason: str) -> int:
 def revoke_all(conn, reason: str) -> int:
     # T4 for every local actor at once (the switch turned off): installation scope - over-revoking an HA actor's lease is the safe side
     lease_hook("session_ended", all=True)
+    from . import app_refresh
+
+    app_refresh.hook("revoke_kind", conn, "local", reason)  # APPREFRESH-295: every family minted from an Arx-only sign-in
     rows = conn.execute("SELECT DISTINCT chain_id FROM auth_local_sessions WHERE revoked_at IS NULL").fetchall()
     chains = {r["chain_id"] for r in rows}
     if chains:
