@@ -64,6 +64,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'security', label: 'ניהול אזעקה', href: '#/system/security/manage', sub: true, keywords: 'לוחות קוד חיישנים עקיפה' },
       { tab: 'security', label: 'מצלמות', href: '#/system/security/cameras', sub: true, keywords: 'קידוד codec רזולוציה bitrate' },
       { tab: 'security', label: 'ממשק ציבורי', href: '#/system/security/public', sub: true, keywords: 'טכנאים ספקים מחיקה אוטומטית פורטל 404' },
+      { tab: 'security', label: 'קריאות בקרת כניסה', href: '#/system/security/wiskey', sub: true, keywords: 'מתגים wiskey מצב גישה השוואת לוח זמנים נוכחות תוכניות הפעלה כיבוי' },
       { tab: 'security', label: 'מסכות פרטיות', href: '#/system/security/privacy-masks', sub: true, keywords: 'מסכה פרטיות privacy mask כיסוי אזור' },
       { tab: 'audit', label: 'אודיט', href: '#/system/audit', keywords: 'יומן מי עשה מה request_id' },
     ],
