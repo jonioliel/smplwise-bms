@@ -14,7 +14,7 @@ const CLOSED: Record<string, Record<Lang, string>> = {
 };
 
 function lang(): Lang {
-  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+  return typeof document !== 'undefined' && (document.documentElement?.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
 }
 
 /** The sentence for a closed code, or null when the code has none (the caller keeps the server's own words). */
