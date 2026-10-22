@@ -15,7 +15,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ht, type HaUsersTextKey } from '../i18n/ha-users';
-import { accessKey, canCreate, draftProblems, emptyDraft, newRequestKey, repairKey, rowActions, stateKey, type Draft } from './ha-users-logic';
+import { accessKey, canCreate, confirmMatches, draftProblems, emptyDraft, newRequestKey, repairKey, rowActions, stateKey, type Draft } from './ha-users-logic';
 
 /**
  * USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): Settings › משתמשים והרשאות › משתמשי מערכת הבית (tab `ha-users` of system-access).
@@ -185,7 +185,7 @@ export class SwHaUsers extends LitElement {
 
   private async submitRemove(): Promise<void> {
     const u = this.removing;
-    if (!u || this.typed !== u.username) return;
+    if (!u || !confirmMatches(this.typed, u.username)) return;
     this.busy = true;
     try {
       await haUsersApi.remove(u.ha_user_id, this.typed);
@@ -304,7 +304,7 @@ export class SwHaUsers extends LitElement {
           @input=${(e: Event) => (this.typed = (e.target as HTMLInputElement).value)} /></label>
       </div>
       <sw-button slot="footer" variant="ghost" @click=${() => { this.removing = null; this.typed = ''; }}>${ht('cancel')}</sw-button>
-      <sw-button slot="footer" variant="danger" data-remove-go ?disabled=${this.busy || !u || this.typed !== u.username} @click=${() => void this.submitRemove()}>${ht('removeConfirm')}</sw-button>
+      <sw-button slot="footer" variant="danger" data-remove-go ?disabled=${this.busy || !u || !confirmMatches(this.typed, u.username)} @click=${() => void this.submitRemove()}>${ht('removeConfirm')}</sw-button>
     </sw-dialog>`;
   }
 

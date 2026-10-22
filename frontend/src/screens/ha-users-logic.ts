@@ -7,6 +7,12 @@ import type { AccessState, HaUsersView, ManagedUser } from '../api/ha-users';
 import type { HaUsersTextKey } from '../i18n/ha-users';
 
 export const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+
+/** HAUSER-295 follow-up: the typed delete confirmation matches the username ignoring letter case (HA lower-cases usernames);
+ *  whitespace stays exact, as on the server (routers/ha_users.py delete). */
+export function confirmMatches(typed: string, username: string): boolean {
+  return typed.toLowerCase() === username.toLowerCase();
+}
 const RUNS = ['0123456789', '9876543210', 'abcdefghijklmnopqrstuvwxyz', 'zyxwvutsrqponmlkjihgfedcba', 'qwertyuiopasdfghjklzxcvbnm'];
 
 export type PasswordRule = 'too_short' | 'too_long' | 'repetitive' | 'sequence' | 'contains_username' | 'contains_name';

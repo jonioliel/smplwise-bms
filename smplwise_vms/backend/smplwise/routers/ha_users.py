@@ -362,7 +362,7 @@ def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Princ
     row = _managed(conn, ha_user_id)
     if row is None or row["state"] == "creating":
         raise _refuse(conn, principal, request, action, ha_user_id, 404, "not_managed", "המשתמש לא נוצר דרך Arx, ולכן מנוהל רק במסך של מערכת הבית.")
-    if body.confirm_username != row["username"]:
+    if body.confirm_username.casefold() != str(row["username"]).casefold():  # HAUSER-295 follow-up: case-insensitive (HA lower-cases usernames); whitespace stays exact
         raise ApiError(422, "confirm_mismatch", "יש להקליד את שם המשתמש בדיוק כדי לאשר את המחיקה.")
     if ha_user_id == principal.user_id:
         raise _refuse(conn, principal, request, action, ha_user_id, 409, "self_target", "אי אפשר למחוק את המשתמש שלך.")
