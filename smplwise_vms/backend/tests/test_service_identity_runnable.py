@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bridge_loader import load
-from smplwise.db import get_setting, set_setting
+from smplwise.db import get_setting, now_iso, set_setting
 from smplwise.errors import ApiError
 from smplwise.services import backup
 from smplwise.services import service_identity as si
@@ -32,6 +32,7 @@ def _on(db, *, addon: list[str] | None = None, bridge: list[str] | None = None, 
         set_setting(conn, si.EXTENDED_SETTING, "on")
         set_setting(conn, si.BRIDGE_EXTENDED, "true")
         set_setting(conn, si.BRIDGE_POLICY, "true")  # EXTID-295 (CR-USR2 13.6): the bridge reported a restricted service user
+        set_setting(conn, si.DIRECTORY_AT, now_iso())  # ENTPOL-295: ... in a current push
         set_setting(conn, "bridge.integration_version", version)
         if addon is not None:
             set_setting(conn, si.RUNNABLE_SETTING, json.dumps(addon))

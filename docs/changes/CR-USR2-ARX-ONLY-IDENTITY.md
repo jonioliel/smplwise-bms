@@ -948,3 +948,35 @@ raising API; the push); `tests/test_service_identity_extended.py` (every extende
 
 **Rollback:** revert the branch. A 0.9.5 bridge with this add-on: every extended item refused (fail closed) - and the mode is locked anyway.
 The setting `bridge.service_policy_restricted` is ignored by older code.
+
+### 13.8 ENTPOL-295 - hardening the automatic refusal (owner decision 3 of 2026-10-21; `pilot/ENTPOL-295`, from `release/2120b` @ 8de9f8990)
+
+The task asked to build the 13.6 refusal before the permit. It was already built by EXTID-295 (13.7) and is part of `release/2120b`; this
+branch reviews it against the four cases the task named (positive, negative, unreachable Home Assistant, ambiguous policy) and closes the
+three fail-open edges found. No migration. Bridge stays **0.9.6** (not yet released; if 2.12.0 ships before this branch lands, the bridge
+change below needs **0.9.7** and every version pin moves with it - lead's call). **The extended mode stays locked:** neither
+`EXTENDED_GO_LIVE_PERMITTED` nor any other `GO_LIVE_PERMITTED` constant is touched; nothing here is a permit. Fakes only; no Home Assistant
+contacted.
+
+| Edge found | Before | Now |
+|---|---|---|
+| Ambiguous policy value (bridge) | `entities.all.control` was compared with `is True`, while Home Assistant reads it by truthiness (`permissions.util.test_all`): `control: 1` / `"yes"` granted every entity in Home Assistant and read as "restricted" here (fail open) | only an exact `True` / `False` / absent is clear; any other value - also `all: 0` / `all: []` - is unknown (`None`) = refused |
+| Group reading vs. Home Assistant's merge (bridge) | the verdict came from reading group policies only | after the group reading says "restricted", Home Assistant's own merged permission object decides: `user.permissions.access_all_entities("control")` truthy = not restricted; a raising call or a permission object without the check = unknown (refused). A user object without `permissions` (never a real Home Assistant user - test fakes) keeps the group verdict |
+| Unreachable Home Assistant (add-on) | the last "true" report was trusted forever: pushes stopping (Home Assistant down, the bridge stopped, pushes refused) left it standing | "true" counts only while the last accepted directory push (`bridge.directory_at`, written on every push - the bridge pushes every 60 s) is at most `POLICY_REPORT_MAX_AGE_S` = 300 s old and not more than 60 s in the future; otherwise every extended item is refused 503 **`service_identity_policy_default`** (the binding text's "or it cannot be determined", `HA_IDENTITY_RBAC_HE.md` §3א ו - no new code), audited with its own reason **`policy_stale`** and its own message (`STALE_MESSAGE`, no Home Assistant name). `status().extended.service_policy_fresh` and the step `service_policy_stale` (he / en) on the card |
+
+The bridge's live check already covered an unreachable Home Assistant on its side (a raising user lookup in `screen` admits nothing; a
+raising lookup in `push_directory` ends the push, so the add-on's report ages out - both asserted). Basic-mode (2.6.4) items are unaffected
+by every change here. Not covered (unchanged, recorded in 13.7): a WisKey door does not pass through the bridge or the service user.
+
+**Tests (local, one file at a time, fakes only):** new `tests/test_entpol295_bridge_policy.py` (ambiguous values refused for every extended
+item; clear values keep their meaning; Home Assistant's permission object decides - true / truthy / false / none / raising / missing check;
+not asked when the groups already refuse; a raising user lookup admits nothing; the push's lookup sits outside its `try`; positive: every
+extended item admitted for a restricted user; both bridge copies byte-identical) and `tests/test_entpol295_addon_policy.py` (the build
+stays locked without the permit; never pushed / pushes stopped / unreadable / future push time refuse every extended item with
+`policy_stale`; the default policy is named before staleness; the freshness window's edges; a zone-less time read as UTC; basic items
+unaffected; positive: a current restricted report admits every item; recovery on the next push; the card's step and field). Updated:
+`test_service_identity_extended.py` (fixture writes a current push time; the route test refuses a stale report before sending; the
+self-check's `extended` shape), `test_service_identity_runnable.py` (fixture). Docs: `DOCS.md` / `DOCS_HE.md` (the R5 bullet now states the
+condition, not advice), guide chapter 47 (no Home Assistant name) and `GUIDE_ALL_HE.html` rebuilt.
+
+**Rollback:** revert the branch. The add-on then trusts the last report without an age limit and the bridge reads policies as 13.7 does.

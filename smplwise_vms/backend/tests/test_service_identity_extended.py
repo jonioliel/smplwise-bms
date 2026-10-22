@@ -50,6 +50,7 @@ def _ext(db, *, on: bool = True, bridge_on: bool = True, version: str = "0.9.6",
         set_setting(conn, si.EXTENDED_SETTING, "on" if on else "off")
         set_setting(conn, si.BRIDGE_EXTENDED, "true" if bridge_on else "false")
         set_setting(conn, si.BRIDGE_POLICY, policy)
+        set_setting(conn, si.DIRECTORY_AT, now_iso())  # ENTPOL-295: the report is current (the bridge pushed just now)
         set_setting(conn, "bridge.integration_version", version)
         ids = RUN_IDS if runnable is None else runnable
         set_setting(conn, si.RUNNABLE_SETTING, json.dumps(ids))
@@ -295,7 +296,8 @@ def test_the_self_check_shows_both_copies_and_the_lists_follow_the_mode(db):
         st = si.status(conn)
     assert st["extended"] == {"permitted": True, "requested": False, "on": False, "bridge_on": False, "bridge_version_ok": False, "agrees": True, "required": "0.9.6",
                               "doors_addon_only": True,  # SVCIDENT3 (review S4)
-                              "service_policy_restricted": None}  # EXTID-295 (CR-USR2 13.6): nothing reported yet
+                              "service_policy_restricted": None,  # EXTID-295 (CR-USR2 13.6): nothing reported yet
+                              "service_policy_fresh": False}  # ENTPOL-295: no push yet
     assert {a["key"] for a in st["allowed"]} == set(si.FEATURES) and not any(s["code"].startswith("extended") for s in st["steps"])
     _ext(db, bridge_on=False)
     with db.connection(mode="read") as conn:
@@ -378,6 +380,13 @@ def test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_
     assert r.status_code == 503 and r.json()["code"] == "service_identity_policy_default" and calls == []
     with lx.db.connection() as conn:
         set_setting(conn, si.BRIDGE_POLICY, "true")
+        set_setting(conn, si.DIRECTORY_AT, "2026-01-01T00:00:00Z")
+    # ENTPOL-295: "restricted" was reported, but the bridge stopped pushing (Home Assistant unreachable) - not trusted, nothing sent
+    r = _action(c, crid="d-1s", **unlock)
+    assert r.status_code == 503 and r.json()["code"] == "service_identity_policy_default" and calls == []
+    assert lx.rows("SELECT reason FROM audit_log WHERE action = 'identity.service_identity.refused' ORDER BY rowid")[-1]["reason"] == "policy_stale"
+    with lx.db.connection() as conn:
+        set_setting(conn, si.DIRECTORY_AT, now_iso())  # ENTPOL-295: in a current push
     # SVCIDENT3 (review S1 a): a script / scene outside the runnable allowlist (empty by default) is refused with both switches on, nothing sent
     # owner answer 2026-10-18: a script from device control also needs script.run / script.manage - an operator holds neither (audited 403)
     r = _action(p, entity="script.open_front", action="script.turn_on", crid="sr-0", confirmation_grant="confirmed")
