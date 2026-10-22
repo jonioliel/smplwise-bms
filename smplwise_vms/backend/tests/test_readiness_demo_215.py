@@ -110,6 +110,7 @@ def test_demo_rejects_unknown_fields(client):
 
 
 def test_turning_demo_on_and_off_is_audited_and_leaves_nothing_behind(client, db):
+    client.get(API + "/demo")  # the first request provisions the developer identity (users / bindings); do that before the snapshot
     with db.connection(mode="read") as conn:
         tables_before = {r[0]: conn.execute(f'SELECT COUNT(*) FROM "{r[0]}"').fetchone()[0]
                          for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")}
