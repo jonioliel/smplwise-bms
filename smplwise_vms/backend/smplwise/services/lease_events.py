@@ -54,6 +54,11 @@ CANCEL_AFTER_S = 5.0
 HEARTBEAT_S = 5.0  # owner decision 2026-10-16 q3
 SILENCE_S = 15.0  # WisKey destroys after this much silence (confirmed 2026-10-21); Arx uses it only to name a reconciliation `host_silence`
 DEADLINE_GRACE_S = 15.0  # retries stop lease_expires_at + this
+# K-02 (review 3, after HMACACT2-295): a message held by the bridge-key rotation pause is held at most this long. While paused no
+# heartbeat and no revoke reaches the host, so after SILENCE_S its own silence rule has destroyed every live lease: the held message
+# has nothing left to act on and describes an older world than the host's. It is then dropped - audited (`held_expired`), never silently -
+# and the rotation's own stream reset (T9 `key_rotation`) starts the next stream.
+HELD_MAX_S = SILENCE_S
 TICK_S = 0.25
 JANITOR_S = 1.0
 SHUTDOWN_BUDGET_S = 2.0
@@ -121,7 +126,7 @@ class NotSendable(Exception):
 
 def _secret(conn: sqlite3.Connection) -> str:
     """The signing key (a `ha_bridge.BridgeKey` once the key set exists). Its key id never goes on a lease wire: see `sign`."""
-    if _rotation.door_commands_paused(conn):  # HMACACT2-295: held, not dropped - the event worker retries a NotSendable
+    if _rotation.door_commands_paused(conn):  # HMACACT2-295: held - the event worker retries it, for at most HELD_MAX_S (K-02)
         raise NotSendable(_rotation.PAUSE_CODE)
     secret = ha_bridge.signing_key(conn)
     if not secret or not get_setting(conn, "bridge.paired_at"):
@@ -174,6 +179,7 @@ class Pending:
     cancel_sent: bool = False
     unknown_streams: int = 0
     done: bool = False
+    held_since: float | None = None  # monotonic: when the rotation pause first held this message (K-02)
     sessions: list[tuple[str, str, str, str]] = field(default_factory=list)  # (lease_ref, session_id, station, actor) for the F1 cancel
 
 
@@ -373,16 +379,36 @@ class LeaseWorker:
             with self.db.connection(mode="read", label="capture_lease.send") as conn:
                 signed, answer = self._send_event(conn, p.action, p.actor_id, p.station, p.params)
         except NotSendable as exc:
+            if exc.code == _rotation.PAUSE_CODE:
+                self._held(p, now)
+                return
+            p.held_since = None
             self._audit_aside("intercom.capture_lease.event_failed", f"stream:{p.stream_id}", {"code": exc.code, "sequence": p.sequence, "attempt": p.attempts})
             return
         except Exception as exc:  # noqa: BLE001 - HA unreachable / service missing / a timeout: retried (F1)
+            p.held_since = None  # signed, so no longer paused
             code = getattr(exc, "code", None) or type(exc).__name__
             self._audit_aside("intercom.capture_lease.event_failed", f"stream:{p.stream_id}", {"code": str(code)[:64], "sequence": p.sequence, "attempt": p.attempts})
             return
+        p.held_since = None
         self._audit_aside("intercom.capture_lease.event_sent", f"stream:{p.stream_id}",
                           {"action": p.action, "request_id": signed.request_id, "body_sha256": signed.body_sha256, "attempt": p.attempts, "sequence": p.sequence})
         kind, data = classify(answer, signed.request_id, p.sequence, p.action)
         self._on_answer(p, kind, data)
+
+    def _held(self, p: Pending, now: float) -> None:
+        """K-02: the rotation pause holds `p`. Audited once when the hold starts (not on every retry); dropped - audited
+        `held_expired` - once it has been held HELD_MAX_S, because the host's silence rule has destroyed every lease by then."""
+        if p.held_since is None:
+            p.held_since = now
+            self._audit_aside("intercom.capture_lease.event_failed", f"stream:{p.stream_id}",
+                              {"code": _rotation.PAUSE_CODE, "sequence": p.sequence, "attempt": p.attempts})
+            return
+        if now - p.held_since >= HELD_MAX_S:
+            p.done = True
+            self._audit_aside("intercom.capture_lease.event_failed", f"stream:{p.stream_id}",
+                              {"code": "held_expired", "action": p.action, "sequence": p.sequence, "attempts": p.attempts,
+                               "held_s": round(now - p.held_since, 1)})
 
     def _on_answer(self, p: Pending, kind: str, data: dict[str, Any]) -> None:
         assert self.db is not None
