@@ -26,15 +26,16 @@ REG = [T.TemplateRef("consent", "consent_req", "he", ("name", "organization", "l
 _DEFAULT = object()
 
 
-def sender(transport=None, *, switch=True, permit=True, by_link=False, pacer=_DEFAULT):
+def sender(transport=None, *, switch=True, permit=True, pacer=_DEFAULT):
     if pacer is _DEFAULT:  # F3C TP-01: the pacer is required; the default test sender carries an off-mode one
         pacer = wp.WaPacer(ma.MemorySendLedger(), wp.MemoryPacerStore(), config=lambda: wp.PacerConfig(mode="off"))
     return T.TemplateSender(transport, registry=lambda: REG, switch=lambda: switch, permit_fn=lambda: permit, pacer=pacer,
-                            pacing_for=(lambda _k: ma.Pacing()) if pacer else None, consent_by_link=lambda: by_link, clock=lambda: NOW)
+                            pacing_for=(lambda _k: ma.Pacing()) if pacer else None, clock=lambda: NOW)
 
 
-def go(s, *, template="consent", consent="granted", values=VALUES, window="unknown", rid="r1"):
-    return s.send(template_id=template, consent=consent, values=values, account="acc1", account_key=ACC, person_id="p1", recipient_key="rk", request_id=rid, window=window)
+def go(s, *, template="consent", consent="granted", values=VALUES, window="unknown", rid="r1", op="op1"):
+    return s.send(template_id=template, consent=consent, values=values, account="acc1", account_key=ACC, person_id="p1", recipient_key="rk",
+                  request_id=rid, operation_id=op, window=window)
 
 
 def conn():
@@ -75,9 +76,8 @@ def test_unwired_transport_refuses_and_nothing_leaves():
 @pytest.mark.parametrize("kw,code", [
     ({"template": "nope"}, "template_not_found"),
     ({"values": {"name": "Dana"}}, "template_params_mismatch"),
-    ({"values": {**VALUES, "link": ""}}, "template_params_mismatch"),
-    ({"consent": "declined"}, "no_consent"),
-    ({"consent": "declined", "template": "notice", "values": {"name": "D"}}, "no_consent"),
+    ({"values": {**VALUES, "link": "a\x01b"}}, "invalid_fields"),  # template_send_v1: no character below U+0020
+    ({"values": {**VALUES, "link": "x" * 1025}}, "template_params_mismatch"),
 ])
 def test_admission_refusals_send_nothing(kw, code):
     fake = T.FakeTemplateTransport()
@@ -85,12 +85,20 @@ def test_admission_refusals_send_nothing(kw, code):
     assert (r.outcome, r.code) == ("not_sent", code) and fake.requests == []
 
 
-def test_unknown_consent_rules():
+@pytest.mark.parametrize("consent", ["declined", "unknown", "granted", None])
+@pytest.mark.parametrize("template,values", [("consent", VALUES), ("notice", {"name": "D"})])
+def test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire(consent, template, values):
+    """WKADAPT-295 (owner decision TP-02, WisKey template_send_v1 route policy): consent never blocks a template send and is never sent."""
     fake = T.FakeTemplateTransport()
-    assert go(sender(fake, by_link=True), template="notice", consent="unknown", values={"name": "D"}).code == "consent_required"
-    assert go(sender(fake, by_link=True), consent="unknown").outcome == "sent"  # the consent request itself
-    assert go(sender(fake, by_link=False), template="notice", consent="unknown", values={"name": "D"}).outcome == "sent"  # existing rule
-    assert len(fake.requests) == 2
+    r = go(sender(fake), template=template, consent=consent, values=values)
+    assert r.outcome == "sent" and len(fake.requests) == 1
+    assert "consent" not in json.dumps(fake.requests[0]).replace("consent_req", ""), "no consent field (and no consent=true) on the wire"
+    assert set(fake.requests[0]) == T.WIRE_TEMPLATE_KEYS
+
+
+def test_wkadapt_the_constructor_has_no_consent_switch_any_more():
+    with pytest.raises(TypeError):
+        T.TemplateSender(None, registry=lambda: REG, switch=lambda: True, consent_by_link=lambda: True)
 
 
 def test_inside_an_open_window_a_notice_is_not_sent_as_template():
@@ -102,15 +110,61 @@ def test_inside_an_open_window_a_notice_is_not_sent_as_template():
 
 # ---------------------------------------------------------------- the three answers
 
-def test_accepted_is_sent_and_the_request_is_the_proposal_shape():
+def test_accepted_is_sent_and_the_request_is_the_template_send_v1_shape():
     fake = T.FakeTemplateTransport({"state": "accepted"})
-    r = go(sender(fake), rid="abc")
+    r = go(sender(fake), rid="abc", op="op-7")
     assert r.outcome == "sent"
     w = fake.requests[0]
-    assert w["schema"] == T.PROPOSAL and w["request_id"] == "abc" and w["account"] == "acc1" and w["user_id"] == "p1"
-    assert w["template"] == {"name": "consent_req", "language": "he"} and w["params"] == ["Dana", "Org", VALUES["link"], "7"]
-    assert w["deadline"] == "2026-10-21T09:00:15Z"
+    assert w == {"schema_version": 1, "request_id": "abc", "operation_id": "op-7", "recipient_ref": "p1", "account": "acc1",
+                 "template_name": "consent_req", "language": "he", "parameters": ["Dana", "Org", VALUES["link"], "7"]}
+    assert type(w["schema_version"]) is int
+    req = T.TemplateRequest("abc", "acc1", "p1", "consent_req", "he", ("Dana",), operation_id="op-7")
+    assert req.envelope(5) == {"id": 5, "type": "hikvision_intercom/whatsapp/template_send_v1", "template": req.wire()}
+    for bad in (0, -1, True, "5"):
+        with pytest.raises(ValueError):
+            req.envelope(bad)
     assert "Dana" not in repr(T.TemplateRequest("r", "a", "p", "n", "he", ("Dana",)))  # values never in a repr/log
+
+
+@pytest.mark.parametrize("kw,problem", [
+    ({"template_name": "1abc"}, "template"), ({"template_name": "_abc"}, "template"), ({"language": "hebrew"}, "template"),
+    ({"operation_id": ""}, "operation_id"), ({"operation_id": "o\x7f"}, "operation_id"), ({"request_id": "r" * 129}, "request_id"),
+    ({"params": tuple("p" for _ in range(21))}, "parameters"), ({"params": ("",)}, "parameters"), ({"params": ("a\nb",)}, "parameters"),
+    ({"params": tuple("x" * 1024 for _ in range(20)), "language": "he"}, None),
+    ({"params": tuple("א" * 1024 for _ in range(20))}, "too_large"),  # ASCII-escaped: 6 bytes per character
+])
+def test_wire_problem_follows_the_v1_bounds(kw, problem):
+    base = dict(request_id="r1", account="acc1", person_id="p1", template_name="consent_req", language="he", params=("a",), operation_id="op1")
+    assert T.wire_problem(T.TemplateRequest(**{**base, **kw})) == problem
+
+
+def test_operation_id_is_required_and_a_closed_string():
+    fake = T.FakeTemplateTransport()
+    assert go(sender(fake), op="o p").code == "invalid_reference" and fake.requests == []
+    with pytest.raises(TypeError):
+        sender(fake).send(template_id="consent", values=VALUES, account="acc1", account_key=ACC, person_id="p1", recipient_key="rk", request_id="r1")
+
+
+@pytest.mark.parametrize("result,outcome,code", [
+    ({"schema_version": 1, "state": "accepted", "code": "provider_accepted", "provider_accepted": True, "delivery": "unknown", "retry_permitted": False}, "sent", None),
+    ({"schema_version": 1, "state": "not_sent", "code": "template_mismatch", "provider_accepted": False, "delivery": "unknown", "retry_permitted": False}, "not_sent", "template_mismatch"),
+    ({"schema_version": 1, "state": "not_sent", "code": "source_or_admission_refused", "provider_accepted": False, "delivery": "unknown", "retry_permitted": False}, "not_sent", "source_or_admission_refused"),
+    ({"schema_version": 1, "state": "unknown", "code": "operation_pending_or_unknown", "provider_accepted": None, "delivery": "unknown", "retry_permitted": False}, "unknown", "operation_pending_or_unknown"),
+    ({"schema_version": 1, "state": "unknown", "code": "provider_outcome_unknown", "provider_accepted": None, "delivery": "unknown", "retry_permitted": False}, "unknown", "provider_outcome_unknown"),
+    # anything outside the five closed combinations is unknown
+    ({"schema_version": 1, "state": "accepted", "code": "provider_accepted", "provider_accepted": 1, "delivery": "unknown", "retry_permitted": False}, "unknown", "invalid_response"),
+    ({"schema_version": 1, "state": "not_sent", "code": "template_mismatch", "provider_accepted": 0, "delivery": "unknown", "retry_permitted": False}, "unknown", "invalid_response"),
+    ({"schema_version": 1, "state": "not_sent", "code": "template_mismatch", "provider_accepted": True, "delivery": "unknown", "retry_permitted": False}, "unknown", "invalid_response"),
+    ({"schema_version": 1, "state": "accepted", "code": "provider_accepted", "provider_accepted": True, "delivery": "delivered", "retry_permitted": False}, "unknown", "invalid_response"),
+    ({"schema_version": 1, "state": "not_sent", "code": "template_mismatch", "provider_accepted": False, "delivery": "unknown", "retry_permitted": True}, "unknown", "invalid_response"),
+    ({"schema_version": True, "state": "accepted", "code": "provider_accepted", "provider_accepted": True, "delivery": "unknown", "retry_permitted": False}, "unknown", "invalid_response"),
+    ({"schema_version": 1, "state": "accepted", "code": "provider_accepted", "provider_accepted": True, "delivery": "unknown", "retry_permitted": False, "extra": 1}, "unknown", "invalid_response"),
+    ({"schema_version": 1, "state": "not_sent", "code": "rate_limited", "provider_accepted": False, "delivery": "unknown", "retry_permitted": False}, "unknown", "invalid_response"),
+])
+def test_a_v1_result_is_read_strictly(result, outcome, code):
+    fake = T.FakeTemplateTransport(result)
+    r = go(sender(fake))
+    assert (r.outcome, r.code) == (outcome, code) and len(fake.requests) == 1
 
 
 @pytest.mark.parametrize("answer,code,retry,scope", [
@@ -139,7 +193,7 @@ def test_everything_unproven_is_unknown_and_never_retried(answer):
 
 def test_adapter_wrapper_maps_to_send_result():
     got = adapter.MessagingAdapter().send_template(sender(T.FakeTemplateTransport()), template_id="consent", consent="granted", values=VALUES, account="acc1",
-                                                   account_key=ACC, person_id="p1", recipient_key="rk", request_id="r9")
+                                                   account_key=ACC, person_id="p1", recipient_key="rk", request_id="r9", operation_id="op9")
     assert isinstance(got, adapter.SendResult) and got.outcome == "sent"
 
 

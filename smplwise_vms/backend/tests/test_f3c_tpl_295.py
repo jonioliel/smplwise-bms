@@ -30,14 +30,16 @@ def test_tp01_the_earlier_refusals_keep_their_codes():
     assert go(s).code == "template_unsupported"
     s = T.TemplateSender(fake, registry=lambda: REG, switch=lambda: True, permit_fn=lambda: True, clock=lambda: NOW)
     assert go(s, template="nope").code == "template_not_found"
-    assert go(s, consent="declined").code == "no_consent" and fake.requests == []
+    assert go(s, consent="declined").code == "paced_unavailable" and fake.requests == []  # WKADAPT-295: no consent gate (TP-02)
 
 
 @pytest.mark.parametrize("field,bad", [("person_id", "p 1"), ("person_id", ""), ("person_id", "p\n1"), ("person_id", "x" * 129),
-                                       ("account", "acc/1"), ("account", "+972500000000 "), ("request_id", "r\x001"), ("request_id", "")])
+                                       ("account", "acc/1"), ("account", "+972500000000 "), ("request_id", "r\x001"), ("request_id", ""),
+                                       ("operation_id", ""), ("operation_id", "o\n1"), ("operation_id", None)])
 def test_tp03_ids_on_the_wire_are_closed_strings(field, bad):
     fake = T.FakeTemplateTransport()
-    kw = dict(template_id="consent", consent="granted", values=VALUES, account="acc1", account_key="entry:acc1", person_id="p1", recipient_key="rk", request_id="r1")
+    kw = dict(template_id="consent", consent="granted", values=VALUES, account="acc1", account_key="entry:acc1", person_id="p1", recipient_key="rk", request_id="r1",
+              operation_id="op1")
     kw[field] = bad
     r = sender(fake).send(**kw)
     assert (r.outcome, r.code) == ("not_sent", "invalid_reference") and fake.requests == []
@@ -45,7 +47,8 @@ def test_tp03_ids_on_the_wire_are_closed_strings(field, bad):
 
 def test_tp03_non_strings_are_refused_and_a_normal_id_passes():
     fake = T.FakeTemplateTransport()
-    kw = dict(template_id="consent", consent="granted", values=VALUES, account="acc1", account_key="entry:acc1", person_id=17, recipient_key="rk", request_id="r1")
+    kw = dict(template_id="consent", consent="granted", values=VALUES, account="acc1", account_key="entry:acc1", person_id=17, recipient_key="rk", request_id="r1",
+              operation_id="op1")
     assert sender(fake).send(**kw).code == "invalid_reference"
     kw["person_id"] = "person:7f-ab_1"
     assert sender(fake).send(**kw).outcome == "sent" and len(fake.requests) == 1
