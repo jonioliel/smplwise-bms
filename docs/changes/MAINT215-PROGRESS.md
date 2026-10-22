@@ -18,8 +18,18 @@ Branch `pilot/MAINT215-295` from `origin/main` @ `90cd7d9ae`. Change record: `do
 - API inventory regenerated (1218 routes, +20 maintenance routes). The CR mockup path was already correct.
 - Migration number 0147 is PROVISIONAL, isolated in `0147_maintenance.sql`; the lead renumbers at integration.
 
+## Mockup reviewed in browser (2026-10-23)
+Mockup reviewed in browser at 1366, 1024 and 375 px, light and dark, RTL Hebrew. Fixed: no horizontal scroll at 375 (grid
+min-width), the floor/area tree kept on phones (a places select instead of hiding it), tree counts consistent with the rows,
+low-contrast muted text and state colours darkened, dark primary button contrast, bidi fixes (step counter, file name), chips as
+real buttons with a working filter and search, mobile cards built from the table rows, number checkpoint shows "out of range" and
+the request action, supplier picker shows the expired-insurance confirmation (question 5a), revoke-tag action, focus rings,
+reduced motion. Added the states the CR describes: empty, loading, error / not found, module off (every screen), plus a role
+switch (manager / operator / viewer) so manage-only actions and the "no permission" panels are visible, and the tickets-off
+switch (no request action anywhere). Screenshots (gitignored): `private/review/maint-215/` (desktop and phone, light and dark).
+Not verified: the product's real design tokens (the mockup keeps its own local tokens, no product token file was found for it).
+
 ## Remaining
-- Mockup `docs/design/mockups/maintenance-215/index.html` not reviewed in a browser (light/dark, phone width).
 - Slice 2 (UI) proposal: CR section 12, after the owner approves the mockup. Full gate not run (by design).
 - Steps 1-4 below are DONE (see Session 2).
 
@@ -31,8 +41,15 @@ Branch `pilot/MAINT215-295` from `origin/main` @ `90cd7d9ae`. Change record: `do
 5. Final report to the lead; slice 2 proposal is CR section 12.
 
 ## Open owner questions
-See CR-MAINT215.md section 11 (8 questions: lead times, manage sensitivity, placeless visibility, QR address, expired supplier
-assignment, backups, request closure -> plan done, notification category).
+These eight block the UI (CR-MAINT215.md section 11); recommendation first:
+1. Reminder lead times (30 / 7 / 0 days, editable per task): a. as built (recommended); b. 60 days for certificates; c. one installation-wide value.
+2. `maintenance.manage` permission: a. ordinary, site_admin + system_admin (recommended: no money, no person data); b. sensitive, system_admin only.
+3. Placeless task visibility: a. installation-level holders only, as built (recommended); b. any scope, like tickets.
+4. QR sticker address: a. the remote address, sign-in required (recommended); b. local address only; c. ask per print.
+5. Request assigned to a supplier with expired insurance (slice 2): a. red mark + manager confirmation (recommended; shown in the mockup); b. mark only; c. refuse.
+6. Maintenance tables in project backups: a. yes, in slice 2 with restore tests (recommended); b. no.
+7. Closing the request opened by a plan: a. marks the plan done automatically, closer as performer (recommended); b. stays manual.
+8. Notification category of the two sources: a. keep `device_faults` (recommended); b. a new "maintenance" category.
 
 ## For the next session
 - Runner worktree used: `~/work/maint215` (removed at handoff). Recreate:

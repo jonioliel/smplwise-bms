@@ -18,9 +18,9 @@
 -->
 <style>
 :root {
-  --bg: #f4f6fa; --panel: #ffffff; --line: #e3e8f0; --ink: #1b2433; --ink-2: #4c5a70; --ink-3: #7c889c;
+  --bg: #f4f6fa; --panel: #ffffff; --line: #e3e8f0; --ink: #1b2433; --ink-2: #4c5a70; --ink-3: #5d697e;
   --accent: #2563eb; --accent-soft: #e8efff; --ok: #15803d; --ok-soft: #e7f6ec; --warn: #b45309; --warn-soft: #fff4e0;
-  --bad: #b91c1c; --bad-soft: #fde9e9; --none: #6b7280; --none-soft: #eef0f3; --radius: 12px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.05);
+  --bad: #b91c1c; --bad-soft: #fde9e9; --none: #565e6d; --none-soft: #eef0f3; --radius: 12px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.05);
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -29,9 +29,13 @@
   --bad: #f87171; --bad-soft: #3a1717; --none: #9aa3b2; --none-soft: #222a36; --shadow: none; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, "Segoe UI", "Heebo", Arial, sans-serif; }
-.gallery { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.gallery button { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.gallery { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; align-items: center; overflow-x: auto; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+.gallery > * { flex: none; }
+.gallery button, .gallery select { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; min-height: 34px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 .gallery button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
 .gallery .sp { flex: 1; }
 .screen { display: none; padding: 16px; max-width: 1180px; margin: 0 auto; }
@@ -44,9 +48,12 @@ h2 { font-size: 15px; margin: 0 0 10px; }
 .muted { color: var(--ink-3); }
 .btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 9px; padding: 7px 12px; font: inherit; cursor: pointer; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.primary { color: #0b1220; }
+a { color: var(--accent); }
+.btn { min-height: 36px; }
 .btn.big { padding: 14px 18px; font-size: 16px; border-radius: 12px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--ink-2); background: var(--panel); cursor: pointer; white-space: nowrap; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--ink-2); background: var(--panel); cursor: pointer; white-space: nowrap; font: inherit; min-height: 32px; }
 .chip.sel { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .chip .n { font-variant-numeric: tabular-nums; margin-inline-start: 4px; opacity: .8; }
 .state { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
@@ -122,12 +129,61 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
 @media (max-width: 860px) {
   .ledger, .sheet, .grid2 { grid-template-columns: 1fr; }
   .tree { display: none; }
+  .card > .tree-m { display: block; padding: 10px 10px 0; }
+  .toolbar .chips { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 2px; scrollbar-width: none; }
+  .toolbar .chips .chip { flex: none; }
+  .toolbar .chips { flex-basis: 100%; }
+  .toolbar { gap: 8px; }
   table.desk { display: none; }
+  .screen { padding: 12px 16px; }
+  .gallery { padding: 8px 16px; }
+  .kv { grid-template-columns: 90px 1fr; }
+  .hist .h { grid-template-columns: 84px 1fr; }
+  .hist .h .muted { grid-column: 2; }
+  .docs .d { grid-template-columns: 1fr auto; }
+  .docs .d .btn { grid-column: 1 / -1; }
+  .toolbar { padding: 10px; }
+  .search { min-width: 0; flex-basis: 100%; }
   .cards-m { display: grid; gap: 8px; padding: 10px; }
   .cards-m .c { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; }
   .phone { width: 100%; max-width: 360px; }
 }
 .tickets-off .needs-tickets { display: none !important; }
+/* places picker for narrow screens (the tree is kept, as a select) */
+.tree-m { display: none; }
+.tree-m select { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; background: var(--panel); color: var(--ink); font: inherit; min-height: 40px; }
+.tbl-wrap { overflow-x: auto; }
+.ledger > *, .sheet > *, .grid2 > *, .screen > * { min-width: 0; }
+.phones > .phone { min-width: 0; }
+/* states: empty / loading / error / module off */
+.st { display: none; padding: 40px 16px; text-align: center; }
+.st .big { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.st .btn { margin-top: 12px; }
+.sk { display: grid; gap: 10px; padding: 14px; }
+.sk i { display: block; height: 38px; border-radius: 9px; background: linear-gradient(90deg, var(--none-soft), var(--line), var(--none-soft)); background-size: 200% 100%; animation: sk 1.4s linear infinite; }
+@keyframes sk { to { background-position: -200% 0; } }
+body[data-st="empty"] #s-ledger .tbl-wrap, body[data-st="empty"] #s-ledger .cards-m, body[data-st="empty"] #s-ledger .toolbar,
+body[data-st="loading"] #s-ledger .tbl-wrap, body[data-st="loading"] #s-ledger .cards-m,
+body[data-st="error"] #s-ledger .tbl-wrap, body[data-st="error"] #s-ledger .cards-m,
+body[data-st="error"] #s-sheet .sheet, body[data-st="off"] .screen > :not(.st-off) { display: none !important; }
+body[data-st="empty"] #s-ledger .st-empty, body[data-st="error"] #s-ledger .st-err, body[data-st="error"] #s-sheet .st-nf { display: block; }
+body[data-st="loading"] #s-ledger .sk-w { display: grid; }
+body[data-st="off"] .st-off { display: block !important; }
+.sk-w { display: none; }
+.st-off { display: none; }
+/* permissions: a screen that needs a permission the role lacks shows the denied panel */
+.deny { display: none; }
+body[data-role="op"] .mng, body[data-role="view"] .mng, body[data-role="view"] .perf { display: none !important; }
+body[data-role="op"] .screen[data-need="manage"] > :not(.deny), body[data-role="view"] .screen[data-need="manage"] > :not(.deny),
+body[data-role="view"] .screen[data-need="perform"] > :not(.deny) { display: none !important; }
+body[data-role="op"] .screen[data-need="manage"] > .deny, body[data-role="view"] .screen[data-need="manage"] > .deny,
+body[data-role="view"] .screen[data-need="perform"] > .deny { display: block; }
+body[data-st="off"] .deny { display: none !important; }
+body[data-role="op"] .sheet { grid-template-columns: 1fr; }
+.bad-t { color: var(--bad); font-weight: 600; }
+.confirm { margin: 10px 12px 12px; border: 1px solid var(--bad); background: var(--bad-soft); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+.confirm .row { flex-wrap: wrap; }
+.sticker .btn { margin-top: 8px; font-size: 12.5px; padding: 5px 10px; background: #fff; color: #111; border-color: #ccd; }
 </style>
 </head>
 <body>
@@ -138,37 +194,42 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
   <button data-s="vendor" aria-pressed="false">4. ספק ומסמכים</button>
   <button data-s="tags" aria-pressed="false">5. תגיות</button>
   <span class="sp"></span>
+  <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל</option><option value="op">תפקיד: מפעיל</option><option value="view">תפקיד: צופה</option></select>
+  <select id="stsel" aria-label="מצב המסך"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option></select>
   <button id="tk" aria-pressed="true">בקשות שירות: פועל</button>
   <button id="th" aria-pressed="false">כהה</button>
 </nav>
-
 <!-- 1. the ledger -->
 <section class="screen on" id="s-ledger">
-  <div class="row" style="justify-content:space-between"><h1>אחזקה</h1><button class="btn primary">משימה חדשה</button></div>
+  <div class="st st-off"><div class="big">האחזקה כבויה</div><div class="muted">המודול כבוי בהגדרות המערכת.</div><button class="btn mng">להגדרות</button></div>
+  <div class="row" style="justify-content:space-between"><h1>אחזקה</h1><button class="btn primary mng">משימה חדשה</button></div>
   <div class="ledger">
     <aside class="card tree" aria-label="מקומות">
-      <div class="t sel">כל המבנה <span class="n">24</span></div>
-      <div class="t">מבנה א <span class="n">17</span></div>
-      <div class="t l2">קומת קרקע <span class="n">6</span></div>
-      <div class="t l2">קומה 1 <span class="n">4</span></div>
-      <div class="t l2">קומה 2 <span class="n">3</span></div>
-      <div class="t l2">גג <span class="n">4</span></div>
-      <div class="t">ספקים <span class="n">7</span></div>
+      <div class="t sel">כל המבנה <span class="n">8</span></div>
+      <div class="t">מבנה א <span class="n">7</span></div>
+      <div class="t l2">גג <span class="n">2</span></div>
+      <div class="t l2">קומת קרקע <span class="n">1</span></div>
+      <div class="t l2">מרתף <span class="n">1</span></div>
+      <div class="t">ספקים <span class="n">1</span></div>
     </aside>
     <div class="card">
+      <div class="tree-m"><select aria-label="מקום"><option>כל המבנה (8)</option><option>מבנה א (7)</option><option>- גג (2)</option><option>- קומת קרקע (1)</option><option>- מרתף (1)</option><option>ספקים (1)</option></select></div>
       <div class="toolbar">
         <div class="chips" role="group" aria-label="מצב">
-          <span class="chip sel">הכול<span class="n">24</span></span>
-          <span class="chip">עבר המועד<span class="n">2</span></span>
-          <span class="chip">מתקרב<span class="n">5</span></span>
-          <span class="chip">תקין<span class="n">17</span></span>
+          <button class="chip sel" data-f="all">הכול<span class="n">8</span></button>
+          <button class="chip" data-f="overdue">עבר המועד<span class="n">2</span></button>
+          <button class="chip" data-f="soon">מתקרב<span class="n">3</span></button>
+          <button class="chip" data-f="ok">תקין<span class="n">2</span></button>
         </div>
         <div class="chips" role="group" aria-label="סוג">
-          <span class="chip">אישורים</span><span class="chip">אחזקה מונעת</span><span class="chip">סבבים</span><span class="chip">מסמכי ספקים</span>
+          <button class="chip">אישורים</button><button class="chip">אחזקה מונעת</button><button class="chip">סבבים</button><button class="chip">מסמכי ספקים</button>
         </div>
-        <input class="search" placeholder="חיפוש">
+        <input class="search" placeholder="חיפוש" aria-label="חיפוש">
       </div>
-      <table class="desk">
+      <div class="st st-empty"><div class="big">אין משימות</div><button class="btn primary mng">משימה חדשה</button></div>
+      <div class="st st-err"><div class="big">הטעינה נכשלה</div><button class="btn">ניסיון חוזר</button></div>
+      <div class="sk-w sk" aria-busy="true" aria-label="טוען"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="tbl-wrap"><table class="desk">
         <thead><tr><th>מצב</th><th>שם</th><th>סוג</th><th>מקום</th><th>ספק</th><th>מועד</th></tr></thead>
         <tbody>
           <tr><td><span class="state s-overdue">פג</span></td><td class="title">ביטוח צד ג׳ - חשמל השרון</td><td class="kind">מסמך ספק</td><td class="muted">-</td><td>חשמל השרון</td><td class="date">10.01.2027</td></tr>
@@ -180,18 +241,16 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
           <tr><td><span class="state s-ok">תקין</span></td><td class="title">מטפים - כל הקומות</td><td class="kind">אישור · שנתי</td><td>מבנה א</td><td>אש-טק</td><td class="date">20.09.2027</td></tr>
           <tr><td><span class="state s-none">מושהה</span></td><td class="title">בדיקת ספרינקלרים</td><td class="kind">אישור</td><td>מבנה א</td><td class="muted">-</td><td class="date muted">-</td></tr>
         </tbody>
-      </table>
-      <div class="cards-m">
-        <div class="c"><div class="row" style="justify-content:space-between"><span class="title">ביטוח צד ג׳ - חשמל השרון</span><span class="state s-overdue">פג</span></div><div class="muted">מסמך ספק · 10.01.2027</div></div>
-        <div class="c"><div class="row" style="justify-content:space-between"><span class="title">ניקוי מנדף המטבח</span><span class="state s-overdue">עבר</span></div><div class="muted">קומת קרקע · 12.01.2027</div></div>
-        <div class="c"><div class="row" style="justify-content:space-between"><span class="title">סבב בוקר - חדר משאבות</span><span class="state s-soon">עוד 3 ימים</span></div><div class="muted">מרתף · 18.01.2027</div></div>
-      </div>
+      </table></div>
+      <div class="cards-m" id="cards-m"></div>
     </div>
   </div>
 </section>
 
 <!-- 2. the certificate sheet -->
 <section class="screen" id="s-sheet">
+  <div class="st st-off"><div class="big">האחזקה כבויה</div><div class="muted">המודול כבוי בהגדרות המערכת.</div></div>
+  <div class="st st-nf"><div class="big">המשימה לא נמצאה</div><button class="btn">חזרה לפנקס</button></div>
   <h1>בדיקת מעלית שנתית - מעלית צפונית</h1>
   <div class="sheet">
     <div class="card pad">
@@ -209,29 +268,35 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
         <dt class="needs-tickets">בקשת שירות</dt><dd class="needs-tickets">נפתחת אוטומטית במחלקת אחזקה · <a href="#">בקשה 1042</a></dd>
       </dl>
       <h2 style="margin-top:18px">התעודה האחרונה</h2>
-      <div class="file"><div class="ic">PDF</div><div><div class="title">תסקיר מעלית 2026.pdf</div><div class="muted">הועלה 16.02.2026</div></div></div>
+      <div class="file"><div class="ic">PDF</div><div><div class="title">תסקיר מעלית 2026</div><div class="muted">הועלה 16.02.2026</div></div></div>
+    </div>
+    <div style="display:grid;gap:14px;align-content:start">
+    <div class="card pad mng">
+      <h2>חידוש</h2>
+      <label class="f" for="r1">תאריך הבדיקה</label><input id="r1" class="inp" value="12.02.2027">
+      <label class="f" for="r2">בתוקף עד</label><input id="r2" class="inp" value="12.02.2028">
+      <label class="f">קובץ התעודה</label><button class="btn" style="width:100%">בחירת קובץ</button>
+      <label class="f" for="r3">הערה</label><input id="r3" class="inp">
+      <div class="row" style="margin-top:14px"><button class="btn primary">שמירה</button></div>
     </div>
     <div class="card pad">
-      <h2>חידוש</h2>
-      <label class="f">תאריך הבדיקה</label><input class="inp" value="12.02.2027">
-      <label class="f">בתוקף עד</label><input class="inp" value="12.02.2028">
-      <label class="f">קובץ התעודה</label><button class="btn" style="width:100%">בחירת קובץ</button>
-      <label class="f">הערה</label><input class="inp">
-      <div class="row" style="margin-top:14px"><button class="btn primary">שמירה</button></div>
-      <h2 style="margin-top:20px">היסטוריה</h2>
+      <h2>היסטוריה</h2>
       <div class="hist">
         <div class="h"><span class="date">16.02.2026</span><span>חודש עד 14.02.2027</span><span class="muted">דני כהן</span></div>
         <div class="h"><span class="date">10.02.2025</span><span>חודש עד 14.02.2026</span><span class="muted">דני כהן</span></div>
       </div>
     </div>
+    </div>
   </div>
 </section>
 
 <!-- 3. the round on the phone -->
-<section class="screen" id="s-round">
+<section class="screen" id="s-round" data-need="perform">
+  <div class="st st-off"><div class="big">האחזקה כבויה</div><div class="muted">המודול כבוי בהגדרות המערכת.</div></div>
+  <div class="st deny"><div class="big">אין הרשאה</div><div class="muted">ביצוע סבבים דורש הרשאת ביצוע.</div></div>
   <div class="phones">
     <div class="phone" aria-label="נקודת בדיקה">
-      <div class="top"><div class="row" style="justify-content:space-between"><b>סבב בוקר - חדר משאבות</b><span class="muted">2 / 5</span></div><div class="progress"><i style="width:40%"></i></div></div>
+      <div class="top"><div class="row" style="justify-content:space-between"><b>סבב בוקר - חדר משאבות</b><span class="muted" dir="ltr">2 / 5</span></div><div class="progress"><i style="width:40%"></i></div></div>
       <div class="body">
         <div class="muted">מרתף · משאבה 1</div>
         <div class="q">המשאבה פועלת בלי רעש חריג?</div>
@@ -242,12 +307,13 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
       <div class="foot"><button class="btn primary big">הבא</button></div>
     </div>
     <div class="phone" aria-label="ערך מספרי">
-      <div class="top"><div class="row" style="justify-content:space-between"><b>סבב בוקר - חדר משאבות</b><span class="muted">3 / 5</span></div><div class="progress"><i style="width:60%"></i></div></div>
+      <div class="top"><div class="row" style="justify-content:space-between"><b>סבב בוקר - חדר משאבות</b><span class="muted" dir="ltr">3 / 5</span></div><div class="progress"><i style="width:60%"></i></div></div>
       <div class="body">
         <div class="muted">מרתף · מד לחץ</div>
         <div class="q">לחץ במערכת (בר)</div>
-        <div class="num"><input value="7.5" inputmode="decimal" aria-label="לחץ"></div>
-        <div class="range">טווח תקין 2-6</div>
+        <div class="num"><input value="7.5" inputmode="decimal" aria-label="לחץ" aria-invalid="true" dir="ltr"></div>
+        <div class="range bad-t">מחוץ לטווח התקין 2-6</div>
+        <div class="req needs-tickets"><span>פתיחת בקשת שירות</span><button class="btn">פתיחה</button></div>
       </div>
       <div class="foot"><button class="btn primary big">הבא</button></div>
     </div>
@@ -267,27 +333,34 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
 
 <!-- 4. the supplier -->
 <section class="screen" id="s-vendor">
+  <div class="st st-off"><div class="big">האחזקה כבויה</div><div class="muted">המודול כבוי בהגדרות המערכת.</div></div>
   <h1>חשמל השרון</h1>
   <div class="grid2">
     <div class="card pad docs">
-      <div class="row" style="justify-content:space-between"><h2>מסמכים</h2><button class="btn">מסמך חדש</button></div>
-      <div class="d"><span><b>ביטוח צד ג׳</b><br><span class="muted">בתוקף עד 10.01.2027</span></span><span class="state s-overdue">פג</span><button class="btn">חידוש</button></div>
-      <div class="d"><span><b>רישיון חשמלאי</b><br><span class="muted">בתוקף עד 01.02.2027</span></span><span class="state s-soon">עוד 17 ימים</span><button class="btn">חידוש</button></div>
-      <div class="d"><span><b>אישור עבודה בגובה</b><br><span class="muted">בתוקף עד 30.11.2027</span></span><span class="state s-ok">תקין</span><button class="btn">חידוש</button></div>
+      <div class="row" style="justify-content:space-between"><h2>מסמכים</h2><button class="btn mng">מסמך חדש</button></div>
+      <div class="d"><span><b>ביטוח צד ג׳</b><br><span class="muted">בתוקף עד 10.01.2027</span></span><span class="state s-overdue">פג</span><button class="btn mng">חידוש</button></div>
+      <div class="d"><span><b>רישיון חשמלאי</b><br><span class="muted">בתוקף עד 01.02.2027</span></span><span class="state s-soon">עוד 17 ימים</span><button class="btn mng">חידוש</button></div>
+      <div class="d"><span><b>אישור עבודה בגובה</b><br><span class="muted">בתוקף עד 30.11.2027</span></span><span class="state s-ok">תקין</span><button class="btn mng">חידוש</button></div>
     </div>
     <div class="card needs-tickets">
-      <div class="pad" style="padding-bottom:4px"><h2>בחירת מטפל בבקשה (מסך הבקשות)</h2></div>
+      <div class="pad" style="padding-bottom:4px"><h2>מטפל בבקשה</h2></div>
       <div class="picker">
         <div class="p"><span>חשמל השרון</span><span class="state s-overdue">ביטוח פג 10.01</span></div>
-        <div class="p"><span>קור-אייר</span><span class="muted"></span></div>
+        <div class="p"><span>קור-אייר</span><span class="state s-ok">תקין</span></div>
         <div class="p"><span>קלין-טק</span><span class="state s-soon">רישיון עד 01.02</span></div>
+      </div>
+      <div class="confirm mng" role="alertdialog" aria-label="אישור">
+        <b>לחשמל השרון אין ביטוח בתוקף</b>
+        <div class="row"><button class="btn primary">להקצות בכל זאת</button><button class="btn">ביטול</button></div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- 5. tags -->
-<section class="screen" id="s-tags">
+<section class="screen" id="s-tags" data-need="manage">
+  <div class="st st-off"><div class="big">האחזקה כבויה</div><div class="muted">המודול כבוי בהגדרות המערכת.</div></div>
+  <div class="st deny"><div class="big">אין הרשאה</div><div class="muted">ניהול תגיות דורש הרשאת ניהול.</div></div>
   <div class="row" style="justify-content:space-between"><h1>תגיות</h1><button class="btn primary">הדפסה</button></div>
   <div class="card pad">
     <div class="stickers">
@@ -304,8 +377,32 @@ label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0
   var root = document.documentElement;
   function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
   function tickets(on) { document.body.classList.toggle('tickets-off', !on); var b = document.getElementById('tk'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'בקשות שירות: פועל' : 'בקשות שירות: כבוי'; }
-  theme(q.get('theme') === 'dark');
+  var dark = q.get('theme') ? q.get('theme') === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  theme(dark);
   tickets(q.get('tickets') !== 'off');
+  function setRole(v) { document.body.dataset.role = v; document.getElementById('role').value = v; }
+  function setSt(v) { document.body.dataset.st = v; document.getElementById('stsel').value = v; }
+  document.getElementById('role').onchange = function () { setRole(this.value); };
+  document.getElementById('stsel').onchange = function () { setSt(this.value); };
+  setRole(q.get('role') || 'mgr'); setSt(q.get('state') || 'ready');
+  if (q.get('screen')) { var sb = document.querySelector('.gallery [data-s="' + q.get('screen') + '"]'); if (sb) setTimeout(function () { sb.click(); }, 0); }
+  // mobile cards are built from the table rows (one source)
+  var rows = [].slice.call(document.querySelectorAll('table.desk tbody tr')), cm = document.getElementById('cards-m');
+  rows.forEach(function (tr) {
+    var c = tr.children, st = c[0].firstElementChild.cloneNode(true), d = document.createElement('div');
+    tr.dataset.st = /s-overdue/.test(st.className) ? 'overdue' : /s-soon/.test(st.className) ? 'soon' : /s-ok/.test(st.className) ? 'ok' : 'none';
+    d.className = 'c'; d.dataset.st = tr.dataset.st;
+    var top = document.createElement('div'); top.className = 'row'; top.style.justifyContent = 'space-between';
+    var t = document.createElement('span'); t.className = 'title'; t.textContent = c[1].textContent; top.appendChild(t); top.appendChild(st);
+    var m = document.createElement('div'); m.className = 'muted';
+    m.textContent = [c[2].textContent, c[3].textContent.trim() === '-' ? '' : c[3].textContent, c[5].textContent.trim() === '-' ? '' : c[5].textContent].filter(Boolean).join(' · ');
+    d.appendChild(top); d.appendChild(m); cm.appendChild(d);
+  });
+  var cur = 'all', term = '';
+  function filt() { rows.concat([].slice.call(cm.children)).forEach(function (r) { r.hidden = !((cur === 'all' || r.dataset.st === cur) && r.textContent.indexOf(term) > -1); }); }
+  document.querySelectorAll('.chip[data-f]').forEach(function (b) { b.onclick = function () { cur = b.dataset.f; document.querySelectorAll('.chip[data-f]').forEach(function (x) { x.classList.toggle('sel', x === b); }); filt(); }; });
+  document.querySelector('.search').oninput = function () { term = this.value.trim(); filt(); };
+  document.querySelectorAll('.sticker').forEach(function (s) { var b = document.createElement('button'); b.className = 'btn'; b.textContent = 'ביטול תג'; s.appendChild(b); });
   document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
   document.getElementById('tk').onclick = function () { tickets(document.body.classList.contains('tickets-off')); };
   document.querySelectorAll('.gallery [data-s]').forEach(function (b) {
