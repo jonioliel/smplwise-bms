@@ -179,6 +179,9 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
 # CR's "apply the stricter one" also never tightens from an archive.
 SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
+# SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
+# like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards"}
 
 
 def _kept_setting(key: Any) -> bool:

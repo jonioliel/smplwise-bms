@@ -45,13 +45,19 @@ class FakeStore:
 
 
 COVER_CLASSES = {"cover.blinds": "blind", "cover.garage": "garage", "cover.gate": "gate", "cover.front_door": "door", "cover.shutter": "shutter",
-                 "cover.unknown_class": None}
+                 "cover.unknown_class": None,
+                 # SAFE2-295 (Fable review 4, V-03): covers that DECLARE a window class but whose platform lets an administrator write any class
+                 "cover.template_blind": "blind", "cover.group_blind": "blind", "cover.unregistered_blind": "blind"}
+# The covers' entity-registry platforms (a real integration, or one whose class is self-declared); a cover missing here has no registry entry
+COVER_PLATFORMS = {"cover.blinds": "zwave_js", "cover.garage": "zwave_js", "cover.gate": "shelly", "cover.front_door": "zwave_js",
+                   "cover.shutter": "zwave_js", "cover.unknown_class": "zwave_js", "cover.template_blind": "template", "cover.group_blind": "group"}
 
 
 def _deps(items: dict[str, tuple[str, object]], *, platform_override: dict[str, str] | None = None, broken: bool = False, policy=POLICY):
     """items: entity id -> (unique id, config). The registry platform follows the domain (script / automation / scene=homeassistant)."""
     plat = {"script": "script", "automation": "automation", "scene": "homeassistant"}
     entries = {eid: ((platform_override or {}).get(eid, plat[eid.split(".")[0]]), uid) for eid, (uid, _cfg) in items.items()}
+    entries.update({eid: ((platform_override or {}).get(eid, p), eid.split(".", 1)[1]) for eid, p in COVER_PLATFORMS.items()})
     store = FakeStore({(eid.split(".")[0], uid): cfg for eid, (uid, cfg) in items.items()}, broken=broken)
     registry = FakeRegistry(entries)
 
@@ -305,6 +311,27 @@ def test_a_scene_setting_a_garage_or_unknown_cover_is_refused():
         scene = {"id": "s1", "entities": {"light.a": "on", cover: "open"}}
         assert _impact("scene.x", {"scene.x": ("s1", scene)}) == "impact_physical_access", cover
     assert _impact("scene.x", {"scene.x": ("s1", {"id": "s1", "entities": {"cover.blinds": "open"}})}) is None
+
+
+def test_a_cover_whose_class_is_self_declared_is_refused():
+    """SAFE2-295 (Fable review 4, V-03, cheap hardening): a template or group cover declares its own device class - a "blind" can wrap a garage
+    door - so its class is not evidence. A cover whose registry platform is `template` / `group`, or that has no registry entry at all (a YAML
+    template cover without a unique id), is refused like an unknown class (owner 2026-10-18: when unsure, refuse)."""
+    for cover in ("cover.template_blind", "cover.group_blind", "cover.unregistered_blind"):
+        step = _script(_svc("cover.open_cover", cover))
+        assert _impact("script.x", {"script.x": ("x", step)}) == "impact_physical_access", cover
+        scene = {"id": "s1", "entities": {cover: "open"}}
+        assert _impact("scene.x", {"scene.x": ("s1", scene)}) == "impact_physical_access", cover
+    assert rn.COVER_SELF_DECLARED_PLATFORMS == frozenset({"template", "group"})
+    # the same blind on a real integration still passes; a registry that cannot be read refuses
+    assert _impact("script.x", {"script.x": ("x", _script(_svc("cover.open_cover", "cover.blinds")))}) is None
+
+    def broken_registry(_hass):
+        raise RuntimeError("boom")
+
+    broken = SimpleNamespace(registry=broken_registry, attributes=lambda _e: {"device_class": "blind"})
+    assert rn.cover_refusal(None, broken, ["cover.blinds"]) == "impact_physical_access"
+    assert rn.cover_refusal(None, broken, []) is None
 
 
 def test_a_nested_item_must_be_on_the_allowlist_too():

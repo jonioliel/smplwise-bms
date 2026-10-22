@@ -16,7 +16,8 @@ message is never judged here):
    - calls a service outside the closed step allow-list (the everyday device pairs, plain arming and the owner's additions of 2026-10-18 -
      IMPACT_STEP_PAIRS, STEP_ADDITIONS): `impact_service_not_allowed`;
    - drives a cover (any cover service, or a scene setting a cover) whose `device_class` is not plainly a window covering - a door, a gate, a
-     garage, a shutter, an unknown or missing class: `impact_physical_access` (owner 2026-10-18: when unsure, refuse);
+     garage, a shutter, an unknown or missing class - or a class the cover declares itself (a `template` / `group` cover, or one without an
+     entity-registry entry; Fable review 4 V-03): `impact_physical_access` (owner 2026-10-18: when unsure, refuse);
    - calls a nested script / scene / automation that is not itself on the allowlist: `impact_nested_not_runnable` (owner 2026-10-18);
    - names its service or target by a template: `impact_template`;
    - targets anything but literal entity ids (an area, a device, a floor, a label, `all`, nothing): `impact_target_unresolved`;
@@ -95,6 +96,9 @@ NOTIFY_KEYS = frozenset({"action", "service", "data", "target", "entity_id", "al
 # A cover is driven by a runnable item only when its class is PLAINLY a window covering; a door / gate / garage / shutter / damper, an unknown
 # or missing class is physical access or unsure - refused (owner 2026-10-18: "when unsure refuse").
 COVER_SAFE_CLASSES = frozenset({"blind", "curtain", "shade", "awning"})
+# SAFE2-295 (Fable review 4, V-03): a template or group cover DECLARES its own device class (a "blind" can wrap a garage door), so its class
+# is not evidence. Such a cover - and one without an entity-registry entry (a YAML template cover without a unique id) - is refused.
+COVER_SELF_DECLARED_PLATFORMS = frozenset({"template", "group"})
 # The domains a runnable SCENE may set (a lock only to `locked`; an alarm panel never)
 SCENE_DOMAINS = frozenset({"light", "switch", "fan", "cover", "climate", "media_player", "input_boolean", "input_number", "input_select", "select", "number",
                            "humidifier", "water_heater", "valve", "lock"})
@@ -400,13 +404,17 @@ def _attributes(hass: Any, deps: Any, entity_id: str) -> Any:
 
 
 def cover_refusal(hass: Any, deps: Any, covers: Iterable[str]) -> str | None:
-    """A cover driven by a runnable item must report a device class that is plainly a window covering (COVER_SAFE_CLASSES)."""
+    """A cover driven by a runnable item must report a device class that is plainly a window covering (COVER_SAFE_CLASSES), from an
+    integration that does not let the class be declared by hand (COVER_SELF_DECLARED_PLATFORMS; no registry entry = unsure)."""
     for entity_id in covers:
         try:
             attrs = _attributes(hass, deps, entity_id)
+            entry = deps.registry(hass).async_get(entity_id)
         except Exception:  # noqa: BLE001 - unsure: refused
             return "impact_physical_access"
         if not isinstance(attrs, dict) or attrs.get("device_class") not in COVER_SAFE_CLASSES:
+            return "impact_physical_access"
+        if entry is None or getattr(entry, "platform", None) in COVER_SELF_DECLARED_PLATFORMS:
             return "impact_physical_access"
     return None
 
