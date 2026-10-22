@@ -268,7 +268,7 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
     action = {"closed": "ticket.close", "cancelled": "ticket.cancel", "reopened": "ticket.reopen"}.get(kind, "ticket.status")
     _audit(conn, viewer, action, row, rid, **{"from": frm, "to": to, "actor": actor, **({"duplicate_of": original.row["id"]} if original else {})})
     sla.refresh(conn, row["id"])
-    notify_bridge.ticket_status(conn, row["id"], frm, to)
+    notify_bridge.ticket_status(conn, row["id"], frm, to, actor=viewer.uid)
     if to == "done" and asg and row.get("asg_kind") == "contact":  # S9: the manager reported "done" on the vendor's behalf
         from . import costs
 
@@ -459,6 +459,7 @@ def add_note(conn, viewer: Viewer, seen: Seen, body: str | None, external: bool,
     if seen.assignee and asg:
         store.update_assignment(conn, asg, {"last_update_at": now})
     sla.refresh(conn, row["id"])
+    notify_bridge.ticket_comment(conn, row["id"], viewer.uid, eid, vis)  # PUSHSVC-295: the other people of the request hear of it (never the text)
     _audit(conn, viewer, "ticket.note", row, rid, external=vis)
     return eid
 

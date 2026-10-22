@@ -1292,7 +1292,7 @@ def _apply_status(conn, d: inbound_mod.InboundDecision, iid: str, now: dt.dateti
     store.insert_event(conn, t["id"], "status", actor_kind="inbound", actor_name=_assignee_name(conn, d.assignment_id), assignment_id=d.assignment_id,
                        from_status=frm, to_status=to, data={"inbound_id": iid, "outbox_id": d.outbox_id, **UNVERIFIED_MARK}, via="whatsapp", at=at)
     sla.refresh(conn, t["id"])  # slice 2: the dues follow every change (an acknowledgement stops the first-response clock)
-    notify_bridge.ticket_status(conn, t["id"], frm, to)
+    notify_bridge.ticket_status(conn, t["id"], frm, to, actor="assignee")
 
 
 def _apply_note(conn, d: inbound_mod.InboundDecision, iid: str, now: dt.datetime, *, late: bool, text: str | None = None) -> None:

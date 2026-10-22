@@ -29,7 +29,12 @@ PREFIXES = (PREFIX, RFQ_PREFIX)
 # key, label (settings matrix, no module noun), severity (the default; a ticket's priority decides at emit time), who, push, resolves, subject
 SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     {"key": "ticket.new_unassigned", "label": "חדש וממתין למטפל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
-    {"key": "ticket.assigned", "label": "הועבר לטיפולך", "severity": "alert", "who": RULE_ASSIGNEE, "resolves": True},
+    {"key": "ticket.assigned", "label": "הועבר לטיפולך", "severity": "alert", "who": RULE_ASSIGNEE, "resolves": True, "app": True},  # PUSHSVC-295: also to the phone app
+    # PUSHSVC-295: the people of a request hear about it in the phone app - the requester (`created_by`, an Arx user) and the internal
+    # assignee, never the person who acted. One row per person and event (recipient = origin.user_id, like the assignee sources);
+    # the number, the place and the status label only, never a note's text. `info`: quiet hours and the device's category mute apply.
+    {"key": "ticket.status_update", "label": "סטטוס עודכן", "severity": "info", "who": RULE_ASSIGNEE, "resolves": False, "app": True},
+    {"key": "ticket.comment_added", "label": "נוספה הערה", "severity": "info", "who": RULE_ASSIGNEE, "resolves": False, "app": True},
     {"key": "ticket.reminder", "label": "תזכורת למטפל", "severity": "alert", "who": RULE_ASSIGNEE, "resolves": True},
     {"key": "ticket.stuck", "label": "חריגה מזמני הטיפול", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
     {"key": "ticket.returned", "label": "הוחזר למנהל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
@@ -111,7 +116,7 @@ def source_kwargs() -> list[dict[str, Any]]:
     """The keyword arguments of notify_policy.Source for every ticket source."""
     return [
         {"key": d["key"], "label": d["label"], "category": CATEGORY, "severity": d["severity"], "title": "{title}", "body": "{body}",
-         "who": d["who"], "push": d.get("push", True), "subject": d.get("subject", SUBJECT), "resolves": d["resolves"], "resolve_text": "טופל",
+         "who": d["who"], "push": d.get("push", True), "subject": d.get("subject", SUBJECT), "resolves": d["resolves"], "resolve_text": "טופל", "app": d.get("app", False),
          "enabled": d.get("enabled", True)}
         for d in SOURCE_DEFS
     ]

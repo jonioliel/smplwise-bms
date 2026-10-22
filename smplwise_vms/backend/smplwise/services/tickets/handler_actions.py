@@ -165,7 +165,7 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
     _progress(conn, f, now, client_key)
     sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
-    notify_bridge.ticket_status(conn, f.ticket["id"], frm, to)
+    notify_bridge.ticket_status(conn, f.ticket["id"], frm, to, actor="assignee")
     if to == "done":  # CR-ARX-WISKEY-SHARED-IDENTITY R5 (owner answer 6): the handler marked the job done - door access ends at once
         from .. import access_grants
 
@@ -200,6 +200,8 @@ def add_note(conn, link: LinkRecord, *, text: str, crid: str, now: dt.datetime, 
     audit_link(conn, f.link, "ticket.note", **({"ask": True} if ask else {}))
     if ask:
         notify_bridge.ticket_question(conn, f.ticket["id"])
+    else:
+        notify_bridge.ticket_comment(conn, f.ticket["id"], "assignee", eid, True)  # PUSHSVC-295: the requester hears of the handler's note
     return _finish(conn, f.link, crid, 200, {"ok": True, "id": eid})
 
 
