@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { MP_KEYS, MP_TABLES, mp } from '../src/i18n/messaging-pacing';
-import { changedWaits, intValue, slowed, span, tone, waitValue } from '../src/messaging/pacing-model';
+import { changedWaits, intValue, slowed, span, tone, waitValue, wiskeyReasonKey } from '../src/messaging/pacing-model';
 import { messagingPacingApi, resetDemoMessagingPacing, type PacingAccount, type PacingView } from '../src/api/messaging-pacing';
 
 // CR-WA-PACING-295: the pure logic, the words and the demo backend of the shared send-budget card. Runs in Node (no page):

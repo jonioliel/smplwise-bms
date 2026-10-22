@@ -13,6 +13,7 @@
  * below (ReviewItem, ReviewList, FrigateCapabilities, FrigateHealth) so a change of the server contract is a change HERE only.
  * Everything else is pure helpers; the screens only render. Times are UTC ISO strings, shown in the site's zone by the screens. */
 import { ApiError, apiUrl, get, post, resourceUrl } from './client';
+import { isPendingRestart } from './closed-errors';
 import { isApi } from './session';
 import type { Camera } from './types';
 import { he } from '../i18n/he';
@@ -519,6 +520,7 @@ export async function listReviews(f: ReviewFilters, cursor: string | null = null
   let stale = false;
   let partial = false;
   let failures = 0;
+  let pendingRestart: ApiError | null = null;
   await Promise.all(recs.map(async (r) => {
     const rid = encodeURIComponent(r.id);
     try {
@@ -544,10 +546,13 @@ export async function listReviews(f: ReviewFilters, cursor: string | null = null
       }
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) throw e;
+      if (isPendingRestart(e)) pendingRestart = e as ApiError;
       failures += 1;
       stale = true;
     }
   }));
+  // UI2122: every recorder failed and one of them only waits for the add-on to restart: say that, not a generic outage
+  if (failures === recs.length && pendingRestart) throw pendingRestart;
   if (failures === recs.length) throw new ApiError(502, { code: 'source_unavailable', user_message: he.frigate.review.error, retryable: true, correlation_id: '', details: {} });
   items.sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
   const facets = [...new Set(items.flatMap((i) => i.objects))].sort();

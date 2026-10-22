@@ -46,3 +46,26 @@ export function tone(a: PacingAccount): 'bad' | 'warn' | 'ok' {
   if (a.counters_24h.expired > 0) return 'bad';
   return slowed(a) ? 'warn' : 'ok';
 }
+
+/** UI2122: the plain-language key (`mp`) for WHY an account's WisKey counters are unknown / not covered; null when they are known.
+ *  Closed reasons only (docs/changes/CR-WA-PACING-295-PORT-CONTRACT.md section 11); anything else reads as the generic line - a code never reaches the screen. */
+export type WiskeyReasonKey =
+  | 'reason_unread' | 'reason_stale' | 'reason_unsupported' | 'reason_error' | 'reason_invalid' | 'reason_truncated'
+  | 'reason_absent' | 'reason_unverified' | 'reason_incomplete' | 'reason_unreserved' | 'reason_other';
+
+const REASON_KEYS: Record<string, WiskeyReasonKey> = {
+  not_read: 'reason_unread', discovery_unknown: 'reason_unread',
+  stale: 'reason_stale',
+  api_incompatible: 'reason_unsupported', pacing_route_not_listed: 'reason_unsupported',
+  schema_version_missing: 'reason_unsupported', schema_version_misplaced: 'reason_unsupported', schema_version_unsupported: 'reason_unsupported',
+  route_error: 'reason_error',
+  envelope_invalid: 'reason_invalid', coverage_inconsistent: 'reason_invalid',
+  truncated: 'reason_truncated', sender_absent: 'reason_absent', unverified: 'reason_unverified',
+  counters_incomplete: 'reason_incomplete', unreserved_unknown: 'reason_unreserved',
+};
+
+export function wiskeyReasonKey(a: PacingAccount): WiskeyReasonKey | null {
+  const w = a.wiskey;
+  if (!w.unknown && w.coverage !== 'not_covered') return null;
+  return (w.reason && REASON_KEYS[w.reason]) || 'reason_other';
+}
