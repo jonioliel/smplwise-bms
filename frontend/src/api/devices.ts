@@ -4,6 +4,7 @@
  * change arrives through the existing /ha/ws push (api/ha.ts subscribeHa) and the screens refetch.
  */
 import { get, post, put } from './client';
+import { entityLabel } from '../i18n/entity-label';
 import type { HaSyncState } from './ha';
 import type { HomeView } from './home-config';
 
@@ -102,6 +103,9 @@ export const CARD_IDS: CardId[] = ['lighting', 'switches', 'climate', 'heating',
 export interface DeviceRow {
   entity_id: string;
   name: string;
+  /** Fallbacks for `name` when the server has none (or sends the entity id): see i18n/entity-label.ts. Never shown as an id. */
+  original_name?: string | null;
+  device_name?: string | null;
   domain: string;
   device_class: string | null;
   state: string | null;
@@ -269,7 +273,12 @@ export interface DevicesRefreshResult {
   sync: HaSyncState;
 }
 export const refreshDevicesFromHa = () => post<DevicesRefreshResult>('devices/refresh');
-export const getDevicesArea = (areaId: string) => get<DeviceAreaDetail>(`devices/areas/${encodeURIComponent(areaId)}`);
+/** Owner rule 2026-10-20: an operator never sees a raw entity id - a row whose name is empty or is the id gets the fallback chain's label. */
+export function withFriendlyNames(d: DeviceAreaDetail): DeviceAreaDetail {
+  for (const card of Object.values(d.cards ?? {})) for (const r of card?.entities ?? []) r.name = entityLabel(r);
+  return d;
+}
+export const getDevicesArea = (areaId: string) => get<DeviceAreaDetail>(`devices/areas/${encodeURIComponent(areaId)}`).then(withFriendlyNames);
 
 /** A row of a device that is not one of the area's own (owner 2026-09-30, area redesign): the area's card row plus the card
  * it belongs to and its own area. GET /devices/entities?ids= (same visibility as the tree). */

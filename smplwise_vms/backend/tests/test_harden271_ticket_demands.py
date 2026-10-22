@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from test_tickets_rfq_instalments import _awarded, _order, demand, s4  # noqa: F401 - s4 is the fixture
 from test_tickets_rfq_terms import _day
-from tickets_s4_world import API
+from tickets_s4_world import API, pin_day_away_from_midnight
 
 
 def costs(s4, tid: str, user: str):
@@ -27,7 +27,8 @@ def test_without_costs_view_no_amount_and_without_an_rfq_the_list_is_empty(s4): 
     assert costs(s4, plain["id"], "kim").json()["instalment_demands"] == []
 
 
-def test_a_costs_viewer_sees_each_demand_with_status_amount_and_due_date(s4):  # noqa: F811
+def test_a_costs_viewer_sees_each_demand_with_status_amount_and_due_date(s4, monkeypatch):  # noqa: F811
+    pin_day_away_from_midnight(monkeypatch)  # SMALLA-295: the due day and the server's today read one clock, never across midnight
     d, _v1, _tok, _c, a = _awarded(s4)
     first = demand(s4, d["id"], a["id"], 0).json()["demand"]
     assert demand(s4, d["id"], a["id"], 0, "paid").status_code == 200

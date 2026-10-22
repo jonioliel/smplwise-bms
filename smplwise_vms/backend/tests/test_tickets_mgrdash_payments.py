@@ -21,7 +21,7 @@ from smplwise.services.tickets import access, dashboard, dashboard_alerts, dashb
 from smplwise.services.tickets.access import Viewer
 from test_tickets_rfq_instalments import _awarded, demand
 from test_tickets_rfq_terms import _day, s4 as _s4_terms  # noqa: F401 - the fixture of the RFQ terms tests
-from tickets_s4_world import API
+from tickets_s4_world import API, pin_day_away_from_midnight
 
 
 @pytest.fixture()
@@ -89,7 +89,8 @@ def test_with_the_switch_off_there_are_no_instalments(s4):
 
 # ---------------------------------------------------------------- the lists and the leaks
 
-def test_upcoming_and_overdue_instalments_only_where_the_caller_may_pay(s4):
+def test_upcoming_and_overdue_instalments_only_where_the_caller_may_pay(s4, monkeypatch):
+    pin_day_away_from_midnight(monkeypatch)  # SMALLA-295: the due days and the server's today read one clock, never across midnight
     d, _v1, _tok, _c, a = _awarded(s4)  # advance day 6, progress day 8, final 30 days after completion (no day yet)
     out = ok(s4, "kim")
     assert out["schedule_on"] is True and out["overdue"]["count"] == 0

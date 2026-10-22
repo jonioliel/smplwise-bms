@@ -166,8 +166,8 @@
         "ffmpeg",
         "shopping_list"
       ],
-      "note": "Monthly releases (first Wednesday-ish) plus weekly patches. We use the WebSocket API (auth, get_states, registries, subscribe_events, auth/current_user, refresh tokens), the REST API (/api/states, /api/services, history), long-lived access tokens, the bridge custom integration (config flow, services, hassio discovery) and entity/area/floor/device registries. The checker parses the 'Backward-incompatible changes' headings of the release notes and the beta notes and matches them against every item's ha_domains.",
-      "last_checked": "2026-10-11",
+      "note": "Monthly releases (first Wednesday-ish) plus weekly patches. We use the WebSocket API (auth, get_states, registries, subscribe_events, auth/current_user, refresh tokens), the REST API (/api/states, /api/services, history), long-lived access tokens, the bridge custom integration (config flow, services, hassio discovery) and entity/area/floor/device registries. The checker parses the 'Backward-incompatible changes' headings of the release notes and the beta notes and matches them against every item's ha_domains. Review 2026-10-21: 2026.10.2 is out (2026.10.0 on 2026-10-07). Lab still recorded at 2026.9.4. 2026.10 breaking changes touching us: Authentication (legacy auth provider mode removed, usernames always normalized to lowercase/trimmed) - verify our HA-username matching is case-insensitive; MQTT publish/dump now admin-only (only matters for the planned Paradox PAI path). Core 2026.11 dev note: auth providers opt in to MFA via MfaLoginFlow; climate/water_heater gain temperature_unit with native_ prefixed properties.",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "2026.10.1 (2026-10-10)",
@@ -239,8 +239,8 @@
         "websocket proxy",
         "denied command"
       ],
-      "note": "Add-on runtime: Ingress (ingress, ingress_port, panel_*), hassio_api + homeassistant_api roles, discovery of the bridge, /addons/self/options and /addons/self/restart (settings screen), CR-021 S3 (hassio_role: manager): POST /store/addons/{slug}/update, GET /jobs/info, GET /core/info, POST /core/check, POST /core/restart (the allow-list in services/self_update.py; watch for role-regex changes, the self bypass and /v2 aliases), backup: hot, watchdog, the map: homeassistant_config copy of the bridge. build.yaml is kept only for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile). HA is moving the name add-ons -> apps (the cloudflared repo is homeassistant-apps/app-cloudflared): watch for config key or API renames.",
-      "last_checked": "2026-10-11",
+      "note": "Add-on runtime: Ingress (ingress, ingress_port, panel_*), hassio_api + homeassistant_api roles, discovery of the bridge, /addons/self/options and /addons/self/restart (settings screen), CR-021 S3 (hassio_role: manager): POST /store/addons/{slug}/update, GET /jobs/info, GET /core/info, POST /core/check, POST /core/restart (the allow-list in services/self_update.py; watch for role-regex changes, the self bypass and /v2 aliases), backup: hot, watchdog, the map: homeassistant_config copy of the bridge. build.yaml is kept only for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile). HA is moving the name add-ons -> apps (the cloudflared repo is homeassistant-apps/app-cloudflared): watch for config key or API renames. Review 2026-10-21: 2026.10.3 is out. 2026.10.2 (#7308) enforces panel_admin for ingress sessions (non-admin gets 403 on admin-only panels). Our add-on declares panel_admin false, so non-admin ingress should be unaffected, but this must be confirmed with a real non-admin ingress session on a 2026.10 Supervisor. 2026.10.1 rejects WebSocket batches with denied commands in the HA proxy and uses a sliding expiry for ingress sessions.",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "2026.10.1 (2026-10-08)",
@@ -298,7 +298,7 @@
         "data disk"
       ],
       "note": "The host under the lab and the customer systems. A new Docker/kernel/network stack can change container networking (go2rtc runs on the host network; WebRTC media takes a direct UDP path), mDNS resolution, time sync (NVR clock drift evidence) and the data disk the add-on database lives on. Seen in the lab: HAOS 18.2.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "18.3",
@@ -322,7 +322,7 @@
       "feeds": [
         {
           "type": "atom",
-          "url": "https://developers.home-assistant.io/blog/atom.xml",
+          "url": "https://developers.home-assistant.io/blog/rss.xml",
           "title_filter": "add-?on|\\bapps?\\b|supervisor|ingress|hassio|discovery"
         }
       ],
@@ -354,7 +354,7 @@
         "rename"
       ],
       "note": "The add-on manifest keys we rely on (ingress, ingress_port, panel_icon/title/admin, hassio_api, hassio_role (manager since CR-021 S3), homeassistant_api, discovery, map, backup, watchdog, options/schema, arch, init: false) and the repository layout (repository.yaml). Developer-blog posts about add-ons, apps, Supervisor, Ingress or hassio are listed here even when they carry no generic breaking keyword.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -373,7 +373,7 @@
       "feeds": [
         {
           "type": "ha_dev_blog",
-          "url": "https://developers.home-assistant.io/blog/atom.xml",
+          "url": "https://developers.home-assistant.io/blog/rss.xml",
           "use_generic": false
         }
       ],
@@ -438,7 +438,7 @@
         "native_"
       ],
       "note": "Integration-developer posts: anything about custom integrations (our bridge), WebSocket/REST/auth, camera/media_player/alarm entity platforms, frontend card API, services and translations. Generic words are off here (the blog is about integration internals); only the keywords above flag a post.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "impact_he": "2026-10-08: \u05de\u05d0\u05e4\u05d9\u05d9\u05df temperature_unit \u05dc-climate \u05d5\u05dc-water_heater \u05de-2026.11, \u05d4\u05e1\u05e8\u05ea \u05d4\u05e9\u05de\u05d5\u05ea \u05d4\u05d9\u05e9\u05e0\u05d9\u05dd \u05d1-2027.11. 2026-10-06: RestoreStateData.last_states \u05de\u05d5\u05e1\u05e8. \u05d0\u05d9\u05df \u05e9\u05d9\u05de\u05d5\u05e9 \u05d0\u05e6\u05dc\u05e0\u05d5; \u05d4\u05d2\u05e9\u05e8 \u05e8\u05e7 \u05e7\u05d5\u05e8\u05d0 state."
     },
@@ -487,8 +487,8 @@
         "custom-element"
       ],
       "note": "The smplwise-card Lovelace card (bridge www), the Ingress panel in the HA UI, the WisKey embed host and the Arx remote app which reads HA tokens (hass-tokens.ts). Frontend releases are numerous; only keyword hits are flagged.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "20260930.3",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "20260930.4",
       "latest_seen": {
         "version": "20260930.3",
         "read_on": "2026-10-11"
@@ -533,7 +533,7 @@
         "3.14"
       ],
       "note": "Our image builds FROM this base: Python 3.12 on Alpine 3.22, plus apk packages poppler-utils, jpeg, zlib, libpng, ffmpeg. A new Python or Alpine series (wheels for numpy, Pillow, cryptography, ezdxf are installed with pip on musl) is the risk.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "2026.10.0",
@@ -580,7 +580,7 @@
         "validation"
       ],
       "note": "Only the bridge custom integration is HACS-shaped (hacs.json); HACS is NOT an add-on installer (AGENTS.md). The add-on itself installs through the Supervisor repository (repository.yaml).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2.0.5"
     },
     {
@@ -623,7 +623,7 @@
         "fullscreen"
       ],
       "note": "Experimental only: the WisKey phone embed relay (access.phone_embed, default off) and the push research (CR-012). The product ships its own WebView app (mobile/android-shell). Releases are very frequent, so only keyword hits are flagged.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "2026.10.1",
@@ -706,7 +706,7 @@
         "breaking"
       ],
       "note": "External go2rtc adapter: PUT/DELETE /api/streams (smplwise_ namespace only; create/delete can persist config), /api/ws for MSE and WebRTC relay, /api/frame.jpeg for stills. Lab measured: WebRTC decodes the NVR sub profile only, main needs MSE; GOP about 8 s. Never touch foreign streams (the same go2rtc serves the intercom project).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "v1.9.14",
       "latest_seen": {
         "version": "v1.9.14 (2026-01-19)",
@@ -762,7 +762,7 @@
         "go2rtc"
       ],
       "note": "How go2rtc is installed on the lab and customer systems. The add-on version tracks the go2rtc release; the commit feed has no release tags, so it is informational (flag_dated_hits off).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "1.9.14"
     },
     {
@@ -1001,7 +1001,7 @@
         "scheduler"
       ],
       "note": "Arx schedules (CR-014) are a thin layer over this component through the bridge (schedule_service.py): add/edit/remove services, tags, sun offsets, schedule entities. Not a core integration: a breaking release here silently breaks the Schedules screen. Phase 2b (alarm-code relay) is Arx-side.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -1062,7 +1062,7 @@
         "music_assistant"
       ],
       "note": "Used through Home Assistant media_player entities and the music_assistant services (get_library, get_queue, search, play_announcement, play_media, transfer_queue). 0.1.152 plans direct Music Assistant access (phase 2b: full queue/library/search); today it is HA-only (CR-016 decision). The HA integration is a core integration, so HA's backward-incompatible list also matters.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "2.10.6 stable / 2.11.0b4 beta",
@@ -1440,7 +1440,7 @@
         "samsungtv_smart"
       ],
       "note": "The TV integration actually in use on the inspected system (6 sources, play_media, remote.* entities). We read its entities and call its services through HA; a rename of source/key handling would break the TV remote screens.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "v0.14.5"
     },
     {
@@ -1530,8 +1530,8 @@
         "visonic"
       ],
       "note": "Adapter code and fixtures exist (CR-010: select.visonic_zNN_arm_mode); no live system known.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": null
+      "last_checked": "2026-10-21",
+      "last_seen_version": "Pre-Release-v0.13.0.44"
     },
     {
       "id": "paradox-pai",
@@ -1571,7 +1571,7 @@
         "mqtt"
       ],
       "note": "Adapter code and fixtures exist (CR-010: binary_sensor.<zone>_open, switch bypass); object ids depend on the PAI config; no live system known.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "3.7.0"
     },
     {
@@ -1611,7 +1611,7 @@
         "aegis_ajax"
       ],
       "note": "Adapter shape written from the README (platform id guessed as aegis_ajax); no live system known.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -1699,8 +1699,8 @@
         "renamed"
       ],
       "note": "Customer HA is exposed through this add-on; Arx adds a path route (/arx) in a second tunnel and wants the token written through the Supervisor API (provisioning script parked). The repository moved to homeassistant-apps (app-*): the old repo's config.yaml still carries the version number we parse as a second signal.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "v7.0.17"
+      "last_checked": "2026-10-21",
+      "last_seen_version": "v7.0.18"
     },
     {
       "id": "cloudflared-binary",
@@ -1742,8 +1742,8 @@
         "ingress rule"
       ],
       "note": "Not installed by Arx; the add-on bundles it. Relevant: WebSocket pass-through for the video relay and path routing for /arx. Cloudflare also returns 403 to default Python User-Agents on the owners' hostnames (documented in memory); the lab clients send a browser-like UA.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "2026.10.0",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "2026.10.3",
       "latest_seen": {
         "version": "2026.10.0",
         "read_on": "2026-10-11"
@@ -1799,7 +1799,7 @@
         "limit"
       ],
       "note": "Remote access (CR-008) is Cloudflare in front of each customer HA. Blog posts about tunnels, Access, WebSocket limits, bot protection or free-plan changes are filtered by title; the generic changelog is manual (very large feed).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "impact_he": "\u05d0\u05d9\u05df \u05e9\u05d9\u05e0\u05d5\u05d9 \u05e9\u05d5\u05d1\u05e8. \u05e4\u05e8\u05e1\u05d5\u05de\u05d9 2026-10-02 (Quick Tunnels \u05de\u05d5\u05d2\u05e0\u05d9\u05dd, OHTTP Gateway) \u05dc\u05d0 \u05e8\u05dc\u05d5\u05d5\u05e0\u05d8\u05d9\u05d9\u05dd \u05dc\u05d9\u05d9\u05e6\u05d5\u05e8."
     },
@@ -1942,7 +1942,7 @@
         "migration"
       ],
       "note": "Option C of CR-012: a distributor app on the phone plus a push server (ntfy recommended). Planned only if the owner picks it.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "3.0.10"
     },
     {
@@ -1993,8 +1993,8 @@
         "cadence_days": 60
       },
       "note": "Called with httpx directly (no SDK): /v1/images/edits multipart, model gpt-image-1.5 (installation may choose another). The SDK feed is a proxy for API changes; model deprecations are on the web page (manual).",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "v3.29.0"
+      "last_checked": "2026-10-21",
+      "last_seen_version": "v3.36.0"
     },
     {
       "id": "ntfy",
@@ -2035,7 +2035,7 @@
         "self-hosted"
       ],
       "note": "Only if the owner chooses UnifiedPush; the site would run its own ntfy server.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "v2.28.0",
       "latest_seen": {
         "version": "v2.29.0",
@@ -2078,7 +2078,7 @@
         "database"
       ],
       "note": "Planned second NVR vendor (owner: Hikvision, Provision, Frigate; shared multi-NVR screens, CR-020 not yet written). Frigate bundles go2rtc, so its releases also move go2rtc. No integration code exists yet.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "v0.18.0",
@@ -2158,7 +2158,7 @@
         "removed"
       ],
       "note": "Owner-approved design reference (MIT) for the bubble skin; also the pop-up layer of the 3D dashboard that inspired sw-plan-3d. We copy no code unless the license is kept; watch its releases for style direction and any license change.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -2195,7 +2195,7 @@
         "removed"
       ],
       "note": "Owner-saved design reference (MIT): Home Assistant 3D floor-plan card with a neon look (Vue + Three.js, HA integration). Study interaction and visual ideas only (glowing lights, animated blinds/doors, house-floor-room navigation, zero frames when idle, restore points). Optional paid furniture packs and Pro add-ons are not in the repo; copy no code or assets without keeping the MIT notice.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -2232,7 +2232,7 @@
         "breaking"
       ],
       "note": "Reference for device control (CR-007) and the glass style (design unification). Never copy code (GPL-3.0); only ideas. Watch for a license change.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -2269,7 +2269,7 @@
         "timeline"
       ],
       "note": "Named in the master spec as a UX reference for the camera card and timeline.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -2307,7 +2307,7 @@
         "android_tv"
       ],
       "note": "Feature checklist for the TV remote screens (CR-015 section 16, deliberately different).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -2361,7 +2361,7 @@
         "service worker"
       ],
       "note": "Lab facts: WebRTC decodes only the NVR sub profile, main needs MSE, MSE start 8-12 s (GOP), SourceBuffer quota small in embedded browsers. The player (auto = WebRTC then MSE), the connection test card, the PWA/Web Push and the Android WebView shell all depend on browser media and privacy changes (autoplay, mDNS ICE candidates, local-network access prompts, third-party cookies in the Ingress iframe). Only keyword hits in the Stable Channel posts are flagged.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2026-09-30",
       "latest_seen": {
         "version": "Chrome stable 2026-10-06",
@@ -2406,7 +2406,7 @@
         "Kotlin"
       ],
       "note": "Gradle wrapper of the shell app. A new major usually needs a matching AGP; update the three together.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "9.8.1",
@@ -2451,7 +2451,7 @@
         "breaking"
       ],
       "note": "Tied to Gradle and compileSdk 36.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "9.4.1",
@@ -2493,8 +2493,8 @@
         "breaking"
       ],
       "note": "WebView features of the shell (bridge script, message listeners).",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "1.17.1",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "1.18.0",
       "last_seen_prerelease": "1.18.0-rc01",
       "latest_seen": {
         "version": "1.17.1 (rc 1.18.0-rc01)",
@@ -2537,7 +2537,7 @@
         "breaking"
       ],
       "note": "App lock of the Android shell (CR-011).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "1.1.0",
       "last_seen_prerelease": "1.4.0-alpha07"
     },
@@ -2573,7 +2573,7 @@
         "breaking"
       ],
       "note": "UI widgets of the shell's native screens.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "1.14.0"
     },
     {
@@ -2656,13 +2656,87 @@
         "3.14"
       ],
       "note": "Only 3.12.x patch releases are fed here (security fixes come with the base image). Python 3.12 reaches end of life in October 2028; the feed does not show that, the python devguide link does.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "v3.12.15",
       "latest_seen": {
         "version": "3.12.15",
         "read_on": "2026-10-11"
       },
       "impact_he": "3.12.15 \u05d4\u05d5\u05d0 \u05d4\u05e2\u05d3\u05db\u05e0\u05d9; \u05e1\u05d5\u05e3 \u05ea\u05de\u05d9\u05db\u05d4 2028-10-31. \u05d0\u05d9\u05df \u05e4\u05e2\u05d5\u05dc\u05d4."
+    },
+    {
+      "id": "node-lts",
+      "name": "Node.js 24 LTS (Krypton) - frontend build and test toolchain",
+      "kind": "tool",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "releases": "https://nodejs.org/en/about/previous-releases",
+        "schedule": "https://github.com/nodejs/Release",
+        "repo": "https://github.com/nodejs/node"
+      },
+      "feeds": [
+        {
+          "type": "github_tags",
+          "repo": "nodejs/node",
+          "tag_filter": "^v24\\.\\d+\\.\\d+$"
+        }
+      ],
+      "current": {
+        "version": "24.21.0",
+        "source": "workstation toolchain per CLAUDE.md (fnm); the runner and CI pins are not recorded here",
+        "verify": true,
+        "constraint": "24.x"
+      },
+      "dependents": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "watch_keywords": [
+        "security release",
+        "end-of-life",
+        "npm"
+      ],
+      "note": "Only the 24.x LTS line is fed. No lock file or engines change is made from this entry; it exists so a Node security release is noticed.",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "v24.22.1"
+    },
+    {
+      "id": "sqlite",
+      "name": "SQLite (engine behind the Arx data store)",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P2",
+      "owner": "Arx platform lead",
+      "urls": {
+        "releases": "https://www.sqlite.org/changes.html",
+        "download": "https://www.sqlite.org/download.html"
+      },
+      "feeds": [
+        {
+          "type": "text_regex",
+          "url": "https://www.sqlite.org/changes.html",
+          "pattern": "from=version-3\\.\\d+\\.\\d+&to=version-(3\\.\\d+\\.\\d+)&"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "the library compiled into the python:3.12 / Alpine base image (Alpine package); not pinned by us",
+        "verify": true
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/db.py"
+      ],
+      "watch_keywords": [
+        "security",
+        "ALTER TABLE",
+        "authorizer",
+        "behavior change"
+      ],
+      "note": "Version comes from the Alpine/Python base image, so a new SQLite reaches us through an image rebuild, not through requirements.txt.",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "3.54.1"
     },
     {
       "id": "alpine-linux",
@@ -2758,7 +2832,7 @@
         "ffmpeg 10"
       ],
       "note": "Export: Hikvision PS file (IMKH header + MPEG-PS, H.264 + G.711u) remuxed with -f mpeg -i ... -c:v copy -c:a aac -ar 8000, concat demuxer and -ss/-to -c copy. Thumbnails/frames use it too. A demuxer or option change would break export and stills.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "n9.0.2"
     },
     {
@@ -2800,7 +2874,7 @@
         "CVE"
       ],
       "note": "PDF pages are rasterized in a separate time-bounded process. Informational feed (tags have no release notes).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2026-10-03",
       "latest_seen": {
         "version": "26.10.0",
@@ -2850,8 +2924,8 @@
         "openapi"
       ],
       "note": "The web framework of the backend (routers, dependencies, OpenAPI).",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "0.143.0",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "0.158.0",
       "latest_seen": {
         "version": "0.143.0",
         "read_on": "2026-10-11"
@@ -2897,7 +2971,7 @@
         "httptools"
       ],
       "note": "ASGI server (standard extras: websockets, httptools); workers=1 is a design rule.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "0.54.0",
       "latest_seen": {
         "version": "0.54.0",
@@ -2943,7 +3017,7 @@
         "import name"
       ],
       "note": "Form/file uploads (plans, cases, skins); the import name changed once already.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "0.0.32"
     },
     {
@@ -2988,7 +3062,7 @@
         "CVE"
       ],
       "note": "Plan rendering/stylization and image safety limits.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "12.3.0"
     },
     {
@@ -3034,8 +3108,8 @@
         "stream",
         "1.0"
       ],
-      "note": "All outbound HTTP (NVR, go2rtc, HA REST, push, OpenAI). Pinned exactly at 0.27.2; a 1.0 line is expected to change APIs.",
-      "last_checked": "2026-10-11",
+      "note": "All outbound HTTP (NVR, go2rtc, HA REST, push, OpenAI). Pinned exactly at 0.27.2; a 1.0 line is expected to change APIs. Review 2026-10-21: 0.28.1 is still the latest httpx. Starlette TestClient now deprecates the httpx path in favour of httpx2; our production HTTP calls are unaffected, only the test client.",
+      "last_checked": "2026-10-21",
       "last_seen_version": "0.28.1",
       "latest_seen": {
         "version": "0.28.1",
@@ -3083,8 +3157,8 @@
         "extra"
       ],
       "note": "Request/response models everywhere; extra=forbid closed bodies are a security rule.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "2.14.0",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "2.14.1",
       "latest_seen": {
         "version": "2.14.0",
         "read_on": "2026-10-11"
@@ -3132,8 +3206,8 @@
         "proxy"
       ],
       "note": "HA WebSocket client and the go2rtc relay. Constraint >=13,<16: a 16 release needs an explicit review.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "17.2",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "17.3",
       "latest_seen": {
         "version": "17.2",
         "read_on": "2026-10-11"
@@ -3176,7 +3250,7 @@
         "zone"
       ],
       "note": "IANA zone data for local-time conversion (UTC internally).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "2026.5",
@@ -3223,7 +3297,7 @@
         "wheel"
       ],
       "note": "Plan detection (no scipy/opencv on Alpine). Constraint >=2.0,<3.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2.5.4",
       "latest_seen": {
         "version": "2.5.4",
@@ -3275,7 +3349,7 @@
         "CVE"
       ],
       "note": "Web Push (RFC 8291), signed URLs and alarm-code sealing. Constraint >=45,<51.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "50.0.2"
     },
     {
@@ -3318,8 +3392,8 @@
         "layout"
       ],
       "note": "DXF plan import (Plan Studio). Constraint >=1.3,<2.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "1.4.4"
+      "last_checked": "2026-10-21",
+      "last_seen_version": "1.4.5"
     },
     {
       "id": "npm-lit",
@@ -3361,7 +3435,7 @@
         "ssr"
       ],
       "note": "Every UI component (about 155 files) is a Lit element.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "3.3.3"
     },
     {
@@ -3403,7 +3477,7 @@
         "r1"
       ],
       "note": "sw-plan-3d (T087); three releases monthly with breaking changes in migration notes.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "0.186.1"
     },
     {
@@ -3444,7 +3518,7 @@
         "migration"
       ],
       "note": "Build tool. Rollup is replaced by the wasm build via overrides (musl/ARM friendliness): a Vite 7+/rolldown move needs a recheck.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "8.3.4",
@@ -3490,7 +3564,7 @@
         "strict"
       ],
       "note": "Type check in the build (tsc --noEmit).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null,
       "latest_seen": {
         "version": "7.0.2",
@@ -3538,7 +3612,7 @@
         "node"
       ],
       "note": "Screenshot and evidence suites; live specs run against real Chrome (channel chrome).",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "1.63.0",
       "latest_seen": {
         "version": "1.64.0",
@@ -3577,7 +3651,7 @@
         "removed"
       ],
       "note": "Typings for Node 24 LTS tooling.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "26.6.5",
       "latest_seen": {
         "version": "26.6.5",
@@ -3618,7 +3692,7 @@
         "schema"
       ],
       "note": "Validates the generated glTF in the Plan Studio tests.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2.0.0-dev.3.10"
     },
     {
@@ -3651,8 +3725,8 @@
         "breaking"
       ],
       "note": "Overridden into rollup via package.json overrides.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "4.64.5",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "4.64.12",
       "latest_seen": {
         "version": "4.64.5",
         "read_on": "2026-10-11"
@@ -3766,7 +3840,7 @@
         "grid"
       ],
       "note": "Owner-given 2026-10-02: self-hosted widget-grid dashboard / photo frame; Polyform Noncommercial licence = NOT reusable in our commercial product, inspiration only.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     },
     {
@@ -3806,7 +3880,7 @@
         "url_fetcher"
       ],
       "note": "Bill PDF engine (CR-023). It fetches URLs while rendering, so SSRF controls (url_fetcher) and the pango/harfbuzz system libraries matter.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "70.0",
       "impact_he": "70.0 \u05e2\u05d3\u05db\u05e0\u05d9 (\u05e0\u05d1\u05d3\u05e7 2026-10-11). \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4 \u05d1-OSV. \u05d4\u05ea\u05dc\u05d5\u05ea \u05d1-pango \u05d1\u05d0\u05d9\u05de\u05d2' Alpine: \u05dc\u05d1\u05e0\u05d5\u05ea \u05de\u05d7\u05d3\u05e9 \u05e2\u05dd \u05db\u05dc \u05e2\u05d3\u05db\u05d5\u05df \u05d1\u05e1\u05d9\u05e1.",
       "latest_seen": {
@@ -3848,7 +3922,7 @@
         "CVE"
       ],
       "note": "Fallback for WeasyPrint in bill PDFs, with uharfbuzz for Hebrew shaping.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2.8.9",
       "impact_he": "2.8.9 \u05e2\u05d3\u05db\u05e0\u05d9. \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4.",
       "latest_seen": {
@@ -3889,7 +3963,7 @@
         "musllinux"
       ],
       "note": "Shaping for fpdf2 Hebrew output; needs musllinux wheels on the add-on image.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "0.56.3",
       "impact_he": "0.56.3 \u05d6\u05de\u05d9\u05df, \u05d1\u05ea\u05d5\u05da \u05d4\u05d8\u05d5\u05d5\u05d7. \u05d0\u05d9\u05df \u05e4\u05e2\u05d5\u05dc\u05d4.",
       "latest_seen": {
@@ -3934,9 +4008,9 @@
         "websocket",
         "multipart"
       ],
-      "note": "We import it directly (middleware, body limit, remote channel) although it is not pinned: FastAPI decides the version.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "1.7.0",
+      "note": "We import it directly (middleware, body limit, remote channel) although it is not pinned: FastAPI decides the version. Review 2026-10-21: 1.9.0 out (1.8.0 dropped Python 3.10, requires 3.11+; 1.7.0 requires anyio 4). TestClient: Starlette now prefers httpx2 and warns that using httpx with starlette.testclient is deprecated (httpx2 support since 1.2.0). Not yet removed; the warning in our test output is this one. Plan: evaluate httpx2 as a test-only dependency in a separate task; no change here.",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "1.9.0",
       "impact_he": "1.7.0 \u05d4\u05d5\u05d0 \u05d4\u05e2\u05d3\u05db\u05e0\u05d9 \u05d5\u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4. \u05db\u05d3\u05d0\u05d9 \u05dc\u05d4\u05e6\u05de\u05d9\u05d3 \u05d0\u05ea \u05d4\u05d2\u05e8\u05e1\u05d4 \u05d4\u05de\u05d5\u05ea\u05e7\u05e0\u05ea \u05d1\u05d3\u05e8\u05d9\u05e9\u05d5\u05ea \u05db\u05d9 \u05d9\u05e9 \u05dc\u05e0\u05d5 \u05d9\u05d9\u05d1\u05d5\u05d0 \u05d9\u05e9\u05d9\u05e8.",
       "latest_seen": {
         "version": "1.7.0",
@@ -3978,8 +4052,8 @@
         "security"
       ],
       "note": "Deploys the CR-027 relay Worker. compatibility_date 2026-09-01.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "4.149.0",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "4.151.3",
       "impact_he": "4.149.0 \u05e2\u05d3\u05db\u05e0\u05d9 \u05d5\u05d1\u05ea\u05d5\u05da \u05d4\u05d8\u05d5\u05d5\u05d7. \u05d4\u05ea\u05dc\u05d5\u05ea sharp 0.35.4 (\u05d3\u05e8\u05da miniflare) \u05e2\u05dd \u05d9\u05d9\u05e2\u05d5\u05e5 GHSA-wq5f-xc86-pv6w (librsvg), \u05ea\u05d9\u05e7\u05d5\u05df \u05d1-0.35.5; \u05db\u05dc\u05d9 \u05e4\u05d9\u05ea\u05d5\u05d7 \u05d1\u05dc\u05d1\u05d3.",
       "latest_seen": {
         "version": "4.149.0",
@@ -4019,8 +4093,8 @@
         "advisory"
       ],
       "note": "Dev dependency of the relay. Advisories exist for the locked 3.x line.",
-      "last_checked": "2026-10-11",
-      "last_seen_version": "5.0.3",
+      "last_checked": "2026-10-21",
+      "last_seen_version": "5.0.5",
       "impact_he": "\u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4 (\u05e4\u05d9\u05ea\u05d5\u05d7 \u05d1\u05dc\u05d1\u05d3): GHSA-82fw-gwwq-j7x9 (\u05e7\u05e8\u05d9\u05d0\u05ea \u05e7\u05d1\u05e6\u05d9\u05dd \u05d3\u05e8\u05da @vitest/mocker, \u05de\u05ea\u05d5\u05e7\u05df \u05d1-4.1.11) \u05d5-tinypool GHSA-5gmw-xhrv-c9v3 / GHSA-85c8-ppgw-ccpr (RCE \u05d3\u05e8\u05da prototype pollution, \u05ea\u05d9\u05e7\u05d5\u05df 2.1.x). \u05dc\u05d0 \u05e0\u05e9\u05dc\u05d7 \u05dc\u05d9\u05d9\u05e6\u05d5\u05e8. \u05d4\u05de\u05dc\u05e6\u05d4: \u05dc\u05e2\u05d1\u05d5\u05e8 \u05dc-vitest 4.1.11 \u05d5\u05de\u05e2\u05dc\u05d4 \u05d1\u05e2\u05e0\u05e3 \u05d4-relay.",
       "latest_seen": {
         "version": "5.0.3",
@@ -4059,7 +4133,7 @@
         "security"
       ],
       "note": "Draws the TOTP enrolment QR in the UI.",
-      "last_checked": "2026-10-11",
+      "last_checked": "2026-10-21",
       "last_seen_version": "2.0.4",
       "impact_he": "2.0.4 \u05e7\u05d9\u05d9\u05dd (\u05e7\u05e4\u05d9\u05e6\u05d4 \u05e8\u05d0\u05e9\u05d9\u05ea \u05de-1.4.4). \u05d0\u05d9\u05df \u05d9\u05d9\u05e2\u05d5\u05e5 \u05d0\u05d1\u05d8\u05d7\u05d4; \u05dc\u05d1\u05d3\u05d5\u05e7 \u05e4\u05dc\u05d8 \u05d1\u05e2\u05ea \u05e9\u05d3\u05e8\u05d5\u05d2.",
       "latest_seen": {
@@ -4201,7 +4275,7 @@
         "whatsapp"
       ],
       "note": "Unofficial WhatsApp client (Baileys): number bans, no delivery receipts, logout when the phone does not connect for 14 days. The tickets module calls only whatsapp.send_message and whatsapp.send_buttons with the account (config entry id) and listens to whatsapp_message_received / whatsapp_button_pressed; it reads the connectivity binary sensor (unique_id <entry_id>_connection) from the entity mirror. Every fact about it in CR-038 section 4.1 marked [WA-SRC] is unverified on the owner's installation until the live checks (private/planning/TICKETS_WHATSAPP_LIVE_CHECKS_HE.md) run. A change in the service fields, the event fields, the entity ids or the account resolution breaks the ticket message channel.",
-      "last_checked": null,
+      "last_checked": "2026-10-21",
       "last_seen_version": null
     }
   ]
