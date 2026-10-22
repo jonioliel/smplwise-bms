@@ -195,6 +195,43 @@ def as_peer_binding(candidate: Any) -> VerifiedPeerRef:
     raise PeerSeamError("not_a_peer_binding")
 
 
+class VerifiedWriteContext(_Sealed):
+    """WKB-295 (WisKey T05): the writer context a people write is admitted under - repository, the authenticated owner, the writer
+    epoch, whether WisKey established Arx as the exclusive writer, and the name of the read it came from (`source`).
+    SEALED like `VerifiedPeerRef`: it can never be built from caller values, a `FenceContext`, a dict or a setting. The only minting
+    path is `_mint_write_context`, reserved for the (NOT BUILT) context client: WisKey has not yet named the agreed source of the
+    pin / epoch / exclusive-writer fact (the r9 draft's `person_writes/context` is not delivered), see docs/changes/WKB-295-T05.md."""
+
+    __slots__ = ("repository_id", "owner_id", "writer_epoch", "exclusive_writer_established", "source")
+    _FIELDS = ("repository_id", "owner_id", "writer_epoch", "exclusive_writer_established", "source")
+    repository_id: str
+    owner_id: str
+    writer_epoch: int
+    exclusive_writer_established: bool
+    source: str
+
+
+def _mint_write_context(*, repository_id: str, owner_id: str, writer_epoch: int, exclusive_writer_established: bool,
+                        source: str) -> VerifiedWriteContext:
+    """The context client ONLY (not built; no product module calls this - test-enforced). Strict shapes, nothing defaulted."""
+    if not (is_uuid(repository_id) and is_ha_user_id(owner_id) and is_pos_int(writer_epoch)
+            and isinstance(exclusive_writer_established, bool) and is_ref(source)):
+        raise PeerSeamError("invalid_context")
+    return VerifiedWriteContext(_seal=_SEAL, repository_id=repository_id, owner_id=owner_id, writer_epoch=writer_epoch,
+                                exclusive_writer_established=exclusive_writer_established, source=source)
+
+
+def as_write_context(candidate: Any) -> VerifiedWriteContext:
+    """Only a sealed VerifiedWriteContext passes (a `FenceContext`, a dict or any caller value is refused)."""
+    if isinstance(candidate, VerifiedWriteContext):
+        try:
+            candidate._key()
+        except AttributeError:
+            raise PeerSeamError("not_a_write_context") from None
+        return candidate
+    raise PeerSeamError("not_a_write_context")
+
+
 def refuse_as_peer(source: str) -> None:
     """There is no named source from which a peer binding can be taken: the forbidden ones are refused by name, everything else as
     untrusted. (The registry client is the only minting path.)"""
