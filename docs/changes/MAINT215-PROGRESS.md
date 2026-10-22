@@ -10,12 +10,18 @@ Branch `pilot/MAINT215-295` from `origin/main` @ `90cd7d9ae`. Change record: `do
   kind `maintenance`, janitor hook (15 min throttle).
 - `tests/test_maintenance_215.py`: **33 passed** on the runner (commit de0dab676, 108 s).
 
-## Half done / NOT run
-- Regression run of existing related tests NOT RUN (notify core, access permissions, settings, tickets monitor, elevators 280,
-  migrations, janitor). The grep for them on the runner timed out.
-- API inventory (`contracts/API_INVENTORY.md`) NOT regenerated.
-- UI mockup written (`docs/design/mockups/maintenance-215/index.html`), not reviewed in a browser. CR section 8 names the old
-  path `docs/design/maintenance-215-mockup.html` - fix to the mockups path.
+## Session 2 (2026-10-23) results
+- Regression run on the runner (11 files: notify_core, access_permissions_wxperm, alarm, infra_elevators_280, tickets_monitor,
+  migrations, needs_review, janitor, me_permissions, ui_settings, tickets_s4_wiring): 203 passed, 1 failed. The failure was a stale
+  pin in `test_notify_core.py` (the policy list now hides `maintenance.*` while the module is off, like tickets); test fixed
+  (671c7871d) and `test_notify_core.py` re-run: 27 passed.
+- API inventory regenerated (1218 routes, +20 maintenance routes). The CR mockup path was already correct.
+- Migration number 0147 is PROVISIONAL, isolated in `0147_maintenance.sql`; the lead renumbers at integration.
+
+## Remaining
+- Mockup `docs/design/mockups/maintenance-215/index.html` not reviewed in a browser (light/dark, phone width).
+- Slice 2 (UI) proposal: CR section 12, after the owner approves the mockup. Full gate not run (by design).
+- Steps 1-4 below are DONE (see Session 2).
 
 ## Next 5 steps
 1. On the runner run: `tests/test_notify_core.py tests/test_access_permissions_wxperm.py tests/test_alarm.py tests/test_infra_elevators_280.py tests/test_tickets_monitor.py tests/test_migrations.py tests/test_needs_review.py` (at most 3 pytest processes; split).
