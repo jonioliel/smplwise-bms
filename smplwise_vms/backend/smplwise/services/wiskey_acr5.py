@@ -3,7 +3,8 @@ ACR5-01..04, each behind its own OFF switch. The parsers are shared with the gra
 (review 3 G-01, owner decision 2026-10-21): `access_grants.engine_for` hands `consumer_on` to `wiskey_readback.LiveReadback`, so
 `users/access_state(_v2)` (and its overview negotiation) is sent only while `wiskey.acr5_access_state` is on, `schedules/normalize_user`
 only while `wiskey.acr5_normalize_user` is on; off = UNKNOWN (a revoke stays `revoking`). ACR5-03 presence has no product reader;
-ACR5-04 `consume_plan` refuses either way. No route writes these switches today (review 3 G-03): they stay OFF.
+ACR5-04 `consume_plan` refuses either way. The ONE writer is `services/wiskey_switches.py` behind `PUT /wiskey/switches` (SMALLFIXA-295,
+review 3 G-01 / G-03: system administrator, audited, a permit key refused); every switch still defaults OFF.
 
 Source contract: the frozen v1 read contract (ARX_REPLY6_FROZEN_READ_CONTRACT_V1.txt + ARX_REPLY6_WIRE_SHAPES_V1.json, WisKey round 6,
 FROZEN_FOR_REVIEW / NOT_RELEASED). Arx accepts the interface only after reviewing WisKey's delivered code; nothing here asserts that it
