@@ -47,7 +47,7 @@ class FakeReceiver:
 
 
 @pytest.fixture()
-def db(settings):
+def db(settings, client):  # `client` starts the app, which applies the migrations
     return Database(settings.db_path)
 
 
