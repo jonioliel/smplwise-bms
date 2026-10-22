@@ -186,7 +186,8 @@ Code: `services/intercom_messaging_adapter.py` (`refresh_pacing`, `_pacing_excha
 | `envelope_invalid` | the answer is not an object, `accounts` is not a list, or `accounts_total` is not a whole number 0..1 000 000 |
 | `schema_version_missing` | the envelope has no `pacing_schema_version` |
 | `schema_version_misplaced` | the envelope has none but the entries carry it (the pre-PACING12 per-account layout) |
-| `schema_version_unsupported` | `pacing_schema_version` is not 1 (accepted spellings: `1`, `"1"`, `"v1"`, `"whatsapp_pacing_status_v1"`) |
+| `schema_version_unsupported` | `pacing_schema_version` is not exactly the JSON integer `1` (WKA-295: `true`, `1.0`, `"1"`, `"v1"`, `"whatsapp_pacing_status_v1"` and every other alias are refused) |
+| `accounts_over_limit` | more than 128 entries, or `accounts_total` above 128 (WKA-295: WisKey refuses beyond 128; Arx refuses the whole read, never a cut list) |
 | `coverage_inconsistent` | `accounts_total` is below the number of entries sent |
 | `not_read` / `stale` | no read yet / the last read is older than 5 minutes |
 
@@ -207,11 +208,11 @@ Code: `services/intercom_messaging_adapter.py` (`refresh_pacing`, `_pacing_excha
 
 ### 11.3 Coverage: no silent truncation
 
-Arx keeps at most **10** senders of one read, and the projection always says what it covered:
+WKA-295: Arx keeps **every** sender of a read of up to **128** entries (WisKey's declared bound) and refuses a larger read whole
+(`accounts_over_limit`); Arx itself never cuts the list. The projection always says what it covered:
 
 `coverage = {total, received, returned, invalid, truncated}` - `total` = `accounts_total` or the entries sent; `received` = entries sent; `returned` =
-senders Arx kept; `invalid` = unusable or duplicate entries; `truncated` = `returned < total` (WisKey sent fewer than it has, an entry was unusable, or
-Arx's cap cut the list).
+senders Arx kept; `invalid` = unusable or duplicate entries; `truncated` = `returned < total` (WisKey sent fewer than it has, or an entry was unusable).
 
 Consumers treat **missing != zero**: a mapped sender absent from the read is `unknown` - its counters add nothing to the budget, and the administrator's
 view (`GET /messaging/whatsapp/pacing`) says so per account (`wiskey.unknown: true`, `wiskey.coverage: covered | not_covered`, `wiskey.reason`: the read's

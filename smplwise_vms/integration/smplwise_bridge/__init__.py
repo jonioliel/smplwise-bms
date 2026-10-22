@@ -82,11 +82,21 @@ from .config_service import async_handle_config_item
 from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_LEASE_EVENT, SERVICE_LEASE_REQUEST, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 from . import lease_service
+# WKA-295: the documented public port of the capture lease for the WisKey consumer (docs/changes/WKA-295-LEASE-PORT.md), re-exported
+# from the package root. These are lease_service's / lease_contract's own objects (no wrapper, no second registry); the submodule path
+# `custom_components.smplwise_bridge.lease_service` stays valid and is the one that works on every bridge 0.9.6+.
+from .lease_contract import LeaseDTO
+from .lease_service import (LeaseCapability, LeaseConsumer, LeaseRegistration, LeaseUnavailable, async_get_capability, async_register_consumer,
+                            is_bridge_capability)
 from . import media_policy, runnable, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, Persister as KeyPersister
 from .stream_source_service import async_handle_stream_source
+
+# WKA-295: the names above that make up the capture lease's public port (the root re-export). Nothing else of this module is part of it.
+LEASE_PUBLIC_API = ("async_register_consumer", "async_get_capability", "is_bridge_capability", "LeaseCapability", "LeaseRegistration",
+                    "LeaseConsumer", "LeaseUnavailable", "LeaseDTO")
 
 _LOGGER = logging.getLogger(__name__)
 

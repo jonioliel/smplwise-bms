@@ -183,13 +183,13 @@ def test_a_per_account_version_that_contradicts_the_envelope_drops_that_account(
 
 # ---------------------------------------------------------------- gap 2: coverage (no silent truncation)
 
-def test_truncated_coverage_is_explicit_when_arx_caps_the_list():
-    accts = [account(f"s{i:02d}") for i in range(wp.PACING_ACCOUNTS_MAX + 2)]
+def test_a_read_beyond_the_account_bound_is_refused_whole_never_cut():
+    """WKA-295 (was: Arx capped the list at 10 and said so). WisKey reports up to 128 senders untruncated and refuses beyond; Arx does too."""
+    accts = [account(f"s{i:03d}") for i in range(wp.PACING_ACCOUNTS_MAX + 2)]
     proj = wp.project_pacing_envelope(envelope(accts))
-    assert len(proj["accounts"]) == wp.PACING_ACCOUNTS_MAX
-    assert proj["coverage"] == {"total": 12, "received": 12, "returned": 10, "invalid": 0, "truncated": True}
+    assert proj["closed_reason"] == "accounts_over_limit" and proj["accounts"] == []
     got = wp.parse_wiskey_status(proj)
-    assert got.coverage["truncated"] is True and got.coverage["total"] == 12 and len(got) == 10
+    assert dict(got) == {} and got.closed_reason == "accounts_over_limit"
 
 
 def test_truncated_coverage_is_explicit_when_wiskey_sends_fewer_than_it_has():
@@ -218,9 +218,9 @@ def test_out_of_range_counters_stay_unknown():
 # ---------------------------------------------------------------- consumers: missing is not zero
 
 def test_an_uncovered_account_is_unknown_not_zero():
-    others = [account(f"s{i:02d}") for i in range(wp.PACING_ACCOUNTS_MAX)]
-    env = wp.project_pacing_envelope(envelope(others + [account(wiskey_own={"charged_1m": 9, "charged_1h": 9, "charged_24h": 9})]))
-    assert REF not in [a["sender_ref"] for a in env["accounts"]], "our sender was cut by the cap"
+    others = [account(f"s{i:02d}") for i in range(10)]
+    env = wp.project_pacing_envelope(envelope(others, accounts_total=11))  # WisKey says it has one sender more than it sent
+    assert REF not in [a["sender_ref"] for a in env["accounts"]], "our sender was not in the read"
     p, _ = pacer(lambda: wp.parse_wiskey_status(env))
     v = p.wiskey_view(KEY_A, NOW)
     assert v["unknown"] is True and v["charged"] is None and v["coverage"] == "not_covered" and v["reason"] == "truncated"
