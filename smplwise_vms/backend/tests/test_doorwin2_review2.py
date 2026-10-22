@@ -176,7 +176,12 @@ def test_e03_rows_nobody_answered_age_into_unknown(em):
     assert em.rows("SELECT state FROM door_emergency_incidents WHERE id = ?", iid)[0]["state"] == "in_effect_partial", "the headline becomes partial"
 
 
-def test_e03_an_aged_open_row_follows_the_bounded_e1_retry(open_on):
+@pytest.mark.parametrize("dw09", [False, True])
+def test_e03_an_aged_open_row_follows_the_bounded_e1_retry_only_when_dw09_is_proven(open_on, monkeypatch, dw09):
+    """WKADAPT-295 (owner decision 2026-10-23, WisKey DW-09): as shipped an aged OPEN row is UNKNOWN with no retry planned; the bounded E-1 retry
+    (owner decision 2026-10-21) applies only once DW09_OPEN_RETRY_AFTER_UNKNOWN is on (switched on in this test only)."""
+    assert de.DW09_OPEN_RETRY_AFTER_UNKNOWN is False
+    monkeypatch.setattr(de, "DW09_OPEN_RETRY_AFTER_UNKNOWN", dw09)
     pw = open_on
     iid = pw.press("open").json()["incident"]["id"]
     with pw.db.connection() as conn:
@@ -184,7 +189,8 @@ def test_e03_an_aged_open_row_follows_the_bounded_e1_retry(open_on):
         conn.execute("UPDATE door_emergency_incidents SET state = 'applying' WHERE id = ?", (iid,))
     de.age_pending(pw.db, pw.now() + dt.timedelta(seconds=de.PENDING_MAX_S + 5))
     row = pw.rows("SELECT state, next_at FROM door_emergency_doors WHERE incident_id = ? AND station_id = ?", iid, pw.SIDE)[0]
-    assert row["state"] == "unknown" and row["next_at"], "owner decision 2026-10-21: an unknown OPEN is retried (bounded), with the same request id"
+    assert row["state"] == "unknown"
+    assert bool(row["next_at"]) is dw09, "an unknown OPEN is retried (bounded, same request id) only after the four DW-09 conditions are proven"
 
 
 # ================================================================ nothing was enabled

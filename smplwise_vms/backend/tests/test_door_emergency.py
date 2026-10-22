@@ -301,8 +301,32 @@ def test_open_over_lock_in_one_step(open_on):
     assert pw.press().json()["code"] == "incident_active", "LOCK over OPEN is never one step"
 
 
-def test_e1_an_unknown_open_is_retried_at_most_three_times_10_s_apart_with_the_same_request_id(open_on):
-    """Owner decision 2026-10-21 (E-04, option C): in an emergency we always open. The repeat is bounded and carries the SAME request id every time."""
+def test_dw09_an_unknown_open_is_not_retried_in_the_shipped_build(open_on):
+    """WKADAPT-295 / WisKey DW-09 (owner decision 2026-10-23): the OPEN-after-UNKNOWN retry is OFF until the four DW-09 conditions are proven.
+    The live engine being built (switched on in this test world) does not enable it; the LOCK retry and the OPEN release retry are unchanged."""
+    assert de.DW09_OPEN_RETRY_AFTER_UNKNOWN is False
+    pw = open_on
+    assert de.live_ok() is True, "the test world has the live engine on: the flag alone decides"
+    pw.emergency.script = {f"{pw.ENTRY}:1": ["unknown", "acknowledged"]}
+    inc = pw.press("open").json()["incident"]
+    for _ in range(5):
+        tick(pw, 10)
+        de.retry_tick(pw.db, pw.settings, pw.t[0])
+    calls = [c for c in pw.emergency.calls if c["door"] == f"{pw.ENTRY}:1" and c["phase"] == "apply"]
+    assert len(calls) == 1, "an UNKNOWN OPEN apply is sent once, never repeated"
+    row = pw.rows("SELECT state, next_at, settled_at FROM door_emergency_doors WHERE incident_id = ? AND station_id = ? AND phase = 'apply'", inc["id"], pw.ENTRY)[0]
+    assert row["state"] == "unknown" and row["next_at"] is None and row["settled_at"] is not None
+    assert incident(pw, inc["id"])["state"] == "in_effect_partial"
+    assert de._retryable({"kind": "lock_secure"}, "apply") is True
+    assert de._retryable({"kind": "open"}, "release") is True
+    assert de._retryable({"kind": "lock_secure"}, "release") is False
+    assert de._retryable({"kind": "open"}, "apply") is False
+
+
+def test_e1_an_unknown_open_is_retried_at_most_three_times_10_s_apart_with_the_same_request_id(open_on, monkeypatch):
+    """Owner decision 2026-10-21 (E-04, option C): in an emergency we always open. The repeat is bounded and carries the SAME request id every time.
+    WKADAPT-295: only once DW09_OPEN_RETRY_AFTER_UNKNOWN is turned on (after the four DW-09 conditions are proven) - switched on in this test only."""
+    monkeypatch.setattr(de, "DW09_OPEN_RETRY_AFTER_UNKNOWN", True)
     pw = open_on
     pw.emergency.script = {f"{pw.ENTRY}:1": ["unknown"]}
     inc = pw.press("open").json()["incident"]

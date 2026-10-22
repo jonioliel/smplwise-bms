@@ -629,4 +629,73 @@ def test_duplicates_are_refused_and_the_first_original_is_kept(dbfile):
 def test_the_proposed_create_resolution_is_not_an_alias_of_the_original_path():
     assert wi.PROPOSED_CREATE_COMMAND == "hikvision_intercom/person_writes/resolve_create"
     with pytest.raises(wp.PeerSeamError):
-        wi.LiveResolveTransport().resolve(None)  # type: ignore[arg-type]
+        wi.LiveResolveTransport().resolve(None, None)  # type: ignore[arg-type]  # WKADAPT signature: (current, original)
+
+
+# ================================================================ integration (release/2131 x 2.12.3): sealed original -> peer_receipts/resolve
+
+PEER_NOW = wp._mint_peer(value="peer-1", peer_binding_ref="bind-2", peer_binding_revision=4, repository_id=REPO, query_owner_id=OWNER)
+RESOLVE_RECEIPT = {"central_state": "committed", "device_application": "unknown", "signed_capture_covered": False, "person_revision": 5}
+
+
+def _resolve_frame(state: str, receipt: Any) -> dict[str, Any]:
+    return {"id": 9, "type": "result", "success": True, "result": {"schema_version": 1, "state": state, "receipt": receipt}}
+
+
+def test_the_sealed_original_is_the_inner_original_of_the_real_resolve_with_the_write_time_binding(dbfile):
+    c = open_db(dbfile)
+    full = admit_full(c)
+    t = FakeTransport(fail=RuntimeError("socket closed"))
+    wi.send_once(c, full.exact, t, context=ctx(), peer=PEER, data_dir=home(dbfile))
+    r = open_db(dbfile)  # restart
+    o = wi.original(r, REPO, OWNER, "up-1")
+    assert wi.state(r, o) == "unknown"
+    ro = wi.resolve_original(r, o, data_dir=home(dbfile), descriptor_epoch="epoch-ref-7")
+    params = wp.resolve_parameters(PEER_NOW, ro)
+    assert (params["peer_binding_ref"], params["peer_binding_revision"]) == ("bind-2", 4)  # the CURRENT read binding outside
+    inner = params["original"]
+    assert inner == {"repository_id": REPO, "verified_peer_ref": "peer-1", "peer_binding_ref": "bind-1", "peer_binding_revision": 3,
+                     "query_owner_id": OWNER, "descriptor_epoch": "epoch-ref-7", "original": t.sent[0]}
+    assert ro.descriptor_json == full.original_json  # byte for byte the recorded (and sent) canonical original
+    # found settles it once; the original stays until retention, then is purged; never resent
+    assert wi.settle_resolution(r, o, wp.verify_resolution(_resolve_frame("found", RESOLVE_RECEIPT))) == "settled"
+    r.commit()
+    assert wi.state(r, o) == "committed" and wi.recovery_plan(r, data_dir=home(dbfile)) == []
+    with pytest.raises(wi.IntentError) as e:
+        wi.send_once(r, o, FakeTransport(), context=ctx(), peer=PEER, data_dir=home(dbfile))
+    assert e.value.code == "not_sendable"
+
+
+def test_unknown_from_the_real_resolve_keeps_the_sealed_original_and_never_replays(dbfile):
+    c = open_db(dbfile)
+    full = admit_full(c)
+    wi.send_once(c, full.exact, FakeTransport(fail=RuntimeError("x")), context=ctx(), peer=PEER, data_dir=home(dbfile))
+    for f in (_resolve_frame("unknown", None), {"id": 1, "type": "result", "success": False, "error": {"code": "original_reference_mismatch"}}):
+        assert wi.settle_resolution(c, full.exact, wp.verify_resolution(f)) == "open"
+        c.commit()
+    assert wi.state(c, full.exact) == "unknown"
+    assert c.execute("SELECT count(*) FROM wiskey_fence_intents WHERE state='never_committed'").fetchone()[0] == 0
+    assert wi.purge_originals(c, days=1, now=dt.datetime(2100, 1, 1, tzinfo=dt.timezone.utc)) == 0  # open: never purged
+    assert [k for _, k in wi.recovery_plan(c, data_dir=home(dbfile))] == ["resolve_with_original"]
+    t = FakeTransport()
+    with pytest.raises(wi.IntentError):
+        wi.send_once(c, full.exact, t, context=ctx(), peer=PEER, data_dir=home(dbfile))
+    assert t.sent == []
+
+
+def test_resolve_original_refuses_without_a_readable_original_or_an_epoch(dbfile, tmp_path):
+    c = open_db(dbfile)
+    old = wi.admit(c, peer=PEER, operation_id="old-1", request_id="oreq-1", origin_ref="editor:old", operation_binding_ref="oopb-1",
+                   issued_epoch=7, command="users/create")
+    c.commit()
+    with pytest.raises(wi.IntentError) as e:
+        wi.resolve_original(c, old, data_dir=home(dbfile), descriptor_epoch="e")
+    assert e.value.code == "no_original"  # never rebuilt from refs
+    full = admit_full(c)
+    with pytest.raises(wi.IntentError) as e:
+        wi.resolve_original(c, full.exact, data_dir=tmp_path / "other-key", descriptor_epoch="e")
+    assert e.value.code == "original_unreadable"
+    for bad in (None, "", 0, True, 1.0):
+        with pytest.raises(wi.IntentError) as e:
+            wi.resolve_original(c, full.exact, data_dir=home(dbfile), descriptor_epoch=bad)
+        assert e.value.code == "invalid_descriptor_epoch"

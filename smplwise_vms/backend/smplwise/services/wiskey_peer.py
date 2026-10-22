@@ -9,7 +9,17 @@ What this module is
 - `TransportAttestation` is the transport-boundary half: the HA user id the WebSocket connection was AUTHENTICATED as (the
   transport's own answer, e.g. its `auth/current_user` reply), never an actor field of a request. Only the transport layer may call
   `attest_transport`; no product module does today (test-enforced) because nothing is wired.
-- The SHARED RECEIPT verifier (`verify_receipt`): the WisKey `signed_person_writes/status` result (draft1,
+- The REAL receipt read (WKADAPT-295, WisKey round 2 2026-10-23, PEER_QUERY_V1_SPEC section 9 + T05_EXACT_ORIGINAL_AND_WRITER):
+  `hikvision_intercom/peer_receipts/resolve`, parameters exactly `{peer_binding_ref, peer_binding_revision, original}` where
+  `original` is the closed seven-field dict of `ResolveOriginal` (the inner `original` is the full W1 `Request.descriptor` as WisKey
+  verified it at write time). `resolve_parameters` builds them, `verify_resolution` reads the closed result
+  `{schema_version: 1, state: found | unknown, receipt}`: only `found` with a committed receipt settles (`committed`); `unknown`, a
+  missing receipt, an error envelope (e.g. `original_reference_mismatch`) or anything malformed is UNKNOWN. There is NO
+  `never_committed` from this route and an UNKNOWN is NEVER a licence to replay or re-create (owner decision 2026-10-23). The
+  signed `bridge` envelope around the parameters belongs to the peer_query client (not built here).
+- HISTORICAL (kept only because tests pin its strictness; no caller): `verify_receipt` and the `RECEIPT_*` constants target
+  `signed_person_writes/status` / `wiskey-signed-person-completion-draft1`, a contract WisKey never shipped. Do not wire it.
+  It read the WisKey `signed_person_writes/status` result (draft1,
   ARX_REPLY8_SIGNED_HOOK_FIELDS_AND_EXAMPLES) checked against the exact original references of ONE durable Arx intent
   (`ReceiptExpectation`): repository, writer epoch, the verified peer binding (ref + revision + dedicated query owner), request_id,
   operation_id, operation_binding_ref, the person and the revision the write was admitted against. Byte-exact comparison (no strip,
@@ -28,6 +38,7 @@ What it is not
   door outcome (`proves_create` / `device_attested` are always False)."""
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -41,6 +52,7 @@ WISKEY_HALF_REVIEWED = False  # WisKey's verifier/transport seam + shared receip
 FLAG_KEY = "wiskey.peer_receipt"
 FLAG_VALUES = ("off", "on")
 
+# HISTORICAL (WKADAPT-295): the draft1 receipt contract below was never shipped by WisKey; the real read is RESOLVE_COMMAND further down.
 RECEIPT_PROTOCOL = "wiskey-signed-person-completion-draft1"
 RECEIPT_COMMAND = "hikvision_intercom/signed_person_writes/status"
 RECEIPT_CAPABILITY = "signed_person_completion_read_v1"
@@ -331,7 +343,8 @@ def _result_of(frame: Any) -> dict[str, Any] | ReceiptVerdict:
 
 
 def verify_receipt(frame: Any, expect: ReceiptExpectation, *, context: FenceContext | None = None) -> ReceiptVerdict:
-    """Strict: every required key (nulls included), no extra key, exact references; everything else is UNKNOWN."""
+    """HISTORICAL - targets `signed_person_writes/status`, which WisKey never shipped; use `verify_resolution` (peer_receipts/resolve).
+    Strict: every required key (nulls included), no extra key, exact references; everything else is UNKNOWN."""
     as_peer_binding(expect.peer)
     res = _result_of(frame)
     if isinstance(res, ReceiptVerdict):
@@ -392,6 +405,131 @@ def verify_receipt(frame: Any, expect: ReceiptExpectation, *, context: FenceCont
             or context.writer_epoch != res["observed_epoch"] or context.owner_id != peer.query_owner_id):
         return _unknown("ownership_unproven")
     return ReceiptVerdict("never_committed", True, "recovered_uncommitted")
+
+
+# ---------------------------------------------------------------- the REAL receipt read: peer_receipts/resolve (WKADAPT-295)
+
+RESOLVE_COMMAND = "hikvision_intercom/peer_receipts/resolve"  # HA WS type; the same read over peer HTTP POST /api/hikvision_intercom/peer_query
+RESOLVE_COMMAND_SUFFIX = "peer_receipts/resolve"  # the `command` of the signed wiskey-peer-query.v1 body
+RESOLVE_PARAM_KEYS = frozenset({"peer_binding_ref", "peer_binding_revision", "original"})
+RESOLVE_ORIGINAL_KEYS = frozenset({"repository_id", "verified_peer_ref", "peer_binding_ref", "peer_binding_revision", "query_owner_id",
+                                   "descriptor_epoch", "original"})
+RESOLVE_RESULT_KEYS = frozenset({"schema_version", "state", "receipt"})
+RESOLVE_REQUEST_MAX = 65536  # WisKey: a peer_query request is at most 65536 bytes (the descriptor travels inside it)
+RESOLVE_DEPTH_MAX = 16
+
+
+def _json_safe(value: Any, depth: int = 0) -> bool:
+    """WisKey's canonical rules (atomic_person_store): JSON tree of str keys, str / exact int (JSON-safe) / bool / None, no float."""
+    if depth > RESOLVE_DEPTH_MAX:
+        return False
+    if value is None or isinstance(value, (bool, str)):
+        return True
+    if isinstance(value, int):
+        return -MAX_JSON_INT <= value <= MAX_JSON_INT
+    if isinstance(value, list):
+        return all(_json_safe(v, depth + 1) for v in value)
+    if isinstance(value, dict):
+        return all(isinstance(k, str) and _json_safe(v, depth + 1) for k, v in value.items())
+    return False
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+@dataclass(frozen=True)
+class ResolveOriginal:
+    """The closed seven-field `original` WisKey compares in peer_receipts/resolve, recorded at write time. `descriptor_json` is the full
+    W1 `Request.descriptor` exactly as WisKey verified it (kept as canonical JSON text, so it cannot be mutated after the fact);
+    `descriptor_epoch` is WisKey's opaque `verified.descriptor.epoch` (NOT a numeric writer epoch). Built only from a sealed peer."""
+
+    repository_id: str
+    verified_peer_ref: str
+    peer_binding_ref: str
+    peer_binding_revision: int
+    query_owner_id: str
+    descriptor_epoch: Any
+    descriptor_json: str
+
+    @classmethod
+    def of(cls, peer: VerifiedPeerRef, *, descriptor_epoch: Any, descriptor: Any) -> "ResolveOriginal":
+        """The original of ONE write, from the peer binding that write was sent under and the descriptor WisKey verified for it."""
+        as_peer_binding(peer)
+        epoch_ok = is_ref(descriptor_epoch) or is_pos_int(descriptor_epoch)
+        if not epoch_ok or not isinstance(descriptor, dict) or not descriptor or not _json_safe(descriptor):
+            raise PeerSeamError("invalid_original")
+        return cls(peer.repository_id, peer.value, peer.peer_binding_ref, peer.peer_binding_revision, peer.query_owner_id, descriptor_epoch,
+                   _canonical(descriptor))
+
+    def as_wire(self) -> dict[str, Any]:
+            return {"repository_id": self.repository_id, "verified_peer_ref": self.verified_peer_ref, "peer_binding_ref": self.peer_binding_ref,
+                "peer_binding_revision": self.peer_binding_revision, "query_owner_id": self.query_owner_id,
+                "descriptor_epoch": self.descriptor_epoch, "original": json.loads(self.descriptor_json)}
+
+
+def resolve_parameters(current: VerifiedPeerRef, original: ResolveOriginal) -> dict[str, Any]:
+    """The exact parameters of peer_receipts/resolve: the CURRENT read binding + the full original. Refused (nothing to send) when the
+    current binding is for another repository / peer / query owner than the original - WisKey would refuse it anyway, never repin."""
+    as_peer_binding(current)
+    if not isinstance(original, ResolveOriginal):
+        raise PeerSeamError("invalid_original")
+    if (current.repository_id, current.value, current.query_owner_id) != (original.repository_id, original.verified_peer_ref, original.query_owner_id):
+        raise PeerSeamError("original_reference_mismatch")
+    params = {"peer_binding_ref": current.peer_binding_ref, "peer_binding_revision": current.peer_binding_revision, "original": original.as_wire()}
+    if len(_canonical(params).encode("utf-8")) > RESOLVE_REQUEST_MAX:
+        raise PeerSeamError("request_too_large")
+    return params
+
+
+@dataclass(frozen=True)
+class ResolutionVerdict:
+    """The reading of a peer_receipts/resolve result. `state` is committed | unknown ONLY: this route never yields never_committed."""
+
+    state: str
+    settles: bool
+    code: str
+    receipt: dict[str, Any] | None = None
+
+    @property
+    def replay_permitted(self) -> bool:
+        return False  # owner decision 2026-10-23: UNKNOWN (or anything else here) is never a licence to resend or re-create
+
+    @property
+    def proves_create(self) -> bool:
+        return False
+
+    @property
+    def device_attested(self) -> bool:
+        return False  # WisKey: device_application stays unknown
+
+
+def _resolution_unknown(code: str) -> ResolutionVerdict:
+    return ResolutionVerdict("unknown", False, code)
+
+
+def verify_resolution(frame: Any) -> ResolutionVerdict:
+    """Strict reading of `{schema_version: 1, state: "found" | "unknown", receipt}`. `found` settles only with a receipt that states
+    central_state=committed, device_application=unknown, signed_capture_covered=false; a missing receipt is UNKNOWN (never
+    never_committed). WisKey has already compared all seven original fields; the frame's MAC/nonce/expiry are the transport's check."""
+    res = _result_of(frame)
+    if isinstance(res, ReceiptVerdict):
+        return _resolution_unknown(res.code)  # error envelopes (original_reference_mismatch, Unauthorized, ...) stay UNKNOWN
+    if set(res) != RESOLVE_RESULT_KEYS:
+        return _resolution_unknown("fields")
+    if type(res["schema_version"]) is not int or res["schema_version"] != 1:
+        return _resolution_unknown("unsupported_version")
+    state, receipt = res["state"], res["receipt"]
+    if state == "unknown":
+        return _resolution_unknown("remote:unknown" if receipt is None else "contradiction")
+    if state != "found":
+        return _resolution_unknown("malformed:state")
+    if not isinstance(receipt, dict) or not receipt or not _json_safe(receipt):
+        return _resolution_unknown("contradiction")
+    if (receipt.get("central_state") != "committed" or receipt.get("device_application") != "unknown"
+            or receipt.get("signed_capture_covered") is not False):
+        return _resolution_unknown("receipt_unverified")
+    return ResolutionVerdict("committed", True, "found", json.loads(_canonical(receipt)))
 
 
 class OneCommitLedger:
