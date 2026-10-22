@@ -97,6 +97,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         pending_retention.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("pending retention janitor failed", exc_info=True)
+    try:  # WKB2-295 (owner 2026-10-23): null the sealed WisKey intent originals of terminal intents past wiskey.intent_original_retention_days (default 30, 1..365)
+        from .services import wiskey_intent_retention
+
+        wiskey_intent_retention.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("wiskey intent retention janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 
