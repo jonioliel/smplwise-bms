@@ -717,6 +717,8 @@ class WiskeyProvider:
         video, talk = self.listed(settings)
         if not video:
             raise Unavailable("not_listed")
+        if not settings.go2rtc_url:  # every profile is relayed through Arx's own go2rtc, whatever the lease names
+            raise Unavailable("no_media")
         rid = _rid()
         raw = self._read(settings, "media", lambda call: w10.station_descriptor(call, sid, w10.SYSTEM_ACTOR, rid), w10.project_descriptor, "arx-media")
         if not talk and isinstance(raw.get("audio"), dict):

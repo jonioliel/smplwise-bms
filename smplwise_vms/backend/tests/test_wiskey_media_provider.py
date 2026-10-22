@@ -126,6 +126,14 @@ class FakeTransport:
 
 
 @pytest.fixture()
+def settings(settings):
+    """The conftest settings with a go2rtc named (a reserved .invalid host: never reached - registration is recorded)."""
+    from dataclasses import replace
+
+    return replace(settings, go2rtc_url="http://go2rtc.invalid:1984")
+
+
+@pytest.fixture()
 def wk_loop():
     loop = asyncio.new_event_loop()
     thread = threading.Thread(target=loop.run_forever, daemon=True)
@@ -419,7 +427,7 @@ def test_a_busy_station_is_refused_without_saying_who(provider, wk, settings):
     ch = talk_channel(provider, settings)
     with pytest.raises(ApiError) as e:
         asyncio.run(ch.open())
-    assert (e.value.status, e.value.code) == (409, "intercom_talk_busy") and "panel" not in e.value.message
+    assert (e.value.status, e.value.code) == (409, "intercom_talk_busy") and "panel" not in e.value.user_message
     assert im.WISKEY_TALKS.count() == 0 and not wk.sent(w10.TALK_FRAME)
 
 
