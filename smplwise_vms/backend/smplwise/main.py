@@ -97,6 +97,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         pending_retention.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("pending retention janitor failed", exc_info=True)
+    try:  # IDENT146: purge local accounts disabled / deleted for privacy.local_purge_days (default 30; the switch privacy.local_purge is off by default)
+        from .services import local_privacy
+
+        local_privacy.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("local privacy janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 
@@ -545,6 +551,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import local_identity as local_identity_router
 
+    from .routers import local_privacy as local_privacy_router  # IDENT146: personal data export (off by default: privacy.personal_export)
+
+    app.include_router(local_privacy_router.router, prefix=api, tags=["identity"])
     app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
     from .routers import service_identity as service_identity_router
 
