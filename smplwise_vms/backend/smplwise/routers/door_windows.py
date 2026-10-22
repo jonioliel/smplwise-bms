@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, settings_of
-from ..db import commit_now
+from ..db import commit_now, rollback_and_restart
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import door_emergency as de
@@ -568,7 +568,7 @@ def emergency_start(body: StartBody, request: Request, principal: Principal = De
         # E-05 (F3C): a duplicate client_request_id that raced the pre-check above hits the UNIQUE constraint (0137): answer 409, not 500
         if "request_id" not in str(exc):
             raise
-        conn.rollback()
+        rollback_and_restart(conn)
         raise ApiError(409, "duplicate_request", "הבקשה כבר התקבלה.") from None
     commit_now(conn)
     db = request.app.state.db

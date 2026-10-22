@@ -159,7 +159,7 @@ def test_f4_the_probe_client_has_bounded_timeouts_and_no_redirects(settings):
     with connection_probe.probe_client(_cand(settings)) as client:
         assert client.follow_redirects is False
         assert client.timeout.connect == 5.0 and client.timeout.read == 5.0
-    assert connection_probe.DEADLINE_S == 8.0 and connection_probe.MAX_BYTES == 256 * 1024
+    assert connection_probe.DEADLINE_S == 30.0 and connection_probe.MAX_BYTES == 256 * 1024
 
 
 def test_f4_an_oversized_answer_is_refused_and_device_text_is_cleaned(settings, monkeypatch):

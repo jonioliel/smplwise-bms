@@ -25,3 +25,5 @@ frontend/tests/unit-video-conn-test.spec.ts                   # address-class un
 # --- Fixtures that must look like a LAN/link-local address for a guard under test ---
 frontend/tests/fixtures/media_fake_ha.py                      # fake music server must resolve to a private LAN address (ma_direct LAN-only check)
 smplwise_vms/backend/tests/test_ha_camera_live.py             # DNS-rebind guard: a name resolving to the well-known link-local metadata address must be refused
+smplwise_vms/backend/tests/test_bridge_lease_event.py     # a private session address must be refused by the lease answer check
+smplwise_vms/backend/tests/test_soak_guard_io.py              # an OSError text that carries a LAN address must be redacted
