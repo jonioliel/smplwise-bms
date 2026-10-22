@@ -195,6 +195,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
             costs_retention.janitor(db, tickets_runtime.attachments_root())
     except Exception:  # noqa: BLE001
         log.warning("tickets cost janitor failed", exc_info=True)
+    try:  # CR-MAINT215: reminders before a due date / an expiry and requests on schedule (every 15 min inside; nothing while the module is off)
+        from .services.maintenance import reminders as maintenance_reminders
+
+        maintenance_reminders.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("maintenance janitor failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -603,6 +609,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the module key and the public listener's wiring
 
     tickets_public.configure(settings, app.state.db)
+    from .routers import maintenance as maintenance_router  # CR-MAINT215: the optional maintenance module (its own lines)
+
+    app.include_router(maintenance_router.open_router, prefix=api, tags=["maintenance"])  # GET /maintenance/module: answers while the module is off
+    app.include_router(maintenance_router.router, prefix=api, tags=["maintenance"])  # ledger, plans, rounds, supplier documents, tags (off by default)
     from .services import ha_bridge as ha_bridge_svc
 
     ha_bridge_svc.configure(settings.data_dir)  # HMACACT-295: the key set needs the data directory for a connection that does not know its database

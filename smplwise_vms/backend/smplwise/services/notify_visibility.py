@@ -179,6 +179,10 @@ class Reach:
             from .tickets import rfq_notify
 
             return rfq_notify.can_see(self.conn, self.principal, sid)
+        if kind == "maintenance":  # CR-MAINT215: exactly who may see the task (module on, maintenance.view on its place)
+            from .maintenance import access as maintenance_access
+
+            return maintenance_access.can_see_task(self.conn, self.principal, sid)
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: devices.read on the sensor of THIS notification's own state (D3, review H1)

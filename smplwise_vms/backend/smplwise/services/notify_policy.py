@@ -21,11 +21,11 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature")  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "maintenance")  # maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature")  # rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "maintenance")  # maintenance: CR-MAINT215; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -100,6 +100,13 @@ SOURCES: tuple[Source, ...] = (
        push=False, subject="temperature", resolve_text="הבעיה נפתרה"),
     _s("temperature.escalation", "טמפרטורה: הסלמת אזעקה", "device_faults", "critical", "אזעקת טמפרטורה לא אושרה", "{name}: {detail}.", who="temperature",
        subject="temperature", resolve_notice=True, resolve_text="האזעקה אושרה או הסתיימה", app=True),
+    # CR-MAINT215 (services/maintenance/reminders.py): a certificate / inspection / supplier document before its expiry, a plan or a round
+    # before its date, and once it is late. To the task's responsible person and the maintenance managers of its place (rule `maintenance`),
+    # in the app only by default; nothing fires while the maintenance module is off. The task's title and a date - never a person.
+    _s("maintenance.due_soon", "אחזקה: מועד מתקרב", "device_faults", "info", "מועד מתקרב: {name}", "{name} - {what} {date}.", who="maintenance",
+       push=False, subject="maintenance", resolve_text="בוצע או עודכן"),
+    _s("maintenance.overdue", "אחזקה: מועד עבר", "device_faults", "alert", "מועד עבר: {name}", "{name} - {what}{date}.", who="maintenance",
+       push=False, subject="maintenance", resolve_text="בוצע או עודכן"),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
@@ -305,11 +312,22 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         ensure_defaults(conn)
     rows = {r["source"]: row_to_policy(r) for r in conn.execute("SELECT * FROM notify_policies").fetchall()}
     out = []
+    maintenance_on = _maintenance_on(conn)
     for s in SOURCES:  # the catalogue's order; a stored row of a source this release no longer knows is not listed
         if not _ticket_sources.listed(conn, s.key):  # CR-038: the tickets sources exist only while the module is on
             continue
+        if s.key.startswith("maintenance.") and not maintenance_on:  # CR-MAINT215: the same rule for the maintenance module
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
+
+
+def _maintenance_on(conn: sqlite3.Connection) -> bool:
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'maintenance.enabled'").fetchone()
+    except sqlite3.Error:
+        return False
+    return bool(row) and str(row[0]) == "true"
 
 
 def _read_only(conn: sqlite3.Connection) -> bool:

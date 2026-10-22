@@ -382,6 +382,10 @@ DEFAULTS: dict[str, str] = {
     # answers 404 feature_disabled, the area and the device tab are hidden, and the module's data is kept. Turning it on or off is
     # audited as tickets.module.enable / tickets.module.disable. Installation identity: kept out of project backups (SETTINGS_KEEP).
     "tickets.enabled": "false",
+    # CR-MAINT215 (2.15.0): the maintenance module (certificates, preventive plans, rounds, supplier documents, QR / NFC tags) - OFF by
+    # default. While off every /api/v1/maintenance* route but GET /maintenance/module answers 404 feature_disabled and the reminder pass
+    # does nothing; the data is kept. Turning it on or off is audited as maintenance.module.enable / maintenance.module.disable.
+    "maintenance.enabled": "false",
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
@@ -804,6 +808,7 @@ class SettingsPatch(BaseModel):
     automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
     update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
     tickets_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="tickets.enabled")  # CR-038: the tickets module switch
+    maintenance_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.enabled")  # CR-MAINT215: the maintenance module switch
 
     model_config = {"populate_by_name": True}
 
@@ -1076,6 +1081,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]
         if changes["tickets.enabled"] != ("true" if current_tickets == "true" else "false"):
             tickets_switch = changes["tickets.enabled"]
+    maintenance_switch = None  # CR-MAINT215: the module switch gets its own audit row when it actually changes
+    if "maintenance.enabled" in changes:
+        current_maint = get_setting(conn, "maintenance.enabled", DEFAULTS["maintenance.enabled"]) or DEFAULTS["maintenance.enabled"]
+        if changes["maintenance.enabled"] != ("true" if current_maint == "true" else "false"):
+            maintenance_switch = changes["maintenance.enabled"]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     forced = False
     if changes.get("schedules.shabbat_sensor"):
@@ -1173,6 +1183,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         from ..services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the handler page follows at once (W3, W12)
 
         tickets_public.module_switched(tickets_switch == "true")
+    if maintenance_switch is not None:
+        audit(conn, actor=principal, action="maintenance.module.enable" if maintenance_switch == "true" else "maintenance.module.disable", decision="allowed",
+              resource_type="installation", resource_id="maintenance", request_id=getattr(request.state, "correlation_id", None))
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}
