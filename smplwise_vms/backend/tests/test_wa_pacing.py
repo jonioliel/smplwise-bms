@@ -50,15 +50,20 @@ def check(p, klass, *, now=NOW, ref="x", rkey="r", account=KEY_A, **kw):
 
 
 def wk_status(**over):
-    base = {"pacing_schema_version": 1, "sender_ref": REF, "sender_match_verified": True, "counters_complete": True,
+    base = {"sender_ref": REF, "sender_match_verified": True, "counters_complete": True,
             "wiskey_own": {"charged_1m": 0, "charged_1h": 0, "charged_24h": 0}, "throttled_until": None, "throttle_scope": None, "retry_after_s": None,
             "sent_1m": 99, "sent_1h": 99, "sent_24h": 99}
     base.update(over)
     return base
 
 
+def wk_envelope(*accounts, **over):
+    """PACING12-295: the `whatsapp/pacing_status_v1` envelope - the schema version lives here, not on each account."""
+    return {"pacing_schema_version": 1, "accounts": list(accounts), **over}
+
+
 def wk(**over):
-    return lambda: wp.parse_wiskey_status([wk_status(**over)])
+    return lambda: wp.parse_wiskey_status(wk_envelope(wk_status(**over)))
 
 
 # ---------------------------------------------------------------- classes and config
@@ -223,8 +228,9 @@ def test_waiting_clears_when_the_message_is_allowed():
 
 def test_the_reader_is_tolerant_and_closed():
     assert wp.parse_wiskey_account(None) is None and wp.parse_wiskey_account("x") is None
-    assert wp.parse_wiskey_account({"sender_ref": REF}) is None, "no schema version: not the contract"
-    assert wp.parse_wiskey_account(wk_status(pacing_schema_version=2)) is None
+    bare = wp.parse_wiskey_account({"sender_ref": REF})
+    assert bare is not None and bare.verified is False and bare.complete is False, "the version is on the envelope; a bare entry is all unknown"
+    assert wp.parse_wiskey_account(wk_status(pacing_schema_version=2)) is None, "a per-account version that contradicts v1"
     assert wp.parse_wiskey_account(wk_status(sender_ref="has space")) is None
     st = wp.parse_wiskey_account(wk_status(wiskey_own={"charged_1m": 3, "charged_1h": "7", "charged_24h": -1}, throttled_until="2026-10-21T09:05:00Z",
                                            throttle_scope="account", retry_after_s=300, junk={"a": 1}))
@@ -232,9 +238,12 @@ def test_the_reader_is_tolerant_and_closed():
     assert st.throttled_until == dt.datetime(2026, 10, 21, 9, 5, tzinfo=UTC) and st.retry_after_s == 300
     assert wp.parse_wiskey_account(wk_status(sender_match_verified="true")).verified is False, "only a real true counts"
     assert wp.parse_wiskey_account(wk_status(counters_complete=None)).complete is False
-    assert wp.parse_wiskey_status("nope") == {} and set(wp.parse_wiskey_status([wk_status(), {"x": 1}, 5])) == {REF}
-    proj = wp.project_pacing_accounts([wk_status(), {"x": 1}])
-    assert len(proj) == 1 and "sent_1m" not in proj[0] and proj[0]["wiskey_own"]["charged_1m"] == 0
+    assert wp.parse_wiskey_status("nope") == {} and set(wp.parse_wiskey_status(wk_envelope(wk_status(), {"x": 1}, 5))) == {REF}
+    assert wp.parse_wiskey_status([wk_status()]) == {}, "a bare list is not the envelope"
+    proj = wp.project_pacing_envelope(wk_envelope(wk_status(), {"x": 1}))
+    accts = proj["accounts"]
+    assert len(accts) == 1 and "sent_1m" not in accts[0] and accts[0]["wiskey_own"]["charged_1m"] == 0
+    assert proj["coverage"]["invalid"] == 1 and proj["coverage"]["truncated"] is True
     assert set(wp.parse_wiskey_status(proj)) == {REF}
 
 
@@ -516,12 +525,12 @@ def test_wiskeys_error_classes_are_understood_and_unknown_is_never_resent():
 
 
 def test_the_status_projection_keeps_only_the_contract_and_the_cache_goes_stale():
-    raw = {"available": True, "accounts": [dict(wk_status(), id="a1", name="n", secret="x")]}
-    got = adapter.project_status(raw)
-    assert got["pacing"][0]["sender_ref"] == REF and "secret" not in got["pacing"][0] and "sent_1m" not in got["pacing"][0]
-    assert adapter.project_status({"available": True, "accounts": [{"id": "a1"}]})["pacing"] == []
+    # PACING12-295: the pacing envelope comes from `whatsapp/pacing_status_v1` only, never from `whatsapp/status`
+    assert "pacing" not in adapter.project_status({"available": True, "accounts": [dict(wk_status(), id="a1", name="n")]})
+    got = wp.project_pacing_envelope(wk_envelope(dict(wk_status(), secret="x")))
+    assert got["accounts"][0]["sender_ref"] == REF and "secret" not in got["accounts"][0] and "sent_1m" not in got["accounts"][0]
     a = adapter.MessagingAdapter()
-    a._pacing, a._pacing_at = got["pacing"], adapter.time.monotonic()
+    a._pacing, a._pacing_at = got, adapter.time.monotonic()
     assert REF in a.cached_pacing()
     a._pacing_at = adapter.time.monotonic() - adapter.PACING_MAX_AGE_S - 1
     assert a.cached_pacing() == {}, "old counters are unknown, not still true"

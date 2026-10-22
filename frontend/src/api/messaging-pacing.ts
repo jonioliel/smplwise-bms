@@ -21,6 +21,19 @@ export interface PacingWiskey {
   charged: { '1m': number; '1h': number; '24h': number } | null;
   throttled_until: string | null;
   leases_active: number;
+  /** PACING12-295: whether the last pacing read covered this account's WisKey sender (null: no sender mapped) */
+  coverage?: 'covered' | 'not_covered' | null;
+  /** PACING12-295: why `unknown` (a closed read's reason, `truncated`, `sender_absent`, `unverified`, `counters_incomplete`, ...) */
+  reason?: string | null;
+}
+/** PACING12-295: what the last `whatsapp/pacing_status_v1` read covered; `truncated` = it did not cover every WisKey sender */
+export interface PacingWiskeyCoverage {
+  closed_reason: string | null;
+  total: number | null;
+  received: number;
+  returned: number;
+  invalid: number;
+  truncated: boolean;
 }
 export interface PacingAccount {
   account_key: string;
@@ -45,6 +58,7 @@ export interface PacingView {
   per_minute: number | null;
   burst: number | null;
   shared_budget_guaranteed: boolean;
+  wiskey_coverage?: PacingWiskeyCoverage;
   accounts: PacingAccount[];
   can_manage: boolean;
   /** false while the tickets module is off or the mode is `off`: nothing is governed */

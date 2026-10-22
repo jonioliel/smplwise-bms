@@ -553,7 +553,9 @@ def _settings_reply(request: Request, conn: sqlite3.Connection, user_id: str, cf
     cfg = cfg if cfg is not None else M.read_settings(conn)  # (after a save the request's own read snapshot predates the change: the saved document is passed)
     status = MESSAGING.status(settings, user_id)
     _account, problem = MESSAGING.account_for(status, cfg["account"])
-    service = {"state": status["state"], "connected": status["available"], "accounts": status["accounts"], "problem": problem, "last_error": status.get("last_error")}
+    service = {"state": status["state"], "connected": status["available"], "accounts": status["accounts"], "problem": problem, "last_error": status.get("last_error"),
+               # PACING12-295: the account list is capped, never silently (a configured account beyond the cut is `account_not_covered`)
+               "accounts_total": status.get("accounts_total", len(status["accounts"])), "accounts_truncated": status.get("accounts_truncated") is True}
     # WA-CONSENT-LINK: whether the public page can serve a consent link now (null = it can; else module_off | public_page | key)
     consent = {"page_problem": C.page_problem(conn), "notice_version": C.NOTICE_VERSION, "resend_days": C.RESEND_DAYS, "held_per_person": C.HELD_PER_PERSON,
                "wait_days": list(M.CONSENT_WAIT_RANGE), "languages": list(M.CONSENT_LANGS), "dev_marked_languages": list(C.DEV_MARKED_LANGS),

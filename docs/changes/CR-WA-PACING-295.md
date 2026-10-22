@@ -36,13 +36,16 @@ response). `channel_whatsapp.classify` recognises both; the fake follows HTTP 42
 
 ## 3. WisKey's contract `whatsapp_pacing_status_v1` (tolerant reader, Arx side only)
 
-WisKey's reply (a specification of additions, not implemented on its side yet) adds per `accounts[]` of `whatsapp/status`: `pacing_schema_version`,
-`sender_ref` (opaque, stable), `sender_match_verified`, `counters_complete`, `wiskey_own.charged_1m/1h/24h`, `throttled_until`,
-`throttle_scope`, `retry_after_s`. `intercom_messaging_adapter.project_status` keeps only those keys (plus the existing ones) and the adapter
-remembers them; the outbox worker reads that cache and never waits on WisKey. Rules, all tested:
+WisKey's reply (a specification of additions, not implemented on its side yet) is an ENVELOPE on its own route `whatsapp/pacing_status_v1`
+(PACING12-295; it is no longer read from `whatsapp/status`): `pacing_schema_version` on the envelope, optional `accounts_total`, and per
+`accounts[]` entry `sender_ref` (opaque, stable), `sender_match_verified`, `counters_complete`, `wiskey_own.charged_1m/1h/24h`
+(+ `charged_unreserved_*`), `throttled_until`, `throttle_scope`, `retry_after_s`. The route is read only after discovery lists it; the
+projection carries an explicit `coverage` block (no silent truncation). The full read contract is section 11 of
+`CR-WA-PACING-295-PORT-CONTRACT.md`. `wa_pacing.project_pacing_envelope` keeps only those keys and the adapter remembers the envelope; the
+outbox worker reads that cache and never waits on WisKey. Rules, all tested:
 
 1. Only `wiskey_own.charged_*` is counted against the Arx budget. `sent_*` is ignored (Arx already counts the messages it handed on, so counting it would charge twice).
-2. A null counter, `counters_complete != true`, an absent or unverified sender, or a cache older than 5 minutes is **unknown, never zero**: nothing is added to the budget and the route says `unknown`.
+2. A null counter, `counters_complete != true`, an absent or unverified sender, a sender the read did not cover (`coverage.truncated`), a closed read (route not listed, bad envelope), or a cache older than 5 minutes is **unknown, never zero**: nothing is added to the budget and the route says `unknown` with a `reason`.
 3. An Arx account is matched to a WisKey sender only through the configured map `senders` (account key -> `sender_ref`) AND WisKey's own `sender_match_verified`. Never by name or last four digits.
 4. A verified `throttled_until` with scope account / sender / absent holds every class except alerts until then; any other scope is not applied account-wide.
 5. Once the reservation port is used for an account, its leases are WisKey's sends: `charged_*` is then ignored for that account (WisKey's `charged` includes its reservations, so both would count the same send twice).

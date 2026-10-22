@@ -83,11 +83,15 @@ LEASE_SIGNED = frozenset({"capture_start", "capture_status", "capture_confirm", 
 # an active administrator while its build gate is on, and WisKey lists it in `overview.api.commands` only then (capability negotiation,
 # services/wiskey_readback.py). No write is on it. Same socket and identity as `service`.
 READBACK = frozenset({"users/access_state", "users/access_state_v2", "schedules/normalize_user"})
-UNPINNED_CHANNELS = frozenset({"readback"})
+# PACING12-295: WisKey's pacing envelope (`whatsapp_pacing_status_v1`), a READ specified on WisKey's side after the pin. The adapter sends it
+# only when WisKey's discovery (`overview.api.commands`) lists it (services/intercom_messaging_adapter.py `refresh_pacing`); it is on its own
+# channel so that the messaging channel stays exactly the pinned three and nothing else can ride the pacing guard.
+PACING = frozenset({"whatsapp/pacing_status_v1"})
+UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -98,6 +102,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "technical": frozenset(),
     "messaging": frozenset(),
     "readback": frozenset(),
+    "pacing": frozenset(),
 }
 
 
@@ -137,4 +142,5 @@ def describe() -> dict[str, Any]:
         "technical": {"commands": sorted(TECHNICAL), "in_use": True},
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
         "readback": {"commands": sorted(READBACK), "in_use": True},
+        "pacing": {"commands": sorted(PACING), "in_use": True},
     }

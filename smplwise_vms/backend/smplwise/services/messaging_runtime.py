@@ -436,13 +436,15 @@ def view(conn: sqlite3.Connection, *, can_manage: bool, now: dt.datetime | None 
 # ---------------------------------------------------------------- CR-WA-PACING-295: the shared send budget on one request's connection
 
 def wiskey_pacing() -> dict[str, Any]:
-    """WisKey's `whatsapp_pacing_status_v1` block as of the last status read (never asks WisKey; empty = unknown)."""
+    """WisKey's `whatsapp/pacing_status_v1` envelope as of the last read (never asks WisKey; empty = unknown, with its closed reason)."""
+    from . import wa_pacing as wp
+
     try:
         from .intercom_messaging_adapter import MESSAGING
 
         return MESSAGING.cached_pacing()
     except Exception:  # noqa: BLE001 - WisKey absent or not ready: its counters are unknown
-        return {}
+        return wp.WiskeyPacing(closed_reason="not_read")
 
 
 def pacer_on(conn: sqlite3.Connection) -> Any:
