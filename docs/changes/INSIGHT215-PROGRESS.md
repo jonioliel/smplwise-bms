@@ -1,4 +1,4 @@
-# INSIGHT215 - progress note (slice 1 backend complete, 2026-10-23)
+# INSIGHT215 - progress note (slice 1 backend complete, mockup v2 restyled, 2026-10-23)
 
 Branch `pilot/INSIGHT215-295`, from `origin/main` @ 90cd7d9ae. Slice 1 of the 2.15.0 bundle "insights and reports". Change record: `docs/changes/CR-INSIGHT215.md`.
 
@@ -13,15 +13,66 @@ Migrations: NONE used by this slice (settings rows and existing tables only), so
 - `contracts/API_INVENTORY.md` regenerated on the runner (1204 routes) and applied.
 - No full suite was run.
 
-## Mockup (2026-10-23, waiting for owner approval)
+## Mockup v2 (2026-10-23, restyle in the product's language; content = the owner-approved v1)
 
-`docs/design/mockups/insight-215/index.html` - single self-contained file, RTL Hebrew, light + dark, desktop + phone widths,
-fake data only. Screens: building report (month, language, section picker, in-page HTML preview, PDF download, "not
-included" list with the reason no permission / module off / switch off), the PDF paper, doors, waste, settings (three
-switches, door pairs, thresholds with a 422 field error, protected switches), states (empty, loading, error, switched off).
-The top bar of the mockup toggles the switches, the tickets / elevators modules, a viewer without camera permission, the
-data state, and the not-built variants of owner questions 2b, 4b and 6b. Checked in the built-in browser at 1366, 1024 and
-375 px, light and dark; no horizontal overflow at 375 px.
+`docs/design/mockups/insight-215/index.html` (copy for review: `private/review/insight-215-mockup-v2.html`, gitignored). Owner directive 23.10:
+every mockup follows the visual language of the existing infrastructure temperature screen, the elevators screen and the schedules /
+automations screens. v2 keeps every screen, section, state and mock switch of v1 and redraws them with what those screens use:
+
+- the shell as the real one draws it: the area rail (70 px, brand tile, the active area in accent-soft with the edge bar), the floating search
+  pill at the top start corner, the area's level-1 row as the segmented pill (`sw-tabs` variant pill), the section's level-2 page row as the
+  compact underline row (variant underline-compact), the crumbs line above the h1 (as tickets-handlers / tickets-overview draw it), h1 26 px /
+  700 / -0.6 px, the subtitle in text-2; on the phone the rail becomes the bottom bar (7 areas, crowded) and the long area row becomes the
+  dropdown chip beside the search, like the meters screen;
+- the KPI row of the temperature screen (each a filter; dot with halo, 20 px tabular number, 12 px label), cards with r-lg and shadow-1,
+  the pill buttons of temperature/styles.ts (`.btn`, `.btn.pri`), the soft status chips with a dot of the meters list ("מדווח" style), the
+  filter pills and segmented controls of the schedules screen, tables with the 12.5 px text-3 header, `sw-state-panel` for empty / loading /
+  error / forbidden / switched off (48 px icon tile, accent / danger / forbidden / offline soft fills), the skeleton token for loading;
+- tokens copied one to one from `frontend/src/design/tokens.ts` (classic skin, light + dark), type scale only from the token tiers; charts
+  and timelines keep LTR geometry; the floors / areas tree beside every list (a "כל האזורים" dropdown on the phone).
+
+Checked in the built-in browser (own tab) and with Playwright at 1366x768, 1024x768 and 375x812, light and dark; `scrollWidth ==
+innerWidth` at every width (no horizontal overflow). Screenshots: `private/review/insight-215-v2/` (gitignored): report-1366-light,
+report-1024-light, report-375-light, report-1366-dark (+ report-375-dark, doors-1366-light, settings-1366-light, states-1024-dark). Compared
+side by side with the real meters / schedules screens of the static build (the temperature and elevators screens need a backend and show
+"forbidden" in the static demo; their look was taken from infra-temperature.ts / infra-elevators.ts and temperature/styles.ts).
+
+### Placement (lead's proposal, owner delegated the decision; updated 23.10 after the owner's re-organisation of the service-management area)
+
+The building report is a page of a new section **"סקירה ודוחות"** inside the service-management area (`#/tickets/...`), not a top-level
+screen of its own. The section is a level-1 tab of the area (its first tab, where the manager overview was), and its level-2 page row - drawn
+exactly like the electricity / generator page rows (`INFRA_ELECTRICITY_PAGES`) - holds:
+
+1. `מסך סקירה` - the manager overview (MGRDASH, managers only; moves under the section),
+2. `דוחות בניין` - this mockup (`#/tickets/reports/building`); the doors and waste screens are its drill-downs
+   (`#/tickets/reports/doors`, `#/tickets/reports/waste`), with a crumb back to the report.
+
+The section label lives in ONE place in the mockup - the `LABELS` constant at the top of the script (`section`, `pageOverview`,
+`pageReport`, `area`) - so the final name is a one-line edit. The earlier five-page hub ("דוחות ובקרות": building reports, approvals and
+inspections register, preventive maintenance, rounds and checks, QR/NFC tags) is superseded by this section; the other pages are drawn by
+other agents in their own mockups and are not in this row any more.
+
+Settings stay in הגדרות › "תובנות ודוחות" (the settings area's underline row, `system-nav`), as in v1.
+
+### Navigation change needed (frontend/src/shell/nav.ts; no code change in this slice)
+
+- `TICKETS_TABS`: a new entry `{ id: 'reports', label: SECTION_LABEL ('סקירה ודוחות'), href: TICKETS_REPORTS_HREF = '#/tickets/reports/overview' }`
+  placed first (where `overview` is today); `overview` becomes the section's first page rather than an area tab.
+- A level-2 page registry `TICKETS_REPORTS_PAGES: TabItem[] = [{ id: 'overview', label: 'מסך סקירה', href: '#/tickets/reports/overview' },
+  { id: 'building', label: 'דוחות בניין', href: '#/tickets/reports/building' }]`, a `TAB_SECTIONS` entry `tabSection('tickets.reports', ..., 2)`
+  so `ui.tabs` orders / hides the pages like `infra.electricity`, and a `ticketsPageTabs('tickets.reports', items, api)` twin of
+  `infraPageTabs`. The screen draws the row itself (like `infra-electricity.ts`), and in the dropdown tab mode publishes it as the second
+  chip (`shell/infra-pages.ts` pattern).
+- `TAB_PERMISSIONS`: `'#/tickets/reports/overview': ['tickets.manage']` (the overview's gate, unchanged);
+  `'#/tickets/reports/building': ['insights.reports.read']` (CR-INSIGHT215 section 6; default readers site_admin + system_admin, owner
+  question 1); the doors / waste drill-downs keep their own permissions (`insights.doors.read`, `insights.waste.read`).
+- Visibility rule: the section tab is offered only while the tickets module is on (`ticketsModuleOn()`, as the whole area) AND at least one
+  of its pages is offered to the viewer: the overview by `tickets.manage`, the reports page by `insights.reports.read` AND the report switch
+  (`insights.report.enabled`, applied like `applyDoorWindowsTab`: an `applyInsightsReports(settings)` flag read from the product settings and
+  re-applied after a save in Settings). With no page offered the tab is absent (never an empty row), and the `sw-app` route answers a direct
+  URL with the neutral "not available" panel (the "switched off" state of the mockup).
+- Settings tab of הגדרות: `{ id: 'insights', label: 'תובנות ודוחות', href: '#/system/insights' }` in `AREA_TABS.system`, `TAB_PERMISSIONS`
+  `['system.configure']`.
 
 ### Owner questions that block the UI (CR-INSIGHT215 section 8, recommendation first)
 
@@ -33,12 +84,12 @@ data state, and the not-built variants of owner questions 2b, 4b and 6b. Checked
 5. Retention: a) generate on demand (built), b) keep PDFs 7 years like bills. Recommend a.
 6. Generator section: a) alerts only (built), b) also run counts and hours (mockup toggle "6b"). Recommend a.
 
-Plus approval of the mockup itself (layout, section order, the "not included" list at the end of the report).
+Plus approval of the restyled mockup and of the placement above (the section's final label).
 
 ## Remaining (slice 2+)
 
-- Owner approval of the mockup above.
-- UI (frontend) screens, i18n, Playwright specs.
+- Owner approval of the mockup v2 and the placement.
+- UI (frontend) screens, the nav change above, i18n, Playwright specs.
 - Scheduled monthly delivery / WhatsApp text (owner question 4), retention (5), generator run counts (6).
 - Lead: answer the owner questions in CR-INSIGHT215 section 8; full gate at integration.
 
