@@ -396,15 +396,26 @@ class SqlitePacerStore:
 # ---------------------------------------------------------------- WisKey's side: `whatsapp_pacing_status_v1` (tolerant reader)
 
 PACING_SCHEMA = "whatsapp_pacing_status_v1"
-SCHEMA_VERSIONS = (1, "1", "v1", PACING_SCHEMA)
+# WKA-295 (WisKey's declared contract, 2026-10-22): `pacing_schema_version` is EXACTLY the JSON integer 1. No alias ("1", "v1", the schema
+# name) and no value that merely compares equal to 1 (True, 1.0) - a membership test (`v in (1, ...)`) would let both through, so the check
+# is `is_schema_v1`, never `in`.
+PACING_SCHEMA_VERSION = 1
 WINDOWS = ("1m", "1h", "24h")
 # PACING12-295: the ONE route the envelope is read from. It is chosen explicitly after discovery (WisKey's `api.commands`) lists it;
 # there is no fallback to `whatsapp/status` and no guessed endpoint.
 PACING_ROUTE = "whatsapp/pacing_status_v1"
-PACING_ACCOUNTS_MAX = 10  # Arx keeps at most this many senders of one read - and SAYS so in `coverage` (never a silent cut)
+# WKA-295: WisKey reports up to this many senders in one envelope WITHOUT truncation and refuses beyond it. Arx keeps every sender of a
+# read within the bound and REFUSES a read beyond it (`accounts_over_limit`, every sender unknown) - never a cut list presented as a feed.
+PACING_ACCOUNTS_MAX = 128
 # why a read yields no usable envelope (every account is then UNKNOWN, never zero)
 CLOSED_REASONS = ("discovery_unknown", "api_incompatible", "pacing_route_not_listed", "route_error", "envelope_invalid",
-                  "schema_version_missing", "schema_version_misplaced", "schema_version_unsupported", "coverage_inconsistent", "not_read", "stale")
+                  "schema_version_missing", "schema_version_misplaced", "schema_version_unsupported", "accounts_over_limit",
+                  "coverage_inconsistent", "not_read", "stale")
+
+
+def is_schema_v1(value: Any) -> bool:
+    """True iff `value` is exactly the integer 1 (`type(value) is int`: a bool, a float, a string or an alias is not)."""
+    return type(value) is int and value == PACING_SCHEMA_VERSION
 
 
 def choose_pacing_route(commands: Any) -> tuple[str | None, str | None]:
@@ -474,7 +485,7 @@ def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
     (`project_pacing_envelope`); an entry need not repeat it. Unknown keys are dropped; nothing here ever raises on a malformed answer."""
     if not isinstance(raw, Mapping):
         return None
-    if "pacing_schema_version" in raw and raw["pacing_schema_version"] not in SCHEMA_VERSIONS:
+    if "pacing_schema_version" in raw and not is_schema_v1(raw["pacing_schema_version"]):
         return None
     ref = raw.get("sender_ref")
     if not (isinstance(ref, str) and SENDER_REF_RE.match(ref)):
@@ -500,23 +511,27 @@ def project_pacing_envelope(raw: Any) -> dict[str, Any]:
         {pacing_schema_version: 1 | None, closed_reason: None | <CLOSED_REASONS>, accounts_total: int | None,
          accounts: [<= PACING_ACCOUNTS_MAX entries], coverage: {total, received, returned, invalid, truncated}}
 
-    The schema version is read from the ENVELOPE only: missing there is `schema_version_missing` (or `schema_version_misplaced` when the
-    entries carry it instead), another version `schema_version_unsupported`. `accounts_total` (optional, WisKey's own count) must not be
-    below the entries it sent (`coverage_inconsistent`). `truncated` is true whenever `returned < total` - WisKey sent fewer than it has,
-    an entry was unusable, or Arx's cap cut the list. Idempotent on its own output (the invalid count is carried over)."""
+    The schema version is read from the ENVELOPE only and must be exactly the integer 1 (`is_schema_v1`): missing there is
+    `schema_version_missing` (or `schema_version_misplaced` when the entries carry it instead), anything else - another version, `True`,
+    `1.0`, `"1"`, an alias - `schema_version_unsupported`. More than PACING_ACCOUNTS_MAX entries, or an `accounts_total` above it, is
+    `accounts_over_limit` (refused whole, never cut). `accounts_total` (optional, WisKey's own count) must not be below the entries it
+    sent (`coverage_inconsistent`). `truncated` is true whenever `returned < total` - WisKey sent fewer than it has, or an entry was
+    unusable; Arx itself never cuts a read. Idempotent on its own output (the invalid count is carried over)."""
     if not isinstance(raw, Mapping):
         return closed_envelope("envelope_invalid")
     accounts = raw.get("accounts")
     if "pacing_schema_version" not in raw:
         misplaced = isinstance(accounts, list) and any(isinstance(a, Mapping) and "pacing_schema_version" in a for a in accounts)
         return closed_envelope("schema_version_misplaced" if misplaced else "schema_version_missing")
-    if raw["pacing_schema_version"] not in SCHEMA_VERSIONS:
+    if not is_schema_v1(raw["pacing_schema_version"]):
         return closed_envelope("schema_version_unsupported")
     if not isinstance(accounts, list):
         return closed_envelope("envelope_invalid")
     declared = raw.get("accounts_total")
     if declared is not None and _count(declared, 1_000_000) is None:
         return closed_envelope("envelope_invalid")
+    if len(accounts) > PACING_ACCOUNTS_MAX or (declared is not None and declared > PACING_ACCOUNTS_MAX):
+        return closed_envelope("accounts_over_limit")
     if declared is not None and declared < len(accounts):
         return closed_envelope("coverage_inconsistent")
     prior = raw.get("coverage")
@@ -531,8 +546,7 @@ def project_pacing_envelope(raw: Any) -> dict[str, Any]:
             continue
         seen.add(st.sender_ref)
         usable += 1
-        if len(kept) < PACING_ACCOUNTS_MAX:
-            kept.append(_project_account(st))
+        kept.append(_project_account(st))  # at most PACING_ACCOUNTS_MAX: a longer list was refused above
     total = declared if declared is not None else len(accounts)
     invalid = max(len(accounts) - usable, carried or 0)
     received = min(total, max(len(accounts), carried_received or 0))

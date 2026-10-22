@@ -277,8 +277,13 @@ async def async_handle(hass: Any, service_name: str, kind: str, data: Any, verif
         result = await _dispatch(reg, dto, service_name)
     finally:
         reg._in_flight -= 1
-        removed, unloaded = not cap.owns(reg), cap._bridge_epoch != epoch
-        tampered = (dto.body_sha256, dto.nonce) != sealed or not dto.intact()
+        # WKA-295: the same source checks as before the dispatch, again AFTER the consumer's await: the registration is still the active one
+        # of THIS capability AND that capability is still the bridge's object under LEASE_CAPABILITY_KEY (not replaced or dropped meanwhile);
+        # the bridge was not reloaded; the DTO is still the very object this capability issued, unaltered (`verify_dto`, which includes
+        # the seal / `intact()`).
+        removed = not cap.owns(reg) or async_get_capability(hass) is not cap
+        unloaded = cap._bridge_epoch != epoch
+        tampered = (dto.body_sha256, dto.nonce) != sealed or not cap.verify_dto(dto)
     if removed:
         _LOGGER.warning("smplwise_bridge.%s: the lease consumer was removed while answering; not relayed", service_name)
         raise LeaseUnavailable("lease_consumer_removed")
