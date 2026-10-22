@@ -123,6 +123,20 @@ def test_prepare_is_rate_limited(pw):
     assert codes[:10] == [200] * 10 and codes[10] == 429
 
 
+def test_e08_the_prepare_limit_survives_a_restart(pw):
+    """Fable review 2 E-08: the per-minute `prepare` limit is also counted from the confirmations table, so a restart (the in-memory
+    counter emptied) does not reset it; it lapses after a minute of the route's clock."""
+    codes = [pw.post("/doors/emergency/prepare", kind="lock_secure").status_code for _ in range(10)]
+    assert codes == [200] * 10
+    de.reset_rate()  # what a process restart does to the in-memory counter
+    r = pw.post("/doors/emergency/prepare", kind="lock_secure")
+    assert r.status_code == 429 and r.json()["code"] == "rate_limited"
+    assert len(pw.rows("SELECT token_sha256 FROM door_emergency_confirmations")) == 10, "a refused prepare mints no token"
+    de.reset_rate()
+    tick(pw, 61)
+    assert pw.post("/doors/emergency/prepare", kind="lock_secure").status_code == 200
+
+
 # ---------------------------------------------------------------- lock: the happy path, partial results, release
 
 def test_lock_all_reaches_every_door_and_is_visible_until_released(pw):

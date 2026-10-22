@@ -85,7 +85,7 @@ from . import lease_service
 from . import media_policy, runnable, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
-from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet
+from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, Persister as KeyPersister
 from .stream_source_service import async_handle_stream_source
 
 _LOGGER = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ ROTATE_SCHEMA = vol.Schema(
     {
         vol.Required("protocol"): cv.string,
         vol.Required("op"): cv.string,
-        vol.Required("rotation_id"): cv.string,
+        vol.Required("rotation_id"): vol.All(cv.string, vol.Length(min=1, max=64)),  # HA-05: bounded before anything is verified
         vol.Required("kid"): cv.string,
         vol.Required("ts"): vol.Coerce(int),
         vol.Required("nonce"): cv.string,
@@ -361,28 +361,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run, read live from the options (empty by default; malformed = empty)."""
         return runnable.allowlist(entry.options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
 
+    def wipe_entry_code() -> None:
+        """The first rotation completed: the pairing code is no longer a key - do not keep it in the entry either (HA-06)."""
+        hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_PAIRING_CODE: ""})
+
+    def save_failed(exc: BaseException) -> None:
+        _LOGGER.warning("bridge key state not saved (%s); retried", type(exc).__name__)
+
+    saver = KeyPersister(keyset, store.async_save, lambda: entry.data.get(CONF_PAIRING_CODE) or "", wipe_entry_code, hass.async_create_task,
+                         on_error=save_failed)
+    saver.clean_entry()  # HA-06: a restart between the key save and the entry update left the retired code in the entry
+
     async def persist() -> None:
         """Save the key set when it changed (a rotation step, a retired key, a new high-water mark). Raises when the save fails."""
-        if not keyset.dirty:
-            return
-        keyset.dirty = False
-        try:
-            await store.async_save(keyset.state())
-        except Exception:
-            keyset.dirty = True
-            raise
-        if keyset.legacy_wiped:  # the first rotation completed: the pairing code is no longer a key - do not keep it in the entry either
-            keyset.legacy_wiped = False
-            hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_PAIRING_CODE: ""})
+        await saver.persist()
 
     async def screened(name: str, call: ServiceCall) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Verify the signature once and judge the service-identity rules (service_identity.screen)."""
         try:
             return await service_identity.screen(hass, verifier, dict(call.data), name, service_user_id(), local_extended())
         finally:
-            if keyset.dirty:
-                store.async_delay_save(keyset.state, 2)  # a new high-water mark: saved soon, not on every message
-                keyset.dirty = False
+            saver.save_soon()  # HA-04: a new high-water mark is saved soon, not on every message; clean only after the save succeeded
 
     async def execute(call: ServiceCall) -> ServiceResponse:
         on_behalf = "on_behalf_of" in call.data
@@ -603,9 +602,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except lease_service.LeaseUnavailable as exc:
             raise HomeAssistantError(f"lease_unavailable: {exc.code}") from None  # a fixed token; Arx reads it as "no answer"
         finally:
-            if keyset.dirty:
-                store.async_delay_save(keyset.state, 2)
-                keyset.dirty = False
+            saver.save_soon()
 
     async def lease_event(call: ServiceCall) -> ServiceResponse:
         return await lease(SERVICE_LEASE_EVENT, "event", call)

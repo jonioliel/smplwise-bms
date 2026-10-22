@@ -23,6 +23,7 @@ this peer into a rotation the add-on does not know about. Suspect a leak -> re-p
 Nothing here logs or returns a key, salt, proof, nonce or signature in an error."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -30,7 +31,7 @@ import json
 import re
 import secrets
 import time
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 KID_RE = re.compile(r"^g[0-9]{1,9}-(legacy|[0-9a-f]{8})$")
 LEGACY_KID = "g0-legacy"
@@ -45,6 +46,8 @@ DERIVE_INFO = "smplwise-bridge-rotation-v1"
 PROOF_LABEL = "rotation-ack|"
 MODES = ("routine", "hard_cut")
 STATE_VERSION = 1
+ROTATION_ID_MAX = 64
+SAVE_DELAY_S = 2.0
 _DUMMY = secrets.token_urlsafe(32)  # never a real key: keeps the compare's cost the same when no key can be used
 
 
@@ -245,7 +248,11 @@ class KeySet:
 
     def handle_control(self, msg: Any, now: float | None = None) -> dict[str, Any]:
         """One signed control message -> the signed answer (always signed with the key this peer signs with AFTER the op). A message that does
-        not verify gets an UNSIGNED refusal (HA-01)."""
+        not verify gets an UNSIGNED refusal (HA-01). The rotation id's shape is checked BEFORE the signature (HA-05): an oversized or
+        missing id is refused unsigned as `bad_format` and never reaches the MAC, the replay cache or the high-water mark."""
+        rid = msg.get("rotation_id") if isinstance(msg, dict) else None
+        if not isinstance(rid, str) or not 1 <= len(rid) <= ROTATION_ID_MAX:
+            return {"ok": False, "code": "bad_format"}
         kid, code = self._check(msg, now)
         if kid is None:
             # HA-01: a message that did not prove a key gets NO signed answer - a signed refusal would make this service a signing
@@ -254,9 +261,6 @@ class KeySet:
         op = msg.get("op")
         if msg.get("protocol") != PROTOCOL or op not in ("begin", "probe", "commit", "retire", "abort", "status"):
             return self._answer("unknown", msg, False, code="bad_request")
-        rid = msg.get("rotation_id")
-        if not isinstance(rid, str) or not 1 <= len(rid) <= 64:
-            return self._answer(op, msg, False, code="bad_request")
         return getattr(self, f"_op_{op}")(kid, msg)
 
     def _op_probe(self, kid: str, msg: dict[str, Any]) -> dict[str, Any]:
@@ -337,3 +341,61 @@ class KeySet:
         r = self._is(msg)
         state = "unknown_rotation" if r is None else ("committed" if r.get("committed") else ("aborted" if r.get("closed") else "not_committed"))
         return self._answer("status", msg, True, rotation=state, active_kid=self.signing, old_key_present=self.old is not None)
+
+
+class Persister:
+    """Saving the key set (the Home Assistant glue in `__init__.py` hands in the Store's save and the config entry's pairing-code copy).
+
+    - `persist()`: save now when the set changed; `dirty` is cleared only for a save that succeeded (a failed one raises and stays dirty).
+    - `save_soon()` (HA-04): a new high-water mark is saved after SAVE_DELAY_S, not on every message - through `persist()`, so a failed
+      delayed save leaves the set dirty and the next message or the periodic housekeeping retries it (it used to be marked clean at once).
+    - HA-06: the config entry's copy of the pairing code is blanked right after the save that retired it AND, idempotently, whenever the
+      saved state says the pairing secret is retired but the entry still holds it (`clean_entry()`, also called at setup) - so a restart
+      between the two writes no longer leaves the retired code in the entry."""
+
+    def __init__(self, keyset: KeySet, save: Callable[[dict[str, Any]], Awaitable[None]], entry_code: Callable[[], str],
+                 wipe_entry_code: Callable[[], None], spawn: Callable[[Awaitable[None]], Any], *, delay_s: float = SAVE_DELAY_S,
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, on_error: Callable[[BaseException], None] | None = None) -> None:
+        self.keyset, self._save, self._entry_code, self._wipe = keyset, save, entry_code, wipe_entry_code
+        self._spawn, self._delay, self._sleep, self._on_error = spawn, delay_s, sleep, on_error
+        self._pending = False
+        self._saved_retired = keyset.legacy_retired  # what the store holds (loaded at setup, then every successful save)
+
+    def clean_entry(self) -> bool:
+        """Blank the entry's pairing-code copy when the SAVED state has retired the pairing secret. True when it blanked it."""
+        self.keyset.legacy_wiped = False
+        if self._saved_retired and self._entry_code():
+            self._wipe()
+            return True
+        return False
+
+    async def persist(self) -> None:
+        if not self.keyset.dirty:
+            return
+        self.keyset.dirty = False
+        state = self.keyset.state()
+        try:
+            await self._save(state)
+        except BaseException:
+            self.keyset.dirty = True
+            raise
+        self._saved_retired = bool(state.get("legacy_retired"))
+        self.clean_entry()
+
+    def save_soon(self) -> None:
+        if not self.keyset.dirty or self._pending:
+            return
+        self._pending = True
+
+        async def later() -> None:
+            try:
+                await self._sleep(self._delay)
+                self._pending = False
+                await self.persist()
+            except Exception as exc:  # noqa: BLE001 - stays dirty: the next message or the housekeeping retries
+                if self._on_error is not None:
+                    self._on_error(exc)
+            finally:
+                self._pending = False
+
+        self._spawn(later())

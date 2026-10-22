@@ -971,7 +971,7 @@ def test_events_go_through_one_bounded_queue_and_a_full_queue_counts_drops(live,
     threads: set[int] = set()
     started, gate = threading.Event(), threading.Event()
 
-    def slow_handle(_db: Any, _settings: Any, frm: Any) -> list[Any]:
+    def slow_handle(_db: Any, _settings: Any, frm: Any, **_kw: Any) -> list[Any]:
         started.set()
         gate.wait(10)
         handled.append(frm["n"])
@@ -1268,3 +1268,95 @@ def test_a_time_only_automation_reads_no_watched_entity(live):
     before = len(live["reads"])
     assert fire(live, item="9005", seed=False, source="time")[0]["outcome"] == "sent"
     assert live["reads"][before:] == ["automation.a_9005"]
+
+
+# ---- Fable review 2: DA-02, DA-03, DA-04
+
+def test_da02_no_corroboration_wait_while_other_events_queue_behind(live, monkeypatch):
+    """A burst of forged events must not hold the one worker CORROBORATE_WAIT_S per event: with a backlog the event is refused at once."""
+    import queue
+
+    c, sender = live["c"], live["sender"]
+    _armed(c)
+    monkeypatch.setattr(door_automation, "CORROBORATE_WAIT_S", 2.0)
+    slept: list[float] = []
+    monkeypatch.setattr(door_automation, "_sleep", lambda s: slept.append(s))
+    backlog: queue.Queue[Any] = queue.Queue()
+    for _ in range(door_automation.CORROBORATE_WAIT_MAX_QUEUED + 1):
+        backlog.put_nowait(lambda: None)
+    monkeypatch.setattr(door_automation, "_QUEUE", backlog)
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    assert slept == [] and sender.calls == [], "refused without waiting"
+    # an idle queue still waits (the state frame may be late), as before
+    monkeypatch.setattr(door_automation, "_QUEUE", queue.Queue())
+
+    def late_frame(seconds: float) -> None:
+        slept.append(seconds)
+        corroborate(live)
+
+    monkeypatch.setattr(door_automation, "_sleep", late_frame)
+    live["clock"].advance(seconds=11)
+    assert fire(live, seed=False)[0]["outcome"] == "sent" and len(slept) == 1
+
+
+def test_da03_the_corroboration_wait_reads_and_writes_once(live, monkeypatch):
+    """The re-check loop holds no write transaction: every pass reads; the single write is the decision after the loop."""
+    import contextlib
+
+    c, db = live["c"], live["db"]
+    _armed(c)
+    monkeypatch.setattr(door_automation, "CORROBORATE_WAIT_S", 2.0)
+    monkeypatch.setattr(door_automation, "CORROBORATE_POLL_S", 0.25)  # exact in binary: the pass count below is exact
+    t = [0.0]
+    monkeypatch.setattr(door_automation, "_monotonic", lambda: t[0])
+
+    def tick(seconds: float) -> None:
+        t[0] += seconds
+
+    monkeypatch.setattr(door_automation, "_sleep", tick)
+    opened: list[tuple[str, str]] = []
+    real = db.connection
+
+    @contextlib.contextmanager
+    def spy(*a: Any, **kw: Any):
+        opened.append((kw.get("mode", "write"), kw.get("label", "")))
+        with real(*a, **kw) as conn:
+            yield conn
+
+    monkeypatch.setattr(db, "connection", spy)
+    assert fire(live, seed=False)[0]["reason"] == "uncorroborated"
+    gates = [m for m, label in opened if label == "door automation gates"]
+    writes = [label for m, label in opened if m != "read"]
+    assert len(gates) == 9 and set(gates) == {"read"}, opened  # the passes at 0, 0.25 ... 2.0 s
+    assert writes == ["door automation decide run"], opened
+
+
+def test_da04_corroboration_is_measured_from_receipt_not_from_the_dequeue(live):
+    """A real run that waited in the queue longer than corroborate_window_s is still matched: the window counts from when Arx received
+    the event (its own clock), not from when the worker took it."""
+    c, sender, clock = live["c"], live["sender"], live["clock"]
+    _armed(c)
+    jobs: list[Any] = []
+    door_automation.DISPATCH = jobs.append
+    corroborate(live)
+    door_automation.on_event(live["db"], live["settings"], frame())  # received now
+    window = door_automation.DOOR_DEFAULTS["corroborate_window_s"]
+    clock.advance(seconds=window + 5)  # the worker was busy
+    jobs.pop()()
+    assert len(sender.calls) == 1, "matched with the receipt time"
+    # the same delay measured from the dequeue (no receipt time) is refused: the old behaviour, still the fallback
+    clock.advance(seconds=11)
+    corroborate(live)
+    clock.advance(seconds=window + 5)
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame())[0]["reason"] == "uncorroborated"
+    clock.advance(seconds=11)
+    corroborate(live)
+    received = door_automation.now()
+    clock.advance(seconds=window + 5)
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame(), received_at=received)[0]["outcome"] == "sent"
+    # a receipt time in the future is never believed (it can only come from a bug): the decision time is used
+    clock.advance(seconds=11)
+    corroborate(live)
+    future = door_automation.now() + _dt.timedelta(seconds=window + 30)
+    assert door_automation.handle_trigger(live["db"], live["settings"], frame(), received_at=future)[0]["outcome"] == "sent"
+    assert len(sender.calls) == 3

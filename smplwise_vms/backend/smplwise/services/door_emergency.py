@@ -15,7 +15,8 @@ incident for a release), valid 20 s, stored as its SHA-256 only; `start` / `rele
 incident, and need `confirmed: true` too. The screen adds a 1.5-s hold before it even asks (CR-039 8.1).
 
 Rate limits (T18): per person one start per 10 s and five per hour; twelve per hour installation-wide; drills ten per hour per person;
-`prepare` ten per minute per person. Counted from the incidents table (survive a restart) except `prepare` (in memory).
+`prepare` ten per minute per person. Counted from the incidents table (survive a restart); `prepare` both in memory (every attempt) and
+from the confirmations table (every minted token, survives a restart - review 2 E-08).
 
 Scope (CR-039 7.4): an incident covers the doors of the stations in the chosen scope (installation / a site / a building) on which the
 presser holds the kind's permission (deny wins, per station); the presser must hold it at the scope itself too.
@@ -273,6 +274,16 @@ def _prepare_rate(user_id: str) -> None:
         q.append(now)
 
 
+def _prepare_rate_durable(conn: sqlite3.Connection, user_id: str, now: dt.datetime) -> None:
+    """The same per-minute `prepare` limit counted from the confirmations table, so a restart does not reset it (review 2 E-08). The
+    in-memory counter above still counts refused attempts as well; this one counts the tokens actually minted (kept for an hour after
+    expiry, so the last minute is always present)."""
+    since = dw.iso(now - dt.timedelta(seconds=60))
+    n = conn.execute("SELECT COUNT(*) FROM door_emergency_confirmations WHERE user_id = ? AND created_at > ?", (user_id, since)).fetchone()[0]
+    if n >= LIMITS["prepare_per_min"]:
+        raise ApiError(429, "rate_limited", "יותר מדי ניסיונות. יש להמתין רגע.", retryable=True, details={"retry_after_s": 60})
+
+
 def _start_rate(conn: sqlite3.Connection, user_id: str, drill: bool, now: dt.datetime) -> str | None:
     hour = dw.iso(now - dt.timedelta(hours=1))
     if drill:
@@ -317,6 +328,7 @@ def prepare(conn: sqlite3.Connection, settings: Any, principal: Principal, *, ac
         raise ApiError(422, "invalid_request", "בקשה לא תקינה.")
     check_actor(conn, principal, actor_kind, audit_action, dev_mode=dev_mode)
     _prepare_rate(principal.user_id)
+    _prepare_rate_durable(conn, principal.user_id, now)
     if not drill and action == "start":  # E-01 (Fable review 2): a RELEASE never depends on the master switch - an incident in effect must always be endable
         if not enabled(conn):
             raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")

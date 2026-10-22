@@ -84,6 +84,9 @@ MANUAL_SOURCES = ("trigger action", "manual")
 QUEUE_MAX = 256
 CORROBORATE_WAIT_S = 3.0  # the event can arrive before the automation entity's state frame: re-check this long before refusing
 CORROBORATE_POLL_S = 0.2
+# DA-02 (Fable review 2): the one worker does not wait for a missing state frame while other events queue behind it - a burst of forged
+# events for one armed block would otherwise delay every legitimate event by up to CORROBORATE_WAIT_S each.
+CORROBORATE_WAIT_MAX_QUEUED = 1
 
 DISARMING = ("arm_expired", "item_changed", "item_missing", "armer_lost_authority", "storm")
 # trigger platforms that can never be caused by a door (no entity): safe for the loop check
@@ -864,6 +867,15 @@ def _watch_specs(cfg: dict[str, Any]) -> tuple[list[tuple[str, bool]], bool, boo
     return specs, entityless, True
 
 
+def _backlog() -> int:
+    """The events waiting behind the one in hand (0 without the queue, e.g. a synchronous dispatch)."""
+    q = _QUEUE
+    try:
+        return q.qsize() if q is not None else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def corroboration(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime) -> tuple[str | None, str | None]:
     """A-01 (Fable review; CR 11.1 / 12.6): is this `automation_triggered` event backed by what the mirror saw? Read only. Returns
     (refusal reason or None, the matched `last_triggered` stamp).
@@ -960,10 +972,11 @@ def _consume(conn: sqlite3.Connection, row: sqlite3.Row, stamp: str) -> bool:
 
 
 def _block_gates(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime, trigger: dict[str, Any], context: Any, *, corroborate: bool = False,
-                 matched: list[str] | None = None) -> list[tuple[str, bool, str | None]]:
+                 matched: list[str] | None = None, event_at: dt.datetime | None = None) -> list[tuple[str, bool, str | None]]:
     """The block-level gates in order: (gate, ok, refusal reason). Read only. `context` is the event's context ({user_id, parent_id}).
-    `corroborate` (the real fire path) adds the last gate, the A-01 corroboration of the event with the mirror; the matched stamp is
-    appended to `matched`. A simulation has no event, so it does not evaluate that gate."""
+    `corroborate` (the real fire path) adds the last gate, the A-01 corroboration of the event with the mirror, measured against
+    `event_at` (when Arx received the event; `at` when not given); the matched stamp is appended to `matched`. A simulation has no
+    event, so it does not evaluate that gate."""
     gates: list[tuple[str, bool, str | None]] = [("armed", row["state"] == "armed", None if row["state"] == "armed" else "not_armed")]
     gates.append(("feature", enabled(conn), None if enabled(conn) else "feature_off"))
     gates.append(("kill", not killed(conn), "killed" if killed(conn) else None))
@@ -985,7 +998,7 @@ def _block_gates(conn: sqlite3.Connection, row: sqlite3.Row, at: dt.datetime, tr
     except ClockUntrusted:
         gates.append(("window", False, "clock_untrusted"))
     if corroborate:
-        why, stamp = corroboration(conn, row, at)
+        why, stamp = corroboration(conn, row, event_at or at)
         gates.append(("corroboration", why is None, why))
         if stamp is not None and matched is not None:
             matched.append(stamp)
@@ -1101,33 +1114,41 @@ def _fire_door(db: Database, block_id: str, door: dict[str, Any], trigger: dict[
     return {"door": name, "outcome": outcome, "code": code, "door_request_id": request_id}
 
 
-def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[str, Any], context: Any, *, corroborate: bool = True) -> list[dict[str, Any]]:
+def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[str, Any], context: Any, *, corroborate: bool = True,
+                      received_at: dt.datetime | None = None) -> list[dict[str, Any]]:
     """One run of the automation `item_id` reported by Home Assistant. Returns one entry per decision (tests, logs). `context` is the event's
     context ({user_id, parent_id}). Order: the block gates with the mirror as the pre-filter (read only), then ONE direct read of the
     automation entity from Home Assistant's state machine outside any transaction (DA-01), then - under the write lock - the run is matched
     with exactly one event (`_consume`, a replay is refused) and the doors are handled. The event can reach Arx before the state frame does,
-    so an event that fails ONLY the corroboration is re-checked for CORROBORATE_WAIT_S (nothing held while waiting) before it is refused."""
+    so an event that fails ONLY the corroboration is re-checked for CORROBORATE_WAIT_S (nothing held while waiting) before it is refused -
+    but only while no more than CORROBORATE_WAIT_MAX_QUEUED other events wait behind it (DA-02).
+
+    DA-04: the corroboration window is measured from `received_at`, the moment Arx's own clock received the event (`on_event`), not from
+    when the worker took it off the queue, so a queue delay does not refuse a real run. It is never the event's own `time_fired` (the
+    sender's word) and never later than now. The arming window, the expiry and the per-door gates still use the decision time."""
     dev_mode = bool(getattr(settings, "dev_user", None))
     deadline = _monotonic() + CORROBORATE_WAIT_S
     while True:
         at = now()
+        ev_at = received_at if received_at is not None and received_at <= at else at
         with db.connection(mode="read", label="door automation gates") as conn:
             row = by_item(conn, item_id)
             if row is None or row["state"] != "armed":
                 return []
             matched: list[str] = []
-            refusal = next((reason for _gate, ok, reason in _block_gates(conn, row, at, trigger, context, corroborate=corroborate, matched=matched) if not ok), None)
+            refusal = next((reason for _gate, ok, reason in _block_gates(conn, row, at, trigger, context, corroborate=corroborate, matched=matched,
+                                                                         event_at=ev_at) if not ok), None)
             item = _item(conn, row["automation_item_id"]) if refusal is None and corroborate else None
             window, done = limits(conn)["corroborate_window_s"], row["corroborated_trigger"]
             specs, entityless, readable = _watch_specs(_item_cfg(item)) if item is not None else ([], False, False)
         stamp: str | None = None
         if refusal is None and corroborate:
-            stamp = direct_run(settings, item["entity_id"], at, window, done) if item is not None and item["entity_id"] else None
-            if stamp is not None and (not readable or (specs and not entityless and not direct_watch(settings, specs, at, window))):
+            stamp = direct_run(settings, item["entity_id"], ev_at, window, done) if item is not None and item["entity_id"] else None
+            if stamp is not None and (not readable or (specs and not entityless and not direct_watch(settings, specs, ev_at, window))):
                 stamp = None  # DA-06: the watched entity must also have changed in Home Assistant's own state machine
             if stamp is None:
                 refusal = "uncorroborated"
-        if refusal == "uncorroborated" and _monotonic() < deadline:
+        if refusal == "uncorroborated" and _monotonic() < deadline and _backlog() <= CORROBORATE_WAIT_MAX_QUEUED:
             _sleep(CORROBORATE_POLL_S)
             continue
         with db.connection(label="door automation decide run") as conn:
@@ -1143,8 +1164,9 @@ def handle_item_event(db: Database, settings: Any, item_id: str, trigger: dict[s
         return [_fire_door(db, block_id, d, trigger, dev_mode) for d in doors]
 
 
-def handle_trigger(db: Database, settings: Any, frame: Any) -> list[dict[str, Any]]:
-    """An `automation_triggered` frame of the add-on's subscription -> the automation's block, if any."""
+def handle_trigger(db: Database, settings: Any, frame: Any, received_at: dt.datetime | None = None) -> list[dict[str, Any]]:
+    """An `automation_triggered` frame of the add-on's subscription -> the automation's block, if any. `received_at`: when Arx received
+    the frame (DA-04; None = now)."""
     event = frame.get("event") if isinstance(frame, dict) else None
     if not isinstance(event, dict) or event.get("event_type") != "automation_triggered":
         return []
@@ -1161,7 +1183,7 @@ def handle_trigger(db: Database, settings: Any, frame: Any) -> list[dict[str, An
     trigger = _trigger_of(data.get("source"), event.get("time_fired"))
     if isinstance(context.get("parent_id"), str):
         trigger["parent_context"] = context["parent_id"][:64]  # audit only (never authority)
-    return handle_item_event(db, settings, item_id, trigger, context)
+    return handle_item_event(db, settings, item_id, trigger, context, received_at=received_at)
 
 
 def _worker_loop(q: queue.Queue[Callable[[], Any]]) -> None:
@@ -1199,10 +1221,14 @@ def on_event(db: Database | None, settings: Any, frame: Any) -> None:
     """The mirror's hook (services/automations.py). Never raises into the mirror and never runs on the WS loop (a bounded queue and one worker)."""
     if db is None:
         return
+    try:
+        received: dt.datetime | None = now()  # DA-04: Arx's own clock at receipt, before any queue delay
+    except Exception:  # noqa: BLE001 - never raise into the mirror; the worker then measures from its own now
+        received = None
 
     def run() -> None:
         try:
-            handle_trigger(db, settings, frame)
+            handle_trigger(db, settings, frame, received_at=received)
         except Exception:  # noqa: BLE001
             log.exception("door automation: an automation_triggered event could not be handled")
 
