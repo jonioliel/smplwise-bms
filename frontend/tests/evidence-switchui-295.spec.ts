@@ -88,7 +88,7 @@ test('cancelling the confirmation sends nothing', async ({ page }) => {
   const s = page.locator(SCREEN);
   await s.locator('[data-wiskey-switch="schedule"] [data-wiskey-toggle]').click();
   await expect(s.locator('sw-dialog[data-wiskey-dialog="on"] [data-wiskey-confirm]')).toBeVisible();
-  await s.locator('sw-dialog[data-wiskey-dialog="on"] sw-button[variant="ghost"]').click();
+  await s.locator('sw-dialog[data-wiskey-dialog="on"] [data-wiskey-cancel]').click();
   await expect(s.locator('sw-dialog[data-wiskey-dialog]')).toHaveCount(0);
   expect(puts).toEqual([]);
 });

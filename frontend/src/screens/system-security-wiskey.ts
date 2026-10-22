@@ -147,7 +147,7 @@ export class SystemSecurityWiskey extends LitElement {
     return html`<sw-dialog open heading=${wst(on ? 'confirmOnQ' : 'confirmOffQ', { name })} data-wiskey-dialog=${p.next} @close=${() => { if (!this.busy) this.pending = null; }}>
       <p style="margin:0">${wst(on ? 'confirmOnText' : 'confirmOffText')}</p>
       ${this.dlgError ? html`<p class="err-line" role="alert" data-wiskey-dialog-error>${this.dlgError}</p>` : nothing}
-      <div class="foot"><sw-button variant="ghost" ?disabled=${this.busy} @click=${() => (this.pending = null)}>${wst('cancel')}</sw-button>
+      <div class="foot"><sw-button variant="ghost" data-wiskey-cancel ?disabled=${this.busy} @click=${() => (this.pending = null)}>${wst('cancel')}</sw-button>
         <sw-button variant=${on ? 'primary' : 'danger'} data-wiskey-confirm ?disabled=${this.busy} @click=${() => void this.confirm()}>${wst(on ? 'turnOn' : 'turnOff')}</sw-button></div>
     </sw-dialog>`;
   }
