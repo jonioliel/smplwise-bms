@@ -88,6 +88,14 @@ def test_unknown_at_another_station_does_not_block_a_but_unknown_at_a_stays_bloc
     assert _station(own, "station-a") is None
 
 
+@pytest.mark.parametrize("queue", ["operations", "pins", "unverified"])
+def test_work_queued_under_an_id_with_no_row_cannot_be_attributed_so_a_stays_unknown(queue):
+    raw = _answer([_row("station-a")], **{queue: ["station-gone"]})
+    st = _parse(raw)
+    assert _station(st, "station-a") is None  # mapping lost / another id: UNKNOWN, never False
+    assert _station(st, "station-gone") is (None if queue == "unverified" else True)
+
+
 def test_a_station_proof_for_a_still_active_person_is_not_a_person_clean():
     st = _parse(_answer([_row("station-a"), _row("station-c", enabled=True)]))  # A blocked, C still allowed
     assert st.revocation_pending is False and st.central_revoked is False
