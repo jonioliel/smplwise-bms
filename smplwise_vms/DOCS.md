@@ -38,6 +38,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `push_relay_url` (optional, CR-027) — the SmplWise push relay that delivers notifications to the SmplWise Arx phone
      app (`services/push-relay/README.md`). Its key (this installation's credential at the relay) is entered in Arx (see
      "Secrets" below). Without both, the "אפליקציה" channel in הגדרות › התראות plans nothing (`channel_unavailable`).
+   - `fleet_report_url` (optional, CR-FLEET215) — the SmplWise fleet receiver for the daily health report (versions, subsystem
+     states and counters only: no names, addresses, images, events or door actions). Empty by default = nothing is ever sent.
+     Even when set, nothing is sent until an Arx system administrator also switches the report on in Settings; the exact
+     content of every report sent is shown there. See `docs/changes/CR-FLEET215.md`.
    - `frigate_enabled` (default `false`, CR-029) — makes the **Frigate** recorder type selectable in the recorder type list
      (otherwise it shows "coming soon"; a recorder that already has the Frigate type is served either way). Off by default;
      takes effect after an add-on restart. Frigate write classes stay OFF per recorder until an administrator switches them on.

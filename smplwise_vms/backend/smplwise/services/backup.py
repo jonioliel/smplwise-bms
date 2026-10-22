@@ -80,7 +80,9 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # DOORHARD-295: the door-automation fire history (cooldown / cap counters, decisions) is never in an archive
                                    "door_automation_fires",
                                    # ECCACT-295: durable WisKey intents / relay map / feature registry - a restore must never revive an old intent
-                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents"})
+                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
+                                   # CR-FLEET215: what this installation sent to the fleet receiver - runtime history of THIS box
+                                   "fleet_report_log"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -175,7 +177,9 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-033 section 9: the door settings (`doors.trusted_path`, default `off`) are never exported and never restored - a restore
 # can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
 # CR's "apply the stricter one" also never tightens from an archive.
-SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
+# CR-FLEET215: `fleet.*` (the consent switch and the last-attempt state) and `demo.*` (demo mode) describe THIS installation - an archive
+# never switches the fleet report or demo mode on, and never carries them to another box.
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "fleet.", "demo.")
 
 
 def _kept_setting(key: Any) -> bool:

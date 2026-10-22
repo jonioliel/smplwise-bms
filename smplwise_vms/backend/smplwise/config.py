@@ -173,6 +173,11 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
     value = _opt(options, "push_relay_url", "SW_PUSH_RELAY_URL")
     if value:
         os.environ["SW_PUSH_RELAY_URL"] = value
+    # CR-FLEET215: the SmplWise fleet receiver - the installer's half of the two keys of the daily fleet report (the other half is the
+    # Arx switch `fleet.report_enabled`, OFF by default). Reaches services/fleet_report.py as runtime environment, like the push relay URL.
+    value = _opt(options, "fleet_report_url", "SW_FLEET_REPORT_URL")
+    if value:
+        os.environ["SW_FLEET_REPORT_URL"] = value
 
     data_dir = Path(os.environ.get("SW_DATA_DIR") or ("/data" if in_addon else Path.cwd() / "data"))
     # CR-022: the workstation file <data>/nvr_connection.json of 0.1.71 is gone - the NVR connection is a database row
