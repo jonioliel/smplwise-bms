@@ -23,6 +23,7 @@ import logging
 import sqlite3
 from typing import Any
 
+from ...db import new_id
 from ...rbac import Principal
 from . import naming, policy, store
 from .notify_sources import RULE_ASSIGNEE, RULE_MANAGERS, SUBJECT
@@ -41,6 +42,8 @@ RETURN_TEXT = {"not_mine": "לא שלי", "cannot_handle": "לא אוכל לטפ
 
 T_NEW = ("{ticket} {f:חדשה|m:חדש} #{number}", "{place} · ללא מטפל")
 T_ASSIGNED = ("{ticket} #{number} {f:הועברה|m:הועבר} אליך", "{place}")
+T_STATUS = ("{ticket} #{number}: הסטטוס עודכן", "{place} · {status}")  # PUSHSVC-295: the status label only, never a note
+T_COMMENT = ("{ticket} #{number}: נוספה הערה", "{place}")
 T_REMINDER = ("תזכורת: {ticket} #{number}", "{place} · {reason}")
 T_STUCK = ("{ticket} #{number} {f:תקועה|m:תקוע}", "{place} · {reason}")
 T_RETURNED = ("{ticket} #{number} {f:הוחזרה|m:הוחזר} למנהל", "{place} · {kind}")
@@ -56,6 +59,7 @@ T_CHANNEL = ("חשבון וואטסאפ מנותק", "{account} · הודעות 
 # TKNOTIFMATRIX: the template of each matrix source, to send a held event at once when its digest fails (emit_held)
 TEMPLATES: dict[str, tuple[str, str]] = {
     "ticket.new_unassigned": T_NEW, "ticket.assigned": T_ASSIGNED, "ticket.reminder": T_REMINDER, "ticket.stuck": T_STUCK,
+    "ticket.status_update": T_STATUS, "ticket.comment_added": T_COMMENT,
     "ticket.returned": T_RETURNED, "ticket.question": T_QUESTION, "ticket.done": T_DONE, "ticket.send_failed": T_SEND_FAILED, "ticket.contact_changed": T_CONTACT,
     "ticket.reply_unmatched": T_UNMATCHED, "ticket.cost_submitted": T_COST_SUBMITTED, "ticket.cost_missing": T_COST_MISSING,
 }
@@ -279,12 +283,67 @@ def ticket_assigned(conn: sqlite3.Connection, ticket_id: str, assignment_id: str
               origin={"user_id": asg["user_id"], "assignment_id": assignment_id})
 
 
-def ticket_status(conn: sqlite3.Connection, ticket_id: str, from_status: str, to_status: str) -> None:
+STATUS_TEXT: dict[str, str] = {
+    "new": "חדש", "assigned": "הועבר לטיפול", "acknowledged": "התקבל לטיפול", "in_progress": "בטיפול", "waiting_part": "ממתין לחלק",
+    "done": "הטיפול הסתיים", "closed": "נסגר", "cancelled": "בוטל",
+}
+
+
+def participants(conn: sqlite3.Connection, row: dict[str, Any], *, exclude: str | None = None, include_assignee: bool = True) -> list[str]:
+    """PUSHSVC-295: who follows a request - its requester (`created_by` when that is an active Arx user; a rule ticket's "system" and a
+    contact are not) and its internal assignee (the last assignment's user once the ticket ended) - without the person who acted.
+    `exclude` is a user id, or "assignee" when the handler acted through a no-login link."""
+    ids: list[str] = []
+    if isinstance(row.get("created_by"), str) and row["created_by"] and row["created_by"] != "system":
+        ids.append(row["created_by"])
+    if include_assignee:
+        uid = row.get("asg_user_id") if row.get("asg_kind") == "user" else None
+        if not uid and row.get("status") in ("closed", "cancelled"):
+            last = store.last_assignment(conn, row["id"])
+            uid = last.get("user_id") if last and last.get("assignee_kind") == "user" else None
+        if isinstance(uid, str) and uid:
+            ids.append(uid)
+            if exclude == "assignee":
+                exclude = uid
+    return [u for u in dict.fromkeys(ids) if u != exclude and store.user_is_active(conn, u)]
+
+
+def _tell(conn: sqlite3.Connection, source: str, tpl: tuple[str, str], row: dict[str, Any], users: list[str], key: str, **values: Any) -> None:
+    """One `info` row per person (origin.user_id is the recipient); the engine then keeps only who may see the ticket."""
+    for uid in users:
+        _emit(conn, source, row, tpl, dedupe=f"ticket:{row['id']}:{key}:{uid}", severity="info", origin={"user_id": uid}, **values)
+
+
+def ticket_comment(conn: sqlite3.Connection, ticket_id: str, author: str, event_id: int | str, visible_external: bool) -> None:
+    """A note was added: the requester and the assignee are told (not the author), each only if the note is visible to him by the
+    timeline's own rule (access.event_visible) - an internal manager note never reaches the requester. No text."""
+    from . import access
+
+    try:
+        row = store.ticket_row_system(conn, ticket_id)
+        if row is None or not _module_on(conn):
+            return
+        ev = {"visible_external": visible_external, "actor_user_id": author}
+        users = []
+        for uid in participants(conn, row, exclude=author):
+            seen = access.visible(_viewer(conn, uid), row)
+            if seen is not None and access.event_visible(seen, ev, uid):
+                users.append(uid)
+        _tell(conn, "ticket.comment_added", T_COMMENT, row, users, f"cmt:{event_id}")
+    except Exception:  # noqa: BLE001 - a notification never fails the ticket action
+        log.warning("ticket comment notification failed for %s", ticket_id, exc_info=True)
+
+
+def ticket_status(conn: sqlite3.Connection, ticket_id: str, from_status: str, to_status: str, actor: str | None = None) -> None:
     """A status change: leaving `assigned` resolves `ticket.assigned`; done tells the managers; closing / cancelling resolves every
-    open row of the ticket; a reopen to `new` is a new unassigned ticket again."""
+    open row of the ticket; a reopen to `new` is a new unassigned ticket again. PUSHSVC-295: the requester and the assignee are told
+    of every change (`ticket.status_update`) except the one who made it (`actor`: a user id, or "assignee" for the handler's link)."""
     row = store.ticket_row_system(conn, ticket_id)
     if row is None:
         return
+    if to_status != from_status:
+        _tell(conn, "ticket.status_update", T_STATUS, row, participants(conn, row, exclude=actor, include_assignee=to_status != "assigned"),
+              f"upd:{to_status}:{new_id()}", status=STATUS_TEXT.get(to_status, ""))
     if to_status in ("closed", "cancelled"):
         resolve_prefix(conn, ticket_id)
         return

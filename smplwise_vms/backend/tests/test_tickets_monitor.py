@@ -105,7 +105,8 @@ def test_returned_and_done_reach_the_managers(w):
     done = notes(w, "ticket.done", t["id"])
     assert len(done) == 1 and done[0]["to"] == ["dev-mona"] and done[0]["severity"] == "info"
     assert w.status("mona", t["id"], "closed").status_code == 200
-    assert all(n["state"] == "resolved" for n in notes(w, tid=t["id"])), "closing resolves every row of the ticket"
+    # PUSHSVC-295: the follow-up rows for the requester / assignee (status_update, comment_added) are plain news, not open work
+    assert all(n["state"] == "resolved" for n in notes(w, tid=t["id"]) if n["source"] not in ("ticket.status_update", "ticket.comment_added")),"closing resolves every row of the ticket"
 
 
 def test_notifications_reach_only_users_who_may_see_the_ticket(w):
