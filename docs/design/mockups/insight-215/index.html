@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>תובנות ודוח מבנה - דגם למסכים</title>
+<!--
+  CR-INSIGHT215 (2.15.0, "insights and reports") - static design mock-up for the owner's approval. NOT product code: self-contained,
+  no network request, fake data only. It shows the UI of slice 2 on the backend of slice 1 (docs/changes/CR-INSIGHT215.md):
+    1. the building report - month, language, section picker, the in-page (HTML) preview of the report model, the PDF download,
+       and the sections that were left out with their reason (no permission / module off / switch off);
+    2. the PDF itself - the paper the download produces (A4, Hebrew RTL; English is the same paper mirrored);
+    3. doors - openings without a matching entry event; verdict explained / unexplained / unverifiable; door and time only, no person;
+    4. waste - empty room, after hours, night consumption above the weekday median; room level only;
+    5. settings - the three switches (default off), the door pairs (explicit, owner question 3) and the thresholds;
+    6. states - empty, loading, error, switched off (an old link to a screen whose switch is off).
+  Kept rules: the floors / areas tree on the side of every list screen (owner 2026-10-01); a list / table view first; clean operator
+  screens - no hint paragraphs, no badges beyond the state (owner 2026-09-30); no platform branding (UI_COPY_RULES.md); v2 tokens
+  (frontend/src/design/tokens.ts, classic skin, light + dark columns).
+  Mock switches (top bar): the three feature switches, the tickets and elevators modules, a partial-permission viewer, the data state,
+  and three owner-question variants (2b door-system entry log, 4b monthly delivery, 6b generator run hours) that are NOT built.
+  URL switches: ?theme=dark  ?state=empty|loading|error  ?screen=report|paper|doors|waste|settings|states
+-->
+<style>
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8;
+  --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef;
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-tl-door: #8b5cf6;
+  --sw-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.04); --sw-shadow-2: 0 6px 18px rgba(34, 49, 76, 0.06);
+  --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-pill: 999px;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --paper: #ffffff; --paper-ink: #1b2433; --paper-line: #dfe4ec;
+  --skel: #e9edf4;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44;
+  --sw-border: #232e45; --sw-border-strong: #2f3c58;
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91, 140, 255, 0.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61, 220, 132, 0.18); --sw-success-text: #3ddc84;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245, 176, 67, 0.2); --sw-warning-text: #f5b043;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255, 107, 98, 0.2); --sw-danger-text: #ff8a82;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107, 118, 134, 0.22); --sw-unknown-text: #aab5c9;
+  --sw-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35); --sw-shadow-2: 0 6px 18px rgba(0, 0, 0, 0.4);
+  --skel: #222d44;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font: 14px/1.5 var(--sw-font); }
+::selection { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+.num, td.n, .date { font-variant-numeric: tabular-nums; }
+svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* mock control bar (not product UI) */
+.gallery { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 16px; background: var(--sw-surface); border-bottom: 1px solid var(--sw-border); font-size: 12.5px; }
+.gallery button, .gallery select { border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 5px 11px; font: inherit; cursor: pointer; }
+.gallery button[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: 600; }
+.gallery .grp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.gallery .lbl { color: var(--sw-text-3); }
+.gallery .sep { width: 1px; height: 20px; background: var(--sw-border); margin: 0 4px; }
+
+.screen { display: none; padding: 18px 16px 40px; max-width: 1240px; margin: 0 auto; }
+.screen.on { display: block; }
+h1 { font-size: 20px; line-height: 1.25; margin: 0; color: var(--sw-heading); font-weight: 700; }
+h2 { font-size: 15px; margin: 0; color: var(--sw-heading); font-weight: 600; }
+h3 { font-size: 13px; margin: 0 0 6px; color: var(--sw-text-2); font-weight: 600; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-1); }
+.pad { padding: 14px 16px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.muted { color: var(--sw-text-3); }
+.btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); border-radius: var(--sw-r-sm); padding: 7px 12px; font: inherit; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--sw-surface-2); }
+.btn.primary { background: var(--sw-accent); border-color: var(--sw-accent); color: #fff; font-weight: 600; }
+.btn.primary:hover { background: var(--sw-accent-hover); }
+.btn.icon { padding: 7px; }
+.seg { display: inline-flex; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); overflow: hidden; }
+.seg button { border: 0; background: var(--sw-surface); color: var(--sw-text-2); padding: 7px 12px; font: inherit; cursor: pointer; }
+.seg button + button { border-inline-start: 1px solid var(--sw-border-strong); }
+.seg button[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: 600; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 11px; color: var(--sw-text-2); background: var(--sw-surface); cursor: pointer; white-space: nowrap; font: inherit; }
+.chip.sel { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: 600; }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .8; font-weight: 400; }
+.chip.off { color: var(--sw-text-3); border-style: dashed; cursor: default; }
+.state { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 2px 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.s-ok { color: var(--sw-success-text); background: var(--sw-success-soft); }
+.s-bad { color: var(--sw-danger-text); background: var(--sw-danger-soft); }
+.s-warn { color: var(--sw-warning-text); background: var(--sw-warning-soft); }
+.s-unk { color: var(--sw-unknown-text); background: var(--sw-unknown-soft); }
+.up { color: var(--sw-danger-text); } .down { color: var(--sw-success-text); }
+
+/* list layout with the area tree */
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; align-items: start; }
+.tree { padding: 8px 6px; position: sticky; top: 62px; }
+.tree .t { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--sw-r-sm); color: var(--sw-text-2); cursor: pointer; }
+.tree .t:hover { background: var(--sw-surface-2); }
+.tree .t.sel { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: 600; }
+.tree .t.l2 { padding-inline-start: 26px; }
+.tree .t.floor { font-weight: 600; color: var(--sw-text); }
+.tree .t .n { color: var(--sw-text-3); font-variant-numeric: tabular-nums; font-weight: 400; }
+.tree .t svg { width: 12px; height: 12px; }
+.place-m { display: none; }
+
+.toolbar { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--sw-border); }
+.toolbar .sp { flex: 1; }
+.month { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); }
+.month button { border: 0; background: none; color: var(--sw-text-2); padding: 7px 8px; cursor: pointer; display: grid; place-items: center; border-radius: var(--sw-r-xs); }
+.month button:hover { background: var(--sw-surface-2); }
+.month b { min-width: 104px; text-align: center; font-weight: 600; }
+.picker { padding: 10px 14px; border-bottom: 1px solid var(--sw-border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.picker .chip svg { width: 13px; height: 13px; }
+.picker .chip:not(.sel) svg { visibility: hidden; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: start; font-weight: 600; color: var(--sw-text-3); font-size: 12.5px; padding: 8px 12px; border-bottom: 1px solid var(--sw-border); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--sw-border); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: end; white-space: nowrap; }
+tbody.click tr { cursor: pointer; }
+tbody.click tr:hover td { background: var(--sw-surface-2); }
+.tw { overflow-x: auto; }
+.title { font-weight: 600; color: var(--sw-text); }
+
+/* report preview */
+.doc { padding: 6px 0 2px; }
+.rs { padding: 16px 18px 18px; border-bottom: 1px solid var(--sw-border); }
+.rs:last-child { border-bottom: 0; }
+.rs > .rh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.rs > .rh .muted { font-size: 12.5px; }
+.figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); }
+.fig { padding: 10px 14px; border-inline-start: 1px solid var(--sw-border); }
+.fig:first-child { border-inline-start: 0; }
+.fig .v { font-size: 20px; font-weight: 700; color: var(--sw-heading); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.fig .l { color: var(--sw-text-3); font-size: 12.5px; }
+.fig .d { font-size: 12.5px; }
+.sumtab td:first-child { color: var(--sw-text-2); width: 40%; }
+.split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 6px; border-bottom: 1px solid var(--sw-border-strong); position: relative; }
+.bars i { flex: 1; background: var(--sw-accent); border-radius: 2px 2px 0 0; min-width: 3px; opacity: .85; }
+.bars i.we { background: color-mix(in srgb, var(--sw-accent) 45%, var(--sw-surface)); }
+.bars i.hi { background: var(--sw-warning); opacity: 1; }
+.bars .med { position: absolute; inset-inline: 0; border-top: 1.5px dashed var(--sw-text-3); }
+.axis { display: flex; justify-content: space-between; color: var(--sw-text-3); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.meter { height: 6px; border-radius: 99px; background: var(--sw-surface-3); overflow: hidden; min-width: 60px; }
+.meter i { display: block; height: 100%; background: var(--sw-success); border-radius: 99px; }
+.meter i.w { background: var(--sw-warning); }
+.omitted { margin-top: 14px; }
+.omitted .o { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--sw-border); }
+.omitted .o:last-child { border-bottom: 0; }
+.omitted .o span:first-child { color: var(--sw-text-2); }
+.reason { color: var(--sw-text-3); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; }
+.reason svg { width: 14px; height: 14px; }
+.deliv { margin-top: 14px; display: none; }
+.q4 .deliv { display: block; }
+.q6 .gen-b { display: table-cell; } .gen-b { display: none; }
+.ev.ev-b, .ev.ev-b-inline { display: none; }
+.q2 .ev.ev-b, .q2 .ev.ev-b-inline { display: inline-flex; }
+
+/* paper */
+.paperwrap { display: flex; justify-content: center; }
+.paper { width: 794px; max-width: 100%; background: var(--paper); color: var(--paper-ink); border-radius: 4px; box-shadow: var(--sw-shadow-2), 0 0 0 1px var(--paper-line); padding: 44px 52px; font-size: 12.5px; }
+.paper .ph { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--paper-ink); padding-bottom: 12px; margin-bottom: 18px; }
+.paper .ph b { font-size: 22px; display: block; }
+.paper h4 { font-size: 14px; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--paper-line); }
+.paper table td, .paper table th { border-color: var(--paper-line); padding: 6px 8px; color: var(--paper-ink); }
+.paper table th { color: #5b6678; }
+.paper .pf { margin-top: 26px; border-top: 1px solid var(--paper-line); padding-top: 8px; display: flex; justify-content: space-between; color: #5b6678; font-size: 11px; }
+.paper .pfig { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--paper-line); }
+.paper .pfig div { padding: 8px 10px; border-inline-start: 1px solid var(--paper-line); }
+.paper .pfig div:first-child { border-inline-start: 0; }
+.paper .pfig b { display: block; font-size: 16px; }
+.paper .pom { color: #5b6678; }
+.paper .bars i { background: #2767ed; } .paper .bars i.we { background: #a9bff5; }
+.paperbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* door / waste detail */
+.det td { background: var(--sw-surface-2); }
+.tl { position: relative; height: 46px; margin: 4px 0 2px; }
+.tl .track { position: absolute; top: 20px; inset-inline: 0; height: 2px; background: var(--sw-border-strong); }
+.tl .win { position: absolute; top: 12px; height: 18px; background: var(--sw-accent-soft); border-radius: 4px; }
+.tl .open { position: absolute; top: 14px; height: 14px; background: var(--sw-tl-door); border-radius: 3px; }
+.tl .mk { position: absolute; top: 30px; font-size: 11px; color: var(--sw-text-3); white-space: nowrap; }
+.ev { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xs); padding: 1px 7px; font-size: 12.5px; color: var(--sw-text-2); margin-inline-end: 4px; white-space: nowrap; }
+.ev svg { width: 13px; height: 13px; }
+
+/* settings */
+.set { display: grid; gap: 14px; max-width: 900px; }
+.sw { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--sw-border); }
+.sw:last-child { border-bottom: 0; }
+.toggle { width: 40px; height: 22px; border-radius: 99px; background: var(--sw-surface-3); border: 1px solid var(--sw-border-strong); position: relative; cursor: pointer; flex: none; padding: 0; }
+.toggle::after { content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: inset-inline-start .18s cubic-bezier(.2,.8,.2,1); }
+.toggle[aria-checked="true"] { background: var(--sw-accent); border-color: var(--sw-accent); }
+.toggle[aria-checked="true"]::after { inset-inline-start: 20px; }
+.fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px; padding: 14px 16px; }
+.fields label { display: grid; gap: 4px; color: var(--sw-text-3); font-size: 12.5px; }
+.inp { width: 100%; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-xs); padding: 7px 10px; background: var(--sw-surface); color: var(--sw-text); font: inherit; font-variant-numeric: tabular-nums; }
+.inp.err { border-color: var(--sw-danger); }
+.ferr { color: var(--sw-danger-text); font-size: 12px; }
+.ch-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--sw-border); }
+
+/* states */
+.states { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.stcap { color: var(--sw-text-3); font-size: 12.5px; margin: 0 2px 6px; }
+.blank { display: grid; place-items: center; text-align: center; gap: 10px; padding: 46px 20px; color: var(--sw-text-2); }
+.blank svg { width: 30px; height: 30px; color: var(--sw-text-3); stroke-width: 1.5; }
+.blank b { color: var(--sw-heading); font-size: 15px; }
+.skel { background: var(--skel); border-radius: 6px; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .toggle::after { transition: none; } }
+
+/* report-screen data states */
+.rep-state { display: none; }
+[data-rstate="empty"] .rep-data, [data-rstate="loading"] .rep-data, [data-rstate="error"] .rep-data, [data-rstate="off"] .rep-data { display: none; }
+[data-rstate="empty"] .rep-empty, [data-rstate="loading"] .rep-loading, [data-rstate="error"] .rep-error { display: block; }
+.off-screen { display: none; }
+.is-off > .live { display: none; }
+.is-off > .off-screen { display: block; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .tree { display: none; }
+  .place-m { display: inline-flex; }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fig:nth-child(3) { border-inline-start: 0; }
+  .fig:nth-child(n+3) { border-top: 1px solid var(--sw-border); }
+  .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .states { grid-template-columns: minmax(0, 1fr); }
+  .hide-m { display: none; }
+  .paper { padding: 22px 18px; font-size: 11.5px; }
+  .paper .pfig { grid-template-columns: repeat(2, 1fr); }
+  .toolbar .sp { display: none; }
+  .rs { padding: 14px 12px 16px; }
+  td, th { padding: 8px 8px; }
+}
+@media (max-width: 520px) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  .actions { width: 100%; }
+  .actions .btn { flex: 1; justify-content: center; }
+  .gallery { padding: 8px 10px; position: static; }
+  .gallery .sep { display: none; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-exit" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="12" cy="12" r="3.5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="14" r="4"/><path d="M11 11l8-8M16 6l2 2M14 8l2 2"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-empty" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/></symbol>
+  <symbol id="i-off" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></symbol>
+</svg>
+
+<nav class="gallery" aria-label="מתגי הדגם (לא חלק מהמוצר)">
+  <div class="grp">
+    <button data-s="report" aria-pressed="true">דוח מבנה</button>
+    <button data-s="paper" aria-pressed="false">קובץ PDF</button>
+    <button data-s="doors" aria-pressed="false">דלתות</button>
+    <button data-s="waste" aria-pressed="false">בזבוז</button>
+    <button data-s="settings" aria-pressed="false">הגדרות</button>
+    <button data-s="states" aria-pressed="false">מצבים</button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp">
+    <span class="lbl">מתגים</span>
+    <button data-sw="report" aria-pressed="true">דוח</button>
+    <button data-sw="doors" aria-pressed="true">דלתות</button>
+    <button data-sw="waste" aria-pressed="true">בזבוז</button>
+    <span class="lbl">מודולים</span>
+    <button data-mod="tickets" aria-pressed="true">בקשות שירות</button>
+    <button data-mod="elevators" aria-pressed="false">מעליות</button>
+    <button id="perm" aria-pressed="false">צופה בלי מצלמות</button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp">
+    <span class="lbl">נתונים</span>
+    <select id="dstate" aria-label="מצב הנתונים">
+      <option value="data">מלא</option><option value="empty">ריק</option><option value="loading">טוען</option><option value="error">שגיאה</option>
+    </select>
+    <span class="lbl">שאלות</span>
+    <button data-q="q2" aria-pressed="false">2ב יומן כניסות</button>
+    <button data-q="q4" aria-pressed="false">4ב שליחה חודשית</button>
+    <button data-q="q6" aria-pressed="false">6ב שעות גנרטור</button>
+    <button id="th" aria-pressed="false">כהה</button>
+  </div>
+</nav>
+
+<!-- ============ 1. building report ============ -->
+<section class="screen on" id="s-report">
+  <div class="live">
+  <div class="head">
+    <h1>דוח מבנה</h1>
+    <div class="row actions">
+      <button class="btn"><svg class="i"><use href="#i-eye"/></svg>תצוגה מלאה</button>
+      <button class="btn primary" data-go="paper"><svg class="i"><use href="#i-down"/></svg>הורדת PDF</button>
+    </div>
+  </div>
+  <div class="layout">
+    <aside class="card tree" aria-label="מקומות">
+      <div class="t sel">כל המבנה</div>
+      <div class="t floor"><span class="row" style="gap:6px"><svg class="i"><use href="#i-chev"/></svg>מבנה א</span></div>
+      <div class="t l2">מרתף</div>
+      <div class="t l2">קומת קרקע</div>
+      <div class="t l2">קומה 1</div>
+      <div class="t l2">קומה 2</div>
+      <div class="t l2">גג</div>
+      <div class="t floor"><span class="row" style="gap:6px"><svg class="i" style="transform:rotate(90deg)"><use href="#i-chev"/></svg>חניון</span></div>
+    </aside>
+    <div>
+      <div class="card">
+        <div class="toolbar">
+          <button class="chip place-m"><svg class="i"><use href="#i-pin"/></svg>כל המבנה<svg class="i"><use href="#i-chev"/></svg></button>
+          <div class="month" role="group" aria-label="חודש">
+            <button aria-label="החודש הקודם"><svg class="i"><use href="#i-prev"/></svg></button>
+            <b>ספטמבר 2026</b>
+            <button aria-label="החודש הבא" disabled style="opacity:.35"><svg class="i"><use href="#i-next"/></svg></button>
+          </div>
+          <div class="seg" role="group" aria-label="שפה">
+            <button aria-pressed="true">עברית</button><button aria-pressed="false">English</button>
+          </div>
+          <span class="sp"></span>
+          <span class="muted num" id="gen-at">הופק 23.10.2026 09:14</span>
+        </div>
+        <div class="picker" id="picker" role="group" aria-label="פרקים"></div>
+
+        <div class="rep-data doc" id="doc">
+          <section class="rs" data-sec="summary">
+            <div class="rh"><h2>תמצית</h2><span class="muted">לעומת אוגוסט 2026</span></div>
+            <div class="figs">
+              <div class="fig"><div class="l">צריכת חשמל</div><div class="v">18,420 <small style="font-size:12px;font-weight:500">קוט״ש</small></div><div class="d down">6%-</div></div>
+              <div class="fig" data-need="tickets"><div class="l">בקשות שירות</div><div class="v">42</div><div class="d muted">38 נסגרו</div></div>
+              <div class="fig" data-need="doors"><div class="l">פתיחות לא מוסברות</div><div class="v">4</div><div class="d down">מ־9</div></div>
+              <div class="fig"><div class="l">חריגות טמפרטורה</div><div class="v">5</div><div class="d up">מ־2</div></div>
+            </div>
+          </section>
+
+          <section class="rs" data-sec="tickets" data-req="mod:tickets">
+            <div class="rh"><h2>בקשות שירות</h2><span class="muted num">זמן סגירה ממוצע 1.8 ימים</span></div>
+            <div class="tw"><table>
+              <thead><tr><th>מחלקה</th><th class="n">נפתחו</th><th class="n">נסגרו</th><th class="n">פתוחות</th><th class="n hide-m">חריגה מיעד</th></tr></thead>
+              <tbody>
+                <tr><td>אחזקה</td><td class="n">21</td><td class="n">19</td><td class="n">2</td><td class="n hide-m">1</td></tr>
+                <tr><td>חשמל</td><td class="n">9</td><td class="n">9</td><td class="n">0</td><td class="n hide-m">0</td></tr>
+                <tr><td>מיזוג</td><td class="n">8</td><td class="n">6</td><td class="n">2</td><td class="n hide-m">1</td></tr>
+                <tr><td>ניקיון</td><td class="n">4</td><td class="n">4</td><td class="n">0</td><td class="n hide-m">0</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="rs" data-sec="energy">
+            <div class="rh"><h2>אנרגיה</h2><span class="muted num">שיא 22.09 · 812 קוט״ש</span></div>
+            <div class="split">
+              <div>
+                <div class="bars" id="ebars" aria-label="צריכה יומית"></div>
+                <div class="axis"><span>01.09</span><span>15.09</span><span>30.09</span></div>
+              </div>
+              <table class="sumtab">
+                <tbody>
+                  <tr><td>סה״כ</td><td class="n">18,420 קוט״ש</td></tr>
+                  <tr><td>ממוצע יומי</td><td class="n">614 קוט״ש</td></tr>
+                  <tr><td>לילה (22:00-06:00)</td><td class="n">3,980 קוט״ש</td></tr>
+                  <tr><td>לעומת אוגוסט</td><td class="n down">6%-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="rs" data-sec="elevators" data-req="mod:elevators">
+            <div class="rh"><h2>מעליות</h2><span class="muted num">זמינות 99.2%</span></div>
+            <div class="tw"><table>
+              <thead><tr><th>מעלית</th><th>זמינות</th><th class="n">תקלות</th><th class="n hide-m">זמן השבתה</th></tr></thead>
+              <tbody>
+                <tr><td>מעלית צפונית</td><td><div class="row"><div class="meter" style="flex:1"><i style="width:99.8%"></i></div><span class="num">99.8%</span></div></td><td class="n">1</td><td class="n hide-m">1:25</td></tr>
+                <tr><td>מעלית דרומית</td><td><div class="row"><div class="meter" style="flex:1"><i class="w" style="width:98.6%"></i></div><span class="num">98.6%</span></div></td><td class="n">3</td><td class="n hide-m">10:05</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="rs" data-sec="generator">
+            <div class="rh"><h2>גנרטור</h2><span class="muted num">3 התראות</span></div>
+            <div class="tw"><table>
+              <thead><tr><th>מועד</th><th>התראה</th><th>מצב</th><th class="n gen-b">שעות פעולה</th></tr></thead>
+              <tbody>
+                <tr><td class="date">04.09 06:12</td><td>מתח מצבר נמוך</td><td><span class="state s-ok">נסגרה</span></td><td class="n gen-b">0:40</td></tr>
+                <tr><td class="date">17.09 14:30</td><td>הפעלה בבדיקה שבועית</td><td><span class="state s-ok">נסגרה</span></td><td class="n gen-b">0:20</td></tr>
+                <tr><td class="date">28.09 02:51</td><td>טמפרטורת מנוע גבוהה</td><td><span class="state s-warn">פתוחה</span></td><td class="n gen-b">1:05</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="rs" data-sec="temperature">
+            <div class="rh"><h2>טמפרטורה</h2><span class="muted">5 חריגות</span></div>
+            <div class="tw"><table>
+              <thead><tr><th>מקום</th><th class="n">טווח</th><th class="n">חריגות</th><th class="n hide-m">זמן מחוץ לטווח</th></tr></thead>
+              <tbody>
+                <tr><td>חדר שרתים · מרתף</td><td class="n"><span dir="ltr">18-24°</span></td><td class="n">3</td><td class="n hide-m">2:40</td></tr>
+                <tr><td>מקרר מטבח · קומת קרקע</td><td class="n"><span dir="ltr">2-6°</span></td><td class="n">2</td><td class="n hide-m">0:55</td></tr>
+                <tr><td>אולם · קומה 1</td><td class="n"><span dir="ltr">20-26°</span></td><td class="n">0</td><td class="n hide-m">-</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="rs" data-sec="doors" data-req="sw:doors">
+            <div class="rh"><h2>דלתות</h2><a href="#" class="muted" data-go="doors">412 פתיחות</a></div>
+            <div class="tw"><table>
+              <thead><tr><th>דלת</th><th class="n">פתיחות</th><th class="n">לא מוסברות</th><th class="n">לא ניתן לאמת</th></tr></thead>
+              <tbody>
+                <tr><td>כניסה ראשית</td><td class="n">288</td><td class="n">0</td><td class="n">0</td></tr>
+                <tr><td>דלת אחורית · קומת קרקע</td><td class="n">64</td><td class="n"><span class="state s-bad">3</span></td><td class="n">0</td></tr>
+                <tr><td>חדר חשמל · מרתף</td><td class="n">22</td><td class="n"><span class="state s-bad">1</span></td><td class="n">0</td></tr>
+                <tr><td>יציאה לגג</td><td class="n">38</td><td class="n">0</td><td class="n"><span class="state s-unk">2</span></td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="rs" data-sec="cameras" data-req="perm:events">
+            <div class="rh"><h2>מצלמות</h2><span class="muted num">1,284 אירועים</span></div>
+            <div class="tw"><table>
+              <thead><tr><th>סוג</th><th class="n">אירועים</th><th class="hide-m">מצלמה מובילה</th></tr></thead>
+              <tbody>
+                <tr><td>תנועה</td><td class="n">902</td><td class="hide-m">חניון כניסה</td></tr>
+                <tr><td>אדם</td><td class="n">311</td><td class="hide-m">לובי</td></tr>
+                <tr><td>רכב</td><td class="n">71</td><td class="hide-m">שער חניון</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="rs" data-sec="waste" data-req="sw:waste">
+            <div class="rh"><h2>בזבוז</h2><a href="#" class="muted" data-go="waste">46 שעות</a></div>
+            <div class="tw"><table>
+              <thead><tr><th>מקום</th><th>סוג</th><th class="n">שעות</th></tr></thead>
+              <tbody>
+                <tr><td>חדר ישיבות · קומה 2</td><td>חדר ריק</td><td class="n">18:30</td></tr>
+                <tr><td>משרדים · קומה 1</td><td>אחרי שעות</td><td class="n">14:10</td></tr>
+                <tr><td>מבנה א</td><td>צריכת לילה חריגה</td><td class="n">4 לילות</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+        </div>
+
+        <div class="rep-state rep-empty"><div class="blank"><svg class="i"><use href="#i-empty"/></svg><b>אין נתונים לספטמבר 2026</b><button class="btn">החודש הקודם</button></div></div>
+        <div class="rep-state rep-loading" aria-busy="true">
+          <div class="rs"><div class="skel" style="height:16px;width:120px;margin-bottom:14px"></div><div class="skel" style="height:64px"></div></div>
+          <div class="rs"><div class="skel" style="height:16px;width:160px;margin-bottom:14px"></div><div class="skel" style="height:120px"></div></div>
+          <div class="rs"><div class="skel" style="height:16px;width:100px;margin-bottom:14px"></div><div class="skel" style="height:88px"></div></div>
+        </div>
+        <div class="rep-state rep-error"><div class="blank"><svg class="i" style="color:var(--sw-danger-text)"><use href="#i-warn"/></svg><b>הדוח לא הוכן</b><span class="muted">לא התקבלה תשובה מהשרת</span><button class="btn primary">ניסיון נוסף</button></div></div>
+      </div>
+
+      <div class="card omitted rep-data" id="omitted">
+        <div class="ch-h"><h2>לא נכללו</h2></div>
+        <div id="omlist"></div>
+      </div>
+
+      <div class="card deliv">
+        <div class="ch-h"><h2>שליחה חודשית</h2><button class="toggle" role="switch" aria-checked="true" aria-label="שליחה חודשית"></button></div>
+        <div class="fields">
+          <label>מועד<input class="inp" value="1 בחודש · 07:00"></label>
+          <label>נמענים<input class="inp" value="מנהל האחזקה, מנהלת המבנה"></label>
+          <label>ערוץ<input class="inp" value="דואר · ווטסאפ"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <div class="off-screen card"><div class="blank"><svg class="i"><use href="#i-off"/></svg><b>המסך אינו זמין</b><button class="btn">למסך הבית</button></div></div>
+</section>
+
+<!-- ============ 2. the PDF ============ -->
+<section class="screen" id="s-paper">
+  <div class="paperbar">
+    <div class="row"><button class="btn" data-go="report"><svg class="i"><use href="#i-prev"/></svg>דוח מבנה</button><span class="muted num">building-report-2026-09-he.pdf · 6 עמודים</span></div>
+    <button class="btn primary"><svg class="i"><use href="#i-down"/></svg>הורדה</button>
+  </div>
+  <div class="paperwrap">
+    <article class="paper" aria-label="עמוד 1 מתוך 6">
+      <div class="ph">
+        <div><b>דוח מבנה · ספטמבר 2026</b><span>מבנה א · כל המבנה</span></div>
+        <div style="text-align:end;color:#5b6678" class="num">הופק 23.10.2026 09:14<br>עמוד 1 מתוך 6</div>
+      </div>
+      <h4>תמצית</h4>
+      <div class="pfig">
+        <div>צריכת חשמל<b class="num">18,420 קוט״ש</b>6%- מאוגוסט</div>
+        <div>בקשות שירות<b class="num">42</b>38 נסגרו</div>
+        <div>פתיחות לא מוסברות<b class="num">4</b>מ־9</div>
+        <div>חריגות טמפרטורה<b class="num">5</b>מ־2</div>
+      </div>
+      <h4>בקשות שירות</h4>
+      <table><thead><tr><th>מחלקה</th><th class="n">נפתחו</th><th class="n">נסגרו</th><th class="n">פתוחות</th></tr></thead>
+        <tbody><tr><td>אחזקה</td><td class="n">21</td><td class="n">19</td><td class="n">2</td></tr><tr><td>חשמל</td><td class="n">9</td><td class="n">9</td><td class="n">0</td></tr><tr><td>מיזוג</td><td class="n">8</td><td class="n">6</td><td class="n">2</td></tr><tr><td>ניקיון</td><td class="n">4</td><td class="n">4</td><td class="n">0</td></tr></tbody></table>
+      <h4>אנרגיה</h4>
+      <div class="bars" id="pbars" style="height:90px;border-color:#c9d0db"></div>
+      <div class="axis" style="color:#5b6678"><span>01.09</span><span>15.09</span><span>30.09</span></div>
+      <h4>דלתות</h4>
+      <table><thead><tr><th>דלת</th><th class="n">פתיחות</th><th class="n">לא מוסברות</th><th class="n">לא ניתן לאמת</th></tr></thead>
+        <tbody><tr><td>כניסה ראשית</td><td class="n">288</td><td class="n">0</td><td class="n">0</td></tr><tr><td>דלת אחורית · קומת קרקע</td><td class="n">64</td><td class="n">3</td><td class="n">0</td></tr><tr><td>חדר חשמל · מרתף</td><td class="n">22</td><td class="n">1</td><td class="n">0</td></tr></tbody></table>
+      <h4>לא נכללו</h4>
+      <div class="pom">מעליות - המודול כבוי</div>
+      <div class="pf"><span>SmplWise Arx</span><span class="num">ספטמבר 2026 · 1/6</span></div>
+    </article>
+  </div>
+</section>
+
+<!-- ============ 3. doors ============ -->
+<section class="screen" id="s-doors">
+  <div class="live">
+  <div class="head"><h1>דלתות</h1></div>
+  <div class="layout">
+    <aside class="card tree" aria-label="מקומות">
+      <div class="t sel">כל המבנה <span class="n">412</span></div>
+      <div class="t floor">מבנה א <span class="n">374</span></div>
+      <div class="t l2">מרתף <span class="n">22</span></div>
+      <div class="t l2">קומת קרקע <span class="n">352</span></div>
+      <div class="t l2">גג <span class="n">38</span></div>
+      <div class="t floor">חניון <span class="n">0</span></div>
+    </aside>
+    <div class="card">
+      <div class="toolbar">
+        <button class="chip place-m"><svg class="i"><use href="#i-pin"/></svg>כל המבנה<svg class="i"><use href="#i-chev"/></svg></button>
+        <div class="seg" role="group" aria-label="טווח">
+          <button aria-pressed="false">24 שעות</button><button aria-pressed="true">7 ימים</button><button aria-pressed="false">30 יום</button><button aria-pressed="false">טווח</button>
+        </div>
+        <div class="chips" role="group" aria-label="תוצאה">
+          <button class="chip">הכול<span class="n">412</span></button>
+          <button class="chip sel">לא מוסבר<span class="n">4</span></button>
+          <button class="chip">לא ניתן לאמת<span class="n">2</span></button>
+          <button class="chip">מוסבר<span class="n">406</span></button>
+        </div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>מועד</th><th>דלת</th><th class="n hide-m">משך</th><th>תוצאה</th><th class="hide-m">ראיה</th></tr></thead>
+        <tbody class="click">
+          <tr><td class="date">22.10 23:41</td><td class="title">דלת אחורית · קומת קרקע</td><td class="n hide-m">0:48</td><td><span class="state s-bad">לא מוסבר</span></td><td class="hide-m muted">-</td></tr>
+          <tr class="det"><td colspan="5">
+            <div class="tl" aria-label="ציר זמן סביב הפתיחה">
+              <div class="track"></div>
+              <div class="win" style="inset-inline-start:0;width:100%"></div>
+              <div class="open" style="inset-inline-start:34%;width:52%"></div>
+              <span class="mk" style="inset-inline-start:0">30 שנ׳ לפני</span>
+              <span class="mk" style="inset-inline-start:34%">נפתחה 23:41:07</span>
+              <span class="mk" style="inset-inline-end:0">נסגרה 23:41:55</span>
+            </div>
+            <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px">
+              <span class="ev"><svg class="i"><use href="#i-lock"/></svg>מנעול נעול</span>
+              <span class="ev"><svg class="i"><use href="#i-exit"/></svg>לחצן יציאה לא נלחץ</span>
+              <span class="ev"><svg class="i"><use href="#i-key"/></svg>אין פתיחה מהמערכת</span>
+              <span class="ev ev-b"><svg class="i"><use href="#i-key"/></svg>אין כניסה ביומן</span>
+            </div>
+          </td></tr>
+          <tr><td class="date">21.10 06:02</td><td class="title">חדר חשמל · מרתף</td><td class="n hide-m">3:15</td><td><span class="state s-bad">לא מוסבר</span></td><td class="hide-m muted">-</td></tr>
+          <tr><td class="date">19.10 22:17</td><td class="title">דלת אחורית · קומת קרקע</td><td class="n hide-m">0:12</td><td><span class="state s-bad">לא מוסבר</span></td><td class="hide-m muted">-</td></tr>
+          <tr><td class="date">18.10 20:55</td><td class="title">דלת אחורית · קומת קרקע</td><td class="n hide-m">0:09</td><td><span class="state s-bad">לא מוסבר</span></td><td class="hide-m muted">-</td></tr>
+          <tr><td class="date">18.10 08:31</td><td class="title">יציאה לגג</td><td class="n hide-m">1:02</td><td><span class="state s-unk">לא ניתן לאמת</span></td><td class="hide-m"><span class="ev"><svg class="i"><use href="#i-lock"/></svg>מצב מנעול לא ידוע</span></td></tr>
+          <tr><td class="date">18.10 08:12</td><td class="title">כניסה ראשית</td><td class="n hide-m">0:06</td><td><span class="state s-ok">מוסבר</span></td><td class="hide-m"><span class="ev"><svg class="i"><use href="#i-key"/></svg>פתיחה מהמערכת</span></td></tr>
+          <tr><td class="date">18.10 07:58</td><td class="title">כניסה ראשית</td><td class="n hide-m">0:05</td><td><span class="state s-ok">מוסבר</span></td><td class="hide-m"><span class="ev"><svg class="i"><use href="#i-lock"/></svg>מנעול נפתח</span><span class="ev ev-b-inline">כניסה ביומן</span></td></tr>
+          <tr><td class="date">17.10 17:40</td><td class="title">דלת אחורית · קומת קרקע</td><td class="n hide-m">0:04</td><td><span class="state s-ok">מוסבר</span></td><td class="hide-m"><span class="ev"><svg class="i"><use href="#i-clock"/></svg>חלון דלת</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+  </div>
+  <div class="off-screen card"><div class="blank"><svg class="i"><use href="#i-off"/></svg><b>המסך אינו זמין</b><button class="btn">למסך הבית</button></div></div>
+</section>
+
+<!-- ============ 4. waste ============ -->
+<section class="screen" id="s-waste">
+  <div class="live">
+  <div class="head"><h1>בזבוז</h1></div>
+  <div class="layout">
+    <aside class="card tree" aria-label="מקומות">
+      <div class="t sel">כל המבנה <span class="n">11</span></div>
+      <div class="t floor">מבנה א <span class="n">11</span></div>
+      <div class="t l2">קומת קרקע <span class="n">2</span></div>
+      <div class="t l2">קומה 1 <span class="n">4</span></div>
+      <div class="t l2">קומה 2 <span class="n">5</span></div>
+      <div class="t floor">חניון <span class="n">0</span></div>
+    </aside>
+    <div style="display:grid;gap:14px">
+      <div class="card">
+        <div class="toolbar">
+          <button class="chip place-m"><svg class="i"><use href="#i-pin"/></svg>כל המבנה<svg class="i"><use href="#i-chev"/></svg></button>
+          <div class="seg" role="group" aria-label="טווח">
+            <button aria-pressed="false">24 שעות</button><button aria-pressed="true">7 ימים</button><button aria-pressed="false">30 יום</button><button aria-pressed="false">טווח</button>
+          </div>
+          <div class="chips" role="group" aria-label="סוג">
+            <button class="chip sel">הכול<span class="n">11</span></button>
+            <button class="chip">חדר ריק<span class="n">6</span></button>
+            <button class="chip">אחרי שעות<span class="n">4</span></button>
+            <button class="chip">לילה<span class="n">1</span></button>
+          </div>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>מקום</th><th class="hide-m">התקן</th><th>סוג</th><th class="hide-m">מתי</th><th class="n">משך</th></tr></thead>
+          <tbody class="click">
+            <tr><td class="title">חדר ישיבות · קומה 2</td><td class="hide-m"><span class="row" style="gap:6px"><svg class="i muted"><use href="#i-power"/></svg>מזגן</span></td><td>חדר ריק</td><td class="hide-m date">22.10 13:20-16:05</td><td class="n">2:45</td></tr>
+            <tr><td class="title">חדר ישיבות · קומה 2</td><td class="hide-m"><span class="row" style="gap:6px"><svg class="i muted"><use href="#i-power"/></svg>תאורה</span></td><td>חדר ריק</td><td class="hide-m date">22.10 13:20-15:10</td><td class="n">1:50</td></tr>
+            <tr><td class="title">משרדים · קומה 1</td><td class="hide-m"><span class="row" style="gap:6px"><svg class="i muted"><use href="#i-power"/></svg>תאורה</span></td><td>אחרי שעות</td><td class="hide-m date">21.10 22:00-05:40</td><td class="n">7:40</td></tr>
+            <tr><td class="title">מטבחון · קומה 1</td><td class="hide-m"><span class="row" style="gap:6px"><svg class="i muted"><use href="#i-power"/></svg>מזגן</span></td><td>אחרי שעות</td><td class="hide-m date">20.10 22:00-01:15</td><td class="n">3:15</td></tr>
+            <tr><td class="title">לובי · קומת קרקע</td><td class="hide-m"><span class="row" style="gap:6px"><svg class="i muted"><use href="#i-power"/></svg>תאורה</span></td><td>חדר ריק</td><td class="hide-m date">19.10 18:30-19:20</td><td class="n">0:50</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card pad">
+        <div class="rh row" style="justify-content:space-between;margin-bottom:10px"><h2>צריכת לילה</h2><span class="muted num">22:00-06:00</span></div>
+        <div class="bars" id="nbars" style="height:110px" aria-label="צריכת לילה מול החציון של אותו יום בשבוע"></div>
+        <div class="axis"><span>17.10</span><span>20.10</span><span>23.10</span></div>
+        <div class="row" style="margin-top:10px;gap:16px;flex-wrap:wrap;font-size:12.5px">
+          <span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:2px;background:var(--sw-warning);display:inline-block"></i>מעל החציון</span>
+          <span class="row" style="gap:6px"><i style="width:14px;border-top:1.5px dashed var(--sw-text-3);display:inline-block"></i>חציון אותו יום</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <div class="off-screen card"><div class="blank"><svg class="i"><use href="#i-off"/></svg><b>המסך אינו זמין</b><button class="btn">למסך הבית</button></div></div>
+</section>
+
+<!-- ============ 5. settings ============ -->
+<section class="screen" id="s-settings">
+  <div class="head"><h1>הגדרות · תובנות ודוחות</h1><button class="btn primary">שמירה</button></div>
+  <div class="set">
+    <div class="card">
+      <div class="sw"><span class="title">פתיחות דלת לא מוסברות</span><button class="toggle" role="switch" data-swt="doors" aria-checked="true" aria-label="פתיחות דלת לא מוסברות"></button></div>
+      <div class="sw"><span class="title">בזבוז אנרגיה</span><button class="toggle" role="switch" data-swt="waste" aria-checked="true" aria-label="בזבוז אנרגיה"></button></div>
+      <div class="sw"><span class="title">דוח מבנה חודשי</span><button class="toggle" role="switch" data-swt="report" aria-checked="true" aria-label="דוח מבנה חודשי"></button></div>
+    </div>
+
+    <div class="card">
+      <div class="ch-h"><h2>זוגות דלת</h2><button class="btn"><svg class="i"><use href="#i-plus"/></svg>זוג חדש</button></div>
+      <div class="tw"><table>
+        <thead><tr><th>דלת</th><th>מנעול</th><th class="hide-m">לחצני יציאה</th><th class="hide-m">פתיחה מהמערכת</th></tr></thead>
+        <tbody class="click">
+          <tr><td class="title">כניסה ראשית</td><td>מנעול לובי</td><td class="hide-m">לחצן לובי, לחצן עמדה</td><td class="hide-m">עמדת כניסה</td></tr>
+          <tr><td class="title">דלת אחורית · קומת קרקע</td><td>מנעול אחורי</td><td class="hide-m">לחצן אחורי</td><td class="hide-m muted">-</td></tr>
+          <tr><td class="title">חדר חשמל · מרתף</td><td>מנעול חדר חשמל</td><td class="hide-m muted">-</td><td class="hide-m muted">-</td></tr>
+          <tr><td class="title">יציאה לגג</td><td class="muted">-</td><td class="hide-m muted">-</td><td class="hide-m muted">-</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="ch-h"><h2>ספים</h2></div>
+      <div class="fields">
+        <label>פתיחה מינימלית (שנ׳)<input class="inp" value="2" inputmode="numeric"></label>
+        <label>ראיה לפני (שנ׳)<input class="inp" value="30" inputmode="numeric"></label>
+        <label>ראיה אחרי (שנ׳)<input class="inp" value="10" inputmode="numeric"></label>
+        <label>חדר ריק אחרי (דק׳)<input class="inp" value="20" inputmode="numeric"></label>
+        <label>בזבוז מינימלי (דק׳)<input class="inp err" value="0" inputmode="numeric" aria-invalid="true"><span class="ferr">ערך בין 5 ל־240</span></label>
+        <label>לילה<span class="row" style="gap:6px"><input class="inp" value="22:00"><span class="muted">-</span><input class="inp" value="06:00"></span></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch-h"><h2>מתגים מוגנים</h2><button class="btn"><svg class="i"><use href="#i-plus"/></svg>הוספה</button></div>
+      <div class="sw"><span>מקרר מטבח · קומת קרקע</span><button class="btn icon" aria-label="הסרה">×</button></div>
+      <div class="sw"><span>חדר שרתים · מזגן · מרתף</span><button class="btn icon" aria-label="הסרה">×</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. states ============ -->
+<section class="screen" id="s-states">
+  <div class="head"><h1>מצבים</h1></div>
+  <div class="states">
+    <div><div class="stcap">ריק · אין נתונים לחודש</div>
+      <div class="card"><div class="blank"><svg class="i"><use href="#i-empty"/></svg><b>אין נתונים לספטמבר 2026</b><button class="btn">החודש הקודם</button></div></div></div>
+    <div><div class="stcap">ריק · אין פתיחות לא מוסברות</div>
+      <div class="card"><div class="blank"><svg class="i" style="color:var(--sw-success-text)"><use href="#i-check"/></svg><b>אין פתיחות לא מוסברות</b><span class="muted">7 ימים · כל המבנה</span></div></div></div>
+    <div><div class="stcap">טוען</div>
+      <div class="card" aria-busy="true">
+        <div class="rs"><div class="skel" style="height:16px;width:120px;margin-bottom:14px"></div><div class="skel" style="height:58px"></div></div>
+        <div class="rs"><div class="skel" style="height:16px;width:160px;margin-bottom:14px"></div><div class="skel" style="height:90px"></div></div>
+      </div></div>
+    <div><div class="stcap">שגיאה · הכנת הקובץ נכשלה</div>
+      <div class="card"><div class="blank"><svg class="i" style="color:var(--sw-danger-text)"><use href="#i-warn"/></svg><b>קובץ ה־PDF לא הוכן</b><span class="muted">אפשר לצפות בדוח במסך</span><div class="row"><button class="btn primary">ניסיון נוסף</button><button class="btn">תצוגה במסך</button></div></div></div></div>
+    <div><div class="stcap">כבוי · קישור ישן למסך שהמתג שלו כבוי</div>
+      <div class="card"><div class="blank"><svg class="i"><use href="#i-off"/></svg><b>המסך אינו זמין</b><button class="btn">למסך הבית</button></div></div></div>
+    <div><div class="stcap">פרק שלא נכלל · בתוך הדוח</div>
+      <div class="card omitted" style="margin:0">
+        <div class="o"><span>מעליות</span><span class="reason"><svg class="i"><use href="#i-plug"/></svg>המודול כבוי</span></div>
+        <div class="o"><span>בזבוז</span><span class="reason"><svg class="i"><use href="#i-power"/></svg>המתג כבוי</span></div>
+        <div class="o"><span>מצלמות</span><span class="reason"><svg class="i"><use href="#i-lock"/></svg>אין הרשאה</span></div>
+      </div></div>
+  </div>
+</section>
+
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var root = document.documentElement, body = document.body;
+  var S = { sw: { report: true, doors: true, waste: true }, mod: { tickets: true, elevators: false }, cams: true, state: q.get('state') || 'data' };
+  var SECS = [['summary', 'תמצית'], ['tickets', 'בקשות שירות'], ['energy', 'אנרגיה'], ['elevators', 'מעליות'], ['generator', 'גנרטור'], ['temperature', 'טמפרטורה'], ['doors', 'דלתות'], ['cameras', 'מצלמות'], ['waste', 'בזבוז']];
+  var picked = {}; SECS.forEach(function (s) { picked[s[0]] = true; });
+  var REASON = { mod: ['#i-plug', 'המודול כבוי'], sw: ['#i-power', 'המתג כבוי'], perm: ['#i-lock', 'אין הרשאה'] };
+
+  function bars(el, vals, opts) {
+    var max = Math.max.apply(null, vals) * 1.08, h = '';
+    vals.forEach(function (v, i) { var c = opts.cls ? opts.cls(v, i) : ''; h += '<i class="' + c + '" style="height:' + (v / max * 100).toFixed(1) + '%"></i>'; });
+    if (opts.median) h += '<span class="med" style="bottom:' + (opts.median / max * 100).toFixed(1) + '%"></span>';
+    el.innerHTML = h;
+  }
+  var energy = [590,610,640,605,520,410,395,620,655,630,640,598,430,402,615,640,662,651,603,422,415,670,812,690,640,615,440,410,628,640];
+  var we = function (v, i) { return (i % 7 === 4 || i % 7 === 5) ? 'we' : ''; };
+  bars(document.getElementById('ebars'), energy, { cls: we });
+  bars(document.getElementById('pbars'), energy, { cls: we });
+  bars(document.getElementById('nbars'), [118, 124, 121, 168, 119, 126, 122], { median: 124, cls: function (v) { return v > 140 ? 'hi' : 'we'; } });
+
+  function blocked(req) {
+    if (!req) return null;
+    var p = req.split(':');
+    if (p[0] === 'mod' && !S.mod[p[1]]) return 'mod';
+    if (p[0] === 'sw' && !S.sw[p[1]]) return 'sw';
+    if (p[0] === 'perm' && !S.cams) return 'perm';
+    return null;
+  }
+  function render() {
+    var pk = document.getElementById('picker'), om = document.getElementById('omlist'), oh = '', ph = '', nOm = 0;
+    SECS.forEach(function (s) {
+      var el = document.querySelector('[data-sec="' + s[0] + '"]');
+      var why = blocked(el.getAttribute('data-req'));
+      if (why) {
+        ph += '<span class="chip off" title="' + REASON[why][1] + '">' + s[1] + '</span>';
+        oh += '<div class="o"><span>' + s[1] + '</span><span class="reason"><svg class="i"><use href="' + REASON[why][0] + '"/></svg>' + REASON[why][1] + '</span></div>';
+        nOm++; el.hidden = true;
+      } else {
+        ph += '<button class="chip' + (picked[s[0]] ? ' sel' : '') + '" data-pick="' + s[0] + '" aria-pressed="' + picked[s[0]] + '"><svg class="i"><use href="#i-check"/></svg>' + s[1] + '</button>';
+        el.hidden = !picked[s[0]];
+      }
+    });
+    pk.innerHTML = ph; om.innerHTML = oh;
+    document.getElementById('omitted').style.display = nOm ? '' : 'none';
+    document.querySelectorAll('[data-need]').forEach(function (f) {
+      var k = f.getAttribute('data-need');
+      f.hidden = k === 'tickets' ? !S.mod.tickets : !S.sw[k];
+    });
+    pk.querySelectorAll('[data-pick]').forEach(function (b) { b.onclick = function () { picked[b.dataset.pick] = !picked[b.dataset.pick]; render(); }; });
+    document.getElementById('s-report').classList.toggle('is-off', !S.sw.report);
+    document.getElementById('s-doors').classList.toggle('is-off', !S.sw.doors);
+    document.getElementById('s-waste').classList.toggle('is-off', !S.sw.waste);
+    document.getElementById('s-report').setAttribute('data-rstate', S.state);
+    document.querySelectorAll('[data-sw]').forEach(function (b) { b.setAttribute('aria-pressed', String(S.sw[b.dataset.sw])); });
+    document.querySelectorAll('[data-swt]').forEach(function (b) { b.setAttribute('aria-checked', String(S.sw[b.dataset.swt])); });
+    document.querySelectorAll('[data-mod]').forEach(function (b) { b.setAttribute('aria-pressed', String(S.mod[b.dataset.mod])); });
+    document.getElementById('perm').setAttribute('aria-pressed', String(!S.cams));
+    document.getElementById('dstate').value = S.state;
+  }
+  function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
+  function show(id) {
+    document.querySelectorAll('.gallery [data-s]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.s === id)); });
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
+    window.scrollTo(0, 0);
+  }
+  theme(q.get('theme') === 'dark');
+  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+  document.querySelectorAll('.gallery [data-s]').forEach(function (b) { b.onclick = function () { show(b.dataset.s); }; });
+  document.querySelectorAll('[data-go]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); show(b.dataset.go); }); });
+  document.querySelectorAll('[data-sw]').forEach(function (b) { b.onclick = function () { S.sw[b.dataset.sw] = !S.sw[b.dataset.sw]; render(); }; });
+  document.querySelectorAll('[data-swt]').forEach(function (b) { b.onclick = function () { S.sw[b.dataset.swt] = !S.sw[b.dataset.swt]; render(); }; });
+  document.querySelectorAll('[data-mod]').forEach(function (b) { b.onclick = function () { S.mod[b.dataset.mod] = !S.mod[b.dataset.mod]; render(); }; });
+  document.getElementById('perm').onclick = function () { S.cams = !S.cams; render(); };
+  document.getElementById('dstate').onchange = function (e) { S.state = e.target.value; render(); };
+  document.querySelectorAll('[data-q]').forEach(function (b) { b.onclick = function () { var on = !body.classList.contains(b.dataset.q); body.classList.toggle(b.dataset.q, on); b.setAttribute('aria-pressed', String(on)); }; });
+  if (q.get('screen')) show(q.get('screen'));
+  render();
+})();
+</script>
+</body>
+</html>
