@@ -254,7 +254,7 @@ def test_only_the_seam_modules_mint_sealed_values():
         if path.name in ("wiskey_peer.py", "wiskey_peer_registry.py"):
             continue
         text = path.read_text(encoding="utf-8")
-        if re.search(r"attest_transport\(|_SEAL\b|_mint_peer\(", text):
+        if re.search(r"attest_transport\(|_SEAL\b|_mint_peer\(|_mint_write_context\(", text):
             offenders.append(path.relative_to(PKG).as_posix())
     assert offenders == []
 

@@ -437,8 +437,13 @@ def station_removal_verdict_v2(state: Any, *, person_id: str, revision: Any, sta
     """ECCACT-295: whether the removal of ONE station's access for a still-present person is proven at `revision` (a station block /
     inherit-to-deny, not a revocation of the whole person).
     True = tracked removal work naming this station is still owed; False = the answer carries a disabled row for exactly this station,
-    applied at this revision (desired == applied == person_revision, synced), no removal queue names the station, nothing for it is
-    unverified and WisKey's own `revocation_pending` is False; None = cannot tell. v1 is never judged here (None): only v2 proves."""
+    applied at this revision (desired == applied == person_revision, synced), no removal queue names the station and nothing for it is
+    unverified; None = cannot tell. v1 is never judged here (None): only v2 proves.
+    WKB-295 (WisKey T02/Q1): judged PER STATION. WisKey's top-level `revocation_pending` is derived from ALL of the person's queues
+    (`_v2`), so work owed at another station (True) or another station's unverified row (None) says nothing about this one; it is not
+    consulted here. The whole-person clean stays `revocation_verdict_v2` (global flag + central_revoked + F-02), unchanged: a station
+    proof is never a person clean. Assumes every id in the six arrays is a station id (WisKey fixtures; to be confirmed by WisKey); a
+    queued id with no assignment row in the same answer cannot be attributed, so this station stays UNKNOWN (None), never False."""
     if not isinstance(state, AccessState) or state.schema_version != SCHEMA_V2 or state.user_id != person_id or not revision_ok(revision) or not id_ok(station_id):
         return None
     queues = state.pending.removal_queues()
@@ -449,7 +454,12 @@ def station_removal_verdict_v2(state: Any, *, person_id: str, revision: Any, sta
         return True if named else None
     if named:
         return True
-    if state.revocation_pending is not False or station_id in state.pending.unverified:
+    if station_id in state.pending.unverified:
+        return None
+    # work owed elsewhere is attributable only to a station the answer carries a row for (WisKey T02: a disabled assignment is kept at
+    # every original station). A queued id without a row cannot be placed: it may be this station's work under another id -> UNKNOWN.
+    rows = {r.station_id for r in state.assignments}
+    if any(sid not in rows for ids in state.pending.as_dict().values() for sid in ids):
         return None
     row = state.row(station_id)
     if row is None or row.enabled or row.applied is not True:

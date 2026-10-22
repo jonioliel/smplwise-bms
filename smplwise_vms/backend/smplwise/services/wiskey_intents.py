@@ -20,6 +20,8 @@ Status
   the joint pin names it - this module never fabricates either."""
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -67,7 +69,9 @@ class ExactOriginal:
     revision_before: int | None
 
     def as_request(self) -> dict[str, Any]:
-        """The PROPOSED resolve request: the exact original references and nothing else (no name / PIN / card / policy field exists)."""
+        """The PROPOSED resolve request: the exact original references and nothing else (no name / PIN / card / policy field exists).
+        WKB-295: refs-only, so NOT the durable full original WisKey's T05 asks for - that is `resolve_request` (recorded original +
+        hashes + verified context, only for an intent admitted through `admit_with_original`)."""
         return {"repository_id": self.repository_id, "operation_id": self.operation_id, "request_id": self.request_id,
                 "origin_ref": self.origin_ref, "operation_binding_ref": self.operation_binding_ref,
                 "peer_binding_ref": self.peer_binding_ref, "peer_binding_revision": self.peer_binding_revision}
@@ -273,6 +277,206 @@ def open_intents(conn: sqlite3.Connection) -> list[ExactOriginal]:
     """Every intent without a terminal fact (the startup / recovery worklist): intent, sent and unknown."""
     rows = conn.execute(f"SELECT {_COLS} FROM wiskey_fence_intents WHERE state IN ('intent','sent','unknown') ORDER BY created_at").fetchall()
     return [_row_original(r) for r in rows]
+
+
+# ---------------------------------------------------------------- WKB-295 (WisKey T05): the durable FULL original
+
+ORIGINAL_CANON = "arx-json-c14n-v1"  # json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False), UTF-8
+MAX_ORIGINAL_BYTES = 65536
+MAX_DEPTH = 16
+# keys whose value is a secret or a credential: an original carrying one is refused (no PIN / card / password / token is ever stored,
+# and no hash over one either - a PIN hash is a guessing oracle). How a PIN- or card-bearing original is recorded: definition needed.
+SECRET_KEYS = frozenset({"pin", "pin_code", "pincode", "password", "passcode", "card", "cards", "card_no", "card_number", "card_value",
+                         "token", "access_token", "secret", "credential", "credentials"})
+RECOVERY = ("held_not_sent", "resolve_with_original", "unknown_no_original")
+
+
+def _canon_value(value: Any, depth: int) -> None:
+    if depth > MAX_DEPTH:
+        raise IntentError("original_too_deep")
+    if value is None or isinstance(value, (bool, str)):
+        return
+    if isinstance(value, int):
+        if abs(value) > wp.MAX_JSON_INT:
+            raise IntentError("original_unsafe_int")
+        return
+    if isinstance(value, list):
+        for v in value:
+            _canon_value(v, depth + 1)
+        return
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if not isinstance(k, str):
+                raise IntentError("original_key")
+            if k.casefold() in SECRET_KEYS:
+                raise IntentError("secret_in_original")
+            _canon_value(v, depth + 1)
+        return
+    raise IntentError("original_type")  # float, bytes, tuple, objects: no ambiguous encoding is ever hashed
+
+
+def canonical(value: Any) -> bytes:
+    """The one byte form an original (or a context) is hashed and stored in. A dict at the top; refused when it cannot be encoded
+    unambiguously or carries a secret key."""
+    if not isinstance(value, dict) or not value:
+        raise IntentError("original_shape")
+    _canon_value(value, 0)
+    data = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    if len(data) > MAX_ORIGINAL_BYTES:
+        raise IntentError("original_too_large")
+    return data
+
+
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _context_record(peer: wp.VerifiedPeerRef, ctx: wp.VerifiedWriteContext) -> dict[str, Any]:
+    return {"repository_id": ctx.repository_id, "owner_id": ctx.owner_id, "writer_epoch": ctx.writer_epoch,
+            "exclusive_writer_established": ctx.exclusive_writer_established, "source": ctx.source,
+            "verified_peer_ref": peer.value, "peer_binding_ref": peer.peer_binding_ref, "peer_binding_revision": peer.peer_binding_revision}
+
+
+def _check_context(peer: wp.VerifiedPeerRef, context: Any) -> wp.VerifiedWriteContext:
+    """The context must be sealed (the agreed source), name the peer's repository and owner, and establish the exclusive writer."""
+    wp.as_peer_binding(peer)
+    try:
+        ctx = wp.as_write_context(context)
+    except wp.PeerSeamError:
+        raise IntentError("context_unverified") from None
+    if (ctx.repository_id, ctx.owner_id) != (peer.repository_id, peer.query_owner_id):
+        raise IntentError("context_mismatch")
+    if ctx.exclusive_writer_established is not True:
+        raise IntentError("writer_unproven")
+    return ctx
+
+
+@dataclass(frozen=True)
+class FullOriginal:
+    """What was recorded before any I/O: the canonical original bytes, the verified context, and both hashes (checked on every read)."""
+
+    exact: ExactOriginal
+    original_json: str
+    original_sha256: str
+    context_json: str
+    context_sha256: str
+
+    def original(self) -> dict[str, Any]:
+        return json.loads(self.original_json)
+
+    def context(self) -> dict[str, Any]:
+        return json.loads(self.context_json)
+
+
+def admit_with_original(conn: sqlite3.Connection, *, peer: wp.VerifiedPeerRef, context: Any, operation_id: str, request_id: str,
+                        origin_ref: str, operation_binding_ref: str, command: str, original: dict[str, Any], user_id: str | None = None,
+                        revision_before: int | None = None, journal_op_id: str | None = None, now: str | None = None) -> FullOriginal:
+    """Record the intent AND its full original, the original's hash and the verified context in ONE transaction that is COMMITTED
+    before this returns - so before any I/O can happen. The writer epoch is taken from the sealed context, never from the caller.
+    Refused (nothing written) with an open transaction on `conn` (its commit point would not be ours), an unverified / mismatched
+    context, a context without the exclusive writer, a secret key in the original or a duplicate operation / request / origin."""
+    ctx = _check_context(peer, context)
+    if isinstance(original, dict) and "id" in original:
+        raise IntentError("original_has_message_id")  # the HA WebSocket message id belongs to one connection, not to the original
+    data = canonical(original)
+    ctx_data = canonical(_context_record(peer, ctx))
+    if conn.in_transaction:
+        raise IntentError("open_transaction")
+    at = now or _now()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        exact = admit(conn, peer=peer, operation_id=operation_id, request_id=request_id, origin_ref=origin_ref,
+                      operation_binding_ref=operation_binding_ref, issued_epoch=ctx.writer_epoch, command=command, user_id=user_id,
+                      revision_before=revision_before, journal_op_id=journal_op_id, now=at)
+        full = FullOriginal(exact, data.decode("utf-8"), sha256_hex(data), ctx_data.decode("utf-8"), sha256_hex(ctx_data))
+        conn.execute("INSERT INTO wiskey_intent_originals (repository_id, query_owner_ref, operation_id, canonicalization, original_json, "
+                     "original_sha256, context_json, context_sha256, recorded_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                     (exact.repository_id, exact.query_owner_ref, exact.operation_id, ORIGINAL_CANON, full.original_json,
+                      full.original_sha256, full.context_json, full.context_sha256, at))
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    return full
+
+
+def stored_original(conn: sqlite3.Connection, o: ExactOriginal) -> FullOriginal | None:
+    """The recorded full original of `o`, re-hashed on read. None = no original was ever recorded (an old intent: UNKNOWN for good).
+    A row whose bytes no longer match its hashes or its canonical form is `original_corrupt` (never used, never repaired)."""
+    r = conn.execute("SELECT canonicalization, original_json, original_sha256, context_json, context_sha256 FROM wiskey_intent_originals "
+                     "WHERE repository_id=? AND query_owner_ref=? AND operation_id=?",
+                     (o.repository_id, o.query_owner_ref, o.operation_id)).fetchone()
+    if r is None:
+        return None
+    canon, oj, osha, cj, csha = r
+    try:
+        ok = (canon == ORIGINAL_CANON and sha256_hex(oj.encode("utf-8")) == osha and sha256_hex(cj.encode("utf-8")) == csha
+              and canonical(json.loads(oj)) == oj.encode("utf-8") and json.loads(cj).get("writer_epoch") == o.issued_epoch)
+    except (ValueError, IntentError, AttributeError):
+        ok = False
+    if not ok:
+        raise IntentError("original_corrupt")
+    return FullOriginal(o, oj, osha, cj, csha)
+
+
+def send_once(conn: sqlite3.Connection, o: ExactOriginal, transport: Any, *, context: Any, peer: wp.VerifiedPeerRef,
+              now: str | None = None) -> Any:
+    """Send the RECORDED original exactly once. Order: (1) the stored original is read back and re-hashed (none -> `no_original`,
+    nothing sent); (2) a FRESH sealed context must show the same repository, owner and writer epoch the original was admitted under,
+    with the exclusive writer (else nothing is sent); (3) intent -> sent is COMMITTED; (4) only then the transport gets the stored
+    bytes. A transport failure is UNKNOWN (committed); nothing is ever resent - an intent not in `intent` is `not_sendable`."""
+    full = stored_original(conn, o)
+    if full is None:
+        raise IntentError("no_original")
+    ctx = _check_context(peer, context)
+    if (peer.peer_binding_ref, peer.peer_binding_revision) != (o.peer_binding_ref, o.peer_binding_revision):
+        raise IntentError("context_mismatch")
+    if ctx.writer_epoch != o.issued_epoch:
+        raise IntentError("epoch_changed")
+    if conn.in_transaction:
+        raise IntentError("open_transaction")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        mark_sent(conn, o, now)
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    try:
+        return transport(full.original())
+    except Exception:  # noqa: BLE001 - the frame may have left: UNKNOWN, resolved only through the original, never resent
+        mark_unknown(conn, o, "transport_error", now)
+        conn.commit()
+        return None
+
+
+def resolve_request(conn: sqlite3.Connection, o: ExactOriginal) -> dict[str, Any]:
+    """Arx's PROPOSED exact-original resolve body (WisKey's wire shape for peer_receipts / resolve: definition needed): the exact
+    references, the full original and both hashes. `no_original` for an intent without a recorded original - it is never rebuilt."""
+    full = stored_original(conn, o)
+    if full is None:
+        raise IntentError("no_original")
+    return {**o.as_request(), "query_owner_ref": o.query_owner_ref, "issued_epoch": o.issued_epoch, "canonicalization": ORIGINAL_CANON,
+            "original": full.original(), "original_sha256": full.original_sha256, "context": full.context(),
+            "context_sha256": full.context_sha256}
+
+
+def recovery_plan(conn: sqlite3.Connection) -> list[tuple[ExactOriginal, str]]:
+    """The restart worklist, classified; it changes nothing and sends nothing.
+    held_not_sent         a recorded original still in `intent`: by construction (`send_once` commits `sent` before any I/O) it never
+                          left Arx. It is NOT sent automatically; a send needs `send_once` under a fresh context with the same epoch.
+    resolve_with_original `sent` / `unknown` with a recorded original: only the exact-original resolve may settle it.
+    unknown_no_original   no recorded original (an old intent, or one from the older `admit`): UNKNOWN for good - no reconstruction,
+                          no replay, no extra create. An unreadable / corrupt original is classified here too."""
+    out: list[tuple[ExactOriginal, str]] = []
+    for o in open_intents(conn):
+        try:
+            full = stored_original(conn, o)
+        except IntentError:
+            full = None
+        st = state(conn, o)
+        out.append((o, "unknown_no_original" if full is None else "held_not_sent" if st == "intent" else "resolve_with_original"))
+    return out
 
 
 class LiveResolveTransport:
