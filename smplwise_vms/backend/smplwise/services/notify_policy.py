@@ -21,11 +21,11 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature")  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills")  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature")  # rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills")  # energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -186,6 +186,11 @@ SOURCES: tuple[Source, ...] = (
     # (services/needs_review.py). Content-free: a count only, never a name or a number; the review and every deletion stay manual.
     _s("privacy.needs_review", "תזכורת שנתית: דוח דורש בחינה", "security", "info", "דוח דורש בחינה",
        "{count} אנשים ממתינים לבחינה בדוח דורש בחינה. הבחינה והמחיקה ידניות.", who="managers", push=False, subject="system", resolves=False),
+    # ELECBILL77 (services/energy_notify.py): an automatic monthly electricity bill draft was computed - to the holders of energy.bills
+    # (installation scope; subject kind `energy_bills`). Period only: never an amount, a customer or an account name. One row per draft.
+    # Listed only while the installation has billing accounts (services/energy_notify.listed); phone app on by default, WhatsApp off.
+    _s("energy.bill_draft", "חיובי חשמל: טיוטה מוכנה", "system", "info", "טיוטת חיוב חשמל מוכנה", "טיוטה לתקופה {period} מוכנה לעיון.", who="energy_bills",
+       subject="energy_bills", resolves=False, app=True),
     # ---- alerts (rules, and the NVR smart events that only rules turn into notifications)
     _s("rule.alert", "התראות מחוקים", "alerts", "alert", "{name}", "{message}", window_s=300, subject="camera", resolve_text="טופל", resolves=False),
     _s("camera.motion", "תנועה (רק דרך חוקים)", "alerts", "info", "תנועה", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
@@ -308,8 +313,16 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     for s in SOURCES:  # the catalogue's order; a stored row of a source this release no longer knows is not listed
         if not _ticket_sources.listed(conn, s.key):  # CR-038: the tickets sources exist only while the module is on
             continue
+        if s.key.startswith("energy.") and not _energy_listed(conn):  # ELECBILL77: the electricity bill source exists only with billing accounts
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
+
+
+def _energy_listed(conn: sqlite3.Connection) -> bool:
+    from . import energy_notify
+
+    return energy_notify.listed(conn)
 
 
 def _read_only(conn: sqlite3.Connection) -> bool:

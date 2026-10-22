@@ -26,6 +26,8 @@ from ..services import energy_billing as eb
 from ..services import energy_billing_pdf as pdfseam
 from ..services import energy_calendar as ecal
 from ..services import energy_formula as fx
+from ..services import energy_limits as limits
+from ..services import energy_notify as enotify
 from ..services import energy_periods as per
 from ..services import energy_pricing as px
 from ..services import energy_tou as tou
@@ -297,6 +299,10 @@ def _today(tz: str) -> dt.date:
 
 def _p(principal: Principal) -> Principal:
     return principal
+
+
+def _user_key(principal: Principal) -> str:
+    return principal.user_id or principal.username or "?"
 
 
 # ====================================================================== customers
@@ -824,7 +830,27 @@ def list_bills(principal: Principal = Depends(_bills), conn: sqlite3.Connection 
         args.append(state)
     total = conn.execute(f"SELECT COUNT(*) {base}", args).fetchone()[0]
     rows = conn.execute(f"SELECT b.* {base} ORDER BY b.period_end DESC, b.created_at DESC LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
-    return {"items": [eb.bill_summary(conn, r) for r in rows], "total": total, "counts": counts}
+    return {"items": [eb.bill_summary(conn, r) for r in rows], "total": total, "counts": counts, "revision": enotify.state(conn)["revision"]}
+
+
+def _etag_matches(header: str | None, etag: str) -> bool:
+    if not header:
+        return False
+    return any(t.strip() == "*" or t.strip().removeprefix("W/") == etag for t in header.split(","))
+
+
+@router.get("/energy/bills/state")
+def bills_state(request: Request, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    """ELECBILL77: the bills screen's live state for cheap polling - counts by state, the automatic generation's runs and a `revision` that moves
+    when any bill is created, edited, issued, paid, voided, deleted or gets its stored PDF. It is also the ETag (`"<revision>"`): a poll that sends
+    it back in If-None-Match gets an empty 304 and nothing else is read. Money-free; energy.bills like the rest of the bills. Declared before
+    /energy/bills/{bid}."""
+    body = enotify.state(conn)
+    etag = f'"{body["revision"]}"'
+    headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
+    if _etag_matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    return JSONResponse(body, headers=headers)
 
 
 @router.post("/energy/accounts/{aid}/bills", status_code=201)
@@ -881,10 +907,11 @@ def recalculate(bid: str, request: Request, principal: Principal = Depends(_bill
         raise ApiError(409, "bill_not_draft", "החיוב אינו טיוטה.", details={"state": bill["state"]})
     acc = eb.get_account(rconn, bill["account_id"])
     p = per.Period(eb._date(bill["period_start"]), eb._date(bill["period_end"]))
-    comp = eb.compute(rconn, get_provider(rconn, settings_of(request)), acc, p, origin=bill["origin"], replaces=_replaces(rconn, bill), bill_id=bid)
-    with _db(request).connection(label="energy.bill.recalculate") as w:
-        eb.store_recalculated(w, bill, comp, principal, _rid(request), body.row_version)
-        return eb.bill_dict(w, eb.get_bill(w, bid))
+    with limits.recompute(request.app, _user_key(principal), bid):  # ELECBILL77: per user + installation window, and one computation per bill at a time
+        comp = eb.compute(rconn, get_provider(rconn, settings_of(request)), acc, p, origin=bill["origin"], replaces=_replaces(rconn, bill), bill_id=bid)
+        with _db(request).connection(label="energy.bill.recalculate") as w:
+            eb.store_recalculated(w, bill, comp, principal, _rid(request), body.row_version)
+            return eb.bill_dict(w, eb.get_bill(w, bid))
 
 
 @router.delete("/energy/bills/{bid}", status_code=204)
@@ -1011,6 +1038,7 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
         except OSError:
             content = None
     if content is None:
+        limits.take_pdf(request.app, _user_key(principal))  # ELECBILL77: only a render is counted, never a stored file
         logo = eb.logo_bytes(conn, data_dir, ((snap.get("business") or {}).get("logo") or {}).get("sha256"))
         try:
             content = pdfseam.render(snap, logo=logo, watermark=watermark)

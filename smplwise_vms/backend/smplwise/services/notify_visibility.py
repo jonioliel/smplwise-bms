@@ -14,7 +14,8 @@ are the product's existing ones, not new ones:
 | automation         | whoever may SEE it = automation.manage + the entities of its action targets in their floors        |
 |                    | (no view-only access, owner 2026-10-01); an item that is gone: installation-wide managers          |
 | bulk_job           | the initiator only                                                                               |
-| system             | system.configure                                                                                 |
+| energy_bills       | energy.bills (ELECBILL77)                                                                        |
+| system             | system.configure                                                                                |
 | session / security | the account's own user; a code lockout ONLY to system.configure holders (not the locked-out user)  |
 
 A rule alert (`origin.events_scope`) keeps the rule it always had: a camera alert follows the camera scope for events.read, a
@@ -179,6 +180,8 @@ class Reach:
             from .tickets import rfq_notify
 
             return rfq_notify.can_see(self.conn, self.principal, sid)
+        if kind == "energy_bills":  # ELECBILL77: holders of energy.bills (installation scope) - the same permission as the bills screen
+            return self._allowed("energy.bills")
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: devices.read on the sensor of THIS notification's own state (D3, review H1)

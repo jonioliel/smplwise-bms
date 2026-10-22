@@ -1601,6 +1601,10 @@ def auto_generate(db: Database, provider: BillingReadings | None = None, now: dt
                         out.issued += 1
                     except ApiError as e:
                         log.warning("automatic issue refused: %s", e.code)
+                if status == "created":  # ELECBILL77: a draft is waiting for review - told once, in this transaction (never for an auto-issued bill)
+                    from . import energy_notify
+
+                    energy_notify.draft_ready(conn, bid, p.start, p.end)
                 _record_run(conn, acc["id"], p, status, bid, None, now)
                 out.created += 1
     return out

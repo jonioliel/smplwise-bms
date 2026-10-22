@@ -183,6 +183,8 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from . import temperature_alerts
 
         candidates = temperature_alerts.recipient_users(conn, n)
+    elif rule == "energy_bills":  # ELECBILL77: every active user; the energy.bills check is the visibility below (subject kind `energy_bills`)
+        candidates = _active_users(conn)
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
         from .tickets import rfq_notify
 
