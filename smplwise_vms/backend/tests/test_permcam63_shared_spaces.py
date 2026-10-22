@@ -204,7 +204,7 @@ def test_s2_home_member_removed_the_other_floor_loses_it_and_the_home_floor_keep
     _bind(w, "f2u", "viewer", "floor", w["f2"])
     assert c.delete(f"/api/v1/zones/{w['hall']}/share/members/camera/{cams['camH']}").status_code == 204
     assert _reach_ids(w, "f3u") == {"camD", "cam3"}
-    assert _reach_ids(w, "f2u") == {"camH", "camA"}, "floor 2 keeps camH (its home anchor); camD left with the membership"
+    assert _reach_ids(w, "f2u") == {"camH", "camA", "camD"}, "floor 2 keeps camH (its home anchor); camD is still a member and still reaches it"
 
 
 def test_s3_camera_moved_out_of_the_room_to_another_floor(settings):
