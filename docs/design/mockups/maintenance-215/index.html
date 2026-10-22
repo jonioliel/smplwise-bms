@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>אחזקה - דגם למסכים</title>
+<!--
+  CR-MAINT215 (2.15.0, "maintenance and field") - static design mock-up for the owner's approval. NOT product code: self-contained,
+  no network request, fake data only. Five screens of slice 2 on the backend of slice 1 (docs/changes/CR-MAINT215.md):
+    1. the ledger (פנקס) - every certificate, plan, round and supplier document with its state; list view first (owner 2026-10-01:
+       always a list / table view), the area tree kept on the side (owner rule), filters as chips;
+    2. the task sheet - a certificate with its history and the renewal;
+    3. the round on the phone - one checkpoint per screen, large targets, "open a request" only while the tickets module is on;
+    4. the supplier card - documents with validity;
+    5. tag printing - QR stickers for a task or a device.
+  Operator screens stay clean (owner 2026-09-30): no hint paragraphs, no badges beyond the state; management actions only for managers.
+  URL switches: ?theme=dark  ?tickets=off (the request actions disappear everywhere)
+-->
+<style>
+:root {
+  --bg: #f4f6fa; --panel: #ffffff; --line: #e3e8f0; --ink: #1b2433; --ink-2: #4c5a70; --ink-3: #7c889c;
+  --accent: #2563eb; --accent-soft: #e8efff; --ok: #15803d; --ok-soft: #e7f6ec; --warn: #b45309; --warn-soft: #fff4e0;
+  --bad: #b91c1c; --bad-soft: #fde9e9; --none: #6b7280; --none-soft: #eef0f3; --radius: 12px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.05);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --panel: #171e29; --line: #263042; --ink: #e8edf5; --ink-2: #b2bdcf; --ink-3: #7f8ba0;
+  --accent: #6c9cff; --accent-soft: #1d2a45; --ok: #4ade80; --ok-soft: #12301f; --warn: #fbbf24; --warn-soft: #33270f;
+  --bad: #f87171; --bad-soft: #3a1717; --none: #9aa3b2; --none-soft: #222a36; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, "Segoe UI", "Heebo", Arial, sans-serif; }
+.gallery { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.gallery button { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.gallery button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.gallery .sp { flex: 1; }
+.screen { display: none; padding: 16px; max-width: 1180px; margin: 0 auto; }
+.screen.on { display: block; }
+h1 { font-size: 20px; margin: 4px 0 12px; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.pad { padding: 14px 16px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.muted { color: var(--ink-3); }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 9px; padding: 7px 12px; font: inherit; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.big { padding: 14px 18px; font-size: 16px; border-radius: 12px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--ink-2); background: var(--panel); cursor: pointer; white-space: nowrap; }
+.chip.sel { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.chip .n { font-variant-numeric: tabular-nums; margin-inline-start: 4px; opacity: .8; }
+.state { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.s-overdue { color: var(--bad); background: var(--bad-soft); }
+.s-soon { color: var(--warn); background: var(--warn-soft); }
+.s-ok { color: var(--ok); background: var(--ok-soft); }
+.s-none { color: var(--none); background: var(--none-soft); }
+/* ledger */
+.ledger { display: grid; grid-template-columns: 230px 1fr; gap: 14px; }
+.tree { padding: 10px 6px; }
+.tree .t { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; color: var(--ink-2); cursor: pointer; }
+.tree .t.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tree .t.l2 { padding-inline-start: 24px; }
+.tree .t .n { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.search { flex: 1; min-width: 180px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; background: var(--bg); color: var(--ink); font: inherit; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: start; font-weight: 600; color: var(--ink-3); font-size: 12.5px; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.kind { color: var(--ink-3); font-size: 12.5px; }
+.date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.title { font-weight: 600; }
+.cards-m { display: none; }
+/* sheet */
+.sheet { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; }
+.kv dt { color: var(--ink-3); }
+.kv dd { margin: 0; }
+.big-date { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hist .h { display: grid; grid-template-columns: 96px 1fr auto; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.hist .h:last-child { border-bottom: 0; }
+.file { display: flex; gap: 10px; align-items: center; border: 1px dashed var(--line); border-radius: 10px; padding: 10px; }
+.file .ic { width: 34px; height: 42px; border-radius: 6px; background: var(--bad-soft); color: var(--bad); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.inp { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; background: var(--bg); color: var(--ink); font: inherit; }
+label.f { display: block; color: var(--ink-3); font-size: 12.5px; margin: 10px 0 4px; }
+/* phone */
+.phones { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+.phone { width: 340px; min-height: 640px; border-radius: 34px; border: 10px solid #111827; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; }
+.phone .top { padding: 14px 16px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.progress { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 8px; }
+.progress i { display: block; height: 100%; background: var(--accent); }
+.phone .body { flex: 1; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+.phone .q { font-size: 20px; font-weight: 700; }
+.yn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.yn button { border-radius: 14px; padding: 22px 0; font: 600 18px system-ui, sans-serif; border: 2px solid var(--line); background: var(--panel); color: var(--ink); }
+.yn .yes.sel { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+.yn .no.sel { border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+.num { display: flex; align-items: center; gap: 10px; }
+.num input { font-size: 26px; text-align: center; width: 100%; padding: 12px; border-radius: 12px; border: 2px solid var(--bad); background: var(--panel); color: var(--ink); }
+.range { color: var(--ink-3); font-size: 13px; }
+.phone .foot { padding: 12px 16px 18px; display: grid; gap: 8px; background: var(--panel); border-top: 1px solid var(--line); }
+.req { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel); display: flex; justify-content: space-between; align-items: center; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.dots span { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: var(--none-soft); color: var(--ink-3); }
+.dots .d-ok { background: var(--ok-soft); color: var(--ok); }
+.dots .d-bad { background: var(--bad-soft); color: var(--bad); }
+.dots .d-cur { outline: 2px solid var(--accent); }
+/* supplier */
+.docs .d { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.docs .d:last-child { border-bottom: 0; }
+.picker .p { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+/* tags */
+.stickers { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.sticker { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; color: #111; text-align: center; }
+.sticker svg { width: 128px; height: 128px; }
+.sticker .l { font-weight: 700; margin-top: 6px; }
+.sticker .s { font-size: 11px; color: #555; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 860px) {
+  .ledger, .sheet, .grid2 { grid-template-columns: 1fr; }
+  .tree { display: none; }
+  table.desk { display: none; }
+  .cards-m { display: grid; gap: 8px; padding: 10px; }
+  .cards-m .c { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; }
+  .phone { width: 100%; max-width: 360px; }
+}
+.tickets-off .needs-tickets { display: none !important; }
+</style>
+</head>
+<body>
+<nav class="gallery" aria-label="מסכי הדגם">
+  <button data-s="ledger" aria-pressed="true">1. פנקס</button>
+  <button data-s="sheet" aria-pressed="false">2. כרטיס אישור</button>
+  <button data-s="round" aria-pressed="false">3. סבב בטלפון</button>
+  <button data-s="vendor" aria-pressed="false">4. ספק ומסמכים</button>
+  <button data-s="tags" aria-pressed="false">5. תגיות</button>
+  <span class="sp"></span>
+  <button id="tk" aria-pressed="true">בקשות שירות: פועל</button>
+  <button id="th" aria-pressed="false">כהה</button>
+</nav>
+
+<!-- 1. the ledger -->
+<section class="screen on" id="s-ledger">
+  <div class="row" style="justify-content:space-between"><h1>אחזקה</h1><button class="btn primary">משימה חדשה</button></div>
+  <div class="ledger">
+    <aside class="card tree" aria-label="מקומות">
+      <div class="t sel">כל המבנה <span class="n">24</span></div>
+      <div class="t">מבנה א <span class="n">17</span></div>
+      <div class="t l2">קומת קרקע <span class="n">6</span></div>
+      <div class="t l2">קומה 1 <span class="n">4</span></div>
+      <div class="t l2">קומה 2 <span class="n">3</span></div>
+      <div class="t l2">גג <span class="n">4</span></div>
+      <div class="t">ספקים <span class="n">7</span></div>
+    </aside>
+    <div class="card">
+      <div class="toolbar">
+        <div class="chips" role="group" aria-label="מצב">
+          <span class="chip sel">הכול<span class="n">24</span></span>
+          <span class="chip">עבר המועד<span class="n">2</span></span>
+          <span class="chip">מתקרב<span class="n">5</span></span>
+          <span class="chip">תקין<span class="n">17</span></span>
+        </div>
+        <div class="chips" role="group" aria-label="סוג">
+          <span class="chip">אישורים</span><span class="chip">אחזקה מונעת</span><span class="chip">סבבים</span><span class="chip">מסמכי ספקים</span>
+        </div>
+        <input class="search" placeholder="חיפוש">
+      </div>
+      <table class="desk">
+        <thead><tr><th>מצב</th><th>שם</th><th>סוג</th><th>מקום</th><th>ספק</th><th>מועד</th></tr></thead>
+        <tbody>
+          <tr><td><span class="state s-overdue">פג</span></td><td class="title">ביטוח צד ג׳ - חשמל השרון</td><td class="kind">מסמך ספק</td><td class="muted">-</td><td>חשמל השרון</td><td class="date">10.01.2027</td></tr>
+          <tr><td><span class="state s-overdue">עבר</span></td><td class="title">ניקוי מנדף המטבח</td><td class="kind">אחזקה מונעת</td><td>קומת קרקע</td><td>קלין-טק</td><td class="date">12.01.2027</td></tr>
+          <tr><td><span class="state s-soon">עוד 3 ימים</span></td><td class="title">סבב בוקר - חדר משאבות</td><td class="kind">סבב יומי</td><td>מרתף</td><td class="muted">-</td><td class="date">18.01.2027</td></tr>
+          <tr><td><span class="state s-soon">עוד 12 ימים</span></td><td class="title">ניקוי מסנני מזגנים</td><td class="kind">אחזקה מונעת · חודשי</td><td>גג</td><td>קור-אייר</td><td class="date">27.01.2027</td></tr>
+          <tr><td><span class="state s-soon">עוד 30 ימים</span></td><td class="title">בדיקת מעלית שנתית - מעלית צפונית</td><td class="kind">אישור · שנתי</td><td>מבנה א</td><td>בודק מוסמך</td><td class="date">14.02.2027</td></tr>
+          <tr><td><span class="state s-ok">תקין</span></td><td class="title">בדיקת גנרטור בעומס</td><td class="kind">אישור · חצי שנתי</td><td>גג</td><td>כוח חירום</td><td class="date">03.05.2027</td></tr>
+          <tr><td><span class="state s-ok">תקין</span></td><td class="title">מטפים - כל הקומות</td><td class="kind">אישור · שנתי</td><td>מבנה א</td><td>אש-טק</td><td class="date">20.09.2027</td></tr>
+          <tr><td><span class="state s-none">מושהה</span></td><td class="title">בדיקת ספרינקלרים</td><td class="kind">אישור</td><td>מבנה א</td><td class="muted">-</td><td class="date muted">-</td></tr>
+        </tbody>
+      </table>
+      <div class="cards-m">
+        <div class="c"><div class="row" style="justify-content:space-between"><span class="title">ביטוח צד ג׳ - חשמל השרון</span><span class="state s-overdue">פג</span></div><div class="muted">מסמך ספק · 10.01.2027</div></div>
+        <div class="c"><div class="row" style="justify-content:space-between"><span class="title">ניקוי מנדף המטבח</span><span class="state s-overdue">עבר</span></div><div class="muted">קומת קרקע · 12.01.2027</div></div>
+        <div class="c"><div class="row" style="justify-content:space-between"><span class="title">סבב בוקר - חדר משאבות</span><span class="state s-soon">עוד 3 ימים</span></div><div class="muted">מרתף · 18.01.2027</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. the certificate sheet -->
+<section class="screen" id="s-sheet">
+  <h1>בדיקת מעלית שנתית - מעלית צפונית</h1>
+  <div class="sheet">
+    <div class="card pad">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div><div class="muted">בתוקף עד</div><div class="big-date">14.02.2027</div></div>
+        <span class="state s-soon">עוד 30 ימים</span>
+      </div>
+      <dl class="kv">
+        <dt>סוג</dt><dd>אישור · כל שנה</dd>
+        <dt>מקום</dt><dd>מבנה א</dd>
+        <dt>מעלית</dt><dd>מעלית צפונית</dd>
+        <dt>ספק</dt><dd>בודק מוסמך בע״מ</dd>
+        <dt>אחראי</dt><dd>דני כהן</dd>
+        <dt>תזכורת</dt><dd>30 ימים לפני</dd>
+        <dt class="needs-tickets">בקשת שירות</dt><dd class="needs-tickets">נפתחת אוטומטית במחלקת אחזקה · <a href="#">בקשה 1042</a></dd>
+      </dl>
+      <h2 style="margin-top:18px">התעודה האחרונה</h2>
+      <div class="file"><div class="ic">PDF</div><div><div class="title">תסקיר מעלית 2026.pdf</div><div class="muted">הועלה 16.02.2026</div></div></div>
+    </div>
+    <div class="card pad">
+      <h2>חידוש</h2>
+      <label class="f">תאריך הבדיקה</label><input class="inp" value="12.02.2027">
+      <label class="f">בתוקף עד</label><input class="inp" value="12.02.2028">
+      <label class="f">קובץ התעודה</label><button class="btn" style="width:100%">בחירת קובץ</button>
+      <label class="f">הערה</label><input class="inp">
+      <div class="row" style="margin-top:14px"><button class="btn primary">שמירה</button></div>
+      <h2 style="margin-top:20px">היסטוריה</h2>
+      <div class="hist">
+        <div class="h"><span class="date">16.02.2026</span><span>חודש עד 14.02.2027</span><span class="muted">דני כהן</span></div>
+        <div class="h"><span class="date">10.02.2025</span><span>חודש עד 14.02.2026</span><span class="muted">דני כהן</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. the round on the phone -->
+<section class="screen" id="s-round">
+  <div class="phones">
+    <div class="phone" aria-label="נקודת בדיקה">
+      <div class="top"><div class="row" style="justify-content:space-between"><b>סבב בוקר - חדר משאבות</b><span class="muted">2 / 5</span></div><div class="progress"><i style="width:40%"></i></div></div>
+      <div class="body">
+        <div class="muted">מרתף · משאבה 1</div>
+        <div class="q">המשאבה פועלת בלי רעש חריג?</div>
+        <div class="yn"><button class="yes">כן</button><button class="no sel">לא</button></div>
+        <input class="inp" placeholder="הערה" value="רעש חריג בהפעלה">
+        <div class="req needs-tickets"><span>פתיחת בקשת שירות</span><button class="btn">פתיחה</button></div>
+      </div>
+      <div class="foot"><button class="btn primary big">הבא</button></div>
+    </div>
+    <div class="phone" aria-label="ערך מספרי">
+      <div class="top"><div class="row" style="justify-content:space-between"><b>סבב בוקר - חדר משאבות</b><span class="muted">3 / 5</span></div><div class="progress"><i style="width:60%"></i></div></div>
+      <div class="body">
+        <div class="muted">מרתף · מד לחץ</div>
+        <div class="q">לחץ במערכת (בר)</div>
+        <div class="num"><input value="7.5" inputmode="decimal" aria-label="לחץ"></div>
+        <div class="range">טווח תקין 2-6</div>
+      </div>
+      <div class="foot"><button class="btn primary big">הבא</button></div>
+    </div>
+    <div class="phone" aria-label="סיום סבב">
+      <div class="top"><b>סבב בוקר - חדר משאבות</b><div class="progress"><i style="width:100%"></i></div></div>
+      <div class="body">
+        <div class="q">סיום הסבב</div>
+        <div class="dots"><span class="d-ok">1</span><span class="d-bad">2</span><span class="d-bad">3</span><span class="d-ok">4</span><span class="d-ok">5</span></div>
+        <div class="muted">2 נקודות עם חריגה</div>
+        <div class="req needs-tickets"><span>נקודה 2 · בקשה 1043</span><span class="state s-ok">נפתחה</span></div>
+        <input class="inp" placeholder="הערה לסבב">
+      </div>
+      <div class="foot"><button class="btn primary big">סיום</button><button class="btn">ביטול הסבב</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. the supplier -->
+<section class="screen" id="s-vendor">
+  <h1>חשמל השרון</h1>
+  <div class="grid2">
+    <div class="card pad docs">
+      <div class="row" style="justify-content:space-between"><h2>מסמכים</h2><button class="btn">מסמך חדש</button></div>
+      <div class="d"><span><b>ביטוח צד ג׳</b><br><span class="muted">בתוקף עד 10.01.2027</span></span><span class="state s-overdue">פג</span><button class="btn">חידוש</button></div>
+      <div class="d"><span><b>רישיון חשמלאי</b><br><span class="muted">בתוקף עד 01.02.2027</span></span><span class="state s-soon">עוד 17 ימים</span><button class="btn">חידוש</button></div>
+      <div class="d"><span><b>אישור עבודה בגובה</b><br><span class="muted">בתוקף עד 30.11.2027</span></span><span class="state s-ok">תקין</span><button class="btn">חידוש</button></div>
+    </div>
+    <div class="card needs-tickets">
+      <div class="pad" style="padding-bottom:4px"><h2>בחירת מטפל בבקשה (מסך הבקשות)</h2></div>
+      <div class="picker">
+        <div class="p"><span>חשמל השרון</span><span class="state s-overdue">ביטוח פג 10.01</span></div>
+        <div class="p"><span>קור-אייר</span><span class="muted"></span></div>
+        <div class="p"><span>קלין-טק</span><span class="state s-soon">רישיון עד 01.02</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. tags -->
+<section class="screen" id="s-tags">
+  <div class="row" style="justify-content:space-between"><h1>תגיות</h1><button class="btn primary">הדפסה</button></div>
+  <div class="card pad">
+    <div class="stickers">
+      <div class="sticker"><svg viewBox="0 0 29 29" aria-hidden="true"><rect width="29" height="29" fill="#fff"/><path fill="#111" d="M1 1h7v7H1zM2 2v5h5V2zM3 3h3v3H3zM21 1h7v7h-7zM22 2v5h5V2zM23 3h3v3h-3zM1 21h7v7H1zM2 22v5h5v-5zM3 23h3v3H3zM10 1h2v2h-2zM13 2h2v3h-2zM10 5h2v3h-2zM16 1h3v2h-3zM10 10h3v2h-3zM15 10h2v4h-2zM19 11h3v2h-3zM24 10h4v2h-4zM1 10h3v2H1zM5 12h3v3H5zM11 14h3v3h-3zM18 15h4v2h-4zM24 14h2v4h-2zM10 19h2v3h-2zM14 19h4v2h-4zM20 19h2v2h-2zM23 20h5v2h-5zM12 24h3v4h-3zM17 23h2v5h-2zM21 24h3v2h-3zM25 25h3v3h-3z"/></svg><div class="l">חדר משאבות</div><div class="s">סבב בוקר</div></div>
+      <div class="sticker"><svg viewBox="0 0 29 29" aria-hidden="true"><rect width="29" height="29" fill="#fff"/><path fill="#111" d="M1 1h7v7H1zM2 2v5h5V2zM3 3h3v3H3zM21 1h7v7h-7zM22 2v5h5V2zM23 3h3v3h-3zM1 21h7v7H1zM2 22v5h5v-5zM3 23h3v3H3zM11 1h3v2h-3zM15 3h2v4h-2zM10 9h2v2h-2zM14 10h4v2h-4zM20 9h2v4h-2zM24 11h4v2h-4zM2 11h2v3H2zM6 10h2v2H6zM10 14h2v3h-2zM16 15h3v2h-3zM22 16h2v2h-2zM25 17h3v3h-3zM11 20h3v2h-3zM16 19h2v4h-2zM20 21h3v2h-3zM10 24h2v4h-2zM14 25h3v3h-3zM22 25h2v3h-2z"/></svg><div class="l">מזגן גג 3</div><div class="s">התקן</div></div>
+      <div class="sticker"><svg viewBox="0 0 29 29" aria-hidden="true"><rect width="29" height="29" fill="#fff"/><path fill="#111" d="M1 1h7v7H1zM2 2v5h5V2zM3 3h3v3H3zM21 1h7v7h-7zM22 2v5h5V2zM23 3h3v3h-3zM1 21h7v7H1zM2 22v5h5v-5zM3 23h3v3H3zM10 2h2v2h-2zM14 1h2v3h-2zM17 4h2v3h-2zM11 10h2v3h-2zM15 9h3v2h-3zM21 10h2v2h-2zM25 9h3v3h-3zM1 12h4v2H1zM7 14h2v2H7zM13 15h2v2h-2zM18 14h2v4h-2zM23 15h3v2h-3zM10 20h2v2h-2zM13 21h3v3h-3zM19 20h3v2h-3zM24 22h2v3h-2zM11 25h2v3h-2zM17 25h4v2h-4z"/></svg><div class="l">מעלית צפונית</div><div class="s">בדיקה שנתית</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var root = document.documentElement;
+  function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
+  function tickets(on) { document.body.classList.toggle('tickets-off', !on); var b = document.getElementById('tk'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'בקשות שירות: פועל' : 'בקשות שירות: כבוי'; }
+  theme(q.get('theme') === 'dark');
+  tickets(q.get('tickets') !== 'off');
+  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+  document.getElementById('tk').onclick = function () { tickets(document.body.classList.contains('tickets-off')); };
+  document.querySelectorAll('.gallery [data-s]').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('.gallery [data-s]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + b.dataset.s); });
+    };
+  });
+})();
+</script>
+</body>
+</html>
