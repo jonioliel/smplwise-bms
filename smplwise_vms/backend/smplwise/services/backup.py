@@ -154,7 +154,10 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # runtime state; an archive's "true" must never stand in for the live report (it would admit extended items until the next push)
                  "bridge.service_policy_restricted",
                 # CR-WISKEY-HMAC-ROTATION-295: the key rotation switch and its reminder are this installation's policy - never from an archive
-                "bridge.key_rotation", "bridge.key_rotation.reminder_days"}
+                "bridge.key_rotation", "bridge.key_rotation.reminder_days",
+                # BKPFIX-295: the four WisKey ACR5 read switches (wiskey_acr5.FLAGS) are this installation's go-live decision - never exported
+                # in a backup and never switched on by a restore (they stay as the installation has them, default OFF)
+                "wiskey.acr5_access_state", "wiskey.acr5_normalize_user", "wiskey.acr5_presence", "wiskey.acr5_feature_plans"}
 UPDATE_SWITCH_KEY = "update.apply_enabled"
 BACKGROUND_ROOT = "ui_backgrounds/"
 # CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
