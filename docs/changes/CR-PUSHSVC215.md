@@ -12,7 +12,7 @@ existing CR-018 pipeline. Two new notification sources join the tickets catalogu
 | Source | When | Who is told |
 |---|---|---|
 | `ticket.status_update` | the status changes (any route: manager, assignee, handler link, WhatsApp reply, SLA auto-close) | the requester (`created_by`, an active Arx user) and the internal assignee, except the person who acted |
-| `ticket.comment_added` | a note is added (web or handler link) | the same two, except the author, and only if the note is visible to that person by the timeline's own rule (`access.event_visible`): an internal manager note reaches nobody |
+| `ticket.comment_added` | a note is added (web or handler link) | the same two, except the author, and only if the note is visible to that person by the timeline's own rule (`access.event_visible`): an internal note never reaches the requester |
 
 `ticket.assigned` already told the assignee; it now also has the `app` channel on by default. The `app` default is the catalogue
 `Source.app` flag (like the other app sources); it applies to policy rows created from now on, an existing installation's row keeps

@@ -105,7 +105,7 @@ def test_status_change_pushes_to_the_requester_not_to_the_one_who_acted(world):
     flush(w)
     assert [c["relay_token"] for c in relay] == ["rt_nora_0123456789abcdef"], "the requester hears it, the acting assignee does not"
     (m,) = messages(w, "nora")
-    assert m["category"] == "tickets" and m["severity"] == "info" and "התקבל לטיפול" in m["body"]
+    assert m["category"] == "tickets" and m["severity"] == "info" and f"#{t['number']}" in m["title"]  # the body follows the lock-screen level
 
 
 def test_manager_status_change_tells_both_the_requester_and_the_assignee(world):
@@ -125,11 +125,13 @@ def test_comment_pushes_to_the_requester_and_never_carries_the_text(world):
     assert "נוספה הערה" in m["title"] and SECRET not in json.dumps(m, ensure_ascii=False)
 
 
-def test_an_internal_manager_note_reaches_nobody(world):
+def test_an_internal_manager_note_does_not_reach_the_requester(world):
     w, t, relay = world
     assert w.c.post(f"{API}/tickets/{t['id']}/notes", json={"text": SECRET}, headers=w.h("mona")).status_code == 201
     flush(w)
-    assert relay == [], "a note the requester may not read must not announce itself either"
+    # tom is a department member (sees the whole timeline); nora, the requester, may not read an internal note and must not be told of it
+    assert [c["relay_token"] for c in relay] == ["rt_tom__0123456789abcdef"]
+    assert messages(w, "nora") == []
 
 
 def test_module_off_means_no_ticket_notification_at_all(world):
