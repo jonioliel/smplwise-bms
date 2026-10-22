@@ -8,17 +8,21 @@ WHAT IS BUILT (all pure or injectable; no route, no screen):
 - the SWITCH `messaging.template_send` `{enabled}` (default OFF) AND the permit `intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED`
   (stays False): both must hold, else `not_sent / template_unsupported` and nothing is handed to any transport.
 - ADMISSION, in this order, each refusal provably sending nothing: switch + permit; the reference exists and its parameters are exactly
-  the slots it declares; consent (declined: never; unknown: only a `consent_request`, and only a `notice` while `consent_by_link` is
-  off - the people screen's existing rule); the hours/budget (`wa_pacing`, class `ticket` = the normal class of every people-screen
+  the slots it declares; the hours/budget (`wa_pacing`, class `ticket` = the normal class of every people-screen
   message; there is no separate template class and no second ledger - the attempt row in `intercom_messages` is what the budget
   already counts as WisKey-bound load, so a template send is counted once); the window (see below).
-- the REQUEST to the transport (`TemplateRequest`) and the ANSWER states: `accepted` -> sent, `not_sent` (only with a code that
-  provably comes before the provider call), `unknown` (anything else: a timeout, a malformed answer, a code not proven pre-send). An
-  unknown outcome is NEVER retried by Arx.
+  NO RECIPIENT-CONSENT GATE (WKADAPT-295, owner decision TP-02, WisKey template_send_v1 route policy): consent never blocks this route and
+  Arx never sends a consent field (no `consent=true`). Every other guard stays.
+- the REQUEST follows WisKey's published `hikvision_intercom/whatsapp/template_send_v1` (M06_TEMPLATE_SEND_V1_CONTRACT, WisKey round 2,
+  2026-10-23): envelope exactly `{id, type, template}`, template exactly `{schema_version: 1, request_id, operation_id, recipient_ref,
+  account, template_name, language, parameters}` with WisKey's bounds (ids 1..128 without control characters, name
+  `[a-z][a-z0-9_]{0,127}`, <= 20 parameters of 1..1024 characters without characters below U+0020, descriptor <= 32768 bytes).
+- the ANSWER states: `accepted` -> sent, `not_sent` (only with a code that provably comes before the provider call), `unknown`
+  (anything else: a timeout, a malformed answer, a code not proven pre-send). A v1 result (`schema_version` present) is read strictly:
+  exactly its six keys and one of its five combinations, else unknown. An unknown outcome is NEVER retried by Arx.
 - the TRANSPORT is a Protocol. The only implementations here are `UnwiredTransport` (what production gets: it refuses, nothing left)
-  and `FakeTemplateTransport` (tests). THE WISKEY WIRE FORMAT IS NOT INVENTED: no WisKey document in private/planning defines a
-  template command, its fields, its codes or a window probe; the shape below is Arx's PROPOSAL (`wa_template_send_proposal.v0`) and the
-  open questions are in the change record.
+  and `FakeTemplateTransport` (tests). No live transport exists (WisKey's execution source and queue are NOT_INSTALLED); the HA error
+  envelope mapping belongs to that future transport.
 - the 24-hour WINDOW is a Protocol (`WindowProbe`): Arx has no inbound messages, so it cannot know the window; `unknown` is treated
   as closed (a template is what Meta accepts either way) and only an explicit `open` lets a caller prefer free text.
 
@@ -39,7 +43,21 @@ log = logging.getLogger("smplwise.intercom")
 
 SWITCH_KEY = "messaging.template_send"
 REGISTRY_KEY = "messaging.wa_templates"
-PROPOSAL = "wa_template_send_proposal.v0"
+COMMAND = "hikvision_intercom/whatsapp/template_send_v1"  # WisKey's registered command (capability label whatsapp_template_route_v1)
+SCHEMA_VERSION = 1
+WIRE_TEMPLATE_KEYS = frozenset({"schema_version", "request_id", "operation_id", "recipient_ref", "account", "template_name", "language", "parameters"})
+WIRE_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")  # template_send_v1's template_name
+WIRE_PARAMS_MAX = 20
+DESCRIPTOR_MAX = 32768  # bytes of the sorted, compact, ASCII-escaped JSON of the template object
+# the five closed (state, code, provider_accepted) combinations of a template_send_v1 result
+V1_RESULT_KEYS = frozenset({"schema_version", "state", "code", "provider_accepted", "delivery", "retry_permitted"})
+V1_COMBOS = {
+    ("accepted", "provider_accepted", True): "accepted",
+    ("not_sent", "template_mismatch", False): "not_sent",
+    ("not_sent", "source_or_admission_refused", False): "not_sent",
+    ("unknown", "operation_pending_or_unknown", None): "unknown",
+    ("unknown", "provider_outcome_unknown", None): "unknown",
+}
 REGISTRY_MAX = 20
 SLOTS = ("name", "organization", "link", "days")
 PURPOSES = ("consent_request", "notice")
@@ -142,20 +160,47 @@ def permit() -> bool:
 
 @dataclass(frozen=True)
 class TemplateRequest:
-    """Arx's PROPOSED request (`wa_template_send_proposal.v0`) - NOT a WisKey wire format. `params` are the filled slots in the
-    template's order; they are values for ONE send and are never stored or logged."""
+    """One WisKey `template_send_v1` request. `params` are the filled slots in the template's order; they are values for ONE send and
+    are never stored or logged. `deadline` is the transport's own wait bound; it is not on the wire (the template object is closed)."""
     request_id: str  # idempotency key = the attempt's `client_request_id`; a repeat must never send twice
     account: str
-    person_id: str
+    person_id: str  # WisKey's `recipient_ref`: the ManagedUser reference, never a phone number
     template_name: str
     language: str
     params: tuple[str, ...] = field(repr=False)
     deadline: dt.datetime = dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+    operation_id: str = ""  # WisKey's `operation_id`: a stable id of the logical operation, separate from the per-attempt request_id
 
     def wire(self) -> dict[str, Any]:
-        return {"schema": PROPOSAL, "request_id": self.request_id, "account": self.account, "user_id": self.person_id,
-                "template": {"name": self.template_name, "language": self.language}, "params": list(self.params),
-                "deadline": self.deadline.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        """The closed eight-field `template` object of template_send_v1 (no consent, no policy, no deadline)."""
+        return {"schema_version": SCHEMA_VERSION, "request_id": self.request_id, "operation_id": self.operation_id,
+                "recipient_ref": self.person_id, "account": self.account, "template_name": self.template_name,
+                "language": self.language, "parameters": list(self.params)}
+
+    def envelope(self, message_id: int) -> dict[str, Any]:
+        """The closed HA WebSocket envelope `{id, type, template}`; `message_id` is the connection's positive int id."""
+        if type(message_id) is not int or message_id <= 0:
+            raise ValueError("message_id must be a positive int")
+        return {"id": message_id, "type": COMMAND, "template": self.wire()}
+
+
+def wire_problem(request: TemplateRequest) -> str | None:
+    """None when the template object meets template_send_v1's bounds, else a short reason. Checked BEFORE the hand-over."""
+    w = request.wire()
+    if set(w) != WIRE_TEMPLATE_KEYS:
+        return "fields"
+    for key in ("request_id", "operation_id", "recipient_ref", "account"):
+        v = w[key]
+        if not (isinstance(v, str) and 1 <= len(v) <= 128 and not any(ord(c) < 32 or ord(c) == 127 for c in v)):
+            return key
+    if not WIRE_NAME_RE.fullmatch(w["template_name"]) or not LANG_RE.fullmatch(w["language"]):
+        return "template"
+    ps = w["parameters"]
+    if len(ps) > WIRE_PARAMS_MAX or any(not isinstance(p, str) or not 1 <= len(p) <= PARAM_MAX or any(ord(c) < 0x20 for c in p) for p in ps):
+        return "parameters"
+    if len(json.dumps(w, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")) > DESCRIPTOR_MAX:
+        return "too_large"
+    return None
 
 
 @dataclass(frozen=True)
@@ -197,6 +242,14 @@ def read_answer(raw: Any) -> TransportAnswer:
     everything else - a timeout-shaped, malformed or unproven answer - is `unknown`."""
     if not isinstance(raw, Mapping):
         return TransportAnswer("unknown", "invalid_response")
+    if "schema_version" in raw:  # a template_send_v1 result: exactly six keys and one of the five combinations, else unknown
+        pa = raw.get("provider_accepted")
+        ok = (set(raw) == V1_RESULT_KEYS and type(raw.get("schema_version")) is int and raw.get("schema_version") == SCHEMA_VERSION
+              and raw.get("delivery") == "unknown" and raw.get("retry_permitted") is False and (pa is None or type(pa) is bool))
+        st = V1_COMBOS.get((raw.get("state"), raw.get("code"), pa)) if ok and isinstance(raw.get("state"), str) and isinstance(raw.get("code"), str) else None
+        if st is None:
+            return TransportAnswer("unknown", "invalid_response")
+        return TransportAnswer(st, None if st == "accepted" else str(raw["code"]))
     state, code = raw.get("state"), raw.get("code")
     code = code if isinstance(code, str) and 0 < len(code) <= 64 else None
     retry = raw.get("retry_after_s")
@@ -251,19 +304,22 @@ def _refuse(reason: str, **kw: Any) -> TemplateResult:
 
 
 class TemplateSender:
-    """One template send, once. `consent` is the effective consent (`granted | declined | unknown`), `values` the slot values for this
-    person. The caller records the attempt (`intercom_messages`, BEFORE the call, like every message) - that row is the budget's
-    count; this class adds nothing to any ledger, so a send is counted once."""
+    """One template send, once. `values` are the slot values for this person. There is NO recipient-consent gate on this route
+    (WKADAPT-295: owner decision TP-02 and WisKey's template_send_v1 policy): a `consent` argument a caller still passes is ignored for
+    admission and never reaches the wire. The caller records the attempt (`intercom_messages`, BEFORE the call, like every message) -
+    that row is the budget's count; this class adds nothing to any ledger, so a send is counted once."""
 
     def __init__(self, transport: TemplateTransport | None = None, *, registry: Callable[[], list[TemplateRef]], switch: Callable[[], bool],
                  permit_fn: Callable[[], bool] = permit, pacer: wa_pacing.WaPacer | None = None, pacing_for: Callable[[str], Any] | None = None,
-                 consent_by_link: Callable[[], bool] = lambda: False, clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.timezone.utc)) -> None:
+                 clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.timezone.utc)) -> None:
         self.transport = transport or UnwiredTransport()
         self._registry, self._switch, self._permit = registry, switch, permit_fn
-        self._pacer, self._pacing_for, self._consent_by_link, self._clock = pacer, pacing_for, consent_by_link, clock
+        self._pacer, self._pacing_for, self._clock = pacer, pacing_for, clock
 
-    def admit(self, *, template_id: str, consent: str, values: Mapping[str, str], account_key: str, recipient_key: str, ref: str) -> tuple[TemplateRef | None, TemplateResult | None]:
-        """(reference, None) when the send may start; (None, refusal) when it provably must not. Nothing is sent here."""
+    def admit(self, *, template_id: str, values: Mapping[str, str], account_key: str, recipient_key: str, ref: str,
+              consent: str | None = None) -> tuple[TemplateRef | None, TemplateResult | None]:
+        """(reference, None) when the send may start; (None, refusal) when it provably must not. Nothing is sent here.
+        `consent` is accepted for callers' compatibility only and never refuses (TP-02)."""
         if not self._switch() or not self._permit():
             return None, _refuse("template_unsupported")
         tpl = next((t for t in self._registry() if t.id == template_id), None)
@@ -271,10 +327,6 @@ class TemplateSender:
             return None, _refuse("template_not_found")
         if any(not isinstance(values.get(s), str) or not values[s] or len(values[s]) > PARAM_MAX for s in tpl.params):
             return None, _refuse("template_params_mismatch")
-        if consent == "declined":
-            return None, _refuse("no_consent")
-        if consent == "unknown" and tpl.purpose != "consent_request" and self._consent_by_link():
-            return None, _refuse("consent_required")
         if self._pacer is None or self._pacing_for is None:
             return None, _refuse("paced_unavailable")  # F3C TP-01: a paid template never leaves outside the shared budget
         now = self._clock()
@@ -284,17 +336,20 @@ class TemplateSender:
             return None, TemplateResult("not_sent", code=reason, reason=reason, retry_after_s=max(1, int((d.not_before - now).total_seconds())), wait_until=d.not_before)
         return tpl, None
 
-    def send(self, *, template_id: str, consent: str, values: Mapping[str, str], account: str, account_key: str, person_id: str, recipient_key: str,
-             request_id: str, window: str = "unknown") -> TemplateResult:
-        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in (person_id, account, request_id)):
+    def send(self, *, template_id: str, values: Mapping[str, str], account: str, account_key: str, person_id: str, recipient_key: str,
+             request_id: str, operation_id: str, window: str = "unknown", consent: str | None = None) -> TemplateResult:
+        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in (person_id, account, request_id, operation_id)):
             return _refuse("invalid_reference")  # F3C TP-03: the ids on the wire are closed strings (ids only)
-        tpl, refused = self.admit(template_id=template_id, consent=consent, values=values, account_key=account_key, recipient_key=recipient_key, ref=request_id)
+        tpl, refused = self.admit(template_id=template_id, values=values, account_key=account_key, recipient_key=recipient_key, ref=request_id)
         if refused is not None or tpl is None:
             return refused or _refuse("template_unsupported")
         if not needs_template(window) and tpl.purpose != "consent_request":  # F3C TP-04
             return _refuse("window_open")  # the caller should have chosen free text; a template inside the window is not Arx's decision to make here
         now = self._clock()
-        req = TemplateRequest(request_id, account, person_id, tpl.name, tpl.language, tuple(values[s] for s in tpl.params), now + dt.timedelta(seconds=15))
+        req = TemplateRequest(request_id, account, person_id, tpl.name, tpl.language, tuple(values[s] for s in tpl.params), now + dt.timedelta(seconds=15),
+                              operation_id=operation_id)
+        if wire_problem(req) is not None:
+            return _refuse("invalid_fields")  # outside template_send_v1's bounds: refused before the hand-over, nothing leaves
         try:
             raw = self.transport.send_template(req)
         except Exception as exc:  # noqa: BLE001 - an exception after the hand-over may have left: unknown, never retried
