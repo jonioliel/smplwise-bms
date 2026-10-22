@@ -5,6 +5,7 @@
 - `GET  /tickets/health`                       system.configure: the public listener, its counters, the key, the links (spec 17)
 - `POST /tickets/address/probe`                system.configure, LOCAL ONLY (remote_channel.BLOCKED_ON_REMOTE), 6 / min: SSRF-safe
 - `POST /tickets/key/rotate`                   system.configure + confirm: every live link revoked, every phone key re-derived
+- `POST /tickets/documents/{id}/revoke`        tickets.configure: ONE document link dies now (`manual`), audited by id only (DOCLINKSEC-295 L-01)
 Every route answers the module's uniform 404 while it is off. Mounted BEFORE routers/tickets.py (`/tickets/{ticket_id}` would
 match `/tickets/health`). The copy answer carries the handler URL: `Cache-Control: no-store`, never logged, never audited."""
 from __future__ import annotations
@@ -104,6 +105,27 @@ async def probe(body: ProbeBody, request: Request, principal: Principal = Depend
     audit(conn, actor=principal, action="tickets.address.probe", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"result": result["result"]})
     return result
+
+
+DOC_ID = r"^[0-9a-f]{32}$"  # out_documents.mint: secrets.token_hex(16)
+
+
+@router.post("/tickets/documents/{doc_id}/revoke")
+def revoke_document(request: Request, doc_id: str = Path(..., pattern=DOC_ID), principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """DOCLINKSEC-295 L-01: cut ONE document link (a report sent to the wrong vendor, a link reported as leaked) without rotating the module
+    key or switching documents off. Idempotent: a link already revoked answers `revoked: false`. The janitor drops the bytes on its next
+    pass. The audit row names the document id and its module only - never a token, a URL, a recipient or the content."""
+    from ..services.tickets import out_documents
+
+    require(conn, principal, "tickets.configure", INSTALLATION)
+    found = out_documents.row(conn, doc_id)
+    if found is None:
+        raise ApiError(404, "document_not_found", text(conn, "המסמך לא נמצא."))
+    changed = out_documents.revoke(conn, doc_id, "manual", handler_links.now_utc())
+    audit(conn, actor=principal, action="report.document.revoke", decision="allowed", resource_type="outbound_document", resource_id=doc_id,
+          request_id=_rid(request), details={"module": found["module"], "reason": "manual", "changed": changed})
+    return {"id": doc_id, "revoked": changed}
 
 
 class RotateBody(BaseModel):
