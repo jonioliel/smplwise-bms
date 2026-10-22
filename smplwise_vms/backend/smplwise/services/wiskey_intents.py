@@ -291,7 +291,18 @@ def settle_resolution(conn: sqlite3.Connection, o: ExactOriginal, verdict: wp.Re
     if not verdict.settles or verdict.state != "committed":
         mark_unknown(conn, o, verdict.code, now)
         return "open"
-    return _terminal(conn, o, "committed", "resolved_found", None, None, now)
+    # A committed row needs revision_after (and, for a create, the created person id) - migration 0145's CHECK. WisKey names
+    # `person_revision` in the receipt; the created person's key is not pinned yet (`user_id` assumed). A found receipt without them
+    # cannot be recorded: the intent stays UNKNOWN and open (still never replayed) until the receipt schema is pinned with WisKey.
+    rec = verdict.receipt or {}
+    revision_after, created = rec.get("person_revision"), rec.get("user_id") if o.is_create else None
+    if not wp.is_pos_int(revision_after) or (o.is_create and (not wp.is_ref(created) or revision_after != 1)):
+        mark_unknown(conn, o, "receipt_incomplete", now)
+        return "open"
+    if not o.is_create and o.revision_before is not None and revision_after <= o.revision_before:
+        mark_unknown(conn, o, "receipt_incomplete", now)
+        return "open"
+    return _terminal(conn, o, "committed", "resolved_found", created, revision_after, now)
 
 
 class LiveResolveTransport:

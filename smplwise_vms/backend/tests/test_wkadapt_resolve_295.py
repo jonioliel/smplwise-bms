@@ -173,8 +173,11 @@ def test_found_settles_an_intent_once_and_a_later_unknown_never_reopens_it(conn,
     o = _admit(conn, 1, create=create)
     wi.mark_sent(conn, o)
     wi.mark_unknown(conn, o, "timeout")
-    assert wi.settle_resolution(conn, o, wp.verify_resolution(found())) == "settled" and wi.state(conn, o) == "committed"
-    assert wi.settle_resolution(conn, o, wp.verify_resolution(found())) == "duplicate"
+    rec = {**RECEIPT, "person_revision": 1, "user_id": "person-new"} if create else RECEIPT
+    assert wi.settle_resolution(conn, o, wp.verify_resolution(found(rec))) == "settled" and wi.state(conn, o) == "committed"
+    row = conn.execute("SELECT created_user_id, revision_after, reason_code FROM wiskey_fence_intents").fetchone()
+    assert row == (("person-new", 1, "resolved_found") if create else (None, 5, "resolved_found"))
+    assert wi.settle_resolution(conn, o, wp.verify_resolution(found(rec))) == "duplicate"
     assert wi.settle_resolution(conn, o, wp.verify_resolution(frame({"schema_version": 1, "state": "unknown", "receipt": None}))) == "open"
     assert wi.state(conn, o) == "committed", "a terminal intent is never moved back"
 
@@ -192,6 +195,20 @@ def test_unknown_keeps_the_intent_open_never_never_committed_and_never_sendable_
     assert e.value.code == "not_sendable"
     assert conn.execute("SELECT COUNT(*) FROM wiskey_fence_intents WHERE state = 'never_committed'").fetchone()[0] == 0
     assert [x.operation_id for x in wi.open_intents(conn)] == [o.operation_id]
+
+
+@pytest.mark.parametrize("create,receipt", [
+    (False, {k: v for k, v in RECEIPT.items() if k != "person_revision"}), (False, {**RECEIPT, "person_revision": 4}),
+    (False, {**RECEIPT, "person_revision": True}), (True, {**RECEIPT, "person_revision": 1}),
+    (True, {**RECEIPT, "person_revision": 2, "user_id": "person-new"}),
+])
+def test_a_found_receipt_that_cannot_be_recorded_stays_unknown_and_open(conn, create, receipt):
+    """Migration 0145 needs revision_after (and the created person for a create): without them the intent is not settled - and not replayed."""
+    o = _admit(conn, 4, create=create)
+    wi.mark_sent(conn, o)
+    assert wi.settle_resolution(conn, o, wp.verify_resolution(found(receipt))) == "open"
+    assert wi.state(conn, o) == "unknown"
+    assert conn.execute("SELECT reason_code FROM wiskey_fence_intents").fetchone()[0] == "receipt_incomplete"
 
 
 def test_settle_resolution_accepts_only_a_resolution_verdict(conn):
