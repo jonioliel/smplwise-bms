@@ -159,4 +159,64 @@ A 200 denial is NOT a reason to fail open: WisKey waits `retry_after_s` (or drop
 
 - `remote_access` on or the bridge relay (section 2) - owner decision.
 - Whether the port principal needs a per-`sender_ref` scope (today: any mapped `sender_ref`).
-- Tests of this contract: `tests/test_wa_pacing.py` (fakes only; no WisKey client exists in this repository).
+- WisKey has to add `whatsapp/pacing_status_v1` to its command list (`overview.api.commands`) and implement the envelope of section 11. Until it does, Arx's read
+  is closed `pacing_route_not_listed` and every mapped sender is unknown.
+- Tests of this contract: `tests/test_wa_pacing.py` and `tests/test_wa_pacing_coverage_295.py` (fakes only; no WisKey client exists in this repository).
+
+## 11. The status read Arx makes: `whatsapp/pacing_status_v1` (PACING12-295)
+
+The counters of section 6 (`wiskey_own.charged_*`, `charged_unreserved_*`) reach Arx through ONE read over the add-on's WisKey session.
+Code: `services/intercom_messaging_adapter.py` (`refresh_pacing`, `_pacing_exchange`), `services/wa_pacing.py` (`choose_pacing_route`,
+`project_pacing_envelope`, `parse_wiskey_status`, `WaPacer.wiskey_view` / `wiskey_coverage`), `services/wiskey_channels.py` (channel `pacing`).
+
+### 11.1 Discovery, then an explicit route
+
+1. Discovery: Arx reads the commands WisKey lists for the add-on's user (`overview.api.commands`, the same capability negotiation the other adapters use).
+2. Choice: Arx uses the route `hikvision_intercom/whatsapp/pacing_status_v1` **only** when that exact name is listed. It is sent on its own guarded channel
+   `pacing` (that channel allows this command and nothing else; the `messaging` channel does not allow it).
+3. Fail closed. No endpoint or auth is guessed and **nothing falls back to `whatsapp/status`** for pacing (`whatsapp/status` no longer carries any pacing
+   field Arx reads). The closed reasons, each leaving every mapped sender **unknown**:
+
+| `closed_reason` | When |
+|---|---|
+| `discovery_unknown` | no served WisKey copy yet, or its command list is missing / not a list |
+| `api_incompatible` | WisKey's `min_client` is newer than Arx's `API_CONTRACT` |
+| `pacing_route_not_listed` | the list does not contain `whatsapp/pacing_status_v1` (a similar name does not count) |
+| `route_error` | the read was sent and failed (WisKey error, timeout, busy, session gone, refusal) |
+| `envelope_invalid` | the answer is not an object, `accounts` is not a list, or `accounts_total` is not a whole number 0..1 000 000 |
+| `schema_version_missing` | the envelope has no `pacing_schema_version` |
+| `schema_version_misplaced` | the envelope has none but the entries carry it (the pre-PACING12 per-account layout) |
+| `schema_version_unsupported` | `pacing_schema_version` is not 1 (accepted spellings: `1`, `"1"`, `"v1"`, `"whatsapp_pacing_status_v1"`) |
+| `coverage_inconsistent` | `accounts_total` is below the number of entries sent |
+| `not_read` / `stale` | no read yet / the last read is older than 5 minutes |
+
+### 11.2 The envelope (WisKey's answer)
+
+```json
+{"pacing_schema_version": 1, "accounts_total": 2,
+ "accounts": [{"sender_ref": "wk-sender-1", "sender_match_verified": true, "counters_complete": true,
+               "wiskey_own": {"charged_1m": 0, "charged_1h": 3, "charged_24h": 20,
+                              "charged_unreserved_1m": 0, "charged_unreserved_1h": 1, "charged_unreserved_24h": 4},
+               "throttled_until": null, "throttle_scope": null, "retry_after_s": null}]}
+```
+
+- `pacing_schema_version` belongs on the **envelope**. An entry need not repeat it; an entry that does with a value other than 1 is dropped (counted `invalid`).
+- `accounts_total` (optional) is WisKey's own number of senders. When WisKey sends fewer entries than it has, it MUST say so here; absent = the list is complete.
+- Counters: a non-negative whole number up to 10 000 (`retry_after_s` up to 86 400); anything else (negative, float, bool, string, out of range, null) is
+  **unknown**, never clamped and never zero. Unknown keys are dropped. A duplicate `sender_ref` keeps the first entry (the rest are `invalid`).
+
+### 11.3 Coverage: no silent truncation
+
+Arx keeps at most **10** senders of one read, and the projection always says what it covered:
+
+`coverage = {total, received, returned, invalid, truncated}` - `total` = `accounts_total` or the entries sent; `received` = entries sent; `returned` =
+senders Arx kept; `invalid` = unusable or duplicate entries; `truncated` = `returned < total` (WisKey sent fewer than it has, an entry was unusable, or
+Arx's cap cut the list).
+
+Consumers treat **missing != zero**: a mapped sender absent from the read is `unknown` - its counters add nothing to the budget, and the administrator's
+view (`GET /messaging/whatsapp/pacing`) says so per account (`wiskey.unknown: true`, `wiskey.coverage: covered | not_covered`, `wiskey.reason`: the read's
+closed reason, `truncated`, `sender_absent`, `unverified`, `counters_incomplete` or `unreserved_unknown`) and for the read as a whole
+(`wiskey_coverage = {closed_reason, total, received, returned, invalid, truncated}`).
+
+The same rule applies to the WhatsApp account list of `whatsapp/status` (the message dialog): it is capped at 10, with `accounts_total` and
+`accounts_truncated`; a configured account beyond the cut is `account_not_covered`, not `account_missing`.

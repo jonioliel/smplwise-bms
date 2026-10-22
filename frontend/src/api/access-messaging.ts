@@ -180,9 +180,12 @@ export interface MessagingService {
   /** True when WisKey lists the commands and the service answered "connected"; null = could not be asked. */
   connected: boolean | null;
   accounts: { id: string; name: string }[];
-  /** `account_required` | `account_missing` | `no_account` | null. */
+  /** `account_required` | `account_missing` | `account_not_covered` (beyond a truncated list) | `no_account` | null. */
   problem: string | null;
   last_error: string | null;
+  /** PACING12-295: WisKey's account count, and whether `accounts` is cut (never silently). */
+  accounts_total?: number;
+  accounts_truncated?: boolean;
 }
 
 export interface MessagingSettingsReply {

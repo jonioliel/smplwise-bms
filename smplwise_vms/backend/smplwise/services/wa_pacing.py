@@ -396,13 +396,50 @@ class SqlitePacerStore:
 # ---------------------------------------------------------------- WisKey's side: `whatsapp_pacing_status_v1` (tolerant reader)
 
 PACING_SCHEMA = "whatsapp_pacing_status_v1"
+SCHEMA_VERSIONS = (1, "1", "v1", PACING_SCHEMA)
 WINDOWS = ("1m", "1h", "24h")
+# PACING12-295: the ONE route the envelope is read from. It is chosen explicitly after discovery (WisKey's `api.commands`) lists it;
+# there is no fallback to `whatsapp/status` and no guessed endpoint.
+PACING_ROUTE = "whatsapp/pacing_status_v1"
+PACING_ACCOUNTS_MAX = 10  # Arx keeps at most this many senders of one read - and SAYS so in `coverage` (never a silent cut)
+# why a read yields no usable envelope (every account is then UNKNOWN, never zero)
+CLOSED_REASONS = ("discovery_unknown", "api_incompatible", "pacing_route_not_listed", "route_error", "envelope_invalid",
+                  "schema_version_missing", "schema_version_misplaced", "schema_version_unsupported", "coverage_inconsistent", "not_read", "stale")
+
+
+def choose_pacing_route(commands: Any) -> tuple[str | None, str | None]:
+    """(route, closed reason) from the commands WisKey's discovery lists. Only `PACING_ROUTE` is ever returned; an unknown discovery or
+    one that does not list it fails closed - never a fallback to `whatsapp/status`, never a similar name."""
+    if not isinstance(commands, (list, tuple, set, frozenset)):
+        return None, "discovery_unknown"
+    if PACING_ROUTE in commands:
+        return PACING_ROUTE, None
+    return None, "pacing_route_not_listed"
+
+
+def _coverage(total: int | None = None, received: int = 0, returned: int = 0, invalid: int = 0, truncated: bool = False) -> dict[str, Any]:
+    return {"total": total, "received": received, "returned": returned, "invalid": invalid, "truncated": truncated}
+
+
+def closed_envelope(reason: str) -> dict[str, Any]:
+    """The projected envelope of a read that yielded nothing usable: no accounts, and the reason."""
+    return {"pacing_schema_version": None, "closed_reason": reason, "accounts_total": None, "accounts": [], "coverage": _coverage()}
+
+
+class WiskeyPacing(dict):
+    """{sender_ref: WiskeyStatus} of one envelope, plus what the read covered (`coverage`) and why it is closed (`closed_reason`, None
+    when the read is usable). A sender absent from it is UNKNOWN to the budget - never zero."""
+
+    def __init__(self, items: Mapping[str, "WiskeyStatus"] | None = None, *, coverage: Mapping[str, Any] | None = None, closed_reason: str | None = None) -> None:
+        super().__init__(items or {})
+        self.coverage: dict[str, Any] = dict(coverage) if coverage else _coverage()
+        self.closed_reason = closed_reason
 
 
 @dataclass(frozen=True)
 class WiskeyStatus:
-    """One WisKey sender as `whatsapp/status` describes it (a specification of additions on WisKey's side, 2026-10-21, not implemented
-    there yet). Only `wiskey_own.charged_*` is ever counted against the Arx budget - never `sent_*` (Arx already counts the messages it
+    """One WisKey sender as the `whatsapp/pacing_status_v1` envelope describes it (a specification of additions on WisKey's side, 2026-10-21,
+    not implemented there yet). Only `wiskey_own.charged_*` is ever counted against the Arx budget - never `sent_*` (Arx already counts the messages it
     handed on) and never a counter that is null or whose `counters_complete` is not true: that is UNKNOWN, not zero."""
 
     sender_ref: str
@@ -432,12 +469,12 @@ def _count(v: Any, hi: int = COUNTER_MAX) -> int | None:
 
 
 def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
-    """One `accounts[]` entry -> WiskeyStatus, or None when it carries no usable pacing contract (older WisKey, other schema, no
-    sender_ref). Unknown keys are dropped; nothing here ever raises on a malformed answer."""
+    """One `accounts[]` entry of the pacing envelope -> WiskeyStatus, or None when it is unusable (no valid sender_ref, or a
+    per-account `pacing_schema_version` that contradicts the envelope's v1). The schema version belongs on the ENVELOPE
+    (`project_pacing_envelope`); an entry need not repeat it. Unknown keys are dropped; nothing here ever raises on a malformed answer."""
     if not isinstance(raw, Mapping):
         return None
-    version = raw.get("pacing_schema_version")
-    if version not in (1, "1", "v1", PACING_SCHEMA):
+    if "pacing_schema_version" in raw and raw["pacing_schema_version"] not in SCHEMA_VERSIONS:
         return None
     ref = raw.get("sender_ref")
     if not (isinstance(ref, str) and SENDER_REF_RE.match(ref)):
@@ -450,29 +487,69 @@ def parse_wiskey_account(raw: Any) -> WiskeyStatus | None:
                         throttle_scope=scope if isinstance(scope, str) and len(scope) <= 32 else None, retry_after_s=_count(raw.get("retry_after_s"), RETRY_AFTER_MAX_S))
 
 
-def project_pacing_accounts(accounts: Any) -> list[dict[str, Any]]:
-    """The keys of `whatsapp_pacing_status_v1` Arx reads, as plain JSON-safe dicts (everything else is dropped). Entries that do not speak
-    the contract are dropped; `parse_wiskey_status` reads the result."""
-    out: list[dict[str, Any]] = []
-    for a in accounts if isinstance(accounts, list) else []:
+def _project_account(st: WiskeyStatus) -> dict[str, Any]:
+    return {"sender_ref": st.sender_ref, "sender_match_verified": st.verified, "counters_complete": st.complete,
+            "wiskey_own": {**{f"charged_{w}": v for w, v in st.charged.items()}, **{f"charged_unreserved_{w}": v for w, v in st.unreserved.items()}},
+            "throttled_until": st.throttled_until.isoformat() if st.throttled_until else None, "throttle_scope": st.throttle_scope,
+            "retry_after_s": st.retry_after_s}
+
+
+def project_pacing_envelope(raw: Any) -> dict[str, Any]:
+    """The `whatsapp/pacing_status_v1` answer -> the closed, JSON-safe envelope Arx keeps (total; never raises):
+
+        {pacing_schema_version: 1 | None, closed_reason: None | <CLOSED_REASONS>, accounts_total: int | None,
+         accounts: [<= PACING_ACCOUNTS_MAX entries], coverage: {total, received, returned, invalid, truncated}}
+
+    The schema version is read from the ENVELOPE only: missing there is `schema_version_missing` (or `schema_version_misplaced` when the
+    entries carry it instead), another version `schema_version_unsupported`. `accounts_total` (optional, WisKey's own count) must not be
+    below the entries it sent (`coverage_inconsistent`). `truncated` is true whenever `returned < total` - WisKey sent fewer than it has,
+    an entry was unusable, or Arx's cap cut the list. Idempotent on its own output (the invalid count is carried over)."""
+    if not isinstance(raw, Mapping):
+        return closed_envelope("envelope_invalid")
+    accounts = raw.get("accounts")
+    if "pacing_schema_version" not in raw:
+        misplaced = isinstance(accounts, list) and any(isinstance(a, Mapping) and "pacing_schema_version" in a for a in accounts)
+        return closed_envelope("schema_version_misplaced" if misplaced else "schema_version_missing")
+    if raw["pacing_schema_version"] not in SCHEMA_VERSIONS:
+        return closed_envelope("schema_version_unsupported")
+    if not isinstance(accounts, list):
+        return closed_envelope("envelope_invalid")
+    declared = raw.get("accounts_total")
+    if declared is not None and _count(declared, 1_000_000) is None:
+        return closed_envelope("envelope_invalid")
+    if declared is not None and declared < len(accounts):
+        return closed_envelope("coverage_inconsistent")
+    prior = raw.get("coverage")
+    carried = _count(prior.get("invalid"), 1_000_000) if isinstance(prior, Mapping) else None
+    carried_received = _count(prior.get("received"), 1_000_000) if isinstance(prior, Mapping) else None
+    kept: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    usable = 0
+    for a in accounts:
         st = parse_wiskey_account(a)
-        if st is None:
+        if st is None or st.sender_ref in seen:
             continue
-        out.append({"pacing_schema_version": 1, "sender_ref": st.sender_ref, "sender_match_verified": st.verified, "counters_complete": st.complete,
-                    "wiskey_own": {**{f"charged_{w}": v for w, v in st.charged.items()}, **{f"charged_unreserved_{w}": v for w, v in st.unreserved.items()}},
-                    "throttled_until": st.throttled_until.isoformat() if st.throttled_until else None, "throttle_scope": st.throttle_scope,
-                    "retry_after_s": st.retry_after_s})
-    return out[:10]
+        seen.add(st.sender_ref)
+        usable += 1
+        if len(kept) < PACING_ACCOUNTS_MAX:
+            kept.append(_project_account(st))
+    total = declared if declared is not None else len(accounts)
+    invalid = max(len(accounts) - usable, carried or 0)
+    received = min(total, max(len(accounts), carried_received or 0))
+    return {"pacing_schema_version": 1, "closed_reason": None, "accounts_total": total, "accounts": kept,
+            "coverage": _coverage(total=total, received=received, returned=len(kept), invalid=invalid, truncated=len(kept) < total)}
 
 
-def parse_wiskey_status(accounts: Any) -> dict[str, WiskeyStatus]:
-    """`accounts[]` of `whatsapp/status` -> {sender_ref: WiskeyStatus} for the entries that speak the contract."""
-    out: dict[str, WiskeyStatus] = {}
-    for a in accounts if isinstance(accounts, list) else []:
-        st = parse_wiskey_account(a)
-        if st is not None:
-            out[st.sender_ref] = st
-    return out
+def parse_wiskey_status(envelope: Any) -> WiskeyPacing:
+    """A `whatsapp/pacing_status_v1` envelope (WisKey's answer or Arx's projection of it) -> WiskeyPacing. A closed envelope yields no
+    sender and keeps its reason; a bare list (no envelope, so no schema version and no coverage) is `envelope_invalid`."""
+    if isinstance(envelope, Mapping) and isinstance(envelope.get("closed_reason"), str):
+        return WiskeyPacing(closed_reason=envelope["closed_reason"])
+    proj = project_pacing_envelope(envelope)
+    if proj["closed_reason"] is not None:
+        return WiskeyPacing(closed_reason=proj["closed_reason"])
+    items = {st.sender_ref: st for st in (parse_wiskey_account(a) for a in proj["accounts"]) if st is not None}
+    return WiskeyPacing(items, coverage=proj["coverage"])
 
 
 # ---------------------------------------------------------------- the pacer
@@ -498,11 +575,14 @@ class WaPacer:
         """The foreign load on one account: the timestamps Arx knows (its record of messages handed to WisKey, and granted leases) and
         WisKey's own charged counters when its status speaks the contract for a VERIFIED, mapped sender with complete counters.
         `unknown` = WisKey's counters are missing for a mapped sender: its own sends are not in the budget, and the snapshot says
-        unknown - never zero."""
+        unknown - never zero. PACING12-295: `coverage` (covered | not_covered; None when no WisKey sender is mapped) and `reason` say WHY
+        it is unknown: the read's closed reason, `truncated` (the read did not cover every WisKey sender), `sender_absent`, `unverified`,
+        `counters_incomplete` or `unreserved_unknown`."""
         cfg = cfg or self.config()
         day = dt.timedelta(days=1)
         out: dict[str, Any] = {"times": [], "charged": None, "unknown": False, "mapped": account_key in cfg.senders, "verified": False,
-                               "throttled_until": None, "throttle_scope": None, "retry_after_s": None, "superseded_by_leases": False}
+                               "throttled_until": None, "throttle_scope": None, "retry_after_s": None, "superseded_by_leases": False,
+                               "coverage": None, "reason": None}
         if not cfg.wiskey_counts(account_key):
             return out
         times = [t for t in (self._foreign(now - day) if self._foreign is not None else []) if t > now - day]
@@ -512,9 +592,17 @@ class WaPacer:
         ref = cfg.senders.get(account_key)
         if ref is None:
             return out
-        st = (self._wiskey() if self._wiskey is not None else {}).get(ref)
-        if st is None or not st.verified:
-            out["unknown"] = True
+        read = self._wiskey() if self._wiskey is not None else WiskeyPacing(closed_reason="not_read")
+        st = read.get(ref)
+        if st is None:
+            # missing is not zero: the sender was not in this read - name why
+            closed = getattr(read, "closed_reason", None)
+            truncated = bool((getattr(read, "coverage", None) or {}).get("truncated"))
+            out.update(unknown=True, coverage="not_covered", reason=closed or ("truncated" if truncated else "sender_absent"))
+            return out
+        out["coverage"] = "covered"
+        if not st.verified:
+            out.update(unknown=True, reason="unverified")
             return out
         out["verified"] = True
         if st.throttled_until is not None and st.throttled_until > now and st.throttle_scope in (None, "account", "sender"):
@@ -522,7 +610,7 @@ class WaPacer:
             ceiling = now + dt.timedelta(seconds=ACCOUNT_BACKOFF_S[1])
             out.update(throttled_until=min(st.throttled_until, ceiling), throttle_scope=st.throttle_scope, retry_after_s=st.retry_after_s)
         if not st.complete or any(v is None for v in st.charged.values()):
-            out["unknown"] = True
+            out.update(unknown=True, reason="counters_incomplete")
         elif not leases:
             out["charged"] = dict(st.charged)
         elif all(st.unreserved.get(w) is not None for w in WINDOWS):
@@ -530,8 +618,17 @@ class WaPacer:
             # with no lease) are added on top - never `charged_*`, which includes the reserved ones and would count them twice
             out["charged"] = dict(st.unreserved)
         else:
-            out["unknown"] = True  # leases exist but WisKey cannot say what it sent outside them: its unreserved sends are unknown, not zero
+            # leases exist but WisKey cannot say what it sent outside them: its unreserved sends are unknown, not zero
+            out.update(unknown=True, reason="unreserved_unknown")
         return out
+
+    def wiskey_coverage(self) -> dict[str, Any]:
+        """What the last WisKey pacing read covered: `{closed_reason, total, received, returned, invalid, truncated}`. `not_read` when
+        there is no reader."""
+        if self._wiskey is None:
+            return {"closed_reason": "not_read", **_coverage()}
+        read = self._wiskey()
+        return {"closed_reason": getattr(read, "closed_reason", None), **(getattr(read, "coverage", None) or _coverage())}
 
     # ---- the decision
     def _waits(self, *, account_key: str, pacing: Any, klass: str, now: dt.datetime, recipient_key: str | None, cfg: PacerConfig,
@@ -832,6 +929,7 @@ def snapshot(conn: sqlite3.Connection, pacer: WaPacer, accounts: Iterable[str], 
                     "wiskey_1h": sum(1 for t in known if t > since_h), "wiskey_24h": len(known),
                     "wiskey": {"mapped": view["mapped"], "verified": view["verified"], "unknown": view["unknown"],
                                "charged": charged, "superseded_by_leases": view["superseded_by_leases"],
+                               "coverage": view["coverage"], "reason": view["reason"],
                                "throttled_until": view["throttled_until"].isoformat().replace("+00:00", "Z") if view["throttled_until"] else None,
                                "leases_active": pacer.store.lease_active(key, now)},
                     "waiting": sum(by_class.values()), "waiting_by_class": dict(by_class),
@@ -841,4 +939,4 @@ def snapshot(conn: sqlite3.Connection, pacer: WaPacer, accounts: Iterable[str], 
     return {"mode": cfg.mode, "wiskey_shared": cfg.wiskey_shared, "max_wait_min": {k: int(cfg.max_wait_min.get(k, DEFAULT_MAX_WAIT_MIN[k])) for k in CLASSES},
             "budget": {"per_minute": budget.per_minute, "burst": budget.burst, "burst_window_s": budget.burst_window_s} if budget else None,
             "per_minute": cfg.per_minute, "burst": cfg.burst, "lease_ttl_s": cfg.lease_ttl_s, "senders": dict(cfg.senders),
-            "share_pct": dict(SHARE_PCT), "shared_budget_guaranteed": False, "accounts": out}
+            "share_pct": dict(SHARE_PCT), "shared_budget_guaranteed": False, "wiskey_coverage": pacer.wiskey_coverage(), "accounts": out}

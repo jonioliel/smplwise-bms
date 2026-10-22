@@ -51,6 +51,8 @@ API_CONTRACT = intercom_client.API_CONTRACT
 COMMANDS = ("whatsapp/status", "whatsapp/preview", "whatsapp/send")
 LANGUAGE = "he"  # `preview` requires a language; the text it would build is never used
 PACING_MAX_AGE_S = 300.0  # CR-WA-PACING-295: WisKey's counters older than this are unknown, not "still true"
+PACING_CHANNEL = "pacing"  # PACING12-295: the guard `whatsapp/pacing_status_v1` goes through (wiskey_channels.PACING)
+STATUS_ACCOUNTS_MAX = 10  # the WhatsApp accounts the dialog lists; a longer list is reported truncated, never cut silently
 STATUS_TTL_S = 20.0  # the service's state is person-free and principal-independent: cached briefly (a dialog opens often)
 SEND_WITHIN_S = 15.0  # a send that reaches the feed's loop later than this is not sent (`expired`)
 TOKEN = re.compile(r"^\S{8,512}$")
@@ -100,10 +102,22 @@ def project_status(raw: Any) -> dict[str, Any]:
             accounts.append({"id": a["id"], "name": a["name"][:80] if isinstance(a.get("name"), str) else a["id"]})
     quota = raw.get("quota")
     limit, used = (_int(quota.get("limit")), _int(quota.get("used"))) if isinstance(quota, dict) else (None, None)
-    return {"available": raw.get("available") is True and bool(accounts), "accounts": accounts[:10],
-            "quota": {"limit": limit, "used": used} if limit is not None and used is not None else None,
-            # CR-WA-PACING-295: WisKey's `whatsapp_pacing_status_v1` block per account (tolerant: absent on WisKey versions without it)
-            "pacing": wa_pacing.project_pacing_accounts(raw.get("accounts"))}
+    # PACING12-295: the list is capped at STATUS_ACCOUNTS_MAX, never silently - `accounts_total` / `accounts_truncated` say so. The pacing
+    # counters are NOT read from this answer any more: they come only from the explicitly chosen `whatsapp/pacing_status_v1` route.
+    return {"available": raw.get("available") is True and bool(accounts), "accounts": accounts[:STATUS_ACCOUNTS_MAX],
+            "accounts_total": len(accounts), "accounts_truncated": len(accounts) > STATUS_ACCOUNTS_MAX,
+            "quota": {"limit": limit, "used": used} if limit is not None and used is not None else None}
+
+
+def _closed_or_none(api: dict[str, Any] | None) -> tuple[str | None, str | None]:
+    """PACING12-295 discovery: (route, closed reason) from WisKey's `api` facts. A contract newer than this add-on is `api_incompatible`;
+    otherwise the explicit choice of `wa_pacing.choose_pacing_route` (only `whatsapp/pacing_status_v1`, never `whatsapp/status`)."""
+    if api is None:
+        return None, "discovery_unknown"
+    min_client = api.get("min_client")
+    if isinstance(min_client, int) and not isinstance(min_client, bool) and min_client > API_CONTRACT:
+        return None, "api_incompatible"
+    return wa_pacing.choose_pacing_route(api.get("commands"))
 
 
 def project_recipient(raw: Any) -> dict[str, Any]:
@@ -125,6 +139,14 @@ async def _status_exchange(call: intercom_client.Call) -> Any:
     frame = await call(f"{DOMAIN}/whatsapp/status", api_contract=API_CONTRACT)
     if not isinstance(frame, dict) or frame.get("success") is not True:
         raise IntercomError(_code(frame), "whatsapp/status")
+    return frame.get("result")
+
+
+async def _pacing_exchange(call: intercom_client.Call) -> Any:
+    """PACING12-295: the one pacing read, on the explicitly chosen route (sent only after discovery listed it)."""
+    frame = await call(f"{DOMAIN}/{wa_pacing.PACING_ROUTE}", api_contract=API_CONTRACT)
+    if not isinstance(frame, dict) or frame.get("success") is not True:
+        raise IntercomError(_code(frame), wa_pacing.PACING_ROUTE)
     return frame.get("result")
 
 
@@ -230,7 +252,7 @@ class MessagingAdapter:
         self._status: dict[str, Any] | None = None
         self._status_key: tuple[Any, ...] | None = None
         self._status_at = 0.0
-        self._pacing: list[dict[str, Any]] = []
+        self._pacing: dict[str, Any] = wa_pacing.closed_envelope("not_read")  # the projected pacing envelope of the last read
         self._pacing_at: float | None = None
 
     def forget(self) -> None:
@@ -258,27 +280,58 @@ class MessagingAdapter:
         got = reply.get("whatsapp")
         if reply.get("state") != "ready" or not isinstance(got, dict):
             return {"state": str(reply.get("state") or "error"), "available": None, "accounts": [], "quota": None, "last_error": reply.get("last_error")}
-        out = {"state": "ready", "available": got["available"], "accounts": got["accounts"], "quota": got["quota"], "last_error": None}
+        out = {"state": "ready", "available": got["available"], "accounts": got["accounts"], "accounts_total": got["accounts_total"],
+               "accounts_truncated": got["accounts_truncated"], "quota": got["quota"], "last_error": None}
         with self._lock:
             self._status, self._status_key, self._status_at = dict(out), key, time.monotonic()
-            self._pacing, self._pacing_at = list(got.get("pacing") or []), time.monotonic()
+        self.refresh_pacing(settings, who)
         return out
 
-    def cached_pacing(self) -> dict[str, "wa_pacing.WiskeyStatus"]:
-        """WisKey's pacing block as of the last status read, without asking WisKey (the outbox worker must never wait on it). Older than
-        PACING_MAX_AGE_S, or never read: empty = UNKNOWN to the budget."""
+    def _keep_pacing(self, envelope: dict[str, Any]) -> None:
         with self._lock:
-            fresh = self._pacing_at is not None and time.monotonic() - self._pacing_at < PACING_MAX_AGE_S
-            raw = list(self._pacing) if fresh else []
-        return wa_pacing.parse_wiskey_status(raw)
+            self._pacing, self._pacing_at = envelope, time.monotonic()
+
+    def refresh_pacing(self, settings: Settings, who: str) -> str | None:
+        """PACING12-295: read WisKey's pacing envelope. Discovery first (WisKey's `api.commands`); then ONLY the explicitly chosen route
+        `whatsapp/pacing_status_v1`. A discovery that does not list it, an incompatible contract, or a failed read FAILS CLOSED: the kept
+        envelope is closed with that reason (every sender unknown, never zero) and no other endpoint is tried - never `whatsapp/status`.
+        Returns the closed reason, None when the read is usable."""
+        route, why = _closed_or_none(intercom_sync.SYNC.api_facts(settings))
+        if route is None:
+            self._keep_pacing(wa_pacing.closed_envelope(why or "discovery_unknown"))
+            return why
+        try:
+            reply = intercom_sync.SYNC.command(settings, "pacing", _pacing_exchange, wa_pacing.project_pacing_envelope, who=who, channel=PACING_CHANNEL)
+        except Exception:  # noqa: BLE001 - a request-level refusal of the pacing read must not break the status read: unknown
+            log.debug("intercom messaging: the pacing read was refused")
+            reply = {}
+        got = reply.get("pacing")
+        if reply.get("state") != "ready" or not isinstance(got, dict):
+            got = wa_pacing.closed_envelope("route_error")
+        self._keep_pacing(got)
+        return got.get("closed_reason")
+
+    def cached_pacing(self) -> "wa_pacing.WiskeyPacing":
+        """WisKey's pacing envelope as of the last read, without asking WisKey (the outbox worker must never wait on it). Older than
+        PACING_MAX_AGE_S (`stale`), never read (`not_read`) or closed: no sender = UNKNOWN to the budget, with the reason."""
+        with self._lock:
+            if self._pacing_at is None:
+                return wa_pacing.WiskeyPacing(closed_reason="not_read")
+            if time.monotonic() - self._pacing_at >= PACING_MAX_AGE_S:
+                return wa_pacing.WiskeyPacing(closed_reason="stale")
+            envelope = dict(self._pacing)
+        return wa_pacing.parse_wiskey_status(envelope)
 
     @staticmethod
     def account_for(status: dict[str, Any], configured: str) -> tuple[str | None, str | None]:
         """(account id, problem). The administrator's choice when it is one of WisKey's accounts; with none chosen the only account;
-        several accounts and no choice is a problem (`account_required`) - a message must never leave from a number nobody picked."""
+        several accounts and no choice is a problem (`account_required`) - a message must never leave from a number nobody picked. A
+        configured account that is not in a TRUNCATED list is `account_not_covered` (unknown), not `account_missing`."""
         accounts = [a["id"] for a in status.get("accounts") or []]
         if configured:
-            return (configured, None) if configured in accounts else (None, "account_missing")
+            if configured in accounts:
+                return configured, None
+            return None, ("account_not_covered" if status.get("accounts_truncated") is True else "account_missing")
         if len(accounts) == 1:
             return accounts[0], None
         return (None, "account_required") if accounts else (None, "no_account")
