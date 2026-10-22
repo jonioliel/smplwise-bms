@@ -711,7 +711,7 @@ def test_with_no_consumer_the_call_fails_and_spends_no_nonce():
         assert _call(hass, vid, ks)["result"] == "acknowledged"
     assert [d.action for d in consumer.seen] == [json.loads(ACCEPT[v]["signed_message_json"])["action"] for v in ACCEPT]
     remove()
-    assert const.LEASE_CONSUMER_KEY not in hass.data
+    assert ls.async_get_capability(hass).registration is None
 
 
 def test_the_consumer_is_registered_once_and_removed_by_its_own_handle_only():
@@ -725,9 +725,9 @@ def test_the_consumer_is_registered_once_and_removed_by_its_own_handle_only():
     remove_a()
     remove_b = ls.async_register_consumer(hass, b)
     remove_a()  # a stale remover does not drop the new consumer
-    assert hass.data[const.LEASE_CONSUMER_KEY] is b
+    assert ls.async_get_capability(hass).registration is remove_b
     remove_b()
-    assert const.LEASE_CONSUMER_KEY not in hass.data
+    assert ls.async_get_capability(hass).registration is None
 
 
 def test_a_rejected_message_never_reaches_the_consumer_and_a_replay_is_answered_not_relayed():
