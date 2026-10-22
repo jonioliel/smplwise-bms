@@ -300,7 +300,7 @@ class AppPushChannel(notify_channels.Channel):
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "rate_limited"))
                 continue
             for dev in devices:
-                if d.n["category"] in _json(dev["push_muted_json"], []) and d.severity != "critical" and d.mode != "escalate":
+                if d.n["category"] in _json(dev["push_muted_json"], []) and d.n["category"] not in CRITICAL_CATEGORIES and d.severity != "critical" and d.mode != "escalate":
                     out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "skipped", "muted", {"device": dev}))
                     continue
                 out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "queued", None, {"device": dev}))
