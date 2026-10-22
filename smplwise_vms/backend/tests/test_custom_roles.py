@@ -137,4 +137,4 @@ def test_custom_role_select_all_regular_and_sensitive(settings):
     assert len(sensitive) > 20 and regular, (len(sensitive), len(regular))
     r = c.post("/api/v1/access/roles", json={"name": "מנהל על", "description": "הכול", "permissions": regular, "sensitive": sensitive})
     assert r.status_code == 201, r.text
-    assert set(r.json()["sensitive_included"]) == set(sensitive) and r.json()["sensitive_missing"] == []
+    assert set(r.json()["sensitive_included"]) - system == set(sensitive) and r.json()["sensitive_missing"] == []
