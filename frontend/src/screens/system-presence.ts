@@ -5,6 +5,7 @@ import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
 import { describeError } from '../api/client';
+import { dayTimeText } from '../api/day-format';
 import {
   RETENTION_CHOICES, SENSOR_KEYS, SENSOR_LABEL, breakGlass, getPresenceSettings, listPresenceDevices, policyProblem, putPresenceSettings,
   type PresenceDevice, type PresenceSettings, type SensorKey,
@@ -237,7 +238,7 @@ export class SystemPresence extends LitElement {
 
   private renderDevices() {
     if (this.devices === null) return nothing;
-    const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+    const fmt = (iso: string | null | undefined) => (iso ? dayTimeText(iso) : '—');
     return html`<sw-card heading="מכשירים רשומים" subheading=${this.devices.length ? `${this.devices.length} מכשירים` : 'אין מכשירים רשומים'} data-presence-devices>
       ${this.devices.length
         ? html`<div class="wrap"><table>
@@ -260,7 +261,7 @@ export class SystemPresence extends LitElement {
     const d = this.draft;
     const req = d.required_sensors;
     const problem = policyProblem(d);
-    const glass = d.break_glass.until ? new Date(d.break_glass.until).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : null;
+    const glass = d.break_glass.until ? dayTimeText(d.break_glass.until) : null;
     return html`<sw-card heading="שיתוף נתונים מהאפליקציה" subheading="כבוי כברירת מחדל; הטלפונים לא אוספים דבר עד ההפעלה" data-presence-card>
         <div class="row" data-presence-row="enabled"><span class="lbl">שיתוף פעיל<span class="muted">מופעל רק אחרי שההודעה לעובדים נשלחה</span></span>
           <sw-toggle ?checked=${d.enabled} ?disabled=${!editable || this.busy} label="שיתוף פעיל" labelHidden data-presence-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>

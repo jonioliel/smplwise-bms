@@ -5,6 +5,7 @@ import './sw-button';
 import { describeError } from '../api/client';
 import { confirmEnrolment, disableSecondFactor, factorOverrides, factorUsers, resetFactor, secondFactorStatus, setFactorOverride, startEnrolment, type Enrolment, type FactorOverride, type FactorOverrides, type SecondFactorStatus } from '../api/second-factor';
 import { t } from '../i18n/he';
+import { dayText } from '../api/day-format';
 
 /** The otpauth link as an inline SVG QR code (one path, no data: URL, so the strict remote CSP is untouched). */
 export function qrSvg(text: string, px = 168) {
@@ -23,7 +24,7 @@ export function qrSvg(text: string, px = 168) {
 function when(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('he-IL');
+  return dayText(d);
 }
 
 const SHARED = css`

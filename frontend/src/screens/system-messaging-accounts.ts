@@ -10,6 +10,7 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import './messaging-pacing-card';
 import { ApiError, describeError } from '../api/client';
+import { dayTimeText } from '../api/day-format';
 import { messagingAccountsApi, type PacingKey, type QueuedMove, type WaAccount, type WaUse, type WaWarning, type WhatsappView } from '../api/messaging-accounts';
 import { settingsStyles } from '../styles/settings';
 import { SkinController } from '../design/skin';
@@ -498,7 +499,7 @@ export class SystemMessagingAccounts extends LitElement {
     const ed = this.editable && !this.busy;
     const fe = this.fieldErrors;
     return html`<sw-card heading=${wt('selected')} data-card="selected" data-selected=${key}>
-      <div class="row"><span class="lbl">${bidi(displayLabel(view, draft, key))}<span class="muted">${v?.last_send_at ? wt('lastSend', { time: new Date(v.last_send_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) }) : wt('neverSent')}</span></span>${this.chip(v?.state ?? 'unknown')}</div>
+      <div class="row"><span class="lbl">${bidi(displayLabel(view, draft, key))}<span class="muted">${v?.last_send_at ? wt('lastSend', { time: dayTimeText(v.last_send_at) }) : wt('neverSent')}</span></span>${this.chip(v?.state ?? 'unknown')}</div>
       ${this.warnChips(accountWarnings(view, key))}
       <div class="row stack"><label class="lbl" for="lbl">${wt('labelField')}</label>
         <input id="lbl" class="in" maxlength=${LABEL_MAX} data-label .value=${d?.label ?? ''} placeholder=${v?.label ?? ''} ?disabled=${!ed}

@@ -52,3 +52,9 @@ Re-capture instead of reusing when the final UI differs.
 
 - Anything that needs a real door system, real WhatsApp delivery, a real generator controller, a real elevator or a real refrigeration sensor: keep these chapters marked as demo.
 - Real devices for the live camera (Android, iOS, phone app): not captured and not verified.
+
+## Added for the temperature report dialog (2.11.1 / 2.12.0)
+
+| id | page | screen | what to show | role | viewport |
+|---|---|---|---|---|---|
+| S29X-22 | 49 | temperature report dialog | unit and range pickers, the first-page preview, the regular / HACCP switch | Op | 1440 light |
