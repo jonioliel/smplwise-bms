@@ -65,11 +65,11 @@ def count(lx, table: str, col: str, uid: str) -> int:
 # ---------------------------------------------------------------- settings
 
 def test_defaults_are_off_and_days_cannot_go_below_30(lx):
-    s = lx.admin.get("/api/v1/settings").json()
+    s = lx.admin.get("/api/v1/settings").json()["settings"]
     assert s["privacy.local_purge"] == "off" and s["privacy.personal_export"] == "off" and s["privacy.local_purge_days"] == 30
     assert lx.admin.patch("/api/v1/settings", json={"privacy.local_purge_days": 29}).status_code == 422
     settings_on(lx, **{"privacy.local_purge_days": 45})
-    assert lx.admin.get("/api/v1/settings").json()["privacy.local_purge_days"] == 45
+    assert lx.admin.get("/api/v1/settings").json()["settings"]["privacy.local_purge_days"] == 45
 
 
 # ---------------------------------------------------------------- purge
@@ -194,7 +194,7 @@ def test_own_export_contents_and_nothing_secret_or_foreign(lx):
         sids = [row[0] for row in conn.execute("SELECT sid_hash FROM auth_local_sessions").fetchall()]
     assert hashes and all(h not in text for h in hashes), "no password hash"
     assert all(s not in text for s in sids), "no session hash"
-    for forbidden in ("CREDID-maria", "PUBLICKEYMATERIAL", "password_hash", "token_hash", "sid_hash", "secret_ct", "pin_hash", "p256dh", "endpoint"):
+    for forbidden in ("CREDID-maria", "PUBLICKEYMATERIAL", "password_hash", "token_hash", "sid_hash", "secret_ct", "pin_hash", "p256dh", "https://"):
         assert forbidden not in text, forbidden
     for foreign in ("nadav", "Nadav", other, "CREDID-nadav"):
         assert foreign not in text, foreign
