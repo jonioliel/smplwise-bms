@@ -36,6 +36,38 @@ or `?theme=dark&s=settings|fleet|inst&st=<state>&w=phone`). No UI is built until
 3. One installation at the receiver: last seen, readiness, alerts, disk, 30-day strip, components, versions, readiness gaps.
 Checked: headless screenshots at 1280 px light/dark and in the phone frame; no horizontal overflow at 375 px in all 12 states.
 
+### Mock-up v2 (2026-10-23, after the owner's review of v1)
+Owner's verdict on v1: direction fine, but "a bit uncomfortable: a LOT of scrolling, and items that are not explained; it must be comfortable
+for the simplest technician". The same day the owner directed that every mock-up follows the visual language of the existing temperature /
+elevators / schedules-automations screens. v2 (same file; copy `private/review/fleet-215-mockup-v2.html`, screenshots
+`private/review/fleet-215-v2/`, both gitignored) changes:
+1. Visual language = the product's own, nothing new: sw-page header (crumbs, 26 px heading, grey one-line subheading), the settings tab row
+   (sw-tabs underline: כללי · התראות · … · דיווח בריאות), sw-card (12 px radius, 14 px padding, collapsible cards with the chevron), the
+   settings rows of styles/settings.ts (label + one-line hint at the start, control at the end; `.check` / `.val` fact rows; `.msg` status
+   pills), the infra KPI row (dot + number + label, each a filter) and the solid state badge / soft chips of infra-temperature and
+   infra-elevators, the tokens of design/tokens.ts (colours light + dark, type scale, radii, shadows), sw-toggle 42 x 24, sw-button sizes.
+2. Placement: the reporting settings are a new tab of Settings (system area). The overview and the one-installation page are the
+   receiver's own web page (the separate Cloudflare Worker, not inside Arx), drawn in the same language.
+3. Scrolling cut: the first screen answers the one question the user came with, with the main action visible without scrolling.
+   Settings: an "answer" card (state in words + colour, one line of what it means, one line "מה לעשות", the switch and "שליחת דוח עכשיו"),
+   then the readiness to-do list; everything else is three collapsed cards with a count ("מה נשלח בדוח · 52 פריטים", "דוחות אחרונים",
+   "חיבור ל-SmplWise ופרטים למתקין"). The never-sent list is one visible line in the collapsed header. Overview: KPI filters, the silent
+   banner, then "צריכות טיפול עכשיו · N" (each row: badge, name, the first reason in words, the one action), the full table after.
+   Installation: the answer card ("לא מדווחת כבר 41 שעות" + what to do), four KPIs, the 30-day strip with a worded legend, four collapsed cards.
+4. Plain Hebrew for a non-expert installer: every row has a short label and, where needed, one explanation line (this mock-up relaxes
+   the "no hints" operator rule on purpose); no hash / schema / enrollment / epoch wording; the schema paths sit behind a "שמות טכניים"
+   toggle; the exact JSON stays behind its own expander. Status is always words + colour (badges and chips carry text).
+5. Phone: the same cards stacked; the KPI row becomes a 3-column compact grid; the mock-up's own gallery bar folds to one row ("עוד…").
+6. The five owner questions are live toggles in the gallery bar: silence threshold 36 / 26 / 72 h (changes who counts as "לא מדווחת"),
+   the "reporting stopped" message (the clinic shows "כבויה" instead of "לא מדווחת"), the e-mail on silence (a line in the banner), the
+   exact JSON on / off, the QR code next to the enrollment code.
+Measured (Playwright, chromium, the mock-up's own URL switches; also checked in the built-in browser at 1366 x 768): no horizontal
+overflow at 1366 / 1024 / 375 in all 12 states. Scrolling per screen in "screens" (page height / viewport):
+settings on / off / no-address / failed 1.20 at 1366 x 768 and 1024 x 768, 1.34-1.44 on the phone (the first screen holds the answer card,
+the switch and the whole readiness list); loading / error 1.0. Overview with data 1.49 at 1366 x 768, 1.53 at 1024, 2.48 on the phone
+(the first screen holds the KPIs, the banner and the "needs me" list; the scroll is the full table of 9); empty / loading / error / intake
+off 1.0. One installation 1.11 at 1366 x 768, 1.41 on the phone.
+
 ### Owner questions that block the UI (recommendation first)
 1. Silence threshold for "שותקת": 36 hours (recommended), 26 hours, or 72 hours?
 2. When the customer turns the report off, send one last signed "reporting stopped" message so the receiver shows "כבוי" instead of
