@@ -10,6 +10,7 @@ import './system-alarm';
 import './system-security-cameras';
 import './system-security-privacy-masks';
 import './system-security-public';
+import './system-security-wiskey';
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
@@ -141,6 +142,8 @@ export class SystemSecurity extends LitElement {
               ? html`<system-security-privacy-masks></system-security-privacy-masks>`
             : this.sub === 'public'
               ? html`<system-security-public></system-security-public>`
+            : this.sub === 'wiskey'
+              ? html`<system-security-wiskey></system-security-wiskey>`
             : html`<system-security-nvr></system-security-nvr>`}`;
   }
 }
