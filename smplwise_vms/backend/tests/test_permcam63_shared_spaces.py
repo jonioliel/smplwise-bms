@@ -194,14 +194,16 @@ def test_s1_member_removed_the_rooms_reach_and_the_rooms_deny_both_end_the_perso
     assert c.get(f"/api/v1/cameras/{cams['camD']}/snapshot.jpg", headers=h).status_code == 403
 
 
-def test_s2_member_with_a_second_anchor_on_the_other_floor_keeps_that_floors_reach_after_removal(settings):
+def test_s2_home_member_removed_the_other_floor_loses_it_and_the_home_floor_keeps_it(settings):
+    # the share conversion folded camH's duplicate anchor on floor 3 into its home anchor (one anchor, on floor 2), so the
+    # room alone carried camH to floor 3
     w = _room(settings)
     c, cams = w["c"], w["cams"]
     _users(w, "f3u", "f2u")
     _bind(w, "f3u", "viewer", "floor", w["f3"])
     _bind(w, "f2u", "viewer", "floor", w["f2"])
     assert c.delete(f"/api/v1/zones/{w['hall']}/share/members/camera/{cams['camH']}").status_code == 204
-    assert _reach_ids(w, "f3u") == {"camH", "camD", "cam3"}, "camH is still anchored on floor 3 itself"
+    assert _reach_ids(w, "f3u") == {"camD", "cam3"}
     assert _reach_ids(w, "f2u") == {"camH", "camA"}, "floor 2 keeps camH (its home anchor); camD left with the membership"
 
 
@@ -268,7 +270,7 @@ def test_s6_room_deleted_in_one_step_leaves_the_same_state_as_unsharing(settings
     _bind(w, "pers", "viewer", "camera", cams["camD"])
     assert c.delete(f"/api/v1/zones/{w['hall']}?with_unshare=true").status_code == 204
     assert _reach_ids(w, "f2u") == {"camH", "camA"}
-    assert _reach_ids(w, "f3u") == {"camH", "camD", "cam3"}, "camH keeps its own anchor on floor 3"
+    assert _reach_ids(w, "f3u") == {"camD", "cam3"}, "camH had only its home anchor on floor 2 after the conversion"
     assert _reach_ids(w, "pers") == {"camD"}
     with w["app"].state.db.connection() as conn:
         assert ss.member_rows(conn) == [] and ss.camera_shared_floors(conn, cams["camD"]) == []
