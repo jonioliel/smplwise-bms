@@ -615,6 +615,12 @@ export const INFRA_GENERATOR_HREF = '#/infra/generator/live';
 export const INFRA_ELEVATORS_HREF = '#/infra/elevators';
 /** CR-INFRA-TEMPERATURE 2.9.1: the temperature units (devices.read; offered once a unit is defined, or to a manager for setup). */
 export const INFRA_TEMPERATURE_HREF = '#/infra/temperature';
+/** CR-INSIGHT215 (2.15.0): the monthly building report (reports.building, installation), the door insight and the waste insight (insights.read, any
+ * scope); each tab is offered only while its switch is on (insights/access.ts asks the server's status route). */
+export const INFRA_REPORT_HREF = '#/infra/report';
+export const INFRA_DOORS_HREF = '#/infra/doors';
+export const INFRA_WASTE_HREF = '#/infra/waste';
+export const INFRA_INSIGHT_IDS: readonly string[] = ['report', 'doors', 'waste'];
 export const INFRA_TABS: TabItem[] = [
   { id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF },
   // CR-031: a sibling of the meters, offered only when a generator is detected (or to a manager, for setup)
@@ -623,6 +629,8 @@ export const INFRA_TABS: TabItem[] = [
   { id: 'elevators', label: 'מעליות', href: INFRA_ELEVATORS_HREF },
   // CR-INFRA-TEMPERATURE 2.9.1: hidden until a unit is defined that the viewer may see (or he may manage them; temperature/access.ts)
   { id: 'temperature', label: 'טמפרטורות', href: INFRA_TEMPERATURE_HREF },
+  // CR-INSIGHT215: hidden until the switch of the part is on and the viewer holds its permission (insights/access.ts)
+  // (the three tabs are NOT registered yet: the screens are not wired in sw-app; the owner moved the report to the 'דוחות ובקרות' hub)
 ];
 
 /** TABSET-293: the page rows inside two infrastructure screens (level 2 of the tab registry): the electricity meters' pages (the
@@ -683,6 +691,24 @@ export function applyInfraTemperature(show: boolean): void {
   INFRA_NO_TEMPERATURE = hide;
   for (const l of tabsListeners) l();
 }
+
+/** CR-INSIGHT215: which insight tabs are hidden; every one is hidden until the server's status says the part is on for this viewer. */
+const INFRA_INSIGHT_HIDDEN: Record<string, boolean> = { report: true, doors: true, waste: true };
+export function applyInfraInsights(show: { report: boolean; doors: boolean; waste: boolean }): void {
+  let changed = false;
+  for (const id of INFRA_INSIGHT_IDS) {
+    const hide = !show[id as 'report' | 'doors' | 'waste'];
+    if (INFRA_INSIGHT_HIDDEN[id] !== hide) {
+      INFRA_INSIGHT_HIDDEN[id] = hide;
+      changed = true;
+    }
+  }
+  if (changed) for (const l of tabsListeners) l();
+}
+const insightHiddenHref = (href: string | undefined): boolean => {
+  const id = INFRA_INSIGHT_IDS.find((i) => href === `#/infra/${i}`);
+  return id !== undefined && INFRA_INSIGHT_HIDDEN[id];
+};
 
 /** CR-023: the area is offered to holders of energy.view only when the installation has meters or the user may manage them (an installation
  * without meters shows nothing). Filled by electricity/visibility.ts; true = no meters and no manage permission. */
@@ -911,7 +937,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'devices':
       return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'infra':
-      return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
+      return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : INFRA_INSIGHT_IDS.includes(s[1] ?? '') ? (s[1] as string) : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
       return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
@@ -1065,7 +1091,11 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [INFRA_GENERATOR_HREF]: ['generator.view'],
   [INFRA_ELEVATORS_HREF]: ['devices.read'],
   [INFRA_TEMPERATURE_HREF]: ['devices.read'],
-  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage'],
+  // CR-INSIGHT215: the building report is installation-scope (reports.building); the door / waste insights are per entity (insights.read at any scope)
+  [INFRA_REPORT_HREF]: ['reports.building'],
+  [INFRA_DOORS_HREF]: ['insights.read'],
+  [INFRA_WASTE_HREF]: ['insights.read'],
+  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage', 'insights.manage'],
   // CR-038 (section 8): the tickets area - "שלי" for whoever may view or open tickets (a creator sees the tickets they opened), "המחלקה" for
   // tickets.view (the server lists the caller's departments), "הכול" for tickets.all_departments; held at ANY scope (the server's visibility rule
   // narrows every row by place and department). The settings tab: the switch and the display (system.configure) or the name, departments and
@@ -1138,7 +1168,7 @@ export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: st
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts']); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, INFRA_REPORT_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts']); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -1155,7 +1185,7 @@ export function tabAllowed(href: string, can?: Can): boolean {
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature' && !INFRA_INSIGHT_IDS.includes(t.id)) : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;
@@ -1177,7 +1207,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
   // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
   // decided after the gates above, which key on the built-in href
   if (!api || source !== INFRA_TABS) return shown;

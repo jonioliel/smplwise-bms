@@ -158,7 +158,8 @@ def report(conn: sqlite3.Connection, scope: ic.Scope | None, lo: float, hi: floa
     for p in pairs:
         row = names.get(p["sensor_entity_id"])
         out = judge_pair(conn, p, cfg, lo, hi)
-        doors.append({"key": door_key(p["sensor_entity_id"]), "name": ic.friendly(row, "דלת"), "area": row["area_name"] if row is not None else None, **out})
+        doors.append({"key": door_key(p["sensor_entity_id"]), "name": ic.friendly(row, "דלת"), "area": row["area_name"] if row is not None else None,
+                      "floor": row["floor_name"] if row is not None else None, **out})
     doors.sort(key=lambda d: (-d["unexplained"], d["name"]))
     tot = {k: sum(d[k] for d in doors) for k in ("openings", "explained", "unexplained", "unverifiable")}
     ranking = [{"key": d["key"], "name": d["name"], "unexplained": d["unexplained"]} for d in doors if d["unexplained"] > 0][:RANK]

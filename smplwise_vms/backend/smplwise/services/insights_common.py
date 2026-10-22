@@ -346,8 +346,8 @@ def entity_names(conn: sqlite3.Connection, ids: list[str]) -> dict[str, sqlite3.
     if not ids:
         return {}
     ids = list(dict.fromkeys(ids))
-    rows = conn.execute(f"SELECT e.entity_id, e.name, e.original_name, e.area_id, COALESCE(a.name, e.area_name) AS area_name, e.domain, e.device_class "
-                        f"FROM ha_entities e LEFT JOIN ha_areas a ON a.area_id = e.area_id WHERE e.entity_id IN ({','.join('?' * len(ids))})", ids).fetchall()
+    rows = conn.execute(f"SELECT e.entity_id, e.name, e.original_name, e.area_id, COALESCE(a.name, e.area_name) AS area_name, fl.name AS floor_name, e.domain, e.device_class "
+                        f"FROM ha_entities e LEFT JOIN ha_areas a ON a.area_id = e.area_id LEFT JOIN ha_floors fl ON fl.floor_id = a.floor_id WHERE e.entity_id IN ({','.join('?' * len(ids))})", ids).fetchall()
     return {r["entity_id"]: r for r in rows}
 
 

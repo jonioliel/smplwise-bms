@@ -42,6 +42,25 @@ Plus approval of the mockup itself (layout, section order, the "not included" li
 - Scheduled monthly delivery / WhatsApp text (owner question 4), retention (5), generator run counts (6).
 - Lead: answer the owner questions in CR-INSIGHT215 section 8; full gate at integration.
 
+## Slice 2 (UI) - STOPPED part-way on the owner's restyle directive (2026-10-23)
+
+The mockup is being restyled (temperature / elevators / schedules-automations look; screen moves to the new 'דוחות ובקרות' hub). Built so far, `tsc --noEmit` clean locally; NO frontend spec written or run, backend tests NOT_RUN (pytest does not run locally; not sent to the runner):
+
+Backend (small, additive):
+- `GET /insights/status` -> `{doors, waste, report}` = switch on AND permission held; no computation, no audit; 403 when none of insights.read/manage/reports.building anywhere. For navigation.
+- `floor` (HA floor name) added to every door row and waste item (LEFT JOIN ha_floors), for the floors/areas tree.
+- Two tests appended to `tests/test_insight215_doors.py` (status, floor). contracts/API_INVENTORY.md NOT regenerated (+1 route).
+
+Frontend, all reusable under the new design (logic and data layers are look-independent):
+- `src/api/insights.ts` typed client (settings, doors, waste, report preview, PDF download via saveBlob, `fieldErrors` for the 422, `isOff` for the uniform 404).
+- `src/i18n/insights.ts` he + en strings, `ix(key, vars, lang)`.
+- `src/insights/model.ts` pure logic: month math, durations, report figures, picker/omitted rules, door lines/counts, places tree (floor/area), waste filters, settings form <-> document with the server bounds and 422 field mapping.
+- `src/insights/access.ts` permissions + status-driven visibility; `applyInfraInsights` and helpers in `shell/nav.ts` (tabs deliberately NOT registered in INFRA_TABS; TAB_PERMISSIONS/installation-only entries added).
+- `src/insights/report-preview.ts` section renderers (restyle target), `src/insights/styles.ts` (mockup CSS on v2 tokens, restyle target), `src/insights/list-base.ts` shared range/tree/phase frame for list screens.
+- `src/screens/infra-report.ts` report screen (month, language, section picker, preview, PDF, 'not included', states). NOT mounted in sw-app.
+
+Not built: doors screen, waste screen, settings screen (three switches, door pairs, thresholds + 422), sw-app routing, Settings section registration, unit and Playwright specs, visual checks. Deviations decided: no places tree on the report (model has no place filter); door list shows only unexplained/unverifiable rows (backend returns explained as counts + evidence kinds only); protected switches stay in their existing Settings page (link only).
+
 ## Runner state
 
 Worktree `~/work/pilot-INSIGHT215-295` belongs to run_remote.sh (reused); nothing of this agent is running. `~/ins215_*.log` are small logs.

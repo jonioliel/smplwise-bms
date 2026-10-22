@@ -53,8 +53,8 @@ def _protected(conn: sqlite3.Connection) -> set[str]:
 
 
 def _devices(conn: sqlite3.Connection, domains: list[str]) -> list[sqlite3.Row]:
-    return conn.execute(f"""SELECT e.entity_id, e.name, e.original_name, e.domain, e.area_id, COALESCE(a.name, e.area_name) AS area_name
-                            FROM ha_entities e LEFT JOIN ha_areas a ON a.area_id = e.area_id
+    return conn.execute(f"""SELECT e.entity_id, e.name, e.original_name, e.domain, e.area_id, COALESCE(a.name, e.area_name) AS area_name, fl.name AS floor_name
+                            FROM ha_entities e LEFT JOIN ha_areas a ON a.area_id = e.area_id LEFT JOIN ha_floors fl ON fl.floor_id = a.floor_id
                             WHERE e.removed_at IS NULL AND e.disabled = 0 AND e.domain IN ({','.join('?' * len(domains))})
                             ORDER BY e.entity_id LIMIT ?""", (*domains, MAX_DEVICES + 1)).fetchall()
 
@@ -111,7 +111,7 @@ def devices(conn: sqlite3.Connection, scope: ic.Scope | None, lo: float, hi: flo
             kind, hits = "after_hours", [x for x in ic.merge(ic.intersect(on, night)) if x[1] - x[0] >= min_night]
         if not hits:
             continue
-        items.append({"key": item_key(kind, eid), "kind": kind, "name": ic.friendly(r, "התקן"), "area": r["area_name"], "domain": r["domain"],
+        items.append({"key": item_key(kind, eid), "kind": kind, "name": ic.friendly(r, "התקן"), "area": r["area_name"], "floor": r["floor_name"], "domain": r["domain"],
                       "minutes": int(ic.total(hits) // 60), "segments": len(hits), "longest_min": int(max(b - a for a, b in hits) // 60),
                       "first_at": ic.iso(hits[0][0]), "last_at": ic.iso(hits[-1][1])})
     items.sort(key=lambda x: (-x["minutes"], x["name"]))

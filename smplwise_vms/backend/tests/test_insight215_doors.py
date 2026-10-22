@@ -254,3 +254,28 @@ def test_a_floor_scoped_manager_sees_only_the_doors_placed_on_his_floor(w, monke
     body = c.get(f"{API}/insights/doors?{RANGE}", headers=as_user("fay")).json()
     assert [d["name"] for d in body["doors"]] == ["דלת כניסה"]
     assert c.get(f"{API}/insights/settings", headers=as_user("fay")).status_code == 403, "the settings are installation-wide"
+
+
+# ---------------------------------------------------------------- slice 2: the navigation status and the floor of a row
+
+def test_status_is_403_without_any_insight_permission_and_follows_switch_and_permission(w):
+    c, s, db = w["c"], w["settings"], w["db"]
+    bind(c, s, "vera", "viewer", "installation", "*")
+    assert c.get(f"{API}/insights/status", headers=as_user("vera")).status_code == 403
+    assert c.get(f"{API}/insights/status").json() == {"doors": False, "waste": False, "report": False}  # all switches default off
+    switch(db, ic.SW_DOORS)
+    switch(db, ic.SW_REPORT)
+    bind(c, s, "sam", "site_admin", "installation", "*")
+    assert c.get(f"{API}/insights/status", headers=as_user("sam")).json() == {"doors": True, "waste": False, "report": True}
+    assert audit_rows(db, "insights.doors.read") == []  # a status read computes and audits nothing
+
+
+def test_a_door_row_carries_the_floor_name(w):
+    db, c = w["db"], w["c"]
+    with db.connection() as conn:
+        conn.execute("INSERT INTO ha_floors (floor_id, name, level, position, updated_at) VALUES ('f1', 'קומה 1', 1, 0, ?)", (now_iso(),))
+        conn.execute("UPDATE ha_areas SET floor_id = 'f1' WHERE area_id = 'lobby'")
+    save_settings(db, {"doors": {"pairs": PAIRS}})
+    switch(db, ic.SW_DOORS)
+    body = c.get(f"{API}/insights/doors?range=24h").json()
+    assert {d["floor"] for d in body["doors"]} == {"קומה 1"}

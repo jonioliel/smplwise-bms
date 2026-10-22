@@ -107,6 +107,18 @@ def put_settings(body: SettingsIn, principal: Principal = Depends(current_princi
     return _settings_out(conn, principal)
 
 
+@router.get("/insights/status")
+def status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, bool]:
+    """Which parts the caller may open right now (switch on AND the permission held): drives the navigation only. Computes nothing, writes
+    nothing, no audit row; a caller who holds none of the three permissions anywhere gets the audited 403."""
+    anywhere = set(permissions_anywhere(conn, principal))
+    if not anywhere & {ic.READ, ic.MANAGE, ic.REPORT}:
+        require(conn, principal, ic.READ, INSTALLATION)
+    sw = ic.switches(conn)
+    return {"doors": sw[ic.SW_DOORS] and ic.READ in anywhere, "waste": sw[ic.SW_WASTE] and ic.READ in anywhere,
+            "report": sw[ic.SW_REPORT] and authorize(conn, principal, ic.REPORT, INSTALLATION).allowed}
+
+
 # ---------------------------------------------------------------- the insights
 
 @router.get("/insights/doors")
