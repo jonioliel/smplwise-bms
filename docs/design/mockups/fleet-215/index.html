@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>דיווח בריאות וצי התקנות - דגם</title>
+<!--
+  CR-FLEET215 (2.15.0) - static design mock-up for the owner's approval. NOT product code: self-contained, no network request,
+  invented data only (no real customer, host, address or key). Backend of slice 1: docs/changes/CR-FLEET215.md.
+    1. Settings > System > health report: the customer's consent switch, the installer's receiver key, signing facts,
+       last report + attempt log, the exact body, and the privacy summary = every schema path of section 3, nothing else.
+       Demo-data switch and readiness sit on the same page (CR section 1, items 2-3).
+    2. Receiver overview (SmplWise / installer): every enrolled installation with health, last seen, silent alert.
+    3. One installation at the receiver: components, versions, 30-day strip, readiness gaps.
+  States (gallery): settings = off (default) / on / receiver not set / send failed / loading / error;
+                    overview = data / empty / loading / error / intake off.
+  Width: the "טלפון" button renders the page inside a 390 px frame; container queries make the real phone width identical.
+  URL switches: ?theme=dark  ?s=settings|fleet|inst  ?st=<state>  ?w=phone
+  Tokens: the product's --sw-* names and values (frontend/src/public-ticket/styles.css). Operator rules: no hint paragraphs,
+  no badges beyond the state, no platform branding (the home system is "תשתית המערכת").
+-->
+<style>
+:root {
+  color-scheme: light;
+  --sw-bg: #f2f4f8; --sw-surface: #ffffff; --sw-surface-2: #f6f8fb; --sw-surface-3: #eceff4;
+  --sw-border: #e3e7ee; --sw-border-strong: #c9d0db;
+  --sw-text: #16202e; --sw-text-2: #404b5d; --sw-text-3: #5d697b;
+  --sw-accent: #1f5fd6; --sw-accent-text: #1a4fb8; --sw-accent-soft: #e8f0ff; --sw-on-accent: #ffffff;
+  --sw-success: #14703c; --sw-success-soft: #e6f6ec; --sw-warning: #7a4c00; --sw-warning-soft: #fff3df;
+  --sw-danger: #a82525; --sw-danger-soft: #fdeaea; --sw-muted: #5d697b; --sw-muted-soft: #eceff4;
+  --sw-silent: #533bb0; --sw-silent-soft: #efeaff;
+  --sw-focus: #1f5fd6; --sw-r-sm: 10px; --sw-r-md: 14px; --sw-r-pill: 999px;
+  --sw-shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 20px rgba(16,24,40,.06);
+  --sw-font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Hebrew", Arial, sans-serif;
+  --sw-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sw-bg: #111722; --sw-surface: #1a2130; --sw-surface-2: #1f2738; --sw-surface-3: #262f42;
+  --sw-border: #2a3345; --sw-border-strong: #3d4860;
+  --sw-text: #eef2f8; --sw-text-2: #c0c9d8; --sw-text-3: #98a3b8;
+  --sw-accent: #5b8cff; --sw-accent-text: #9ab9ff; --sw-accent-soft: rgba(91,140,255,.16); --sw-on-accent: #0b1020;
+  --sw-success: #7fe9ad; --sw-success-soft: rgba(61,220,132,.16); --sw-warning: #ffd089; --sw-warning-soft: rgba(245,176,67,.16);
+  --sw-danger: #ffa39d; --sw-danger-soft: rgba(255,107,98,.16); --sw-muted: #98a3b8; --sw-muted-soft: #262f42;
+  --sw-silent: #cbbaff; --sw-silent-soft: rgba(167,139,250,.18);
+  --sw-focus: #9ab9ff; --sw-shadow: 0 1px 2px rgba(0,0,0,.4);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--sw-bg); color: var(--sw-text); font: 14px/1.45 var(--sw-font); -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+.mono { font-family: var(--sw-mono); direction: ltr; unicode-bidi: isolate; font-size: 12.5px; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--sw-text-3); }
+
+/* mock-up gallery (not part of the product) */
+.gallery { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 10px 16px;
+  background: var(--sw-surface); border-bottom: 1px solid var(--sw-border); }
+.gallery .grp { display: flex; gap: 4px; flex-wrap: wrap; }
+.gallery .sep { width: 1px; height: 22px; background: var(--sw-border); }
+.gallery .sp { flex: 1; }
+.gallery button { border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill);
+  padding: 5px 11px; cursor: pointer; font-size: 13px; }
+.gallery button[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: 600; }
+.gallery .lbl { font-size: 12px; color: var(--sw-text-3); }
+
+.stage { container-type: inline-size; margin: 0 auto; max-width: 1240px; padding: 18px 16px 40px; }
+.stage.phone { max-width: 390px; padding: 0; margin: 18px auto 40px; border: 10px solid #0d121b; border-radius: 34px; overflow: hidden;
+  min-height: 760px; background: var(--sw-bg); }
+.stage.phone .scr { padding: 14px 14px 28px; }
+.scr { display: none; }
+.scr.on { display: block; }
+.st { display: none; }
+.st.on { display: block; }
+
+/* product chrome */
+.crumb { color: var(--sw-text-3); font-size: 13px; margin-bottom: 2px; }
+.head { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+h1 { font-size: 21px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 15px; margin: 0; }
+.card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow); }
+.card + .card { margin-top: 14px; }
+.ch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--sw-border); }
+.cb { padding: 14px 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; border: 1px solid var(--sw-border-strong);
+  background: var(--sw-surface); color: var(--sw-text); border-radius: var(--sw-r-pill); padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--sw-surface-2); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-on-accent); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+.btn.sm { min-height: 30px; padding: 4px 11px; font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { .btn { transition: transform .12s ease-out, background-color .15s ease; } }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 2px 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.p-ok { color: var(--sw-success); background: var(--sw-success-soft); }
+.p-warn { color: var(--sw-warning); background: var(--sw-warning-soft); }
+.p-bad { color: var(--sw-danger); background: var(--sw-danger-soft); }
+.p-off { color: var(--sw-muted); background: var(--sw-muted-soft); }
+.p-silent { color: var(--sw-silent); background: var(--sw-silent-soft); }
+.p-silent::before { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+
+/* switch */
+.sw { position: relative; width: 46px; height: 28px; flex: none; border-radius: 99px; border: 0; background: var(--sw-border-strong); cursor: pointer; padding: 0; }
+.sw::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.sw[aria-checked="true"] { background: var(--sw-accent); }
+.sw[aria-checked="true"]::after { inset-inline-start: 21px; }
+@media (prefers-reduced-motion: no-preference) { .sw, .sw::after { transition: background-color .18s ease, inset-inline-start .18s cubic-bezier(.2,.8,.2,1); } }
+.sw[disabled] { opacity: .45; cursor: default; }
+
+.lines > .ln { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--sw-border); min-height: 52px; }
+.lines > .ln:last-child { border-bottom: 0; }
+.ln .k { color: var(--sw-text-2); }
+.ln .v { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; text-align: end; }
+.ln.main .k { font-weight: 600; color: var(--sw-text); font-size: 15px; }
+
+/* settings layout */
+.cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.big-state { display: flex; align-items: center; gap: 12px; padding: 16px; }
+.big-state .dot { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+.big-state .dot svg { width: 22px; height: 22px; }
+.big-state .t { font-weight: 700; font-size: 16px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: start; font-weight: 600; color: var(--sw-text-3); font-size: 12.5px; padding: 9px 12px; border-bottom: 1px solid var(--sw-border); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--sw-border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+.click tbody tr { cursor: pointer; }
+.click tbody tr:hover td { background: var(--sw-surface-2); }
+
+details.body > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+details.body > summary::-webkit-details-marker { display: none; }
+details.body > summary .chev { transition: transform .18s ease; }
+details.body[open] > summary .chev { transform: rotate(180deg); }
+pre.json { margin: 0; padding: 12px 16px; max-height: 340px; overflow: auto; background: var(--sw-surface-2); border-top: 1px solid var(--sw-border);
+  direction: ltr; text-align: left; font: 12px/1.5 var(--sw-mono); color: var(--sw-text-2); }
+
+/* privacy */
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 18px; padding: 4px 16px 14px; }
+.fg { padding-top: 12px; }
+.fg h3 { margin: 0 0 4px; font-size: 13px; color: var(--sw-text); display: flex; justify-content: space-between; }
+.fg h3 .n { color: var(--sw-text-3); font-weight: 500; }
+.f { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; padding: 6px 0; border-bottom: 1px dashed var(--sw-border); }
+.f:last-child { border-bottom: 0; }
+.f .l { color: var(--sw-text-2); }
+.f .ty { color: var(--sw-text-3); font-size: 12px; white-space: nowrap; }
+.f .mono { grid-column: 1 / -1; color: var(--sw-text-3); font-size: 11.5px; text-align: start; justify-self: start; }
+.never { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 16px; }
+.never span { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 3px 10px; font-size: 12.5px; color: var(--sw-text-2);
+  text-decoration: line-through; text-decoration-color: var(--sw-danger); }
+.sub { padding: 12px 16px 6px; font-weight: 600; font-size: 13px; border-top: 1px solid var(--sw-border); }
+
+/* readiness */
+.ring { --v: 78; width: 74px; height: 74px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: conic-gradient(var(--sw-accent) calc(var(--v) * 1%), var(--sw-surface-3) 0); }
+.ring b { width: 58px; height: 58px; border-radius: 50%; background: var(--sw-surface); display: grid; place-items: center; font-size: 18px; }
+.miss { margin: 0; padding: 0; list-style: none; }
+.miss li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 16px; border-top: 1px solid var(--sw-border); }
+.miss li a { color: var(--sw-accent-text); text-decoration: none; font-size: 13px; white-space: nowrap; }
+
+/* fleet overview */
+.alert { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-silent-soft);
+  color: var(--sw-text); border: 1px solid color-mix(in srgb, var(--sw-silent) 35%, transparent); margin-bottom: 14px; }
+.alert .ic { color: var(--sw-silent); flex: none; display: grid; }
+.alert .t { font-weight: 700; }
+.alert .names { color: var(--sw-text-2); }
+.alert .grow { flex: 1; min-width: 0; }
+.alert.off { background: var(--sw-muted-soft); border-color: var(--sw-border); }
+.alert.off .ic { color: var(--sw-muted); }
+.alert.bad { background: var(--sw-danger-soft); border-color: color-mix(in srgb, var(--sw-danger) 30%, transparent); }
+.alert.bad .ic { color: var(--sw-danger); }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--sw-border); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 11px; color: var(--sw-text-2); background: var(--sw-surface); cursor: pointer; white-space: nowrap; font-size: 13px; }
+.chip.sel { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: 600; }
+.chip .n { font-variant-numeric: tabular-nums; margin-inline-start: 5px; opacity: .8; }
+.search { flex: 1; min-width: 160px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 7px 14px; background: var(--sw-surface-2); color: var(--sw-text); font: inherit; }
+.name { font-weight: 600; }
+.small { font-size: 12.5px; }
+.bar { display: inline-block; width: 46px; height: 6px; border-radius: 99px; background: var(--sw-surface-3); overflow: hidden; vertical-align: middle; margin-inline-start: 6px; }
+.bar i { display: block; height: 100%; background: var(--sw-accent); }
+.bar.low i { background: var(--sw-warning); }
+.warn-t { color: var(--sw-warning); font-weight: 600; }
+.bad-t { color: var(--sw-danger); font-weight: 600; }
+.mcards { display: none; }
+.mc { display: grid; gap: 4px; padding: 12px 14px; border-bottom: 1px solid var(--sw-border); cursor: pointer; }
+.mc:last-child { border-bottom: 0; }
+.mc .r { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* empty / loading / error */
+.blank { padding: 56px 20px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.blank .ic { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--sw-surface-3); color: var(--sw-text-3); }
+.blank .t { font-weight: 700; font-size: 16px; }
+.skel { display: block; height: 12px; border-radius: 6px; background: var(--sw-surface-3); }
+.skrow { display: grid; grid-template-columns: 80px 2fr 1fr 1fr 1fr 1fr; gap: 18px; align-items: center; padding: 15px 14px; border-bottom: 1px solid var(--sw-border); }
+@media (prefers-reduced-motion: no-preference) {
+  .skel { background: linear-gradient(90deg, var(--sw-surface-3) 0%, var(--sw-surface-2) 50%, var(--sw-surface-3) 100%); background-size: 200% 100%; animation: shim 1.3s linear infinite; }
+  @keyframes shim { to { background-position: -200% 0; } }
+}
+
+/* installation detail */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+.kpis > div { padding: 14px 16px; border-inline-start: 1px solid var(--sw-border); }
+.kpis > div:first-child { border-inline-start: 0; }
+.kpis .k { color: var(--sw-text-3); font-size: 12.5px; }
+.kpis .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.comps { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); overflow: hidden; }
+.comps > div { margin-bottom: -1px; }
+.comps > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--sw-border); }
+.strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; padding: 14px 16px 6px; }
+.strip i { height: 26px; border-radius: 4px; background: var(--sw-success); opacity: .85; }
+.strip i.w { background: var(--sw-warning); }
+.strip i.b { background: var(--sw-danger); }
+.strip i.s { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sw-silent); opacity: 1; }
+.strip-l { display: flex; justify-content: space-between; padding: 0 16px 14px; color: var(--sw-text-3); font-size: 12px; }
+.back { display: inline-flex; align-items: center; gap: 4px; color: var(--sw-accent-text); cursor: pointer; background: none; border: 0; padding: 0; font-size: 13px; }
+
+/* phone / narrow container */
+@container (max-width: 760px) {
+  .cols { grid-template-columns: 1fr; }
+  table.desk { display: none; }
+  .mcards { display: block; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .kpis > div:nth-child(3) { border-inline-start: 0; }
+  .kpis > div:nth-child(n+3) { border-top: 1px solid var(--sw-border); }
+  .fields { grid-template-columns: 1fr; }
+  .skrow { grid-template-columns: 60px 1fr 70px; }
+  .skrow > :nth-child(n+4) { display: none; }
+  .ln .v { max-width: 62%; }
+  .alert { flex-wrap: wrap; }
+  .alert .btn { width: 100%; }
+  .toolbar .search { order: -1; flex-basis: 100%; }
+  .head .btn { flex: 1; }
+}
+</style>
+</head>
+<body>
+<nav class="gallery" aria-label="מסכי הדגם">
+  <div class="grp" id="g-screens">
+    <button data-s="settings" aria-pressed="true">1. הגדרות דיווח</button>
+    <button data-s="fleet" aria-pressed="false">2. סקירת ההתקנות</button>
+    <button data-s="inst" aria-pressed="false">3. התקנה אחת</button>
+  </div>
+  <span class="sep"></span>
+  <span class="lbl">מצב:</span>
+  <div class="grp" id="g-states"></div>
+  <span class="sp"></span>
+  <div class="grp">
+    <button id="b-w" aria-pressed="false">טלפון</button>
+    <button id="b-th" aria-pressed="false">כהה</button>
+  </div>
+</nav>
+
+<main class="stage" id="stage">
+
+<!-- ============ 1. SETTINGS: the installation's health report ============ -->
+<section class="scr on" id="s-settings">
+  <div class="crumb">הגדרות › מערכת</div>
+  <div class="head"><h1>דיווח בריאות</h1></div>
+
+  <!-- loading -->
+  <div class="st" data-st="loading">
+    <div class="card"><div class="cb" style="display:grid;gap:14px">
+      <span class="skel" style="width:40%"></span><span class="skel" style="width:70%"></span><span class="skel" style="width:55%"></span><span class="skel" style="width:62%"></span>
+    </div></div>
+  </div>
+  <!-- error -->
+  <div class="st" data-st="error">
+    <div class="card"><div class="blank">
+      <div class="ic" style="background:var(--sw-danger-soft);color:var(--sw-danger)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <div class="t">לא ניתן לטעון את הגדרות הדיווח</div>
+      <button class="btn">ניסיון חוזר</button>
+    </div></div>
+  </div>
+
+  <!-- the page (off / on / nourl / failed) -->
+  <div class="st on" data-st="off on nourl failed">
+    <div class="cols">
+      <div>
+        <div class="card">
+          <div class="big-state">
+            <div class="dot" id="set-dot"></div>
+            <div style="flex:1;min-width:0">
+              <div class="t" id="set-title"></div>
+              <div class="muted" id="set-sub"></div>
+            </div>
+          </div>
+          <div class="lines" style="border-top:1px solid var(--sw-border)">
+            <div class="ln main">
+              <span class="k">שליחת דוח בריאות יומי</span>
+              <button class="sw" role="switch" id="sw-report" aria-label="שליחת דוח בריאות יומי" aria-checked="false"></button>
+            </div>
+            <div class="ln">
+              <span class="k">שרת מקבל</span>
+              <span class="v" id="set-url"></span>
+            </div>
+            <div class="ln">
+              <span class="k">חתימה</span>
+              <span class="v"><span class="pill p-ok" id="set-sig">מפתח קיים</span><span class="mono">Ed25519 · 3f9a0c71be52d846</span></span>
+            </div>
+            <div class="ln">
+              <span class="k">מזהה ההתקנה</span>
+              <span class="v"><span class="mono">8c41…e07b</span></span>
+            </div>
+            <div class="ln">
+              <span class="k">קוד רישום</span>
+              <span class="v"><span class="mono muted">arx-fleet-1.8c41…</span><button class="btn sm">העתקה</button></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ch"><h2>דוח אחרון</h2>
+            <div style="display:flex;gap:8px"><button class="btn sm" id="b-send">שליחה עכשיו</button></div>
+          </div>
+          <div class="lines" id="last-on">
+            <div class="ln"><span class="k">נשלח</span><span class="v num" id="last-at">23.10.2026 · 03:12</span></div>
+            <div class="ln"><span class="k">תוצאה</span><span class="v" id="last-res"><span class="pill p-ok">התקבל</span></span></div>
+            <div class="ln"><span class="k">הבא</span><span class="v num" id="last-next">24.10.2026 · 03:12</span></div>
+            <div class="ln"><span class="k">מספר רץ · גודל</span><span class="v num">412 · <bdi dir="ltr">2.9 KB</bdi></span></div>
+          </div>
+          <div class="blank" id="last-none" style="padding:28px 16px;display:none">
+            <div class="t" style="font-size:14px">לא נשלח דוח</div>
+          </div>
+          <details class="body" style="border-top:1px solid var(--sw-border)">
+            <summary><span>הדוח המדויק</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <pre class="json" id="json"></pre>
+          </details>
+          <details class="body" style="border-top:1px solid var(--sw-border)">
+            <summary><span>ניסיונות אחרונים</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <table>
+              <thead><tr><th>זמן</th><th>תוצאה</th><th>מספר</th></tr></thead>
+              <tbody id="log"></tbody>
+            </table>
+          </details>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="big-state">
+            <div class="ring" style="--v:78"><b class="num">78%</b></div>
+            <div><div class="t">מוכנות ההתקנה</div><div class="muted">4 פריטים חסרים · אחד חובה</div></div>
+          </div>
+          <ul class="miss">
+            <li><span>גיבוי מהיומיים האחרונים <span class="bad-t small">חובה</span></span><a href="#">לגיבויים</a></li>
+            <li><span>מצלמה מוצבת על המפה</span><a href="#">לתוכנית</a></li>
+            <li><span>גיבוי מחוץ לשרת</span><a href="#">לגיבויים</a></li>
+            <li><span>גרסה עדכנית</span><a href="#">לעדכונים</a></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="lines">
+            <div class="ln main">
+              <span class="k">נתוני דוגמה</span>
+              <button class="sw" role="switch" id="sw-demo" aria-label="נתוני דוגמה" aria-checked="false"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="ch"><h2>מה יוצא מההתקנה</h2><span class="muted small num">55 שדות · ערכים סגורים בלבד</span></div>
+          <div class="fields" id="fields"></div>
+          <div class="sub">לא נשלח לעולם</div>
+          <div class="never">
+            <span>שמות</span><span>כתובות</span><span>כתובות רשת</span><span>מזהי חומרה</span><span>מספרים סידוריים</span><span>סיסמאות ומפתחות</span>
+            <span>קישורים</span><span>דוא״ל</span><span>טלפון</span><span>אירועים</span><span>תמונות</span><span>יומנים</span><span>טקסט שגיאה</span>
+            <span>מזהי התקנים</span><span>ערכי הגדרות</span>
+          </div>
+        </div>
+  </div>
+</section>
+
+<!-- ============ 2. RECEIVER: fleet overview ============ -->
+<section class="scr" id="s-fleet">
+  <div class="head">
+    <div><div class="crumb">SmplWise · שרת מקבל</div><h1>התקנות</h1></div>
+    <button class="btn primary">רישום התקנה</button>
+  </div>
+
+  <div class="st on" data-st="data">
+    <div class="alert">
+      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 9.5-2.6M8.5 15.5a5 5 0 0 1 4-1.3"/><path d="m3 3 18 18"/><circle cx="12" cy="19" r="1"/></svg></span>
+      <div class="grow"><div class="t">2 התקנות שותקות</div><div class="names">מתחם לוגיסטי דרום · 41 שעות  ·  מרפאה רחוב הגפן · 3 ימים</div></div>
+      <button class="btn sm" data-chip="silent">הצגה</button>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <div class="chips" id="chips">
+          <span class="chip sel" data-f="all">הכול<span class="n">9</span></span>
+          <span class="chip" data-f="ok">תקין<span class="n">4</span></span>
+          <span class="chip" data-f="warn">אזהרה<span class="n">2</span></span>
+          <span class="chip" data-f="bad">תקלה<span class="n">1</span></span>
+          <span class="chip" data-f="silent">שותקות<span class="n">2</span></span>
+        </div>
+        <input class="search" placeholder="חיפוש" aria-label="חיפוש">
+      </div>
+      <table class="desk click">
+        <thead><tr><th>מצב</th><th>התקנה</th><th>נראתה לאחרונה</th><th>גרסה</th><th>מוכנות</th><th>התראות</th><th>דיסק פנוי</th><th>גיבוי</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="mcards" id="mrows"></div>
+    </div>
+  </div>
+
+  <div class="st" data-st="empty">
+    <div class="card"><div class="blank">
+      <div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></div>
+      <div class="t">אין התקנות רשומות</div>
+      <button class="btn primary">רישום התקנה</button>
+    </div></div>
+  </div>
+
+  <div class="st" data-st="loading">
+    <div class="card">
+      <div class="toolbar"><span class="skel" style="width:260px;height:24px;border-radius:99px"></span></div>
+      <div id="skel"></div>
+    </div>
+  </div>
+
+  <div class="st" data-st="error">
+    <div class="alert bad">
+      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg></span>
+      <div class="grow"><div class="t">הנתונים לא נטענו</div><div class="names num">עדכון אחרון 23.10.2026 · 09:40</div></div>
+      <button class="btn sm">ניסיון חוזר</button>
+    </div>
+    <div class="card"><div class="blank">
+      <div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M9.5 5.2A9 9 0 0 1 21 12M3 12a9 9 0 0 0 13.4 7.8"/></svg></div>
+      <div class="t">אין חיבור לשרת המקבל</div>
+      <button class="btn">ניסיון חוזר</button>
+    </div></div>
+  </div>
+
+  <div class="st" data-st="intakeoff">
+    <div class="alert off">
+      <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span>
+      <div class="grow"><div class="t">קבלת דוחות מושבתת</div><div class="names num">מאז 22.10.2026 · 18:05</div></div>
+      <button class="btn sm primary">הפעלה</button>
+    </div>
+    <div class="card">
+      <table class="desk"><thead><tr><th>מצב</th><th>התקנה</th><th>נראתה לאחרונה</th><th>גרסה</th></tr></thead><tbody id="rows-off"></tbody></table>
+      <div class="mcards" id="mrows-off"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. RECEIVER: one installation ============ -->
+<section class="scr" id="s-inst">
+  <button class="back" data-go="fleet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>התקנות</button>
+  <div class="head" style="margin-top:6px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>מתחם לוגיסטי דרום</h1><span class="pill p-silent">שותקת 41 שעות</span></div>
+    <div style="display:flex;gap:8px"><button class="btn">השתקה</button><button class="btn">החלפת מפתח</button></div>
+  </div>
+  <div class="card">
+    <div class="kpis">
+      <div><div class="k">נראתה לאחרונה</div><div class="v">21.10 · 16:02</div></div>
+      <div><div class="k">מוכנות</div><div class="v">92%</div></div>
+      <div><div class="k">התראות פתוחות</div><div class="v">4 <span class="bad-t small">1 קריטי</span></div></div>
+      <div><div class="k">דיסק פנוי</div><div class="v"><bdi dir="ltr">412 GB</bdi></div></div>
+    </div>
+  </div>
+  <div class="cols" style="margin-top:14px">
+    <div>
+      <div class="card">
+        <div class="ch"><h2>30 הימים האחרונים</h2></div>
+        <div class="strip" id="strip" aria-label="מצב יומי"></div>
+        <div class="strip-l"><span>היום</span><span>לפני 30 יום</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h2>רכיבים</h2><span class="muted small num">בדוח של 21.10 · 16:02</span></div>
+        <div class="comps" id="comps"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="ch"><h2>גרסאות</h2></div>
+        <div class="lines">
+          <div class="ln"><span class="k">Arx</span><span class="v mono">2.14.3</span></div>
+          <div class="ln"><span class="k">גשר</span><span class="v"><span class="mono">0.9.6</span><span class="warn-t small">נדרש 0.9.8</span></span></div>
+          <div class="ln"><span class="k">תשתית המערכת</span><span class="v mono">2026.10.1</span></div>
+          <div class="ln"><span class="k">שרת מדיה</span><span class="v mono">1.9.9</span></div>
+          <div class="ln"><span class="k">מסד נתונים</span><span class="v mono">0147</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><h2>חסר למוכנות</h2></div>
+        <ul class="miss" style="border-top:0">
+          <li style="border-top:0"><span>גיבוי מחוץ לשרת</span></li>
+          <li><span>גרסה עדכנית</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="lines">
+          <div class="ln"><span class="k">אופן</span><span class="v">מלא</span></div>
+          <div class="ln"><span class="k">מצלמות · מקליטים</span><span class="v num">38 · 2</span></div>
+          <div class="ln"><span class="k">גיבויים</span><span class="v num">7 · אחרון לפני 19 שעות</span></div>
+          <div class="ln"><span class="k">מפתח</span><span class="v mono">b71e04c9a2d35f18</span></div>
+          <div class="ln"><span class="k">נרשמה</span><span class="v num">02.09.2026</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var root = document.documentElement, q = new URLSearchParams(location.search);
+
+  /* ---------- the privacy list: every schema path of CR-FLEET215 section 3, nothing more ---------- */
+  var T = { c: 'קבוע', id: 'אקראי', n: 'מספר', t: 'זמן', e: 'רשימה סגורה', b: 'כן / לא', v: 'גרסה', l: 'רשימה סגורה' };
+  var GROUPS = [
+    ['זיהוי הדוח', [['גרסת מבנה הדוח', 'schema', 'c'], ['מזהה אקראי של ההתקנה', 'installation_id', 'id'], ['מספר רץ', 'seq', 'n'],
+      ['זמן יצירה, לדקה', 'generated_at', 't'], ['אופן הפעלה', 'mode', 'e'], ['נתוני דוגמה פועלים', 'demo_mode', 'b'],
+      ['מצב כללי', 'overall', 'e'], ['שעות מאז הפעלה', 'uptime_h', 'n']]],
+    ['גרסאות', [['Arx', 'versions.addon', 'v'], ['גשר', 'versions.bridge', 'v'], ['גשר נדרש', 'versions.bridge_required', 'v'],
+      ['תשתית המערכת', 'versions.ha', 'v'], ['שרת מדיה', 'versions.go2rtc', 'v'], ['מסד נתונים', 'versions.db_schema', 'v']]],
+    ['מצב רכיבים', [['מסד נתונים', 'components.db', 'e'], ['תיקיית נתונים', 'components.storage', 'e'], ['מקליט', 'components.nvr', 'e'],
+      ['שרת מדיה', 'components.go2rtc', 'e'], ['סנכרון', 'components.ha_sync', 'e'], ['גשר', 'components.bridge', 'e'],
+      ['קליטת אירועים', 'components.events_ingest', 'e'], ['עיבוד אירועים', 'components.events_derive', 'e'],
+      ['איתור התקנים', 'components.discovery', 'e'], ['תמונות ממוזערות', 'components.thumbnails', 'e'], ['ייצוא', 'components.exports', 'e'],
+      ['גיבויים', 'components.backups', 'e'], ['Frigate', 'components.frigate', 'e']]],
+    ['ספירות', [['מצלמות', 'counts.cameras', 'n'], ['מקליטים', 'counts.recorders', 'n'], ['מקליטי Hikvision', 'counts.recorders_by_vendor.hikvision', 'n'],
+      ['מקליטי Provision-ISR', 'counts.recorders_by_vendor.provision_isr', 'n'], ['שרתי Frigate', 'counts.recorders_by_vendor.frigate', 'n'],
+      ['מצלמות בלי מקליט', 'counts.recorders_by_vendor.none', 'n'], ['התקנים בקטלוג', 'counts.ha_entities', 'n'],
+      ['תוכניות קומה שפורסמו', 'counts.floors_published', 'n'], ['אנשים פעילים', 'counts.users_active', 'n'], ['מנהלי מערכת', 'counts.system_admins', 'n']]],
+    ['התראות פתוחות', [['מידע', 'alerts_open.info', 'n'], ['התראה', 'alerts_open.alert', 'n'], ['קריטי', 'alerts_open.critical', 'n']]],
+    ['דיסק', [['אחוז פנוי', 'disk.free_pct', 'n'], ['GB פנויים', 'disk.free_gb', 'n'], ['GB בסך הכול', 'disk.total_gb', 'n']]],
+    ['גיבוי', [['מספר גיבויים', 'backup.count', 'n'], ['גיל הגיבוי האחרון, בשעות', 'backup.last_age_h', 'n'], ['מספר יעדים מחוץ לשרת', 'backup.offbox_targets', 'n']]],
+    ['עדכון', [['תוצאת הבדיקה האחרונה', 'update.check', 'e'], ['יש עדכון', 'update.available', 'b'], ['הגרסה האחרונה', 'update.latest', 'v']]],
+    ['מוכנות', [['ציון', 'readiness.score', 'n'], ['מוכנה', 'readiness.ready', 'b'], ['פריטים חסרים', 'readiness.missing', 'l']]]
+  ];
+  var total = 0;
+  $('#fields').innerHTML = GROUPS.map(function (g) {
+    total += g[1].length;
+    return '<div class="fg"><h3><span>' + g[0] + '</span><span class="n num">' + g[1].length + '</span></h3>' +
+      g[1].map(function (f) { return '<div class="f"><span class="l">' + f[0] + '</span><span class="ty">' + T[f[2]] + '</span><span class="mono">' + f[1] + '</span></div>'; }).join('') + '</div>';
+  }).join('');
+  $('#s-settings .ch .small').textContent = total + ' שדות · ערכים סגורים בלבד';
+
+  /* ---------- the exact body (invented values, the CR's closed schema) ---------- */
+  var BODY = {
+    schema: 'smplwise-fleet-report/1', installation_id: '8c41d2f09a6b4e1c93f57a20b6d1e07b', seq: 412, generated_at: '2026-10-23T03:12Z',
+    mode: 'full', demo_mode: false, overall: 'warn', uptime_h: 307,
+    versions: { addon: '2.15.0', bridge: '0.9.8', bridge_required: '0.9.8', ha: '2026.10.1', go2rtc: '1.9.9', db_schema: '0149' },
+    components: { db: 'ok', storage: 'ok', nvr: 'ok', go2rtc: 'ok', ha_sync: 'ok', bridge: 'ok', events_ingest: 'ok', events_derive: 'ok',
+      discovery: 'ok', thumbnails: 'ok', exports: 'ok', backups: 'warn', frigate: 'absent' },
+    counts: { cameras: 24, recorders: 1, recorders_by_vendor: { hikvision: 1, provision_isr: 0, frigate: 0, none: 0 }, ha_entities: 386,
+      floors_published: 3, users_active: 11, system_admins: 2 },
+    alerts_open: { info: 2, alert: 1, critical: 0 },
+    disk: { free_pct: 61, free_gb: 573, total_gb: 938 },
+    backup: { count: 6, last_age_h: 71, offbox_targets: 0 },
+    update: { check: 'available', available: true, latest: '2.15.1' },
+    readiness: { score: 78, ready: false, missing: ['backup_recent', 'camera_on_map', 'backup_offsite', 'up_to_date'] }
+  };
+  $('#json').textContent = JSON.stringify(BODY, null, 2);
+
+  /* ---------- settings states ---------- */
+  var ICON = {
+    ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+    off: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 16.5v.01"/><path d="M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+    bad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg>'
+  };
+  var SET = {
+    off:    { dot: 'off',  title: 'כבוי',                      sub: 'לא נבנה, לא נחתם ולא נשלח דבר', sw: false, url: 'set', last: 'old' },
+    on:     { dot: 'ok',   title: 'פועל',                      sub: 'דוח אחד ביום',                  sw: true,  url: 'set', last: 'ok' },
+    nourl:  { dot: 'warn', title: 'לא נשלח',                   sub: 'כתובת השרת המקבל לא הוגדרה בהתקנה. פנו למתקין.', sw: true, url: 'none', last: 'none' },
+    failed: { dot: 'bad',  title: 'השליחה האחרונה נכשלה',      sub: 'ניסיון חוזר ב־06:12',           sw: true,  url: 'set', last: 'fail' }
+  };
+  var LOGS = {
+    ok:   [['23.10 · 03:12', 'p-ok', 'התקבל', 412], ['22.10 · 03:11', 'p-ok', 'התקבל', 411], ['21.10 · 03:11', 'p-ok', 'התקבל', 410]],
+    fail: [['23.10 · 03:12', 'p-bad', 'אין חיבור', 412], ['22.10 · 03:11', 'p-ok', 'התקבל', 411], ['21.10 · 03:11', 'p-ok', 'התקבל', 410]],
+    old:  [['20.10 · 03:10', 'p-ok', 'התקבל', 409], ['19.10 · 03:10', 'p-ok', 'התקבל', 408]],
+    none: []
+  };
+  var dotStyle = { ok: ['--sw-success-soft', '--sw-success'], off: ['--sw-muted-soft', '--sw-muted'], warn: ['--sw-warning-soft', '--sw-warning'], bad: ['--sw-danger-soft', '--sw-danger'] };
+  function applySettings(st) {
+    var s = SET[st]; if (!s) return;
+    var d = $('#set-dot'); d.innerHTML = ICON[s.dot];
+    d.style.background = 'var(' + dotStyle[s.dot][0] + ')'; d.style.color = 'var(' + dotStyle[s.dot][1] + ')';
+    $('#set-title').textContent = s.title; $('#set-sub').textContent = s.sub;
+    $('#sw-report').setAttribute('aria-checked', String(s.sw));
+    $('#set-url').innerHTML = s.url === 'set' ? '<span class="pill p-ok">הוגדר בהתקנה</span>' : '<span class="pill p-warn">לא הוגדר</span>';
+    $('#b-send').disabled = !(s.sw && s.url === 'set');
+    var none = s.last === 'none';
+    $('#last-on').style.display = none ? 'none' : ''; $('#last-none').style.display = none ? '' : 'none';
+    if (s.last === 'ok') { $('#last-at').textContent = '23.10.2026 · 03:12'; $('#last-res').innerHTML = '<span class="pill p-ok">התקבל</span>'; $('#last-next').textContent = '24.10.2026 · 03:12'; }
+    if (s.last === 'fail') { $('#last-at').textContent = '23.10.2026 · 03:12'; $('#last-res').innerHTML = '<span class="pill p-bad">אין חיבור</span>'; $('#last-next').textContent = '23.10.2026 · 06:12'; }
+    if (s.last === 'old') { $('#last-at').textContent = '20.10.2026 · 03:10'; $('#last-res').innerHTML = '<span class="pill p-ok">התקבל</span>'; $('#last-next').textContent = '-'; }
+    $('#log').innerHTML = LOGS[s.last].map(function (r) { return '<tr><td class="num">' + r[0] + '</td><td><span class="pill ' + r[1] + '">' + r[2] + '</span></td><td class="num">' + r[3] + '</td></tr>'; }).join('') ||
+      '<tr><td colspan="3" class="muted">-</td></tr>';
+  }
+  $('#sw-report').onclick = function () { var on = this.getAttribute('aria-checked') !== 'true'; setState(on ? 'on' : 'off'); };
+  $('#sw-demo').onclick = function () { this.setAttribute('aria-checked', String(this.getAttribute('aria-checked') !== 'true')); };
+
+  /* ---------- fleet rows (invented labels, typed at the receiver at enrollment) ---------- */
+  var ST = { ok: ['p-ok', 'תקין'], warn: ['p-warn', 'אזהרה'], bad: ['p-bad', 'תקלה'], silent: ['p-silent', 'שותקת'] };
+  var ROWS = [
+    ['bad', 'קריית משרדים צפון', 'לפני 6 דק׳', '2.15.0', '', 64, [0, 2, 1], '9%', 'bad', '5 שעות'],
+    ['silent', 'מתחם לוגיסטי דרום', 'לפני 41 שעות', '2.14.3', 'גשר 0.9.6', 92, [0, 3, 1], '44%', '', '19 שעות'],
+    ['silent', 'מרפאה רחוב הגפן', 'לפני 3 ימים', '2.12.2', '', 71, [0, 0, 0], '58%', '', '4 ימים'],
+    ['warn', 'מגדל מגורים 12', 'לפני 14 דק׳', '2.15.0', '', 78, [2, 1, 0], '61%', '', '3 ימים'],
+    ['warn', 'בית ספר אלון', 'לפני 2 שעות', '2.13.1', 'גשר 0.9.4', 85, [1, 0, 0], '32%', '', '22 שעות'],
+    ['ok', 'מרכז מסחרי השקד', 'לפני 9 דק׳', '2.15.0', '', 100, [0, 0, 0], '70%', '', '8 שעות'],
+    ['ok', 'משרדי הנהלה - קומה 4', 'לפני 21 דק׳', '2.15.0', '', 96, [1, 0, 0], '81%', '', '11 שעות'],
+    ['ok', 'חניון עירוני מערב', 'לפני שעה', '2.14.3', '', 100, [0, 0, 0], '66%', '', '6 שעות'],
+    ['ok', 'דוגמה - אולם תצוגה', 'לפני 32 דק׳', '2.15.0', '', 100, [0, 0, 0], '88%', '', '2 שעות', true]
+  ];
+  function alerts(a) {
+    var s = []; if (a[2]) s.push('<span class="bad-t">' + a[2] + ' קריטי</span>'); if (a[1]) s.push('<span class="warn-t">' + a[1] + '</span>');
+    if (a[0]) s.push('<span class="muted">' + a[0] + '</span>'); return s.join(' · ') || '<span class="muted">0</span>';
+  }
+  function rowHtml(r) {
+    var p = ST[r[0]];
+    return '<tr data-f="' + r[0] + '"><td><span class="pill ' + p[0] + '">' + p[1] + '</span></td>' +
+      '<td><span class="name">' + r[1] + '</span>' + (r[10] ? ' <span class="muted small">דוגמה</span>' : '') + '</td>' +
+      '<td class="num ' + (r[0] === 'silent' ? 'bad-t' : '') + '">' + r[2] + '</td>' +
+      '<td><span class="mono">' + r[3] + '</span>' + (r[4] ? ' <span class="warn-t small">' + r[4] + '</span>' : '') + '</td>' +
+      '<td class="num">' + r[5] + '%<span class="bar' + (r[5] < 80 ? ' low' : '') + '"><i style="width:' + r[5] + '%"></i></span></td>' +
+      '<td class="num">' + alerts(r[6]) + '</td>' +
+      '<td class="num ' + (r[8] === 'bad' ? 'bad-t' : '') + '">' + r[7] + '</td>' +
+      '<td class="num">' + r[9] + '</td></tr>';
+  }
+  function cardHtml(r) {
+    var p = ST[r[0]];
+    return '<div class="mc" data-f="' + r[0] + '"><div class="r"><span class="name">' + r[1] + '</span><span class="pill ' + p[0] + '">' + p[1] + '</span></div>' +
+      '<div class="r small"><span class="' + (r[0] === 'silent' ? 'bad-t' : 'muted') + '">' + r[2] + '</span><span class="muted"><span class="mono">' + r[3] + '</span> · ' + r[5] + '%</span></div></div>';
+  }
+  $('#rows').innerHTML = ROWS.map(rowHtml).join('');
+  $('#mrows').innerHTML = ROWS.map(cardHtml).join('');
+  var OFFROWS = ROWS.slice(0, 5).map(function (r) { var c = r.slice(); c[0] = 'silent'; return c; });
+  $('#rows-off').innerHTML = OFFROWS.map(function (r) { return '<tr><td><span class="pill p-off">ממתין</span></td><td class="name">' + r[1] + '</td><td class="num muted">' + r[2] + '</td><td class="mono">' + r[3] + '</td></tr>'; }).join('');
+  $('#mrows-off').innerHTML = OFFROWS.map(function (r) { return '<div class="mc"><div class="r"><span class="name">' + r[1] + '</span><span class="pill p-off">ממתין</span></div><div class="r small muted"><span>' + r[2] + '</span></div></div>'; }).join('');
+  $('#skel').innerHTML = new Array(7).join('<div class="skrow"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>');
+
+  function filter(f) {
+    $$('#chips .chip').forEach(function (c) { c.classList.toggle('sel', c.dataset.f === f); });
+    $$('#rows tr, #mrows .mc').forEach(function (r) { r.style.display = (f === 'all' || r.dataset.f === f) ? '' : 'none'; });
+  }
+  $$('#chips .chip').forEach(function (c) { c.onclick = function () { filter(c.dataset.f); }; });
+  $('[data-chip="silent"]').onclick = function () { filter('silent'); };
+  $$('#rows tr, #mrows .mc').forEach(function (r) { r.onclick = function () { go('inst'); }; });
+
+  /* ---------- one installation ---------- */
+  var days = 'gggggggwggggggggwwgggggggbgg' + 'ss'; // oldest -> newest, last two silent
+  $('#strip').innerHTML = days.split('').reverse().map(function (c) { return '<i class="' + ({ w: 'w', b: 'b', s: 's' }[c] || '') + '"></i>'; }).join('');
+  var COMPS = [['מסד נתונים', 'ok'], ['תיקיית נתונים', 'ok'], ['מקליט', 'ok'], ['שרת מדיה', 'ok'], ['סנכרון', 'ok'], ['גשר', 'warn'],
+    ['קליטת אירועים', 'ok'], ['עיבוד אירועים', 'ok'], ['איתור התקנים', 'ok'], ['תמונות ממוזערות', 'ok'], ['ייצוא', 'off'], ['גיבויים', 'ok'], ['Frigate', 'absent']];
+  var CS = { ok: ['p-ok', 'תקין'], warn: ['p-warn', 'אזהרה'], error: ['p-bad', 'תקלה'], off: ['p-off', 'כבוי'], absent: ['p-off', 'לא קיים'], unknown: ['p-off', 'לא ידוע'] };
+  $('#comps').innerHTML = COMPS.map(function (c) { var s = CS[c[1]]; return '<div><span>' + c[0] + '</span><span class="pill ' + s[0] + '">' + s[1] + '</span></div>'; }).join('');
+
+  /* ---------- gallery ---------- */
+  var STATES = {
+    settings: [['off', 'כבוי'], ['on', 'פועל'], ['nourl', 'בלי שרת'], ['failed', 'נכשל'], ['loading', 'טעינה'], ['error', 'שגיאה']],
+    fleet: [['data', 'נתונים'], ['empty', 'ריק'], ['loading', 'טעינה'], ['error', 'שגיאה'], ['intakeoff', 'קבלה מושבתת']],
+    inst: [['silent', 'שותקת']]
+  };
+  var cur = { s: 'settings', st: { settings: 'on', fleet: 'data', inst: 'silent' } };
+  function renderStates() {
+    $('#g-states').innerHTML = STATES[cur.s].map(function (x) { return '<button data-st="' + x[0] + '" aria-pressed="' + (cur.st[cur.s] === x[0]) + '">' + x[1] + '</button>'; }).join('');
+    $$('#g-states button').forEach(function (b) { b.onclick = function () { setState(b.dataset.st); }; });
+  }
+  function setState(st) {
+    cur.st[cur.s] = st;
+    $$('#s-' + cur.s + ' .st').forEach(function (el) { el.classList.toggle('on', el.dataset.st.split(' ').indexOf(st) >= 0); });
+    if (cur.s === 'settings') applySettings(st);
+    renderStates();
+  }
+  function go(s) {
+    cur.s = s;
+    $$('#g-screens button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.s === s)); });
+    $$('.scr').forEach(function (el) { el.classList.toggle('on', el.id === 's-' + s); });
+    setState(cur.st[s]); window.scrollTo(0, 0);
+  }
+  $$('#g-screens button').forEach(function (b) { b.onclick = function () { go(b.dataset.s); }; });
+  $$('[data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; });
+  function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); $('#b-th').setAttribute('aria-pressed', String(dark)); }
+  function width(phone) { $('#stage').classList.toggle('phone', phone); $('#b-w').setAttribute('aria-pressed', String(phone)); }
+  $('#b-th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+  $('#b-w').onclick = function () { width(!$('#stage').classList.contains('phone')); };
+
+  theme(q.get('theme') === 'dark');
+  width(q.get('w') === 'phone');
+  var s0 = STATES[q.get('s')] ? q.get('s') : 'settings';
+  if (q.get('st')) cur.st[s0] = q.get('st');
+  go(s0);
+})();
+</script>
+</body>
+</html>

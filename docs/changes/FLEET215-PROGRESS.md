@@ -24,6 +24,26 @@ Provisional migration: `0149_fleet_report_log.sql` (the lead renumbers at integr
 2. Receiver: deploy decisions (owner), overview page, silence alerting, key rotation message.
 3. Lead: renumber the migration, bump version/changelog/release notes, run the API-inventory test in the gate.
 
+## Slice 2 design mock-up (awaiting owner approval, 2026-10-23)
+`docs/design/mockups/fleet-215/index.html` - static, self-contained, RTL Hebrew, light + dark, desktop + phone (gallery buttons,
+or `?theme=dark&s=settings|fleet|inst&st=<state>&w=phone`). No UI is built until the owner approves it.
+1. Settings > System > health report: consent switch, receiver key (set / not set), signing key id, installation id, enrollment code,
+   last report + attempt log + the exact body, readiness card, demo-data switch, and "what leaves the installation" = every schema
+   leaf of CR section 3 (52 fields, grouped) plus the never-sent list. States: off, on, receiver not set, send failed, loading, error.
+2. Receiver overview: installations with state (ok / warn / error / silent), last seen, version + bridge mismatch, readiness, open
+   alerts, free disk, last backup; silent-installation banner; filter chips; phone card list. States: data, empty, loading, error,
+   intake off.
+3. One installation at the receiver: last seen, readiness, alerts, disk, 30-day strip, components, versions, readiness gaps.
+Checked: headless screenshots at 1280 px light/dark and in the phone frame; no horizontal overflow at 375 px in all 12 states.
+
+### Owner questions that block the UI (recommendation first)
+1. Silence threshold for "שותקת": 36 hours (recommended), 26 hours, or 72 hours?
+2. When the customer turns the report off, send one last signed "reporting stopped" message so the receiver shows "כבוי" instead of
+   "שותקת" (recommended; adds one enum value to the schema), or keep the schema as is and let it fall silent?
+3. Silent-installation alert: on the overview page only in slice 2 (recommended), or also an email / push to SmplWise?
+4. Settings page shows the exact JSON body and the 52-field list to the system administrator (recommended), or the field list only?
+5. Enrollment code: text with a copy button (recommended), or also a QR code for the installer's phone?
+
 ## Open owner questions (recommendation first)
 1. Include `counts.users_active` / `system_admins` (counts only)? Recommend: yes.
 2. Receiver as a separate Worker (recommended) or a route inside the push relay?
