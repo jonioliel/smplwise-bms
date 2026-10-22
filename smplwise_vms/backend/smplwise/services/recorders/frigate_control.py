@@ -179,7 +179,9 @@ class FrigateControl:
             try:
                 act = self.http.get_json("/api/profile/active", optional=True, fresh=True)
             except ApiError as exc:
-                if exc.code != "frigate_route_missing":
+                # FRIGLIVE2-295 (live 0.18.0): this route is admin-only - a `viewer` account gets 403 on it while `/api/profiles`
+                # answers; a role limit on the fallback leaves the active profile unknown instead of failing the whole read
+                if not (exc.code == "frigate_route_missing" or (exc.code == "source_forbidden" and (exc.details or {}).get("status") == 403)):
                     raise
                 act = None
             if isinstance(act, dict):

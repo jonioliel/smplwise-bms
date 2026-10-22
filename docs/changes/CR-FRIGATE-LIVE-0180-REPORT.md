@@ -92,6 +92,8 @@ Full backend suite: NOT_RUN on this branch (only the Frigate files).
 
 ## 5. Open items
 
+Items 1, 2 and 3 were run live on 2026-10-22 and are closed in section 8 (profile switch, viewer role, Frigate's restream).
+
 1. **Profiles**: define one profile in Frigate (owner) to run the profile switch live; it resets runtime toggles of every camera.
 2. **Viewer account**: still unverified which routes a Frigate viewer may read (`/api/config`, `/api/openapi.json`, `/ws`).
 3. **Restream**: this Frigate's go2rtc lists no streams; live video through Frigate's restream stays unverified here.
@@ -179,3 +181,72 @@ All three need something only the owner can define. Arx must not create Frigate 
    A read-only check then lists the restream names (`GET /api/go2rtc/streams`, as Arx's `frigate_restream` reads it), confirms which of them map
    to a camera key, and opens ONE RTSP DESCRIBE (no media) on the restream port with the connection's account to confirm the auth mode
    (`restream_auth`: none or account). Playing video end to end stays a browser check on the owner's screen.
+
+## 8. FRIGLIVE2-295: the three live-unverified items, run live (2026-10-22)
+
+**Branch:** `pilot/FRIGLIVE2-295` (from `release/2121` @ `90cd7d9ae`). **Instance:** the same Frigate 0.18.0-77a66e7. **Authorization:** owner, in
+chat on 2026-10-22 (all remaining Frigate work, writes and config changes approved in advance; same rules: original recorded first, one action at a
+time, verified, restored, redacted evidence). **Arx:** a throwaway local backend of this branch (isolated data directory, `SW_FRIGATE=1`, no
+go2rtc configured, so no stream was created anywhere), the recorder added through `POST /recorders` in TLS **pin** mode. Raw scrubbed log
+(gitignored): `private-evidence/frigate-2026-10-20/live/FRIGLIVE2_ACTIONS_LOG.md` and `viewer_route_matrix_2026-10-22.json`. The raw YAML was
+saved again before the first write (gitignored `secrets/`); at the start it was byte-identical to the 2026-10-21 original.
+
+| # | Step (live) | Original state recorded | Result | Restored / verified |
+|---|---|---|---|---|
+| A1 | Connection test through Arx, pin mode, no pin | - | `tls_pin_required` + fingerprint, 2.8 s | read only |
+| A2 | Connection test with the pin (FRIGATE2 budget) | - | `ok`, 2.2 s (no `timeout` / `source_unavailable` this time) | read only |
+| A3 | Add the recorder (admin account) | empty Arx | 201, `restart_required: true` | throwaway Arx only |
+| A4 | `/frigate/nvr-1/{status,cameras,profiles}` before the restart | - | **404 `not_found`** (expected 409): fix G1 below; after the fix, on a fresh data directory: **409 `recorder_pending_restart`**, `retryable`, `details.restart_required` | read only |
+| B1 | Baseline of every runtime toggle of the 7 cameras (93 values), effective-config hash, raw YAML | yes | - | - |
+| B2 | Define ONE profile `arx_test` (`config/set`, `requires_restart: 0`): top-level `profiles.arx_test.friendly_name` + test camera `profiles.arx_test.motion.improve_contrast: false` | yes | 200; `/api/profiles` lists it at once (no restart needed); Arx lists it; no runtime toggle changed | - |
+| B3 | Through Arx: classes `analytics` + `profile` on; a runtime switch on a SECOND camera (`improve_contrast` off, verified); switch without `confirm` | - | 409 `confirmation_required` | - |
+| B3 | Through Arx: `PUT /frigate/nvr-1/profile {"profile": "arx_test", "confirm": true}` | - | 200, `verified: true` in 0.8 s; Frigate `active_profile: arx_test`; **the second camera's runtime switch was reset to its config value** (false -> true) and the test camera took the profile override (true -> false), nothing else changed: the documented "Frigate clears the runtime toggles on a switch" holds | - |
+| B4 | Undo of the runtime switch the profile already reset | - | **409 `frigate_change_stale`** (correct: Frigate no longer shows the state that change left; nothing sent) | - |
+| B4 | Undo of the profile switch (without, then with `confirm`) | - | 409 `confirmation_required`, then 200 `verified`; `active_profile: null`; all 93 toggles equal to the baseline | yes |
+| B5 | Restore: `config/set` `profiles: ""` and the camera's `profiles: ""` | - | 200; **raw YAML byte-identical**, effective-config hash equal, `/api/profiles` empty, Arx lists none | yes |
+| C1 | Create ONE Frigate user `arx_viewer_test`, role `viewer` (random password, kept only in a gitignored secrets file) | users: 1 | 200, users: 2 | deleted in F1 |
+| C2 | Direct route matrix with the viewer (one login, statuses only) | - | table below | read only (two refused writes) |
+| C3 | Arx connection test + save with the viewer account | - | test `ok` 3.0 s; saved, restart | throwaway Arx only |
+| C4 | Every Arx read route with the viewer account (status, cameras, reviews, summary, activity, still, recordings, summary, playback, export plan, storage, policy, control, profiles, exports, cases, config schema, camera config, recorder health) | - | all 200 except **`/frigate/nvr-1/storage`: 503 `source_forbidden`** (Frigate 403 on `/api/recordings/storage`): fix G2; after the fix 200 with `usage_unavailable: "role_limited"`; the health card is complete (its storage part already treated the 403 as a named part); WebSocket `connected` | read only |
+| C5 | A write through Arx with the viewer account (`analytics` on, `improve_contrast` off) | - | **409 `frigate_write_forbidden`** (`details.status: 403`), change-log row `failed`, Frigate unchanged; class switched off again | nothing changed |
+| D1 | Add ONE stream to Frigate's OWN go2rtc: `PUT /api/go2rtc/streams/<test camera>?src=<that camera's own input>` (runtime; not the intercom go2rtc, no `smplwise_` stream touched) | streams: none | 200; `/api/go2rtc/streams` lists it with 1 producer; **the YAML is not changed** by this runtime API | removed in D4 |
+| D1 | Arx discover + status | `live.mode: still`, `no_streams` | `live.mode: restream`, `cameras_live: 1`, `reason: partial`, `auth: none` | - |
+| D2 | Arx's own plan + `frigate_restream.source_url` for that camera | - | plan `{main, sub}` = the camera key (`live.streams`); URL `rtsp://<frigate host>:8554/<camera>` with no credentials | - |
+| D2/D3 | Video through that URL (ffprobe / ffmpeg on the workstation, no credentials) | - | DESCRIBE + SETUP OK without credentials (so `restream_auth: none` is right for this instance): H.264 2560x1440; 54 frames decoded in 12 s; one JPEG frame (184 kB) | read only |
+| D4 | Restore: `DELETE /api/go2rtc/streams/<test camera>` | - | 200; streams: none; YAML and effective config equal to the baseline; Arx back to `still` / `no_streams` | yes |
+| E | FRIGATE2 item 4 through Arx (`config` class, supervised): `motion.threshold: null` on the test camera, which does not hold the key (inherits 30) | key absent | 200 `changed: false`, `verified`, no `config/set` sent, YAML unchanged; then 30 -> 31 and `null` again: the key is removed, YAML **byte-identical** | yes |
+| F1 | Delete the test viewer user; final comparison | - | users: 1; raw YAML byte-identical to the 2026-10-21 original; effective-config hash, all 93 runtime toggles, profiles (none) and go2rtc streams (none) equal to the start | yes |
+
+**Viewer route matrix (Frigate 0.18.0, role `viewer`):**
+
+| Allowed (200) | Refused (403) |
+|---|---|
+| `/api/version`, `/api/stats`, **`/api/config`**, **`/api/openapi.json`**, `/api/go2rtc/streams`, `/api/labels`, `/api/sub_labels`, `/api/profile`, `/api/profiles`, `/api/events` (+ `/{id}`, thumbnail), `/api/review` (+ `/{id}`, `/summary`, `/activity/motion`), `/api/{cam}/recordings` (+ `/summary`), `/api/{cam}/latest.jpg`, `/vod/.../index.m3u8`, `/api/{cam}/ptz/info`, `/api/exports`, `/api/cases`, `/api/config/schema.json`, range `clip.mp4`, **`/ws`** (upgrade OK, frames delivered) | **`/api/recordings/storage`**, **`/api/profile/active`**, `/api/users`, `/api/config/raw`, and every write tried (`PUT /api/camera/{cam}/set/...`, `PUT /api/camera/*/set/profile`): "A user with the admin role is required" |
+
+So the CR-029 section 7 assumptions are answered: a viewer **can** read `/api/config`, `/api/openapi.json` and `/ws` (discovery and
+`routes_known` work with a viewer account); it cannot read the storage usage or the separate active-profile route; and **every Frigate write
+class needs an admin-role account** (with a viewer Arx answers `frigate_write_forbidden`, named and logged, nothing changes).
+
+### 8.1 Fixes made (code + tests)
+
+| Fix | Live finding | Change | Tests |
+|---|---|---|---|
+| G1 | The FIRST recorder (`nvr-1`) added as Frigate after the start answered 404 `not_found` instead of FRIGATE2's 409 `recorder_pending_restart`: the process runs `nvr-1` with its start-up connection (default vendor; a placeholder host on a developer backend, an empty or old host in the add-on), so the "no host" test missed it | `frigate_io.adapter_for`: pending when the process does not hold a **Frigate** connection for that id (no host OR another vendor) and the stored row is an enabled Frigate one | `test_friglive2_295.py` (5) |
+| G2 | `/frigate/{rid}/storage` failed as a whole (503 `source_forbidden`) with a viewer account | a 403 on `/api/recordings/storage` is a role limit: 200 with `cameras: []` and `usage_unavailable: "role_limited"`, policy and retention still served; a 401, outage or pin problem still fail | `test_friglive2_295.py` (3) |
+| G3 | `/api/profile/active` is admin-only | the fallback read (used only when `/api/profiles` carries no `active_profile`) treats a 403 as "unknown" instead of failing; a 401 still fails | `test_friglive2_295.py` (2) |
+
+### 8.2 Behaviour measured, no code change
+
+- **Profiles**: defined and removed with `config/set` and `requires_restart: 0`; Frigate lists a new profile at once. Activating a profile resets
+  runtime switches of other cameras to their config values and applies the profile's overrides; deactivating it returns every camera to its base
+  config. A change-log row of a runtime switch that a later profile switch reset stays `applied` in Arx's log, but its undo is refused as
+  `frigate_change_stale` (nothing is sent) - correct and fail-safe; the row's status is not rewritten. Residue in Frigate: `/api/profiles`
+  keeps `last_activated: {"arx_test": <time>}` after the profile was removed (runtime state, not in the YAML).
+- **Restream**: Frigate's runtime `PUT /api/go2rtc/streams/{name}?src=` adds a stream without touching the YAML (it would not survive a
+  Frigate restart); a permanent restream is a `go2rtc.streams` section in Frigate's YAML (restart needed) - an owner decision. The restream on
+  this instance needs no RTSP credentials.
+- **Probe budget (FRIGATE2 item 7)**: two connection tests took 2.2 s and 3.0 s (6 calls each); no timeout seen, so the longer budget was not
+  exercised by a slow login today.
+- **Not run:** the browser leg of live video (Arx's go2rtc -> WebRTC/MSE in the player): the throwaway Arx had no go2rtc of its own, and the
+  lab go2rtc was not used because its `smplwise_nvr-1_*` names belong to the lab's own Arx. The source Arx's go2rtc would pull was played
+  instead (D2/D3). PTZ: no PTZ camera.

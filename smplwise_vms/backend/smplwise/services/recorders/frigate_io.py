@@ -51,7 +51,11 @@ def adapter_for(conn: sqlite3.Connection, settings: Settings, recorder_id: str) 
     # FRIGATE2-295 (open item 8): connections are overlaid into the process ONCE at start (CR-024 owner decision: every recorder change
     # waits for a restart), so a Frigate recorder added after the start has a stored connection this process does not hold. Say that
     # (409 `recorder_pending_restart`) instead of the generic 503 `source_not_configured` the empty settings would give at the device.
-    if recorder_id in registry.recorder_ids(conn) and not settings_for(settings, recorder_id).nvr_host:
+    # FRIGLIVE2-295 (live, 2026-10-22): the FIRST recorder (`nvr-1`) added as Frigate after the start is not "empty" in the process: it
+    # runs with the start-up connection (the default vendor; a developer backend even has a placeholder host), so the check is "the
+    # process does not hold a Frigate connection for this id", not "it holds no host" - the live run answered a misleading 404 here.
+    loaded = settings_for(settings, recorder_id)
+    if recorder_id in registry.recorder_ids(conn) and (not loaded.nvr_host or (loaded.nvr_vendor or "") != VENDOR):
         row = connection_store.get_row(conn, recorder_id)
         if row is not None and row["vendor"] == "frigate" and row["host"] and row["enabled"]:
             raise ApiError(409, "recorder_pending_restart", "המקליט נשמר וממתין להפעלה מחדש של התוסף לפני שיענה. הפעילו מחדש את התוסף (הגדרות מערכת) ורעננו.",
