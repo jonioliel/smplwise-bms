@@ -1,0 +1,10 @@
+{
+ "body": "{\"alerts_open\":{\"alert\":2,\"critical\":0,\"info\":1},\"backup\":{\"count\":6,\"last_age_h\":50,\"offbox_targets\":0},\"components\":{\"backups\":\"warn\",\"bridge\":\"ok\",\"db\":\"ok\",\"discovery\":\"ok\",\"events_derive\":\"ok\",\"events_ingest\":\"ok\",\"exports\":\"ok\",\"frigate\":\"absent\",\"go2rtc\":\"ok\",\"ha_sync\":\"ok\",\"nvr\":\"ok\",\"storage\":\"ok\",\"thumbnails\":\"ok\"},\"counts\":{\"cameras\":24,\"floors_published\":3,\"ha_entities\":512,\"recorders\":1,\"recorders_by_vendor\":{\"frigate\":0,\"hikvision\":1,\"none\":0,\"provision_isr\":0},\"system_admins\":2,\"users_active\":7},\"demo_mode\":false,\"disk\":{\"free_gb\":38,\"free_pct\":41,\"total_gb\":93},\"generated_at\":\"2026-10-22T03:17:00Z\",\"installation_id\":\"0123456789abcdef0123456789abcdef\",\"mode\":\"full\",\"overall\":\"warn\",\"readiness\":{\"missing\":[\"backup_recent\",\"backup_offsite\"],\"ready\":false,\"score\":86},\"schema\":\"smplwise-fleet-report/1\",\"seq\":7,\"update\":{\"available\":false,\"check\":\"current\",\"latest\":\"2.12.1\"},\"uptime_h\":412,\"versions\":{\"addon\":\"2.12.1\",\"bridge\":\"0.9.7\",\"bridge_required\":\"0.9.0\",\"db_schema\":149,\"go2rtc\":\"1.9.9\",\"ha\":\"2026.10.2\"}}",
+ "context": "smplwise-fleet-report/1\n",
+ "enrollment_code": "arx-fleet-1.0123456789abcdef0123456789abcdef.56475aa75463474c.A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+ "installation_id": "0123456789abcdef0123456789abcdef",
+ "kid": "56475aa75463474c",
+ "note": "THROWAWAY test key (seed 0..31). Enrolled nowhere. Regenerate with tools/gen_fixtures.py.",
+ "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+ "signature": "KPTC2y19CoMoY4BXzn2su8d99hy8Vchil7Gb1rplGykXfbzT1okc/4qZGMEtfUizv9MjYkW7hoB0foKGVlVcAA=="
+}
