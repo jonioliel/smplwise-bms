@@ -1,0 +1,131 @@
+{
+  "fixture_version": "arx-station-pending-round2.v1",
+  "scope": "Synthetic; Arx's station-removal model on WisKey's synthetic round-2 input. Not native absence evidence, not a physical removal at any door, not an Arx removal decision by itself",
+  "person_id": "person-a",
+  "revision": 4,
+  "snapshot": {
+    "users": {
+      "person-a": {
+        "id": "person-a",
+        "revision": 4,
+        "access_timing_policy": null,
+        "assignments": {
+          "station-a": {
+            "enabled": false,
+            "allowed_locks": [],
+            "desired_revision": 4,
+            "applied_revision": 4,
+            "sync_state": "synced",
+            "last_sync_at": "2026-10-23T00:00:00+00:00"
+          },
+          "station-b": {
+            "enabled": false,
+            "allowed_locks": [],
+            "desired_revision": 4,
+            "applied_revision": 3,
+            "sync_state": "pending",
+            "last_sync_at": "2026-10-23T00:00:00+00:00"
+          }
+        }
+      }
+    },
+    "bindings": {},
+    "tombstones": {},
+    "retired_cards": {},
+    "retired_pins": {},
+    "sync_operations": {
+      "person-a/station-c": {
+        "user_id": "person-a",
+        "station_id": "station-c",
+        "state": "pending",
+        "verified_at": null
+      }
+    }
+  },
+  "expected_pending": {
+    "bindings": [],
+    "tombstones": [],
+    "cards": [],
+    "pins": [],
+    "operations": [
+      "station-b",
+      "station-c"
+    ],
+    "unverified": []
+  },
+  "provenance": {
+    "producer": "SmplWise Arx",
+    "branch": "pilot/WKBRIDGE-295",
+    "base": "main c37c75c917c79f694039c961174db37d57d43c4c (v2.12.3)",
+    "semantics": "pilot/WKB-295 812b49a1df5f8b0ca31803754d114066ed56d6a1 (per-station removal; a queued id without a row keeps other stations UNKNOWN)",
+    "generator": "smplwise_vms/backend/tests/wkbridge_fixture.py",
+    "wiskey_input": {
+      "repository": "home-assistant-hikvision-intercom",
+      "commit": "f842b2c523b22b8d1f4275ca9b02f78acb1010fd",
+      "path": "tests/fixtures/arx_station_pending_round2.json",
+      "git_blob": "3e6488a21d0ceb5b66cd4056e23442b2bfa5ac47",
+      "file_sha256": "b82955330e3427639ca1a2f4c64a36c4a7aefa6736585dc98c531a67cad7048e"
+    },
+    "synthetic": true,
+    "assumed": "ASSUMED-PENDING-WISKEY-SHA: the snapshot -> access_state_v2 projection is Arx's reading of WisKey's; WisKey owns it",
+    "wiskey_input_canonical_sha256": "5e17c87f9ec26c41bb0116f7caaa7a632de3e53bb0f383adbadabb6cfa713399"
+  },
+  "arx": {
+    "access_state_v2": {
+      "schema_version": 2,
+      "observation": "durable_repository_snapshot",
+      "scope": "all_managed_stations",
+      "user_id": "person-a",
+      "person_revision": 4,
+      "presence": "present",
+      "revocation_pending": true,
+      "stations_synced": null,
+      "assignments": [
+        {
+          "station_id": "station-a",
+          "enabled": false,
+          "allowed_locks": [],
+          "desired_revision": 4,
+          "applied_revision": 4,
+          "sync_state": "synced",
+          "applied": true
+        },
+        {
+          "station_id": "station-b",
+          "enabled": false,
+          "allowed_locks": [],
+          "desired_revision": 4,
+          "applied_revision": 3,
+          "sync_state": "pending",
+          "applied": false
+        }
+      ],
+      "timing_policy": null,
+      "pending": {
+        "bindings": [],
+        "tombstones": [],
+        "cards": [],
+        "pins": [],
+        "operations": [
+          "station-b",
+          "station-c"
+        ],
+        "unverified": []
+      },
+      "central_revocation_predicate": "inactive-no-enabled-assignments-no-groups-no-overrides-no-pin-v1",
+      "central_revoked": false
+    },
+    "station_verdicts": {
+      "station-a": "unknown",
+      "station-b": "pending",
+      "station-c": "pending"
+    },
+    "person_verdict": "pending",
+    "notes": {
+      "station-a": "disabled row applied at revision 4, but station-c is queued with no assignment row and cannot be attributed: UNKNOWN",
+      "station-b": "named in operations (applied 3 < desired 4): removal work owed",
+      "station-c": "named in operations with no assignment row: removal work owed; never proven removed from this answer",
+      "person": "removal queues are not empty: the person is not clean (a station proof is never a person clean)"
+    }
+  }
+}
