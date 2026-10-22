@@ -338,13 +338,14 @@ def _check_ports(fields: dict[str, Any]) -> None:
 def _run_probe(request: Request, conn: sqlite3.Connection, settings: Settings, fields: dict[str, Any], password: str | None) -> dict[str, Any]:
     """The source policy, then the GET-only probe with the database write lock released. Raises 422 host_refused. A name that
     does not resolve is never handed to the HTTP client (review F3): `source_unavailable`, no connection. Name resolution and
-    the probe share one 8 s budget (third review)."""
+    the probe share one budget (third review; Frigate gets at least FRIGATE_MIN_BUDGET_S)."""
     with unlocked(conn):
         return connection_probe.check_and_probe(fields["host"], settings, lambda target: connection_probe.candidate(
             settings, vendor=fields["vendor"], target=target, http_port=fields["http_port"], rtsp_port=fields["rtsp_port"],
             username=fields["username"], password=password, extra=fields.get("extra")),
             ports={"http_port": fields.get("http_port"), "rtsp_port": fields.get("rtsp_port")},
-            ha_names=connection_probe.ha_host_names(settings, request.headers.get("x-forwarded-host")))
+            ha_names=connection_probe.ha_host_names(settings, request.headers.get("x-forwarded-host")),
+            min_budget_s=connection_probe.FRIGATE_MIN_BUDGET_S if fields["vendor"] == "frigate" else 0.0)
 
 
 def _revision_now(conn: sqlite3.Connection, rid: str = PRIMARY) -> int:

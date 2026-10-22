@@ -16,11 +16,14 @@ user name, password, token or stream URL in any error detail or log line. The JW
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import json
 import re
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
@@ -202,6 +205,26 @@ def scrub(value: Any) -> Any:
 
 # ---------------------------------------------------------------------------------------------- errors
 
+_STEP_TIMEOUT: contextvars.ContextVar[float | None] = contextvars.ContextVar("sw_frigate_step_timeout", default=None)
+_TIMEOUT_ERRORS = frozenset({"ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout", "TimeoutException"})
+
+
+@contextlib.contextmanager
+def step_timeout(seconds: float) -> Iterator[None]:
+    """Inside the block no single request of this thread gets a shorter timeout than `seconds` (the connection test of a slow instance;
+    `nvr.deadline` still bounds the whole test). Normal operation keeps READ_TIMEOUT_S / LOGIN_TIMEOUT_S."""
+    token = _STEP_TIMEOUT.set(seconds)
+    try:
+        yield
+    finally:
+        _STEP_TIMEOUT.reset(token)
+
+
+def is_timeout(exc: ApiError) -> bool:
+    """A `source_unavailable` that came from a network timeout (the instance answered too slowly), as opposed to a refused connection or a 5xx."""
+    return exc.code == "source_unavailable" and (exc.details or {}).get("error") in _TIMEOUT_ERRORS
+
+
 def unavailable(op: str, exc: Exception) -> ApiError:
     return ApiError(503, "source_unavailable", "Frigate אינו זמין כרגע.", retryable=True, details={"op": op, "error": type(exc).__name__})
 
@@ -341,6 +364,10 @@ class FrigateHttp:
 
     def _client(self, timeout: float = READ_TIMEOUT_S) -> httpx.Client:
         from ...mode import ensure_recorder_enabled
+
+        floor = _STEP_TIMEOUT.get()
+        if floor is not None:
+            timeout = max(timeout, floor)   # a connection test only (step_timeout); still capped by the test's own deadline
 
         ensure_recorder_enabled(self._settings)  # a recorder disabled while the process runs is never contacted
         s = self._settings
