@@ -597,15 +597,21 @@ class WiskeyTalkChannel:
         when = _ts(self.expires_at)
         try:
             reply = await asyncio.to_thread(self.provider.transport.act, self.settings, "talk",
-                                            lambda call: w10.talk_open(call, d.session, self.actor, self.request_id, when), w10.project_talk_open, self.actor.id)
+                                            lambda call: w10.talk_open(call, d.session, self.actor, self.request_id, when), w10.project_object, self.actor.id)
         except ApiError as exc:
             code = _wiskey_code(exc)
             if code in w10.BUSY_CODES:  # the panel or another operator holds the station: who is never said
                 raise ApiError(409, "intercom_talk_busy", "מישהו אחר כבר מדבר עם העמדה.", retryable=True) from exc
             raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה לא פתחה ערוץ דיבור.", details={"reason": w10.unavailable_reason(code)}) from exc
-        opened = reply.get("talk")
-        if not isinstance(opened, w10.TalkOpened):
-            raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה לא פתחה ערוץ דיבור.")
+        raw = reply.get("talk")
+        try:
+            opened = w10.parse_talk_open(raw)
+        except w10.ContractError as exc:
+            log.warning("station media: a talk open answer refused (%s)", exc.code)
+            self.ref = w10.talk_ref_of(raw)  # WisKey may hold its busy lock for it: closed at once when it can be named
+            if self.ref is not None:
+                await self.close("ended")
+            raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה לא פתחה ערוץ דיבור.", details={"reason": exc.code}) from None
         self.ref = opened.talk_ref
         WISKEY_TALKS.add(opened.talk_ref, self)
         if opened.codec != d.audio_codec:  # the browser encodes the descriptor's codec: a different one would be noise at the door
@@ -730,11 +736,16 @@ class WiskeyProvider:
         who = actor or w10.SYSTEM_ACTOR
         rid = _rid()
         try:
-            lease = self._read(settings, "lease", lambda call: w10.stream_lease(call, d.session, profile, who, rid), w10.project_lease, who.id)
+            raw = self._read(settings, "lease", lambda call: w10.stream_lease(call, d.session, profile, who, rid), w10.project_object, who.id)
         except Unavailable as exc:
             raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from exc
-        if not isinstance(lease, w10.StreamLease):
-            raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": "lease_invalid"})
+        try:
+            lease = w10.parse_lease(raw)
+        except w10.ContractError as exc:
+            log.warning("station media: a stream lease refused (%s)", exc.code)  # the rule only, never the value
+            raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
+        finally:
+            raw = None  # the source lives on only inside the lease
         if lease.stream is not None:
             return lease.stream  # a stream in Arx's own namespace (checked by the contract): named only, never created here
         base = g2.wiskey_stream_name(sid)

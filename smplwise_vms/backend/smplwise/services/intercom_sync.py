@@ -1220,7 +1220,7 @@ class IntercomSync:
         frames only while the floor is held, at most 100 a second, at most 1024 bytes) plus the caller's bound on frames in
         flight. Only the `media` channel's guard is used, so nothing else can ride this path."""
         loop = self._event_loop
-        if channel != "media" or loop is None or self._call is None or STATE.state != "ready":
+        if channel != "media" or loop is None or getattr(self, "_call", None) is None or STATE.state != "ready":
             return None
         coro = self._one_off(send, None, channel)
         try:
