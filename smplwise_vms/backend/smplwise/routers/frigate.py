@@ -581,8 +581,18 @@ def storage(recorder_id: str, request: Request, principal: Principal = Depends(c
     _may_read(conn, principal)
     a = _adapter(conn, request, recorder_id)
     names = {r["source_ref"]: (r["alias"] or r["name_source"]) for r in conn.execute("SELECT source_ref, alias, name_source FROM cameras WHERE recorder_id = ?", (recorder_id,)).fetchall()}
-    usage = a.storage_usage()
+    # FRIGLIVE2-295 (live 0.18.0): `/api/recordings/storage` is admin-only - a Frigate `viewer` account gets 403 there while it reads
+    # everything else Arx uses. A 403 on that ONE route is a role limit, not a refused session: the per-camera usage is named as
+    # unavailable and the policy / retention parts are still served (a 401, an outage or a pin problem still fail the request).
+    unavailable: str | None = None
+    try:
+        usage = a.storage_usage()
+    except ApiError as exc:
+        if not (exc.code == "source_forbidden" and (exc.details or {}).get("status") == 403):
+            raise
+        usage, unavailable = {}, "role_limited"
     cams = [{"key": k, "name": names.get(k) or k, "usage_mb": v.get("usage"), "bandwidth_mb_per_h": v.get("bandwidth"), "usage_percent": v.get("usage_percent")}
             for k, v in usage.items() if isinstance(v, dict)]
     doc = a.cached_discovery() or a.discover()
-    return {"recorder_id": recorder_id, "cameras": cams, "policy": fp.recording_policy(doc["summary"].get("retention")), "retention": doc["summary"].get("retention")}
+    return {"recorder_id": recorder_id, "cameras": cams, "usage_unavailable": unavailable,
+            "policy": fp.recording_policy(doc["summary"].get("retention")), "retention": doc["summary"].get("retention")}
