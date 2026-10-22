@@ -45,7 +45,7 @@ Requirements and limits, stated honestly:
 ## 3. Wire format
 
 Base: `/api/v1` (on the remote channel `/arx/api/v1`). JSON in and out, UTF-8. `Authorization: Bearer <token>`. Times are UTC ISO-8601 with `Z`.
-`request_id`: 8-128 characters of `[A-Za-z0-9_.:-]`, **chosen by WisKey, unique per send**, the idempotency key.
+`request_id`: 8-128 characters of `[A-Za-z0-9_.:-]`, **chosen by WisKey, unique per send**, the idempotency key. Reusing a `request_id` with a different `sender_ref` or `class` than its first `reserve` is refused (`granted: false`, `reason: request_id_conflict`) and charges nothing; a true repeat keeps its meaning.
 `sender_ref`: WisKey's opaque sender id, bound to an Arx account by the administrator (`senders` map in the pacing settings). A `sender_ref` Arx does not
 know is denied `sender_unknown`.
 `class`: `alert | code | ticket | reminder` (the shares in `CR-WA-PACING-295.md`; an operational alert is admitted through backoff and throttle, counted).
