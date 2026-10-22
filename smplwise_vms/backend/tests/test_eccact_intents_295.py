@@ -174,7 +174,7 @@ def test_the_resolve_request_carries_only_the_original_references(conn):
 
 def test_the_live_resolve_transport_is_not_built(conn):
     with pytest.raises(wp.PeerSeamError) as e:
-        wi.LiveResolveTransport().resolve(admit_create(conn))
+        wi.LiveResolveTransport().resolve(PEER, wp.ResolveOriginal.of(PEER, descriptor_epoch="e1", descriptor={"request": {"id": "r"}}))
     assert e.value.code == "not_built"
 
 

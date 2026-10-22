@@ -85,6 +85,11 @@ SETTINGS: dict[str, tuple[str, Any]] = {
 CONFIRM_TTL_S = 20
 RETRY_GAP_S = 10
 MAX_ATTEMPTS = 3
+# WKADAPT-295 / WisKey DW-09 (owner decision 2026-10-23): the bounded retry of an OPEN apply whose outcome is UNKNOWN stays OFF until all four DW-09
+# conditions are proven jointly with WisKey: (a) de-duplication by request_id for >= 15 min with no extra effect (restart and lost ACK included);
+# (b) hold until the matching release (a finite hold/pulse is not a hold); (c) a durable release beats a late/stale apply; (d) `duplicate:true`
+# only in a separate numbered emergency contract. Only a build change flips this - there is no setting, and LIVE_ENGINE_BUILT alone never enables it.
+DW09_OPEN_RETRY_AFTER_UNKNOWN = False
 REASON_MAX = 200
 LIMITS = {"user_gap_s": 10, "user_hour": 5, "installation_hour": 12, "drill_user_hour": 10, "prepare_per_min": 10}
 
@@ -593,12 +598,15 @@ def dispatch(db: Database, settings: Any, incident_id: str, phase: str, confirme
 
 
 def _retryable(row: sqlite3.Row, phase: str) -> bool:
-    """Which unknown outcomes may be retried (bounded): LOCK apply (the close direction), OPEN apply (E-1, the one exception to SR-3), and
-    the release of an OPEN (the close direction). Never the release of a LOCK (it re-activates schedules)."""
-    # E-04 (Fable review 2, owner decision 2026-10-21 option C: "in an emergency we always open"): the E-1 exception stays - an UNKNOWN OPEN apply is
-    # repeated, bounded (3 attempts, 10 s apart). EVERY attempt carries the SAME per-door request_id, so an engine that de-duplicates by request_id cannot open
-    # twice; WisKey must confirm that idempotency in the W13-e contract (docs/changes/CR-DOORWIN2-295-BUILD-NOTES.md).
-    return phase == "apply" or (phase == "release" and row["kind"] == "open")
+    """Which unknown outcomes may be retried (bounded): LOCK apply (the close direction) and the release of an OPEN (the close direction).
+    An OPEN apply (E-1) only while DW09_OPEN_RETRY_AFTER_UNKNOWN is True - OFF until the four WisKey DW-09 conditions are proven.
+    Never the release of a LOCK (it re-activates schedules)."""
+    # E-04 (Fable review 2, owner decision 2026-10-21 option C: "in an emergency we always open"): the E-1 retry is bounded (3 attempts, 10 s apart) and EVERY
+    # attempt carries the SAME per-door request_id. Owner decision 2026-10-23 (WisKey DW-09): that retry stays OFF until WisKey's de-duplication, hold,
+    # release-beats-stale-apply and duplicate contract are proven jointly (see DW09_OPEN_RETRY_AFTER_UNKNOWN).
+    if phase == "apply":
+        return row["kind"] != "open" or DW09_OPEN_RETRY_AFTER_UNKNOWN is True
+    return phase == "release" and row["kind"] == "open"
 
 
 def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: list[tuple[str, int, dwe.DoorOutcome]], sent_ms: list[int],

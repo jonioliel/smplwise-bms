@@ -14,9 +14,13 @@ Why
   refuses a second admission of the same operation / request / origin (unique keys) and a second terminal fact.
 
 Status
-- The wire shape of the create resolution (`PROPOSED_CREATE_COMMAND`, protocol `wiskey-create-resolution-draft1`) is Arx's PROPOSAL for
-  the joint pin with the Mac; WisKey f66bf67b has no such command. The module is fake-tested; the live read is NOT built
-  (`LiveResolveTransport` refuses `not_built`). `query_owner_ref` is an opaque ref: an HA user id, or the agreed bridge service type once
+- WKADAPT-295 (WisKey round 2, 2026-10-23): the REAL read is `hikvision_intercom/peer_receipts/resolve` (wiskey_peer.RESOLVE_COMMAND,
+  `resolve_parameters` / `verify_resolution`), settled here by `settle_resolution`: `found` -> committed, everything else stays UNKNOWN
+  and open. It never writes never_committed and an UNKNOWN never makes an intent sendable again (no replay, no re-create).
+- HISTORICAL: `PROPOSED_CREATE_COMMAND` / `verify_create_resolution` / `ExactOriginal.as_request` were Arx's PROPOSAL
+  (`wiskey-create-resolution-draft1`); WisKey says it is not an alias of peer_receipts/resolve and never shipped it. No caller.
+- The live read is NOT built (`LiveResolveTransport` refuses `not_built`): the signed peer_query client, the pairing-key source and the
+  W1 descriptor + descriptor_epoch Arx would have to store per write are not available yet. `query_owner_ref` is an opaque ref: an HA user id, or the agreed bridge service type once
   the joint pin names it - this module never fabricates either."""
 from __future__ import annotations
 
@@ -27,7 +31,9 @@ from typing import Any
 
 from . import wiskey_peer as wp
 
-PROPOSED_CREATE_COMMAND = "hikvision_intercom/person_writes/resolve_create"  # Arx PROPOSAL; not on the wire (WisKey f66bf67b has no such command)
+RESOLVE_COMMAND = wp.RESOLVE_COMMAND  # the real receipt read (peer_receipts/resolve)
+# HISTORICAL (WKADAPT-295): never shipped by WisKey and not an alias of RESOLVE_COMMAND; kept only for the old fake tests, never wired
+PROPOSED_CREATE_COMMAND = "hikvision_intercom/person_writes/resolve_create"
 PROPOSED_CREATE_CAPABILITY = "person_create_resolution_v1"
 CREATE_PROTOCOL = "wiskey-create-resolution-draft1"
 CREATE_SCOPE = "central_person_create"
@@ -67,7 +73,8 @@ class ExactOriginal:
     revision_before: int | None
 
     def as_request(self) -> dict[str, Any]:
-        """The PROPOSED resolve request: the exact original references and nothing else (no name / PIN / card / policy field exists)."""
+        """HISTORICAL refs-only request of the never-shipped proposal; NOT the peer_receipts/resolve wire (that needs the full
+        seven-field original: wiskey_peer.ResolveOriginal + resolve_parameters). No name / PIN / card / policy field exists."""
         return {"repository_id": self.repository_id, "operation_id": self.operation_id, "request_id": self.request_id,
                 "origin_ref": self.origin_ref, "operation_binding_ref": self.operation_binding_ref,
                 "peer_binding_ref": self.peer_binding_ref, "peer_binding_revision": self.peer_binding_revision}
@@ -275,9 +282,32 @@ def open_intents(conn: sqlite3.Connection) -> list[ExactOriginal]:
     return [_row_original(r) for r in rows]
 
 
-class LiveResolveTransport:
-    """The live READ of an exact-original resolution is not built: the command name, envelope and identity are a joint pin with the
-    Mac (2026-10-21). It refuses without sending a frame."""
+def settle_resolution(conn: sqlite3.Connection, o: ExactOriginal, verdict: wp.ResolutionVerdict, now: str | None = None) -> str:
+    """Record a peer_receipts/resolve verdict (wiskey_peer.verify_resolution) for an update OR a create intent. `found` settles the
+    intent as committed (once; a different later fact is a conflict). Anything else marks it UNKNOWN and leaves it open: this route
+    NEVER writes never_committed, and an unknown intent can never be sent again (mark_sent only moves `intent`) - no replay."""
+    if not isinstance(verdict, wp.ResolutionVerdict):
+        raise IntentError("not_a_resolution")
+    if not verdict.settles or verdict.state != "committed":
+        mark_unknown(conn, o, verdict.code, now)
+        return "open"
+    # A committed row needs revision_after (and, for a create, the created person id) - migration 0145's CHECK. WisKey names
+    # `person_revision` in the receipt; the created person's key is not pinned yet (`user_id` assumed). A found receipt without them
+    # cannot be recorded: the intent stays UNKNOWN and open (still never replayed) until the receipt schema is pinned with WisKey.
+    rec = verdict.receipt or {}
+    revision_after, created = rec.get("person_revision"), rec.get("user_id") if o.is_create else None
+    if not wp.is_pos_int(revision_after) or (o.is_create and (not wp.is_ref(created) or revision_after != 1)):
+        mark_unknown(conn, o, "receipt_incomplete", now)
+        return "open"
+    if not o.is_create and o.revision_before is not None and revision_after <= o.revision_before:
+        mark_unknown(conn, o, "receipt_incomplete", now)
+        return "open"
+    return _terminal(conn, o, "committed", "resolved_found", created, revision_after, now)
 
-    def resolve(self, original: ExactOriginal) -> Any:  # noqa: ARG002
+
+class LiveResolveTransport:
+    """The live peer_receipts/resolve READ is not built: it needs the signed peer_query client (wiskey-peer-query.v1 bridge proof,
+    signed wiskey-peer-http.v1 response) and the pairing-key source. It refuses without sending a frame."""
+
+    def resolve(self, current: wp.VerifiedPeerRef, original: wp.ResolveOriginal) -> Any:  # noqa: ARG002
         raise wp.PeerSeamError("not_built")
