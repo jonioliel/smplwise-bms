@@ -444,6 +444,8 @@ export const SOURCE_CATALOG: readonly SourceInfo[] = [
 export const TICKET_SOURCES: readonly SourceInfo[] = [
   S('ticket.new_unassigned', 'חדש וממתין למטפל', 'tickets', 'alert', 'ticket'),
   S('ticket.assigned', 'הועבר לטיפולך', 'tickets', 'alert', 'ticket'),
+  S('ticket.status_update', 'סטטוס עודכן', 'tickets', 'info', 'ticket'), // PUSHSVC-295
+  S('ticket.comment_added', 'נוספה הערה', 'tickets', 'info', 'ticket'),
   S('ticket.reminder', 'תזכורת למטפל', 'tickets', 'alert', 'clock'),
   S('ticket.stuck', 'חריגה מזמני הטיפול', 'tickets', 'alert', 'warning'),
   S('ticket.returned', 'הוחזר למנהל', 'tickets', 'alert', 'ticket'),
