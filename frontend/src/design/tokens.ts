@@ -84,7 +84,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     title: 'Accent and focus',
     tokens: {
       '--sw-accent': lt('#2767ed', '#3a6ce0'),
-      '--sw-accent-hover': lt('#1f57d1', '#5a88f2'),
+      '--sw-accent-hover': lt('#1f57d1', '#3465d6'),
       '--sw-accent-soft': lt('#edf3ff', 'rgba(91, 140, 255, 0.18)'),
       '--sw-accent-text': lt('#2062ec', '#8fb2ff'),
       '--sw-focus': lt('#2767ed', '#7aa2ff'),
