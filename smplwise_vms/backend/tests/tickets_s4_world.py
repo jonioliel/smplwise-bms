@@ -6,6 +6,7 @@ Every phone number, name and address here is invented (the 050-000-xxxx block an
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import uuid
 from typing import Any
 
@@ -32,6 +33,41 @@ class Clock:
 
     def advance(self, s: float) -> None:
         self.t += s
+
+
+MIDNIGHT_MARGIN = datetime.timedelta(minutes=5)
+
+
+def midnight_safe_offset(real_now: datetime.datetime, tz: datetime.tzinfo, margin: datetime.timedelta = MIDNIGHT_MARGIN) -> datetime.timedelta:
+    """SMALLA-295: 0 normally; minus one hour when `real_now` is within `margin` of the installation's midnight. A test that counts
+    days (a due day, "days left") must not straddle that midnight between the moment it builds a day and the moment the server reads
+    "today". The shifted clock still ticks, so nothing sleeps and no ordering of timestamps changes."""
+    local = real_now.astimezone(tz)
+    since = local - local.replace(hour=0, minute=0, second=0, microsecond=0)
+    until = datetime.timedelta(days=1) - since
+    return -datetime.timedelta(hours=1) if since < margin or until <= margin else datetime.timedelta(0)
+
+
+def pin_day_away_from_midnight(monkeypatch, real_now=None) -> datetime.timedelta:
+    """Every clock a ticket-RFQ day test reads - the cost service (`costs.now_utc`, which every RFQ service uses), the dashboard
+    router and the test helpers that build day strings (`test_tickets_rfq_terms.dt`) - reads the SAME shifted clock. `real_now` is
+    a seam for the test of this helper. Returns the offset applied."""
+    import sys
+    from zoneinfo import ZoneInfo
+
+    from conftest import datetime_shim
+    from smplwise.routers import tickets_board
+    from smplwise.services.tickets import costs
+    from smplwise.services.tickets.messaging import DEFAULT_TZ
+
+    real_now = real_now or (lambda: datetime.datetime.now(datetime.timezone.utc))
+    start = real_now()
+    offset = midnight_safe_offset(start, ZoneInfo(DEFAULT_TZ))
+    shim = datetime_shim(lambda: real_now() + offset)
+    targets = [costs, tickets_board] + [m for m in (sys.modules.get("test_tickets_rfq_terms"),) if m is not None]
+    for mod in targets:
+        monkeypatch.setattr(mod, "dt", shim)
+    return offset
 
 
 @dataclasses.dataclass
