@@ -68,12 +68,16 @@ def _today(conn: sqlite3.Connection, now: dt.datetime) -> dt.date:
 # ================================================================ door windows
 
 def _rule_view(conn: sqlite3.Connection, row: sqlite3.Row, labels: dict[str, dw.Door], visible: set[str]) -> dict[str, Any]:
+    """A rule as this reader may see it. Doors outside the reader's visible set are never listed (no station id, relay or label - review 2
+    E-07); only their count is returned in `hidden_doors`."""
     doc = dw._rule_doc(conn, row)
+    shown = [(s, r) for s, r in doc.doors if dw.door_key(s, r) in visible]
     return {
         "id": row["id"], "name": row["name"], "kind": row["kind"], "state": row["state"], "calendar_policy": row["calendar_policy"],
         "notes": row["notes"] or "", "revision": row["revision"], "updated_at": row["updated_at"], "approved": bool(row["approved_by"]),
         "doors": [{"station_id": s, "relay": r, "key": dw.door_key(s, r), "label": labels[dw.door_key(s, r)].label if dw.door_key(s, r) in labels else dw.door_key(s, r),
-                   "visible": dw.door_key(s, r) in visible} for s, r in doc.doors],
+                   "visible": True} for s, r in shown],
+        "hidden_doors": len(doc.doors) - len(shown),
         "periods": [{"weekday": p.weekday, "on_date": p.on_date, "start": p.start, "end": p.end} for p in doc.periods],
         **({"trigger": dwt.trigger_view(conn, row["id"]), "snippet": dwt.snippet(row["id"])} if row["kind"] == "event" else {}),
     }
@@ -101,8 +105,8 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
     for row in conn.execute("SELECT * FROM door_window_rules WHERE state <> 'retired' ORDER BY name, id").fetchall():
         rule_names[row["id"]] = row["name"]
         view = _rule_view(conn, row, labels, vis_keys)
-        if any(d["visible"] for d in view["doors"]):
-            view["manageable"] = all(d["key"] in manage for d in view["doors"])
+        if view["doors"]:
+            view["manageable"] = not view["hidden_doors"] and all(d["key"] in manage for d in view["doors"])
             rules.append(view)
     now = now_utc()
     horizon = dw.iso(now + dt.timedelta(days=7))

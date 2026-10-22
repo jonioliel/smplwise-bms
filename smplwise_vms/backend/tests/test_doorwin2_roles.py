@@ -109,3 +109,18 @@ def test_a_delegated_administrator_hands_out_only_the_guard(pw):
     assert "door_windows_guard" in d["delegable_roles"]
     for r in ("door_windows_manager", "emergency_lock", "emergency_open"):
         assert r not in d["delegable_roles"], r
+
+
+def test_e07_a_rule_never_names_the_doors_the_reader_may_not_see(pw):
+    """Fable review 2 E-07: a rule that touches one visible door is listed with that door only; the others are a count (no station id,
+    relay or label), and the rule is not manageable by this reader."""
+    rid = pw.rule(doors=[(pw.ENTRY, 1), (pw.DOCK, 1), (pw.DOCK, 2)], enable=False).json()["rule"]["id"]
+    pw.bind("gus", "door_windows_guard", "access_control_station", pw.ENTRY)
+    st = pw.get("/doors/windows/state", "gus").json()
+    rule = next(r for r in st["rules"] if r["id"] == rid)
+    assert [(d["station_id"], d["relay"]) for d in rule["doors"]] == [(pw.ENTRY, 1)]
+    assert rule["hidden_doors"] == 2 and rule["manageable"] is False
+    assert pw.DOCK not in str(st), "no identifier of a door outside the reader's scope anywhere in the answer"
+    assert "רציף" not in str(rule), "nor its label"
+    full = next(r for r in pw.get("/doors/windows/state").json()["rules"] if r["id"] == rid)
+    assert full["hidden_doors"] == 0 and len(full["doors"]) == 3 and full["manageable"] is True, "the administrator still sees the whole rule"

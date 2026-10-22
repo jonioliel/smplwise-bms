@@ -555,3 +555,101 @@ def test_ha02_the_three_repair_situations_are_documented():
     for needle in ("שחזור לגיבוי", "אובדן קובץ המפתחות", "החלפה שבוטלה"):
         assert needle in guide, needle
     assert "HA-02" in cr and "pre-rotation backup" in cr
+
+
+# ================================================================ Fable review 2: HA-04, HA-05, HA-06
+
+RETIRED = {"v": 1, "signing": "g1-0badc0de", "keys": {"g1-0badc0de": "K1"}, "old": None, "next": None, "legacy_retired": True, "rotation": None, "hw": {}}
+
+
+class _Entry:
+    """The config entry's pairing-code copy and the Store, as the bridge's __init__ hands them to the Persister."""
+
+    def __init__(self, code: str, fail_saves: int = 0) -> None:
+        self.code, self.fail_saves, self.saved, self.wipes, self.tasks = code, fail_saves, [], 0, []
+
+    async def save(self, state):
+        if self.fail_saves:
+            self.fail_saves -= 1
+            raise OSError("disk full")
+        self.saved.append(json.loads(json.dumps(state)))
+
+    def wipe(self) -> None:
+        self.code, self.wipes = "", self.wipes + 1
+
+    def persister(self, ks, errors=None):
+        async def no_wait(_s: float) -> None:
+            return None
+
+        return keyset_mod.Persister(ks, self.save, lambda: self.code, self.wipe, self.tasks.append, sleep=no_wait,
+                                    on_error=(errors.append if errors is not None else None))
+
+    def run_tasks(self) -> None:
+        import asyncio
+
+        while self.tasks:
+            asyncio.run(self.tasks.pop(0))
+
+
+def test_ha04_a_failed_delayed_save_keeps_the_set_dirty_and_is_retried():
+    import asyncio
+
+    clock = Clock()
+    ks = keyset_mod.KeySet("L", None, now=clock, mono=clock)
+    entry, errors = _Entry("L", fail_saves=1), []
+    saver = entry.persister(ks, errors)
+    assert ks.verify(bk.sign_with("g0-legacy", "L", {"op": "x"}, ts=int(clock()))) is None and ks.dirty, "a new high-water mark"
+    saver.save_soon()
+    saver.save_soon()
+    assert len(entry.tasks) == 1, "one delayed save at a time"
+    assert ks.dirty, "not marked clean before the save happened"
+    entry.run_tasks()
+    assert ks.dirty and entry.saved == [] and len(errors) == 1, "the save failed: still dirty, reported"
+    saver.save_soon()  # the next message
+    entry.run_tasks()
+    assert not ks.dirty and entry.saved[-1]["hw"]["g0-legacy"] == int(clock())
+    # the periodic housekeeping path (persist) is a no-op once clean
+    asyncio.run(saver.persist())
+    assert len(entry.saved) == 1
+
+
+def test_ha04_the_bridge_init_marks_clean_only_through_the_persister():
+    for root in (BRIDGE, ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"):
+        text = (root / "__init__.py").read_text(encoding="utf-8")
+        assert "keyset.dirty = False" not in text and "async_delay_save" not in text
+        assert text.count("saver.save_soon()") == 2 and "saver.clean_entry()" in text
+
+
+def test_ha05_an_oversized_rotation_id_is_refused_before_the_signature():
+    clock = Clock()
+    ks = keyset_mod.KeySet("L", None, now=clock, mono=clock)
+    for rid in ("r" * 65, "", None, 7):
+        msg = bk.sign_with("g0-legacy", "L", {"protocol": keyset_mod.PROTOCOL, "op": "status", "rotation_id": rid}, ts=int(clock()))
+        assert ks.handle_control(msg) == {"ok": False, "code": "bad_format"}, rid
+    assert ks.hw == {} and not ks.dirty and ks._seen == {}, "never reached the MAC, the replay cache or the high-water mark"
+    ok = bk.sign_with("g0-legacy", "L", {"protocol": keyset_mod.PROTOCOL, "op": "status", "rotation_id": "r" * 64}, ts=int(clock()))
+    assert ks.handle_control(ok)["ok"] is True
+    text = (BRIDGE / "__init__.py").read_text(encoding="utf-8")
+    assert 'vol.Required("rotation_id"): vol.All(cv.string, vol.Length(min=1, max=64))' in text
+
+
+def test_ha06_the_retired_pairing_code_is_blanked_with_the_save_and_at_setup():
+    import asyncio
+
+    clock = Clock()
+    # a restart between the key save and the entry update: the saved state has retired the code, the entry still holds it
+    entry = _Entry("L")
+    saver = entry.persister(keyset_mod.KeySet("L", RETIRED, now=clock, mono=clock))
+    assert saver.clean_entry() is True and entry.code == "" and entry.wipes == 1
+    assert saver.clean_entry() is False and entry.wipes == 1, "idempotent"
+    # a live retirement: never blanked before the save succeeded, blanked right after it
+    ks = keyset_mod.KeySet("L", {**RETIRED, "keys": {"g1-0badc0de": "K1"}, "old": "g0-legacy", "legacy_retired": False}, now=clock, mono=clock)
+    entry = _Entry("L", fail_saves=1)
+    saver = entry.persister(ks)
+    assert saver.clean_entry() is False, "the saved state still has the pairing secret"
+    ks._drop("g0-legacy")
+    with pytest.raises(OSError):
+        asyncio.run(saver.persist())
+    assert entry.code == "L" and ks.dirty, "the save failed: the entry keeps the code the stored state still needs"
+    asyncio.run(saver.persist())
+    assert entry.saved[-1]["legacy_retired"] is True and entry.code == "" and entry.wipes == 1
