@@ -332,6 +332,16 @@ def test_reserve_is_idempotent_and_never_double_charges():
     assert a["lease"] == b["lease"] and b["repeated"] is True and len(store.leases) == 1
 
 
+def test_a_request_id_reused_for_another_class_or_sender_is_refused_and_charges_nothing():
+    r, p, ledger, store = port()
+    r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW)
+    other = r.reserve(sender_ref=REF, klass="alert", request_id=rid(1), now=NOW + sec(5))
+    assert other["granted"] is False and other["reason"] == "request_id_conflict" and len(store.leases) == 1
+    assert store.leases[rid(1)].klass == "ticket"
+    same = r.reserve(sender_ref=REF, klass="ticket", request_id=rid(1), now=NOW + sec(6))
+    assert same["granted"] is True and same["repeated"] is True
+
+
 def test_the_last_slot_goes_to_one_sender_only():
     r, p, ledger, store = port()
     fill(ledger, 7)  # ticket limit 8: one slot left

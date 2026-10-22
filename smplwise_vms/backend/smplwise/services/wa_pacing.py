@@ -720,6 +720,8 @@ class WaReservations:
             return {"granted": False, "reason": "sender_unknown", "retry_after_s": None}
         old = self.store.lease_get(request_id)
         if old is not None:
+            if old.sender_ref != sender_ref or old.klass != klass:
+                return {"granted": False, "reason": "request_id_conflict", "retry_after_s": None}
             if old.state == "granted" and old.expires_at > now:
                 return self._granted(old, repeated=True)
             return {"granted": False, "reason": "already_released" if old.state == "released" else "lease_expired", "retry_after_s": None}
