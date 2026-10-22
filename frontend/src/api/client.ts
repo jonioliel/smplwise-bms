@@ -2,6 +2,8 @@
  * Minimal API client. All URLs are relative to the page (`api/v1/...`) so the same build works under
  * the HA Ingress prefix and on the dev server. Errors follow the server's error model.
  */
+import { closedErrorText } from './closed-errors';
+
 export interface ApiErrorBody {
   code: string;
   user_message: string;
@@ -68,7 +70,7 @@ export const del = (path: string) => api<void>(path, { method: 'DELETE' });
 export const upload = <T>(path: string, form: FormData) => api<T>(path, { method: 'POST', body: form });
 
 export function describeError(err: unknown): string {
-  if (err instanceof ApiError) return err.body.user_message || err.body.code || `השרת דחה את הבקשה (${err.status})`;
+  if (err instanceof ApiError) return closedErrorText(err.body.code) ?? (err.body.user_message || err.body.code || `השרת דחה את הבקשה (${err.status})`);
   if (err instanceof TypeError) return 'אין חיבור לשרת.';
   return err instanceof Error ? err.message : String(err);
 }

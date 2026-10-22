@@ -10,7 +10,7 @@ import { messagingPacingApi, PACING_CLASSES, PACING_MODES, type PacingAccount, t
 import { settingsStyles } from '../styles/settings';
 import { bidi } from '../i18n/bidi';
 import { mp, type MpKey } from '../i18n/messaging-pacing';
-import { BURST_RANGE, MINUTE_RANGE, changedWaits, intValue, span, tone, waitValue } from '../messaging/pacing-model';
+import { BURST_RANGE, MINUTE_RANGE, changedWaits, intValue, span, tone, waitValue, wiskeyReasonKey } from '../messaging/pacing-model';
 
 /**
  * CR-WA-PACING-295: the shared send budget (Settings > messaging channel). One card: the mode (conservative by default), whether WisKey
@@ -134,6 +134,7 @@ export class MessagingPacingCard extends LitElement {
       <div class="head"><strong>${bidi(this.labels[a.account_key] ?? a.account_key)}</strong>
         ${a.backoff ? html`<span class="tag warn" data-backoff><sw-icon name="warning" size="14"></sw-icon>${mp('backoffUntil', { time: until })}</span>` : nothing}
         ${a.wiskey.unknown ? html`<span class="tag" data-wiskey-unknown>${mp('wiskeyUnknown')}</span>` : nothing}
+        ${wiskeyReasonKey(a) ? html`<span class="tag" data-wiskey-reason=${a.wiskey.reason ?? ''}>${mp(wiskeyReasonKey(a)!)}</span>` : nothing}
         ${a.pairs_in_backoff ? html`<span class="tag warn" data-pairs>${mp('pairs', { n: a.pairs_in_backoff })}</span>` : nothing}
         ${c.expired ? html`<span class="tag bad" data-expired>${mp('expired')}: ${c.expired}</span>` : nothing}</div>
       <div class="kv">

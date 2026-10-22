@@ -23,6 +23,7 @@ const he = {
   'service.unsupported': 'שירות ההודעות אינו זמין בהתקנה הזו',
   'service.account_required': 'יש כמה חשבונות · בחרו מאיזה חשבון נשלחות ההודעות',
   'service.account_missing': 'החשבון שנבחר אינו קיים יותר · בחרו חשבון',
+  'service.account_not_covered': 'החשבון שנבחר לא נכלל ברשימה שהתקבלה כרגע משירות ההודעות (הרשימה מוגבלת) · נסו שוב או בחרו חשבון אחר',
   'service.no_account': 'אין חשבון הודעות מחובר',
 
   // ---- the switches and the limits
@@ -126,6 +127,7 @@ export type MessagingKey = keyof typeof he;
 
 /** English for the keys added with the 2.6.5 review (the rest of the page falls back to Hebrew until it is translated as a whole). */
 const en: Partial<Record<MessagingKey, string>> = {
+  'service.account_not_covered': 'The selected account is not in the list the messaging service sent this time (the list is limited) · try again or choose another account',
   'sender.title': 'Messages per sender per hour',
   'sender.hint': 'Refused messages count too · {min} to {max}',
   'person.title': 'Messages per recipient per day',

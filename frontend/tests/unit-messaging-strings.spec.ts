@@ -19,7 +19,7 @@ test('every key the Settings page asks for exists', () => {
   }
   expect(missing).toEqual([]);
   // keys built from a template: service.<problem>
-  for (const k of ['service.account_required', 'service.account_missing', 'service.no_account']) expect(known.has(k as never), k).toBe(true);
+  for (const k of ['service.account_required', 'service.account_missing', 'service.account_not_covered', 'service.no_account']) expect(known.has(k as never), k).toBe(true);
 });
 
 test('no string names the platform, an internal code or a permission id', () => {
