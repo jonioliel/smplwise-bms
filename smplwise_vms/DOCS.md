@@ -1539,6 +1539,8 @@ fixes listed in `docs/release/2.7.3-INTEGRATION-NOTES.md` ("Fix before enabling"
   later. The bridge re-checks every step on every run, against the UI files (`scripts.yaml`, `automations.yaml`, `scenes.yaml`); a
   hand-edited, not reloaded file may differ from what runs.
 - Home Assistant's logbook shows the service user for every such action; the person is named only in the Arx audit log.
+  The "allowed" row `identity.service_identity.extended` is written before the bridge decides; the route's outcome row (`ha.action`,
+  `automation.run`, alarm, door, camera) is the record of what actually happened.
 - *Kill paths* (any one is enough): the remote kill switch `POST /api/v1/identity/extended-mode/off` (system administrator, also from
   the remote channel; turns the mode off and empties the runnable allowlist); the add-on switch `security.local_identity_extended`
   off (local channel); the bridge's own option or its runnable list cleared (a Home Assistant administrator, in the bridge's options);
