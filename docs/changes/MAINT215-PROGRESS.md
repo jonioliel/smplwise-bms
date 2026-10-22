@@ -29,6 +29,28 @@ switch (manager / operator / viewer) so manage-only actions and the "no permissi
 switch (no request action anywhere). Screenshots (gitignored): `private/review/maint-215/` (desktop and phone, light and dark).
 Not verified: the product's real design tokens (the mockup keeps its own local tokens, no product token file was found for it).
 
+## Mockup v2 - restyled in the product language (2026-10-23, owner directive 23.10)
+`docs/design/mockups/maintenance-215/index.html` redrawn (same content, screens, roles and states) in the visual language of the existing
+temperature / elevators / schedules screens, with the product's REAL token table (`frontend/src/design/tokens.ts`, classic skin, light
+and dark columns copied verbatim - the v1 review had not found it), the real shell (`shell/sw-app.ts`: area rail at the inline start,
+no top bar and no breadcrumb - the search / status pill floats in the content corner; phone: bottom bar), the real tab rows
+(`components/sw-tabs.ts`: level 1 pill track, level 2 compact underline), the temperature page head and KPI-filter row, the places
+tree of `components/sw-place-tree.ts` (a select on phones), the electricity table, the solid state badge / soft chips, the pill
+buttons and the `sw-state-panel` states.
+Placement (lead 2026-10-23; the owner is reorganising the service-management area): a section **"תחזוקה ובקרה"** inside the
+service-management area (#/tickets/...), visible only while the module is on and by `maintenance.view`; its level-2 row = the four
+pages drawn: פנקס אישורים ובדיקות (certificates, inspections, supplier documents; the task sheet and the supplier card open from it),
+תחזוקה מונעת, סבבים ובדיקות (with the one-checkpoint-per-screen run), תגי QR/NFC (manage only). The section label is written ONCE
+(`SECTION_LABEL` in the script) so the final name is a one-line change.
+Verified in the built-in browser (own tab) at 1366x768, 1024 and 375x812, light and dark, RTL: no horizontal scroll at any width, the
+tree becomes a select and the table becomes cards on the phone, the supplier / request columns leave at <= 1100 px (the electricity
+screens' rule), all CR states (ready / empty / loading / error / module off / forbidden), the three roles, tickets off (no request
+action anywhere), bidi (step counter, dates, paths), focus rings, reduced motion. Side-by-side with the live temperature screen:
+NOT_RUN (no dev backend was running); compared instead with the evidence capture `docs/evidence/temperature/temprep-samples-desktop.png`
+(rail, pill row, page head, KPI cards, badges and buttons match). Screenshots (gitignored): `private/review/maint-215-v2/`
+(16 files: desktop / tablet / phone, light / dark, states, dialogs); the html copy: `private/review/maint-215-mockup-v2.html`.
+No code changes.
+
 ## Remaining
 - Slice 2 (UI) proposal: CR section 12, after the owner approves the mockup. Full gate not run (by design).
 - Steps 1-4 below are DONE (see Session 2).
