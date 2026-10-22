@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import dataclasses
+import hashlib
 import ipaddress
 import json
 import logging
@@ -265,6 +266,30 @@ def seal_bridge_key(data_dir: Path, kid: str, plaintext: str) -> str:
 
 def open_bridge_key(data_dir: Path, kid: str, blob: str) -> str:
     return _open(_Home(data_dir), _bridge_key_aad(kid), blob)
+
+
+# ---------------------------------------------------------------- WisKey intent originals (WKB2-295, services/wiskey_intents.py)
+# The same key file and `v1:` format (owner decision 2026-10-23: the recorded original of a WisKey people write and its verified
+# context are sealed exactly like the bridge keys - no new crypto). Associated data `"wiskey_intent|<sha256 of the intent key>|<field>"`:
+# the intent key (repository, query owner ref, operation id) is hashed so no separator inside an id can make two AADs equal, and a blob
+# moved to another intent, to the other field, to another store or to an NVR row does not decrypt.
+
+WISKEY_INTENT_FIELDS = ("original", "context")
+
+
+def _wiskey_intent_aad(repository_id: str, query_owner_ref: str, operation_id: str, field: str) -> bytes:
+    if field not in WISKEY_INTENT_FIELDS or not all(isinstance(v, str) and v for v in (repository_id, query_owner_ref, operation_id)):
+        raise SecretError("not a secret field")
+    key = json.dumps([repository_id, query_owner_ref, operation_id], separators=(",", ":"), ensure_ascii=True)
+    return f"wiskey_intent|{hashlib.sha256(key.encode('utf-8')).hexdigest()}|{field}".encode("utf-8")
+
+
+def seal_wiskey_intent(data_dir: Path, repository_id: str, query_owner_ref: str, operation_id: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _wiskey_intent_aad(repository_id, query_owner_ref, operation_id, field), plaintext)
+
+
+def open_wiskey_intent(data_dir: Path, repository_id: str, query_owner_ref: str, operation_id: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _wiskey_intent_aad(repository_id, query_owner_ref, operation_id, field), blob)
 
 
 # ---------------------------------------------------------------- rows
