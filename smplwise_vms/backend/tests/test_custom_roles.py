@@ -132,7 +132,7 @@ def test_custom_role_select_all_regular_and_sensitive(settings):
     app, c, ids, cam = _setup(settings)
     catalogue = c.get("/api/v1/access/roles").json()
     system = set(catalogue["system_permissions"])
-    sensitive = list(catalogue["sensitive"])
+    sensitive = [p for p in catalogue["sensitive"] if p not in system]  # a sensitive grant that is also a system permission stays out of custom roles (bridge.key.rotate)
     regular = sorted(p for p in catalogue["labels"] if p not in system and p not in sensitive)
     assert len(sensitive) > 20 and regular, (len(sensitive), len(regular))
     r = c.post("/api/v1/access/roles", json={"name": "מנהל על", "description": "הכול", "permissions": regular, "sensitive": sensitive})
