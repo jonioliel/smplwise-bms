@@ -250,3 +250,12 @@ class needs an admin-role account** (with a viewer Arx answers `frigate_write_fo
 - **Not run:** the browser leg of live video (Arx's go2rtc -> WebRTC/MSE in the player): the throwaway Arx had no go2rtc of its own, and the
   lab go2rtc was not used because its `smplwise_nvr-1_*` names belong to the lab's own Arx. The source Arx's go2rtc would pull was played
   instead (D2/D3). PTZ: no PTZ camera.
+
+### 8.3 Tests
+
+| Run | Where | Result |
+|---|---|---|
+| All 15 Frigate test files (`test_friglive2_295.py`, `test_frigate2_295.py`, `test_frigate_*.py`) at `239ba72c2` | runner, two batches | 206 + 117 = **323 PASS, 0 FAIL** |
+| Live checks G1 and G2 after the fix | owner's instance, throwaway Arx of this branch | G1: 409 `recorder_pending_restart`; G2: 200 `usage_unavailable: role_limited` |
+
+Full backend suite: NOT_RUN on this branch (only the Frigate files).
