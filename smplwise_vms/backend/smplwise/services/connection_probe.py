@@ -155,6 +155,13 @@ _RESOLVER = source_policy.Resolver(workers=4, name="probe-dns")
 _BUDGET_END: contextvars.ContextVar[float | None] = contextvars.ContextVar("sw_probe_budget_end", default=None)
 
 
+# FRIGATE2-295 (live 0.18.0): Frigate's login and first reads can take several seconds each (the whole test measured ~5.6 s, one slow login
+# passed the 8 s a single request is allowed in normal use). A Frigate test therefore gets at least this budget and a longer step timeout.
+FRIGATE_MIN_BUDGET_S = 30.0
+FRIGATE_STEP_TIMEOUT_S = 20.0
+_CAP_S: contextvars.ContextVar[float | None] = contextvars.ContextVar("sw_probe_cap_s", default=None)
+
+
 def _budget_left(cap: float) -> float:
     end = _BUDGET_END.get()
     return cap if end is None else max(0.0, min(cap, end - time.monotonic()))
@@ -571,7 +578,7 @@ def probe(cand: Settings) -> dict[str, Any]:
     The work runs in its own thread and this call waits at most the deadline plus a short grace (second review N2): if the
     thread is still running then, its sockets are shut down (the thread ends at once) and the answer is `timeout`. Inside
     `check_and_probe` the deadline is what is left of the test's one budget after name resolution (third review)."""
-    budget = _budget_left(DEADLINE_S)
+    budget = _budget_left(_CAP_S.get() or DEADLINE_S)
     if budget <= 0:
         return {"ok": False, "code": "timeout"}
     budget_end = time.monotonic() + budget
@@ -612,22 +619,26 @@ def probe(cand: Settings) -> dict[str, Any]:
 
 
 def check_and_probe(host: str, settings: Settings, build: Callable[[str], Settings], *, ports: dict[str, Any] | None = None,
-                    ha_names: set[str] | None = None) -> dict[str, Any]:
+                    ha_names: set[str] | None = None, min_budget_s: float = 0.0) -> dict[str, Any]:
     """The whole connection test inside ONE budget of DEADLINE_S (third review): the source policy with its name resolution
     (this host's own name and the typed name, each at most 2 s and never past the budget), then the probe with what is left.
     Raises 422 `host_refused` like `connect_target`, and 422 `port_refused` when a port of HA_HOST_PORTS points at the HA host
     (`ports` field -> port, `ha_names` from ha_host_names). `build(target)` makes the candidate for the checked address. Worst
-    case for the caller: DEADLINE_S plus the probe's 0.5 s grace and 1 s to close its sockets."""
-    token = _BUDGET_END.set(time.monotonic() + DEADLINE_S)
+    case for the caller: DEADLINE_S plus the probe's 0.5 s grace and 1 s to close its sockets. `min_budget_s` raises the budget for a
+    vendor that needs more (Frigate, FRIGATE2-295); it never lowers it."""
+    total = max(DEADLINE_S, min(min_budget_s, DEADLINE_MAX_S))
+    token = _BUDGET_END.set(time.monotonic() + total)
+    cap_token = _CAP_S.set(total)
     try:
         target = connect_target(host, settings)
         field = ha_host_port_field(host, target, ports or {}, ha_names or set())
         if field is not None:
             raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", details={"field": field})
         if target is None:
-            return {"ok": False, "code": "timeout" if _budget_left(DEADLINE_S) <= 0 else "source_unavailable"}
+            return {"ok": False, "code": "timeout" if _budget_left(total) <= 0 else "source_unavailable"}
         return probe(build(target))
     finally:
+        _CAP_S.reset(cap_token)
         _BUDGET_END.reset(token)
 
 
@@ -750,7 +761,9 @@ def _probe_frigate(cand: Settings, budget: float, backends: list) -> dict[str, A
     certificate: dict[str, Any] | None = None
     if https:
         try:
-            certificate = pisr.PEER_CERTIFICATE(cand.nvr_host or "", int(cand.nvr_http_port), min(CONNECT_S, _budget_left(DEADLINE_S)))
+            certificate = pisr.PEER_CERTIFICATE(cand.nvr_host or "", int(cand.nvr_http_port), min(CONNECT_S, _budget_left(budget)))
+        except TimeoutError:
+            return {"ok": False, "code": "timeout"}   # the TLS handshake did not complete in time: say so, not "unavailable"
         except OSError:
             return {"ok": False, "code": "source_unavailable"}
         pin = str(extra.get("tls_pin") or "").lower().replace(":", "")
@@ -767,14 +780,14 @@ def _probe_frigate(cand: Settings, budget: float, backends: list) -> dict[str, A
             if mode == "trust":
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
-    backend = _DeadlineBackend(_budget_left(DEADLINE_S))
+    backend = _DeadlineBackend(_budget_left(budget))
     backends.append(backend)
     transport: httpx.BaseTransport = _CappedTransport(TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend, ctx))
     fh.clear_cache()  # a test never reuses another candidate's token or refusal
     fr.clear_cache()
     a = fr.FrigateAdapter("probe", cand, transport=transport)
     try:
-        with nvr_mod.deadline(budget):
+        with nvr_mod.deadline(budget), fh.step_timeout(FRIGATE_STEP_TIMEOUT_S):
             text, parsed, _drift = a.version()
             if parsed is None:
                 result: dict[str, Any] = {"ok": False, "code": "source_error"}
@@ -787,7 +800,7 @@ def _probe_frigate(cand: Settings, budget: float, backends: list) -> dict[str, A
                     cams = None
                 result = {"ok": True, "code": "ok", "model": "Frigate", "firmware": _clip(text), "channels": cams}
     except ApiError as exc:
-        code = {"source_timeout": "timeout"}.get(exc.code, exc.code)
+        code = "timeout" if fh.is_timeout(exc) else {"source_timeout": "timeout"}.get(exc.code, exc.code)
         result = {"ok": False, "code": code if code in OUTCOMES else "source_error"}
     except Exception:  # noqa: BLE001
         result = {"ok": False, "code": "source_error"}

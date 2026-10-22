@@ -137,3 +137,45 @@ manual event cannot be removed through Arx), Frigate's restream, a real Frigate 
    5.6 s for login, version, config, routes and restream list, against a probe deadline of 8 s). The error offers "save untested", which hides
    the cause. Consider a longer deadline for Frigate or a `timeout` outcome. No code change made here.
 8. After adding a recorder the add-on must be restarted (`restart_required`) before `/api/v1/frigate/{id}/...` answers; the run did exactly that.
+
+## 7. FRIGATE2-295: code-side closure of the open items (2026-10-22)
+
+Code and fake-Frigate tests only (`tests/test_frigate2_295.py`); no live write and no live read were made for this section.
+
+- **Item 4 (reset of a key the file does not hold)**: closed. `put_settings` resolves a `null` value against `FrigateConfig.inherited()` (the
+  global section the key falls back to, else the documented default) before it compares with the effective value. A key that already shows the
+  inherited value is not written (`changed: false`, no `config/set`); a key the file really holds is removed with `""` as before. The change log
+  now holds effective values for a reset (`after` = the inherited value, not `null`), so the undo's stale check and read-back compare like with
+  like. Residue: a camera that sets a key to exactly the inherited value keeps that explicit line after a reset (the effective state is correct).
+- **Item 7 (probe budget)**: closed. The connection test of a Frigate recorder now has (a) a total budget of at least `FRIGATE_MIN_BUDGET_S`
+  (30 s; `SW_PROBE_DEADLINE_S` can only raise it, other vendors keep the setting) and (b) a per-request timeout of `FRIGATE_STEP_TIMEOUT_S`
+  (20 s, inside the same wall-clock deadline) instead of the 8 s of normal use, which one slow login could exceed. A network timeout (login,
+  version, TLS handshake) now answers `timeout` ("the recorder did not answer in time") instead of `source_unavailable`; a refused connection, a
+  5xx or a DNS failure stay `source_unavailable`. Fail-closed is unchanged: both outcomes may be saved untested only with `save_untested` and the
+  typed word, and the audit row records the outcome. Normal operation (reads, polling, writes) keeps its 8 s timeouts.
+- **Item 8 (restart after adding a recorder)**: not made hot, on purpose. Every recorder connection is overlaid into the process settings once at
+  start (`connection_store.apply_at_startup`; `recorder_scope.settings_for` reads only that map), by the owner decision of CR-024 ("every
+  recorder change waits for a restart"). Registering a connection at run time would mean mutating that start-up map under the autosync, event
+  ingest, health, go2rtc and switch-protection workers of every vendor, and bypassing the identity and first-sync checks that run at start. That
+  is not small, and it is not Frigate-specific. What changed: `/api/v1/frigate/{id}/...` for a Frigate recorder that is stored but not loaded
+  now answers `409 recorder_pending_restart` (`retryable`, `details.restart_required`) with a message telling the operator to restart the
+  add-on, instead of the generic `503 source_not_configured`. The save response already carried `restart_required: true`, and `/me` and
+  `/health` report `connection_pending_restart`.
+
+### 7.1 Items 1, 2 and 3: what a read-only live check needs (not guessed, not run)
+
+All three need something only the owner can define. Arx must not create Frigate users, profiles or restream entries.
+
+1. **Profiles (item 1)**. Owner defines ONE profile in Frigate's config (any name, for example a profile that changes only a harmless camera
+   setting). Then a read-only check can verify: `GET /api/profiles` lists it, `GET /api/profile/active` (or the active profile field in the
+   effective config) names the current one, and the Arx profile list shows the same name. The switch itself is a write that resets runtime
+   toggles of every camera; it stays a separate, owner-attended step (record the toggles first, switch, switch back, compare).
+2. **Viewer account (item 2)**. Owner creates a Frigate account with the `viewer` role and gives its credentials to `secrets/frigate_oliel.env`
+   (a second variable pair; never echoed). A read-only check logs in once with it (one retry at most; Frigate rate-limits logins) and records,
+   per route, only the HTTP status: `/api/version`, `/api/config`, `/api/openapi.json`, `/api/cameras` style reads Arx uses, `/api/review`,
+   `/api/events`, `/api/exports`, `/api/profiles`, and the `/ws` upgrade. The result decides whether Arx's "viewer account" hint in the connection
+   form is right and whether discover must tolerate a 403 on `/api/config` (the adapter already treats the camera count as optional).
+3. **Restream (item 3)**. Owner either adds at least one stream to Frigate's go2rtc section or confirms an existing camera stream is restreamed.
+   A read-only check then lists the restream names (`GET /api/go2rtc/streams`, as Arx's `frigate_restream` reads it), confirms which of them map
+   to a camera key, and opens ONE RTSP DESCRIBE (no media) on the restream port with the connection's account to confirm the auth mode
+   (`restream_auth`: none or account). Playing video end to end stays a browser check on the owner's screen.

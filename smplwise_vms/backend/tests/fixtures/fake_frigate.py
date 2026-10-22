@@ -161,6 +161,9 @@ class FakeFrigate:
         self.bypass_gets: list[str] = []
         self.strict_delete = False
         self.effective_defaults = False
+        self.global_motion_threshold: int | None = None   # a global `motion.threshold` the cameras inherit (effective_defaults shows it)
+        self.timeout_paths: set[str] = set()              # a request to one of these paths times out (httpx.ReadTimeout), as a slow instance does
+        self.timeouts_seen: list[float | None] = []        # the read timeout httpx was asked to apply to each request
         self.clip_no_recordings = False
 
     # ------------------------------------------------------------------------------------------ documents
@@ -174,7 +177,7 @@ class FakeFrigate:
         out = copy.deepcopy(self.cameras)
         for cam in out.values():
             mo = cam.setdefault("motion", {})
-            mo.setdefault("threshold", 30)
+            mo.setdefault("threshold", self.global_motion_threshold if self.global_motion_threshold is not None else 30)
             mo.setdefault("contour_area", 10)
             mo.setdefault("lightning_threshold", 0.8)
             for z in (cam.get("zones") or {}).values():
@@ -193,6 +196,7 @@ class FakeFrigate:
             "review": {"alerts": {"labels": ["person", "car"]}},
             "semantic_search": {"enabled": True}, "face_recognition": {"enabled": False}, "lpr": {"enabled": False}, "genai": {"provider": None},
             "birdseye": {"enabled": False}, "notifications": {"enabled": False},
+            **({"motion": {"threshold": self.global_motion_threshold}} if self.global_motion_threshold is not None else {}),
         }
 
     def stats(self) -> dict[str, Any]:
@@ -466,6 +470,9 @@ class FakeFrigate:
         path = request.url.path
         q = dict(request.url.params)
         self.hits.append(f"{request.method} {path}")
+        self.timeouts_seen.append((request.extensions.get("timeout") or {}).get("read"))
+        if path in self.timeout_paths:
+            raise httpx.ReadTimeout("slow", request=request)
         if self.down:
             raise httpx.ConnectError("down", request=request)
         if request.method != "GET":

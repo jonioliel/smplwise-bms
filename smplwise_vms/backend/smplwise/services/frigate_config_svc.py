@@ -127,10 +127,17 @@ def put_settings(conn: sqlite3.Connection, principal: Principal, adapter: Frigat
     _gates(conn, principal, adapter, cam, "config_settings", confirm=confirm, supervised=supervised, request_id=request_id)
     cfg = fcfg.FrigateConfig(adapter)
     cur = cfg.camera(cam["source_ref"])["settings"]
-    diff = {k: v for k, v in clean.items() if not fcfg.same_setting(k, cur.get(k), v)}
+    # FRIGATE2-295: `None` = "back to what the key inherits". `/api/config` is the EFFECTIVE config, so the comparison target of a reset is the
+    # inherited value (the global section, else Frigate's default), not Arx's documented default: with a global override the two differ, and a ""
+    # written for a key the file does not hold is a 500. A key already showing the inherited value is not written at all (nothing to remove, or
+    # the file holds the same value: the effective state is what was asked for).
+    resets = [k for k, v in clean.items() if v is None]
+    inh = cfg.inherited(resets) if resets else {}
+    want = {k: (inh.get(k, fcfg.SETTING[k]["default"]) if v is None else v) for k, v in clean.items()}
+    diff = {k: v for k, v in clean.items() if not fcfg.same_setting(k, cur.get(k), want[k])}
     if not diff:
         return {"changed": False, "settings": {k: cur.get(k) for k in clean}, "verified": True, "change_id": None}
-    before, after = {k: cur.get(k) for k in diff}, dict(diff)
+    before, after = {k: cur.get(k) for k in diff}, {k: want[k] for k in diff}   # the log holds effective values (the undo compares them)
     base = _base(adapter, cam, "config_settings", section, request_id)
     try:
         cfg.write_settings(cam["source_ref"], section, diff)

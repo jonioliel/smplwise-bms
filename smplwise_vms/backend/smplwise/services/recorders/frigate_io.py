@@ -44,8 +44,18 @@ def channel_map(conn: sqlite3.Connection, recorder_id: str) -> dict[str, int]:
 def adapter_for(conn: sqlite3.Connection, settings: Settings, recorder_id: str) -> FrigateAdapter:
     """The adapter of one recorder, only when that recorder's vendor is Frigate (404 `not_found` otherwise: another vendor's
     recorder id never reaches these routes). The synthetic channel numbers come from the cameras table."""
+    from ...recorder_scope import settings_for
+    from .. import connection_store
     from . import registry
 
+    # FRIGATE2-295 (open item 8): connections are overlaid into the process ONCE at start (CR-024 owner decision: every recorder change
+    # waits for a restart), so a Frigate recorder added after the start has a stored connection this process does not hold. Say that
+    # (409 `recorder_pending_restart`) instead of the generic 503 `source_not_configured` the empty settings would give at the device.
+    if recorder_id in registry.recorder_ids(conn) and not settings_for(settings, recorder_id).nvr_host:
+        row = connection_store.get_row(conn, recorder_id)
+        if row is not None and row["vendor"] == "frigate" and row["host"] and row["enabled"]:
+            raise ApiError(409, "recorder_pending_restart", "המקליט נשמר וממתין להפעלה מחדש של התוסף לפני שיענה. הפעילו מחדש את התוסף (הגדרות מערכת) ורעננו.",
+                           retryable=True, details={"recorder_id": recorder_id, "restart_required": True})
     a = registry.adapter_for(conn, settings, recorder_id)
     if not isinstance(a, FrigateAdapter):
         raise ApiError(404, "not_found", "המקליט אינו Frigate.", details={"recorder_id": recorder_id})
