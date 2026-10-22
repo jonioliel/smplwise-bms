@@ -461,9 +461,18 @@ def test_delete_needs_the_exact_username(ha_settings, fake):
     c = _client(ha_settings)
     uid = _created(c, ha_settings)
     n = len(fake.calls)
-    for typed in ("Dana", "dana ", "other"):
+    for typed in ("dana ", "other", "dan", "danaa"):
         assert c.post(f"{API}/ha-users/{uid}/delete", json={"confirm_username": typed}).json()["code"] == "confirm_mismatch"
     assert len(fake.calls) == n and uid in fake.users
+
+
+def test_delete_confirmation_ignores_letter_case(ha_settings, fake):
+    """HAUSER-295 follow-up: the typed name is compared case-insensitively (HA lower-cases usernames anyway)."""
+    c = _client(ha_settings)
+    uid = _created(c, ha_settings)
+    r = c.post(f"{API}/ha-users/{uid}/delete", json={"confirm_username": "DaNa"})
+    assert r.status_code == 200, r.text
+    assert uid not in fake.users
 
 
 def test_delete_self_is_refused(ha_settings, fake):

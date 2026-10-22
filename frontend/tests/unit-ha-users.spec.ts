@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { HaUsersView, ManagedUser } from '../src/api/ha-users';
 import { HA_USERS_TEXT_KEYS, ht } from '../src/i18n/ha-users';
-import { USERNAME_RE, accessKey, canCreate, draftProblems, emptyDraft, newRequestKey, passwordRule, repairKey, rowActions, stateKey } from '../src/screens/ha-users-logic';
+import { USERNAME_RE, accessKey, canCreate, confirmMatches, draftProblems, emptyDraft, newRequestKey, passwordRule, repairKey, rowActions, stateKey } from '../src/screens/ha-users-logic';
 
 // USR1 (docs/design/USR1_HA_USERS_FROM_ARX.md): the pure rules of Settings › משתמשי מערכת הבית - no browser page.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-ha-users.spec.ts
@@ -85,4 +85,13 @@ test('request keys are fresh and fit the server pattern', () => {
   const a = newRequestKey();
   expect(a).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
   expect(newRequestKey()).not.toBe(a);
+});
+
+// HAUSER-295 follow-up: the typed delete confirmation ignores letter case, never whitespace or a different name.
+test('delete confirmation: case-insensitive, whitespace and other names stay refused', () => {
+  expect(confirmMatches('dana', 'dana')).toBe(true);
+  expect(confirmMatches('DaNa', 'dana')).toBe(true);
+  expect(confirmMatches('dana ', 'dana')).toBe(false);
+  expect(confirmMatches('dan', 'dana')).toBe(false);
+  expect(confirmMatches('', 'dana')).toBe(false);
 });

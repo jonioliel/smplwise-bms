@@ -75,7 +75,7 @@ import '../electricity/permission-rows'; // CR-023: the electricity permission r
 import { energyPermissionLabel } from '../electricity/access';
 import { generatorPermissionLabel } from '../generator/access'; // CR-031 // CR-023: the one source of the energy permission labels
 import { accessControlPermissionLabel } from '../access-control/access'; // CR-036 S3: the access-control permission labels
-import { legacyFiltered } from './system-access-logic'; // WXPERM: legacy permission names in the role editor
+import { customRoleSensitive, legacyFiltered } from './system-access-logic'; // WXPERM: legacy permission names in the role editor
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and username shown once when equal
 
@@ -1050,7 +1050,7 @@ export class SystemAccess extends LitElement {
     // WXPERM: a legacy permission name (access.release -> access.doors.open) is offered only to a role that already holds it,
     // so it can be removed; a new grant uses the new name
     const held = new Set(e.id ? roles.roles.find((r) => r.id === e.id)?.permissions ?? [] : []);
-    const sensitive = legacyFiltered(roles.sensitive, roles.legacy_permissions, held);
+    const sensitive = customRoleSensitive(legacyFiltered(roles.sensitive, roles.legacy_permissions, held), roles.system_permissions);
     const im = this.roleImpact;
     return html`<sw-dialog open heading=${e.id ? 'עריכת תפקיד מותאם' : 'תפקיד מותאם חדש'} subheading="הרשאות רגילות + הרשאות רגישות במפורש · ללא הרשאות מערכת · ההשפעה מוצגת לפני השמירה" data-role-dialog @close=${() => (this.roleEdit = null)}>
       ${this.error ? html`<div class="err banner" data-role-error>${this.error}</div>` : nothing}
