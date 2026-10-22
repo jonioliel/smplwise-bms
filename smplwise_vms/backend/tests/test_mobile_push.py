@@ -218,6 +218,17 @@ def test_app_channel_respects_policy_reach_mutes_quiet_hours_and_critical(w, rel
     assert len(relay.calls) == 3
 
 
+def test_safety_category_is_never_muted_even_below_critical_severity(w, relay):
+    # contract 7.3: a critical CATEGORY is never muted, whatever the row's severity
+    did, tok = register(w, "ops2")
+    w.set_policy("sensor.leak", channels={"webpush": False, "email": False, "app": True}, severity="alert")
+    assert w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["safety"]}, headers=tok).status_code == 200
+    kitchen = w.entity("binary_sensor.kitchen_leak", cls="moisture", floor=w.ids["floor2"], name="חיישן הצפה מתחת לכיור")
+    nid = w.emit("sensor.leak", "entity", kitchen, params={"name": "חיישן הצפה מתחת לכיור"}, dedupe_key="m1").id
+    w.flush()
+    assert len(relay.calls) == 1 and [r["status"] for r in w.deliveries(nid) if r["channel"] == "app"] == ["sent"]
+
+
 def test_relay_410_drops_the_registration_429_retries_and_unconfigured_skips(w, relay, monkeypatch):
     did, tok = register(w, "ops2")
     w.set_policy("camera.offline", channels={"webpush": False, "email": False, "app": True})
