@@ -219,7 +219,7 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
 
     def make_stream() -> str:
         with db.connection(mode="read", label="station media stream") as conn:
-            return im.provider_for(settings).video_stream(conn, settings, station, profile)
+            return im.provider_for(settings).video_stream(conn, settings, station, profile, actor=im.w10.Actor(principal.user_id, principal.username))
 
     try:
         await media._live_relay(
@@ -476,7 +476,8 @@ async def talk_ws(websocket: WebSocket, session_id: str) -> None:
             if station is None:
                 raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה אינה זמינה.")
             d = im.MEDIA.descriptor(im.provider_for(settings), conn, settings, station)
-        return im.provider_for(settings).talk_open(settings, t.station_id, d, actor_id=principal.user_id, actor_name=principal.username, request_id=t.request_id)
+        return im.provider_for(settings).talk_open(settings, t.station_id, d, actor_id=principal.user_id, actor_name=principal.username, request_id=t.request_id,
+                                                   expires_at=t.expires_at)
 
     await websocket.accept()
     outcome = "upstream_unavailable"

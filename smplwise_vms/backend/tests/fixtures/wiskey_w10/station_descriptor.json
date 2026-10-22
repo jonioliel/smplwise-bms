@@ -1,0 +1,17 @@
+{
+  "_note": "AVW10-295 fake WisKey reply to hikvision_intercom/media/station_descriptor (Arx's W10 proposal, CR-036-S18-MEDIA.md section 3.1). Times are replaced by the tests with times around 'now'. No address, no credential, no serial.",
+  "schema": "arx.station_media.v1",
+  "station_id": "entry-a",
+  "session": "wk-desc-0123456789abcdef",
+  "revision": 7,
+  "issued_at": "2027-01-15T08:00:00Z",
+  "expires_at": "2027-01-15T08:05:00Z",
+  "video": {
+    "profiles": [
+      {"id": "sub", "codec": "h264", "width": 640, "height": 360, "fps": 15, "transports": ["webrtc", "mse"]},
+      {"id": "main", "codec": "h264", "width": 1920, "height": 1080, "fps": 25, "transports": ["mse", "webrtc"]}
+    ]
+  },
+  "audio": {"listen": true, "talk": true, "duplex": "half", "codec": "pcmu", "talk_transports": ["pcmu_frames"], "max_talk_seconds": 120},
+  "limits": {"max_viewers": 2, "max_talkers": 1}
+}
