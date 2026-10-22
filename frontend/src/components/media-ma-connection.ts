@@ -5,6 +5,7 @@ import './sw-toggle';
 import './sw-badge';
 import { onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { describeError } from '../api/client';
+import { dayText } from '../api/day-format';
 import { MA_STATE_LABEL, players, type MaConnection, type MaState, type MaTest } from '../api/media-players';
 
 const BADGE: Record<MaState, string> = { off: 'neutral', ready: 'live', unreachable: 'error', unauthorized: 'error', schema_too_old: 'error', error: 'error', unreadable: 'error', host_refused: 'error' };
@@ -131,7 +132,7 @@ export class MediaMaConnection extends LitElement {
     if (onRemote()) return html`<div class="row"><span class="lbl">חיבור ישיר ל־Music Assistant<span class="muted" data-mc-local-only>${LOCAL_ONLY_GENERIC}</span></span></div>`;
     if (!c) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
     const t = this.test ?? c.last_test;
-    const since = c.token_set_at ? new Date(c.token_set_at).toLocaleDateString('he-IL') : null;
+    const since = c.token_set_at ? dayText(c.token_set_at) : null;
     return html`
       <div class="row"><span class="lbl">חיבור ישיר ל־Music Assistant<span class="muted">תור מלא (גרירה, מחיקה, נגן הבא) וחיפוש בספרייה. ללא החיבור: התור הקצר והספרייה בלי חיפוש.</span></span>
         <span class="acts"><sw-badge kind=${BADGE[c.state]} label=${MA_STATE_LABEL[c.state]} data-mc-state=${c.state}></sw-badge>

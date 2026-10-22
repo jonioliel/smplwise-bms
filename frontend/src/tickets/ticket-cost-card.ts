@@ -23,6 +23,7 @@ import {
 import { ct, type CostTextKey } from './cost-text';
 import { cIcon } from './cost-icons';
 import { shortDateTime } from './model';
+import { dayText } from '../api/day-format';
 import { ticketsLang } from './text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { costCardStyles, costDialogStyles } from './cost-styles';
@@ -441,7 +442,7 @@ export class TicketCostCard extends LitElement {
       <div class="meta">
         ${c.status === 'awaiting' || c.status === 'rejected' ? html`<span class=${late ? 'late' : ''} data-window>${late ? ct('windowClosed') : ct('until', { when: shortDateTime(c.claim_until) })}</span>` : nothing}
         ${c.approved_at ? html`<span data-approved>${ct('approvedBy', { when: shortDateTime(c.approved_at), who: c.approved_by ?? '' })}</span>` : nothing}
-        ${c.status === 'paid' ? html`<span data-paid>${ct('paidOn', { date: c.payment_date ?? '', ref: c.payment_ref ?? '' })}</span>` : nothing}
+        ${c.status === 'paid' ? html`<span data-paid>${ct('paidOn', { date: dayText(c.payment_date) || (c.payment_date ?? ''), ref: c.payment_ref ?? '' })}</span>` : nothing}
       </div>
       ${rev ? this.documents(c, rev) : nothing}
       ${Object.values(a).some(Boolean) ? html`<div class="acts" data-claim-actions>

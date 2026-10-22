@@ -1460,7 +1460,7 @@ user's control check in the bridge, a live create / edit / delete through Arx) a
 
 **Tabs (הגדרות › לשוניות, `ui.tabs`).** For every navigation section - the main navigation, the home area, security and
 its live / investigation pages, the map, WisKey, the settings and its security pages - an administrator shows or hides
-each tab and sets its order; a section lands on its first visible tab, at least one tab stays visible, and the settings
+each tab and sets its order (2.9.3 adds the cards for multimedia, infrastructure with its generator and electricity page rows, and service requests while that area is on - before it their order and hiding were ignored; no backend change); a section lands on its first visible tab, at least one tab stays visible, and the settings
 entry that leads to the editor is locked. Hiding is presentation only: permissions gate first, the address of a hidden tab
 keeps working for those who hold the permission. The administrator's order of the main navigation is the default; a user's
 own order (user menu › "סדר הלשוניות", stored per user) wins, and a user without one follows the administrator's.

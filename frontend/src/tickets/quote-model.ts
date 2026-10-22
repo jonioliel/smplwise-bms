@@ -15,6 +15,7 @@ import type { CostFlow, FlowStage, MessageDraft, Quote, QuoteLine, QuoteOnBehalf
 import type { TicketStatus } from '../api/tickets';
 import { lineProblem, vatOf, wireLine, type EditLine, type Tone } from './cost-model';
 import { fromLocalInput, HANDLING } from './model';
+import { dayText } from '../api/day-format';
 import type { QuoteTextKey } from './quote-text';
 
 export const KIND_ORDER: readonly LineKind[] = ['labor', 'parts', 'travel', 'other'];
@@ -344,13 +345,12 @@ export function validUntilIso(day: string): string {
   return at.toISOString().replace(/\.\d+Z$/, 'Z');
 }
 
-/** The day text of a validity instant ('16/10/2026', the viewer's zone); '' when absent or invalid. */
+/** The day text of a validity instant ('16.10.2026', the viewer's zone); '' when absent or invalid. */
 export function validDayText(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return dayText(d);
 }
 
 /** A quote whose valid-until has passed (nothing is hidden or blocked by it - the chip only says so, and an approval asks first). */

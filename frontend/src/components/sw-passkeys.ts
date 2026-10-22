@@ -6,11 +6,12 @@ import { ownPasskeys, registerPasskey, registrationOptions, removePasskey, setPa
 import { PasskeyCancelled, createPasskey, passkeysSupported } from '../arx/webauthn';
 import { lit } from '../i18n/local-identity';
 import { po } from '../i18n/passkey-only';
+import { dayText } from '../api/day-format';
 
 function when(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(document.documentElement.lang?.startsWith('en') ? 'en-GB' : 'he-IL');
+  return dayText(d);
 }
 
 /**

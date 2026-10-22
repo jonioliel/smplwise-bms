@@ -188,7 +188,7 @@ test('expired: only a passed instant; an approval of a pending expired quote nee
   expect(approvalNeedsExpiredConfirm(old, 'fix', NOW)).toBe(false);
   expect(approvalNeedsExpiredConfirm({ ...old, state: 'approved' }, 'approve', NOW)).toBe(false);
   expect(approvalNeedsExpiredConfirm({ state: 'submitted', valid_until: null }, 'approve', NOW)).toBe(false);
-  expect(validDayText('2026-10-14T12:00:00Z')).toMatch(/^\d{2}\/\d{2}\/2026$/);
+  expect(validDayText('2026-10-14T12:00:00Z')).toMatch(/^\d{2}\.\d{2}\.2026$/);
   expect(validDayText(null)).toBe('');
   expect(validDayText('nope')).toBe('');
 });
