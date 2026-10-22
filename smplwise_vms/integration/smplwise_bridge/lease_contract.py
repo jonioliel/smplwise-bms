@@ -147,12 +147,17 @@ def thaw(value: Any) -> Any:
     return value
 
 
-@dataclass(frozen=True, slots=True, weakref_slot=True)
+@dataclass(frozen=True)
 class LeaseDTO:
     """What stages 1-7 hand to WisKey (stage 8). Immutable: frozen and slotted (no `__dict__`, so no `vars(dto)[...]` back door), params are
     read-only mappings / tuples, and `as_json()` returns a fresh copy. `body_sha256` is the seal: the SHA-256 of the signed body, which every
     other field is rebuilt from in `intact()` - so even a write forced past the frozen guard (`object.__setattr__`, which Python cannot forbid)
-    is detectable (LEASELIFE-295). The weakref slot lets the bridge remember which DTO objects it issued (lease_service.LeaseCapability)."""
+    is detectable (LEASELIFE-295). The weakref slot lets the bridge remember which DTO objects it issued (lease_service.LeaseCapability).
+    The slots are written by hand, not `slots=True`: on Python 3.12 a frozen `slots=True` dataclass answers an assignment to an unknown name
+    with a bare TypeError from its own `super()` call instead of FrozenInstanceError."""
+
+    __slots__ = ("action", "actor_id", "actor_display_name", "station", "params", "request_id", "nonce", "issued_at", "expires_at", "body_sha256",
+                 "__weakref__")
 
     action: str
     actor_id: str

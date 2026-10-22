@@ -75,7 +75,7 @@ same Home Assistant process can import the module; that is the trust boundary of
 
 ## 3. DTO immutability after validation (DTO v3 of `wiskey-capture-lease-v1`)
 
-`LeaseDTO` is `@dataclass(frozen=True, slots=True, weakref_slot=True)`:
+`LeaseDTO` is `@dataclass(frozen=True)` with hand-written `__slots__` (the fields plus `__weakref__`; `slots=True` is avoided because on Python 3.12 it turns an assignment to an unknown name into a bare `TypeError`):
 
 - assignment and deletion of any field raise `FrozenInstanceError`; no new attribute; no `__dict__` (so no `vars(dto)[...]` back door);
 - `params` is a read-only `MappingProxyType` tree with tuples for arrays (`lease_actions`, `live_leases`); built fresh from the parsed body,
