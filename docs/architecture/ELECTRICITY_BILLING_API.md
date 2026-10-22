@@ -42,6 +42,8 @@ audited. Money hiding is server-side: without `energy.bills` the keys listed as 
 | `draft_exists` | 409 | a draft for exactly this period already exists (`details.bill_id`) |
 | `bill_not_draft` | 409 | recalculate / delete / issue on a bill that is not a draft |
 | `draft_stale` | 409 | issue: the fresh computation differs from the draft the user saw (a late reading). The draft is updated in the same call; `details = {old_total, new_total, old_kwh, new_kwh, row_version}`; show the new draft and issue again with the new `row_version` |
+| `rate_limited` | 429 | ELECBILL77: too many recalculations (10 per user, 30 per installation per minute) or PDF renders (20 / 60 per minute; a stored PDF is not counted). `retryable`, `details = {retry_after_s, scope: "user"\|"installation"}` |
+| `recompute_in_progress` | 429 | ELECBILL77: the same bill is already being recalculated (`details = {retry_after_s, scope: "bill"}`) |
 | `request_reused` | 409 | a `client_request_id` already used for another account |
 | `number_taken` | 409 | (should not happen) the computed number is already in the ledger; retry |
 | `bill_state` | 409 | the action is not allowed in the bill's current state (`details.state`) |
@@ -229,6 +231,16 @@ computes it outside the write lock, then writes the draft in one short transacti
 in the same transaction. Failures (`formula_negative`, `tariff_missing`...) are recorded on the run with the error code and
 retried every 6 hours; the screen shows them. Every automatic act is audited with the actor "system". Periods before the
 account's `first_period_start` or before the account was created are never generated.
+
+**Notification (ELECBILL77, `docs/changes/CR-ELECBILL77.md`).** A new automatic draft (not an auto-issued bill, a manual draft, a
+correction or a recalculation) raises one `energy.bill_draft` notification in the same transaction, to the holders of
+`energy.bills`; the text is the period only.
+
+**Live state (ELECBILL77).** `GET /energy/bills/state` (energy.bills) returns `{counts: {draft, issued, sent, paid, void},
+bills_changed_at, auto: {runs: {created, issued, skipped, failed}, last_run_at, failed_waiting_retry}, revision}` and sets
+`ETag: "<revision>"` with `Cache-Control: private, no-cache`; a request with a matching `If-None-Match` gets an empty `304`.
+`revision` moves when any bill is created, edited, recalculated, issued, sent, paid, voided, deleted or gets its stored PDF, and when
+an automatic run changes. `GET /energy/bills` carries the same `revision` field. No money in the state.
 
 ## 10. Status of this contract
 
