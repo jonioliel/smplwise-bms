@@ -215,18 +215,31 @@ the budget is a management number, not a lock) - owner question 7 lets the owner
 ## 6a. Placement in the service area (owner directive 2026-10-23)
 
 Nothing gets a screen of its own; every surface lands inside an existing tab of `#/tickets/*` (`TICKETS_TABS`, `shell/nav.ts`),
-and every mockup screen follows the visual language of the infrastructure temperature, elevators, schedules and automations
-screens (`.top` header with `h1` + `.sub` + `.meta` actions, `.ucard` cards on `--sw-surface` / `--sw-border` / `--sw-r-lg`,
-`.kpi` tiles, pill chips, `sw-tabs` pill row, `sw-state-panel` / `.statebox` for the states) - no new look.
+and every mockup screen follows the visual language of the EXISTING screens - infrastructure temperature, elevators, schedules and
+automations (owner standing rule 2026-10-23): the product token table of `frontend/src/design/tokens.ts` (classic skin, light + dark),
+the real shell (area rail, floating search / status pill, no top bar; bottom bar on phones), the `sw-tabs` rows (level 1 = pill track,
+level 2 = compact underline row), the `.top` page head (`h1` + subtitle + actions), the KPI row of the temperature / elevators screens,
+the places-tree panel beside the list, the electricity table, the solid state badge and the soft chips, the pill buttons and the
+`sw-state-panel` states - no new look. The mockup v2 (`docs/design/mockups/svc-215/index.html`, screenshots in
+`private/review/svc-215-v2/`) is drawn with the same method as the maintenance mockup (CR-MAINT215).
 
-| Surface | Tab | Where on the tab |
+**The four sections.** The service-management area is being reorganised into four level-1 sections - **בקשות** / **תחזוקה ובקרה** /
+**ספקים וכספים** / **סקירה ודוחות** - and the existing tabs become the level-2 pages of their section. Each section label is written
+once (`SECTIONS` in the mockup script; one constant per label in the shell when built), so the final names are a one-line change.
+
+| Surface | Section > page | Where on the page |
 |---|---|---|
-| Vendor reputation card (section 2) + vendor documents with expiry (section 5) | **מטפלים וספקים** (`#/tickets/handlers`) | the vendor's card: a KPI strip (six tiles, window chips) above the existing contact fields, the documents block below |
-| Quote comparison with the two new rows (section 0) | **בקשות הצעת מחיר** (`#/tickets/rfqs`, `?view=compare`) | the existing table; rows "הספק" and "מסמכים" after the header, before the money |
-| Department budget vs approved costs (section 6) | **סקירה** (the manager overview, `#/tickets/overview`) | a "תקציב" card per department (amount, approved, committed, bar) under the existing alert cards; the department settings keep the editing |
-| Missed arrival (section 3.4) | the ticket detail (`#/tickets/<id>`, status block + a "ביקור" row) **and** סקירה (an alert row "לא הגיע" in the alerts card) | |
-| Arrival step + "הגעתי" (section 3.3) | the public vendor page | after the access step |
-| New level-2 hub tab **דוחות ובקרות** | the tab row of ניהול השירות, after "חשבון ספקים" | proposed by the lead for the reports (monthly CSV, costs report, the vendor PDF of slice 5), the certificate ledger, the rounds, the maintenance plans and the tags (CR-MAINT215). This CR only places the tab in the shell; the hub's screens are drawn by other agents. The budget view of section 6.3 therefore has two homes: the summary on סקירה, the full table under דוחות ובקרות when that hub exists (owner question 11). |
+| Vendor reputation card (section 2) + vendor documents with expiry (section 5) | **ספקים וכספים > מטפלים וספקים** (`#/tickets/handlers`) | the vendor's card: the directory list beside it (the tree panel; a select on phones), the window chips and a KPI row of six tiles (number + base, each a link to the list behind it) above the contact fields, the documents panel beside them (badge per document, "חידוש" for managers) |
+| Quote comparison with the two new rows (section 0) | **ספקים וכספים > בקשות הצעת מחיר** (`#/tickets/rfqs`, `?view=compare`) | the existing table; rows "הספק" and "מסמכים" after the header, before the money (cards on phones) |
+| Department budget vs approved costs (section 6) | **סקירה ודוחות > סקירה** (the manager overview, `#/tickets/overview`) | a "תקציב" panel per department (amount, approved solid, committed soft, remaining, the state chip, period chips) beside the existing alerts panel; the department settings keep the editing; the full budget table belongs to the reports page of the same section when it exists (owner question 11) |
+| Missed arrival (section 3.4) | **בקשות** > the ticket detail (`#/tickets/<id>`: the status block with the "לא הגיע" badge, the sentence and the three actions, plus a "ביקור" row in the details and the events in the history) **and** **סקירה ודוחות > סקירה** (an alert row "לא הגיע" in the alerts panel; a "לא הגיע" KPI in the row) | the status block also draws the planned and the late-arrival variants |
+| Arrival step + "הגעתי" (section 3.3) | the public vendor page | after the access step; the public page keeps its own public look (one column, step cards, no shell) |
+| Reports | **סקירה ודוחות > דוחות** | the reports hub proposed by the lead (monthly CSV, costs report, the vendor PDF of slice 5) now sits as a page of the סקירה ודוחות section instead of a hub tab of its own; the certificate ledger, rounds, plans and tags are the pages of **תחזוקה ובקרה** (CR-MAINT215). This CR only places the page; its screens are drawn by other agents. |
+
+With a feature switch off (section 8) the feature's blocks leave and the rest of the page stays: no KPI row and no "הספק" row
+without `tickets.vendor_stats`, no visit block / arrival step / "לא הגיע" KPI without `tickets.visits.enabled`, the budget panel
+replaced by the module-off state panel without `tickets.budgets.enabled`. Operators and viewers see no management actions and no
+money (the "לפי ההצעה" tile, the budget panel, the "חשבון ספקים" page, the costs tab of the ticket).
 
 ## 7. API (all behind the tickets module gate)
 
@@ -401,6 +414,6 @@ S1 and S2 are independent of each other; S3 needs both; S4 needs S1. S5 is optio
    a. yes (recommended)  b. notify the managers only, no message to the vendor
 10. Switch defaults: `tickets.vendor_stats` on, `tickets.visits.enabled` off, `tickets.budgets.enabled` off.
     a. as proposed (recommended)  b. all three off  c. all three on
-11. The new hub tab "דוחות ובקרות" (lead's proposal) after "חשבון ספקים", holding reports, the certificate ledger, rounds,
-    plans and tags; the budget summary stays on סקירה and the full budget table moves into the hub.
-    a. as proposed (recommended)  b. no hub tab: each item stays where it is today  c. the hub, but budgets only on סקירה
+11. The reports page "דוחות" inside the section סקירה ודוחות (section 6a; the earlier "דוחות ובקרות" hub tab is superseded by the
+    four-section layout): reports, the vendor PDF and the full budget table live there; the budget summary stays on סקירה.
+    a. as proposed (recommended)  b. no reports page: each item stays where it is today  c. the page, but budgets only on סקירה

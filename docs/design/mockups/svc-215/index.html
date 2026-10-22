@@ -1,563 +1,781 @@
 <!doctype html>
-<html lang="he" dir="rtl" data-theme="light">
+<html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ניהול השירות - שדרוגים 2.15</title>
+<title>ניהול השירות - שדרוגים 2.15 - דגם למסכים</title>
 <!--
-  CR-SVC215 (2.15.0, "service module upgrades") - static design mock-up for the owner's approval. NOT product code: self-contained,
-  no network request, fake data only. Visual language copied from the infrastructure temperature / elevators / schedules /
-  automations screens (owner directive 2026-10-23): the shell rail + the pill tab row of ניהול השירות, `.top` header, `.ucard`
-  cards, `.kpi` tiles, pill chips, `sw-state-panel` / `.statebox` states; tokens are the product's --sw-* values (frontend/src/design/tokens.ts).
-  Screens (each inside an existing tab, docs/changes/CR-SVC215.md section 6a):
-    1. מטפלים וספקים - the vendor card: reputation strip (r081) + documents with expiry (r084)
-    2. בקשות הצעת מחיר - the EXISTING side-by-side comparison (r082) with two new rows: הספק, מסמכים
-    3. סקירה - the manager overview: a missed-arrival alert (r126) + department budgets (r083)
-    4. the ticket detail - the missed-arrival state and the visit row (r126)
-    5. the public vendor page - the arrival step "הגעתי" (r127)
-  The tab row also shows where the proposed level-2 hub tab "דוחות ובקרות" sits (dashed outline = proposal, drawn by other agents).
-  Mock-only bar (top): screen, theme, state (ready / empty / loading / error / feature off), service module off.
-  URL switches: ?s=handlers|compare|overview|detail|public  ?theme=dark  ?state=empty|loading|error|off  ?tickets=off
-  Operator screens stay clean (owner 2026-09-30): no hint paragraphs, no badges beyond the state chip; no platform branding.
+  CR-SVC215 (2.15.0, "service module upgrades") - static design mock-up v2 for the owner's approval. NOT product code: self-contained,
+  no network request, fake data only.
+
+  Owner directive 2026-10-23: every mockup follows the visual language of the EXISTING screens (infrastructure temperature, elevators,
+  schedules / automations). This file is therefore drawn with the product's real token table (frontend/src/design/tokens.ts, the classic
+  skin, light + dark columns copied verbatim below), the real shell (frontend/src/shell/sw-app.ts: the area rail on the right, no top bar,
+  no breadcrumb - the search / status pill floats in the content's corner; phone: a bottom bar), the real tab rows (components/sw-tabs.ts:
+  level 1 = pill track, level 2 = compact underline row), the real page head (screens/infra-temperature.ts `.top`: h1 + subtitle + actions),
+  the KPI row of the temperature / elevators screens (each KPI a filter), the places-tree panel of components/sw-place-tree.ts (here the
+  vendors directory beside the card; a select on phones), the electricity table (electricity/styles.ts `table.t`), the solid state badge and
+  the soft chips of temperature/styles.ts, the pill buttons and the sw-state-panel states (loading / empty / error / module off).
+  The same method as docs/design/mockups/maintenance-215 (CR-MAINT215).
+
+  PLACEMENT (owner 2026-10-23: the service-management area is reorganised into four sections - בקשות / תחזוקה ובקרה / ספקים וכספים /
+  סקירה ודוחות; each label is written ONCE, SECTIONS in the script, so the final names are a one-line change):
+    1. ספקים וכספים > מטפלים וספקים     - the vendor card: reputation KPI row (r081) + documents with expiry (r084)
+    2. ספקים וכספים > בקשות הצעת מחיר   - the EXISTING side-by-side comparison (r082) with two new rows: הספק, מסמכים
+    3. סקירה ודוחות > סקירה             - the manager overview: a missed-arrival alert row (r126) + department budgets (r083)
+    4. בקשות > the ticket detail        - the missed-arrival status block and the visit row (r126)
+    5. the public vendor page           - the arrival step "הגעתי" (r127); keeps its own public look (no shell)
+  Operator screens stay clean (owner 2026-09-30); management actions only for managers; with the tickets module off nothing of this is
+  reachable (owner 2026-10-20).
+  URL switches: ?s=handlers|compare|overview|detail|public  ?theme=dark  ?tickets=off  ?role=mgr|op|view  ?state=ready|empty|loading|error|off
+               ?visit=missed|planned|late (the detail screen's status block)
 -->
 <style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) - the names used by the real screens ===== */
 :root {
-  --sw-bg:#f5f7fb; --sw-surface:#ffffff; --sw-surface-2:#f7f9fc; --sw-surface-3:#eef2f8; --sw-border:#e7ebf2; --sw-border-strong:#d6dde9;
-  --sw-text:#22314c; --sw-heading:#1e2e47; --sw-text-2:#4b5976; --sw-text-3:#5e6d88; --sw-text-inverse:#fff;
-  --sw-accent:#2767ed; --sw-accent-hover:#1f57d1; --sw-accent-soft:#edf3ff; --sw-accent-text:#2062ec;
-  --sw-success:#16a34a; --sw-success-soft:#e7f6ec; --sw-success-text:#15803d;
-  --sw-warning:#f59e0b; --sw-warning-soft:#fff4e0; --sw-warning-text:#b45309;
-  --sw-danger:#ef4444; --sw-danger-soft:#fdecec; --sw-danger-text:#b91c1c;
-  --sw-offline-soft:#eceff4; --sw-offline-text:#5e6d88; --sw-unknown:#8a97ae;
-  --sw-r-sm:8px; --sw-r-md:12px; --sw-r-lg:14px; --sw-r-pill:999px; --sw-shadow-1:0 1px 2px rgba(16,24,40,.04);
-  --sw-fs-xs:11px; --sw-fs-sm:12.5px; --sw-fs-base:13px; --sw-fs-md:14px; --sw-fs-lg:15px; --sw-fs-xl:17px; --sw-fs-2xl:20px; --sw-fs-3xl:26px; --sw-fs-state:12px;
-  --sw-page-pad:30px; --sw-ctl-h-sm:32px; --sw-touch:44px;
-  --sw-font:"Heebo","Inter","Segoe UI",-apple-system,BlinkMacSystemFont,"Noto Sans Hebrew",Roboto,Arial,sans-serif;
-  color-scheme:light;
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0;
+  --sw-badge-bg: #b91c1c; --sw-badge-fg: #ffffff;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
+  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
+  --sw-touch-desktop: 44px; --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --sw-bg:#0d1220; --sw-surface:#151c2c; --sw-surface-2:#1a2336; --sw-surface-3:#222d44; --sw-border:#263048; --sw-border-strong:#33405c;
-  --sw-text:#e6ebf5; --sw-heading:#eef2fa; --sw-text-2:#a9b4ca; --sw-text-3:#8896af;
-  --sw-accent:#3a6ce0; --sw-accent-hover:#3465d6; --sw-accent-soft:rgba(91,140,255,.18); --sw-accent-text:#8fb2ff;
-  --sw-success:#34c26a; --sw-success-soft:rgba(52,194,106,.18); --sw-success-text:#6ee7a0;
-  --sw-warning:#f5b043; --sw-warning-soft:rgba(245,176,67,.2); --sw-warning-text:#f5b043;
-  --sw-danger:#ff6b62; --sw-danger-soft:rgba(255,107,98,.2); --sw-danger-text:#ff8a82;
-  --sw-offline-soft:rgba(138,151,174,.18); --sw-offline-text:#a9b4ca; --sw-shadow-1:none; color-scheme:dark;
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2);
+  --sw-badge-bg: #ff6b62; --sw-badge-fg: #2a0b09;
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
+  --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
+  --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; color-scheme: dark;
 }
-* { box-sizing:border-box; }
-html, body { margin:0; height:100%; }
-body { background:var(--sw-bg); color:var(--sw-text); font:var(--sw-fs-md)/1.45 var(--sw-font); }
-button, input { font:inherit; color:inherit; }
-.num { font-variant-numeric:tabular-nums; unicode-bidi:isolate; direction:ltr; display:inline-block; }
+/* the state looks of the temperature screen (temperature/styles.ts): --c = the colour, --c-text = the text on its soft fill */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
+[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
 
-/* ---------- mock-only bar ---------- */
-.mock { position:sticky; top:0; z-index:9; display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:8px 12px; background:var(--sw-surface-3); border-bottom:1px dashed var(--sw-border-strong); font-size:var(--sw-fs-sm); }
-.mock b { color:var(--sw-text-3); font-weight:600; margin-inline-end:4px; }
-.mock button, .mock select { border:1px solid var(--sw-border); background:var(--sw-surface); color:var(--sw-text-2); border-radius:var(--sw-r-pill); padding:4px 10px; cursor:pointer; }
-.mock button[aria-pressed="true"] { background:var(--sw-accent-soft); color:var(--sw-accent-text); border-color:transparent; font-weight:600; }
-.mock .sp { flex:1; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, .num { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-/* ---------- shell ---------- */
-.app { display:grid; grid-template-columns:72px 1fr; min-height:calc(100vh - 42px); }
-nav.rail { background:var(--sw-surface); border-inline-end:1px solid var(--sw-border); display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 6px; }
-.brand-tile { width:36px; height:36px; border-radius:var(--sw-r-md); background:var(--sw-accent); color:#fff; display:grid; place-items:center; font-weight:800; margin-bottom:8px; }
-.rail a { position:relative; display:flex; flex-direction:column; align-items:center; gap:3px; min-width:56px; min-height:52px; padding:6px 4px; border-radius:var(--sw-r-md); font-size:10.5px; color:var(--sw-text-2); font-weight:500; text-decoration:none; justify-content:center; }
-.rail a svg { width:20px; height:20px; color:var(--sw-text-3); }
-.rail a:hover { background:var(--sw-surface-3); }
-.rail a.active { background:var(--sw-accent-soft); color:var(--sw-accent-text); font-weight:600; }
-.rail a.active svg { color:var(--sw-accent); }
-.rail a.active::after { content:""; position:absolute; inset-inline-start:-6px; inset-block:16px; width:3px; border-radius:3px; background:var(--sw-accent); }
-.main { min-width:0; }
-.subnav { padding:12px 24px 0; }
-.tabs { display:inline-flex; position:relative; background:var(--sw-surface-3); border-radius:var(--sw-r-md); padding:3px; gap:2px; max-width:100%; overflow-x:auto; }
-.tabs a { display:inline-flex; align-items:center; gap:6px; min-height:28px; padding:0 12px; border-radius:var(--sw-r-sm); font-size:var(--sw-fs-sm); font-weight:500; color:var(--sw-text-2); text-decoration:none; white-space:nowrap; }
-.tabs a.on { background:var(--sw-surface); box-shadow:var(--sw-shadow-1); color:var(--sw-accent-text); font-weight:600; }
-.tabs a.proposed { outline:1.5px dashed var(--sw-accent); outline-offset:-1px; }
-.tbadge { min-width:18px; height:18px; padding:0 5px; border-radius:var(--sw-r-pill); background:var(--sw-danger); color:#fff; font-size:var(--sw-fs-xs); font-weight:700; display:grid; place-items:center; }
-nav.bottom { display:none; }
+/* ===== mockup-only controls (not part of the product) ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
 
-/* ---------- page ---------- */
-.page { display:none; flex-direction:column; gap:14px; padding:14px var(--sw-page-pad) 24px; }
-.page.on { display:flex; }
-.top { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.top h1 { margin:0; font-size:var(--sw-fs-3xl); line-height:1.2; color:var(--sw-heading); }
-.top .sub { margin:2px 0 0; color:var(--sw-text-2); font-size:var(--sw-fs-base); }
-.top .sp { flex:1; }
-.top .meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:var(--sw-r-pill); padding:7px 14px; min-height:var(--sw-ctl-h-sm); border:1px solid var(--sw-border); background:var(--sw-surface); color:var(--sw-text); font-weight:600; cursor:pointer; white-space:nowrap; }
-.btn.pri { background:var(--sw-accent); border-color:var(--sw-accent); color:var(--sw-text-inverse); }
-.btn.ghost { background:transparent; border-color:transparent; color:var(--sw-accent-text); }
-.btn.dng { color:var(--sw-danger-text); border-color:var(--sw-danger); }
-.btn.sm { padding:4px 10px; font-size:var(--sw-fs-sm); min-height:26px; }
-.btn.big { min-height:56px; font-size:var(--sw-fs-xl); border-radius:var(--sw-r-lg); width:100%; }
-.btn:disabled { opacity:.5; cursor:default; }
-.floors { display:flex; gap:6px; flex-wrap:wrap; }
-.floors button { border:1px solid var(--sw-border); background:var(--sw-surface); color:var(--sw-text-2); border-radius:var(--sw-r-pill); padding:4px 12px; font-size:var(--sw-fs-sm); cursor:pointer; }
-.floors button[aria-pressed="true"] { background:var(--sw-accent-soft); color:var(--sw-accent-text); border-color:transparent; font-weight:600; }
-.seg { display:inline-flex; gap:2px; background:var(--sw-surface-3); border-radius:var(--sw-r-pill); padding:3px; }
-.seg button { border:0; background:transparent; border-radius:var(--sw-r-pill); padding:5px 14px; font-size:var(--sw-fs-base); font-weight:600; color:var(--sw-text-2); cursor:pointer; min-height:30px; }
-.seg button[aria-pressed="true"] { background:var(--sw-surface); box-shadow:var(--sw-shadow-1); color:var(--sw-text); }
-.search { height:36px; padding-inline:14px; border-radius:var(--sw-r-pill); border:1px solid var(--sw-border); background:var(--sw-surface); min-width:200px; }
-.chip { display:inline-flex; align-items:center; gap:6px; border-radius:var(--sw-r-pill); padding:2px 10px; font-size:var(--sw-fs-sm); font-weight:600; line-height:20px; white-space:nowrap; background:var(--sw-surface-2); color:var(--sw-text-2); }
-.chip::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
-.chip.c-ok { background:var(--sw-success-soft); color:var(--sw-success-text); }
-.chip.c-warn { background:var(--sw-warning-soft); color:var(--sw-warning-text); }
-.chip.c-err { background:var(--sw-danger-soft); color:var(--sw-danger-text); }
-.chip.c-mut { background:var(--sw-offline-soft); color:var(--sw-offline-text); }
-.chip.c-acc { background:var(--sw-accent-soft); color:var(--sw-accent-text); }
-.ucard { position:relative; display:flex; flex-direction:column; gap:10px; padding:16px; border-radius:var(--sw-r-lg); background:var(--sw-surface); border:1px solid var(--sw-border); box-shadow:var(--sw-shadow-1); min-width:0; }
-.ucard[data-look="alarm"] { border-color:color-mix(in srgb, var(--sw-danger) 55%, var(--sw-border)); }
-.uhead { display:flex; align-items:flex-start; gap:10px; }
-.uhead h3 { margin:0; font-size:var(--sw-fs-xl); flex:1; color:var(--sw-heading); }
-.uhead h3 small { display:block; color:var(--sw-text-2); font-size:var(--sw-fs-state); font-weight:400; }
-.kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; }
-.kpi { display:flex; flex-direction:column; gap:4px; padding:12px 16px; border-radius:var(--sw-r-md); background:var(--sw-surface); border:1px solid var(--sw-border); box-shadow:var(--sw-shadow-1); }
-.kpi b { font-size:var(--sw-fs-2xl); line-height:1.1; font-variant-numeric:tabular-nums; color:var(--sw-heading); }
-.kpi .l { font-size:var(--sw-fs-state); color:var(--sw-text-2); }
-.kpi .b { font-size:var(--sw-fs-xs); color:var(--sw-text-3); }
-.kpi.alarm b { color:var(--sw-danger-text); }
-.kpi.warn b { color:var(--sw-warning-text); }
-.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.cols { display:grid; grid-template-columns:260px 1fr; gap:16px; align-items:start; }
-.list { display:flex; flex-direction:column; gap:0; padding:6px; }
-.li { display:flex; gap:10px; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:var(--sw-r-sm); cursor:pointer; }
-.li:hover { background:var(--sw-surface-2); }
-.li.sel { background:var(--sw-accent-soft); }
-.li .t1 { font-weight:600; color:var(--sw-heading); }
-.li .t2 { font-size:var(--sw-fs-sm); color:var(--sw-text-3); }
-.kv { display:grid; grid-template-columns:120px 1fr; gap:8px 12px; margin:0; }
-.kv dt { color:var(--sw-text-3); }
-.kv dd { margin:0; }
-.rows .r { display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:center; padding:11px 0; border-bottom:1px solid var(--sw-border); }
-.rows .r:last-child { border-bottom:0; }
-.rows .t1 { font-weight:600; color:var(--sw-heading); }
-.rows .t2 { font-size:var(--sw-fs-sm); color:var(--sw-text-3); }
-table.t { width:100%; border-collapse:collapse; }
-table.t th { text-align:start; font-weight:600; font-size:var(--sw-fs-sm); color:var(--sw-text-2); padding:9px 12px; border-bottom:1px solid var(--sw-border-strong); background:var(--sw-surface-2); white-space:nowrap; }
-table.t td { padding:12px; border-bottom:1px solid var(--sw-border); vertical-align:top; }
-table.t tbody tr:last-child td { border-bottom:0; }
-table.t td.rh { color:var(--sw-text-3); font-size:var(--sw-fs-sm); white-space:nowrap; width:130px; }
-table.t tr.new td { background:color-mix(in srgb, var(--sw-accent-soft) 55%, transparent); }
-table.t .tot { font-size:var(--sw-fs-xl); font-weight:700; color:var(--sw-heading); }
-.bar { height:8px; border-radius:var(--sw-r-pill); background:var(--sw-surface-3); overflow:hidden; display:flex; }
-.bar i { display:block; height:100%; background:var(--sw-accent); }
-.bar i.c { background:color-mix(in srgb, var(--sw-accent) 45%, transparent); }
-.bar.warn i { background:var(--sw-warning); } .bar.warn i.c { background:color-mix(in srgb, var(--sw-warning) 45%, transparent); }
-.bar.err i { background:var(--sw-danger); } .bar.err i.c { background:color-mix(in srgb, var(--sw-danger) 45%, transparent); }
-.budget .r { display:grid; grid-template-columns:150px 1fr auto auto; gap:14px; align-items:center; padding:11px 0; border-bottom:1px solid var(--sw-border); }
-.budget .r:last-child { border-bottom:0; }
-.budget .m { font-size:var(--sw-fs-sm); color:var(--sw-text-3); display:flex; gap:12px; margin-top:4px; }
-.alerts .r { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--sw-border); }
-.alerts .r:last-child { border-bottom:0; }
-/* status block (ticket detail) */
-.status { display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; padding:16px; border-radius:var(--sw-r-lg); background:var(--sw-surface); border:1px solid var(--sw-border); box-shadow:var(--sw-shadow-1); }
-.status .av { width:44px; height:44px; border-radius:50%; background:var(--sw-danger-soft); color:var(--sw-danger-text); display:grid; place-items:center; font-weight:700; }
-.status .sent { font-size:var(--sw-fs-lg); font-weight:600; color:var(--sw-heading); margin-top:4px; }
-.status .sla { font-size:var(--sw-fs-sm); color:var(--sw-text-3); }
-.status .acts { display:flex; gap:8px; flex-wrap:wrap; }
-.utabs { display:flex; gap:18px; border-bottom:1px solid var(--sw-border); }
-.utabs a { padding:8px 2px; font-size:var(--sw-fs-sm); font-weight:500; color:var(--sw-text-2); text-decoration:none; }
-.utabs a.on { color:var(--sw-accent-text); border-bottom:2px solid var(--sw-accent); margin-bottom:-1px; }
-.hist .h { display:grid; grid-template-columns:110px 1fr auto; gap:10px; padding:9px 0; border-bottom:1px solid var(--sw-border); font-size:var(--sw-fs-base); }
-.hist .h:last-child { border-bottom:0; }
-.hist .d { color:var(--sw-text-3); font-variant-numeric:tabular-nums; }
-/* public page */
-.pub { max-width:440px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
-.pub .hd { padding:4px 2px; }
-.pub .hd h1 { font-size:var(--sw-fs-2xl); margin:0; color:var(--sw-heading); }
-.pub .hd .sub { color:var(--sw-text-2); }
-.step { display:flex; flex-direction:column; gap:10px; padding:16px; border-radius:var(--sw-r-lg); background:var(--sw-surface); border:1px solid var(--sw-border); box-shadow:var(--sw-shadow-1); }
-.step .sh { display:flex; justify-content:space-between; align-items:center; gap:10px; }
-.step .sh b { font-size:var(--sw-fs-lg); color:var(--sw-heading); }
-.step .win { font-size:var(--sw-fs-2xl); font-weight:700; color:var(--sw-heading); font-variant-numeric:tabular-nums; }
-.step .done { display:flex; gap:10px; align-items:center; padding:12px 14px; border-radius:var(--sw-r-md); background:var(--sw-success-soft); color:var(--sw-success-text); font-weight:600; }
-/* states */
-.skl { border-radius:var(--sw-r-md); background:linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3)); background-size:200% 100%; animation:sh 1.4s linear infinite; }
-@keyframes sh { from { background-position:200% 0; } to { background-position:-200% 0; } }
-.state-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; padding:48px 16px; min-height:220px; border-radius:var(--sw-r-lg); background:var(--sw-surface); border:1px solid var(--sw-border); }
-.state-panel .icon { width:48px; height:48px; border-radius:var(--sw-r-md); background:var(--sw-accent-soft); color:var(--sw-accent-text); display:grid; place-items:center; font-weight:700; }
-.state-panel.error .icon { background:var(--sw-danger-soft); color:var(--sw-danger-text); }
-.state-panel.off .icon { background:var(--sw-surface-3); color:var(--sw-text-3); }
-.state-panel h4 { margin:0; font-size:var(--sw-fs-md); font-weight:600; color:var(--sw-heading); }
-.only { display:none !important; }
-body[data-state="ready"] .st-ready, body[data-state="empty"] .st-empty, body[data-state="loading"] .st-loading, body[data-state="error"] .st-error, body[data-state="off"] .st-off { display:flex !important; }
-body[data-state="ready"] .st-ready.grid2, body[data-state="empty"] .st-empty.grid2, body[data-state="off"] .st-off.grid2,
-body[data-state="ready"] .st-ready.kpis, body[data-state="empty"] .st-empty.kpis,
-body[data-state="ready"] .st-ready.status, body[data-state="empty"] .st-empty.status, body[data-state="off"] .st-off.status { display:grid !important; }
-body.tickets-off .app { display:none; }
-.tickets-off-panel { display:none; padding:40px var(--sw-page-pad); }
-body.tickets-off .tickets-off-panel { display:block; }
-/* phone */
-.cards-m { display:none; }
-@media (max-width:767px) {
-  .app { grid-template-columns:1fr; }
-  nav.rail { display:none; }
-  nav.bottom { display:grid; grid-template-columns:repeat(5, 1fr); position:fixed; bottom:0; inset-inline:0; background:var(--sw-surface); border-top:1px solid var(--sw-border); z-index:8; }
-  nav.bottom a { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 4px 10px; font-size:10.5px; color:var(--sw-text-2); text-decoration:none; }
-  nav.bottom a svg { width:20px; height:20px; color:var(--sw-text-3); }
-  nav.bottom a.active { color:var(--sw-accent-text); font-weight:600; } nav.bottom a.active svg { color:var(--sw-accent); }
-  .subnav { padding:8px 12px 0; }
-  .page { padding:12px 12px 90px; }
-  .top { flex-direction:column; align-items:stretch; } .top .sp { display:none; }
-  .top h1 { font-size:17px; }
-  .grid2, .cols { grid-template-columns:1fr; }
-  .cols .aside { display:none; }
-  .kpis { grid-template-columns:1fr 1fr; }
-  table.t.desk { display:none; }
-  .cards-m { display:grid; gap:10px; }
-  .cards-m .q { display:flex; flex-direction:column; gap:8px; padding:14px; border-radius:var(--sw-r-md); border:1px solid var(--sw-border); background:var(--sw-surface); }
-  .cards-m .q .ln { display:flex; justify-content:space-between; gap:8px; font-size:var(--sw-fs-base); }
-  .cards-m .q .ln span:first-child { color:var(--sw-text-3); }
-  .budget .r { grid-template-columns:1fr auto; } .budget .r .bw { grid-column:1 / -1; }
-  .status { grid-template-columns:44px 1fr; } .status .acts { grid-column:1 / -1; }
-  .kv { grid-template-columns:100px 1fr; }
-  .hist .h { grid-template-columns:48px 1fr; } .hist .h .chip { grid-column:2; justify-self:start; }
-  .btn { min-height: var(--sw-touch); }
-  .btn.sm { min-height:36px; }
+/* ===== the shell (shell/sw-app.ts, design A): the rail at the inline start, the content column, the floating corner pill ===== */
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+nav.rail a.active svg { color: var(--sw-accent); }
+nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); }
+.float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+/* the tab rows (components/sw-tabs.ts): level 1 = the pill track (the four sections), level 2 = the compact underline row (the section's pages) */
+.subnav { padding: 12px 24px 0; display: flex; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; }
+.tabs a { position: relative; display: inline-flex; align-items: center; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
+.tabs a:hover { color: var(--sw-text); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs.pill .row { padding-inline: 3px; }
+.tabs.pill .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs.pill a { min-block-size: 34px; padding-inline: 1px; }
+.tabs.pill a .lbl { display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs.pill a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.tabs.compact { display: flex; position: relative; }
+.tabs.compact .row { flex: 1 0 auto; gap: 0; }
+.tabs.compact .row::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 31px; block-size: 1px; background: var(--sw-border); }
+.tabs.compact a { align-items: flex-start; padding: 0 10px; min-block-size: 32px; }
+.tabs.compact a .lbl { display: inline-flex; align-items: center; min-block-size: 30px; }
+.tabs.compact a::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 29px; block-size: 2px; z-index: 1; }
+.tabs.compact a.on::after { background: var(--sw-accent); }
+.tabs .count { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-inline-start: 5px; }
+.tabs a.on .count { color: var(--sw-accent-text); }
+/* the count badge of the RFQ tab (nav.ts applyRfqQuestions; UXREST-295 badge pair) */
+.tabs .tbadge { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding: 0 5px; margin-inline-start: 6px; border-radius: var(--sw-r-pill); background: var(--sw-badge-bg); color: var(--sw-badge-fg); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); }
+@media (max-width: 767px) and (pointer: coarse) { .tabs a { min-block-size: 44px; } }
+
+/* ===== the screen (screens/infra-temperature.ts :host / .top / .kpis) ===== */
+.screen { display: none; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; inline-size: 100%; min-inline-size: 0; }
+.screen.on { display: flex; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; order: -1; }
+.top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); }
+.top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.top .sp { flex: 1; }
+.top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--sw-border-strong); }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.pri:hover { background: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+.btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
+.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
+.btn.big { padding: 12px 18px; font-size: var(--sw-fs-lg); min-block-size: 48px; }
+.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.btn svg { font-size: 16px; }
+/* KPI row: each a filter (aria-pressed), like the temperature screen; on the vendor card the KPI is a number with its base and links to the list behind it */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer; --c: var(--sw-accent); min-inline-size: 0; }
+.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi > div { min-inline-size: 0; }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; color: var(--sw-heading); white-space: nowrap; }
+.kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+.kpi span.b { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpis.six { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+.kpis.six .kpi { padding-inline: 12px; gap: 10px; }
+/* badges (solid, temperature) and chips (soft) */
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+.badge svg { font-size: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
+/* panels / cards (temperature .panel, electricity .card) */
+.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+.panel.flush { padding: 0; overflow: hidden; }
+.panel[data-look] { border-color: color-mix(in srgb, var(--c) 55%, var(--sw-border)); }
+.panel h2, .panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
+.panel .hd .sp { flex: 1; }
+.hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.two > * { min-inline-size: 0; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: var(--sw-fs-md); }
+.kv dt { color: var(--sw-text-3); }
+.kv dd { margin: 0; color: var(--sw-text); font-weight: var(--sw-fw-medium); overflow-wrap: anywhere; }
+.kv a { color: var(--sw-accent-text); }
+/* the directory beside the card (the places-tree panel of components/sw-place-tree.ts, with the directory's rows) */
+.cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; min-inline-size: 0; }
+.cols > * { min-inline-size: 0; }
+.tree { display: flex; flex-direction: column; gap: 2px; padding: var(--sw-s-2); }
+.tree .ttl { padding: var(--sw-s-2) var(--sw-s-3) var(--sw-s-1); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); color: var(--sw-text-3); }
+.tree button { display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: 36px; padding-inline: var(--sw-s-3); border: 0; border-radius: var(--sw-r-sm); background: transparent; color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); text-align: start; cursor: pointer; inline-size: 100%; }
+.tree button:hover { background: var(--sw-hover-wash); }
+.tree button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree button[aria-current="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.tree .n { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; }
+.tree .dot { flex: none; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c, var(--sw-unknown)); }
+.tree-m { display: none; }
+/* the list toolbar: a search field (shell .search look) and the kind segmented control (electricity .seg) */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-block-end: 1px solid var(--sw-border); }
+.toolbar.tight { padding: 10px; }
+.search { flex: 1; min-inline-size: 140px; display: flex; align-items: center; gap: 8px; block-size: 32px; padding: 0 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); background: var(--sw-surface-2); color: var(--sw-text-3); }
+.search:focus-within { border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); background: var(--sw-surface); }
+.search input { flex: 1; border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); outline: none; min-inline-size: 0; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); max-inline-size: 100%; flex-wrap: wrap; }
+.seg button { padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0; background: transparent; min-block-size: 28px; }
+.seg button[aria-pressed="true"] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+/* tables (electricity/styles.ts table.t) */
+.scrollx { overflow-x: auto; }
+table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
+table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 9px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
+table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
+table.t tbody tr:last-child td { border-block-end: 0; }
+table.t th .chip { margin-inline-start: 6px; }
+td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+td.rh { color: var(--sw-text-3); font-size: var(--sw-fs-sm); inline-size: 120px; }
+td.tot { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+/* the two NEW rows of the comparison: marked with the accent wash (a mockup mark; in the product they are ordinary rows) */
+table.t tr.new td { background: color-mix(in srgb, var(--sw-accent-soft) 55%, transparent); }
+table.t tr.new td.rh { color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+.cards-m { display: none; }
+/* the list rows (electricity .li): documents, alerts */
+.list { display: flex; flex-direction: column; gap: 8px; }
+.li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); min-inline-size: 0; }
+.li[data-look] { border-color: color-mix(in srgb, var(--c) 45%, var(--sw-border)); }
+.li .grow { flex: 1; min-inline-size: 0; }
+.li .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.li .t2 { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.li .acts { display: flex; gap: 6px; flex: none; }
+/* the budget rows (the bar of the electricity screens' consumption, two shades: approved + committed) */
+.budget { display: flex; flex-direction: column; }
+.budget .r { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 11px 0; border-block-end: 1px solid var(--sw-border); }
+.budget .r:last-child { border-block-end: 0; padding-block-end: 0; }
+.budget .r:first-child { padding-block-start: 0; }
+.budget .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.budget .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.bar { block-size: 8px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); overflow: hidden; display: flex; --c: var(--sw-accent); }
+.bar i { display: block; block-size: 100%; background: var(--c); }
+.bar i.c { background: color-mix(in srgb, var(--c) 45%, transparent); }
+.budget .m { font-size: var(--sw-fs-sm); color: var(--sw-text-3); display: flex; gap: 12px; margin-block-start: 5px; flex-wrap: wrap; }
+/* the status block of the ticket detail (the drawer's status sentence + actions) */
+.status { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.status .av { inline-size: 44px; block-size: 44px; border-radius: 50%; background: var(--c-soft, var(--sw-accent-soft)); color: var(--c-text, var(--sw-accent-text)); display: grid; place-items: center; font-weight: var(--sw-fw-bold); }
+.status .sent { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); margin-block-start: 4px; }
+.status .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); }
+.hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c, var(--sw-offline)); flex: none; }
+.hist .t { flex: 1; min-inline-size: 0; }
+.hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.file { display: flex; gap: 10px; align-items: center; border: 1px dashed var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 10px; }
+.file .fi { inline-size: 34px; block-size: 42px; border-radius: var(--sw-r-xs); background: var(--sw-danger-soft); color: var(--sw-danger-text); display: grid; place-items: center; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); }
+.alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--sw-r-md); font-size: var(--sw-fs-md); border: 1px solid transparent; }
+.alert.err { background: var(--sw-danger-soft); border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent); }
+.alert > div { flex: 1; min-inline-size: 0; }
+.alert .row { display: flex; gap: 8px; flex-wrap: wrap; margin-block-start: 8px; }
+/* states (components/sw-state-panel.ts) */
+.state-panel { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 220px; }
+.state-panel.in { min-block-size: 140px; padding: var(--sw-s-4); }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
+.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state-panel[data-state="off"] .icon { background: var(--sw-offline-soft); color: var(--sw-offline-text); }
+.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
+.skl { display: none; border-radius: var(--sw-r-md); background: linear-gradient(90deg, var(--sw-skeleton), var(--sw-skeleton-shine), var(--sw-skeleton)); background-size: 200% 100%; animation: skl 1.4s linear infinite; block-size: 160px; }
+@keyframes skl { to { background-position: -200% 0; } }
+/* which blocks a state shows: [data-only] lists the states a block belongs to; .state-panel[data-state] and .skl are the state's own panel */
+body[data-st="ready"] [data-only]:not([data-only~="ready"]), body[data-st="empty"] [data-only]:not([data-only~="empty"]), body[data-st="loading"] [data-only]:not([data-only~="loading"]), body[data-st="error"] [data-only]:not([data-only~="error"]), body[data-st="off"] [data-only]:not([data-only~="off"]) { display: none !important; }
+body[data-st="loading"] .screen.on > :not(.skl):not(.top) { display: none !important; }
+body[data-st="loading"] .screen.on > .skl { display: block; }
+body[data-st="error"] .screen.on > :not(.state-panel[data-state="error"]):not(.top) { display: none !important; }
+body[data-st="error"] .screen.on > .state-panel[data-state="error"] { display: flex; }
+.state-panel.in[data-state] { display: flex; }
+/* the feature switches off (tickets.vendor_stats / visits / budgets): the feature's blocks leave, the rest of the screen stays */
+body[data-st="off"] [data-feat] { display: none !important; }
+/* the ticket detail's visit state (the mock selector): missed / planned / late */
+body[data-visit="missed"] [data-visit]:not([data-visit~="missed"]), body[data-visit="planned"] [data-visit]:not([data-visit~="planned"]), body[data-visit="late"] [data-visit]:not([data-visit~="late"]) { display: none !important; }
+/* permissions: the manage / money affordances leave for operators and viewers */
+body[data-role="op"] .mng, body[data-role="view"] .mng, body[data-role="view"] .money, body[data-role="op"] .money { display: none !important; }
+/* the tickets module off: the whole area is gone (nav.ts applyTicketsHidden); the mockup shows the state panel instead */
+body.tickets-off .app { display: none; }
+.tickets-off-panel { display: none; padding: 40px var(--sw-page-pad); }
+body.tickets-off .tickets-off-panel { display: block; }
+body.tickets-off .tickets-off-panel .state-panel { display: flex; }
+/* the public vendor page (frontend/src/public-ticket): its own public look - one column, the steps as cards, no shell */
+.pubwrap { display: none; min-block-size: calc(100dvh - 40px); padding: 18px 16px 32px; }
+.pubwrap.on { display: block; }
+.pub { max-inline-size: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.pub .hd { padding: 4px 2px; }
+.pub .hd h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1.25; }
+.pub .hd .sub { color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.step { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.step .sh { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.step .sh b { font-size: var(--sw-fs-lg); color: var(--sw-heading); }
+.step .win { font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); font-variant-numeric: tabular-nums; }
+.step .done { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: var(--sw-r-md); background: var(--sw-success-soft); color: var(--sw-success-text); font-weight: var(--sw-fw-semibold); }
+.step .seg.four { display: grid; grid-template-columns: repeat(4, 1fr); }
+.step .seg.four button { padding-inline: 4px; }
+.step .btn.big { inline-size: 100%; min-block-size: 56px; font-size: var(--sw-fs-xl); border-radius: var(--sw-r-lg); }
+.inp { font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 36px; padding: 0 12px; inline-size: 100%; }
+.inp:focus { outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; }
+.toast.on { display: block; }
+nav.bottom { display: none; }
+
+/* ===== tablet (<= 1100: the electricity screens' .hide-tablet rule) ===== */
+@media (max-width: 1100px) {
+  table.t th, table.t td { padding-inline: 8px; }
+  #s-compare table.t td:not(.rh) { white-space: normal; min-inline-size: 150px; }
+  .budget .r { grid-template-columns: 110px minmax(0, 1fr) auto; }
+  .budget .r .acts { grid-column: 1 / -1; justify-self: end; }
+  .two { grid-template-columns: minmax(0, 1fr); }
+}
+/* ===== tablet (<= 1023: the rail keeps its icons only, shell/sw-app.ts) ===== */
+@media (max-width: 1023px) {
+  nav.rail a span { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .cols { grid-template-columns: 200px minmax(0, 1fr); }
+  .screen { padding-inline: 20px; }
+}
+/* ===== phone (<= 767: no rail, the bottom bar; the directory becomes a select, the comparison becomes cards) ===== */
+@media (max-width: 767px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .float { inset-inline-end: 12px; }
+  .subnav { padding: 8px 12px 0; }
+  .screen { padding: 12px 14px 20px; gap: 12px; }
+  .top { flex-direction: column; align-items: stretch; }
+  .top .sp { display: none; }
+  .top h1 { font-size: var(--sw-fs-xl); }
+  .kpis, .kpis.six { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 10px 12px; gap: 10px; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .tree-w { display: none; }
+  .tree-m { display: block; }
+  .tree-m select { inline-size: 100%; font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 44px; padding: 0 12px; }
+  .toolbar { padding: 10px; gap: 8px; }
+  .search { flex-basis: 100%; min-inline-size: 0; block-size: 44px; }
+  .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
+  .seg button { min-block-size: 38px; flex: none; }
+  .scrollx { display: none; }
+  .cards-m { display: grid; gap: 8px; padding: 10px; }
+  .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); }
+  .cards-m .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cards-m .c .r1 .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); min-inline-size: 0; }
+  .cards-m .c .ln { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-base); }
+  .cards-m .c .ln span:first-child { color: var(--sw-text-3); flex: none; }
+  .cards-m .c .ln.new { background: color-mix(in srgb, var(--sw-accent-soft) 55%, transparent); margin-inline: -12px; padding: 4px 12px; }
+  .cards-m .c .r3 { display: flex; gap: 6px; flex-wrap: wrap; }
+  .two { grid-template-columns: minmax(0, 1fr); }
+  .budget .r { grid-template-columns: minmax(0, 1fr) auto; }
+  .budget .r .bw { grid-column: 1 / -1; }
+  .budget .r .acts { grid-column: 1 / -1; justify-self: end; }
+  .status { grid-template-columns: 44px minmax(0, 1fr); }
+  .status .acts { grid-column: 1 / -1; }
+  .li { flex-wrap: wrap; }
+  .li .acts { flex-basis: 100%; justify-content: flex-end; }
+  .btn { min-block-size: 44px; }
+  .btn.sm { min-block-size: 36px; }
+  .tree button { min-block-size: 44px; }
+  .kv { grid-template-columns: 100px minmax(0, 1fr); }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
+  nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+  .pubwrap { padding: 12px 12px 24px; }
+  .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
 }
 </style>
 </head>
-<body data-state="ready">
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  </defs>
+</svg>
 
-<div class="mock" aria-label="דגם - מתגים">
-  <b>מסך</b>
-  <button data-s="handlers" aria-pressed="true">1 ספק</button>
-  <button data-s="compare">2 השוואת הצעות</button>
-  <button data-s="overview">3 סקירה</button>
-  <button data-s="detail">4 פרטי בקשה</button>
-  <button data-s="public">5 דף הספק</button>
-  <span class="sp"></span>
-  <b>מצב</b>
-  <select id="state" aria-label="מצב"><option value="ready">מוכן</option><option value="empty">ריק</option><option value="loading">טעינה</option><option value="error">שגיאה</option><option value="off">תכונה כבויה</option></select>
+<!-- mockup-only controls -->
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם</b>
+  <select id="scr" aria-label="מסך">
+    <option value="handlers">1 כרטיס ספק</option>
+    <option value="compare">2 השוואת הצעות</option>
+    <option value="overview">3 סקירה</option>
+    <option value="detail">4 פרטי בקשה</option>
+    <option value="public">5 דף הספק (ציבורי)</option>
+  </select>
+  <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל</option><option value="op">תפקיד: מפעיל</option><option value="view">תפקיד: צופה</option></select>
+  <select id="stsel" aria-label="מצב המסך"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: תכונה כבויה</option></select>
+  <select id="visit" aria-label="מצב הביקור" hidden><option value="missed">ביקור: לא הגיע</option><option value="planned">ביקור: מתוכנן</option><option value="late">ביקור: הגיע באיחור</option></select>
   <button id="tk" aria-pressed="true">ניהול השירות: פועל</button>
   <button id="th" aria-pressed="false">כהה</button>
-</div>
+</nav>
 
 <div class="tickets-off-panel">
-  <div class="state-panel off"><div class="icon">—</div><h4>ניהול השירות כבוי</h4><button class="btn sm">הגדרות</button></div>
+  <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>ניהול השירות כבוי</h4><p>המודול מופעל בהגדרות המערכת.</p></div><button class="btn mng">להגדרות</button></div>
 </div>
 
-<div class="app">
-  <nav class="rail" aria-label="ניווט">
-    <div class="brand-tile">A</div>
-    <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>בית</a>
-    <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>חי</a>
-    <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>מפות</a>
-    <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0 5 5L13 18a2.5 2.5 0 0 1-3.5-3.5l6.7-6.7z"/><path d="M4 20l5-5"/></svg>ניהול השירות</a>
-    <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12h8M12 8v8"/></svg>התקנים</a>
-    <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.4 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.6h5l.4-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6c.1-.3.1-.7.1-1z"/></svg>הגדרות</a>
+<div class="app" id="app">
+  <!-- the area rail (shell/sw-app.ts nav.rail): the areas of this installation, the service-management area active -->
+  <nav class="rail" aria-label="ניווט ראשי">
+    <span class="brand" aria-hidden="true">S</span>
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-ticket"/></svg><span>ניהול השירות</span></a>
+    <div class="grow"></div>
+    <span class="me" aria-label="תפריט המשתמש">רל</span>
   </nav>
-
-  <div class="main">
+  <div class="float" aria-hidden="true"><div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <main>
+    <!-- level 1: the four sections of the service-management area (owner 2026-10-23); the labels come from SECTIONS in the script -->
     <div class="subnav">
-      <div class="tabs" role="tablist" aria-label="ניהול השירות">
-        <a href="#" id="t-overview">סקירה</a>
-        <a href="#">שלי</a>
-        <a href="#">המחלקה</a>
-        <a href="#">לוח מנהל</a>
-        <a href="#">הכול</a>
-        <a href="#" id="t-handlers" class="on">מטפלים וספקים</a>
-        <a href="#" id="t-rfqs">בקשות הצעת מחיר <span class="tbadge">2</span></a>
-        <a href="#">חשבון ספקים</a>
-        <a href="#" class="proposed" title="לשונית מוצעת (CR-SVC215 שאלה 11)">דוחות ובקרות</a>
-      </div>
+      <nav class="tabs pill" aria-label="מדורים"><div class="row" id="sections">
+        <a href="#" data-sec="requests"><span class="lbl" data-section-label="requests"></span></a>
+        <a href="#" data-sec="maint"><span class="lbl" data-section-label="maint"></span></a>
+        <a href="#" data-sec="vendors"><span class="lbl" data-section-label="vendors"></span></a>
+        <a href="#" data-sec="reports"><span class="lbl" data-section-label="reports"></span></a>
+      </div></nav>
+    </div>
+    <!-- level 2: the section's pages (the existing tabs of TICKETS_TABS, grouped) -->
+    <div class="subnav">
+      <nav class="tabs compact" aria-label="עמודים"><div class="row" id="pages"></div></nav>
     </div>
 
-    <!-- 1. מטפלים וספקים - the vendor card -->
-    <section class="page on" id="p-handlers">
-      <div class="top">
-        <div><h1>חשמל השרון</h1><p class="sub">ספק · חשמל · מחלקת אחזקה</p></div>
-        <span class="sp"></span>
-        <div class="meta"><button class="btn">שליחת הודעה</button><button class="btn pri">עריכה</button></div>
-      </div>
+    <!-- ===== 1. ספקים וכספים > מטפלים וספקים: the vendor card (r081 + r084) ===== -->
+    <section class="screen on" id="s-handlers">
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את כרטיס הספק</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1 data-only="ready loading error off">חשמל השרון</h1><h1 data-only="empty">משאבות הצפון</h1><p class="sub"><span data-section-label="vendors"></span> · ספק · <span data-only="ready loading error off">חשמל · מחלקת אחזקה · 3 בקשות פתוחות</span><span data-only="empty">אינסטלציה · ספק חדש</span></p></div><span class="sp"></span>
+        <div class="meta"><button class="btn"><svg class="ic"><use href="#i-msg"/></svg>שליחת הודעה</button><button class="btn pri mng">עריכה</button></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
       <div class="cols">
-        <aside class="aside ucard" style="padding:10px">
-          <input class="search" placeholder="חיפוש ספק" style="width:100%">
-          <div class="list">
-            <div class="li"><span><span class="t1">אש-טק</span><br><span class="t2">כיבוי אש</span></span><span class="chip c-ok">תקין</span></div>
-            <div class="li sel"><span><span class="t1">חשמל השרון</span><br><span class="t2">חשמל</span></span><span class="chip c-err">ביטוח פג</span></div>
-            <div class="li"><span><span class="t1">קור-אייר</span><br><span class="t2">מיזוג</span></span><span class="chip c-warn">עד 01.02</span></div>
-            <div class="li"><span><span class="t1">קלין-טק</span><br><span class="t2">ניקיון</span></span><span class="chip c-ok">תקין</span></div>
-            <div class="li"><span><span class="t1">דני כהן</span><br><span class="t2">עובד</span></span><span></span></div>
-          </div>
+        <!-- the directory beside the card (the tree panel of the temperature / elevators screens: one list, the current one marked) -->
+        <aside class="panel flush tree-w">
+          <div class="toolbar tight"><label class="search"><svg class="ic"><use href="#i-search"/></svg><input type="search" placeholder="חיפוש" aria-label="חיפוש ספק"></label></div>
+          <nav class="tree" aria-label="מטפלים וספקים">
+            <div class="ttl">ספקים</div>
+            <button type="button" aria-current="false"><span class="dot" data-look="ok"></span><span class="name">אש-טק</span><span class="n">1</span></button>
+            <button type="button" aria-current="true" data-only="ready loading error off"><span class="dot" data-look="alarm"></span><span class="name">חשמל השרון</span><span class="n">3</span></button>
+            <button type="button" aria-current="false" data-only="empty"><span class="dot" data-look="alarm"></span><span class="name">חשמל השרון</span><span class="n">3</span></button>
+            <button type="button" aria-current="false"><span class="dot" data-look="warn"></span><span class="name">קור-אייר</span><span class="n">2</span></button>
+            <button type="button" aria-current="false"><span class="dot" data-look="ok"></span><span class="name">קלין-טק</span><span class="n">0</span></button>
+            <button type="button" aria-current="false" data-only="ready loading error off"><span class="dot" data-look="unk"></span><span class="name">משאבות הצפון</span><span class="n">0</span></button>
+            <button type="button" aria-current="true" data-only="empty"><span class="dot" data-look="unk"></span><span class="name">משאבות הצפון</span><span class="n">0</span></button>
+            <div class="ttl">עובדים</div>
+            <button type="button" aria-current="false"><svg class="ic"><use href="#i-user"/></svg><span class="name">דני כהן</span><span class="n">2</span></button>
+            <button type="button" aria-current="false"><svg class="ic"><use href="#i-user"/></svg><span class="name">רונית לוי</span><span class="n">5</span></button>
+          </nav>
         </aside>
-        <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
-          <div class="floors st-ready only" role="group" aria-label="תקופה"><button>3 חודשים</button><button aria-pressed="true">12 חודשים</button><button>36 חודשים</button></div>
-
-          <div class="kpis st-ready only">
-            <div class="kpi"><b>3 ש׳ 20 ד׳</b><span class="l">זמן תגובה</span><span class="b">חציון · 14 בקשות</span></div>
-            <div class="kpi warn"><b>9 מתוך 11</b><span class="l">הגעה בזמן</span><span class="b">2 איחורים · 1 לא הגיע</span></div>
-            <div class="kpi"><b>2 מתוך 23</b><span class="l">ביקורים חוזרים</span><span class="b">תוך 30 יום</span></div>
-            <div class="kpi"><b>11 מתוך 13</b><span class="l">עמידה בהצעה</span><span class="b">חריגה חציונית 6 %</span></div>
-            <div class="kpi"><b>1 מתוך 24</b><span class="l">הוחזרו</span><span class="b">לא בתחום</span></div>
-            <div class="kpi"><b>23</b><span class="l">בוצעו</span><span class="b">3 פתוחות כעת</span></div>
+        <div style="display:flex;flex-direction:column;gap:14px;min-inline-size:0">
+          <div class="tree-m"><select aria-label="ספק"><option>חשמל השרון (3)</option><option>אש-טק (1)</option><option>קור-אייר (2)</option><option>קלין-טק (0)</option><option>משאבות הצפון (0)</option></select></div>
+          <!-- r081: the reputation strip - six numbers with their base, each a link to the list behind it; the window chips above. No score. -->
+          <div data-feat="stats" style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div class="seg" role="group" aria-label="תקופה"><button aria-pressed="false">3 חודשים</button><button aria-pressed="true">12 חודשים</button><button aria-pressed="false">36 חודשים</button></div>
+              <span class="mut">12 החודשים האחרונים · שעות עבודה</span>
+            </div>
+            <div class="kpis six" role="group" aria-label="מדדי הספק" data-only="ready loading error off">
+              <button class="kpi" data-look="acc"><span class="dot" aria-hidden="true"></span><div><b>3 ש׳ 20 ד׳</b><span class="l">זמן תגובה</span><span class="b">חציון · 14 בקשות</span></div></button>
+              <button class="kpi" data-look="warn"><span class="dot" aria-hidden="true"></span><div><b>9 מתוך 11</b><span class="l">הגעה בזמן</span><span class="b">2 איחורים · 1 לא הגיע</span></div></button>
+              <button class="kpi" data-look="ok"><span class="dot" aria-hidden="true"></span><div><b>2 מתוך 23</b><span class="l">ביקורים חוזרים</span><span class="b">תוך 30 יום · אותו התקן</span></div></button>
+              <button class="kpi money" data-look="ok"><span class="dot" aria-hidden="true"></span><div><b>11 מתוך 13</b><span class="l">לפי ההצעה</span><span class="b">חריגה חציונית 6 %</span></div></button>
+              <button class="kpi" data-look="ok"><span class="dot" aria-hidden="true"></span><div><b>1 מתוך 24</b><span class="l">הוחזרו</span><span class="b">לא בתחום</span></div></button>
+              <button class="kpi" data-look="acc"><span class="dot" aria-hidden="true"></span><div><b>23</b><span class="l">בוצעו</span><span class="b">3 פתוחות כעת</span></div></button>
+            </div>
+            <!-- a new vendor: the numbers are "-" with their zero base (never "0 %") -->
+            <div class="kpis six" role="group" aria-label="מדדי הספק" data-only="empty">
+              <button class="kpi" data-look="unk"><span class="dot" aria-hidden="true"></span><div><b>-</b><span class="l">זמן תגובה</span><span class="b">0 בקשות</span></div></button>
+              <button class="kpi" data-look="unk"><span class="dot" aria-hidden="true"></span><div><b>-</b><span class="l">הגעה בזמן</span><span class="b">0 ביקורים</span></div></button>
+              <button class="kpi" data-look="unk"><span class="dot" aria-hidden="true"></span><div><b>-</b><span class="l">ביקורים חוזרים</span><span class="b">0 בקשות</span></div></button>
+              <button class="kpi money" data-look="unk"><span class="dot" aria-hidden="true"></span><div><b>-</b><span class="l">לפי ההצעה</span><span class="b">0 דרישות</span></div></button>
+              <button class="kpi" data-look="unk"><span class="dot" aria-hidden="true"></span><div><b>-</b><span class="l">הוחזרו</span><span class="b">0 שיבוצים</span></div></button>
+              <button class="kpi" data-look="unk"><span class="dot" aria-hidden="true"></span><div><b>0</b><span class="l">בוצעו</span><span class="b">0 פתוחות כעת</span></div></button>
+            </div>
           </div>
-
-          <div class="kpis st-empty only">
-            <div class="kpi"><b>-</b><span class="l">זמן תגובה</span><span class="b">0 בקשות</span></div>
-            <div class="kpi"><b>-</b><span class="l">הגעה בזמן</span><span class="b">0 ביקורים</span></div>
-            <div class="kpi"><b>-</b><span class="l">ביקורים חוזרים</span><span class="b">0 בקשות</span></div>
-            <div class="kpi"><b>-</b><span class="l">עמידה בהצעה</span><span class="b">0 דרישות</span></div>
-            <div class="kpi"><b>-</b><span class="l">הוחזרו</span><span class="b">0 שיבוצים</span></div>
-            <div class="kpi"><b>0</b><span class="l">בוצעו</span><span class="b">0 פתוחות כעת</span></div>
-          </div>
-          <div class="st-loading only" style="flex-direction:column;gap:12px"><div class="skl" style="height:32px;width:280px"></div><div class="kpis"><div class="skl" style="height:84px"></div><div class="skl" style="height:84px"></div><div class="skl" style="height:84px"></div><div class="skl" style="height:84px"></div><div class="skl" style="height:84px"></div><div class="skl" style="height:84px"></div></div><div class="skl" style="height:180px"></div></div>
-          <div class="state-panel error st-error only"><div class="icon">!</div><h4>הנתונים לא נטענו</h4><button class="btn sm">נסו שוב</button></div>
-
-          <div class="grid2 st-ready only">
-            <div class="ucard">
-              <div class="uhead"><h3>פרטים</h3></div>
-              <dl class="kv">
+          <div class="two">
+            <div class="panel"><div class="hd"><h4>פרטים</h4></div>
+              <dl class="kv" data-only="ready loading error off">
                 <dt>טלפון</dt><dd><span class="num">05·-···4412</span> · מאומת</dd>
                 <dt>ערוץ</dt><dd>וואטסאפ</dd>
                 <dt>מחלקות</dt><dd>אחזקה · חשמל</dd>
                 <dt>ספק קבוע</dt><dd>כן</dd>
-                <dt>דרישת תשלום</dt><dd>נדרשת · מע״מ 18 %</dd>
+                <dt class="money">דרישת תשלום</dt><dd class="money">נדרשת · מע״מ 18 %</dd>
+              </dl>
+              <dl class="kv" data-only="empty">
+                <dt>טלפון</dt><dd><span class="num">05·-···9031</span> · לא מאומת</dd>
+                <dt>ערוץ</dt><dd>דוא״ל</dd>
+                <dt>מחלקות</dt><dd>אחזקה</dd>
+                <dt>ספק קבוע</dt><dd>לא</dd>
               </dl>
             </div>
-            <div class="ucard rows" data-look="alarm">
-              <div class="uhead"><h3>מסמכים</h3><button class="btn sm">מסמך חדש</button></div>
-              <div class="r"><span><span class="t1">ביטוח צד ג׳</span><br><span class="t2">בתוקף עד <span class="num">10.01.2027</span> · PDF</span></span><span class="chip c-err">פג</span><button class="btn sm">חידוש</button></div>
-              <div class="r"><span><span class="t1">רישיון חשמלאי</span><br><span class="t2">בתוקף עד <span class="num">01.02.2027</span></span></span><span class="chip c-warn">עוד 17 ימים</span><button class="btn sm">חידוש</button></div>
-              <div class="r"><span><span class="t1">אישור עבודה בגובה</span><br><span class="t2">בתוקף עד <span class="num">30.11.2027</span></span></span><span class="chip c-ok">תקין</span><button class="btn sm">חידוש</button></div>
+            <!-- r084: the documents block (data = CR-MAINT215; renders nothing while the maintenance module is off) -->
+            <div class="panel" data-look="alarm" data-only="ready loading error off"><div class="hd"><h4>מסמכים</h4><span class="sp"></span><button class="btn sm mng"><svg class="ic"><use href="#i-plus"/></svg>מסמך חדש</button></div>
+              <div class="list">
+                <div class="li" data-look="alarm"><div class="grow"><div class="t1">ביטוח צד ג׳</div><div class="t2">בתוקף עד <span class="num">10.01.2027</span> · PDF</div></div><span class="badge">פג</span><div class="acts"><button class="btn sm mng">חידוש</button></div></div>
+                <div class="li" data-look="warn"><div class="grow"><div class="t1">רישיון חשמלאי</div><div class="t2">בתוקף עד <span class="num">01.02.2027</span></div></div><span class="badge">עוד 17 ימים</span><div class="acts"><button class="btn sm mng">חידוש</button></div></div>
+                <div class="li" data-look="ok"><div class="grow"><div class="t1">אישור עבודה בגובה</div><div class="t2">בתוקף עד <span class="num">30.11.2027</span></div></div><span class="badge">בתוקף</span><div class="acts"><button class="btn sm mng">חידוש</button></div></div>
+              </div>
             </div>
-          </div>
-          <div class="grid2 st-empty only">
-            <div class="ucard"><div class="uhead"><h3>פרטים</h3></div><dl class="kv"><dt>טלפון</dt><dd><span class="num">05·-···9031</span> · לא מאומת</dd><dt>ערוץ</dt><dd>דוא״ל</dd><dt>מחלקות</dt><dd>אחזקה</dd></dl></div>
-            <div class="ucard"><div class="uhead"><h3>מסמכים</h3><button class="btn sm">מסמך חדש</button></div><div class="state-panel" style="min-height:120px;padding:20px;border:0"><h4>אין מסמכים</h4></div></div>
-          </div>
-          <div class="st-off only" style="flex-direction:column;gap:14px">
-            <div class="grid2" style="display:grid">
-              <div class="ucard"><div class="uhead"><h3>פרטים</h3></div><dl class="kv"><dt>טלפון</dt><dd><span class="num">05·-···4412</span> · מאומת</dd><dt>ערוץ</dt><dd>וואטסאפ</dd><dt>מחלקות</dt><dd>אחזקה · חשמל</dd><dt>ספק קבוע</dt><dd>כן</dd></dl></div>
-              <div class="ucard rows"><div class="uhead"><h3>מסמכים</h3><button class="btn sm">מסמך חדש</button></div><div class="r"><span><span class="t1">ביטוח צד ג׳</span><br><span class="t2">בתוקף עד <span class="num">10.01.2027</span></span></span><span class="chip c-err">פג</span><button class="btn sm">חידוש</button></div><div class="r"><span><span class="t1">רישיון חשמלאי</span><br><span class="t2">בתוקף עד <span class="num">01.02.2027</span></span></span><span class="chip c-warn">עוד 17 ימים</span><button class="btn sm">חידוש</button></div></div>
+            <div class="panel" data-only="empty"><div class="hd"><h4>מסמכים</h4><span class="sp"></span><button class="btn sm mng"><svg class="ic"><use href="#i-plus"/></svg>מסמך חדש</button></div>
+              <div class="state-panel in" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-doc"/></svg></div><div><h4>אין מסמכים</h4><p>ביטוח, רישיון או אישור עבודה: מזינים את מועד התוקף והמערכת מזכירה לפני שהוא פג.</p></div></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 2. בקשות הצעת מחיר - the existing comparison + two rows -->
-    <section class="page" id="p-compare">
-      <div class="top">
-        <div><h1>החלפת משאבת סחרור - השוואת הצעות</h1><p class="sub">3 הצעות · מועד אחרון <span class="num">20.02.2027</span> · מבנה א · מרתף</p></div>
-        <span class="sp"></span>
-        <div class="meta">
-          <div class="seg" role="group" aria-label="סינון"><button aria-pressed="true">הכול</button><button>בחלון העבודה</button></div>
-          <div class="seg" role="group" aria-label="מיון"><button aria-pressed="true">מחיר</button><button>תאריך</button></div>
-        </div>
-      </div>
-      <div class="ucard st-ready only" style="padding:0;overflow:auto">
-        <table class="t desk" aria-label="השוואת הצעות">
-          <thead><tr><th></th><th>חשמל השרון <span class="chip c-acc" style="margin-inline-start:6px">הזולה</span></th><th>קור-אייר <span class="chip c-acc" style="margin-inline-start:6px">המוקדמת</span></th><th>משאבות הצפון</th></tr></thead>
+    <!-- ===== 2. ספקים וכספים > בקשות הצעת מחיר: the EXISTING comparison (r082) with the two new rows ===== -->
+    <section class="screen" id="s-compare">
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את ההשוואה</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>החלפת משאבת סחרור - השוואת הצעות</h1><p class="sub"><span data-section-label="vendors"></span> · <span data-only="ready loading error off">3 הצעות</span><span data-only="empty">0 הצעות</span> · מועד אחרון <span class="num">20.02.2027</span> · מבנה א · מרתף</p></div><span class="sp"></span>
+        <div class="meta"><div class="seg" role="group" aria-label="סינון"><button aria-pressed="true">הכול</button><button aria-pressed="false">בחלון העבודה</button></div><div class="seg" role="group" aria-label="מיון"><button aria-pressed="true">מחיר</button><button aria-pressed="false">תאריך</button></div></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel in" data-state="empty" data-only="empty"><div class="icon"><svg class="ic"><use href="#i-inbox"/></svg></div><div><h4>עדיין לא התקבלו הצעות</h4><p>הספקים קיבלו את הבקשה; ההשוואה מתמלאת עם ההצעה הראשונה.</p></div><button class="btn mng">תזכורת לספקים</button></div>
+      <div class="panel flush" data-only="ready loading error off">
+        <div class="scrollx"><table class="t" aria-label="השוואת הצעות">
+          <thead><tr><th></th><th>חשמל השרון<span class="chip" data-look="acc">הזולה</span></th><th>קור-אייר<span class="chip" data-look="acc">המוקדמת</span></th><th>משאבות הצפון</th></tr></thead>
           <tbody>
-            <tr class="new"><td class="rh">הספק</td><td>הגעה 9 מתוך 11 · חזרות 2 מתוך 23 · לפי ההצעה 11 מתוך 13</td><td>הגעה 14 מתוך 14 · חזרות 0 מתוך 9 · לפי ההצעה 6 מתוך 8</td><td>ספק חדש</td></tr>
-            <tr class="new"><td class="rh">מסמכים</td><td><span class="chip c-err">ביטוח פג 10.01</span></td><td><span class="chip c-warn">רישיון עד 01.02</span></td><td><span class="chip c-mut">אין מסמכים</span></td></tr>
+            <tr class="new" data-feat="stats"><td class="rh">הספק</td><td>הגעה <span class="num">9/11</span> · חזרות <span class="num">2/23</span> · לפי ההצעה <span class="num">11/13</span></td><td>הגעה <span class="num">14/14</span> · חזרות <span class="num">0/9</span> · לפי ההצעה <span class="num">6/8</span></td><td class="mut">ספק חדש</td></tr>
+            <tr class="new" data-feat="docs"><td class="rh">מסמכים</td><td><span class="chip" data-look="alarm">ביטוח פג <span class="num">10.01</span></span></td><td><span class="chip" data-look="warn">רישיון עד <span class="num">01.02</span></span></td><td><span class="chip" data-look="unk">אין מסמכים</span></td></tr>
             <tr><td class="rh">עבודה</td><td><span class="num">6,800</span> ₪</td><td><span class="num">7,400</span> ₪</td><td><span class="num">7,900</span> ₪</td></tr>
             <tr><td class="rh">חלקים</td><td><span class="num">4,200</span> ₪</td><td><span class="num">4,650</span> ₪</td><td><span class="num">4,100</span> ₪</td></tr>
-            <tr><td class="rh">נסיעה</td><td>-</td><td><span class="num">250</span> ₪</td><td>-</td></tr>
+            <tr><td class="rh">נסיעה</td><td class="mut">-</td><td><span class="num">250</span> ₪</td><td class="mut">-</td></tr>
             <tr><td class="rh">לפני מע״מ</td><td><span class="num">11,000</span> ₪</td><td><span class="num">12,300</span> ₪</td><td><span class="num">12,000</span> ₪</td></tr>
             <tr><td class="rh">מע״מ 18 %</td><td><span class="num">1,980</span> ₪</td><td><span class="num">2,214</span> ₪</td><td><span class="num">2,160</span> ₪</td></tr>
             <tr><td class="rh">סה״כ</td><td class="tot"><span class="num">12,980</span> ₪</td><td class="tot"><span class="num">14,514</span> ₪</td><td class="tot"><span class="num">14,160</span> ₪</td></tr>
-            <tr><td class="rh">חלון עבודה</td><td><span class="num">24.02-26.02</span> <span class="chip c-ok">בחלון</span></td><td><span class="num">22.02</span> <span class="chip c-ok">בחלון</span></td><td><span class="num">03.03-04.03</span> <span class="chip c-warn">מחוץ לחלון</span></td></tr>
-            <tr><td class="rh">בתוקף עד</td><td><span class="num">28.02.2027</span></td><td><span class="num">15.03.2027</span></td><td><span class="num">20.02.2027</span></td></tr>
+            <tr><td class="rh">חלון עבודה</td><td><span class="num">24.02-26.02</span> <span class="chip" data-look="ok">בחלון</span></td><td><span class="num">22.02</span> <span class="chip" data-look="ok">בחלון</span></td><td><span class="num">03.03-04.03</span> <span class="chip" data-look="warn">מחוץ לחלון</span></td></tr>
+            <tr><td class="rh">בתוקף עד</td><td class="num">28.02.2027</td><td class="num">15.03.2027</td><td class="num">20.02.2027</td></tr>
             <tr><td class="rh">תנאי תשלום</td><td>שוטף + 30</td><td>50 % מקדמה</td><td>שוטף + 60</td></tr>
-            <tr><td class="rh">קבצים</td><td>הצעה.pdf</td><td>הצעה.pdf · מפרט.pdf</td><td>-</td></tr>
-            <tr><td class="rh"></td><td><button class="btn pri sm">בחירה</button> <button class="btn ghost sm">פיצול</button></td><td><button class="btn pri sm">בחירה</button> <button class="btn ghost sm">פיצול</button></td><td><button class="btn pri sm">בחירה</button> <button class="btn ghost sm">פיצול</button></td></tr>
+            <tr><td class="rh">קבצים</td><td>הצעה.pdf</td><td>הצעה.pdf · מפרט.pdf</td><td class="mut">-</td></tr>
+            <tr><td class="rh"></td><td><button class="btn pri sm mng">בחירה</button> <button class="btn ghost sm mng">פיצול</button></td><td><button class="btn pri sm mng">בחירה</button> <button class="btn ghost sm mng">פיצול</button></td><td><button class="btn pri sm mng">בחירה</button> <button class="btn ghost sm mng">פיצול</button></td></tr>
           </tbody>
-        </table>
-        <div class="cards-m" style="padding:12px">
-          <div class="q"><div class="sh" style="display:flex;justify-content:space-between"><b>חשמל השרון</b><span class="chip c-acc">הזולה</span></div><div class="ln"><span>הספק</span><span>הגעה 9/11 · חזרות 2/23 · הצעה 11/13</span></div><div class="ln"><span>מסמכים</span><span class="chip c-err">ביטוח פג 10.01</span></div><div class="ln"><span>לפני מע״מ</span><span class="num">11,000 ₪</span></div><div class="ln"><span>סה״כ</span><b class="num">12,980 ₪</b></div><div class="ln"><span>חלון עבודה</span><span class="num">24.02-26.02</span></div><button class="btn pri">בחירה</button></div>
-          <div class="q"><div class="sh" style="display:flex;justify-content:space-between"><b>קור-אייר</b><span class="chip c-acc">המוקדמת</span></div><div class="ln"><span>הספק</span><span>הגעה 14/14 · חזרות 0/9 · הצעה 6/8</span></div><div class="ln"><span>מסמכים</span><span class="chip c-warn">רישיון עד 01.02</span></div><div class="ln"><span>לפני מע״מ</span><span class="num">12,300 ₪</span></div><div class="ln"><span>סה״כ</span><b class="num">14,514 ₪</b></div><div class="ln"><span>חלון עבודה</span><span class="num">22.02</span></div><button class="btn pri">בחירה</button></div>
-          <div class="q"><div class="sh" style="display:flex;justify-content:space-between"><b>משאבות הצפון</b><span></span></div><div class="ln"><span>הספק</span><span>ספק חדש</span></div><div class="ln"><span>מסמכים</span><span class="chip c-mut">אין מסמכים</span></div><div class="ln"><span>לפני מע״מ</span><span class="num">12,000 ₪</span></div><div class="ln"><span>סה״כ</span><b class="num">14,160 ₪</b></div><div class="ln"><span>חלון עבודה</span><span class="num">03.03-04.03</span></div><button class="btn pri">בחירה</button></div>
+        </table></div>
+        <div class="cards-m">
+          <div class="c"><div class="r1"><span class="t1">חשמל השרון</span><span class="chip" data-look="acc">הזולה</span></div><div class="ln new" data-feat="stats"><span>הספק</span><span>הגעה <span class="num">9/11</span> · חזרות <span class="num">2/23</span> · הצעה <span class="num">11/13</span></span></div><div class="ln new" data-feat="docs"><span>מסמכים</span><span class="chip" data-look="alarm">ביטוח פג <span class="num">10.01</span></span></div><div class="ln"><span>לפני מע״מ</span><span class="num">11,000 ₪</span></div><div class="ln"><span>סה״כ</span><b class="num">12,980 ₪</b></div><div class="ln"><span>חלון עבודה</span><span><span class="num">24.02-26.02</span> <span class="chip" data-look="ok">בחלון</span></span></div><div class="r3"><button class="btn pri sm mng">בחירה</button><button class="btn ghost sm mng">פיצול</button></div></div>
+          <div class="c"><div class="r1"><span class="t1">קור-אייר</span><span class="chip" data-look="acc">המוקדמת</span></div><div class="ln new" data-feat="stats"><span>הספק</span><span>הגעה <span class="num">14/14</span> · חזרות <span class="num">0/9</span> · הצעה <span class="num">6/8</span></span></div><div class="ln new" data-feat="docs"><span>מסמכים</span><span class="chip" data-look="warn">רישיון עד <span class="num">01.02</span></span></div><div class="ln"><span>לפני מע״מ</span><span class="num">12,300 ₪</span></div><div class="ln"><span>סה״כ</span><b class="num">14,514 ₪</b></div><div class="ln"><span>חלון עבודה</span><span><span class="num">22.02</span> <span class="chip" data-look="ok">בחלון</span></span></div><div class="r3"><button class="btn pri sm mng">בחירה</button><button class="btn ghost sm mng">פיצול</button></div></div>
+          <div class="c"><div class="r1"><span class="t1">משאבות הצפון</span></div><div class="ln new" data-feat="stats"><span>הספק</span><span class="mut">ספק חדש</span></div><div class="ln new" data-feat="docs"><span>מסמכים</span><span class="chip" data-look="unk">אין מסמכים</span></div><div class="ln"><span>לפני מע״מ</span><span class="num">12,000 ₪</span></div><div class="ln"><span>סה״כ</span><b class="num">14,160 ₪</b></div><div class="ln"><span>חלון עבודה</span><span><span class="num">03.03-04.03</span> <span class="chip" data-look="warn">מחוץ לחלון</span></span></div><div class="r3"><button class="btn pri sm mng">בחירה</button><button class="btn ghost sm mng">פיצול</button></div></div>
         </div>
-      </div>
-      <div class="state-panel st-empty only"><div class="icon">0</div><h4>עדיין לא התקבלו הצעות</h4><button class="btn sm">תזכורת לספקים</button></div>
-      <div class="st-loading only" style="flex-direction:column;gap:12px"><div class="skl" style="height:420px"></div></div>
-      <div class="state-panel error st-error only"><div class="icon">!</div><h4>ההשוואה לא נטענה</h4><button class="btn sm">נסו שוב</button></div>
-      <div class="ucard st-off only" style="padding:0;overflow:auto">
-        <table class="t" aria-label="השוואת הצעות - בלי שורות הספק">
-          <thead><tr><th></th><th>חשמל השרון</th><th>קור-אייר</th><th>משאבות הצפון</th></tr></thead>
-          <tbody>
-            <tr><td class="rh">לפני מע״מ</td><td><span class="num">11,000</span> ₪</td><td><span class="num">12,300</span> ₪</td><td><span class="num">12,000</span> ₪</td></tr>
-            <tr><td class="rh">סה״כ</td><td class="tot"><span class="num">12,980</span> ₪</td><td class="tot"><span class="num">14,514</span> ₪</td><td class="tot"><span class="num">14,160</span> ₪</td></tr>
-            <tr><td class="rh">חלון עבודה</td><td><span class="num">24.02-26.02</span></td><td><span class="num">22.02</span></td><td><span class="num">03.03-04.03</span></td></tr>
-          </tbody>
-        </table>
       </div>
     </section>
 
-    <!-- 3. סקירה - the manager overview: missed arrival alert + budgets -->
-    <section class="page" id="p-overview">
-      <div class="top">
-        <div><h1>סקירה</h1><p class="sub">מחלקת אחזקה · פברואר 2027</p></div>
-        <span class="sp"></span>
-        <div class="meta"><div class="seg" role="group" aria-label="מחלקה"><button aria-pressed="true">אחזקה</button><button>חשמל</button><button>ניקיון</button></div></div>
+    <!-- ===== 3. סקירה ודוחות > סקירה: the manager overview - the missed-arrival alert (r126) + department budgets (r083) ===== -->
+    <section class="screen" id="s-overview">
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את הסקירה</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>סקירה</h1><p class="sub"><span data-section-label="reports"></span> · פברואר 2027 · 3 מחלקות</p></div><span class="sp"></span>
+        <div class="meta"><div class="seg" role="group" aria-label="מחלקה"><button aria-pressed="true">כל המחלקות</button><button aria-pressed="false">אחזקה</button><button aria-pressed="false">חשמל</button><button aria-pressed="false">ניקיון</button></div></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="kpis" role="group" aria-label="מצב" data-only="ready loading error off">
+        <button class="kpi" data-look="acc" aria-pressed="true"><span class="dot" aria-hidden="true"></span><div><b>17</b><span class="l">פתוחות</span></div></button>
+        <button class="kpi" data-look="alarm" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b>3</b><span class="l">באיחור</span></div></button>
+        <button class="kpi" data-look="warn" aria-pressed="false" data-feat="visits"><span class="dot" aria-hidden="true"></span><div><b>1</b><span class="l">לא הגיע</span></div></button>
+        <button class="kpi money" data-look="unk" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b>4</b><span class="l">ממתינות לאישור</span></div></button>
       </div>
-      <div class="kpis">
-        <div class="kpi"><b>17</b><span class="l">פתוחות</span></div>
-        <div class="kpi alarm"><b>3</b><span class="l">באיחור</span></div>
-        <div class="kpi warn"><b>1</b><span class="l">לא הגיע</span></div>
-        <div class="kpi"><b>4</b><span class="l">ממתינות לאישור</span></div>
+      <div class="kpis" role="group" aria-label="מצב" data-only="empty">
+        <button class="kpi" data-look="acc" aria-pressed="true"><span class="dot" aria-hidden="true"></span><div><b>0</b><span class="l">פתוחות</span></div></button>
+        <button class="kpi" data-look="alarm" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b>0</b><span class="l">באיחור</span></div></button>
+        <button class="kpi" data-look="warn" aria-pressed="false" data-feat="visits"><span class="dot" aria-hidden="true"></span><div><b>0</b><span class="l">לא הגיע</span></div></button>
+        <button class="kpi money" data-look="unk" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b>0</b><span class="l">ממתינות לאישור</span></div></button>
       </div>
-      <div class="grid2 st-ready only">
-        <div class="ucard alerts">
-          <div class="uhead"><h3>התראות</h3></div>
-          <div class="r"><span class="chip c-err">לא הגיע</span><span><span class="t1">1042 · אין חשמל בלובי</span><br><span class="t2">חשמל השרון · חלון <span class="num">09:00-11:00</span> · קומת קרקע</span></span><span style="display:flex;gap:6px"><button class="btn sm">ביקור חדש</button><button class="btn ghost sm">תזכורת</button></span></div>
-          <div class="r"><span class="chip c-warn">באיחור</span><span><span class="t1">1038 · נזילה בחניון</span><br><span class="t2">קלין-טק · 2 ימים</span></span><button class="btn ghost sm">פתיחה</button></div>
-          <div class="r"><span class="chip c-warn">מסמך</span><span><span class="t1">ביטוח צד ג׳ · חשמל השרון</span><br><span class="t2">פג <span class="num">10.01</span> · 3 בקשות פתוחות</span></span><button class="btn ghost sm">לספק</button></div>
-          <div class="r"><span class="chip c-mut">שאלה</span><span><span class="t1">הצעת מחיר 17 · משאבת סחרור</span><br><span class="t2">קור-אייר ממתין לתשובה</span></span><button class="btn ghost sm">מענה</button></div>
+      <div class="two">
+        <!-- the existing alerts card: the missed-arrival row and the lapsing-document row join it -->
+        <div class="panel"><div class="hd"><h4>התראות</h4><span class="sp"></span><span class="chip" data-only="ready loading error off">4</span></div>
+          <div class="list" data-only="ready loading error off">
+            <div class="li" data-look="alarm" data-feat="visits"><span class="badge">לא הגיע</span><div class="grow"><div class="t1">1042 · אין חשמל בלובי</div><div class="t2">חשמל השרון · חלון <span class="num">09:00-11:00</span> + 30 ד׳ · קומת קרקע</div></div><div class="acts"><button class="btn sm mng">ביקור חדש</button><button class="btn sm ghost mng">תזכורת</button></div></div>
+            <div class="li" data-look="warn"><span class="badge">באיחור</span><div class="grow"><div class="t1">1038 · נזילה בחניון</div><div class="t2">קלין-טק · יומיים אחרי היעד</div></div><div class="acts"><button class="btn sm ghost">פתיחה</button></div></div>
+            <div class="li" data-look="warn" data-feat="docs"><span class="badge">מסמך</span><div class="grow"><div class="t1">ביטוח צד ג׳ · חשמל השרון</div><div class="t2">פג <span class="num">10.01</span> · 3 בקשות פתוחות</div></div><div class="acts"><button class="btn sm ghost">לספק</button></div></div>
+            <div class="li" data-look="acc"><span class="badge">שאלה</span><div class="grow"><div class="t1">הצעת מחיר 17 · משאבת סחרור</div><div class="t2">קור-אייר ממתין לתשובה</div></div><div class="acts"><button class="btn sm ghost">מענה</button></div></div>
+          </div>
+          <div class="state-panel in" data-state="empty" data-only="empty"><div class="icon"><svg class="ic"><use href="#i-check"/></svg></div><div><h4>אין התראות</h4></div></div>
         </div>
-        <div class="ucard budget">
-          <div class="uhead"><h3>תקציב 2027 <small>מאושר · מחויב · נותר</small></h3><div class="floors"><button aria-pressed="true">שנה</button><button>רבעון</button><button>חודש</button></div></div>
-          <div class="r">
-            <span><span class="t1">אחזקה</span><br><span class="t2"><span class="num">180,000</span> ₪</span></span>
-            <span class="bw"><div class="bar warn"><i style="width:62%"></i><i class="c" style="width:21%"></i></div><div class="m"><span>מאושר <span class="num">111,600</span></span><span>מחויב <span class="num">37,800</span></span><span>נותר <span class="num">30,600</span></span></div></span>
-            <span class="chip c-warn">83 %</span><button class="btn ghost sm">דרישות</button>
+        <!-- r083: the budget card per department - amount, approved (solid), committed (soft), remaining, the state chip; the department settings keep the editing -->
+        <div class="panel money" data-feat="budgets"><div class="hd"><h4>תקציב 2027</h4><span class="mut">מאושר · מחויב · נותר</span><span class="sp"></span><div class="seg" role="group" aria-label="תקופה"><button aria-pressed="true">שנה</button><button aria-pressed="false">רבעון</button><button aria-pressed="false">חודש</button></div></div>
+          <div class="budget" data-only="ready loading error off">
+            <div class="r">
+              <div><span class="t1">אחזקה</span><span class="t2"><span class="num">180,000</span> ₪</span></div>
+              <div class="bw"><div class="bar" data-look="warn"><i style="width:62%"></i><i class="c" style="width:21%"></i></div><div class="m"><span>מאושר <span class="num">111,600</span></span><span>מחויב <span class="num">37,800</span></span><span>נותר <span class="num">30,600</span></span></div></div>
+              <span class="chip" data-look="warn">83 %</span><div class="acts"><button class="btn sm ghost">דרישות</button></div>
+            </div>
+            <div class="r">
+              <div><span class="t1">חשמל</span><span class="t2"><span class="num">60,000</span> ₪</span></div>
+              <div class="bw"><div class="bar" data-look="alarm"><i style="width:88%"></i><i class="c" style="width:12%"></i></div><div class="m"><span>מאושר <span class="num">52,800</span></span><span>מחויב <span class="num">12,980</span></span><span>נותר <span class="num">-5,780</span></span></div></div>
+              <span class="chip" data-look="alarm">חריגה</span><div class="acts"><button class="btn sm ghost">דרישות</button></div>
+            </div>
+            <div class="r">
+              <div><span class="t1">ניקיון</span><span class="t2"><span class="num">96,000</span> ₪</span></div>
+              <div class="bw"><div class="bar" data-look="ok"><i style="width:14%"></i><i class="c" style="width:4%"></i></div><div class="m"><span>מאושר <span class="num">13,440</span></span><span>מחויב <span class="num">3,800</span></span><span>נותר <span class="num">78,760</span></span></div></div>
+              <span class="chip" data-look="ok">18 %</span><div class="acts"><button class="btn sm ghost">דרישות</button></div>
+            </div>
           </div>
-          <div class="r">
-            <span><span class="t1">חשמל</span><br><span class="t2"><span class="num">60,000</span> ₪</span></span>
-            <span class="bw"><div class="bar err"><i style="width:88%"></i><i class="c" style="width:12%"></i></div><div class="m"><span>מאושר <span class="num">52,800</span></span><span>מחויב <span class="num">12,980</span></span><span>נותר <span class="num">-5,780</span></span></div></span>
-            <span class="chip c-err">חריגה</span><button class="btn ghost sm">דרישות</button>
-          </div>
-          <div class="r">
-            <span><span class="t1">ניקיון</span><br><span class="t2"><span class="num">96,000</span> ₪</span></span>
-            <span class="bw"><div class="bar"><i style="width:14%"></i><i class="c" style="width:4%"></i></div><div class="m"><span>מאושר <span class="num">13,440</span></span><span>מחויב <span class="num">3,800</span></span><span>נותר <span class="num">78,760</span></span></div></span>
-            <span class="chip c-ok">18 %</span><button class="btn ghost sm">דרישות</button>
-          </div>
+          <div class="state-panel in" data-state="empty" data-only="empty"><div class="icon"><svg class="ic"><use href="#i-coins"/></svg></div><div><h4>לא הוגדר תקציב ל-2027</h4><p>התקציב נקבע בהגדרות המחלקה: שנה, רבעון או חודש, במטבע אחד.</p></div><button class="btn pri mng">הגדרת תקציב</button></div>
         </div>
-      </div>
-      <div class="grid2 st-empty only">
-        <div class="ucard alerts"><div class="uhead"><h3>התראות</h3></div><div class="state-panel" style="min-height:140px;padding:24px;border:0"><h4>אין התראות</h4></div></div>
-        <div class="ucard budget"><div class="uhead"><h3>תקציב 2027</h3></div><div class="state-panel" style="min-height:140px;padding:24px;border:0"><h4>לא הוגדר תקציב ל-2027</h4><button class="btn sm">הגדרת תקציב</button></div></div>
-      </div>
-      <div class="st-loading only" style="flex-direction:column;gap:12px"><div class="grid2" style="display:grid"><div class="skl" style="height:260px"></div><div class="skl" style="height:260px"></div></div></div>
-      <div class="state-panel error st-error only"><div class="icon">!</div><h4>הסקירה לא נטענה</h4><button class="btn sm">נסו שוב</button></div>
-      <div class="grid2 st-off only">
-        <div class="ucard alerts"><div class="uhead"><h3>התראות</h3></div><div class="r"><span class="chip c-warn">באיחור</span><span><span class="t1">1038 · נזילה בחניון</span><br><span class="t2">קלין-טק · 2 ימים</span></span><button class="btn ghost sm">פתיחה</button></div></div>
-        <div class="state-panel off"><div class="icon">—</div><h4>התקציבים כבויים</h4><button class="btn sm">הגדרות</button></div>
+        <!-- budgets switched off: the card is replaced by the state panel (mockup state "תכונה כבויה") -->
+        <div class="panel money" data-only="off"><div class="state-panel in" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>התקציבים כבויים</h4><p>מופעל בהגדרות בקשות השירות.</p></div><button class="btn mng">להגדרות</button></div></div>
       </div>
     </section>
 
-    <!-- 4. the ticket detail - missed arrival -->
-    <section class="page" id="p-detail">
-      <div class="top">
-        <div><h1>1042 · אין חשמל בלובי</h1><p class="sub">מבנה א · קומת קרקע · אחזקה · נפתחה <span class="num">13.02 08:10</span></p></div>
-        <span class="sp"></span>
-        <div class="meta"><button class="btn">העברה</button><button class="btn">עריכה</button></div>
-      </div>
-      <div class="status st-ready only">
-        <div class="av">ח</div>
-        <div><span class="chip c-err">לא הגיע</span><div class="sent">הספק לא הגיע בחלון <span class="num">09:00-11:00</span></div><div class="sla">חשמל השרון · קישור נפתח <span class="num">08:42</span> · הודעה נשלחה לספק <span class="num">11:30</span></div></div>
-        <div class="acts"><button class="btn pri">ביקור חדש</button><button class="btn">תזכורת</button><button class="btn">סימון הגעה</button></div>
-      </div>
-      <div class="status st-empty only">
-        <div class="av" style="background:var(--sw-accent-soft);color:var(--sw-accent-text)">ח</div>
-        <div><span class="chip c-acc">שובצה</span><div class="sent">הספק מגיע היום <span class="num">09:00-11:00</span></div><div class="sla">חשמל השרון · קישור נפתח <span class="num">08:42</span></div></div>
-        <div class="acts"><button class="btn">סימון הגעה</button><button class="btn ghost">שינוי ביקור</button></div>
-      </div>
-      <div class="status st-off only">
-        <div class="av" style="background:var(--sw-accent-soft);color:var(--sw-accent-text)">ח</div>
-        <div><span class="chip c-acc">שובצה</span><div class="sent">בטיפול חשמל השרון</div><div class="sla">קישור נפתח <span class="num">08:42</span> · זמן הגעה משוער <span class="num">09:00</span></div></div>
-        <div class="acts"><button class="btn">תזכורת</button></div>
-      </div>
-      <div class="st-loading only" style="flex-direction:column;gap:12px"><div class="skl" style="height:88px"></div><div class="skl" style="height:300px"></div></div>
-      <div class="state-panel error st-error only"><div class="icon">!</div><h4>הבקשה לא נטענה</h4><button class="btn sm">נסו שוב</button></div>
-      <div class="utabs st-ready only"><a href="#" class="on">סקירה</a><a href="#">שיחה</a><a href="#">עלויות</a><a href="#">היסטוריה</a></div>
-      <div class="grid2 st-ready only">
-        <div class="ucard">
-          <div class="uhead"><h3>פרטים</h3></div>
+    <!-- ===== 4. בקשות > the ticket detail: the missed-arrival status block + the visit row (r126) ===== -->
+    <section class="screen" id="s-detail">
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את הבקשה</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>1042 · אין חשמל בלובי</h1><p class="sub"><span data-section-label="requests"></span> · מבנה א · קומת קרקע · אחזקה · נפתחה <span class="num">13.02 08:10</span> · דחוף</p></div><span class="sp"></span>
+        <div class="meta"><button class="btn mng">העברה</button><button class="btn mng">עריכה</button></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <!-- the status block: the state chip, the sentence, the three actions of the missed state (reschedule / remind / reassign) -->
+      <div class="panel status" data-look="alarm" data-feat="visits" data-visit="missed"><div class="av">ח</div><div><span class="badge">לא הגיע</span><div class="sent">הספק לא הגיע בחלון <span class="num">09:00-11:00</span></div><div class="mut">חשמל השרון · קישור נפתח <span class="num">08:42</span> · הודעה נשלחה לספק <span class="num">11:30</span></div></div><div class="acts"><button class="btn pri mng">ביקור חדש</button><button class="btn mng">תזכורת</button><button class="btn mng">סימון הגעה</button></div></div>
+      <div class="panel status" data-look="acc" data-feat="visits" data-visit="planned"><div class="av">ח</div><div><span class="badge">שובצה</span><div class="sent">הספק מגיע היום <span class="num">09:00-11:00</span></div><div class="mut">חשמל השרון · קישור נפתח <span class="num">08:42</span> · גישה למבנה אושרה</div></div><div class="acts"><button class="btn mng">סימון הגעה</button><button class="btn ghost mng">שינוי ביקור</button></div></div>
+      <div class="panel status" data-look="warn" data-feat="visits" data-visit="late"><div class="av">ח</div><div><span class="badge">הגיע באיחור</span><div class="sent">הספק דיווח על הגעה <span class="num">11:48</span> · החלון <span class="num">09:00-11:00</span></div><div class="mut">חשמל השרון · דיווח מהקישור · ההתראה נסגרה</div></div><div class="acts"><button class="btn ghost mng">ביטול הדיווח</button></div></div>
+      <!-- visits switched off: the status block as it is today (ETA only) -->
+      <div class="panel status" data-look="acc" data-only="off"><div class="av">ח</div><div><span class="badge">שובצה</span><div class="sent">בטיפול חשמל השרון</div><div class="mut">קישור נפתח <span class="num">08:42</span> · זמן הגעה משוער <span class="num">09:00</span></div></div><div class="acts"><button class="btn mng">תזכורת</button></div></div>
+      <div class="subnav" style="padding:0"><nav class="tabs compact" aria-label="חלקי הבקשה"><div class="row"><a href="#" class="on"><span class="lbl">סקירה</span></a><a href="#"><span class="lbl">שיחה<span class="count">(3)</span></span></a><a href="#" class="money"><span class="lbl">עלויות</span></a><a href="#"><span class="lbl">היסטוריה</span></a></div></nav></div>
+      <div class="two">
+        <div class="panel"><div class="hd"><h4>פרטים</h4></div>
           <dl class="kv">
             <dt>מטפל</dt><dd>חשמל השרון · אבי לוי</dd>
-            <dt>ביקור</dt><dd>היום <span class="num">09:00-11:00</span> · לא נרשמה הגעה</dd>
-            <dt>גישה למבנה</dt><dd>אושר · קוד נשלח לטכנאי</dd>
-            <dt>התקן</dt><dd>לוח חשמל לובי</dd>
+            <dt data-feat="visits" data-visit="missed">ביקור</dt><dd data-feat="visits" data-visit="missed">היום <span class="num">09:00-11:00</span> · לא נרשמה הגעה</dd>
+            <dt data-feat="visits" data-visit="planned">ביקור</dt><dd data-feat="visits" data-visit="planned">היום <span class="num">09:00-11:00</span> · טרם הגיע</dd>
+            <dt data-feat="visits" data-visit="late">ביקור</dt><dd data-feat="visits" data-visit="late">היום <span class="num">09:00-11:00</span> · הגיע <span class="num">11:48</span> (דיווח)</dd>
+            <dt>גישה למבנה</dt><dd>אושר · הקוד נשלח לטכנאי</dd>
+            <dt>התקן</dt><dd><a href="#">לוח חשמל לובי</a></dd>
             <dt>פתח</dt><dd>דני כהן</dd>
             <dt>עדיפות</dt><dd>דחוף</dd>
           </dl>
         </div>
-        <div class="ucard hist">
-          <div class="uhead"><h3>היסטוריה</h3></div>
-          <div class="h"><span class="d">11:30</span><span>הודעה לספק: לא נרשמה הגעה</span><span class="chip c-mut">מערכת</span></div>
-          <div class="h"><span class="d">11:30</span><span>לא הגיע · החלון <span class="num">09:00-11:00</span> + 30 ד׳ עבר</span><span class="chip c-err">מערכת</span></div>
-          <div class="h"><span class="d">08:42</span><span>הקישור נפתח</span><span class="chip c-mut">ספק</span></div>
-          <div class="h"><span class="d">08:40</span><span>ביקור נקבע ל-<span class="num">09:00-11:00</span> · בקשת גישה אושרה</span><span class="chip c-mut">רונית</span></div>
-          <div class="h"><span class="d">08:15</span><span>שובצה לחשמל השרון</span><span class="chip c-mut">רונית</span></div>
-          <div class="h"><span class="d">08:10</span><span>נפתחה</span><span class="chip c-mut">דני כהן</span></div>
+        <div class="panel"><div class="hd"><h4>היסטוריה</h4></div>
+          <ol class="hist">
+            <li data-look="warn" data-feat="visits" data-visit="late"><span class="dot"></span><span class="t">הספק דיווח על הגעה (באיחור)</span><span class="w">11:48 · ספק</span></li>
+            <li data-look="off" data-feat="visits" data-visit="missed late"><span class="dot"></span><span class="t">הודעה לספק: לא נרשמה הגעה</span><span class="w">11:30 · מערכת</span></li>
+            <li data-look="alarm" data-feat="visits" data-visit="missed late"><span class="dot"></span><span class="t">לא הגיע · החלון <span class="num">09:00-11:00</span> + 30 ד׳ עבר</span><span class="w">11:30 · מערכת</span></li>
+            <li data-look="off"><span class="dot"></span><span class="t">הקישור נפתח</span><span class="w">08:42 · ספק</span></li>
+            <li data-look="acc" data-feat="visits"><span class="dot"></span><span class="t">ביקור נקבע ל-<span class="num">09:00-11:00</span> · בקשת גישה אושרה</span><span class="w">08:40 · רונית</span></li>
+            <li data-look="acc" data-only="off"><span class="dot"></span><span class="t">בקשת גישה אושרה</span><span class="w">08:40 · רונית</span></li>
+            <li data-look="off"><span class="dot"></span><span class="t">שובצה לחשמל השרון</span><span class="w">08:15 · רונית</span></li>
+            <li data-look="ok"><span class="dot"></span><span class="t">נפתחה</span><span class="w">08:10 · דני כהן</span></li>
+          </ol>
         </div>
       </div>
     </section>
-
-    <!-- 5. the public vendor page - the arrival step -->
-    <section class="page" id="p-public">
-      <div class="pub">
-        <div class="hd"><h1>בקשה 1042 · אין חשמל בלובי</h1><div class="sub">מבנה א · קומת קרקע · דחוף</div></div>
-        <div class="step">
-          <div class="sh"><b>סטטוס</b><span class="chip c-acc">בדרך</span></div>
-          <div class="seg" role="group" aria-label="סטטוס" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr"><button aria-pressed="true">בדרך</button><button>בטיפול</button><button>ממתין לחלק</button><button>בוצע</button></div>
-        </div>
-        <div class="step">
-          <div class="sh"><b>גישה למבנה</b><span class="chip c-ok">אושר</span></div>
-          <div>אבי לוי · היום <span class="num">09:00-11:00</span> · כניסה ראשית, חדר חשמל</div>
-          <div style="color:var(--sw-text-2)">הקוד נשלח ל-<span class="num">····42</span></div>
-        </div>
-        <div class="step st-ready only">
-          <div class="sh"><b>הגעה</b></div>
-          <div class="win">היום <span class="num">09:00-11:00</span></div>
-          <button class="btn pri big">הגעתי</button>
-        </div>
-        <div class="step st-empty only">
-          <div class="sh"><b>הגעה</b><span class="chip c-ok">דווח</span></div>
-          <div class="done">דווח על הגעה <span class="num">09:12</span></div>
-        </div>
-        <div class="step st-error only">
-          <div class="sh"><b>הגעה</b></div>
-          <div class="win"><span class="num">14.02</span> · <span class="num">09:00-11:00</span></div>
-          <button class="btn pri big" disabled>הגעתי</button>
-        </div>
-        <div class="st-loading only" style="flex-direction:column;gap:12px"><div class="skl" style="height:140px"></div></div>
-        <div class="step">
-          <div class="sh"><b>הערה או שאלה</b></div>
-          <input class="search" placeholder="כתיבה" style="width:100%;height:44px">
-          <div style="display:flex;gap:8px"><button class="btn">תמונה</button><button class="btn">זמן הגעה</button><span style="flex:1"></span><button class="btn ghost">החזרת הבקשה</button></div>
-        </div>
-      </div>
-    </section>
-  </div>
+  </main>
+  <nav class="bottom" aria-label="ניווט ראשי">
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-ticket"/></svg><span>ניהול השירות</span></a>
+  </nav>
 </div>
 
-<nav class="bottom" aria-label="ניווט">
-  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>בית</a>
-  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>חי</a>
-  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/></svg>מפות</a>
-  <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0 5 5L13 18a2.5 2.5 0 0 1-3.5-3.5l6.7-6.7z"/><path d="M4 20l5-5"/></svg>שירות</a>
-  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg>הגדרות</a>
-</nav>
+<!-- ===== 5. the public vendor page: the arrival step (r127) after the existing access step; its own public look, no shell ===== -->
+<div class="pubwrap" id="s-public">
+  <div class="pub">
+    <div class="hd"><h1>בקשה 1042 · אין חשמל בלובי</h1><div class="sub">מבנה א · קומת קרקע · דחוף</div></div>
+    <div class="skl" aria-busy="true" aria-label="טוען" style="block-size:140px"></div>
+    <div class="state-panel" data-state="error" style="background:var(--sw-surface);border:1px solid var(--sw-border);border-radius:var(--sw-r-lg)"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>הדף לא נטען</h4><p>נסו שוב בעוד רגע.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+    <div class="step" data-only="ready empty off">
+      <div class="sh"><b>סטטוס</b><span class="chip" data-look="acc">בדרך</span></div>
+      <div class="seg four" role="group" aria-label="סטטוס"><button aria-pressed="true">בדרך</button><button aria-pressed="false">בטיפול</button><button aria-pressed="false">ממתין לחלק</button><button aria-pressed="false">בוצע</button></div>
+    </div>
+    <div class="step" data-only="ready empty off">
+      <div class="sh"><b>גישה למבנה</b><span class="chip" data-look="ok">אושר</span></div>
+      <div>אבי לוי · היום <span class="num">09:00-11:00</span> · כניסה ראשית, חדר חשמל</div>
+      <div class="mut">הקוד נשלח ל-<span class="num">····42</span></div>
+    </div>
+    <!-- the arrival step: the window and one large button, enabled from planned_from - 60 min to planned_to + grace; after the press: the time, no undo -->
+    <div class="step" data-feat="visits" data-only="ready">
+      <div class="sh"><b>הגעה</b></div>
+      <div class="win">היום <span class="num">09:00-11:00</span></div>
+      <button class="btn pri big" id="arrive">הגעתי</button>
+      <div class="done" hidden id="arrived"><svg class="ic"><use href="#i-check"/></svg>דווח על הגעה <span class="num">09:12</span></div>
+    </div>
+    <!-- outside the window (another day): the window is shown, no button -->
+    <div class="step" data-feat="visits" data-only="empty">
+      <div class="sh"><b>הגעה</b></div>
+      <div class="win"><span class="num">14.02</span> · <span class="num">09:00-11:00</span></div>
+      <div class="mut">הביקור מתוכנן למחר</div>
+    </div>
+    <div class="step" data-only="ready empty off">
+      <div class="sh"><b>הערה או שאלה</b></div>
+      <input class="inp" placeholder="כתיבה" aria-label="הערה או שאלה" style="min-block-size:44px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn"><svg class="ic"><use href="#i-camera"/></svg>תמונה</button><button class="btn"><svg class="ic"><use href="#i-clock"/></svg>זמן הגעה</button><span style="flex:1"></span><button class="btn ghost">החזרת הבקשה</button></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (function () {
-  var q = new URLSearchParams(location.search);
-  var root = document.documentElement, body = document.body;
-  var tabFor = { handlers: 't-handlers', compare: 't-rfqs', overview: 't-overview', detail: 't-handlers', public: null };
+  // The four section labels of the service-management area, each written ONCE (owner 2026-10-23: the area is being reorganised; a final name is one edit here).
+  var SECTIONS = { requests: 'בקשות', maint: 'תחזוקה ובקרה', vendors: 'ספקים וכספים', reports: 'סקירה ודוחות' };
+  document.querySelectorAll('[data-section-label]').forEach(function (el) { el.textContent = SECTIONS[el.dataset.sectionLabel]; });
+  // the pages of each section (the existing TICKETS_TABS entries, grouped; "דוחות" is the hub of the reports CR, drawn by other agents)
+  var PAGES = {
+    requests: [{ id: 'mine', l: 'שלי' }, { id: 'department', l: 'המחלקה' }, { id: 'all', l: 'הכול' }, { id: 'board', l: 'לוח מנהל' }],
+    maint: [{ id: 'ledger', l: 'פנקס אישורים ובדיקות' }, { id: 'plans', l: 'תחזוקה מונעת' }, { id: 'rounds', l: 'סבבים ובדיקות' }, { id: 'tags', l: 'תגי QR/NFC' }],
+    vendors: [{ id: 'handlers', l: 'מטפלים וספקים' }, { id: 'rfqs', l: 'בקשות הצעת מחיר', badge: 2 }, { id: 'accounts', l: 'חשבון ספקים', money: true }],
+    reports: [{ id: 'overview', l: 'סקירה' }, { id: 'reports', l: 'דוחות' }]
+  };
+  // which section + page each mock screen sits in
+  var PLACE = { handlers: ['vendors', 'handlers'], compare: ['vendors', 'rfqs'], overview: ['reports', 'overview'], detail: ['requests', 'all'], public: null };
+
+  var q = new URLSearchParams(location.search), root = document.documentElement, body = document.body;
   function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
   function tickets(on) { body.classList.toggle('tickets-off', !on); var b = document.getElementById('tk'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'ניהול השירות: פועל' : 'ניהול השירות: כבוי'; }
-  function state(s) { body.setAttribute('data-state', s); document.getElementById('state').value = s; }
-  function screen(id) {
-    document.querySelectorAll('.mock [data-s]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.s === id)); });
-    document.querySelectorAll('.page').forEach(function (p) { p.classList.toggle('on', p.id === 'p-' + id); });
-    document.querySelectorAll('.tabs a').forEach(function (a) { a.classList.toggle('on', a.id === tabFor[id]); });
-    var pub = id === 'public';
-    document.querySelector('nav.rail').style.visibility = pub ? 'hidden' : '';
-    document.querySelector('.subnav').style.display = pub ? 'none' : '';
-    document.querySelector('nav.bottom').style.display = pub ? 'none' : '';
-  }
-  theme(q.get('theme') === 'dark');
+  theme(q.get('theme') ? q.get('theme') === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
   tickets(q.get('tickets') !== 'off');
-  state(['empty', 'loading', 'error', 'off'].indexOf(q.get('state')) >= 0 ? q.get('state') : 'ready');
-  screen(tabFor.hasOwnProperty(q.get('s')) ? q.get('s') : 'handlers');
+  function setRole(v) { body.dataset.role = v; document.getElementById('role').value = v; }
+  function setSt(v) { body.dataset.st = v; document.getElementById('stsel').value = v; }
+  function setVisit(v) { body.dataset.visit = v; document.getElementById('visit').value = v; }
+  document.getElementById('role').onchange = function () { setRole(this.value); };
+  document.getElementById('stsel').onchange = function () { setSt(this.value); };
+  document.getElementById('visit').onchange = function () { setVisit(this.value); };
+  setRole(['mgr', 'op', 'view'].indexOf(q.get('role')) >= 0 ? q.get('role') : 'mgr');
+  setSt(['ready', 'empty', 'loading', 'error', 'off'].indexOf(q.get('state')) >= 0 ? q.get('state') : 'ready');
+  setVisit(['missed', 'planned', 'late'].indexOf(q.get('visit')) >= 0 ? q.get('visit') : 'missed');
   document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
   document.getElementById('tk').onclick = function () { tickets(body.classList.contains('tickets-off')); };
-  document.getElementById('state').onchange = function () { state(this.value); };
-  document.querySelectorAll('.mock [data-s]').forEach(function (b) { b.onclick = function () { screen(b.dataset.s); }; });
+
+  function renderTabs(sec, page) {
+    document.querySelectorAll('#sections a').forEach(function (a) { var on = a.dataset.sec === sec; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    var row = document.getElementById('pages'); row.innerHTML = '';
+    PAGES[sec].forEach(function (p) {
+      var a = document.createElement('a'); a.href = '#'; if (p.money) a.className = 'money';
+      var l = document.createElement('span'); l.className = 'lbl'; l.textContent = p.l; a.appendChild(l);
+      if (p.badge) { var b = document.createElement('span'); b.className = 'tbadge'; b.textContent = p.badge; a.appendChild(b); }
+      if (p.id === page) { a.classList.add('on'); a.setAttribute('aria-current', 'page'); }
+      a.onclick = function (e) { e.preventDefault(); };
+      row.appendChild(a);
+    });
+  }
+  function screen(id) {
+    document.getElementById('scr').value = id;
+    var pub = id === 'public';
+    document.getElementById('app').hidden = pub;
+    document.getElementById('s-public').classList.toggle('on', pub);
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
+    document.getElementById('visit').hidden = id !== 'detail';
+    if (!pub) renderTabs(PLACE[id][0], PLACE[id][1]);
+  }
+  document.getElementById('scr').onchange = function () { screen(this.value); };
+  document.querySelectorAll('#sections a').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); var first = { requests: 'detail', vendors: 'handlers', reports: 'overview' }[a.dataset.sec]; if (first) screen(first); else renderTabs(a.dataset.sec, PAGES[a.dataset.sec][0].id); }; });
+  screen(PLACE.hasOwnProperty(q.get('s')) ? q.get('s') : 'handlers');
+
+  // the public page's press: the button becomes the time, no undo on the page
+  document.getElementById('arrive').onclick = function () { this.hidden = true; document.getElementById('arrived').hidden = false; };
+  // the segmented controls and the KPI filters toggle visually
+  document.querySelectorAll('.seg').forEach(function (g) { g.querySelectorAll('button').forEach(function (b) { b.onclick = function () { g.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }; }); });
+  document.querySelectorAll('.kpis[role="group"]').forEach(function (g) { g.querySelectorAll('.kpi[aria-pressed]').forEach(function (b) { b.onclick = function () { g.querySelectorAll('.kpi').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }; }); });
+  // any other button: a toast (the mockup has no backend)
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.btn'); if (!b || b.closest('.mock') || b.id === 'arrive') return;
+    var t = document.getElementById('toast'); t.textContent = b.textContent.trim() === 'חידוש' ? 'נפתח החידוש' : 'נשמר'; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 1800);
+  });
 })();
 </script>
 </body>
