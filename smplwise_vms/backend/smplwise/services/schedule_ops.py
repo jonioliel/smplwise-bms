@@ -24,7 +24,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import door_path_guard as guard
-from . import door_run_guard, ha_bridge, ha_sync, service_identity
+from . import door_run_guard, ha_bridge, ha_sync, schedule_identity, service_identity
 from . import schedule_model as model
 from . import schedule_policy as policy
 from . import schedule_view as view
@@ -594,6 +594,7 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
         guard.check_schedule(w.conn, draft, None)  # CR-033 D8
         if ev.denials:
             raise ev.denials[0]
+        schedule_identity.check(w.conn, w.principal, draft, op="add", request_id=w.request_id)  # SCHEDIMPACT-295 (review 4 V-02)
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft))
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
@@ -652,6 +653,7 @@ def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, cl
         guard.check_schedule(w.conn, draft, core)  # CR-033 D8
         if ev.denials:
             raise ev.denials[0]
+        schedule_identity.check(w.conn, w.principal, draft, op="edit", request_id=w.request_id)  # SCHEDIMPACT-295 (review 4 V-02)
         diff = model.diff_summary(core, draft)
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft))
         check_lowering(ev.lowering, confirm_lowering)
@@ -702,6 +704,9 @@ def set_enabled(w: W, schedule_id: str, enable: bool, client_request_id: str, co
                 raise ApiError(403, "forbidden", "אין הרשאה לפעולה זו בהיקף המבוקש.")
         else:
             old_rights(w, core, cls, strict=enable)
+        if enable and not core["enabled"]:
+            # SCHEDIMPACT-295 (review 4 V-02): enabling sets the CURRENT content going again - judged like a new schedule of a local person
+            schedule_identity.check(w.conn, w.principal, core, op="enable", request_id=w.request_id)
         if core["enabled"] == enable:
             return 200, {"schedule": schedule_view_of(w, row), "changed": False}
         pairs = _pairs(w, core, cls)
@@ -766,6 +771,8 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         if door_slot is not None and 0 <= door_slot < len(core["slots"]):
             door_run_guard.judge_schedule_slot(w.conn, schedule_id, item, door_slot)
         old_rights(w, core, cls)
+        # SCHEDIMPACT-295 (review 4 V-02): a run-now of a local person - the whole current content is judged (as the bridge does)
+        schedule_identity.check(w.conn, w.principal, core, op="run", request_id=w.request_id)
         if slot_index is None:
             if len(core["slots"]) != 1:
                 raise ApiError(422, "slot_required", "בחרו איזו משבצת להריץ.")
@@ -878,6 +885,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         guard.check_schedule(w.conn, nd, None)  # CR-033 D8 / SEC-WXD M1: the new schedule is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
+        schedule_identity.check(w.conn, w.principal, nd, op="add", request_id=w.request_id)  # SCHEDIMPACT-295 (review 4 V-02)
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, moved_days=moving)
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
@@ -1008,6 +1016,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
         guard.check_schedule(w.conn, nd, None)  # CR-033 D8 / SEC-WXD M1: a copy is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
+        schedule_identity.check(w.conn, w.principal, nd, op="copy", request_id=w.request_id)  # SCHEDIMPACT-295 (review 4 V-02)
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering)
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
@@ -1103,6 +1112,7 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         guard.check_schedule(w.conn, draft, None)  # CR-033 D8 / SEC-WXD M1: a restored schedule is a create for the editor block too
         if ev.denials:
             raise ev.denials[0]
+        schedule_identity.check(w.conn, w.principal, draft, op="add", request_id=w.request_id)  # SCHEDIMPACT-295 (review 4 V-02)
         w.details.update(entities=ev.entities, classes=ev.classes, sensitive=ev.sensitive, lowering=ev.lowering, conditions=cond_entities(draft), trashed_schedule_id=t["schedule_id"])
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)

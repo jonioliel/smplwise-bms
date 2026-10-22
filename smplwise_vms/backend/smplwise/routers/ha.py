@@ -694,6 +694,10 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
             audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
     # USR2 P3 (bridge 0.9.0): the bridge's own copy of the service identity - state for the settings self-check, never a request
     service_identity.note_directory_push(conn, message)
+    # SCHEDIMPACT-295: whether the bridge judges a local person's schedules itself (its schedule fences) - state only
+    from ..services import schedule_identity
+
+    schedule_identity.note_directory_push(conn, message)
     # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
     # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
     from ..services import cast_sessions
