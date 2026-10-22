@@ -15,6 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "custom_components" / "smplwise_bridge"
 DST = ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"
+README_TEXT = (
+    "Generated mirror of `custom_components/smplwise_bridge` for the add-on image (the Supervisor builds from\n"
+    "`smplwise_vms/` only). Edit the source at the repository root and run `python scripts/sync_integration.py`.\n"
+)
 IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store")
 
 
@@ -39,11 +43,7 @@ def sync() -> None:
     if DST.exists():
         shutil.rmtree(DST)
     shutil.copytree(SRC, DST, ignore=IGNORE)
-    (DST.parent / "README.md").write_text(
-        "Generated mirror of `custom_components/smplwise_bridge` for the add-on image (the Supervisor builds from\n"
-        "`smplwise_vms/` only). Edit the source at the repository root and run `python scripts/sync_integration.py`.\n",
-        encoding="utf-8",
-    )
+    (DST.parent / "README.md").write_bytes(README_TEXT.encode("utf-8"))  # bytes: LF on every platform (.gitattributes enforces LF)
 
 
 if __name__ == "__main__":
