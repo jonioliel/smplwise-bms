@@ -34,8 +34,9 @@ SERVICE_ROTATE = "rotate"
 # keys of services.yaml / strings.json, which a test pins to these constants).
 SERVICE_LEASE_EVENT = "lease_event"
 SERVICE_LEASE_REQUEST = "lease_request"
-# 0.9.6: where WisKey's consumer registers itself (lease_service.async_register_consumer); a key of hass.data.
-LEASE_CONSUMER_KEY = f"{DOMAIN}_lease_consumer"
+# 0.9.6 (LEASELIFE-295): the key of hass.data under which the bridge keeps its native lease capability (lease_service.LeaseCapability); WisKey's
+# consumer registers through lease_service.async_register_consumer, never by writing this key. A foreign object found here is never trusted.
+LEASE_CAPABILITY_KEY = f"{DOMAIN}_lease_capability"
 # 0.2.5 (CR-007 slice 4): the one registry (config) write this product ever makes - move an entity to an HA area.
 SERVICE_SET_AREA = "set_entity_area"
 # 0.3.0 (CR-014): signed writes to the Scheduler component (docs/architecture/SCHEDULER_API.md section 8).

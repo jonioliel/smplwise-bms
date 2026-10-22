@@ -147,9 +147,12 @@ def thaw(value: Any) -> Any:
     return value
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class LeaseDTO:
-    """What stages 1-7 hand to WisKey (stage 8). Immutable (params are read-only mappings / tuples); `as_json()` returns a fresh copy."""
+    """What stages 1-7 hand to WisKey (stage 8). Immutable: frozen and slotted (no `__dict__`, so no `vars(dto)[...]` back door), params are
+    read-only mappings / tuples, and `as_json()` returns a fresh copy. `body_sha256` is the seal: the SHA-256 of the signed body, which every
+    other field is rebuilt from in `intact()` - so even a write forced past the frozen guard (`object.__setattr__`, which Python cannot forbid)
+    is detectable (LEASELIFE-295). The weakref slot lets the bridge remember which DTO objects it issued (lease_service.LeaseCapability)."""
 
     action: str
     actor_id: str
@@ -170,6 +173,16 @@ class LeaseDTO:
         return {"action": self.action, "actor": {"id": self.actor_id, "display_name": self.actor_display_name}, "station": self.station,
                 "params": thaw(self.params), "request_id": self.request_id, "nonce": self.nonce, "issued_at": self.issued_at,
                 "expires_at": self.expires_at, "body_sha256": self.body_sha256}
+
+    def intact(self) -> bool:
+        """True iff the fields still hash to the seal: the signed body (the wire without ts / nonce / sig) is rebuilt from the DTO alone."""
+        try:
+            body = {"protocol": PROTOCOL, "actor": {"id": self.actor_id, "display_name": self.actor_display_name}, "action": self.action,
+                    "station": self.station, "params": thaw(self.params), "request_id": self.request_id, "issued_at": self.issued_at,
+                    "expires_at": self.expires_at}
+            return type(self.body_sha256) is str and hashlib.sha256(_canonical(body).encode("utf-8")).hexdigest() == self.body_sha256
+        except Exception:  # noqa: BLE001 - a field forced to something unserialisable is simply not intact
+            return False
 
     def __repr__(self) -> str:  # a log line never carries a label, a reference or a station
         return f"LeaseDTO({self.action})"

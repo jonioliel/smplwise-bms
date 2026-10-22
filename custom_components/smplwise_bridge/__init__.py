@@ -615,6 +615,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_LEASE_EVENT, lease_event, schema=LEASE_SCHEMA, supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, SERVICE_LEASE_REQUEST, lease_request, schema=LEASE_SCHEMA, supports_response=SupportsResponse.ONLY)
+    lease_service.async_attach_bridge(hass, entry.entry_id)  # LEASELIFE-295: the native capability now names this entry as its bridge
 
     async def housekeeping(_now: Any = None) -> None:
         """The peer's own 180 s cap and the saved high-water marks, without waiting for a message."""
@@ -648,4 +649,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_ROTATE)
     hass.services.async_remove(DOMAIN, SERVICE_LEASE_EVENT)
     hass.services.async_remove(DOMAIN, SERVICE_LEASE_REQUEST)
+    lease_service.async_detach_bridge(hass, entry.entry_id)  # LEASELIFE-295: the consumer stays registered; in-flight answers are not relayed
     return True
