@@ -1531,7 +1531,7 @@
       ],
       "note": "Adapter code and fixtures exist (CR-010: select.visonic_zNN_arm_mode); no live system known.",
       "last_checked": "2026-10-21",
-      "last_seen_version": "Pre-Release-0.13.0.44"
+      "last_seen_version": "Pre-Release-v0.13.0.44"
     },
     {
       "id": "paradox-pai",
@@ -2691,7 +2691,7 @@
       },
       "dependents": [
         "frontend/package.json",
-        "package-lock.json"
+        "frontend/package-lock.json"
       ],
       "watch_keywords": [
         "security release",
