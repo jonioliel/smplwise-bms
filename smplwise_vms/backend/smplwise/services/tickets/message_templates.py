@@ -317,6 +317,17 @@ CODE_VARIANTS: dict[str, tuple[str, dict[str, str]]] = {
     }),
 }
 
+# PHYSENTRY070-295 (owner decision GRANTS3 Q3 / 2026-10-21): the vendor notice when the manager cancels the arrival step ("physical entry
+# required") of an assignment - a code-owned VARIANT of the `update` purpose (a link message: send-hours rules and link handling of that
+# purpose), chosen by the outbox row's `template_id`. Never editable and never a stored template. ar / ru: developer translations pending a native review.
+ARRIVAL_CANCELLED = "arrival_cancelled"
+CODE_VARIANTS[ARRIVAL_CANCELLED] = ("update", {
+    "he": "עדכון: {module_name} {number} ({department}): בקשת הכניסה לאתר בוטלה. אין להגיע לפי הבקשה הקודמת.\nלעדכון הטיפול: {link}",
+    "en": "Update: {module_name} #{number} ({department}): the site entry request was cancelled. Please do not arrive on the earlier request.\nUpdate the handling: {link}",
+    "ar": "تحديث: {module_name} رقم {number} ({department}): لم يعد طلب الدخول إلى الموقع مطلوبًا، يرجى عدم الحضور بناءً على طلب سابق.\nلتحديث المعالجة: {link}",
+    "ru": "Обновление: {module_name} № {number} ({department}): запрос на доступ на объект больше не нужен, не приезжайте по прежнему запросу.\nОбновить статус: {link}",
+})
+
 
 def variant_template_id(name: str, lang: str) -> str:
     texts = CODE_VARIANTS[name][1]

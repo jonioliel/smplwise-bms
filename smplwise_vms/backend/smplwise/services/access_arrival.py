@@ -99,6 +99,20 @@ def set_flag(conn, *, assignment_id: str, ticket_id: str, by: str, at: str) -> N
     conn.execute("INSERT OR REPLACE INTO access_arrival_flags(assignment_id, ticket_id, set_by, set_at) VALUES (?, ?, ?, ?)", (assignment_id, ticket_id, by, at))
 
 
+def clear_flag(conn, *, assignment_id: str) -> bool:
+    """PHYSENTRY070-295: take the tick off; True when there was one. Requests and grants that already exist are NOT touched (the
+    step is only no longer offered); the vendor's page stops offering it on its next load."""
+    return conn.execute("DELETE FROM access_arrival_flags WHERE assignment_id = ?", (assignment_id,)).rowcount > 0
+
+
+def is_flagged(conn, assignment_id: str | None) -> bool:
+    return bool(assignment_id) and _flagged(conn, assignment_id) is not None
+
+
+def is_rfq_order(conn, assignment_id: str) -> bool:
+    return _order(conn, assignment_id) is not None
+
+
 def available(conn, link: Any) -> bool:
     """The ticket page's announcement (`arrival: true`): the step's own gate, answered without raising."""
     try:
