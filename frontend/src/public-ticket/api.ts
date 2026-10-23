@@ -151,6 +151,8 @@ export interface TicketView {
   map_element?: { name: string; floor: string; room: string; image: boolean } | null;
   /** GRANTS3-295: the arrival step ("who arrives, when") is available - the page fetches its lazy chunk only then */
   arrival?: boolean;
+  /** VENDORARRIVAL126B-295: this assignment's own planned visit (services/tickets/visits.py `public_block`; absent while visits are off) */
+  visit?: { state: 'planned' | 'reported' | 'arrived' | 'missed' | 'done' | 'cancelled'; planned_from?: string; planned_to?: string; can_arrive: boolean; arrived_at?: string | null; late?: boolean; offer_access?: boolean };
 }
 
 export const api = {

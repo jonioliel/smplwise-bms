@@ -228,6 +228,25 @@ def test_the_vendor_press_inside_the_window_is_a_claim_idempotent_and_audited(s4
     assert bad.status_code == 422, "no body text of any kind"
 
 
+def test_the_entry_code_pointer_is_off_by_default_and_never_creates_a_grant(s4):
+    """VENDORARRIVAL126B-295: `visits.offer_access_request` (default off) only adds a boolean pointer to the arrived page block."""
+    assert s4.c.get(f"{API}/tickets/settings").json()["visits"]["offer_access_request"] is False
+    t, token = s4.sent()
+    assert plan(s4, t["id"], now() - dt.timedelta(minutes=10), now() + dt.timedelta(hours=1)).status_code == 200
+    client, _ = s4.public(Clock(time.time()))
+    assert client.post("/t/api/arrived", headers=hdr(token), json={"client_request_id": crid()}).status_code == 200
+    assert "offer_access" not in client.get("/t/api/ticket", headers=hdr(token)).json()["visit"], "off: the block is unchanged"
+    settings_put(s4, visits={"offer_access_request": True})
+    with s4.db.connection(mode="read") as conn:
+        before = conn.execute("SELECT COUNT(*) FROM access_grants").fetchone()[0]
+    block = client.get("/t/api/ticket", headers=hdr(token)).json()["visit"]
+    assert block["state"] == "arrived" and isinstance(block["offer_access"], bool)
+    with s4.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM access_grants").fetchone()[0] == before, "a pointer, never a grant"
+    bad = s4.c.put(f"{API}/tickets/settings", json={"revision": s4.c.get(f"{API}/tickets/settings").json()["revision"], "visits": {"offer_access_request": "yes"}})
+    assert bad.status_code == 422
+
+
 def test_the_vendor_press_outside_the_window_is_422_and_without_a_visit_409(s4):
     t, token = s4.sent()
     client, _ = s4.public(Clock(time.time()))
