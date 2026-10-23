@@ -223,7 +223,7 @@ export class SystemReadiness extends LitElement {
   private checks(r: ReadinessReport) {
     const list = filterChecks(r.checks, this.kpi);
     return html`<section class="col checks" data-checks aria-label="הבדיקות">
-      ${list.length ? repeat(list, (c) => c.id, (c) => this.row(c)) : html`<sw-state-panel state="empty" compact heading="אין בדיקות במצב הזה"></sw-state-panel>`}
+      ${list.length ? repeat(list, (c) => c.id, (c) => this.row(c)) : html`<sw-state-panel icon="rule" state="empty" compact heading="אין בדיקות במצב הזה"></sw-state-panel>`}
     </section>`;
   }
 

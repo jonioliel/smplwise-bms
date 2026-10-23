@@ -3,6 +3,7 @@ import { state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-place-tree';
 import { ApiError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import { isOff, type RangeId, type RangeQuery } from '../api/insights';
 import { insightsAccess, onInsightsAccess, STATUS_EVENT, type InsightsAccess } from './access';
 import { ALL_PLACES, customRange, placeTree, type PlaceNode } from './model';
@@ -76,8 +77,8 @@ export abstract class InsightList<A> extends LitElement {
     return html`<div class="seg" role="group" aria-label=${ix('range')}>${RANGES.map(
       ([id, key]) => html`<button data-range=${id} aria-pressed=${this.range === id} @click=${() => this.setRange(id)}>${ix(key)}</button>`,
     )}</div>
-    ${this.range === 'custom' ? html`<span class="rangefields"><input class="inp" type="date" data-from aria-label=${ix('rangeFrom')} .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} />
-      <input class="inp" type="date" data-to aria-label=${ix('rangeTo')} .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} />
+    ${this.range === 'custom' ? html`<span class="rangefields"><input class="inp" type="date" lang=${dateInputLang()} data-from aria-label=${ix('rangeFrom')} .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} />
+      <input class="inp" type="date" lang=${dateInputLang()} data-to aria-label=${ix('rangeTo')} .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} />
       <button class="btn" data-apply ?disabled=${!this.from} @click=${() => void this.load()}>${ix('range')}</button></span>` : nothing}`;
   }
 

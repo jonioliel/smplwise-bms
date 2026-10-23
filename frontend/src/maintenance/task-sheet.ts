@@ -4,6 +4,7 @@ import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import { maintApi, type MaintFile, type MaintRecord, type TaskDetail, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
@@ -249,11 +250,11 @@ export class MaintTaskSheet extends LitElement {
     const doc = t.kind === 'certificate' || t.kind === 'vendor_document';
     return html`<div class="panel" data-maint-complete><div class="hd"><h4>${mt(doc ? 'renewal' : 'doneTitle')}</h4></div>
       <div class="form">
-        <div class="fld"><label for="po">${mt(doc ? 'performedOn' : 'performedOnPlan')}</label><input id="po" class="inp num" type="date" max=${today()} .value=${this.f.performed_on}
+        <div class="fld"><label for="po">${mt(doc ? 'performedOn' : 'performedOnPlan')}</label><input id="po" class="inp num" type="date" lang=${dateInputLang()} max=${today()} .value=${this.f.performed_on}
           @input=${(e: Event) => { this.f = { ...this.f, performed_on: (e.target as HTMLInputElement).value }; }}></div>
-        ${doc ? html`<div class="fld"><label for="vu">${mt('newValidUntil')}</label><input id="vu" class="inp num" type="date" .value=${this.f.valid_until} data-maint-valid-until
+        ${doc ? html`<div class="fld"><label for="vu">${mt('newValidUntil')}</label><input id="vu" class="inp num" type="date" lang=${dateInputLang()} .value=${this.f.valid_until} data-maint-valid-until
             @input=${(e: Event) => { this.f = { ...this.f, valid_until: (e.target as HTMLInputElement).value }; }}></div>`
-          : t.can.edit ? html`<div class="fld"><label for="nd">${mt('nextDueOverride')}</label><input id="nd" class="inp num" type="date" .value=${this.f.next_due}
+          : t.can.edit ? html`<div class="fld"><label for="nd">${mt('nextDueOverride')}</label><input id="nd" class="inp num" type="date" lang=${dateInputLang()} .value=${this.f.next_due}
             @input=${(e: Event) => { this.f = { ...this.f, next_due: (e.target as HTMLInputElement).value }; }}></div>` : nothing}
         <div class="fld"><label for="nt">${mt('note')}</label><input id="nt" class="inp" maxlength="300" .value=${this.f.note} @input=${(e: Event) => { this.f = { ...this.f, note: (e.target as HTMLInputElement).value }; }}></div>
         ${this.formError ? html`<div class="alert err" role="alert">${this.formError}</div>` : nothing}

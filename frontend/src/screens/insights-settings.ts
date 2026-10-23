@@ -5,6 +5,7 @@ import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import { listEntities, type HaEntity } from '../api/ha';
 import {
   fieldErrors, getDelivery, getSettings, isOff, isSetupIncomplete, putDelivery, putSettings, RUNS_MODES, SECTION_IDS, SWITCH_KEYS,
@@ -16,6 +17,7 @@ import { insightCss } from '../insights/styles';
 import { ix, type IxKey } from '../i18n/insights';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { leadReserveStyles } from '../styles/lead-reserve';
 
 const SWITCH_LABEL: Record<SwitchKey, IxKey> = { 'insights.doors.enabled': 'swDoors', 'insights.waste.enabled': 'swWaste', 'reports.building.enabled': 'swReport' };
 const DOOR_CLASSES = ['door', 'window', 'opening', 'garage_door'];
@@ -57,7 +59,7 @@ export class InsightsSettings extends LitElement {
   @state() private delBad: string[] = [];
   @state() private delNote: { tone: 'ok' | 'bad'; text: string } | null = null;
 
-  static styles = [insightCss, bubbleChrome];
+  static styles = [insightCss, bubbleChrome, leadReserveStyles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -174,8 +176,8 @@ export class InsightsSettings extends LitElement {
     return html`<div class="card" data-thresholds><div class="ch-h"><h2>${ix('thresholds')}</h2></div><div class="fields">
       ${NUM_ORDER.map(({ k, label: l }) => html`<label>${ix(l)}<input class="inp ${errs.has(k) ? 'err' : ''}" data-field=${k} inputmode="decimal" .value=${f.nums[k]} aria-invalid=${errs.has(k)}
         @input=${(e: Event) => this.setNum(k, (e.target as HTMLInputElement).value)} />${errs.has(k) ? html`<span class="ferr" data-field-error=${k}>${fieldHint(k)}</span>` : nothing}</label>`)}
-      <label class="wide2">${ix('fNight')}<span class="row" style="gap:6px"><input class="inp ${nightBad ? 'err' : ''}" type="time" data-field="night_from" .value=${f.nightFrom} @input=${(e: Event) => (this.form = { ...f, nightFrom: (e.target as HTMLInputElement).value })} />
-        <span class="muted">-</span><input class="inp ${nightBad ? 'err' : ''}" type="time" data-field="night_to" .value=${f.nightTo} @input=${(e: Event) => (this.form = { ...f, nightTo: (e.target as HTMLInputElement).value })} /></span>
+      <label class="wide2">${ix('fNight')}<span class="row" style="gap:6px"><input class="inp ${nightBad ? 'err' : ''}" type="time" lang=${dateInputLang()} data-field="night_from" .value=${f.nightFrom} @input=${(e: Event) => (this.form = { ...f, nightFrom: (e.target as HTMLInputElement).value })} />
+        <span class="muted">-</span><input class="inp ${nightBad ? 'err' : ''}" type="time" lang=${dateInputLang()} data-field="night_to" .value=${f.nightTo} @input=${(e: Event) => (this.form = { ...f, nightTo: (e.target as HTMLInputElement).value })} /></span>
         ${nightBad ? html`<span class="ferr" data-field-error="night">${ix('fieldInvalid')}</span>` : nothing}</label>
       <label class="wide2">${ix('fDomains')}<span class="checks">${WASTE_DOMAINS.map((d) => html`<label><input type="checkbox" data-domain=${d} .checked=${f.domains.includes(d)} @change=${() => (this.form = { ...f, domains: this.toggleIn(f.domains, d) })} />${ix(`dom_${d}` as IxKey)}</label>`)}</span>
         ${hasField(this.bad, 'waste.domains') ? html`<span class="ferr">${ix('fieldInvalid')}</span>` : nothing}</label></div></div>`;
@@ -266,7 +268,7 @@ export class InsightsSettings extends LitElement {
       <div class="fields">
         <label>${ix('deliveryDom')}<select class="inp" data-delivery-dom @change=${(e: Event) => this.setDel({ dom: Number((e.target as HTMLSelectElement).value) })}>
           ${Array.from({ length: 28 }, (_, i) => i + 1).map((n) => html`<option value=${n} ?selected=${n === this.dv('dom')}>${n}</option>`)}</select></label>
-        <label>${ix('deliveryAt')}<input class="inp" type="time" data-delivery-at .value=${this.dv('at')} @input=${(e: Event) => this.setDel({ at: (e.target as HTMLInputElement).value })} /></label>
+        <label>${ix('deliveryAt')}<input class="inp" type="time" lang=${dateInputLang()} data-delivery-at .value=${this.dv('at')} @input=${(e: Event) => this.setDel({ at: (e.target as HTMLInputElement).value })} /></label>
         <label>${ix('deliveryLang')}<select class="inp" data-delivery-lang @change=${(e: Event) => this.setDel({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}>
           <option value="he" ?selected=${this.dv('lang') === 'he'}>עברית</option><option value="en" ?selected=${this.dv('lang') === 'en'}>English</option></select></label>
         <label>${ix('deliveryChannels')}<span class="checks">
@@ -288,7 +290,7 @@ export class InsightsSettings extends LitElement {
     if (this.phase === 'loading') return html`<div class="card" aria-busy="true" data-state="loading"><div class="rs"><div class="skel" style="block-size:120px"></div></div></div>`;
     if (this.phase === 'forbidden') return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'error' || !this.ans || !this.form) return html`<div class="card"><div class="blank" data-state="error"><sw-icon name="warning"></sw-icon><b>${ix('errorTitle')}</b><button class="btn pri" @click=${() => void this.load()}>${ix('retry')}</button></div></div>`;
-    return html`<div class="head"><h1>${ix('setTitle')}</h1><button class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${ix('save')}</button></div>
+    return html`<div class="head lead-head"><h1>${ix('setTitle')}</h1><button class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${ix('save')}</button></div>
       ${this.note ? html`<div class="banner ${this.note.tone}" data-note style="margin-block-end:14px">${this.note.text}</div>` : nothing}
       <div class="set">${this.switchesCard()}${this.pairsCard()}${this.thresholds()}${this.sectionsCard()}${this.deliveryCard()}
         <div class="card"><div class="ch-h"><h2>${ix('protectedTitle')}</h2><a class="btn" href="#/system?tab=devices">${ix('protectedOpen')}</a></div></div></div>
