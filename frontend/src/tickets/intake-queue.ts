@@ -241,7 +241,7 @@ export class TicketsIntakeChip extends LitElement {
   render() {
     const s = this.summary;
     if (!s || !s.can || (!s.open && !this.open)) return nothing;
-    return html`<button type="button" class="btn chip" data-intake-chip @click=${() => void this.show()}>${itx('chip')} <strong>${s.open}</strong></button>
+    return html`<sw-button size="sm" data-intake-chip @click=${() => void this.show()}>${itx('chip')} <strong>${s.open}</strong></sw-button>
       <sw-dialog ?open=${this.open} wide heading=${itx('title')} @close=${() => { this.open = false; this.draft = null; void this.refreshSummary(); }}>
         ${this.error ? html`<div class="err" role="alert" data-intake-error>${this.error}</div>` : nothing}
         ${this.ok ? html`<div class="okm" role="status" data-intake-ok>${this.ok}</div>` : nothing}
