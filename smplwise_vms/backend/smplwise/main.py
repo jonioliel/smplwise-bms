@@ -584,9 +584,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_station_permissions as access_station_permissions_router
 
     app.include_router(access_station_permissions_router.router, prefix=api, tags=["access"])  # STATIONPERM-295: per-station access of a person (off; go-live not permitted)
-    from .routers import compliance_export as compliance_export_router
-
-    app.include_router(compliance_export_router.router, prefix=api, tags=["access"])  # COMPLY108-295: who could enter which door and when (read-only export; off)
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import local_identity as local_identity_router
 
