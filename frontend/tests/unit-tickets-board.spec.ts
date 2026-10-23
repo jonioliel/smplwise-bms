@@ -121,7 +121,7 @@ test('the timeline rows the SLA monitor writes', () => {
 test('the board page: after "המחלקה" in the requests section, for tickets.manage, active on #/tickets/board', () => {
   // SERVICEIA1-295 (owner 24.10): the area's row is the four sections; the board stays a PAGE of בקשות, in its old place after "המחלקה"
   expect(TICKETS_TABS.map((t) => t.id)).toEqual(['requests', 'maintenance', 'vendors', 'reports']);
-  expect(TICKETS_REQUESTS_PAGES.map((t) => t.id)).toEqual(['mine', 'department', 'board', 'all']);
+  expect(TICKETS_REQUESTS_PAGES.map((t) => t.id)).toEqual(['list', 'board']); // SERVICEIA2-295: the scopes are the list's filter
   expect(TICKETS_REQUESTS_PAGES.find((t) => t.id === 'board')?.label).toBe('לוח מנהל');
   expect(TAB_PERMISSIONS['#/tickets/board']).toEqual(['tickets.manage']);
   const r = { path: '/tickets/board', mode: 'tickets', segments: ['tickets', 'board'], params: new URLSearchParams() } as never;

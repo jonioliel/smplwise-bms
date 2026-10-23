@@ -28,7 +28,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
-import { can } from '../api/session';
+import { can, canNav, isApi } from '../api/session';
+import { ticketsScopesAllowed } from '../shell/nav';
 import { replaceRoute, type RouteState } from '../router';
 import { ticketsApi, type ListPage, type Meta, type ModuleState, type TicketDetail, type TicketItem } from '../api/tickets';
 import { NO_FILTERS, SCOPES, STATUS_FILTERS, filterLabel, listHref, parseTicketsRoute, rememberScope, scopeLabel, ticketHref, type ListFilters, type TicketsRoute } from '../tickets/model';
@@ -285,6 +286,14 @@ export class TicketsList extends LitElement {
    * TKUI4: the numbers of the page frame - one read of `tickets/facets` per scope (under the current state, department and text), one over
    * every state of the current scope, and one for the department chips. A failed read leaves its numbers out; the list never waits for it.
    */
+  /** SERVICEIA2-295: the scope segment is the ONLY place the scope is chosen now (the three level-1 tabs are gone), so it offers exactly the
+   * scopes those tabs were offered for (TAB_PERMISSIONS: שלי tickets.view | tickets.create, המחלקה tickets.view, הכול tickets.all_departments),
+   * and always the scope on screen (a direct link keeps showing where the user is). */
+  private scopes(): Array<(typeof SCOPES)[number]> {
+    const allowed = ticketsScopesAllowed(isApi(), canNav);
+    return SCOPES.filter((sc) => allowed.includes(sc) || sc === this.r.scope);
+  }
+
   private async loadCounts(): Promise<void> {
     const seq = ++this.countSeq;
     const f = this.r.filters;
@@ -292,7 +301,7 @@ export class TicketsList extends LitElement {
     const base = { q: f.q, department_id: f.department || undefined };
     const ok = async <T>(p: Promise<T>): Promise<T | null> => p.catch(() => null);
     const [mine, department, all, states, depts] = await Promise.all([
-      ...SCOPES.map((scope) => ok(api.facets({ ...base, scope, status: f.status }))),
+      ...SCOPES.map((scope) => (this.scopes().includes(scope) ? ok(api.facets({ ...base, scope, status: f.status })) : Promise.resolve(null))),
       ok(api.facets({ ...base, scope: this.r.scope, status: 'all' })),
       f.department ? ok(api.facets({ q: f.q, scope: this.r.scope, status: f.status })) : Promise.resolve(null),
     ]);
@@ -425,7 +434,7 @@ export class TicketsList extends LitElement {
       </div>
       ${tools ? html`<div class="dh-det">
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
-          ${SCOPES.map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withDept(c.scopes[sc])}</button>`)}
+          ${this.scopes().map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withDept(c.scopes[sc])}</button>`)}
         </div>
         <div class="seg sm stf" role="radiogroup" aria-label=${tt('stateFilter')}>
           ${STATUS_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}${withDept(c.states[s])}</button>`)}

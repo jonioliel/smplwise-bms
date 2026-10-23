@@ -46,9 +46,9 @@ test('the shell: the tickets routes are their own area; the scope page is active
   // SERVICEIA1-295: the area row is the section (activeAreaTab), the page row the page (ticketsPageOf)
   expect(areaOf(route('/tickets/mine'))).toBe('tickets');
   for (const p of ['/tickets/department', '/tickets/all?status=closed', '/tickets', '/tickets/0123456789abcdef']) expect(activeAreaTab(route(p)), p).toBe('requests');
-  expect(ticketsPageOf(route('/tickets/department'))).toBe('department');
-  expect(ticketsPageOf(route('/tickets/all?status=closed'))).toBe('all');
-  expect(ticketsPageOf(route('/tickets'))).toBe('mine');
+  expect(ticketsPageOf(route('/tickets/department'))).toBe('list'); // SERVICEIA2-295: the scopes are one page
+  expect(ticketsPageOf(route('/tickets/all?status=closed'))).toBe('list');
+  expect(ticketsPageOf(route('/tickets'))).toBe('list');
   expect(ticketsPageOf(route('/tickets/0123456789abcdef'))).toBe('');
 });
 

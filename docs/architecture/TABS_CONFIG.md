@@ -216,6 +216,23 @@ section's **pages** are a second row, the infrastructure electricity / generator
   dropdown chip); the area icon count is unchanged. Phone: the section row shows the short labels (`TabItem.short`, `sw-tabs short-labels`);
   the bottom bar stays the areas bar.
 
+### Slice 2 (SERVICEIA2-295): the three scopes are the request list's own filter
+
+- **Page row:** `tickets.requests` = **list** · **board**. The pages שלי · המחלקה · הכול are gone as tabs; they are the scope segment that was
+  already on the list (`tickets-list` `[data-scope-seg]`, the only place the scope is chosen now). The `list` page opens on the first scope
+  the user may open.
+- **Capability parity (L-02, U-7 resolved):** the old tabs were permission-filtered (`TAB_PERMISSIONS`: שלי `tickets.view` | `tickets.create`,
+  המחלקה `tickets.view`, הכול `tickets.all_departments`, all unchanged) while the segment offered all three. The segment now offers exactly the
+  scopes `ticketsScopesAllowed` returns (the same rows), plus the scope on screen (a direct link keeps showing where the user is); the list reads
+  the counts only for those. The page is offered while one scope is (a holder of `tickets.all_departments` alone still opens the list, on "הכול").
+- **Addresses:** `#/tickets/mine|department|all` are not renamed - they are the list filter's own addresses (the segment writes them; notifications,
+  bookmarks, the Companion app and every spec use them). New redirect-only `#/tickets/list` -> the first scope offered (query kept); the section
+  entry `#/tickets/requests` is as in slice 1. `activeAreaTab` is `requests` and `ticketsPageOf` is `list` for all three scope addresses.
+- **`ui.tabs`:** page ids `mine` / `department` / `all` (the pre-section `tickets` entry and a `tickets.requests` row saved after slice 1) become
+  `list` at the place of the first of them; `list` is hidden only when all three were. The administrator can no longer hide ONE scope through the
+  tabs editor (there is no tab to hide); the permission filter above is the only gate on a scope.
+- A user with one scope and no board has a single page: no page row (and, with one section, no section row).
+
 ## Presentation mode: tabs, hybrid or dropdown (release 0.1.153)
 
 How a group of tabs is drawn on the phone (<= 767 px; wider screens are always `tabs`) is a separate setting from the order, the

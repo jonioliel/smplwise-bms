@@ -9,6 +9,7 @@ import {
   TICKETS_MINE_HREF,
   TICKETS_OVERVIEW_HREF,
   TICKETS_RFQS_HREF,
+  TICKETS_REQUESTS_PAGES,
   TICKETS_SECTION_HREFS,
   TICKETS_TABS,
   applyExternalPlacement,
@@ -23,6 +24,8 @@ import {
   ticketsAllPages,
   ticketsPageOf,
   ticketsPageTabs,
+  ticketsScopesAllowed,
+  TICKETS_SCOPE_HREFS,
   ticketsSectionOf,
   ticketsSectionRow,
   ticketsSectionRowShown,
@@ -74,7 +77,8 @@ function oldOffered(can: Can, placement: 'access' | 'tickets' | 'both'): string[
 }
 /** What the new navigation offers: the pages of every visible section (level 1 → level 2). */
 function newOffered(can: Can): string[] {
-  return visibleTabs(TICKETS_TABS, true, can).flatMap((s) => ticketsPageTabs(s.id as TicketsSection, true, can)).map((p) => p.href ?? '');
+  // SERVICEIA2-295: the page `list` stands for the scopes of the list's own segment - expanded here, so the parity is per scope
+  return visibleTabs(TICKETS_TABS, true, can).flatMap((s) => ticketsPageTabs(s.id as TicketsSection, true, can)).flatMap((p) => (p.id === 'list' ? ticketsScopesAllowed(true, can).map((sc) => TICKETS_SCOPE_HREFS[sc]) : [p.href ?? '']));
 }
 
 /** The personas of the proposal (§3) with their typical holdings. */
@@ -105,7 +109,9 @@ test('the structure: four sections, every old page in exactly one section, hrefs
   expect(TICKETS_TABS.map((t) => t.label)).toEqual(['בקשות', 'תחזוקה ובקרה', 'ספקים וכספים', 'סקירה ודוחות']);
   expect(TICKETS_TABS.map((t) => t.short)).toEqual(['בקשות', 'תחזוקה', 'ספקים', 'סקירה']);
   const pages = ticketsAllPages();
-  expect(pages.map((p) => p.href).sort()).toEqual(OLD_TABS.map((t) => t.href).sort()); // nothing lost, nothing added, no href renamed
+  // SERVICEIA2-295: the three scope tabs are the list page's scope segment; every other page is as it was
+  expect(pages.flatMap((p) => (p.id === 'list' ? Object.values(TICKETS_SCOPE_HREFS) : [p.href])).sort()).toEqual(OLD_TABS.map((t) => t.href).sort()); // nothing lost, nothing added, no href renamed
+  expect(ids(TICKETS_REQUESTS_PAGES)).toEqual(['list', 'board']);
   expect(new Set(ids(pages)).size).toBe(pages.length);
   for (const [href, need] of Object.entries(OLD_PERMISSIONS)) expect(TAB_PERMISSIONS[href], href).toEqual(need);
   for (const href of Object.values(TICKETS_SECTION_HREFS)) expect(TAB_PERMISSIONS[href], 'a section has no permission of its own').toBeUndefined();
@@ -113,12 +119,12 @@ test('the structure: four sections, every old page in exactly one section, hrefs
 
 test('grouping per role (proposal §3): the sections and pages each persona is offered', () => {
   const view = (perms: string[]) => visibleTabs(TICKETS_TABS, true, holding(...perms)).map((s) => [s.id, ids(ticketsPageTabs(s.id as TicketsSection, true, holding(...perms)))]);
-  expect(view(ROLES.employee)).toEqual([['requests', ['mine']]]);
-  expect(view(ROLES.handler)).toEqual([['requests', ['mine', 'department']]]);
-  expect(view(ROLES.deptManager)).toEqual([['requests', ['mine', 'department', 'board']], ['vendors', ['handlers']], ['reports', ['overview']]]);
+  expect(view(ROLES.employee)).toEqual([['requests', ['list']]]);
+  expect(view(ROLES.handler)).toEqual([['requests', ['list']]]);
+  expect(view(ROLES.deptManager)).toEqual([['requests', ['list', 'board']], ['vendors', ['handlers']], ['reports', ['overview']]]);
   expect(view(ROLES.finance)).toEqual([['vendors', ['rfqs', 'accounts']]]);
-  expect(view(ROLES.moduleAdmin)).toEqual([['requests', ['mine', 'department']], ['vendors', ['handlers']]]);
-  expect(view(ROLES.systemAdmin)).toEqual([['requests', ['mine', 'department', 'board', 'all']], ['vendors', ['handlers', 'rfqs', 'accounts']], ['reports', ['overview']]]);
+  expect(view(ROLES.moduleAdmin)).toEqual([['requests', ['list']], ['vendors', ['handlers']]]);
+  expect(view(ROLES.systemAdmin)).toEqual([['requests', ['list', 'board']], ['vendors', ['handlers', 'rfqs', 'accounts']], ['reports', ['overview']]]);
   expect(view(ROLES.externalApprover), '"גישת חוץ" sits under access control by default').toEqual([]);
   applyExternalPlacement({ 'access.external.placement': 'tickets' });
   expect(view(ROLES.externalApprover)).toEqual([['vendors', ['external']]]);
@@ -188,7 +194,7 @@ test('the active section / page and the breadcrumb of every tickets route', () =
     return { path, segments, params: new URLSearchParams(), mode: 'tickets' as const };
   };
   const cases: [string, string, string][] = [
-    ['/tickets', 'requests', 'mine'], ['/tickets/mine', 'requests', 'mine'], ['/tickets/department', 'requests', 'department'], ['/tickets/all', 'requests', 'all'],
+    ['/tickets', 'requests', 'list'], ['/tickets/mine', 'requests', 'list'], ['/tickets/department', 'requests', 'list'], ['/tickets/all', 'requests', 'list'], ['/tickets/list', 'requests', 'list'],
     ['/tickets/board', 'requests', 'board'], ['/tickets/0123456789abcdef', 'requests', ''], ['/tickets/handlers', 'vendors', 'handlers'], ['/tickets/rfqs', 'vendors', 'rfqs'],
     ['/tickets/accounts', 'vendors', 'accounts'], ['/tickets/external', 'vendors', 'external'], ['/tickets/overview', 'reports', 'overview'], ['/tickets/vendors', 'vendors', ''],
   ];
@@ -213,10 +219,11 @@ test('the single-section setting (owner 24.10, item 11): hidden by default, "alw
   applyTabsConfig({ 'ui.tickets_section_row': 'bogus' });
   expect(ticketsSectionRow()).toBe('hide_single');
   expect(normalizeTicketsSectionRow(undefined)).toBe('hide_single');
-  // the employee (one section) gets no section row by default - only the page row when it has two pages or more (the handler)
+  // the employee (one section) gets no section row by default - only the page row when it has two pages or more (the manager: list + board; SERVICEIA2-295: the handler has the one page, the list)
   const employee = visibleTabs(TICKETS_TABS, true, holding(...ROLES.employee));
   expect(ticketsSectionRowShown(employee.length)).toBe(false);
-  expect(ticketsPageTabs('requests', true, holding(...ROLES.handler)).length).toBe(2);
+  expect(ticketsPageTabs('requests', true, holding(...ROLES.handler)).length).toBe(1);
+  expect(ticketsPageTabs('requests', true, holding(...ROLES.deptManager)).length).toBe(2);
 });
 
 test('the RFQ questions: a number on the page entry, a dot on the section (no number), the area count unchanged', () => {
@@ -239,13 +246,13 @@ test('ui.tabs: a value stored before the sections is migrated on read (order, hi
   });
   expect(normalizeTabsConfig({ tickets: { order: ['all', 'mine'], hidden: ['department'], style: 'underline' } })).toEqual({
     tickets: { order: ['requests'], hidden: [], style: 'underline' },
-    'tickets.requests': { order: ['all', 'mine'], hidden: ['department'] },
+    'tickets.requests': { order: ['list'], hidden: [] }, // the three scope tabs are one page now; hiding one of three leaves the list
   });
   expect(normalizeTabsConfig({ tickets: { order: [], hidden: ['overview'] } }), 'the only page of a section hidden: the section is hidden').toEqual({ tickets: { order: [], hidden: ['reports'] } });
   const fresh = { tickets: { order: ['vendors', 'requests'], hidden: ['reports'] }, 'tickets.requests': { order: ['board'], hidden: [] } };
   expect(normalizeTabsConfig(fresh)).toEqual(fresh);
   // a row the administrator already configured in the new shape is not overwritten by an old entry
-  expect(normalizeTabsConfig({ tickets: { order: ['mine'], hidden: [] }, 'tickets.requests': { order: ['all'], hidden: [] } })['tickets.requests']).toEqual({ order: ['all'], hidden: [] });
+  expect(normalizeTabsConfig({ tickets: { order: ['mine'], hidden: [] }, 'tickets.requests': { order: ['board'], hidden: [] } })['tickets.requests']).toEqual({ order: ['board'], hidden: [] });
   // and it shapes the rows the shell draws: what was hidden stays hidden
   applyTabsConfig({ 'ui.tabs': { tickets: { order: ['board', 'overview'], hidden: ['handlers', 'rfqs', 'accounts'] } } });
   const adm = holding(...ROLES.systemAdmin);
@@ -258,4 +265,46 @@ test('D33: a renamed module renames the requests section; the other sections kee
   setTicketNames({ he: { one: 'תקלה', many: 'תקלות', gender: 'f' } });
   expect(TICKETS_TABS.map((t) => t.label)).toEqual(['תקלות', 'תחזוקה ובקרה', 'ספקים וכספים', 'סקירה ודוחות']);
   expect(TICKETS_TABS[0].short).toBe('תקלות');
+});
+
+test('SERVICEIA2-295 parity L-02: the list offers a scope exactly where the old row offered its tab; the page row is list + board', () => {
+  const scopes = (...perms: string[]) => ticketsScopesAllowed(true, holding(...perms));
+  expect(scopes('tickets.create')).toEqual(['mine']); // the employee: only his own
+  expect(scopes('tickets.view')).toEqual(['mine', 'department']); // the handler
+  expect(scopes('tickets.all_departments')).toEqual(['all']); // "הכול" alone still opens the list, on that scope
+  expect(scopes('tickets.view', 'tickets.all_departments')).toEqual(['mine', 'department', 'all']);
+  expect(scopes('tickets.costs')).toEqual([]);
+  expect(ticketsScopesAllowed(false)).toEqual(['mine', 'department', 'all']); // the demo shows all of them
+  // the list page opens on the first scope the user may open
+  expect(ticketsPageTabs('requests', true, holding('tickets.all_departments')).map((p) => [p.id, p.href])).toEqual([['list', TICKETS_ALL_HREF]]);
+  expect(ticketsPageTabs('requests', true, holding('tickets.view', 'tickets.manage')).map((p) => [p.id, p.href])).toEqual([['list', TICKETS_MINE_HREF], ['board', TICKETS_BOARD_HREF]]);
+  expect(ticketsPageTabs('requests', true, holding('tickets.manage')).map((p) => p.id), 'a manager without tickets.view still has the board only').toEqual(['board']);
+  // the module switch closes the list page too
+  applyTicketsHidden({ 'tickets.enabled': 'false' });
+  expect(ticketsPageTabs('requests', true, () => true)).toEqual([]);
+});
+
+test('SERVICEIA2-295 redirects: #/tickets/list lands on the first scope the user may open; the scope addresses stay (they are the list filter)', () => {
+  const route = (path: string) => {
+    const [p, q = ''] = path.split('?');
+    const segments = p.split('/').filter(Boolean);
+    return { path: p, segments, params: new URLSearchParams(q), mode: segments[0] as 'tickets' };
+  };
+  const access = (perms: string[], ready = true) => ({ api: true, ready, can: holding(...perms) });
+  expect(legacyRedirect(route('/tickets/list?status=closed'), access(ROLES.handler)), 'query travels').toBe('/tickets/mine?status=closed');
+  expect(legacyRedirect(route('/tickets/list'), access(['tickets.all_departments']))).toBe('/tickets/all');
+  expect(legacyRedirect(route('/tickets/list'), access(ROLES.handler, false))).toBeNull();
+  expect(legacyRedirect(route('/tickets/list'))).toBe('/tickets/mine');
+  for (const p of ['/tickets/mine', '/tickets/department?dept=d1&q=x', '/tickets/all?status=all&new=1']) expect(legacyRedirect(route(p), access(ROLES.systemAdmin)), p).toBeNull();
+});
+
+test('SERVICEIA2-295 ui.tabs: a tickets.requests row saved after slice 1 (scope page ids) becomes the page list; idempotent', () => {
+  expect(normalizeTabsConfig({ 'tickets.requests': { order: ['board', 'mine', 'department', 'all'], hidden: [] } })['tickets.requests']).toEqual({ order: ['board', 'list'], hidden: [] });
+  expect(normalizeTabsConfig({ 'tickets.requests': { order: ['all', 'board'], hidden: ['mine', 'department', 'all'] } })['tickets.requests'], 'every scope hidden = the list hidden').toEqual({ order: ['list', 'board'], hidden: ['list'] });
+  expect(normalizeTabsConfig({ 'tickets.requests': { order: ['mine', 'board'], hidden: ['department'] } })['tickets.requests']).toEqual({ order: ['list', 'board'], hidden: [] });
+  const once = normalizeTabsConfig({ 'tickets.requests': { order: ['board', 'mine'], hidden: ['mine', 'department', 'all'] } });
+  expect(normalizeTabsConfig(once)).toEqual(once);
+  // and it shapes the page row
+  applyTabsConfig({ 'ui.tabs': { 'tickets.requests': { order: ['board', 'mine'], hidden: [] } } });
+  expect(ids(ticketsPageTabs('requests', true, holding(...ROLES.systemAdmin)))).toEqual(['board', 'list']);
 });

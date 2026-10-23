@@ -110,7 +110,7 @@ test('the rail, the scope tabs, the settings tab and the settings index carry th
   expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['תקלות', 'ספקים וכספים', 'סקירה ודוחות']);
   setTicketNames(null);
   expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['בקשות', 'ספקים וכספים', 'סקירה ודוחות']);
-  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL).map((t) => t.label)).toEqual(['שלי', 'המחלקה', 'לוח מנהל', 'הכול']);
+  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL).map((t) => t.label)).toEqual(['רשימה', 'לוח מנהל']);
   expect(visibleTabs(TICKETS_VENDORS_PAGES, true, ALL).map((t) => t.label)).toEqual(['מטפלים וספקים', 'בקשות הצעת מחיר', 'חשבון ספקים']);
 });
 
@@ -126,8 +126,8 @@ test('the module switch: the area is hidden until the session says it is on; the
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   expect(visibleAreas(true, (p) => !p.startsWith('tickets.')).map((a) => a.id)).not.toContain('tickets');
   expect(visibleTabs(AREA_TABS.tickets, true, (p) => p === 'tickets.view').map((t) => t.id)).toEqual(['requests']);
-  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, (p) => p === 'tickets.view').map((t) => t.id)).toEqual(['mine', 'department']);
-  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, (p) => p === 'tickets.create').map((t) => t.id)).toEqual(['mine']);
+  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, (p) => p === 'tickets.view').map((t) => t.id)).toEqual(['list']);
+  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, (p) => p === 'tickets.create').map((t) => t.id)).toEqual(['list']);
   // the settings tab needs system.configure or tickets.configure at the installation
   expect(visibleTabs(AREA_TABS.system, true, (p, inst) => p === 'tickets.configure' && !!inst).some((t) => t.href === TICKETS_SETTINGS_HREF)).toBe(true);
   expect(visibleTabs(AREA_TABS.system, true, (p, inst) => p === 'tickets.configure' && !inst).some((t) => t.href === TICKETS_SETTINGS_HREF)).toBe(false);

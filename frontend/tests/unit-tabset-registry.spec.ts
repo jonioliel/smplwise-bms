@@ -75,7 +75,7 @@ test('every area with a tab row has a registry section, and every section row is
   expect(byId['infra.generator']).toEqual(['live', 'alerts', 'charts', 'history']);
   // SERVICEIA1-295: level 1 = the sections that have pages on this build; level 2 = the requests and vendors page rows
   expect(byId['tickets']).toEqual(['requests', 'vendors', 'reports']);
-  expect(byId['tickets.requests']).toEqual(['mine', 'department', 'board', 'all']);
+  expect(byId['tickets.requests']).toEqual(['list', 'board']); // SERVICEIA2-295: the scopes are the list's own filter
   expect(byId['tickets.vendors']).toEqual(['handlers', 'rfqs', 'accounts']); // SHAREDID-293: the external-access tab only while placed under tickets
   expect(sectionIdOf(TICKETS_REQUESTS_PAGES)).toBe('tickets.requests');
   expect(sectionIdOf(TICKETS_VENDORS_PAGES)).toBe('tickets.vendors');
@@ -150,11 +150,11 @@ test('the tickets card is listed only while the tickets area is switched on', ()
   expect(def.available?.()).toBe(true);
   expect(def.label.trim()).not.toBe('');
   // SERVICEIA1-295: a value stored before the sections (the old page ids) is migrated on read - its pages keep their order and hidden state
-  applyTabsConfig({ 'ui.tabs': { tickets: { order: ['all', 'mine'], hidden: ['department'] } } });
-  expect(ids(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL)).slice(0, 2)).toEqual(['all', 'mine']);
-  expect(ids(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL))).not.toContain('department');
+  // SERVICEIA2-295: mine / department / all are one page (`list`), at the place of the first of them
+  applyTabsConfig({ 'ui.tabs': { tickets: { order: ['board', 'all', 'mine'], hidden: ['department'] } } });
+  expect(ids(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL))).toEqual(['board', 'list']);
   expect(ids(visibleTabs(TICKETS_TABS, true, ALL))[0]).toBe('requests');
-  expect(visibleTabs(TICKETS_TABS, true, ALL)[0].href, 'the section opens on its first configured page').toBe('#/tickets/all');
+  expect(visibleTabs(TICKETS_TABS, true, ALL)[0].href, 'the section opens on its first configured page').toBe('#/tickets/board');
   expect(TAB_SECTIONS.find((s) => s.id === 'tickets.requests')?.available?.()).toBe(true);
 });
 

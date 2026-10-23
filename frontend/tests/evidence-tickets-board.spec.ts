@@ -129,7 +129,8 @@ test.describe('tickets board evidence', () => {
     await go(page, '/tickets/board', { persona: 'operator' });
     await page.waitForSelector(`${B} [data-tickets-state="forbidden"]`);
     await shot(page, 'board-forbidden');
-    await expect(page.locator('sw-app sw-tabs').first()).not.toContainText('לוח מנהל');
+    // SERVICEIA2-295: a non-manager has one page (the list), so no page row is drawn at all - the board is not offered in any row
+    await expect(page.locator('sw-app sw-tabs', { hasText: 'לוח מנהל' })).toHaveCount(0);
   });
 
   test('empty board and the module off', async ({ page }) => {

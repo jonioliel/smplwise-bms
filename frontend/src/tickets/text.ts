@@ -34,6 +34,7 @@ const he = {
   secVendorsShort: 'ספקים',
   secReports: 'סקירה ודוחות',
   secReportsShort: 'סקירה',
+  pageList: 'רשימה', // SERVICEIA2-295: the request list page of the requests section (the scopes are its filter)
 
   // the list
   newShort: '{f:חדשה|m:חדש}',
@@ -433,6 +434,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   secVendorsShort: 'Vendors',
   secReports: 'Overview & reports',
   secReportsShort: 'Overview',
+  pageList: 'List',
   newShort: 'New',
   newTitle: 'New {ticket}',
   mapCreate: 'Open a {ticket}',

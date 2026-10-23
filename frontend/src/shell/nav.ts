@@ -407,6 +407,7 @@ export function normalizeTabsConfig(raw: unknown): TabsConfig {
     if (order.length || hidden.length || style) out[section] = style ? { order, hidden, style } : { order, hidden };
   }
   migrateTicketsTabs(out);
+  migrateRequestsRow(out);
   return out;
 }
 
@@ -415,6 +416,8 @@ const TICKETS_LEGACY_PAGE_SECTION: Record<string, TicketsSection> = {
   overview: 'reports', mine: 'requests', department: 'requests', board: 'requests', all: 'requests',
   handlers: 'vendors', rfqs: 'vendors', accounts: 'vendors', external: 'vendors',
 };
+/** SERVICEIA2-295: the three scope pages of the one-page-per-scope rows became the single page `list`. */
+const TICKETS_SCOPE_PAGE_ALIAS: Record<string, string> = { mine: 'list', department: 'list', all: 'list' };
 /** The section level-2 rows `ui.tabs` configures (a section with fewer than two pages has nothing to order). */
 export const TICKETS_CONFIGURABLE_SECTIONS: readonly TicketsSection[] = ['requests', 'vendors'];
 
@@ -435,11 +438,16 @@ function migrateTicketsTabs(out: TabsConfig): void {
     const s = TICKETS_LEGACY_PAGE_SECTION[id];
     if (!s) continue;
     if (!sectionOrder.includes(s)) sectionOrder.push(s);
-    bucket(s).order.push(id);
+    const page = TICKETS_SCOPE_PAGE_ALIAS[id] ?? id; // SERVICEIA2-295: mine / department / all are one page, `list`, at the place of the first of them
+    if (!bucket(s).order.includes(page)) bucket(s).order.push(page);
   }
   for (const id of old.hidden) {
     const s = TICKETS_LEGACY_PAGE_SECTION[id];
-    if (s) bucket(s).hidden.push(id);
+    if (!s) continue;
+    // the list is hidden only when every scope tab was (hiding one scope of three leaves the list; the scope segment is not configurable)
+    if (TICKETS_SCOPE_PAGE_ALIAS[id]) {
+      if (Object.keys(TICKETS_SCOPE_PAGE_ALIAS).every((sc) => old.hidden.includes(sc)) && !bucket(s).hidden.includes('list')) bucket(s).hidden.push('list');
+    } else bucket(s).hidden.push(id);
   }
   const hiddenSections: TicketsSection[] = [];
   for (const s of TICKETS_SECTION_IDS) {
@@ -455,6 +463,22 @@ function migrateTicketsTabs(out: TabsConfig): void {
   const hidden = [...hiddenSections, ...old.hidden.filter((id) => !legacy(id))];
   if (order.length || hidden.length || old.style) out.tickets = old.style ? { order, hidden, style: old.style } : { order, hidden };
   else delete out.tickets;
+}
+
+/** SERVICEIA2-295: a `tickets.requests` row saved after slice 1 names the scope pages (mine / department / board / all); they are the one
+ * page `list` now (at the place of the first of them; hidden only when all three were). Idempotent. */
+function migrateRequestsRow(out: TabsConfig): void {
+  const row = out['tickets.requests'];
+  if (!row || ![...row.order, ...row.hidden].some((id) => id in TICKETS_SCOPE_PAGE_ALIAS)) return;
+  const order: string[] = [];
+  for (const id of row.order) {
+    const page = TICKETS_SCOPE_PAGE_ALIAS[id] ?? id;
+    if (!order.includes(page)) order.push(page);
+  }
+  const scopes = Object.keys(TICKETS_SCOPE_PAGE_ALIAS);
+  const hidden = row.hidden.filter((id) => !(id in TICKETS_SCOPE_PAGE_ALIAS));
+  if (scopes.every((sc) => row.hidden.includes(sc))) hidden.push('list');
+  out['tickets.requests'] = row.style ? { order, hidden, style: row.style } : { order, hidden };
 }
 
 // ---- 0.1.148: the look of the tab bars (sw-tabs `variant`), per hierarchy level with a per-section override ----
@@ -776,13 +800,20 @@ export const TICKETS_SECTION_HREFS: Record<TicketsSection, string> = {
   vendors: '#/tickets/vendors',
   reports: '#/tickets/reports',
 };
-/** בקשות: the three scope pages and the manager board (the board stays a PAGE, owner 24.10) - in the order they had in the old row. */
+/** בקשות: the request list (page `list`: the scopes שלי · המחלקה · הכול are the list's own filter, SERVICEIA2-295) and the manager board (the
+ * board stays a PAGE, owner 24.10). The static href is the built-in first scope; `visibleTabs` rewrites it to the first scope this user may open. */
 export const TICKETS_REQUESTS_PAGES: TabItem[] = [
-  { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
-  { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
+  { id: 'list', get label() { return tt('pageList'); }, href: TICKETS_MINE_HREF },
   { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
-  { id: 'all', get label() { return tt('tabAll'); }, href: TICKETS_ALL_HREF },
 ];
+/** SERVICEIA2-295: the scopes of the request list in their order, each with the permission entry that used to gate its level-1 tab
+ * (TAB_PERMISSIONS keeps those entries): the list's scope segment offers exactly these. */
+export const TICKETS_SCOPE_HREFS: Record<'mine' | 'department' | 'all', string> = { mine: TICKETS_MINE_HREF, department: TICKETS_DEPARTMENT_HREF, all: TICKETS_ALL_HREF };
+/** The scopes of the list this user may open (parity with the three tabs of the old row; no backend = all, the demo). */
+export function ticketsScopesAllowed(api: boolean, can?: Can): Array<'mine' | 'department' | 'all'> {
+  const all = Object.keys(TICKETS_SCOPE_HREFS) as Array<'mine' | 'department' | 'all'>;
+  return api ? all.filter((sc) => tabAllowed(TICKETS_SCOPE_HREFS[sc], can)) : all;
+}
 /** תחזוקה ובקרה: the MAINT215 pages plug in here (ledger, plans, rounds, tags); empty on this build, so the section is never offered. */
 export const TICKETS_MAINTENANCE_PAGES: TabItem[] = [];
 /** ספקים וכספים: handlers and vendors, requests for quotation, the vendors account, external access (when placed here). */
@@ -1052,6 +1083,7 @@ export function ticketsSectionOf(r: RouteState | null): TicketsSection | '' {
   if (r?.mode !== 'tickets') return '';
   const seg = r.segments[1] ?? '';
   if ((TICKETS_SECTION_IDS as readonly string[]).includes(seg)) return seg as TicketsSection;
+  if (seg in TICKETS_SCOPE_HREFS) return 'requests'; // SERVICEIA2-295: the scopes are the list's filter
   return ticketsSectionOfPage(seg) ?? 'requests';
 }
 
@@ -1060,7 +1092,7 @@ export function ticketsSectionOf(r: RouteState | null): TicketsSection | '' {
 export function ticketsPageOf(r: RouteState | null): string {
   if (r?.mode !== 'tickets') return '';
   const seg = r.segments[1] ?? '';
-  if (!seg) return 'mine';
+  if (!seg || seg in TICKETS_SCOPE_HREFS) return 'list'; // SERVICEIA2-295: שלי · המחלקה · הכול are one page, the list
   return ticketsSectionOfPage(seg) ? seg : '';
 }
 
@@ -1351,6 +1383,11 @@ export function ticketsSectionTarget(section: string, api: boolean, can?: Can): 
 function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
   // 0.1.154: the "קברניט" tab (id `automations`) stands for two gates: it is offered while its schedules or its automations segment is, and it
   // opens on the first one offered (the schedules)
+  // SERVICEIA2-295: the list page stands for the three scopes - offered while one scope is, opening on the first one offered
+  if (api && source === TICKETS_REQUESTS_PAGES) {
+    const sc = ticketsScopesAllowed(api, can)[0];
+    return source.flatMap((t) => (t.id !== 'list' ? (permittedTabs([t], api, can)) : sc && !TICKETS_OFF ? [{ ...t, href: TICKETS_SCOPE_HREFS[sc] }] : []));
+  }
   const items = api && source === DEVICES_TABS ? source.flatMap((t) => {
     if (t.id !== 'automations') return [t];
     const seg = kavarnitSegments(api, can);
@@ -1535,9 +1572,10 @@ export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): str
   }
   // SERVICEIA1-295: the service-management section entry addresses (#/tickets/requests|maintenance|vendors|reports) land on the section's
   // first page this user may open (permission-aware; nothing decided while the session loads); the query travels. Every page keeps its href.
-  if (r.mode === 'tickets' && (TICKETS_SECTION_IDS as readonly string[]).includes(s[1] ?? '') && !s[2]) {
+  // SERVICEIA2-295: #/tickets/list (the one list page) lands on the first scope of the list this user may open, as the requests section does
+  if (r.mode === 'tickets' && !s[2] && ((TICKETS_SECTION_IDS as readonly string[]).includes(s[1] ?? '') || s[1] === 'list')) {
     if (access && !access.ready) return null;
-    const target = ticketsSectionTarget(s[1], access?.api ?? false, access?.api ? access.can : undefined);
+    const target = ticketsSectionTarget(s[1] === 'list' ? 'requests' : s[1], access?.api ?? false, access?.api ? access.can : undefined);
     return `${target.slice(1)}${q}`;
   }
   // (the intrusion alarm is #/security/alarm again since 0.1.147: a tab of the security area, and a page of הגדרות › אבטחה)
