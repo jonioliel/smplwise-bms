@@ -11,6 +11,7 @@ import './system-security-cameras';
 import './system-security-privacy-masks';
 import './system-security-public';
 import './system-security-wiskey';
+import '../incidents/settings-form'; // CR-LIVEEVENT100: הגדרות › אבטחה › מצב אירוע חי
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
@@ -145,6 +146,8 @@ export class SystemSecurity extends LitElement {
               ? html`<system-security-public></system-security-public>`
             : this.sub === 'wiskey'
               ? html`<system-security-wiskey></system-security-wiskey>`
+            : this.sub === 'incidents'
+              ? html`<sw-page crumbs="הגדרות | אבטחה" heading="מצב אירוע חי" subheading="עמוד אחד לאירוע בזמן אמת: צפייה בלבד, ללא פעולה פיזית"><incident-settings-form data-incident-settings-page></incident-settings-form></sw-page>`
             : html`<system-security-nvr></system-security-nvr>`}`;
   }
 }

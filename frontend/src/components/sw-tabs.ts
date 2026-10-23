@@ -13,6 +13,8 @@ export interface TabItem {
   badge?: number;
   /** Dropdown presentation only: a dot on the chip while this item is not the selected one (`true` = alert, `'warn'` = attention). */
   alert?: boolean | 'warn';
+  /** CR-LIVEEVENT100: a small red dot after the label in the bar forms (an incident is open); the dropdown shows `alert`'s dot. */
+  dot?: boolean;
   /** Dropdown presentation, capsule style only (Unreleased): an icon at the start of the option; the other looks ignore it. */
   icon?: IconName;
   /** Dropdown presentation, capsule style only: a separator line instead of an item (the tab bars and the other dropdown looks skip it). */

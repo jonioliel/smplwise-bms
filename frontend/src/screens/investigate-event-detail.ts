@@ -39,6 +39,10 @@ import { sameRefs } from '../map/memo';
 import { initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
 import { timeText, dayText } from '../api/day-format';
+import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T2): "פתח אירוע חי" only while the module is on
+import { mayOpenFromEvent } from './investigate-incidents';
+import { openIncident } from '../api/incidents';
+import { it as incText } from '../i18n/incidents';
 
 const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
@@ -603,6 +607,19 @@ export class InvestigateEventDetail extends LitElement {
     }
   }
 
+  /** CR-LIVEEVENT100 (T2): open a live incident from this event (or join the open one of its floor within the merge window) and go there. */
+  private async openLive(eventId: string) {
+    this.busy = true;
+    try {
+      const r = await openIncident({ event_id: eventId });
+      navigate(`/investigate/incidents/${encodeURIComponent(r.incident.id)}`);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private fmt(iso: string, withDate = false): string {
     const d = new Date(iso);
     const time = timeText(d, { timeZone: this.tz, seconds: true });
@@ -772,6 +789,7 @@ export class InvestigateEventDetail extends LitElement {
       <sw-page heading=${`${label} · ${camera}`} subheading=${`${SOURCE_LABEL[ev.source] ?? ev.source} · ${this.fmt(ev.occurred_at, true)}`} crumbs=${`חקירה | אירועים | ${label}`} wide>
         <sw-button slot="actions" variant=${acked ? 'ghost' : 'primary'} icon="check" ?disabled=${acked || this.busy} @click=${() => this.ack()}>${acked ? 'טופל' : 'סמן כטופל'}</sw-button>
         <sw-button slot="actions" icon="case" data-add-to-case @click=${() => (this.casePick = { kind: 'event', event_id: ev.id })}>הוסף לתיק</sw-button>
+        ${mayOpenFromEvent(incidentsModuleOn()) ? html`<sw-button slot="actions" icon="warning" data-open-incident ?disabled=${this.busy} @click=${() => void this.openLive(ev.id)}>${incText('fromEvent')}</sw-button>` : nothing}
         <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/events')}>למרכז האירועים</sw-button>
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
         <div class="layout">
