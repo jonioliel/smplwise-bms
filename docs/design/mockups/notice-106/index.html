@@ -620,14 +620,14 @@ nav.bottom { display: none; }
           <div class="panel"><div class="hd"><h2>תבנית המסך</h2><span class="sp"></span><span class="chip" data-look="acc">שינוי מתעדכן בטלוויזיה תוך 30 שניות</span></div>
             <div class="tpls" data-tpls>
               <button class="tpl" data-tpl="1" aria-pressed="true"><div class="sch"><i class="hd"></i><div class="row" style="grid-template-columns:3fr 7fr"><i></i><div class="row" style="grid-template-rows:3fr 1fr"><i class="acc"></i><i></i></div></div><i class="hd"></i></div><b>מידע והודעות</b><span>שעון, מזג אוויר, מצב הבניין, הודעה גדולה, שקופיות, חדשות</span></button>
-              <button class="tpl" data-tpl="2" aria-pressed="false"><div class="sch"><i class="hd"></i><div class="row" style="grid-template-rows:5fr 1fr"><i class="acc"></i><div class="row" style="grid-template-columns:1fr 1fr 1fr"><i></i><i class="warn"></i><i></i></div></div><i class="hd"></i></div><b>הודעות בלבד</b><span>הודעה אחת גדולה והבאות בתור; שעון בכותרת</span></button>
-              <button class="tpl" data-tpl="3" aria-pressed="false"><div class="sch port"><div class="row" style="grid-template-rows:1fr 1fr 4fr 1.5fr .8fr"><i class="hd"></i><i></i><i class="acc"></i><i></i><i></i></div></div><b>לובי אנכי</b><span>מסך מאונך: שעון ומזג אוויר למעלה, ההודעות בערימה, שקופית וחדשות</span></button>
+              <button class="tpl" data-tpl="2" aria-pressed="false"><div class="sch"><i class="hd"></i><div class="row" style="grid-template-rows:5fr 1fr"><i class="acc"></i><div class="row" style="grid-template-columns:1fr 1fr 1fr"><i></i><i class="warn"></i><i></i></div></div><i class="hd"></i></div><b>הודעות בלבד</b><span>הודעה אחת גדולה בכל פעם, מתחלפת; שעון בכותרת</span></button>
+              <button class="tpl" data-tpl="3" aria-pressed="false"><div class="sch port"><div class="row" style="grid-template-rows:1fr 1fr 4fr 1.5fr .8fr"><i class="hd"></i><i></i><i class="acc"></i><i></i><i></i></div></div><b>לובי אנכי</b><span>מסך מאונך: שעון ומזג אוויר למעלה, הודעה אחת גדולה בכל פעם, שקופית וחדשות</span></button>
             </div>
             <div class="hd" style="margin:14px 0 8px"><h2>תצוגה מקדימה</h2><span class="sp"></span><button class="btn sm" data-tv-open=""><svg class="ic"><use href="#i-eye"/></svg>מסך מלא</button></div>
             <div class="prev" data-prev></div><div class="prev-cap" data-prev-cap></div>
             <div class="form" style="margin-block-start:12px">
               <div class="r"><div class="fld"><label>ערכת צבע</label><div class="seg" data-theme-seg><button aria-pressed="false" data-th="light">בהיר</button><button aria-pressed="true" data-th="dark">כהה</button><button aria-pressed="false" data-th="auto">אוטומטי · כהה 19:00–07:00</button></div></div><div class="fld"><label>כיוון המסך</label><div class="seg" data-orient-seg><button aria-pressed="true" data-or="auto">אוטומטי</button><button aria-pressed="false" data-or="landscape">רוחב</button><button aria-pressed="false" data-or="portrait">אנכי</button></div></div></div>
-              <div class="r"><div class="fld"><label>גודל הכתב</label><select class="inp" data-fs><option value="1">100%</option><option value="0.9">90%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
+              <div class="r"><div class="fld"><label>גודל הכתב</label><select class="inp" data-fs><option value="s">קטן (ברירת מחדל)</option><option value="m">בינוני</option><option value="l">גדול</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
               <div class="row" style="display:flex;gap:16px;flex-wrap:wrap"><label class="ck"><input type="checkbox" checked> הזזה איטית נגד צריבה</label><label class="ck"><input type="checkbox" checked data-blk="company"> לוגו היזם / חברת הניהול</label><label class="ck"><input type="checkbox" checked disabled> לוגו SmplWise</label></div>
             </div>
           </div>
@@ -894,9 +894,9 @@ nav.bottom { display: none; }
   // ===== the TV lives in tv.html (standalone, full screen); the display tab previews THE SAME FILE in an iframe =====
   var TV_FILE = 'tv.html';
   var prevHost = document.querySelector('[data-prev]'), prevCap = document.querySelector('[data-prev-cap]');
-  var pv = { board: 'lobby', template: parseInt(q.get('ptpl'), 10) || 1, theme: q.get('ptheme') || 'dark', orient: 'auto', fs: '1', rotate: '12', blocks: { clock: 1, hebdate: 1, weather: 1, news: 1, info: 1, promo: 1, company: 1 } };
+  var pv = { board: 'lobby', template: parseInt(q.get('ptpl'), 10) || 1, theme: q.get('ptheme') || 'dark', orient: 'auto', size: q.get('psize') || 's', rotate: '12', blocks: { clock: 1, hebdate: 1, weather: 1, news: 1, info: 1, promo: 1, company: 1 } };
   function tvUrl(extra) {
-    var s = new URLSearchParams({ board: pv.board, template: String(pv.template), theme: pv.theme, orient: pv.orient, fs: pv.fs, rotate: pv.rotate });
+    var s = new URLSearchParams({ board: pv.board, template: String(pv.template), theme: pv.theme, orient: pv.orient, size: pv.size, rotate: pv.rotate });
     Object.keys(pv.blocks).forEach(function (k) { s.set(k, pv.blocks[k] ? '1' : '0'); });
     if (q.get('clock') === 'fixed') s.set('clock', 'fixed');
     Object.keys(extra || {}).forEach(function (k) { s.set(k, extra[k]); });
@@ -920,7 +920,7 @@ nav.bottom { display: none; }
   document.querySelectorAll('[data-blk]').forEach(function (c) { c.addEventListener('change', function () { pv.blocks[c.dataset.blk] = c.checked ? 1 : 0; var blk = c.closest('.blk'); if (blk && c.parentNode.parentNode === blk) blk.dataset.off = c.checked ? '0' : '1'; prevRender(); }); });
   document.querySelectorAll('[data-theme-seg] button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.th === pv.theme)); b.addEventListener('click', function () { pv.theme = b.dataset.th; b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); prevRender(); }); });
   document.querySelectorAll('[data-orient-seg] button').forEach(function (b) { b.addEventListener('click', function () { pv.orient = b.dataset.or; prevRender(); }); });
-  var fsSel = document.querySelector('[data-fs]'); if (fsSel) fsSel.onchange = function () { pv.fs = this.value; prevRender(); };
+  var fsSel = document.querySelector('[data-fs]'); if (fsSel) { fsSel.value = pv.size; fsSel.onchange = function () { pv.size = this.value; prevRender(); }; }
   var rotSel = document.querySelector('[data-rot]'); if (rotSel) rotSel.onchange = function () { pv.rotate = this.value; prevRender(); };
   function showBoardTab(id) { document.querySelectorAll('.btabs a').forEach(function (a) { a.classList.toggle('on', a.dataset.bt === id); }); document.querySelectorAll('.bt-pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === id); }); if (id === 'disp') prevRender(); }
   document.querySelectorAll('.btabs a').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showBoardTab(a.dataset.bt); }); });

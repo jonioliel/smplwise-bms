@@ -18,6 +18,13 @@ as a **standalone page** (`docs/design/mockups/notice-106/tv.html`) drawn on a f
 and the display tab's preview is an iframe of the same file, so the preview is the TV. Direct entry: `tv.html?board=lobby&template=1`
 (or `index.html?tv=1&template=2&board=parking`, which redirects there). §8 is updated accordingly.
 
+**Owner review of v3 (same day).** The type was too large, and the screen must show **one notice at a time** - no "up next" strip,
+no list or stack of notices; the notices follow one another in rotation. v3 therefore: (a) a text-size setting per board, small /
+medium / large (`display.font_size` = `s` / `m` / `l`, multipliers 0.72 / 0.86 / 1.0 of the canvas type scale), **default small**,
+with more air around the blocks; (b) every template draws exactly one notice card (template 2 lost its "up next" strip, the
+portrait template its "coming next" list), with position dots only; (c) the news ticker isolates every headline (bidi-safe
+punctuation), puts a dot between items, the source after each, and fades out at both edges instead of a hard cut.
+
 Module switch `notices.enabled`, **OFF by default**. Migration `0160_notices.sql` (**provisional** number, one file; renumber
 at integration like every other branch). Mockup: `docs/design/mockups/notice-106/index.html` (owner standing style: the
 infrastructure temperature / elevators / schedules language, real tokens and shell as in MAINT215 v2).
@@ -289,8 +296,8 @@ notice taking the screen over. Drawn with the product tokens, fonts and RTL, but
 | template | layout | for |
 |---|---|---|
 | 1 **מידע והודעות** (info + notices) | header / urgent band / body: side column (clock, date, weather) + stage (notice card, promo strip) / ticker / footer with chips | lobby, entrance |
-| 2 **הודעות בלבד** (notices only) | header with the clock / urgent band / one large notice card + "up next" strip of the other titles / ticker (optional) / footer with chips | parking, service corridors, screens without weather |
-| 3 **לובי אנכי** (portrait lobby) | header / urgent band / clock + weather row / chips row / the current notice as a featured card + an "ובהמשך" list of the other titles (rows that do not fit are dropped; the featured card rotates) / promo / ticker / footer | portrait screens next to elevators |
+| 2 **הודעות בלבד** (notices only) | header with the clock / urgent band / one large notice card (one notice at a time, rotating) / ticker (optional) / footer with chips | parking, service corridors, screens without weather |
+| 3 **לובי אנכי** (portrait lobby) | header / urgent band / clock + weather row / chips row / one large notice card (one notice at a time, rotating; no list of the others) / promo / ticker / footer | portrait screens next to elevators |
 
 A board on a portrait screen with template 1 or 2 falls back to the portrait stacking (template 3 layout) automatically;
 `layout` can pin it; template 3 on a landscape screen is pillar-boxed (black bars), never stretched. The preview in Settings is the
@@ -332,7 +339,8 @@ so the page asks for the right variant (`?variant=dark`).
 | `theme` | `light` / `dark` / `auto` (auto = dark 19:00-07:00) | `dark` |
 | `layout` | `auto` / `landscape` / `portrait` | `auto` |
 | `rotate_s` | 6..60 (notices) | 12 |
-| `font_scale` | 0.8..1.4 (the canvas budget; above 1.1 with the urgent band on, the side column drops lines, §8.5) | 1.0 |
+| `font_size` | `s` / `m` / `l` - Settings "גודל הכתב": קטן / בינוני / גדול (multipliers 0.72 / 0.86 / 1.0) | **`s`** (owner 2026-10-24) |
+| `font_scale` | 0.85..1.2, a fine adjustment on top of `font_size` (not shown in the UI) | 1.0 |
 | `blocks.clock`, `blocks.hebdate` | bool | true, true |
 | `blocks.weather`, `weather.source`, `weather.hours` | bool; `ha` / `internet`; 3 / 5 / 8 | true when an entity exists; `ha`; 5 |
 | `blocks.info` | list of chip kinds from `elevators`, `generator`, `parking`, `gym` | the kinds whose module is on |
@@ -353,9 +361,10 @@ Installation-wide in Settings > לוח הודעות > ברירות מחדל: the
   3840x2160 = x2, so every TV shows the same composition and 4K is sharp, not small. One axis is exactly the base and the other
   follows the screen's real ratio (a 4:3 or 21:9 screen gets a taller / wider canvas instead of black bars); only a forced
   orientation mismatch (template 3 on a landscape TV) is boxed. No scrolling, nothing outside the canvas, the cursor hidden.
-- **Type for 4 m** (1920 canvas px; a 55" TV is ~40 px per inch; the signage rule of thumb is ~2.5 cm of letter height per 3 m):
-  clock 184, notice title 84 (96 in template 2), notice body 50 (54), urgent band title 64, takeover title 124, weather 104,
-  ticker 42, building chips 30; secondary lines (the footer status) 26-28 are for people standing close. Safe margins 64 / 36 px
+- **Type for 4 m** (1920 canvas px; a 55" TV is ~40 px per inch). The scale below is the **large** size; the default **small**
+  size is 0.72 of it (medium 0.86): clock 184 (small 132), notice title 84 (60; 96 / 69 in template 2; portrait 84 / 60), notice
+  body 50 (36), urgent band title 64 (46), takeover title 124 (89), weather 104 (75), ticker 42 (30), building chips 30 (22);
+  icons follow the same multiplier. Secondary lines (the footer status) are for people standing close. Safe margins 64 / 36 px
   (3.3 %); high contrast (white on #b71c1c is >= 6:1; the v2 band was white on #ff6b62, ~2.6:1). `font_scale` multiplies the text.
 - **Fit, not clip.** A notice title is up to 2 lines, the body 3 lines (portrait featured card 5); when a long notice still does
   not fit its card, the card's type steps down to at most 62 % (`--k`) before the clamp cuts; the side column drops, in order,
@@ -366,12 +375,12 @@ Installation-wide in Settings > לוח הודעות > ברירות מחדל: the
 - **Urgent** (critical): the takeover band under the header, never rotated out, up to two stacked; in landscape the promo strip
   hides while the band is on so the notice card keeps its body; everything else keeps running (a sign that shows only the
   alarm loses the people who came for the time).
-- **Rotation**: one notice fills the stage at a time (landscape); dots show the position; a long body doubles its time; a
-  single notice does not rotate. Order: pinned, severity, `starts_at` desc. Template 2 shows the other titles in the "up next"
-  strip, the current one outlined in its severity colour. Portrait stacks every active notice; a list longer than the screen
-  rotates in pages with a bottom fade.
+- **Rotation**: exactly one notice is on the screen at a time, in every template and orientation (owner 2026-10-24); dots show the
+  position; a long body doubles its time; a single notice does not rotate. Order: pinned, severity, `starts_at` desc. No "up next"
+  strip, no list or stack of the other notices.
 - Promo slides rotate on their own 15 s clock; the ticker scrolls at the chosen speed, right-to-left reading order (the start of
-  a headline enters from the left edge first), 60 s per pass at `normal`.
+  a headline enters from the left edge first), ~130 canvas px/s at `normal`; each headline is a bidi-isolated run (punctuation
+  stays with its sentence), a dot separates items, and both edges fade over 90 px so no word is cut hard against the label.
 - Polling every 30 s with `If-None-Match`; a changed version re-renders without flashing (the stage keeps its current item if
   it still exists). No SSE / WebSocket (CR-030's reasoning); polling with a stale indicator is the honest answer for a sign.
 - **Stale**: after 3 missed polls (90 s) the amber "לא מעודכן מ-09:04" chip appears in the footer and the live dot turns
@@ -450,9 +459,9 @@ Frontend (vitest): widget model (order, unread dot, hide-when-empty), page filte
 audience within scope), the TV page's rotation / stale / empty / night state machine (pure logic module `tv-logic.ts`).
 Playwright: the page and the compose dialog at 1366 / 1024 / 375 light + dark; the TV page at 1920x1080, 1366x768 and 1080x1920,
 templates 1-3, urgent on / off, stale / offline / gone / empty / night, with and without the company logo and the ticker.
-Mockup v2 evidence: `private/review/notice-106-v2/` (29 screenshots). Mockup v3 evidence: `private/review/notice-106-v3/` (39
-screenshots: the TV at 1280x720, 1366x768, 1920x1080, 3840x2160, 1080x1920, 2160x3840, 1024x768, 2560x1080; templates 1-3; urgent
-band / full takeover / none; stale / offline / gone / empty / night; light + dark; font 120 %; the editing screens with the iframe
+Mockup v2 evidence: `private/review/notice-106-v2/` (29 screenshots). Mockup v3 evidence: `private/review/notice-106-v3/` (42
+screenshots, after the second owner round: the TV at 1280x720, 1366x768, 1920x1080, 3840x2160, 1080x1920, 2160x3840, 1024x768, 2560x1080; templates 1-3; urgent
+band / full takeover / none; stale / offline / gone / empty / night; light + dark; text size small (default) / medium / large; the editing screens with the iframe
 preview). `shots.mjs` fails on page errors, console errors or warnings, document scroll, anything outside the canvas and clipped
 notice text; `errors.txt` = clean; `report.txt` = canvas size and fit factor per shot. Playwright TV tests in slice 3 take the same
 resolutions and checks.
