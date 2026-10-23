@@ -179,9 +179,10 @@ def denied_pass(db: Database) -> int:
         for _, f in facts:
             k = _key(f)
             batch[k] = batch.get(k, 0) + 1
+        base = {k: _open_count(conn, k) for k in batch}  # read before the first emit of this pass: the folds below must not be counted twice
         for ev, f in facts:
             key = _key(f)
-            total = _open_count(conn, key) + batch[key]
+            total = base[key] + batch[key]
             try:
                 notify.emit(conn, notify.Signal(
                     SOURCE, SUBJECT, f["station_id"], severity="alert" if total >= BURST_N else None, dedupe_key=key,

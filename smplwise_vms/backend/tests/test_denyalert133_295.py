@@ -108,16 +108,29 @@ def test_a_refusal_at_a_door_of_a_live_grant_is_emitted_and_a_success_is_not(env
 def test_a_refusal_of_a_known_person_names_the_grant_and_the_reason(env):
     gid = _start(env)
     emp = _emp(env, gid)
-    env.feed.append(_ev(1, employee_no=emp, minutes=1))
+    inside = 47 * 60 + 60  # minutes after T0: one hour into the grant's window (Thu 08:00 local)
+    env.feed.append(_ev(1, employee_no=emp, minutes=inside))
     assert ad.denied_pass(env.db) == 1
     n = _rows(env)[0]
     assert json.loads(n["params_json"])["ref"] == gid[:8] and json.loads(n["params_json"])["code"] == "credential_refused"
     assert n["dedupe_key"] == f"{ad.SOURCE}:st-a:{gid}"
     # an ended grant: the same person at the door is "the grant is not active"
     env.sql("UPDATE access_grants SET state = 'ended' WHERE id = ?", gid)
-    env.feed.append(_ev(2, employee_no=emp, minutes=2))
+    env.feed.append(_ev(2, employee_no=emp, minutes=inside + 1))
     assert ad.denied_pass(env.db) == 1
     assert json.loads(_rows(env)[0]["params_json"])["code"] == "grant_not_active"
+    # the device's own attempt-limit event
+    env.sql("UPDATE access_grants SET state = 'active' WHERE id = ?", gid)
+    env.feed.append(_ev(3, employee_no=emp, minutes=inside + 2, event_type="attempt_limit"))
+    assert ad.denied_pass(env.db) == 1
+    assert json.loads(_rows(env)[0]["params_json"])["code"] == "attempt_limit"
+
+
+def test_a_refusal_before_the_window_starts_is_outside_window(env):
+    gid = _start(env)
+    env.feed.append(_ev(1, employee_no=_emp(env, gid), minutes=1))  # two days before the grant's window
+    assert ad.denied_pass(env.db) == 1
+    assert json.loads(_rows(env)[0]["params_json"])["code"] == "outside_window"
 
 
 def test_a_refusal_at_an_unrelated_station_or_of_an_unknown_person_is_not_ours(env):
