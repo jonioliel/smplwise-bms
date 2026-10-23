@@ -258,3 +258,13 @@ the setting rows is the migration's down path. No data is rewritten.
    (b) version anchors now (slice 5 inside slice 1).
 8. Placement - recommendation (a) grow the existing historical map (same URL, same tab "מפה היסטורית"); (b) a new tab
    "ציר הזמן" in the investigation area.
+
+## Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 4). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup v2 approved with these answers:
+
+- **Locked layer (this document's Q3):** a layer the viewer may not see is shown in the legend as **locked** (no data). Not hidden.
+- **Placement (this document's Q8):** the time scrub lives **inside the existing historical map** (same URL, same tab "מפה היסטורית"). No new tab.
+- **Unknown / gap (form Q7):** the markings "unknown" and "gap in the recording" are **clear as drawn** (the owner answered yes, no explanation needed): a moment with no recorded data is shown explicitly as unknown / a gap, never as "off" or as the last value.
