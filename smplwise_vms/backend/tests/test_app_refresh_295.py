@@ -219,8 +219,8 @@ def test_rotation_is_single_use_and_the_access_token_works(rx):
 
 def test_reuse_outside_the_grace_revokes_the_whole_family(rx):
     dev, out = started(rx)
-    switch(rx, **{"security.app_refresh_retry_grace_s": 0})
     t2 = refresh(rx, out["refresh_token"], dev["device_id"]).json()
+    rx.clock.advance(svc.RETRY_GRACE_S + 1)
     r = refresh(rx, out["refresh_token"], dev["device_id"])  # the thief (or the phone) presents the used token again
     assert r.status_code == 401 and r.json()["code"] == "app_refresh_invalid"
     fam = family_row(rx, out["family_id"])
@@ -443,12 +443,67 @@ def test_settings_need_a_system_administrator_and_valid_values(rx):
     assert rx.c.get(f"{API}/auth/app/settings", headers=as_user("dana")).status_code == 403
     assert rx.c.put(f"{API}/auth/app/settings", json={"security.app_refresh": "on"}, headers=as_user("dana")).status_code == 403
     for bad in ({"security.app_refresh": "yes"}, {"security.app_refresh_idle_days": 0}, {"security.app_refresh_admin_absolute_days": 8},
-                {"security.app_refresh_retry_grace_s": 61}, {"security.app_refresh_access_minutes": True}, {"other": 1}):
+                {"security.app_refresh_retry_grace_s": 0}, {"security.app_refresh_access_minutes": True}, {"other": 1}):
         assert rx.c.put(f"{API}/auth/app/settings", json=bad).status_code == 422, bad
     st = switch(rx, **{"security.app_refresh_idle_days": 14})["settings"]
     assert st["security.app_refresh_idle_days"] == 14 and st["security.app_refresh"] == "off"
     denied = [a for a in audit_rows(rx, "auth.app_refresh.settings") if a["decision"] == "denied"]
     assert len(denied) == 2
+
+
+def test_lifetime_settings_defaults_bounds_and_idle_never_above_absolute(rx):
+    st = rx.c.get(f"{API}/auth/app/settings").json()["settings"]
+    assert (st[svc.ABSOLUTE_KEY], st[svc.IDLE_KEY], st[svc.ACCESS_KEY]) == (90, 30, 10)
+    assert "security.app_refresh_retry_grace_s" not in st and svc.RETRY_GRACE_S == 20  # a constant, not a setting
+    for key, lo, hi in ((svc.ABSOLUTE_KEY, 1, 365), (svc.IDLE_KEY, 1, 90), (svc.ACCESS_KEY, 1, 60)):
+        for bad in (lo - 1, hi + 1, "10", 1.5, None):
+            assert rx.c.put(f"{API}/auth/app/settings", json={key: bad}).status_code == 422, (key, bad)
+    switch(rx, **{svc.ACCESS_KEY: 1})
+    switch(rx, **{svc.ACCESS_KEY: 60})
+    # idle never above absolute: in one write, and against the stored absolute
+    r = rx.c.put(f"{API}/auth/app/settings", json={svc.ABSOLUTE_KEY: 10, svc.IDLE_KEY: 11})
+    assert r.status_code == 422 and r.json()["details"]["field"] == svc.IDLE_KEY
+    switch(rx, **{svc.ABSOLUTE_KEY: 10, svc.IDLE_KEY: 10})
+    assert rx.c.put(f"{API}/auth/app/settings", json={svc.IDLE_KEY: 11}).status_code == 422
+    assert rx.c.put(f"{API}/auth/app/settings", json={svc.ABSOLUTE_KEY: 9}).status_code == 422  # would put idle (10) above it
+    st = switch(rx, **{svc.ABSOLUTE_KEY: 365, svc.IDLE_KEY: 90})["settings"]
+    assert (st[svc.ABSOLUTE_KEY], st[svc.IDLE_KEY]) == (365, 90)
+    with rx.db.connection() as conn:  # a hand-edited row above the absolute is clamped on read
+        conn.execute("UPDATE settings SET value = '5' WHERE key = ?", (svc.ABSOLUTE_KEY,))
+    assert rx.c.get(f"{API}/auth/app/settings").json()["settings"][svc.IDLE_KEY] == 5
+    assert {svc.ABSOLUTE_KEY, svc.IDLE_KEY, svc.ACCESS_KEY} <= backup.SETTINGS_KEEP
+
+
+def test_changed_lifetimes_apply_to_new_tokens_and_existing_families_are_re_evaluated(rx):
+    dev, old = started(rx)  # issued with 90 / 30 / 10
+    switch(rx, **{svc.ABSOLUTE_KEY: 20, svc.IDLE_KEY: 5, svc.ACCESS_KEY: 2})
+    other = register(rx, "vera", install_id="33333333-2222-3333-4444-555555555555", name="הנייד של ורה")
+    new = issue(rx, other["device_id"], user="vera").json()
+    assert new["expires_in"] == 120
+    fam = family_row(rx, new["family_id"])
+    assert svc.epoch(fam["absolute_expires_at"]) - rx.clock() == pytest.approx(20 * DAY, abs=2)
+    assert svc.epoch(fam["idle_expires_at"]) - rx.clock() == pytest.approx(5 * DAY, abs=2)
+    # the family issued before the change: a shortened idle lifetime applies at once (re-evaluated at refresh)
+    rx.clock.advance(6 * DAY)
+    r = refresh(rx, old["refresh_token"], dev["device_id"])
+    assert r.status_code == 401 and r.json()["code"] == "app_refresh_expired" and family_row(rx, old["family_id"])["revoked_reason"] == "idle"
+    # a lengthened absolute lifetime never extends what a family was issued with
+    out = issue(rx, dev["device_id"]).json()  # issued under 20 days absolute
+    switch(rx, **{svc.ABSOLUTE_KEY: 365, svc.IDLE_KEY: 90})
+    for _ in range(5):  # used every 4.5 days: never idle; dies at its issued 20 days
+        rx.clock.advance(4.5 * DAY)
+        r = refresh(rx, out["refresh_token"], dev["device_id"])
+        if r.status_code != 200:
+            break
+        out = r.json()
+        assert svc.epoch(out["absolute_expires_at"]) <= svc.epoch(family_row(rx, out["family_id"])["created_at"]) + 20 * DAY
+    assert r.status_code == 401 and r.json()["code"] == "app_refresh_expired"
+    # a lowered absolute lifetime ends an existing family at its next refresh
+    out = issue(rx, dev["device_id"]).json()
+    rx.clock.advance(3 * DAY)
+    switch(rx, **{svc.ABSOLUTE_KEY: 2, svc.IDLE_KEY: 2})
+    r = refresh(rx, out["refresh_token"], dev["device_id"])
+    assert r.status_code == 401 and family_row(rx, out["family_id"])["revoked_reason"] == "expired"
 
 
 def test_backup_never_carries_the_tables_or_the_switch():

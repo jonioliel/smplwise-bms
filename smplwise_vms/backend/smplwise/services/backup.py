@@ -188,7 +188,7 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards"}
 # APPREFRESH-295: the phone app's persistent sign-in switch and its lifetimes are security policy - never exported, never restored
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_absolute_days", "security.app_refresh_idle_days",
                                  "security.app_refresh_access_minutes", "security.app_refresh_admin_absolute_days",
-                                 "security.app_refresh_admin_idle_hours", "security.app_refresh_retry_grace_s"}
+                                 "security.app_refresh_admin_idle_hours"}
 
 
 def _kept_setting(key: Any) -> bool:

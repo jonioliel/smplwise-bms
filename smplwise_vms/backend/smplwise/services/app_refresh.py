@@ -8,7 +8,7 @@ TOKENS with reuse detection, and the short-lived ACCESS TOKENS a refresh hands o
 - A refresh token (`arxr_` + 256 random bits) is SINGLE USE. A refresh presents it with the device id and the install id; the
   server marks it used and returns a new one (rotation) plus an access token (`arxa_`, minutes). Presenting a used token again is
   REUSE and revokes the whole family - except the retry grace: a token whose child was never used may be presented again for
-  `retry_grace_s` seconds (the answer to the first try was lost on the phone's network); the unused child is then superseded.
+  RETRY_GRACE_S (20) seconds (the answer to the first try was lost on the phone's network); the unused child is then superseded.
   Either way a thief and the phone cannot both keep refreshing: the loser's next refresh is a reuse and ends the family.
 - A wrong device id / install id with a valid token is a theft signal: the family is revoked (binding_mismatch).
 - Expiry: absolute and idle (`security.app_refresh_absolute_days` / `_idle_days`); a holder of an administrative permission
@@ -43,16 +43,21 @@ REFRESH_PREFIX = "arxr_"
 ACCESS_PREFIX = "arxa_"
 FAMILY_PREFIX = "arf_"
 
-# setting key -> (default, low, high); the service clamps a stored value into its range
+# The installation settings (owner decision 2026-10-23: the lifetimes are adjustable in the Settings, validated here): setting key ->
+# (default, low, high); a stored value outside its range is clamped. The idle lifetime may never exceed the absolute one (refused on
+# write; clamped on read). The administrator cap stays (USR2 Q3); the retry grace is a constant (owner decision: not a setting).
+ABSOLUTE_KEY = "security.app_refresh_absolute_days"
+IDLE_KEY = "security.app_refresh_idle_days"
+ACCESS_KEY = "security.app_refresh_access_minutes"
 POLICY: dict[str, tuple[int, int, int]] = {
-    "security.app_refresh_absolute_days": (90, 1, 365),
-    "security.app_refresh_idle_days": (30, 1, 90),
-    "security.app_refresh_access_minutes": (10, 5, 60),
+    ABSOLUTE_KEY: (90, 1, 365),
+    IDLE_KEY: (30, 1, 90),
+    ACCESS_KEY: (10, 1, 60),
     "security.app_refresh_admin_absolute_days": (7, 1, 7),
     "security.app_refresh_admin_idle_hours": (24, 1, 72),
-    "security.app_refresh_retry_grace_s": (20, 0, 60),
 }
 SETTING_KEYS = (FEATURE_KEY, *POLICY)
+RETRY_GRACE_S = 20  # a used token whose child is still unused may be presented again this long (a lost answer); owner decision: constant
 
 FRESH_SIGN_IN_S = 15 * 60  # the remote channel mints a family only from a sign-in at most this old
 RATE_ISSUE = (10, 10 / 60.0)  # families minted per user: burst 10, 10 per hour
@@ -160,6 +165,7 @@ def policy(conn: sqlite3.Connection) -> dict[str, int]:
         except (TypeError, ValueError):
             v = default
         out[key] = max(lo, min(hi, v))
+    out[IDLE_KEY] = min(out[IDLE_KEY], out[ABSOLUTE_KEY])  # never above the absolute lifetime (a hand-edited row)
     return out
 
 
@@ -184,6 +190,9 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
             changes[key] = value
         else:
             raise ApiError(422, "validation", "הגדרה לא מוכרת.", details={"field": str(key)[:80]})
+    merged = {**policy(conn), **{k: v for k, v in changes.items() if k in POLICY}}
+    if merged[IDLE_KEY] > merged[ABSOLUTE_KEY]:
+        raise ApiError(422, "validation", "משך חוסר הפעילות לא יכול לעלות על משך החיים המרבי.", details={"field": IDLE_KEY, "max": merged[ABSOLUTE_KEY]})
     ended = 0
     for key, value in changes.items():
         set_setting(conn, key, str(value))
@@ -358,15 +367,16 @@ def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: st
         _end(conn, fam, "sign_in_revoked", request_id)
         raise Refused(401, "app_refresh_invalid", INVALID_HE)
     admin = _holds_admin(conn, fam["user_id"])
-    abs_exp, idle_exp = epoch(fam["absolute_expires_at"]), epoch(fam["idle_expires_at"])
-    if admin:  # the administrative cap, also for a permission gained after the family was minted
-        absolute, idle = _caps(conn, True)
-        abs_exp = min(abs_exp, epoch(fam["created_at"]) + absolute)
-        idle_exp = min(idle_exp, epoch(fam["last_used_at"]) + idle, abs_exp)
+    # Re-evaluated against the CURRENT settings at every refresh (owner decision 2026-10-23, the safer choice): a shortened lifetime (or
+    # the administrative cap, also for a permission gained after the mint) applies to existing families at once; a lengthened one never
+    # extends the absolute expiry a family was issued with (the min with the stored values).
+    absolute, idle = _caps(conn, admin)
+    abs_exp = min(epoch(fam["absolute_expires_at"]), epoch(fam["created_at"]) + absolute)
+    idle_exp = min(epoch(fam["idle_expires_at"]), epoch(fam["last_used_at"]) + idle, abs_exp)
     if now >= abs_exp or now >= idle_exp:
         _end(conn, fam, "expired" if now >= abs_exp else "idle", request_id)
         raise Refused(401, "app_refresh_expired", EXPIRED_HE)
-    grace = policy(conn)["security.app_refresh_retry_grace_s"]
+    grace = RETRY_GRACE_S
     if row["state"] == "live":
         parent = row["token_hash"]
     elif row["state"] == "used" and grace > 0 and now - epoch(row["used_at"]) <= grace and row["child_hash"]:
@@ -381,7 +391,6 @@ def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: st
     else:
         _end(conn, fam, "reuse", request_id, action="auth.app_refresh.reuse_detected")
         raise Refused(401, "app_refresh_invalid", INVALID_HE)
-    absolute, idle = _caps(conn, admin)
     new_idle = min(abs_exp, now + idle)
     gen = int(fam["generation"]) + 1
     conn.execute("UPDATE app_refresh_tokens SET state = 'used', used_at = COALESCE(used_at, ?) WHERE token_hash = ?", (iso(now), parent))

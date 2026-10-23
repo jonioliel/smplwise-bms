@@ -1,9 +1,9 @@
 # CR-APPREFRESH295 - App refresh tokens: a persistent sign-in for the phone app
 
-Status: PROPOSED; **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
+Status: APPROVED by the owner 2026-10-23 (section 11); **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
 Board item r122, target 2.14.0. Migration **0150 PROVISIONAL** (one file, `0150_app_refresh_tokens.sql`; renumber at integration).
 No app code, no frontend, nothing on a real device or server. Activation (switch ON on a real installation) only after a Fable
-security review of the public surface (section 12, Q1) and the owner's answers below.
+security review of the public surface (owner decision 1, section 11).
 
 Read with: `docs/api/mobile-presence-contract.md` (CR-027 v2; its section 0.2 two-factor amendment is "proposed, not approved" and is
 **not** implemented or relied on here), `docs/security/HA_IDENTITY_RBAC_HE.md`, `docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md`
@@ -73,7 +73,7 @@ user (`GET /me` `user.id`).
    transaction: family live; binding (device id + install hash, constant-time) else `binding_mismatch` -> revoke; device live and still
    the same user and install else `device_gone`; user active (Arx and HA directory) else `user_inactive` / `user_deleted`; anchor not in
    `remote_revoked_chains` else `sign_in_revoked`; administrator cap; absolute / idle expiry (`401 app_refresh_expired`). Then the
-   token state: `live` -> rotate; `used` within `retry_grace_s` with a still-unused child -> supersede the child and its access tokens,
+   token state: `live` -> rotate; `used` within `RETRY_GRACE_S` (20 s, a constant) with a still-unused child -> supersede the child and its access tokens,
    rotate again from the same parent; anything else -> **reuse**: revoke the family, audit `auth.app_refresh.reuse_detected`,
    `401 app_refresh_invalid`. Rotation slides the idle window (capped by the absolute one).
 3. **Use** (slice 1: `GET /auth/app/whoami` only): `Authorization: Bearer arxa_...`; live, family live, user active.
@@ -108,11 +108,10 @@ refresh through the live checks.
 |---|---|---|
 | `security.app_refresh` | `off` | on / off - ON only from the local channel; OFF from either channel (kill switch) and ends every family |
 | `security.app_refresh_absolute_days` | 90 | 1-365 |
-| `security.app_refresh_idle_days` | 30 | 1-90 |
-| `security.app_refresh_access_minutes` | 10 | 5-60 |
+| `security.app_refresh_idle_days` | 30 | 1-90, never above the absolute lifetime |
+| `security.app_refresh_access_minutes` | 10 | 1-60 |
 | `security.app_refresh_admin_absolute_days` | 7 | 1-7 (USR2 Q3) |
 | `security.app_refresh_admin_idle_hours` | 24 | 1-72 |
-| `security.app_refresh_retry_grace_s` | 20 | 0-60 (0 = strict single use) |
 
 ### 4.5 Audit (no secrets)
 
@@ -176,7 +175,9 @@ replacement; rotation and sliding idle; reuse outside the grace revokes the fami
 loser caught; retry after the child was used and after the grace is reuse; binding mismatch (install, device); idle and absolute
 expiry; administrator cap including a later grant; every revocation path of 4.3 (device delete / re-register, TFA2, disabled user,
 anchor revoked, `revoke_user_sign_ins`, local revoke user / chain, sign out everywhere, the family routes, app sign-out, switch off);
-rate limits (unknown tokens per client, per family, per user); settings authority and validation; backup classification; the anchor /
+rate limits (unknown tokens per client, per family, per user); settings authority and validation; the lifetime settings (defaults,
+bounds, idle never above absolute, a change applies to new tokens, existing families re-evaluated at refresh - shortened at once, never
+extended past their issued absolute expiry); backup classification; the anchor /
 freshness unit; janitor; and that no token is in any table, the audit log or the log.
 Not covered in slice 1 (named, not claimed): the remote-channel mint through a real HA or Arx-only session (freshness is unit-tested on
 the anchor helper), the ON-from-remote refusal (needs a remote admin session fixture), concurrency of two parallel refreshes (one
@@ -200,18 +201,28 @@ SQLite write transaction serialises them by construction; a threaded test is sli
    anchor's token (re-validation) and the sign-in ended from the sessions list. Recorded as Q4.
 3. Rotation is not audited per use (volume); every family-ending event is.
 
-## 11. Open owner questions (recommendation first)
+## 11. Owner decisions (2026-10-23, all seven recommendations approved, plus one addition)
 
-1. **Activation gate.** (a) Fable security review of the public routes (refresh / sign-out / whoami) before the switch may be turned ON
-   anywhere, as for the other public surfaces - **recommended**; (b) turn on for the lab after the slice 2 review; (c) no review.
-2. **Lifetimes.** (a) 90 days absolute, 30 days idle, access 10 minutes - **recommended** (matches HA's sliding refresh token); (b) 30 / 14
-   (the Arx-only default); (c) 180 / 60.
-3. **Administrators on the phone.** (a) the USR2 Q3 cap (7 days, 24 h idle) - **recommended**, consistent with Arx-only sessions; (b) the
-   same lifetimes as everyone; (c) no persistent sign-in for administrators at all.
-4. **HA password change.** (a) accept that Arx ends the family only when HA ends the sign-in behind it, plus the 30-day idle; document
-   for the owner that "sign out everywhere" in Arx is the lost-phone action - **recommended**; (b) also re-check with HA at every refresh
-   (impossible without storing the HA refresh token - not proposed).
-5. **Retry grace.** (a) 20 s - **recommended** (mobile networks lose answers; the loser is still caught); (b) 0 (strict; a lost answer signs
-   the user out).
-6. **Device-bound key (slice 3).** (a) yes, before the apps ship to customers - **recommended**; (b) later; (c) never.
-7. **Switch-off.** (a) OFF ends every family (built) - **recommended**; (b) OFF only suspends (families revive when ON again).
+1. **Activation gate:** a Fable security review of the public routes (refresh / sign-out / whoami) before the switch is turned ON on any
+   installation.
+2. **Lifetimes:** 90 days absolute, 30 days idle, 10 minutes access - as defaults. **Addition:** the three are installation settings,
+   adjustable in the Settings (section 4.4), validated server-side.
+3. **Administrators:** the USR2 Q3 cap (7 days absolute, 24 h idle) stays.
+4. **HA password change:** Arx ends the family when HA ends the sign-in behind it (re-validation, sessions list), plus the idle lifetime;
+   "sign out everywhere" in Arx is the lost-phone action.
+5. **Retry grace:** 20 seconds, a constant (`RETRY_GRACE_S`), not a setting.
+6. **Device-bound key (slice 3):** required before the apps ship to customers.
+7. **Switch-off:** OFF ends every saved sign-in (as built).
+
+### 11.1 The lifetime settings (slice 1b)
+
+- Keys, defaults and bounds are in section 4.4; every value is an integer, a write outside its range is `422 validation`.
+- The idle lifetime may never exceed the absolute one: a write that would leave idle > absolute (in the same request or against the stored
+  value) is `422 validation` with `details.field = security.app_refresh_idle_days`; a hand-edited stored row is clamped on read.
+- Where they are set: `GET / PUT /auth/app/settings` (a system administrator; the settings card itself is the frontend slice 4). They are
+  `SETTINGS_KEEP` (never exported, never restored), like `security.app_refresh`.
+- **Effect on existing families: re-evaluated against the current settings at every refresh** (the safer choice). A shortened absolute or
+  idle lifetime (and the administrator cap) applies to existing families at once - their next refresh is refused `app_refresh_expired`
+  when the new limit has passed. A lengthened lifetime never extends the absolute expiry a family was issued with (the effective value is
+  the minimum of the stored and the current one); the idle window slides by the current idle lifetime, capped by that absolute expiry.
+  The access-token lifetime applies to tokens issued after the change (an already issued access token keeps its minutes).
