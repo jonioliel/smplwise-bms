@@ -61,6 +61,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",
     "events.ack": "סימון אירועים כטופלו",
+    # CR-SHIFT114 (r114): the shift / 24-hour summary. Holding it opens the screen; every section inside needs its own module's right (operator, site_admin, system_admin).
+    "reports.shift": "סיכום משמרת: מה קרה בבניין (סעיפים לפי ההרשאות שלך)",
     "map.import": "ייבוא תוכניות",
     "map.edit": "עריכת מפה",
     "map.publish": "פרסום תוכנית",

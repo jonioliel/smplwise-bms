@@ -534,6 +534,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(elevators_router.router, prefix=api, tags=["infra"])  # CR-INFRA-ELEVATORS: מעליות - definitions, sensor mapping, derived live state (view only)
     app.include_router(generator_router.router, prefix=api, tags=["generator"])  # CR-031: גנרטור - devices, live values, history, alerts, routing (view and alerts only)
     app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
+    from .routers import shift_summary as shift_summary_router  # CR-SHIFT114: the shift / 24-hour summary (read-only; OFF by default)
+
+    app.include_router(shift_summary_router.router, prefix=api, tags=["reports"])
     from .routers import nvr_batch as nvr_batch_router
 
     app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
