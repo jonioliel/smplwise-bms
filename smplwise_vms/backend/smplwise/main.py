@@ -115,6 +115,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         water_sampler.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("water janitor failed", exc_info=True)
+    try:  # CR-WATER78 slice 2: the leak evaluator, once per closed 15-minute bucket (water.db read-only; nothing while the module is off; never a device action)
+        from .services import water_runtime
+
+        water_runtime.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("water alerts evaluator failed", exc_info=True)
     try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
         from .services import generator_runtime
 

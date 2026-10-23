@@ -21,11 +21,11 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature")  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "water")  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature")  # rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "water")  # water: CR-WATER78 slice 2;  rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -100,6 +100,16 @@ SOURCES: tuple[Source, ...] = (
        push=False, subject="temperature", resolve_text="הבעיה נפתרה"),
     _s("temperature.escalation", "טמפרטורה: הסלמת אזעקה", "device_faults", "critical", "אזעקת טמפרטורה לא אושרה", "{name}: {detail}.", who="temperature",
        subject="temperature", resolve_notice=True, resolve_text="האזעקה אושרה או הסתיימה", app=True),
+    # CR-WATER78 slice 2 (services/water_runtime.py): the water meters' leak alerts, only while the water module is on (the policy matrix hides
+    # them while it is off). ON by default (owner Q3); the recipients and channels are chosen in Settings > Infrastructure > Water and mirrored
+    # here (services/water_alerts.py; rule `water`, subject `water` = water.view on the meter, floor-scoped). A night-flow WARNING is sent at
+    # severity alert, an ALARM (a burst, or flow through the whole night window) at critical. Never a device action.
+    _s("water.leak", "מים: דליפה חשודה", "device_faults", "critical", "דליפת מים חשודה", "{name}: {detail}.", who="water", subject="water",
+       resolve_notice=True, resolve_text="הזרימה נעצרה", app=True),
+    _s("water.abnormal", "מים: צריכה חריגה", "device_faults", "alert", "צריכת מים חריגה", "{name}: {detail}.", who="water", subject="water",
+       resolve_text="הצריכה חזרה לרגיל"),
+    _s("water.offline", "מים: מונה לא מדווח", "device_faults", "alert", "מונה מים לא מדווח", "{name}: {detail}.", who="water", push=False,
+       subject="water", resolve_text="המונה חזר לדווח"),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
@@ -308,8 +318,16 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     for s in SOURCES:  # the catalogue's order; a stored row of a source this release no longer knows is not listed
         if not _ticket_sources.listed(conn, s.key):  # CR-038: the tickets sources exist only while the module is on
             continue
+        if s.key.startswith("water.") and not _water_on(conn):  # CR-WATER78 slice 2: the water sources exist only while the water module is on
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
+
+
+def _water_on(conn: sqlite3.Connection) -> bool:
+    from .water_alerts import module_on
+
+    return module_on(conn)
 
 
 def _read_only(conn: sqlite3.Connection) -> bool:

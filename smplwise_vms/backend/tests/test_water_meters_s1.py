@@ -427,7 +427,7 @@ def test_water_tables_are_project_tables_kept_when_absent():
 
 # ---------------------------------------------------------------- migration 0152 (PROVISIONAL)
 
-PROVISIONAL = {152}
+PROVISIONAL = {152, 153}  # slice 2 (pilot/WATER78B-295) adds its own provisional file 0153; both are renumbered at the integration
 
 
 def test_migration_numbers_contiguous_ignoring_the_provisional_number():
@@ -435,8 +435,8 @@ def test_migration_numbers_contiguous_ignoring_the_provisional_number():
     released = sorted(n for n in files if n not in PROVISIONAL)
     assert released == list(range(1, released[-1] + 1)), "the released sequence has no gap"
     assert all(n > released[-1] for n in PROVISIONAL), "the provisional number sits after the released ones"
-    water = [f.name for f in files.values() if "water" in f.name]
-    assert water == ["0152_infra_water.sql"], "one file for the water module"
+    water = sorted(f.name for f in files.values() if "water" in f.name)
+    assert water == ["0152_infra_water.sql", "0153_infra_water_alerts.sql"], "slice 1 and slice 2 files of the water module"
     text = files[152].read_text(encoding="utf-8")
     assert "PROVISIONAL" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
 

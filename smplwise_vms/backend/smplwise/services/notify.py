@@ -109,6 +109,7 @@ def _default_link(s: Signal) -> str:
         "system": "#/system/diagnostics", "session": "#/system/security",
         "ticket": f"#/tickets/{s.subject_id}" if s.subject_id else "#/tickets",  # CR-038: the ticket (one-tap "received" for its assignee)
         "rfq": f"#/tickets/rfqs?rfq={s.subject_id}" if s.subject_id else "#/tickets/rfqs",  # TKRFQ5: the request on the manager's board
+        "water": "#/infra/water/alerts",  # CR-WATER78 slice 2: the water alert log
     }.get(s.subject_kind, "#/system/notifications")
 
 
@@ -183,6 +184,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from . import temperature_alerts
 
         candidates = temperature_alerts.recipient_users(conn, n)
+    elif rule == "water":  # CR-WATER78 slice 2: the installation's recipients of the water alert kind (leak / abnormal / offline)
+        from . import water_alerts
+
+        candidates = water_alerts.recipient_users(conn, n)
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
         from .tickets import rfq_notify
 

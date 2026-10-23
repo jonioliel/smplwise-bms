@@ -33,7 +33,9 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import energy_counter as ec
 from ..services import energy_store as st
+from ..services import water_alerts as wa
 from ..services import water_meters as wm
+from ..services import water_runtime as wr
 from ..services import water_sampler
 from ..services import water_settings as ws
 from ..services.energy_provider import coverage_of
@@ -171,13 +173,14 @@ def _meter_out(conn: sqlite3.Connection, store: st.EnergyStore, tz: Any, row: sq
         "id": row["id"], "display_name": row["display_name"], "medium": row["medium"], "kind": row["kind"], "unit": row["unit"],
         "device_name": row["device_name"], "area_id": row["eff_area_id"], "area_name": row["area_name"], "floor_id": row["floor_id"], "floor_name": row["floor_name"],
         "status": row["status"], "status_reason": row["status_reason"], "max_flow_lph": row["max_flow_lph"], "revision": row["revision"],
-        "created_at": row["created_at"], "retired_at": row["retired_at"],
+        "created_at": row["created_at"], "retired_at": row["retired_at"], "muted_until": row["muted_until"],
         "state": wm.status_of(row, cursor, now, stale_s), "last_report_at": _iso(cursor.seen_ts if cursor else None),
         "value_l": wm.litres(value), "value": wm.display(value),
         "today_l": wm.litres(today), "today": wm.display(today), "month_l": wm.litres(month), "month": wm.display(month),
     }
     if manage:
         out["source_ref"] = row["source_ref"]
+        out["rules"] = wa.overrides_of(row["rules_json"])  # slice 2: the meter's own leak-rule overrides
     return out
 
 
@@ -277,6 +280,7 @@ class MeterPatch(_Body):
     kind: Literal["main", "sub", "irrigation", "cooling", "pool", "other"] | None = None
     max_flow_lph: float | None = Field(None, gt=0, le=1_000_000)
     status: Literal["active", "paused"] | None = None
+    rules: dict[str, Any] | None = None  # slice 2: per-meter leak-rule overrides (water_alerts.OVERRIDE_KEYS); null / {} clears
 
 
 @router.patch(f"{API}/meters/{{meter_id}}")
@@ -286,6 +290,11 @@ def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(
     _manage_check(conn, principal)
     fields = body.model_dump(exclude_unset=True)
     revision = fields.pop("revision")
+    if "rules" in fields:
+        try:
+            fields["rules"] = wa.validate_overrides(fields["rules"])
+        except wa.AlertsInvalid as exc:
+            raise _err(422, exc.code, exc.message, exc.message_en, **exc.details) from None
     changed = wm.update(conn, meter_id, revision, fields)
     if changed:
         audit(conn, actor=principal, action="infra.water.meter.update", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request),
@@ -652,8 +661,197 @@ def put_settings(request: Request, principal: Principal = Depends(_settings_edit
             water_sampler.SAMPLER.start(db, cfg, assume_on=True)
         else:
             water_sampler.SAMPLER.shutdown()
+            wr.close_all(conn, wr.clock(), "alerts_disabled")  # slice 2: open rows end, their notifications resolve (`alerts_disabled`)
     other = [k for k in changed if k != ws.ENABLED]
     if other:
         audit(conn, actor=principal, action="infra.water.settings.update", decision="allowed", resource_type="settings", resource_id="water", request_id=_rid(request),
               details={"keys": other})
     return _settings_out(request, conn, principal)
+
+
+# ---------------------------------------------------------------- slice 2: leak alerts (the alert log, acknowledge, mute, rules and routing)
+# Reads: water.view (floor-scoped like the meters; an invisible meter's rows are never listed, its row ids answer the uniform 404).
+# Acknowledge / mute: water.ack on the meter (operator and above; floor-scoped holders on their floors). Mute holds WARNINGS only.
+# The rules and the routing: water.manage reads, system.configure writes. Nothing here, and nothing the evaluator does, acts on a device.
+
+class _AckReach:
+    """Where the caller holds water.ack: installation-wide, or the floors of the meter's entity (the Reach rule of water.view)."""
+
+    def __init__(self, conn: sqlite3.Connection, principal: Principal):
+        from ..services import ha_scope
+
+        self.wide, self.floors = ha_scope.visible_floors(conn, principal, ws.ACK)
+        self._placed = None if self.wide else ha_scope.placements(conn)
+        self._ha_scope = ha_scope
+
+    @property
+    def any(self) -> bool:
+        return self.wide or bool(self.floors)
+
+    def allows(self, row: Any) -> bool:
+        return self.wide or self._ha_scope.entity_visible(False, self.floors, self._placed or {}, row["source_ref"])
+
+
+def _ack_check(conn: sqlite3.Connection, principal: Principal) -> None:
+    _require_on(conn)
+    if not _AckReach(conn, principal).any:
+        require(conn, principal, ws.ACK, INSTALLATION)  # the audited 403
+
+
+def _alerts_read_check(conn: sqlite3.Connection, principal: Principal) -> None:
+    _require_on(conn)
+    require(conn, principal, ws.MANAGE, INSTALLATION)
+
+
+def _alerts_write_check(conn: sqlite3.Connection, principal: Principal) -> None:
+    _require_on(conn)
+    require(conn, principal, ws.CONFIGURE, INSTALLATION)
+
+
+_acker = read_gate(_ack_check)
+_alerts_reader = read_gate(_alerts_read_check)
+_alerts_editor = read_gate(_alerts_write_check)
+
+
+def _event_out(r: sqlite3.Row, can_ack: bool) -> dict[str, Any]:
+    try:
+        value = json.loads(r["value_json"] or "{}")
+    except ValueError:
+        value = {}
+    if "today_ml" in value or "median_ml" in value:  # litres on the wire (the store's mL stay inside)
+        today_ml, median_ml = int(value.get("today_ml") or 0), int(round(float(value.get("median_ml") or 0)))
+        value = {**{k: v for k, v in value.items() if k not in ("today_ml", "median_ml")},
+                 "today_l": wm.litres(today_ml), "median_l": wm.litres(median_ml), "today": wm.display(today_ml), "median": wm.display(median_ml)}
+    return {"id": r["id"], "meter_id": r["meter_id"], "meter_name": r["display_name"], "meter_kind": r["meter_kind"], "area_name": r["area_name"],
+            "floor_name": r["floor_name"], "kind": r["kind"], "severity": r["severity"], "opened_at": r["opened_at"], "closed_at": r["closed_at"],
+            "close_reason": r["close_reason"], "value": value, "suppressed": r["suppressed"], "ack_at": r["ack_at"], "ack_by_display": r["ack_by_display"],
+            "notified": bool(r["notification_id"]), "can_ack": can_ack and r["closed_at"] is None and r["ack_at"] is None}
+
+
+EVENTS_SQL = """SELECT e.*, m.display_name, m.kind AS meter_kind, m.source_ref, COALESCE(a.name, x.area_name) AS area_name,
+                       CASE WHEN a.area_id IS NOT NULL THEN f.name ELSE x.ha_floor_name END AS floor_name,
+                       COALESCE(NULLIF(u.display_name, ''), u.username) AS ack_by_display
+                FROM water_alert_events e JOIN water_meters m ON m.id = e.meter_id
+                LEFT JOIN ha_entities x ON x.entity_id = m.source_ref
+                LEFT JOIN ha_areas a ON a.area_id = COALESCE(m.area_id, x.area_id)
+                LEFT JOIN ha_floors f ON f.floor_id = a.floor_id
+                LEFT JOIN users u ON u.id = e.ack_by"""
+
+
+@router.get(f"{API}/events")
+def list_events(state: Literal["open", "all"] = Query("open"), kind: Literal["night_flow", "abnormal", "burst", "offline"] | None = Query(None),
+                meter_id: str | None = Query(None, max_length=80), limit: int = Query(200, ge=1, le=1000),
+                principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The water alert log of the meters the caller may see (water.view, floor-scoped): open rows by default, newest first, with the KPI row."""
+    reach = wm.Reach(conn, principal)
+    if meter_id:
+        reach.require(conn, meter_id)
+    where: list[str] = []
+    args: list[Any] = []
+    if state == "open":
+        where.append("e.closed_at IS NULL")
+    if kind:
+        where.append("e.kind = ?")
+        args.append(kind)
+    if meter_id:
+        where.append("e.meter_id = ?")
+        args.append(meter_id)
+    sql = EVENTS_SQL + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY e.opened_at DESC, e.id"
+    rows = [r for r in conn.execute(sql, args).fetchall() if reach.sees(r)][:limit]
+    acker = _AckReach(conn, principal)
+    return {"items": [_event_out(r, acker.allows(r)) for r in rows], "summary": wr.summary(conn, reach.sees, wr.clock())}
+
+
+@router.get(f"{API}/events/summary")
+def events_summary(principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The KPI row of the alert log and the home tile (owner Q7: one tile "מים · דליפה חשודה" only while a leak is open and
+    `water.home_kpi` is on; tap = the alert log)."""
+    s = wr.summary(conn, wm.Reach(conn, principal).sees, wr.clock())
+    tile = bool(ws.value(conn, "water.home_kpi")) and s["open_leaks"] > 0
+    return {**s, "home_tile": {"show": tile, "leaks": s["open_leaks"] if tile else 0, "link": wr.LINK}}
+
+
+@router.post(f"{API}/events/{{event_id}}/ack")
+def ack_event(event_id: str, request: Request, principal: Principal = Depends(_acker), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Acknowledge one open alert row (water.ack on its meter): who and when go into the log, its notification is acknowledged too. The
+    condition itself stays open until it ends."""
+    from ..services import notify
+
+    _require_on(conn)
+    r = conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone()
+    if r is None or not wm.Reach(conn, principal).sees(r):
+        raise _err(404, "not_found", "ההתראה לא נמצאה.", "The alert was not found.")
+    if not _AckReach(conn, principal).allows(r):
+        require(conn, principal, ws.ACK, INSTALLATION)
+    if r["closed_at"] is not None:
+        raise _err(409, "event_closed", "ההתראה כבר הסתיימה.", "The alert has already ended.")
+    if r["ack_at"] is not None:
+        raise _err(409, "already_acked", "ההתראה כבר אושרה.", "The alert was already acknowledged.")
+    conn.execute("UPDATE water_alert_events SET ack_by = ?, ack_at = ? WHERE id = ?", (principal.user_id, now_iso(), event_id))
+    notify.ack_from_alert(conn, r["notification_id"], principal)
+    audit(conn, actor=principal, action="infra.water.event.ack", decision="allowed", resource_type="water_meter", resource_id=r["meter_id"], request_id=_rid(request),
+          details={"event_id": event_id, "kind": r["kind"]})
+    return _event_out(conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone(), True)
+
+
+class MuteBody(_Body):
+    minutes: Literal[15, 30, 60, 120]
+
+
+def _ack_meter(conn: sqlite3.Connection, principal: Principal, meter_id: str) -> sqlite3.Row:
+    _require_on(conn)
+    row = wm.Reach(conn, principal).require(conn, meter_id)
+    if not _AckReach(conn, principal).allows(row):
+        require(conn, principal, ws.ACK, INSTALLATION)
+    if row["status"] == "retired":
+        raise _err(409, "meter_retired", "המונה הוצא משימוש.", "The meter is retired.")
+    return row
+
+
+@router.post(f"{API}/meters/{{meter_id}}/mute")
+def mute_meter(meter_id: str, request: Request, principal: Principal = Depends(_acker), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Hold the meter's WARNING notifications for 15 / 30 / 60 / 120 minutes (water.ack). Alarms are never held unless the installation's
+    `mute_includes_alarms` says so; held rows are still logged."""
+    body: MuteBody = _parse(request, raw, MuteBody)
+    _ack_meter(conn, principal, meter_id)
+    until = wm.epoch_to_iso(int(wr.clock()) + body.minutes * 60)
+    conn.execute("UPDATE water_meters SET muted_until = ?, muted_by = ? WHERE id = ?", (until, principal.user_id, meter_id))
+    audit(conn, actor=principal, action="infra.water.event.mute", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request),
+          details={"minutes": body.minutes})
+    return {"meter_id": meter_id, "muted_until": until}
+
+
+@router.delete(f"{API}/meters/{{meter_id}}/mute")
+def unmute_meter(meter_id: str, request: Request, principal: Principal = Depends(_acker), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """End a mute early (water.ack)."""
+    _ack_meter(conn, principal, meter_id)
+    conn.execute("UPDATE water_meters SET muted_until = NULL, muted_by = NULL WHERE id = ?", (meter_id,))
+    audit(conn, actor=principal, action="infra.water.event.unmute", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request))
+    return {"meter_id": meter_id, "muted_until": None}
+
+
+@router.get(f"{API}/alerts")
+def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The leak rules' installation defaults and the alert routing (water.manage)."""
+    return {**wa.view(conn), "can_edit": _can(conn, principal, ws.CONFIGURE)}
+
+
+@router.put(f"{API}/alerts")
+def put_alerts(request: Request, principal: Principal = Depends(_alerts_editor), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Change the defaults and / or the routing (system.configure; `row_version` checked when sent). Audited `infra.water.alerts.update`."""
+    if not _is_json(request.headers.get("content-type")):
+        raise _err(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).", "The request must be JSON.")
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except (ValueError, RecursionError):
+        raise _err(422, "validation", "גוף הבקשה אינו JSON תקין.", "The body is not valid JSON.", fields=["body"]) from None
+    if not isinstance(data, dict) or not data:
+        raise _err(422, "validation", "יש לשלוח אובייקט של הגדרות.", "Send an object of settings.", fields=["body"])
+    _alerts_write_check(conn, principal)
+    try:
+        out, changed = wa.save(conn, principal.user_id, data)
+    except wa.AlertsInvalid as exc:
+        raise _err(409 if exc.code == "revision_conflict" else 422, exc.code, exc.message, exc.message_en, **exc.details) from None
+    audit(conn, actor=principal, action="infra.water.alerts.update", decision="allowed", resource_type="settings", resource_id="water.alerts", request_id=_rid(request),
+          details={"changed": changed, "on": [k for k in wa.KINDS if out["kinds"][k]["enabled"]]})
+    return {**out, "can_edit": True}

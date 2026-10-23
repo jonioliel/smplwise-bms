@@ -252,7 +252,7 @@ def candidates(conn: sqlite3.Connection, q: str | None, area_id: str | None, inc
 # ---------------------------------------------------------------- registry
 
 COLUMNS = ("m.id, m.medium, m.source_kind, m.source_ref, m.display_name, m.unit, m.unit_factor, m.area_id, m.kind, m.status, m.status_reason, "
-           "m.max_flow_lph, m.revision, m.created_at, m.created_by, m.updated_at, m.retired_at")
+           "m.max_flow_lph, m.revision, m.created_at, m.created_by, m.updated_at, m.retired_at, m.rules_json, m.muted_until")  # slice 2: overrides + mute (0153)
 AREA_SQL = f"""SELECT {COLUMNS}, {DEVICE_NAME_SQL} AS device_name, COALESCE(a.name, e.area_name) AS area_name, COALESCE(m.area_id, e.area_id) AS eff_area_id,
                       CASE WHEN a.area_id IS NOT NULL THEN a.floor_id ELSE e.ha_floor_id END AS floor_id,
                       CASE WHEN a.area_id IS NOT NULL THEN f.name ELSE e.ha_floor_name END AS floor_name
@@ -361,6 +361,8 @@ def update(conn: sqlite3.Connection, meter_id: str, revision: int, fields: dict[
         sets.append("kind = ?"); args.append(fields["kind"]); changed.append("kind")
     if fields.get("max_flow_lph") is not None:
         sets.append("max_flow_lph = ?"); args.append(float(fields["max_flow_lph"])); changed.append("max_flow_lph")
+    if "rules" in fields:  # slice 2: the meter's own leak-rule overrides (validated by water_alerts.validate_overrides; None clears)
+        sets.append("rules_json = ?"); args.append(json.dumps(fields["rules"], ensure_ascii=False, sort_keys=True) if fields["rules"] else None); changed.append("rules")
     if fields.get("status") is not None and fields["status"] != row["status"]:
         status = fields["status"]
         if status == "active":

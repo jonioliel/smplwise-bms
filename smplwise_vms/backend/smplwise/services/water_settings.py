@@ -23,6 +23,8 @@ SPECS: dict[str, es.SettingSpec] = {s.key: s for s in (
     es.SettingSpec("water.daily_retention_years", 7, "int", CONFIGURE, 1, 15, read_permission=VIEW, label_he="סיכומים יומיים (שנים)"),
     es.SettingSpec("water.stale_after_minutes", 120, "int", MANAGE, 15, 1440, read_permission=VIEW, label_he="מונה לא מדווח אחרי (דקות)"),
     es.SettingSpec("water.include_history_in_backup", False, "bool", BACKUP, read_permission=VIEW, label_he="לכלול את נתוני מוני המים בגיבוי"),
+    # slice 2 (owner Q7): the home KPI tile "מים · דליפה חשודה" - shown only while a leak is open; this key can switch it off altogether
+    es.SettingSpec("water.home_kpi", True, "bool", MANAGE, read_permission=VIEW, label_he="אריח דליפה במסך הבית"),
 )}
 
 
