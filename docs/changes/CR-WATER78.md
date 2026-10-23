@@ -348,7 +348,8 @@ a leak is open (Q7), 01:00-05:00 with 6 L/h over two hours (Q8), the irrigation 
 ## 16. Owner review 24.10 - mockup revision 4 (decisions recorded)
 
 Source: owner's review of the 11 mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 1). Water v3 is
-approved; revision 4 (`docs/design/mockups/water-78/index.html`) adds what the real electricity module already has.
+approved; **revision 4 was APPROVED by the owner on 24.10, with one correction: shared billing settings (VAT, business details,
+retention) are reused from electricity, not repeated for water**. Revision 4 (`docs/design/mockups/water-78/index.html`) adds what the real electricity module already has.
 
 - **Q1 (billing) is answered YES, and "tenant billing / chargeback" is needed.** Slice 3 of section 2 is now in scope: what was built
   for electricity must exist for water. This reverses the section 13 recommendation ("not now"); section 13 Q1 is closed by this
@@ -367,10 +368,11 @@ approved; revision 4 (`docs/design/mockups/water-78/index.html`) adds what the r
     m³, then VAT.
   - **לקוחות:** customer number, name, address / unit, phone, email, open balance, the customer card; a customer with accounts
     cannot be deleted.
-  - **הגדרות:** tariffs with dated versions (water price and sewage price per m³, before VAT), VAT rate, business details on the
-    bill, bill numbering and payment terms, retention (bills and documents are kept 7 years and are not editable), and the alerts
-    section below. Real placement stays where the electricity settings live (system > infrastructure); the mockup draws it as a
-    page for review only.
+  - **הגדרות (water-specific only):** tariff versions (water price and sewage price per m³, before VAT) and the alerts section below.
+    VAT, the business details on the bill, bill numbering, payment terms, retention and the default price entry mode are **NOT
+    duplicated**: water billing reuses the shared billing settings that the electricity module already has (system > infrastructure),
+    and the water settings page shows a short "shared with electricity" note with a link to them. Implementation: the water
+    account / bill code reads `billing_settings` and `vat_rates` as they are; no water copy of those tables or screens.
   - **Permissions (as electricity):** money columns, the bills / customers pages and the customer's phone need the bills permission
     (here `water.bills`, section 8); settings need manage. Operators see accounts and consumption without money.
 - **New alert action: snooze ("נדנוד") for X time, X editable in settings.** In the alert log and in the meter card each open alert
