@@ -464,6 +464,23 @@ body[data-view="settings"] .setcols { block-size: 100%; }
   .cohome .sw, .cohome .sw svg { block-size: calc(22px * var(--lg)); }
 }
 
+
+/* v3.1: prominent always-visible view bar; phone preview = this page in a 390 px frame */
+.mock { position: sticky; inset-block-start: 0; z-index: 100; block-size: 48px; gap: 8px; padding-inline: 12px; background: #16233b; border-block-end: 2px solid var(--sw-accent); }
+.mock b { font-size: 13px; }
+.mock .vb { font-size: 14px; font-weight: 700; min-block-size: 34px; padding: 4px 16px; border-color: rgba(255,255,255,.4); }
+.mock .vb[aria-pressed="true"] { background: var(--sw-accent); border-color: var(--sw-accent); color: #fff; }
+.mock .vsep { inline-size: 1px; block-size: 24px; background: rgba(255,255,255,.3); }
+:root { --top-chrome: 80px; }
+#phoneframe { display: block; inline-size: 390px; block-size: calc(100dvh - 80px); border: 0; margin: 0 auto; box-shadow: 0 0 0 8px #0b0f19, var(--sw-shadow-3); border-radius: 18px; background: var(--sw-bg); }
+#phoneframe[hidden] { display: none; }
+body.phoneout { background: #2a3347; }
+body.phoneout .view, body.phoneout .chrome { display: none !important; }
+body.phoneout #phoneframe { margin-block: 8px; block-size: calc(100dvh - 48px - 16px); }
+html.embed { --top-chrome: 32px; }
+html.embed .mock, html.embed #phoneframe { display: none !important; }
+.mock .crl { display: none; }
+
 /* ===== tablet (<= 1023) ===== */
 @media (max-width: 1023px) {
   nav.rail a span { display: none; }
@@ -559,16 +576,16 @@ body[data-view="settings"] .setcols { block-size: 100%; }
 
 <!-- mockup-only controls -->
 <nav class="mock" aria-label="בקרת הדגם">
-  <b>דגם</b>
-  <select id="m-view" aria-label="מסך">
-    <option value="shell">המעטפת (כל המסכים)</option>
-    <option value="settings">הגדרות › מיתוג</option>
-    <option value="login">כניסה</option>
-    <option value="tv">לוח מודעות (טלוויזיה)</option>
-    <option value="pdf">כותרת דוח PDF</option>
-  </select>
-  <button id="m-theme" type="button" aria-pressed="false">כהה</button>
-  <button id="m-company" type="button" aria-pressed="true">לוגו חברה</button>
+  <b>מסכים</b>
+  <button class="vb" type="button" data-view="settings" aria-pressed="false">הגדרות</button>
+  <button class="vb" type="button" data-view="shell" aria-pressed="false">מעטפת</button>
+  <button class="vb" type="button" data-view="login" aria-pressed="false">כניסה</button>
+  <button class="vb" type="button" data-view="tv" aria-pressed="false">טלוויזיה</button>
+  <button class="vb" type="button" data-view="pdf" aria-pressed="false">PDF</button>
+  <button class="vb" type="button" id="m-phone" aria-pressed="false" title="מציג את המסך הנוכחי ברוחב טלפון (390)">טלפון</button>
+  <span class="vsep"></span>
+  <button id="m-theme" type="button" aria-pressed="false">ערכת צבעים כהה</button>
+  <button id="m-company" type="button" aria-pressed="true">לוגו חברה: מוצג</button>
   <button id="m-darkfile" type="button" aria-pressed="false">הועלתה גרסה כהה</button>
   <button id="m-screen" type="button" aria-pressed="false" title="בטלפון: מסך פנימי ללא שורת לוגו">טלפון: מסך פנימי</button>
   <select id="m-state" aria-label="מצב ההגדרות">
@@ -579,8 +596,9 @@ body[data-view="settings"] .setcols { block-size: 100%; }
     <option value="readonly">הגדרות: צפייה בלבד</option>
   </select>
   <span class="sp"></span>
-  <span class="tag" title="שני הלוגואים כאן זמניים (SmplWise מסומן בתג) עד שיתקבלו קבצי הלוגו; חברת הניהול בדיונית">לוגואים זמניים</span><span>CR-LOGOS295 · v3</span>
+  <span class="tag" title="שני הלוגואים כאן זמניים (SmplWise מסומן בתג) עד שיתקבלו קבצי הלוגו; חברת הניהול בדיונית">לוגואים זמניים</span><span class="crl">CR-LOGOS295 · v3</span>
 </nav>
+<iframe id="phoneframe" title="תצוגת טלפון" hidden></iframe>
 <div class="chrome" aria-hidden="true"><div class="ctab"><svg><use href="#sw-mark"/></svg><span class="ttl" id="tab-title"></span><i>×</i></div><span class="lbl2">כותרת הלשונית (נשלטת בהגדרות)</span></div>
 
 <!-- ===================== VIEW: shell ===================== -->
@@ -862,8 +880,10 @@ body[data-view="settings"] .setcols { block-size: 100%; }
   const CO_LABEL = 'נווה הירדן ניהול נכסים';
   const SCALE = { s: 0.75, m: 1, l: 1.25, xl: 1.5 };
   const SIZE_NAME = { s: 'קטן', m: 'בינוני', l: 'גדול', xl: 'גדול מאוד' };
+  const embed = q.get('embed') === '1'; if (embed) root.classList.add('embed');
   const state = {
-    view: pick(q.get('view'), views, 'shell'),
+    view: pick(q.get('view'), views, 'settings'),
+    phone: q.get('frame') === 'phone',
     theme: q.get('theme') === 'dark' ? 'dark' : 'light',
     company: q.get('company') !== 'off',
     darkfile: q.get('darkfile') === 'on',
@@ -872,7 +892,7 @@ body[data-view="settings"] .setcols { block-size: 100%; }
     size: pick(q.get('size'), ['s', 'm', 'l', 'xl'], 'm'),
     dm: pick(q.get('dm'), ['plate', 'file', 'invert'], 'plate'),
     tmode: pick(q.get('tmode'), ['both', 'dev', 'project'], 'both'),
-    tab: pick(q.get('tab'), ['files', 'look', 'title', 'preview'], 'files'),
+    tab: pick(q.get('tab'), ['files', 'look', 'title', 'preview'], 'look'),
     prefix: q.get('prefix') || 'Smplwise Arx',
     dev: q.get('dev') || 'נווה הירדן',
     project: q.get('project') || 'מגדל A',
@@ -905,8 +925,12 @@ body[data-view="settings"] .setcols { block-size: 100%; }
     body.setAttribute('data-st', state.st);
     body.setAttribute('data-view', state.view);
     body.setAttribute('data-screen', state.screen);
-    sel('m-view').value = state.view;
+    document.querySelectorAll('.vb[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+    sel('m-phone').setAttribute('aria-pressed', String(state.phone));
+    sel('m-theme').textContent = state.theme === 'dark' ? 'ערכת צבעים: כהה' : 'ערכת צבעים: בהירה';
+    sel('m-company').textContent = state.company ? 'לוגו חברה: מוצג' : 'לוגו חברה: מוסתר';
     sel('m-theme').setAttribute('aria-pressed', String(state.theme === 'dark'));
+    const fr = sel('phoneframe'); body.classList.toggle('phoneout', state.phone && !embed); if (!embed) fr.hidden = !state.phone;
     sel('m-company').setAttribute('aria-pressed', String(state.company));
     sel('m-darkfile').setAttribute('aria-pressed', String(state.darkfile));
     sel('m-state').value = state.st;
@@ -945,9 +969,15 @@ body[data-view="settings"] .setcols { block-size: 100%; }
     ['view', 'theme', 'size', 'dm', 'tmode', 'tab'].forEach((k) => u.searchParams.set(k, state[k]));
     u.searchParams.set('company', state.company ? 'on' : 'off'); u.searchParams.set('darkfile', state.darkfile ? 'on' : 'off');
     u.searchParams.set('state', state.st); u.searchParams.set('screen', state.screen);
+    if (state.phone) u.searchParams.set('frame', 'phone'); else u.searchParams.delete('frame');
     history.replaceState(null, '', u);
+    if (state.phone && !embed) {
+      const f = new URL(u); f.searchParams.delete('frame'); f.searchParams.set('embed', '1');
+      if (sel('phoneframe').dataset.src !== f.href) { sel('phoneframe').dataset.src = f.href; sel('phoneframe').src = f.href; }
+    }
   }
-  sel('m-view').addEventListener('change', (e) => { state.view = e.target.value; apply(); });
+  document.querySelectorAll('.vb[data-view]').forEach((b) => b.addEventListener('click', () => { state.view = b.dataset.view; apply(); }));
+  sel('m-phone').addEventListener('click', () => { state.phone = !state.phone; apply(); });
   sel('m-theme').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; apply(); });
   sel('m-company').addEventListener('click', () => { state.company = !state.company; apply(); });
   sel('m-darkfile').addEventListener('click', () => { state.darkfile = !state.darkfile; apply(); });
