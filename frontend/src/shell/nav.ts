@@ -683,7 +683,27 @@ export const PRESENCE_HREF = '#/explore/presence';
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
+  // CR-NOTICE106: לוח הודעות - offered only while the module is on (applyNoticesHidden) to holders of notices.view
+  { id: 'notices', label: 'לוח הודעות', href: '#/devices/notices' },
 ];
+
+/** CR-NOTICE106: the notice board page (readers and managers) and its settings page (the switch, the defaults, the TV boards). */
+export const NOTICES_HREF = '#/devices/notices';
+export const NOTICES_SETTINGS_HREF = '#/system/notices';
+let NOTICES_OFF = true;
+/** The module switch (/me modules.notices, and at once after a switch in Settings): the tab joins HIDDEN_HREFS while the module is off -
+ * hidden by default, so nobody sees it flash. Re-applied by the shell after HIDDEN_HREFS is rebuilt from the product settings. */
+export function applyNoticesHidden(on: boolean | null | undefined): boolean {
+  NOTICES_OFF = on !== true;
+  const was = HIDDEN_HREFS.has(NOTICES_HREF);
+  if (NOTICES_OFF) HIDDEN_HREFS.add(NOTICES_HREF);
+  else HIDDEN_HREFS.delete(NOTICES_HREF);
+  if (was !== NOTICES_OFF) for (const l of tabsListeners) l();
+  return NOTICES_OFF;
+}
+export function noticesModuleOn(): boolean {
+  return !NOTICES_OFF;
+}
 
 /** 0.1.154: which segments of "קברניט" this user is offered. `schedules`: the feature is on and schedule.view / schedule.manage is held;
  * `automations`: the automations feature is on and one of its rights is held (the scenes and scripts segments follow the automations
@@ -1126,6 +1146,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
     { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
+    // CR-NOTICE106: the notice board's switch, defaults and TV boards (system.configure / notices.boards)
+    { id: 'notices', label: 'לוח הודעות', href: NOTICES_SETTINGS_HREF },
     // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
     { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
@@ -1302,7 +1324,7 @@ export const DEMO_ONLY_HREFS = new Set<string>();
 export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן' };
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
-export const HIDDEN_HREFS = new Set<string>();
+export const HIDDEN_HREFS = new Set<string>(['#/devices/notices']); // CR-NOTICE106: the notice board tab until the session says the module is on
 
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
 export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
@@ -1341,6 +1363,10 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
   [WALL_SETTINGS_HREF]: ['system.configure'],
+  // CR-NOTICE106: the notice board page (notices.view at any scope; the server narrows to my audience) and its settings page
+  // (the module switch and defaults: system.configure; the TV boards: notices.boards - the screen shows each part by its own right)
+  [NOTICES_HREF]: ['notices.view', 'notices.manage'],
+  [NOTICES_SETTINGS_HREF]: ['system.configure', 'notices.boards'],
   // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
   [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],
   // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation

@@ -93,6 +93,10 @@ class Settings:
     # when this add-on option is on (config.yaml maps 18093/tcp to null; the Cloudflare tunnel reaches the container port). It runs
     # even while the module is off and then answers the uniform 404 to everything. SW_TICKETS_PUBLIC=1 outside the add-on.
     tickets_public: bool = False
+    # CR-NOTICE106: the TV boards' LAN listener (services/notices/listener.py) on container port 18094, only when this add-on option is
+    # on (config.yaml maps 18094/tcp to null: the owner maps a host port for the TVs). Serves the TV page, its assets and the tokenised
+    # display routes only. SW_NOTICE_BOARDS=1 outside the add-on.
+    notice_boards: bool = False
     # CR-038 S4: the handler page's own bundle (frontend/public-ticket.html -> smplwise_vms/www-public), NEVER inside www_dir (the
     # main app mounts www_dir at / and would then serve /t/ under the Ingress / arx origin - code review W16).
     www_public_dir: Path | None = None
@@ -233,6 +237,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         db_write_gate=(_truthy(options["db_write_gate"]) if "db_write_gate" in options else True) and os.environ.get("SW_DB_WRITE_GATE", "1") != "0",
         cast_relay=_truthy(options["cast_relay"]) if "cast_relay" in options else _truthy(os.environ.get("SW_CAST_RELAY", "")),
         tickets_public=_truthy(options["tickets_public"]) if "tickets_public" in options else _truthy(os.environ.get("SW_TICKETS_PUBLIC", "")),
+        notice_boards=_truthy(options["notice_boards"]) if "notice_boards" in options else _truthy(os.environ.get("SW_NOTICE_BOARDS", "")),
         www_public_dir=www_public_dir,
         remote_path=normalize_remote_path(_opt(options, "remote_path", "SW_REMOTE_PATH", DEFAULT_REMOTE_PATH)),
         # inside the add-on HA core is `homeassistant:<port>` on the Supervisor network (port / TLS from /core/info);

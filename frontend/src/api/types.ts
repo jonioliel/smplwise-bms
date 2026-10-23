@@ -1,6 +1,8 @@
 // Shapes returned by the add-on backend (smplwise_vms/backend). Keep in step with the routers.
 
 export interface Me {
+  /** CR-LOGOS295: the company logo / name, logo size, dark-background mode and the browser-tab title parts (design/brand-logo.ts). */
+  brand?: import('../design/brand-logo').BrandView;
   user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' | 'remote' };
   /** CR-008: the entry channel - `remote` through SmplWise Arx (`/arx/`), `local` through Ingress (or a developer backend). */
   channel?: 'remote' | 'local';
@@ -38,7 +40,7 @@ export interface Me {
   /** CR-READY96: the last RECORDED readiness score (system.configure holders only; null until the first check) and the demo-mode state every signed-in user is told. */
   readiness?: { score: number; level: 'building' | 'almost' | 'ready'; at: string } | null;
   demo?: import('./readiness').DemoState;
-  modules?: { tickets: boolean; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ };
+  modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ };
 }
 
 export interface Site {
