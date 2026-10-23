@@ -15,6 +15,7 @@ import {
 } from './events-logic';
 import { dwCss } from './styles';
 import { dweCss } from './events-styles';
+import { dateInputLang } from '../api/day-format';
 
 type Confirm = { title: string; text: string; btn: string; danger?: boolean; run: () => Promise<unknown> };
 
@@ -236,8 +237,8 @@ export class DoorEventRules extends LitElement {
         <div class="field"><label class="chk"><input type="checkbox" data-dw-limit .checked=${dr.limitHours}
             @change=${(e: Event) => this.patch((d) => (d.limitHours = (e.target as HTMLInputElement).checked))}>${dwe('fAllowedLimit')}</label>
           ${dr.limitHours ? html`<div class="row2">
-            <label class="muted">${dwe('fAllowedFrom')} <input type="time" step="900" .value=${dr.from} @change=${(e: Event) => this.patch((d) => (d.from = (e.target as HTMLInputElement).value))}></label>
-            <label class="muted">${dwe('fAllowedTo')} <input type="time" step="900" .value=${dr.to === '24:00' ? '23:59' : dr.to} @change=${(e: Event) => this.patch((d) => (d.to = (e.target as HTMLInputElement).value))}></label>
+            <label class="muted">${dwe('fAllowedFrom')} <input type="time" lang=${dateInputLang()} step="900" .value=${dr.from} @change=${(e: Event) => this.patch((d) => (d.from = (e.target as HTMLInputElement).value))}></label>
+            <label class="muted">${dwe('fAllowedTo')} <input type="time" lang=${dateInputLang()} step="900" .value=${dr.to === '24:00' ? '23:59' : dr.to} @change=${(e: Event) => this.patch((d) => (d.to = (e.target as HTMLInputElement).value))}></label>
           </div>` : html`<span class="muted">${dwe('fAllowedAll')}</span>`}
           <span class="chip num">${dwe('capQuiet', { from: lim.quiet[0], to: lim.quiet[1] })}</span></div>
         ${dr.id && dr.source === 'ha_event' ? html`<label class="chk"><input type="checkbox" data-dw-regenerate .checked=${dr.regenerate}

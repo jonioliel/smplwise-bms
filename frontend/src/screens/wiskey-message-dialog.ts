@@ -24,6 +24,7 @@ import {
   type RecipientInfo,
   type SendFailure,
 } from '../access-control/messaging-logic';
+import { timeText } from '../api/day-format';
 
 type Loaded = 'loading' | 'ready' | 'unavailable';
 
@@ -59,7 +60,7 @@ export const reasonText = (r: SendFailure): string => pt(REASON_KEY[r]);
 
 const clock = (iso: string): string => {
   const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+  return Number.isFinite(d.getTime()) ? timeText(d) : '';
 };
 
 /**

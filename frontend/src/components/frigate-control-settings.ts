@@ -19,6 +19,7 @@ import {
 } from '../api/frigate-control';
 import { fx, frigateLocale } from '../i18n/frigate-text';
 import { adminStyles } from './frigate-admin-shared';
+import { dayTimeText } from '../api/day-format';
 
 type Tab = 'classes' | 'profiles' | 'config' | 'exports' | 'cases' | 'events' | 'log' | 'supervision';
 const TABS: Tab[] = ['classes', 'profiles', 'config', 'exports', 'cases', 'events', 'log', 'supervision'];
@@ -223,7 +224,7 @@ export class FrigateControlSettings extends LitElement {
 
   private timeText(iso: string): string {
     try {
-      return new Date(iso).toLocaleString(frigateLocale(), { dateStyle: 'short', timeStyle: 'short' });
+      return dayTimeText(new Date(iso));
     } catch {
       return iso;
     }

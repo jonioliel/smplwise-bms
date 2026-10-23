@@ -21,6 +21,7 @@ import {
   BUCKETS, NO_FILTERS, accountQuery, accountSummary, bucketOf, bulkItems, bulkOutcome, keepSelection, payable, periodValid, selectionByCurrency,
   type AccountFilters, type Bucket, type CurrencyBlock, type VendorLine,
 } from './vendor-account-model';
+import { dateInputLang } from '../api/day-format';
 
 const BUCKET_TEXT: Record<Bucket, CostTextKey> = { due: 'vaDue', paid: 'vaPaid', open: 'vaOpen' };
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -254,8 +255,8 @@ export class TicketsVendorAccounts extends LitElement {
     const vendors = d?.vendors ?? [];
     const depts = d?.departments ?? [];
     return html`<div class="filters" role="group" aria-label=${ct('vaFilters')} data-va-filters>
-      <label>${ct('from')}<input class="in" type="date" data-va-from .value=${f.from} max=${f.to || ''} @change=${(e: Event) => this.setFilter('from', (e.target as HTMLInputElement).value)} /></label>
-      <label>${ct('to')}<input class="in" type="date" data-va-to .value=${f.to} min=${f.from || ''} aria-invalid=${bad ? 'true' : 'false'} @change=${(e: Event) => this.setFilter('to', (e.target as HTMLInputElement).value)} /></label>
+      <label>${ct('from')}<input class="in" type="date" lang=${dateInputLang()} data-va-from .value=${f.from} max=${f.to || ''} @change=${(e: Event) => this.setFilter('from', (e.target as HTMLInputElement).value)} /></label>
+      <label>${ct('to')}<input class="in" type="date" lang=${dateInputLang()} data-va-to .value=${f.to} min=${f.from || ''} aria-invalid=${bad ? 'true' : 'false'} @change=${(e: Event) => this.setFilter('to', (e.target as HTMLInputElement).value)} /></label>
       <label>${ct('vaVendor')}<select class="in" data-va-vendor @change=${(e: Event) => this.setFilter('vendor', (e.target as HTMLSelectElement).value)}>
         <option value="" ?selected=${!f.vendor}>${ct('vaAllVendors')}</option>
         ${vendors.map((v) => html`<option value=${v.key} ?selected=${f.vendor === v.key}>${v.label || ct('noLabel')}</option>`)}
@@ -339,7 +340,7 @@ export class TicketsVendorAccounts extends LitElement {
         ${sums.map((s) => html`<li data-va-sum=${s.currency}>${ct('vaBulkSum', { n: s.count, amount: this.money(s.minor, s.currency) })}</li>`)}
       </ul>
       <label class="dlg">${ct('paymentRef')}<input class="in" data-va-ref maxlength="60" required .value=${this.payRef} @input=${(e: Event) => (this.payRef = (e.target as HTMLInputElement).value)} /></label>
-      <label class="dlg">${ct('paymentDate')}<input class="in" type="date" data-va-date required max=${todayIso()} .value=${this.payDate} @input=${(e: Event) => (this.payDate = (e.target as HTMLInputElement).value)} /></label>
+      <label class="dlg">${ct('paymentDate')}<input class="in" type="date" lang=${dateInputLang()} data-va-date required max=${todayIso()} .value=${this.payDate} @input=${(e: Event) => (this.payDate = (e.target as HTMLInputElement).value)} /></label>
       <sw-button slot="footer" @click=${() => (this.dialog = false)} ?disabled=${this.busy}>${ct('back')}</sw-button>
       <sw-button slot="footer" variant="primary" data-va-confirm ?disabled=${this.busy || !this.payRef.trim() || !this.payDate || !sums.length} @click=${() => void this.confirmPaid()}>${ct('confirm')}</sw-button>
     </sw-dialog>`;

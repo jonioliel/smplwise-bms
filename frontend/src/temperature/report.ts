@@ -7,6 +7,7 @@ import { REPORT_RANGES, deg, durationText, eventText, friendlyName, localInput }
 import { bigChart } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
+import { dateInputLang, dayTimeText } from '../api/day-format';
 
 export { REPORT_RANGES, localInput } from './model';
 
@@ -192,7 +193,7 @@ export class TempReport extends LitElement {
     if (!m.samples || !sm) return nothing;
     const loc = lang === 'he' ? 'he-IL' : 'en-GB';
     const flags = (f: number) => ([[1, 'sfDefrost'], [2, 'sfDoor'], [4, 'sfOff'], [8, 'sfOut'], [16, 'sfAlert'], [32, 'sfAvg']] as [number, TtKey][]).filter(([b]) => f & b).map(([, k]) => T(k)).join(' · ');
-    const when = (ts: number) => new Date(ts * 1000).toLocaleString(loc, { timeZone: m.zone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const when = (ts: number) => dayTimeText(new Date(ts * 1000), { timeZone: m.zone });
     return html`<div data-rep-samples-block>
       <b class="lbl">${T('repSamples')} · <span dir="ltr">${sm.total}</span></b>
       ${sm.rows.length ? html`<table class="smp" data-rep-samples-table><thead><tr><th>${T('colTime')}</th><th>${T('colValue')}</th><th></th></tr></thead><tbody>
@@ -246,9 +247,9 @@ export class TempReport extends LitElement {
           <div class="col">
             <div class="field"><span class="lbl">${tt('repRange')}</span><div class="presets" role="group">${REPORT_RANGES.map((r) => html`<button type="button" aria-pressed=${String(p.range === r)} data-rep-range=${r}
               @click=${() => this.set({ range: r })}>${tt(`rp${r}` as TtKey)}</button>`)}</div>
-              ${p.range === 'custom' ? html`<div class="f2"><label class="field"><span class="lbl">${tt('repFrom')}</span><input class="in" type="datetime-local" .value=${p.from ?? ''}
+              ${p.range === 'custom' ? html`<div class="f2"><label class="field"><span class="lbl">${tt('repFrom')}</span><input class="in" type="datetime-local" lang=${dateInputLang()} .value=${p.from ?? ''}
                   @change=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })} data-rep-from /></label>
-                <label class="field"><span class="lbl">${tt('repTo')}</span><input class="in" type="datetime-local" .value=${p.to ?? ''}
+                <label class="field"><span class="lbl">${tt('repTo')}</span><input class="in" type="datetime-local" lang=${dateInputLang()} .value=${p.to ?? ''}
                   @change=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })} data-rep-to /></label></div>` : nothing}</div>
             <div class="field"><span class="lbl">${tt('repUnits')} <span class="hint">· ${tt('repUnitsHint')}</span></span><div class="ulist">
               ${this.units.map((u) => html`<label class="sw"><input type="checkbox" .checked=${p.units.includes(u.id)} data-rep-unit=${u.id}

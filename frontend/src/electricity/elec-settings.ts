@@ -17,6 +17,7 @@ import './elec-bill-paper';
 import './elec-tou-editor';
 import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
 import { cloneDef, israelTemplate, type TouDefinition } from './elec-tou';
+import { dateInputLang } from '../api/day-format';
 
 const NUM = /^\d+(\.\d+)?$/;
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -237,7 +238,7 @@ export class ElecSettingsPrices extends ElecBase {
           ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">סוג התעריף</span><div class="seg" role="group" aria-label="סוג התעריף"><button type="button" data-tariff-kind="fixed" aria-pressed=${this.tKind === 'fixed'} @click=${() => void this.setKind('fixed')}>מחיר קבוע</button><button type="button" data-tariff-kind="tou" aria-pressed=${this.tKind === 'tou'} @click=${() => void this.setKind('tou')}>לפי שעות (תעו״ז)</button></div></div>`}
           ${this.tKind === 'fixed' ? html`<div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>` : nothing}
           <div class="fld"><span class="lbl">${this.tKind === 'tou' ? 'המחירים שהוזנו' : 'המחיר שהוזן'}</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
-          <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
+          <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
         </div>
         ${this.tKind === 'fixed' && cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>לפני מע״מ</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>מע״מ ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>כולל מע״מ</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
         ${this.tKind === 'tou' && this.tSource && !this.tEdit ? alertBox('info', this.tSource) : nothing}
@@ -252,7 +253,7 @@ export class ElecSettingsPrices extends ElecBase {
       <elec-dialog heading="שיעור מע״מ חדש" ?open=${this.vOpen} data-dialog="vat" @close=${() => (this.vOpen = false)}>
         <div class="form">
           <div class="fld"><label for="vr">שיעור</label><div class="unit"><input id="vr" class="ltr ${this.vErr.rate_percent ? 'err' : ''}" data-vat-input inputmode="decimal" .value=${this.vf.rate} @input=${(e: Event) => (this.vf = { ...this.vf, rate: (e.target as HTMLInputElement).value })} /><span>%</span></div>${this.vErr.rate_percent ? html`<div class="msg" role="alert">${this.vErr.rate_percent}</div>` : nothing}</div>
-          <div class="fld"><label for="vf">בתוקף מתאריך</label><input id="vf" type="date" class="ltr ${this.vErr.effective_from ? 'err' : ''}" data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert">${this.vErr.effective_from}</div>` : nothing}</div>
+          <div class="fld"><label for="vf">בתוקף מתאריך</label><input id="vf" type="date" lang=${dateInputLang()} class="ltr ${this.vErr.effective_from ? 'err' : ''}" data-vat-from .value=${this.vf.from} @change=${(e: Event) => (this.vf = { ...this.vf, from: (e.target as HTMLInputElement).value })} />${this.vErr.effective_from ? html`<div class="msg" role="alert">${this.vErr.effective_from}</div>` : nothing}</div>
         </div>
         ${this.error ? alertBox('err', this.error) : nothing}
         <button slot="actions" type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.saveVat()}>שמירה</button>

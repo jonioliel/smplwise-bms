@@ -8,6 +8,7 @@ import { KIND_KEY, bodyOf, deg, draftOf, fmt1, friendlyName, newDraft, problemOf
 import { gauge } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
+import { dateInputLang } from '../api/day-format';
 
 const ROLE_KEYS: [string, string][] = [['viewer', 'צופים'], ['operator', 'מפעילים'], ['site_admin', 'מנהלי אתר'], ['system_admin', 'מנהלי מערכת']];
 type Defaults = Record<string, boolean | number | string>;
@@ -382,9 +383,9 @@ export class TempWizard extends LitElement {
         </div>` : nothing}</div>
       <div class="field"><span class="lbl">${tt('quiet')}</span><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_enabled', (e.target as HTMLInputElement).checked)} data-w-quiet /></label>
-        <input class="in" style="inline-size:auto" type="time" .value=${this.rule<string>('quiet_from')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_from', (e.target as HTMLInputElement).value)} aria-label=${tt('start')} />
+        <input class="in" style="inline-size:auto" type="time" lang=${dateInputLang()} .value=${this.rule<string>('quiet_from')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_from', (e.target as HTMLInputElement).value)} aria-label=${tt('start')} />
         <span>${tt('to')}</span>
-        <input class="in" style="inline-size:auto" type="time" .value=${this.rule<string>('quiet_to')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_to', (e.target as HTMLInputElement).value)} aria-label=${tt('to')} /></div></div>
+        <input class="in" style="inline-size:auto" type="time" lang=${dateInputLang()} .value=${this.rule<string>('quiet_to')} ?disabled=${!this.rule<boolean>('quiet_enabled')} @change=${(e: Event) => this.setRule('quiet_to', (e.target as HTMLInputElement).value)} aria-label=${tt('to')} /></div></div>
       <div class="field" data-w-holds><label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('alerts_enabled')} @change=${(e: Event) => this.setRule('alerts_enabled', (e.target as HTMLInputElement).checked)} data-w-alerts />${tt('alertsEnabled')}</label>
         <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('quiet_includes_alarms')} @change=${(e: Event) => this.setRule('quiet_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('quietAlarms')}</label>
         <label class="sw"><input type="checkbox" .checked=${this.rule<boolean>('mute_includes_alarms')} @change=${(e: Event) => this.setRule('mute_includes_alarms', (e.target as HTMLInputElement).checked)} />${tt('muteAlarms')}</label>
@@ -395,7 +396,7 @@ export class TempWizard extends LitElement {
           @click=${() => this.patch({ defrost_mode: m, defrost_windows: m === 'fixed' && !d.defrost_windows.length ? [{ start: '03:00', minutes: 30 }] : d.defrost_windows })}>${tt(m === 'learn' ? 'modeLearn' : m === 'fixed' ? 'modeFixed' : 'modeNone')}</button>`)}</span>
         <span class="hint">${tt(d.defrost_mode === 'learn' ? 'defrostLearnHint' : d.defrost_mode === 'fixed' ? 'defrostFixedHint' : 'defrostNoneHint')}</span>
         ${d.defrost_mode === 'fixed' ? html`<div style="display:grid;gap:6px">${d.defrost_windows.map((w, i) => html`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" data-w-window=${i}>
-            <input class="in" style="inline-size:auto" type="time" .value=${w.start} aria-label=${tt('start')} @change=${(e: Event) => this.patch({ defrost_windows: d.defrost_windows.map((x, j) => (j === i ? { ...x, start: (e.target as HTMLInputElement).value } : x)) })} />
+            <input class="in" style="inline-size:auto" type="time" lang=${dateInputLang()} .value=${w.start} aria-label=${tt('start')} @change=${(e: Event) => this.patch({ defrost_windows: d.defrost_windows.map((x, j) => (j === i ? { ...x, start: (e.target as HTMLInputElement).value } : x)) })} />
             <span>${tt('duration')}</span><input class="in n" type="number" min="5" max="180" .value=${String(w.minutes)} aria-label=${tt('duration')}
               @change=${(e: Event) => this.patch({ defrost_windows: d.defrost_windows.map((x, j) => (j === i ? { ...x, minutes: Math.max(5, Math.min(180, Math.round(this.num(e)))) } : x)) })} />
             <button type="button" class="btn sm ghost" aria-label=${tt('removeWindow')} @click=${() => this.patch({ defrost_windows: d.defrost_windows.filter((_x, j) => j !== i) })}><sw-icon name="close" size="14"></sw-icon></button></div>`)}

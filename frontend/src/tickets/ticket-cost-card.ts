@@ -23,7 +23,7 @@ import {
 import { ct, type CostTextKey } from './cost-text';
 import { cIcon } from './cost-icons';
 import { shortDateTime } from './model';
-import { dayText } from '../api/day-format';
+import { dayText, dateInputLang } from '../api/day-format';
 import { ticketsLang } from './text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { costCardStyles, costDialogStyles } from './cost-styles';
@@ -627,7 +627,7 @@ export class TicketCostCard extends LitElement {
     const body = d.kind === 'reject' ? this.reasonField(ct('reason'), true) : d.kind === 'unmarkPaid' ? this.reasonField()
       : d.kind === 'markPaid' ? html`<div class="two">
           <label class="fld"><span>${ct('paymentRef')} <b class="req">*</b></span><input class="inp" maxlength="60" dir="auto" data-pay-ref aria-invalid=${String(badRef)} .value=${this.payRef} @input=${(e: Event) => { this.payRef = (e.target as HTMLInputElement).value; this.err = ''; }} />${badRef ? html`<span class="err">${ct('required')}</span>` : nothing}</label>
-          <label class="fld"><span>${ct('paymentDate')} <b class="req">*</b></span><input class="inp" type="date" max=${todayIso(new Date(Date.now() + 86_400_000))} data-pay-date .value=${this.payDate} @input=${(e: Event) => (this.payDate = (e.target as HTMLInputElement).value)} /></label>
+          <label class="fld"><span>${ct('paymentDate')} <b class="req">*</b></span><input class="inp" type="date" lang=${dateInputLang()} max=${todayIso(new Date(Date.now() + 86_400_000))} data-pay-date .value=${this.payDate} @input=${(e: Event) => (this.payDate = (e.target as HTMLInputElement).value)} /></label>
         </div>`
       : d.kind === 'approve' && rev ? html`${this.breakdown(rev)}${this.againstQuote(c, rev)}${this.internalNoteField()}` : nothing;
     // TKUI3: a demand with exceptional lines is approved WITH them or WITHOUT them (a manager adjustment, contract 5.3); the send-back

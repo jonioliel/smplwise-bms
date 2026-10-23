@@ -11,6 +11,7 @@ import type { ProductSettings } from '../api/media';
 import { ackWallAlert, frameUrl, getFrameList, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
 import { classifyDevice, readDeviceEnv } from './device-class';
 import { alertView, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScale } from './wall-logic';
+import { timeText } from '../api/day-format';
 
 type Phase = 'loading' | 'ready' | 'removed' | 'remote-refused' | 'no-connection';
 const RETRY_BACKOFF_S = [2, 4, 8, 15];
@@ -1073,7 +1074,7 @@ export class SwWall extends LitElement {
     const d = new Date(this.now);
     try {
       return {
-        time: new Intl.DateTimeFormat('he-IL', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d),
+        time: timeText(d, { timeZone: zone }),
         date: new Intl.DateTimeFormat('he-IL', { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long' }).format(d),
       };
     } catch {

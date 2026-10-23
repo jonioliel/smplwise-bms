@@ -11,6 +11,7 @@ import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
 import { activeFilters, alertCounts, durationMin, EMPTY_FILTER, filterQuery, fill, fmtDateTime, fmtDuration, fmtNum, matchesText, sortOpen, type HistoryFilter } from './gen-logic';
+import { dateInputLang } from '../api/day-format';
 
 const G = he.generator;
 const POLL_MS = 15_000;
@@ -148,7 +149,7 @@ export class GenAlertsPage extends LitElement {
       <div class="filters" data-filters>
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${f.text} @input=${(e: Event) => this.setFilter({ text: (e.target as HTMLInputElement).value })} data-filter="text" />
         <div class="seg" role="group" data-filter="window">${(['today', '7d', '30d', 'custom'] as const).map((w) => html`<button aria-pressed=${f.window === w} @click=${() => this.setFilter({ window: w })}>${G.history.windows[w]}</button>`)}</div>
-        ${f.window === 'custom' ? html`<input type="datetime-local" aria-label="from" .value=${f.from} @change=${(e: Event) => this.setFilter({ from: (e.target as HTMLInputElement).value })} /><input type="datetime-local" aria-label="to" .value=${f.to} @change=${(e: Event) => this.setFilter({ to: (e.target as HTMLInputElement).value })} />` : nothing}
+        ${f.window === 'custom' ? html`<input type="datetime-local" lang=${dateInputLang()} aria-label="from" .value=${f.from} @change=${(e: Event) => this.setFilter({ from: (e.target as HTMLInputElement).value })} /><input type="datetime-local" lang=${dateInputLang()} aria-label="to" .value=${f.to} @change=${(e: Event) => this.setFilter({ to: (e.target as HTMLInputElement).value })} />` : nothing}
         ${sel(G.history.severity, 'severity', (['critical', 'alert', 'info'] as const).map((s) => [s, G.alerts.sev[s]]))}
         ${sel(G.history.type, 'type', types.map((t) => [t.key, t.title]))}
         ${sel(G.history.ack, 'ack', [['yes', G.history.yes], ['no', G.history.no]])}

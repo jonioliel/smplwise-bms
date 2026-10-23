@@ -66,6 +66,7 @@ import { glyph } from '../access-control/glyphs';
 import { ev, evDynamic, evLang } from '../i18n/access-events';
 import { navigate } from '../router';
 import { t as wiskeyText, UTC_ZONE } from './wiskey-format';
+import { dateInputLang } from '../api/day-format';
 
 const POLL_MS = 30000; // while the change notices are down the list is re-read this often (WisKey's own panel: 30 s)
 const SEARCH_MS = 450;
@@ -676,8 +677,8 @@ export class WiskeyEvents extends LitElement {
   private renderCustom() {
     const zone = filterZone(this.filters, this.zoneContext());
     return html`<sw-dialog ?open=${this.customOpen} heading=${ev('crTitle')} @close=${() => (this.customOpen = false)} data-wiskey-custom-range>
-      <sw-field label=${ev('crFrom')}><input type="datetime-local" data-wiskey-filter-start .value=${this.customDraft.start} @input=${(e: Event) => (this.customDraft = { ...this.customDraft, start: (e.target as HTMLInputElement).value })} /></sw-field>
-      <sw-field label=${ev('crUntil')}><input type="datetime-local" data-wiskey-filter-end .value=${this.customDraft.end} @input=${(e: Event) => (this.customDraft = { ...this.customDraft, end: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label=${ev('crFrom')}><input type="datetime-local" lang=${dateInputLang()} data-wiskey-filter-start .value=${this.customDraft.start} @input=${(e: Event) => (this.customDraft = { ...this.customDraft, start: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label=${ev('crUntil')}><input type="datetime-local" lang=${dateInputLang()} data-wiskey-filter-end .value=${this.customDraft.end} @input=${(e: Event) => (this.customDraft = { ...this.customDraft, end: (e.target as HTMLInputElement).value })} /></sw-field>
       <div class="zone" data-wiskey-events-zone>${ev('crZone', { zone: zone.name })}</div>
       ${this.customError ? html`<div class="note err" role="alert" data-wiskey-events-filter-error=${this.customError}><span>${wiskeyText(this.customError)}</span></div>` : nothing}
       <div slot="footer" class="foot">

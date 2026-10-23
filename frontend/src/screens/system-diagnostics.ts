@@ -65,6 +65,7 @@ import { OWN_MODES, QUALITY_MODES, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, modeFr
 import { RUNG_HE, type QualityMode } from '../map/quality-ladder';
 import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { planViewPrefs, type SiteLocation } from '../api/plan-view';
+import { timeText, dayTimeText } from '../api/day-format';
 
 /** הגדרות › מתגי מסכי כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -1304,7 +1305,7 @@ export class SystemDiagnostics extends LitElement {
   private renderReport() {
     const r = this.report;
     if (!r) return html`<div class="sections"><sw-card heading="בריאות המערכת"><div class="muted">${this.reportBusy ? 'בודק…' : 'טוען…'}</div></sw-card></div>`;
-    const checked = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(r.checked_at));
+    const checked = timeText(new Date(r.checked_at), { seconds: true });
     return html`<div class="sections">
       <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
         <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? 'הכל תקין' : r.status === 'warn' ? 'יש מה לבדוק' : 'יש תקלה'}></sw-badge><span>גרסה <span class="ltr">${r.version}</span> · פעיל ${fmtUptime(r.uptime_s)} · נבדק <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? 'בודק…' : 'בדוק עכשיו'}</sw-button></div>
@@ -1497,7 +1498,7 @@ export class SystemDiagnostics extends LitElement {
   }
 
   private fmtWhen(iso: string) {
-    return new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+    return dayTimeText(new Date(iso));
   }
 
   private renderBackupRow(b: BackupEntry) {

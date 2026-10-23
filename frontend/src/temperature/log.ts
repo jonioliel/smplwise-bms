@@ -6,6 +6,7 @@ import { downloadLogCsv, listEvents, type LogQuery, type RangeKey, type TempEven
 import { eventDuration, eventText, eventValue, heldText, hhmm } from './model';
 import { tempCss } from './styles';
 import { tt, ttLang } from '../i18n/temperature';
+import { dayMonthText } from '../api/day-format';
 
 const PAGE = 200;
 
@@ -100,7 +101,7 @@ export class TempLog extends LitElement {
     const sev = (s: string) => (s === 'alarm' ? 'var(--tc-alarm)' : s === 'warning' ? 'var(--tc-warn)' : 'var(--tc-acc)');
     const day = (iso: string) => {
       const d = new Date(iso);
-      return now - d.getTime() > 20 * 3600_000 ? `${d.toLocaleDateString(lang, { day: 'numeric', month: 'numeric' })} ` : '';
+      return now - d.getTime() > 20 * 3600_000 ? `${dayMonthText(d)} ` : '';
     };
     return html`<div class="top lead-head"><div><h1>${tt('logTitle')}</h1><p class="sub">${tt('logSub')}</p></div><span class="sp"></span>
         <div class="meta">

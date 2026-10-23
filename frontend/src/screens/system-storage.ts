@@ -17,6 +17,7 @@ import { formatBytes } from '../api/exports';
 import { bidi } from '../i18n/bidi';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayTimeText } from '../api/day-format';
 
 const PER_CAMERA = [
   { name: 'כניסה ראשית', gb: 320 },
@@ -297,7 +298,7 @@ export class SystemStorage extends LitElement {
   }
 
   private fmt(iso: string | null) {
-    return iso ? new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
+    return iso ? dayTimeText(new Date(iso), { timeZone: this.tz }) : '—';
   }
 
   @state() private signing: SigningInfo | null = null;

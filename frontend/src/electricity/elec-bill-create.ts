@@ -13,6 +13,7 @@ import { alertBox, n } from './elec-ui';
 import { addDays, fmtRange, isIsoDate, periodContaining } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { ApiError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 
 type Choice = 'last' | 'current' | 'range';
 
@@ -106,8 +107,8 @@ export class ElecBillCreate extends LitElement {
       </div>
       ${this.choice === 'range'
         ? html`<div class="form">
-            <div class="fld"><label for="bf">מתאריך</label><input id="bf" type="date" name="from" data-range-from .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></div>
-            <div class="fld"><label for="bt">עד תאריך</label><input id="bt" type="date" name="to" data-range-to .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></div>
+            <div class="fld"><label for="bf">מתאריך</label><input id="bf" type="date" lang=${dateInputLang()} name="from" data-range-from .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></div>
+            <div class="fld"><label for="bt">עד תאריך</label><input id="bt" type="date" lang=${dateInputLang()} name="to" data-range-to .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></div>
           </div>`
         : nothing}
       ${re ? alertBox('err', re) : nothing}

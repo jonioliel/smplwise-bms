@@ -21,6 +21,7 @@ import {
 import { fmtDate, fmtDateTime, fmtReading, fmtSigned } from './format';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
+import { dateInputLang } from '../api/day-format';
 
 export type ReadingsDialog = '' | 'reading' | 'calibrate' | 'undo-reading' | 'undo-calibration';
 export interface OpenDialogDetail {
@@ -404,7 +405,7 @@ export class ElecReadingDialogs extends LitElement {
     return html`<sw-dialog open heading="קריאה ידנית" data-reading-dialog @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       <div class="form">
         <div class="fld"><label for="rw">תאריך ושעה</label>
-          <div class="inp ${this.fieldErrors.when ? 'err' : ''}"><input id="rw" type="datetime-local" data-reading-when max=${isoToLocalInput(new Date())} .value=${this.when} @input=${(e: Event) => set('when', (e.target as HTMLInputElement).value)} /></div>
+          <div class="inp ${this.fieldErrors.when ? 'err' : ''}"><input id="rw" type="datetime-local" lang=${dateInputLang()} data-reading-when max=${isoToLocalInput(new Date())} .value=${this.when} @input=${(e: Event) => set('when', (e.target as HTMLInputElement).value)} /></div>
           ${this.fieldMsg('when')}</div>
         <div class="fld"><label for="rv">קריאת המונה</label>
           <div class="inp ${this.fieldErrors.value ? 'err' : ''}"><input id="rv" data-reading-value inputmode="decimal" autocomplete="off" dir="ltr" .value=${this.value} @input=${(e: Event) => set('value', (e.target as HTMLInputElement).value)} />
@@ -433,7 +434,7 @@ export class ElecReadingDialogs extends LitElement {
       <div class="form">
         <div class="hint wide">מהתאריך: קריאה פיזית = מקדם × מונה המערכת + הפרש. חיובים שהופקו לא משתנים.</div>
         <div class="fld"><label for="cd">בתוקף מ-</label>
-          <div class="inp ${this.fieldErrors.date ? 'err' : ''}"><input id="cd" type="date" data-cal-date min=${first} .value=${this.date} @input=${(e: Event) => set('date', (e.target as HTMLInputElement).value)} /></div>
+          <div class="inp ${this.fieldErrors.date ? 'err' : ''}"><input id="cd" type="date" lang=${dateInputLang()} data-cal-date min=${first} .value=${this.date} @input=${(e: Event) => set('date', (e.target as HTMLInputElement).value)} /></div>
           ${this.fieldMsg('date')}</div>
         <div class="fld"><label for="cf">מקדם</label>
           <div class="inp ${this.fieldErrors.factor ? 'err' : ''}"><input id="cf" data-cal-factor inputmode="decimal" dir="ltr" .value=${this.factor} @input=${(e: Event) => set('factor', (e.target as HTMLInputElement).value)} /></div>

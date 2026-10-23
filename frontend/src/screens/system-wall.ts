@@ -32,6 +32,7 @@ import { FOLLOW_PLAN, type WallPlanSetting } from '../map/wall-plan-mode';
 import { RUNG_HE } from '../map/quality-ladder';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang } from '../api/day-format';
 
 type CamLite = { id: string; name: string };
 type FloorLite = { id: string; name: string };
@@ -325,8 +326,8 @@ export class SystemWall extends LitElement {
     return html`${w.map(
       (x, i) => html`<div class="win" data-wall-window=${i}>
         <span class="days">${DAYS.map((d, n) => html`<label><input type="checkbox" .checked=${x.days.includes(n)} @change=${(e: Event) => set(i, { days: (e.target as HTMLInputElement).checked ? [...x.days, n].sort() : x.days.filter((v) => v !== n) })} /><span>${d}</span></label>`)}</span>
-        <sw-field><input type="time" aria-label="משעה" .value=${x.from} @change=${(e: Event) => set(i, { from: (e.target as HTMLInputElement).value })} /></sw-field>
-        <sw-field><input type="time" aria-label="עד שעה" .value=${x.to} @change=${(e: Event) => set(i, { to: (e.target as HTMLInputElement).value })} /></sw-field>
+        <sw-field><input type="time" lang=${dateInputLang()} aria-label="משעה" .value=${x.from} @change=${(e: Event) => set(i, { from: (e.target as HTMLInputElement).value })} /></sw-field>
+        <sw-field><input type="time" lang=${dateInputLang()} aria-label="עד שעה" .value=${x.to} @change=${(e: Event) => set(i, { to: (e.target as HTMLInputElement).value })} /></sw-field>
         <sw-button size="sm" variant="ghost" @click=${() => { this.cfg().schedule.windows = w.filter((_, k) => k !== i); this.requestUpdate(); }}>הסרה</sw-button>
       </div>`,
     )}

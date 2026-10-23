@@ -20,6 +20,7 @@ import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { leadReserveStyles } from '../styles/lead-reserve';
+import { dayMonthTimeText } from '../api/day-format';
 
 const POLL_MS = 15_000;
 const DAY_MS = 24 * 3600_000;
@@ -162,7 +163,7 @@ export class InfraElevators extends LitElement {
     const e = list.find((x) => x.id === this.historyId);
     if (!e) return nothing;
     const rows = historyRows(e.history, now);
-    const t = (iso: string) => new Date(iso).toLocaleString(document.documentElement.lang || 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const t = (iso: string) => dayMonthTimeText(new Date(iso));
     return html`<sw-dialog open heading=${elt('historyTitle', { name: e.name })} subheading=${elt('last24')} data-elevator-history-dialog @close=${() => this.closeHistory()}>
       ${rows.length
         ? html`<ol class="hist" data-history-rows>${rows.map((r) => html`<li data-look=${r.look} data-history-state=${r.state}><span class="dot" aria-hidden="true"></span><span class="t">${r.label}</span><span class="w">${t(r.from)} - ${t(r.to)} · ${durationText(r.minutes)}</span></li>`)}</ol>`

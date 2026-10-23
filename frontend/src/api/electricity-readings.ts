@@ -7,6 +7,7 @@
 import { ApiError, get, post } from './client';
 import { isApi } from './session';
 import { FIXTURE_NOW } from '../electricity/fixtures';
+import { dateInputLang } from './day-format';
 
 export type ReadingUnit = 'kWh' | 'Wh' | 'MWh';
 /** allocation: the reading closed or re-split a reporting gap; record: kept for comparison only. */
@@ -248,7 +249,7 @@ export function localInputToIso(value: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/** A Date as the value of an `<input type="datetime-local">` (local wall clock, minutes). */
+/** A Date as the value of an `<input type="datetime-local" lang=${dateInputLang()}>` (local wall clock, minutes). */
 export function isoToLocalInput(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;

@@ -30,6 +30,7 @@ import { OTHER, defaultPick, locationBody, navAvailable, pickPreview } from './o
 import { lt } from './org-locations-text';
 import type { FileRow } from './rfq-files';
 import { DEFAULT_LIMITS, displayName, formatBytes, localKind } from './rfq-files-model';
+import { dateInputLang } from '../api/day-format';
 
 /** RFQATT: a file picked in the sheet, uploaded onto the draft right after it is created (never part of the create body). */
 interface LocalFile { key: string; file: File; caption: string; visible: boolean; url: string }
@@ -387,14 +388,14 @@ export class TicketsRfqNew extends LitElement {
             onOther: (v) => { this.pickTouched = true; this.set('place_text', v.slice(0, PLACE_MAX * 2)); } })}
           <fieldset class="fld" style="border:0;padding:0;margin:0"><legend>${rt('fDue')}</legend>
             <div class="dates">
-              <label><span class="vh">${rt('fDueDate')}</span><input class="inp" type="date" data-rfq-due-date .value=${d.due_date} aria-invalid=${this.inv('due', p)} aria-describedby="e-due"
+              <label><span class="vh">${rt('fDueDate')}</span><input class="inp" type="date" lang=${dateInputLang()} data-rfq-due-date .value=${d.due_date} aria-invalid=${this.inv('due', p)} aria-describedby="e-due"
                 @change=${(e: Event) => this.set('due_date', (e.target as HTMLInputElement).value)} /></label>
-              <label><span class="vh">${rt('fDueTime')}</span><input class="inp" type="time" data-rfq-due-time .value=${d.due_time} @change=${(e: Event) => this.set('due_time', (e.target as HTMLInputElement).value)} /></label>
+              <label><span class="vh">${rt('fDueTime')}</span><input class="inp" type="time" lang=${dateInputLang()} data-rfq-due-time .value=${d.due_time} @change=${(e: Event) => this.set('due_time', (e.target as HTMLInputElement).value)} /></label>
             </div>${this.err('due', p)}</fieldset>
           <fieldset class="fld" style="border:0;padding:0;margin:0"><legend>${rt('fWindow')}</legend>
             <div class="dates">
-              <label><span class="vh">${rt('fWindowFrom')}</span><input class="inp" type="date" data-rfq-work-from .value=${d.work_from} @change=${(e: Event) => this.set('work_from', (e.target as HTMLInputElement).value)} /></label>
-              <label><span class="vh">${rt('fWindowTo')}</span><input class="inp" type="date" data-rfq-work-to .value=${d.work_to} min=${d.work_from || ''} aria-invalid=${this.inv('window', p)}
+              <label><span class="vh">${rt('fWindowFrom')}</span><input class="inp" type="date" lang=${dateInputLang()} data-rfq-work-from .value=${d.work_from} @change=${(e: Event) => this.set('work_from', (e.target as HTMLInputElement).value)} /></label>
+              <label><span class="vh">${rt('fWindowTo')}</span><input class="inp" type="date" lang=${dateInputLang()} data-rfq-work-to .value=${d.work_to} min=${d.work_from || ''} aria-invalid=${this.inv('window', p)}
                 @change=${(e: Event) => this.set('work_to', (e.target as HTMLInputElement).value)} /></label>
             </div>${this.err('window', p)}</fieldset>
           <div class="fld wide"><span id="kinds-l">${rt('fKinds')} <span class="mut">(${rt('fKindsSub')})</span></span>

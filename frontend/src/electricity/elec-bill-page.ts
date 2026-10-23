@@ -15,6 +15,7 @@ import './elec-bill-paper';
 import { baseNumber, f2, fmtDate, fmtDateTime, fmtRange, isIsoDate, openingSource, readingText } from './elec-format';
 import { addManualReading, parseReading } from '../api/electricity-readings';
 import { go, href, route } from './elec-routes';
+import { dateInputLang } from '../api/day-format';
 
 type Dlg = '' | 'issue' | 'void' | 'correct' | 'sent' | 'paid' | 'delete' | 'opening';
 const HOW: Record<SentHow, string> = { email: 'דוא״ל', hand: 'מסירה ידנית', other: 'אחר' };
@@ -277,14 +278,14 @@ export class ElecBillPage extends ElecBase {
       </elec-dialog>
       <elec-dialog heading="סימון כנשלח" ?open=${this.dlg === 'sent'} data-dialog="sent" @close=${() => this.close()}>
         <div class="form">
-          <div class="fld"><label for="sd">תאריך משלוח</label><input id="sd" type="date" class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
+          <div class="fld"><label for="sd">תאריך משלוח</label><input id="sd" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><span class="lbl">אופן משלוח</span><div class="seg" role="group" aria-label="אופן משלוח">${(['email', 'hand', 'other'] as SentHow[]).map((h) => html`<button type="button" data-how=${h} aria-pressed=${this.how === h} @click=${() => (this.how = h)}>${HOW[h]}</button>`)}</div></div>
         </div>${err}
         <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markSent(b.id, { at: this.date, how: this.how, note: '', row_version: b.row_version }))}>שמירה</button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="סימון כשולם" ?open=${this.dlg === 'paid'} data-dialog="paid" @close=${() => this.close()}>
         <div class="form">
-          <div class="fld"><label for="pd">תאריך תשלום</label><input id="pd" type="date" class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
+          <div class="fld"><label for="pd">תאריך תשלום</label><input id="pd" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><label for="pr">אסמכתה (לא חובה)</label><input id="pr" class="ltr" data-reference placeholder="לא חובה" .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} /></div>
         </div>${err}
         <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markPaid(b.id, { at: this.date, reference: this.text.trim(), row_version: b.row_version }))}>שמירה</button>${cancel()}

@@ -5,6 +5,7 @@
  */
 import type { DefrostWindow, ManagedUnit, RecipientPick, RecipientsResponse, ReportRange, ReportRecipient, TempEvent, TempUnit, UnitBody, UnitKind, UnitStatus, VendorChannel } from '../api/temperature';
 import { tt, type TtKey } from '../i18n/temperature';
+import { timeText } from '../api/day-format';
 
 export const TEMPERATURE_HREF = '#/infra/temperature';
 export const MIN = 60_000;
@@ -64,7 +65,7 @@ export function minutesSince(iso: string | null, now: number): number {
 }
 
 export function hhmm(ms: number, lang = 'he-IL'): string {
-  return new Date(ms).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return timeText(new Date(ms));
 }
 
 export function minOfDay(m: number): string {

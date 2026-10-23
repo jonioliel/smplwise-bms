@@ -29,6 +29,7 @@ import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-l
 import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang } from '../api/day-format';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** The kinds a speaker / player / receiver card may be set to (settings choose; the detected kind is the default). */
@@ -554,8 +555,8 @@ export class SystemMultimediaPlayers extends LitElement {
         <span class="f">חלון לילה
           <span class="night">
             <sw-toggle label=${`חלון לילה: ${d.name}`} labelHidden .checked=${!!night} data-mm-night=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDevice(d, { volume_night: e.detail.checked ? { ...DEFAULT_NIGHT } : null })}></sw-toggle>
-            ${night ? html`<span>מ־</span><input type="time" .value=${night.from} data-mm-night-from=${d.key} aria-label="מ־" @change=${(e: Event) => nightPatch({ from: (e.target as HTMLInputElement).value })} />
-              <span>עד</span><input type="time" .value=${night.to} data-mm-night-to=${d.key} aria-label="עד" @change=${(e: Event) => nightPatch({ to: (e.target as HTMLInputElement).value })} />
+            ${night ? html`<span>מ־</span><input type="time" lang=${dateInputLang()} .value=${night.from} data-mm-night-from=${d.key} aria-label="מ־" @change=${(e: Event) => nightPatch({ from: (e.target as HTMLInputElement).value })} />
+              <span>עד</span><input type="time" lang=${dateInputLang()} .value=${night.to} data-mm-night-to=${d.key} aria-label="עד" @change=${(e: Event) => nightPatch({ to: (e.target as HTMLInputElement).value })} />
               <span>תקרה</span><input type="number" min="0" max="100" .value=${String(night.max)} data-mm-night-max=${d.key} aria-label="תקרה בלילה" @change=${(e: Event) => nightPatch({ max: Number((e.target as HTMLInputElement).value) })} />` : html`<span class="muted">כבוי</span>`}
           </span>
         </span>

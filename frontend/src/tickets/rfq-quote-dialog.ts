@@ -15,6 +15,7 @@ import { rfqStyles } from './rfq-styles';
 import { dayToIso } from './rfq-model';
 import { rfqError } from './rfq-new';
 import { ticketsLang } from './text';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * TKRFQ2 `<tickets-rfq-quote-dialog .rfq .vendor .open>`: a quote entered on the vendor's behalf (the manual channel: the manager spoke
@@ -130,8 +131,8 @@ export class TicketsRfqQuoteDialog extends LitElement {
           <label class="fld">${rt('qCurrency')}<select class="inp" data-q-currency @change=${(e: Event) => (this.currency = (e.target as HTMLSelectElement).value)}>
             ${this.currencies.map((c) => html`<option value=${c} ?selected=${c === this.currency}>${c}</option>`)}</select></label>
           <label class="chk"><input type="checkbox" data-q-vat .checked=${this.includesVat} @change=${(e: Event) => (this.includesVat = (e.target as HTMLInputElement).checked)} />${rt('qIncludesVat')}</label>
-          <label class="fld">${rt('qWindowFrom')}<input class="inp" type="date" .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
-          <label class="fld">${rt('qWindowTo')}<input class="inp" type="date" .value=${this.to} min=${this.from || ''} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>
+          <label class="fld">${rt('qWindowFrom')}<input class="inp" type="date" lang=${dateInputLang()} .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
+          <label class="fld">${rt('qWindowTo')}<input class="inp" type="date" lang=${dateInputLang()} .value=${this.to} min=${this.from || ''} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>
           <label class="fld wide">${rt('qNote')}<input class="inp" maxlength="500" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLInputElement).value)} /></label>
           <label class="fld">${rt('qVendorRef')}<input class="inp" maxlength="60" .value=${this.ref} @input=${(e: Event) => (this.ref = (e.target as HTMLInputElement).value)} /></label>
         </div>

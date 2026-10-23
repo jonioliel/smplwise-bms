@@ -40,6 +40,7 @@ import {
   type TimingForm,
 } from '../access-control/people-writes-logic';
 import { wt, type WritesKey } from '../i18n/access-writes';
+import { dateInputLang } from '../api/day-format';
 
 /** The browser's own check of an IANA zone name (the server checks it again with the zone database). */
 function validZone(zone: string): boolean {
@@ -706,7 +707,7 @@ export class WiskeyPersonEditor extends LitElement {
             : nothing}
           ${f.mode === 'dates'
             ? html`<div class="dates" role="group" aria-label=${wt('timing.dates_label')} data-wiskey-editor-timing-dates>
-                ${f.dates.map((value, i) => html`<div class="row"><input type="date" data-timing-date=${i} min="2000-01-01" max="2037-12-31" .value=${live(value)}
+                ${f.dates.map((value, i) => html`<div class="row"><input type="date" lang=${dateInputLang()} data-timing-date=${i} min="2000-01-01" max="2037-12-31" .value=${live(value)}
                     @change=${(e: Event) => this.setTiming({ dates: f.dates.map((x, j) => (j === i ? (e.target as HTMLInputElement).value : x)) })} />
                   <sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${t('remove')} @click=${() => this.setTiming({ dates: f.dates.filter((_x, j) => j !== i) })}></sw-button></div>`)}
                 <sw-button size="sm" icon="plus" data-timing-add-date ?disabled=${f.dates.length >= MAX_DATES} @click=${() => this.setTiming({ dates: [...f.dates, ''] })}>${wt('timing.add_date')}</sw-button>
@@ -716,9 +717,9 @@ export class WiskeyPersonEditor extends LitElement {
             ? nothing
             : html`<div class="periods" role="group" aria-label=${wt('timing.periods')} data-wiskey-editor-timing-periods>
                 ${f.periods.map((p, i) => html`<div class="row period" data-timing-period=${i}>
-                  <sw-field label=${wt('timing.from')}><input type="time" data-timing-start .value=${live(p.start)}
+                  <sw-field label=${wt('timing.from')}><input type="time" lang=${dateInputLang()} data-timing-start .value=${live(p.start)}
                     @change=${(e: Event) => this.setTiming({ periods: f.periods.map((x, j) => (j === i ? { ...x, start: (e.target as HTMLInputElement).value } : x)) })} /></sw-field>
-                  <sw-field label=${wt('timing.to')}><input type="time" data-timing-end .value=${live(p.end === '24:00' ? '23:59' : p.end)}
+                  <sw-field label=${wt('timing.to')}><input type="time" lang=${dateInputLang()} data-timing-end .value=${live(p.end === '24:00' ? '23:59' : p.end)}
                     @change=${(e: Event) => this.setTiming({ periods: f.periods.map((x, j) => (j === i ? { ...x, end: (e.target as HTMLInputElement).value } : x)) })} /></sw-field>
                   ${f.periods.length > 1 ? html`<sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${t('remove')} @click=${() => this.setTiming({ periods: f.periods.filter((_x, j) => j !== i) })}></sw-button>` : nothing}
                 </div>`)}
@@ -750,10 +751,10 @@ export class WiskeyPersonEditor extends LitElement {
       ${this.timed
         ? html`<div class="grid2">
               <sw-field label=${t('valid_from')}>
-                <input required type="datetime-local" data-wiskey-editor-valid-from .value=${live(this.validityFrom)} @input=${(e: Event) => (this.validityFrom = (e.target as HTMLInputElement).value)} />
+                <input required type="datetime-local" lang=${dateInputLang()} data-wiskey-editor-valid-from .value=${live(this.validityFrom)} @input=${(e: Event) => (this.validityFrom = (e.target as HTMLInputElement).value)} />
               </sw-field>
               <sw-field label=${t('valid_until')}>
-                <input required type="datetime-local" data-wiskey-editor-valid-until .value=${live(this.validityUntil)} @input=${(e: Event) => (this.validityUntil = (e.target as HTMLInputElement).value)} />
+                <input required type="datetime-local" lang=${dateInputLang()} data-wiskey-editor-valid-until .value=${live(this.validityUntil)} @input=${(e: Event) => (this.validityUntil = (e.target as HTMLInputElement).value)} />
               </sw-field>
             </div>
             <p class="muted">${t('clock_ha_zone')}: <bdi>${this.zone.name}</bdi>. ${t('validity_hint')}</p>`

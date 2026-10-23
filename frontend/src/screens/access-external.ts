@@ -30,6 +30,7 @@ import { rt } from '../i18n/access-request';
 import { SkinController } from '../design/skin';
 import { applyExternalPlacement } from '../shell/nav';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang } from '../api/day-format';
 import { leadReserveStyles } from '../styles/lead-reserve'; // header dropdown placement 4: the first row keeps the reserve free (integ/293)
 
 const POLL_MS = 15_000;
@@ -733,8 +734,8 @@ export class AccessExternalScreen extends LitElement {
             })}</div>
             <span class="note ${n ? '' : 'e'}" style=${n ? '' : 'color:var(--sw-danger-text);font-weight:600'}>${n ? xt('ap_onlyNarrow') : xt('ap_pickOne')}</span></section>
           <section class="sec"><h4><sw-icon name="calendar" size="14"></sw-icon>${xt('ap_window')}</h4>
-            <div class="two"><div class="field"><label for="vf">${xt('ap_from')}</label><input id="vf" class="in num" type="date" .value=${this.apFrom} min=${localDate(vf, this.tz)} max=${lastDay(vu, this.tz)} @input=${(e: Event) => (this.apFrom = (e.target as HTMLInputElement).value)} /></div>
-            <div class="field"><label for="vu">${xt('ap_until')}</label><input id="vu" class="in num" type="date" .value=${this.apUntil} min=${localDate(vf, this.tz)} max=${lastDay(vu, this.tz)} aria-invalid=${win.error ? 'true' : 'false'} @input=${(e: Event) => (this.apUntil = (e.target as HTMLInputElement).value)} /></div></div>
+            <div class="two"><div class="field"><label for="vf">${xt('ap_from')}</label><input id="vf" class="in num" type="date" lang=${dateInputLang()} .value=${this.apFrom} min=${localDate(vf, this.tz)} max=${lastDay(vu, this.tz)} @input=${(e: Event) => (this.apFrom = (e.target as HTMLInputElement).value)} /></div>
+            <div class="field"><label for="vu">${xt('ap_until')}</label><input id="vu" class="in num" type="date" lang=${dateInputLang()} .value=${this.apUntil} min=${localDate(vf, this.tz)} max=${lastDay(vu, this.tz)} aria-invalid=${win.error ? 'true' : 'false'} @input=${(e: Event) => (this.apUntil = (e.target as HTMLInputElement).value)} /></div></div>
             <span class="note" style=${win.error ? 'color:var(--sw-danger-text);font-weight:600' : ''} data-window-hint>${winHint}</span></section>
           <section class="sec"><h4><sw-icon name="clock" size="14"></sw-icon>${xt('ap_hours')}</h4><b class="num">${hoursText({ timing: scope?.timing ?? g.timing, valid_from: vf, valid_until: vu }, this.tz)}</b></section>
           ${needTold ? html`<label class="cb"><input type="checkbox" data-approve-told .checked=${this.apTold} @change=${(e: Event) => (this.apTold = (e.target as HTMLInputElement).checked)} /><span>${xt('ap_told')}</span></label>` : nothing}

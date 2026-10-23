@@ -6,9 +6,10 @@ import './sw-state-panel';
 import './frigate-event-control';
 import { cardTime, objectLabel, playbackState, spanRows, spanText, timelineText, type ReviewDetail, type ReviewLayer } from '../api/frigate';
 import { fx, frigateLocale } from '../i18n/frigate-text';
+import { timeText } from '../api/day-format';
 
 const MAX_EVENT_ROWS = 6;
-const hms = (iso: string, tz: string) => new Intl.DateTimeFormat(frigateLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+const hms = (iso: string, tz: string) => timeText(new Date(iso), { timeZone: tz, seconds: true });
 
 /**
  * NN5-F1B / FRGD: the body of the review drawer - the still as a hero, the facts as a quiet two-column grid, the tracked-object

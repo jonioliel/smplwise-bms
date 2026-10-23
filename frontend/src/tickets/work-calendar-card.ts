@@ -13,6 +13,7 @@ import {
   setDayWindow, setDeptMode, setDeptSpec, specProblem, toggleDay, WEEK_ORDER, windowOf, type DeptMode, type HoursSpec, type WorkCalendar,
 } from './work-calendar-model';
 import { wct, type WorkCalendarTextKey } from './work-calendar-text';
+import { dateInputLang } from '../api/day-format';
 
 const DEPT_MODES: readonly DeptMode[] = ['inherit', 'always', 'own'];
 
@@ -142,7 +143,7 @@ export class TicketsWorkCalendarCard extends LitElement {
   /** The hours editor shared by the installation and an own-hours department: working days, the daily window, and one row per working day. */
   private editor(spec: HoursSpec, change: (s: HoursSpec) => void, tag: string): TemplateResult {
     const bad = specProblem(spec);
-    const time = (value: string, aria: string, on: (v: string) => void, attr: string) => html`<input class="in time" type="time" data-wc-time=${attr} aria-label=${aria}
+    const time = (value: string, aria: string, on: (v: string) => void, attr: string) => html`<input class="in time" type="time" lang=${dateInputLang()} data-wc-time=${attr} aria-label=${aria}
       aria-invalid=${String(bad === 'order' || bad === 'time')} .value=${value} @input=${(e: Event) => on((e.target as HTMLInputElement).value)} />`;
     return html`
       <div class="row stack"><span class="lbl">${wct('days')}</span>

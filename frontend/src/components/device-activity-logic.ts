@@ -6,6 +6,7 @@
  * Unknown stays unknown: nothing here guesses an actor (AGENTS.md: historical unknown is not current state).
  */
 import type { ActivityItem, ActivityKind, ActorType, EventType } from '../api/device-activity';
+import { timeText } from '../api/day-format';
 
 /** The icon (sw-icon name) of each kind. */
 export const KIND_ICON: Record<ActivityKind, string> = {
@@ -249,7 +250,7 @@ export function groupByDay(items: ActivityItem[], now = new Date(), tz?: string)
 }
 
 export function clockOf(iso: string, tz?: string): string {
-  return new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+  return timeText(new Date(iso), { timeZone: tz });
 }
 
 /** The full instant for a tooltip: "יום ג׳ 3.10.2026, 15:45". */
