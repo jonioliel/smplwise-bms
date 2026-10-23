@@ -396,6 +396,116 @@ def test_one_key_belongs_to_one_device(rx):
     assert mint(rx, dev["device_id"], key).status_code == 201  # the same device re-mints with its own key (the rotation path)
 
 
+# ---------------------------------------------------------------- D-01: replacing a bound key needs the old key's proof
+
+def replace_body(rx, device_id: str, new: Key | None, old: Key, nonce: str | None = None, ts: int | None = None,
+                 public_key: str | None = None) -> dict:
+    """A mint body for `new` (or, under mode `off`, any key text) carrying the OLD key's consent over a challenge nonce."""
+    body = key_body(rx, device_id, new or Key(), public_key=public_key)
+    nonce = nonce or nonce_of(rx, device_id)
+    ts = now(rx) if ts is None else ts
+    body["replaces"] = {"nonce": nonce, "ts": ts, "sig": old.sign(dk.replace_message(device_id, nonce, ts, body["public_key"]))}
+    return body
+
+
+def test_d01_a_new_key_without_the_old_keys_proof_is_refused_and_ends_nothing(rx):
+    dev, out, old = keyed(rx)
+    attacker = Key()
+    r = mint(rx, dev["device_id"], attacker)  # a fresh session + ids, the attacker's key, no proof by the phone's key
+    assert r.status_code == 409 and r.json()["code"] == "device_key_bound" and r.json()["details"]["reason"] == "missing", r.text
+    # a keyless mint (mode optional) would drop the key too: refused the same way
+    r = mint(rx, dev["device_id"], None)
+    assert r.status_code == 409 and r.json()["code"] == "device_key_bound"
+    assert family_row(rx, out["family_id"])["revoked_at"] is None
+    with rx.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM app_refresh_families WHERE device_id = ?", (dev["device_id"],)).fetchone()[0] == 1
+    rows = audit_rows(rx, "auth.app_refresh.issue")
+    assert [a["reason"] for a in rows][-2:] == ["device_key_bound", "device_key_bound"]
+    assert json.loads(rows[-1]["details_json"])["replace"] == "missing"
+    # the phone keeps refreshing with its own key
+    r = prefresh(rx, out["refresh_token"], dev["device_id"], proof(rx, old, dev["device_id"], out["refresh_token"]))
+    assert r.status_code == 200, r.text
+
+
+def test_d01_a_wrong_replace_proof_is_refused(rx):
+    dev, out, old = keyed(rx)
+    new = Key()
+    vdev, _, _ = keyed(rx, "vera", install_id=INSTALL2)
+    cases = [
+        (replace_body(rx, dev["device_id"], new, old=Key()), "invalid"),  # signed by a key that is not the bound one
+        (replace_body(rx, dev["device_id"], new, old=new), "invalid"),  # signed by the NEW key itself
+        (replace_body(rx, dev["device_id"], new, old, nonce="arxn_" + "a" * 43), "nonce"),  # a nonce nobody issued
+        (replace_body(rx, dev["device_id"], new, old, nonce=nonce_of(rx, vdev["device_id"])), "nonce"),  # another family's nonce
+        (replace_body(rx, dev["device_id"], new, old, ts=now(rx) - dk.POP_SKEW_S - 1), "clock"),
+    ]
+    # the old key signing over ANOTHER new key than the one sent
+    other = replace_body(rx, dev["device_id"], Key(), old)
+    other["public_key"], other["proof"] = new.text, key_body(rx, dev["device_id"], new)["proof"]
+    cases.append((other, "invalid"))
+    for body, reason in cases:
+        r = mint(rx, dev["device_id"], None, body=body)
+        assert r.status_code == 409 and r.json()["code"] == "device_key_bound" and r.json()["details"]["reason"] == reason, (reason, r.text)
+    assert family_row(rx, out["family_id"])["revoked_at"] is None
+    # a replace proof is single use: the nonce of a refused try is consumed
+    body = replace_body(rx, dev["device_id"], new, old)
+    assert mint(rx, dev["device_id"], None, body=body).status_code == 201
+    again = replace_body(rx, dev["device_id"], Key(), old, nonce=body["replaces"]["nonce"])
+    assert mint(rx, dev["device_id"], None, body=again).status_code == 409  # bound to the new key now, and the nonce was spent
+
+
+def test_d01_replacing_with_the_old_keys_proof_binds_the_new_key(rx):
+    dev, out, old = keyed(rx)
+    new = Key()
+    r = mint(rx, dev["device_id"], None, body=replace_body(rx, dev["device_id"], new, old))
+    assert r.status_code == 201, r.text
+    out2 = r.json()
+    assert family_row(rx, out["family_id"])["revoked_reason"] == "replaced"
+    assert family_row(rx, out2["family_id"])["device_key_fp"] == new.fp
+    rows = audit_rows(rx, "auth.app_refresh.key_replaced")
+    assert len(rows) == 1
+    d = json.loads(rows[0]["details_json"])
+    assert d["old_key_fp"] == old.fp[:16] and d["new_key_fp"] == new.fp[:16] and d["family"] == out["family_id"]
+    assert old.text not in rows[0]["details_json"] and new.text not in rows[0]["details_json"]
+    # the old key is useless now, the new one refreshes
+    r = prefresh(rx, out2["refresh_token"], dev["device_id"], proof(rx, new, dev["device_id"], out2["refresh_token"]))
+    assert r.status_code == 200, r.text
+    # the same key re-minted needs no replace proof (and writes no key_replaced row)
+    assert mint(rx, dev["device_id"], new).status_code == 201
+    assert len(audit_rows(rx, "auth.app_refresh.key_replaced")) == 1
+
+
+def test_d01_after_the_old_family_ended_a_new_key_binds_normally(rx):
+    # the lost-key path: the user ends the sign-in explicitly (settings card), then the mint binds the new key without the old key
+    dev, out, old = keyed(rx)
+    assert rx.user("dana").delete(f"{ARX}/auth/app/families/{out['family_id']}").status_code == 204
+    new = Key()
+    r = mint(rx, dev["device_id"], new)
+    assert r.status_code == 201, r.text
+    assert family_row(rx, r.json()["family_id"])["device_key_fp"] == new.fp
+    # and after the app's own sign-out with the current token
+    out2 = r.json()
+    assert rx.c.post(f"{ARX}/auth/app/sign-out", json={"refresh_token": out2["refresh_token"]}).status_code == 204
+    assert mint(rx, dev["device_id"], Key()).status_code == 201
+    assert audit_rows(rx, "auth.app_refresh.key_replaced") == []
+
+
+def test_d01_mode_off_cannot_drop_a_bound_key_without_the_old_keys_proof(rx):
+    dev, out, old = keyed(rx)
+    switch(rx, **{MODE: "off"})
+    r = mint(rx, dev["device_id"], Key())  # under off the new key is not bound: the family would become keyless
+    assert r.status_code == 409 and r.json()["code"] == "device_key_bound"
+    r = mint(rx, dev["device_id"], old)  # even the same key: under off the new family would carry none
+    assert r.status_code == 409
+    assert family_row(rx, out["family_id"])["revoked_at"] is None
+    r = mint(rx, dev["device_id"], None, body=replace_body(rx, dev["device_id"], None, old))
+    assert r.status_code == 201 and r.json()["device_key"] == {"bound": False}, r.text
+    assert json.loads(audit_rows(rx, "auth.app_refresh.key_replaced")[0]["details_json"])["new_key_fp"] is None
+
+
+def test_d01_the_replace_string_is_exactly_the_documented_one():
+    assert dk.replace_message("dev_a", "arxn_n", 1900000000, "PUBKEY") == b"arx-app-pop-v1\nreplace\ndev_a\narxn_n\n1900000000\nPUBKEY"
+
+
 # ---------------------------------------------------------------- the challenge route
 
 def test_the_challenge_is_absent_while_off_or_local_and_shapeless_for_strangers(rx):
@@ -411,16 +521,62 @@ def test_the_challenge_is_absent_while_off_or_local_and_shapeless_for_strangers(
     assert dk.nonce_hash(known["nonce"]) in stored and dk.nonce_hash(stranger["nonce"]) not in stored and len(stored) == 1
 
 
-def test_challenges_are_rate_limited_per_family_and_bounded_in_number(rx):
+def open_nonces(rx, family_id: str) -> int:
+    with rx.db.connection(mode="read") as conn:
+        return conn.execute("SELECT COUNT(*) FROM app_refresh_nonces WHERE family_id = ?", (family_id,)).fetchone()[0]
+
+
+def challenge_from(rx, device_id: str, ip: str):
+    return rx.c.post(f"{ARX}/auth/app/refresh-challenge", json={"device_id": device_id}, headers={"CF-Connecting-IP": ip})
+
+
+def test_challenges_are_rate_limited_per_family_and_client_and_bounded_in_number(rx):
     dev, out, key = keyed(rx)
     for _ in range(svc.RATE_CHALLENGE[0]):
         assert challenge(rx, dev["device_id"]).status_code == 200
     assert challenge(rx, dev["device_id"]).status_code == 429
-    with rx.db.connection(mode="read") as conn:
-        assert conn.execute("SELECT COUNT(*) FROM app_refresh_nonces WHERE family_id = ?", (out["family_id"],)).fetchone()[0] == dk.MAX_OPEN_NONCES
+    assert open_nonces(rx, out["family_id"]) == svc.RATE_CHALLENGE[0]
+    # more clients: the open set stays bounded (the oldest are dropped)
+    for i in range(1, 4):
+        for _ in range(svc.RATE_CHALLENGE[0]):
+            assert challenge_from(rx, dev["device_id"], f"198.51.100.{i}").status_code == 200
+    assert open_nonces(rx, out["family_id"]) == dk.MAX_OPEN_NONCES
     for i in range(svc.FAILURES_PER_MIN):  # strangers count on the client's failure tier
         assert challenge(rx, f"dev_unknown{i:08d}").status_code == 200
     assert challenge(rx, "dev_unknown_last00").status_code == 429
+
+
+def test_d02_challenges_from_a_second_client_never_starve_the_first(rx):
+    # security review D-02: a third party who knows the device id empties ITS bucket, not the phone's; and its burst cannot evict the
+    # phone's open nonce
+    dev, out, key = keyed(rx)
+    phone, attacker = "203.0.113.10", "198.51.100.66"
+    r = challenge_from(rx, dev["device_id"], phone)
+    assert r.status_code == 200
+    phone_nonce = r.json()["nonce"]
+    codes = [challenge_from(rx, dev["device_id"], attacker).status_code for _ in range(svc.RATE_CHALLENGE[0] + 5)]
+    assert codes.count(200) == svc.RATE_CHALLENGE[0] and codes[-1] == 429
+    # the phone's nonce survived the attacker's burst and the phone still gets fresh ones
+    tok = out["refresh_token"]
+    pr = {"nonce": phone_nonce, "ts": now(rx), "sig": key.sign(dk.refresh_message(dev["device_id"], phone_nonce, now(rx), tok))}
+    r = rx.c.post(f"{ARX}/auth/app/refresh", json={"refresh_token": tok, "device_id": dev["device_id"], "install_id": INSTALL, "proof": pr},
+                  headers={"CF-Connecting-IP": phone})
+    assert r.status_code == 200, r.text
+    rx.seen += [r.json()["refresh_token"], r.json()["access_token"]]
+    for _ in range(svc.RATE_CHALLENGE[0]):
+        assert challenge_from(rx, dev["device_id"], phone).status_code == 200
+    assert challenge_from(rx, dev["device_id"], attacker).status_code == 429  # the attacker stays limited
+
+
+def test_d02_the_per_family_ceiling_catches_a_storm_from_many_addresses(rx):
+    dev, out, key = keyed(rx)
+    ok = 0
+    for i in range(svc.RATE_CHALLENGE_FAMILY[0] // svc.RATE_CHALLENGE[0] + 2):
+        for _ in range(svc.RATE_CHALLENGE[0]):
+            ok += challenge_from(rx, dev["device_id"], f"192.0.2.{i + 1}").status_code == 200
+    assert ok == svc.RATE_CHALLENGE_FAMILY[0]
+    assert open_nonces(rx, out["family_id"]) == dk.MAX_OPEN_NONCES
+    assert family_row(rx, out["family_id"])["revoked_at"] is None  # a storm ends nothing
 
 
 def test_ending_a_family_drops_its_nonces_and_the_janitor_drops_stale_ones(rx):

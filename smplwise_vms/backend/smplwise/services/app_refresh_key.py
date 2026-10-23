@@ -23,7 +23,9 @@ POP_VERSION = "arx-app-pop-v1"
 NONCE_PREFIX = "arxn_"
 NONCE_TTL_S = 120  # a challenge nonce is valid this long and once
 POP_SKEW_S = 300  # |ts - server time| allowed in a signed proof (the app may correct with the challenge's server_time)
-MAX_OPEN_NONCES = 5  # unexpired, unused nonces kept per family (older ones are dropped at the next challenge)
+# unexpired, unused nonces kept per family (older ones are dropped at the next challenge). Security review D-02 (2026-10-24): 32, so a
+# burst from one source (at most RATE_CHALLENGE per client) cannot evict the nonce another client - the phone - asked for.
+MAX_OPEN_NONCES = 32
 FP_PREFIX_LEN = 16  # hex characters of the key fingerprint an audit row may carry
 
 P256_N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
@@ -113,6 +115,12 @@ def mint_message(device_id: str, ts: int, public_key_text: str) -> bytes:
     return "\n".join((POP_VERSION, "mint", device_id, "-", str(int(ts)), public_key_text)).encode("utf-8")
 
 
+def replace_message(device_id: str, nonce: str, ts: int, new_public_key_text: str) -> bytes:
+    """Security review D-01 (b): the exact bytes the OLD key signs to hand the device's saved sign-in to a new key - a challenge nonce of
+    the device's current keyed sign-in, and the mint's new `public_key` field verbatim as the last line ("" when the mint sends none)."""
+    return "\n".join((POP_VERSION, "replace", device_id, nonce, str(int(ts)), new_public_key_text)).encode("utf-8")
+
+
 def nonce_hash(nonce: str) -> str:
     return hashlib.sha256(("nonce:" + nonce).encode("utf-8", "replace")).hexdigest()
 
@@ -122,5 +130,5 @@ def is_nonce(value: object) -> bool:
 
 
 __all__ = ["ALG", "POP_VERSION", "NONCE_PREFIX", "NONCE_TTL_S", "POP_SKEW_S", "MAX_OPEN_NONCES", "BadKey", "parse_public_key",
-           "fingerprint_prefix", "verify", "refresh_message", "mint_message", "token_digest", "nonce_hash", "is_nonce", "b64u_encode",
+           "fingerprint_prefix", "verify", "refresh_message", "mint_message", "replace_message", "token_digest", "nonce_hash", "is_nonce", "b64u_encode",
            "b64u_decode"]

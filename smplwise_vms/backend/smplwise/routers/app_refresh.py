@@ -92,6 +92,15 @@ class MintProofIn(BaseModel):
     sig: str = Field(min_length=1, max_length=120)
 
 
+class ReplaceProofIn(BaseModel):
+    """Security review D-01 (b): the OLD key's signature that hands the device's keyed sign-in to the new key (spec section 6)."""
+    model_config = ConfigDict(extra="forbid")
+
+    nonce: str = Field(min_length=1, max_length=100)
+    ts: int
+    sig: str = Field(min_length=1, max_length=120)
+
+
 class DeviceKeyIn(BaseModel):
     """APPREFRESH2: the public half of the app's hardware key (docs/changes/APPREFRESH-DEVICEKEY-SPEC.md section 3)."""
     model_config = ConfigDict(extra="forbid")
@@ -99,6 +108,7 @@ class DeviceKeyIn(BaseModel):
     alg: Literal["ES256"]
     public_key: str = Field(min_length=40, max_length=200)
     proof: MintProofIn
+    replaces: ReplaceProofIn | None = None
 
 
 class IssueIn(BaseModel):
@@ -196,7 +206,11 @@ def refresh_challenge(body: ChallengeIn, request: Request) -> dict[str, Any]:
             raise _too_many()
         svc.failed(key)
         return svc.unstored_challenge()  # the same shape, stored nowhere, no write gate
-    if not svc.take("app_refresh.challenge", fam_id, svc.RATE_CHALLENGE):
+    # Security review D-02: the bucket is per (family, client /64) - another caller who knows the device id never empties the phone's -
+    # and a per-family ceiling far above an app's need catches a storm from many addresses
+    if not svc.take("app_refresh.challenge", f"{fam_id}|{key}", svc.RATE_CHALLENGE):
+        raise _too_many()
+    if not svc.take("app_refresh.challenge_family", fam_id, svc.RATE_CHALLENGE_FAMILY):
         raise _too_many()
     with db.connection(label="app_refresh.challenge") as conn:
         return svc.challenge(conn, body.device_id)[0]

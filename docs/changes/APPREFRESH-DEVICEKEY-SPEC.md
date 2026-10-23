@@ -55,6 +55,7 @@ arx-app-pop-v1
 |---|---|---|---|---|
 | `mint` | the `device_id` of the mint request | the single character `-` | the proof's `ts` (decimal, no sign, no leading zeros) | the `public_key` field **verbatim** as sent |
 | `refresh` | the `device_id` of the refresh request | the nonce from the challenge, verbatim (`arxn_...`) | the proof's `ts` | `token_digest` of the refresh token sent in the same request |
+| `replace` (signed by the OLD key, section 6) | the `device_id` of the mint request | a nonce from the challenge of the device's current sign-in | the `replaces.ts` | the NEW `public_key` field of the same mint request **verbatim** |
 
 The platform hashes the message itself (SHA-256 inside `SHA256withECDSA` / `.ecdsaSignatureMessageX962SHA256` / CryptoKit
 `signature(for:)`): the app passes the message bytes, NOT a pre-computed digest.
@@ -63,6 +64,8 @@ Test vector for the byte layout (the server test `test_the_signed_strings_are_ex
 `refresh_message("dev_a", "arxn_n", 1900000000, "arxr_t")` =
 `arx-app-pop-v1\nrefresh\ndev_a\narxn_n\n1900000000\n` + base64url(SHA-256("arxr_t")).
 `mint_message("dev_a", 1900000000, "PUBKEY")` = `arx-app-pop-v1\nmint\ndev_a\n-\n1900000000\nPUBKEY`.
+`replace_message("dev_a", "arxn_n", 1900000000, "PUBKEY")` = `arx-app-pop-v1\nreplace\ndev_a\narxn_n\n1900000000\nPUBKEY`
+(pinned by `test_d01_the_replace_string_is_exactly_the_documented_one`).
 
 ## 5. The calls
 
@@ -88,6 +91,7 @@ POST /auth/app/refresh-tokens
 | `422 device_key_invalid` | the public key is not a P-256 key in one of the two encodings | app bug; report |
 | `422 device_key_proof_invalid` | the mint signature does not verify, or `ts` is more than 300 s off the server clock | check the byte layout / the phone clock |
 | `409 device_key_in_use` | this public key is bound to a live sign-in of ANOTHER device | generate a new key pair (never share a key between installs) |
+| `409 device_key_bound`, `details.reason` = `missing` / `nonce` / `invalid` / `clock` | the device's live sign-in is bound to ANOTHER key (or the mint would leave it keyless) and `device_key.replaces` is missing or does not verify with the old key (section 6) | holding the old key: challenge, sign the `replace` message, mint again; without it: end the old sign-in first (section 6) |
 
 A refused key never ends the device's existing saved sign-in.
 
@@ -101,8 +105,10 @@ POST /auth/app/refresh-challenge
 ```
 
 The answer has the same shape for any device id (an unknown one gets a nonce that is stored nowhere). A nonce is **single use** and valid
-**120 s**; it belongs to the device's current saved sign-in only. The server keeps at most 5 open nonces per sign-in (older ones are
-dropped), and answers at most 10 challenges in a burst / 30 per minute per sign-in.
+**120 s**; it belongs to the device's current saved sign-in only. The server keeps at most 32 open nonces per sign-in (older ones are
+dropped), and answers at most 10 challenges in a burst / 30 per minute per sign-in AND client address (an IPv6 caller counts as its /64),
+with a ceiling of 60 in a burst / 120 per minute per sign-in over all addresses (security review D-02: another caller who knows the device
+id cannot empty the phone's allowance or evict its nonce with a burst from one address).
 
 ### 5.3 Refresh (no cookie) - with the proof
 
@@ -133,11 +139,23 @@ refresh (the request timeout stays below 20 s, CR F-05; budget the challenge rou
 
 ## 6. Rotation, replacement, re-registration
 
-- **Key rotation = re-mint.** To replace the key (a new phone, Keystore key invalidated by a lock-screen change, a suspected compromise, a
-  periodic rotation), the app creates a new key pair and calls the mint again from a signed-in session (the CR's freshness rule applies:
-  a sign-in at most 15 minutes old). The new sign-in replaces the old one of the device (`replaced`); the old key is then useless. There
-  is no "change key with the old key" call in v1.
-- **The same key re-minted on the same device** is accepted (the old sign-in is replaced); on ANOTHER device it is refused (`409`).
+- **Key change needs the old key (security review D-01, option b).** While the device has a live sign-in bound to a key, a mint that
+  would bind a DIFFERENT key - or none (no `device_key` sent, or mode `off`) - must carry the old key's consent:
+  ```
+  "device_key": { "alg": "ES256", "public_key": "<NEW key>", "proof": { ...signed by the NEW key... },
+                  "replaces": { "nonce": "arxn_...", "ts": 1900000000, "sig": "<base64url: OLD key signs the replace message>" } }
+  ```
+  The nonce comes from `POST /auth/app/refresh-challenge` for the device (it belongs to the current sign-in) and is single use; the
+  replace message is section 4's `replace` row (last line = the NEW `public_key` verbatim). Without a valid `replaces` the mint answers
+  `409 device_key_bound` and ends nothing. On success the old sign-in ends (`replaced`) and the audit gets
+  `auth.app_refresh.key_replaced` (16-hex prefixes of the old and new fingerprints). A planned rotation (periodic, suspected compromise
+  while the phone still holds the old key) uses this path.
+- **Lost old key** (reinstall, Keystore key invalidated by a lock-screen change, a new phone): the old sign-in is ended explicitly first -
+  the app's own `POST /auth/app/sign-out` with its current token, the user's "end this sign-in" in the settings card
+  (`DELETE /auth/app/families/{id}`), or an administrator - and the mint afterwards binds the new key normally (a fresh sign-in, at most
+  15 minutes old, as in the CR).
+- **The same key re-minted on the same device** is accepted without `replaces` (the old sign-in is replaced); on ANOTHER device it is
+  refused (`409 device_key_in_use`).
 - **Device re-registration** (`POST /presence/devices` of the same install) ends the device's saved sign-in (`device_reregistered`, CR
   4.3); the app mints again with a NEW key pair. A proof made with the previous registration's key never verifies against the new one.
 - **Reinstall / app data cleared:** the Keystore / Keychain key is gone; the old sign-in cannot refresh (the next refresh attempt without

@@ -64,7 +64,10 @@ DEVICE_KEY_KEY = "security.app_refresh_device_key"
 DEVICE_KEY_MODES = ("off", "optional", "required")
 DEVICE_KEY_DEFAULT = "optional"
 SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY)
-RATE_CHALLENGE = (10, 30.0)  # challenge nonces per family: burst 10, 30 per minute
+# Security review D-02 (2026-10-24): challenge nonces per (family, client /64) - burst 10, 30 per minute - so a third party who knows a
+# device id can no longer empty the phone's bucket; plus a per-family ceiling well above an app's need that only catches storms.
+RATE_CHALLENGE = (10, 30.0)
+RATE_CHALLENGE_FAMILY = (60, 120.0)
 RETRY_GRACE_S = 20  # a used token whose child is still unused may be presented again this long (a lost answer); owner decision: constant
 
 FRESH_SIGN_IN_S = 15 * 60  # the remote channel mints a family only from a sign-in at most this old
@@ -84,6 +87,7 @@ DEVICE_HE = "המכשיר לא נמצא."
 NOT_FOUND_HE = "Not found"
 KEY_HE = "מפתח המכשיר אינו תקין. יש לעדכן את האפליקציה ולהיכנס מחדש."
 PROOF_RETRY_HE = "יש לחזור על הבקשה."
+KEY_BOUND_HE = "הכניסה השמורה במכשיר זה קשורה למפתח אחר. יש לסיים אותה תחילה ולהיכנס מחדש."
 
 
 class Refused(ApiError):
@@ -341,35 +345,85 @@ def _answer(fam: sqlite3.Row, refresh: str, access: str, access_exp: float, idle
 
 def _mint_key(conn: sqlite3.Connection, principal: Principal, device_id: str, device_key: dict[str, Any] | None, request_id: str | None) -> tuple[str, str] | None:
     """The key a new family binds: (SPKI DER base64url, fingerprint hex) or None (no key: mode off, or optional without one). Every
-    refusal is audited with the reason only (never the key, the signature or a full fingerprint) and raises 422 / 409."""
+    refusal is audited with the reason only (never the key, the signature or a full fingerprint) and raises 422 / 409.
+
+    Security review D-01 (b): while the device has a live KEYED family, a mint that would leave it without that key (another key, no key,
+    or mode `off`) must carry `device_key.replaces`, a proof by the OLD key (`_check_replace`); otherwise `409 device_key_bound` and
+    nothing ends. The lost-key case goes through an explicit end first (the app's sign-out, the user's own "end this sign-in", an
+    administrator), after which the mint binds the new key normally."""
     mode = device_key_mode(conn)
-    if mode == "off":
-        return None  # nothing is bound; the answer says `bound: false`, the app keeps refreshing without a proof
 
     def deny(status: int, code: str, reason: str) -> Refused:
         audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
               reason=reason, request_id=request_id, details={"device_key_mode": mode})
         return Refused(status, code, KEY_HE)
 
-    if device_key is None:
-        if mode == "required":
-            raise deny(422, "device_key_required", "device_key_required")
-        return None
-    text = device_key.get("public_key") or ""
-    try:
-        spki, fp = dk.parse_public_key(text)
-    except dk.BadKey:
-        raise deny(422, "device_key_invalid", "device_key_invalid") from None
-    proof = device_key.get("proof") or {}
-    ts = proof.get("ts")
-    if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(spki, str(proof.get("sig") or ""), dk.mint_message(device_id, ts, text)):
-        raise deny(422, "device_key_proof_invalid", "proof_invalid")
-    if abs(ts - _now()) > dk.POP_SKEW_S:
-        raise deny(422, "device_key_proof_invalid", "proof_stale")
-    other = conn.execute("SELECT 1 FROM app_refresh_families WHERE device_key_fp = ? AND revoked_at IS NULL AND device_id <> ?", (fp, device_id)).fetchone()
-    if other is not None:  # one hardware key per phone: the same key on another device is a copy
-        raise deny(409, "device_key_in_use", "device_key_in_use")
-    return dk.b64u_encode(spki), fp
+    key: tuple[str, str] | None = None
+    if mode != "off":  # under `off` nothing is bound; the answer says `bound: false`, the app keeps refreshing without a proof
+        if device_key is None:
+            if mode == "required":
+                raise deny(422, "device_key_required", "device_key_required")
+        else:
+            text = device_key.get("public_key") or ""
+            try:
+                spki, fp = dk.parse_public_key(text)
+            except dk.BadKey:
+                raise deny(422, "device_key_invalid", "device_key_invalid") from None
+            proof = device_key.get("proof") or {}
+            ts = proof.get("ts")
+            if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(spki, str(proof.get("sig") or ""), dk.mint_message(device_id, ts, text)):
+                raise deny(422, "device_key_proof_invalid", "proof_invalid")
+            if abs(ts - _now()) > dk.POP_SKEW_S:
+                raise deny(422, "device_key_proof_invalid", "proof_stale")
+            other = conn.execute("SELECT 1 FROM app_refresh_families WHERE device_key_fp = ? AND revoked_at IS NULL AND device_id <> ?", (fp, device_id)).fetchone()
+            if other is not None:  # one hardware key per phone: the same key on another device is a copy
+                raise deny(409, "device_key_in_use", "device_key_in_use")
+            key = (dk.b64u_encode(spki), fp)
+    bound = conn.execute("SELECT family_id, device_key_spki, device_key_fp FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL"
+                         " AND device_key_fp IS NOT NULL", (device_id,)).fetchone()
+    if bound is not None and (key is None or key[1] != bound["device_key_fp"]):
+        _check_replace(conn, principal, device_id, bound, device_key, mode, request_id)
+        audit(conn, actor=principal, action="auth.app_refresh.key_replaced", decision="allowed", resource_type="mobile_device", resource_id=device_id,
+              request_id=request_id, details={"family": bound["family_id"], "old_key_fp": dk.fingerprint_prefix(bound["device_key_fp"]),
+                                              "new_key_fp": dk.fingerprint_prefix(key[1]) if key else None, "device_key_mode": mode})
+    return key
+
+
+def _take_nonce(conn: sqlite3.Connection, family_id: str, nonce: Any, now: float) -> bool:
+    """Spend a challenge nonce of `family_id`: False for an unknown / foreign / used / expired one. A valid one is marked used BEFORE the
+    caller verifies the signature (single use, also when the proof is then refused)."""
+    row = conn.execute("SELECT * FROM app_refresh_nonces WHERE nonce_hash = ?", (dk.nonce_hash(nonce),)).fetchone() if dk.is_nonce(nonce) else None
+    if row is None or row["family_id"] != family_id or row["used_at"] or epoch(row["expires_at"]) <= now:
+        return False
+    conn.execute("UPDATE app_refresh_nonces SET used_at = ? WHERE nonce_hash = ?", (iso(now), row["nonce_hash"]))
+    return True
+
+
+def _check_replace(conn: sqlite3.Connection, principal: Principal, device_id: str, bound: sqlite3.Row, device_key: dict[str, Any] | None,
+                   mode: str, request_id: str | None) -> None:
+    """Security review D-01 (b): the OLD key's consent to hand the device's keyed sign-in to the mint's new key (or to none). The proof
+    `device_key.replaces = {nonce, ts, sig}` signs `replace_message(device_id, nonce, ts, <the new public_key text>)` with the old key over
+    a challenge nonce of the old family (POST /auth/app/refresh-challenge). Every refusal is `409 device_key_bound` with a reason, audited,
+    and ends nothing (a consumed nonce stays consumed)."""
+    now = _now()
+
+    def deny(reason: str) -> Refused:
+        audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
+              reason="device_key_bound", request_id=request_id, details={"device_key_mode": mode, "family": bound["family_id"], "replace": reason})
+        return Refused(409, "device_key_bound", KEY_BOUND_HE, details={"reason": reason, "server_time": int(now)})
+
+    rep = (device_key or {}).get("replaces")
+    if not rep:
+        raise deny("missing")
+    nonce, ts, sig = rep.get("nonce"), rep.get("ts"), rep.get("sig")
+    if not _take_nonce(conn, bound["family_id"], nonce, now):
+        raise deny("nonce")
+    text = str((device_key or {}).get("public_key") or "")
+    if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(dk.b64u_decode(bound["device_key_spki"]), str(sig or ""),
+                                                                        dk.replace_message(device_id, nonce, ts, text)):
+        raise deny("invalid")
+    if abs(ts - now) > dk.POP_SKEW_S:
+        raise deny("clock")
 
 
 def unstored_challenge() -> dict[str, Any]:
@@ -428,10 +482,8 @@ def _check_proof(conn: sqlite3.Connection, fam: sqlite3.Row, token: str, device_
         _end(conn, fam, "proof_missing", request_id)
         raise Refused(401, "app_refresh_invalid", INVALID_HE)
     nonce, ts, sig = proof.get("nonce"), proof.get("ts"), proof.get("sig")
-    row = conn.execute("SELECT * FROM app_refresh_nonces WHERE nonce_hash = ?", (dk.nonce_hash(nonce),)).fetchone() if dk.is_nonce(nonce) else None
-    if row is None or row["family_id"] != fam["family_id"] or row["used_at"] or epoch(row["expires_at"]) <= now:
+    if not _take_nonce(conn, fam["family_id"], nonce, now):  # single use, also when the proof is then refused
         raise _proof_retry("nonce", now)
-    conn.execute("UPDATE app_refresh_nonces SET used_at = ? WHERE nonce_hash = ?", (iso(now), row["nonce_hash"]))  # single use, also when refused
     spki = dk.b64u_decode(fam["device_key_spki"])
     if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(spki, str(sig or ""), dk.refresh_message(device_id, nonce, ts, token)):
         _end(conn, fam, "proof_invalid", request_id)
