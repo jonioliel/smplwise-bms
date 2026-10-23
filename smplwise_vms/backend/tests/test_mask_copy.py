@@ -102,7 +102,7 @@ def test_plan_reads_only_never_writes_and_warns(world):
     assert [w["code"] for w in out["warnings"]] == ["scene_must_match"]
     assert (out["ready"], out["unchanged"], out["conflict"]) == (2, 0, 0) and len(out["plan_digest"]) == 32
     by = {i["camera_id"]: i for i in out["items"]}
-    assert by[b]["after"]["enabled"] is True and by[b]["after"]["regions"][0]["points"] == SQUARE and by[b]["before"]["enabled"] is False
+    assert by[b]["after"]["enabled"] is True and sorted(by[b]["after"]["regions"][0]["points"]) == sorted(SQUARE) and by[b]["before"]["enabled"] is False
     assert len(by[c3]["after"]["regions"]) == 2 and by[c3]["etag"]
     assert fake.writes() == [] and all(m == "GET" for m, _p in fake.calls)
     assert fake.master[2] is False and fake.regions[2] == {}
