@@ -35,6 +35,7 @@ import {
   ticketsSectionTarget,
   visibleAreas,
   visibleTabs,
+  ticketsSectionOfPage,
   type Can,
   type TicketsSection,
 } from '../src/shell/nav';
@@ -113,7 +114,10 @@ test('the structure: four sections, every old page in exactly one section, hrefs
   expect(TICKETS_TABS.map((t) => t.short)).toEqual(['בקשות', 'תחזוקה', 'ספקים', 'סקירה']);
   const pages = ticketsAllPages();
   // SERVICEIA2-295: the three scope tabs are the list page's scope segment; every other page is as it was
-  expect(pages.flatMap((p) => (p.id === 'list' ? Object.values(TICKETS_SCOPE_HREFS) : [p.href])).sort()).toEqual(OLD_TABS.map((t) => t.href).sort()); // nothing lost, nothing added, no href renamed
+  // release/2150: the two pages built for the sections (CR-MAINT215 maintenance, CR-INSIGHT215 building report) are the only additions
+  const ADDED = ['#/tickets/maintenance/ledger', '#/tickets/reports/building'];
+  expect(pages.filter((p) => ADDED.includes(p.href ?? '')).map((p) => [ticketsSectionOfPage(p.id), p.href])).toEqual([['maintenance', ADDED[0]], ['reports', ADDED[1]]]);
+  expect(pages.filter((p) => !ADDED.includes(p.href ?? '')).flatMap((p) => (p.id === 'list' ? Object.values(TICKETS_SCOPE_HREFS) : [p.href])).sort()).toEqual(OLD_TABS.map((t) => t.href).sort()); // nothing lost, no href renamed
   expect(ids(TICKETS_REQUESTS_PAGES)).toEqual(['list', 'board']);
   expect(new Set(ids(pages)).size).toBe(pages.length);
   for (const [href, need] of Object.entries(OLD_PERMISSIONS)) expect(TAB_PERMISSIONS[href], href).toEqual(need);

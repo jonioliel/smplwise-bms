@@ -170,7 +170,7 @@ test('notifications: a category of its own (owner answer q20), placed last, with
 
 test('navigation: the section is a tab of the service-management area, maintenance.view, only while its module is on (with a backend)', () => {
   expect(TICKETS_TABS.some((t) => t.id === 'maintenance' && t.href === TICKETS_MAINTENANCE_HREF)).toBe(true);
-  expect(TAB_PERMISSIONS[TICKETS_MAINTENANCE_HREF]).toEqual(['maintenance.view']);
+  expect(TAB_PERMISSIONS[TICKETS_MAINTENANCE_HREF]).toBeUndefined(); // release/2150: the section address is redirect-only (SERVICEIA1); its page carries maintenance.view
   expect(maintenanceModuleOn()).toBe(false);
   expect(visibleTabs(TICKETS_TABS, false).some((t) => t.id === 'maintenance')).toBe(false); // the static demo has no maintenance data
   applyMaintenanceOn(true);

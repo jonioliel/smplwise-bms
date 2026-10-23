@@ -1334,8 +1334,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [TICKETS_RFQS_HREF]: ['tickets.external', 'tickets.costs'],
   [TICKETS_SETTINGS_HREF]: ['system.configure', 'tickets.configure'],
   // CR-MAINT215 slice 2: the maintenance section - maintenance.view at ANY scope (the server narrows every row by its place)
-  [TICKETS_MAINTENANCE_HREF]: ['maintenance.view'],
-  [TICKETS_MAINTENANCE_PAGE_HREF]: ['maintenance.view'], // the section's page in the shell's rows (release/2150)
+  [TICKETS_MAINTENANCE_PAGE_HREF]: ['maintenance.view'], // CR-MAINT215: the section's page (release/2150: the section address #/tickets/maintenance is redirect-only and has no permission of its own)
   // SHAREDID-293: the external-access screen - approvers (access.external.grant at any scope; the server narrows every grant to the
   // stations the caller may see). Station-scoped people readers keep their own screens: no new tab for them (clean operator screens).
   [EXTERNAL_WISKEY_HREF]: ['access.external.grant'],
