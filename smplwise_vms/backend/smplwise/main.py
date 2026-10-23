@@ -436,6 +436,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import door_windows as door_windows_router
 
     app.include_router(door_windows_router.router, prefix=api, tags=["access-control"])  # CR-039 DOORWIN-295: door windows + emergency controls (OFF)
+    from .routers import occupancy as occupancy_router
+
+    app.include_router(occupancy_router.router, prefix=api, tags=["occupancy"])  # ZONECOUNT107-295: people count per area from Frigate reviews (OFF)
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])

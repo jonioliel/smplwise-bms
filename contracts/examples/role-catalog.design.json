@@ -265,7 +265,8 @@
         "tickets.handlers",
         "tickets.directory",
         "tickets.technician_requests",
-        "messaging.accounts.manage"
+        "messaging.accounts.manage",
+        "occupancy.view"
       ]
     }
   ],
@@ -324,7 +325,8 @@
     "tickets.handlers",
     "tickets.directory",
     "tickets.technician_requests",
-    "messaging.accounts.manage"
+    "messaging.accounts.manage",
+    "occupancy.view"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
 }

@@ -297,7 +297,8 @@
         "tickets.handlers",
         "tickets.directory",
         "tickets.technician_requests",
-        "messaging.accounts.manage"
+        "messaging.accounts.manage",
+        "occupancy.view"
       ]
     },
     {
@@ -498,6 +499,7 @@
     "tickets.directory",
     "tickets.technician_requests",
     "messaging.accounts.manage",
+    "occupancy.view",
     "messaging.pacing.reserve",
     "bridge.key.rotate"
   ],

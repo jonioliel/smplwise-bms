@@ -294,6 +294,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # never implied). energy.manage: meters, accounts and formulas, customers, prices and VAT, business details, the
     # operational electricity settings (site_admin, system_admin). Installation scope only in v1. The retention values stay
     # behind system.configure and the backup switch behind backup.manage.
+    # ZONECOUNT107-295 (CR-ZONECOUNT107): how many people are in an area now and over time (counts only). Sensitive, never implied; judged on every
+    # camera that feeds the area; built-in holder system_admin only. The mapping and the switch stay behind system.configure.
+    "occupancy.view": "צפייה בספירת אנשים לפי אזור",
     "energy.view": "צפייה במונים ובצריכה",
     "energy.bills": "חיובים: סכומים, לקוחות, הפקה וביטול",
     "energy.manage": "ניהול מונים, חשבונות, לקוחות ומחירים",
