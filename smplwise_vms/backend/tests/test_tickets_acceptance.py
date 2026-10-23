@@ -328,11 +328,25 @@ def test_manager_reopen_during_the_hold_wins_and_a_new_done_starts_a_new_verific
     run(w, d + 2 * M)
     assert row(w, tid)["state"] == "overridden" and status(w, tid) == "in_progress"
     assert w.status("tom", tid, "done").status_code == 200
-    with db(w).connection() as conn:
-        d2 = stuck.parse(conn.execute("SELECT done_at FROM tickets WHERE id = ?", (tid,)).fetchone()[0])
-    run(w, d2 + M)
+    with db(w).connection() as conn:  # the worst case, made deterministic: the new `done` carries the very same second (done_at has second precision)
+        conn.execute("UPDATE tickets SET done_at = ? WHERE id = ?", (stuck.iso(d), tid))
+    run(w, d + 3 * M)
     r = row(w, tid)
-    assert r["state"] == "holding" and r["done_at"] == stuck.iso(d2) and r["restarts"] == 0
+    assert r["state"] == "holding" and r["restarts"] == 0 and r["done_seq"] == 2
+
+
+def test_two_dones_between_ticks_are_told_apart_by_the_counter(w):
+    configure(w)
+    tid, d = done_ticket(w)
+    run(w, d + M)
+    assert w.status("mona", tid, "in_progress", note="לא תוקן").status_code == 200
+    assert w.status("tom", tid, "done").status_code == 200
+    with db(w).connection() as conn:
+        conn.execute("UPDATE tickets SET done_at = ? WHERE id = ?", (stuck.iso(d), tid))
+    run(w, d + 2 * M)  # same second, same status `done`: still a new cycle - the old check is overridden ...
+    assert row(w, tid)["state"] == "overridden"
+    run(w, d + 3 * M)  # ... and the next tick starts the new one
+    assert row(w, tid)["done_seq"] == 2 and "acceptance_overridden" in kinds(w, tid)
 
 
 def test_manager_decision_after_a_flag_is_recorded_as_override(w):
