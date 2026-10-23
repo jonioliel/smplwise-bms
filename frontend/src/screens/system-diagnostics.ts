@@ -13,6 +13,7 @@ import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
+import '../components/camera-image-health-settings'; // CAMHEALTH091: the camera picture check (off by default), its thresholds and recipients
 import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copies, encryption key, restore drill
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
@@ -1326,6 +1327,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
       </sw-card>
       ${r.mode !== 'ha_only' ? html`<recorder-health-panel ?manage=${this.canEdit}></recorder-health-panel>` : nothing}
+      ${r.mode !== 'ha_only' && this.canEdit ? html`<camera-image-health-settings></camera-image-health-settings>` : nothing}
     </div>`;
   }
 

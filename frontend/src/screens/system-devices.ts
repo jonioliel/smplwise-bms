@@ -13,6 +13,9 @@ import '../components/sw-dialog';
 import '../components/sw-scene';
 import { snapshotUrl } from '../api/media';
 import '../components/sw-state-panel';
+import '../components/camera-image-health-card';
+import { cameraImageHealth, setCameraReference, type ImageCamera, type ImageHealth, type ImageKind } from '../api/camera-image-health';
+import { cit } from '../i18n/camera-image-health';
 import type { TableColumn } from '../components/sw-table';
 import type { SceneKind } from '../components/sw-scene';
 import { demoScene, demoWall } from '../fixtures/catalog';
@@ -60,6 +63,9 @@ export class SystemDevices extends LitElement {
   @state() private formChannel = 1;
   @state() private formAlias = '';
   @state() private alias = '';
+  /** CAMHEALTH091: the camera picture check (dark / blurred / frozen / shifted) - the compact card, the picture column and its filter. */
+  @state() private image: ImageHealth | null = null;
+  @state() private imageFilter: ImageKind | null = null;
 
   static styles = [css`
     .filters {
@@ -149,6 +155,15 @@ export class SystemDevices extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    .refs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-block: 8px;
+    }
+    camera-image-health-card {
+      margin-block-end: 8px;
+    }
     .err {
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger);
@@ -193,6 +208,7 @@ export class SystemDevices extends LitElement {
       this.cameras = r.cameras;
       this.recorder = r.recorder;
       this.canSync = r.can_sync;
+      cameraImageHealth().then((h) => (this.image = h)).catch(() => (this.image = null));
       get<{ discovery: { cameras_last_ok: string | null; cameras_last_error: string | null; streams_last_error: string | null; interval_s: number } }>('health').then((h) => (this.discovery = h.discovery)).catch(() => undefined);
     } catch (err) {
       this.error = describeError(err);
@@ -272,6 +288,38 @@ export class SystemDevices extends LitElement {
     }));
   }
 
+  private imageOf(id: string): ImageCamera | undefined {
+    return this.image?.enabled ? this.image.cameras.find((c) => c.id === id) : undefined;
+  }
+
+  /** CAMHEALTH091: the picture column - the problems in words, or a short state; nothing while the check is off. */
+  private imageCell(c: ImageCamera | undefined) {
+    if (!c || c.state === 'off') return html`<span class="hint">—</span>`;
+    const tone = c.state === 'warn' ? (c.issues.some((k) => k === 'frozen' || k === 'shifted') ? 'var(--sw-danger)' : 'var(--sw-stale)') : c.state === 'ok' ? 'var(--sw-live)' : 'var(--sw-unknown)';
+    const text = c.state === 'warn' ? c.issues.map((k) => cit(k)).join(', ') : c.state === 'ok' ? cit('stateOk') : c.state === 'excluded' ? cit('stateExcluded') : (c.error_text ?? cit('stateUnknown'));
+    return html`<span class="status" data-cih-cell=${c.state} style=${c.state === 'warn' ? 'color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)' : ''}><i style="--c:${tone}"></i>${text}</span>`;
+  }
+
+  /** The drawer: the picture state, brightness / sharpness and the reference view. */
+  private imageRows(c: ImageCamera) {
+    const m = c.metrics;
+    return html`<dt>${cit('column')}</dt><dd>${this.imageCell(c)}</dd>
+      ${m.brightness != null ? html`<dt>${cit('brightness')} · ${cit('sharpness')}</dt><dd><span class="ltr">${Math.round(m.brightness)} · ${Math.round(m.sharpness ?? 0)}</span></dd>` : nothing}
+      <dt>${cit('reference')}</dt><dd data-cih-ref>${c.reference ? (c.reference.auto ? cit('refAuto') : cit('refManual')) : cit('refNone')}</dd>`;
+  }
+
+  private async reference(id: string, action: 'set' | 'clear') {
+    this.busy = true;
+    this.error = '';
+    try {
+      this.image = { ...(await setCameraReference(id, action)) };
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private net(level: number) {
     return svg`<svg class="net" viewBox="0 0 22 14" aria-label="רשת">${[0, 1, 2, 3].map((i) => svg`<rect x=${i * 5.5} y=${11 - i * 3} width="4" height=${3 + i * 3} rx="1" fill=${i < level ? (level >= 3 ? 'var(--sw-live)' : 'var(--sw-stale)') : 'var(--sw-border-strong)'} />`)}</svg>`;
   }
@@ -282,6 +330,7 @@ export class SystemDevices extends LitElement {
     { key: 'fps', label: 'FPS', ltr: true },
     { key: 'bitrate', label: 'קצב', ltr: true },
     { key: 'firmware', label: 'זרם ראשי', ltr: true },
+    { key: 'image', label: cit('column'), render: (r) => this.imageCell(this.imageOf(String(r.id))) },
     { key: 'lastEvent', label: 'נראתה לאחרונה' },
     { key: 'net', label: 'רשת', render: (r) => this.net(r.state === 'live' ? 4 : r.state === 'stale' ? 2 : 0) },
     { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
@@ -289,7 +338,9 @@ export class SystemDevices extends LitElement {
 
   render() {
     const all = this.rows;
-    const picked = all.filter((c) => (this.filter === 'all' ? true : this.filter === 'online' ? c.state === 'live' : this.filter === 'offline' ? c.state === 'offline' : c.state === 'stale' || c.state === 'forbidden' || c.state === 'unknown'));
+    const kind = this.imageFilter;
+    const picked = all.filter((c) => (this.filter === 'all' ? true : this.filter === 'online' ? c.state === 'live' : this.filter === 'offline' ? c.state === 'offline' : c.state === 'stale' || c.state === 'forbidden' || c.state === 'unknown'))
+      .filter((c) => !kind || (this.imageOf(c.id)?.issues ?? []).includes(kind));
     const rows = this.offlineFirst ? [...picked].sort((a, b) => Number(b.state === 'offline') - Number(a.state === 'offline')) : picked;
     const cam = all.find((c) => c.id === this.selected);
     const api = !!this.cameras;
@@ -300,6 +351,8 @@ export class SystemDevices extends LitElement {
         ${api && this.canSync ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => { this.dialog = true; this.formAlias = ''; this.formChannel = (all.length ? Math.max(...all.map((c) => c.channel)) : 0) + 1; }}>רישום ידני</sw-button>` : nothing}
         ${this.message ? html`<div class="ok">${this.message}</div>` : nothing}
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+        ${api && this.image ? html`<camera-image-health-card .data=${this.image} .selected=${this.imageFilter}
+          @cih-updated=${(e: CustomEvent<ImageHealth>) => (this.image = e.detail)} @cih-filter=${(e: CustomEvent<ImageKind | null>) => (this.imageFilter = e.detail)}></camera-image-health-card>` : nothing}
         <div class="filters">
           <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')} count=${all.length}>הכל</sw-chip>
           <sw-chip dot="var(--sw-live)" ?selected=${this.filter === 'online'} @click=${() => (this.filter = 'online')} count=${all.filter((c) => c.state === 'live').length}>מחוברות</sw-chip>
@@ -320,7 +373,12 @@ export class SystemDevices extends LitElement {
                   <dt>Tracks</dt><dd><span class="ltr">${api ? `${cam.api?.main_track ?? '?'} / ${cam.api?.sub_track ?? '?'}` : `${cam.channel}01 / ${cam.channel}02`}</span></dd>
                   <dt>מצב</dt><dd><sw-badge kind=${cam.state}></sw-badge></dd>
                   <dt>נראתה לאחרונה</dt><dd>${cam.lastEvent}</dd>
+                  ${this.imageOf(cam.id) ? this.imageRows(this.imageOf(cam.id)!) : nothing}
                 </dl>
+                ${this.image?.can_manage && this.imageOf(cam.id) && this.imageOf(cam.id)!.state !== 'excluded' ? html`<div class="refs" data-cih-ref-actions>
+                  <sw-button size="sm" variant="ghost" icon="camera" ?disabled=${this.busy || !this.imageOf(cam.id)!.sampled_at || !!this.imageOf(cam.id)!.error} @click=${() => this.reference(cam.id, 'set')}>${cit('refSet')}</sw-button>
+                  ${this.imageOf(cam.id)!.reference ? html`<sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => this.reference(cam.id, 'clear')}>${cit('refClear')}</sw-button>` : nothing}
+                </div>` : nothing}
                 <div class="hint">ניתוק מקור מוצג כניתוק, לא כאשמת הממשק. פעולות רגישות (אתחול, OSD) דורשות הרשאה ואישור ואינן בפיילוט.</div>
                 <div slot="footer">
                   ${api && this.canSync ? html`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.saveAlias(cam.id)}>שמור כינוי</sw-button>` : nothing}
