@@ -853,6 +853,7 @@ class SettingsPatch(BaseModel):
     automations_templates_order: list[str] | None = Field(default=None, max_length=200, alias="automations.templates_order")
     automations_notify_targets: list[str] | None = Field(default=None, max_length=200, alias="automations.notify_targets")
     automations_ask_when_on_new: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.ask_when_on_new")
+    automations_blueprints_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.blueprints_enabled")
     automations_phone_filter: str | None = Field(default=None, pattern="^(fold|rows)$", alias="automations.phone_filter")
     automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
     update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
