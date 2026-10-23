@@ -20,9 +20,11 @@ import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
 import { fill, fmtDateTime } from './gen-logic';
 import { generatorAccess } from './access';
+import { glt, type GltKey } from '../i18n/generator-log';
 
 const S = he.generator.settings;
-const SUBS = ['routing', 'mapping', 'thresholds', 'retention', 'permissions'] as const;
+// GENLOG092-295: 'log' = the run log's switch and every threshold / window of it
+const SUBS = ['routing', 'mapping', 'thresholds', 'retention', 'log', 'permissions'] as const;
 type Sub = (typeof SUBS)[number];
 
 /**
@@ -41,6 +43,7 @@ export class GenSettings_ extends LitElement {
   @state() private roleEdits: Record<string, string | null> = {};
   @state() private thEdits: Record<string, string> = {};
   @state() private retEdits: Record<string, string> = {};
+  @state() private logEdits: Record<string, string | boolean> = {};
   @state() private nameEdit = '';
   @state() private ratedEdit = '';
   @state() private ratedKvaEdit = '';
@@ -229,12 +232,38 @@ export class GenSettings_ extends LitElement {
       })} data-save-retention>${S.save}</button></div></div>`;
   }
 
+  /** GENLOG092-295: the run log - its page switch (default off) and every threshold and window (installation-wide, not per generator). */
+  private logSection() {
+    const s = this.settings!;
+    const specs = s.log_specs ?? {};
+    const cur = s.log ?? {};
+    const val = (k: string) => (k in this.logEdits ? this.logEdits[k] : cur[k] ?? specs[k]?.default);
+    const enabled = 'log_enabled' in this.logEdits ? Boolean(this.logEdits.log_enabled) : Boolean(s.log_enabled);
+    return html`<div class="col" data-section="log"><div class="mut">${glt('setIntro')}</div>
+      <label class="row" style="gap:8px"><input type="checkbox" .checked=${enabled} data-log-enabled @change=${(e: Event) => (this.logEdits = { ...this.logEdits, log_enabled: (e.target as HTMLInputElement).checked })} /><b>${glt('setEnabled')}</b></label>
+      <div class="th-grid">${Object.entries(specs).map(([k, sp]) => sp.type === 'bool'
+        ? html`<div class="fld"><label class="row" style="gap:8px"><input type="checkbox" .checked=${Boolean(val(k))} data-log-set=${k} @change=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: (e.target as HTMLInputElement).checked })} />${glt(`set_${k}` as GltKey)}</label></div>`
+        : html`<div class="fld"><label for=${`lg-${k}`}>${glt(`set_${k}` as GltKey)}</label>
+          <input id=${`lg-${k}`} type="number" step=${sp.type === 'float' ? '0.5' : '1'} min=${sp.min ?? ''} max=${sp.max ?? ''} .value=${String(val(k) ?? '')} data-log-set=${k}
+            @input=${(e: Event) => (this.logEdits = { ...this.logEdits, [k]: (e.target as HTMLInputElement).value })} />
+          <span class="mut">${fill(S.thDefault, { n: String(sp.default) })}</span></div>`)}</div>
+      <div class="row"><button class="btn pri" ?disabled=${this.busy || !Object.keys(this.logEdits).length} data-save-log @click=${() => this.run(async () => {
+        const log: Record<string, number | boolean> = {};
+        for (const [k, v] of Object.entries(this.logEdits)) {
+          if (k === 'log_enabled') continue;
+          log[k] = typeof v === 'boolean' ? v : Number(v);
+        }
+        this.settings = await putSettings({ ...('log_enabled' in this.logEdits ? { log_enabled: Boolean(this.logEdits.log_enabled) } : {}), ...(Object.keys(log).length ? { log } : {}) });
+        this.logEdits = {};
+      })}>${S.save}</button></div></div>`;
+  }
+
   render() {
     if (!generatorAccess().manage) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') return html`<div class="skl" style="block-size:120px" data-state="loading"></div>`;
     if (this.phase === 'error' || !this.list || !this.settings) return html`<sw-state-panel state="error" heading=${he.generator.loadError} hint=${this.error} data-state="error"></sw-state-panel>`;
     const sub = this.sub();
-    const items: TabItem[] = SUBS.map((x) => ({ id: x, label: S.subs[x], href: `#/system/infra/generator/${x}${this.device ? `?device=${encodeURIComponent(this.device.id)}` : ''}` }));
+    const items: TabItem[] = SUBS.map((x) => ({ id: x, label: x === 'log' ? glt('setSub') : S.subs[x], href: `#/system/infra/generator/${x}${this.device ? `?device=${encodeURIComponent(this.device.id)}` : ''}` }));
     const ds = this.list.devices;
     const dd: DropdownItem[] = ds.map((x) => ({ id: x.id, label: x.name, ...(x.core_met ? {} : { alert: 'warn' as const }) }));
     const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${he.generator.pickerLabel}</span><sw-dropdown .items=${dd} .value=${this.device?.id ?? ''} label=${he.generator.pickerLabel} @change=${(e: CustomEvent<DropdownChange>) => this.go(sub, e.detail.id)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
@@ -244,6 +273,7 @@ export class GenSettings_ extends LitElement {
     else if (sub === 'mapping') body = this.mapping();
     else if (sub === 'thresholds') body = this.thresholds();
     else if (sub === 'retention') body = this.retention();
+    else if (sub === 'log') body = this.logSection();
     else body = html`<div class="card" data-section="permissions"><div class="row"><span>${S.permsBody}</span><div class="sp"></div><a class="btn" href="#/system/access">${S.permsLink}</a></div></div>`;
     return html`<div class="row"><span class="h2">${S.title}</span><div class="sp"></div>${this.device ? html`<sw-tabs class="strip" segmented .items=${items} .active=${sub} data-gen-subs></sw-tabs>` : nothing}</div>
       ${pick}${this.detection()}${this.picker()}

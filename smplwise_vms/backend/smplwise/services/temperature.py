@@ -105,8 +105,22 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     "ticket_attach_chart": ("bool", True, None, None),
     # phase 3: the home screen widget (idea 12) is offered to viewers who see a unit; off = no widget anywhere
     "home_widget": ("bool", True, None, None),
+    # TEMPEXPLAIN093-295: the rule-based "why did it warm?" explanation of an excursion (services/temperature_explain.py) - every window and
+    # threshold it uses; read-only and derived from the stored history, no external model
+    "explain_enabled": ("bool", True, None, None),
+    "explain_lookback_min": ("int", 60, 10, 360),          # how far before the start the signals are read
+    "explain_door_lookback_min": ("int", 30, 5, 240),      # door openings this long before the start count
+    "explain_door_min_open_min": ("int", 2, 0, 60),        # ... when open at least this long in total (0 = half a minute)
+    "explain_power_lookback_min": ("int", 120, 10, 720),   # a mains outage this long before the start counts
+    "explain_compressor_off_min": ("int", 20, 5, 240),     # the compressor stopped this long = a cause (a power sensor is needed)
+    "explain_gap_min": ("int", 10, 2, 240),                # no reading this long before the start = a data gap
+    "explain_spike_max_min": ("int", 3, 1, 30),            # an excursion this short with a jump ...
+    "explain_spike_jump": ("float", 3.0, 0.5, 30),         # ... of at least this many degrees = a sensor spike
+    "explain_neighbor_rise": ("float", 1.5, 0.2, 20),      # a neighbour that moved this much at the same time "moved too"
+    "explain_neighbor_scope": ("choice", "area", None, None),  # area = the units of the same area; all = every unit
+    "explain_min_score": ("int", 30, 0, 100),              # factors scored below this are left out
 }
-CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none", "link"), "grid_grouping": ("area", "none")}
+CHOICES: dict[str, tuple[str, ...]] = {"report_attachment": ("none", "link"), "grid_grouping": ("area", "none"), "explain_neighbor_scope": ("area", "all")}
 RAW_KEEP_S = 35 * 86400
 BUCKET_S = 300
 RANGES = {"24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
@@ -134,6 +148,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     "not_in_maintenance": {"he": "היחידה לא בתחזוקה.", "en": "The unit is not in maintenance."},
     "tickets_unavailable": {"he": "מודול ניהול השירות לא פעיל.", "en": "The service module is not active."},
     "event_not_found": {"he": "האירוע לא נמצא.", "en": "The event was not found."},
+    "explain_off": {"he": "הסבר החריגות כבוי בהגדרות.", "en": "The excursion explanation is turned off in the settings."},
 }
 
 

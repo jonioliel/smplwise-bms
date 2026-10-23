@@ -410,7 +410,7 @@ export class InfraTemperature extends LitElement {
       </div></div>`;
     const overlays = html`
       ${this.openId && list.some((u) => u.id === this.openId)
-        ? html`<temp-detail .unit=${list.find((u) => u.id === this.openId)!} .units=${list} .canAck=${this.data.can_ack} .canManage=${this.access.manage} .stale=${stale}
+        ? html`<temp-detail .unit=${list.find((u) => u.id === this.openId)!} .units=${list} .canAck=${this.data.can_ack} .canManage=${this.access.manage} .explain=${this.data.explain !== false} .stale=${stale}
             @close=${() => this.closeDetail()} @open-unit=${(e: CustomEvent<string>) => { this.openId = e.detail; }}
             @edit=${() => { this.wizard = this.openId; }} @report=${(e: CustomEvent<string>) => { this.report = [e.detail]; }} @changed=${(e: CustomEvent<string>) => { this.flash(e.detail); void this.load(); }}></temp-detail>`
         : nothing}

@@ -346,7 +346,9 @@ def list_units(spark: int = Query(1, ge=0, le=1), principal: Principal = Depends
             "can_manage": manage, "can_ack": authorize(conn, principal, ACK, INSTALLATION).allowed,
             # phase 3: the grid's grouping (idea 7) and whether the home widget is offered (idea 12) - installation settings
             "grouping": ctx.defaults.get("grid_grouping", "area"), "home_widget": bool(ctx.defaults.get("home_widget", True)),
-            "ticket_department_id": ctx.defaults.get("ticket_department_id") or None}
+            "ticket_department_id": ctx.defaults.get("ticket_department_id") or None,
+            # TEMPEXPLAIN093-295: whether the "why?" explanation is offered on an excursion
+            "explain": bool(ctx.defaults.get("explain_enabled", True))}
 
 
 def _one_visible(conn: sqlite3.Connection, principal: Principal, unit_id: str) -> tuple[sqlite3.Row, bool]:
@@ -1017,6 +1019,37 @@ def ticket_open(unit_id: str, body: TicketIn, request: Request, principal: Princ
     audit(conn, actor=principal, action="infra.temperature.ticket", decision="allowed", resource_type="infra_temp_unit", resource_id=unit_id,
           details={"ticket_id": out["ticket_id"], "result": out["result"], "event": bool(ev)})
     return out
+
+
+# ---------------------------------------------------------------- TEMPEXPLAIN093-295: why did it warm (rule-based, read-only)
+
+@router.get(f"{API}/{{unit_id}}/explain")
+def explain(unit_id: str, event_id: str | None = Query(None, max_length=64), at: str | None = Query(None, max_length=40),
+            principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Why an excursion happened: the factors found in the stored signals around it (door, defrost, mains outage, compressor, data gap, spike,
+    neighbouring units, maintenance, a climate unit's mode / setpoint), each with its evidence and a score. `event_id` = a high / low row of
+    the alert log; `at` = a moment (ISO; the excursion in force then, else the moment itself). Nothing is written; no external model."""
+    from ..services import temperature_explain as tx
+
+    u, door_vis = _one_visible(conn, principal, unit_id)
+    if not t.load_defaults(conn).get("explain_enabled", True):
+        raise _err(409, "explain_off")
+    ts = now_ts()
+    ev = None
+    at_ts = None
+    if event_id:
+        ev = conn.execute("SELECT * FROM infra_temp_events WHERE id = ? AND unit_id = ?", (event_id, unit_id)).fetchone()
+        if ev is None or ev["kind"] not in tx.EXPLAIN_KINDS:
+            raise _err(404, "event_not_found")
+    elif at:
+        at_ts = rt._ts(_in_zone(at, t.site_zone(conn)))
+        if at_ts is None or at_ts > ts:
+            raise ApiError(422, "validation", "מועד לא תקין.", details={"fields": ["at"], "message_en": "Invalid moment."})
+        ev = tx.find_event(conn, unit_id, at_ts)
+    else:
+        raise ApiError(422, "validation", "יש לבחור חריגה או מועד.", details={"fields": ["event_id", "at"], "message_en": "Pick an excursion or a moment."})
+    others = [x for x, _d in _visible(conn, principal) if x["id"] != unit_id]
+    return tx.explain_unit(conn, u, event=ev, at_ts=at_ts, now_ts=ts, door_visible=door_vis, neighbor_units=others)
 
 
 # ---------------------------------------------------------------- one unit (registered last)

@@ -7,7 +7,7 @@
  */
 import { canAnywhere, isApi, onSession } from '../api/session';
 import { listDevices, listLive, type LiveSummaryItem } from '../api/generator';
-import { applyInfraGenerator } from '../shell/nav';
+import { applyGeneratorLog, applyInfraGenerator } from '../shell/nav';
 
 export interface GeneratorAccess {
   view: boolean;
@@ -37,6 +37,7 @@ export async function refreshGeneratorVisibility(): Promise<void> {
   try {
     const r = await listDevices();
     applyInfraGenerator(r.devices.some((d) => d.core_met));
+    applyGeneratorLog(r.log_enabled === true); // GENLOG092-295
   } catch {
     applyInfraGenerator(false);
   }

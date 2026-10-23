@@ -24,6 +24,7 @@ from ..services import generator_alerts as alerts
 from ..services import generator_catalog as cat
 from ..services import generator_core as core
 from ..services import generator_history as history
+from ..services import generator_log as glog
 
 router = APIRouter()
 VIEW, MANAGE = "generator.view", "generator.manage"
@@ -114,7 +115,8 @@ def list_devices(principal: Principal = Depends(_view_ro), conn: sqlite3.Connect
     values, counts = core.read_values_bulk(conn), _open_counts(conn)
     devices = [_device_out(conn, d, detail=False, values=values.get(d["id"], {}), open_alerts=counts.get(d["id"], 0)) for d in rows]
     return {"devices": devices, "detected": sum(1 for d in rows if d["status"] == "detected"), "partial": sum(1 for d in rows if d["status"] == "partial"),
-            "open_alerts": sum(counts.values()), "last_detect_at": core.get_setting(conn, "generator.last_detect_at")}
+            "open_alerts": sum(counts.values()), "last_detect_at": core.get_setting(conn, "generator.last_detect_at"),
+            "log_enabled": glog.enabled(conn)}  # GENLOG092-295: the run-log page is shown only while its switch is on
 
 
 @router.get("/generator/devices/live")
@@ -294,6 +296,30 @@ def get_history(device_id: str, roles: str = Query("", max_length=400), range: L
     return out
 
 
+# ---------------------------------------------------------------- GENLOG092-295: the run log (start tests, mains-failure runs, hours, fuel)
+
+@router.get("/generator/devices/{device_id}/runs")
+def get_runs(device_id: str, range: Literal["7d", "30d", "90d", "365d", "custom"] = "30d", start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
+             end: str | None = Query(None, alias="to", max_length=40), kind: Literal["test", "mains_failure", "manual", "other"] | None = None,
+             page: int = Query(1, ge=1, le=10000), page_size: int = Query(8, ge=1, le=glog.PAGE_MAX),
+             principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The run log of one generator: its runs in the range (newest first, one page), the fuel refills / drops, and the summary strip (counts per
+    kind, run time, hours, fuel, the last test and when the next is due). Derived from the mirror; nothing is sent to the controller. 409
+    `generator_log_off` while the run-log switch is off."""
+    d = _device(conn, device_id)
+    if not glog.enabled(conn):
+        raise ApiError(409, "generator_log_off", "יומן ההפעלות כבוי בהגדרות.")
+    now_ts = int(time.time())
+    try:
+        lo, hi = glog.parse_range(range, start, end, now_ts)
+    except ValueError as exc:
+        raise ApiError(422, "validation", "טווח זמן לא תקין.", details={"fields": [str(exc)]}) from None
+    out = glog.list_runs(conn, d["id"], lo, hi, now_ts, kind=kind, page=page, page_size=page_size)
+    out["summary"] = glog.summary(conn, d["id"], lo, hi, now_ts)
+    out.update({"range": range, "from": glog._iso(lo), "to": glog._iso(hi), "at": now_iso()})  # noqa: SLF001
+    return out
+
+
 # ---------------------------------------------------------------- alerts
 
 @router.get("/generator/alerts")
@@ -461,6 +487,8 @@ class SettingsBody(_Body):
     history_retention_days: int | None = None
     stale_after_s: int | None = None
     critical_escalate_after_min: int | None = None  # GENALERT-295: minutes before an unacknowledged CRITICAL generator alert goes to the system administrators; 0 = the installation's escalation delay
+    log_enabled: bool | None = None  # GENLOG092-295: the run-log page (default off)
+    log: dict[str, Any] | None = None  # GENLOG092-295: the run-log thresholds and windows (services/generator_log.LOG_SPECS); a partial set, null = keep
 
 
 def _settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -469,7 +497,8 @@ def _settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"integration_domains": mine if isinstance(mine, list) else [], "known_domains": list(cat.KNOWN_DOMAINS), "thresholds": core.thresholds(conn), "threshold_defaults": cat.DEFAULT_THRESHOLDS,
             "threshold_limits": {k: list(v) for k, v in cat.THRESHOLD_LIMITS.items()}, "thresholds_set": sorted((stored.get("default") or {}).keys()) if isinstance(stored, dict) else [],
             "alert_retention_days": core.int_setting(conn, "alert_retention_days"), "history_retention_days": core.int_setting(conn, "history_retention_days"),
-            "stale_after_s": core.int_setting(conn, "stale_after_s"), "critical_escalate_after_min": alerts.critical_escalate_after_min(conn), "limits": {k: list(v[:2]) for k, v in cat.RETENTION_LIMITS.items()}}
+            "stale_after_s": core.int_setting(conn, "stale_after_s"), "critical_escalate_after_min": alerts.critical_escalate_after_min(conn), "limits": {k: list(v[:2]) for k, v in cat.RETENTION_LIMITS.items()},
+            "log_enabled": glog.enabled(conn), "log": glog.settings(conn), "log_specs": glog.specs_out()}
 
 
 @router.get("/generator/settings")
@@ -506,6 +535,15 @@ def put_settings(body: SettingsBody, principal: Principal = Depends(_manage_w), 
         if not 0 <= v <= 1440:
             raise ApiError(422, "validation", "ערך מחוץ לטווח.", details={"fields": ["critical_escalate_after_min"]})
         core.jset(conn, "generator.critical_escalate_after_min", v)
+    if "log" in sent and body.log is not None:
+        try:
+            part = glog.validate(body.log)
+        except glog.Invalid as exc:
+            raise ApiError(422, "validation", "ערך לא תקין ביומן ההפעלות.", details={"fields": [f"log.{exc.key}"]}) from None
+        stored = core.jget(conn, "generator.log", {})
+        core.jset(conn, "generator.log", {**(stored if isinstance(stored, dict) else {}), **part})
+    if "log_enabled" in sent and body.log_enabled is not None:
+        core.jset(conn, "generator.log_enabled", bool(body.log_enabled))
     audit(conn, actor=principal, action="generator.settings.update", decision="allowed", resource_type="generator_settings", resource_id=None, details={"keys": sorted(sent)})
     return _settings_out(conn)
 

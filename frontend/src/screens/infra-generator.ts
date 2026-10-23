@@ -8,6 +8,8 @@ import '../generator/gen-live-page';
 import '../generator/gen-charts-page';
 import '../generator/gen-alerts-page';
 import '../maintenance/cert-row'; // MAINT215B: the nearest inspection / certificate of the generator (while the maintenance module is on)
+import '../generator/gen-log-page';
+import { glt } from '../i18n/generator-log';
 import type { TabItem } from '../components/sw-tabs';
 import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
 import type { RouteState } from '../router';
@@ -16,7 +18,7 @@ import { describeError } from '../api/client';
 import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type DevicesResponse, type GenDevice } from '../api/generator';
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
 import { fill, fmtDateTime } from '../generator/gen-logic';
-import { INFRA_TABS, infraPageTabs, tabStyleOf, visibleTabs } from '../shell/nav';
+import { INFRA_TABS, applyGeneratorLog, infraPageTabs, tabStyleOf, visibleTabs } from '../shell/nav';
 import { TabsModeController } from '../shell/tabs-mode';
 import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
@@ -29,7 +31,8 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { srHeading, srHeadingCss } from '../components/sr-heading';
 
 const G = he.generator;
-const PAGES = ['live', 'alerts', 'charts', 'history'] as const;
+// GENLOG092-295: 'log' (the run log) is offered only while its switch is on (log_enabled of the devices list; default off)
+const PAGES = ['live', 'alerts', 'charts', 'history', 'log'] as const;
 type Page = (typeof PAGES)[number];
 const POLL_MS = 30_000;
 const LAST_KEY = 'sw.generator.device';
@@ -106,6 +109,7 @@ export class InfraGenerator extends LitElement {
   private async loadList(quiet = false) {
     try {
       this.list = await listDevices();
+      applyGeneratorLog(this.list.log_enabled === true); // GENLOG092-295: the generator tab's entry page skips the run log while it is off
       void listLive().then((r) => (this.summary = Object.fromEntries(r.devices.map((x) => [x.id, x])))).catch(() => undefined);
       this.phase = 'ready';
       const id = this.selectedId();
@@ -168,7 +172,7 @@ export class InfraGenerator extends LitElement {
     const q = d ? `?device=${encodeURIComponent(d.id)}` : '';
     const open = d?.open_alerts ?? 0;
     // TABSET-293: the page row follows ui.tabs (`infra.generator`: order, hidden pages)
-    const items: TabItem[] = infraPageTabs('infra.generator', PAGES.map((p) => ({ id: p, label: G.pages[p], href: `#/infra/generator/${p}${q}`, ...(p === 'alerts' && open ? { count: open } : {}) })), isApi());
+    const items: TabItem[] = infraPageTabs('infra.generator', PAGES.filter((p) => p !== 'log' || this.list?.log_enabled === true).map((p) => ({ id: p, label: G.pages[p], href: `#/infra/generator/${p}${q}`, ...(p === 'alerts' && open ? { count: open } : {}) })), isApi());
     const picker: DropdownItem[] = ds.map((x) => ({ id: x.id, label: `${x.name}${this.summary[x.id] && typeof this.summary[x.id].summary.engine_state?.value === 'string' ? ` · ${(G.engine as Record<string, string>)[String(this.summary[x.id].summary.engine_state.value)] ?? ''}` : ''}`, ...(x.open_alerts ? { alert: true as const } : {}) }));
     const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${G.pickerLabel}</span><sw-dropdown .items=${picker} .value=${d?.id ?? ''} label=${G.pickerLabel} @change=${(e: CustomEvent<DropdownChange>) => this.pick(e)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
     let body;
@@ -176,6 +180,7 @@ export class InfraGenerator extends LitElement {
     else if (!d.core_met) body = html`<div class="card" data-state="partial"><div class="empty"><div class="ic"><sw-icon name="warning" size="26"></sw-icon></div><h3>${G.notFound.partialTitle}</h3><div class="mut">${G.notFound.partialBody}</div>
       ${this.access.manage ? html`<a class="btn pri" href="#/system/infra/generator/mapping?device=${encodeURIComponent(d.id)}">${G.settings.subs.mapping}</a>` : nothing}</div></div>`;
     else if (page === 'live') body = html`<gen-live-page .device=${d} ?manage=${this.access.manage}></gen-live-page>`;
+    else if (page === 'log') body = this.list?.log_enabled ? html`<gen-log-page .device=${d}></gen-log-page>` : html`<sw-state-panel state="empty" heading=${glt('off')} data-state="log-off"></sw-state-panel>`;
     else if (page === 'charts') body = html`<gen-charts-page .device=${d} .params=${this.route?.params ?? new URLSearchParams()}></gen-charts-page>`;
     else body = html`<gen-alerts-page .device=${d} .mode=${page} .alertId=${this.route?.segments[3] ? decodeURIComponent(this.route.segments[3]) : ''} ?manage=${this.access.manage} @alerts-changed=${() => void this.loadDevice(d.id)}></gen-alerts-page>`;
     // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)

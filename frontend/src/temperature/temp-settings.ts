@@ -22,10 +22,14 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
   { title: 'setHealth', keys: [['health_warn', 'healthWarn'], ['battery_low_pct', 'batteryLow'], ['frozen_min', 'frozenMin'], ['signal_weak_dbm', 'signalWeak'],
     ['recovery_slow_min', 'recoverySlow'], ['recovery_alert', 'recoveryAlert'], ['compressor_on_w', 'compressorOnW'], ['duty_rise_pts', 'dutyRise'], ['duty_alert', 'dutyAlert']] },
   { title: 'setScreen', keys: [['grid_grouping', 'gridGrouping'], ['home_widget', 'homeWidgetSet'], ['ticket_department_id', 'ticketDeptSet'], ['ticket_attach_chart', 'ticketChartSet']] },
+  // TEMPEXPLAIN093-295: every window and threshold of the rule-based "why did it warm?" explanation
+  { title: 'setExplain', keys: [['explain_enabled', 'explainEnabled'], ['explain_lookback_min', 'explainLookback'], ['explain_door_lookback_min', 'explainDoorLookback'], ['explain_door_min_open_min', 'explainDoorMin'],
+    ['explain_power_lookback_min', 'explainPowerLookback'], ['explain_compressor_off_min', 'explainCompOff'], ['explain_gap_min', 'explainGap'], ['explain_spike_max_min', 'explainSpikeMax'],
+    ['explain_spike_jump', 'explainSpikeJump'], ['explain_neighbor_rise', 'explainNbRise'], ['explain_neighbor_scope', 'explainNbScope'], ['explain_min_score', 'explainMinScore']] },
   { title: 'retention', keys: [['retention_days', 'retention']] },
 ];
 const KIND_LABEL: Record<AlertKind, TtKey> = { alarm: 'kindAlarm', warning: 'kindWarning', offline: 'kindOffline', health: 'kindHealth' };
-const CHOICE_LABEL: Record<string, TtKey> = { area: 'grpArea', none: 'grpNone' };
+const CHOICE_LABEL: Record<string, TtKey> = { area: 'grpArea', none: 'grpNone', 'explain_neighbor_scope:area': 'scopeArea', 'explain_neighbor_scope:all': 'scopeAll' };
 const CH_LABEL: Record<AlertChannel, TtKey> = { push: 'chPush', app: 'chApp', email: 'chEmail', whatsapp: 'chWhatsapp' };
 
 /**
@@ -163,7 +167,7 @@ export class TempSettings extends LitElement {
     if (spec.type === 'hhmm') return html`<input type="time" lang=${dateInputLang()} .value=${String(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value }; }} />`;
     if (spec.type === 'choice') {
       return html`<select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
-        ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${CHOICE_LABEL[c] ? tt(CHOICE_LABEL[c]) : c}</option>`)}</select>`;
+        ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) ? tt(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) : c}</option>`)}</select>`;
     }
     if (spec.type === 'id') {
       return html`<input type="text" maxlength="64" class="idin" .value=${String(v ?? '')} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value.trim() }; }} />`;
