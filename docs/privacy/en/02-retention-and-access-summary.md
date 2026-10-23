@@ -26,6 +26,11 @@ Status: DRAFT, factual. Not legal advice. Verified against `origin/integ/290` @ 
 | People-messaging records (`intercom_messages`) | 400 days | `B/services/intercom_messaging.py` `KEEP_DAYS` | no |
 | Consent-by-link requests and held messages | requests (not still open) and released/dropped held messages after 400 days (`KEEP_DAYS` shared with people messaging); a granted-consent row stays until the person later declines (then it is deleted and an opt-out row is written) | `B/services/intercom_consent.py` `prune` | no |
 | Phone-app presence event log | `presence.retention_days`, default 30, range 1-365 | `B/services/presence.py` `janitor` | yes (setting) |
+| Home Assistant entity state history (`ha_state_history`: state, change time, receipt time; used by the historical map) | 30 days after receipt | `B/main.py` janitor -> `B/services/ha_history.py` `prune`, `RETENTION_DAYS = 30` | no (constant) |
+| Presence-sensor states in that history (binary sensors of class motion / occupancy / presence) | `history.presence_retention_days`, default 7 (1-30), applied only while the time scrub (`history.timescrub`) is on; otherwise the 30 days above. Reading them on the map needs `history.presence` and writes one audit row per user, floor and day | same, `prune_presence` (CR-TIMESCRUB101) | yes (setting); whether it should apply with the time scrub off is an open owner question |
+| History gaps (`ha_state_history_gaps`: from, to, reason - no personal data) | with the state history (30 days) | same | no |
+| Device activity log (who changed an electrical device) | `device_activity.retention_days`, default 90 (7-365), plus size caps | `B/services/device_activity.py` `prune` | yes (setting) |
+| Elevator state history (derived state only, no person) | 8 days | `B/services/elevators.py` `HISTORY_KEEP_S` | no |
 | Revoked phone-app device rows | 30 days after revocation | `B/services/presence.py` `REVOKED_KEEP_DAYS` | no |
 | Phone-app push messages | 1 day after expiry (24 h life) | same | no |
 | Camera event thumbnails and `events` rows | `events.retention_days`, default 30 (1-3650) | `B/main.py` janitor, `B/services/thumbnails.py` | yes |

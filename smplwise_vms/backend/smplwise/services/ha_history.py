@@ -119,9 +119,75 @@ def recorder_state_at(entity_ids: list[str], at_iso: str, *, fetch: Any | None =
     return out
 
 
+# ---------------------------------------------------------------- CR-TIMESCRUB101: gaps of the history and the presence retention
+
+GAP_MIN_S = 60  # a silence of the sync longer than this is a gap (the same bound as device_activity's connect note)
+PRESENCE_CLASSES = ("motion", "occupancy", "presence", "moving")  # keep in step with frontend/src/map/room-state.ts PRESENCE_CLASSES
+PRESENCE_RETENTION_DEFAULT = 7
+PRESENCE_RETENTION_RANGE = (1, 30)
+
+
+def note_connect_gap(db: Database, previous_seen: str | None, now: str | None = None) -> bool:
+    """The HA sync (re)connected: when the last state the mirror saw is older than GAP_MIN_S, the stretch since then was not
+    recorded - a gap row. Returns True when one was written. Never raises (the sync must not fail on its bookkeeping)."""
+    if not previous_seen:
+        return False
+    try:
+        now = now or now_iso()
+        start = iso_utc(parse_utc(previous_seen))
+        if (parse_utc(now) - parse_utc(start)).total_seconds() <= GAP_MIN_S:
+            return False
+        with db.connection(durable=False) as conn:
+            conn.execute("INSERT INTO ha_state_history_gaps(from_utc, to_utc, reason) VALUES (?, ?, 'disconnected')", (start, now))
+        return True
+    except Exception:  # noqa: BLE001 - a database before the migration, a bad stamp: no gap row, the sync goes on
+        return False
+
+
+def gaps(conn: sqlite3.Connection, lo: str, hi: str) -> list[dict[str, Any]]:
+    """The recorded gaps that overlap lo..hi (ISO UTC), oldest first. [] on a database before the gap table."""
+    try:
+        rows = conn.execute("SELECT from_utc, to_utc, reason FROM ha_state_history_gaps WHERE to_utc >= ? AND from_utc <= ? ORDER BY from_utc", (lo, hi)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [{"from": r["from_utc"], "to": r["to_utc"], "reason": r["reason"]} for r in rows]
+
+
+def presence_retention_days(conn: sqlite3.Connection) -> int:
+    from ..db import get_setting
+
+    lo, hi = PRESENCE_RETENTION_RANGE
+    try:
+        return max(lo, min(hi, int(get_setting(conn, "history.presence_retention_days") or PRESENCE_RETENTION_DEFAULT)))
+    except (TypeError, ValueError):
+        return PRESENCE_RETENTION_DEFAULT
+
+
+def prune_presence(conn: sqlite3.Connection, days: int) -> int:
+    """CR-TIMESCRUB101 section 7(b): the past of presence sensors (binary sensors of a presence class) is kept `days` only - it can only
+    SHORTEN the general retention, never lengthen it."""
+    days = max(PRESENCE_RETENTION_RANGE[0], min(RETENTION_DAYS, days))
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    marks = ",".join("?" * len(PRESENCE_CLASSES))
+    return conn.execute(
+        f"DELETE FROM ha_state_history WHERE recorded_at < ? AND entity_id IN (SELECT entity_id FROM ha_entities WHERE domain = 'binary_sensor' AND device_class IN ({marks}))",
+        (cutoff, *PRESENCE_CLASSES)).rowcount
+
+
 def prune(conn: sqlite3.Connection, days: int = RETENTION_DAYS) -> int:
     cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return conn.execute("DELETE FROM ha_state_history WHERE recorded_at < ?", (cutoff,)).rowcount
+    n = conn.execute("DELETE FROM ha_state_history WHERE recorded_at < ?", (cutoff,)).rowcount
+    try:
+        conn.execute("DELETE FROM ha_state_history_gaps WHERE to_utc < ?", (cutoff,))
+    except sqlite3.OperationalError:  # a database before the gap table
+        pass
+    from ..db import get_setting
+
+    if str(get_setting(conn, "history.timescrub") or "false") == "true":
+        # owner question 2 of CR-TIMESCRUB101 is open: until it is answered the shorter presence retention applies only while the
+        # time scrub is on (deleting history is not undone; the recommendation "always" waits for the owner's word)
+        n += prune_presence(conn, presence_retention_days(conn))
+    return n
 
 
 def prune_db(db: Database, days: int = RETENTION_DAYS) -> int:
