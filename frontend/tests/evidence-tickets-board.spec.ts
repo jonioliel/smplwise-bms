@@ -65,7 +65,8 @@ test.describe('tickets board evidence', () => {
       await expect(page.locator(`${B} ticket-board-tree`)).toHaveCount(0);
       await expect(page.locator(`${B} [data-floor-chips]`)).toBeVisible();
     }
-    await expect(page.locator('sw-app sw-tabs').first()).toContainText('לוח מנהל');
+    // SERVICEIA1-295: the board is a page of the requests section (the level-2 row under the sections)
+    await expect(page.locator('sw-app sw-tabs[data-tickets-pages]')).toContainText('לוח מנהל');
   });
 
   test('a state filter flattens the cards (D20) and lands in the address; the banner jumps to the stuck ones', async ({ page }) => {

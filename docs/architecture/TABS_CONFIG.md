@@ -192,6 +192,30 @@ schedules list is the **first segment** of קברניט, followed by אוטומ�
 - **Counts and search** are per segment: each screen keeps its own search and filters; the strip shows the schedules count
   (`/schedules/status`) and the automations, scenes and scripts counts (`/automations/status`) as best-effort numbers.
 
+## The service-management area: four sections (SERVICEIA1-295, slice 1 - navigation only)
+
+Owner decisions 24.10 (proposal `docs/changes/SERVICE-IA-PROPOSAL.md` on `pilot/SERVICEIA-295`). The `tickets` row is now the area's
+**sections** - `requests` (בקשות) · `maintenance` (תחזוקה ובקרה) · `vendors` (ספקים וכספים) · `reports` (סקירה ודוחות) - and the current
+section's **pages** are a second row, the infrastructure electricity / generator pattern. Frontend only, except one product setting.
+
+- **Pages, unchanged:** `tickets.requests` = mine · department · board · all (the board stays a page); `tickets.vendors` = handlers · rfqs ·
+  accounts · external (external only while `access.external.placement` is tickets | both); `reports` = overview; `maintenance` has no page on
+  this build (the MAINT215 pages plug into `TICKETS_MAINTENANCE_PAGES`), so it is never offered. Every href, `TAB_PERMISSIONS` row and
+  screen is the one of 2.14.0; nothing is merged or removed.
+- **Offering:** a section is offered while one of its pages is, and opens on its first visible page (the page row's `ui.tabs` order first);
+  no section has a permission of its own. `activeAreaTab` answers the section, `ticketsPageOf` the page; the crumbs are area › section › page.
+- **Addresses:** `#/tickets/requests|maintenance|vendors|reports` are new redirect-only entries (`legacyRedirect`: the section's first
+  visible page, the query kept, nothing decided while the session loads). No existing address moved.
+- **Registry:** `tickets` (level 1, the sections with pages) plus `tickets.requests` and `tickets.vendors` (level 2). A single-page section has
+  no row. A stored `tickets` entry naming the old page ids is migrated on read (`normalizeTabsConfig`): each page's order / hidden goes to its
+  section's row (only when that row has no entry of its own), the level-1 order lists the sections by first appearance, and a section whose
+  every page was hidden is hidden at level 1. The next save writes the new shape; the backend stores slugs only.
+- **`ui.tickets_section_row`** (product setting, `hide_single` default | `always`, `system.configure`; edited on the service-management card
+  of הגדרות › כללי › לשוניות): whether a user who sees ONE section still gets the section row. The page row is drawn whenever it has two pages.
+- **Badge:** the RFQ-questions number sits on the `rfqs` page entry; the `vendors` section carries a dot (`TabItem.dot`, and `alert` for the
+  dropdown chip); the area icon count is unchanged. Phone: the section row shows the short labels (`TabItem.short`, `sw-tabs short-labels`);
+  the bottom bar stays the areas bar.
+
 ## Presentation mode: tabs, hybrid or dropdown (release 0.1.153)
 
 How a group of tabs is drawn on the phone (<= 767 px; wider screens are always `tabs`) is a separate setting from the order, the

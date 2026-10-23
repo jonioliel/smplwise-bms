@@ -6,7 +6,7 @@ import {
 } from '../src/tickets/overview-model';
 import { OVERVIEW_TEXT_EN_KEYS, OVERVIEW_TEXT_KEYS, overviewTemplate, ot } from '../src/tickets/overview-text';
 import { ASSIGNEE_RE, boardHref, parseBoardRoute } from '../src/tickets/board-model';
-import { TAB_PERMISSIONS, TICKETS_OVERVIEW_HREF, TICKETS_TABS, activeAreaTab, tabAllowed } from '../src/shell/nav';
+import { TAB_PERMISSIONS, TICKETS_OVERVIEW_HREF, TICKETS_REPORTS_PAGES, activeAreaTab, tabAllowed, ticketsPageOf } from '../src/shell/nav';
 import { setTicketNames } from '../src/tickets/naming';
 import type { BoardItem, TreeNode } from '../src/api/tickets-board';
 import type { RfqDetail, RfqSummary } from '../src/api/tickets-rfq';
@@ -263,15 +263,17 @@ test('folding: the phone folds cards 5, 6 and 11 until the viewer chooses; a sto
   expect([...foldedOf('{x', true)]).toEqual(['throughput', 'daily', 'departments']);
 });
 
-test('the tab: first in the area, for tickets.manage only, active on #/tickets/overview', () => {
-  expect(TICKETS_TABS[0].id).toBe('overview');
-  expect(TICKETS_TABS[0].href).toBe(TICKETS_OVERVIEW_HREF);
-  expect(TICKETS_TABS[0].label).toBe('סקירה');
+test('the page: first of "סקירה ודוחות", for tickets.manage only, active on #/tickets/overview', () => {
+  // SERVICEIA1-295 (owner 24.10): the overview moved from the head of the area's row to the reports section (same href and gate)
+  expect(TICKETS_REPORTS_PAGES[0].id).toBe('overview');
+  expect(TICKETS_REPORTS_PAGES[0].href).toBe(TICKETS_OVERVIEW_HREF);
+  expect(TICKETS_REPORTS_PAGES[0].label).toBe('סקירה');
   expect(TAB_PERMISSIONS[TICKETS_OVERVIEW_HREF]).toEqual(['tickets.manage']);
   expect(tabAllowed(TICKETS_OVERVIEW_HREF, (p) => p === 'tickets.view')).toBe(false);
   expect(tabAllowed(TICKETS_OVERVIEW_HREF, (p) => p === 'tickets.manage')).toBe(true);
   const r = { path: '/tickets/overview', mode: 'tickets', segments: ['tickets', 'overview'], params: new URLSearchParams() } as never;
-  expect(activeAreaTab(r)).toBe('overview');
+  expect(activeAreaTab(r)).toBe('reports');
+  expect(ticketsPageOf(r)).toBe('overview');
 });
 
 test('the board\'s handler filter (a load row opens the board on one handler): parsed with the server\'s pattern, kept in the address', () => {

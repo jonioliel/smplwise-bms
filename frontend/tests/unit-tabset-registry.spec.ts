@@ -7,7 +7,9 @@ import {
   INFRA_TABS,
   MULTIMEDIA_TABS,
   TAB_SECTIONS,
+  TICKETS_REQUESTS_PAGES,
   TICKETS_TABS,
+  TICKETS_VENDORS_PAGES,
   applyInfraElevators,
   applyInfraGenerator,
   applyInfraMeters,
@@ -71,9 +73,14 @@ test('every area with a tab row has a registry section, and every section row is
   expect(byId['infra']).toEqual(ids(INFRA_TABS)); // a tab added to INFRA_TABS (temperature, 2.9.2) is listed by itself
   expect(byId['infra.electricity']).toEqual(['meters', 'accounts', 'bills', 'customers']);
   expect(byId['infra.generator']).toEqual(['live', 'alerts', 'charts', 'history']);
-  expect(byId['tickets']).toEqual(ids(TICKETS_TABS).filter((id) => id !== 'external')); // SHAREDID-293: the external-access tab only while placed under tickets
+  // SERVICEIA1-295: level 1 = the sections that have pages on this build; level 2 = the requests and vendors page rows
+  expect(byId['tickets']).toEqual(['requests', 'vendors', 'reports']);
+  expect(byId['tickets.requests']).toEqual(['mine', 'department', 'board', 'all']);
+  expect(byId['tickets.vendors']).toEqual(['handlers', 'rfqs', 'accounts']); // SHAREDID-293: the external-access tab only while placed under tickets
+  expect(sectionIdOf(TICKETS_REQUESTS_PAGES)).toBe('tickets.requests');
+  expect(sectionIdOf(TICKETS_VENDORS_PAGES)).toBe('tickets.vendors');
   applyExternalPlacement({ 'access.external.placement': 'both' });
-  expect(ids(TAB_SECTIONS.find((s) => s.id === 'tickets')!.tabs())).toContain('external');
+  expect(ids(TAB_SECTIONS.find((s) => s.id === 'tickets.vendors')!.tabs())).toContain('external');
   applyExternalPlacement({});
   for (const s of TAB_SECTIONS) {
     expect(s.label.trim(), s.id).not.toBe('');
@@ -86,7 +93,8 @@ test('nothing configured: the multimedia, infrastructure and tickets rows are ex
   expect(visibleTabs(INFRA_TABS, true, ALL).map((t) => t.href)).toEqual(INFRA_TABS.filter((t) => t.id !== 'temperature').map((t) => t.href)); // the temperatures tab waits for a unit (not offered here)
   expect(ids(visibleTabs(MULTIMEDIA_TABS, true, ALL))).toEqual(['screens', 'players', 'groups']);
   applyTicketsHidden({ 'tickets.enabled': 'true' });
-  expect(ids(visibleTabs(TICKETS_TABS, true, ALL))).toEqual(ids(TICKETS_TABS).filter((id) => id !== 'external')); // external access sits under access control by default
+  expect(ids(visibleTabs(TICKETS_TABS, true, ALL))).toEqual(['requests', 'vendors', 'reports']); // SERVICEIA1-295: the sections with a page
+  expect(ids(visibleTabs(TICKETS_VENDORS_PAGES, true, ALL))).toEqual(['handlers', 'rfqs', 'accounts']); // external access sits under access control by default
   expect(visibleAreas(true, ALL).find((a) => a.id === 'infra')?.href).toBe(INFRA_METERS_HREF);
   expect(tabStyleOf('infra')).toBe('pill');
   expect(tabStyleOf('multimedia')).toBe('pill');
@@ -141,9 +149,13 @@ test('the tickets card is listed only while the tickets area is switched on', ()
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   expect(def.available?.()).toBe(true);
   expect(def.label.trim()).not.toBe('');
+  // SERVICEIA1-295: a value stored before the sections (the old page ids) is migrated on read - its pages keep their order and hidden state
   applyTabsConfig({ 'ui.tabs': { tickets: { order: ['all', 'mine'], hidden: ['department'] } } });
-  expect(ids(visibleTabs(TICKETS_TABS, true, ALL)).slice(0, 2)).toEqual(['all', 'mine']);
-  expect(ids(visibleTabs(TICKETS_TABS, true, ALL))).not.toContain('department');
+  expect(ids(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL)).slice(0, 2)).toEqual(['all', 'mine']);
+  expect(ids(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL))).not.toContain('department');
+  expect(ids(visibleTabs(TICKETS_TABS, true, ALL))[0]).toBe('requests');
+  expect(visibleTabs(TICKETS_TABS, true, ALL)[0].href, 'the section opens on its first configured page').toBe('#/tickets/all');
+  expect(TAB_SECTIONS.find((s) => s.id === 'tickets.requests')?.available?.()).toBe(true);
 });
 
 test('i18n: the registry words have he / en / ar / ru with the same keys and placeholders', () => {

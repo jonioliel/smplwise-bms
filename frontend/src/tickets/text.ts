@@ -8,7 +8,7 @@
  * screen); tests/unit-tickets-naming.spec.ts fails when it is. Variables of a text are `{name}`-style and are filled AFTER the
  * name tokens, so a value (a title someone typed) is never read as a token.
  */
-import { tn, type TicketLang } from './naming';
+import { DEFAULT_TICKET_NAMES, ticketNames, tn, type TicketLang } from './naming';
 import { S4_EN, S4_HE } from './text-s4';
 import { UI6_EN, UI6_HE } from './text-ui6';
 import { OTP_EN, OTP_HE } from './text-otp';
@@ -23,6 +23,17 @@ const he = {
   tabMine: 'שלי',
   tabDepartment: 'המחלקה',
   tabAll: 'הכול',
+  // SERVICEIA1-295 (owner 24.10): the four sections of the area (the level-1 row) and their short phone labels. "בקשות" is the owner's
+  // name for the requests section while the item names are the defaults; after a rename the section takes the configured plural (D33)
+  secRequests: 'בקשות',
+  secRequestsShort: 'בקשות',
+  secRequestsNamed: '{tickets}',
+  secMaintenance: 'תחזוקה ובקרה',
+  secMaintenanceShort: 'תחזוקה',
+  secVendors: 'ספקים וכספים',
+  secVendorsShort: 'ספקים',
+  secReports: 'סקירה ודוחות',
+  secReportsShort: 'סקירה',
 
   // the list
   newShort: '{f:חדשה|m:חדש}',
@@ -413,6 +424,15 @@ const en: Partial<Record<TicketTextKey, string>> = {
   tabMine: 'Mine',
   tabDepartment: 'Department',
   tabAll: 'All',
+  secRequests: 'Requests',
+  secRequestsShort: 'Requests',
+  secRequestsNamed: '{tickets}',
+  secMaintenance: 'Maintenance & checks',
+  secMaintenanceShort: 'Maintenance',
+  secVendors: 'Vendors & finance',
+  secVendorsShort: 'Vendors',
+  secReports: 'Overview & reports',
+  secReportsShort: 'Overview',
   newShort: 'New',
   newTitle: 'New {ticket}',
   mapCreate: 'Open a {ticket}',
@@ -783,6 +803,21 @@ export function tt(key: TicketTextKey, vars?: Record<string, string | number>): 
   if (raw === undefined) return String(key); // an unknown key (a newer server's code) never breaks a render (2.5.0: the הרשאות tab)
   const named = tn(raw, lang as TicketLang);
   return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
+}
+
+/** SERVICEIA1-295: the name of one section of the area (`short` = the phone label). The requests section is "בקשות" while the item names
+ * are the defaults, else the configured plural (D33: a renamed module renames its first section too). */
+export function ticketsSectionLabel(section: 'requests' | 'maintenance' | 'vendors' | 'reports' | string, short = false): string {
+  if (section === 'requests') {
+    const lang = ticketsLang();
+    const n = ticketNames(lang as TicketLang);
+    const d = DEFAULT_TICKET_NAMES[lang as TicketLang];
+    if (n.one !== d.one || n.many !== d.many) return tt('secRequestsNamed');
+    return tt(short ? 'secRequestsShort' : 'secRequests');
+  }
+  const key = section === 'maintenance' ? 'secMaintenance' : section === 'vendors' ? 'secVendors' : section === 'reports' ? 'secReports' : null;
+  if (!key) return section;
+  return tt(short ? (`${key}Short` as TicketTextKey) : key);
 }
 
 /** Every key of the Hebrew catalogue (the completeness test compares the English column with it). */

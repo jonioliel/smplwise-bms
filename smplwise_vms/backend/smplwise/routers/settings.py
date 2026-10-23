@@ -88,6 +88,9 @@ DEFAULTS: dict[str, str] = {
     # {section_id: {"order": [tab_id...], "hidden": [tab_id...]}}; read back as an object, not a string. "{}" = nothing
     # configured = the built-in tabs. Contract: docs/architecture/TABS_CONFIG.md.
     "ui.tabs": "{}",
+    # SERVICEIA1-295 (owner 24.10): the service-management area's section row for a user who sees ONE section only - hide_single (the
+    # default: the row is not drawn, the page row is) | always. Edited in Settings > general > tabs; presentation only.
+    "ui.tickets_section_row": "hide_single",
     # release 0.1.153: how the tab groups are presented - tabs (default) | hybrid | dropdown - and a per-group override (a JSON object
     # {home|area|multimedia|security|settings: mode}, read back as an object). A user's own value (/me/prefs) wins. services/tabs_mode.py.
     "ui.tabs_mode": "tabs",
@@ -428,6 +431,8 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
+    if out.get("ui.tickets_section_row") not in ("hide_single", "always"):  # SERVICEIA1-295: a corrupt value reads as the default
+        out["ui.tickets_section_row"] = "hide_single"
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.look"] = look.stored(out["ui.look"])
     out["ui.background_images"] = ui_background.stored_stamps(out["ui.background_images"])
@@ -668,6 +673,7 @@ class SettingsPatch(BaseModel):
     ui_background: str | None = Field(default=None, pattern="^(builtin|none|custom)$", alias="ui.background")  # CRY: keep in step with BACKGROUND_MODES in frontend/src/design/background.ts
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
+    ui_tickets_section_row: str | None = Field(default=None, pattern="^(hide_single|always)$", alias="ui.tickets_section_row")  # SERVICEIA1-295
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
     ui_dd_style: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.STYLES) + ")$", alias="ui.dd_style")
     ui_dd_phone: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PHONE_MODES) + ")$", alias="ui.dd_phone")

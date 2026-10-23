@@ -10,7 +10,7 @@ import { tt } from '../src/tickets/text';
 import { boardUiOf, type BoardItem, type TreeNode } from '../src/api/tickets-board';
 import { setTicketNames } from '../src/tickets/naming';
 import { eventLine } from '../src/tickets/model';
-import { TICKETS_TABS, TAB_PERMISSIONS, activeAreaTab, areaOf } from '../src/shell/nav';
+import { TICKETS_REQUESTS_PAGES, TICKETS_TABS, TAB_PERMISSIONS, activeAreaTab, areaOf, ticketsPageOf } from '../src/shell/nav';
 import { CATEGORY_LABEL, CATEGORY_ORDER, TICKET_SOURCES, VISIBILITY_PERMISSION } from '../src/api/notifications';
 import type { TicketEvent } from '../src/api/tickets';
 
@@ -118,14 +118,16 @@ test('the timeline rows the SLA monitor writes', () => {
   expect(eventLine(ev('link_expired')).icon).toBe('x');
 });
 
-test('the board tab: after "המחלקה", for tickets.manage, active on #/tickets/board', () => {
-  // owner 2026-10-14: "מטפלים וספקים" fifth; TKRFQ2: requests for quotation; TK258: "חשבון ספקים" last; MGRDASH: the managers' "סקירה" first
-  expect(TICKETS_TABS.map((t) => t.id)).toEqual(['overview', 'mine', 'department', 'board', 'all', 'handlers', 'rfqs', 'accounts', 'external']); // SHAREDID-293: "גישת חוץ" last, offered only when placed here
-  expect(TICKETS_TABS.find((t) => t.id === 'board')?.label).toBe('לוח מנהל');
+test('the board page: after "המחלקה" in the requests section, for tickets.manage, active on #/tickets/board', () => {
+  // SERVICEIA1-295 (owner 24.10): the area's row is the four sections; the board stays a PAGE of בקשות, in its old place after "המחלקה"
+  expect(TICKETS_TABS.map((t) => t.id)).toEqual(['requests', 'maintenance', 'vendors', 'reports']);
+  expect(TICKETS_REQUESTS_PAGES.map((t) => t.id)).toEqual(['mine', 'department', 'board', 'all']);
+  expect(TICKETS_REQUESTS_PAGES.find((t) => t.id === 'board')?.label).toBe('לוח מנהל');
   expect(TAB_PERMISSIONS['#/tickets/board']).toEqual(['tickets.manage']);
   const r = { path: '/tickets/board', mode: 'tickets', segments: ['tickets', 'board'], params: new URLSearchParams() } as never;
   expect(areaOf(r)).toBe('tickets');
-  expect(activeAreaTab(r)).toBe('board');
+  expect(activeAreaTab(r)).toBe('requests');
+  expect(ticketsPageOf(r)).toBe('board');
 });
 
 test('the notification category and subject kind of the module (spec 13.4)', () => {

@@ -17,6 +17,10 @@ export interface TabItem {
   icon?: IconName;
   /** Dropdown presentation, capsule style only: a separator line instead of an item (the tab bars and the other dropdown looks skip it). */
   divider?: boolean;
+  /** SERVICEIA1-295: a shorter label the bar shows when the host asks for short labels (`short-labels`, the phone rows). */
+  short?: string;
+  /** SERVICEIA1-295: a small red dot after the label (the bar forms; the dropdown uses `alert`): something waits inside this entry. */
+  dot?: boolean;
 }
 
 /** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
@@ -58,6 +62,8 @@ export class SwTabs extends LitElement {
   @property({ attribute: 'dd-panel' }) ddPanel: DdPanel = '240';
   /** Dropdown only (PHONENAV-295): the chip box itself is a 44 px touch target (sw-dropdown `tall`). */
   @property({ type: Boolean }) tall = false;
+  /** SERVICEIA1-295: the bar forms show each item's `short` label when it has one (the shell's phone rows). */
+  @property({ type: Boolean, attribute: 'short-labels' }) shortLabels = false;
 
   static styles = css`
     :host {
@@ -167,6 +173,15 @@ export class SwTabs extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: 700;
       line-height: 1;
+    }
+    /* SERVICEIA1-295: the "something waits inside" dot (the dropdown chip's dot, in the bar forms) */
+    .tdot {
+      inline-size: 8px;
+      block-size: 8px;
+      margin-inline-start: 2px;
+      border-radius: 999px;
+      background: var(--sw-danger);
+      flex: none;
     }
 
     /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
@@ -376,7 +391,7 @@ export class SwTabs extends LitElement {
     if (this.mode === 'dropdown') {
       return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
-    const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}</span>`;
+    const label = (it: TabItem) => html`<span class="lbl">${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class="tdot" data-tab-dot=${it.id} aria-hidden="true"></span>` : ''}</span>`;
     return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
       it.href
         ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`

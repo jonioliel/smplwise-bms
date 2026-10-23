@@ -109,7 +109,8 @@ test('a section never ends up empty, and the way back to the editor cannot be hi
 
 test('every registry section comes from the arrays of nav.ts (nothing duplicated) and the map lost its device tab', () => {
   // TABSET-293: multimedia, infrastructure (+ its two page rows) and the tickets area joined the registry
-  expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'multimedia', 'wiskey', 'infra', 'infra.electricity', 'infra.generator', 'tickets', 'system', 'system.security']);
+  // SERVICEIA1-295: the tickets area's level-1 row is its sections, and the two sections with several pages have their page rows
+  expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'multimedia', 'wiskey', 'infra', 'infra.electricity', 'infra.generator', 'tickets', 'tickets.requests', 'tickets.vendors', 'system', 'system.security']);
   const byId = Object.fromEntries(TAB_SECTIONS.map((s) => [s.id, ids(s.tabs())]));
   expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra', 'tickets']); // CR-015: multimedia sits between the map and WisKey; CR-023: תשתיות after WisKey; CR-038: the optional tickets area last
   expect(byId['devices']).toEqual(['building', 'automations']); // 0.1.154: the home area's tabs (the schedules became the first segment of the second, קברניט)

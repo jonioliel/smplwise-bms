@@ -7,7 +7,7 @@ import { ALL_CAPABILITIES } from '../api/capabilities';
 import { applyCapabilities, capHiddenHref, needsOfSegments, segmentsOfHref } from './nav-capabilities';
 import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 import { onTicketNames } from '../tickets/naming';
-import { tt } from '../tickets/text';
+import { tt, ticketsSectionLabel as sectionLabel } from '../tickets/text';
 import { bt } from '../tickets/board-text'; // CR-038 slice 6: the board tab's label
 import { ot } from '../tickets/overview-text'; // MGRDASH: the overview tab's label
 import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
@@ -406,7 +406,55 @@ export function normalizeTabsConfig(raw: unknown): TabsConfig {
     const style = asTabStyle((body as { style?: unknown }).style);
     if (order.length || hidden.length || style) out[section] = style ? { order, hidden, style } : { order, hidden };
   }
+  migrateTicketsTabs(out);
   return out;
+}
+
+/** SERVICEIA1-295: the page ids of the old one-row tickets area (before the four sections) and the section each moved to. */
+const TICKETS_LEGACY_PAGE_SECTION: Record<string, TicketsSection> = {
+  overview: 'reports', mine: 'requests', department: 'requests', board: 'requests', all: 'requests',
+  handlers: 'vendors', rfqs: 'vendors', accounts: 'vendors', external: 'vendors',
+};
+/** The section level-2 rows `ui.tabs` configures (a section with fewer than two pages has nothing to order). */
+export const TICKETS_CONFIGURABLE_SECTIONS: readonly TicketsSection[] = ['requests', 'vendors'];
+
+/** SERVICEIA1-295 (the `devices.schedules` precedent): a stored `tickets` entry written before the sections names the old page ids. On read
+ * it becomes the new shape - each page's order / hidden goes to its section's row (`tickets.<section>`, only when that row has no entry of
+ * its own), the level-1 order lists the sections in the order their first page appeared, and a section whose every page was hidden is
+ * hidden at level 1 (so nothing an administrator hid reappears). The bar style stays on `tickets`. The server stores whatever is saved
+ * next; an entry already in the new shape is left alone. */
+function migrateTicketsTabs(out: TabsConfig): void {
+  const old = out.tickets;
+  if (!old) return;
+  const legacy = (id: string) => id in TICKETS_LEGACY_PAGE_SECTION;
+  if (![...old.order, ...old.hidden].some(legacy)) return;
+  const sectionOrder: TicketsSection[] = [];
+  const perSection: Partial<Record<TicketsSection, { order: string[]; hidden: string[] }>> = {};
+  const bucket = (s: TicketsSection) => (perSection[s] ??= { order: [], hidden: [] });
+  for (const id of old.order) {
+    const s = TICKETS_LEGACY_PAGE_SECTION[id];
+    if (!s) continue;
+    if (!sectionOrder.includes(s)) sectionOrder.push(s);
+    bucket(s).order.push(id);
+  }
+  for (const id of old.hidden) {
+    const s = TICKETS_LEGACY_PAGE_SECTION[id];
+    if (s) bucket(s).hidden.push(id);
+  }
+  const hiddenSections: TicketsSection[] = [];
+  for (const s of TICKETS_SECTION_IDS) {
+    const b = perSection[s];
+    if (!b) continue;
+    // every page of the section hidden ("external" counts only when the old row offered it, i.e. when it was named)
+    const pages = TICKETS_PAGE_ROWS[s].map((p) => p.id).filter((id) => id !== 'external' || [...old.order, ...old.hidden].includes('external'));
+    if (pages.length && pages.every((id) => b.hidden.includes(id))) hiddenSections.push(s);
+    const key = `tickets.${s}`;
+    if (TICKETS_CONFIGURABLE_SECTIONS.includes(s) && !out[key] && (b.order.length || b.hidden.length)) out[key] = { order: b.order, hidden: b.hidden };
+  }
+  const order = [...sectionOrder, ...old.order.filter((id) => !legacy(id) && !sectionOrder.includes(id as TicketsSection))];
+  const hidden = [...hiddenSections, ...old.hidden.filter((id) => !legacy(id))];
+  if (order.length || hidden.length || old.style) out.tickets = old.style ? { order, hidden, style: old.style } : { order, hidden };
+  else delete out.tickets;
 }
 
 // ---- 0.1.148: the look of the tab bars (sw-tabs `variant`), per hierarchy level with a per-section override ----
@@ -452,6 +500,7 @@ let TAB_STYLES: TabStyleDefaults = {};
 export function applyTabsConfig(settings: Record<string, unknown> | null | undefined): TabsConfig {
   TABS_CONFIG = normalizeTabsConfig(settings?.['ui.tabs']);
   TAB_STYLES = normalizeTabStyles(settings?.['ui.tabs']);
+  TICKETS_SECTION_ROW = normalizeTicketsSectionRow(settings?.['ui.tickets_section_row']); // SERVICEIA1-295: saved with the tabs editor
   for (const l of tabsListeners) l();
   return TABS_CONFIG;
 }
@@ -709,31 +758,101 @@ export const TICKETS_HANDLERS_HREF = '#/tickets/handlers'; // owner request 2026
 export const TICKETS_ACCOUNTS_HREF = '#/tickets/accounts'; // TK258: the vendors account
 export const TICKETS_RFQS_HREF = '#/tickets/rfqs'; // TKRFQ2 (2.6.1): requests for quotation (the manager UI)
 export const TICKETS_OVERVIEW_HREF = '#/tickets/overview'; // MGRDASH (owner 2026-10-17): the manager overview, the area's first tab (managers only)
-export const TICKETS_TABS: TabItem[] = [
-  { id: 'overview', get label() { return ot('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: first, for managers only (TAB_PERMISSIONS + the board's server gate)
+// ---------------------------------------------------------------------------------------------
+// SERVICEIA1-295 (owner decisions 24.10, docs/changes/SERVICE-IA-PROPOSAL.md, slice 1 = navigation only): the service-management area is
+// organised in four job-based SECTIONS - בקשות · תחזוקה ובקרה · ספקים וכספים · סקירה ודוחות - the area's level-1 row (`ui.tabs` section
+// `tickets`), each with its PAGES as the level-2 row (`tickets.<section>`), exactly the infrastructure electricity / generator pattern.
+// No screen is merged, no page removed, no href renamed: every page keeps its href, its TAB_PERMISSIONS entry and its screen; the three
+// scopes (שלי · המחלקה · הכול) stay pages of בקשות (merging them into the list's own scope segment is a later slice, after the parity check
+// of its permission filter). A section is offered while at least one of its pages is, and opens on its first visible page. The section
+// entry hrefs below are redirect-only addresses (legacyRedirect).
+// ---------------------------------------------------------------------------------------------
+export type TicketsSection = 'requests' | 'maintenance' | 'vendors' | 'reports';
+export const TICKETS_SECTION_IDS: readonly TicketsSection[] = ['requests', 'maintenance', 'vendors', 'reports'];
+/** The section entry addresses (new, redirect only: they land on the section's first visible page). */
+export const TICKETS_SECTION_HREFS: Record<TicketsSection, string> = {
+  requests: '#/tickets/requests',
+  maintenance: '#/tickets/maintenance',
+  vendors: '#/tickets/vendors',
+  reports: '#/tickets/reports',
+};
+/** בקשות: the three scope pages and the manager board (the board stays a PAGE, owner 24.10) - in the order they had in the old row. */
+export const TICKETS_REQUESTS_PAGES: TabItem[] = [
   { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
   { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
   { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
   { id: 'all', get label() { return tt('tabAll'); }, href: TICKETS_ALL_HREF },
-  { id: 'handlers', get label() { return tt('hdTitle'); }, href: TICKETS_HANDLERS_HREF }, // the fifth entry: handlers, employees, vendors, contacts
+];
+/** תחזוקה ובקרה: the MAINT215 pages plug in here (ledger, plans, rounds, tags); empty on this build, so the section is never offered. */
+export const TICKETS_MAINTENANCE_PAGES: TabItem[] = [];
+/** ספקים וכספים: handlers and vendors, requests for quotation, the vendors account, external access (when placed here). */
+export const TICKETS_VENDORS_PAGES: TabItem[] = [
+  { id: 'handlers', get label() { return tt('hdTitle'); }, href: TICKETS_HANDLERS_HREF }, // handlers, employees, vendors, contacts
   { id: 'rfqs', get label() { return rt('navTitle'); }, href: TICKETS_RFQS_HREF }, // TKRFQ2: requests for quotation
   { id: 'accounts', get label() { return ct('vaTitle'); }, href: TICKETS_ACCOUNTS_HREF }, // TK258: "חשבון ספקים" (tickets.costs.view)
   // SHAREDID-293: "גישת חוץ" when the owner placed it under service management (access.external.placement tickets | both)
   { id: 'external', get label() { return xt('tab'); }, href: '#/tickets/external' },
 ];
+/** סקירה ודוחות: the manager overview (INSIGHT215's building report and insights plug in after it). */
+export const TICKETS_REPORTS_PAGES: TabItem[] = [
+  { id: 'overview', get label() { return ot('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: managers only (TAB_PERMISSIONS + the board's server gate)
+];
+export const TICKETS_PAGE_ROWS: Record<TicketsSection, TabItem[]> = {
+  requests: TICKETS_REQUESTS_PAGES,
+  maintenance: TICKETS_MAINTENANCE_PAGES,
+  vendors: TICKETS_VENDORS_PAGES,
+  reports: TICKETS_REPORTS_PAGES,
+};
+/** The area's level-1 row: the four sections (labels are getters - D33 and the document language; `short` is the phone label). The
+ * static href is the section's built-in first page; `visibleTabs` rewrites it to the first page this user may open. */
+export const TICKETS_TABS: TabItem[] = [
+  { id: 'requests', get label() { return sectionLabel('requests'); }, get short() { return sectionLabel('requests', true); }, href: TICKETS_MINE_HREF },
+  { id: 'maintenance', get label() { return sectionLabel('maintenance'); }, get short() { return sectionLabel('maintenance', true); }, href: TICKETS_SECTION_HREFS.maintenance },
+  { id: 'vendors', get label() { return sectionLabel('vendors'); }, get short() { return sectionLabel('vendors', true); }, href: TICKETS_HANDLERS_HREF },
+  { id: 'reports', get label() { return sectionLabel('reports'); }, get short() { return sectionLabel('reports', true); }, href: TICKETS_OVERVIEW_HREF },
+];
+/** Every page of the area, in the sections' order (the old flat list, regrouped): the parity reference of the specs. */
+export function ticketsAllPages(): TabItem[] {
+  return TICKETS_SECTION_IDS.flatMap((s) => TICKETS_PAGE_ROWS[s]);
+}
+/** The section a page id belongs to (null for an unknown id). */
+export function ticketsSectionOfPage(pageId: string): TicketsSection | null {
+  return TICKETS_SECTION_IDS.find((s) => TICKETS_PAGE_ROWS[s].some((p) => p.id === pageId)) ?? null;
+}
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
 
+/** SERVICEIA1-295 (owner 24.10, item 11): whether the section row is drawn for a user who sees ONE section only - an installation setting
+ * (`ui.tickets_section_row`: `hide_single`, the default, or `always`), edited in הגדרות › כללי › לשוניות. Read with the product settings. */
+export type TicketsSectionRow = 'hide_single' | 'always';
+let TICKETS_SECTION_ROW: TicketsSectionRow = 'hide_single';
+export function ticketsSectionRow(): TicketsSectionRow {
+  return TICKETS_SECTION_ROW;
+}
+export function normalizeTicketsSectionRow(v: unknown): TicketsSectionRow {
+  return v === 'always' ? 'always' : 'hide_single';
+}
+/** Whether the level-1 row of the area is drawn for this many visible sections (two or more always; one only with `always`). */
+export function ticketsSectionRowShown(visibleSections: number): boolean {
+  return visibleSections > 1 || (visibleSections === 1 && TICKETS_SECTION_ROW === 'always');
+}
+
 /** RFQQUESTIONS: vendor questions waiting in the requests the user manages (tickets/rfq-questions-store.ts reports here). The "בקשות הצעת
- * מחיר" tab carries the number as a badge (and the dropdown chip a dot), the tickets area icon a small count. Navigation only. */
+ * מחיר" page entry carries the number as a badge (and a dropdown chip a dot); SERVICEIA1-295 (owner 24.10, item 57): the "ספקים וכספים"
+ * section entry carries a dot; the tickets area icon a small count (unchanged). Navigation only. */
 let RFQ_QUESTIONS = 0;
 export function applyRfqQuestions(n: number): void {
   const next = Math.max(0, Math.floor(Number(n)) || 0);
   if (next === RFQ_QUESTIONS) return;
   RFQ_QUESTIONS = next;
-  const t = TICKETS_TABS.find((x) => x.id === 'rfqs');
+  const t = TICKETS_VENDORS_PAGES.find((x) => x.id === 'rfqs');
   if (t) {
     t.badge = next || undefined;
     t.alert = next ? true : undefined;
+  }
+  const sec = TICKETS_TABS.find((x) => x.id === 'vendors');
+  if (sec) {
+    sec.dot = next ? true : undefined;
+    sec.alert = next ? true : undefined;
   }
   for (const l of tabsListeners) l();
 }
@@ -917,8 +1036,9 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'infra':
       return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
     case 'tickets':
-      // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      // SERVICEIA1-295: the level-1 row is the SECTION (ticketsPageOf names the page); the full-screen detail (#/tickets/<id>) belongs to
+      // the requests section with no page active
+      return ticketsSectionOf(r);
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -926,10 +1046,36 @@ export function activeAreaTab(r: RouteState | null): string {
   }
 }
 
+/** SERVICEIA1-295: the section of a tickets route - a page's own section, a section entry address its section, anything else (the bare
+ * area, the full-screen detail, an unknown segment the router sends on) the requests section. '' outside the area. */
+export function ticketsSectionOf(r: RouteState | null): TicketsSection | '' {
+  if (r?.mode !== 'tickets') return '';
+  const seg = r.segments[1] ?? '';
+  if ((TICKETS_SECTION_IDS as readonly string[]).includes(seg)) return seg as TicketsSection;
+  return ticketsSectionOfPage(seg) ?? 'requests';
+}
+
+/** SERVICEIA1-295: the page of a tickets route (the level-2 row's active item): a page id, `mine` for the bare area (as before), '' for the
+ * full-screen detail, a section entry address and anything else. */
+export function ticketsPageOf(r: RouteState | null): string {
+  if (r?.mode !== 'tickets') return '';
+  const seg = r.segments[1] ?? '';
+  if (!seg) return 'mine';
+  return ticketsSectionOfPage(seg) ? seg : '';
+}
+
 /** Breadcrumb text for the SW A top bar: area › (section ›) page; in הגדרות › אבטחה the sub-page follows. */
 export function crumbsOf(r: RouteState | null, api = false): string[] {
   const a = areaOf(r);
   if (!a) return [];
+  // SERVICEIA1-295: service management › section › page (the system › security precedent)
+  if (a === 'tickets') {
+    const sec = ticketsSectionOf(r);
+    const secTab = TICKETS_TABS.find((x) => x.id === sec);
+    const page = sec ? TICKETS_PAGE_ROWS[sec].find((p) => p.id === ticketsPageOf(r)) : undefined;
+    const area = NAV_A.find((n) => n.id === 'tickets');
+    return [area?.label ?? '', secTab?.label ?? '', page && page.label !== secTab?.label ? page.label : ''].filter(Boolean);
+  }
   const area = a === 'system' ? SYSTEM_AREA : NAV_A.find((n) => n.id === a);
   const sec = a === 'security' ? SECURITY_SECTIONS.find((x) => x.id === sectionOf(r)) : undefined;
   const tabs = sec ? SECTION_TABS[sec.id] : AREA_TABS[a];
@@ -1158,9 +1304,12 @@ export function tabAllowed(href: string, can?: Can): boolean {
 }
 
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
+  // SERVICEIA1-295: the tickets sections are derived from their pages - a section is offered while one of its pages is (with or without a
+  // backend: a section without any page, תחזוקה ובקרה on this build, is never drawn) and opens on its first visible page
+  if (items === TICKETS_TABS) return ticketsSections(api, can);
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered = items === TICKETS_VENDORS_PAGES && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;
@@ -1172,6 +1321,31 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
     if (k && !shown.includes(k) && kavarnitSegments(api, can).schedules) return [...shown, k];
   }
   return shown;
+}
+
+/** SERVICEIA1-295: the area's sections this user is offered, each with the href of its first visible page (the pages' own gates and
+ * `ui.tabs` page order decide), then shaped by `ui.tabs` section `tickets` (with a backend; the demo shows the defaults). The arrays are
+ * never mutated: a section whose entry differs from its built-in href is a copy. */
+function ticketsSections(api: boolean, can?: Can): TabItem[] {
+  const list: TabItem[] = [];
+  for (const sec of TICKETS_TABS) {
+    const first = visibleTabs(TICKETS_PAGE_ROWS[sec.id as TicketsSection], api, can)[0];
+    if (!first) continue;
+    list.push(first.href === sec.href ? sec : { ...sec, label: sec.label, short: sec.short, href: first.href });
+  }
+  return api ? configureTabs('tickets', list) : list;
+}
+
+/** SERVICEIA1-295: the pages of one section this user is offered (the level-2 row the shell draws under the sections). */
+export function ticketsPageTabs(section: TicketsSection | '', api: boolean, can?: Can): TabItem[] {
+  return section ? visibleTabs(TICKETS_PAGE_ROWS[section], api, can) : [];
+}
+
+/** SERVICEIA1-295: where a section entry address (`#/tickets/<section>`) lands - the section's first visible page; a section this user is
+ * not offered (or one without pages) lands on the area's first visible section; nothing at all = the built-in list. */
+export function ticketsSectionTarget(section: string, api: boolean, can?: Can): string {
+  const own = (TICKETS_SECTION_IDS as readonly string[]).includes(section) ? ticketsPageTabs(section as TicketsSection, api, can)[0]?.href : undefined;
+  return own ?? visibleTabs(TICKETS_TABS, api, can)[0]?.href ?? TICKETS_MINE_HREF;
 }
 
 function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
@@ -1359,6 +1533,13 @@ export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): str
     if (!access.ready) return null;
     return !access.api || access.can('system.configure', true) ? `${ENTITIES_SETTINGS_HREF.slice(1)}${q}` : '/explore/floors/f0';
   }
+  // SERVICEIA1-295: the service-management section entry addresses (#/tickets/requests|maintenance|vendors|reports) land on the section's
+  // first page this user may open (permission-aware; nothing decided while the session loads); the query travels. Every page keeps its href.
+  if (r.mode === 'tickets' && (TICKETS_SECTION_IDS as readonly string[]).includes(s[1] ?? '') && !s[2]) {
+    if (access && !access.ready) return null;
+    const target = ticketsSectionTarget(s[1], access?.api ?? false, access?.api ? access.can : undefined);
+    return `${target.slice(1)}${q}`;
+  }
   // (the intrusion alarm is #/security/alarm again since 0.1.147: a tab of the security area, and a page of הגדרות › אבטחה)
   // camera health left the live pages for the investigation
   if (r.mode === 'system' && s[1] === 'devices') return `/investigate/health${q}`;
@@ -1421,7 +1602,11 @@ export const TAB_SECTIONS: TabSectionDef[] = [
   tabSection('infra', () => tst('infraLabel'), () => tst('infraWhere'), () => plain(INFRA_TABS), 1, { offered: true }),
   tabSection('infra.electricity', () => tst('infraElectricityLabel'), () => tst('infraElectricityWhere'), () => plain(INFRA_ELECTRICITY_PAGES), 2),
   tabSection('infra.generator', () => tst('infraGeneratorLabel'), () => tst('infraGeneratorWhere'), () => plain(INFRA_GENERATOR_PAGES), 2),
-  tabSection('tickets', () => tt('area'), () => tst('ticketsWhere', { name: tt('area') }), () => plain(TICKETS_TABS.filter((t) => t.id !== 'external' || EXTERNAL_PLACEMENT !== 'access')), 1, { available: () => ticketsModuleOn() }), // SHAREDID-293: "גישת חוץ" only while it is placed under service management
+  // SERVICEIA1-295: level 1 = the sections that have pages on this build; level 2 = the page rows of the sections with two pages or more
+  tabSection('tickets', () => tt('area'), () => tst('ticketsWhere', { name: tt('area') }), () => plain(TICKETS_TABS.filter((t) => TICKETS_PAGE_ROWS[t.id as TicketsSection].length > 0)), 1, { available: () => ticketsModuleOn() }),
+  ...TICKETS_CONFIGURABLE_SECTIONS.map((sec) => tabSection(`tickets.${sec}`, () => tst('ticketsSectionLabel', { name: tt('area'), section: sectionLabel(sec) }), () => tst('ticketsSectionWhere', { section: sectionLabel(sec) }),
+    // SHAREDID-293: "גישת חוץ" only while it is placed under service management
+    () => plain(TICKETS_PAGE_ROWS[sec].filter((t) => t.id !== 'external' || EXTERNAL_PLACEMENT !== 'access')), 2, { available: () => ticketsModuleOn() })),
   tabSection('system', () => tst('systemLabel'), () => tst('systemWhere'), () => plain(AREA_TABS.system), 1),
   tabSection('system.security', () => tst('systemSecurityLabel'), () => tst('systemSecurityWhere'), () => plain(SECURITY_SETTINGS_TABS), 2),
 ];
@@ -1459,6 +1644,8 @@ export function sectionIdOf(items: readonly TabItem[]): string | null {
     [MULTIMEDIA_TABS, 'multimedia'], // TABSET-293: the multimedia, infrastructure and tickets rows follow ui.tabs too
     [INFRA_TABS, 'infra'],
     [TICKETS_TABS, 'tickets'],
+    [TICKETS_REQUESTS_PAGES, 'tickets.requests'], // SERVICEIA1-295: the sections' page rows
+    [TICKETS_VENDORS_PAGES, 'tickets.vendors'],
     [AREA_TABS.system, 'system'],
     [SECURITY_SETTINGS_TABS, 'system.security'],
   ]);
