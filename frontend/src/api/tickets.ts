@@ -396,10 +396,14 @@ export interface SettingsDoc { revision: number; ui: UiSettings; links?: LinkDur
     urgent_immediate?: boolean; sla_urgent?: Record<string, 'immediate' | 'matrix'> };
   /** VENDORQ2-295 (CR-VENDORQ-294): reports to external contacts (all switches OFF by default) and the document link's limits */
   reports?: { to_contacts: boolean; email: boolean; documents: boolean; document_hours: number; document_max_opens: number };
+  /** VENDORARRIVAL126-295: the vendor "I have arrived" tap and the missed-arrival alert (OFF by default) */
+  vendor_arrival?: VendorArrivalSettings;
   vendor_portal?: VendorPortalSettings; brand?: { logo: string } /* VPORTAL: the logo's stamp ("" = none), set only by the logo routes */ }
+/** VENDORARRIVAL126-295 */
+export interface VendorArrivalSettings { enabled: boolean; default_window_min: number; day_from: string; day_to: string; grace_min: number; repeat_min: number; max_alerts: number; recipients: { managers: boolean; users: string[] }; offer_access_request: boolean }
 export interface SettingsPatch { ui?: Partial<UiSettings>; links?: Partial<LinkDurations>; send_hours?: SendHours; calendar?: WorkCalendarDoc; urgent_is_critical?: boolean; organization_name?: string; privacy?: { contact?: string; link?: string }; public?: Partial<PublicSettings>; device_long_press?: 'sheet' | 'menu'; directory?: { managers_full_phones?: boolean; review_pending_days?: number; review_idle_months?: number };
   rfq?: { award_notice?: 'confirm' | 'auto' | 'off'; postpone_late_hours?: number; schedule_arrival?: boolean; arrival_reminder_hours?: number; question_reminder_hours?: number; question_badge_all_viewers?: boolean; instalment_reminder_hours?: number; vendor_uploads?: Partial<RfqVendorUploadSettings> }; vendor_portal?: Partial<VendorPortalSettings>;
-  reports?: Partial<{ to_contacts: boolean; email: boolean; documents: boolean; document_hours: number; document_max_opens: number }> }
+  reports?: Partial<{ to_contacts: boolean; email: boolean; documents: boolean; document_hours: number; document_max_opens: number }>; vendor_arrival?: Partial<VendorArrivalSettings> }
 
 export interface TicketsBackend {
   module(): Promise<ModuleState>;

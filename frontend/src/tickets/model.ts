@@ -273,6 +273,10 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
       return { icon: 'clock', text: bt('e_stuck', { reason: BOARD_REASONS.includes(String(d.kind)) ? bt(`r_${String(d.kind)}` as BoardTextKey) : '' }) };
     case 'reminder':
       return { icon: 'clock', text: bt('e_reminder', { n: Number(d.n ?? 1) }) };
+    case 'vendor_arrived': // VENDORARRIVAL126-295
+      return { icon: 'pin', text: bt('e_vendor_arrived') };
+    case 'vendor_missed':
+      return { icon: 'warning', text: bt('e_vendor_missed') };
     case 'manager_alerted':
       return { icon: 'user', text: bt('e_manager_alerted') };
     case 'auto_closed':

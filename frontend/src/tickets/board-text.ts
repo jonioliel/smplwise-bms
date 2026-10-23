@@ -84,6 +84,8 @@ const he = {
   e_stuck: '{f:נתקעה|m:נתקע}: {reason}',
   e_reminder: 'נשלחה תזכורת למטפל ({n})',
   e_manager_alerted: 'המנהלים קיבלו התראה',
+  e_vendor_arrived: 'הספק דיווח שהגיע לאתר',
+  e_vendor_missed: 'הספק לא הגיע במועד הצפוי',
   e_auto_closed: '{f:נסגרה|m:נסגר} אוטומטית',
   e_link_expired: 'קישור הטיפול פג',
 
@@ -178,6 +180,8 @@ const en: Partial<Record<BoardTextKey, string>> = {
   e_stuck: 'Stuck: {reason}',
   e_reminder: 'Reminder sent to the handler ({n})',
   e_manager_alerted: 'Managers alerted',
+  e_vendor_arrived: 'The vendor reported arriving on site',
+  e_vendor_missed: 'The vendor did not arrive at the expected time',
   e_auto_closed: 'Closed automatically',
   e_link_expired: 'Handler link expired',
   setBoardFloors: 'Floors on the board',

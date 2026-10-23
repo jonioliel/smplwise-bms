@@ -151,6 +151,8 @@ export interface TicketView {
   map_element?: { name: string; floor: string; room: string; image: boolean } | null;
   /** GRANTS3-295: the arrival step ("who arrives, when") is available - the page fetches its lazy chunk only then */
   arrival?: boolean;
+  /** VENDORARRIVAL126-295: the one-tap "I have arrived" card (present only while the installation switch is on, on a vendor link, work open) */
+  vendor_arrival?: { state: 'open' | 'expected' | 'late' | 'arrived'; window_from?: string; window_to?: string; arrived_at?: string; offer_access?: boolean };
 }
 
 export const api = {

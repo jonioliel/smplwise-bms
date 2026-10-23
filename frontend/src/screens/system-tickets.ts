@@ -19,6 +19,8 @@ import { rlt } from '../tickets/rules-text';
 import { lt } from '../tickets/org-locations-text';
 import '../tickets/board-settings'; // slice 6: the board's rows (the display tab)
 import '../tickets/notify-matrix'; // TKNOTIFMATRIX: the notification matrix and the daily digest
+import '../tickets/settings-vendor-arrival'; // VENDORARRIVAL126-295: the vendor's arrival tap and the missed-arrival alert
+import { vat } from '../tickets/vendor-arrival-text';
 import type { NotifyDoc } from '../tickets/notify-matrix-model';
 import { nmt } from '../i18n/notify-matrix';
 import { ct } from '../tickets/cost-text';
@@ -759,6 +761,9 @@ export class SystemTickets extends LitElement {
           <ticket-notify-matrix .doc=${this.doc as unknown as { revision: number; notify?: NotifyDoc }} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<SettingsDoc>) => { this.doc = e.detail; this.say(tt('setSaved')); }}></ticket-notify-matrix>
         </sw-card>` : nothing}
         <tickets-work-calendar-card .doc=${this.doc} ?busy=${this.busy} @save-doc=${(e: CustomEvent<{ patch: SettingsPatch }>) => void this.saveDoc(e.detail.patch)}></tickets-work-calendar-card>
+        ${isApi() && mayConfigure ? html`<sw-card heading=${vat('card')} data-card="vendor-arrival">
+          <ticket-vendor-arrival .doc=${this.doc as unknown as { revision: number }} ?disabled=${this.busy} @doc-changed=${(e: CustomEvent<SettingsDoc>) => { this.doc = e.detail; this.say(tt('setSaved')); }}></ticket-vendor-arrival>
+        </sw-card>` : nothing}
         ${this.rfqTermsCard(this.doc)}
         ${this.vendorUploadsCard(this.doc)}
       </div>

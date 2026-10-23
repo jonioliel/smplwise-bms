@@ -450,6 +450,7 @@ export const TICKET_SOURCES: readonly SourceInfo[] = [
   S('ticket.stuck', 'חריגה מזמני הטיפול', 'tickets', 'alert', 'warning'),
   S('ticket.returned', 'הוחזר למנהל', 'tickets', 'alert', 'ticket'),
   S('ticket.question', 'שאלה מהמטפל', 'tickets', 'alert', 'ticket'),
+  S('ticket.vendor_missed', 'ספק לא הגיע במועד הצפוי', 'tickets', 'alert', 'warning'), // VENDORARRIVAL126-295
   S('ticket.done', 'טיפול הסתיים - ממתין לסגירה', 'tickets', 'info', 'ticket'),
   S('ticket.reply_unmatched', 'תשובה שלא שויכה', 'tickets', 'info', 'ticket'),
   S('ticket.send_failed', 'הודעה למטפל לא נשלחה', 'tickets', 'alert', 'warning'),

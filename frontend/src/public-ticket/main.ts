@@ -61,6 +61,9 @@ class Page {
   // GRANTS3-295: the arrival step (lazy chunk, fetched only when the ticket answer says `arrival: true`)
   private arrivalHandle: { element: HTMLElement; refresh(): Promise<void>; setLang(l: Lang): void } | null = null;
   private arrivalLoading = false;
+  // VENDORARRIVAL126-295: the "I have arrived" card (lazy chunk, fetched only when the ticket answer carries `vendor_arrival`)
+  private arrivedHandle: { element: HTMLElement; update(b: NonNullable<TicketView['vendor_arrival']>): void; setLang(l: Lang): void } | null = null;
+  private arrivedLoading = false;
   private rid: string | null = null;
   private phase: Phase = 'loading';
   private view: TicketView | null = null;
@@ -593,6 +596,7 @@ class Page {
       this.hero(v, kind),
       v.claim_mode ? null : this.mapCard(v),
       v.claim_mode ? null : this.rfqFiles(v),
+      v.vendor_arrival && !readOnly && kind === 'vendor' ? this.arrivedBlock(v) : null,
       v.arrival && !readOnly && kind === 'vendor' ? this.arrivalBlock(v) : null,
       v.claim_mode ? this.costBlock(v) : null,
       writable ? this.statusCard(v) : null,
@@ -604,6 +608,24 @@ class Page {
       writable && v.actions?.return ? this.returnBlock() : null),
     this.primaryBar(v, kind),
     this.footer());
+  }
+
+  /** VENDORARRIVAL126-295: the "I have arrived" card (lazy chunk, fetched only when the answer carries `vendor_arrival`). */
+  private arrivedBlock(v: TicketView): HTMLElement | null {
+    if (this.arrivedHandle) {
+      this.arrivedHandle.setLang(this.lang);
+      this.arrivedHandle.update(v.vendor_arrival!);
+      return this.arrivedHandle.element;
+    }
+    if (!this.arrivedLoading) {
+      this.arrivedLoading = true;
+      void import('./arrived/arrived-card').then((m) => {
+        this.arrivedHandle = m.mountArrived({ post: (crid) => rawCall(this.creds, 'POST', '/t/api/arrived', { client_request_id: crid }), newRequestId,
+          lang: this.lang, zone: v.time_zone, reload: () => void this.load(false) });
+        this.render();
+      }).catch(() => { this.arrivedLoading = false; });
+    }
+    return null;
   }
 
   /** GRANTS3-295: the arrival step's card, mounted once from its lazy chunk and refreshed when the ticket reloads. */

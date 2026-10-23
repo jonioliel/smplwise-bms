@@ -222,6 +222,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   let doc = 0;
   let claimPrefill = 0;
   let arrival = 0;
+  let arrived = 0;
   const lang: Record<string, number> = { ar: 0, ru: 0 };
   for (const f of readdirSync(path.join(out, 'assets'))) {
     const p = path.join(out, 'assets', f);
@@ -246,6 +247,8 @@ test('a built bundle is outside www, script- and style-file only, and within the
       // GRANTS3-295: the arrival step ("who arrives, when", then the approved doors / code schedule) - a lazy chunk + stylesheet the
       // ticket page fetches only when its answer says `arrival: true`; its own 7 KB cap, so the ticket page grows by the loader only
       else if (/^arrival-(card|text|model)[-.]/.test(f)) arrival += n;
+      // VENDORARRIVAL126-295: the one-tap "I have arrived" card - a lazy chunk fetched only when the answer carries `vendor_arrival` (switch on); its own 4 KB cap
+      else if (/^arrived-(card|text)[-.]/.test(f)) arrived += n;
       // LAZYLANG-295: the Arabic / Russian words (page + claim + quote) - one lazy chunk per language, fetched only when the page
       // speaks it (src/public-ticket/lang-packs.ts); each its own 6 KB cap, so the ticket page carries Hebrew and English only
       else if (/^lang-(ar|ru)[-.]/.test(f)) lang[f.slice(5, 7)] += n;
@@ -276,6 +279,7 @@ test('a built bundle is outside www, script- and style-file only, and within the
   // (383 B over 7 KB); the growth is the translations of a lazy chunk the ticket page fetches only with `arrival: true`, so its cap
   // moves to 8 KB and the 62 KB ticket page is untouched (62,708 B at integ/2100 @ ed506da7d, headroom 780 B)
   expect(arrival).toBeLessThanOrEqual(8 * 1024);
+  expect(arrived).toBeLessThanOrEqual(4 * 1024);
   // LAZYLANG-295 (2.10.1, owner 2026-10-21: ar / ru are optional languages, he / en stay synchronous): measured on the runner with this
   // test's method (vite build -c vite.public.config.ts on release/2100 @ f3f29b7bf + the change): the ticket page 62,708 -> 52,087 B
   // (headroom 780 -> 11,401 B under the unchanged 62 KB cap); lang-ar 5,239 B, lang-ru 5,717 B (6 KB caps: headroom 905 / 427 B).
