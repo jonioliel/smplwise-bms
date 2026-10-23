@@ -3,50 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>מים - דגם למסכים</title>
+<meta name="color-scheme" content="light dark">
+<title>מים - דגם למסכים (v3)</title>
 <!--
-  CR-WATER78 (board item r078, "water meters under Infrastructure") - static design mock-up for the owner's approval. NOT product
-  code: self-contained, no network request, fake data only (no lab ids, no entity ids).
+  CR-WATER78 (board item r078, "water meters under Infrastructure") - static design mock-up for the owner's approval, revision 3
+  (owner feedback 2026-10-24: "much more in the style of the electricity meters screens"). NOT product code: self-contained, no
+  network request, fake data only (no lab ids, no entity ids).
 
-  Owner standing style (2026-10-23): every mockup follows the visual language of the EXISTING infrastructure screens (temperature,
-  electricity, elevators). This file is drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin, the
-  light + dark columns copied verbatim below), the real shell (shell/sw-app.ts: the area rail on the right, no top bar, the search /
-  status pill floating in the content's corner; phone: a bottom bar), the real tab rows (components/sw-tabs.ts: level 1 = the pill
-  track of INFRA_TABS with the new "מים" tab beside "מוני חשמל", level 2 = the compact underline row of the pages), the page head of
-  screens/infra-temperature.ts (.top), the KPI row (each a filter), the places tree (components/sw-place-tree.ts; a select on the
-  phone), the electricity table (electricity/styles.ts table.t) and its cards / table segmented control, the solid state badge and
-  the soft chips of temperature/styles.ts, the pill buttons, and the sw-state-panel states (loading / empty / error / off / forbidden).
-  It follows the maintenance-215 mockup (pilot/MAINT215-295, b67fdda85) line by line where the same component is used.
+  What this file is: the REAL electricity meters screens, reproduced 1:1, with water content. Every rule below is copied from the
+  product source, not approximated:
+    - frontend/src/design/tokens.ts (classic skin, light + dark columns)             -> :root token table
+    - frontend/src/shell/sw-app.ts (design "a": the rail, the floating corner pill, the phone's bottom bar)
+    - frontend/src/screens/infra-electricity.ts (the area host: padding, the two tab rows, .rows / .body)
+    - frontend/src/components/sw-tabs.ts (pill = level 1, underline-compact = level 2)
+    - frontend/src/electricity/styles.ts (elecCss: .row/.sp, .card, .tiles/.tile, .inp, .seg, .chip, table.t, .list/.li, .kv, .skl, .alert)
+    - frontend/src/screens/electricity/page-meters.ts (the head row, the tiles, the areas tree, the table / cards / phone rows, the states)
+    - frontend/src/electricity/meter-card.ts (the drawer body: chip, dl.kv, "צריכה" + range seg, the SVG bar chart, the lists, the actions)
+    - frontend/src/components/sw-drawer.ts (modal: 480 px side panel, phone bottom sheet), sw-state-panel.ts, sw-button.ts, sw-icon.ts
+  The class names are the real ones (so the implementer can diff this file against the source); `:host` became the wrapper class
+  `.elec` / `.drawer` / `.state-panel`. Only the CONTENT differs: m³ and litres, night flow in litres per hour, the leak alerts.
 
-  Pages (level 2 of "מים"): 1. מונים  2. צריכה  3. התראות (slice 2). Billing pages are NOT drawn (owner question Q1).
-  URL switches: ?page=meters|usage|alerts  ?theme=dark  ?role=mgr|op|view  ?state=ready|empty|loading|error|off  ?sheet=1
+  Approved decisions kept (CR-WATER78 §13, owner 2026-10-23): night window 01:00-05:00, 6 L/h over two hours (8 buckets), the
+  irrigation night rule OFF, abnormal + burst on, m³ with litres under 1 m³, alerts on by default, no actuation, the module switch
+  (default off, the off panel), viewers without water.view (the forbidden panel), the "מים" tab beside "מוני חשמל".
+
+  Pages (level 2 of "מים"): 1. מונים  2. צריכה  3. התראות (slice 2). Billing pages are NOT drawn (owner question Q1: not now).
+  URL switches: ?page=meters|usage|alerts  ?scheme=dark (also ?theme=dark)  ?role=mgr|op|view  ?state=ready|empty|loading|error|off|forbidden
+                ?view=cards  ?sheet=1 (the meter drawer)  ?range=hours|days|months (the drawer's chart)
 -->
+<link rel="stylesheet" href="../../../../smplwise_vms/www/fonts.css">
+<link rel="stylesheet" href="../../smplwise_vms/www/fonts.css">
 <style>
-/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) - the names used by the real screens ===== */
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin): the names the real screens use ===== */
 :root {
   --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
-  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-highlight: transparent; --sw-overlay: rgba(17,24,39,.45);
   --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
   --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
-  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-live: #22c55e; --sw-live-text: #15803d; --sw-recorded: #2f6bff; --sw-recorded-soft: #eaf0ff; --sw-recorded-text: #1f5ae6;
+  --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0; --sw-stale-text: #b45309;
   --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
   --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
   --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
   --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
-  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0; --sw-stale-text: #b45309;
-  --sw-recorded: #2f6bff; --sw-recorded-soft: #eaf0ff; --sw-recorded-text: #1f5ae6; --sw-cool: #2f8fb8;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-on-video: #ffffff;
   --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
   --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
-  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
-  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
   --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-drawer-w: 360px; --sw-content-max: none; --sw-touch-desktop: 44px;
   --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
   --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
-  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
-  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25); --sw-glass-blur-sheet: none;
+  --sw-ctl-h-sm: 26px; --sw-ctl-h-md: 30px; --sw-ctl-h-lg: 36px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
   --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
-  --sw-touch-desktop: 44px; --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  --sw-t-fast: 120ms; --sw-t-med: 200ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-drawer: 20; --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -54,35 +66,28 @@
   --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
   --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
   --sw-accent: #3a6ce0; --sw-accent-hover: #3465d6; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
-  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-live: #3ddc84; --sw-live-text: #3ddc84; --sw-recorded: #6ea2ff; --sw-recorded-soft: rgba(110,162,255,.2); --sw-recorded-text: #8fb8ff;
+  --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc; --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2); --sw-stale-text: #f5b043;
   --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
   --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
   --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
   --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
-  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2); --sw-stale-text: #f5b043;
-  --sw-recorded: #6ea2ff; --sw-recorded-soft: rgba(110,162,255,.2); --sw-recorded-text: #8fb8ff; --sw-cool: #4aa8d8;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2);
   --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
   --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
   --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; color-scheme: dark;
 }
-/* the state looks of the temperature screen (temperature/styles.ts): --c = the colour, --c-text = the text on its soft fill */
-[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
-[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
-[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
-[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
-[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
-[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
-[data-look="water"] { --c: var(--sw-recorded); --c-text: var(--sw-recorded-text); --c-soft: var(--sw-recorded-soft); }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
 body { min-height: 100dvh; }
-.ltr, .num { direction: ltr; unicode-bidi: isolate; }
-.num { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* components/sw-icon.ts */
+.ic { display: inline-flex; inline-size: var(--sw-icon-size, 20px); block-size: var(--sw-icon-size, 20px); color: inherit; vertical-align: middle; flex-shrink: 0; }
+.ic svg { inline-size: 100%; block-size: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ic.s13 { --sw-icon-size: 13px; } .ic.s14 { --sw-icon-size: 14px; } .ic.s15 { --sw-icon-size: 15px; } .ic.s16 { --sw-icon-size: 16px; } .ic.s22 { --sw-icon-size: 22px; } .ic.s26 { --sw-icon-size: 26px; }
 
 /* ===== mockup-only controls (not part of the product) ===== */
 .mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
@@ -92,286 +97,270 @@ svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; st
 .mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
 .mock .sp { flex: 1; }
 
-/* ===== the shell (shell/sw-app.ts): the rail at the inline start, the content column, the floating corner pill ===== */
-.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
-nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
-.brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
-nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
-nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
-nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
-nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
-nav.rail a.active svg { color: var(--sw-accent); }
-nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
-nav.rail .grow { flex: 1; }
-.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
-.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); }
+/* ===== the shell (shell/sw-app.ts, design "a"): the rail at the inline start, no top bar, the corner pill, the phone's bottom bar ===== */
+.app { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'rail main'; block-size: calc(100dvh - 40px); background: var(--sw-bg); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding-block: 12px 10px; padding-inline: 7px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); overflow: auto; scrollbar-width: none; }
+.brand-tile { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); text-decoration: none; margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
+a.item { display: flex; align-items: center; gap: 9px; min-block-size: 32px; padding: 0 10px; border-radius: var(--sw-r-sm); color: var(--sw-text-2); text-decoration: none; font-weight: var(--sw-fw-medium); font-size: var(--sw-fs-sm); }
+a.item .ic { color: var(--sw-text-3); }
+a.item:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+a.item.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+a.item.active .ic { color: var(--sw-accent); }
+a.item.a { flex-direction: column; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; line-height: 1.3; border-radius: var(--sw-r-md); font-size: 10.5px; white-space: nowrap; position: relative; }
+a.item.a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+.rail .grow { flex: 1; }
+button.me { all: unset; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; color: var(--sw-text-2); font-size: 10.5px; font-weight: var(--sw-fw-medium); }
+button.me .av { display: inline-grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 3px transparent; }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); display: flex; flex-direction: column; align-items: flex-end; }
 .float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
-.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
-.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
-main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
-/* the tab rows (components/sw-tabs.ts): level 1 = the pill track, level 2 = the compact underline row */
-.subnav { padding: 12px 24px 0; display: flex; }
-.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
-.tabs::-webkit-scrollbar { display: none; }
-.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; }
-.tabs a { position: relative; display: inline-flex; align-items: center; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
-.tabs a:hover { color: var(--sw-text); }
-.tabs a.on { color: var(--sw-accent-text); }
-.tabs.pill .row { padding-inline: 3px; }
-.tabs.pill .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
-.tabs.pill a { min-block-size: 34px; padding-inline: 1px; }
-.tabs.pill a .lbl { display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
-.tabs.pill a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
-.tabs.compact { display: flex; position: relative; }
-.tabs.compact .row { flex: 1 0 auto; gap: 0; }
-.tabs.compact .row::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 31px; block-size: 1px; background: var(--sw-border); }
-.tabs.compact a { align-items: flex-start; padding: 0 10px; min-block-size: 32px; }
-.tabs.compact a .lbl { display: inline-flex; align-items: center; min-block-size: 30px; }
-.tabs.compact a::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 29px; block-size: 2px; z-index: 1; }
-.tabs.compact a.on::after { background: var(--sw-accent); }
-.tabs .count { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-inline-start: 5px; }
-.tabs a.on .count { color: var(--sw-accent-text); }
-.tabs .count[data-look] { color: var(--c-text); font-weight: var(--sw-fw-semibold); }
-@media (max-width: 767px) and (pointer: coarse) { .tabs a { min-block-size: 44px; } }
-
-/* ===== the screen (screens/infra-temperature.ts :host / .top / .kpis) ===== */
-.screen { display: none; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; inline-size: 100%; min-inline-size: 0; }
-.screen.on { display: flex; }
-.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); }
-.top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
-.top .sp { flex: 1; }
-.top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
-.btn:hover { border-color: var(--sw-border-strong); }
-.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
-.btn.pri:hover { background: var(--sw-accent-hover); }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
-.btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
-.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
-.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
-.btn svg { font-size: 16px; }
-/* KPI row: each a filter (aria-pressed), like the temperature screen; a figure KPI (data-figure) is not a filter */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer; --c: var(--sw-accent); }
-.kpi[data-figure] { cursor: default; }
-.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
-.kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
-.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; color: var(--sw-heading); }
-.kpi b small { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); margin-inline-start: 3px; }
-.kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
-/* badges (solid, temperature) and chips (soft) */
-.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
-.badge svg { font-size: 14px; }
-.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
-.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
-/* panels / cards (temperature .panel, electricity .card) */
-.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
-.panel.flush { padding: 0; overflow: hidden; }
-.panel h2, .panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-.panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
-.panel .hd .sp { flex: 1; }
-.mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
-/* the places tree beside the list (components/sw-place-tree.ts) */
-.cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; min-inline-size: 0; }
-.cols > * { min-inline-size: 0; }
-.tree { display: flex; flex-direction: column; gap: 2px; padding: var(--sw-s-2); }
-.tree .ttl { padding: var(--sw-s-2) var(--sw-s-3) var(--sw-s-1); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); color: var(--sw-text-3); }
-.tree .line { display: flex; align-items: stretch; gap: 2px; }
-.tree button { display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: 36px; padding-inline: var(--sw-s-3); border: 0; border-radius: var(--sw-r-sm); background: transparent; color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); text-align: start; cursor: pointer; }
-.tree button:hover { background: var(--sw-hover-wash); }
-.tree button.pick { flex: 1; min-inline-size: 0; }
-.tree button.pick .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree button.fold { justify-content: center; min-inline-size: 36px; padding-inline: 0; color: var(--sw-text-3); }
-.tree button.fold svg { transition: transform var(--sw-t-fast) var(--sw-ease); font-size: 14px; }
-.tree button.fold[aria-expanded="false"] svg { transform: rotate(90deg); }
-.tree .floor .name { font-weight: var(--sw-fw-semibold); }
-.tree .depth-1 { padding-inline-start: var(--sw-s-4); }
-.tree button[aria-current="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
-.tree .n { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; }
-.tree .dot { flex: none; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c, var(--sw-unknown)); }
-.tree-m { display: none; }
-/* the list toolbar: a search field (shell .search look) and the segmented controls (electricity .seg) */
-.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-block-end: 1px solid var(--sw-border); }
-.search { flex: 1; min-inline-size: 180px; display: flex; align-items: center; gap: 8px; block-size: 32px; padding: 0 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); background: var(--sw-surface-2); color: var(--sw-text-3); }
-.search:focus-within { border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); background: var(--sw-surface); }
-.search input { flex: 1; border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); outline: none; min-inline-size: 0; }
-.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); max-inline-size: 100%; flex-wrap: wrap; }
-.seg button { padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0; background: transparent; min-block-size: 28px; }
-.seg button[aria-pressed="true"] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
-/* tables (electricity/styles.ts table.t) */
-.scrollx { overflow-x: auto; }
-table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
-table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 9px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
-table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
-table.t tbody tr:last-child td { border-block-end: 0; }
-table.t tbody tr.go { cursor: pointer; }
-table.t tbody tr.go:hover td { background: var(--sw-surface-2); }
-table.t tbody tr:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: -2px; }
-td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
-td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; direction: ltr; }
-td.act { white-space: nowrap; text-align: end; }
-td.end { text-align: end; }
-.up { color: var(--sw-danger-text); } .down { color: var(--sw-success-text); }
-/* tablet (<= 1100, the electricity screens' .hide-tablet rule): the month / night columns leave the meters table, the cards keep them */
-@media (max-width: 1100px) {
-  #s-meters table.t th:nth-child(4), #s-meters table.t td:nth-child(4), #s-meters table.t th:nth-child(7), #s-meters table.t td:nth-child(7),
-  #s-usage table.t th:nth-child(4), #s-usage table.t td:nth-child(4) { display: none; }
-  table.t th, table.t td { padding-inline: 8px; }
-  table.t td:nth-child(2) { white-space: normal; min-inline-size: 150px; }
-}
-/* the meter cards (electricity/meter-card.ts): the "כרטיסים" view of the meters page */
-.cards { display: none; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 12px; padding: 12px; }
-.cards.on { display: grid; }
-.cards.on + .scrollx { display: none; }
-.card { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 12px 14px; display: grid; gap: 8px; background: var(--sw-surface); cursor: pointer; }
-.card:hover { border-color: var(--sw-border-strong); background: var(--sw-surface-2); }
-.card .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.card .r1 .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card .big { font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.card .big small { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); margin-inline-start: 4px; }
-.card .r3 { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.cards-m { display: none; }
-/* the consumption chart: daily bars, the night share drawn darker at the foot of each bar (a leak = a floor that never reaches zero) */
-.chart { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 6px; align-items: end; block-size: 180px; padding: 8px 4px 0; }
-.chart .bar { position: relative; display: flex; flex-direction: column; justify-content: flex-end; block-size: 100%; }
-.chart .bar i { display: block; inline-size: 100%; border-radius: var(--sw-r-2xs) var(--sw-r-2xs) 0 0; background: var(--sw-recorded); min-block-size: 2px; }
-.chart .bar i.night { border-radius: 0; background: var(--sw-heading); opacity: .7; min-block-size: 4px; }
-.chart .bar[data-alarm] i.night { min-block-size: 14px; }
-.chart .bar[data-alarm] i { background: var(--sw-danger); }
-.chart .bar[data-alarm] i.night { background: var(--sw-danger-text); opacity: 1; }
-.chart .bar:hover i { filter: brightness(1.1); }
-.chart .bar .v { position: absolute; inset-block-start: -18px; inset-inline: 0; text-align: center; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; }
-.chart .bar .v[data-alarm] { color: var(--sw-danger-text); font-weight: var(--sw-fw-semibold); }
-.axis { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 6px; padding: 4px 4px 0; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-align: center; font-variant-numeric: tabular-nums; }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--sw-fs-xs); color: var(--sw-text-2); align-items: center; }
-.legend i { display: inline-block; inline-size: 12px; block-size: 12px; border-radius: 3px; vertical-align: -2px; margin-inline-end: 5px; }
-.ranges { display: flex; gap: 6px; flex-wrap: wrap; }
-.ranges .chip { cursor: pointer; border: 1px solid transparent; font-size: var(--sw-fs-sm); padding: 4px 12px; }
-.ranges .chip[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: var(--sw-accent); }
-.total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.total b { font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); font-variant-numeric: tabular-nums; line-height: 1.1; }
-.total b small { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); margin-inline-start: 4px; }
-.share { display: inline-flex; align-items: center; gap: 6px; }
-.share i { display: inline-block; inline-size: 56px; block-size: 6px; border-radius: 3px; background: var(--sw-surface-3); overflow: hidden; }
-.share i b { display: block; block-size: 100%; background: var(--sw-recorded); }
-/* alerts list (temperature events list) */
-.list { display: flex; flex-direction: column; gap: 8px; }
-.li { display: flex; gap: 10px; align-items: center; padding: 12px; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); min-inline-size: 0; }
-.li .grow { flex: 1; min-inline-size: 0; }
-.li .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-.li .t2 { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
-.li .acts { display: flex; gap: 6px; flex-wrap: wrap; }
-.li.closed { opacity: .72; }
-/* states (components/sw-state-panel.ts) */
-.state-panel { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 220px; }
-.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
-.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
-.state-panel[data-state="forbidden"] .icon { background: var(--sw-forbidden-soft); color: var(--sw-forbidden); }
-.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
-.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
-.skl { display: none; border-radius: var(--sw-r-md); background: linear-gradient(90deg, var(--sw-skeleton), var(--sw-skeleton-shine), var(--sw-skeleton)); background-size: 200% 100%; animation: skl 1.4s linear infinite; block-size: 160px; }
-@keyframes skl { to { background-position: -200% 0; } }
-body[data-st="loading"] .screen.on > :not(.skl):not(.top) { display: none !important; }
-body[data-st="loading"] .screen.on > .skl { display: block; }
-body[data-st="empty"] .screen.on > .cols, body[data-st="empty"] .screen.on > .kpis, body[data-st="empty"] .screen.on > .panel, body[data-st="empty"] .screen.on > .list { display: none !important; }
-body[data-st="empty"] .screen.on > .state-panel[data-state="empty"] { display: flex; }
-body[data-st="error"] .screen.on > :not(.state-panel[data-state="error"]) { display: none !important; }
-body[data-st="error"] .screen.on > .state-panel[data-state="error"] { display: flex; }
-/* module off: the "מים" tab is not offered at all (a stale deep link lands here); the page row and the head leave with it */
-body[data-st="off"] .screen.on > :not(.state-panel[data-state="off"]) { display: none !important; }
-body[data-st="off"] .screen.on > .state-panel[data-state="off"] { display: flex; }
-body[data-st="off"] .subnav .tabs.compact, body[data-st="off"] [data-water-tab] { display: none !important; }
-body[data-st="off"] .subnav .tabs.pill a[data-elec-tab] { color: var(--sw-accent-text); }
-body[data-st="off"] .subnav .tabs.pill a[data-elec-tab] .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
-/* permissions: the manage affordances leave for operators and viewers; the acknowledge affordances leave for viewers */
-body[data-role="op"] .mng, body[data-role="view"] .mng, body[data-role="view"] .ack { display: none !important; }
-body[data-role="view"] .src { display: none !important; }
-/* dialogs (components/sw-dialog): a centred sheet on the overlay */
-.ov { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); display: none; align-items: center; justify-content: center; padding: 16px; }
-.ov.open { display: flex; }
-.dlg { background: var(--sw-surface-solid); border-radius: var(--sw-r-xl); box-shadow: var(--sw-shadow-3); inline-size: min(100%, 920px); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden; }
-.dlg header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 8px; }
-.dlg header h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
-.dlg header .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-.dlg header .x { margin-inline-start: auto; }
-.dlg .body { padding: 8px 22px 18px; overflow: auto; display: grid; gap: 14px; }
-.dlg footer { display: flex; gap: 8px; align-items: center; padding: 12px 22px 18px; border-block-start: 1px solid var(--sw-border); }
-.dlg footer .sp { flex: 1; }
-.x { display: inline-grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; border: 0; background: var(--sw-surface-3); color: var(--sw-text-2); cursor: pointer; font: inherit; }
-.two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; align-items: start; }
-.two > * { min-inline-size: 0; }
-.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: var(--sw-fs-md); }
-.kv dt { color: var(--sw-text-3); }
-.kv dd { margin: 0; color: var(--sw-text); font-weight: var(--sw-fw-medium); overflow-wrap: anywhere; }
-.bignum { font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); font-variant-numeric: tabular-nums; color: var(--sw-heading); line-height: 1.1; }
-.bignum small { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); margin-inline-start: 4px; }
-.fld { display: flex; flex-direction: column; gap: 5px; }
-.fld > label { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
-.inp { font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 36px; padding: 0 12px; inline-size: 100%; }
-.inp:focus { outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
-.form { display: grid; gap: 10px; }
-.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); }
-.hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c, var(--sw-success)); flex: none; }
-.hist .t { flex: 1; min-inline-size: 0; }
-.hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mini { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px; align-items: end; block-size: 64px; }
-.mini i { display: block; background: var(--sw-recorded); border-radius: 2px 2px 0 0; min-block-size: 2px; }
-.mini i[data-night] { background: var(--sw-danger); }
-.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; }
-.toast.on { display: block; }
+.float button { all: unset; box-sizing: border-box; display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); cursor: pointer; }
+.float .demodot { display: grid; place-items: center; inline-size: 20px; block-size: 28px; }
+.float .demodot i { inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-border-strong); }
+main { grid-area: main; min-block-size: 0; min-inline-size: 0; overflow: auto; display: flex; flex-direction: column; }
 nav.bottom { display: none; }
 
-/* ===== tablet (<= 1023: the rail keeps its icons only, shell/sw-app.ts) ===== */
-@media (max-width: 1023px) {
-  nav.rail a span { display: none; }
-  nav.rail a { min-block-size: 44px; }
-  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
-  .cols { grid-template-columns: 200px minmax(0, 1fr); }
-  .screen { padding-inline: 20px; }
+/* ===== the area host (screens/infra-electricity.ts :host / .rows / .body) ===== */
+.infra { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; }
+.infra .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
+.infra .body { min-inline-size: 0; }
+.sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ===== components/sw-tabs.ts: pill (level 1) and underline-compact (level 2) ===== */
+.tabs { display: inline-flex; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; --_h: 0px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; min-inline-size: 0; }
+.tabs a { position: relative; display: inline-flex; align-items: center; padding: 0; border: 0; background: transparent; color: var(--sw-text-2); text-decoration: none; font: inherit; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); cursor: pointer; white-space: nowrap; }
+.tabs a:hover { color: var(--sw-text); }
+.tabs .lbl { display: inline-flex; align-items: center; gap: 5px; }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs .count { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.tabs .on .count { color: var(--sw-accent-text); }
+.tabs .tbadge { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; margin-inline-start: 6px; padding-inline: 5px; border-radius: 999px; background: var(--sw-danger); color: var(--sw-on-video); font-size: var(--sw-fs-xs); font-weight: 700; line-height: 1; }
+.tabs[data-variant="pill"] .row { padding-inline: 3px; }
+.tabs[data-variant="pill"] .row::before { content: ''; position: absolute; inset-inline: 0; inset-block: max(0px, calc((var(--_h) - 34px) / 2)); background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs[data-variant="pill"] a { min-block-size: max(34px, var(--_h)); padding-inline: 1px; }
+.tabs[data-variant="pill"] .lbl { min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); justify-content: center; }
+.tabs[data-variant="pill"] .on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.tabs[data-variant="underline-compact"] { display: flex; position: relative; z-index: 1; margin-block-end: calc(32px - max(32px, var(--_h))); }
+.tabs[data-variant="underline-compact"] .row { flex: 1 0 auto; gap: 0; }
+.tabs[data-variant="underline-compact"] .row::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 31px; block-size: 1px; background: var(--sw-border); }
+.tabs[data-variant="underline-compact"] a { align-items: flex-start; padding: 0 10px; min-block-size: max(32px, var(--_h)); }
+.tabs[data-variant="underline-compact"] .lbl { min-block-size: 30px; }
+.tabs[data-variant="underline-compact"] a::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 29px; block-size: 2px; background: transparent; z-index: 1; }
+.tabs[data-variant="underline-compact"] .on::after { background: var(--sw-accent); }
+@media (max-width: 767px) and (pointer: coarse) { .tabs { --_h: 44px; } .tabs a { min-block-size: var(--_h); } }
+
+/* ===== components/sw-button.ts ===== */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-block-size: var(--sw-ctl-h-md); padding-inline: 12px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border-strong); font: inherit; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); line-height: 1; cursor: pointer; white-space: nowrap; color: var(--sw-text); background: var(--sw-surface); box-shadow: var(--sw-shadow-1); text-decoration: none; }
+.btn:hover { background: var(--sw-surface-2); }
+.btn.sm { min-block-size: var(--sw-ctl-h-sm); padding-inline: 9px; font-size: var(--sw-fs-xs); border-radius: var(--sw-r-xs); gap: 5px; }
+.btn.primary { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.primary:hover { background: var(--sw-accent-hover); border-color: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--sw-text-2); }
+.btn.ghost:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+.btn.danger { background: var(--sw-surface); border-color: var(--sw-danger); color: var(--sw-danger); }
+.btn.danger:hover { background: var(--sw-danger-soft); }
+.btn[disabled] { cursor: not-allowed; opacity: var(--sw-disabled-opacity); }
+.btn.icononly { inline-size: var(--sw-ctl-h-md); padding-inline: 0; }
+.btn.icononly.sm { inline-size: var(--sw-ctl-h-sm); }
+@media (max-width: 767px) and (pointer: coarse) {
+  .btn { min-block-size: max(40px, var(--sw-ctl-h-md)); } .btn.sm { min-block-size: max(36px, var(--sw-ctl-h-sm)); }
+  .btn.icononly { inline-size: max(40px, var(--sw-ctl-h-md)); } .btn.icononly.sm { inline-size: max(36px, var(--sw-ctl-h-sm)); }
 }
-/* ===== phone (<= 767: no rail, the bottom bar; the tree becomes a select, the table becomes cards) ===== */
+
+/* ===== components/sw-state-panel.ts ===== */
+.state-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 220px; }
+.state-panel.compact { min-block-size: 0; padding: var(--sw-s-4); flex-direction: row; text-align: start; justify-content: flex-start; }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.state-panel.compact .icon { inline-size: 34px; block-size: 34px; border-radius: var(--sw-r-sm); }
+.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state-panel[data-state="forbidden"] .icon { background: var(--sw-forbidden-soft); color: var(--sw-forbidden); }
+.state-panel[data-state="stale"] .icon { background: var(--sw-stale-soft); color: var(--sw-stale); }
+.state-panel[data-state="loading"] .icon { animation: spin 1.2s linear infinite; }
+.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
+.state-panel .text { display: flex; flex-direction: column; gap: var(--sw-s-1); align-items: inherit; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== electricity/styles.ts (elecCss): `:host` = .elec ===== */
+.elec { display: block; color: var(--sw-text); font-size: var(--sw-fs-md); min-inline-size: 0; --elec-touch: 32px; }
+.elec .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-inline-size: 0; }
+.elec .sp { flex: 1; }
+.elec h3 { margin: 0; color: var(--sw-heading); }
+.elec .mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+.num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.elec .b { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.elec .bad { color: var(--sw-danger-text); }
+.elec .card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 16px; min-inline-size: 0; }
+.elec .card.flush { padding: 0; overflow: hidden; }
+.elec .card > .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
+.elec .card.flush > .hd { padding: 14px 16px 0; }
+.elec .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.elec .tile { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 12px 14px; min-inline-size: 0; }
+.elec .tile .k { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.elec .tile .v { display: flex; flex-wrap: wrap; align-items: baseline; min-inline-size: 0; overflow-wrap: anywhere; font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+.elec .tile .u { min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-3); font-weight: var(--sw-fw-medium); margin-inline-start: 4px; }
+.elec input, .elec select { font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: max(38px, var(--elec-touch)); padding: 0 12px; min-inline-size: 0; inline-size: 100%; }
+.elec input:focus, .elec select:focus { outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
+.elec input[type='search'] { inline-size: 260px; max-inline-size: 100%; }
+.elec .fld { display: flex; flex-direction: column; gap: 5px; min-inline-size: 0; }
+.elec .fld > label { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
+.elec .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); max-inline-size: 100%; flex-wrap: wrap; }
+.elec .seg button { padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0; background: transparent; min-block-size: max(30px, var(--elec-touch)); }
+.elec .seg button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+.elec .chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); white-space: nowrap; line-height: 20px; background: var(--sw-surface-3); color: var(--sw-text-2); }
+.elec .chip::before { content: ''; inline-size: 7px; block-size: 7px; border-radius: 50%; background: currentColor; }
+.elec .chip.nodot::before { display: none; }
+.elec .c-ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
+.elec .c-warn { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+.elec .c-err { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
+.elec .c-mut { background: var(--sw-surface-3); color: var(--sw-text-2); }
+.elec .c-acc { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.elec .scrollx { overflow-x: auto; }
+.elec table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
+.elec table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 9px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
+.elec table.t td { padding: 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; }
+.elec table.t tbody tr:last-child td { border-block-end: 0; }
+.elec table.t th.n, .elec table.t td.n { text-align: end; }
+.elec table.t tbody tr.pick { cursor: pointer; }
+.elec table.t tbody tr.pick:hover td, .elec table.t tbody tr.sel td { background: var(--sw-surface-2); }
+.elec table.t tbody tr.pick:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: -2px; }
+.elec .list { display: flex; flex-direction: column; gap: 8px; }
+.elec .li { flex: none; display: flex; gap: 10px; align-items: center; padding: 12px; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); min-inline-size: 0; color: inherit; text-decoration: none; font: inherit; text-align: start; min-block-size: var(--elec-touch); }
+.elec .li.pick { cursor: pointer; }
+.elec .li .grow { flex: 1; min-inline-size: 0; }
+.elec .li .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.elec .li .t2 { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.elec .li .t2.wrap { white-space: normal; }
+.elec .li.dis { opacity: .7; }
+.elec .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: var(--sw-fs-md); margin: 0; }
+.elec .kv dt { color: var(--sw-text-3); }
+.elec .kv dd { margin: 0; color: var(--sw-text); font-weight: var(--sw-fw-medium); overflow-wrap: anywhere; }
+.elec .alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--sw-r-md); font-size: var(--sw-fs-md); border: 1px solid transparent; }
+.elec .alert.err { background: var(--sw-danger-soft); border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent); }
+.elec .alert.warn { background: var(--sw-warning-soft); border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent); }
+.elec .skl { background: linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3)); border-radius: var(--sw-r-xs); block-size: 14px; animation: elec-pulse 1.4s ease-in-out infinite; }
+@keyframes elec-pulse { 50% { opacity: .5; } }
+.elec .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+.elec .legend i { display: inline-block; inline-size: 12px; block-size: 12px; border-radius: 3px; margin-inline-end: 5px; vertical-align: -1px; }
+/* a field with an icon or a unit inside one frame (the meters' search) */
+.elec .inp { display: flex; align-items: center; gap: 8px; min-block-size: max(38px, var(--elec-touch)); padding: 0 12px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface-solid); color: var(--sw-text); min-inline-size: 0; }
+.elec .inp:focus-within { border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
+.elec .inp input, .elec .inp select, .elec .inp input:focus, .elec .inp select:focus { flex: 1; inline-size: auto; min-inline-size: 0; min-block-size: max(36px, var(--elec-touch)); padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent; color: inherit; }
+.elec .inp select { cursor: pointer; }
+.elec .inp > .ic { color: var(--sw-text-3); }
+@media (max-width: 1100px) {
+  .elec { --elec-touch: 44px; }
+  .elec .hide-tablet { display: none !important; }
+}
+@media (max-width: 767px) {
+  .elec .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .elec .tile .v { font-size: var(--sw-fs-2xl); }
+  .elec input[type='search'] { inline-size: 100%; }
+  .elec .hide-phone { display: none !important; }
+}
+
+/* ===== screens/electricity/page-meters.ts (the page's own rules) ===== */
+.page { display: none; flex-direction: column; gap: 14px; min-inline-size: 0; }
+.page.on { display: flex; }
+.page .head .inp { flex: 0 1 280px; }
+.page .cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; align-items: start; }
+.page .tree { display: flex; flex-direction: column; gap: 2px; }
+.page .tree button { display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: var(--elec-touch); padding: 0 10px; border: 0; background: transparent; color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); border-radius: var(--sw-r-sm); cursor: pointer; text-align: start; }
+.page .tree button:hover { background: var(--sw-surface-2); }
+.page .tree button[aria-current='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+.page .tree .fl { color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-xs); }
+.page .tree .ar { padding-inline-start: 30px; }
+.page .tree .cnt { margin-inline-start: auto; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+.page .tree .ic { flex: none; }
+.page .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.page .ent { font-weight: 400; font-size: var(--sw-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 100%; }
+.page td .ent { max-inline-size: 320px; }
+.page .mcard { display: flex; flex-direction: column; gap: 6px; text-align: start; font: inherit; color: inherit; cursor: pointer; min-block-size: var(--elec-touch); }
+.page .mcard .big { font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading, var(--sw-text)); }
+.page .phone-only { display: none; }
+.page .notice { font-size: var(--sw-fs-sm); color: var(--sw-success-text); }
+@media (max-width: 899px) {
+  .page .cols { grid-template-columns: minmax(0, 1fr); }
+  .page .tree-card { display: none; }
+  .page .phone-only { display: flex; }
+  .page .head .inp { flex: 1 1 200px; }
+  .page .head .inp.phone-only { flex: 1 1 160px; }
+  .page .desk-only { display: none; }
+}
+@media (max-width: 1099px) { .page .dsk { display: none; } }
+/* the page's states (page-meters.ts render()): loading = a card of 7 skeleton rows; empty / error / forbidden / off = sw-state-panel */
+.page > [data-state] { display: none; }
+.page[data-st="ready"] > [data-state="ready"], .page[data-st="loading"] > [data-state="loading"], .page[data-st="empty"] > [data-state="empty"], .page[data-st="error"] > [data-state="error"], .page[data-st="off"] > [data-state="off"], .page[data-st="forbidden"] > [data-state="forbidden"] { display: flex; flex-direction: column; gap: 14px; }
+/* permissions: the manage affordances leave for operators and viewers; the acknowledge affordances leave for viewers */
+body[data-role="op"] .mng, body[data-role="view"] .mng, body[data-role="view"] .ack { display: none !important; }
+/* the module is off: the "מים" tab is not offered at all (a stale deep link lands on the off panel); the page row leaves with it */
+body[data-st="off"] [data-water-tab], body[data-st="off"] [data-infra-pages] { display: none !important; }
+
+/* ===== the consumption page and the alerts page: the same elecCss parts; the chart is meter-card.ts' barChart ===== */
+.page .ranges { flex: none; }
+svg.chart { inline-size: 100%; block-size: auto; display: block; }
+svg.chart .grid { stroke: var(--sw-border-strong); }
+svg.chart .bar { fill: color-mix(in srgb, var(--sw-accent) 38%, var(--sw-surface-3)); }
+svg.chart .bar.hi { fill: var(--sw-accent); }
+svg.chart .bar.night { fill: color-mix(in srgb, var(--sw-heading) 55%, var(--sw-surface-3)); }
+svg.chart .bar.leak { fill: var(--sw-danger); }
+svg.chart text { fill: var(--sw-text-3); font-size: var(--sw-fs-xs); font-family: var(--sw-font); }
+svg.chart text.val { fill: var(--sw-text-2); }
+svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-semibold); }
+.page .usage-chart { max-inline-size: 760px; }
+.page .share { display: inline-flex; align-items: center; gap: 6px; }
+.page .share i { display: inline-block; inline-size: 56px; block-size: 6px; border-radius: 3px; background: var(--sw-surface-3); overflow: hidden; }
+.page .share i b { display: block; block-size: 100%; background: var(--sw-accent); }
+.page .up { color: var(--sw-danger-text); } .page .down { color: var(--sw-success-text); }
+.page .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.page .li .acts { flex: none; }
+@media (max-width: 767px) { .page .li { flex-wrap: wrap; } .page .li .acts { flex-basis: 100%; justify-content: flex-start; } }
+
+/* ===== components/sw-drawer.ts (modal) + electricity/meter-card.ts (the body) ===== */
+.drawer { display: none; }
+.drawer.open { display: block; }
+.drawer .backdrop { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); }
+.drawer .panel { position: fixed; z-index: calc(var(--sw-z-modal) + 1); margin: 0; padding: 0; border: 0; border-inline-end: 1px solid var(--sw-border); inset-block: 0; inset-inline-start: 0; block-size: 100dvh; inline-size: min(480px, 100vw); background: var(--sw-surface); color: var(--sw-text); display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--sw-shadow-3); }
+.drawer header { display: flex; align-items: flex-start; gap: var(--sw-s-3); padding: 12px 14px; border-block-end: 1px solid var(--sw-border); }
+.drawer .titles { flex: 1; min-inline-size: 0; }
+.drawer h3 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-text); }
+.drawer header .sub { color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-variant-numeric: tabular-nums; }
+.drawer .dbody { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.drawer .grip { display: none; }
+/* meter-card.ts */
+.mc { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px; }
+.mc dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: var(--sw-fs-sm); }
+.mc dl.kv dt { color: var(--sw-text-3); }
+.mc dl.kv dd { margin: 0; min-inline-size: 0; overflow-wrap: anywhere; font-weight: var(--sw-fw-regular); }
+.mc h3 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.mc h4 { margin: 4px 0 0; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); }
+.mc .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mc .rd { display: flex; flex-direction: column; gap: 10px; }
+.mc .cal { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+@media (max-width: 767px) {
+  .drawer .panel { inset-block: auto 0; inset-inline: 0; inline-size: 100%; block-size: auto; max-block-size: 88dvh; border-inline-end: 0; border-block-start: 1px solid var(--sw-border); border-start-start-radius: var(--sw-r-lg); border-start-end-radius: var(--sw-r-lg); }
+  .drawer .grip { display: block; inline-size: 40px; block-size: 4px; border-radius: 2px; background: var(--sw-border-strong); margin: var(--sw-s-2) auto 0; }
+  .drawer .dbody { padding-block-end: max(14px, env(safe-area-inset-bottom, 0px)); }
+}
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; font-size: var(--sw-fs-sm); }
+.toast.on { display: block; }
+
+/* ===== tablet (<= 1023: the rail keeps its icons only) and phone (<= 767: no rail, the bottom bar) - shell/sw-app.ts ===== */
+@media (max-width: 1023px) {
+  a.item.a span { display: none; }
+  a.item.a { min-block-size: 44px; }
+  button.me span { display: none; }
+}
 @media (max-width: 767px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
   nav.rail { display: none; }
-  .float { inset-inline-end: 12px; }
-  .subnav { padding: 8px 12px 0; }
-  .screen { padding: 12px 14px 20px; gap: 12px; }
-  .top { flex-direction: column; align-items: stretch; }
-  .top .sp { display: none; }
-  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .cols { grid-template-columns: minmax(0, 1fr); }
-  .tree-w { display: none; }
-  .tree-m { display: block; padding: 10px 10px 0; }
-  .tree-m select { inline-size: 100%; font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 44px; padding: 0 12px; }
-  .toolbar { padding: 10px; gap: 8px; }
-  .search { flex-basis: 100%; min-inline-size: 0; block-size: 44px; }
-  .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
-  .seg button { min-block-size: 38px; flex: none; }
-  .seg.desk-only { display: none; }
-  .scrollx, .cards { display: none !important; }
-  .cards-m { display: grid; gap: 8px; padding: 10px; }
-  .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); }
-  .cards-m .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .cards-m .c .r1 .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); min-inline-size: 0; }
-  .cards-m .c .r3 { display: flex; gap: 6px; flex-wrap: wrap; }
-  .two { grid-template-columns: minmax(0, 1fr); }
-  .chart { block-size: 140px; gap: 3px; }
-  .axis { gap: 3px; }
-  .axis span:nth-child(even) { visibility: hidden; }
-  .dlg { inline-size: 100%; max-block-size: 100dvh; border-radius: var(--sw-r-xl) var(--sw-r-xl) 0 0; align-self: flex-end; }
-  .ov { padding: 0; align-items: flex-end; }
-  .btn { min-block-size: 44px; }
-  .btn.sm { min-block-size: 36px; }
-  .tree button { min-block-size: 44px; }
-  .li { flex-wrap: wrap; }
-  .li .acts { flex-basis: 100%; }
-  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
-  nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
-  nav.bottom a svg { font-size: 22px; }
+  .float { inset-inline-end: 10px; }
+  .float button { inline-size: 44px; border-radius: var(--sw-r-pill); }
+  nav.bottom { grid-area: bottom; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
+  nav.bottom a, nav.bottom button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); background: none; border: 0; padding: 0 2px; font-family: inherit; cursor: pointer; }
   nav.bottom a.active { color: var(--sw-accent-text); }
+  nav.bottom .av { display: inline-grid; place-items: center; inline-size: 24px; block-size: 24px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-2xs); font-weight: var(--sw-fw-semibold); }
   .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
 }
 </style>
@@ -379,25 +368,27 @@ nav.bottom { display: none; }
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
+    <!-- components/sw-icon.ts paths -->
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
     <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+    <symbol id="i-media" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/><path d="m10.2 8.3 4.3 2.2-4.3 2.2z"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1"/><path d="M14 12h.01"/></symbol>
     <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
-    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
-    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/></symbol>
-    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevronDown" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevronBack" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
     <symbol id="i-offline" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></symbol>
+    <symbol id="i-bellOff" viewBox="0 0 24 24"><path d="M8.7 3A6 6 0 0 1 18 8v3.5l1.5 2.5"/><path d="M6.3 6.3A6 6 0 0 0 6 8v8l-1.5 2H17"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <!-- the water drop: the empty state's topical icon (sw-state-panel `icon`, like the meters' bolt) - new in sw-icon with the module -->
     <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3c3.5 4.4 6 7.6 6 11a6 6 0 0 1-12 0c0-3.4 2.5-6.6 6-11z"/></symbol>
-    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 19h16"/></symbol>
-    <symbol id="i-bell-off" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 9.3-5M18 13v3l2 2H4l2-2"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M3 3l18 18"/></symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
-    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2 2 0 0 0-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
   </defs>
 </svg>
 
@@ -405,186 +396,159 @@ nav.bottom { display: none; }
 <nav class="mock" aria-label="בקרת הדגם">
   <b>דגם</b>
   <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל</option><option value="op">תפקיד: מפעיל</option><option value="view">תפקיד: צופה</option></select>
-  <select id="stsel" aria-label="מצב המסך"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option></select>
+  <select id="stsel" aria-label="מצב המסך"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option><option value="forbidden">מצב: ללא הרשאה</option></select>
   <button id="th" aria-pressed="false">כהה</button>
   <span class="sp"></span>
   <button id="open-sheet">פתיחת כרטיס מונה</button>
 </nav>
 
 <div class="app">
-  <!-- the area rail (shell/sw-app.ts nav.rail): the infrastructure area active -->
+  <!-- shell/sw-app.ts design "a": the area rail -->
   <nav class="rail" aria-label="ניווט ראשי">
-    <span class="brand" aria-hidden="true">S</span>
-    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
-    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
-    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
-    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
-    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>בקשות שירות</span></a>
+    <a class="brand-tile" href="#" aria-label="ראשי">S</a>
+    <a class="item a" href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg></span><span>ראשי</span></a>
+    <a class="item a" href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-shield"/></svg></span><span>אבטחה</span></a>
+    <a class="item a" href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-map"/></svg></span><span>מפה</span></a>
+    <a class="item a" href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-media"/></svg></span><span>מולטימדיה</span></a>
+    <a class="item a" href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-door"/></svg></span><span>WisKey</span></a>
+    <a class="item a active" href="#" aria-current="page"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-bolt"/></svg></span><span>תשתיות</span></a>
     <div class="grow"></div>
-    <span class="me" aria-label="תפריט המשתמש">דכ</span>
+    <button class="me" type="button" aria-label="תפריט המשתמש"><span class="av">יו</span><span>יוני</span></button>
   </nav>
-  <div class="float" aria-hidden="true"><div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <div class="float"><div class="pillrow"><button type="button" aria-label="חיפוש"><span class="ic s16"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span></button><span class="demodot" aria-hidden="true"><i></i></span></div></div>
   <main>
-    <!-- level 1: INFRA_TABS with the new "מים" tab directly after "מוני חשמל" (offered only while the module is on and by water.view) -->
-    <div class="subnav">
-      <nav class="tabs pill" aria-label="לשוניות"><div class="row">
-        <a href="#" data-elec-tab><span class="lbl">מוני חשמל</span></a>
-        <a href="#" class="on" aria-current="page" data-water-tab><span class="lbl">מים<span class="count" data-look="alarm" data-count="leaks"></span></span></a>
-        <a href="#"><span class="lbl">גנרטור</span></a>
-        <a href="#"><span class="lbl">מעליות</span></a>
-        <a href="#"><span class="lbl">טמפרטורות</span></a>
-      </div></nav>
-    </div>
-    <!-- level 2: the pages of "מים" (INFRA_WATER_PAGES; "חשבונות / חיובים" only with slice 3) -->
-    <div class="subnav">
-      <nav class="tabs compact" aria-label="עמודים" id="pages"><div class="row">
-        <a href="#" data-p="meters" class="on" aria-current="page"><span class="lbl">מונים<span class="count" data-count="meters"></span></span></a>
-        <a href="#" data-p="usage"><span class="lbl">צריכה</span></a>
-        <a href="#" data-p="alerts"><span class="lbl">התראות<span class="count" data-count="alerts"></span></span></a>
-      </div></nav>
-    </div>
-
-    <!-- ===== 1. meters ===== -->
-    <section class="screen on" id="s-meters" data-list>
-      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>מוני מים מופעלים בהגדרות המערכת.</p></div><button class="btn mng">להגדרות</button></div>
-      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את המונים</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
-      <div class="top"><div><h1>מוני מים</h1><p class="sub" data-sub="meters"></p></div><span class="sp"></span>
-        <div class="meta"><button class="btn mng"><svg class="ic"><use href="#i-edit"/></svg>קריאה ידנית</button><button class="btn pri mng"><svg class="ic"><use href="#i-plus"/></svg>מונה חדש</button></div></div>
-      <div class="skl" aria-busy="true" aria-label="טוען"></div>
-      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-drop"/></svg></div><div><h4>עדיין אין מוני מים</h4><p>מונה מים הוא מונה מצטבר (מ״ק או ליטר) מתשתית המערכת. מרגע ההוספה נרשמות הקריאות, מחושבת הצריכה ומזוהה דליפה בלילה.</p></div><button class="btn pri mng"><svg class="ic"><use href="#i-plus"/></svg>הוספת המונה הראשון</button></div>
-      <div class="kpis" role="group" aria-label="מצב" data-kpis>
-        <button class="kpi" data-k="all" aria-pressed="true"><span class="dot" aria-hidden="true"></span><div><b data-n="all">0</b><span class="l">מונים</span></div></button>
-        <button class="kpi" data-k="alarm" data-look="alarm" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="alarm">0</b><span class="l">דליפה חשודה</span></div></button>
-        <button class="kpi" data-k="warn" data-look="warn" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="warn">0</b><span class="l">צריכה חריגה</span></div></button>
-        <button class="kpi" data-k="unk" data-look="unk" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="unk">0</b><span class="l">לא מדווחים</span></div></button>
-        <div class="kpi" data-look="water" data-figure><span class="dot" aria-hidden="true"></span><div><b><span class="num">12.84</span><small>מ״ק</small></b><span class="l">צריכה היום</span></div></div>
+    <!-- screens/infra-electricity.ts: the area host; level 1 = INFRA_TABS as the pill track (now two tabs: "מוני חשמל" | "מים"), level 2 = the pages -->
+    <div class="infra" data-elec-shell>
+      <h1 class="sr">מים</h1>
+      <div class="rows">
+        <nav class="tabs" data-variant="pill" aria-label="תשתיות" data-infra-l1><div class="row">
+          <a href="#" data-elec-tab><span class="lbl">מוני חשמל</span></a>
+          <a href="#" class="on" aria-current="page" data-water-tab><span class="lbl">מים<span class="tbadge" data-count="leaks">1</span></span></a>
+        </div></nav>
+        <nav class="tabs" data-variant="underline-compact" aria-label="עמודים" id="pages" data-infra-pages><div class="row">
+          <a href="#" data-p="meters" class="on" aria-current="page"><span class="lbl">מונים</span></a>
+          <a href="#" data-p="usage"><span class="lbl">צריכה</span></a>
+          <a href="#" data-p="alerts"><span class="lbl">התראות<span class="count">(<span data-count="alerts">2</span>)</span></span></a>
+        </div></nav>
       </div>
-      <div class="cols">
-        <aside class="panel flush tree-w"><nav class="tree" aria-label="מקומות" data-tree></nav></aside>
-        <div class="panel flush">
-          <div class="tree-m"><select aria-label="מקום" data-tree-select></select></div>
-          <div class="toolbar">
-            <div class="seg" role="group" aria-label="סוג" data-kinds><button aria-pressed="true" data-kind="all">הכול</button><button aria-pressed="false" data-kind="main">ראשיים</button><button aria-pressed="false" data-kind="sub">משניים</button><button aria-pressed="false" data-kind="irrigation">השקיה</button></div>
-            <label class="search"><svg class="ic"><use href="#i-search"/></svg><input type="search" placeholder="חיפוש מונה" aria-label="חיפוש מונה" data-search></label>
-            <div class="seg desk-only" role="group" aria-label="תצוגה" data-views><button aria-pressed="false" data-view="cards">כרטיסים</button><button aria-pressed="true" data-view="table">טבלה</button></div>
+      <div class="body elec">
+
+        <!-- ===== 1. מונים (page-meters.ts) ===== -->
+        <section class="page on" id="s-meters" data-st="ready">
+          <div data-state="forbidden"><div class="state-panel" data-state="forbidden"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span></div><div class="text" role="status"><h4>אין הרשאה</h4><p>למשתמש שלך אין הרשאה לצפות בתוכן הזה. פנה למנהל המערכת כדי לקבל שיוך.</p></div></div></div>
+          <div data-state="off"><div class="state-panel" data-state="stale"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-offline"/></svg></span></div><div class="text" role="status"><h4>המודול כבוי</h4><p>מוני מים מופעלים בהגדרות המערכת.</p></div><button class="btn sm mng" type="button">להגדרות</button></div></div>
+          <div data-state="loading" aria-busy="true"><div class="card" id="skl-meters"></div></div>
+          <div data-state="error"><div class="state-panel" data-state="error"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-warning"/></svg></span></div><div class="text" role="status"><h4>לא ניתן לטעון את המונים</h4><p>לא הצלחנו לטעון את הנתונים. אפשר לנסות שוב.</p></div><button class="btn sm primary" type="button">נסה שוב</button></div></div>
+          <div data-state="empty"><div class="state-panel" data-state="empty"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-drop"/></svg></span></div><div class="text" role="status"><h4>אין מונים עדיין</h4><button class="btn primary mng" type="button" style="margin-block-start:8px"><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></span>הוספת מונה</button></div></div></div>
+          <div data-state="ready">
+            <div class="row head">
+              <label class="inp"><span class="ic s16"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span><input type="search" placeholder="חיפוש מונה" aria-label="חיפוש מונה" data-search></label>
+              <div class="seg desk-only" role="group" aria-label="תצוגה" data-views><button type="button" aria-pressed="false" data-view="cards">כרטיסים</button><button type="button" aria-pressed="true" data-view="table">טבלה</button></div>
+              <span class="sp"></span>
+              <label class="inp phone-only"><select aria-label="אזור" data-area-select></select></label>
+              <button class="btn primary mng" type="button" data-add-meter><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></span>הוספת מונה</button>
+            </div>
+            <div class="tiles" data-tiles>
+              <div class="tile"><div class="k">היום</div><div class="v"><span class="num" data-t="today"></span><span class="u">מ״ק</span></div></div>
+              <div class="tile"><div class="k">מתחילת החודש</div><div class="v"><span class="num" data-t="month"></span><span class="u">מ״ק</span></div></div>
+              <div class="tile"><div class="k">מדווחים</div><div class="v"><span class="num" data-t="reporting"></span><span class="u">מתוך <span data-t="total"></span></span></div></div>
+              <div class="tile"><div class="k">דליפה חשודה</div><div class="v" data-t-leak><span class="num" data-t="leaks"></span><span class="u">מונים</span></div></div>
+            </div>
+            <div class="cols">
+              <div class="card tree-card"><nav class="tree" aria-label="אזורים" data-area-tree></nav></div>
+              <div>
+                <div class="card flush scrollx desk-only" data-table-wrap><table class="t" data-meters-table>
+                  <thead><tr><th>שם</th><th>אזור</th><th class="n">קריאה נוכחית (מ״ק)</th><th class="n">היום</th><th class="n dsk">מתחילת החודש</th><th class="n">ספיקת לילה</th><th>מצב</th></tr></thead>
+                  <tbody></tbody></table></div>
+                <div class="cards desk-only" data-meters-cards hidden></div>
+                <div class="list phone-only" style="flex-direction:column" data-meters-rows></div>
+                <div class="state-panel compact" data-state="empty" data-no-results hidden><div class="icon"><span class="ic"><svg viewBox="0 0 24 24"><use href="#i-drop"/></svg></span></div><div class="text" role="status"><h4>לא נמצאו מונים</h4></div></div>
+              </div>
+            </div>
           </div>
-          <div class="cards" data-cards-desk></div>
-          <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>מונה</th><th>מקום</th><th>סוג</th><th class="num">קריאה אחרונה (מ״ק)</th><th class="num">היום</th><th class="num">החודש</th><th class="num">ספיקת לילה</th><th></th></tr></thead><tbody>
-            <tr class="go" tabindex="0" data-look="ok" data-kind="main" data-place="ground"><td><span class="badge">תקין</span></td><td><span class="t1">מונה ראשי - כניסת מים</span><span class="t2 src">חיישן מתשתית המערכת · מ״ק</span></td><td>קומת קרקע</td><td>ראשי</td><td class="num">4,812.337</td><td class="num">12.84</td><td class="num">286.1</td><td class="num">0</td><td class="act"><button class="btn sm mng">קריאה</button></td></tr>
-            <tr class="go" tabindex="0" data-look="alarm" data-kind="sub" data-place="bldg"><td><span class="badge"><svg class="ic"><use href="#i-moon"/></svg>דליפה חשודה</span></td><td><span class="t1">דירה 12 - מים קרים</span><span class="t2 src">חיישן מתשתית המערכת · ליטר</span></td><td>קומה 3</td><td>משני</td><td class="num">318.902</td><td class="num">1.92</td><td class="num">41.6</td><td class="end up"><span class="num">14</span> ל׳/ש׳</td><td class="act"><button class="btn sm ack">אישור</button></td></tr>
-            <tr class="go" tabindex="0" data-look="warn" data-kind="sub" data-place="roof"><td><span class="badge">צריכה חריגה</span></td><td><span class="t1">מגדל קירור</span><span class="t2 src">חיישן מתשתית המערכת · מ״ק</span></td><td>גג</td><td>משני</td><td class="num">1,204.510</td><td class="num">6.10</td><td class="num">88.3</td><td class="num">0</td><td class="act"><button class="btn sm ack">אישור</button></td></tr>
-            <tr class="go" tabindex="0" data-look="ok" data-kind="irrigation" data-place="garden"><td><span class="badge">תקין</span></td><td><span class="t1">השקיה - גינה</span><span class="t2 src">חיישן מתשתית המערכת · ליטר</span></td><td>חצר</td><td>השקיה</td><td class="num">96.440</td><td class="num">0.85</td><td class="num">19.7</td><td class="num mut">כבוי</td><td class="act"><button class="btn sm mng">קריאה</button></td></tr>
-            <tr class="go" tabindex="0" data-look="ok" data-kind="sub" data-place="basement"><td><span class="badge">תקין</span></td><td><span class="t1">בריכה - מילוי</span><span class="t2 src">חיישן מתשתית המערכת · מ״ק</span></td><td>מרתף</td><td>משני</td><td class="num">552.018</td><td class="num">1.30</td><td class="num">31.9</td><td class="num">0</td><td class="act"><button class="btn sm mng">קריאה</button></td></tr>
-            <tr class="go" tabindex="0" data-look="ok" data-kind="sub" data-place="bldg"><td><span class="badge">תקין</span></td><td><span class="t1">דירה 7</span><span class="t2 src">חיישן מתשתית המערכת · ליטר</span></td><td>קומה 2</td><td>משני</td><td class="num">274.115</td><td class="num">0.64</td><td class="num">18.2</td><td class="num">0</td><td class="act"><button class="btn sm mng">קריאה</button></td></tr>
-            <tr class="go" tabindex="0" data-look="unk" data-kind="sub" data-place="roof"><td><span class="badge">לא מדווח</span></td><td><span class="t1">חדר מכונות - גג</span><span class="t2 src">חיישן מתשתית המערכת · מ״ק</span></td><td>גג</td><td>משני</td><td class="num">77.300</td><td class="num mut">-</td><td class="num">4.1</td><td class="num mut">-</td><td class="act"><button class="btn sm mng">קריאה</button></td></tr>
-          </tbody></table></div>
-          <div class="cards-m" data-cards></div>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <!-- ===== 2. consumption ===== -->
-    <section class="screen" id="s-usage">
-      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>מוני מים מופעלים בהגדרות המערכת.</p></div><button class="btn mng">להגדרות</button></div>
-      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את הצריכה</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
-      <div class="top"><div><h1>צריכת מים</h1><p class="sub">7 מונים · 14 הימים האחרונים</p></div><span class="sp"></span>
-        <div class="meta"><div class="ranges" role="group" aria-label="טווח"><button class="chip" aria-pressed="false">היום</button><button class="chip" aria-pressed="false">7 ימים</button><button class="chip" aria-pressed="true">14 ימים</button><button class="chip" aria-pressed="false">30 ימים</button><button class="chip" aria-pressed="false">חודש קודם</button><button class="chip" aria-pressed="false">טווח…</button></div><button class="btn"><svg class="ic"><use href="#i-download"/></svg>ייצוא CSV</button></div></div>
-      <div class="skl" aria-busy="true" aria-label="טוען"></div>
-      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-drop"/></svg></div><div><h4>עדיין אין נתוני צריכה</h4><p>הצריכה מחושבת מהקריאות שנרשמות מרגע הוספת המונה הראשון.</p></div><button class="btn pri mng"><svg class="ic"><use href="#i-plus"/></svg>הוספת המונה הראשון</button></div>
-      <div class="kpis" role="group" aria-label="סיכום">
-        <div class="kpi" data-look="water" data-figure><span class="dot" aria-hidden="true"></span><div><b><span class="num">168.42</span><small>מ״ק</small></b><span class="l">סה״כ בטווח</span></div></div>
-        <div class="kpi" data-look="warn" data-figure><span class="dot" aria-hidden="true"></span><div><b><span class="num up">+9%</span></b><span class="l">לעומת 14 הימים הקודמים</span></div></div>
-        <div class="kpi" data-look="alarm" data-figure><span class="dot" aria-hidden="true"></span><div><b><span class="num">0.34</span><small>מ״ק / לילה</small></b><span class="l">ספיקת לילה ממוצעת</span></div></div>
-        <div class="kpi" data-look="ok" data-figure><span class="dot" aria-hidden="true"></span><div><b><span class="num">12.03</span><small>מ״ק</small></b><span class="l">ממוצע יומי</span></div></div>
-      </div>
-      <div class="panel">
-        <div class="hd"><h4>צריכה יומית</h4><span class="sp"></span><div class="legend"><span><i style="background:var(--sw-recorded)"></i>יום</span><span><i style="background:var(--sw-heading);opacity:.7"></i>לילה 01:00-05:00</span><span><i style="background:var(--sw-danger)"></i>דליפה חשודה</span></div></div>
-        <div class="chart" role="img" aria-label="צריכה יומית ב-14 הימים האחרונים, במטרים מעוקבים" data-chart></div>
-        <div class="axis" data-axis></div>
-      </div>
-      <div class="panel flush">
-        <div class="toolbar"><h4 style="margin:0">לפי מונה</h4><span class="sp" style="flex:1"></span><label class="search" style="flex:0 1 260px"><svg class="ic"><use href="#i-search"/></svg><input type="search" placeholder="חיפוש מונה" aria-label="חיפוש מונה"></label></div>
-        <div class="scrollx"><table class="t"><thead><tr><th>מונה</th><th>מקום</th><th class="num">צריכה (מ״ק)</th><th>חלק</th><th class="num">לעומת הקודם</th><th class="num">ספיקת לילה</th></tr></thead><tbody>
-          <tr><td><span class="t1">מונה ראשי - כניסת מים</span></td><td>קומת קרקע</td><td class="num">168.42</td><td><span class="share"><i><b style="width:100%"></b></i><span class="num mut">100%</span></span></td><td class="num up">+9%</td><td class="num">0</td></tr>
-          <tr><td><span class="t1">מגדל קירור</span></td><td>גג</td><td class="num">61.20</td><td><span class="share"><i><b style="width:36%"></b></i><span class="num mut">36%</span></span></td><td class="num up">+31%</td><td class="num">0</td></tr>
-          <tr><td><span class="t1">דירה 12 - מים קרים</span></td><td>קומה 3</td><td class="num">27.80</td><td><span class="share"><i><b style="width:17%"></b></i><span class="num mut">17%</span></span></td><td class="num up">+58%</td><td class="end up"><span class="num">14</span> ל׳/ש׳</td></tr>
-          <tr><td><span class="t1">בריכה - מילוי</span></td><td>מרתף</td><td class="num">19.95</td><td><span class="share"><i><b style="width:12%"></b></i><span class="num mut">12%</span></span></td><td class="num down">-4%</td><td class="num">0</td></tr>
-          <tr><td><span class="t1">השקיה - גינה</span></td><td>חצר</td><td class="num">13.10</td><td><span class="share"><i><b style="width:8%"></b></i><span class="num mut">8%</span></span></td><td class="num">0%</td><td class="num mut">כבוי</td></tr>
-          <tr><td><span class="t1">דירה 7</span></td><td>קומה 2</td><td class="num">9.42</td><td><span class="share"><i><b style="width:6%"></b></i><span class="num mut">6%</span></span></td><td class="num down">-2%</td><td class="num">0</td></tr>
-          <tr><td><span class="t1">חדר מכונות - גג</span></td><td>גג</td><td class="num">2.05</td><td><span class="share"><i><b style="width:1%"></b></i><span class="num mut">1%</span></span></td><td class="num mut">-</td><td class="num mut">-</td></tr>
-        </tbody></table></div>
-        <div class="cards-m" data-cards-usage></div>
-      </div>
-    </section>
+        <!-- ===== 2. צריכה (the same page shape: head row, tiles, a chart card, the per-meter table) ===== -->
+        <section class="page" id="s-usage" data-st="ready">
+          <div data-state="forbidden"><div class="state-panel" data-state="forbidden"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span></div><div class="text" role="status"><h4>אין הרשאה</h4><p>למשתמש שלך אין הרשאה לצפות בתוכן הזה. פנה למנהל המערכת כדי לקבל שיוך.</p></div></div></div>
+          <div data-state="off"><div class="state-panel" data-state="stale"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-offline"/></svg></span></div><div class="text" role="status"><h4>המודול כבוי</h4><p>מוני מים מופעלים בהגדרות המערכת.</p></div><button class="btn sm mng" type="button">להגדרות</button></div></div>
+          <div data-state="loading" aria-busy="true"><div class="card" id="skl-usage"></div></div>
+          <div data-state="error"><div class="state-panel" data-state="error"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-warning"/></svg></span></div><div class="text" role="status"><h4>לא ניתן לטעון את הצריכה</h4><p>לא הצלחנו לטעון את הנתונים. אפשר לנסות שוב.</p></div><button class="btn sm primary" type="button">נסה שוב</button></div></div>
+          <div data-state="empty"><div class="state-panel" data-state="empty"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-drop"/></svg></span></div><div class="text" role="status"><h4>אין נתוני צריכה עדיין</h4><button class="btn primary mng" type="button" style="margin-block-start:8px"><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></span>הוספת מונה</button></div></div></div>
+          <div data-state="ready">
+            <div class="row head">
+              <div class="seg ranges" role="group" aria-label="טווח" data-ranges><button type="button" aria-pressed="false">היום</button><button type="button" aria-pressed="false">7 ימים</button><button type="button" aria-pressed="true">30 ימים</button><button type="button" aria-pressed="false">חודש קודם</button></div>
+              <span class="sp"></span>
+              <button class="btn" type="button" data-csv><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></span>ייצוא CSV</button>
+            </div>
+            <div class="tiles">
+              <div class="tile"><div class="k">סה״כ בטווח</div><div class="v"><span class="num">356.80</span><span class="u">מ״ק</span></div></div>
+              <div class="tile"><div class="k">לעומת 30 הימים הקודמים</div><div class="v" style="color:var(--sw-danger-text)"><span class="num">+9%</span></div></div>
+              <div class="tile"><div class="k">ממוצע יומי</div><div class="v"><span class="num">11.89</span><span class="u">מ״ק</span></div></div>
+              <div class="tile"><div class="k">ספיקת לילה ממוצעת</div><div class="v"><span class="num">3</span><span class="u">ליטר לשעה</span></div></div>
+            </div>
+            <div class="card">
+              <div class="hd"><h3 style="font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold)">צריכה יומית</h3><span class="sp"></span><div class="legend"><span><i style="background:var(--sw-accent)"></i>יום</span><span><i style="background:color-mix(in srgb, var(--sw-heading) 55%, var(--sw-surface-3))"></i>לילה 01:00-05:00</span><span><i style="background:var(--sw-danger)"></i>דליפה חשודה</span></div></div>
+              <div class="usage-chart" data-usage-chart></div>
+            </div>
+            <div class="card flush scrollx desk-only"><table class="t" data-usage-table>
+              <thead><tr><th>שם</th><th>אזור</th><th class="n">צריכה (מ״ק)</th><th>חלק</th><th class="n">לעומת הקודם</th><th class="n">ספיקת לילה</th></tr></thead>
+              <tbody></tbody></table></div>
+            <div class="list phone-only" style="flex-direction:column" data-usage-rows></div>
+          </div>
+        </section>
 
-    <!-- ===== 3. alerts (slice 2) ===== -->
-    <section class="screen" id="s-alerts">
-      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>מוני מים מופעלים בהגדרות המערכת.</p></div><button class="btn mng">להגדרות</button></div>
-      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את ההתראות</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
-      <div class="top"><div><h1>התראות מים</h1><p class="sub">2 פתוחות · 5 ב-7 הימים האחרונים</p></div><span class="sp"></span>
-        <div class="meta"><button class="btn"><svg class="ic"><use href="#i-download"/></svg>ייצוא CSV</button><button class="btn mng">כללי דליפה</button></div></div>
-      <div class="skl" aria-busy="true" aria-label="טוען"></div>
-      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-check"/></svg></div><div><h4>אין התראות</h4><p>דליפה בלילה, צריכה חריגה, פריצה או מונה שאינו מדווח יופיעו כאן.</p></div></div>
-      <div class="kpis" role="group" aria-label="מצב">
-        <button class="kpi" data-look="alarm" aria-pressed="true"><span class="dot" aria-hidden="true"></span><div><b>2</b><span class="l">פתוחות</span></div></button>
-        <button class="kpi" data-look="ok" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b>3</b><span class="l">נסגרו השבוע</span></div></button>
-        <button class="kpi" data-look="off" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b>1</b><span class="l">מושתקות</span></div></button>
+        <!-- ===== 3. התראות (slice 2): the alert log in the same page shape ===== -->
+        <section class="page" id="s-alerts" data-st="ready">
+          <div data-state="forbidden"><div class="state-panel" data-state="forbidden"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-lock"/></svg></span></div><div class="text" role="status"><h4>אין הרשאה</h4><p>למשתמש שלך אין הרשאה לצפות בתוכן הזה. פנה למנהל המערכת כדי לקבל שיוך.</p></div></div></div>
+          <div data-state="off"><div class="state-panel" data-state="stale"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-offline"/></svg></span></div><div class="text" role="status"><h4>המודול כבוי</h4><p>מוני מים מופעלים בהגדרות המערכת.</p></div><button class="btn sm mng" type="button">להגדרות</button></div></div>
+          <div data-state="loading" aria-busy="true"><div class="card" id="skl-alerts"></div></div>
+          <div data-state="error"><div class="state-panel" data-state="error"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-warning"/></svg></span></div><div class="text" role="status"><h4>לא ניתן לטעון את ההתראות</h4><p>לא הצלחנו לטעון את הנתונים. אפשר לנסות שוב.</p></div><button class="btn sm primary" type="button">נסה שוב</button></div></div>
+          <div data-state="empty"><div class="state-panel" data-state="empty"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-check"/></svg></span></div><div class="text" role="status"><h4>אין התראות</h4></div></div></div>
+          <div data-state="ready">
+            <div class="row head">
+              <div class="seg" role="group" aria-label="סינון" data-alert-filter><button type="button" aria-pressed="true" data-f="open">פתוחות</button><button type="button" aria-pressed="false" data-f="all">הכול</button></div>
+              <span class="sp"></span>
+              <button class="btn" type="button" data-csv><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></span>ייצוא CSV</button>
+              <button class="btn mng" type="button">כללי דליפה</button>
+            </div>
+            <div class="tiles">
+              <div class="tile"><div class="k">פתוחות</div><div class="v" style="color:var(--sw-danger-text)"><span class="num">2</span></div></div>
+              <div class="tile"><div class="k">נסגרו השבוע</div><div class="v"><span class="num">3</span></div></div>
+              <div class="tile"><div class="k">מושתקות</div><div class="v"><span class="num">1</span></div></div>
+              <div class="tile"><div class="k">כללי דליפה</div><div class="v"><span class="num">01:00-05:00</span><span class="u">6 ליטר לשעה · שעתיים</span></div></div>
+            </div>
+            <div class="card flush scrollx desk-only"><table class="t" data-alerts-table>
+              <thead><tr><th>מונה</th><th>אזור</th><th>סוג</th><th>מאז</th><th class="n">ערך</th><th>מצב</th><th></th></tr></thead>
+              <tbody></tbody></table></div>
+            <div class="list phone-only" style="flex-direction:column" data-alerts-rows></div>
+          </div>
+        </section>
+
       </div>
-      <div class="list">
-        <div class="li" data-look="alarm"><span class="badge"><svg class="ic"><use href="#i-moon"/></svg>דליפה</span><div class="grow"><div class="t1">דירה 12 - מים קרים · ספיקה רציפה בלילה</div><div class="t2">קומה 3 · מאז <span class="num">01:15</span> · 4 שעות ברצף · <span class="num">14</span> ליטר לשעה (סף <span class="num">6</span>)</div></div><div class="acts"><button class="btn sm pri ack">אישור</button><button class="btn sm ack"><svg class="ic"><use href="#i-bell-off"/></svg>השתקה 60 ד׳</button></div></div>
-        <div class="li" data-look="warn"><span class="badge">צריכה חריגה</span><div class="grow"><div class="t1">מגדל קירור · פי 2.1 מהרגיל ליום רביעי</div><div class="t2">גג · מאז <span class="num">11:30</span> · <span class="num">6.10</span> מ״ק עד כה, רגיל <span class="num">2.9</span></div></div><div class="acts"><button class="btn sm pri ack">אישור</button><button class="btn sm ack"><svg class="ic"><use href="#i-bell-off"/></svg>השתקה 60 ד׳</button></div></div>
-        <div class="li closed" data-look="unk"><span class="badge">לא מדווח</span><div class="grow"><div class="t1">חדר מכונות - גג · אין קריאה</div><div class="t2">גג · <span class="num">21.10 14:02</span> - <span class="num">22.10 08:30</span> · מושתק עד <span class="num">09:30</span> · דני כהן</div></div></div>
-        <div class="li closed" data-look="ok"><span class="badge">נסגר</span><div class="grow"><div class="t1">השקיה - גינה · פריצה</div><div class="t2">חצר · <span class="num">19.10 06:10</span> - <span class="num">06:40</span> · <span class="num">2,400</span> ליטר לשעה (סף <span class="num">1,500</span>) · אושר: רונית לוי</div></div></div>
-        <div class="li closed" data-look="ok"><span class="badge">נסגר</span><div class="grow"><div class="t1">דירה 12 - מים קרים · ספיקה רציפה בלילה</div><div class="t2">קומה 3 · <span class="num">18.10 02:00</span> - <span class="num">05:00</span> · <span class="num">9</span> ליטר לשעה · אושר: דני כהן</div></div></div>
-      </div>
-    </section>
+    </div>
   </main>
   <nav class="bottom" aria-label="ניווט ראשי">
-    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
-    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
-    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
-    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
-    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>בקשות שירות</span></a>
+    <a href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg></span><span class="lbl">ראשי</span></a>
+    <a href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-shield"/></svg></span><span class="lbl">אבטחה</span></a>
+    <a href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-map"/></svg></span><span class="lbl">מפה</span></a>
+    <a href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-media"/></svg></span><span class="lbl">מולטימדיה</span></a>
+    <a href="#"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-door"/></svg></span><span class="lbl">WisKey</span></a>
+    <a href="#" class="active" aria-current="page"><span class="ic s22"><svg viewBox="0 0 24 24"><use href="#i-bolt"/></svg></span><span class="lbl">תשתיות</span></a>
+    <a href="#"><span class="av">יו</span><span class="lbl">יוני</span></a>
   </nav>
 </div>
 
-<!-- the meter sheet: the reading, the 24-hour bars with the night window, open alerts, manual readings (sw-dialog) -->
-<div class="ov" id="ov-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
-  <div class="dlg">
-    <header><div><h2 id="sheet-h">דירה 12 - מים קרים</h2><p class="sub">משני · קומה 3 · <span class="src">חיישן מתשתית המערכת · ליטר</span></p></div><button class="x" data-close aria-label="סגירה"><svg class="ic"><use href="#i-close"/></svg></button></header>
-    <div class="body">
-      <div class="two">
-        <div style="display:grid;gap:14px">
-          <div class="panel" data-look="alarm">
-            <div class="hd"><div><div class="mut">קריאה אחרונה · <span class="num">08:42</span></div><div class="bignum"><span class="num">318.902</span><small>מ״ק</small></div></div><span class="sp"></span><span class="badge"><svg class="ic"><use href="#i-moon"/></svg>דליפה חשודה</span></div>
-            <dl class="kv">
-              <dt>היום</dt><dd><span class="num">1.92</span> מ״ק</dd>
-              <dt>החודש</dt><dd><span class="num">41.6</span> מ״ק · <span class="up">+58%</span> לעומת חודש קודם</dd>
-              <dt>ספיקת לילה</dt><dd><span class="num">14</span> ליטר לשעה מאז <span class="num">01:15</span> (סף <span class="num">6</span>)</dd>
-              <dt>כללי דליפה</dt><dd>ברירת המחדל של המערכת</dd>
-            </dl>
-          </div>
-          <div class="panel"><div class="hd"><h4>24 שעות אחרונות</h4><span class="sp"></span><span class="mut">ליטר לשעה</span></div><div class="mini" role="img" aria-label="ספיקה לפי שעה ב-24 השעות האחרונות" data-mini></div></div>
-        </div>
-        <div style="display:grid;gap:14px">
-          <div class="panel"><div class="hd"><h4>התראה פתוחה</h4></div>
-            <ol class="hist"><li data-look="alarm"><span class="dot"></span><span class="t">ספיקה רציפה בלילה · <span class="num">14</span> ל׳/ש׳</span><span class="w">מאז <span class="num">01:15</span></span></li></ol>
-            <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn sm pri ack">אישור</button><button class="btn sm ack"><svg class="ic"><use href="#i-bell-off"/></svg>השתקה 60 ד׳</button></div>
-          </div>
-          <div class="panel mng"><div class="hd"><h4>קריאה ידנית</h4></div>
-            <div class="form">
-              <div class="fld"><label for="r1">קריאת המונה הפיזי (מ״ק)</label><input id="r1" class="inp num" value="318.95" inputmode="decimal"></div>
-              <div class="fld"><label for="r2">מועד הקריאה</label><input id="r2" class="inp num" value="23.10.2026 08:40"></div>
-              <div class="mut">סטייה מהמערכת: <span class="num">+48</span> ליטר</div>
-            </div>
-          </div>
-          <div class="panel"><div class="hd"><h4>קריאות ידניות</h4></div>
-            <ol class="hist"><li data-look="ok"><span class="dot"></span><span class="t"><span class="num">301.200</span> מ״ק</span><span class="w">01.10.2026 · דני כהן</span></li><li data-look="ok"><span class="dot"></span><span class="t"><span class="num">280.115</span> מ״ק</span><span class="w">01.09.2026 · דני כהן</span></li></ol>
-          </div>
-        </div>
-      </div>
-    </div>
-    <footer><button class="btn ghost mng">השהיה</button><button class="btn ghost mng">החלפת מונה</button><span class="sp"></span><button class="btn" data-close>סגירה</button><button class="btn pri mng">שמירת הקריאה</button></footer>
+<!-- the meter card (sw-drawer modal + meter-card.ts): the status chip, the facts, the consumption chart, the open alerts, the counter lives, the readings, the actions -->
+<div class="drawer elec" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dh">
+  <div class="backdrop" data-close></div>
+  <div class="panel">
+    <div class="grip" aria-hidden="true"></div>
+    <header>
+      <div class="titles"><h3 id="dh" data-d="name"></h3><div class="sub" data-d="sub"></div></div>
+      <button class="btn ghost sm icononly" type="button" data-close aria-label="סגירה" title="סגירה"><span class="ic s13"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></span></button>
+    </header>
+    <div class="dbody"><div class="mc" data-meter-card></div></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -592,144 +556,241 @@ nav.bottom { display: none; }
 <script>
 (function () {
   var q = new URLSearchParams(location.search), root = document.documentElement, body = document.body;
-  var PLACES = [
-    { id: 'all', name: 'כל המבנה', kind: 'all' },
-    { id: 'bldg', name: 'מבנה א', kind: 'floor', children: ['roof', 'ground', 'basement'] },
-    { id: 'roof', name: 'גג', kind: 'area', depth: 1 }, { id: 'ground', name: 'קומת קרקע', kind: 'area', depth: 1 }, { id: 'basement', name: 'מרתף', kind: 'area', depth: 1 },
-    { id: 'garden', name: 'חצר', kind: 'area' }
+  // ---- formatting (electricity/format.ts: Western digits, tabular numbers; CR-WATER78 Q10: m³ with three decimals for a reading, two for a consumption, litres under 1 m³) ----
+  var nf = function (min, max) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: min, maximumFractionDigits: max }); };
+  var F2 = nf(2, 2), F3 = nf(3, 3), F0 = nf(0, 0);
+  function m3(v) { return v == null ? '-' : F2.format(v); }
+  function reading(v) { return v == null ? '-' : F3.format(v); }
+  function vol(v) { return v == null ? '-' : v < 1 ? F0.format(Math.round(v * 1000)) + ' ליטר' : F2.format(v) + ' מ״ק'; }
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function icon(name, size) { return '<span class="ic' + (size ? ' s' + size : '') + '"><svg viewBox="0 0 24 24"><use href="#i-' + name + '"/></svg></span>'; }
+
+  // ---- fake data (invented building; no device, no entity id) ----
+  var FLOORS = [{ id: 'f-0', name: 'קומת קרקע' }, { id: 'f-2', name: 'קומה 2' }, { id: 'f-3', name: 'קומה 3' }, { id: 'f-r', name: 'גג' }, { id: 'f-y', name: 'חצר' }];
+  var AREAS = { 'a-in': ['כניסת מים', 'f-0'], 'a-pool': ['בריכה', 'f-0'], 'a-7': ['דירה 7', 'f-2'], 'a-12': ['דירה 12', 'f-3'], 'a-cool': ['מגדל קירור', 'f-r'], 'a-mach': ['חדר מכונות', 'f-r'], 'a-gard': ['גינה', 'f-y'] };
+  // status: reporting / stale / paused (the energy meter's); alert: leak / abnormal / null (slice 2); night: litres per hour, null = no reading, 'off' = the irrigation rule is off
+  var METERS = [
+    { id: 'w1', name: 'מונה ראשי - כניסת מים', area: 'a-in', kind: 'ראשי', reading: 4812.337, today: 12.84, month: 286.1, night: 0, status: 'reporting', alert: null, last: '08:42' },
+    { id: 'w2', name: 'דירה 12 - מים קרים', area: 'a-12', kind: 'משני', reading: 318.902, today: 1.92, month: 41.6, night: 14, status: 'reporting', alert: 'leak', last: '08:42' },
+    { id: 'w3', name: 'מגדל קירור', area: 'a-cool', kind: 'משני', reading: 1204.51, today: 6.1, month: 88.3, night: 0, status: 'reporting', alert: 'abnormal', last: '08:40' },
+    { id: 'w4', name: 'השקיה - גינה', area: 'a-gard', kind: 'השקיה', reading: 96.44, today: 0.85, month: 19.7, night: 'off', status: 'reporting', alert: null, last: '08:41' },
+    { id: 'w5', name: 'בריכה - מילוי', area: 'a-pool', kind: 'משני', reading: 552.018, today: 1.3, month: 31.9, night: 0, status: 'reporting', alert: null, last: '08:42' },
+    { id: 'w6', name: 'דירה 7', area: 'a-7', kind: 'משני', reading: 274.115, today: 0.64, month: 18.2, night: 0, status: 'reporting', alert: null, last: '08:39' },
+    { id: 'w7', name: 'חדר מכונות - גג', area: 'a-mach', kind: 'משני', reading: 77.3, today: null, month: 4.1, night: null, status: 'stale', alert: null, last: '21.10 14:02' },
+    { id: 'w8', name: 'מחסן - ברז שירות', area: 'a-mach', kind: 'משני', reading: 12.05, today: 0, month: 0, night: 0, status: 'paused', alert: null, last: '01.10 08:00' }
   ];
-  var WORST = { alarm: 3, warn: 2, acc: 1, ok: 0, unk: -1 };
+  // the chip of a row: the alert (slice 2) wins over the reporting status - STATUS_LABEL / STATUS_CLASS of meter-card.ts
+  var STATUS = { reporting: ['מדווח', 'c-ok'], stale: ['לא מדווח', 'c-warn'], paused: ['מושהה', 'c-mut'], leak: ['דליפה חשודה', 'c-err'], abnormal: ['צריכה חריגה', 'c-warn'] };
+  function chipOf(m) { var s = STATUS[m.alert || m.status]; return '<span class="chip ' + s[1] + '" data-status="' + (m.alert || m.status) + '">' + s[0] + '</span>' + (m.status === 'stale' ? ' <span class="mut">מ-<span class="num">' + m.last + '</span></span>' : ''); }
+  function nightOf(m, cls) { if (m.night === 'off') return '<span class="mut">כבוי</span>'; if (m.night == null) return '<span class="mut">-</span>'; return '<span class="num' + (m.alert === 'leak' ? ' bad' : '') + '">' + m.night + '</span> <span class="mut">ל׳/ש׳</span>'; }
+  function areaName(m) { return AREAS[m.area][0]; }
+  function floorName(m) { var f = AREAS[m.area][1]; return FLOORS.filter(function (x) { return x.id === f; })[0].name; }
+
+  // ---- theme / role / state / page ----
   function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
-  theme(q.get('theme') ? q.get('theme') === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
+  var scheme = q.get('scheme') || q.get('theme');
+  theme(scheme ? scheme === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
+  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
   function setRole(v) { body.dataset.role = v; document.getElementById('role').value = v; }
-  function setSt(v) {
-    body.dataset.st = v; document.getElementById('stsel').value = v;
-    document.querySelectorAll('[data-sub]').forEach(function (s) { if (v === 'empty') { s.dataset.full = s.dataset.full || s.textContent; s.textContent = 'אין מונים עדיין'; } else if (s.dataset.full) { s.textContent = s.dataset.full; delete s.dataset.full; } });
-  }
+  function setSt(v) { body.dataset.st = v; document.getElementById('stsel').value = v; document.querySelectorAll('.page').forEach(function (p) { p.dataset.st = v; }); }
   document.getElementById('role').onchange = function () { setRole(this.value); };
   document.getElementById('stsel').onchange = function () { setSt(this.value); };
   setRole(q.get('role') || 'mgr'); setSt(q.get('state') || 'ready');
-  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
-
-  // pages (the level-2 row)
   function showPage(id) {
     document.querySelectorAll('#pages a').forEach(function (a) { var on = a.dataset.p === id; a.classList.toggle('on', on); a.setAttribute('aria-current', on ? 'page' : 'false'); });
-    document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
+    document.querySelectorAll('.page').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
   }
   document.querySelectorAll('#pages a').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); showPage(a.dataset.p); }; });
-  document.querySelector('[data-count="alerts"]').textContent = '(2)';
-  document.querySelector('[data-count="leaks"]').textContent = '1';
+  // the loading state: a card of 7 skeleton rows (page-meters.ts)
+  ['skl-meters', 'skl-usage', 'skl-alerts'].forEach(function (id) { var c = document.getElementById(id); for (var i = 0; i < 7; i++) c.appendChild(el('div', 'row', '<div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div>')).style.padding = '10px 0'; });
 
-  // the meters page: KPI filters, the places tree (counts from the rows: one source), the kind control, the search, the cards views
-  document.querySelectorAll('.screen[data-list]').forEach(function (sec) {
-    var rows = [].slice.call(sec.querySelectorAll('table.t tbody tr'));
-    var state = { k: 'all', place: 'all', kind: 'all', term: '', folded: {} };
-    var cards = sec.querySelector('[data-cards]'), desk = sec.querySelector('[data-cards-desk]');
-    rows.forEach(function (tr) {
-      var c = tr.children;
-      // phone card
-      var d = document.createElement('div'); d.className = 'c'; d.dataset.look = tr.dataset.look;
-      var r1 = document.createElement('div'); r1.className = 'r1';
-      var t = document.createElement('span'); t.className = 't1'; t.textContent = c[1].querySelector('.t1').textContent; r1.appendChild(t); r1.appendChild(c[0].firstElementChild.cloneNode(true));
-      var r2 = document.createElement('div'); r2.className = 'mut';
-      r2.textContent = [c[2].textContent, c[3].textContent, 'היום ' + c[5].textContent.trim() + ' מ״ק', 'החודש ' + c[6].textContent.trim() + ' מ״ק', 'לילה ' + c[7].textContent.trim()].join(' · ');
-      var r3 = document.createElement('div'); r3.className = 'r3';
-      [].slice.call(c[c.length - 1].querySelectorAll('.btn')).forEach(function (b) { r3.appendChild(b.cloneNode(true)); });
-      d.appendChild(r1); d.appendChild(r2); if (r3.children.length) d.appendChild(r3); cards.appendChild(d); tr._card = d;
-      // desktop card (meter-card.ts shape)
-      var k = document.createElement('div'); k.className = 'card'; k.dataset.look = tr.dataset.look; k.tabIndex = 0;
-      var k1 = document.createElement('div'); k1.className = 'r1'; var kt = document.createElement('span'); kt.className = 't1'; kt.textContent = t.textContent; k1.appendChild(kt); k1.appendChild(c[0].firstElementChild.cloneNode(true));
-      var k2 = document.createElement('div'); k2.className = 'big'; k2.innerHTML = '<span class="num">' + c[5].textContent.trim() + '</span><small>מ״ק היום</small>';
-      var k3 = document.createElement('div'); k3.className = 'r3'; k3.innerHTML = '<span class="chip">' + c[2].textContent + '</span><span class="chip">' + c[3].textContent + '</span><span class="mut">לילה ' + c[7].textContent.trim() + '</span>';
-      k.appendChild(k1); k.appendChild(k2); k.appendChild(k3); desk.appendChild(k); tr._desk = k;
-      k.addEventListener('click', function () { open('ov-sheet'); });
-    });
-    function inPlace(tr) {
-      if (state.place === 'all') return true;
-      var p = PLACES.filter(function (x) { return x.id === state.place; })[0];
-      return tr.dataset.place === state.place || (p && p.children && p.children.indexOf(tr.dataset.place) > -1);
-    }
-    function matches(tr) { return inPlace(tr) && (state.k === 'all' || tr.dataset.look === state.k) && (state.kind === 'all' || tr.dataset.kind === state.kind) && tr.textContent.indexOf(state.term) > -1; }
-    function render() {
-      rows.forEach(function (tr) { var h = !matches(tr); tr.hidden = h; tr._card.hidden = h; tr._desk.hidden = h; });
-      var n = { all: 0, alarm: 0, warn: 0, ok: 0, unk: 0 };
-      rows.forEach(function (tr) { if (inPlace(tr) && (state.kind === 'all' || tr.dataset.kind === state.kind) && tr.textContent.indexOf(state.term) > -1) { n.all++; n[tr.dataset.look]++; } });
-      sec.querySelectorAll('[data-n]').forEach(function (b) { b.textContent = n[b.dataset.n] || 0; });
-      var subEl = sec.querySelector('[data-sub]'), subTxt = rows.length + ' מונים · קריאה אחרונה 08:42 · ' + rows.filter(function (tr) { return tr.dataset.look === 'alarm'; }).length + ' דליפה חשודה';
-      if (body.dataset.st === 'empty') subEl.dataset.full = subTxt; else subEl.textContent = subTxt;
-      var tree = sec.querySelector('[data-tree]'), sel = sec.querySelector('[data-tree-select]'); tree.innerHTML = ''; sel.innerHTML = '';
-      var ttl = document.createElement('div'); ttl.className = 'ttl'; ttl.textContent = 'מקומות'; tree.appendChild(ttl);
-      PLACES.forEach(function (p) {
-        var mine = rows.filter(function (tr) { return p.kind === 'all' || tr.dataset.place === p.id || (p.children && p.children.indexOf(tr.dataset.place) > -1); });
-        var cnt = mine.length, worst = null; mine.forEach(function (tr) { if (worst === null || WORST[tr.dataset.look] > WORST[worst]) worst = tr.dataset.look; });
-        var parentFolded = p.depth === 1 && state.folded.bldg;
-        var line = document.createElement('div'); line.className = 'line' + (p.kind === 'floor' ? ' floor' : ''); line.hidden = !!parentFolded;
-        if (p.kind === 'floor') {
-          var f = document.createElement('button'); f.type = 'button'; f.className = 'fold'; f.setAttribute('aria-expanded', String(!state.folded[p.id])); f.setAttribute('aria-label', (state.folded[p.id] ? 'הרחבה ' : 'כיווץ ') + p.name);
-          f.innerHTML = '<svg class="ic"><use href="#i-chev"/></svg>'; f.onclick = function () { state.folded[p.id] = !state.folded[p.id]; render(); }; line.appendChild(f);
-        }
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'pick' + (p.depth === 1 ? ' depth-1' : ''); b.setAttribute('aria-current', String(state.place === p.id));
-        if (p.kind === 'all') b.innerHTML = '<svg class="ic"><use href="#i-pin"/></svg>'; else if (p.kind === 'area' && worst) { var dot = document.createElement('span'); dot.className = 'dot'; dot.dataset.look = worst; dot.setAttribute('aria-hidden', 'true'); b.appendChild(dot); }
-        var nm = document.createElement('span'); nm.className = 'name'; nm.textContent = p.name; b.appendChild(nm);
-        var nn = document.createElement('span'); nn.className = 'n'; nn.textContent = cnt; b.appendChild(nn);
-        b.onclick = function () { state.place = p.id; render(); }; line.appendChild(b); tree.appendChild(line);
-        var o = document.createElement('option'); o.value = p.id; o.textContent = (p.depth === 1 ? '– ' : '') + p.name + ' (' + cnt + ')'; o.selected = state.place === p.id; sel.appendChild(o);
+  // ---- 1. the meters page ----
+  var sec = document.getElementById('s-meters');
+  var state = { area: '', q: '', view: q.get('view') === 'cards' ? 'cards' : 'table', collapsed: {} };
+  function visible() { var n = state.q.trim(); return METERS.filter(function (m) { return (!state.area || m.area === state.area) && (!n || m.name.indexOf(n) > -1 || areaName(m).indexOf(n) > -1); }); }
+  function renderTiles() {
+    var s = { today: 0, month: 0, reporting: 0, total: METERS.length, leaks: 0 };
+    METERS.forEach(function (m) { s.today += m.today || 0; s.month += m.month || 0; if (m.status === 'reporting') s.reporting++; if (m.alert === 'leak') s.leaks++; });
+    sec.querySelector('[data-t="today"]').textContent = m3(s.today); sec.querySelector('[data-t="month"]').textContent = F0.format(Math.round(s.month));
+    sec.querySelector('[data-t="reporting"]').textContent = s.reporting; sec.querySelector('[data-t="total"]').textContent = s.total; sec.querySelector('[data-t="leaks"]').textContent = s.leaks;
+    sec.querySelector('[data-t-leak]').style.color = s.leaks ? 'var(--sw-danger-text)' : '';
+  }
+  function renderTree() {
+    var tree = sec.querySelector('[data-area-tree]'), sel = sec.querySelector('[data-area-select]'); tree.innerHTML = ''; sel.innerHTML = '';
+    var all = el('button', '', 'כל האזורים <span class="cnt num">' + METERS.length + '</span>'); all.type = 'button'; all.setAttribute('aria-current', String(!state.area)); all.onclick = function () { state.area = ''; render(); }; tree.appendChild(all);
+    sel.appendChild(new Option('כל האזורים', '', !state.area, !state.area));
+    FLOORS.forEach(function (f) {
+      var areas = Object.keys(AREAS).filter(function (a) { return AREAS[a][1] === f.id; });
+      var cnt = METERS.filter(function (m) { return AREAS[m.area][1] === f.id; }).length;
+      var col = !!state.collapsed[f.id];
+      var fb = el('button', 'fl', icon(col ? 'chevronBack' : 'chevronDown', 14) + f.name + '<span class="cnt num">' + cnt + '</span>'); fb.type = 'button'; fb.setAttribute('aria-expanded', String(!col)); fb.onclick = function () { state.collapsed[f.id] = !col; render(); }; tree.appendChild(fb);
+      areas.forEach(function (a) {
+        var n = METERS.filter(function (m) { return m.area === a; }).length;
+        if (!col) { var ab = el('button', 'ar', AREAS[a][0] + '<span class="cnt num">' + n + '</span>'); ab.type = 'button'; ab.setAttribute('aria-current', String(state.area === a)); ab.onclick = function () { state.area = a; render(); }; tree.appendChild(ab); }
+        sel.appendChild(new Option(AREAS[a][0], a, state.area === a, state.area === a));
       });
-    }
-    sec.querySelector('[data-tree-select]').onchange = function () { state.place = this.value; render(); };
-    sec.querySelectorAll('[data-kpis] .kpi[data-k]').forEach(function (b) { b.onclick = function () { state.k = state.k === b.dataset.k || b.dataset.k === 'all' ? 'all' : b.dataset.k; sec.querySelectorAll('[data-kpis] .kpi[data-k]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.k === state.k)); }); render(); }; });
-    sec.querySelectorAll('[data-kinds] button').forEach(function (b) { b.onclick = function () { state.kind = b.dataset.kind; sec.querySelectorAll('[data-kinds] button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); render(); }; });
-    sec.querySelectorAll('[data-views] button').forEach(function (b) { b.onclick = function () { sec.querySelectorAll('[data-views] button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); desk.classList.toggle('on', b.dataset.view === 'cards'); }; });
-    sec.querySelector('[data-search]').oninput = function () { state.term = this.value.trim(); render(); };
-    var cnt = document.querySelector('[data-count="meters"]'); if (cnt) cnt.textContent = '(' + rows.length + ')';
-    render();
-  });
-
-  // the consumption chart (fake 14 days, m³): the night share at the foot of each bar; the last two days carry the apartment-12 leak
-  var DAYS = [[11.2, .08], [12.6, .07], [10.9, .06], [11.8, .07], [13.1, .08], [9.4, .05], [8.7, .05], [12.2, .08], [12.9, .07], [11.5, .06], [13.4, .3, 1], [14.6, .34, 1], [12.3, .32, 1], [12.84, .34, 1]];
-  var chart = document.querySelector('[data-chart]'), axis = document.querySelector('[data-axis]'), max = 15;
-  DAYS.forEach(function (d, i) {
-    var bar = document.createElement('div'); bar.className = 'bar'; if (d[2]) bar.setAttribute('data-alarm', '');
-    var v = document.createElement('span'); v.className = 'v num'; v.textContent = d[0].toFixed(1); if (d[2]) v.setAttribute('data-alarm', '');
-    var day = document.createElement('i'); day.style.height = ((d[0] - d[1]) / max * 100) + '%';
-    var night = document.createElement('i'); night.className = 'night'; night.style.height = (d[1] / max * 100) + '%';
-    bar.appendChild(v); bar.appendChild(day); bar.appendChild(night); bar.title = (10 + i) + '.10 · ' + d[0].toFixed(2) + ' מ״ק, לילה ' + Math.round(d[1] * 1000) + ' ליטר'; chart.appendChild(bar);
-    var a = document.createElement('span'); a.textContent = (10 + i) + '.10'; axis.appendChild(a);
-  });
-  // the usage table on a phone
-  (function () {
-    var cm = document.querySelector('[data-cards-usage]');
-    document.querySelectorAll('#s-usage table.t tbody tr').forEach(function (tr) {
-      var c = tr.children, d = document.createElement('div'); d.className = 'c';
-      d.innerHTML = '<div class="r1"><span class="t1"></span><b class="num"></b></div><div class="mut"></div>';
-      d.querySelector('.t1').textContent = c[0].textContent; d.querySelector('b').textContent = c[2].textContent.trim() + ' מ״ק';
-      d.querySelector('.mut').textContent = c[1].textContent + ' · ' + c[3].textContent.trim() + ' · ' + c[4].textContent.trim() + ' · לילה ' + c[5].textContent.trim(); cm.appendChild(d);
     });
-  })();
-  // the sheet's 24-hour bars (litres per hour; the night hours 01-05 carry the 14 L/h floor)
-  var mini = document.querySelector('[data-mini]'), HOURS = [22, 30, 60, 120, 40, 30, 28, 45, 35, 20, 25, 38, 70, 95, 80, 55, 14, 14, 14, 14, 14, 15, 40, 30];
-  HOURS.forEach(function (h, i) { var b = document.createElement('i'); b.style.height = Math.max(3, h / 120 * 100) + '%'; if (i >= 16 && i <= 20) b.setAttribute('data-night', ''); b.title = (i + 9) % 24 + ':00 · ' + h + ' ל׳/ש׳'; mini.appendChild(b); });
+  }
+  function nameOf(m) { return m.name; }
+  function renderTable(list) {
+    var tb = sec.querySelector('[data-meters-table] tbody'); tb.innerHTML = '';
+    list.forEach(function (m) {
+      var tr = el('tr', 'pick'); tr.tabIndex = 0; tr.dataset.meter = m.id;
+      tr.innerHTML = '<td class="b">' + nameOf(m) + '</td><td>' + areaName(m) + '<span class="mut dsk"> · ' + floorName(m) + '</span></td>' +
+        '<td class="n"><span class="num">' + reading(m.reading) + '</span></td><td class="n"><span class="num">' + m3(m.today) + '</span></td><td class="n dsk"><span class="num">' + m3(m.month) + '</span></td>' +
+        '<td class="n">' + nightOf(m) + '</td><td>' + chipOf(m) + '</td>';
+      tr.onclick = function () { openMeter(m); }; tr.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMeter(m); } };
+      tb.appendChild(tr);
+    });
+  }
+  function renderCards(list) {
+    var c = sec.querySelector('[data-meters-cards]'); c.innerHTML = '';
+    list.forEach(function (m) {
+      var k = el('div', 'card mcard'); k.setAttribute('role', 'button'); k.tabIndex = 0; k.dataset.meter = m.id;
+      k.innerHTML = '<div class="row"><b>' + nameOf(m) + '</b><span class="sp"></span>' + chipOf(m).replace(/ <span class="mut">.*$/, '') + '</div>' +
+        '<div class="mut">' + areaName(m) + ' · ' + floorName(m) + '</div>' +
+        '<div class="row" style="align-items:baseline"><span class="big num">' + m3(m.today) + '</span><span class="mut">מ״ק היום</span><span class="sp"></span><span class="mut num">' + reading(m.reading) + '</span></div>' +
+        '<div class="mut">ספיקת לילה ' + nightOf(m) + '</div>';
+      k.onclick = function () { openMeter(m); }; c.appendChild(k);
+    });
+  }
+  function renderRows(list) {
+    var r = sec.querySelector('[data-meters-rows]'); r.innerHTML = '';
+    list.forEach(function (m) {
+      var li = el('div', 'li pick'); li.setAttribute('role', 'button'); li.tabIndex = 0;
+      li.innerHTML = '<div class="grow"><div class="t1">' + nameOf(m) + '</div><div class="t2">' + areaName(m) + ' · היום <span class="num">' + m3(m.today) + '</span> מ״ק' + (m.night !== 0 ? ' · לילה ' + nightOf(m) : '') + '</div></div>' +
+        '<div style="text-align:end">' + chipOf(m).replace(/ <span class="mut">.*$/, '') + '<div class="t2 num" style="margin-block-start:4px">' + reading(m.reading) + '</div></div>';
+      li.onclick = function () { openMeter(m); }; r.appendChild(li);
+    });
+  }
+  function render() {
+    var list = visible(); renderTiles(); renderTree(); renderTable(list); renderCards(list); renderRows(list);
+    var none = !list.length;
+    sec.querySelector('[data-no-results]').hidden = !none;
+    sec.querySelector('[data-table-wrap]').hidden = none || state.view !== 'table';
+    sec.querySelector('[data-meters-cards]').hidden = none || state.view !== 'cards';
+    sec.querySelector('[data-meters-rows]').hidden = none;
+    sec.querySelectorAll('[data-views] button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === state.view)); });
+  }
+  sec.querySelectorAll('[data-views] button').forEach(function (b) { b.onclick = function () { state.view = b.dataset.view; render(); }; });
+  sec.querySelector('[data-search]').oninput = function () { state.q = this.value; render(); };
+  sec.querySelector('[data-area-select]').onchange = function () { state.area = this.value; render(); };
+  render();
 
-  // the sheet
-  function open(id) { document.getElementById(id).classList.add('open'); var x = document.querySelector('#' + id + ' .x'); if (x) x.focus(); }
-  function closeAll() { document.querySelectorAll('.ov.open').forEach(function (o) { o.classList.remove('open'); }); }
-  document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = closeAll; });
-  document.querySelectorAll('.ov').forEach(function (o) { o.addEventListener('click', function (e) { if (e.target === o) closeAll(); }); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(); });
-  document.getElementById('open-sheet').onclick = function () { open('ov-sheet'); };
-  document.querySelectorAll('#s-meters table.t tbody tr').forEach(function (tr) {
-    var go = function () { open('ov-sheet'); };
-    tr.addEventListener('click', function (e) { if (!e.target.closest('.btn')) go(); });
-    tr.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  // ---- the meter card (meter-card.ts renderBody + barChart) ----
+  var RANGE = { hours: '24 שעות', days: '30 ימים', months: '12 חודשים' };
+  var range = q.get('range') || 'hours', current = null;
+  function barChart(data, aria, opts) {
+    // meter-card.ts barChart: W 640, H 170, the oldest bar at the start side (right in RTL), bars at most 24 px, the latest in the accent,
+    // a value on the latest and the highest bar; water adds `night` (the hours of the night window / the night share of a day) and `leak`
+    var W = 640, H = 170, pad = 26; opts = opts || {};
+    if (!data.length) return '<div class="mut">אין נתונים לתקופה</div>';
+    var max = Math.max.apply(null, data.map(function (d) { return d.value; }).concat([1])) * 1.15;
+    var bw = (W - pad * 2) / data.length, barW = Math.min(bw * 0.64, 24), every = Math.ceil(data.length / 12);
+    var hi = 0; data.forEach(function (d, i) { if (d.value > data[hi].value) hi = i; });
+    var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + aria + '" data-chart>';
+    s += '<line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + (H - 22) + '" y2="' + (H - 22) + '" class="grid"/>';
+    data.forEach(function (d, i) {
+      var bh = Math.max(d.value > 0 ? 2 : 0, d.value / max * (H - 44)), x = W - pad - (i + 1) * bw + (bw - barW) / 2, last = i === data.length - 1;
+      var cls = d.leak ? 'bar leak' : d.night ? 'bar night' : last ? 'bar hi' : 'bar';
+      s += '<rect class="' + cls + '" x="' + x + '" y="' + (H - 22 - bh) + '" width="' + barW + '" height="' + bh + '" rx="3"><title>' + d.label + ': ' + d.title + '</title></rect>';
+      if (d.nightShare) { var nh = Math.max(2, d.nightShare / max * (H - 44)); s += '<rect class="bar ' + (d.leak ? 'leak' : 'night') + '" x="' + x + '" y="' + (H - 22 - nh) + '" width="' + barW + '" height="' + nh + '" rx="3"/>'; }
+      if (i % every === 0 || last) s += '<text x="' + (x + barW / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + d.label + '</text>';
+      if (last || i === hi || (d.leak && opts.leakValues)) s += '<text x="' + (x + barW / 2) + '" y="' + (H - 27 - bh) + '" text-anchor="middle" class="val' + (d.leak ? ' leak' : '') + '">' + Math.round(d.value) + '</text>';
+    });
+    return s + '</svg>';
+  }
+  var HOURS = [22, 30, 60, 120, 40, 30, 28, 45, 35, 20, 25, 38, 70, 95, 80, 55, 14, 14, 14, 14, 14, 15, 40, 30]; // litres per hour, 09:00 .. 08:00
+  function dayLabel(back) { return String(new Date(2026, 9, 23 - back).getDate()); } // the day of the month, `back` days before 23.10.2026 (the fixtures' "now")
+  function seriesOf(m) {
+    if (range === 'hours') return HOURS.map(function (v, i) { var h = (i + 9) % 24, night = h >= 1 && h < 5; var val = m.alert === 'leak' ? v : night ? 0 : Math.round(v * (m.today || 1) / 1.92); return { label: String(h).padStart(2, '0'), value: val, title: val + ' ליטר לשעה', night: night, leak: night && m.alert === 'leak' }; });
+    var n = range === 'days' ? 30 : 12, out = [];
+    for (var i = 0; i < n; i++) { var base = (m.today || 0.5) * (range === 'days' ? 1 : 30), v = base * (0.75 + ((i * 7 + m.id.length) % 10) / 20); out.push({ label: range === 'days' ? dayLabel(29 - i) : ((i + 11) % 12 + 1) + '/26', value: v, title: m3(v) + ' מ״ק' }); }
+    return out;
+  }
+  var EPOCHS = { w2: [['התקנה', '12.03.2025', '0.000', null, ''], ['החלפת מונה', '02.08.2026', '0.000', null, 'מונה חדש של ספק המים']], w1: [['התקנה', '12.03.2025', '0.000', null, '']] };
+  function openMeter(m) {
+    current = m;
+    var d = document.getElementById('drawer');
+    d.querySelector('[data-d="name"]').textContent = m.name; d.querySelector('[data-d="sub"]').textContent = m.kind + ' · ' + areaName(m) + ' · ' + floorName(m);
+    renderCard(); d.classList.add('open'); d.querySelector('[data-close].btn').focus();
+  }
+  function renderCard() {
+    var m = current, c = document.querySelector('[data-meter-card]');
+    var leak = m.alert === 'leak';
+    var h = '<div class="row">' + chipOf(m) + '</div>' +
+      '<dl class="kv"><dt>אזור</dt><dd>' + areaName(m) + ' · ' + floorName(m) + '</dd>' +
+      '<dt>קריאה נוכחית</dt><dd><span class="num">' + reading(m.reading) + '</span> <span class="mut">מ״ק</span></dd>' +
+      '<dt>דיווח אחרון</dt><dd><span class="num">' + (m.last.length > 5 ? m.last : '23.10.2026 ' + m.last) + '</span></dd>' +
+      '<dt>יחידה</dt><dd>מ״ק · מונה מצטבר</dd><dt>סוג</dt><dd>' + m.kind + '</dd>' +
+      '<dt>ספיקת לילה</dt><dd>' + (m.night === 'off' ? 'כלל הלילה כבוי (השקיה)' : m.night == null ? '-' : '<span class="num' + (leak ? ' bad' : '') + '">' + m.night + '</span> ליטר לשעה' + (leak ? ' מאז <span class="num">01:15</span> (סף <span class="num">6</span>)' : '')) + '</dd>' +
+      '<dt>כללי דליפה</dt><dd>ברירת המחדל של המערכת · לילה <span class="num">01:00-05:00</span></dd></dl>';
+    h += '<div class="row"><h3>צריכה</h3><span class="sp"></span><div class="seg" role="group" aria-label="טווח">' + Object.keys(RANGE).map(function (r) { return '<button type="button" aria-pressed="' + (range === r) + '" data-range="' + r + '">' + RANGE[r] + '</button>'; }).join('') + '</div></div>';
+    h += barChart(seriesOf(m), 'גרף צריכה, ' + RANGE[range], { leakValues: true });
+    if (range === 'hours') h += '<div class="mut">ליטר לשעה · חלון הלילה <span class="num">01:00-05:00</span> מודגש' + (leak ? ' · <span class="bad">ספיקה שאינה יורדת מ-<span class="num">14</span> ליטר לשעה = דליפה חשודה</span>' : '') + '</div>';
+    if (m.alert) {
+      h += '<h3>התראות פתוחות</h3><div class="list" data-open-alerts>' + (leak
+        ? '<div class="li"><div class="grow"><div class="t1">ספיקה רציפה בלילה · <span class="num">14</span> ליטר לשעה</div><div class="t2 wrap">מאז <span class="num">01:15</span> · 4 שעות ברצף · סף <span class="num">6</span> ליטר לשעה על פני שעתיים</div></div><span class="chip c-err">דליפה</span></div>'
+        : '<div class="li"><div class="grow"><div class="t1">צריכה חריגה · פי <span class="num">2.1</span> מהרגיל ליום רביעי</div><div class="t2 wrap">מאז <span class="num">11:30</span> · <span class="num">6.10</span> מ״ק עד כה, רגיל <span class="num">2.90</span></div></div><span class="chip c-warn">חריגה</span></div>') + '</div>' +
+        '<div class="actions ack"><button class="btn sm primary" type="button" data-ack>אישור</button><button class="btn sm" type="button" data-mute>' + icon('bellOff', 13) + 'השתקה 60 ד׳</button></div>';
+    }
+    h += '<h3>תקופות מונה</h3><div class="list" data-epochs>' + (EPOCHS[m.id] || EPOCHS.w1).map(function (e, i, arr) { return '<div class="li"><div class="grow"><div class="t1">' + e[0] + ' · <span class="num">' + e[1] + '</span></div><div class="t2 wrap">קריאת התחלה <span class="num">' + e[2] + '</span>' + (i < arr.length - 1 ? ' · עד <span class="num">' + arr[i + 1][1] + '</span>' : '') + (e[4] ? ' · ' + e[4] : '') + '</div></div>' + (i === arr.length - 1 ? '<span class="chip c-acc nodot">פעיל</span>' : '') + '</div>'; }).join('') + '</div>';
+    h += '<div class="rd"><div class="row"><h3>קריאות ידניות וכיול</h3><span class="sp"></span><span class="actions mng"><button class="btn sm" type="button" data-reading>קריאה ידנית</button><button class="btn sm" type="button">כיול</button></span></div>' +
+      '<div class="cal">ללא כיול: הקריאות כפי שהמונה מדווח</div>' +
+      (m.id === 'w2' ? '<div class="list"><div class="li"><div class="grow"><div class="t1"><span class="num">301.200</span> מ״ק</div><div class="t2">01.10.2026 · דני כהן · סטייה מהמערכת <span class="num">+0.048</span> מ״ק</div></div></div></div>' : '<div class="mut">אין קריאות ידניות</div>') + '</div>';
+    h += '<div class="actions mng"><button class="btn" type="button">שינוי שם</button><button class="btn" type="button">החלפת מונה</button><button class="btn" type="button">' + (m.status === 'paused' ? 'חידוש' : 'השהיה') + '</button><span class="sp"></span><button class="btn danger" type="button">הסרה</button></div>';
+    c.innerHTML = h;
+    c.querySelectorAll('[data-range]').forEach(function (b) { b.onclick = function () { range = b.dataset.range; renderCard(); }; });
+  }
+  function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = closeDrawer; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+  document.getElementById('open-sheet').onclick = function () { openMeter(METERS[1]); };
+
+  // ---- 2. the consumption page ----
+  var DAYS = []; // 30 days of m³ with the night share; the last four days carry the apartment-12 leak (the night share that never reaches zero)
+  for (var i = 0; i < 30; i++) { var leakDay = i >= 26, v = 10.5 + ((i * 13) % 7) * 0.55 + (i === 11 ? 3.2 : 0) + (leakDay ? 1.2 : 0); DAYS.push({ label: dayLabel(29 - i), value: v, nightShare: leakDay ? 0.34 : 0.06, leak: leakDay, title: m3(v) + ' מ״ק, לילה ' + Math.round((leakDay ? 0.34 : 0.06) * 1000) + ' ליטר' }); }
+  document.querySelector('[data-usage-chart]').innerHTML = barChart(DAYS, 'צריכה יומית ב-30 הימים האחרונים, במטרים מעוקבים', {});
+  var USAGE = [['w1', 356.8, 100, '+9%', 'up'], ['w3', 128.4, 36, '+31%', 'up'], ['w2', 60.1, 17, '+58%', 'up'], ['w5', 42.3, 12, '-4%', 'down'], ['w4', 27.9, 8, '0%', ''], ['w6', 20.0, 6, '-2%', 'down'], ['w7', 4.1, 1, '-', ''], ['w8', 0, 0, '-', '']];
+  var utb = document.querySelector('[data-usage-table] tbody'), urows = document.querySelector('[data-usage-rows]');
+  USAGE.forEach(function (u) {
+    var m = METERS.filter(function (x) { return x.id === u[0]; })[0];
+    utb.appendChild(el('tr', '', '<td class="b">' + m.name + '</td><td>' + areaName(m) + '<span class="mut dsk"> · ' + floorName(m) + '</span></td><td class="n"><span class="num">' + m3(u[1]) + '</span></td><td><span class="share"><i><b style="width:' + u[2] + '%"></b></i><span class="num mut">' + u[2] + '%</span></span></td><td class="n ' + u[4] + '"><span class="num">' + u[3] + '</span></td><td class="n">' + nightOf(m) + '</td>'));
+    urows.appendChild(el('div', 'li', '<div class="grow"><div class="t1">' + m.name + '</div><div class="t2">' + areaName(m) + ' · <span class="num">' + u[2] + '%</span> · לעומת הקודם <span class="num ' + u[4] + '">' + u[3] + '</span> · לילה ' + nightOf(m) + '</div></div><div class="t2 num" style="text-align:end;font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold);color:var(--sw-heading)">' + m3(u[1]) + ' מ״ק</div>'));
   });
+  document.querySelectorAll('[data-ranges] button').forEach(function (b) { b.onclick = function () { b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }; });
+
+  // ---- 3. the alerts page (slice 2): kind / severity / since / value / state; acknowledge and mute by water.ack ----
+  var ALERTS = [
+    { m: 'w2', kind: 'דליפה · ספיקה רציפה בלילה', since: '23.10 01:15', value: '<span class="num">14</span> ליטר לשעה (סף <span class="num">6</span>)', state: 'open', chip: ['פתוחה', 'c-err'] },
+    { m: 'w3', kind: 'צריכה חריגה', since: '23.10 11:30', value: '<span class="num">6.10</span> מ״ק, רגיל <span class="num">2.90</span>', state: 'open', chip: ['פתוחה', 'c-warn'] },
+    { m: 'w7', kind: 'לא מדווח', since: '21.10 14:02', value: '-', state: 'muted', chip: ['מושתקת עד 09:30', 'c-mut'] },
+    { m: 'w4', kind: 'פריצה', since: '19.10 06:10', value: '<span class="num">2,400</span> ליטר לשעה (סף <span class="num">1,500</span>)', state: 'closed', chip: ['נסגרה · רונית לוי', 'c-ok'], until: '19.10 06:40' },
+    { m: 'w2', kind: 'דליפה · ספיקה רציפה בלילה', since: '18.10 02:00', value: '<span class="num">9</span> ליטר לשעה', state: 'closed', chip: ['נסגרה · דני כהן', 'c-ok'], until: '18.10 05:00' }
+  ];
+  var af = 'open';
+  function renderAlerts() {
+    var tb = document.querySelector('[data-alerts-table] tbody'), rows = document.querySelector('[data-alerts-rows]'); tb.innerHTML = ''; rows.innerHTML = '';
+    ALERTS.filter(function (a) { return af === 'all' || a.state === 'open'; }).forEach(function (a) {
+      var m = METERS.filter(function (x) { return x.id === a.m; })[0];
+      var acts = a.state === 'open' ? '<span class="acts ack"><button class="btn sm primary" type="button" data-ack>אישור</button><button class="btn sm" type="button" data-mute>' + icon('bellOff', 13) + 'השתקה 60 ד׳</button></span>' : '';
+      var tr = el('tr', a.state === 'open' ? 'pick' : '', '<td class="b">' + m.name + '</td><td>' + areaName(m) + '<span class="mut dsk"> · ' + floorName(m) + '</span></td><td>' + a.kind + '</td><td><span class="num">' + a.since + '</span>' + (a.until ? '<span class="mut"> - <span class="num">' + a.until + '</span></span>' : '') + '</td><td class="n">' + a.value + '</td><td><span class="chip ' + a.chip[1] + '">' + a.chip[0] + '</span></td><td class="n">' + acts + '</td>');
+      if (a.state === 'open') { tr.tabIndex = 0; tr.onclick = function (e) { if (!e.target.closest('.btn')) openMeter(m); }; }
+      tb.appendChild(tr);
+      rows.appendChild(el('div', 'li' + (a.state === 'closed' ? ' dis' : ''), '<div class="grow"><div class="t1">' + m.name + ' · ' + a.kind + '</div><div class="t2 wrap">' + areaName(m) + ' · מאז <span class="num">' + a.since + '</span> · ' + a.value + '</div></div><span class="chip ' + a.chip[1] + '">' + a.chip[0] + '</span>' + acts));
+    });
+  }
+  document.querySelectorAll('[data-alert-filter] button').forEach(function (b) { b.onclick = function () { af = b.dataset.f; b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); renderAlerts(); }; });
+  renderAlerts();
+
+  // ---- short confirmations (the toast of the real screens' notices) ----
   document.addEventListener('click', function (e) {
     var b = e.target.closest('.btn'); if (!b || b.closest('.mock') || b.dataset.close !== undefined) return;
-    var txt = b.textContent.trim(), msg = txt === 'אישור' ? 'ההתראה אושרה' : txt.indexOf('השתקה') === 0 ? 'הושתק ל-60 דקות' : txt === 'קריאה' || txt === 'שמירת הקריאה' ? 'הקריאה נשמרה' : txt.indexOf('CSV') > -1 ? 'הקובץ הורד' : null;
+    var msg = b.dataset.ack !== undefined ? 'ההתראה אושרה' : b.dataset.mute !== undefined ? 'הושתק ל-60 דקות' : b.dataset.csv !== undefined ? 'הקובץ הורד' : null;
     if (!msg) return; e.stopPropagation(); var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 1800);
   }, true);
-  document.querySelectorAll('.ranges .chip').forEach(function (b) { b.onclick = function () { b.parentNode.querySelectorAll('.chip').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }; });
   if (q.get('page')) showPage(q.get('page'));
-  if (q.get('sheet') === '1') open('ov-sheet');
+  if (q.get('sheet') === '1') openMeter(METERS[1]);
 })();
 </script>
 </body>

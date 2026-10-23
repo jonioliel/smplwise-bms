@@ -99,26 +99,52 @@ Readings are cumulative; the consumption of an interval / day / period is the su
 (a drop under 10 % and under 20 L), spikes, replacement and the "not reporting" rule are the energy counter's. Manual readings
 and calibration as 0058. Daily totals per local date of the installation zone; DST days need no special case.
 
-## 5. Screens (the mockup)
+## 5. Screens (the mockup, revision 3 - 2026-10-24)
 
-Level-1 tab **מים** beside **מוני חשמל**; level-2 row **מונים · צריכה · התראות**.
+Owner feedback on revision 2 (2026-10-24): "looks good, but it must be MUCH more in the style of the electricity meters screens".
+Revision 3 (`docs/design/mockups/water-78/index.html`) is the real electricity meters screens reproduced 1:1 - the CSS of
+`electricity/styles.ts`, `screens/electricity/page-meters.ts`, `electricity/meter-card.ts`, `components/sw-tabs.ts`,
+`sw-state-panel.ts`, `sw-drawer.ts`, `sw-button.ts` and the shell of `shell/sw-app.ts` copied with the real class names - with
+water content only. Evidence: `private/review/water-78-v3/` (the mockup beside a screenshot of the REAL electricity screen at
+1366 / 1024 / 375, light and dark: `compare-*.png`). Implementer's rule: `screens/water/page-meters.ts` is `page-meters.ts` with
+the water adapter; nothing water-specific is drawn with its own component.
 
-1. **מונים** - the electricity meters' page shape: title + subtitle (count, last reading), the actions ("+ מונה חדש" for
-   managers, "קריאה ידנית"), the KPI row (each a filter: מונים / דליפה חשודה / לא מדווחים / צריכה היום in m³ - the last one is a
-   figure, not a filter), the places tree (floors / areas with counts and the worst state per area; a select on the phone), the
-   toolbar (search, kind segmented control, table / cards), the table (state badge, name + source line, kind, place, last
-   reading, today, this month, night flow, actions), phone cards. A row opens the meter sheet: last reading, the 24 h / 7 d bars,
-   the night-flow figure, open alerts, manual readings, replace / pause (manage).
-2. **צריכה** - the consumption page: range chips (היום / 7 ימים / 30 ימים / חודש קודם / טווח), the installation total with the
-   comparison to the same range before, a daily bar chart (bars = m³ per day, the night share drawn darker inside each bar so a
-   leak shows as a floor that never reaches zero), the per-meter table (consumption, share, change vs the previous range, night
-   flow), CSV export (`?lang=he|en`, UTF-8 BOM, formula-safe, like the temperature events).
-3. **התראות** (slice 2) - the alert log in the temperature screen's shape: KPI row (פתוחות / אושרו / 7 ימים), the list (severity
-   badge, kind chip, meter, place, since, value, acknowledge / mute), filters per kind and meter.
-4. States on every page: loading (skeleton), empty ("עדיין אין מוני מים" with the manager's "+ הוספת המונה הראשון"), error (retry),
-   **module off** ("המודול כבוי - מוני מים מופעלים בהגדרות המערכת", a "להגדרות" button for system configurators; the "מים" tab is
-   not offered at all when the module is off - the off panel is what the direct URL shows), forbidden (view without `water.view`).
-5. Settings › תשתיות › מים: the module switch, retention, stale minutes, leak defaults, alert routing, backup choice.
+Level-1 pill row **מוני חשמל | מים** (the "מים" tab carries the red count of open leaks, `TabItem.badge`); level-2 compact row
+**מונים · צריכה · התראות (n)**.
+
+1. **מונים** - exactly `page-meters.ts`: the head row (search field, כרטיסים / טבלה segmented control, "+ הוספת מונה" for
+   `water.manage`; on the phone the area select beside the button), the four tiles (היום in m³, מתחילת החודש, מדווחים x מתוך y,
+   **דליפה חשודה** in the danger colour - the electricity tiles with the stale tile replaced by the leak count; the tiles are
+   figures, not filters, as on the electricity page), the areas tree (`כל האזורים`, floors with the chevron and per-floor collapse,
+   areas with counts), the table (שם, אזור · קומה, קריאה נוכחית (מ״ק) with three decimals, היום, מתחילת החודש, **ספיקת לילה** in
+   litres per hour - "כבוי" for an irrigation meter, "-" without a reading - and מצב), the cards view (`.mcard`: name + chip,
+   area, the big "מ״ק היום", the reading, the night flow), the phone rows (`.li.pick`). The מצב chip is the electricity chip
+   (מדווח / לא מדווח מ-HH:MM / מושהה) and, from slice 2, the open alert wins: **דליפה חשודה** (`c-err`), **צריכה חריגה**
+   (`c-warn`). A row opens the meter card: the `sw-drawer` modal (480 px; a bottom sheet on the phone) with the chip, the facts
+   (`dl.kv`: אזור, קריאה נוכחית, דיווח אחרון, יחידה, סוג, ספיקת לילה, כללי דליפה), "צריכה" with the 24 שעות / 30 ימים / 12 חודשים
+   segmented control and `meter-card.ts`' bar chart (the 24-hour view marks the night window 01:00-05:00; a leak paints those
+   bars in the danger colour), **התראות פתוחות** with אישור / השתקה 60 ד׳ (`water.ack`), תקופות מונה, קריאות ידניות וכיול, and
+   the actions row (שינוי שם, החלפת מונה, השהיה / חידוש, הסרה).
+2. **צריכה** - the same page shape: the head row (the range segmented control היום / 7 ימים / 30 ימים / חודש קודם, "ייצוא CSV"),
+   four tiles (סה״כ בטווח, לעומת התקופה הקודמת, ממוצע יומי, ספיקת לילה ממוצעת), a card with the daily bar chart (the electricity
+   chart; the night share drawn darker at the foot of each bar, leak days in the danger colour, legend in the card head), the
+   per-meter table (שם, אזור, צריכה (מ״ק), חלק, לעומת הקודם, ספיקת לילה) and phone rows. CSV export as before (`?lang=he|en`,
+   UTF-8 BOM, formula-safe).
+3. **התראות** (slice 2) - the same page shape (no longer the temperature screen's list): the head row (פתוחות / הכול segmented
+   control, "ייצוא CSV", "כללי דליפה" for managers), four tiles (פתוחות in the danger colour, נסגרו השבוע, מושתקות, the leak
+   rule in force "01:00-05:00 · 6 ליטר לשעה · שעתיים"), the table (מונה, אזור, סוג, מאז, ערך, מצב chip, אישור / השתקה 60 ד׳
+   actions for `water.ack`) and phone rows; an open row opens the meter card.
+4. States on every page, exactly `page-meters.ts`: loading = a card of seven skeleton rows; empty = `sw-state-panel` with the
+   drop icon, "אין מונים עדיין" and the manager's "+ הוספת מונה" (no paragraph - the operator-screen copy rule); error =
+   `sw-state-panel state="error"` "לא ניתן לטעון את המונים" + "נסה שוב"; **module off** = the stale panel "המודול כבוי - מוני
+   מים מופעלים בהגדרות המערכת" + "להגדרות" for managers, the "מים" tab and the page row not offered (the off panel is what a
+   stale deep link shows); forbidden = the lock panel (view without `water.view`). "לא נמצאו מונים" is the compact panel under a
+   search without hits.
+5. Settings › תשתיות › מים: the module switch, retention, stale minutes, leak defaults, alert routing, backup choice (not drawn;
+   the electricity settings section's shape).
+6. Dropped from revision 2 (they were temperature-screen parts, not electricity ones): the page title + subtitle block, the KPI
+   filter row, the solid state badges, the kind segmented control in the toolbar, the "קריאה ידנית" head button (it lives in the
+   meter card, as on the electricity card), the hint paragraphs of the empty states.
 
 ## 6. API (`/api/v1/infra/water/...`)
 
