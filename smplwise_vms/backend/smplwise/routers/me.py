@@ -85,6 +85,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         }
     from ..services import wall as wall_service
     from ..services.tickets import access as tickets_access, naming as tickets_naming
+    from ..services.notices import store as notices_store
     from ..services.tickets import settings_doc as tickets_settings  # D17 (slice 3): the long-press behaviour
 
     tickets_name = tickets_naming.read(conn)
@@ -92,7 +93,8 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         **extra,
         # CR-038 section 6: the optional modules the shell offers (the switch alone - permissions decide the rest) and the tickets
         # module's display name per language (owner decision D33: every screen names the module through it)
-        "modules": {"tickets": tickets_access.module_on(conn), "tickets_name": {k: tickets_name[k] for k in tickets_naming.LANGS}, "tickets_long_press": tickets_settings.read(conn)["device_long_press"]},  # D17 (slice 3)
+        "modules": {"notices": notices_store.module_on(conn),  # CR-NOTICE106: the notice board's switch (OFF by default)
+                    "tickets": tickets_access.module_on(conn), "tickets_name": {k: tickets_name[k] for k in tickets_naming.LANGS}, "tickets_long_press": tickets_settings.read(conn)["device_long_press"]},  # D17 (slice 3)
         "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
         "channel": channel,
         "remote": remote,
