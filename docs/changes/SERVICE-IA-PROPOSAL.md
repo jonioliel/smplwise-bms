@@ -346,3 +346,12 @@ Rollback of slice 1 = revert one commit (no data, no backend, no stored-preferen
 7. **Board as a page, not a view** (parity rule): confirm.
 8. **Reserved places** (תקציב מחלקות, vendor score, vendor documents on the card): keep reserved (nothing built) - confirm, or drop from the mockup.
 9. **UNKNOWN items U-1..U-7** (§5.12): any the owner wants settled before slice 1 (U-7 is the only one that can affect parity, and it is verified in slice 2 anyway).
+
+## Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 9). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup approved with these answers:
+
+- **Settings-driven:** many items are **editable in settings** (the standing rule): the section names, the order and visibility of the sections and the placement choices proposed above are configurable rather than fixed.
+- **Bottom bar on the phone (form Q4; this document's Q3):** **the areas bar as today**, and it is **editable** (option a; the bar is not swapped to the four sections).
