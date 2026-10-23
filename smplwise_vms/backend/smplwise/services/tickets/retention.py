@@ -58,3 +58,9 @@ def _sla_monitor(db: Database) -> None:
         rule_engine.tick(db)
     except Exception:  # noqa: BLE001
         log.warning("tickets rule engine failed", exc_info=True)
+    try:
+        from . import visits  # CR-SVC215: the missed-arrival detector - the same ride, every 5 minutes inside, idle while visits are off
+
+        visits.tick(db)
+    except Exception:  # noqa: BLE001
+        log.warning("tickets visits detector failed", exc_info=True)

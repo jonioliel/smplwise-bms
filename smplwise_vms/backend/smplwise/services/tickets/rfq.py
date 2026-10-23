@@ -1746,9 +1746,13 @@ def comparison(conn, viewer: Viewer, seen: RfqSeen) -> dict[str, Any]:
             "vendor_files": vfiles.get(q["rfq_vendor_id"], []),
             "can": {"award": decide and q["state"] == "submitted" and not (q["created_by_kind"] == "user" and q["created_by"] == viewer.uid)},
         })
+    from . import vendor_marks  # CR-SVC215 slice 2: the vendors of THIS request only - the reputation strip and the document mark
+
+    vendor_rows = [{"vendor_id": q["rfq_vendor_id"], "contact_id": vendors[q["rfq_vendor_id"]]["contact_id"]} for q in qs]
     return {"rfq_id": row["id"], "ref": ref(row["number"]), "state": effective_state(row, now), "currency": currency, "quotes": items,
             "lowest_quote_id": low_id, "earliest_quote_id": early_id,
-            "filters": {"all": len(items), "in_window": sum(1 for i in items if i["in_window"])}}
+            "filters": {"all": len(items), "in_window": sum(1 for i in items if i["in_window"])},
+            "vendors": vendor_marks.for_rfq(conn, viewer, vendor_rows, now)}
 
 
 def meta(conn, viewer: Viewer) -> dict[str, Any]:

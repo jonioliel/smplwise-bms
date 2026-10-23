@@ -661,6 +661,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tickets_links_router.router, prefix=api, tags=["tickets"])  # handler links, health, address probe, key - BEFORE /tickets/{ticket_id}
     from .routers import tickets_table as tickets_table_router  # CR-038 S6b: the board table (table, export.csv, bulk, views)
     app.include_router(tickets_table_router.router, prefix=api, tags=["tickets"])  # CR-038 S6b - BEFORE /tickets/{ticket_id}
+    from .routers import tickets_budgets as tickets_budgets_router, tickets_vendor_stats as tickets_vendor_stats_router, \
+        tickets_visits as tickets_visits_router  # CR-SVC215 S1: budgets, the vendor card, vendor visits (their own lines)
+
+    app.include_router(tickets_budgets_router.router, prefix=api, tags=["tickets"])  # /tickets/costs/budgets... BEFORE the cost routes
+    app.include_router(tickets_vendor_stats_router.router, prefix=api, tags=["tickets"])  # /tickets/contacts/{id}/stats
+    app.include_router(tickets_visits_router.router, prefix=api, tags=["tickets"])  # /tickets/{id}/visits... BEFORE /tickets/{ticket_id}
     from .routers import tickets_costs as tickets_costs_router  # CR-038 S9: cost claims (report, export, review, on-behalf, downloads)
     app.include_router(tickets_costs_router.router, prefix=api, tags=["tickets"])  # CR-038 S9 - BEFORE /tickets/{ticket_id}
     from .routers import tickets_detail as tickets_detail_router  # TKDETAILBE: owner, timeline, quotes, vendor messages, drafts

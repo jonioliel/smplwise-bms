@@ -672,6 +672,9 @@ def _on_confirmed(conn, row: Mapping[str, Any], t: Mapping[str, Any], now: dt.da
                            assignment_id=q.get("assignment_id"), via="system",
                            data={"rfq_id": row["id"], "award_id": t["award_id"], "work_from": t.get("planned_from"), "work_to": t.get("planned_to")},
                            at=iso(now))
+        from . import visits  # CR-SVC215 (3.1 item 1): the confirmed date becomes the work order's planned visit (nothing while off)
+
+        visits.on_rfq_confirmed(conn, q["ticket_id"], q.get("assignment_id"), t.get("planned_from"), t.get("planned_to"), now)
     on_arrival_confirmed(conn, row, t)
 
 

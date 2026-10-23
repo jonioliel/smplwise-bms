@@ -202,9 +202,11 @@ def monthly_report_csv(
         rows = access.visible_export_rows(viewer, query)
     except access.ExportTooLarge:
         raise ApiError(413, "export_too_large", text(conn, "יותר מדי שורות לייצוא. צמצמו את הסינון."), details={"max_rows": access.EXPORT_MAX_ROWS}) from None
-    cells = monthly_report.build(conn, rows, group, lang)
+    vcols = monthly_report.vendor_columns(conn, viewer) if group == "vendor" else None  # CR-SVC215 slice 2: the card's numbers per vendor line
+    cells = monthly_report.build(conn, rows, group, lang, vendor=vcols, window=(start, end))
     audit(conn, actor=principal, action="ticket.report_export", decision="allowed", resource_type="ticket", resource_id="*", request_id=rid,
-          details={"report": "monthly", "group": group, "from": d_from.isoformat(), "to": d_to.isoformat(), "tickets": len(rows), "lines": len(cells) - 1})
+          details={"report": "monthly", "group": group, "from": d_from.isoformat(), "to": d_to.isoformat(), "tickets": len(rows), "lines": len(cells) - 1,
+                   **({"vendor_columns": True, "money_columns": bool(vcols["money"])} if vcols else {})})
     export.mark(key)
     return StreamingResponse(export.stream(cells), media_type="text/csv; charset=utf-8", headers={
         "Content-Disposition": f'attachment; filename="{monthly_report.filename(conn, group, d_from, d_to)}"',

@@ -146,6 +146,9 @@ ROUTES: tuple[RouteRule, ...] = (
     _json("/t/api/note", "token_write"),
     _json("/t/api/eta", "token_write"),
     _json("/t/api/return", "token_write"),
+    # CR-SVC215 section 3.3: the vendor's "הגעתי" - a claim, no body text, one more write in the link's budget (the uniform 404 while
+    # `visits.enabled` is off)
+    _json("/t/api/arrived", "token_write", 1024),
     # CR-ARX-WISKEY-SHARED-IDENTITY section 5: "who arrives, when" on an RFQ work order's handler page - a door-access REQUEST only
     # (services/access_arrival.py; the uniform 404 while `access.external_grants` is off)
     RouteRule("GET", r"/t/api/arrival", "/t/api/arrival", "token_read"),

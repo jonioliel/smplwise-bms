@@ -249,15 +249,43 @@ def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dic
     return {"default": mode, "from": level, "choices": list(costs.MODES)}
 
 
+def _lapsed_documents(conn, viewer: Viewer, row: dict[str, Any], contact: dict[str, Any], vendor: dict[str, Any] | None,
+                      confirmed: bool | None, rid: str | None) -> list[dict[str, Any]]:
+    """The documents (type, valid-through, state) of the vendor being assigned that ask for the manager's confirmation; raises the 409 when
+    they exist and the caller did not confirm. Empty - and no query - when the check is not asked, switched off, or MAINT215 holds nothing."""
+    if confirmed is None:
+        return []
+    from . import vendor_documents, vendor_marks
+
+    cfg = vendor_documents.cfg(conn)
+    if not cfg["confirm_on_assign"] or assignees.is_staff(contact):
+        return []
+    unit = vendor["id"] if vendor else contact["id"]
+    docs = vendor_documents.lapsed_for(conn, unit, vendor_marks.today(conn), include_expiring=bool(cfg["confirm_expiring"]))
+    if docs and not confirmed:
+        audit(conn, actor=viewer.principal, action="tickets.assign.lapsed_document", decision="denied", resource_type="ticket", resource_id=row.get("id"),
+              reason="confirm_required", request_id=rid, details={"number": row.get("number"), "contact_id": contact["id"], "documents": docs})
+        raise ApiError(409, "document_confirm_required", text(conn, "לספק יש מסמך שפג תוקפו. אשרו כדי להמשיך בשליחה."),
+                       details={"documents": docs, "vendor": {"id": unit, "name": (vendor or contact).get("display_name") or ""}})
+    return docs
+
+
 def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: str | None, note_external: bool, require_code: bool | None,
                    share_history: bool | None, send_now: bool, revision: int, rid: str | None = None, cost_claim: str | None = None,
-                   dispatch: bool = True, location_nav: bool | None = None, access_needed: bool | None = None) -> str:
+                   dispatch: bool = True, location_nav: bool | None = None, access_needed: bool | None = None,
+                   document_confirm: bool | None = None) -> str:
     """`dispatch=False` (TKRFQ4, the RFQ work order): everything an assignment does EXCEPT queueing the assignment message - the order
     message leaves only on the manager's explicit click (owner rule: an approval never sends anything by itself).
 
     GRANTS3-295 `access_needed`: the manager's "access needed" tick - the vendor's page then offers the arrival step ("who arrives,
     when"), which can only create a grant REQUEST. Refused (422 `not_allowed`, before anything is stored) while the external-grants
-    feature is off or for a staff contact."""
+    feature is off or for a staff contact.
+
+    CR-SVC215 slice 2 `document_confirm` (None = the check is not asked: the RFQ work order, where the manager chose from the comparison that
+    marks the documents): True / False is the manager's answer on the assign route. A vendor with a lapsed document (the expiring ones too
+    when `vendor_documents.confirm_expiring`) is assigned only after the confirmation: 409 `document_confirm_required` with the documents,
+    nothing written; with `document_confirm: true` the assignment goes ahead and the audit row `tickets.assign.lapsed_document` names the
+    document types and dates. Never a refusal (MAINT215 question 5: the only electrician in town tonight)."""
     row = seen.row
     if not seen.manager:
         raise _refuse(conn, viewer, "ticket.assign", row, "not_manager", rid)
@@ -277,6 +305,7 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     current = row["current_assignment_id"] if row.get("current_assignment_id") and not row.get("asg_ended_at") else None
     if current and row.get("asg_kind") == "contact" and row.get("asg_contact_id") == contact_id:
         raise ApiError(409, "already_assigned", text(conn, "כבר נשלח למטפל הזה."))
+    lapsed = _lapsed_documents(conn, viewer, row, contact, vendor, document_confirm, rid)
     req = codes_mod.effective_require_code(contact_requires_code(contact, vendor), require_code)
     _code_check(conn, contact, req)
     hist = history_option(conn, row, contact, vendor)
@@ -347,6 +376,9 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
           details={"number": row["number"], "assignee_kind": "contact", "contact_id": contact_id, "reassign": bool(current), "reopened": reopened,
                    "require_code": req, "share_history": share, "channel": channel, "queued": bool(dispatched.get("queued")),
                    "cost_claim": claim_mode, "location_nav": nav, **({"access_needed": True} if access_needed else {})})
+    if lapsed:  # CR-SVC215 slice 2: the confirmed assignment names the documents (types and dates, never a file)
+        audit(conn, actor=viewer.principal, action="tickets.assign.lapsed_document", decision="allowed", resource_type="ticket", resource_id=row["id"],
+              request_id=rid, details={"number": row["number"], "contact_id": contact_id, "documents": lapsed})
     audit(conn, actor=viewer.principal, action="ticket.link.mint", decision="allowed", resource_type="ticket", resource_id=row["id"], request_id=rid,
           details={"number": row["number"], "link": link_row["id"][:6], "generation": 1, "kind": "external"})
     sla.refresh(conn, row["id"])  # slice 2: the dues follow every change (the acknowledgement clock starts at the assignment)

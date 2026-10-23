@@ -233,7 +233,8 @@ def test_ticket_sql_lives_in_the_store():
                          "store_dash.py",  # MGRDASH phase 2: the summary route's read-only SQL (a store module of its own)
                          "store_dash_extra.py",  # MGRDASH phases 4-5: the payments board and the alerts (read-only, a store module of its own)
                          "store_rules.py",  # TKRULES-291: the rule engine's fires (0123) and its read of the open alerts (a store module of its own)
-                         "store_acceptance.py"):  # CR-ACCEPT102: the smart acceptance's rows (0151) and its ticket reads (a store module of its own)
+                         "store_acceptance.py",  # CR-ACCEPT102: the smart acceptance's rows (0151) and its ticket reads (a store module of its own)
+                         "store_visits.py", "store_budgets.py", "store_vendor_stats.py"):  # CR-SVC215 (0156): visits, budgets, the vendor card (store modules of their own)
             continue
         if re.search(r"\b(FROM|INTO|UPDATE)\s+ticket", path.read_text(encoding="utf-8")):
             offenders.append(path.name)

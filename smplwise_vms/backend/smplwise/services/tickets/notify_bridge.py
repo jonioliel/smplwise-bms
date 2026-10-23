@@ -117,8 +117,18 @@ def recipient_users(conn: sqlite3.Connection, rule: str, n: dict[str, Any]) -> l
         return [uid] if isinstance(uid, str) and uid else []
     if rule == RULE_MANAGERS:
         managers = department_managers(conn, row, notify_new_only=origin.get("audience") == "notify_new")
-        if origin.get("audience") == "costs":  # S9b: only the managers who may see the costs where the ticket lies
+        if origin.get("audience") in ("costs", "budget"):  # S9b: only the managers who may see the costs where the ticket lies
             managers = [uid for uid in managers if _viewer(conn, uid).holds("tickets.costs.view", row)]
+        if origin.get("audience") == "visit":  # CR-SVC215: + the request's internal owner (section 11; switch visits.notify_internal_owner)
+            owner = origin.get("owner_user_id")
+            if isinstance(owner, str) and owner and owner not in managers and store.user_is_active(conn, owner):
+                managers.append(owner)
+        if origin.get("audience") == "budget" and origin.get("configurers"):  # CR-SVC215: + tickets.configure holders who see the costs
+            for uid in sorted(store.active_user_ids(conn)):
+                if uid not in managers:
+                    v = _viewer(conn, uid)
+                    if v.holds_installation("tickets.configure") and v.holds("tickets.costs.view", row):
+                        managers.append(uid)
         return managers
     return []
 
@@ -257,7 +267,8 @@ def source_of_key(key: str, *, followers: bool = False) -> str | None:
     part = key.split(":")[2] if key.count(":") >= 2 else ""
     return {"unassigned": "ticket.new_unassigned", "assign": "ticket.assigned", "remind": "ticket.reminder", "stuck": "ticket.stuck",
             "returned": "ticket.returned", "question": "ticket.question", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed",
-            "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing"}.get(part) or (FOLLOWER_SOURCES.get(part) if followers else None)
+            "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing",
+            "visitplan": "ticket.visit_planned", "arrived": "ticket.arrived", "missed": "ticket.arrival_missed"}.get(part) or (FOLLOWER_SOURCES.get(part) if followers else None)
 
 
 # PUSHSVC-295: the per-person status / note rows (`ticket:<id>:upd:...` / `:cmt:...`). A close keeps them (the "closed" notice itself is one and
@@ -493,3 +504,83 @@ def cost_resolved(conn: sqlite3.Connection, ticket_id: str, claim_id: str) -> No
     """A decision on the claim (approved / adjusted / rejected): the review row and the "not submitted" row are over."""
     resolve(conn, "ticket.cost_submitted", f"ticket:{ticket_id}:costsub:{claim_id}")
     resolve(conn, "ticket.cost_missing", f"ticket:{ticket_id}:costmiss:{claim_id}")
+
+
+# ---------------------------------------------------------------- CR-SVC215: vendor visits and department budgets (section 11)
+
+T_VISIT_PLANNED = ("ביקור ספק נקבע ל{ticket} #{number}", "{place} · {window}")
+T_ARRIVED = ("הספק {reported} הגעה ל{ticket} #{number}", "{place} · {at}")
+T_MISSED = ("הספק לא הגיע: {ticket} #{number}", "{place} · חלון {window}")
+T_BUDGET_WARNING = ("תקציב מתקרב לסף", "{scope} · {period} · {share}")
+T_BUDGET_EXCEEDED = ("חריגה מתקציב", "{scope} · {period}")
+# TKNOTIFMATRIX: the new sources are department-scoped ticket sources, so a matrix may hold them for the digest; a held one is sent at
+# once from these templates when its digest fails (emit_held)
+TEMPLATES.update({"ticket.visit_planned": T_VISIT_PLANNED, "ticket.arrived": T_ARRIVED, "ticket.arrival_missed": T_MISSED,
+                  "ticket.budget_warning": T_BUDGET_WARNING, "ticket.budget_exceeded": T_BUDGET_EXCEEDED})
+
+
+def _visit_origin(conn: sqlite3.Connection, row: dict[str, Any], visit: dict[str, Any]) -> dict[str, Any]:
+    from . import settings_doc
+
+    origin: dict[str, Any] = {"audience": "visit", "visit_id": visit["id"]}
+    if settings_doc.read(conn)["visits"]["notify_internal_owner"] and row.get("internal_owner_user_id"):
+        origin["owner_user_id"] = row["internal_owner_user_id"]
+    return origin
+
+
+def visit_planned(conn: sqlite3.Connection, ticket_id: str, visit: dict[str, Any], window: str) -> None:
+    """A visit was planned or moved (`ticket.visit_planned`, info, no push); one row per visit (a move refolds it)."""
+    row = store.ticket_row_system(conn, ticket_id)
+    if row is None:
+        return
+    _emit(conn, "ticket.visit_planned", row, T_VISIT_PLANNED, dedupe=f"ticket:{ticket_id}:visitplan:{visit['id']}", severity="info",
+          origin=_visit_origin(conn, row, visit), window=window)
+
+
+def visit_arrived(conn: sqlite3.Connection, ticket_id: str, visit: dict[str, Any], *, claim: bool, at_text: str) -> None:
+    """The vendor reported (a claim) or staff / a door recorded the arrival: `ticket.arrived` (info), and the visit's missed and
+    planned rows are over."""
+    row = store.ticket_row_system(conn, ticket_id)
+    resolve(conn, "ticket.arrival_missed", f"ticket:{ticket_id}:missed:{visit['id']}")
+    resolve(conn, "ticket.visit_planned", f"ticket:{ticket_id}:visitplan:{visit['id']}")
+    if row is None:
+        return
+    _emit(conn, "ticket.arrived", row, T_ARRIVED, dedupe=f"ticket:{ticket_id}:arrived:{visit['id']}", severity="info",
+          origin=_visit_origin(conn, row, visit), reported="דיווח על" if claim else "רשם", at=at_text)
+
+
+def visit_missed(conn: sqlite3.Connection, ticket_id: str, visit: dict[str, Any], window: str) -> bool:
+    """The detector found no arrival in the window + grace: `ticket.arrival_missed` (alert, push) to the department's managers and the
+    request's internal owner. True when the engine took it."""
+    row = store.ticket_row_system(conn, ticket_id)
+    if row is None:
+        return False
+    resolve(conn, "ticket.visit_planned", f"ticket:{ticket_id}:visitplan:{visit['id']}")
+    action = _emit(conn, "ticket.arrival_missed", row, T_MISSED, dedupe=f"ticket:{ticket_id}:missed:{visit['id']}", severity="alert",
+                   origin=_visit_origin(conn, row, visit), window=window)
+    return action is not None
+
+
+def visit_over(conn: sqlite3.Connection, ticket_id: str, visit_id: str) -> None:
+    """A visit was cancelled, rescheduled or its claim undone: its open rows are over."""
+    for src, part in (("ticket.visit_planned", "visitplan"), ("ticket.arrival_missed", "missed"), ("ticket.arrived", "arrived")):
+        resolve(conn, src, f"ticket:{ticket_id}:{part}:{visit_id}")
+
+
+def budget_signal(conn: sqlite3.Connection, ticket_id: str, budget: dict[str, Any], state: str, *, scope: str, period: str, share: str,
+                  configurers: bool) -> bool:
+    """A budget first crossed its warning threshold (`ticket.budget_warning`) or its amount (`ticket.budget_exceeded`). The subject is
+    the request whose approval crossed it (its visibility decides who may see the row); the audience is the department's managers who
+    see the costs, plus tickets.configure holders who see them when `budgets.notify_configurers` is on. Never an amount in the text."""
+    row = store.ticket_row_system(conn, ticket_id)
+    if row is None or state not in ("warning", "exceeded"):
+        return False
+    src, tpl = ("ticket.budget_exceeded", T_BUDGET_EXCEEDED) if state == "exceeded" else ("ticket.budget_warning", T_BUDGET_WARNING)
+    action = _emit(conn, src, row, tpl, dedupe=f"budget:{budget['id']}:{state}", severity="alert" if state == "exceeded" else "info",
+                   origin={"audience": "budget", "budget_id": budget["id"], "configurers": bool(configurers)}, scope=scope, period=period, share=share)
+    return action is not None
+
+
+def budget_resolved(conn: sqlite3.Connection, budget_id: str, states: tuple[str, ...] = ("warning", "exceeded")) -> None:
+    for state in states:
+        resolve(conn, "ticket.budget_exceeded" if state == "exceeded" else "ticket.budget_warning", f"budget:{budget_id}:{state}")

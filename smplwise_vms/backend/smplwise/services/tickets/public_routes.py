@@ -56,6 +56,10 @@ class EtaIn(_Strict):
     client_request_id: str = Field(max_length=64)
 
 
+class ArrivedIn(_Strict):  # CR-SVC215: no data, no text - the request id only
+    client_request_id: str = Field(max_length=64)
+
+
 class ReturnIn(_Strict):
     kind: Literal["cannot_handle", "not_mine"]
     reason: clean_str(handler_actions.REASON_MAX, multiline=True)  # type: ignore[valid-type]
@@ -141,6 +145,14 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
 
                     if access_arrival.available(conn, ctx.link):
                         data["arrival"] = True
+                if (ctx.code_ok or not ctx.link.require_code) and not ctx.link.no_money:
+                    from . import visits  # CR-SVC215 (section 7): this assignment's own visit window only - absent while the feature is off
+
+                    block = visits.public_block(conn, ctx.link.assignment_id, when)
+                    if block is not None:
+                        if ctx.read_only:
+                            block["can_arrive"] = False
+                        data["visit"] = block
                 return data
 
         try:
@@ -238,6 +250,15 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         body: ReturnIn = await read_json(request, ReturnIn)
         crid = parse_client_request_id(body.client_request_id)
         return await write(request, ctx, "/t/api/return", crid, handler_actions.give_back, kind=body.kind, reason=body.reason)
+
+    @r.post("/t/api/arrived")
+    async def arrived(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:
+        """CR-SVC215 section 3.3: "הגעתי" - the vendor's claim of arrival for his visit window (services/tickets/visits.public_arrived)."""
+        from . import visits
+
+        body: ArrivedIn = await read_json(request, ArrivedIn)
+        crid = parse_client_request_id(body.client_request_id)
+        return await write(request, ctx, "/t/api/arrived", crid, visits.public_arrived)
 
     @r.get("/t/api/arrival")
     async def arrival_view(request: Request, ctx: LinkContext = Depends(link_context())) -> JSONResponse:

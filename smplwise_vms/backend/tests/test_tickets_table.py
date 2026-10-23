@@ -473,7 +473,10 @@ def test_monthly_report_vendor_group_and_formula_guard(w):
         conn.execute("PRAGMA foreign_keys = OFF")
         conn.execute("UPDATE ticket_assignments SET assignee_kind = 'contact', contact_id = 'c-fake', assignee_name = '=ספק' WHERE ticket_id = ?", (a["id"],))
     rows = _csv(w.c.get(MONTHLY + "?from=2026-07-01&to=2026-07-31&group=vendor", headers=w.h("mona")))
-    assert rows == [["חודש", "ספק", "נפתחו", "מתוכן סגורות"], ["2026-07", "'=ספק", "1", "0"], ["2026-07", "ללא ספק חיצוני", "1", "0"]]
+    # CR-SVC215 slice 2: mona manages (the card permission), so the vendor group carries the five non-money card columns - empty cells for a
+    # line that gets no card (an unknown contact, no vendor); no money columns without tickets.costs.view
+    cols = ["חציון תגובה (דקות)", "הגעות בזמן", "ביקורים שהסתיימו", "ביקורים חוזרים", "בסיס לביקורים חוזרים"]
+    assert rows == [["חודש", "ספק", "נפתחו", "מתוכן סגורות", *cols], ["2026-07", "'=ספק", "1", "0", *[""] * 5], ["2026-07", "ללא ספק חיצוני", "1", "0", *[""] * 5]]
 
 
 def test_monthly_report_cap_returns_413(w, monkeypatch):

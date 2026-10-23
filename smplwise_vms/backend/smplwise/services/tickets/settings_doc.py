@@ -502,7 +502,65 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("reports", "email"): (False, boolean),
     ("reports", "document_hours"): (72, int_range(1, 168)),
     ("reports", "document_max_opens"): (5, int_range(1, 20)),
+    # CR-SVC215 (owner answers 2026-10-24 items 27-37; standing rule: every threshold / recipient / default is editable here). The three
+    # feature switches default ON (answer 36); system.configure, audited as tickets.settings.update like every key of this document.
+    # vendor_stats (r081): the computed vendor card - six numbers, never a score (answer 28); which numbers are shown, the default window,
+    # the repeat-visit window, who opens the card (answer 30: the site manager) and who sees money on it (answer 30: cost viewers)
+    ("vendor_stats", "enabled"): (True, boolean),
+    ("vendor_stats", "numbers"): (["response", "arrival", "repeat", "quote", "returned", "volume"], lambda v: stat_numbers(v)),
+    ("vendor_stats", "default_months"): (12, int_choice(3, 12, 36)),
+    ("vendor_stats", "repeat_days"): (30, int_range(1, 365)),
+    ("vendor_stats", "card_permission"): ("tickets.manage", _choice("tickets.manage", "tickets.directory", "tickets.configure", "tickets.view")),
+    ("vendor_stats", "money_permission"): ("tickets.costs.view", _choice("tickets.costs.view", "tickets.costs", "tickets.configure")),
+    # slice 2: the list behind a number (rows per answer), the vendor columns of the monthly CSV, and the numbers of the one-line strip in
+    # the quote comparison (the same line the assignee picker draws)
+    ("vendor_stats", "list_limit"): (50, int_range(10, 200)),
+    ("vendor_stats", "csv_columns"): (True, boolean),
+    ("vendor_stats", "strip_numbers"): (["arrival", "repeat"], lambda v: stat_numbers(v)),
+    # vendor_documents (r084 surfaces; the data is CR-MAINT215's): the confirmation when a vendor with a lapsed document is assigned (answer
+    # 27 / MAINT215 question 5: asked, never refused), whether a document that lapses inside its lead also asks, and the marks in the comparison
+    ("vendor_documents", "confirm_on_assign"): (True, boolean),
+    ("vendor_documents", "confirm_expiring"): (False, boolean),
+    ("vendor_documents", "comparison_marks"): (True, boolean),
+    # visits (r126 / r127): planned vendor visits, the vendor's "I arrived" and the missed-arrival detector
+    #   grace_min              minutes after the planned window before a visit is missed (answer 32: 60; a department may override)
+    #   claim_counts           the vendor's own press counts as an arrival - a declaration (answer 31); off: it is "reported" until staff confirm
+    #   staff_can_undo_claim   staff may cancel the vendor's declaration (answer 31, audited)
+    #   early_min              how long before the window the button opens
+    #   eta_window_min / rfq_window_min  the length of a visit made from an ETA / an RFQ date without an end
+    #   notify_vendor_on_miss  also message the vendor on a miss (answer 35: managers only by default, the message one switch away)
+    #   backfill_days          older planned visits move to missed silently (no mass notification on an upgrade)
+    ("visits", "enabled"): (True, boolean),
+    ("visits", "grace_min"): (60, int_range(0, 240)),
+    ("visits", "claim_counts"): (True, boolean),
+    # the public "הגעתי" route on the vendor's page (`POST /t/api/arrived`): its own kill switch inside `visits` - the public-surface review of
+    # CR-SVC215 slice 4 is due before a release ships it on
+    ("visits", "public_arrival"): (True, boolean),
+    ("visits", "staff_can_undo_claim"): (True, boolean),
+    ("visits", "early_min"): (60, int_range(0, 720)),
+    ("visits", "eta_window_min"): (60, int_range(15, 720)),
+    ("visits", "rfq_window_min"): (240, int_range(15, 1440)),
+    ("visits", "notify_vendor_on_miss"): (False, boolean),
+    ("visits", "notify_internal_owner"): (True, boolean),
+    ("visits", "backfill_days"): (7, int_range(1, 60)),
+    # budgets (r083): per scope and period (answer 34), one currency per row; an over-budget approval shows the overrun and asks for a
+    # confirmation - NEVER a refusal (answer 33). `warn_bp` is the default warning threshold of a new budget row (80 %)
+    ("budgets", "enabled"): (True, boolean),
+    ("budgets", "warn_bp"): (8000, int_range(1, 10000)),
+    ("budgets", "require_confirmation"): (True, boolean),
+    ("budgets", "count_committed"): (True, boolean),
+    ("budgets", "notify_configurers"): (True, boolean),
 }
+
+STAT_NUMBERS: tuple[str, ...] = ("response", "arrival", "repeat", "quote", "returned", "volume")
+
+
+def stat_numbers(v: Any) -> list[str]:
+    """CR-SVC215 (owner answer 28): the vendor-card numbers shown - a subset of STAT_NUMBERS, no repeat, in the canonical order
+    (an empty list hides the KPI row; the card itself stays)."""
+    if not isinstance(v, list) or not all(isinstance(x, str) and x in STAT_NUMBERS for x in v) or len(set(v)) != len(v):
+        raise ValueError("invalid")
+    return [k for k in STAT_NUMBERS if k in v]
 
 
 def _cross_problem(doc: dict[str, Any]) -> str | None:
