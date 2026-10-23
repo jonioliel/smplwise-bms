@@ -29,6 +29,28 @@ SECRET_NAME = "notify_email"
 DEFAULT_QUIET = {"enabled": True, "from": "22:00", "to": "07:00", "days": list(DAYS_SUN_FIRST)}
 DEFAULT_PASS = {"info": {"webpush": False, "email": False, "ha_mobile": False, "whatsapp": False}, "alert": {"webpush": False, "email": False, "ha_mobile": False, "whatsapp": False},
                 "critical": {"webpush": True, "email": True, "ha_mobile": True, "whatsapp": True}}  # NOTIFWA: a critical WhatsApp passes quiet hours like the other channels
+# CRITSOUND124-295: the event types (notification sources, all category `safety`, severity `critical`) that MAY ask the phone for a Do-Not-Disturb-bypassing alert
+# sound. Fire / gas / carbon monoxide / a triggered alarm panel / a water leak. Nothing else ever qualifies (security, doors, faults, tickets, ...).
+CRITICAL_SOUND_SOURCES = ("sensor.smoke", "sensor.gas", "sensor.co", "alarm.triggered", "sensor.leak")
+
+
+def _sound_types(raw: Any) -> dict[str, bool]:
+    """Per-event-type choice; every known type is present, missing or garbled = False (safe default OFF)."""
+    raw = raw if isinstance(raw, dict) else {}
+    return {k: raw.get(k) is True for k in CRITICAL_SOUND_SOURCES}
+
+
+def _companion_view(raw: Any) -> dict[str, Any]:
+    raw = raw if isinstance(raw, dict) else {}
+    return {"critical_sound_safety": bool(raw.get("critical_sound_safety")), "critical_sound_types": _sound_types(raw.get("critical_sound_types"))}
+
+
+def critical_sound_for(settings: dict[str, Any], source: str | None, category: str | None, severity: str | None) -> bool:
+    """Whether a push for this notification should carry the DND-bypass flag: master switch AND this event type chosen AND still safety / critical."""
+    c = settings.get("companion") or {}
+    return bool(c.get("critical_sound_safety") and category == "safety" and severity == "critical" and (c.get("critical_sound_types") or {}).get(source or "") is True)
+
+
 DEFAULT_ESCALATION = {"enabled": True, "after_min": 5, "steps": 2, "to": "managers"}
 
 
@@ -106,7 +128,7 @@ def load(conn: sqlite3.Connection, settings: "Settings | Path | None" = None) ->
     r = conn.execute("SELECT * FROM notify_settings WHERE id = 1").fetchone()
     if r is None:  # a database restored from before the migration: the defaults, revision 0
         return {"quiet": dict(DEFAULT_QUIET), "pass_through": json.loads(json.dumps(DEFAULT_PASS)), "escalation": dict(DEFAULT_ESCALATION), "lockscreen": "type_place",
-                "image_in_push": False, "companion": {"critical_sound_safety": False}, "retention_days": 30, "deliveries_retention_days": 14,
+                "image_in_push": False, "companion": _companion_view({}), "retention_days": 30, "deliveries_retention_days": 14,
                 "center_layout": "sheet", "failures_audience": "admins", "email": _email_view({}, settings), "revision": 0, "updated_at": None}
     quiet = {**DEFAULT_QUIET, **{k: v for k, v in _json(r["quiet_json"], {}).items() if k in DEFAULT_QUIET}}
     passed = json.loads(json.dumps(DEFAULT_PASS))
@@ -116,7 +138,7 @@ def load(conn: sqlite3.Connection, settings: "Settings | Path | None" = None) ->
     esc = {**DEFAULT_ESCALATION, **{k: v for k, v in _json(r["escalation_json"], {}).items() if k in DEFAULT_ESCALATION}}
     return {
         "quiet": quiet, "pass_through": passed, "escalation": esc, "lockscreen": r["lockscreen"], "image_in_push": False,
-        "companion": {"critical_sound_safety": bool(_json(r["companion_json"], {}).get("critical_sound_safety"))},
+        "companion": _companion_view(_json(r["companion_json"], {})),
         "retention_days": r["retention_days"], "deliveries_retention_days": 14,
         "center_layout": r["center_layout"] if r["center_layout"] in CENTER_LAYOUTS else "sheet",
         "failures_audience": r["failures_audience"] if r["failures_audience"] in FAILURES_AUDIENCES else "admins",
@@ -216,11 +238,17 @@ def update(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str, e
         raise SettingsInvalid("validation", "תמונה בהתראה תיתמך בשלב מאוחר יותר.", details={"field": "image_in_push"})
     if "companion" in body:
         c = body["companion"]
-        if not isinstance(c, dict) or set(c) - {"critical_sound_safety"}:
+        if not isinstance(c, dict) or set(c) - {"critical_sound_safety", "critical_sound_types"}:
             raise SettingsInvalid("validation", "הגדרת Companion לא תקינה.", details={"field": "companion"})
         if "critical_sound_safety" in c and not isinstance(c["critical_sound_safety"], bool):
             raise SettingsInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": "companion.critical_sound_safety"})
-        new["companion"] = {"critical_sound_safety": bool(c.get("critical_sound_safety"))}
+        types = dict(cur["companion"]["critical_sound_types"])
+        if "critical_sound_types" in c:
+            t = c["critical_sound_types"]
+            if not isinstance(t, dict) or set(t) - set(CRITICAL_SOUND_SOURCES) or any(not isinstance(v, bool) for v in t.values()):
+                raise SettingsInvalid("validation", "סוג אירוע לא מוכר או ערך לא תקין.", details={"field": "companion.critical_sound_types", "known": list(CRITICAL_SOUND_SOURCES)})
+            types.update(t)
+        new["companion"] = {"critical_sound_safety": bool(c["critical_sound_safety"]) if "critical_sound_safety" in c else cur["companion"]["critical_sound_safety"], "critical_sound_types": types}
     if "retention_days" in body:
         if body["retention_days"] not in RETENTION_CHOICES or isinstance(body["retention_days"], bool):
             raise SettingsInvalid("validation", "תקופת שמירה: 7, 14, 30, 60 או 90 ימים.", details={"field": "retention_days"})
