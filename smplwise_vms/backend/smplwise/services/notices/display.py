@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from .. import brand_assets
 from ..ha_user_auth import RateLimiter
 from . import audience as aud
 from . import model, sources, store
@@ -110,6 +111,30 @@ def has_company_logo(data_dir: Path | None) -> bool:
     return bool(data_dir) and (Path(data_dir) / "notices" / "company-logo.png").is_file()  # type: ignore[arg-type]
 
 
+def company_logos(conn: sqlite3.Connection, data_dir: Path | None, slug: str, *, logo_base: str, public: bool) -> tuple[dict[str, str], dict[str, Any]]:
+    """The company logo of a board (CR-LOGOS295 section 5.6 / 3 P7): the installation's `brand_assets` logo - the light file in
+    `logos.company`, the dark file (when one exists) in `logos.company_dark` - plus the choices that decide how the TV draws it
+    (`brand`: size scale, dark-background mode, the company name for the alt text). Without a brand logo the board keeps the older
+    notices-only logo (`<data>/notices/company-logo.png`, light only). `public` = the URLs go through the board token route
+    (the TV); otherwise (the Settings preview) through the signed-in stamped route."""
+    files = brand_assets.logo_files(conn)
+    logos: dict[str, str] = {}
+    if files["light"] or files["dark"]:
+        view = brand_assets.public_view(conn)
+        for variant, key in (("light", "company"), ("dark", "company_dark")):
+            name = files[variant]
+            if not name:
+                continue
+            stamp = name.split(".")[0]
+            logos[key] = (f"{logo_base}api/v1/notices/display/{slug}/logo/company?variant={variant}&v={stamp}" if public
+                          else f"api/v1/brand/company-logo/{variant}/{name}")
+        return logos, {"size": view["size"], "dark_mode": view["dark_mode"], "name": view["company"]["name"]}
+    if has_company_logo(data_dir):
+        logos["company"] = f"{logo_base}api/v1/notices/display/{slug}/logo/company" if public else "api/v1/notices/settings/logo"
+        return logos, {"size": "m", "dark_mode": "plate", "name": ""}
+    return logos, {}
+
+
 def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime, *, data_dir: Path | None = None,
                display: dict[str, Any] | None = None, news: sources.NewsCache | None = None, logo_base: str = "") -> dict[str, Any]:
     disp = display if display is not None else model.load_display(board["display_json"])
@@ -132,8 +157,11 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
         "now": model.iso(now),
         "notices": [feed_notice(n) for n in items],
     }
-    if has_company_logo(data_dir) and disp["blocks"].get("company_logo", True):
-        doc["board"]["logos"]["company"] = f"{logo_base}api/v1/notices/display/{board['slug']}/logo/company"
+    if disp["blocks"].get("company_logo", True):
+        logos, brand = company_logos(conn, data_dir, board["slug"], logo_base=logo_base, public=True)
+        if logos:
+            doc["board"]["logos"] = logos
+            doc["board"]["brand"] = brand
     sun = sources.sun_block(conn, now)
     if sun:
         doc["sun"] = sun
@@ -161,6 +189,7 @@ class Request:
     if_none_match: str | None = None
     client: str = ""
     remote: bool = False
+    variant: str = "light"  # the company logo file asked for (light | dark)
 
 
 class DisplayService:
@@ -221,8 +250,13 @@ class DisplayService:
             board, refusal = self.resolve(conn, req)
             if refusal is not None:
                 return refusal
+            variant = req.variant if req.variant in brand_assets.VARIANTS else "light"
+            got = brand_assets.read(conn, variant)
+        if got is not None:  # CR-LOGOS295: the installation's company logo, through the board token; the stamp in `?v=` is the cache key
+            mime, data, stamp = got
+            return Reply(200, data, mime, headers=[("Cache-Control", "private, max-age=3600"), ("ETag", f'"{stamp}"')])
         path = self.data_dir / "notices" / "company-logo.png" if self.data_dir else None
-        if not path or not path.is_file():
+        if variant != "light" or not path or not path.is_file():
             return not_found()
         r = Reply(200, path.read_bytes(), "image/png")
         return r
@@ -248,9 +282,13 @@ def touch_seen(db: Any) -> Callable[[str], None]:
 def preview_feed(conn: sqlite3.Connection, board: dict[str, Any], display: dict[str, Any] | None, data_dir: Path | None, now: dt.datetime | None = None) -> dict[str, Any]:
     """The Settings preview: the same payload the TV gets, through the session, optionally with the draft display settings."""
     doc = build_feed(conn, board, now or store.utcnow(), data_dir=data_dir, display=display, logo_base="")
-    doc["board"]["logos"].pop("company", None)
-    if has_company_logo(data_dir) and doc["board"]["display"]["blocks"].get("company_logo", True):
-        doc["board"]["logos"]["company"] = "api/v1/notices/settings/logo"
+    doc["board"]["logos"] = {}
+    doc["board"].pop("brand", None)
+    if doc["board"]["display"]["blocks"].get("company_logo", True):
+        logos, brand = company_logos(conn, data_dir, board["slug"], logo_base="", public=False)
+        if logos:
+            doc["board"]["logos"] = logos
+            doc["board"]["brand"] = brand
     return doc
 
 

@@ -707,7 +707,8 @@ def display_feed(slug: str, request: Request) -> Response:
 
 @display_router.get("/notices/display/{slug}/logo/company")
 def display_logo(slug: str, request: Request) -> Response:
-    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
+    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request),
+                       variant=request.query_params.get("variant", "light"))
     return _respond(_display_service(request).logo(req))
 
 

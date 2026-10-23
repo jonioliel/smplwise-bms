@@ -11,6 +11,8 @@
  * timers), `?now=<ISO>` (a fixed instant).
  */
 import './tv.css';
+import swLogo from '../../public/brand/smplwise-logo.png?inline'; // the SmplWise logo, inlined: the TV page is served at /b/<slug> and reaches no other file
+import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   NEWS_SPEED, POLL_MS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, netOf, nightDim, onPoll,
   playlist, remoteKey, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
@@ -39,8 +41,9 @@ let feed: Feed | null = null;
 let draftDisplay: Partial<Display> | null = null;
 let net: NetState = { lastOk: 0, misses: 0, gone: false };
 let etag = '';
-let companyUrl = '';
-let companySrc = '';
+let companyUrl: Record<'light' | 'dark', string> = { light: '', dark: '' };
+let companySrc: Record<'light' | 'dark', string> = { light: '', dark: '' }; // blob URLs of the loaded logo files (CR-LOGOS295)
+const hasCompany = (): boolean => !!(companySrc.light || companySrc.dark);
 let lastControl = -1;
 let forceTheme = '';
 
@@ -107,12 +110,17 @@ function hebDate(): string {
   return [h, c ? str(lang(), 'candles', { t: c }) : ''].filter(Boolean).join(' · ');
 }
 
+/** The two logos of a header / footer (CR-LOGOS295 section 3 P7). `dark` = this surface is dark (the night theme, the urgent take-over):
+ * the administrator's dark-background choice decides which company file is drawn and on what (design/brand-choice.ts). The SmplWise logo
+ * is the product's own artwork - teal, it reads on both. */
 function logos(dark: boolean): { co: string; sw: string } {
-  const name = esc(feed?.board.building || '');
-  const co = companySrc
-    ? '<div class="lg company"><img alt="' + name + '" src="' + esc(companySrc) + '"></div>'
+  const b = feed?.board.brand;
+  const name = esc(b?.name || feed?.board.building || '');
+  const pick = hasCompany() ? chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, b?.dark_mode ?? 'plate', dark) : null;
+  const co = pick
+    ? '<div class="lg company" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
     : '<div class="lg company"><svg viewBox="0 0 280 64" aria-hidden="true"></svg></div>';
-  return { co, sw: '<div class="lg product"><svg viewBox="0 0 236 64" role="img" aria-label="SmplWise"><use href="' + (dark ? '#sw-word-dark' : '#sw-word') + '"/></svg></div>' };
+  return { co, sw: '<div class="lg product"><img alt="SmplWise" src="' + swLogo + '"></div>' };
 }
 
 // ---------------------------------------------------------------- pieces (the mock-up's, driven by the feed)
@@ -266,12 +274,13 @@ function render(): void {
     weather: !!d.blocks.weather && !!feed.weather,
     clock: d.blocks.clock !== false,
     hebdate: d.blocks.hebdate !== false,
-    company: !!companySrc && d.blocks.company_logo !== false,
+    company: hasCompany() && d.blocks.company_logo !== false,
     welcome: d.blocks.welcome !== false,
   };
   for (const k of Object.keys(flags)) cv.dataset[k] = flags[k] ? '1' : '0';
   cv.style.setProperty('--fs', ((SIZES[d.font_size] ?? SIZES.s) * (d.font_scale || 1)).toFixed(3));
   cv.dataset.size = d.font_size;
+  cv.style.setProperty('--lg', String(LOGO_SCALE[feed.board.brand?.size ?? 'm'] ?? 1)); // the administrator's logo size scale
 
   const prevId = state.currentId;
   state.list = playlist(notices, d);
@@ -509,21 +518,21 @@ function drift(): void {
 
 // ---------------------------------------------------------------- the feed
 
-async function loadCompanyLogo(url: string | undefined): Promise<void> {
+async function loadCompanyLogo(variant: 'light' | 'dark', url: string | undefined): Promise<void> {
   if (!url) {
-    if (companySrc) URL.revokeObjectURL(companySrc);
-    companySrc = '';
-    companyUrl = '';
+    if (companySrc[variant]) URL.revokeObjectURL(companySrc[variant]);
+    companySrc[variant] = '';
+    companyUrl[variant] = '';
     return;
   }
-  if (url === companyUrl && companySrc) return;
+  if (url === companyUrl[variant] && companySrc[variant]) return;
   try {
     const r = await fetch(new URL(url, document.baseURI).toString(), { headers: PREVIEW ? {} : { 'X-Board-Token': TOKEN }, credentials: PREVIEW ? 'same-origin' : 'omit', cache: 'no-store' });
     if (!r.ok) return;
     const blob = await r.blob();
-    if (companySrc) URL.revokeObjectURL(companySrc);
-    companySrc = URL.createObjectURL(blob);
-    companyUrl = url;
+    if (companySrc[variant]) URL.revokeObjectURL(companySrc[variant]);
+    companySrc[variant] = URL.createObjectURL(blob);
+    companyUrl[variant] = url;
   } catch {
     /* the logo is optional: the header keeps its place */
   }
@@ -576,7 +585,7 @@ async function poll(force = false): Promise<void> {
     } else if (!doc.control && lastControl < 0) {
       lastControl = 0;
     }
-    await loadCompanyLogo(doc.board.logos?.company);
+    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark)]);
     if (changed) render();
     if (rotate) restartRotation();
   } else if (net.gone && !feed) {

@@ -318,3 +318,8 @@ def read(conn: sqlite3.Connection, variant: str, stamp: str | None = None) -> tu
     if stamp_of(data) != row["stamp"] or row["mime"] not in ("image/png", "image/svg+xml"):
         return None
     return row["mime"], data, row["stamp"]
+
+
+def company_name(conn: sqlite3.Connection) -> str:
+    """The company's name as text, for the surfaces that carry no image (the e-mail header line, CR-LOGOS295 P6): '' when none is set."""
+    return _stored(conn, K_NAME)

@@ -43,7 +43,7 @@ export interface Display {
 }
 
 export interface Feed {
-  board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string } };
+  board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
   now: string;
   notices: FeedNotice[];
   weather?: { now: { t: number; condition: string; text: string }; hours: { at: string; t: number; condition: string }[] };
