@@ -258,6 +258,20 @@ def test_merge_adds_an_internal_note_to_a_request_the_handler_manages(w):
     assert rows(w, "SELECT state FROM ticket_intake_drafts")[0]["state"] == "merged"
 
 
+def test_merge_by_the_number_a_person_reads_and_an_invisible_one_is_the_same_404(w):
+    turn_on(w)
+    add_known(w)
+    t = w.create("mona", "מזגן לא מקרר")
+    did = accept(w, PHONE, "עדיין חם")[1]
+    rev = w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("mona")).json()["revision"]
+    missing = w.c.post(f"{API}/tickets/intake/drafts/{did}/merge", json={"revision": rev, "number": 999999}, headers=w.h("mona"))
+    assert missing.status_code == 404
+    both = w.c.post(f"{API}/tickets/intake/drafts/{did}/merge", json={"revision": rev, "number": 1, "ticket_id": t["id"]}, headers=w.h("mona"))
+    assert both.status_code == 422
+    ok = w.c.post(f"{API}/tickets/intake/drafts/{did}/merge", json={"revision": rev, "number": t["number"]}, headers=w.h("mona"))
+    assert ok.status_code == 200 and ok.json() == {"ticket_id": t["id"]}
+
+
 def test_reject_with_a_block_stops_later_messages(w):
     turn_on(w)
     add_known(w)
