@@ -9,6 +9,7 @@ import {
   TAB_SECTIONS,
   TICKETS_TABS,
   applyInfraElevators,
+  applyGeneratorLog,
   applyInfraGenerator,
   applyInfraMeters,
   applyMultimediaKinds,
@@ -70,7 +71,7 @@ test('every area with a tab row has a registry section, and every section row is
   expect(byId['multimedia']).toEqual(ids(MULTIMEDIA_TABS));
   expect(byId['infra']).toEqual(ids(INFRA_TABS)); // a tab added to INFRA_TABS (temperature, 2.9.2) is listed by itself
   expect(byId['infra.electricity']).toEqual(['meters', 'accounts', 'bills', 'customers']);
-  expect(byId['infra.generator']).toEqual(['live', 'alerts', 'charts', 'history']);
+  expect(byId['infra.generator']).toEqual(['live', 'alerts', 'charts', 'history', 'log']); // GENLOG092-295: the run log is a registry page (the screen shows it only while switched on)
   expect(byId['tickets']).toEqual(ids(TICKETS_TABS).filter((id) => id !== 'external')); // SHAREDID-293: the external-access tab only while placed under tickets
   applyExternalPlacement({ 'access.external.placement': 'both' });
   expect(ids(TAB_SECTIONS.find((s) => s.id === 'tickets')!.tabs())).toContain('external');
@@ -124,7 +125,7 @@ test('the infrastructure page rows: order and hidden pages, and the infrastructu
   applyTabsConfig({ 'ui.tabs': { 'infra.electricity': { order: ['bills', 'accounts'], hidden: ['meters'] }, 'infra.generator': { order: ['charts'], hidden: [] } } });
   expect(ids(infraPageTabs('infra.electricity', pages, true))).toEqual(['bills', 'accounts', 'customers']);
   expect(ids(infraPageTabs('infra.electricity', pages, false))).toEqual(['meters', 'accounts', 'bills', 'customers']); // the demo
-  expect(ids(infraPageTabs('infra.generator', INFRA_GENERATOR_PAGES, true))).toEqual(['charts', 'live', 'alerts', 'history']);
+  expect(ids(infraPageTabs('infra.generator', INFRA_GENERATOR_PAGES, true))).toEqual(['charts', 'live', 'alerts', 'history', 'log']);
   // the entry page: the first configured page this user may open (bills needs energy.bills)
   expect(infraEntryHref('electricity', ALL)).toBe('#/infra/electricity/bills');
   expect(infraEntryHref('electricity', only('energy.view'))).toBe('#/infra/electricity/accounts');
@@ -160,4 +161,15 @@ test('i18n: the registry words have he / en / ar / ru with the same keys and pla
   expect(tst('ticketsWhere', { name: 'קריאות' }, 'he')).toBe('לשוניות קריאות');
   // operator wording: no home-platform name in any column
   for (const lang of ['he', 'en', 'ar', 'ru'] as const) for (const k of TST_KEYS) expect(TST_TABLES[lang][k] ?? '', `${lang}.${k}`).not.toMatch(/home assistant|\bHA\b|ingress/i);
+});
+
+test('GENLOG092-295: the run log placed first in the editor is the generator entry page only while its switch is on', () => {
+  applyTabsConfig({ 'ui.tabs': { 'infra.generator': { order: ['log', 'charts'], hidden: [] } } });
+  applyGeneratorLog(false);
+  expect(infraEntryHref('generator', ALL)).toBe('#/infra/generator/charts'); // off (the default): never lands on the run log
+  applyGeneratorLog(true);
+  expect(infraEntryHref('generator', ALL)).toBe('#/infra/generator/log');
+  applyGeneratorLog(false);
+  expect(ids(infraPageTabs('infra.generator', INFRA_GENERATOR_PAGES, true))).toEqual(['log', 'charts', 'live', 'alerts', 'history']); // the editor still lists it
+  applyTabsConfig({});
 });

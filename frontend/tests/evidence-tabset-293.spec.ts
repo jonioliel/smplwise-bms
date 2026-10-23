@@ -90,7 +90,7 @@ test.describe('TABSET-293: every section is ordered from the tabs settings', () 
     await up('infra.generator', 'charts').scrollIntoViewIfNeeded();
     await up('infra.generator', 'charts').click();
     await up('infra.generator', 'charts').click();
-    expect(await ed.locator('li[data-sec="infra.generator"] .name').allTextContents()).toEqual(['גרפים', 'מצב חי', 'התראות פעילות', 'היסטוריה']);
+    expect(await ed.locator('li[data-sec="infra.generator"] .name').allTextContents()).toEqual(['גרפים', 'מצב חי', 'התראות פעילות', 'היסטוריה', 'יומן הפעלות']); // GENLOG092-295: the run log is listed in the editor too
     await ed.locator('[data-tabs-section="infra"]').scrollIntoViewIfNeeded();
     await shot(page, `infra-editor-${dev}`);
     await ed.locator('[data-tabs-save]').click();

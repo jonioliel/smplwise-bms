@@ -641,7 +641,8 @@ export const INFRA_ELECTRICITY_PAGES: TabItem[] = [
 ];
 /** The electricity pages that show money (energy.bills). */
 export const INFRA_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
-export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
+// GENLOG092-295 (owner Q319): the run log is a registry page too, so the tab editor orders / hides it; the screen still shows it only while its switch is on
+export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history', 'log'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
 
 /** A screen's page row (`infra.electricity` / `infra.generator`) shaped by `ui.tabs`: the configured order, the hidden pages left out
  * (never all of them), with a backend only - the static demo shows the defaults, like every other row. The caller passes only the pages
@@ -657,8 +658,15 @@ export function infraEntryHref(tabId: string, can?: Can): string | null {
     const pages = INFRA_ELECTRICITY_PAGES.filter((p) => !INFRA_MONEY_PAGES.includes(p.id) || !can || can('energy.bills'));
     return configureTabs('infra.electricity', pages)[0]?.href ?? null;
   }
-  if (tabId === 'generator' && isSectionConfigured('infra.generator')) return configureTabs('infra.generator', INFRA_GENERATOR_PAGES)[0]?.href ?? null;
+  if (tabId === 'generator' && isSectionConfigured('infra.generator')) return configureTabs('infra.generator', INFRA_GENERATOR_PAGES.filter((p) => p.id !== 'log' || GENERATOR_LOG_ON))[0]?.href ?? null;
   return null;
+}
+
+/** GENLOG092-295: whether the generator's run-log page is switched on (the devices list says so; default off). While off, the generator tab never
+ * opens on it, wherever the tab editor placed it. */
+let GENERATOR_LOG_ON = false;
+export function applyGeneratorLog(on: boolean): void {
+  GENERATOR_LOG_ON = on;
 }
 
 /** CR-031: the generator tab is hidden until a generator is detected (generator/access.ts); hidden = true until told otherwise. */

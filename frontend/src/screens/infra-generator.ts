@@ -17,7 +17,7 @@ import { describeError } from '../api/client';
 import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type DevicesResponse, type GenDevice } from '../api/generator';
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
 import { fill, fmtDateTime } from '../generator/gen-logic';
-import { INFRA_TABS, infraPageTabs, tabStyleOf, visibleTabs } from '../shell/nav';
+import { INFRA_TABS, applyGeneratorLog, infraPageTabs, tabStyleOf, visibleTabs } from '../shell/nav';
 import { TabsModeController } from '../shell/tabs-mode';
 import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
@@ -108,6 +108,7 @@ export class InfraGenerator extends LitElement {
   private async loadList(quiet = false) {
     try {
       this.list = await listDevices();
+      applyGeneratorLog(this.list.log_enabled === true); // GENLOG092-295: the generator tab's entry page skips the run log while it is off
       void listLive().then((r) => (this.summary = Object.fromEntries(r.devices.map((x) => [x.id, x])))).catch(() => undefined);
       this.phase = 'ready';
       const id = this.selectedId();
