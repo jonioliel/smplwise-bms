@@ -219,7 +219,7 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
 
     def make_stream() -> str:
         with db.connection(mode="read", label="station media stream") as conn:
-            return im.provider_for(settings).video_stream(conn, settings, station, profile)
+            return im.provider_for(settings).video_stream(conn, settings, station, profile, actor=im.w10.Actor(principal.user_id, principal.username))
 
     try:
         await media._live_relay(
@@ -351,7 +351,7 @@ class TalkLease(CameraLease):
             return ia.Authority(conn, self.principal).station(CALL, self.station_id) and im.media_mode(conn) == "video_talk"
 
 
-CLOSE_CODES = {"expired": 4408, "access_lost": 4403, "upstream_unavailable": 4503, "upstream_closed": 1000, "stopped": 1000, "ended": 1000}
+CLOSE_CODES = {"expired": 4408, "access_lost": 4403, "upstream_unavailable": 4503, "busy": 4423, "upstream_closed": 1000, "stopped": 1000, "ended": 1000}
 
 
 async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel, lease: TalkLease) -> str:
@@ -476,7 +476,8 @@ async def talk_ws(websocket: WebSocket, session_id: str) -> None:
             if station is None:
                 raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה אינה זמינה.")
             d = im.MEDIA.descriptor(im.provider_for(settings), conn, settings, station)
-        return im.provider_for(settings).talk_open(settings, t.station_id, d, actor_id=principal.user_id, actor_name=principal.username, request_id=t.request_id)
+        return im.provider_for(settings).talk_open(settings, t.station_id, d, actor_id=principal.user_id, actor_name=principal.username, request_id=t.request_id,
+                                                   expires_at=t.expires_at)
 
     await websocket.accept()
     outcome = "upstream_unavailable"
@@ -489,6 +490,8 @@ async def talk_ws(websocket: WebSocket, session_id: str) -> None:
         outcome = await _pump(websocket, t, channel, lease)
     except (ApiError, im.Unavailable) as exc:
         log.info("talk session %s could not open: %s", t.ref, getattr(exc, "code", type(exc).__name__))
+        if getattr(exc, "code", None) == "intercom_talk_busy":  # WisKey refused `audio_busy`: the browser is told "busy", not "unavailable"
+            outcome = "busy"
     except Exception as exc:  # noqa: BLE001 - an upstream failure ends the session, it never leaks
         log.warning("talk session %s failed: %s", t.ref, type(exc).__name__)
         outcome = "upstream_closed" if t.opened_at else "upstream_unavailable"

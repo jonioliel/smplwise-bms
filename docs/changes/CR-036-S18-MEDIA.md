@@ -1,6 +1,7 @@
 # CR-036 slice S18 - a station's live video and two-way audio ("talk") inside Arx
 
-Status: BUILT ON FAKES (2026-10-12), branch `pilot/WISKEY-media-s18` from `origin/integ/248`. Nothing here contacted a station,
+Status: BUILT ON FAKES (2026-10-12), branch `pilot/WISKEY-media-s18` from `origin/integ/248`. `WiskeyProvider` on the W10 contract
+BUILT ON FAKES (2026-10-23, AVW10-295, branch `pilot/AVW10-295`; section 7) - waiting for WisKey's W10 delivery. Nothing here contacted a station,
 WisKey, Home Assistant or a real go2rtc; every live behaviour is NOT_RUN until the owner's lab session (CR-036 slice S14).
 
 Owner decision 2026-10-12 (binding, supersedes answer 5 of 2026-10-11 and the "later" of CR-036 rows 4, 6 and 7): live video and
@@ -29,11 +30,12 @@ Read with: `CR-036-WISKEY-NATIVE-SCREENS.md` (rows 4, 6, 7; section 4.2 W10), `C
 |---|---|---|---|
 | `LocalProvider` | production today | Arx's own station source (D-002 interim): the in-memory go2rtc stream `smplwise_wiskey_<station>` the stills already use (main profile, channel 101). No go2rtc configuration write | none: the talk button keeps its "talk in the classic panel" mode |
 | `FakeProvider` | tests; a developer backend with `SW_FAKE_STATION_MEDIA=1` (refused when `in_addon`) | sub + main | half-duplex G.711 over `pcmu_frames`, an in-memory upstream that counts frames |
-| `WiskeyProvider` | once WisKey ships W10 | from the descriptor | from the talk hook |
+| `WiskeyProvider` | while WisKey's discovery (`overview.api.commands`) lists the W10 video commands (AVW10-295, section 7) | from the descriptor; each profile's source from `media/stream_lease`, registered in memory as `smplwise_wiskey_<station>[.sub]` | from the talk hook, only while the four talk commands are listed too |
 
-`WiskeyProvider` is deliberately NOT written: its commands are not in the pinned catalog (`rc37-contract.4`) and the contract test
-refuses any command that is not. It implements the same three calls (`describe`, `video_stream`, `talk_open`) as the two above,
-so the screens and the endpoints do not change when it arrives.
+`WiskeyProvider` is written (AVW10-295, 2026-10-23) and runs ON FAKES only: it implements the same three calls (`describe`,
+`video_stream`, `talk_open`) as the two above, so the screens and the endpoints do not change. Its commands are not in the pinned
+catalog (`rc37-contract.4`); until WisKey's own contract package lists them they are held to Arx's proposal
+(`docs/integrations/wiskey/catalog/w10-proposal`). See section 7.
 
 The sub channel 102 of a station is not offered by `LocalProvider`: it is unverified on stations (D-002 item 4, "a future request,
 first measure the 401 behaviour and the codec"). Until it is measured, Arx's own source offers the main profile only (MSE).
@@ -204,12 +206,49 @@ the fake upstream counts them.
 
 ## 6. Not done here / hand-offs
 
-1. **Settings UI control** for `access.station_media` (Settings -> בקרת כניסה -> תצוגה): slice S12's file
-   (`screens/system-diagnostics.ts`); until then `PATCH /settings`. Suggested labels: "וידאו ודיבור במסך התחנות" with כבוי / וידאו /
-   וידאו ודיבור.
-2. **W10** - section 3. When it arrives: `WiskeyProvider` in `services/intercom_media.py`, the new commands in the pinned
-   catalog, `wiskey_channels` allow-list, `ADAPTER_CALLS` in `tests/test_wiskey_contract.py`, a fake fixture per reply.
+1. ~~**Settings UI control** for `access.station_media`~~ - DONE by WXMEDSET (2026-10-13, commit 11dc88f4f):
+   `screens/system-access-display.ts` (mounted by `system-diagnostics.ts`), labels through `i18n/access-parity.ts`
+   ("וידאו ודיבור במסך התחנות": כבוי / וידאו / וידאו ודיבור), default off; specs `unit-wxmedset`, `evidence-wxmedset`.
+2. **W10** - section 3. Arx side DONE ON FAKES by AVW10-295 (section 7): `WiskeyProvider`, the `media` channel allow-list,
+   `ADAPTER_CALLS` + the proposal schemas in `tests/test_wiskey_contract.py`, a fake fixture per reply. Left: WisKey's delivery,
+   then its contract package replaces the proposal (and the pin, if WisKey re-pins), then the lab session (item 4).
 3. **S11** moves call / announcement onto `access.call` on the station chain; talk is already there.
 4. **Lab (S14, owner):** WebRTC / MSE start times on a real station, a station's RTSP session limit with WisKey pulling at the
    same time, the microphone on a phone over the Ingress page (secure context), echo on a half-duplex station.
 5. **Pixel baselines** for the new spec (runner `linux-pixel ... --update-snapshots`, then review every image).
+
+## 7. AVW10-295 - `WiskeyProvider` on the W10 contract (2026-10-23, branch `pilot/AVW10-295`, ON FAKES)
+
+Owner directive 2026-10-23: WisKey grants Arx full access through our bridge only, and WisKey may still adjust field names. So:
+
+- **One adapter layer.** `services/wiskey_media_contract.py` holds every W10 wire name: the six commands, the request keys, the
+  reply keys, the `media/talk_closed` event, the close reasons and the error mapping. A WisKey rename is a change there (and in the
+  fixtures `tests/fixtures/wiskey_w10/`); the provider, the endpoints and the screens do not change.
+- **Selection by discovery.** `provider_for`: a test override; else the developer fake (`SW_FAKE_STATION_MEDIA=1`, never in the
+  add-on); else `WiskeyProvider` while `overview.api.commands` lists `media/station_descriptor` and `media/stream_lease`
+  (`min_client` compatible); else `LocalProvider` exactly as before. Talk is offered only while `talk_open` / `talk_frame` /
+  `talk_floor` / `talk_close` are listed as well (otherwise the descriptor's talk is forced off: the classic panel keeps it).
+- **Channel.** `wiskey_channels.MEDIA` (unpinned, like `readback` / `pacing`): exactly the six commands, same socket and identity as
+  `service`. Descriptor and lease: read lane (`SYNC.command`, rate buckets). `talk_open`: action lane (never queued or retried).
+  `talk_close`: action lane without a rate token. Frames and the floor: `SYNC.media_post` (no lane, no token; limits are the talk
+  socket's: only while held, at most 100/s, 1024 bytes; at most 8 frames in flight, a slower WisKey drops frames, never queues audio).
+- **Descriptor.** Read as Arx itself (`actor {id: arx}`), because it is cached per station for every viewer; parsed by the same
+  `parse_descriptor` (no address, no secret, strict expiry, renewed 30 s before it ends).
+- **Stream lease.** Asked with the real viewer as `actor`. `{source, expires_at}`: `rtsp(s)://` only, lifetime <= 24 h, registered IN
+  MEMORY in Arx's go2rtc as `smplwise_wiskey_<station>` (main) / `.sub` (sub) through the stills' GetOrPatch registration - never
+  written to a configuration, never logged, audited or served (the lease's repr hides it). `{go2rtc_stream}`: accepted only inside
+  `smplwise_wiskey_`; any other name (another project's stream) is refused (`lease_stream_foreign`). Both / neither: refused.
+- **Talk hook.** `talk_open` with the session's own `expires_at`, the real actor and the same `request_id` Arx audits;
+  `audio_busy` -> the session ends `upstream_unavailable` (who holds the station is never said); a reply with a wrong codec, frame
+  length or handle is refused and - when its `talk_ref` is well formed - closed at once. `talk_frame` `seq` +1 per frame sent;
+  a refused or undeliverable frame or floor ends the talk (no retry). `media/talk_closed` (subscription event, `kind` or `type`)
+  and a feed session end close the talk without sending `talk_close`.
+- **Tests (fakes):** `tests/test_wiskey_media_provider.py`, `tests/test_wiskey_contract.py` (frames vs the proposal),
+  `tests/test_wiskey_channels.py`. Frontend: no screen change (the projection is the same); `unit-wxmedset`,
+  `unit-wiskey-station-media` cover the setting and the drawer.
+
+What WisKey must deliver (W10): the six commands with the request keys of `w10-proposal/commands.proposed.json`, listed in
+`overview.api.commands` for the add-on's user and in the next contract package; `audio_busy` on `talk_open`; the
+`media/talk_closed` event on Arx's `subscribe` (tell us the exact event key: `kind`); the answers to the three questions of
+section 3. Open on the Arx side: a `talk_open` whose answer is lost (timeout) cannot be closed by Arx (no `talk_ref`): WisKey's own
+limit must free the station; the lab session (section 6 item 4).

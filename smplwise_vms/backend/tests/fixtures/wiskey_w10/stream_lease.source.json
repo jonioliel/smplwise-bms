@@ -1,0 +1,5 @@
+{
+  "_note": "AVW10-295 fake reply to media/stream_lease, the source variant (section 3.2). The source is a FAKE on the reserved .invalid TLD with fake credentials; the tests assert it never reaches a log, an audit row or a served body.",
+  "source": "rtsp://fixture-user:fixture-pass@station-a.invalid:554/Streaming/Channels/102",
+  "expires_at": "2027-01-15T08:05:00Z"
+}
