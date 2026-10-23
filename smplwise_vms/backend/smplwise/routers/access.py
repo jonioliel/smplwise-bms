@@ -335,6 +335,10 @@ PERMISSION_LABELS: dict[str, str] = {
     "maintenance.view": "אחזקה: צפייה בפנקס, בתוכניות ובסבבים",
     "maintenance.perform": "אחזקה: ביצוע סבבים וסימון עבודות שבוצעו",
     "maintenance.manage": "אחזקה: ניהול משימות, אישורים, מסמכי ספקים ותגיות",
+    # CR-EMERG104 (owner q202): the emergency readiness view is opened by maintenance.view OR emergency.view, configured by maintenance.manage OR
+    # emergency.manage (and its contact list); each row is still redacted by the permission of its own source. Default: site_admin, system_admin.
+    "emergency.view": "מוכנות לחירום: צפייה בדף ובהיסטוריה",
+    "emergency.manage": "מוכנות לחירום: הגדרות, קישור משימות, מצלמות חירום ואנשי קשר",
     # CR-038 (the optional tickets module, docs/changes/CR-038-TICKETS-MODULE.md section 8; owner decisions D15 / D25): WHAT a person
     # may do with tickets - WHERE is the ticket's place AND department membership (services/tickets/access.py visible()). view: see
     # tickets (own, assigned to me, my departments') and be assignable in a department one is a member of (operator, site_admin,
