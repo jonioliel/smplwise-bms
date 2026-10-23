@@ -323,6 +323,33 @@ class DecisionBody(BaseModel):
     payment_date: str | None = Field(default=None, max_length=10)
     exceptional: Literal["include", "exclude"] | None = None  # TKDETAILBE (5.3): approve with / without the exceptional lines
     internal_note: str | None = Field(default=None, max_length=5000)  # TKFIX260: never shown to the vendor (approve / adjust / reject)
+    # CR-SVC215 (owner answer 33): the approver saw the budget overrun and confirms it - an over-budget approval is never refused
+    budget_confirm: bool | None = None
+
+
+def _with_budget(conn: sqlite3.Connection, seen: Seen, body: DecisionBody, decide: Any, at: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """CR-SVC215 section 6.2: an approval (or an adjustment, which approves) inside a SAVEPOINT; when a covering budget ends `exceeded`
+    and `budgets.require_confirmation` holds, the approval is rolled back and the caller gets 409 `budget_confirm_required` with the
+    overrun per budget, to repeat it with `budget_confirm: true`. Nothing is ever refused for the budget itself."""
+    from ..services.tickets import budgets
+
+    conn.execute("SAVEPOINT svc215_budget")
+    try:
+        fresh = decide()
+        info = budgets.after_approval(conn, seen.row, fresh, at)
+    except BaseException:
+        conn.execute("ROLLBACK TO svc215_budget")
+        conn.execute("RELEASE svc215_budget")
+        raise
+    over = [x for x in info if x["state"] == "exceeded"]
+    if over and budgets.cfg(conn)["require_confirmation"] and not body.budget_confirm:
+        conn.execute("ROLLBACK TO svc215_budget")
+        conn.execute("RELEASE svc215_budget")
+        raise ApiError(409, "budget_confirm_required", text(conn, "אישור זה חורג מהתקציב. אשרו את החריגה כדי להמשיך."),
+                       details={"budgets": [{**budgets.present_row(conn, x["budget"]), "overrun_minor": x["overrun_minor"],
+                                             "remaining_minor": x["remaining_minor"]} for x in over]})
+    conn.execute("RELEASE svc215_budget")
+    return fresh, info
 
 
 ACTIONS =("approve", "adjust", "reject", "mark-paid", "unmark-paid", "reopen-window")
@@ -346,26 +373,43 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "exceptional", "code": "only_with_approve"}]})
     if body.internal_note is not None and not needs_rev:
         raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "internal_note", "code": "only_with_decision"}]})
-    try:
+    if body.budget_confirm is not None and action not in ("approve", "adjust"):
+        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "budget_confirm", "code": "only_with_approval"}]})
+
+    def decide() -> dict[str, Any]:
         if action == "approve":
-            fresh = costs.approve(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", at=at,
-                                  exceptional=body.exceptional or "include", reason=body.reason, internal_note=body.internal_note)
-        elif action == "adjust":
-            fresh = costs.adjust(conn, claim, {"lines": body.lines or []}, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "",
-                                 reason=body.reason, at=at, internal_note=body.internal_note)
-        elif action == "reject":
-            fresh = costs.reject(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", reason=body.reason, at=at,
-                                 internal_note=body.internal_note)
-        elif action == "mark-paid":
-            fresh = costs.mark_paid(conn, claim, by=viewer.uid, revision=body.revision, payment_ref=body.payment_ref, payment_date=body.payment_date, at=at)
-        elif action == "unmark-paid":
-            fresh = costs.unmark_paid(conn, claim, by=viewer.uid, revision=body.revision, reason=body.reason, at=at)
+            return costs.approve(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", at=at,
+                                 exceptional=body.exceptional or "include", reason=body.reason, internal_note=body.internal_note)
+        if action == "adjust":
+            return costs.adjust(conn, claim, {"lines": body.lines or []}, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "",
+                                reason=body.reason, at=at, internal_note=body.internal_note)
+        if action == "reject":
+            return costs.reject(conn, claim, by=viewer.uid, revision=body.revision, revision_id=body.revision_id or "", reason=body.reason, at=at,
+                                internal_note=body.internal_note)
+        if action == "mark-paid":
+            return costs.mark_paid(conn, claim, by=viewer.uid, revision=body.revision, payment_ref=body.payment_ref, payment_date=body.payment_date, at=at)
+        if action == "unmark-paid":
+            return costs.unmark_paid(conn, claim, by=viewer.uid, revision=body.revision, reason=body.reason, at=at)
+        return costs.reopen_window(conn, claim, by=viewer.uid, revision=body.revision, at=at)
+
+    from ..services.tickets import budgets  # CR-SVC215: the budget check of an approval (nothing while budgets are off)
+
+    budget_info: list[dict[str, Any]] = []
+    try:
+        if action in ("approve", "adjust") and budgets.enabled(conn):
+            fresh, budget_info = _with_budget(conn, seen, body, decide, at)
         else:
-            fresh = costs.reopen_window(conn, claim, by=viewer.uid, revision=body.revision, at=at)
+            fresh = decide()
     except costs.CostRefused as exc:
         raise _refused(conn, exc) from None
+    budget_audit: dict[str, Any] = {}
+    if budget_info:  # only an approval that a budget covers carries the budget fields
+        states = [budgets.settle_alerts(conn, store_budget_row, seen.row["id"])
+                  for store_budget_row in (budgets.store_budgets.budget(conn, x["budget"]["id"]) or x["budget"] for x in budget_info)]
+        budget_audit = {"budget_state": budgets.worst(states), "budget_ids": [x["budget"]["id"] for x in budget_info],
+                        "budget_confirmed": bool(body.budget_confirm) and "exceeded" in states}
     _audit(conn, viewer, AUDIT_ACTIONS[action], seen, fresh, rid, revision_id=fresh.get("current_revision_id"),
-           total_minor=fresh.get("approved_total_minor"), **({"exceptional": body.exceptional} if body.exceptional else {}))
+           total_minor=fresh.get("approved_total_minor"), **({"exceptional": body.exceptional} if body.exceptional else {}), **budget_audit)
     store.insert_event(conn, ticket_id, "cost_decision", actor_kind="user", actor_user_id=viewer.uid, actor_name=service.actor_name(viewer),
                        assignment_id=fresh["assignment_id"], data={"claim_id": fresh["id"], "action": action.replace("-", "_")})
     out = _answer(conn, viewer, ticket_id)

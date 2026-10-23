@@ -88,7 +88,21 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
      "who": "initiator", "resolves": False, "subject": "session", "enabled": False},
     {"key": "ticket.dash_busy_department", "label": "מחלקה עמוסה", "severity": "alert",
      "who": "initiator", "resolves": True, "subject": "session", "enabled": False},
+    # CR-SVC215 slice 1 (section 11): vendor visits and department budgets. Each is listed in the policy matrix only while its feature
+    # switch is on (`visits.enabled` / `budgets.enabled` of the tickets settings document, `listed` below); never a person's name, an
+    # amount or a typed text in the notification - the number, the place and (for a budget) the period only.
+    {"key": "ticket.visit_planned", "label": "נקבע ביקור ספק", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False,
+     "feature": "visits"},
+    {"key": "ticket.arrived", "label": "ספק דיווח על הגעה", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False,
+     "feature": "visits"},
+    {"key": "ticket.arrival_missed", "label": "ספק לא הגיע בחלון הביקור", "severity": "alert", "who": RULE_MANAGERS, "resolves": True,
+     "feature": "visits"},
+    {"key": "ticket.budget_warning", "label": "תקציב מתקרב לסף", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False,
+     "feature": "budgets"},
+    {"key": "ticket.budget_exceeded", "label": "חריגה מתקציב", "severity": "alert", "who": RULE_MANAGERS, "resolves": True,
+     "feature": "budgets"},
 )
+FEATURE_OF: dict[str, str] = {d["key"]: d["feature"] for d in SOURCE_DEFS if d.get("feature")}
 KEYS: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS)
 LABELS_EN: dict[str, str] = {d["key"]: d["label_en"] for d in SOURCE_DEFS if d.get("label_en")}
 
@@ -102,9 +116,30 @@ def module_on(conn: Any) -> bool:
     return bool(row) and str(row[0]) == "true"
 
 
+def feature_on(conn: Any, feature: str) -> bool:
+    """CR-SVC215: one of the module's feature switches (`<feature>.enabled` in the `tickets.settings` document, default ON - owner answer
+    36), read without importing the module's services. A missing or corrupt document reads as the default."""
+    import json
+
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'tickets.settings'").fetchone()
+        doc = json.loads(row[0]) if row else {}
+    except Exception:  # noqa: BLE001 - no settings table / a corrupt value: the default
+        doc = {}
+    block = doc.get(feature) if isinstance(doc, dict) else None
+    value = block.get("enabled") if isinstance(block, dict) else None
+    return value if isinstance(value, bool) else True
+
+
 def listed(conn: Any, source_key: str) -> bool:
-    """Whether the policy matrix lists a source now: every non-ticket source; the ticket and RFQ sources only while the module is on."""
-    return not source_key.startswith(PREFIXES) or module_on(conn)
+    """Whether the policy matrix lists a source now: every non-ticket source; the ticket and RFQ sources only while the module is on;
+    a CR-SVC215 source only while its feature switch is on too."""
+    if not source_key.startswith(PREFIXES):
+        return True
+    if not module_on(conn):
+        return False
+    feature = FEATURE_OF.get(source_key)
+    return feature is None or feature_on(conn, feature)
 
 
 def source_kwargs() -> list[dict[str, Any]]:

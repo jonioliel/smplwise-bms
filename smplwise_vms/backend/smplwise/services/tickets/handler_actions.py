@@ -162,6 +162,10 @@ def set_status(conn, link: LinkRecord, *, to: str, note: str | None, crid: str, 
         store.update_assignment(conn, f.assignment["id"], {"acknowledged_at": at})
     store.update_ticket(conn, f.ticket["id"], fields)
     _event(conn, f, "status", now, from_status=frm, to_status=to, body=note or None)
+    if to == "in_progress":  # CR-SVC215 (3.2): "in progress" through the link is the vendor's claim of arrival for an open visit window
+        from . import visits
+
+        visits.on_link_status(conn, f.ticket, f.assignment, to, f.link.contact_id, now)
     _progress(conn, f, now, client_key)
     sla.refresh(conn, f.ticket["id"])  # slice 2: the dues follow every change of a ticket
     audit_link(conn, f.link, "ticket.status", **{"from": frm, "to": to, "actor": "link", "with_note": bool(note)})
@@ -218,6 +222,9 @@ def set_eta(conn, link: LinkRecord, *, eta_at: str | None, crid: str, now: dt.da
     at = iso(now)
     store.update_ticket(conn, f.ticket["id"], {"eta_at": value, "last_activity_at": at, "last_external_activity_at": at})
     _event(conn, f, "eta", now, data={"eta_at": value})
+    from . import visits  # CR-SVC215: the ETA becomes (or moves / clears) the planned visit - nothing while `visits.enabled` is off
+
+    visits.on_eta(conn, f.ticket, f.assignment, value, now)
     _progress(conn, f, now, client_key)
     sla.refresh(conn, f.ticket["id"])  # a future ETA suppresses "stuck" until it passes (13.2)
     audit_link(conn, f.link, "ticket.eta", cleared=value is None)

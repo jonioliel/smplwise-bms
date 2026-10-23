@@ -417,3 +417,25 @@ S1 and S2 are independent of each other; S3 needs both; S4 needs S1. S5 is optio
 11. The reports page "דוחות" inside the section סקירה ודוחות (section 6a; the earlier "דוחות ובקרות" hub tab is superseded by the
     four-section layout): reports, the vendor PDF and the full budget table live there; the budget summary stays on סקירה.
     a. as proposed (recommended)  b. no reports page: each item stays where it is today  c. the page, but budgets only on סקירה
+
+## 17. Owner answers (2026-10-24, batch 1 items 27-37) and slice 1 as built
+
+Mockup v2 APPROVED. Standing rule: every threshold, recipient and default asked about is editable in Settings; permissions are
+grantable to any role (the existing role editor - no new permission names). Answers: (1) a, the documents' data stay in MAINT215, this
+module adds the views; (2) the six numbers, no score, which numbers are shown editable; (3) CSV vendor columns now, the vendor PDF later;
+(4) the card is opened by the site manager, money only by cost viewers, both editable; (5) a, the vendor's press counts (a declaration),
+staff may cancel it, editable; (6) grace default **60** minutes, per department, editable; (7) a, show the overrun, require the approval,
+never refuse; (8) per department and period AND the whole building and other cuts, one currency per row, editable; (9) the missed-arrival
+message goes to the managers only by default, the vendor message is one switch away; (10) **all three switches ON**, editable; (11) a.
+
+Slice 1 (backend, `pilot/SVC215-295`), deviations from the sections above, each following an answer:
+
+| Item | As built |
+|---|---|
+| Migration | ONE provisional file `0155_ticket_visits_budgets.sql` (the lead renumbers): `ticket_visits`, `ticket_departments.visit_grace_min` (NULL = the installation default) + `visit_detect`, `ticket_budgets`. The CR's `ticket_department_budgets` became `ticket_budgets` with `scope_kind` in installation / department / site / building / category (answer 8). |
+| Settings (`tickets.settings`, system.configure, audited) | `vendor_stats.{enabled, numbers, default_months, repeat_days, card_permission, money_permission}`, `visits.{enabled, grace_min=60, claim_counts, public_arrival, staff_can_undo_claim, early_min, eta_window_min, rfq_window_min, notify_vendor_on_miss=false, notify_internal_owner, backfill_days}`, `budgets.{enabled, warn_bp=8000, require_confirmation, count_committed, notify_configurers}`. Per department: `PUT /tickets/admin/departments/{id}/visits {grace_min, detect}` (tickets.configure). `GET /tickets/module` gains `features`. |
+| Visits | services/tickets/visits.py + store_visits.py, routers/tickets_visits.py; sources manager / ETA / RFQ confirmation / arrival step; `POST /t/api/arrived` (a claim; `visits.public_arrival` is its own kill switch); "in progress" through the link is a claim too; staff arrive / undo-claim / missed by hand; the detector rides the tickets janitor every 5 minutes with an injectable clock. The visit timeline rows are internal in slice 1 (`visible_external = 0`) until the public page draws them (S4). The vendor's message on a miss reuses the link channel's `reminder` purpose (one per visit); the CR's own catalogue text is a follow-up. |
+| Budgets | services/tickets/budgets.py + store_budgets.py, routers/tickets_budgets.py (`/tickets/costs/budgets[...]`, `/budget-check`); the approve / adjust route asks for `budget_confirm` (409 `budget_confirm_required` with the overrun) - never a refusal; the audit row carries `budget_state`, `budget_ids`, `budget_confirmed`. Committed = approved quotes whose demand is not approved yet + approved RFQ awards less paid instalment demands (an approximation documented in store_budgets.py). |
+| Vendor card | services/tickets/vendor_stats.py + store_vendor_stats.py, `GET /tickets/contacts/{id}/stats` (audited per view). Response time is wall clock in slice 1 (the working-hours variant is a follow-up). |
+| Notifications | `ticket.visit_planned`, `ticket.arrived`, `ticket.arrival_missed`, `ticket.budget_warning`, `ticket.budget_exceeded`; listed in the policy matrix only while their switch is on. |
+| Not in slice 1 | The CSV vendor columns, the stats list route, the comparison rows and the lapsed-document confirmation (slice 2); every screen (slice 3); the public page's button and the public-surface review (slice 4, due before a release ships `visits.public_arrival` on); the vendor PDF (slice 5). |

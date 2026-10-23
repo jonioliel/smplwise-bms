@@ -265,8 +265,49 @@ class NotifyPatch(BaseModel):
     sla_urgent: dict[str, str] | None = Field(default=None, max_length=2000)
 
 
+class VendorStatsPatch(BaseModel):
+    """CR-SVC215 (owner answers 28 / 30 / 36): the computed vendor card - its switch (default ON), the numbers shown, the default
+    window, the repeat-visit window, who opens it and who sees money on it. settings_doc validates every value again."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    numbers: list[str] | None = Field(default=None, max_length=6)
+    default_months: StrictInt | None = None
+    repeat_days: StrictInt | None = None
+    card_permission: str | None = Field(default=None, max_length=40)
+    money_permission: str | None = Field(default=None, max_length=40)
+
+
+class VisitsPatch(BaseModel):
+    """CR-SVC215 (owner answers 31 / 32 / 35 / 36): vendor visits and the missed-arrival detector (settings_doc validates the ranges)."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    grace_min: StrictInt | None = None
+    claim_counts: StrictBool | None = None
+    public_arrival: StrictBool | None = None
+    staff_can_undo_claim: StrictBool | None = None
+    early_min: StrictInt | None = None
+    eta_window_min: StrictInt | None = None
+    rfq_window_min: StrictInt | None = None
+    notify_vendor_on_miss: StrictBool | None = None
+    notify_internal_owner: StrictBool | None = None
+    backfill_days: StrictInt | None = None
+
+
+class BudgetsPatch(BaseModel):
+    """CR-SVC215 (owner answers 33 / 34 / 36): budgets against approved costs (settings_doc validates the ranges)."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    warn_bp: StrictInt | None = None
+    require_confirmation: StrictBool | None = None
+    count_committed: StrictBool | None = None
+    notify_configurers: StrictBool | None = None
+
+
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    vendor_stats: VendorStatsPatch | None = None  # CR-SVC215
+    visits: VisitsPatch | None = None  # CR-SVC215
+    budgets: BudgetsPatch | None = None  # CR-SVC215
     revision: int = Field(ge=0)
     ui: UiPatch | None = None
     device_long_press: Literal["sheet", "menu"] | None = None  # D17 (slice 3)
@@ -339,7 +380,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports",
+                  "vendor_stats", "visits", "budgets"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL / CR-SVC215
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

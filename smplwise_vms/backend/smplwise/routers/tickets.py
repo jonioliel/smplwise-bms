@@ -63,8 +63,13 @@ def module_state(principal: Principal = Depends(current_principal_ro), conn: sql
     revision is what a rename in Settings sends back) and the display settings (D18 / D22). `public_ready` is false until the public
     handler page exists (slice 4)."""
     name = naming.read(conn)
-    return {"enabled": access.module_on(conn), "public_ready": access.public_ready(conn), "name": {k: name[k] for k in naming.LANGS},
-            "name_revision": name["revision"], "ui": settings_doc.read(conn)["ui"]}
+    doc = settings_doc.read(conn)
+    on = access.module_on(conn)
+    # CR-SVC215: the three feature switches the screens follow (all false while the module is off)
+    features = {"vendor_stats": on and bool(doc["vendor_stats"]["enabled"]), "visits": on and bool(doc["visits"]["enabled"]),
+                "budgets": on and bool(doc["budgets"]["enabled"])}
+    return {"enabled": on, "public_ready": access.public_ready(conn), "name": {k: name[k] for k in naming.LANGS},
+            "name_revision": name["revision"], "ui": doc["ui"], "features": features}
 
 
 # ---------------------------------------------------------------- the caller's departments (filters, the create sheet)

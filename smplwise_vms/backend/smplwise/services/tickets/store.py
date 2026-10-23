@@ -1154,6 +1154,8 @@ def purge_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, int]:
     if _has_table(conn, "ticket_rfq_vendor_file_refs"):  # RFQ-VENDOR-UPLOAD: the work order's references to the vendor's files
         run("ticket_rfq_vendor_file_refs", "DELETE FROM ticket_rfq_vendor_file_refs WHERE ticket_id = ?", (ticket_id,))
     run("ticket_device_context", "DELETE FROM ticket_device_context WHERE ticket_id = ?", (ticket_id,))
+    if _has_table(conn, "ticket_visits"):  # CR-SVC215 (0155): the request's vendor visits follow it (section 10: retention follows the ticket)
+        run("ticket_visits", "DELETE FROM ticket_visits WHERE ticket_id = ?", (ticket_id,))
     run("ticket_events", "DELETE FROM ticket_events WHERE ticket_id = ?", (ticket_id,))
     conn.execute("UPDATE tickets SET current_assignment_id = NULL WHERE id = ?", (ticket_id,))
     run("ticket_assignments", "DELETE FROM ticket_assignments WHERE ticket_id = ?", (ticket_id,))

@@ -579,6 +579,9 @@ class MessagingRuntime:
             monitor.EXTERNAL_REMINDER = self.external_reminder
         except ImportError:
             pass
+        from . import visits  # CR-SVC215 (3.4): the vendor's message on a missed visit - used only while visits.notify_vendor_on_miss is on
+
+        visits.VENDOR_MISS_MESSAGE = self.visit_missed_message
         handler_links.NOTICE = self.notice
         handler_links.CHANNEL_OK = self.channel_ok
         # The public page's CodeSender is slice 7's code_flow.SqlCodeSender (wired in public_runtime): it reaches the outbox through
@@ -775,6 +778,26 @@ class MessagingRuntime:
         self.enqueue(conn, purpose="reminder", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=asg["id"], link_id=link["id"],
                      department_id=ticket["department_id"], params=message_params(conn, ticket, contact, assignment_id=asg["id"]), channel=channel, requested_by="system",
                      idempotency_key=f"reminder:{asg['id']}:{int(number)}")
+        return True
+
+    def visit_missed_message(self, conn, ticket_id: str, visit: dict[str, Any], now: dt.datetime) -> bool:
+        """CR-SVC215 (3.4): the vendor of a missed visit is reminded through his live link - the existing `reminder` purpose (held by the
+        send hours, paced, one per visit by its idempotency key). False when no channel can carry it. The dedicated catalogue text of the
+        CR ("לא נרשמה הגעה...") is a follow-up of the message catalogue; until then the reminder text goes."""
+        asg = store.assignment(conn, visit.get("assignment_id"))
+        if asg is None or asg.get("assignee_kind") != "contact" or asg.get("ended_at") or asg.get("ticket_id") != ticket_id:
+            return False
+        ticket = obs.ticket_for_worker(conn, ticket_id)
+        link = store_links.link_for_assignment(conn, asg["id"])
+        contact = store_links.contact(conn, asg.get("contact_id"))
+        if ticket is None or link is None or contact is None or contact.get("erased_at") or handler_links.state(link, now) != "live":
+            return False
+        channel = plan_channel(conn, contact, self.data_dir)
+        if channel == "manual":
+            return False
+        self.enqueue(conn, purpose="reminder", contact_id=contact["id"], ticket_id=ticket_id, assignment_id=asg["id"], link_id=link["id"],
+                     department_id=ticket["department_id"], params=message_params(conn, ticket, contact, assignment_id=asg["id"]), channel=channel,
+                     requested_by="system", idempotency_key=f"visitmiss:{visit['id']}")
         return True
 
     def notice(self, conn, link_row: dict[str, Any], purpose: str, at: dt.datetime) -> None:

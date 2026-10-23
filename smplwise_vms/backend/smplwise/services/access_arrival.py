@@ -357,6 +357,9 @@ def request(conn, link: Any, *, body: dict[str, Any], crid: str, now: dt.datetim
                                      assignment_id=assignment["id"], at=at, data={"outcome": outcome, "outside_window": outside}, visible_external=True)
     audit_link(conn, link, "access.grant.request", outcome=outcome, outside_window=outside)
     ag.notify_request(conn, g["id"])
+    from .tickets import visits  # CR-SVC215 (3.1 item 3): the first day + hours become the planned visit (nothing while visits are off)
+
+    visits.on_arrival_step(conn, ticket, assignment, body.get("date_from"), body.get("hours"), now)
     # R5-A3: "approved" is a human decision, never a claim that WisKey holds the scope: the grant's own state travels with it, so a
     # pending narrowing or an unknown outcome is not read as applied. `scope_verified` is ALWAYS false in this build (R6-A3 / R8 comment
     # fix, ARX-N05): no proof revision is recorded, and `doors_state` "accepted" / `pending_sync` false mean WisKey accepted the write -
