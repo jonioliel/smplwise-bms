@@ -21,11 +21,11 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance")  # tickets: CR-038 (services/tickets/notify_sources.py); maintenance: CR-MAINT215 (owner answer 24.10 q20)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills", "water", "maintenance")  # maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills", "water", "maintenance", "scenario")  # scenario: XSCENARIO109-295; maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied", "water", "maintenance", "incident")  # incident: CR-LIVEEVENT100 (events.read at the incident's floor); maintenance: CR-MAINT215; water: CR-WATER78 slice 2; energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied", "water", "maintenance", "incident", "scenario")  # scenario: XSCENARIO109-295; incident: CR-LIVEEVENT100 (events.read at the incident's floor); maintenance: CR-MAINT215; water: CR-WATER78 slice 2; energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -114,6 +114,15 @@ SOURCES: tuple[Source, ...] = (
        resolve_text="הצריכה חזרה לרגיל"),
     _s("water.offline", "מים: מונה לא מדווח", "device_faults", "alert", "מונה מים לא מדווח", "{name}: {detail}.", who="water", push=False,
        subject="water", resolve_text="המונה חזר לדווח"),
+    # XSCENARIO109-295 (CR-SCENARIO109 sections 4 and 8, owner Q7 = 216 a): a scenario's notify action. Two rows per fire: the detailed one to
+    # the addressed people who may see every module the scenario reads, the generic one (no values) to the other addressed people. The
+    # recipients are the action's own list (rule `scenario`, chosen in the editor; default list in Settings). Listed only while the module is on.
+    _s("scenario.fired", "תרחיש: הופעל", "automations", "alert", "תרחיש הופעל", "{name}: {detail}", who="scenario", push=False, subject="scenario",
+       resolve_text="התנאים כבר לא מתקיימים"),
+    _s("scenario.fired_generic", "תרחיש: הופעל (בלי פרטים)", "automations", "alert", "תרחיש הופעל", "{name}. אין הרשאה להצגת הפרטים.", who="scenario",
+       push=False, subject="scenario", resolve_text="התנאים כבר לא מתקיימים"),
+    _s("scenario.degraded", "תרחיש: לא ניתן להעריך", "automations", "info", "תרחיש לא ניתן להעריך", "{name}: {detail}", who="scenario", push=False,
+       enabled=False, subject="scenario", resolve_text="התרחיש חזר לפעול"),
     # CR-MAINT215 (services/maintenance/reminders.py): a certificate / inspection / supplier document before its expiry, a plan or a round
     # before its date, and once it is late. To the task's responsible person and the maintenance managers of its place (rule `maintenance`),
     # in the app only by default; nothing fires while the maintenance module is off. The task's title and a date - never a person.
@@ -367,6 +376,8 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             continue
         if s.key.startswith("maintenance.") and not maintenance_on:  # CR-MAINT215: the same rule for the maintenance module
             continue
+        if s.key.startswith("scenario.") and not _scenarios_on(conn):  # XSCENARIO109-295: the scenario sources exist only while the module is on
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
 
@@ -387,6 +398,15 @@ def _water_on(conn: sqlite3.Connection) -> bool:
     from .water_alerts import module_on
 
     return module_on(conn)
+
+
+def _scenarios_on(conn: sqlite3.Connection) -> bool:
+    from . import scenario_settings
+
+    try:
+        return scenario_settings.on(conn, "scenarios.enabled")
+    except sqlite3.Error:
+        return False
 
 
 def _maintenance_on(conn: sqlite3.Connection) -> bool:
