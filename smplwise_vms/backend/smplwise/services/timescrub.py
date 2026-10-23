@@ -82,9 +82,11 @@ def layer_of(domain: str, device_class: str | None, entity_id: str, anchor_layer
 
 
 def floor_entities(conn: sqlite3.Connection, floor_id: str, at_iso: str | None) -> dict[str, list[str]]:
-    """The floor's anchored HA entities per layer: the anchors effective at `at_iso` (all current ones when None), plus the
-    switches of the published structure's circuits on the lights layer. Sorted ids, each entity in exactly one layer."""
-    if at_iso:
+    """The floor's anchored HA entities per layer: the anchors effective at `at_iso` (all current ones when None). The switches of
+    the structure's circuits are NOT added yet (slice 1: the bundle's circuit_states carry them). Sorted ids, each entity in exactly one layer. As the floor bundle
+    (routers/anchors.floor_map): the anchors of the instant only from the floor's first publish on - before it, the current anchors."""
+    history_from = conn.execute("SELECT MIN(published_at) FROM plan_versions WHERE floor_id = ? AND published_at IS NOT NULL", (floor_id,)).fetchone()[0]
+    if at_iso and history_from and at_iso >= history_from:
         rows = conn.execute("SELECT resource_id, layer_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'ha_entity' AND effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)",
                             (floor_id, at_iso, at_iso)).fetchall()
     else:
