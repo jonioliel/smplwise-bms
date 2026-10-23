@@ -19,7 +19,7 @@ from typing import Any, Iterable, Mapping
 from ..audit import audit
 from ..db import new_id, now_iso
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, all_roles, authorize
+from ..rbac import INSTALLATION, Principal, all_roles, authorize, role_name
 from . import scenario_model as m
 from . import scenario_settings as cfg
 from . import scenario_signals as sig
@@ -865,3 +865,18 @@ def runs(conn: sqlite3.Connection, viewer: Principal, rule_id: str, limit: int =
 
 def flags(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute("SELECT name, value, set_by_rule, set_at FROM scenario_flags ORDER BY name").fetchall()]
+
+
+def choices(conn: sqlite3.Connection, author: Principal) -> dict[str, Any]:
+    """What the editor's pickers offer (names, never a raw id to type): active users, every role, and the service departments the author may
+    open requests in (only while the service module is on)."""
+    users = [{"id": r["id"], "name": r["display_name"] or r["username"] or r["id"]}
+             for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY COALESCE(NULLIF(display_name, ''), username)").fetchall()]
+    roles = [{"id": rid, "name": role_name(conn, rid)} for rid in all_roles(conn)]
+    departments: list[dict[str, str]] = []
+    if _tickets_on(conn):
+        from .tickets import access, store
+
+        viewer = access.Viewer(conn, author)
+        departments = [{"id": d["id"], "name": d["name"]} for d in store.departments(conn, include_inactive=False) if viewer.can_create_in(d)]
+    return {"users": users[:500], "roles": roles, "departments": departments}

@@ -3,8 +3,9 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
+import './scenario-recipients';
 import { ApiError } from '../api/client';
-import { getScenarioSettings, saveScenarioSettings, type TimeWindow } from '../api/scenarios';
+import { getScenarioSettings, saveScenarioSettings, scenarioChoices, type ScenarioChoices, type TimeWindow } from '../api/scenarios';
 import { sct, type SctKey } from '../i18n/scenarios';
 import { settingsStyles } from '../styles/settings';
 
@@ -33,6 +34,7 @@ export class ScenarioSettings extends LitElement {
   @state() private msg = '';
   @state() private err = '';
   @state() private busy = false;
+  @state() private choices: ScenarioChoices | null = null;
 
   static styles = [settingsStyles, css`
     :host { display: block; }
@@ -58,6 +60,7 @@ export class ScenarioSettings extends LitElement {
       const r = await getScenarioSettings();
       this.saved = r.settings;
       this.draft = { ...r.settings };
+      void scenarioChoices().then((c) => (this.choices = c)).catch(() => undefined);
     } catch {
       this.unavailable = true; // no permission or no backend: the card is not shown
     }
@@ -106,7 +109,6 @@ export class ScenarioSettings extends LitElement {
   render() {
     if (this.unavailable || !this.saved) return nothing;
     const rec = (this.draft['scenarios.default_recipients'] as { users: string[]; roles: string[] } | undefined) ?? { users: [], roles: [] };
-    const csv = (v: string) => v.split(',').map((x) => x.trim()).filter(Boolean);
     const dirty = Object.keys(this.changes()).length > 0;
     return html`<sw-card heading=${sct('setTitle')} data-scenario-settings>
       <div class="grid">
@@ -116,8 +118,8 @@ export class ScenarioSettings extends LitElement {
           <option value="window" ?selected=${this.draft['scenarios.after_hours_source'] !== 'calendar'}>${sct('setAfterWindow')}</option>
           <option value="calendar" ?selected=${this.draft['scenarios.after_hours_source'] === 'calendar'}>${sct('setAfterCalendar')}</option></select></label>
         ${this.windowRow()}
-        <label>${sct('setRecipients')}<input data-key="scenarios.default_recipients.roles" .value=${rec.roles.join(', ')} @change=${(e: Event) => this.set('scenarios.default_recipients', { ...rec, roles: csv((e.target as HTMLInputElement).value) })} /></label>
-        <label>${sct('setRecipientsUsers')}<input data-key="scenarios.default_recipients.users" .value=${rec.users.join(', ')} @change=${(e: Event) => this.set('scenarios.default_recipients', { ...rec, users: csv((e.target as HTMLInputElement).value) })} /></label>
+        <label>${sct('setRecipients')}<scenario-recipients data-key="scenarios.default_recipients" .choices=${this.choices} .value=${rec}
+          @change=${(e: CustomEvent<{ value: { users: string[]; roles: string[] } }>) => this.set('scenarios.default_recipients', e.detail.value)}></scenario-recipients></label>
       </div>
       <div class="bar">${this.err ? html`<span class="err" role="alert">${this.err}</span>` : this.msg ? html`<span class="ok" role="status">${this.msg}</span>` : nothing}
         <sw-button variant="primary" icon="check" data-scenario-settings-save ?disabled=${!dirty || this.busy} @click=${() => void this.save()}>${sct('setSave')}</sw-button></div>

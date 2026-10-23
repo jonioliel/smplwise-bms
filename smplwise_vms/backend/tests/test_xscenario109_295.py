@@ -458,3 +458,17 @@ def test_no_scenario_module_reaches_the_bridge_or_a_device():
         text = (root / rel).read_text(encoding="utf-8")
         for word in ("automation_transport", "bridge_client", "call_service", "door_execute", "intercom", "go2rtc", "nvr_settings", "recorders."):
             assert word not in text, (rel, word)
+
+
+def test_choices_offer_names_for_the_pickers(w):
+    bind(w.c, w.settings, "mgr", "site_admin", "installation", "*")
+    assert w.c.get(f"{API}/choices").status_code == 200  # also while the module is off (the settings card)
+    w.on()
+    r = w.c.get(f"{API}/choices")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert ADMIN in {u["id"] for u in body["users"]} and all(u["name"] for u in body["users"])
+    assert {"site_admin", "system_admin"} <= {x["id"] for x in body["roles"]}
+    assert body["departments"] == []  # the service module is off
+    bind(w.c, w.settings, "viewer2", "viewer", "installation", "*")
+    assert w.c.get(f"{API}/choices", headers=as_user("viewer2")).status_code == 403

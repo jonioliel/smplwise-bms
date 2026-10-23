@@ -13,6 +13,7 @@
     GET    /scenarios/{id}/runs           the run history with snapshots                                                    scenario.view
     POST   /scenarios/{id}/reassign       {owner_user_id}: a defective rule gets a new author                               scenario.admin
     GET    /scenarios/flags                                                                                                 scenario.view
+    GET    /scenarios/choices             the pickers: users, roles, the departments the caller may open requests in        scenario.manage
     GET    /scenarios/settings            every threshold, window, cap and recipient                                        scenario.admin
     PUT    /scenarios/settings            {changes, confirmed: true}                                                        scenario.admin
 
@@ -121,6 +122,11 @@ def list_flags(principal: Principal = Depends(current_principal_ro), conn: sqlit
     _gate(conn, principal, svc.VIEW)
     return {"flags": svc.flags(conn)}
 
+
+@router.get("/scenarios/choices")
+def choices(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    require(conn, principal, svc.MANAGE, INSTALLATION)  # also while the module is off: the settings card picks the default recipients
+    return svc.choices(conn, principal)
 
 @router.get("/scenarios/settings")
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:

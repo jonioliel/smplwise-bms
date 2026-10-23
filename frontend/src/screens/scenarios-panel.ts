@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
+import './scenario-recipients';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -12,8 +13,8 @@ import { bidi } from '../i18n/bidi';
 import { sct } from '../i18n/scenarios';
 import {
   cmpsFor, createScenario, deleteScenario, disableScenario, draftProblems, enableScenario, getScenario, isGroup, isLeaf, isNot, isRedacted, leafPaths,
-  listScenarios, newLeaf, scenarioRuns, scenarioSignals, simulateScenario, stateTone, testScenario, updateScenario,
-  type Action, type Cmp, type Definition, type DryRun, type Leaf, type Node, type Run, type Scenario, type ScenariosStatus, type SignalDef, type SignalsCatalogue, type Tri,
+  listScenarios, newLeaf, scenarioChoices, scenarioRuns, scenarioSignals, simulateScenario, stateTone, testScenario, updateScenario,
+  type Action, type Cmp, type ScenarioChoices, type Definition, type DryRun, type Leaf, type Node, type Run, type Scenario, type ScenariosStatus, type SignalDef, type SignalsCatalogue, type Tri,
 } from '../api/scenarios';
 import type { DrawerResult } from './automation-drawer';
 
@@ -37,6 +38,7 @@ export class ScenariosPanel extends LitElement {
   @state() private list: Scenario[] | null = null;
   @state() private failed = false;
   @state() private cat: SignalsCatalogue | null = null;
+  @state() private choices: ScenarioChoices | null = null;
   @state() private page = 0;
   @state() private pageSize = 6;
   @state() private editing: Scenario | null = null;
@@ -139,6 +141,7 @@ export class ScenariosPanel extends LitElement {
     } catch {
       this.failed = true;
     }
+    if (this.status?.can.manage && !this.choices) void scenarioChoices().then((c) => (this.choices = c)).catch(() => undefined);
   }
 
   protected updated(changed: PropertyValues<this>): void {
@@ -283,7 +286,6 @@ export class ScenariosPanel extends LitElement {
 
   private actionRow(a: Action, i: number): TemplateResult {
     const set = (next: Action) => { const actions = [...this.draft.actions]; actions[i] = next; this.draft = { ...this.draft, actions }; this.dry = null; };
-    const csv = (v: string) => v.split(',').map((x) => x.trim()).filter(Boolean);
     const off = this.status && !this.status.actions[a.type];
     return html`<div class="act" data-action=${a.type}>
       <select aria-label="פעולה" @change=${(e: Event) => { const t = (e.target as HTMLSelectElement).value; set(t === 'notify' ? { type: 'notify', to: { roles: [], users: [] } } : t === 'set_flag' ? { type: 'set_flag', flag: 'flag_1', value: true } : { type: 'create_service_request', department_id: '' }); }}>
@@ -291,10 +293,13 @@ export class ScenariosPanel extends LitElement {
         ${this.cat?.tickets_on || a.type === 'create_service_request' ? html`<option value="create_service_request" ?selected=${a.type === 'create_service_request'}>${sct('actTicket')}</option>` : nothing}
         <option value="set_flag" ?selected=${a.type === 'set_flag'}>${sct('actFlag')}</option>
       </select>
-      ${a.type === 'notify' ? html`<input aria-label=${sct('recipientsRoles')} placeholder=${sct('recipientsRoles')} .value=${(a.to?.roles ?? []).join(', ')} @change=${(e: Event) => set({ ...a, to: { ...a.to, roles: csv((e.target as HTMLInputElement).value) } })} />
-        <input aria-label=${sct('recipientsUsers')} placeholder=${sct('recipientsUsers')} .value=${(a.to?.users ?? []).join(', ')} @change=${(e: Event) => set({ ...a, to: { ...a.to, users: csv((e.target as HTMLInputElement).value) } })} />
-        <span class="hint">${sct('recipientsDefault')}</span>` : nothing}
-      ${a.type === 'create_service_request' ? html`<input aria-label=${sct('department')} placeholder=${sct('department')} .value=${a.department_id} @change=${(e: Event) => set({ ...a, department_id: (e.target as HTMLInputElement).value.trim() })} />
+      ${a.type === 'notify' ? html`<scenario-recipients data-notify-to .choices=${this.choices} .value=${{ users: a.to?.users ?? [], roles: a.to?.roles ?? [] }}
+        @change=${(e: CustomEvent<{ value: { users: string[]; roles: string[] } }>) => set({ ...a, to: e.detail.value })}></scenario-recipients>` : nothing}
+      ${a.type === 'create_service_request' ? html`<select aria-label=${sct('department')} data-department @change=${(e: Event) => set({ ...a, department_id: (e.target as HTMLSelectElement).value })}>
+          <option value="" ?selected=${!a.department_id}>${sct('departmentPick')}</option>
+          ${(this.choices?.departments ?? []).map((d) => html`<option value=${d.id} ?selected=${d.id === a.department_id}>${bidi(d.name)}</option>`)}
+          ${a.department_id && !(this.choices?.departments ?? []).some((d) => d.id === a.department_id) ? html`<option value=${a.department_id} selected>${a.department_id}</option>` : nothing}
+        </select>
         <input aria-label=${sct('ticketTitle')} placeholder=${sct('ticketTitle')} .value=${a.title ?? ''} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); set({ ...a, title: v || undefined }); }} />
         ${this.cat && !this.cat.tickets_on ? html`<span class="err">${sct('ticketsOff')}</span>` : nothing}` : nothing}
       ${a.type === 'set_flag' ? html`<input aria-label=${sct('flagName')} .value=${a.flag} @change=${(e: Event) => set({ ...a, flag: (e.target as HTMLInputElement).value.trim() })} />

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cmpsFor, draftProblems, leafPaths, newLeaf, stateTone, type Definition, type SignalDef } from '../src/api/scenarios';
+import { cmpsFor, draftProblems, filterChoices, toggledId, leafPaths, newLeaf, stateTone, type Definition, type SignalDef } from '../src/api/scenarios';
 import { SCT_KEYS, SCT_TABLES, sct } from '../src/i18n/scenarios';
 
 // XSCENARIO109-295: the pure helpers of the scenarios editor and its strings. No browser.
@@ -60,4 +60,22 @@ test('the editor offers no operating action (closed set: notification, service r
   const src = readFileSync(join(here, '../src/screens/scenarios-panel.ts'), 'utf8');
   const types = [...src.matchAll(/type: '([a-z_]+)'/g)].map((m) => m[1]);
   expect(new Set(types)).toEqual(new Set(['notify', 'set_flag', 'create_service_request']));
+});
+
+test('recipient picker: ticking keeps order without duplicates, the search filters by name', () => {
+  expect(toggledId(['a'], 'b', true)).toEqual(['a', 'b']);
+  expect(toggledId(['a', 'b'], 'a', true)).toEqual(['a', 'b']);
+  expect(toggledId(['a', 'b'], 'a', false)).toEqual(['b']);
+  const rows = [{ id: 'u1', name: 'דנה כהן' }, { id: 'u2', name: 'Avi Levi' }, { id: 'u3', name: 'מנהל אתר' }];
+  expect(filterChoices(rows, 'levi').map((r) => r.id)).toEqual(['u2']);
+  expect(filterChoices(rows, 'כהן').map((r) => r.id)).toEqual(['u1']);
+  expect(filterChoices(rows, '', 2)).toHaveLength(2);
+});
+
+test('the editor picks recipients and departments from lists, never typed ids', () => {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const src = readFileSync(join(here, '../src/screens/scenarios-panel.ts'), 'utf8');
+  expect(src).toContain('<scenario-recipients');
+  expect(src).toContain('data-department');
+  expect(src).not.toMatch(/placeholder=\$\{sct\('recipients(Roles|Users)'\)\}/);
 });

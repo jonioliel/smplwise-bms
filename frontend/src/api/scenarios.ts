@@ -158,6 +158,9 @@ export const disableScenario = (id: string, version: number) => post<Scenario>(`
 export const testScenario = (id: string, overrides?: Record<string, number | boolean | null>) => post<DryRun>(`scenarios/${encodeURIComponent(id)}/test`, { overrides: overrides ?? null });
 export const simulateScenario = (definition: Definition, overrides?: Record<string, number | boolean | null>) => post<DryRun>('scenarios/simulate', { definition, overrides: overrides ?? null });
 export const scenarioRuns = (id: string) => get<{ runs: Run[] }>(`scenarios/${encodeURIComponent(id)}/runs`);
+export interface Recipients { users: string[]; roles: string[] }
+export interface ScenarioChoices { users: { id: string; name: string }[]; roles: { id: string; name: string }[]; departments: { id: string; name: string }[] }
+export const scenarioChoices = () => get<ScenarioChoices>('scenarios/choices');
 export const getScenarioSettings = () => get<{ settings: Record<string, unknown> }>('scenarios/settings');
 export const saveScenarioSettings = (changes: Record<string, unknown>) => put<{ settings: Record<string, unknown>; changed: string[] }>('scenarios/settings', { changes, confirmed: true });
 
@@ -213,3 +216,14 @@ export function draftProblems(d: Definition, limits: { depth: number; leaves: nu
 
 export const stateTone = (s: ScenarioState): 'ok' | 'warn' | 'bad' | 'off' =>
   s === 'active' ? 'warn' : s === 'degraded' || s === 'suppressed' ? 'bad' : s === 'ok' ? 'ok' : 'off';
+
+/** The selected list after ticking (on) or unticking one id; order kept, no duplicates. */
+export function toggledId(list: readonly string[], id: string, on: boolean): string[] {
+  return on ? (list.includes(id) ? [...list] : [...list, id]) : list.filter((x) => x !== id);
+}
+
+/** The picker's filter: names containing the query (case-insensitive), at most `max` rows. */
+export function filterChoices<T extends { id: string; name: string }>(rows: readonly T[], q: string, max = 40): T[] {
+  const s = q.trim().toLowerCase();
+  return (s ? rows.filter((r) => r.name.toLowerCase().includes(s)) : [...rows]).slice(0, max);
+}

@@ -20,6 +20,7 @@ Prefix `/api/v1`. Contract: `docs/changes/CR-SCENARIO109.md` (section 17 binds).
 | `GET /scenarios/{id}/runs` | scenario.view | last 50 runs with per-leaf snapshot (redacted per viewer) |
 | `POST /scenarios/{id}/reassign` | scenario.admin | `{owner_user_id}`: a rule stopped for `author_rights_lost` gets a new author |
 | `GET /scenarios/flags` | scenario.view | |
+| `GET /scenarios/choices` | scenario.manage | the pickers: active users and every role by name, the service departments the caller may open requests in (while the service module is on); answers also while the module is off (the settings card) |
 | `GET/PUT /scenarios/settings` | scenario.admin | PUT `{changes, confirmed: true}`; audited `scenario.settings.change` / `scenario.kill_switch` |
 
 ## Definition
