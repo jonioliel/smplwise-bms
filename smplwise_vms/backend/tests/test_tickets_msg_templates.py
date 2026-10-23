@@ -81,7 +81,8 @@ def test_every_starter_is_valid_in_every_language():
 def test_the_fixed_code_variants_are_pinned_valid_and_name_the_organisation():
     """VPORTAL review F2 (2.6.4): the portal sign-in code is a code-owned variant of the fixed `phone_verify` message, chosen by the
     outbox row's template id; it names the organisation and the purpose and says the code is never asked for."""
-    assert set(tp.FIXED_STARTERS) == {"portal_code", "verify_privacy", "verify_technician", "verify_technician_contact"}  # + PRIVORG-291, PRIVTEXT-293
+    assert set(tp.FIXED_STARTERS) == {"portal_code", "verify_privacy", "verify_technician", "verify_technician_contact",
+                                      "intake_unlisted", "intake_approved"}  # + PRIVORG-291, PRIVTEXT-293, CR-INTAKE99
     for name, texts in tp.FIXED_STARTERS.items():
         assert set(texts) == set(channel.LANGS), name
         for lang, body in texts.items():
