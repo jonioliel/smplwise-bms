@@ -146,6 +146,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.bulk_people",
                  # STATIONPERM-295: the per-station permission switch is security policy - never changed by an archive
                  "access.station_permissions",
+                 # COMPLY108-295: the compliance export switch is security policy - never switched on by an archive
+                 "access.compliance_export",
                  # SECFIX2-295 / PUB-03: the retention period and the per-vendor cap of vendor-typed technicians (privacy policy)
                  "access.external.pending_retention_days", "access.external.pending_max_per_vendor",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
