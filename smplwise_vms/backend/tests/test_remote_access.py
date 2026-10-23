@@ -515,6 +515,7 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("POST", "/api/v1/nvr/encoding-batches"), ("POST", "/api/v1/nvr/encoding-batches/preview"),
                      # NVRMASK-295: the privacy-mask preview / write is local-only
                      ("POST", "/api/v1/nvr/privacy-masks/preview"), ("POST", "/api/v1/nvr/privacy-masks/apply"),
+                     ("POST", "/api/v1/nvr/privacy-masks/copy/plan"),
                      # CR-028: the cast administration (relay origin and its self-check, per-screen switches, the test cast) is local-only
                      ("GET", "/api/v1/multimedia/cast/config"), ("PUT", "/api/v1/multimedia/cast/config"), ("POST", "/api/v1/multimedia/cast/origin/check"),
                      ("GET", "/api/v1/multimedia/cast/screens"), ("PUT", "/api/v1/multimedia/cast/screens/{key}"), ("POST", "/api/v1/multimedia/cast/test"),
