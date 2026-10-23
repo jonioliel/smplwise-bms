@@ -425,17 +425,19 @@ def test_water_tables_are_project_tables_kept_when_absent():
         assert t in backup.PROJECT_TABLES and t in backup.KEEP_WHEN_ABSENT
 
 
-# ---------------------------------------------------------------- migration 0150 (built as provisional 0152; renumbered at release/2140)
+# ---------------------------------------------------------------- migrations 0150 + 0152 (built as provisional 0152 / 0153; renumbered at release/2140 and release/2150)
 
 
 def test_migration_numbers_contiguous():
     files = {int(f.name.split("_", 1)[0]): f for f in dbmod.MIGRATIONS_DIR.glob("*.sql")}
     numbers = sorted(files)
     assert numbers == list(range(1, numbers[-1] + 1)), "the sequence has no gap"
-    water = [f.name for f in files.values() if "water" in f.name]
-    assert water == ["0150_infra_water.sql"], "one file for the water module"
+    water = sorted(f.name for f in files.values() if "water" in f.name)
+    assert water == ["0150_infra_water.sql", "0152_infra_water_alerts.sql"], "slice 1 and slice 2 files of the water module"
     text = files[150].read_text(encoding="utf-8")
     assert "Final number 0150" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
+    text = files[152].read_text(encoding="utf-8")
+    assert "Final number 0152" in text.splitlines()[0] and "CREATE TABLE water_alert_settings" in text
 
 
 def test_migration_applies_and_carries_the_gas_reservation(settings):

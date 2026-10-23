@@ -1,6 +1,7 @@
 # CR-WATER78 - Water meters under Infrastructure (board item r078; gas later on the same model)
 
-Status: PROPOSED (change record + owner mockup only, 2026-10-23). Branch `pilot/WATER78-295` from `origin/main` (v2.12.3,
+Status update: owner decisions of 2026-10-23 applied; slice 1 built (pilot/WATER78-295), slice 2 built backend-only (pilot/WATER78B-295,
+section 15). Original status: PROPOSED (change record + owner mockup only, 2026-10-23). Branch `pilot/WATER78-295` from `origin/main` (v2.12.3,
 c37c75c917c79f694039c961174db37d57d43c4c). No product code, no migration file, no setting, no permission and no device was
 touched. Mockup: `docs/design/mockups/water-78/index.html` (single file, RTL Hebrew, light + dark, desktop + phone, the states).
 
@@ -98,26 +99,52 @@ Readings are cumulative; the consumption of an interval / day / period is the su
 (a drop under 10 % and under 20 L), spikes, replacement and the "not reporting" rule are the energy counter's. Manual readings
 and calibration as 0058. Daily totals per local date of the installation zone; DST days need no special case.
 
-## 5. Screens (the mockup)
+## 5. Screens (the mockup, revision 3 - 2026-10-24)
 
-Level-1 tab **מים** beside **מוני חשמל**; level-2 row **מונים · צריכה · התראות**.
+Owner feedback on revision 2 (2026-10-24): "looks good, but it must be MUCH more in the style of the electricity meters screens".
+Revision 3 (`docs/design/mockups/water-78/index.html`) is the real electricity meters screens reproduced 1:1 - the CSS of
+`electricity/styles.ts`, `screens/electricity/page-meters.ts`, `electricity/meter-card.ts`, `components/sw-tabs.ts`,
+`sw-state-panel.ts`, `sw-drawer.ts`, `sw-button.ts` and the shell of `shell/sw-app.ts` copied with the real class names - with
+water content only. Evidence: `private/review/water-78-v3/` (the mockup beside a screenshot of the REAL electricity screen at
+1366 / 1024 / 375, light and dark: `compare-*.png`). Implementer's rule: `screens/water/page-meters.ts` is `page-meters.ts` with
+the water adapter; nothing water-specific is drawn with its own component.
 
-1. **מונים** - the electricity meters' page shape: title + subtitle (count, last reading), the actions ("+ מונה חדש" for
-   managers, "קריאה ידנית"), the KPI row (each a filter: מונים / דליפה חשודה / לא מדווחים / צריכה היום in m³ - the last one is a
-   figure, not a filter), the places tree (floors / areas with counts and the worst state per area; a select on the phone), the
-   toolbar (search, kind segmented control, table / cards), the table (state badge, name + source line, kind, place, last
-   reading, today, this month, night flow, actions), phone cards. A row opens the meter sheet: last reading, the 24 h / 7 d bars,
-   the night-flow figure, open alerts, manual readings, replace / pause (manage).
-2. **צריכה** - the consumption page: range chips (היום / 7 ימים / 30 ימים / חודש קודם / טווח), the installation total with the
-   comparison to the same range before, a daily bar chart (bars = m³ per day, the night share drawn darker inside each bar so a
-   leak shows as a floor that never reaches zero), the per-meter table (consumption, share, change vs the previous range, night
-   flow), CSV export (`?lang=he|en`, UTF-8 BOM, formula-safe, like the temperature events).
-3. **התראות** (slice 2) - the alert log in the temperature screen's shape: KPI row (פתוחות / אושרו / 7 ימים), the list (severity
-   badge, kind chip, meter, place, since, value, acknowledge / mute), filters per kind and meter.
-4. States on every page: loading (skeleton), empty ("עדיין אין מוני מים" with the manager's "+ הוספת המונה הראשון"), error (retry),
-   **module off** ("המודול כבוי - מוני מים מופעלים בהגדרות המערכת", a "להגדרות" button for system configurators; the "מים" tab is
-   not offered at all when the module is off - the off panel is what the direct URL shows), forbidden (view without `water.view`).
-5. Settings › תשתיות › מים: the module switch, retention, stale minutes, leak defaults, alert routing, backup choice.
+Level-1 pill row **מוני חשמל | מים** (the "מים" tab carries the red count of open leaks, `TabItem.badge`); level-2 compact row
+**מונים · צריכה · התראות (n)**.
+
+1. **מונים** - exactly `page-meters.ts`: the head row (search field, כרטיסים / טבלה segmented control, "+ הוספת מונה" for
+   `water.manage`; on the phone the area select beside the button), the four tiles (היום in m³, מתחילת החודש, מדווחים x מתוך y,
+   **דליפה חשודה** in the danger colour - the electricity tiles with the stale tile replaced by the leak count; the tiles are
+   figures, not filters, as on the electricity page), the areas tree (`כל האזורים`, floors with the chevron and per-floor collapse,
+   areas with counts), the table (שם, אזור · קומה, קריאה נוכחית (מ״ק) with three decimals, היום, מתחילת החודש, **ספיקת לילה** in
+   litres per hour - "כבוי" for an irrigation meter, "-" without a reading - and מצב), the cards view (`.mcard`: name + chip,
+   area, the big "מ״ק היום", the reading, the night flow), the phone rows (`.li.pick`). The מצב chip is the electricity chip
+   (מדווח / לא מדווח מ-HH:MM / מושהה) and, from slice 2, the open alert wins: **דליפה חשודה** (`c-err`), **צריכה חריגה**
+   (`c-warn`). A row opens the meter card: the `sw-drawer` modal (480 px; a bottom sheet on the phone) with the chip, the facts
+   (`dl.kv`: אזור, קריאה נוכחית, דיווח אחרון, יחידה, סוג, ספיקת לילה, כללי דליפה), "צריכה" with the 24 שעות / 30 ימים / 12 חודשים
+   segmented control and `meter-card.ts`' bar chart (the 24-hour view marks the night window 01:00-05:00; a leak paints those
+   bars in the danger colour), **התראות פתוחות** with אישור / השתקה 60 ד׳ (`water.ack`), תקופות מונה, קריאות ידניות וכיול, and
+   the actions row (שינוי שם, החלפת מונה, השהיה / חידוש, הסרה).
+2. **צריכה** - the same page shape: the head row (the range segmented control היום / 7 ימים / 30 ימים / חודש קודם, "ייצוא CSV"),
+   four tiles (סה״כ בטווח, לעומת התקופה הקודמת, ממוצע יומי, ספיקת לילה ממוצעת), a card with the daily bar chart (the electricity
+   chart; the night share drawn darker at the foot of each bar, leak days in the danger colour, legend in the card head), the
+   per-meter table (שם, אזור, צריכה (מ״ק), חלק, לעומת הקודם, ספיקת לילה) and phone rows. CSV export as before (`?lang=he|en`,
+   UTF-8 BOM, formula-safe).
+3. **התראות** (slice 2) - the same page shape (no longer the temperature screen's list): the head row (פתוחות / הכול segmented
+   control, "ייצוא CSV", "כללי דליפה" for managers), four tiles (פתוחות in the danger colour, נסגרו השבוע, מושתקות, the leak
+   rule in force "01:00-05:00 · 6 ליטר לשעה · שעתיים"), the table (מונה, אזור, סוג, מאז, ערך, מצב chip, אישור / השתקה 60 ד׳
+   actions for `water.ack`) and phone rows; an open row opens the meter card.
+4. States on every page, exactly `page-meters.ts`: loading = a card of seven skeleton rows; empty = `sw-state-panel` with the
+   drop icon, "אין מונים עדיין" and the manager's "+ הוספת מונה" (no paragraph - the operator-screen copy rule); error =
+   `sw-state-panel state="error"` "לא ניתן לטעון את המונים" + "נסה שוב"; **module off** = the stale panel "המודול כבוי - מוני
+   מים מופעלים בהגדרות המערכת" + "להגדרות" for managers, the "מים" tab and the page row not offered (the off panel is what a
+   stale deep link shows); forbidden = the lock panel (view without `water.view`). "לא נמצאו מונים" is the compact panel under a
+   search without hits.
+5. Settings › תשתיות › מים: the module switch, retention, stale minutes, leak defaults, alert routing, backup choice (not drawn;
+   the electricity settings section's shape).
+6. Dropped from revision 2 (they were temperature-screen parts, not electricity ones): the page title + subtitle block, the KPI
+   filter row, the solid state badges, the kind segmented control in the toolbar, the "קריאה ידנית" head button (it lives in the
+   meter card, as on the electricity card), the hint paragraphs of the empty states.
 
 ## 6. API (`/api/v1/infra/water/...`)
 
@@ -276,3 +303,91 @@ water store, never from the mirror directly; nothing is ever sent to a device.
 | D6 | No actuation at all | AGENTS.md physical-systems rule; a valve is a separate approved CR |
 | D7 | Module switch default OFF (owner standing rule for new modules) | the electricity module has no switch (it hides without meters); water gets one and the off panel |
 | C1 | CR-023 §3 said "water and generators later as siblings" of "חשמל" - this CR makes "מים" a sibling of "מוני חשמל" in `INFRA_TABS`, the label the released tab carries | recorded, not a conflict |
+| D8 | Slice 2 has its OWN provisional migration file (0153 here) instead of appending to 0152 (section 4.2 said one file) | the lead's instruction for pilot/WATER78B-295: slice 1 is already integrated as 0150 on release/2140, so its file can no longer change; 0153 became 0152 at the 2.15.0 integration (release/2150) |
+| D9 | Routing per alert kind is stored as `water_alert_settings.kinds_json` (the temperature module's shape) instead of a `water_alert_recipients` table | one row, one revision, the same validation and policy mirroring as the temperature module; no per-meter recipient list in this slice |
+| D10 | One source `water.leak` carries both the night-flow warning (sent at severity `alert`) and the alarms (burst, a whole night - `critical`) through the signal's severity | the owner's rule "leak = alert, burst / continuous long = may be critical"; one notification per alert row, which re-notifies when it turns into an alarm |
+
+## 15. Slice 2 as built (pilot/WATER78B-295, from pilot/WATER78-295 @ 95e44558; backend only)
+
+Status: BUILT on the branch, backend only (no frontend, no device command of any kind). Owner decisions 2026-10-23 applied: alerts ON by
+default once the module is on (Q3), viewers without `water.view` (Q4), floor scope (Q5), never an actuation (Q6), the home tile only while
+a leak is open (Q7), 01:00-05:00 with 6 L/h over two hours (Q8), the irrigation night rule off (Q9), m³ / litres (Q10).
+
+- **Migration `0152_infra_water_alerts.sql` (built as provisional 0153; renumbered at the 2.15.0 integration, release/2150)**: `water_alert_settings` (one row of
+  installation defaults + `kinds_json` routing), `water_alert_events` (the alert log; a partial unique index keeps ONE open row per meter and
+  kind), `water_alert_state` (the evaluator's per-meter cursor = the last 15-minute bucket judged), `water_meters.muted_until / muted_by`.
+  Per-meter overrides use `water_meters.rules_json` (0150). The settings row joins the backup (water_backup.MAIN_TABLES); the log and the
+  cursor are history and do not.
+- **Evaluator `services/water_runtime.py`** on the janitor (main.janitor_tick), once per closed bucket (90 s grace), module-gated, clock
+  injectable (`water_runtime.clock` / `now=`). Rules exactly as section 9: night flow (N consecutive buckets >= the threshold inside the
+  window; a warning; an alarm when the whole window flowed - the alarm stays until a still bucket closes, a warning ends at a still bucket
+  or at `night_to`; one row per night window), abnormal (today so far > factor x the same-weekday median over `baseline_days`, strictly, and
+  > `abnormal_min_l`; no rule under 7 days of age or without a baseline day; ends with the day), burst (any bucket since the cursor above
+  `burst_lph` = `max_flow_lph`; an alarm at once; ends when the latest bucket is back at or below), not reporting (silence >= `offline_min`
+  AND the entity unavailable / unknown / gone). A paused or retired meter's rows end with a stated reason. Sensor health (battery /
+  signal) is NOT built in this slice.
+- **Notifications** through the existing pipeline as new sources `water.leak` (critical in the catalogue; push + app), `water.abnormal`
+  (alert; push), `water.offline` (alert; inbox), category `device_faults`, recipients rule `water` (leak: operators + site / system admins;
+  the rest: the admins), subject kind `water` (water.view on the meter, floor-scoped, only while the module is on). Deduplicated by the
+  alert row (dedupe key `source:row id`): one notification per row that folds, re-notifies when it becomes an alarm, resolves when the row
+  closes. The pipeline's quiet window, severity pass-through and delivery are untouched; the module's own holds (quiet hours - off by
+  default, mute 15/30/60/120 min, alerts off) hold WARNINGS only and log `suppressed`; alarms only with `quiet_includes_alarms` /
+  `mute_includes_alarms`. The water sources are listed in the policy matrix only while the module is on; switching the module off resolves
+  every open row and its notification with `alerts_disabled`.
+- **API** (all `module_off` while off): `GET /events?state=open|all&kind=&meter_id=` and `GET /events/summary` (water.view, floor-scoped;
+  KPI row + `home_tile {show, leaks, link}` honouring `water.home_kpi`), `POST /events/{id}/ack` (water.ack on the meter; acknowledges the
+  notification too; audited `infra.water.event.ack`), `POST|DELETE /meters/{id}/mute` (water.ack; audited), `GET /alerts` (water.manage) /
+  `PUT /alerts` (system.configure; audited `infra.water.alerts.update`), `PATCH /meters/{id}` accepts `rules` (water.manage). New setting
+  `water.home_kpi` (true, water.manage).
+- **Not built in slice 2**: the frontend (the **התראות** page, the settings section, the home tile), `GET /events.csv`, sensor health, the
+  ticket action from an open leak alert, per-meter recipients.
+- **Tests**: `tests/test_water_alerts_s2.py` (each rule at its exact threshold, irrigation default and override, dedup, holds, ack,
+  permissions and floor scope on the log and the recipients, module off, restart persistence, the catalogue); `test_water_meters_s1.py`
+  (the contiguity test expects 0150 + 0152 after the 2.15.0 renumbering) and `test_notify_core.py` (the water sources are gated like the ticket sources).
+
+## 16. Owner review 24.10 - mockup revision 4 (decisions recorded)
+
+Source: owner's review of the 11 mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 1). Water v3 is
+approved; **revision 4 was APPROVED by the owner on 24.10, with one correction: shared billing settings (VAT, business details,
+retention) are reused from electricity, not repeated for water**. Revision 4 (`docs/design/mockups/water-78/index.html`) adds what the real electricity module already has.
+
+- **Q1 (billing) is answered YES, and "tenant billing / chargeback" is needed.** Slice 3 of section 2 is now in scope: what was built
+  for electricity must exist for water. This reverses the section 13 recommendation ("not now"); section 13 Q1 is closed by this
+  decision (recorded, not silently resolved).
+- **Pages added (level 2 of "מים"):** **חשבונות**, **חיובים**, **לקוחות**, **הגדרות** beside מונים / צריכה / התראות. They mirror
+  `electricity/elec-account-list.ts`, `elec-account-page.ts`, `elec-bills-list.ts`, `elec-bill-page.ts`, `elec-customers.ts` and
+  `elec-settings.ts` with water content. Implementer's rule is unchanged: the electricity components are reused through the
+  medium adapter, nothing is redrawn with its own component.
+  - **חשבונות (utility / billing accounts):** a customer + a signed meter formula (+ / minus, so a "general difference - losses and
+    leaks" account = the main meter minus every sub-meter is possible) + a tariff + a period (month / two months) + the automatic
+    bill mode (none / draft / issue). List (search, tiles, table, phone rows) and an account page with the tabs מצב / היסטוריה /
+    חיובים: the meters in the formula with start and current reading, the customer card, the price card, the next bill.
+    A stale meter is not counted until it reports again (the electricity rule) and says so on the account.
+  - **חיובים (bills and tenant chargeback):** the electricity states טיוטה / הונפק / נשלח / שולם / בוטל, number sequence, issue,
+    mark sent, mark paid, correct (a new draft that replaces), void with a reason, PDF. The bill separates water and sewage per
+    m³, then VAT.
+  - **לקוחות:** customer number, name, address / unit, phone, email, open balance, the customer card; a customer with accounts
+    cannot be deleted.
+  - **הגדרות (water-specific only):** tariff versions (water price and sewage price per m³, before VAT) and the alerts section below.
+    VAT, the business details on the bill, bill numbering, payment terms, retention and the default price entry mode are **NOT
+    duplicated**: water billing reuses the shared billing settings that the electricity module already has (system > infrastructure),
+    and the water settings page shows a short "shared with electricity" note with a link to them. Implementation: the water
+    account / bill code reads `billing_settings` and `vat_rates` as they are; no water copy of those tables or screens.
+  - **Permissions (as electricity):** money columns, the bills / customers pages and the customer's phone need the bills permission
+    (here `water.bills`, section 8); settings need manage. Operators see accounts and consumption without money.
+- **New alert action: snooze ("נדנוד") for X time, X editable in settings.** In the alert log and in the meter card each open alert
+  carries a split button: the main part snoozes for the default duration, the arrow opens the list of the configured durations
+  (each shows the time it ends). The alert is not acknowledged: it returns when the time ends if the condition persists, and the
+  row shows "מנודנדת עד HH:MM" (the tile "מושתקות" is renamed "מנודנדות"). It replaces the hard-coded "השתקה 60 ד׳" of revision 3.
+  - Settings (הגדרות > התראות והשהיה): the list of offered durations (add / remove, minutes / hours / days; initial set 15 min, 1 hour,
+    4 hours, 1 day), the default for the main button (initial: 1 hour) and the maximum snooze (initial: 7 days, a suggestion to be
+    confirmed by the owner). The night-flow rules stay as approved and are not edited there.
+  - Permission: `water.ack` (the acknowledge / mute permission of section 8); viewers do not see the action.
+  - Backend note for the implementer: the slice-2 alert log's "mute" state becomes "snoozed until"; the duration list, the default
+    and the maximum are rows of `water_alert_settings` (one revision with the rest of the routing settings).
+- **Control-screen rule (owner, general):** no page scroll on control screens. Revision 4 was measured at 1440 x 900: every page
+  fits one screen, including every new page (the chart height, row padding and side cards were tightened for that). Phone width
+  lists scroll vertically as lists do; the meter card drawer keeps its internal scroll (unchanged from the electricity card).
+- **Evidence:** `private/review/water-78-mockup-v4.html` and `private/review/water-78-v4/` (screenshots, light and dark, desktop and phone).
+- **Not decided here (left as proposals in the mockup):** the tariff values, the 18% VAT rate, the bill header and the customer
+  fixtures are invented example data; the "maximum snooze" default; whether the "loss" account is offered by default.

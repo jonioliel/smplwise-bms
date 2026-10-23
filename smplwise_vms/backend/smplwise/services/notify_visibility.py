@@ -17,6 +17,7 @@ are the product's existing ones, not new ones:
 | energy_bills       | energy.bills (ELECBILL77)                                                                        |
 | access_denied      | access.external.grant on the refused attempt's station (DENYALERT133-295)                        |
 | system             | system.configure                                                                                |
+| water              | water.view on the meter (floor-scoped by its entity), only while the water module is on (CR-WATER78) |
 | session / security | the account's own user; a code lockout ONLY to system.configure holders (not the locked-out user)  |
 
 A rule alert (`origin.events_scope`) keeps the rule it always had: a camera alert follows the camera scope for events.read, a
@@ -198,6 +199,16 @@ class Reach:
             from . import temperature_access
 
             return temperature_access.visible_to(self.conn, lambda eid: self._entity("devices.read", eid), sid)
+        if kind == "water":  # CR-WATER78 slice 2: water.view on the meter (floor-scoped by its entity, owner Q5), only while the module is on
+            from . import water_alerts, water_meters
+
+            if not water_alerts.module_on(self.conn) or not sid:
+                return False
+            reach = self._cache.get("water_reach")
+            if reach is None:
+                reach = self._cache["water_reach"] = water_meters.Reach(self.conn, self.principal)
+            row = self.conn.execute("SELECT source_ref FROM water_meters WHERE id = ?", (sid,)).fetchone()
+            return row is not None and reach.sees(row)
         if kind == "session":
             if str(n.get("source") or "") == "security.lockout":
                 return self._allowed("system.configure")  # administrators ONLY: the locked-out account is not told (and cannot acknowledge it)
