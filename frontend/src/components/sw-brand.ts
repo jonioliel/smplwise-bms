@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { onDesign, resolvedTheme } from '../design/apply';
-import { brandLogo, chooseCompanyLogo, companyLogoUrl, logoScale, onBrandLogo, productLogoUrl, productMarkUrl, type BrandLogoState, type DarkMode, type LogoSize } from '../design/brand-logo';
+import { brandLogo, chooseCompanyLogo, companyLogoUrl, installerLogoUrl, logoScale, onBrandLogo, productLogoUrl, productMarkUrl, type BrandLogoState, type DarkMode, type LogoSize } from '../design/brand-logo';
 import { t } from '../i18n/he';
 
 /**
@@ -20,7 +20,7 @@ import { t } from '../i18n/he';
  */
 @customElement('sw-brand')
 export class SwBrand extends LitElement {
-  @property({ reflect: true }) kind: 'company' | 'product' = 'company';
+  @property({ reflect: true }) kind: 'company' | 'product' | 'installer' = 'company';
   /** base height in px at the medium size */
   @property({ type: Number }) h = 36;
   /** base maximum width in px at the medium size (0 = none beyond the container) */
@@ -102,10 +102,13 @@ export class SwBrand extends LitElement {
       return html`<span class="box" style=${style} ?aria-hidden=${this.decorative}><img src=${this.mark ? productMarkUrl() : productLogoUrl()} alt=${alt} data-brand-img="product" draggable="false" /></span>`;
     }
     const dark = (this.scheme === 'auto' ? this.theme : this.scheme) === 'dark';
-    const pick = chooseCompanyLogo(b.files, this.previewMode ?? b.darkMode, dark);
-    const src = pick ? companyLogoUrl(pick.variant, pick.file) : null;
+    const installer = this.kind === 'installer';
+    // WHITELABEL097-295: the installer's logo follows the same light / dark rules as the company's; nothing at all while the profile is off
+    if (installer && !b.wl.enabled) return nothing;
+    const pick = chooseCompanyLogo(installer ? b.wl.files : b.files, this.previewMode ?? b.darkMode, dark);
+    const src = pick ? (installer ? installerLogoUrl(pick.variant, pick.file) : companyLogoUrl(pick.variant, pick.file)) : null;
     if (!pick || !src) return nothing;
-    const alt = this.decorative ? '' : b.companyName || t('brandLogos.companyAlt');
+    const alt = this.decorative ? '' : installer ? b.wl.name || t('whiteLabel.alt') : b.companyName || t('brandLogos.companyAlt');
     return html`<span class=${pick.treatment === 'plate' ? 'box plate' : pick.treatment === 'darkplate' ? 'box plate dk' : pick.treatment === 'invert' ? 'box invert' : 'box'} style=${style} data-brand-treatment=${pick.treatment}><img src=${src} alt=${alt} data-brand-img="company" data-brand-variant=${pick.variant} draggable="false" /></span>`;
   }
 }

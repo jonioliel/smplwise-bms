@@ -49,6 +49,7 @@ import './system-home-screen'; // home redesign: הגדרות › חשמל וה�
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
 import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-brand-logos'; // LOGOS-295: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (company logo, size, dark background, tab title)
+import './system-brand-installer'; // WHITELABEL097-295: הגדרות › כללי › מראה המערכת › מיתוג מתקין (default off)
 import './system-brand-colors';// 2.4.4: הגדרות › כללי › צבעי המותג (accent, switch-on colour)
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
@@ -804,6 +805,7 @@ export class SystemDiagnostics extends LitElement {
       ${this.renderDesign()}
       <system-design></system-design>
       <system-brand-logos></system-brand-logos>
+      <system-brand-installer></system-brand-installer>
       <system-brand-colors></system-brand-colors>
       <system-look></system-look>
       <system-nav-size></system-nav-size>

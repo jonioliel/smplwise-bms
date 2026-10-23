@@ -128,10 +128,9 @@ import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sens
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
 import { setGlassScheme } from '../screens/devices-style';
-import { setBrandColors } from '../design/brand';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
-import { brandLogo, logoScale, onBrandLogo } from '../design/brand-logo'; // LOGOS-295: the logo strip's size follows the administrator's scale
+import { applyInstallationColors, brandLogo, logoScale, onBrandLogo } from '../design/brand-logo'; // LOGOS-295: the logo strip's size follows the administrator's scale
 import '../components/sw-brand';
 import { loadLook, setInstallationLook } from '../design/look';
 import { loadBackgroundPref, setInstallationBackground } from '../design/background';
@@ -1703,7 +1702,7 @@ export class SwApp extends LitElement {
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
           applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
-          setBrandColors(ps['ui.accent'], ps['ui.toggle_on']); // 2.4.4: the installation's accent and switch-on colours (design/brand.ts)
+          applyInstallationColors(ps['ui.accent'], ps['ui.toggle_on']); // 2.4.4: the installation's accent and switch-on colours (design/brand.ts)
           setGlassScheme(ps['devices.glass_scheme']); // 2.4.4: the glass screens follow the product's scheme, or a fixed light / dark
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
@@ -2839,6 +2838,7 @@ export class SwApp extends LitElement {
     if (!this.phone || this.embedded() || editor || this.gated || !isHomeRoute(this.route)) return nothing;
     return html`<div class="homebrand" role="presentation" data-home-brand>
       <sw-brand kind="company" .h=${32} .maxw=${150}></sw-brand>
+      <sw-brand kind="installer" .h=${32} .maxw=${150} data-installer-logo></sw-brand>
       <span class="sp"></span>
       <sw-brand kind="product" decorative .h=${34}></sw-brand>
     </div>`;
@@ -2848,6 +2848,7 @@ export class SwApp extends LitElement {
     if (!this.brandStripOn(editor)) return nothing;
     return html`<div class="brandstrip" role="presentation" data-brand-strip>
       <sw-brand kind="company" .h=${36} .maxw=${200}></sw-brand>
+      <sw-brand kind="installer" .h=${36} .maxw=${200} data-installer-logo></sw-brand>
       <span class="sp"></span>
       <sw-brand kind="product" decorative .h=${40} data-brand-product></sw-brand>
     </div>`;
