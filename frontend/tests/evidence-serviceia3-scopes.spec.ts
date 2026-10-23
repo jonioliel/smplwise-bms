@@ -14,12 +14,14 @@ interface Srv {
   patches: Record<string, unknown>[];
 }
 
-async function go(page: Page, srv: Srv, hash: string, o: TicketsMockOptions = { persona: 'admin' }): Promise<void> {
+async function go(page: Page, srv: Srv, hash: string, o: TicketsMockOptions = { persona: 'admin' }, settingsDelayMs = 0): Promise<void> {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await installTicketsMock(page, o);
   // registered after the tickets mock, so it answers first: the same settings plus a stateful `ui.tabs`
-  await page.route('**/api/v1/settings', (route: Route) => {
+  await page.route('**/api/v1/settings', async (route: Route) => {
     const req = route.request();
+    if (settingsDelayMs < 0 && req.method() === 'GET') return new Promise<void>(() => undefined); // never answers
+    if (settingsDelayMs > 0 && req.method() === 'GET') await new Promise((r) => setTimeout(r, settingsDelayMs));
     if (req.method() === 'PATCH') {
       const body = req.postDataJSON() as Record<string, unknown>;
       srv.patches.push(body);
@@ -85,6 +87,32 @@ test.describe('service area: the administrator hides each scope of the request l
     // (in the running app: on a cold load the redirect can run before the settings arrive - the same for every ui.tabs-ordered entry address)
     await page.evaluate(() => { location.hash = '#/tickets/list?status=closed'; });
     await expect(page).toHaveURL(/#\/tickets\/department\?status=closed/);
+  });
+
+  // owner Q316: the entry-address redirect waits for the saved settings (ui.tabs) - before, a cold load landed on the built-in first scope
+  test('cold load: #/tickets/list and #/tickets/requests land on the configured first scope, query kept, with the settings answering late and no flash of the list', async ({ page }) => {
+    const srv: Srv = { uiTabs: { 'tickets.scopes': { order: [], hidden: ['mine'] } }, patches: [] };
+    for (const entry of ['/tickets/list?status=closed', '/tickets/requests?status=closed']) {
+      await go(page, srv, entry, undefined, 1500); // a cold load of the entry address; the settings answer after 1.5 s
+      const seen: string[] = [];
+      const t0 = Date.now();
+      while (Date.now() - t0 < 1200) { // inside the wait window the list must not be drawn at all
+        seen.push(await page.evaluate(() => location.hash));
+        expect(await page.locator(`${L} [data-scope-seg]`).count(), `no list while the settings load (${entry})`).toBe(0);
+        await page.waitForTimeout(150);
+      }
+      await expect(page, entry).toHaveURL(/#\/tickets\/department\?status=closed/, { timeout: 15000 });
+      expect(seen.every((h) => !h.includes('/tickets/mine')), `never visited the built-in first scope (${entry}): ${seen.join(' ')}`).toBe(true);
+    }
+  });
+
+  test('safety net: settings that never answer do not hold the entry address forever - it lands on the built-in first scope', async ({ page }) => {
+    test.setTimeout(60_000);
+    const srv: Srv = { uiTabs: { 'tickets.scopes': { order: [], hidden: ['mine'] } }, patches: [] };
+    await go(page, srv, '/tickets/list', undefined, -1); // -1: the settings request hangs
+    await expect(page).toHaveURL(/#\/tickets\/mine/, { timeout: 20000 });
+    await page.waitForSelector(`${L} [data-scope-seg]`, { timeout: 20000 });
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 
   test('a user without "הכול" is offered the same scopes as before whatever is hidden (permissions first)', async ({ page }) => {
