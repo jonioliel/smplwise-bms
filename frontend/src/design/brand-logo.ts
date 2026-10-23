@@ -14,6 +14,7 @@ import { LOGO_SCALE, chooseCompanyLogo, type DarkMode, type LogoDraw, type LogoS
 // the pure placement rules live in brand-choice.ts (no imports: the notice-board TV bundle uses them too); re-exported here
 export { LOGO_SCALE, chooseCompanyLogo };
 export type { DarkMode, LogoDraw, LogoSize, LogoVariant };
+import { brandColors, normalizeBrand, setBrandColors } from './brand';
 
 export type TitleMode = 'both' | 'dev' | 'project';
 export type CompanyKind = 'developer' | 'management' | 'other';
@@ -31,6 +32,18 @@ export interface BrandView {
   dark_mode: DarkMode;
   title?: { prefix: string; mode: TitleMode };
   project?: { name: string };
+  /** WHITELABEL097-295: the installer company's profile; the backend sends `{ enabled: false }` and nothing else while it is off. */
+  installer?: { enabled: boolean; name?: string; contact?: string; accent?: string; logo_file?: Record<LogoVariant, string | null> };
+}
+
+/** The installer (white-label) profile as the placements read it; `enabled` false = the SmplWise branding only. */
+export interface InstallerState {
+  enabled: boolean;
+  name: string;
+  contact: string;
+  /** a preset id of design/brand.ts, or 'default' */
+  accent: string;
+  files: Record<LogoVariant, string | null>;
 }
 
 export interface BrandLogoState {
@@ -43,7 +56,10 @@ export interface BrandLogoState {
   titlePrefix: string;
   titleMode: TitleMode;
   projectName: string;
+  wl: InstallerState;
 }
+
+export const EMPTY_INSTALLER: InstallerState = { enabled: false, name: '', contact: '', accent: 'default', files: { light: null, dark: null } };
 
 const CACHE_KEY = 'sw.ui.brandlogo';
 
@@ -56,11 +72,26 @@ export const EMPTY_BRAND: BrandLogoState = {
   titlePrefix: TITLE_PREFIX_DEFAULT,
   titleMode: 'both',
   projectName: '',
+  wl: EMPTY_INSTALLER,
 };
 
 const FILE = /^[0-9a-f]{16}\.(png|svg)$/;
+const BRAND_PRESET_IDS: Readonly<Record<string, true>> = { ios_green: true, ios_blue: true, teal: true, purple: true, orange: true, pink: true, graphite: true };
 const oneOf = <T extends string>(list: readonly T[], v: unknown, d: T): T => (typeof v === 'string' && (list as readonly string[]).includes(v) ? (v as T) : d);
 const file = (v: unknown): string | null => (typeof v === 'string' && FILE.test(v) ? v : null);
+
+/** The installer block as state: anything unknown reads as "off", a free colour as "default" (a preset id only). */
+export function installerFromView(v: BrandView['installer'] | null | undefined): InstallerState {
+  if (!v || typeof v !== 'object' || v.enabled !== true) return EMPTY_INSTALLER;
+  const accent = typeof v.accent === 'string' && Object.prototype.hasOwnProperty.call(BRAND_PRESET_IDS, v.accent) ? v.accent : 'default';
+  return {
+    enabled: true,
+    name: typeof v.name === 'string' ? v.name : '',
+    contact: typeof v.contact === 'string' ? v.contact : '',
+    accent,
+    files: { light: file(v.logo_file?.light), dark: file(v.logo_file?.dark) },
+  };
+}
 
 /** A server (or cached) brand block as state; anything unknown reads as the default, so a corrupt value never reaches the page. */
 export function brandFromView(v: Partial<BrandView> | null | undefined, base: BrandLogoState = EMPTY_BRAND): BrandLogoState {
@@ -75,6 +106,7 @@ export function brandFromView(v: Partial<BrandView> | null | undefined, base: Br
     titlePrefix: typeof v.title?.prefix === 'string' && v.title.prefix.trim() ? v.title.prefix : base.titlePrefix,
     titleMode: oneOf(TITLE_MODES, v.title?.mode, base.titleMode),
     projectName: typeof v.project?.name === 'string' ? v.project.name : base.projectName,
+    wl: v.installer === undefined ? base.wl : installerFromView(v.installer),
   };
 }
 
@@ -107,12 +139,33 @@ export function setBrandView(view: Partial<BrandView> | null | undefined, opts: 
   }
   state = next;
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ company: { name: next.companyName, kind: next.kind, logo_file: next.files, logo: next.files }, size: next.size, dark_mode: next.darkMode, title: { prefix: next.titlePrefix, mode: next.titleMode }, project: { name: next.projectName } }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ company: { name: next.companyName, kind: next.kind, logo_file: next.files, logo: next.files }, size: next.size, dark_mode: next.darkMode, title: { prefix: next.titlePrefix, mode: next.titleMode }, project: { name: next.projectName }, installer: { enabled: next.wl.enabled, name: next.wl.name, contact: next.wl.contact, accent: next.wl.accent, logo_file: next.wl.files } }));
   } catch {
     /* private window / blocked storage: the cache is a convenience */
   }
   if (opts.title !== false) applyBrandTitle();
+  pushColors();
   listeners.forEach((fn) => fn());
+}
+
+// WHITELABEL097-295: while the installer profile is ON and names a preset accent, that accent replaces the installation's `ui.accent`
+// (the switch-on colour is left alone). The installation's own colours come from the product settings (sw-app) through applyInstallationColors.
+let baseColors: { accent: unknown; toggle: unknown } | null = null;
+
+function pushColors(): void {
+  const wl = state.wl;
+  const override = wl.enabled && wl.accent !== 'default';
+  if (!baseColors) {
+    if (override) setBrandColors(wl.accent, brandColors().toggle); // the sign-in page: no product settings yet
+    return;
+  }
+  setBrandColors(override ? wl.accent : baseColors.accent, baseColors.toggle);
+}
+
+/** The installation's `ui.accent` / `ui.toggle_on` (product settings): applied through the installer override above. */
+export function applyInstallationColors(accent: unknown, toggle: unknown): void {
+  baseColors = { accent: normalizeBrand(accent), toggle };
+  pushColors();
 }
 
 /** The sign-in page: no session, so the public view (name, logos, size, dark-background mode). A failure keeps what we have (the
@@ -129,6 +182,11 @@ export async function loadPublicBrand(): Promise<void> {
 /** The URL of a stored company logo variant (public, immutable: a replaced logo is a new file name). */
 export function companyLogoUrl(variant: LogoVariant, fileName: string | null = state.files[variant]): string | null {
   return fileName && FILE.test(fileName) ? resourceUrl(`api/v1/brand/company-logo/${variant}/${fileName}`) : null;
+}
+
+/** The URL of the installer's logo variant (public while the profile is on; a replaced logo is a new file name). */
+export function installerLogoUrl(variant: LogoVariant, fileName: string | null = state.wl.files[variant]): string | null {
+  return fileName && FILE.test(fileName) ? resourceUrl(`api/v1/brand/white-label/logo/${variant}/${fileName}`) : null;
 }
 
 /** The SmplWise product logo (a bundle file; the owner's final artwork replaces these files - CR-LOGOS295 4.1). */
@@ -156,4 +214,7 @@ export function applyBrandTitle(): void {
 }
 
 // the last known choice names the tab from the first paint (a static preview, a slow /me); an installation that never set anything keeps index.html's title
-if (state !== EMPTY_BRAND) applyBrandTitle();
+if (state !== EMPTY_BRAND) {
+  applyBrandTitle();
+  pushColors(); // WHITELABEL097-295: an installer accent from the cache applies from the first paint
+}

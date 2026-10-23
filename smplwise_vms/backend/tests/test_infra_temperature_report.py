@@ -136,6 +136,18 @@ def test_html_is_rtl_with_a_signature_line_and_the_chart(app):
     assert len(rep.text_summary(m)) <= rep.TEXT_MAX and "ועוד" in rep.text_summary(m)
 
 
+def test_white_label_names_the_installer_in_the_page_head_only_while_on(app):
+    """WHITELABEL097-295: the installer's name and contact line sit under the SmplWise mark in the head (inside the digest), only while on."""
+    c, u1 = app["c"], app["u1"]
+    m = c.get(f"{API}/report/preview?units={u1}&range=24h").json()
+    assert "installer" not in m and 'class="inst"' not in rep.html_of(m)
+    assert c.put("/api/v1/brand/white-label", json={"name": "מתקין <i>", "contact": "03-1234567", "enabled": True}).status_code == 200
+    on = c.get(f"{API}/report/preview?units={u1}&range=24h").json()
+    assert on["installer"] == {"name": "מתקין <i>", "contact": "03-1234567"} and on["digest"] != m["digest"]
+    page = rep.html_of(on)
+    assert 'SmplWise<div class="inst">מתקין &lt;i&gt; · 03-1234567</div>' in page and "<i>" not in page
+
+
 def test_pdf_route_with_a_fake_renderer_and_the_unavailable_engine(app):
     c, u1 = app["c"], app["u1"]
     seen = {}
