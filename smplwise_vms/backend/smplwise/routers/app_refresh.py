@@ -13,13 +13,15 @@ identity locally):
 Public routes (no cookie, the remote channel only; while the switch is off, or on the local channel, every one answers the same 404
 before its body is read - guarded_route, the PUB-07 rule):
   POST   /auth/app/refresh                   {refresh_token, device_id, install_id} -> a rotated refresh token + a new access token
+  POST   /auth/app/refresh-challenge         {device_id} -> a single-use nonce for the device-key proof (APPREFRESH2; the same shape
+                                             for an unknown device, stored nowhere then)
   POST   /auth/app/sign-out                  {refresh_token} -> 204: the family ends (the app's own sign-out)
   GET    /auth/app/whoami                    `Authorization: Bearer arxa_...` -> who the access token speaks for (slice 1's only consumer)
 No route logs, audits or echoes a token; only the two minting answers carry one, to its owner."""
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -83,11 +85,36 @@ def _anchor(request: Request, caller: Caller) -> tuple[str, str, float | None]:
 
 # ---------------------------------------------------------------- models
 
+class MintProofIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ts: int
+    sig: str = Field(min_length=1, max_length=120)
+
+
+class DeviceKeyIn(BaseModel):
+    """APPREFRESH2: the public half of the app's hardware key (docs/changes/APPREFRESH-DEVICEKEY-SPEC.md section 3)."""
+    model_config = ConfigDict(extra="forbid")
+
+    alg: Literal["ES256"]
+    public_key: str = Field(min_length=40, max_length=200)
+    proof: MintProofIn
+
+
 class IssueIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     device_id: str = Field(min_length=4, max_length=64)
     install_id: str = Field(min_length=8, max_length=64)
+    device_key: DeviceKeyIn | None = None
+
+
+class ProofIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nonce: str = Field(min_length=1, max_length=100)
+    ts: int
+    sig: str = Field(min_length=1, max_length=120)
 
 
 class RefreshIn(BaseModel):
@@ -96,6 +123,13 @@ class RefreshIn(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=200)
     device_id: str = Field(min_length=4, max_length=64)
     install_id: str = Field(min_length=8, max_length=64)
+    proof: ProofIn | None = None
+
+
+class ChallengeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_id: str = Field(min_length=4, max_length=64)
 
 
 class SignOutIn(BaseModel):
@@ -120,7 +154,7 @@ def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_call
                   reason="sign_in_not_fresh", request_id=_rid(request))
             raise ApiError(403, "fresh_sign_in_required", svc.FRESH_HE)
         return svc.issue(conn, caller.principal, body.device_id, body.install_id, anchor_kind=kind, anchor_hash=anchor,
-                         channel="remote", request_id=_rid(request))
+                         channel="remote", request_id=_rid(request), device_key=body.device_key.model_dump() if body.device_key else None)
 
 
 # ---------------------------------------------------------------- the public routes
@@ -141,10 +175,31 @@ def refresh(body: RefreshIn, request: Request) -> dict[str, Any]:
         raise ApiError(429, "rate_limited", svc.RATE_HE, retryable=True, details={"retry_after_s": 60})
     with db.connection(label="app_refresh.refresh") as conn:
         try:
-            return svc.refresh(conn, body.refresh_token, body.device_id, body.install_id, _rid(request))
+            return svc.refresh(conn, body.refresh_token, body.device_id, body.install_id, _rid(request),
+                               proof=body.proof.model_dump() if body.proof else None)
         except svc.Refused:
             svc.failed(key)
-            raise  # an ApiError: the connection commits (the family's end and its audit row are kept)
+            raise  # an ApiError: the connection commits (the family's end, a consumed nonce and the audit row are kept)
+
+
+@guarded_route.post(router, _public_guard, "/auth/app/refresh-challenge")
+def refresh_challenge(body: ChallengeIn, request: Request) -> dict[str, Any]:
+    """APPREFRESH2: a single-use nonce (NONCE_TTL_S) for the next device-key proof of this device's family. The same answer shape for an
+    unknown device (a nonce stored nowhere); an unknown device counts on the client's failure tier, a known one on its family bucket."""
+    key = _client_key(request)
+    if svc.client_blocked(key):
+        raise _too_many()
+    db = _db(request)
+    fam_id = svc.peek_device_family(db, body.device_id)
+    if fam_id is None:
+        if svc.global_blocked():
+            raise _too_many()
+        svc.failed(key)
+        return svc.unstored_challenge()  # the same shape, stored nowhere, no write gate
+    if not svc.take("app_refresh.challenge", fam_id, svc.RATE_CHALLENGE):
+        raise _too_many()
+    with db.connection(label="app_refresh.challenge") as conn:
+        return svc.challenge(conn, body.device_id)[0]
 
 
 @guarded_route.post(router, _public_guard, "/auth/app/sign-out", status_code=204)
@@ -259,5 +314,11 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), caller: Cal
             audit(conn, actor=caller.principal, action="auth.app_refresh.feature_enabled", decision="denied", resource_type="installation",
                   resource_id="app_refresh", reason="local_channel_only", request_id=_rid(request))
             raise ApiError(403, "local_channel_only", "את הכניסה השמורה באפליקציה מפעילים רק מתוך הרשת המקומית.")
+        wanted = body.get(svc.DEVICE_KEY_KEY)
+        if remote and wanted in svc.DEVICE_KEY_MODES and svc.mode_rank(wanted) < svc.mode_rank(svc.device_key_mode(conn)):
+            # APPREFRESH2: weakening the device-key mode is a local-channel act (like switching the feature on); raising it works anywhere
+            audit(conn, actor=caller.principal, action="auth.app_refresh.settings", decision="denied", resource_type="installation",
+                  resource_id="app_refresh", reason="local_channel_only", request_id=_rid(request), details={svc.DEVICE_KEY_KEY: wanted})
+            raise ApiError(403, "local_channel_only", "את דרישת מפתח המכשיר מחלישים רק מתוך הרשת המקומית.")
         st, _, ended = svc.update_settings(conn, body, caller.principal, channel="remote" if remote else "local", request_id=_rid(request))
     return {"settings": st, "families_ended": ended}

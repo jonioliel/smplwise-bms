@@ -35,6 +35,7 @@ from ..audit import audit
 from ..db import Database, get_setting, new_id, set_setting
 from ..errors import ApiError
 from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal, permissions_anywhere
+from . import app_refresh_key as dk
 
 log = logging.getLogger("smplwise.app_refresh")
 
@@ -56,7 +57,14 @@ POLICY: dict[str, tuple[int, int, int]] = {
     "security.app_refresh_admin_absolute_days": (7, 1, 7),
     "security.app_refresh_admin_idle_hours": (24, 1, 72),
 }
-SETTING_KEYS = (FEATURE_KEY, *POLICY)
+# APPREFRESH2-295 (the device-bound key, CR section 13): off = no new family binds a key | optional (default, the lab) = a family binds
+# the key the app sends | required (before customers) = no family without a key: mint refuses, keyless families end. A family that HAS a
+# key always needs a valid proof, whatever the mode (no downgrade by a setting).
+DEVICE_KEY_KEY = "security.app_refresh_device_key"
+DEVICE_KEY_MODES = ("off", "optional", "required")
+DEVICE_KEY_DEFAULT = "optional"
+SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY)
+RATE_CHALLENGE = (10, 30.0)  # challenge nonces per family: burst 10, 30 per minute
 RETRY_GRACE_S = 20  # a used token whose child is still unused may be presented again this long (a lost answer); owner decision: constant
 
 FRESH_SIGN_IN_S = 15 * 60  # the remote channel mints a family only from a sign-in at most this old
@@ -74,6 +82,8 @@ MISMATCH_HE = "המכשיר אינו תואם לרישום. יש לרשום את
 FRESH_HE = "כדי לשמור כניסה באפליקציה יש להיכנס מחדש ממש עכשיו."
 DEVICE_HE = "המכשיר לא נמצא."
 NOT_FOUND_HE = "Not found"
+KEY_HE = "מפתח המכשיר אינו תקין. יש לעדכן את האפליקציה ולהיכנס מחדש."
+PROOF_RETRY_HE = "יש לחזור על הבקשה."
 
 
 class Refused(ApiError):
@@ -179,8 +189,17 @@ def policy(conn: sqlite3.Connection) -> dict[str, int]:
     return out
 
 
+def device_key_mode(conn: sqlite3.Connection) -> str:
+    v = (get_setting(conn, DEVICE_KEY_KEY, DEVICE_KEY_DEFAULT) or DEVICE_KEY_DEFAULT).strip()
+    return v if v in DEVICE_KEY_MODES else "required"  # a hand-edited unknown value fails closed
+
+
+def mode_rank(mode: str) -> int:
+    return DEVICE_KEY_MODES.index(mode) if mode in DEVICE_KEY_MODES else len(DEVICE_KEY_MODES)
+
+
 def settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
-    return {FEATURE_KEY: "on" if enabled(conn) else "off", **policy(conn)}
+    return {FEATURE_KEY: "on" if enabled(conn) else "off", DEVICE_KEY_KEY: device_key_mode(conn), **policy(conn)}
 
 
 def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Principal, *, channel: str, request_id: str | None) -> tuple[dict[str, Any], dict[str, Any], int]:
@@ -192,6 +211,11 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
             if value not in ("on", "off"):
                 raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key})
             if value != ("on" if enabled(conn) else "off"):
+                changes[key] = value
+        elif key == DEVICE_KEY_KEY:
+            if value not in DEVICE_KEY_MODES:
+                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(DEVICE_KEY_MODES)})
+            if value != device_key_mode(conn):
                 changes[key] = value
         elif key in POLICY:
             _, lo, hi = POLICY[key]
@@ -208,6 +232,8 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
         set_setting(conn, key, str(value))
     if changes.get(FEATURE_KEY) == "off":
         ended = revoke_all(conn, "feature_off", actor=actor, request_id=request_id)
+    elif changes.get(DEVICE_KEY_KEY) == "required":  # no family without a key from now on: the keyless ones end at once
+        ended = _revoke(conn, "device_key_fp IS NULL", (), "device_key_required", actor=actor, request_id=request_id, subject="*")
     if FEATURE_KEY in changes:
         audit(conn, actor=actor, action="auth.app_refresh.feature_enabled" if changes[FEATURE_KEY] == "on" else "auth.app_refresh.feature_disabled",
               decision="allowed", resource_type="installation", resource_id="app_refresh", request_id=request_id,
@@ -283,7 +309,7 @@ def _anchor_revoked(conn: sqlite3.Connection, fam: sqlite3.Row) -> bool:
 def _family_out(r: sqlite3.Row, device_name: str | None = None) -> dict[str, Any]:
     return {"family_id": r["family_id"], "device_id": r["device_id"], "device_name": device_name, "platform": r["platform"], "channel": r["channel"],
             "created_at": r["created_at"], "last_used_at": r["last_used_at"], "idle_expires_at": r["idle_expires_at"],
-            "absolute_expires_at": r["absolute_expires_at"], "admin_capped": bool(r["admin_capped"])}
+            "absolute_expires_at": r["absolute_expires_at"], "admin_capped": bool(r["admin_capped"]), "device_key_bound": bool(r["device_key_fp"])}
 
 
 def _mint_pair(conn: sqlite3.Connection, fam_id: str, user_id: str, device_id: str, generation: int, parent: str | None, now: float) -> tuple[str, str, float]:
@@ -305,13 +331,119 @@ def _mint_pair(conn: sqlite3.Connection, fam_id: str, user_id: str, device_id: s
 def _answer(fam: sqlite3.Row, refresh: str, access: str, access_exp: float, idle_exp: float) -> dict[str, Any]:
     return {"family_id": fam["family_id"], "token_type": "Bearer", "refresh_token": refresh, "refresh_expires_at": iso(idle_exp),
             "absolute_expires_at": fam["absolute_expires_at"], "access_token": access, "access_expires_at": iso(access_exp),
-            "expires_in": max(0, int(access_exp - _now()))}
+            "expires_in": max(0, int(access_exp - _now())),
+            # APPREFRESH2: whether this family's refreshes must carry a device-key proof (true once a key is bound, for its whole life)
+            "device_key": {"bound": True, "alg": dk.ALG} if fam["device_key_fp"] else {"bound": False},
+            "proof_required": bool(fam["device_key_fp"])}
+
+
+# ---------------------------------------------------------------- the device-bound key (APPREFRESH2-295)
+
+def _mint_key(conn: sqlite3.Connection, principal: Principal, device_id: str, device_key: dict[str, Any] | None, request_id: str | None) -> tuple[str, str] | None:
+    """The key a new family binds: (SPKI DER base64url, fingerprint hex) or None (no key: mode off, or optional without one). Every
+    refusal is audited with the reason only (never the key, the signature or a full fingerprint) and raises 422 / 409."""
+    mode = device_key_mode(conn)
+    if mode == "off":
+        return None  # nothing is bound; the answer says `bound: false`, the app keeps refreshing without a proof
+
+    def deny(status: int, code: str, reason: str) -> Refused:
+        audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
+              reason=reason, request_id=request_id, details={"device_key_mode": mode})
+        return Refused(status, code, KEY_HE)
+
+    if device_key is None:
+        if mode == "required":
+            raise deny(422, "device_key_required", "device_key_required")
+        return None
+    text = device_key.get("public_key") or ""
+    try:
+        spki, fp = dk.parse_public_key(text)
+    except dk.BadKey:
+        raise deny(422, "device_key_invalid", "device_key_invalid") from None
+    proof = device_key.get("proof") or {}
+    ts = proof.get("ts")
+    if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(spki, str(proof.get("sig") or ""), dk.mint_message(device_id, ts, text)):
+        raise deny(422, "device_key_proof_invalid", "proof_invalid")
+    if abs(ts - _now()) > dk.POP_SKEW_S:
+        raise deny(422, "device_key_proof_invalid", "proof_stale")
+    other = conn.execute("SELECT 1 FROM app_refresh_families WHERE device_key_fp = ? AND revoked_at IS NULL AND device_id <> ?", (fp, device_id)).fetchone()
+    if other is not None:  # one hardware key per phone: the same key on another device is a copy
+        raise deny(409, "device_key_in_use", "device_key_in_use")
+    return dk.b64u_encode(spki), fp
+
+
+def unstored_challenge() -> dict[str, Any]:
+    """A challenge answer (a fresh random nonce) - stored by challenge() for a known keyed family, by nobody otherwise."""
+    now = _now()
+    return {"nonce": dk.NONCE_PREFIX + secrets.token_urlsafe(32), "expires_in": dk.NONCE_TTL_S, "expires_at": iso(now + dk.NONCE_TTL_S),
+            "server_time": int(now)}
+
+
+def challenge(conn: sqlite3.Connection, device_id: str) -> tuple[dict[str, Any], str | None]:
+    """A single-use nonce for the next refresh proof of `device_id`'s live keyed family. Returns (answer, family id or None). For an
+    unknown device / a family without a key the answer has the same shape and a random nonce that is stored nowhere (no write, no
+    existence oracle in the answer); the refresh then fails like any unknown token."""
+    now = _now()
+    answer = unstored_challenge()
+    nonce = answer["nonce"]
+    fam = conn.execute("SELECT family_id FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL AND device_key_fp IS NOT NULL",
+                       (device_id,)).fetchone()
+    if fam is None:
+        return answer, None
+    fid = fam["family_id"]
+    conn.execute("DELETE FROM app_refresh_nonces WHERE family_id = ? AND (used_at IS NOT NULL OR expires_at <= ?)", (fid, iso(now)))
+    conn.execute("""DELETE FROM app_refresh_nonces WHERE family_id = ? AND nonce_hash NOT IN (
+                        SELECT nonce_hash FROM app_refresh_nonces WHERE family_id = ? ORDER BY issued_at DESC, rowid DESC LIMIT ?)""",
+                 (fid, fid, dk.MAX_OPEN_NONCES - 1))
+    conn.execute("INSERT INTO app_refresh_nonces(nonce_hash, family_id, issued_at, expires_at) VALUES (?,?,?,?)",
+                 (dk.nonce_hash(nonce), fid, iso(now), iso(now + dk.NONCE_TTL_S)))
+    return answer, fid
+
+
+def peek_device_family(db: Database, device_id: str) -> str | None:
+    """The live KEYED family of a device (a short read, no write gate) - the challenge route's limiter key."""
+    with db.connection(mode="read", label="app_refresh.peek_device") as conn:
+        r = conn.execute("SELECT family_id FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL AND device_key_fp IS NOT NULL",
+                         (device_id,)).fetchone()
+    return r["family_id"] if r else None
+
+
+def _proof_retry(reason: str, now: float) -> Refused:
+    """A proof the phone can simply redo (a stale / unknown / used nonce, its clock off): nothing ends, the refresh token is NOT consumed."""
+    return Refused(401, "app_refresh_proof_retry", PROOF_RETRY_HE, retryable=True, details={"reason": reason, "server_time": int(now)})
+
+
+def _check_proof(conn: sqlite3.Connection, fam: sqlite3.Row, token: str, device_id: str, proof: dict[str, Any] | None, now: float,
+                 request_id: str | None) -> None:
+    """The proof of possession of the family's device key, checked on EVERY refresh - the first try and the retry inside the 20 s grace
+    alike (each try signs a fresh nonce: a captured request can never be replayed, a token without the key is useless). A missing or
+    wrong signature over a valid token is a theft signal: the family ends (`proof_missing` / `proof_invalid`). A nonce problem or a
+    clock off by more than POP_SKEW_S is answered `app_refresh_proof_retry` and ends nothing."""
+    if not fam["device_key_spki"]:
+        if device_key_mode(conn) == "required":
+            _end(conn, fam, "device_key_required", request_id)
+            raise Refused(401, "app_refresh_invalid", INVALID_HE)
+        return  # a slice-1 family under `optional` / `off`: no proof (a proof sent anyway is ignored)
+    if not proof:
+        _end(conn, fam, "proof_missing", request_id)
+        raise Refused(401, "app_refresh_invalid", INVALID_HE)
+    nonce, ts, sig = proof.get("nonce"), proof.get("ts"), proof.get("sig")
+    row = conn.execute("SELECT * FROM app_refresh_nonces WHERE nonce_hash = ?", (dk.nonce_hash(nonce),)).fetchone() if dk.is_nonce(nonce) else None
+    if row is None or row["family_id"] != fam["family_id"] or row["used_at"] or epoch(row["expires_at"]) <= now:
+        raise _proof_retry("nonce", now)
+    conn.execute("UPDATE app_refresh_nonces SET used_at = ? WHERE nonce_hash = ?", (iso(now), row["nonce_hash"]))  # single use, also when refused
+    spki = dk.b64u_decode(fam["device_key_spki"])
+    if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(spki, str(sig or ""), dk.refresh_message(device_id, nonce, ts, token)):
+        _end(conn, fam, "proof_invalid", request_id)
+        raise Refused(401, "app_refresh_invalid", INVALID_HE)
+    if abs(ts - now) > dk.POP_SKEW_S:
+        raise _proof_retry("clock", now)
 
 
 # ---------------------------------------------------------------- issue
 
 def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, install_id: str, *, anchor_kind: str, anchor_hash: str, channel: str,
-          request_id: str | None) -> dict[str, Any]:
+          request_id: str | None, device_key: dict[str, Any] | None = None) -> dict[str, Any]:
     """Mint a family for the caller's own device `device_id` (the install_id must be the one the registration holds). A previous live
     family of that device is replaced. Raises Refused (the router audits nothing more: every refusal here is audited)."""
     dev = conn.execute("SELECT * FROM mobile_devices WHERE id = ?", (device_id,)).fetchone()
@@ -330,6 +462,7 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
         raise Refused(403, "remote_not_allowed" if refusal.endswith("remote_not_allowed") else "forbidden", INVALID_HE)
     if not take("app_refresh.issue", principal.user_id, RATE_ISSUE):
         raise Refused(429, "rate_limited", RATE_HE, retryable=True, details={"retry_after_s": 60})
+    key = _mint_key(conn, principal, device_id, device_key, request_id)  # before the old family is replaced: a refused key ends nothing
     revoke_device(conn, device_id, "replaced", actor=principal, request_id=request_id)
     now = _now()
     admin = _holds_admin(conn, principal.user_id)
@@ -343,9 +476,13 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
         (fam_id, principal.user_id, device_id, install_hash(install_id), dev["platform"], anchor_kind, anchor_hash or "", channel, int(admin),
          iso(now), iso(now), iso(abs_exp), iso(idle_exp)))
+    if key is not None:
+        conn.execute("UPDATE app_refresh_families SET device_key_spki = ?, device_key_fp = ?, device_key_alg = ?, device_key_bound_at = ? WHERE family_id = ?",
+                     (key[0], key[1], dk.ALG, iso(now), fam_id))
     refresh, access, access_exp = _mint_pair(conn, fam_id, principal.user_id, device_id, 1, None, now)
     audit(conn, actor=principal, action="auth.app_refresh.issued", decision="allowed", resource_type="mobile_device", resource_id=device_id, request_id=request_id,
-          details={"family": fam_id, "anchor": anchor_kind, "admin_capped": admin, "via": channel})
+          details={"family": fam_id, "anchor": anchor_kind, "admin_capped": admin, "via": channel,
+                   "device_key": dk.ALG if key else None, **({"key_fp": dk.fingerprint_prefix(key[1])} if key else {})})
     fam = conn.execute("SELECT * FROM app_refresh_families WHERE family_id = ?", (fam_id,)).fetchone()
     return _answer(fam, refresh, access, access_exp, idle_exp)
 
@@ -413,7 +550,8 @@ def _end(conn: sqlite3.Connection, fam: sqlite3.Row, reason: str, request_id: st
           reason=reason, request_id=request_id, details={"family": fam["family_id"], "channel": "app"})
 
 
-def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: str, request_id: str | None) -> dict[str, Any]:
+def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: str, request_id: str | None,
+            proof: dict[str, Any] | None = None) -> dict[str, Any]:
     """Rotate: on the request's WRITE connection (one transaction, so two racing refreshes of one token serialise and the second is a
     retry or a reuse). Raises Refused 401 `app_refresh_invalid` / `app_refresh_expired`; every family-ending refusal is audited and
     committed (the caller must not roll back on a Refused - see routers/app_refresh)."""
@@ -448,6 +586,8 @@ def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: st
     if now >= abs_exp or now >= idle_exp:
         _end(conn, fam, "expired" if now >= abs_exp else "idle", request_id)
         raise Refused(401, "app_refresh_expired", EXPIRED_HE)
+    # APPREFRESH2: the device-key proof BEFORE the token state - a retry inside the grace must prove possession exactly like a first try
+    _check_proof(conn, fam, token, device_id, proof, now, request_id)
     if row["state"] == "live":
         parent = row["token_hash"]
     elif _current(conn, row, now):
@@ -475,9 +615,11 @@ def resolve_access(conn: sqlite3.Connection, token: str) -> dict[str, Any] | Non
     if not is_access_token(token):
         return None
     r = conn.execute(
-        """SELECT a.user_id, a.device_id, a.family_id, a.expires_at, f.revoked_at AS f_revoked FROM app_access_tokens a
+        """SELECT a.user_id, a.device_id, a.family_id, a.expires_at, f.revoked_at AS f_revoked, f.device_key_fp AS f_key FROM app_access_tokens a
            JOIN app_refresh_families f ON f.family_id = a.family_id WHERE a.token_hash = ?""", (token_hash(token),)).fetchone()
     if r is None or r["f_revoked"] or epoch(r["expires_at"]) <= _now():
+        return None
+    if not r["f_key"] and device_key_mode(conn) == "required":  # APPREFRESH2: no keyless family under `required`, also for its access tokens
         return None
     if _refusal(conn, r["user_id"]):  # F-01: the remote-access policy too
         return None
@@ -488,6 +630,14 @@ def resolve_access(conn: sqlite3.Connection, token: str) -> dict[str, Any] | Non
 
 def _tables_missing(exc: sqlite3.OperationalError) -> bool:
     return "no such table" in str(exc)
+
+
+def _drop_nonces(conn: sqlite3.Connection, family_id: str) -> None:
+    try:
+        conn.execute("DELETE FROM app_refresh_nonces WHERE family_id = ?", (family_id,))
+    except sqlite3.OperationalError as exc:  # a database before migration 0153
+        if not _tables_missing(exc):
+            raise
 
 
 def _revoke(conn: sqlite3.Connection, where: str, args: tuple[Any, ...], reason: str, *, actor: Principal | None = None, request_id: str | None = None,
@@ -505,6 +655,7 @@ def _revoke(conn: sqlite3.Connection, where: str, args: tuple[Any, ...], reason:
         conn.execute("UPDATE app_refresh_families SET revoked_at = ?, revoked_reason = ? WHERE family_id = ? AND revoked_at IS NULL", (now, reason[:40], fid))
         conn.execute("UPDATE app_refresh_tokens SET state = 'revoked' WHERE family_id = ? AND state = 'live'", (fid,))
         conn.execute("DELETE FROM app_access_tokens WHERE family_id = ?", (fid,))
+        _drop_nonces(conn, fid)
     if actor is not None:
         audit(conn, actor=actor, action="auth.app_refresh.revoked", decision="allowed", resource_type="user", resource_id=subject, reason=reason,
               request_id=request_id, details={"families": len(ids), "ids": sorted(ids)[:20]})
@@ -598,12 +749,18 @@ def janitor(db: Database) -> dict[str, int]:
     try:
         with db.connection(label="app_refresh.janitor") as conn:
             access = conn.execute("DELETE FROM app_access_tokens WHERE expires_at <= ?", (iso(now),)).rowcount
+            try:
+                conn.execute("DELETE FROM app_refresh_nonces WHERE expires_at <= ? OR used_at IS NOT NULL", (iso(now),))
+            except sqlite3.OperationalError as exc:
+                if not _tables_missing(exc):
+                    raise
             expired = _revoke(conn, "(absolute_expires_at <= ? OR idle_expires_at <= ?)", (iso(now), iso(now)), "expired")
             cutoff = iso(now - KEEP_ENDED_DAYS * 86400)
             old = [r["family_id"] for r in conn.execute("SELECT family_id FROM app_refresh_families WHERE revoked_at IS NOT NULL AND revoked_at < ?", (cutoff,)).fetchall()]
             for fid in old:
                 conn.execute("DELETE FROM app_refresh_tokens WHERE family_id = ?", (fid,))
                 conn.execute("DELETE FROM app_access_tokens WHERE family_id = ?", (fid,))
+                _drop_nonces(conn, fid)
                 conn.execute("DELETE FROM app_refresh_families WHERE family_id = ?", (fid,))
     except sqlite3.OperationalError as exc:
         if _tables_missing(exc):
@@ -614,4 +771,5 @@ def janitor(db: Database) -> dict[str, int]:
 
 __all__ = ["FEATURE_KEY", "Refused", "enabled", "enabled_db", "policy", "settings_out", "update_settings", "issue", "refresh", "peek_family",
            "resolve_access", "revoke_family", "revoke_device", "revoke_user", "revoke_anchor", "revoke_all", "revoke_anchor_db", "hook",
-           "list_families", "family", "janitor", "reset_limits", "is_refresh_token", "is_access_token", "token_hash", "install_hash"]
+           "list_families", "family", "janitor", "reset_limits", "is_refresh_token", "is_access_token", "token_hash", "install_hash",
+           "DEVICE_KEY_KEY", "DEVICE_KEY_MODES", "device_key_mode", "mode_rank", "challenge", "peek_device_family"]
