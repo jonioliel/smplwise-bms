@@ -26,12 +26,14 @@ from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_a
 from ..remote_channel import is_remote
 from ..services import mobile_push
 from ..services import presence as svc
+from ..services import presence_people as people_svc
 from ..services.ha_user_auth import bearer_of
 
 router = APIRouter()
 
 REPORT = "presence.report"
 VIEW = "presence.sensors.view"
+PEOPLE_VIEW = people_svc.VIEW  # WHOIN034-295: "who is in the building" (sensitive, system_admin by default)
 CONFIGURE = "system.configure"
 
 
@@ -292,6 +294,53 @@ def my_gate(request: Request, caller: Caller = Depends(session_caller)) -> dict[
         touch_user(conn, caller.principal)
         gate = svc.gate_for(conn, caller.principal.user_id, app=svc.is_app_user_agent(request.headers.get("user-agent")))
         return {"gate": gate, "sensors": {k: v["name_he"] for k, v in svc.SENSORS.items()}}
+
+
+# ---------------------------------------------------------------- who is in the building (WHOIN034-295)
+
+class OptOutIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    opted_out: bool
+
+
+@router.get("/presence/people")
+def people_in_building(request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
+    """Who the phone app currently places inside, by floor and area (presence.view at any scope; each person is shown only where the
+    caller holds it). Empty while the master switch is off; opted-out people are only counted; audited once per viewer per 10 minutes."""
+    with _db(request).connection(mode="read", label="presence.people") as conn:
+        touch_user(conn, caller.principal)
+        if PEOPLE_VIEW not in permissions_anywhere(conn, caller.principal):
+            with _db(request).write_aside() as w:
+                audit(w, actor=caller.principal, action=PEOPLE_VIEW, decision="denied", resource_type="installation", resource_id="*", reason="no_binding", request_id=_rid(request))
+            raise forbidden(permission=PEOPLE_VIEW)
+        out = people_svc.people_view(conn, caller.principal)
+        if people_svc.should_audit(caller.principal.user_id):
+            with _db(request).write_aside() as w:  # counts only, never a name
+                audit(w, actor=caller.principal, action="presence.people.view", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+                      details={"inside": out["totals"]["inside"], "named": out["totals"]["named"], "hidden": out["totals"]["hidden"], "enabled": out["enabled"]})
+        return out
+
+
+@router.get("/presence/people/me")
+def my_people_visibility(request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
+    """Whether the caller asked not to appear on the "who is in the building" screen."""
+    with _db(request).connection(mode="read", label="presence.people.me") as conn:
+        touch_user(conn, caller.principal)
+        return {"opted_out": caller.principal.user_id in svc.opt_out_users(conn), "enabled": svc.load_settings(conn)["enabled"]}
+
+
+@router.put("/presence/people/me")
+def set_my_people_visibility(body: OptOutIn, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
+    """Opt out of (or back into) the "who is in the building" screen (presence.report at any scope: whoever may report a phone). Audited
+    `presence.people.opt_out`. An administrator cannot set it for someone else."""
+    with _db(request).connection(label="presence.people.opt_out") as conn:
+        touch_user(conn, caller.principal)
+        _require_anywhere(conn, caller.principal, REPORT, request)
+        state = svc.set_opt_out(conn, caller.principal.user_id, body.opted_out)
+        audit(conn, actor=caller.principal, action="presence.people.opt_out", decision="allowed", resource_type="user", resource_id=caller.principal.user_id, request_id=_rid(request),
+              details={"opted_out": state})
+        return {"opted_out": state}
 
 
 # ---------------------------------------------------------------- settings (system.configure)
