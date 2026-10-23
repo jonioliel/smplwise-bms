@@ -599,6 +599,9 @@ def test_the_password_appears_nowhere(world, fake, settings, caplog):
 
 SECRET_COLUMN = re.compile(r"password|secret|token|_enc$", re.I)
 NOT_SECRET = {("catalog_items", "color_token"),  # a design-token name, not a credential
+              # maintenance sticker id printed on a QR/NFC tag: a scan only resolves for a signed-in viewer who may see the target
+              # (services/maintenance/service.py scan), so the value opens nothing by itself
+              ("maint_tags", "token"),
               # USR2-P1 + BACKUP-HASH-ENC (owner 2026-10-17): the hash column stays in the table list but never reaches the archive's data
               # files - only the section encrypted with the backup password carries it (tests/test_backup_sensitive.py)
               ("auth_local_credentials", "password_hash")}
