@@ -210,7 +210,8 @@ export class ExplorePresence extends LitElement {
   /** null while the session is still loading (nothing decided yet). */
   private allowed(): boolean | null {
     if (session.mode === 'loading') return null;
-    return !isApi() || canAnywhere('presence.view');
+    if (session.mode === 'demo') return true; // the static demo (no backend) shows its own sample
+    return isApi() && canAnywhere('presence.view');
   }
 
   private chooseFloor(id: string) {
