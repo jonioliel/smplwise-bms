@@ -1,6 +1,9 @@
 # CR-LOGOS295 - Product logo and developer / management-company logo ("לוגו המערכת", "לוגו היזם / חברת הניהול")
 
-**Status:** proposed, awaiting the owner's answers (section 13). Mockup: `docs/design/mockups/logos-295/index.html`.
+**Status:** proposed, awaiting the owner's answers (section 14). Mockup: `docs/design/mockups/logos-295/index.html` (v2 after the
+owner's feedback of 2026-10-24: company logo at the inline-start approved; SmplWise logo moved to the other side of the row, to the
+left of the search; both logos enlarged; no strip on phone inner screens; Q1 decided; Q3 explained in plain words with the three
+behaviours side by side). Both logos are placeholders until the owner sends his logo files.
 **Owner requirement (2026-10-24):** (1) the SmplWise logo on every system page and on the notice-board TV screens; (2) an additional
 developer / property-management-company logo, uploadable, on the same places; (3) replacing either logo must be very easy - the
 company logo through a simple upload in Settings, the SmplWise logo by swapping one source file in the repository.
@@ -108,8 +111,8 @@ slot collapses, nothing shifts) when no company logo is set.
 
 | # | Surface | Company logo | SmplWise | Notes |
 |---|---|---|---|---|
-| P1 | Shell, desktop (design A rail) | the **brand strip** at the top of the content column, inline-start, max 160 x 32 px | the mark replaces the "S" tile in the rail (36 px, `aria-hidden`); the strip shows the wordmark beside the company logo | strip height 44 px, sits in the same row as the float corner pill; it does not scroll; `--sw-rail-w` logic unchanged |
-| P2 | Shell, phone (bottom bar) | the same strip, logo max 120 x 26 px | the mark 24 px at the strip's inline-end | one 40 px row above the screen, below the system banner; hidden while a full-screen editor is open (same rule as the tab row) |
+| P1 | Shell, desktop + tablet (design A rail) | the **brand strip** at the top of the content column, **inline-start** (approved 24.10), max 200 x 36 px | the mark replaces the "S" tile in the rail (36 px, `aria-hidden`); the wordmark (28 px) at the strip's **inline-end, past the search / status pill** - in RTL the far left, to the left of the search (owner 24.10: "the other side of the row") | strip height 48 px; order inline-start -> end: company logo, space, pill, hairline, SmplWise; it does not scroll; `--sw-rail-w` logic unchanged |
+| P2 | Shell, phone (bottom bar) | **no strip** (owner 24.10: phone space is precious). The company logo appears only (a) at the top of the **home screen** head, one 36 px row, max 150 x 32 px, with the SmplWise wordmark 22 px at its end; (b) on the sign-in card (P3); (c) in the installed app's splash / about screen | the mark stays in the bottom bar's brand slot as today; no wordmark on inner screens | inner screens (security, infrastructure, settings, ...) have no logo row at all; the float pill returns to its corner. Replaces the v1 "same strip everywhere" (Q1 decided) |
 | P3 | Sign-in card (`arx-login.ts`) | centred above the title, max 220 x 72 px | with a company logo: the card foot line "מופעל על ידי" + mark + "SmplWise Arx"; without: the present `.brand` row (mark + wordmark) | the sign-in page is served before any session: the company logo URL is public (section 6) |
 | P4 | Public pages of the tickets listener (handler, RFQ, portal, consent, document) | the organisation mark **stays the tickets logo** (section 2.7); a button in Settings copies the company logo into it (`CR-READY96` §8 rule) | footer line "מופעל על ידי SmplWise Arx" with the mark, 16 px, on every public page | the public listener bundles the SmplWise mark; it never fetches from the main app |
 | P5 | PDF / report headers (bill, temperature, readiness handover, future reports) | header, inline-start, box 34 x 17 mm (the bill's existing box) | footer `@bottom-right` "הופק ב-SmplWise Arx" becomes mark (4 mm) + text; the temperature head's text "SmplWise" becomes the wordmark (24 x 6 mm) | the bill keeps its **business** logo in the header box; when both exist the company logo goes to the footer-left; one helper `services/brand_assets.py: pdf_logos()` feeds all engines |
@@ -178,6 +181,17 @@ map either, the dark files are the light files on a light plate (4.4 rule 2), an
 2. When a logo has no dark variant and the scheme is dark (or the surface is always dark - TV, kiosk), it is drawn on a **plate**:
    a `--sw-surface-solid`-coloured rounded rectangle (`--sw-r-sm`, 6 px padding) so the light-background artwork stays legible.
    Never CSS `filter: invert`; `kiosk-wall.ts:157` drops its filter in slice 1.
+
+   **In plain words (the owner's question, 24.10).** A logo is usually designed for white paper: dark-green letters, a dark-blue
+   mark. The developer uploads that one file. At night the operator's screen is in dark mode, and the lobby TV always runs the dark
+   board. The dark-green letters on a near-black background are now almost invisible. The system has three ways to react:
+   - (א) **light plate - recommended:** the logo is drawn exactly as uploaded on a small white rounded tile. It is always legible,
+     the brand colours are never touched, and the developer has to upload nothing more. The tile is the only visual cost.
+   - (ב) **require a dark file:** until the developer uploads a second, dark-background version, the slot stays empty on dark
+     surfaces and on the TV. Correct artwork, but most installations will simply show no logo at night.
+   - (ג) **automatic colour invert:** the system flips the colours. Legible, but the teal-green mark becomes salmon-pink and a
+     dark-blue wordmark becomes pale orange - the brand is distorted, which no developer will accept.
+   The mockup's Settings card shows the three behaviours side by side (`data-q3`), on the same dark tile, with the example logo.
 3. Sizing by a `max-inline-size` / `max-block-size` box and `object-fit: contain`; a wide logo fills the width, a square one the height.
 
 ## 5. The company logo (slice 2)
@@ -265,8 +279,10 @@ No `GET /brand/logo` (READY96) - superseded.
 - `/me.brand` already planned by READY96 - grows `{company: {...}, product: {logo: "brand/smplwise-logo.svg", mark: "…"}}`; the
   shell caches it in `localStorage` like `design/brand.ts` (`sw.ui.brand`) so the strip paints before the first API answer and does
   not flash the placeholder.
-- The strip is one component `sw-brand-strip` rendered by `sw-app.ts` `renderA()` before `renderFloat()`; its height is a token
-  (`--sw-brandstrip-h: 44px`, 40 px on the phone) subtracted from the content column exactly like `--sw-rail-w`.
+- The strip is one component `sw-brand-strip` rendered by `sw-app.ts` `renderA()` together with `renderFloat()` (the pill is laid
+  out inside the strip row, before the SmplWise wordmark, so the wordmark is the last item at the inline-end); its height is a token
+  (`--sw-brandstrip-h: 48px`) subtracted from the content column exactly like `--sw-rail-w`. On the phone (`<= 767`) the strip is
+  not rendered at all; the home screen's head renders the company logo row itself (P2), and the float pill keeps its corner.
 - Design B / bubble / crystal skins: the same component, the skin only changes the surface colour; the owner's "one language" rule.
 - Embedded mode (`embedded()`), the gated screens, the wizard and the full-screen editors: the strip shows (gated) or hides
   (editors) with the tab row, never half.
@@ -361,13 +377,15 @@ section 5), the "copy to the tickets brand" button idea (built here, P4), `/me.b
 Slice 1 ships with the placeholder if the owner's file is late; the swap is the one-commit procedure of 4.1.
 
 ## 14. Owner questions (recommendation first)
-1. **Company logo on the phone.** (א) The same brand strip (40 px) above every screen - **recommended**, one rule everywhere.
-   (ב) Only on the home screen head and the sign-in page; other phone screens show the SmplWise mark only.
+1. **Company logo on the phone.** DECIDED by the owner 2026-10-24: (ב) only at the top of the home screen, on the sign-in page and
+   in the installed app itself (splash / about); no strip on any other phone screen - phone screen space is precious. P2 updated.
+   (The v1 recommendation (א), the same strip on every phone screen, is withdrawn.)
 2. **E-mails.** (א) Text only: the company name in the header line, "מופעל על ידי SmplWise Arx" in the footer - **recommended**
    (images are blocked by most clients and add weight to every alert). (ב) Both logos as embedded images in every e-mail.
 3. **Dark-background treatment when no dark logo was uploaded.** (א) The light logo on a small light plate - **recommended**,
    the artwork is never altered. (ב) Require a dark file before the logo shows on dark surfaces / the TV. (ג) Automatic colour
-   invert (not recommended: distorts brand colours).
+   invert (not recommended: distorts brand colours). The plain-words example is in section 4.4 rule 2; the mockup (Settings
+   card, block "כשהועלה רק לוגו לרקע בהיר") shows the three behaviours side by side on one dark tile.
 4. **Accepted formats.** (א) PNG, SVG, WebP and JPEG (converted to PNG) - **recommended**, fewer refusals for a non-technical
    administrator. (ב) PNG, SVG, WebP only, as the requirement lists.
 5. **Installed-app identity.** (א) The PWA / Android icon, the app name, the browser tab title and the sender names stay SmplWise
