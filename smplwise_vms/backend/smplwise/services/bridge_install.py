@@ -23,6 +23,7 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
+from . import bridge_keys as bk
 from . import ha_bridge, ha_client
 
 log = logging.getLogger("smplwise.bridge")
@@ -106,17 +107,27 @@ def addon_url() -> str:
     return f"http://{socket.gethostname()}:{ADDON_PORT}"
 
 
+def _discovery_code(conn: sqlite3.Connection) -> str | None:
+    """K-01: the ONLY value a discovery may carry is the plain pairing code that has not been adopted into the key set yet
+    (`ensure_pairing`'s return: None once the key set exists). Never `signing_key()`: after a rotation that is the current key."""
+    code = ha_bridge.ensure_pairing(conn, False)
+    return code if code and not bk.adopted(conn) else None
+
+
 def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connection | None = None) -> bool:
-    """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered)."""
+    """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered). Only while a fresh pairing code
+    waits to be paired (first install or a re-pair): once the code is adopted into the key set nothing is announced (K-01) - the bridge is
+    already configured and a discovery would only push a code into its entry."""
     if not ha_client.supervisor_token():
         return False
     if conn is not None:
-        ha_bridge.ensure_pairing(conn, False)
-        secret = ha_bridge.signing_key(conn)
+        secret = _discovery_code(conn)
     else:
         with db.connection() as c:
-            ha_bridge.ensure_pairing(c, False)
-            secret = ha_bridge.signing_key(c)
+            secret = _discovery_code(c)
+    if not secret:
+        STATE["discovery_posted_at"] = None
+        return False
     try:
         if conn is not None:
             with unlocked(conn):  # the Supervisor call runs without the request's write lock

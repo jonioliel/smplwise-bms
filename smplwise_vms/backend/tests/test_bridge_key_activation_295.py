@@ -617,7 +617,8 @@ def test_ha04_the_bridge_init_marks_clean_only_through_the_persister():
     for root in (BRIDGE, ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"):
         text = (root / "__init__.py").read_text(encoding="utf-8")
         assert "keyset.dirty = False" not in text and "async_delay_save" not in text
-        assert text.count("saver.save_soon()") == 2 and "saver.clean_entry()" in text
+        # screened services, the lease services, and (KEYROT-FIX-295 K-02) the fresh key set after a re-pair through discovery
+        assert text.count("saver.save_soon()") == 3 and "saver.clean_entry()" in text
 
 
 def test_ha05_an_oversized_rotation_id_is_refused_before_the_signature():
