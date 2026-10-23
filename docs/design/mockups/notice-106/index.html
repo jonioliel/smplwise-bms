@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>לוח הודעות - דגם למסכים</title>
+<!--
+  CR-NOTICE106 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
+
+  Owner standing style (2026-10-23): the visual language of the existing infrastructure temperature / elevators / schedules screens.
+  Drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin light + dark, copied verbatim), the real shell
+  (shell/sw-app.ts: rail at the inline start, floating corner pill, no breadcrumb, phone bottom bar), the real tab rows (components/sw-tabs.ts),
+  the temperature page head and KPI-as-filter row, the sw-place-tree places tree (a select on phones), the electricity table / phone cards,
+  solid badges and soft chips, pill buttons, sw-state-panel states and the sw-dialog sheet - the same CSS as the MAINT215 v2 mockup.
+
+  SCREENS (the mock bar or ?page=):
+    home      - the home screen with the "לוח הודעות" widget (among the existing widgets)
+    notices   - the page #/notices: readers see their notices; managers also compose / edit / archive (by permission)
+    settings  - Settings > לוח הודעות: module switch, defaults, the TV boards list (copy link, QR, preview, rotate)
+    board     - one board's page: link + QR (shown once), display settings, the notices assigned to it
+    tv-parking / tv-lobby - the TV view of a board (its own large-format look, product tokens, no login): ?tv=landscape|portrait
+  OTHER SWITCHES: ?theme=dark  ?role=mgr|op|view  ?state=ready|empty|loading|error|off  ?dlg=compose|link  ?bare=1 (hide the mock bar)
+  LOGOS: the TV header reserves two slots (product logo at the inline start, management-company logo at the inline end) as clearly marked
+  placeholders; storage, upload and the asset pipeline are CR-LOGOS295's.
+-->
+<style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) ===== */
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
+  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
+  --sw-touch-desktop: 44px; --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2);
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
+  --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
+  --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; color-scheme: dark;
+}
+/* state looks (temperature/styles.ts): --c the colour, --c-text the text on its soft fill. Severity: info=acc, alert=warn, critical=alarm */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
+[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, .num { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ===== mockup-only controls ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
+body.bare .mock { display: none; }
+
+/* ===== the shell (shell/sw-app.ts) ===== */
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+body.bare .app { min-block-size: 100dvh; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+nav.rail a.active svg { color: var(--sw-accent); }
+nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); }
+.float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+.subnav { padding: 12px 24px 0; display: flex; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; }
+.tabs a { position: relative; display: inline-flex; align-items: center; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
+.tabs a:hover { color: var(--sw-text); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs.pill .row { padding-inline: 3px; }
+.tabs.pill .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs.pill a { min-block-size: 34px; padding-inline: 1px; }
+.tabs.pill a .lbl { display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs.pill a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.tabs.compact { display: flex; position: relative; }
+.tabs.compact .row { flex: 1 0 auto; gap: 0; }
+.tabs.compact .row::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 31px; block-size: 1px; background: var(--sw-border); }
+.tabs.compact a { align-items: flex-start; padding: 0 10px; min-block-size: 32px; }
+.tabs.compact a .lbl { display: inline-flex; align-items: center; min-block-size: 30px; }
+.tabs.compact a::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 29px; block-size: 2px; z-index: 1; }
+.tabs.compact a.on::after { background: var(--sw-accent); }
+.tabs .count { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-inline-start: 5px; }
+.tabs a.on .count { color: var(--sw-accent-text); }
+@media (max-width: 767px) and (pointer: coarse) { .tabs a { min-block-size: 44px; } }
+
+/* ===== the screen (infra-temperature.ts :host / .top / .kpis) ===== */
+.screen { display: none; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; inline-size: 100%; min-inline-size: 0; }
+.screen.on { display: flex; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); }
+.top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.top .sp { flex: 1; }
+.top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--sw-border-strong); }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.pri:hover { background: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+.btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
+.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
+.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.btn svg { font-size: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer; --c: var(--sw-accent); }
+.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; color: var(--sw-heading); }
+.kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+.badge svg { font-size: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+.panel.flush { padding: 0; overflow: hidden; }
+.panel h2, .panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
+.panel .hd .sp { flex: 1; }
+.hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+.cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; min-inline-size: 0; }
+.cols > * { min-inline-size: 0; }
+.tree { display: flex; flex-direction: column; gap: 2px; padding: var(--sw-s-2); }
+.tree .ttl { padding: var(--sw-s-2) var(--sw-s-3) var(--sw-s-1); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); color: var(--sw-text-3); }
+.tree .line { display: flex; align-items: stretch; gap: 2px; }
+.tree button { display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: 36px; padding-inline: var(--sw-s-3); border: 0; border-radius: var(--sw-r-sm); background: transparent; color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); text-align: start; cursor: pointer; }
+.tree button:hover { background: var(--sw-hover-wash); }
+.tree button.pick { flex: 1; min-inline-size: 0; }
+.tree button.pick .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree button.fold { justify-content: center; min-inline-size: 36px; padding-inline: 0; color: var(--sw-text-3); }
+.tree button.fold svg { transition: transform var(--sw-t-fast) var(--sw-ease); font-size: 14px; }
+.tree button.fold[aria-expanded="false"] svg { transform: rotate(90deg); }
+.tree .floor .name { font-weight: var(--sw-fw-semibold); }
+.tree .depth-1 { padding-inline-start: var(--sw-s-4); }
+.tree button[aria-current="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.tree .n { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; }
+.tree .dot { flex: none; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c, var(--sw-unknown)); }
+.tree-m { display: none; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-block-end: 1px solid var(--sw-border); }
+.search { flex: 1; min-inline-size: 180px; display: flex; align-items: center; gap: 8px; block-size: 32px; padding: 0 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); background: var(--sw-surface-2); color: var(--sw-text-3); }
+.search:focus-within { border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); background: var(--sw-surface); }
+.search input { flex: 1; border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); outline: none; min-inline-size: 0; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); max-inline-size: 100%; flex-wrap: wrap; }
+.seg button { padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0; background: transparent; min-block-size: 28px; }
+.seg button[aria-pressed="true"] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+.scrollx { overflow-x: auto; }
+table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
+table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 9px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
+table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
+table.t tbody tr:last-child td { border-block-end: 0; }
+table.t tbody tr.go { cursor: pointer; }
+table.t tbody tr.go:hover td { background: var(--sw-surface-2); }
+table.t tbody tr:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: -2px; }
+td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); white-space: normal; max-inline-size: 42ch; overflow: hidden; text-overflow: ellipsis; }
+td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.act { white-space: nowrap; text-align: end; }
+.cards-m { display: none; }
+@media (max-width: 1100px) {
+  #s-notices table.t th:nth-child(4), #s-notices table.t td:nth-child(4), #s-notices table.t th:nth-child(6), #s-notices table.t td:nth-child(6) { display: none; }
+  #s-settings table.t th:nth-child(3), #s-settings table.t td:nth-child(3), #s-settings table.t th:nth-child(5), #s-settings table.t td:nth-child(5) { display: none; }
+  table.t th, table.t td { padding-inline: 8px; }
+  table.t td:nth-child(2) { white-space: normal; min-inline-size: 150px; }
+}
+/* states (components/sw-state-panel.ts) */
+.state-panel { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 220px; }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
+.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state-panel[data-state="forbidden"] .icon { background: var(--sw-forbidden-soft); color: var(--sw-forbidden); }
+.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
+.skl { display: none; border-radius: var(--sw-r-md); background: linear-gradient(90deg, var(--sw-skeleton), var(--sw-skeleton-shine), var(--sw-skeleton)); background-size: 200% 100%; animation: skl 1.4s linear infinite; block-size: 160px; }
+@keyframes skl { to { background-position: -200% 0; } }
+body[data-st="loading"] .screen.on > :not(.skl):not(.top) { display: none !important; }
+body[data-st="loading"] .screen.on > .skl { display: block; }
+body[data-st="empty"] .screen.on > .cols, body[data-st="empty"] .screen.on > .kpis, body[data-st="empty"] .screen.on > .grid, body[data-st="empty"] .screen.on > .panel, body[data-st="empty"] .screen.on > .two { display: none !important; }
+body[data-st="empty"] .screen.on > .state-panel[data-state="empty"] { display: flex; }
+body[data-st="error"] .screen.on > :not(.state-panel[data-state="error"]) { display: none !important; }
+body[data-st="error"] .screen.on > .state-panel[data-state="error"] { display: flex; }
+body[data-st="off"] .screen.on > :not(.state-panel[data-state="off"]):not(.keep-off) { display: none !important; }
+body[data-st="off"] .screen.on > .state-panel[data-state="off"] { display: flex; }
+body[data-st="off"] [data-module-tab] { display: none !important; }
+/* the home widget's own states (the widget is small: a line, not a panel) */
+body[data-st="empty"] #w-notices .wl, body[data-st="off"] #w-notices, body[data-st="error"] #w-notices .wl, body[data-st="loading"] #w-notices .wl { display: none !important; }
+body[data-st="empty"] #w-notices .w-empty, body[data-st="error"] #w-notices .w-err, body[data-st="loading"] #w-notices .w-skl { display: flex !important; }
+/* permissions */
+body[data-role="op"] .mng, body[data-role="view"] .mng, body[data-role="op"] .adm, body[data-role="view"] .adm { display: none !important; }
+body[data-role="op"] .screen.on[data-need="adm"] > :not(.state-panel[data-state="forbidden"]), body[data-role="view"] .screen.on[data-need="adm"] > :not(.state-panel[data-state="forbidden"]) { display: none !important; }
+body[data-role="op"] .screen.on[data-need="adm"] > .state-panel[data-state="forbidden"], body[data-role="view"] .screen.on[data-need="adm"] > .state-panel[data-state="forbidden"] { display: flex; }
+body[data-role="mgr"] .reader-only { display: none !important; }
+/* dialogs (components/sw-dialog) */
+.ov { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); display: none; align-items: center; justify-content: center; padding: 16px; }
+.ov.open { display: flex; }
+.dlg { background: var(--sw-surface-solid); border-radius: var(--sw-r-xl); box-shadow: var(--sw-shadow-3); inline-size: min(100%, 880px); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.dlg.narrow { inline-size: min(100%, 560px); }
+.dlg header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 8px; }
+.dlg header h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+.dlg header .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.dlg header .x { margin-inline-start: auto; }
+.dlg .body { padding: 8px 22px 18px; overflow: auto; display: grid; gap: 14px; }
+.dlg footer { display: flex; gap: 8px; align-items: center; padding: 12px 22px 18px; border-block-start: 1px solid var(--sw-border); flex-wrap: wrap; }
+.dlg footer .sp { flex: 1; }
+.x { display: inline-grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; border: 0; background: var(--sw-surface-3); color: var(--sw-text-2); cursor: pointer; font: inherit; }
+.two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; align-items: start; }
+.two > * { min-inline-size: 0; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: var(--sw-fs-md); }
+.kv dt { color: var(--sw-text-3); }
+.kv dd { margin: 0; color: var(--sw-text); font-weight: var(--sw-fw-medium); overflow-wrap: anywhere; }
+.fld { display: flex; flex-direction: column; gap: 5px; min-inline-size: 0; }
+.fld > label { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
+.inp { font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 36px; padding: 0 12px; inline-size: 100%; }
+textarea.inp { padding: 8px 12px; min-block-size: 96px; resize: vertical; line-height: 1.45; }
+.inp:focus { outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
+.form { display: grid; gap: 10px; }
+.form .r { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ck { display: inline-flex; align-items: center; gap: 8px; font-size: var(--sw-fs-md); min-block-size: 28px; cursor: pointer; }
+.ck input { inline-size: 16px; block-size: 16px; accent-color: var(--sw-accent); margin: 0; }
+.pick { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 4px 12px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); cursor: pointer; }
+.pick[aria-pressed="true"] { background: var(--sw-accent-soft); border-color: var(--sw-accent); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+.aud { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 8px; background: var(--sw-surface-2); }
+.aud .tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+.aud .sum { display: flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+.aud .sum b { color: var(--sw-heading); font-size: var(--sw-fs-lg); }
+.alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--sw-r-md); font-size: var(--sw-fs-md); border: 1px solid transparent; }
+.alert.warn { background: var(--sw-warning-soft); border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent); color: var(--sw-warning-text); }
+.alert.ok { background: var(--sw-success-soft); border-color: color-mix(in srgb, var(--sw-success) 40%, transparent); color: var(--sw-success-text); }
+.alert > div { flex: 1; min-inline-size: 0; }
+.link { display: flex; gap: 10px; align-items: center; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 8px 12px; background: var(--sw-surface-solid); font-family: var(--sw-font-mono); font-size: var(--sw-fs-sm); direction: ltr; overflow: hidden; }
+.link code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-heading); }
+.qr { display: grid; place-items: center; inline-size: 150px; block-size: 150px; border-radius: var(--sw-r-md); background: #fff; border: 1px solid var(--sw-border); }
+.qr svg { inline-size: 130px; block-size: 130px; }
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; }
+.toast.on { display: block; }
+nav.bottom { display: none; }
+/* Settings cards (system-* screens): a switch row */
+.sw { display: inline-flex; align-items: center; gap: 10px; }
+.sw .tog { inline-size: 38px; block-size: 22px; border-radius: var(--sw-r-pill); background: var(--sw-offline); position: relative; border: 0; cursor: pointer; flex: none; }
+.sw .tog[aria-checked="true"] { background: var(--sw-accent); }
+.sw .tog::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 16px; block-size: 16px; border-radius: 50%; background: #fff; transition: transform var(--sw-t-fast) var(--sw-ease); }
+.sw .tog[aria-checked="true"]::after { transform: translateX(-16px); }
+.set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+/* ===== the home screen (screens/home-widgets.ts): the widget grid ===== */
+.home { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+.w { grid-column: span 4; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
+.w.s { grid-column: span 3; } .w.l { grid-column: span 6; }
+.w .wh { display: flex; align-items: center; gap: 8px; }
+.w .wh h3 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w .wh a { color: var(--sw-accent-text); font-size: var(--sw-fs-sm); text-decoration: none; font-weight: var(--sw-fw-medium); }
+.w .big { font-size: 34px; font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1; font-variant-numeric: tabular-nums; }
+.w .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.w .tile { flex: 1; min-inline-size: 90px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 8px 10px; display: grid; gap: 2px; }
+.w .tile b { color: var(--sw-heading); }
+.wl { display: flex; flex-direction: column; gap: 6px; }
+.wl a { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); text-decoration: none; color: inherit; min-inline-size: 0; }
+.wl a:hover { background: var(--sw-surface-2); }
+.wl .sev { flex: none; inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c, var(--sw-accent)); margin-block-start: 6px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--sw-accent)) 18%, transparent); }
+.wl .tt { flex: 1; min-inline-size: 0; }
+.wl .tt b { display: block; color: var(--sw-heading); font-weight: var(--sw-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl .tt span { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.wl .new { flex: none; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--sw-accent); margin-block-start: 7px; }
+.w-empty, .w-err { display: none; align-items: center; gap: 8px; color: var(--sw-text-3); font-size: var(--sw-fs-sm); min-block-size: 48px; }
+.w-err { color: var(--sw-danger-text); }
+.w-skl { display: none; block-size: 96px; border-radius: var(--sw-r-md); background: var(--sw-skeleton); }
+.w-skl.on { display: block; }
+
+/* ===== the TV board: its own large-format look, the same tokens. Sizes in vmax so landscape and portrait share one scale. ===== */
+.tv { display: none; position: fixed; inset: 0; z-index: 40; background: var(--sw-bg); color: var(--sw-text); --tvs: 1; --u: calc(1vmax * var(--tvs)); font-size: calc(2.1 * var(--u)); line-height: 1.35; flex-direction: column; overflow: hidden; }
+body.tvmode .tv.on { display: flex; }
+body.tvmode .app, body.tvmode .toast { display: none; }
+body.bare .tv { inset-block-start: 0; }
+body:not(.bare) .tv { inset-block-start: 40px; }
+.tv .shift { position: absolute; inset: 0; display: flex; flex-direction: column; transition: transform 2s linear; }
+.tv header { display: flex; align-items: center; gap: calc(2 * var(--u)); padding: calc(1.6 * var(--u)) calc(3 * var(--u)) calc(1.2 * var(--u)); border-block-end: 1px solid var(--sw-border); background: var(--sw-surface); }
+.tv .logo { display: grid; place-items: center; min-inline-size: calc(9 * var(--u)); block-size: calc(3.4 * var(--u)); border: 2px dashed var(--sw-border-strong); border-radius: calc(.6 * var(--u)); color: var(--sw-text-3); font-size: calc(1 * var(--u)); padding-inline: calc(1 * var(--u)); text-align: center; line-height: 1.15; }
+.tv .logo.product { min-inline-size: calc(7 * var(--u)); }
+.tv .bname { flex: 1; min-inline-size: 0; display: grid; gap: 0; }
+.tv .bname b { font-size: calc(1.9 * var(--u)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv .bname span { font-size: calc(1.1 * var(--u)); color: var(--sw-text-3); }
+.tv .clock { display: grid; justify-items: end; direction: ltr; }
+.tv .clock b { font-size: calc(3 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
+.tv .clock span { font-size: calc(1.1 * var(--u)); color: var(--sw-text-2); direction: rtl; }
+.tv .banner { display: none; align-items: center; gap: calc(1.6 * var(--u)); padding: calc(1.3 * var(--u)) calc(3 * var(--u)); background: var(--sw-danger); color: #fff; }
+.tv .banner.on { display: flex; }
+.tv .banner svg { font-size: calc(3 * var(--u)); }
+.tv .banner .bt { flex: 1; min-inline-size: 0; }
+.tv .banner .bt b { display: block; font-size: calc(2.3 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.2; }
+.tv .banner .bt span { display: block; font-size: calc(1.5 * var(--u)); opacity: .95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv .banner .when { flex: none; font-size: calc(1.3 * var(--u)); font-weight: var(--sw-fw-semibold); background: rgba(255,255,255,.18); border-radius: var(--sw-r-pill); padding: calc(.3 * var(--u)) calc(1.2 * var(--u)); white-space: nowrap; }
+.tv .stage { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); padding: calc(2.4 * var(--u)) calc(3 * var(--u)); position: relative; }
+.tv .card { grid-area: 1 / 1; display: flex; flex-direction: column; gap: calc(1.2 * var(--u)); opacity: 0; transition: opacity .6s var(--sw-ease); min-block-size: 0; }
+.tv .card.on { opacity: 1; }
+.tv .card .sev { display: inline-flex; align-items: center; gap: calc(.6 * var(--u)); align-self: flex-start; border-radius: var(--sw-r-pill); padding: calc(.3 * var(--u)) calc(1.3 * var(--u)); font-size: calc(1.3 * var(--u)); font-weight: var(--sw-fw-semibold); background: var(--c-soft); color: var(--c-text); }
+.tv .card h1 { margin: 0; font-size: calc(3.6 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.15; color: var(--sw-heading); letter-spacing: -0.02em; }
+.tv .card p { margin: 0; font-size: calc(2.1 * var(--u)); color: var(--sw-text); max-inline-size: 34ch; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.tv .card .when { margin-block-start: auto; display: flex; gap: calc(1.5 * var(--u)); align-items: center; font-size: calc(1.4 * var(--u)); color: var(--sw-text-2); }
+.tv .card .when svg { font-size: calc(1.6 * var(--u)); }
+.tv .dots { position: absolute; inset-block-end: calc(1.2 * var(--u)); inset-inline-start: calc(3 * var(--u)); display: flex; gap: calc(.6 * var(--u)); }
+.tv .dots span { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-border-strong); }
+.tv .dots span.on { background: var(--sw-accent); inline-size: calc(2.4 * var(--u)); border-radius: var(--sw-r-pill); }
+.tv .empty { grid-area: 1 / 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.5 * var(--u)); color: var(--sw-text-2); text-align: center; }
+.tv .empty .bigclock { font-size: calc(11 * var(--u)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1; font-variant-numeric: tabular-nums; direction: ltr; }
+.tv .empty p { margin: 0; font-size: calc(2 * var(--u)); }
+.tv footer { display: flex; align-items: center; gap: calc(1.5 * var(--u)); padding: calc(.9 * var(--u)) calc(3 * var(--u)); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); font-size: calc(1.1 * var(--u)); color: var(--sw-text-3); }
+.tv footer .sp { flex: 1; }
+.tv footer .live { display: inline-flex; align-items: center; gap: calc(.5 * var(--u)); }
+.tv footer .live i { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-live); }
+.tv .stale { display: none; align-items: center; gap: calc(.5 * var(--u)); border-radius: var(--sw-r-pill); padding: calc(.2 * var(--u)) calc(1 * var(--u)); background: var(--sw-stale-soft); color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
+.tv[data-net="stale"] .stale { display: inline-flex; }
+.tv[data-net="stale"] footer .live i { background: var(--sw-stale); }
+.tv[data-net="offline"] .stage { opacity: .7; }
+.tv .offband { display: none; align-items: center; justify-content: center; gap: calc(1 * var(--u)); padding: calc(.7 * var(--u)); background: var(--sw-offline-soft); color: var(--sw-offline-text); font-size: calc(1.3 * var(--u)); font-weight: var(--sw-fw-semibold); }
+.tv[data-net="offline"] .offband { display: flex; }
+.tv[data-net="offline"] .stale { display: none; }
+.tv[data-net="gone"] .stage, .tv[data-net="gone"] .banner, .tv[data-net="gone"] .offband { display: none; }
+.tv .gone { display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.5 * var(--u)); color: var(--sw-text-2); font-size: calc(2 * var(--u)); }
+.tv[data-net="gone"] .gone { display: flex; }
+.tv[data-empty="1"] .card, .tv[data-empty="1"] .dots { display: none; }
+.tv[data-empty="1"] .empty { display: flex; }
+.tv[data-night="1"] .shift { filter: brightness(.5); }
+/* portrait: the header stacks (logos row, name, clock), everything else is the same */
+.tv.portrait header { flex-wrap: wrap; row-gap: calc(1 * var(--u)); }
+.tv.portrait .bname { order: 3; flex-basis: 100%; }
+.tv.portrait .logo.company { margin-inline-start: auto; }
+.tv.portrait .clock { order: 4; flex-basis: 100%; justify-items: start; direction: rtl; display: flex; align-items: baseline; gap: calc(1.2 * var(--u)); }
+/* portrait has the height: every active notice is stacked (no rotation), the dots leave; a long list still clips at the bottom and rotates pages */
+.tv.portrait .stage { grid-template-rows: none; align-content: start; gap: calc(2 * var(--u)); overflow: hidden; }
+.tv.portrait .card { grid-area: auto; opacity: 1; padding-block-end: calc(2 * var(--u)); border-block-end: 1px solid var(--sw-border); }
+.tv.portrait .card:last-of-type { border-block-end: 0; }
+.tv.portrait .card .when { margin-block-start: 0; }
+.tv.portrait .dots { display: none; }
+.tv.portrait .card h1 { font-size: calc(3.2 * var(--u)); }
+.tv.portrait .card p { max-inline-size: none; -webkit-line-clamp: 8; }
+.tv.portrait .banner { flex-wrap: wrap; }
+.tv.portrait .banner .bt b { font-size: calc(2 * var(--u)); }
+.tv.portrait .banner .when { order: 3; }
+.tv .mockline { position: absolute; inset-block-start: calc(.5 * var(--u)); inset-inline-start: calc(1 * var(--u)); display: flex; gap: 4px; z-index: 2; opacity: .6; }
+.tv .mockline button { font: inherit; font-size: 11px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 2px 8px; cursor: pointer; }
+body.bare .tv .mockline { display: none; }
+
+/* ===== tablet (<= 1023) ===== */
+@media (max-width: 1023px) {
+  nav.rail a span { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .cols { grid-template-columns: 200px minmax(0, 1fr); }
+  .screen { padding-inline: 20px; }
+  .w { grid-column: span 6; } .w.s { grid-column: span 4; } .w.l { grid-column: span 12; }
+}
+/* ===== phone (<= 767) ===== */
+@media (max-width: 767px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .float { inset-inline-end: 12px; }
+  .subnav { padding: 8px 12px 0; }
+  .screen { padding: 12px 14px 20px; gap: 12px; }
+  .top { flex-direction: column; align-items: stretch; }
+  .top .sp { display: none; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .tree-w { display: none; }
+  .tree-m { display: block; padding: 10px 10px 0; }
+  .tree-m select { inline-size: 100%; font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 44px; padding: 0 12px; }
+  .toolbar { padding: 10px; gap: 8px; }
+  .search { flex-basis: 100%; min-inline-size: 0; block-size: 44px; }
+  .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
+  .seg button { min-block-size: 38px; flex: none; }
+  .scrollx { display: none; }
+  .cards-m { display: grid; gap: 8px; padding: 10px; }
+  .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); }
+  .cards-m .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cards-m .c .r1 .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); min-inline-size: 0; }
+  .cards-m .c .r3 { display: flex; gap: 6px; flex-wrap: wrap; }
+  .two, .form .r, .set-grid { grid-template-columns: minmax(0, 1fr); }
+  .home { grid-template-columns: minmax(0, 1fr); }
+  .w, .w.s, .w.l { grid-column: span 1; }
+  .dlg { inline-size: 100%; max-block-size: 100dvh; border-radius: var(--sw-r-xl) var(--sw-r-xl) 0 0; align-self: flex-end; }
+  .ov { padding: 0; align-items: flex-end; }
+  .btn { min-block-size: 44px; }
+  .btn.sm { min-block-size: 36px; }
+  .tree button { min-block-size: 44px; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
+  nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+  .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-offline" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="13" rx="2"/><path d="M8 21h8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 15.5a5 5 0 0 1 5.5 4.5"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2 2 0 0 0-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 12h3l2-6 3 12 3-9 2 5 2-2h5"/></symbol>
+</defs></svg>
+
+<!-- mockup-only controls -->
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם</b>
+  <select id="page" aria-label="מסך"><option value="home">מסך: הבית (הווידג׳ט)</option><option value="notices">מסך: לוח הודעות</option><option value="settings">מסך: הגדרות › לוח הודעות</option><option value="board">מסך: לוח תצוגה אחד</option><option value="tv-parking">טלוויזיה: לוח החניון</option><option value="tv-lobby">טלוויזיה: לוח הלובי</option></select>
+  <select id="tvo" aria-label="כיוון הטלוויזיה"><option value="auto">טלוויזיה: אוטומטי</option><option value="landscape">טלוויזיה: רוחב 16:9</option><option value="portrait">טלוויזיה: אנכי</option></select>
+  <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל</option><option value="op">תפקיד: מפעיל</option><option value="view">תפקיד: צופה</option></select>
+  <select id="stsel" aria-label="מצב"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option></select>
+  <button id="th" aria-pressed="false">כהה</button>
+  <span class="sp"></span>
+  <button id="open-compose" class="mng">הודעה חדשה</button>
+  <button id="open-link" class="adm">קישור ללוח (פעם אחת)</button>
+</nav>
+
+<div class="app">
+  <nav class="rail" aria-label="ניווט ראשי">
+    <span class="brand" aria-hidden="true">S</span>
+    <a href="#" id="rail-home" class="active" aria-current="page"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <div class="grow"></div>
+    <a href="#" id="rail-sys"><svg class="ic"><use href="#i-gear"/></svg><span>הגדרות</span></a>
+    <span class="me" aria-label="תפריט המשתמש">דכ</span>
+  </nav>
+  <div class="float" aria-hidden="true"><div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <main>
+    <!-- level 1 of the main area (AREA_TABS.devices) with the module's tab, shown only while the module is on -->
+    <div class="subnav" id="nav-main">
+      <nav class="tabs pill" aria-label="לשוניות"><div class="row">
+        <a href="#" data-go="home"><span class="lbl">הבית</span></a><a href="#"><span class="lbl">אזורים</span></a><a href="#"><span class="lbl">מכשירים</span></a>
+        <a href="#" data-go="notices" data-module-tab><span class="lbl">לוח הודעות<span class="count" id="cnt-active"></span></span></a>
+      </div></nav>
+    </div>
+    <!-- level 1 of Settings (AREA_TABS.system): the module's settings page -->
+    <div class="subnav" id="nav-sys" hidden>
+      <nav class="tabs pill" aria-label="לשוניות"><div class="row">
+        <a href="#"><span class="lbl">כללי</span></a><a href="#"><span class="lbl">משתמשים והרשאות</span></a><a href="#"><span class="lbl">התראות</span></a><a href="#"><span class="lbl">מסכי קיר</span></a><a href="#"><span class="lbl">שידור למסכים</span></a>
+        <a href="#" data-go="settings"><span class="lbl">לוח הודעות</span></a>
+      </div></nav>
+    </div>
+
+    <!-- ===== HOME: the widget among the existing widgets ===== -->
+    <section class="screen" id="s-home">
+      <div class="top"><div><h1>הבית</h1><p class="sub">מגדל הים · יום שישי, 24.10.2026</p></div><span class="sp"></span><div class="meta"><button class="btn mng"><svg class="ic"><use href="#i-edit"/></svg>עריכת המסך</button></div></div>
+      <div class="home">
+        <div class="w s"><div class="wh"><h3>שעון</h3></div><div class="big num">09:12</div><div class="mut">יום שישי · 24.10.2026 · ג׳ חשוון</div></div>
+        <div class="w" id="w-notices" data-w="notices">
+          <div class="wh"><svg class="ic" style="color:var(--sw-accent)"><use href="#i-board"/></svg><h3>לוח הודעות</h3><a href="#" data-go="notices">הכול</a></div>
+          <div class="wl">
+            <a href="#" data-look="alarm"><span class="sev"></span><span class="tt"><b>הפסקת מים מחר <span class="num">10:00-12:00</span></b><span>דחוף · עד מחר 12:00</span></span><span class="new" aria-label="חדש"></span></a>
+            <a href="#" data-look="warn"><span class="sev"></span><span class="tt"><b>טיפול במעלית הצפונית ביום שלישי</b><span>חשוב · 27.10 · קומות 1-6</span></span><span class="new" aria-label="חדש"></span></a>
+            <a href="#" data-look="acc"><span class="sev"></span><span class="tt"><b>שטיפת החניון ביום חמישי</b><span>עד 29.10</span></span></a>
+          </div>
+          <div class="w-empty"><svg class="ic"><use href="#i-check"/></svg>אין הודעות פעילות</div>
+          <div class="w-err"><svg class="ic"><use href="#i-warning"/></svg>לא ניתן לטעון · <a href="#" style="color:inherit">ניסיון חוזר</a></div>
+          <div class="w-skl" aria-busy="true"></div>
+        </div>
+        <div class="w"><div class="wh"><h3>מעליות</h3><a href="#">הכול</a></div><div class="row"><div class="tile" data-look="ok"><span class="mut">צפונית</span><b>קומה 4 · עולה</b></div><div class="tile" data-look="ok"><span class="mut">דרומית</span><b>קרקע · פנויה</b></div></div></div>
+        <div class="w s"><div class="wh"><h3>מזג אוויר</h3></div><div class="big num">24°</div><div class="mut">בהיר · רוח קלה</div></div>
+        <div class="w"><div class="wh"><h3>טמפרטורת תשתיות</h3><a href="#">הכול</a></div><div class="row"><div class="tile" data-look="ok"><span class="mut">חדר שרתים</span><b>21.4°</b></div><div class="tile" data-look="warn"><span class="tile mut" style="padding:0;border:0">חדר משאבות</span><b>31.0°</b></div></div></div>
+        <div class="w s"><div class="wh"><h3>גנרטור</h3></div><div class="chips"><span class="chip" data-look="ok">מוכן</span><span class="chip">דלק 82%</span></div></div>
+      </div>
+    </section>
+
+    <!-- ===== THE PAGE #/notices ===== -->
+    <section class="screen" id="s-notices" data-list>
+      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>לוח הודעות מופעל בהגדרות המערכת.</p></div><button class="btn adm" data-go="settings">להגדרות</button></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את ההודעות</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>לוח הודעות</h1><p class="sub"><span data-sub></span></p></div><span class="sp"></span>
+        <div class="meta"><button class="btn pri mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>הודעה חדשה</button></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-board"/></svg></div><div><h4>אין הודעות כרגע</h4><p class="reader-only">כשתפורסם הודעה לבניין היא תופיע כאן ובמסך הבית.</p><p class="mng">הודעה לבניין היא כותרת, טקסט קצר, למי היא מיועדת ועד מתי: היא מופיעה במסך הבית של הנמענים, בלוחות התצוגה שתבחרו, ונעלמת בסוף התוקף.</p></div><button class="btn pri mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>ההודעה הראשונה</button></div>
+      <div class="kpis" role="group" aria-label="מצב" data-kpis>
+        <button class="kpi" data-k="all" aria-pressed="true"><span class="dot" aria-hidden="true"></span><div><b data-n="all">0</b><span class="l">פעילות</span></div></button>
+        <button class="kpi" data-k="alarm" data-look="alarm" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="alarm">0</b><span class="l">דחופות</span></div></button>
+        <button class="kpi mng" data-k="acc" data-look="acc" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="acc">0</b><span class="l">מתוזמנות</span></div></button>
+        <button class="kpi mng" data-k="off" data-look="off" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="off">0</b><span class="l">פגו</span></div></button>
+        <button class="kpi mng" data-k="unk" data-look="unk" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="unk">0</b><span class="l">טיוטות</span></div></button>
+      </div>
+      <div class="cols">
+        <aside class="panel flush tree-w"><nav class="tree" aria-label="מקומות" data-tree></nav></aside>
+        <div class="panel flush">
+          <div class="tree-m"><select aria-label="מקום" data-tree-select></select></div>
+          <div class="toolbar">
+            <div class="seg" role="group" aria-label="תצוגה" data-kinds><button aria-pressed="true" data-kind="all">הכול</button><button aria-pressed="false" data-kind="mine">עבורי</button><button aria-pressed="false" data-kind="tv">בלוחות תצוגה</button></div>
+            <label class="search"><svg class="ic"><use href="#i-search"/></svg><input type="search" placeholder="חיפוש" aria-label="חיפוש" data-search></label>
+          </div>
+          <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>הודעה</th><th>למי</th><th>לוחות תצוגה</th><th>בתוקף</th><th>נשלחה</th><th></th></tr></thead><tbody>
+            <tr class="go" tabindex="0" data-look="alarm" data-state="active" data-kind="mine tv" data-place="all" data-sev="דחוף"><td><span class="badge"><svg class="ic"><use href="#i-warning"/></svg>דחוף</span></td><td><span class="t1">הפסקת מים מחר 10:00-12:00</span><span class="t2">עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></td><td><span class="chip" data-look="acc">כולם</span></td><td><span class="chips"><span class="chip">לובי</span><span class="chip">חניון</span></span></td><td class="date num">24.10 – 25.10 12:00</td><td class="date num">24.10 08:40 · 118</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go" tabindex="0" data-look="warn" data-state="active" data-kind="mine tv" data-place="bldg" data-sev="חשוב"><td><span class="badge">חשוב</span></td><td><span class="t1">טיפול במעלית הצפונית ביום שלישי</span><span class="t2">המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.</span></td><td><span class="chips"><span class="chip">קומות 1-6</span></span></td><td><span class="chips"><span class="chip">לובי</span></span></td><td class="date num">22.10 – 27.10</td><td class="date num">22.10 16:05 · 64</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go" tabindex="0" data-look="acc" data-state="active" data-kind="mine tv" data-place="parking" data-sev="רגיל"><td><span class="badge">פעילה</span></td><td><span class="t1">שטיפת החניון ביום חמישי</span><span class="t2">נא לא להחנות ברמה -1 בין 06:00 ל-10:00.</span></td><td><span class="chips"><span class="chip">חניון</span><span class="chip">קבוצה: חניון</span></span></td><td><span class="chips"><span class="chip">חניון</span></span></td><td class="date num">23.10 – 29.10</td><td class="mut">-</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go" tabindex="0" data-look="warn" data-state="active" data-kind="tv" data-place="parking" data-sev="חשוב"><td><span class="badge">חשוב</span></td><td><span class="t1">רמה -2 סגורה ביום שישי</span><span class="t2">סימון חניות מחדש. הכניסה דרך רמה -1 בלבד.</span></td><td><span class="chips"><span class="chip" data-look="off">לוחות בלבד</span></span></td><td><span class="chips"><span class="chip">חניון</span></span></td><td class="date num">24.10 – 30.10</td><td class="mut">-</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go mng-row" tabindex="0" data-look="acc" data-state="scheduled" data-kind="mine" data-place="bldg" data-sev="רגיל"><td><span class="badge">מתוזמנת</span></td><td><span class="t1">ניקוי חלונות חיצוני</span><span class="t2">צוות סנפלינג יעבוד על חזית הבניין. נא לסגור תריסים.</span></td><td><span class="chip" data-look="acc">כולם</span></td><td class="mut">-</td><td class="date num">02.11 – 05.11</td><td class="mut">-</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go mng-row" tabindex="0" data-look="off" data-state="expired" data-kind="mine" data-place="all" data-sev="רגיל"><td><span class="badge">פגה</span></td><td><span class="t1">בדיקת גנרטור בעומס</span><span class="t2">רעש קצר צפוי בשעות הבוקר.</span></td><td><span class="chip" data-look="acc">כולם</span></td><td class="mut">-</td><td class="date num">18.10 – 20.10</td><td class="date num">18.10 · 131</td><td class="act"><button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go mng-row" tabindex="0" data-look="unk" data-state="draft" data-kind="" data-place="all" data-sev="רגיל"><td><span class="badge">טיוטה</span></td><td><span class="t1">שינוי שעות קבלת קהל במשרד הניהול</span></td><td class="mut">-</td><td class="mut">-</td><td class="mut">-</td><td class="mut">-</td><td class="act"><button class="btn sm pri mng" data-compose>המשך עריכה</button></td></tr>
+          </tbody></table></div>
+          <div class="cards-m" data-cards></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SETTINGS > לוח הודעות ===== -->
+    <section class="screen" id="s-settings" data-need="adm">
+      <div class="state-panel" data-state="forbidden"><div class="icon"><svg class="ic"><use href="#i-lock"/></svg></div><div><h4>אין הרשאה</h4><p>הגדרות לוח ההודעות פתוחות למנהלי המערכת.</p></div></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את ההגדרות</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top keep-off"><div><h1>לוח הודעות</h1><p class="sub">הגדרות · הודעות לבניין ולוחות תצוגה</p></div><span class="sp"></span></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>כשהמודול כבוי אין לוח הודעות, אין ווידג׳ט ולוחות התצוגה אינם מגיבים. ההודעות הקיימות נשמרות.</p></div><button class="btn pri" data-turn-on>הפעלת לוח ההודעות</button></div>
+      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-tv"/></svg></div><div><h4>עדיין אין לוחות תצוגה</h4><p>לוח תצוגה הוא מסך בבניין (לובי, חניון, חדר כושר) שמציג את ההודעות שסומנו עבורו. לכל לוח קישור משלו.</p></div><button class="btn pri" data-newboard><svg class="ic"><use href="#i-plus"/></svg>הלוח הראשון</button></div>
+      <div class="set-grid two" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+        <div class="panel"><div class="hd"><h2>המודול</h2><span class="sp"></span><span class="sw"><button class="tog" role="switch" aria-checked="true" aria-label="לוח הודעות"></button><span>פועל</span></span></div>
+          <dl class="kv"><dt>כתיבה</dt><dd>עורכים ומנהלי אתר (notices.manage)</dd><dt>שליחת התראה</dt><dd>מנהלי אתר (notices.push)</dd><dt>לוחות תצוגה</dt><dd>מנהלי מערכת (notices.boards)</dd></dl></div>
+        <div class="panel"><div class="hd"><h2>ברירות מחדל</h2></div>
+          <div class="form"><div class="r"><div class="fld"><label>תוקף</label><select class="inp"><option>7 ימים</option><option>3 ימים</option><option>14 ימים</option></select></div><div class="fld"><label>חומרה</label><select class="inp"><option>רגיל</option><option>חשוב</option></select></div></div>
+          <div class="r"><div class="fld"><label>התראה בפרסום</label><select class="inp"><option>לפי חומרה (דחוף בלבד)</option><option>תמיד</option><option>אף פעם</option></select></div><div class="fld"><label>שמירת היסטוריה</label><select class="inp"><option>שנה</option><option>חצי שנה</option></select></div></div></div></div>
+      </div>
+      <div class="panel flush">
+        <div class="toolbar"><h2 style="margin:0;font-size:var(--sw-fs-md)">לוחות תצוגה</h2><span class="chip">3 מתוך 10</span><span style="flex:1"></span><label class="ck"><input type="checkbox"> זמינים גם מחוץ לרשת הבניין</label><button class="btn pri" data-newboard><svg class="ic"><use href="#i-plus"/></svg>לוח חדש</button></div>
+        <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>לוח</th><th>כתובת</th><th>הודעות</th><th>נראה לאחרונה</th><th></th></tr></thead><tbody>
+          <tr class="go" tabindex="0" data-look="ok" data-board="lobby"><td><span class="badge">מחובר</span></td><td><span class="t1">לוח הלובי</span><span class="t2">כהה · מתחלף כל 12 שניות · כתב 100%</span></td><td class="ltr mut">/b/lobby</td><td class="num">2</td><td class="date num">לפני 20 שניות</td><td class="act"><button class="btn sm" data-copy>העתקת קישור</button> <button class="btn sm" data-go="board">פתיחה</button></td></tr>
+          <tr class="go" tabindex="0" data-look="ok" data-board="parking"><td><span class="badge">מחובר</span></td><td><span class="t1">לוח החניון</span><span class="t2">כהה · מתחלף כל 10 שניות · כתב 120%</span></td><td class="ltr mut">/b/parking</td><td class="num">3</td><td class="date num">לפני דקה</td><td class="act"><button class="btn sm" data-copy>העתקת קישור</button> <button class="btn sm" data-go="board">פתיחה</button></td></tr>
+          <tr class="go" tabindex="0" data-look="off" data-board="gym"><td><span class="badge">כבוי</span></td><td><span class="t1">לוח חדר הכושר</span><span class="t2">בהיר · אנכי</span></td><td class="ltr mut">/b/gym</td><td class="num">0</td><td class="date num">11.10.2026</td><td class="act"><button class="btn sm">הפעלה</button> <button class="btn sm" data-go="board">פתיחה</button></td></tr>
+        </tbody></table></div>
+        <div class="cards-m" data-cards-boards></div>
+      </div>
+    </section>
+
+    <!-- ===== ONE BOARD'S PAGE ===== -->
+    <section class="screen" id="s-board" data-need="adm">
+      <div class="state-panel" data-state="forbidden"><div class="icon"><svg class="ic"><use href="#i-lock"/></svg></div><div><h4>אין הרשאה</h4><p>לוחות התצוגה פתוחים למנהלי המערכת.</p></div></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את הלוח</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>לוח הודעות מופעל בהגדרות המערכת.</p></div><button class="btn" data-go="settings">להגדרות</button></div>
+      <div class="top"><div><h1>לוח הלובי</h1><p class="sub">לוח תצוגה · <span class="ltr">/b/lobby</span> · מחובר, נראה לפני 20 שניות</p></div><span class="sp"></span>
+        <div class="meta"><button class="btn" data-go="tv-lobby"><svg class="ic"><use href="#i-eye"/></svg>תצוגה מקדימה</button><button class="btn" data-copy><svg class="ic"><use href="#i-copy"/></svg>העתקת קישור</button><button class="btn" data-link><svg class="ic"><use href="#i-rotate"/></svg>קישור חדש</button><span class="sw"><button class="tog" role="switch" aria-checked="true" aria-label="הלוח פעיל"></button></span></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-board"/></svg></div><div><h4>הלוח ריק</h4><p>הטלוויזיה מציגה "אין הודעות כרגע" עם השעון. סמנו הודעות ללוח הזה מתוך לוח ההודעות או מכאן.</p></div><button class="btn pri mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>הודעה חדשה ללוח</button></div>
+      <div class="two">
+        <div class="panel"><div class="hd"><h2>תצוגה</h2><span class="sp"></span><button class="btn sm">שמירה</button></div>
+          <div class="form">
+            <div class="r"><div class="fld"><label>שם</label><input class="inp" value="לוח הלובי"></div><div class="fld"><label>כתובת (קבועה)</label><input class="inp ltr" value="lobby" disabled></div></div>
+            <div class="r"><div class="fld"><label>ערכת צבע</label><div class="seg"><button aria-pressed="false">בהיר</button><button aria-pressed="true">כהה</button><button aria-pressed="false">אוטומטי</button></div></div><div class="fld"><label>כיוון המסך</label><div class="seg"><button aria-pressed="true">אוטומטי</button><button aria-pressed="false">רוחב</button><button aria-pressed="false">אנכי</button></div></div></div>
+            <div class="r"><div class="fld"><label>החלפת הודעות כל</label><select class="inp"><option>12 שניות</option><option>8 שניות</option><option>20 שניות</option></select></div><div class="fld"><label>גודל הכתב</label><select class="inp"><option>100%</option><option>120%</option><option>140%</option></select></div></div>
+            <div class="r"><div class="fld"><label>שפת המסך</label><select class="inp"><option>עברית</option><option>English</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
+            <div class="row" style="display:flex;gap:16px;flex-wrap:wrap"><label class="ck"><input type="checkbox" checked> שעון ותאריך</label><label class="ck"><input type="checkbox" checked> הזזה איטית נגד צריבה</label><label class="ck"><input type="checkbox" checked> לוגו חברת הניהול</label></div>
+          </div></div>
+        <div class="panel"><div class="hd"><h2>הקישור</h2></div>
+          <div class="link"><code>https://arx.building.example/b/lobby#t=••••••••••••••••••••••••••••••••••••••</code><button class="btn sm" data-copy>העתקה</button></div>
+          <p class="hint" style="margin:8px 0 0">הקישור המלא מוצג פעם אחת בלבד, ביצירת הלוח או ב"קישור חדש". קישור חדש מבטל את הקודם מיד. הקישור נפתח בדפדפן של הטלוויזיה וללא כניסה למערכת; מציג רק את ההודעות שסומנו ללוח הזה.</p>
+          <div style="display:flex;gap:14px;align-items:center;margin-block-start:12px;flex-wrap:wrap"><div class="qr" aria-label="קוד QR לקישור"><svg viewBox="0 0 29 29" shape-rendering="crispEdges" id="qr1"></svg></div><dl class="kv"><dt>נוצר</dt><dd>02.10.2026</dd><dt>קישור חדש</dt><dd>15.10.2026 · דני כהן</dd><dt>שידור Cast</dt><dd class="mut">לא זמין לדפי אינטרנט (ראו שאלה 4)</dd></dl></div>
+        </div>
+      </div>
+      <div class="panel flush">
+        <div class="toolbar"><h2 style="margin:0;font-size:var(--sw-fs-md)">הודעות בלוח</h2><span class="chip">2 פעילות</span><span style="flex:1"></span><button class="btn mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>הודעה חדשה ללוח</button></div>
+        <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>הודעה</th><th>בתוקף</th><th></th></tr></thead><tbody>
+          <tr data-look="alarm"><td><span class="badge">דחוף · קבועה למעלה</span></td><td><span class="t1">הפסקת מים מחר 10:00-12:00</span></td><td class="date num">24.10 – 25.10 12:00</td><td class="act"><button class="btn sm mng">הסרה מהלוח</button></td></tr>
+          <tr data-look="warn"><td><span class="badge">חשוב</span></td><td><span class="t1">טיפול במעלית הצפונית ביום שלישי</span></td><td class="date num">22.10 – 27.10</td><td class="act"><button class="btn sm mng">הסרה מהלוח</button></td></tr>
+        </tbody></table></div>
+        <div class="cards-m" data-cards-board></div>
+      </div>
+    </section>
+  </main>
+  <nav class="bottom" aria-label="ניווט">
+    <a href="#" class="active"><svg class="ic"><use href="#i-home"/></svg>ראשי</a><a href="#"><svg class="ic"><use href="#i-shield"/></svg>אבטחה</a><a href="#"><svg class="ic"><use href="#i-map"/></svg>מפה</a><a href="#"><svg class="ic"><use href="#i-bolt"/></svg>תשתיות</a><a href="#"><svg class="ic"><use href="#i-gear"/></svg>הגדרות</a>
+  </nav>
+</div>
+
+<!-- ===== THE COMPOSE DIALOG ===== -->
+<div class="ov" id="ov-compose" role="dialog" aria-modal="true" aria-labelledby="h-compose">
+  <div class="dlg">
+    <header><div><h2 id="h-compose">הודעה חדשה</h2><p class="sub">מופיעה לנמענים במסך הבית ובלוח ההודעות, ובלוחות התצוגה שתבחרו</p></div><button class="x" data-close aria-label="סגירה"><svg class="ic"><use href="#i-close"/></svg></button></header>
+    <div class="body">
+      <div class="two">
+        <div class="form">
+          <div class="fld"><label>כותרת</label><input class="inp" value="הפסקת מים מחר 10:00-12:00" maxlength="120"></div>
+          <div class="fld"><label>טקסט</label><textarea class="inp">עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</textarea></div>
+          <div class="r">
+            <div class="fld"><label>חומרה</label><div class="seg" data-sev><button aria-pressed="false">רגיל</button><button aria-pressed="false">חשוב</button><button aria-pressed="true">דחוף</button></div></div>
+            <div class="fld"><label>&nbsp;</label><label class="ck"><input type="checkbox" checked> קבועה בראש הרשימה</label></div>
+          </div>
+          <div class="r">
+            <div class="fld"><label>מתאריך</label><input class="inp num" type="text" value="24.10.2026 08:30"></div>
+            <div class="fld"><label>עד תאריך</label><input class="inp num" type="text" value="25.10.2026 12:00"><span class="mut">הודעה דחופה חייבת תאריך סיום</span></div>
+          </div>
+        </div>
+        <div class="form">
+          <div class="fld"><label>למי</label>
+            <div class="seg" data-aud><button aria-pressed="true" data-a="all">כולם</button><button aria-pressed="false" data-a="place">לפי מקום</button><button aria-pressed="false" data-a="group">לפי קבוצה או תפקיד</button></div>
+            <div class="aud" data-aud-all><div class="sum"><svg class="ic"><use href="#i-people"/></svg><b>118</b>משתמשים פעילים</div></div>
+            <div class="aud" data-aud-place hidden><div class="tr"><label class="ck"><input type="checkbox" checked> מבנה א - כל הקומות</label><label class="ck"><input type="checkbox"> קומה 1</label><label class="ck"><input type="checkbox"> קומה 2</label><label class="ck"><input type="checkbox"> קומות 3-6</label><label class="ck"><input type="checkbox"> לובי</label><label class="ck"><input type="checkbox"> חניון</label><label class="ck"><input type="checkbox"> גג</label></div><div class="sum"><svg class="ic"><use href="#i-people"/></svg><b>96</b>משתמשים שגישתם מגיעה למקומות אלה</div></div>
+            <div class="aud" data-aud-group hidden><div class="chips"><button class="pick" aria-pressed="true">קבוצה: חניון</button><button class="pick" aria-pressed="false">קבוצה: ועד הבית</button><button class="pick" aria-pressed="false">תפקיד: מפעילים</button><button class="pick" aria-pressed="false">תפקיד: מנהלי אתר</button></div><div class="sum"><svg class="ic"><use href="#i-people"/></svg><b>14</b>משתמשים</div></div>
+          </div>
+          <div class="fld"><label>לוחות תצוגה</label><div class="chips"><button class="pick" aria-pressed="true"><svg class="ic"><use href="#i-tv"/></svg>לוח הלובי</button><button class="pick" aria-pressed="true"><svg class="ic"><use href="#i-tv"/></svg>לוח החניון</button><button class="pick" aria-pressed="false" disabled><svg class="ic"><use href="#i-tv"/></svg>לוח חדר הכושר · כבוי</button></div></div>
+          <div class="fld"><label>התראה</label><label class="ck"><input type="checkbox" checked> שליחת התראה לנמענים בפרסום</label><span class="mut">פעם אחת, בערוצים שכל נמען בחר. עריכה אחרי הפרסום אינה שולחת שוב.</span></div>
+        </div>
+      </div>
+    </div>
+    <footer><button class="btn ghost dng" data-close>מחיקת הטיוטה</button><span class="sp"></span><button class="btn" data-close>שמירה כטיוטה</button><button class="btn pri" data-toast="ההודעה פורסמה ונשלחה ל-118 נמענים">פרסום</button></footer>
+  </div>
+</div>
+
+<!-- ===== THE NEW-LINK SHEET (shown once) ===== -->
+<div class="ov" id="ov-link" role="dialog" aria-modal="true" aria-labelledby="h-link">
+  <div class="dlg narrow">
+    <header><div><h2 id="h-link">הקישור של לוח הלובי</h2><p class="sub">מוצג פעם אחת. הקישור הקודם בוטל.</p></div><button class="x" data-close aria-label="סגירה"><svg class="ic"><use href="#i-close"/></svg></button></header>
+    <div class="body">
+      <div class="link"><code>https://arx.building.example/b/lobby#t=k9Qw2Lr7Vt3pXa8MbN4cHd6FeJ1sYz0uRiGo5wTqBv</code><button class="btn sm" data-copy>העתקה</button></div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div class="qr" aria-label="קוד QR לקישור"><svg viewBox="0 0 29 29" shape-rendering="crispEdges" id="qr2"></svg></div><div class="hint">סרקו מהטלוויזיה או הקלידו בדפדפן שלה והגדירו כדף פתיחה. הקישור ללא כניסה למערכת, לקריאה בלבד, ומציג רק את ההודעות של הלוח הזה.</div></div>
+      <div class="alert warn"><svg class="ic"><use href="#i-warning"/></svg><div>הקישור מגיע רק מרשת הבניין. לפתיחה גם מבחוץ: הגדרות › לוח הודעות › "זמינים גם מחוץ לרשת הבניין".</div></div>
+    </div>
+    <footer><span class="sp"></span><button class="btn pri" data-close>סיימתי</button></footer>
+  </div>
+</div>
+
+<!-- ===== THE TV VIEW (no shell, no login): two boards ===== -->
+<div class="tv" id="tv-parking" data-board="parking" data-net="live" data-theme-pref="dark">
+  <div class="mockline"><button data-net="live">מחובר</button><button data-net="stale">לא מעודכן</button><button data-net="offline">מנותק</button><button data-net="gone">בוטל</button><button data-empty>ריק</button><button data-night>לילה</button></div>
+  <div class="shift">
+    <header>
+      <div class="logo product">לוגו SmplWise<br>(CR-LOGOS295)</div>
+      <div class="bname"><b>לוח החניון</b><span>מגדל הים · רמות <span class="num">-1 / -2</span></span></div>
+      <div class="clock"><b data-clock>09:12</b><span>יום שישי · 24.10.2026</span></div>
+      <div class="logo company">לוגו חברת הניהול<br>(CR-LOGOS295, אופציונלי)</div>
+    </header>
+    <div class="banner on" role="alert"><svg class="ic"><use href="#i-warning"/></svg><div class="bt"><b>הפסקת מים מחר <span class="num">10:00-12:00</span></b><span>עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></div><span class="when">עד מחר 12:00</span></div>
+    <div class="offband"><svg class="ic"><use href="#i-offline"/></svg>הלוח מנותק מהמערכת · ההודעות האחרונות מוצגות</div>
+    <div class="stage" data-rot="10">
+      <article class="card on" data-look="warn"><span class="sev"><svg class="ic"><use href="#i-warning"/></svg>חשוב</span><h1>רמה -2 סגורה ביום שישי</h1><p>סימון חניות מחדש. הכניסה דרך רמה -1 בלבד.
+חניות הנכים ברמה -1 נשארות פתוחות.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>יום שישי 30.10 · <span class="num">06:00–16:00</span></div></article>
+      <article class="card" data-look="acc"><span class="sev">הודעה</span><h1>שטיפת החניון ביום חמישי</h1><p>נא לא להחנות ברמה -1 בין 06:00 ל-10:00. רכב שיישאר יועבר לרמה -2 על ידי הצוות.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>יום חמישי 29.10</div></article>
+      <article class="card" data-look="acc"><span class="sev">הודעה</span><h1>עמדות טעינה חדשות</h1><p>ארבע עמדות טעינה לרכב חשמלי נפתחו ברמה -1, ליד הכניסה הדרומית. הפעלה באפליקציית הבניין.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>מ-20.10</div></article>
+      <div class="dots" aria-hidden="true"></div>
+      <div class="empty"><div class="bigclock" data-clock>09:12</div><p>אין הודעות כרגע</p></div>
+    </div>
+    <div class="gone"><svg class="ic" style="font-size:2em"><use href="#i-offline"/></svg>הלוח אינו פעיל</div>
+    <footer><span class="live"><i></i>עודכן <span data-clock>09:12</span></span><span class="stale"><svg class="ic"><use href="#i-clock"/></svg>לא מעודכן מ-09:04</span><span class="sp"></span><span>לוח הודעות · SmplWise Arx</span></footer>
+  </div>
+</div>
+
+<div class="tv" id="tv-lobby" data-board="lobby" data-net="live" data-theme-pref="dark">
+  <div class="mockline"><button data-net="live">מחובר</button><button data-net="stale">לא מעודכן</button><button data-net="offline">מנותק</button><button data-net="gone">בוטל</button><button data-empty>ריק</button><button data-night>לילה</button></div>
+  <div class="shift">
+    <header>
+      <div class="logo product">לוגו SmplWise<br>(CR-LOGOS295)</div>
+      <div class="bname"><b>לוח הלובי</b><span>מגדל הים · ברוכים הבאים</span></div>
+      <div class="clock"><b data-clock>09:12</b><span>יום שישי · 24.10.2026</span></div>
+      <div class="logo company">לוגו חברת הניהול<br>(CR-LOGOS295, אופציונלי)</div>
+    </header>
+    <div class="banner on" role="alert"><svg class="ic"><use href="#i-warning"/></svg><div class="bt"><b>הפסקת מים מחר <span class="num">10:00-12:00</span></b><span>עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></div><span class="when">עד מחר 12:00</span></div>
+    <div class="offband"><svg class="ic"><use href="#i-offline"/></svg>הלוח מנותק מהמערכת · ההודעות האחרונות מוצגות</div>
+    <div class="stage" data-rot="12">
+      <article class="card on" data-look="warn"><span class="sev"><svg class="ic"><use href="#i-warning"/></svg>חשוב</span><h1>טיפול במעלית הצפונית ביום שלישי</h1><p>המעלית הצפונית תושבת בין 08:00 ל-14:00.
+המעלית הדרומית פועלת כרגיל.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>יום שלישי 27.10 · <span class="num">08:00–14:00</span></div></article>
+      <article class="card" data-look="acc"><span class="sev">הודעה</span><h1>ניקוי חלונות חיצוני</h1><p>צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>02.11 – 05.11</div></article>
+      <div class="dots" aria-hidden="true"></div>
+      <div class="empty"><div class="bigclock" data-clock>09:12</div><p>אין הודעות כרגע</p></div>
+    </div>
+    <div class="gone"><svg class="ic" style="font-size:2em"><use href="#i-offline"/></svg>הלוח אינו פעיל</div>
+    <footer><span class="live"><i></i>עודכן <span data-clock>09:12</span></span><span class="stale"><svg class="ic"><use href="#i-clock"/></svg>לא מעודכן מ-09:04</span><span class="sp"></span><span>לוח הודעות · SmplWise Arx</span></footer>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var q = new URLSearchParams(location.search), root = document.documentElement, body = document.body;
+  var PLACES = [
+    { id: 'all', name: 'כל הבניין', kind: 'all', depth: 0 },
+    { id: 'bldg', name: 'מבנה א', kind: 'floor', depth: 0, children: ['f1', 'f2', 'f36', 'lobby'] },
+    { id: 'lobby', name: 'לובי', kind: 'area', depth: 1 }, { id: 'f1', name: 'קומה 1', kind: 'area', depth: 1 }, { id: 'f2', name: 'קומה 2', kind: 'area', depth: 1 }, { id: 'f36', name: 'קומות 3-6', kind: 'area', depth: 1 },
+    { id: 'parking', name: 'חניון', kind: 'floor', depth: 0, children: [] }, { id: 'roof', name: 'גג', kind: 'floor', depth: 0, children: [] }
+  ];
+  var WORST = { unk: 0, off: 1, ok: 2, acc: 3, warn: 4, alarm: 5 };
+  if (q.get('bare') === '1') body.classList.add('bare');
+
+  function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
+  function setRole(r) { body.dataset.role = r; document.getElementById('role').value = r; }
+  function setSt(s) { body.dataset.st = s; document.getElementById('stsel').value = s; renderAll(); }
+  theme(q.get('theme') === 'dark'); setRole(q.get('role') || 'mgr');
+  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+  document.getElementById('role').onchange = function () { setRole(this.value); renderAll(); };
+  document.getElementById('stsel').onchange = function () { setSt(this.value); };
+
+  // pages
+  function showPage(id) {
+    var tv = id.indexOf('tv-') === 0;
+    body.classList.toggle('tvmode', tv);
+    document.querySelectorAll('.tv').forEach(function (t) { t.classList.toggle('on', t.id === id); });
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
+    var sys = id === 'settings' || id === 'board';
+    document.getElementById('nav-main').hidden = sys; document.getElementById('nav-sys').hidden = !sys;
+    document.getElementById('rail-home').classList.toggle('active', !sys); document.getElementById('rail-sys').classList.toggle('active', sys);
+    document.querySelectorAll('.tabs a[data-go]').forEach(function (a) { var on = a.dataset.go === id; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    document.getElementById('page').value = id;
+    if (tv) tvOrient();
+  }
+  document.getElementById('page').onchange = function () { showPage(this.value); };
+  document.querySelectorAll('[data-go]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); showPage(a.dataset.go); }); });
+  document.getElementById('rail-home').onclick = function (e) { e.preventDefault(); showPage('home'); };
+  document.getElementById('rail-sys').onclick = function (e) { e.preventDefault(); showPage('settings'); };
+
+  // the notices page: KPI filters, the tree, the segmented control, the search, the phone cards
+  var sec = document.getElementById('s-notices');
+  var rows = [].slice.call(sec.querySelectorAll('table.t tbody tr'));
+  var state = { k: 'all', place: 'all', kind: 'all', term: '', folded: {} };
+  var cards = sec.querySelector('[data-cards]');
+  rows.forEach(function (tr) {
+    var c = tr.children, d = document.createElement('div'); d.className = 'c' + (tr.classList.contains('mng-row') ? ' mng-row' : ''); d.dataset.look = tr.dataset.look;
+    var r1 = document.createElement('div'); r1.className = 'r1';
+    var t = document.createElement('span'); t.className = 't1'; t.textContent = c[1].querySelector('.t1').textContent; r1.appendChild(t); r1.appendChild(c[0].firstElementChild.cloneNode(true));
+    var r2 = document.createElement('div'); r2.className = 'mut';
+    var t2 = c[1].querySelector('.t2'), aud = [].map.call(c[2].querySelectorAll('.chip'), function (x) { return x.textContent.trim(); }).join(' · ') || c[2].textContent.trim();
+    r2.textContent = [t2 ? t2.textContent : '', aud, c[4].textContent.trim()].filter(function (x) { return x && x !== '-'; }).join(' · ');
+    var r3 = document.createElement('div'); r3.className = 'r3';
+    [].slice.call(c[c.length - 1].querySelectorAll('.btn')).forEach(function (b) { r3.appendChild(b.cloneNode(true)); });
+    d.appendChild(r1); d.appendChild(r2); if (r3.children.length) d.appendChild(r3); cards.appendChild(d); tr._card = d;
+  });
+  function inPlace(tr) { if (state.place === 'all') return true; var p = PLACES.filter(function (x) { return x.id === state.place; })[0]; return tr.dataset.place === state.place || tr.dataset.place === 'all' || (p && p.children && p.children.indexOf(tr.dataset.place) > -1); }
+  function readerOk(tr) { return body.dataset.role === 'mgr' || tr.dataset.state === 'active'; }
+  function kindOk(tr) { return state.kind === 'all' || (tr.dataset.kind || '').split(' ').indexOf(state.kind) > -1; }
+  function matches(tr) { return readerOk(tr) && inPlace(tr) && (state.k === 'all' ? true : tr.dataset.look === state.k) && kindOk(tr) && tr.textContent.indexOf(state.term) > -1; }
+  function render() {
+    rows.forEach(function (tr) { var h = !matches(tr); tr.hidden = h; tr._card.hidden = h; });
+    var n = { all: 0, alarm: 0, acc: 0, off: 0, unk: 0 };
+    rows.forEach(function (tr) { if (readerOk(tr) && inPlace(tr) && kindOk(tr) && tr.textContent.indexOf(state.term) > -1) { if (tr.dataset.state === 'active') n.all++; if (tr.dataset.look === 'alarm') n.alarm++; if (tr.dataset.state === 'scheduled') n.acc++; if (tr.dataset.state === 'expired') n.off++; if (tr.dataset.state === 'draft') n.unk++; } });
+    sec.querySelectorAll('[data-n]').forEach(function (b) { b.textContent = n[b.dataset.n] || 0; });
+    var active = rows.filter(function (tr) { return tr.dataset.state === 'active'; }).length, urgent = rows.filter(function (tr) { return tr.dataset.look === 'alarm'; }).length;
+    sec.querySelector('[data-sub]').textContent = active + ' הודעות פעילות · ' + urgent + ' דחופה · 3 לוחות תצוגה';
+    document.getElementById('cnt-active').textContent = '(' + active + ')';
+    var tree = sec.querySelector('[data-tree]'), sel = sec.querySelector('[data-tree-select]'); tree.innerHTML = ''; sel.innerHTML = '';
+    var ttl = document.createElement('div'); ttl.className = 'ttl'; ttl.textContent = 'מקומות'; tree.appendChild(ttl);
+    PLACES.forEach(function (p) {
+      var mine = rows.filter(function (tr) { return readerOk(tr) && (p.kind === 'all' || tr.dataset.place === p.id || (p.children && p.children.indexOf(tr.dataset.place) > -1)); });
+      var cnt = mine.length, worst = null; mine.forEach(function (tr) { if (worst === null || WORST[tr.dataset.look] > WORST[worst]) worst = tr.dataset.look; });
+      var line = document.createElement('div'); line.className = 'line' + (p.kind === 'floor' ? ' floor' : ''); line.hidden = !!(p.depth === 1 && state.folded.bldg);
+      if (p.kind === 'floor') { var f = document.createElement('button'); f.type = 'button'; f.className = 'fold'; f.setAttribute('aria-expanded', String(!state.folded[p.id])); f.setAttribute('aria-label', (state.folded[p.id] ? 'הרחבה ' : 'כיווץ ') + p.name); f.innerHTML = '<svg class="ic"><use href="#i-chev"/></svg>'; f.onclick = function () { state.folded[p.id] = !state.folded[p.id]; render(); }; line.appendChild(f); }
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'pick' + (p.depth === 1 ? ' depth-1' : ''); b.setAttribute('aria-current', String(state.place === p.id));
+      if (p.kind === 'all') b.innerHTML = '<svg class="ic"><use href="#i-pin"/></svg>'; else if (p.kind === 'area' && worst) { var dot = document.createElement('span'); dot.className = 'dot'; dot.dataset.look = worst; dot.setAttribute('aria-hidden', 'true'); b.appendChild(dot); }
+      var nm = document.createElement('span'); nm.className = 'name'; nm.textContent = p.name; b.appendChild(nm);
+      var nn = document.createElement('span'); nn.className = 'n'; nn.textContent = cnt; b.appendChild(nn);
+      b.onclick = function () { state.place = p.id; render(); }; line.appendChild(b); tree.appendChild(line);
+      var o = document.createElement('option'); o.value = p.id; o.textContent = (p.depth === 1 ? '– ' : '') + p.name + ' (' + cnt + ')'; o.selected = state.place === p.id; sel.appendChild(o);
+    });
+  }
+  sec.querySelector('[data-tree-select]').onchange = function () { state.place = this.value; render(); };
+  sec.querySelectorAll('[data-kpis] .kpi').forEach(function (b) { b.onclick = function () { state.k = state.k === b.dataset.k || b.dataset.k === 'all' ? 'all' : b.dataset.k; sec.querySelectorAll('[data-kpis] .kpi').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.k === state.k)); }); render(); }; });
+  sec.querySelectorAll('[data-kinds] button').forEach(function (b) { b.onclick = function () { state.kind = b.dataset.kind; sec.querySelectorAll('[data-kinds] button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); render(); }; });
+  sec.querySelector('[data-search]').oninput = function () { state.term = this.value.trim(); render(); };
+  function renderAll() { render(); }
+
+  // phone cards for the boards table and the board's items
+  function cardsFrom(sel, host, titleCol, metaCols, badgeCol, actCol) {
+    var h = document.querySelector(host); if (!h) return;
+    document.querySelectorAll(sel).forEach(function (tr) {
+      var c = tr.children, d = document.createElement('div'); d.className = 'c'; d.dataset.look = tr.dataset.look;
+      d.innerHTML = '<div class="r1"><span class="t1"></span></div><div class="mut"></div><div class="r3"></div>';
+      d.querySelector('.t1').textContent = c[titleCol].querySelector('.t1').textContent; d.querySelector('.r1').appendChild(c[badgeCol].firstElementChild.cloneNode(true));
+      d.querySelector('.mut').textContent = metaCols.map(function (i) { return c[i].textContent.trim(); }).filter(function (x) { return x && x !== '-'; }).join(' · ');
+      [].slice.call(c[actCol].querySelectorAll('.btn')).forEach(function (b) { d.querySelector('.r3').appendChild(b.cloneNode(true)); }); h.appendChild(d);
+    });
+  }
+  cardsFrom('#s-settings table.t tbody tr', '[data-cards-boards]', 1, [2, 3, 4], 0, 5);
+  cardsFrom('#s-board table.t tbody tr', '[data-cards-board]', 1, [2], 0, 3);
+
+  // dialogs, toasts
+  function open(id) { document.getElementById(id).classList.add('open'); var x = document.querySelector('#' + id + ' .x'); if (x) x.focus(); }
+  function closeAll() { document.querySelectorAll('.ov.open').forEach(function (o) { o.classList.remove('open'); }); }
+  function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 1800); }
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = closeAll; });
+  document.querySelectorAll('.ov').forEach(function (o) { o.addEventListener('click', function (e) { if (e.target === o) closeAll(); }); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(); });
+  document.getElementById('open-compose').onclick = function () { open('ov-compose'); };
+  document.getElementById('open-link').onclick = function () { open('ov-link'); };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-compose], [data-link], [data-copy], [data-toast], [data-newboard], [data-turn-on]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    if (b.hasAttribute('data-compose')) open('ov-compose');
+    else if (b.hasAttribute('data-link') || b.hasAttribute('data-newboard')) open('ov-link');
+    else if (b.hasAttribute('data-copy')) toast('הקישור הועתק');
+    else if (b.hasAttribute('data-turn-on')) { setSt('ready'); toast('לוח ההודעות פועל'); }
+    else { closeAll(); toast(b.dataset.toast); }
+  });
+  document.querySelectorAll('#s-notices table.t tbody tr, #s-notices .cards-m .c').forEach(function (tr) { tr.addEventListener('click', function (e) { if (!e.target.closest('.btn') && body.dataset.role === 'mgr') open('ov-compose'); }); });
+  document.querySelectorAll('#s-settings table.t tbody tr').forEach(function (tr) { tr.addEventListener('click', function (e) { if (!e.target.closest('.btn')) showPage('board'); }); });
+  document.querySelectorAll('[data-aud] button').forEach(function (b) { b.onclick = function () { b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); ['all', 'place', 'group'].forEach(function (k) { document.querySelector('[data-aud-' + k + ']').hidden = b.dataset.a !== k; }); }; });
+  document.querySelectorAll('.seg[data-sev] button, .dlg .seg:not([data-aud]) button').forEach(function (b) { b.onclick = function () { b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }; });
+  document.querySelectorAll('.pick:not([disabled])').forEach(function (b) { b.onclick = function () { b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); }; });
+  document.querySelectorAll('.tog').forEach(function (b) { b.onclick = function () { b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true')); var l = b.nextElementSibling; if (l) l.textContent = b.getAttribute('aria-checked') === 'true' ? 'פועל' : 'כבוי'; }; });
+
+  // a QR placeholder (the product draws the real one with qrSvg of sw-second-factor.ts): a deterministic pattern with the three finders
+  function qr(id, seed) {
+    var s = document.getElementById(id); if (!s) return; var out = '', x, y, r = seed;
+    function rnd() { r = (r * 1103515245 + 12345) & 0x7fffffff; return r / 0x7fffffff; }
+    function finder(ox, oy) { for (y = 0; y < 7; y++) for (x = 0; x < 7; x++) { var e = x === 0 || y === 0 || x === 6 || y === 6, i = x > 1 && x < 5 && y > 1 && y < 5; if (e || i) out += '<rect x="' + (ox + x) + '" y="' + (oy + y) + '" width="1" height="1"/>'; } }
+    for (y = 0; y < 29; y++) for (x = 0; x < 29; x++) { var inF = (x < 8 && y < 8) || (x > 20 && y < 8) || (x < 8 && y > 20); if (!inF && rnd() > .55) out += '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>'; }
+    finder(0, 0); finder(22, 0); finder(0, 22); s.innerHTML = '<g fill="#111">' + out + '</g>';
+  }
+  qr('qr1', 7); qr('qr2', 11);
+
+  // ===== the TV: orientation, rotation, states, clock, burn-in shift =====
+  function tvOrient() {
+    var o = document.getElementById('tvo').value, portrait = o === 'portrait' || (o === 'auto' && innerHeight > innerWidth);
+    document.querySelectorAll('.tv').forEach(function (t) { t.classList.toggle('portrait', portrait); });
+  }
+  document.getElementById('tvo').value = q.get('tv') || 'auto';
+  document.getElementById('tvo').onchange = tvOrient; addEventListener('resize', tvOrient);
+  document.querySelectorAll('.tv').forEach(function (t) {
+    var stage = t.querySelector('.stage'), cardsT = [].slice.call(stage.querySelectorAll('.card')), dots = stage.querySelector('.dots'), i = 0;
+    cardsT.forEach(function (c, k) { var d = document.createElement('span'); if (k === 0) d.className = 'on'; dots.appendChild(d); });
+    function step() { if (cardsT.length < 2 || t.dataset.empty === '1') return; i = (i + 1) % cardsT.length; cardsT.forEach(function (c, k) { c.classList.toggle('on', k === i); }); dots.querySelectorAll('span').forEach(function (d, k) { d.classList.toggle('on', k === i); }); }
+    setInterval(step, (parseInt(stage.dataset.rot, 10) || 12) * 1000);
+    t.querySelectorAll('.mockline [data-net]').forEach(function (b) { b.onclick = function () { t.dataset.net = b.dataset.net; }; });
+    t.querySelector('.mockline [data-empty]').onclick = function () { t.dataset.empty = t.dataset.empty === '1' ? '' : '1'; t.querySelector('.banner').classList.toggle('on', t.dataset.empty !== '1'); };
+    t.querySelector('.mockline [data-night]').onclick = function () { t.dataset.night = t.dataset.night === '1' ? '' : '1'; };
+    // burn-in: a +-2 px drift on a 60 s cycle (CR-030 rule)
+    var ph = 0; setInterval(function () { ph = (ph + 1) % 4; var dx = [0, 2, 0, -2][ph], dy = [2, 0, -2, 0][ph]; t.querySelector('.shift').style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }, 15000);
+  });
+  if (q.get('tvnet')) document.querySelectorAll('.tv').forEach(function (t) { t.dataset.net = q.get('tvnet'); });
+  if (q.get('tvempty') === '1') document.querySelectorAll('.tv').forEach(function (t) { t.dataset.empty = '1'; t.querySelector('.banner').classList.remove('on'); });
+  if (q.get('tvnight') === '1') document.querySelectorAll('.tv').forEach(function (t) { t.dataset.night = '1'; });
+  if (q.get('clock') !== 'fixed') { function tick() { var d = new Date(), s = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); document.querySelectorAll('[data-clock]').forEach(function (e) { e.textContent = s; }); } tick(); setInterval(tick, 15000); }
+
+  setSt(q.get('state') || 'ready');
+  showPage(q.get('page') || 'notices');
+  if (q.get('dlg') === 'compose') open('ov-compose'); if (q.get('dlg') === 'link') open('ov-link');
+})();
+</script>
+</body>
+</html>
