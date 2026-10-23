@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>לוגו המערכת ולוגו חברת הניהול - דגם למסכים</title>
+<!--
+  CR-LOGOS295 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
+  Drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin, light + dark), the real shell
+  (frontend/src/shell/sw-app.ts design A: the area rail at the inline start, no top bar, the float corner pill; phone: a bottom bar),
+  the real settings stylesheet vocabulary (frontend/src/styles/settings.ts: .row / .lbl / .muted / .foot / .msg), the sign-in card
+  (frontend/src/arx/arx-login.ts), the bill PDF header (services/bill_pdf_html.py) and the notice-board TV header of CR-NOTICE106 §8.3.
+
+  THE SMPLWISE LOGO IS A PLACEHOLDER (the owner's file arrives 2026-10-25): every instance is drawn from ONE symbol (#sw-mark, #sw-word)
+  and wears a dashed outline + the tag "זמני" so nobody mistakes it for the final artwork. Swapping the symbol = swapping the logo,
+  which is the point of CR-LOGOS295 §4.
+  The company logo is a fictional management company ("נווה הירדן · ניהול נכסים").
+
+  URL switches: ?view=shell|settings|login|tv|pdf  ?theme=dark  ?company=off  ?darkfile=on  ?state=ready|empty|error|uploading|readonly
+-->
+<style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) ===== */
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
+  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-brandstrip-h: 44px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff; --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
+  --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44;
+  --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, .num { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ===== mockup-only controls ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
+.note { margin: 10px 14px 0; padding: 8px 12px; border-radius: var(--sw-r-md); background: var(--sw-warning-soft); color: var(--sw-warning-text); font-size: var(--sw-fs-sm); display: flex; gap: 8px; align-items: center; }
+.note b { font-weight: var(--sw-fw-bold); }
+
+/* ===== the logos: one symbol each (CR-LOGOS295 §4 - swap the symbol, every placement follows) ===== */
+.logo { display: inline-block; block-size: 100%; inline-size: auto; max-inline-size: 100%; object-fit: contain; vertical-align: middle; }
+.swl { position: relative; display: inline-flex; align-items: center; flex: none; }
+/* placeholder marking: a dashed frame and the tag "זמני" (mockup only - the product draws no frame) */
+.swl::after { content: 'זמני'; position: absolute; inset-block-start: -7px; inset-inline-end: -6px; font-size: 8px; line-height: 1; padding: 1px 4px; border-radius: 3px; background: var(--sw-warning); color: #fff; font-weight: var(--sw-fw-bold); letter-spacing: 0; pointer-events: none; }
+.swl svg { outline: 1px dashed var(--sw-warning); outline-offset: 2px; border-radius: 3px; }
+.swl.quiet::after, .swl.quiet svg { content: none; outline: none; }
+/* the plate (§4.4 rule 2): a light logo on a dark surface sits on a light rounded plate - never a CSS invert */
+.plate { background: #ffffff; border-radius: var(--sw-r-sm); padding: 4px 8px; display: inline-flex; align-items: center; }
+
+/* ===== shell (shell/sw-app.ts design A) ===== */
+.view { display: none; }
+.view.on { display: block; }
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand-tile { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); margin-block-end: 8px; }
+.brand-tile svg { inline-size: 36px; block-size: 36px; }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+nav.rail a.active svg { color: var(--sw-accent); }
+nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+/* THE NEW ELEMENT (P1/P2): the brand strip - company logo at the inline start, the SmplWise wordmark at the end, the float pill beside it */
+.strip { display: flex; align-items: center; gap: 14px; block-size: var(--sw-brandstrip-h); padding: 0 22px 0 var(--sw-page-pad); }
+.strip .co { block-size: 30px; max-inline-size: 160px; display: inline-flex; align-items: center; }
+.strip .co img, .strip .co svg { block-size: 100%; inline-size: auto; max-inline-size: 160px; }
+.strip .sep { inline-size: 1px; block-size: 20px; background: var(--sw-border-strong); }
+.strip .sw { block-size: 22px; display: inline-flex; align-items: center; color: var(--sw-text-3); }
+.strip .sw svg { block-size: 22px; inline-size: auto; }
+.strip .sp { flex: 1; }
+.pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.pillrow .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+body.no-company .strip .co, body.no-company .strip .sep { display: none; }
+.subnav { padding: 4px 24px 0; display: flex; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs .trow { position: relative; display: inline-flex; flex: none; gap: 2px; padding-inline: 3px; }
+.tabs .trow::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs a { position: relative; display: inline-flex; align-items: center; min-block-size: 34px; padding-inline: 1px; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
+.tabs a .lbl { display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.screen { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; inline-size: 100%; min-inline-size: 0; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); }
+.top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.top .sp { flex: 1; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+.btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
+.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
+.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.btn svg { font-size: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); --c: var(--sw-accent); }
+.kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; color: var(--sw-heading); }
+.kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+.panel h2 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
+.panel .hd .sp { flex: 1; }
+.hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+.skl { border-radius: var(--sw-r-md); background: var(--sw-skeleton); block-size: 120px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+.chip.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
+.chip.warn { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+nav.bottom { display: none; }
+
+/* ===== settings (styles/settings.ts vocabulary) ===== */
+.setcols { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: start; }
+.setnav { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+.setnav a { display: block; padding: 8px 12px; border-radius: var(--sw-r-sm); color: var(--sw-text); text-decoration: none; font-size: var(--sw-fs-sm); }
+.setnav a.on { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+.sections { display: flex; flex-direction: column; gap: var(--sw-s-3); max-inline-size: 880px; }
+.card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 14px 16px; }
+.card > h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.card > .subh { margin: 2px 0 6px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.row { display: flex; justify-content: space-between; align-items: center; gap: var(--sw-s-3) var(--sw-s-4); padding: 10px 0; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); min-inline-size: 0; }
+.row:last-of-type { border-block-end: 0; }
+.row .lbl { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; flex: 1 1 220px; font-size: var(--sw-fs-base); font-weight: var(--sw-fw-medium); color: var(--sw-text); }
+.row .muted, .muted { font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-regular); color: var(--sw-text-3); }
+.row .ctl { flex: 0 1 300px; min-inline-size: 0; display: flex; justify-content: flex-end; }
+.inp { font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 34px; padding: 0 12px; inline-size: 100%; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); }
+.seg button { padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0; background: transparent; min-block-size: 28px; }
+.seg button[aria-pressed="true"] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+/* the logo rows: a preview tile (light or dark surface) + the actions; empty = a drop zone */
+.lrow { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 10px 0; border-block-end: 1px solid var(--sw-border); }
+.lrow .lt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lrow .lt b { font-size: var(--sw-fs-base); font-weight: var(--sw-fw-medium); }
+.lrow .lt .sp { flex: 1; }
+.tile { display: grid; place-items: center; min-block-size: 96px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 12px; }
+.tile.light { background: #ffffff; background-image: linear-gradient(45deg, #f1f4f9 25%, transparent 25%, transparent 75%, #f1f4f9 75%), linear-gradient(45deg, #f1f4f9 25%, transparent 25%, transparent 75%, #f1f4f9 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.tile.dark { background: #0d1220; background-image: linear-gradient(45deg, #151c2c 25%, transparent 25%, transparent 75%, #151c2c 75%), linear-gradient(45deg, #151c2c 25%, transparent 25%, transparent 75%, #151c2c 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.tile svg, .tile img { block-size: 56px; inline-size: auto; max-inline-size: 100%; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tiles .cap { display: block; margin-block-start: 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); text-align: center; }
+.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-block-size: 96px; border: 1.5px dashed var(--sw-border-strong); border-radius: var(--sw-r-md); color: var(--sw-text-2); font-size: var(--sw-fs-sm); padding: 12px; text-align: center; }
+.drop svg { font-size: 22px; color: var(--sw-text-3); }
+.drop .btn { margin-block-start: 2px; }
+.meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.msg { display: inline-flex; align-items: center; gap: 6px; font-size: var(--sw-fs-sm); }
+.msg.ok { color: var(--sw-success-text); }
+.msg.err { color: var(--sw-danger-text); }
+.msg svg { font-size: 14px; }
+.prog { block-size: 6px; background: var(--sw-surface-3); border-radius: var(--sw-r-2xs); overflow: hidden; inline-size: 100%; }
+.prog i { display: block; block-size: 100%; inline-size: 62%; background: var(--sw-accent); }
+.field-error { color: var(--sw-danger-text); font-size: var(--sw-fs-xs); }
+.foot { display: flex; align-items: center; gap: 10px; padding-block-start: 12px; flex-wrap: wrap; }
+.where { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; font-size: var(--sw-fs-sm); }
+.where li { display: flex; gap: 6px; align-items: center; color: var(--sw-text-2); }
+.where li svg { font-size: 14px; color: var(--sw-success); }
+/* live preview strip inside the card: a miniature of the shell strip, light and dark side by side (always both schemes) */
+.pv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pv .mini { border-radius: var(--sw-r-md); border: 1px solid var(--sw-border-strong); overflow: hidden; }
+.pv .mini .bar { display: flex; align-items: center; gap: 10px; block-size: 40px; padding: 0 12px; }
+.pv .mini .body { block-size: 46px; padding: 8px 12px; display: flex; gap: 6px; }
+.pv .mini .body i { display: block; flex: 1; border-radius: 6px; }
+.pv .mini.l { background: #f5f7fb; color: #22314c; }
+.pv .mini.l .bar { background: #ffffff; border-block-end: 1px solid #e7ebf2; }
+.pv .mini.l .body i { background: #ffffff; border: 1px solid #e7ebf2; }
+.pv .mini.d { background: #0d1220; color: #e6ebf5; }
+.pv .mini.d .bar { background: #151c2c; border-block-end: 1px solid #232e45; }
+.pv .mini.d .body i { background: #151c2c; border: 1px solid #232e45; }
+.pv .mini .co { block-size: 24px; display: inline-flex; align-items: center; }
+.pv .mini .co svg { block-size: 100%; inline-size: auto; }
+.pv .mini .sw { margin-inline-start: auto; block-size: 18px; display: inline-flex; align-items: center; }
+.pv .mini .sw svg { block-size: 18px; inline-size: auto; }
+.pv .cap { display: block; margin-block-start: 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); text-align: center; }
+/* states */
+body[data-st="empty"] .st-ready, body[data-st="empty"] .st-error, body[data-st="empty"] .st-uploading { display: none !important; }
+body[data-st="ready"] .st-empty, body[data-st="ready"] .st-error, body[data-st="ready"] .st-uploading { display: none !important; }
+body[data-st="error"] .st-empty, body[data-st="error"] .st-ready, body[data-st="error"] .st-uploading { display: none !important; }
+body[data-st="uploading"] .st-empty, body[data-st="uploading"] .st-error, body[data-st="uploading"] .st-ready { display: none !important; }
+body[data-st="readonly"] .st-empty, body[data-st="readonly"] .st-error, body[data-st="readonly"] .st-uploading, body[data-st="readonly"] .mng { display: none !important; }
+body[data-st="readonly"] .ro-only { display: inline-flex !important; }
+.ro-only { display: none !important; }
+body.darkfile .nodark { display: none !important; }
+body:not(.darkfile) .hasdark { display: none !important; }
+
+/* ===== sign-in (arx/arx-login.ts) ===== */
+.loginbg { min-block-size: calc(100dvh - 40px); display: grid; place-items: center; padding: 24px 16px; }
+.lcard { inline-size: min(100%, 400px); background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-3); padding: 28px 24px 22px; display: flex; flex-direction: column; gap: 18px; }
+.lcard .cohead { display: flex; justify-content: center; align-items: center; block-size: 72px; }
+.lcard .cohead svg { max-block-size: 72px; max-inline-size: 220px; inline-size: auto; block-size: auto; }
+.lcard .brand { display: flex; align-items: center; gap: 12px; }
+.lcard .brand .mk svg { inline-size: 44px; block-size: 44px; }
+.lcard .brand .name { display: flex; flex-direction: column; line-height: 1.15; }
+.lcard .brand b { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; direction: ltr; text-align: end; }
+.lcard .brand b span { color: var(--sw-accent); }
+.lcard .brand small { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+.lcard h1 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); }
+.lcard .sub { margin: 4px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.lcard label { display: flex; flex-direction: column; gap: 5px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
+.lcard .inp { min-block-size: 40px; }
+.lcard .btn.pri { min-block-size: 42px; }
+/* the foot line: "מופעל על ידי" + mark + name - only when a company logo is set (otherwise the brand row above stays as today) */
+.powered { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--sw-text-3); font-size: var(--sw-fs-xs); padding-block-start: 4px; border-block-start: 1px solid var(--sw-border); margin-block-start: 2px; }
+.powered .mk svg { inline-size: 16px; block-size: 16px; }
+.powered b { font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); direction: ltr; }
+body.no-company .lcard .cohead, body.no-company .lcard .powered { display: none; }
+body:not(.no-company) .lcard .brand { display: none; }
+
+/* ===== notice-board TV (CR-NOTICE106 §8.3): full screen, no chrome; header = company logo | board name | clock; SmplWise at the end ===== */
+.tvwrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; padding: 16px; align-items: start; }
+.tv { background: var(--sw-bg); border: 6px solid #0b0f19; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; color: var(--sw-text); --fs: 1; }
+.tv.land { aspect-ratio: 16 / 9; inline-size: 100%; }
+.tv.port { aspect-ratio: 9 / 16; block-size: 100%; inline-size: 270px; }
+.tv .hd { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: var(--sw-surface); border-block-end: 1px solid var(--sw-border); min-block-size: 54px; }
+.tv .hd .co { block-size: 34px; display: inline-flex; align-items: center; }
+.tv .hd .co svg { block-size: 100%; inline-size: auto; max-inline-size: 190px; }
+.tv .hd .nm { font-size: 20px; font-weight: var(--sw-fw-bold); color: var(--sw-heading); white-space: nowrap; }
+.tv .hd .sp { flex: 1; }
+.tv .hd .clk { display: flex; flex-direction: column; align-items: center; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.tv .hd .clk b { font-size: 24px; font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+.tv .hd .clk small { font-size: 11px; color: var(--sw-text-3); }
+.tv .hd .sw { block-size: 26px; display: inline-flex; align-items: center; }
+.tv .hd .sw svg { block-size: 100%; inline-size: auto; }
+.tv .ban { display: flex; align-items: center; gap: 10px; padding: 8px 18px; background: var(--sw-danger); color: #fff; font-weight: var(--sw-fw-semibold); font-size: 15px; }
+.tv .ban svg { font-size: 18px; }
+.tv .stage { flex: 1; padding: 18px 22px; display: flex; flex-direction: column; gap: 8px; }
+.tv .stage .t { font-size: 26px; font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1.2; }
+.tv .stage .b { font-size: 15px; color: var(--sw-text-2); max-inline-size: 60ch; }
+.tv .stage .w { margin-block-start: auto; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--sw-text-3); }
+.tv .dots { display: flex; gap: 5px; }
+.tv .dots i { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-border-strong); }
+.tv .dots i.on { background: var(--sw-accent); }
+.tv .ft { display: flex; align-items: center; gap: 10px; padding: 6px 18px; font-size: 11px; color: var(--sw-text-3); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
+.tv .ft .sp { flex: 1; }
+.tv .ft .pw { display: inline-flex; align-items: center; gap: 5px; }
+.tv .ft .pw svg { inline-size: 14px; block-size: 14px; }
+.tv.port .hd { flex-wrap: wrap; row-gap: 6px; padding: 10px 14px; }
+.tv.port .hd .logos { display: flex; align-items: center; gap: 10px; inline-size: 100%; }
+.tv.port .hd .logos .sp { flex: 1; }
+.tv.port .hd .nm { font-size: 17px; }
+.tv.port .hd .clk { margin-inline-start: auto; }
+.tv.port .stage .t { font-size: 20px; }
+.tv.port .stage .b { font-size: 13px; }
+body.no-company .tv .co { display: none; }
+.tvcap { font-size: var(--sw-fs-sm); color: var(--sw-text-2); margin: 4px 0 0; }
+
+/* ===== PDF (A4, always light - print) ===== */
+.pdfwrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; padding: 16px; max-inline-size: 1240px; margin-inline: auto; }
+.sheet .pf > span { white-space: nowrap; }
+.sheet { background: #fff; color: #1d2433; border: 1px solid var(--sw-border-strong); box-shadow: var(--sw-shadow-2); padding: 10mm 12mm 8mm; min-block-size: 420px; display: flex; flex-direction: column; font-size: 11px; line-height: 1.3; }
+.sheet .ph { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #2767ed; padding-bottom: 3mm; gap: 4mm; }
+.sheet h1 { font-size: 17px; margin: 0; }
+.sheet .sub { color: #5b6a85; font-size: 10px; }
+.sheet .biz { display: flex; gap: 4mm; align-items: flex-start; }
+.sheet .bizt { max-width: 60mm; }
+.sheet .lbox { flex: none; display: grid; place-items: center; width: 34mm; height: 17mm; border: 1px dashed #c9d2e2; border-radius: 3px; }
+.sheet .lbox svg { max-width: 32mm; max-height: 15mm; width: auto; height: auto; }
+.sheet .body { flex: 1; padding-block: 5mm; display: grid; gap: 3mm; }
+.sheet .line { height: 8px; background: #eef2f8; border-radius: 3px; }
+.sheet .line.s { width: 60%; }
+.sheet .pf { display: flex; align-items: center; gap: 8px; border-top: 1px solid #e7ebf2; padding-top: 2mm; font-size: 9px; color: #8a94a8; }
+.sheet .pf .sp { flex: 1; }
+.sheet .pf .co svg { height: 7mm; width: auto; max-width: 30mm; }
+.sheet .pf .pw { display: inline-flex; align-items: center; gap: 4px; }
+.sheet .pf .pw svg { width: 4mm; height: 4mm; }
+.sheet .thead { display: flex; justify-content: space-between; align-items: flex-start; gap: 4mm; border-bottom: 1px solid #e1e6ef; padding-bottom: 2mm; }
+.sheet .thead .word svg { height: 6mm; width: auto; }
+.sheet .boxcap { font-size: 8px; color: #8a94a8; }
+body.no-company .sheet .co { display: none; }
+.pdfcap { grid-column: 1 / -1; font-size: var(--sw-fs-sm); color: var(--sw-text-2); margin: 0; }
+
+/* ===== tablet (<= 1023) ===== */
+@media (max-width: 1023px) {
+  nav.rail a span { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .screen { padding-inline: 20px; }
+  .strip { padding: 0 16px 0 20px; }
+  .setcols { grid-template-columns: minmax(0, 1fr); }
+  .setnav { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+  .tvwrap { grid-template-columns: minmax(0, 1fr); }
+  .tv.port { inline-size: min(100%, 300px); block-size: auto; }
+}
+/* ===== phone (<= 767): the bottom bar; the strip stays, 40 px, logo 26 px ===== */
+@media (max-width: 767px) {
+  :root { --sw-brandstrip-h: 40px; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .strip { padding: 0 12px; gap: 10px; }
+  .strip .co { block-size: 26px; max-inline-size: 120px; }
+  .strip .co svg { max-inline-size: 120px; }
+  .strip .sw { block-size: 18px; }
+  .strip .sw svg { block-size: 18px; }
+  .subnav { padding: 6px 12px 0; }
+  .screen { padding: 12px 14px 20px; gap: 12px; }
+  .top { flex-direction: column; align-items: stretch; }
+  .top .sp { display: none; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .row { flex-direction: column; align-items: stretch; }
+  .row .lbl { flex-basis: auto; }
+  .row .ctl { flex: 1 1 auto; justify-content: flex-start; }
+  .tiles, .pv { grid-template-columns: minmax(0, 1fr); }
+  .btn { min-block-size: 44px; }
+  .btn.sm { min-block-size: 36px; }
+  .tv .hd { gap: 10px; padding: 8px 12px; }
+  .tv .hd .nm { font-size: 15px; }
+  .tv .hd .clk b { font-size: 18px; }
+  .tv .hd .co { block-size: 24px; }
+  .tv .stage { padding: 12px 14px; }
+  .tv .stage .t { font-size: 18px; }
+  .tv .stage .b { font-size: 12px; }
+  .pdfwrap { padding: 12px; grid-template-columns: minmax(0, 1fr); }
+  .tv.land { aspect-ratio: auto; min-block-size: 400px; }
+  .tv.land .stage .t { font-size: 17px; }
+  .sheet { padding: 6mm 7mm 5mm; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
+  nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+}
+</style>
+</head>
+<body data-st="ready">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- icons -->
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+
+    <!-- ===== THE SMPLWISE PLACEHOLDER: one mark, one wordmark (CR-LOGOS295 §4.1: frontend/brand/smplwise-logo.svg #mark + #wordmark) ===== -->
+    <symbol id="sw-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2767ed"/><path d="M43 22c-2.4-3-6.2-4.6-10.6-4.6-6.6 0-11 3.5-11 8.6 0 10.8 22 5.3 22 16.4 0 5.6-4.9 9.2-12.2 9.2-5.2 0-9.4-1.9-12.2-5.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="46" cy="44" r="3.2" fill="#8fe1ff"/></symbol>
+    <symbol id="sw-word" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill="currentColor">Smpl<tspan fill="#2767ed">Wise</tspan></text></symbol>
+    <!-- the same, dark-background colours (frontend/brand/smplwise-logo.dark.svg or the dark_map of brand.json) -->
+    <symbol id="sw-word-dark" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill="#ffffff">Smpl<tspan fill="#8fb2ff">Wise</tspan></text></symbol>
+
+    <!-- ===== the company logo (fictional, Hebrew = the glyph at the right, the text runs leftwards): light variant and the uploaded dark variant ===== -->
+    <symbol id="co-light" viewBox="0 0 280 64">
+      <g transform="translate(212 0)"><path d="M8 56V26l20-16 20 16v30H34V38H22v18z" fill="#0f766e"/><path d="M46 56V32l10-8 10 8v24H56V42h-6v14z" fill="#14b8a6"/></g>
+      <text x="200" y="31" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a">נווה הירדן</text>
+      <text x="200" y="54" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="15" font-weight="500" fill="#0f766e" letter-spacing="1">ניהול נכסים</text>
+    </symbol>
+    <symbol id="co-dark" viewBox="0 0 280 64">
+      <g transform="translate(212 0)"><path d="M8 56V26l20-16 20 16v30H34V38H22v18z" fill="#5eead4"/><path d="M46 56V32l10-8 10 8v24H56V42h-6v14z" fill="#99f6e4"/></g>
+      <text x="200" y="31" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">נווה הירדן</text>
+      <text x="200" y="54" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="15" font-weight="500" fill="#5eead4" letter-spacing="1">ניהול נכסים</text>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- mockup-only controls -->
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם</b>
+  <select id="m-view" aria-label="מסך">
+    <option value="shell">המעטפת (כל המסכים)</option>
+    <option value="settings">הגדרות › מיתוג</option>
+    <option value="login">כניסה</option>
+    <option value="tv">לוח מודעות (טלוויזיה)</option>
+    <option value="pdf">כותרת דוח PDF</option>
+  </select>
+  <button id="m-theme" type="button" aria-pressed="false">כהה</button>
+  <button id="m-company" type="button" aria-pressed="true">לוגו חברה</button>
+  <button id="m-darkfile" type="button" aria-pressed="false">הועלתה גרסה כהה</button>
+  <select id="m-state" aria-label="מצב ההגדרות">
+    <option value="ready">הגדרות: הועלה</option>
+    <option value="empty">הגדרות: ריק</option>
+    <option value="uploading">הגדרות: מעלה</option>
+    <option value="error">הגדרות: שגיאה</option>
+    <option value="readonly">הגדרות: צפייה בלבד</option>
+  </select>
+  <span class="sp"></span>
+  <span>CR-LOGOS295 · דגם סטטי</span>
+</nav>
+<div class="note"><svg class="ic"><use href="#i-warning"/></svg><span><b>הלוגו של SmplWise כאן זמני</b> (מסומן בקו מקווקו ובתג "זמני") עד שיתקבל הקובץ. כל ההופעות נמשכות מסמל אחד - החלפתו מחליפה את כולן.</span></div>
+
+<!-- ===================== VIEW: shell ===================== -->
+<section class="view" id="v-shell">
+  <div class="app">
+    <nav class="rail" aria-label="ניווט ראשי">
+      <span class="brand-tile swl" aria-hidden="true" title="הסמל במקום ה-S"><svg><use href="#sw-mark"/></svg></span>
+      <a href="#" class="active"><svg class="ic"><use href="#i-home"/></svg><span>בית</span></a>
+      <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+      <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>תשתיות</span></a>
+      <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>חשמל</span></a>
+      <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>שירות</span></a>
+      <div class="grow"></div>
+      <span class="me">יא</span>
+    </nav>
+    <main>
+      <!-- P1 / P2: the brand strip -->
+      <div class="strip" role="presentation" data-brand-strip>
+        <span class="co" data-brand-company><span class="nodark plate" style="padding:2px 6px"><svg style="block-size:24px" aria-hidden="true"><use href="#co-light"/></svg></span><svg class="hasdark" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-dark"/></svg><svg class="co-lightonly" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></span>
+        <span class="sep"></span>
+        <span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span>
+        <span class="sp"></span>
+        <div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div>
+      </div>
+      <div class="subnav"><div class="tabs"><div class="trow"><a href="#" class="on"><span class="lbl">סקירה</span></a><a href="#"><span class="lbl">מצלמות</span></a><a href="#"><span class="lbl">אירועים</span></a><a href="#"><span class="lbl">מפות</span></a></div></div></div>
+      <div class="screen">
+        <div class="top"><div><h1>סקירה</h1><p class="sub">מגדל A · 3 מבנים · 142 התקנים</p></div><span class="sp"></span><a class="btn" href="#">היום</a><a class="btn pri" href="#">צפייה חיה</a></div>
+        <div class="kpis">
+          <div class="kpi" style="--c: var(--sw-success)"><span class="dot"></span><div><b>128</b><span class="l">תקין</span></div></div>
+          <div class="kpi" style="--c: var(--sw-warning)"><span class="dot"></span><div><b>9</b><span class="l">אזהרה</span></div></div>
+          <div class="kpi" style="--c: var(--sw-danger)"><span class="dot"></span><div><b>2</b><span class="l">התראה</span></div></div>
+          <div class="kpi" style="--c: var(--sw-offline)"><span class="dot"></span><div><b>3</b><span class="l">לא מחובר</span></div></div>
+        </div>
+        <div class="panel"><div class="hd"><h2>אירועים אחרונים</h2><span class="sp"></span><span class="chip ok">מעודכן</span></div><div class="skl"></div></div>
+        <div class="panel"><div class="hd"><h2>תשתיות</h2></div><div class="skl" style="block-size:80px"></div></div>
+      </div>
+    </main>
+    <nav class="bottom" aria-label="ניווט ראשי">
+      <a href="#" class="active"><svg class="ic"><use href="#i-home"/></svg>בית</a>
+      <a href="#"><svg class="ic"><use href="#i-shield"/></svg>אבטחה</a>
+      <a href="#"><svg class="ic"><use href="#i-map"/></svg>תשתיות</a>
+      <a href="#"><svg class="ic"><use href="#i-bolt"/></svg>חשמל</a>
+      <a href="#"><svg class="ic"><use href="#i-ticket"/></svg>שירות</a>
+    </nav>
+  </div>
+</section>
+
+<!-- ===================== VIEW: settings ===================== -->
+<section class="view" id="v-settings">
+  <div class="app">
+    <nav class="rail" aria-label="ניווט ראשי">
+      <span class="brand-tile swl" aria-hidden="true"><svg><use href="#sw-mark"/></svg></span>
+      <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>בית</span></a>
+      <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+      <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>תשתיות</span></a>
+      <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>חשמל</span></a>
+      <a href="#" class="active"><svg class="ic"><use href="#i-gear"/></svg><span>הגדרות</span></a>
+      <div class="grow"></div>
+      <span class="me">יא</span>
+    </nav>
+    <main>
+      <div class="strip" role="presentation">
+        <span class="co"><span class="nodark plate" style="padding:2px 6px"><svg style="block-size:24px" aria-hidden="true"><use href="#co-light"/></svg></span><svg class="hasdark" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-dark"/></svg><svg class="co-lightonly" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></span>
+        <span class="sep"></span>
+        <span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span>
+        <span class="sp"></span>
+        <div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div>
+      </div>
+      <div class="subnav"><div class="tabs"><div class="trow"><a href="#" class="on"><span class="lbl">כללי</span></a><a href="#"><span class="lbl">חיבורים</span></a><a href="#"><span class="lbl">משתמשים והרשאות</span></a><a href="#"><span class="lbl">בריאות ועבודות</span></a></div></div></div>
+      <div class="screen">
+        <div class="setcols">
+          <div class="panel setnav" style="padding:8px">
+            <a href="#">כללי</a><a href="#" class="on">מראה ותצוגה</a><a href="#">לשוניות</a><a href="#">אזור זמן</a><a href="#">אחסון</a>
+          </div>
+          <div class="sections">
+            <div class="top"><div><h1>מראה ותצוגה</h1><p class="sub">סגנון, צבעי המותג והלוגו של ההתקנה</p></div></div>
+
+            <!-- the brand-colours card (exists today, unchanged) collapsed to a reminder of its place -->
+            <div class="card"><h2>צבעי המותג</h2><p class="subh">צבע ההדגשה וצבע מתג דולק</p><div class="row" style="padding-block:6px"><span class="lbl">צבע הדגשה<span class="muted">ברירת המחדל: הכחול של המערכת</span></span><span class="ctl"><span style="display:inline-flex;gap:6px"><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#2767ed;outline:2px solid var(--sw-text);outline-offset:2px"></i><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#34c759"></i><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#0d9488"></i><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#7c3aed"></i></span></span></div></div>
+
+            <!-- THE NEW CARD -->
+            <div class="card" data-brand-logo-card>
+              <h2>מיתוג</h2>
+              <p class="subh">לוגו היזם או חברת הניהול - מופיע לצד הלוגו של SmplWise בכל המסכים, בכניסה, בדוחות ובלוחות המודעות</p>
+              <span class="ro-only msg" style="margin-block-end:6px"><svg class="ic"><use href="#i-lock"/></svg>צפייה בלבד - שינוי דורש הרשאת ניהול מערכת</span>
+
+              <div class="row">
+                <span class="lbl">שם החברה<span class="muted">מופיע כטקסט חלופי ללוגו, בדוא"ל ובדוחות</span></span>
+                <span class="ctl"><input class="inp" value="נווה הירדן ניהול נכסים בע״מ" aria-label="שם החברה" data-ro></span>
+              </div>
+              <div class="row">
+                <span class="lbl">סוג</span>
+                <span class="ctl"><span class="seg"><button type="button" aria-pressed="false" data-ro>יזם</button><button type="button" aria-pressed="true" data-ro>חברת ניהול</button><button type="button" aria-pressed="false" data-ro>אחר</button></span></span>
+              </div>
+
+              <!-- light logo row -->
+              <div class="lrow">
+                <div class="lt"><b>לוגו לרקע בהיר</b><span class="muted">PNG, SVG, WebP או JPEG · עד 2MB</span><span class="sp"></span>
+                  <span class="acts mng st-ready"><button class="btn sm" type="button"><svg class="ic"><use href="#i-swap"/></svg>החלפה</button><button class="btn sm dng" type="button"><svg class="ic"><use href="#i-trash"/></svg>הסרה</button></span>
+                </div>
+                <!-- empty -->
+                <div class="drop st-empty"><svg class="ic"><use href="#i-upload"/></svg><span>גררו לכאן קובץ לוגו, או</span><button class="btn sm mng" type="button">בחרו קובץ</button></div>
+                <!-- uploading -->
+                <div class="st-uploading" style="display:grid;gap:8px"><div class="tile light"><svg><use href="#co-light"/></svg></div><div class="prog"><i></i></div><span class="mut">מעלה… nave-logo.svg</span></div>
+                <!-- error -->
+                <div class="st-error" style="display:grid;gap:8px">
+                  <div class="drop" style="border-color: var(--sw-danger)"><svg class="ic" style="color:var(--sw-danger)"><use href="#i-warning"/></svg><span class="field-error">הקובץ גדול מדי (עד 2MB)</span><button class="btn sm mng" type="button">בחרו קובץ אחר</button></div>
+                  <span class="field-error">דוגמאות נוספות לשגיאות: "אפשר להעלות PNG, SVG, WebP או JPEG" · "התמונה קטנה מדי - לפחות 64 פיקסלים" · "קובץ ה-SVG מכיל תוכן שאינו נתמך"</span>
+                </div>
+                <!-- ready -->
+                <div class="st-ready">
+                  <div class="tiles">
+                    <div><div class="tile light"><svg role="img" aria-label="תצוגה מקדימה על רקע בהיר"><use href="#co-light"/></svg></div><span class="cap">על רקע בהיר</span></div>
+                    <div><div class="tile dark"><span class="nodark plate"><svg style="block-size:44px"><use href="#co-light"/></svg></span><svg class="hasdark" role="img" aria-label="תצוגה מקדימה על רקע כהה"><use href="#co-dark"/></svg></div><span class="cap"><span class="nodark">על רקע כהה - על לוחית בהירה (לא הועלתה גרסה כהה)</span><span class="hasdark">על רקע כהה - הגרסה הכהה שהועלתה</span></span></div>
+                  </div>
+                  <div class="meta" style="margin-block-start:8px"><span>nave-logo.svg</span><span>·</span><span class="num">SVG · 18 KB</span><span>·</span><span>הועלה 24.10.2026 · יאיר א.</span></div>
+                </div>
+              </div>
+
+              <!-- dark logo row -->
+              <div class="lrow">
+                <div class="lt"><b>לוגו לרקע כהה</b><span class="muted">לא חובה · בלעדיו הלוגו הבהיר יוצג על לוחית בהירה</span><span class="sp"></span>
+                  <span class="acts mng hasdark"><button class="btn sm" type="button"><svg class="ic"><use href="#i-swap"/></svg>החלפה</button><button class="btn sm dng" type="button"><svg class="ic"><use href="#i-trash"/></svg>הסרה</button></span>
+                </div>
+                <div class="drop nodark"><svg class="ic"><use href="#i-upload"/></svg><span>גררו לכאן גרסה לרקע כהה, או</span><button class="btn sm mng" type="button">בחרו קובץ</button></div>
+                <div class="hasdark"><div class="tiles"><div><div class="tile dark"><svg><use href="#co-dark"/></svg></div><span class="cap">על רקע כהה</span></div></div><div class="meta" style="margin-block-start:8px"><span>nave-logo-dark.svg</span><span>·</span><span class="num">SVG · 18 KB</span></div></div>
+              </div>
+
+              <!-- live preview: the shell strip in both schemes (always both, whatever the page's scheme) -->
+              <div class="lrow" style="border-block-end:0">
+                <div class="lt"><b>כך זה ייראה</b><span class="muted">המעטפת, בהיר וכהה</span></div>
+                <div class="pv">
+                  <div><div class="mini l"><div class="bar"><span class="co st-ready"><svg><use href="#co-light"/></svg></span><span class="sw swl quiet"><svg><use href="#sw-word"/></svg></span></div><div class="body"><i></i><i></i><i></i></div></div><span class="cap">בהיר</span></div>
+                  <div><div class="mini d"><div class="bar"><span class="co st-ready"><span class="nodark plate" style="padding:2px 6px"><svg style="block-size:18px"><use href="#co-light"/></svg></span><svg class="hasdark"><use href="#co-dark"/></svg></span><span class="sw swl quiet"><svg><use href="#sw-word-dark"/></svg></span></div><div class="body"><i></i><i></i><i></i></div></div><span class="cap">כהה</span></div>
+                </div>
+              </div>
+
+              <div class="row" style="border-block-end:0;padding-block:8px 4px">
+                <span class="lbl">איפה מופיע</span>
+              </div>
+              <ul class="where">
+                <li><svg class="ic"><use href="#i-check"/></svg>כל מסכי המערכת (מחשב וטלפון)</li>
+                <li><svg class="ic"><use href="#i-check"/></svg>מסך הכניסה</li>
+                <li><svg class="ic"><use href="#i-check"/></svg>לוחות המודעות בטלוויזיות</li>
+                <li><svg class="ic"><use href="#i-check"/></svg>דוחות PDF</li>
+                <li><svg class="ic"><use href="#i-check"/></svg>דוא"ל - שם החברה בטקסט</li>
+                <li><svg class="ic"><use href="#i-check"/></svg>מסך הקיר (טאבלט)</li>
+              </ul>
+              <div class="foot">
+                <button class="btn pri mng" type="button" disabled><svg class="ic"><use href="#i-check"/></svg>שמירה</button>
+                <span class="msg ok st-ready"><svg class="ic"><use href="#i-check"/></svg>נשמר</span>
+                <button class="btn sm ghost mng st-ready" type="button"><svg class="ic"><use href="#i-copy"/></svg>העתקה גם לדפי השירות הציבוריים</button>
+                <span class="sp" style="flex:1"></span>
+                <span class="mut">הלוגו של SmplWise נשאר בכל מקום</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <nav class="bottom" aria-label="ניווט ראשי">
+      <a href="#"><svg class="ic"><use href="#i-home"/></svg>בית</a>
+      <a href="#"><svg class="ic"><use href="#i-shield"/></svg>אבטחה</a>
+      <a href="#"><svg class="ic"><use href="#i-map"/></svg>תשתיות</a>
+      <a href="#"><svg class="ic"><use href="#i-bolt"/></svg>חשמל</a>
+      <a href="#" class="active"><svg class="ic"><use href="#i-gear"/></svg>הגדרות</a>
+    </nav>
+  </div>
+</section>
+
+<!-- ===================== VIEW: login ===================== -->
+<section class="view" id="v-login">
+  <div class="loginbg">
+    <main class="lcard" aria-labelledby="arx-title">
+      <!-- with a company logo: the company on top -->
+      <div class="cohead"><svg role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></div>
+      <!-- without: today's row (mark + wordmark) -->
+      <div class="brand"><span class="mk swl" aria-hidden="true"><svg><use href="#sw-mark"/></svg></span><span class="name"><b>SmplWise <span>Arx</span></b><small>גישה מרחוק מאובטחת</small></span></div>
+      <div><h1 id="arx-title">כניסה</h1><p class="sub">הזינו את שם המשתמש והסיסמה שלכם</p></div>
+      <label>שם משתמש<input class="inp" value="yair" aria-label="שם משתמש"></label>
+      <label>סיסמה<input class="inp" type="password" value="••••••••" aria-label="סיסמה"></label>
+      <button class="btn pri" type="button">כניסה</button>
+      <a href="#" class="btn ghost sm" style="align-self:center">שכחתי סיסמה</a>
+      <!-- P3: the foot line stays whatever the company logo is (white-label limit, CR-LOGOS295 §8) -->
+      <div class="powered">מופעל על ידי <span class="mk swl quiet" aria-hidden="true"><svg><use href="#sw-mark"/></svg></span><b>SmplWise Arx</b></div>
+    </main>
+  </div>
+</section>
+
+<!-- ===================== VIEW: TV board ===================== -->
+<section class="view" id="v-tv">
+  <div class="tvwrap">
+    <div>
+      <div class="tv land" data-tv-landscape>
+        <div class="hd">
+          <span class="co"><span class="nodark plate tvplate"><svg style="block-size:28px"><use href="#co-light"/></svg></span><svg class="hasdark"><use href="#co-dark"/></svg><svg class="co-lightonly"><use href="#co-light"/></svg></span>
+          <span class="nm">לוח הלובי</span>
+          <span class="sp"></span>
+          <span class="clk"><b class="num">09:12</b><small>יום שישי, 24 באוקטובר</small></span>
+          <span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span>
+        </div>
+        <div class="ban"><svg class="ic"><use href="#i-warning"/></svg>הפסקת מים מתוכננת מחר 08:00-12:00 - אגפים A ו-B</div>
+        <div class="stage">
+          <div class="t">אסיפת דיירים שנתית - יום שלישי 28.10 בשעה 19:30</div>
+          <div class="b">בחדר הדיירים בקומת הקרקע. על סדר היום: אישור תקציב 2027, בחירת ועד, שדרוג מערכת האינטרקום. חומרים יישלחו במייל לכל הדיירים.</div>
+          <div class="w"><span class="dots"><i class="on"></i><i></i><i></i></span><span>·</span><span>בתוקף עד 28.10</span></div>
+        </div>
+        <div class="ft"><span>עודכן 09:11</span><span class="sp"></span><span class="pw">מופעל על ידי <span class="swl quiet"><svg><use href="#sw-mark"/></svg></span> SmplWise Arx</span></div>
+      </div>
+      <p class="tvcap">טלוויזיה רוחבית (16:9) · הלוגו של החברה בתחילת הכותרת, SmplWise בסופה; השורה "מופעל על ידי" קבועה בתחתית. כהה הוא ברירת המחדל לטלוויזיה (CR-NOTICE106).</p>
+    </div>
+    <div>
+      <div class="tv port" data-tv-portrait>
+        <div class="hd">
+          <span class="logos"><span class="co"><span class="nodark plate"><svg style="block-size:22px"><use href="#co-light"/></svg></span><svg class="hasdark" style="block-size:26px"><use href="#co-dark"/></svg><svg class="co-lightonly" style="block-size:26px"><use href="#co-light"/></svg></span><span class="sp"></span><span class="sw swl" aria-hidden="true"><svg class="sw-word" style="block-size:20px"><use href="#sw-word"/></svg></span></span>
+          <span class="nm">לוח החניון</span>
+          <span class="clk"><b class="num">09:12</b><small>24.10</small></span>
+        </div>
+        <div class="ban"><svg class="ic"><use href="#i-warning"/></svg>חניון -2 סגור לניקיון 06:00-09:00</div>
+        <div class="stage">
+          <div class="t">צביעת סימוני חניה - שבוע הבא</div>
+          <div class="b">נא לא להחנות במקומות המסומנים בסרט אדום. הסימון יוסר בסיום העבודה.</div>
+          <div class="w"><span class="dots"><i class="on"></i><i></i></span></div>
+        </div>
+        <div class="ft"><span>עודכן 09:11</span><span class="sp"></span><span class="pw"><span class="swl quiet"><svg><use href="#sw-mark"/></svg></span> SmplWise Arx</span></div>
+      </div>
+      <p class="tvcap">אנכית (9:16): שורת לוגואים, שם הלוח, שעון.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== VIEW: PDF header ===================== -->
+<section class="view" id="v-pdf">
+  <div class="pdfwrap">
+    <p class="pdfcap">דוחות תמיד על נייר לבן. חשבון חשמל (services/bill_pdf_html.py): תיבת הלוגו העסקי של החשבון נשארת בכותרת; לוגו החברה והסימן של SmplWise בשורת התחתית. דוח טמפרטורה: הטקסט "SmplWise" בכותרת הופך לסימן המילה.</p>
+    <div class="sheet" dir="rtl">
+      <div class="ph">
+        <div><h1>חשבון חשמל 2026-0142</h1><div class="sub">תקופה 01.09.2026 - 30.09.2026</div><div style="margin-top:3mm"><b>מספר:</b> <span class="num">2026-0142</span><br><b>תאריך הפקה:</b> <span class="num">24.10.2026</span></div></div>
+        <div class="biz"><div class="bizt"><b>חשמל מגדל A בע״מ</b><br><span class="sub">ח.פ. 515123456<br>רח׳ הירדן 12, תל אביב</span></div><div class="lbox"><span class="boxcap">הלוגו העסקי של החשבון<br>(34×17 מ״מ, קיים)</span></div></div>
+      </div>
+      <div class="body"><div class="line"></div><div class="line s"></div><div class="line"></div><div class="line s"></div><div class="line"></div></div>
+      <div class="pf"><span class="co" aria-label="נווה הירדן ניהול נכסים"><svg><use href="#co-light"/></svg></span><span class="sp"></span><span>עמוד 1 מתוך 2</span><span class="sp"></span><span class="pw">הופק ב-<span class="swl quiet"><svg><use href="#sw-mark"/></svg></span> SmplWise Arx</span></div>
+    </div>
+    <div class="sheet" dir="rtl">
+      <div class="thead">
+        <div><h1>דוח טמפרטורה · מקרר מטבח</h1><div class="sub">קומה 0 · חיישן: מקרר-01 · דלת: דלת מקרר · טווח: 2°-8°</div><div class="sub">טווח: 17.10.2026 - 24.10.2026</div></div>
+        <div class="word swl" aria-hidden="true"><svg><use href="#sw-word"/></svg></div>
+      </div>
+      <div class="body"><div class="line"></div><div class="line"></div><div class="line s"></div><div class="line"></div><div class="line s"></div></div>
+      <div class="pf"><span class="co" aria-label="נווה הירדן ניהול נכסים"><svg><use href="#co-light"/></svg></span><span class="sp"></span><span>עמוד 1 מתוך 1</span><span class="sp"></span><span class="pw">הופק ב-<span class="swl quiet"><svg><use href="#sw-mark"/></svg></span> SmplWise Arx</span></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  // every <svg><use href="#symbol"> wrapper takes the symbol's viewBox, so CSS can size it by height alone (inline-size: auto)
+  document.querySelectorAll('svg:not(.ic)').forEach((s) => {
+    if (s.hasAttribute('viewBox')) return;
+    const ref = s.querySelector('use')?.getAttribute('href');
+    const sym = ref && ref.startsWith('#') ? document.getElementById(ref.slice(1)) : null;
+    if (sym) s.setAttribute('viewBox', sym.getAttribute('viewBox'));
+  });
+  const q = new URLSearchParams(location.search);
+  const body = document.body, root = document.documentElement;
+  const views = ['shell', 'settings', 'login', 'tv', 'pdf'];
+  const sel = (id) => document.getElementById(id);
+  const state = {
+    view: views.includes(q.get('view')) ? q.get('view') : 'shell',
+    theme: q.get('theme') === 'dark' ? 'dark' : 'light',
+    company: q.get('company') !== 'off',
+    darkfile: q.get('darkfile') === 'on',
+    st: ['ready', 'empty', 'uploading', 'error', 'readonly'].includes(q.get('state')) ? q.get('state') : 'ready',
+  };
+  function swapWordmarks() {
+    // the sw-brand component (§4.4 rule 1): the scheme picks the file; the TV is always drawn with its own (dark by default) theme
+    const dark = state.theme === 'dark';
+    document.querySelectorAll('svg.sw-word use').forEach((u) => u.setAttribute('href', dark ? '#sw-word-dark' : '#sw-word'));
+    // the company logo in the shell strip: the dark file when uploaded, else the light file on a plate
+    document.querySelectorAll('.strip .co, .tv .co').forEach((co) => {
+      const plate = co.querySelector('.plate'), darkSvg = co.querySelector('svg.hasdark'), light = co.querySelector('svg.co-lightonly, svg.co-logo');
+      if (!plate && !darkSvg) return;
+      // toggleAttribute: `hidden` is an HTMLElement property, an SVG element only honours the attribute
+      if (plate) plate.toggleAttribute('hidden', !(dark && !state.darkfile));
+      if (darkSvg) darkSvg.toggleAttribute('hidden', !(dark && state.darkfile));
+      if (light) light.toggleAttribute('hidden', dark);
+    });
+  }
+  function apply() {
+    views.forEach((v) => sel('v-' + v).classList.toggle('on', v === state.view));
+    root.setAttribute('data-theme', state.theme);
+    body.classList.toggle('no-company', !state.company);
+    body.classList.toggle('darkfile', state.darkfile);
+    body.setAttribute('data-st', state.st);
+    sel('m-view').value = state.view;
+    sel('m-theme').setAttribute('aria-pressed', String(state.theme === 'dark'));
+    sel('m-company').setAttribute('aria-pressed', String(state.company));
+    sel('m-darkfile').setAttribute('aria-pressed', String(state.darkfile));
+    sel('m-state').value = state.st;
+    document.querySelectorAll('[data-ro]').forEach((el) => { el.disabled = state.st === 'readonly'; });
+    // the empty state: no company logo anywhere yet (the strip collapses, the login shows today's row)
+    if (state.view === 'settings' && state.st === 'empty') body.classList.add('no-company');
+    swapWordmarks();
+    const u = new URL(location.href);
+    u.searchParams.set('view', state.view); u.searchParams.set('theme', state.theme);
+    u.searchParams.set('company', state.company ? 'on' : 'off'); u.searchParams.set('darkfile', state.darkfile ? 'on' : 'off'); u.searchParams.set('state', state.st);
+    history.replaceState(null, '', u);
+  }
+  sel('m-view').addEventListener('change', (e) => { state.view = e.target.value; apply(); });
+  sel('m-theme').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; apply(); });
+  sel('m-company').addEventListener('click', () => { state.company = !state.company; apply(); });
+  sel('m-darkfile').addEventListener('click', () => { state.darkfile = !state.darkfile; apply(); });
+  sel('m-state').addEventListener('change', (e) => { state.st = e.target.value; apply(); });
+  apply();
+})();
+</script>
+</body>
+</html>
