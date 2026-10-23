@@ -160,6 +160,7 @@ export const HUD_SURFACES: readonly HudSurface[] = [
   { file: 'screens/investigate-history-map.ts', selector: '.legend', what: 'the legend over the history plan' },
   { file: 'screens/investigate-history-map.ts', selector: '.chip', what: 'the floor name chip over the history plan' },
   { file: 'screens/investigate-history-map.ts', selector: '.hist', what: 'the "historical state" tag over the history plan' },
+  { file: 'screens/investigate-history-map.ts', selector: '.gapbar', what: 'the "gap in the recording" bar of the time scrub over the history plan' },
   { file: 'screens/investigate-event-detail.ts', selector: '.floorchip', what: 'the floor name chip over the event page map' },
   { file: 'screens/investigate-event-detail.ts', selector: '.load3d', what: 'the 3D loading cover of the event page map' },
   { file: 'screens/investigate-event-detail.ts', selector: '.tools3d', via: 'surface-token', what: 'the picture / 2D-3D buttons over the event page map' },

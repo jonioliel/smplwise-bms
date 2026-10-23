@@ -130,6 +130,12 @@ export interface ProductSettings {
   'ui.security_snapshot'?: string;
   /** S2: 'true' lets the Home Assistant recorder fill entity states the local history does not know (marked as secondary). */
   'history.ha_secondary'?: string;
+  /** CR-TIMESCRUB101: 'true' turns the historical map's time scrub on (layer legend, playback, per-layer lanes); default 'false'. */
+  'history.timescrub'?: string;
+  /** CR-TIMESCRUB101: the longest window one range request may cover, in days (default 7, 1..30). */
+  'history.range_max_days'?: number;
+  /** CR-TIMESCRUB101 section 7: how long presence sensor states are kept in the local history, in days (default 7, 1..30). */
+  'history.presence_retention_days'?: number;
   /** הגדרות › מתגי מסכי כניסה (CR-005 recorded decision 2026-09-28): per SMPLWISE WisKey screen, 'wiskey' = WisKey's own
    * Home Assistant panel embedded as-is (the default), 'smplwise' = the screen built here. */
   'access.ui.overview'?: 'wiskey' | 'smplwise';
