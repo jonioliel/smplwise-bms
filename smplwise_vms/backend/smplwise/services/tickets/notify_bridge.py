@@ -447,6 +447,10 @@ T_ARRIVED = ("הספק {reported} הגעה ל{ticket} #{number}", "{place} · {a
 T_MISSED = ("הספק לא הגיע: {ticket} #{number}", "{place} · חלון {window}")
 T_BUDGET_WARNING = ("תקציב מתקרב לסף", "{scope} · {period} · {share}")
 T_BUDGET_EXCEEDED = ("חריגה מתקציב", "{scope} · {period}")
+# TKNOTIFMATRIX: the new sources are department-scoped ticket sources, so a matrix may hold them for the digest; a held one is sent at
+# once from these templates when its digest fails (emit_held)
+TEMPLATES.update({"ticket.visit_planned": T_VISIT_PLANNED, "ticket.arrived": T_ARRIVED, "ticket.arrival_missed": T_MISSED,
+                  "ticket.budget_warning": T_BUDGET_WARNING, "ticket.budget_exceeded": T_BUDGET_EXCEEDED})
 
 
 def _visit_origin(conn: sqlite3.Connection, row: dict[str, Any], visit: dict[str, Any]) -> dict[str, Any]:
