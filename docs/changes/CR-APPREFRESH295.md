@@ -1,6 +1,8 @@
 # CR-APPREFRESH295 - App refresh tokens: a persistent sign-in for the phone app
 
 Status: APPROVED by the owner 2026-10-23 (section 11); security review 2026-10-23 fixes in (section 12); go state **LAB ONLY**; **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
+**Device-bound key BUILT (backend only, mode default `optional`)** on `pilot/APPREFRESH2-295` (section 13; app contract
+`docs/changes/APPREFRESH-DEVICEKEY-SPEC.md`); migration **0153 PROVISIONAL**. Needs its own security review before customers.
 Board item r122, target 2.14.0. Migration **0150 PROVISIONAL** (one file, `0150_app_refresh_tokens.sql`; renumber at integration).
 No app code, no frontend, nothing on a real device or server. Activation (switch ON on a real installation) only after a Fable
 security review of the public surface (owner decision 1, section 11).
@@ -189,7 +191,7 @@ SQLite write transaction serialises them by construction; a threaded test is sli
 |---|---|---|
 | 1 | Backend core: tables, service, mint / refresh / sign-out / whoami, family management, settings, all revocation hooks, janitor, audit, limits, tests | **BUILT (this branch), switch OFF** |
 | 2 | Make the access token useful: `POST /auth/app/session` exchanges a live access token for an Arx session cookie for the web view (a persisted session row like USR2's, never longer than the family, revoked with it), the remote policy (`remote.policy`, flag / any role) and `remote.require_mfa_admin` checked at exchange; a concurrency test | proposed |
-| 3 | Proof of possession: the app generates a non-exportable key (Secure Enclave / StrongBox) at mint, the server stores its public key on the family, every refresh is a signed challenge (DPoP-style). Makes T3/T4 residuals go away | proposed (Q6) |
+| 3 | Proof of possession: the app generates a non-exportable key (Secure Enclave / StrongBox) at mint, the server stores its public key on the family, every refresh is a signed challenge (DPoP-style). Makes T3/T4 residuals go away | **BUILT** on `pilot/APPREFRESH2-295` as "slice 2 (device key)" - section 13 |
 | 4 | App work (Android + iOS) and the settings card ("כניסה שמורה באפליקציה") with the families list per user in "החשבון שלי" / user admin | proposed |
 | 5 | Contract text: a v2.1 section of `mobile-presence-contract.md` | after Q-answers |
 
@@ -251,3 +253,105 @@ No Critical or High finding. Resolutions on this branch:
   exchange. Until then the refresh token and the install id live in the same app sandbox, and a copy of both works from anywhere for up
   to the idle / absolute lifetime; detection is reactive (the next refresh of the real phone). The device key is the precondition for any
   customer installation or app release with this feature.
+
+## 13. Device-bound key (APPREFRESH2-295, owner decision 6; built on `pilot/APPREFRESH2-295`)
+
+Numbering note (recorded, not resolved): section 9 lists the device key as slice 3 and the session exchange as slice 2. The task that
+built it called it "slice 2"; the branch is `pilot/APPREFRESH2-295`. The session exchange (`POST /auth/app/session`) is still NOT built.
+The wire contract for the Android / iOS teams is `docs/changes/APPREFRESH-DEVICEKEY-SPEC.md` (v1, `arx-app-pop-v1`); this section is
+the design record.
+
+### 13.1 Primitive and why
+
+**ECDSA P-256 with SHA-256 (`ES256`)** - the only signature algorithm both hardware keystores generate and use natively: Android Keystore
+(TEE / StrongBox, `secp256r1`, `SHA256withECDSA`) and the iOS Secure Enclave (P-256 only). Ed25519 is not in the Secure Enclave and not in
+every Keystore; RSA is not in the Secure Enclave. Verification uses the backend's existing `cryptography` dependency
+(`services/app_refresh_key.py`); **no new dependency**.
+
+### 13.2 Wire format (summary; exact bytes in the spec, section 4)
+
+- Public key at mint: base64url (no padding) of the SPKI DER (Android `getEncoded()`) or the 65-byte `04||X||Y` point (iOS); normalised to
+  SPKI DER on the family; fingerprint = SHA-256(SPKI DER).
+- Signature: base64url of DER `ECDSA-Sig-Value` (both platforms' native output) or raw 64-byte `r||s`; exactly 64 bytes = raw.
+- Signed message: `arx-app-pop-v1 LF <purpose> LF <device_id> LF <nonce> LF <ts> LF <last>`, UTF-8, no trailing LF. Refresh:
+  `<nonce>` = the challenge nonce, `<last>` = base64url(SHA-256(refresh token)). Mint: `<nonce>` = `-`, `<last>` = the `public_key` field
+  verbatim.
+- Nonce: `POST /auth/app/refresh-challenge {device_id}` -> `arxn_` + 256 random bits, **single use, 120 s**, bound to the device's live
+  keyed family, stored as SHA-256 (`app_refresh_nonces`); at most 5 open per family. An unknown device gets the same answer shape with a
+  nonce stored nowhere.
+- `ts`: integer Unix seconds; **clock skew window +-300 s** (`POP_SKEW_S`). Replay window: none - a nonce verifies once; a captured
+  request is refused (`app_refresh_proof_retry`, nothing ends).
+
+### 13.3 Flows
+
+1. **Mint with a key**: `device_key {alg: "ES256", public_key, proof {ts, sig}}` on `POST /auth/app/refresh-tokens`. Checked after the
+   existing mint checks and the rate limit, BEFORE the previous family is replaced (a refused key ends nothing): key parses as P-256
+   (`422 device_key_invalid`), mint signature verifies (`422 device_key_proof_invalid`, audit reason `proof_invalid`), `ts` inside the skew
+   (`proof_stale`), the key is not bound to a live family of ANOTHER device (`409 device_key_in_use`). Every refusal is audited
+   (`auth.app_refresh.issue` denied, the reason only).
+2. **Refresh of a keyed family**: the proof is checked after every slice-1 live check (binding, device, user, policy, anchor, expiry) and
+   BEFORE the token state, so the first try and the **retry inside the 20 s grace both need a fresh nonce and a valid signature**.
+   - no proof -> the family ends `proof_missing` (a token without its key is a theft signal, like `binding_mismatch`);
+   - nonce unknown / expired / used / of another family -> `401 app_refresh_proof_retry` (`details.reason = nonce`), nothing ends, the
+     token is not consumed;
+   - the nonce is consumed (also when the request is then refused); signature invalid or by another key -> the family ends `proof_invalid`;
+   - signature valid but `ts` outside +-300 s -> `401 app_refresh_proof_retry` (`reason = clock`, `server_time`), the token not consumed.
+   Security review F-05 (a thief holding the parent inside the grace obtains a pair) is closed for keyed families: without the key the
+   parent yields nothing and ends the family.
+3. **Rotation / replacement** = a re-mint with a new key from a fresh session (the existing replacement path, reason `replaced`); the same
+   key may re-mint on the same device. No in-band key change in v1.
+4. **Re-registration** of the device ends the family (`device_reregistered`, unchanged); the next mint binds the new key; a proof by the old
+   key never verifies against it (tested).
+5. **Revocation**: every path of 4.3 ends a keyed family as before; `_revoke` also drops the family's nonces; the janitor drops expired /
+   used nonces. Sign-out needs no proof (it can only end).
+
+### 13.4 Setting `security.app_refresh_device_key` (SETTINGS_KEEP)
+
+| Value | Mint | Keyed family | Keyless family |
+|---|---|---|---|
+| `off` | binds no key (answer `bound: false`) | proof still required (no downgrade by a setting) | refreshes |
+| `optional` (**default**, the lab) | binds the key when sent | proof required | refreshes |
+| `required` (**before any customer**) | `422 device_key_required` without a key | proof required | ended at refresh / access use; switching to `required` ends every keyless family at once (`device_key_required`) |
+
+A stored unknown value reads as `required` (fails closed). Raising the mode works from either channel; **weakening it (required ->
+optional / off, optional -> off) only from the local channel** (`403 local_channel_only`, audited) - the same rule as switching the feature
+ON. Validation: one of the three strings, else `422 validation`.
+
+### 13.5 Migration 0153 PROVISIONAL (one file `0153_app_refresh_device_key.sql`)
+
+`app_refresh_families` + `device_key_spki`, `device_key_fp` (64 hex), `device_key_alg` (`ES256`), `device_key_bound_at`; index on the
+fingerprint; table `app_refresh_nonces(nonce_hash PK, family_id, issued_at, expires_at, used_at)`. Additive. Renumber at integration (after
+0150). `app_refresh_nonces` is in `NEVER_EXPORTED_TABLES`. Rollback caveat: older code ignores the key columns, so a keyed family would
+refresh WITHOUT a proof - roll back only together with switching `security.app_refresh` off.
+
+### 13.6 Audit, logs, limits
+
+- `auth.app_refresh.issued` gains `device_key: "ES256" | null` and `key_fp` = the first **16 hex** of the fingerprint. No row carries the
+  public key, the full fingerprint, a signature or a nonce (tested over the audit log and the log capture; nonces are in no table in clear).
+- Refusals: `auth.app_refresh.refused` reasons `proof_missing`, `proof_invalid`, `device_key_required`; mint denials `device_key_required`,
+  `device_key_invalid`, `proof_invalid`, `proof_stale`, `device_key_in_use`. Nonce / clock retries are not audited (counted by the limiter).
+- Limits: challenge per family burst 10 / 30 per minute; an unknown device counts on the per-client failure tier (20 / min) and the global
+  tier; every refused refresh (proof retries included) counts on the per-client tier as before.
+
+### 13.7 Administrators' MFA rule (`remote.require_mfa_admin`)
+
+Not enforceable at refresh without a live HA sign-in: the rule needs the HA user's MFA modules, which only the HA sign-in answer carries
+(`ha_user_auth.HaUser.mfa`; Arx stores no copy). What holds: the mint requires a remote sign-in at most 15 minutes old, and that sign-in
+already passed `policy_refusal` including the MFA rule; administrators are capped at 7 days / 24 h idle. Not covered: an administrator who
+removes MFA at HA (or the rule switched on) after the mint keeps the family until the cap. **Left documented** (task rule: enforce only if
+feasible without a live HA sign-in). Cheap follow-up candidate: when `remote.require_mfa_admin` is switched on, end the families of every
+user holding an administrative permission (they re-mint through a sign-in that passes the rule).
+
+### 13.8 Go state
+
+- Lab: unchanged (LAB ONLY, section 12.1); mode `optional` lets the owner test keyed and keyless phones side by side.
+- Customers: the device key is now built; preconditions remain - a security review of this slice and of the session exchange, the backend
+  suite green on the integration head, migrations renumbered, the apps implementing the spec, and **mode `required`** on every customer
+  installation.
+
+### 13.9 Open questions
+
+1. Attestation (Android Key Attestation / iOS App Attest) so the server knows the key is hardware-backed - proposed as `pop-v2`.
+2. Access tokens stay bearer (minutes); sign every API call (DPoP) or only the session exchange? Decide with the session-exchange slice.
+3. The MFA follow-up of 13.7 (end admin families when the rule is switched on) - owner decision.
+4. Should the installation default move from `optional` to `required` once the app versions with the key are out (an upgrade step)?
