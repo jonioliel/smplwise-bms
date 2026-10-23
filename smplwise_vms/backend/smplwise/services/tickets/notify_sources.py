@@ -57,6 +57,11 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     # `system`), resolved when an editor decides or the vendor withdraws it; no name, no number in the text
     {"key": "ticket.portal_tech_request", "label": "בקשת ספק לעדכון טכנאי",  # no label_en, like the other ticket sources
      "severity": "info", "who": "managers", "resolves": True, "subject": "system", "push": False},
+    # CR-INTAKE99 (owner 143-156): a free-text request from a known number waits for approval (a count and the suggested urgency only,
+    # never the text, a name or a number); and the daily summary of messages from numbers NOT on the list (owner 267: a count only)
+    {"key": "ticket.intake_new", "label": "פנייה חדשה ממתינה לאישור", "severity": "info", "who": "managers", "resolves": True, "subject": "system"},
+    {"key": "ticket.intake_unlisted", "label": "סיכום יומי: פניות ממספרים שאינם ברשימה", "severity": "info", "who": "managers",
+     "resolves": False, "subject": "system", "push": False},
     # TKRFQ5: what a vendor did on his quote page (or by a WhatsApp reply) and the deadline - to the RFQ managers only
     {"key": "rfq.quote_received", "label": "הצעת מחיר התקבלה או עודכנה", "label_en": "Quote received or updated", "severity": "info",
      "who": RULE_RFQ_MANAGERS, "resolves": True, "subject": SUBJECT_RFQ},

@@ -250,6 +250,13 @@ NOTIFY_CHANNEL_GROUPS = ("push", "email", "whatsapp")  # in-app is the inbox row
 SLA_URGENT_MAX = 2000
 
 
+def _dept_id(v: Any) -> str:
+    """CR-INTAKE99: a department id or "" (not chosen yet). Existence is checked by the intake service when a message arrives."""
+    if not isinstance(v, str) or (v and not re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", v)):
+        raise ValueError("invalid")
+    return v
+
+
 def _ids(v: Any) -> list[str]:
     if not isinstance(v, list) or len(v) > NOTIFY_PICK_MAX or not all(isinstance(x, str) and _PRINCIPAL_ID.match(x) for x in v):
         raise ValueError("invalid")
@@ -550,6 +557,25 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("budgets", "require_confirmation"): (True, boolean),
     ("budgets", "count_committed"): (True, boolean),
     ("budgets", "notify_configurers"): (True, boolean),
+    # CR-INTAKE99 (owner answers 143-156, 2026-10-24; phases 1-3: WhatsApp drafts, the queue, approval - NO public page): free-text
+    # requests from the numbers on the managed list become DRAFTS a human approves. Everything OFF by default; `system.configure`,
+    # audited. Who is told is governed by the notification policy matrix (sources ticket.intake_new / ticket.intake_unlisted).
+    ("intake", "enabled"): (False, boolean),
+    ("intake", "whatsapp"): (False, boolean),
+    ("intake", "default_department"): ("", _dept_id),  # required while intake is on: the department a draft starts in
+    ("intake", "classifier"): ("rules", _choice("rules", "off")),  # `off` = empty suggestions; no external model exists (record 4.9)
+    ("intake", "approval_reply"): (True, boolean),  # owner 144: one reply with the request number, only AFTER a handler approved
+    ("intake", "unlisted_reply"): (True, boolean),  # owner 267: one fixed "number not registered" reply to an unlisted number
+    ("intake", "unlisted_reply_per_day"): (1, int_range(1, 5)),  # replies to the same unlisted number per day
+    ("intake", "coalesce_min"): (10, int_range(1, 60)),
+    ("intake", "sender_per_day"): (5, int_range(1, 20)),
+    ("intake", "sender_per_week"): (15, int_range(1, 50)),
+    ("intake", "installation_per_hour"): (60, int_range(10, 200)),
+    ("intake", "installation_per_day"): (300, int_range(50, 1000)),
+    ("intake", "open_max"): (500, int_range(50, 2000)),
+    ("intake", "draft_ttl_days"): (14, int_range(1, 60)),
+    ("intake", "rejected_keep_days"): (7, int_range(1, 30)),
+    ("intake", "block_days"): (30, int_range(1, 90)),
 }
 
 STAT_NUMBERS: tuple[str, ...] = ("response", "arrival", "repeat", "quote", "returned", "volume")

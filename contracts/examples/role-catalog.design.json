@@ -306,6 +306,7 @@
         "tickets.handlers",
         "tickets.directory",
         "tickets.technician_requests",
+        "tickets.intake",
         "messaging.accounts.manage",
         "occupancy.view",
         "notices.view",
@@ -373,6 +374,7 @@
     "tickets.handlers",
     "tickets.directory",
     "tickets.technician_requests",
+    "tickets.intake",
     "messaging.accounts.manage",
     "occupancy.view"
   ],

@@ -390,6 +390,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # tickets.configure; tickets.configure still covers it. Sensitive, not delegable by default, a single-permission role tickets_directory.
     "tickets.directory": "{module}: ספרייה - ספקים ואנשי קשר חיצוניים",
     "tickets.technician_requests": "{module}: אישור בקשות טכנאים מספקים (במחלקות שבאחריותי)",
+    # CR-INTAKE99 (owner 143, 2026-10-24): see and decide the free-text requests that arrive from known numbers (drafts). Sensitive, not
+    # delegable by default, the single-permission role tickets_intake; department managers and system admins hold it implicitly.
+    "tickets.intake": "{module}: קליטת פניות בטקסט חופשי (טיוטות לאישור)",
     # CR-038 D9: choosing which linked WhatsApp account sends each kind of message (installation level, slice 5a's screen; the
     # permission is catalogued here with the module so 5a does not touch the shared files). Sensitive; system_admin.
     "messaging.accounts.manage": "בחירת חשבונות וואטסאפ לשליחת הודעות",

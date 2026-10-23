@@ -100,7 +100,7 @@ def track(db, ts):
 
 def runs(db):
     with db.connection(mode="read") as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM generator_runs ORDER BY start_ts").fetchall()]
+        return [dict(r) for r in conn.execute("SELECT * FROM generator_run_log ORDER BY start_ts").fetchall()]
 
 
 def fuel_events(db):
@@ -240,7 +240,7 @@ def test_api_switch_settings_and_summary(world):
     now = int(dt.datetime.now(dt.timezone.utc).timestamp())
     with db.connection() as conn:
         for i, (kind, start, dur) in enumerate((("test", now - 3 * 86400, 900), ("mains_failure", now - 86400, 3600), ("test", now - 400 * 86400, 600))):
-            conn.execute("""INSERT INTO generator_runs(id, device_id, start_ts, end_ts, end_reason, kind, kind_reason, took_load, hours_start, hours_end, fuel_start_pct, fuel_end_pct, last_run_ts)
+            conn.execute("""INSERT INTO generator_run_log(id, device_id, start_ts, end_ts, end_reason, kind, kind_reason, took_load, hours_start, hours_end, fuel_start_pct, fuel_end_pct, last_run_ts)
                             VALUES (?,?,?,?, 'stopped', ?, 'mode_test', 0, 100, ?, 80, 78, ?)""", (f"r{i}", g, start, start + dur, kind, 100 + dur / 3600, start + dur))
         conn.execute("INSERT INTO generator_fuel_events(id, device_id, kind, start_ts, end_ts, from_pct, to_pct) VALUES ('f1', ?, 'refill', ?, ?, 40, 90)", (g, now - 2 * 86400, now - 2 * 86400 + 600))
     body = c.get(f"{API}/devices/{g}/runs?range=30d&page_size=1").json()
