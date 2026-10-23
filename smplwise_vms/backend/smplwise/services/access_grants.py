@@ -398,7 +398,9 @@ def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
             "local_approvers": "on" if local_approvers(conn) else "off",
             # GRANTS3-295 (X5): cards, and card capture - which stays off until the owner releases the lease route
             "cards": "on" if cards_enabled(conn) else "off", "card_capture": "on" if CAPTURE_PERMITTED else "off",
-            "pending_retention_days": pending_retention_days(conn), "pending_max_per_vendor": pending_cap(conn)}
+            "pending_retention_days": pending_retention_days(conn), "pending_max_per_vendor": pending_cap(conn),
+            # DENYALERT133-295: the denied-attempt alert's own switch (default off; it also needs the feature)
+            "denied_alert": "on" if (get_setting(conn, "access.external.denied_alert") or "off") == "on" else "off"}
 
 
 # ---------------------------------------------------------------- errors
@@ -1958,9 +1960,10 @@ class Worker:
         """SHAREDID-293: the external-access screen's own passes, after the grant work of the pass (services/access_external.py) - the
         read-back verification of active grants (owner decision 2), the watch for a person confirmed gone that reappears (3), the name
         sync (5) and the weekly digest (4). Each fails closed on its own: a failure never stops the grant work."""
+        from . import access_denied
         from . import access_external as ax
 
-        for step in (ax.verify_pass, ax.watch_gone, ax.name_pass, ax.digest_due):
+        for step in (ax.verify_pass, ax.watch_gone, ax.name_pass, ax.digest_due, access_denied.denied_pass):  # DENYALERT133-295: the last, a read only
             try:
                 step(db)
             except Exception:  # noqa: BLE001
