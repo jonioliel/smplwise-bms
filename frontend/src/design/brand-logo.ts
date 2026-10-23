@@ -178,3 +178,6 @@ export function applyBrandTitle(): void {
   const s = state;
   document.title = composeTitle(s.titlePrefix, s.titleMode, s.companyName, s.projectName);
 }
+
+// the last known choice names the tab from the first paint (a static preview, a slow /me); an installation that never set anything keeps index.html's title
+if (state !== EMPTY_BRAND) applyBrandTitle();

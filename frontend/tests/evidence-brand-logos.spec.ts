@@ -138,13 +138,13 @@ test.describe('LOGOS-295 settings card', () => {
       expect(overflow.card, tab).toBeLessThanOrEqual(1);
     }
     await card(page).locator('[data-logo-tab="look"]').click();
-    await expect(card(page).locator('[data-logo-save]')).toBeDisabled();
+    await expect(card(page).locator('[data-logo-save]')).toHaveAttribute('disabled', '');
     await card(page).locator('[data-size="xl"]').click();
     await card(page).locator('[data-dark-mode="invert"]').click();
     await expect(card(page).locator('[data-size="xl"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(card(page).locator('[data-dark-mode="invert"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(card(page).locator('[data-logo-size-px]')).toContainText('54px');
-    await expect(card(page).locator('[data-logo-save]')).toBeEnabled();
+    await expect(card(page).locator('[data-logo-save]')).not.toHaveAttribute('disabled', '');
     // a draft: the shell strip has not changed yet
     expect(await page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('48px');
     await card(page).locator('[data-logo-save]').click();
@@ -164,7 +164,7 @@ test.describe('LOGOS-295 settings card', () => {
   test('upload: the answer shows the preview and the warning; a refusal shows the server message and keeps the card usable', async ({ page }, info) => {
     test.skip(info.project.name === 'tablet', 'two widths are enough');
     await boot(page, '/system/diagnostics', { company: false });
-    let mode: 'ok' | 'bad' = 'ok';
+    let mode: 'ok' | 'bad' = 'bad';
     await page.route('**/api/v1/brand/company-logo/light', (r) => {
       if (r.request().method() !== 'POST') return r.fallback();
       if (mode === 'bad') return r.fulfill({ status: 415, contentType: 'application/json', body: JSON.stringify({ code: 'unsupported_format', user_message: 'אפשר להעלות PNG, SVG, WebP או JPEG', retryable: false, correlation_id: 'x', details: {} }) });
