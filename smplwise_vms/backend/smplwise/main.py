@@ -534,6 +534,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import nvr_privacy as nvr_privacy_router
 
     app.include_router(nvr_privacy_router.router, prefix=api, tags=["nvr"])  # NVRMASK-295: privacy-mask read / preview / guarded apply (off by default)
+    from .routers import mask_copy as mask_copy_router
+
+    app.include_router(mask_copy_router.router, prefix=api, tags=["nvr"])  # MASKCOPY62-295: privacy-mask copy PLAN only, no device write (off by default)
     from .routers import energy_meters as energy_meters_router
 
     from .routers import generator as generator_router
