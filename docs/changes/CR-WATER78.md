@@ -234,7 +234,7 @@ water store, never from the mirror directly; nothing is ever sent to a device.
 
 1. Extract the medium profile from `energy_store` / `energy_sampler` / `energy_counter` / `energy_settings` first, with the
    characterisation test green, before any water file exists.
-2. `services/water_meters.py`, `routers/water.py`, `services/water_backup.py`, migration `0151_infra_water.sql` (built as provisional 0152;
+2. `services/water_meters.py`, `routers/water.py`, `services/water_backup.py`, migration `0150_infra_water.sql` (built as provisional 0152;
    renumbered at the 2.14.0 integration; one file).
 3. Frontend: `screens/infra-water.ts` (the `infra-electricity.ts` shell: page row, pair chip, forbidden / empty panels),
    `screens/water/page-meters.ts`, `page-consumption.ts`, `water/access.ts` (`/status`), `api/water.ts` (+ demo mock), `i18n/water.ts`,

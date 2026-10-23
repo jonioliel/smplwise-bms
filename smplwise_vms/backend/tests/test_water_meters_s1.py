@@ -433,7 +433,7 @@ def test_migration_numbers_contiguous():
     numbers = sorted(files)
     assert numbers == list(range(1, numbers[-1] + 1)), "the sequence has no gap"
     water = [f.name for f in files.values() if "water" in f.name]
-    assert water == ["0151_infra_water.sql"], "one file for the water module"
+    assert water == ["0150_infra_water.sql"], "one file for the water module"
     text = files[150].read_text(encoding="utf-8")
     assert "Final number 0150" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
 
