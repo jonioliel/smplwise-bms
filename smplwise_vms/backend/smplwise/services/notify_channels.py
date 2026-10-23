@@ -23,7 +23,7 @@ SQLite write lock. A policy channel with no registered implementation (e-mail un
 WHAT THIS MODULE DOES for every `dispatch` row of the outbox - a new notification, a severity rise, an escalation step, a resolve notice:
 plans the targets of each channel the SOURCE POLICY (the administrator's; there are no per-user choices) switched on, writes the delivery log,
 and lets each channel send. The inbox is always on and is not a channel here. The delivery log (`notification_deliveries`) gets a row per target:
-queued, then sent / retry / failed / gone, or skipped with a reason (quiet_hours, snoozed, rate_limited, no_reach, no_key, channel_unavailable).
+queued, then sent / retry / failed / gone, or skipped with a reason (quiet_hours, quiet_window, snoozed, rate_limited, no_reach, no_key, channel_unavailable).
 
 Web push is the built-in channel (services/push.py holds the protocol): payload v2 at the administrator's lock-screen level, the single-use
 ack / snooze action tokens, and the doorbell's "open door" as a plain deep link - never a token, never a call.
@@ -82,14 +82,23 @@ class Dispatch:
     scratch: dict[str, Any] = field(default_factory=dict)  # per-channel state shared between plan / prepare / send
     _conn: Any = None
     _reach: dict[str, Reach] = field(default_factory=dict)
+    quiet_window: str | None = None     # CR-QUIET103: the id of the active quiet window (floor / area) that holds this informational notification back
 
     @property
     def severity(self) -> str:
         return self.n["severity"]
 
+    def held_reason(self) -> str:
+        """The delivery-log reason of a held channel: `quiet_window` when a quiet window holds it, else `quiet_hours`."""
+        return "quiet_window" if self.quiet_window else "quiet_hours"
+
     def held(self, channel: str) -> bool:
         """Quiet hours hold this channel back for this severity (the pass-through matrix); an escalation always passes."""
-        if self.mode == "escalate" or not self.quiet:
+        if self.mode == "escalate":
+            return False
+        if self.quiet_window:  # CR-QUIET103: set only for a non-critical, non-safety notification in the window's place (services/quiet_windows.suppresses)
+            return True
+        if not self.quiet:
             return False
         if str(self.n.get("source") or "").startswith("generator.") and self._conn is not None:  # GENALERT-295: the alert type's own quiet-hours choice
             from . import generator_alerts
@@ -282,7 +291,7 @@ class WebPushChannel(Channel):
                 out.append(Target(self.name, uid, host, "skipped", "snoozed"))
                 continue
             if d.held(self.name):
-                out.append(Target(self.name, uid, host, "skipped", "quiet_hours"))
+                out.append(Target(self.name, uid, host, "skipped", d.held_reason()))
                 continue
             if key is None:
                 out.append(Target(self.name, uid, host, "skipped", "no_key"))
@@ -356,6 +365,12 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
             users = [r[0] for r in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ? ORDER BY added_at, user_id", (nid,)).fetchall()]
         d = Dispatch(nid, mode, n, policy, st, tz, now, nsettings.in_quiet_hours(st["quiet"], now, tz), list(dict.fromkeys(users)), item)
         d._conn = conn
+        try:  # CR-QUIET103: an unreadable window table never blocks a notification (fail open: the channels run as before)
+            from . import quiet_windows
+
+            d.quiet_window = quiet_windows.suppresses(conn, n, mode, now)
+        except Exception:  # noqa: BLE001
+            log.warning("quiet window check failed for notification %s", nid, exc_info=True)
         channels = policy["channels"]
         if str(n["source"]).startswith("ticket."):  # TKNOTIFMATRIX: a department's channel override (only while its matrix is on)
             from .tickets import notify_matrix
