@@ -14,6 +14,7 @@ import { ct, type CostTextKey } from './cost-text'; // slice 9
 import { lt } from './org-locations-text';
 import { navForAssign, navForPreview, navSwitch, type NavAnswer } from './assign-nav-model';
 import { outsideBlock, staffBlock, usersBlock, whatsappNote, type ReadyItem } from './readiness-model';
+import { insuranceMark } from '../maintenance/model'; // MAINT215B: the supplier insurance mark of the picker
 
 type CostModeChoice = 'required' | 'optional' | 'off';
 
@@ -231,7 +232,15 @@ export class ExternalAssign implements ReactiveController {
       <input type="radio" name="asgc" .checked=${this.pick === c.id} @change=${() => this.choose(t, c)} />
       <span class="xtx"><span class="xnm">${bidi(c.name)}</span>
         <span class="xsub">${bidi([c.vendor_name ?? c.company, c.phone].filter(Boolean).join(' · '))}</span></span>
+      ${this.insuranceChip(c)}
       ${c.require_code ? html`<small>${tIcon('lock')}${tt('lkCode')}</small>` : nothing}</label>`;
+  }
+
+  /** Owner review 24.10 (marking only): a red mark for a supplier whose insurance is expired or absent, amber while it is about to end.
+   * The row stays selectable and nothing asks for a confirmation. */
+  private insuranceChip(c: ExternalAssignee): TemplateResult | typeof nothing {
+    const m = insuranceMark(c.insurance);
+    return m ? html`<small class="xins" data-insurance=${c.insurance!.state} data-look=${m.look} data-insurance-mark>${tIcon('warning')}${m.text}</small>` : nothing;
   }
 
   /** The picker of the outside group (vendors and contacts) and the chosen row's options. */
@@ -350,6 +359,22 @@ export class ExternalAssign implements ReactiveController {
 
 /** The few rules the outside parts of the dialog need beyond the detail's own (`.seg`, `.pick`, `.chk`, `.btn` come from there). */
 export const externalAssignStyles = css`
+  .xins {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: var(--sw-fs-xs);
+    font-weight: 600;
+    white-space: nowrap;
+    background: var(--sw-warning-soft);
+    color: var(--sw-warning-text);
+  }
+  .xins[data-look='alarm'] {
+    background: var(--sw-danger-soft);
+    color: var(--sw-danger-text);
+  }
   .vh {
     position: absolute;
     inline-size: 1px;

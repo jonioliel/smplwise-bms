@@ -4,14 +4,16 @@
  * fetch: the unit specs call these directly (tests/unit-maintenance.spec.ts).
  */
 import type { PlaceRow } from '../screens/wiskey-stations-logic';
-import type { Answer, ChecklistItem, DocType, Interval, IntervalUnit, Options, Task, TaskBody, TaskDetail, TaskKind, VendorRow } from '../api/maintenance';
+import type { Answer, ChecklistItem, DocType, Insurance, Interval, IntervalUnit, Options, RoundView, Task, TaskBody, TaskDetail, TaskKind, VendorRow } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 
-export type Page = 'ledger' | 'plans' | 'rounds' | 'tags';
-export const PAGES: readonly Page[] = ['ledger', 'plans', 'rounds', 'tags'];
+export type Page = 'ledger' | 'plans' | 'rounds' | 'log' | 'tags';
+/** the pages that list tasks (the reminder log and the tags are their own screens) */
+export type ListPage = 'ledger' | 'plans' | 'rounds';
+export const PAGES: readonly Page[] = ['ledger', 'plans', 'rounds', 'log', 'tags'];
 export const SECTION_HREF = '#/tickets/maintenance';
-export const PAGE_LABEL: Record<Page, MtKey> = { ledger: 'pageLedger', plans: 'pagePlans', rounds: 'pageRounds', tags: 'pageTags' };
-export const PAGE_KINDS: Record<Exclude<Page, 'tags'>, readonly TaskKind[]> = { ledger: ['certificate', 'vendor_document'], plans: ['preventive'], rounds: ['round'] };
+export const PAGE_LABEL: Record<Page, MtKey> = { ledger: 'pageLedger', plans: 'pagePlans', rounds: 'pageRounds', log: 'pageLog', tags: 'pageTags' };
+export const PAGE_KINDS: Record<ListPage, readonly TaskKind[]> = { ledger: ['certificate', 'vendor_document'], plans: ['preventive'], rounds: ['round'] };
 
 export function pageHref(p: Page): string {
   return `${SECTION_HREF}/${p}`;
@@ -23,7 +25,7 @@ export function pageOf(segments: readonly string[]): Page {
   return (PAGES as readonly string[]).includes(s ?? '') ? (s as Page) : 'ledger';
 }
 
-export function pageOfKind(kind: TaskKind): Exclude<Page, 'tags'> {
+export function pageOfKind(kind: TaskKind): ListPage {
   return kind === 'preventive' ? 'plans' : kind === 'round' ? 'rounds' : 'ledger';
 }
 
@@ -122,7 +124,7 @@ export function lastRunText(t: Task): string {
 // ---------------------------------------------------------------- KPI row
 
 export type KpiKey = 'all' | Look;
-export const PAGE_KPIS: Record<Exclude<Page, 'tags'>, { key: KpiKey; label: MtKey }[]> = {
+export const PAGE_KPIS: Record<ListPage, { key: KpiKey; label: MtKey }[]> = {
   ledger: [{ key: 'all', label: 'kpiItems' }, { key: 'alarm', label: 'kpiExpired' }, { key: 'warn', label: 'kpiNear' }, { key: 'ok', label: 'kpiValid' }, { key: 'unk', label: 'kpiPaused' }],
   plans: [{ key: 'all', label: 'kpiPlans' }, { key: 'alarm', label: 'kpiLate' }, { key: 'warn', label: 'kpiThisWeek' }, { key: 'ok', label: 'kpiOnTime' }, { key: 'unk', label: 'kpiPausedF' }],
   rounds: [{ key: 'all', label: 'kpiRounds' }, { key: 'alarm', label: 'kpiLate' }, { key: 'warn', label: 'kpiToday' }, { key: 'ok', label: 'kpiOnTime' }, { key: 'acc', label: 'kpiRunning' }],
@@ -212,7 +214,7 @@ export function treeRows(list: readonly Task[], collapsed: ReadonlySet<string> =
 // ---------------------------------------------------------------- list filters
 
 export type Seg = 'all' | 'cert' | 'vendor' | 'auto' | 'manual' | 'daily' | 'weekly';
-export function segsOf(page: Exclude<Page, 'tags'>, ticketsOn: boolean): { key: Seg; label: MtKey }[] {
+export function segsOf(page: ListPage, ticketsOn: boolean): { key: Seg; label: MtKey }[] {
   if (page === 'ledger') return [{ key: 'all', label: 'all' }, { key: 'cert', label: 'kindCerts' }, { key: 'vendor', label: 'kindVendorDocs' }];
   if (page === 'plans') return ticketsOn ? [{ key: 'all', label: 'all' }, { key: 'auto', label: 'autoRequest' }, { key: 'manual', label: 'manual' }] : [];
   return [{ key: 'all', label: 'all' }, { key: 'daily', label: 'daily' }, { key: 'weekly', label: 'weekly' }];
@@ -331,6 +333,8 @@ export interface Draft {
   title: string;
   category: string;
   place: string; // '' = no place, else `<kind>:<id>`
+  /** MAINT215B: what it is about - '' = nothing, else `elevator:<id>` / `generator:<id>` */
+  asset: string;
   vendor_id: string;
   doc_type: DocType | '';
   owner_user_id: string;
@@ -354,7 +358,7 @@ export function newItem(kind: ChecklistItem['kind'] = 'check'): ChecklistItem & 
 
 export function newDraft(kind: TaskKind): Draft {
   return {
-    kind, title: '', category: kind === 'vendor_document' ? 'other' : 'other', place: '', vendor_id: '', doc_type: kind === 'vendor_document' ? 'insurance' : '', owner_user_id: '',
+    kind, title: '', category: kind === 'vendor_document' ? 'other' : 'other', place: '', asset: '', vendor_id: '', doc_type: kind === 'vendor_document' ? 'insurance' : '', owner_user_id: '',
     due_date: '', anchor_date: '', every: kind === 'preventive' ? '1' : kind === 'round' ? '1' : '', unit: kind === 'round' ? 'day' : kind === 'preventive' ? 'month' : 'year', lead: '',
     notes: '', checklist: kind === 'round' ? [newItem()] : [], auto_ticket: false, department_id: '', active: true,
   };
@@ -362,7 +366,8 @@ export function newDraft(kind: TaskKind): Draft {
 
 export function draftOf(t: TaskDetail): Draft {
   return {
-    kind: t.kind, title: t.title, category: t.category || 'other', place: t.place ? `${t.place.kind}:${t.place.id}` : '', vendor_id: t.vendor_id ?? '', doc_type: (t.doc_type ?? '') as Draft['doc_type'],
+    kind: t.kind, title: t.title, category: t.category || 'other', place: t.place ? `${t.place.kind}:${t.place.id}` : '',
+    asset: t.elevator_id ? `elevator:${t.elevator_id}` : t.generator_id ? `generator:${t.generator_id}` : '', vendor_id: t.vendor_id ?? '', doc_type: (t.doc_type ?? '') as Draft['doc_type'],
     owner_user_id: t.owner_user_id ?? '', due_date: t.due_date ?? '', anchor_date: t.anchor_date ?? '', every: t.interval ? String(t.interval.count) : '', unit: t.interval?.unit ?? 'month',
     lead: String(t.lead_days), notes: t.notes ?? '', checklist: (t.checklist ?? []).map((i) => ({ ...newItem(i.kind), ...i })), auto_ticket: t.auto_ticket, department_id: t.department_id ?? '', active: t.active,
   };
@@ -417,7 +422,9 @@ export function bodyOf(d: Draft, prev?: TaskDetail | null): TaskBody {
   });
   const [pk, pid] = d.place ? (d.place.split(':') as ['site' | 'building' | 'floor', string]) : [null, null];
   const plan = d.kind === 'preventive' || d.kind === 'round';
+  const [ak, aid] = d.asset ? (d.asset.split(':') as ['elevator' | 'generator', string]) : [null, null];
   const full: TaskBody = {
+    elevator_id: ak === 'elevator' ? aid : null, generator_id: ak === 'generator' ? aid : null,
     title: d.title.trim(), category: d.category || 'other', notes: d.notes.trim(), place: pk && pid ? { kind: pk, id: pid } : null, vendor_id: d.vendor_id || null,
     owner_user_id: d.owner_user_id || null, interval: d.every ? { unit: d.unit, count: Number(d.every) } : null, lead_days: d.lead === '' ? null : Number(d.lead),
     checklist: items, auto_ticket: d.auto_ticket, department_id: d.auto_ticket ? d.department_id || null : null,
@@ -429,11 +436,14 @@ export function bodyOf(d: Draft, prev?: TaskDetail | null): TaskBody {
     const out: TaskBody = { kind: d.kind, ...full };
     if (out.lead_days === null) delete out.lead_days; // the installation's default (Settings)
     if (d.kind === 'vendor_document') delete out.place;
+    if (!out.elevator_id) delete out.elevator_id; // nothing to link: leave the fields out of a new task
+    if (!out.generator_id) delete out.generator_id;
     return out;
   }
   const out: TaskBody = { revision: prev.revision };
   const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   const was: TaskBody = {
+    elevator_id: prev.elevator_id, generator_id: prev.generator_id,
     title: prev.title, category: prev.category, notes: prev.notes ?? '', place: prev.place ? { kind: prev.place.kind, id: prev.place.id } : null, vendor_id: prev.vendor_id,
     owner_user_id: prev.owner_user_id, interval: prev.interval, lead_days: prev.lead_days, checklist: prev.checklist ?? [], auto_ticket: prev.auto_ticket,
     department_id: prev.auto_ticket ? prev.department_id : null, doc_type: prev.doc_type, anchor_date: prev.anchor_date, due_date: prev.due_date,
@@ -463,4 +473,53 @@ export function placeOptions(o: Pick<Options, 'places'>): { value: string; label
 /** A task as a list row (the scan answer and a create return a detail; the lists keep the list shape). */
 export function asRow(t: TaskDetail): Task {
   return t;
+}
+
+
+// ---------------------------------------------------------------- MAINT215B: insurance marks, files, the round view, the certificates row
+
+
+/** The mark of the tickets assignee picker (owner review 24.10, MARKING ONLY): red for an expired or missing insurance, amber while it
+ * is about to end; nothing when it is fine or the module is off. */
+export function insuranceMark(i: Insurance | null | undefined): { look: 'alarm' | 'warn'; text: string } | null {
+  if (!i) return null;
+  if (i.state === 'expired') return { look: 'alarm', text: mt('insExpired', { d: i.valid_until ? fmtDate(i.valid_until) : '' }).trim() };
+  if (i.state === 'missing') return { look: 'alarm', text: mt('insMissing') };
+  if (i.state === 'expiring') return { look: 'warn', text: mt('insExpiring', { d: i.valid_until ? fmtDate(i.valid_until) : '' }).trim() };
+  return null;
+}
+
+export function fileSizeText(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : mt('fileSize', { n: Math.max(1, Math.round(bytes / 1024)) });
+}
+
+export const ROUND_VIEW_KEY = 'sw.maintenance.round_view';
+
+/** The person's own choice of the phone round (a per-browser convenience), else the installation's default from Settings. */
+export function roundViewOf(installation: RoundView | undefined): RoundView {
+  try {
+    const v = localStorage.getItem(ROUND_VIEW_KEY);
+    if (v === 'step' || v === 'list') return v;
+  } catch {
+    /* storage unavailable: the installation default */
+  }
+  return installation === 'list' ? 'list' : 'step';
+}
+
+export function saveRoundView(v: RoundView): void {
+  try {
+    localStorage.setItem(ROUND_VIEW_KEY, v);
+  } catch {
+    /* per-browser convenience only */
+  }
+}
+
+/** The one row of an elevator / generator card: the nearest certificate or inspection (the server sorts by date). */
+export function certRowOf(items: readonly Task[]): { task: Task; look: Look; text: string } | null {
+  const t = items.find((x) => x.kind === 'certificate' && x.active) ?? items[0];
+  if (!t) return null;
+  const look = lookOf(t);
+  const d = t.due_date ? fmtDate(t.due_date) : '';
+  const text = !t.due_date ? mt('stNoDate') : t.state === 'overdue' ? mt('certRowLate', { d }) : t.state === 'due_soon' ? mt('certRowDue', { n: Math.max(0, t.days_left ?? 0), d }) : mt('certRowValid', { d });
+  return { task: t, look, text };
 }

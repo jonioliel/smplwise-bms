@@ -6,7 +6,8 @@ import { ApiError, describeError } from '../api/client';
 import { maintApi, type ChecklistItem, type Run } from '../api/maintenance';
 import { mt } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
-import { answerBody, answered, issueKeys, missingRequired, outOfRange, rangeText, resumeIndex, type RunDraft as Draft } from './model';
+import { answerBody, answered, issueKeys, missingRequired, outOfRange, rangeText, resumeIndex, roundViewOf, saveRoundView, type RunDraft as Draft } from './model';
+import type { RoundView } from '../api/maintenance';
 import { maintCss } from './styles';
 
 /**
@@ -27,17 +28,30 @@ export class MaintRoundRun extends LitElement {
   @state() private note = '';
   @state() private dept = '';
   @state() private flash = '';
+  /** MAINT215B: one checkpoint per screen, or one long list - the person's own choice, else the installation's default (Settings) */
+  @state() private view: RoundView = 'step';
 
   static styles = [maintCss, css`
-    :host { display: flex; justify-content: center; }
-    .runner { inline-size: min(440px, 100%); min-block-size: 560px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border);
+    :host { display: flex; justify-content: center; flex: 1; min-block-size: 0; }
+    .runner { inline-size: min(440px, 100%); block-size: 100%; max-block-size: 780px; min-block-size: 0; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border);
       box-shadow: var(--sw-shadow-1); display: flex; flex-direction: column; overflow: hidden; }
     .ph { padding: 14px 16px 10px; border-block-end: 1px solid var(--sw-border); }
     .ph .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     .ph b { color: var(--sw-heading); }
     .prog { block-size: 6px; background: var(--sw-surface-3); border-radius: var(--sw-r-2xs); overflow: hidden; margin-block-start: 8px; }
     .prog i { display: block; block-size: 100%; background: var(--sw-accent); transition: inline-size var(--sw-t-fast) var(--sw-ease-out); }
-    .pb { flex: 1; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+    .pb { flex: 1; min-block-size: 0; overflow: auto; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+    .runner[data-view='list'] { inline-size: min(720px, 100%); max-block-size: none; }
+    .plist { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+    .plist li { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface); }
+    .plist li[data-look='alarm'] { border-color: var(--sw-danger); }
+    .plist .q { font-size: var(--sw-fs-lg); }
+    .plist .yn button { padding: 10px 0; min-block-size: 44px; font-size: var(--sw-fs-lg); }
+    .plist .numin { font-size: var(--sw-fs-xl); padding: 8px; }
+    .vw { display: inline-flex; padding: 2px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); }
+    .vw button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 4px 10px; border-radius: calc(var(--sw-r-sm) - 2px); cursor: pointer; min-block-size: 32px; }
+    .vw button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .vw button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .q { font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1.3; }
     .yn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .yn button { border-radius: var(--sw-r-lg); padding: 20px 0; font: inherit; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-xl); border: 2px solid var(--sw-border-strong);
@@ -56,12 +70,52 @@ export class MaintRoundRun extends LitElement {
       background: var(--c-soft, var(--sw-surface-3)); color: var(--c-text, var(--sw-text-2)); border: 0; cursor: pointer; }
     .req-chip { justify-self: start; }
     @media (max-width: 767px) {
-      .runner { min-block-size: calc(100dvh - var(--sw-bottomnav-h, 0px) - 140px); border-radius: var(--sw-r-lg); }
+      .runner { max-block-size: none; border-radius: var(--sw-r-lg); }
     }
   `];
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('runId') && this.runId) void this.load();
+    if (changed.has('access') && this.access && !this.viewChosen) {
+      this.view = roundViewOf(this.access.roundView);
+      this.viewChosen = true;
+    }
+  }
+
+  private viewChosen = false;
+
+  /** The quick switch on the screen (owner review 24.10): saved in this browser, so the next round opens the same way. */
+  private async setView(v: RoundView) {
+    if (v === this.view) return;
+    if (this.view === 'step') await this.saveCurrent();
+    else await this.saveAll();
+    this.view = v;
+    this.viewChosen = true;
+    saveRoundView(v);
+  }
+
+  /** List view: save every checkpoint changed since its last save, in one call. */
+  private async saveAll(): Promise<boolean> {
+    const r = this.run;
+    if (!r || !r.can.write || !this.dirty.size) return true;
+    const body: Record<string, NonNullable<ReturnType<typeof answerBody>>> = {};
+    for (const it of r.checklist) {
+      if (!this.dirty.has(it.key)) continue;
+      const b = answerBody(it, this.drafts[it.key] ?? {});
+      if (b) body[it.key] = b;
+    }
+    if (!Object.keys(body).length) {
+      this.dirty.clear();
+      return true;
+    }
+    try {
+      this.apply(await maintApi.answers(r.id, body), false);
+      this.dirty.clear();
+      return true;
+    } catch (e) {
+      this.error = describeError(e);
+      return false;
+    }
   }
 
   private async load() {
@@ -132,7 +186,7 @@ export class MaintRoundRun extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      if (!(await this.saveCurrent())) return;
+      if (!(await (this.view === 'list' ? this.saveAll() : this.saveCurrent()))) return;
       const res = await maintApi.request(r.id, key, this.dept ? { department_id: this.dept } : {});
       this.apply(res.run, false);
       this.flash = mt('requestOpened');
@@ -144,12 +198,15 @@ export class MaintRoundRun extends LitElement {
   }
 
   private async finish() {
-    const r = this.run;
+    let r = this.run;
     if (!r) return;
+    if (this.view === 'list' && !(await this.saveAll())) return;
+    r = this.run!;
     const missing = missingRequired(r.checklist, r.answers);
     if (missing.length) {
       this.error = mt('missingRequired');
       this.i = r.checklist.findIndex((x) => x.key === missing[0]);
+      if (this.view === 'list') this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-maint-point="${missing[0]}"]`)?.scrollIntoView({ block: 'center' }));
       return;
     }
     this.busy = true;
@@ -200,19 +257,37 @@ export class MaintRoundRun extends LitElement {
     const ro = !this.run!.can.write;
     const num = typeof d.value === 'number' ? d.value : null;
     const out = kind === 'number' && outOfRange(it, num);
-    return html`<div class="q" id="q">${it.label}${it.required === false ? nothing : html` <span class="mut">· ${mt('required')}</span>`}</div>
-      ${kind === 'check' ? html`<div class="yn" role="group" aria-labelledby="q">
+    const qid = `q-${it.key}`;
+    return html`<div class="q" id=${qid}>${it.label}${it.required === false ? nothing : html` <span class="mut">· ${mt('required')}</span>`}</div>
+      ${kind === 'check' ? html`<div class="yn" role="group" aria-labelledby=${qid}>
           <button type="button" class="yes" aria-pressed=${String(d.ok === true)} ?disabled=${ro} data-maint-yes @click=${() => this.setDraft(it.key, { ok: true })}>${mt('yes')}</button>
           <button type="button" class="no" aria-pressed=${String(d.ok === false)} ?disabled=${ro} data-maint-no @click=${() => this.setDraft(it.key, { ok: false })}>${mt('no')}</button></div>`
-        : kind === 'number' ? html`<input class="numin" inputmode="decimal" dir="ltr" aria-labelledby="q" aria-invalid=${String(out)} ?disabled=${ro} .value=${num ?? ''} data-maint-number
+        : kind === 'number' ? html`<input class="numin" inputmode="decimal" dir="ltr" aria-labelledby=${qid} aria-invalid=${String(out)} ?disabled=${ro} .value=${num ?? ''} data-maint-number
             @input=${(e: Event) => { const v = (e.target as HTMLInputElement).value.replace(',', '.'); this.setDraft(it.key, { value: v.trim() === '' || Number.isNaN(Number(v)) ? null : Number(v), ok: null }); }}>
           ${out ? html`<div class="chip req-chip" data-look="alarm" data-maint-out>${mt('outOfRange')} <span class="num">${rangeText(it)}</span></div>` : rangeText(it) ? html`<div class="mut">${rangeText(it)}</div>` : nothing}
           ${!out && num !== null ? html`<label class="check"><input type="checkbox" .checked=${d.ok === false} ?disabled=${ro} @change=${(e: Event) => this.setDraft(it.key, { ok: (e.target as HTMLInputElement).checked ? false : null })}>${mt('no')} - ${mt('outOfRange')}</label>` : nothing}`
-          : html`<textarea class="inp" aria-labelledby="q" maxlength="300" ?disabled=${ro} .value=${typeof d.value === 'string' ? d.value : ''} data-maint-text
+          : html`<textarea class="inp" aria-labelledby=${qid} maxlength="300" ?disabled=${ro} .value=${typeof d.value === 'string' ? d.value : ''} data-maint-text
               @input=${(e: Event) => this.setDraft(it.key, { value: (e.target as HTMLTextAreaElement).value })}></textarea>`}
       ${kind !== 'text' ? html`<input class="inp" placeholder=${mt('noteField')} aria-label=${mt('noteField')} maxlength="300" ?disabled=${ro} .value=${d.note ?? ''} data-maint-note
           @input=${(e: Event) => this.setDraft(it.key, { note: (e.target as HTMLInputElement).value })}>` : nothing}
       ${this.requestBox(it)}`;
+  }
+
+  /** The whole round as one list (owner review 24.10): every checkpoint with its controls, then the summary and the finish. */
+  private list(r: Run): TemplateResult {
+    const answeredN = r.checklist.filter((it) => answered(it, { ...r.answers[it.key], ...this.draftAnswer(it) })).length;
+    return html`<div class="mut" data-maint-list-progress>${mt('listProgress', { a: answeredN, b: r.checklist.length })}</div>
+      <ol class="plist" data-maint-list>${r.checklist.map((it, n) => {
+        const d = this.drafts[it.key] ?? {};
+        const bad = d.ok === false || (it.kind === 'number' && outOfRange(it, typeof d.value === 'number' ? d.value : null));
+        return html`<li data-maint-point=${it.key} data-look=${bad ? 'alarm' : 'unk'}><span class="mut num">${n + 1} / ${r.checklist.length}</span>${this.point(it)}</li>`;
+      })}</ol>
+      ${this.summary(r)}`;
+  }
+
+  private draftAnswer(it: ChecklistItem): { ok?: boolean | null; value?: number | string | null } {
+    const d = this.drafts[it.key];
+    return d ? { ok: d.ok ?? null, value: d.value ?? null } : {};
   }
 
   private summary(r: Run): TemplateResult {
@@ -237,21 +312,27 @@ export class MaintRoundRun extends LitElement {
     const atEnd = this.i >= total;
     const it = this.item();
     const pct = Math.round((Math.min(this.i, total) / Math.max(1, total)) * 100);
-    return html`<section class="runner" aria-label=${r.task.title} data-maint-run=${r.id}>
-      <div class="ph"><div class="row"><b>${r.task.title}</b>${atEnd ? nothing : html`<span class="mut num" data-maint-step>${mt('runOf', { a: this.i + 1, b: total })}</span>`}</div>
-        <div class="prog" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${Math.min(this.i, total)}><i style=${`inline-size:${atEnd ? 100 : pct}%`}></i></div></div>
+    const list = this.view === 'list';
+    return html`<section class="runner" aria-label=${r.task.title} data-maint-run=${r.id} data-view=${this.view}>
+      <div class="ph"><div class="row"><b>${r.task.title}</b>${atEnd || list ? nothing : html`<span class="mut num" data-maint-step>${mt('runOf', { a: this.i + 1, b: total })}</span>`}
+          <span class="vw" role="group" aria-label=${mt('viewSwitchLabel')} data-maint-view-switch>
+            <button type="button" aria-pressed=${String(!list)} data-view="step" title=${mt('viewSwitchToStep')} @click=${() => void this.setView('step')}>${mt('viewStep')}</button>
+            <button type="button" aria-pressed=${String(list)} data-view="list" title=${mt('viewSwitchToList')} @click=${() => void this.setView('list')}>${mt('viewList')}</button></span></div>
+        ${list ? nothing : html`<div class="prog" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${Math.min(this.i, total)}><i style=${`inline-size:${atEnd ? 100 : pct}%`}></i></div>`}</div>
       <div class="pb">
         ${!r.can.write ? html`<div class="alert warn" role="note">${mt('runReadOnly', { who: r.started_by_name || '-' })}</div>` : nothing}
-        ${atEnd || !it ? this.summary(r) : this.point(it)}
+        ${list ? this.list(r) : atEnd || !it ? this.summary(r) : this.point(it)}
         ${this.error ? html`<div class="alert err" role="alert">${this.error}</div>` : nothing}
         ${this.flash ? html`<div class="chip" data-look="ok" role="status">${this.flash}</div>` : nothing}
       </div>
       <div class="pf">
-        ${atEnd ? html`${r.can.write ? html`<button type="button" class="btn pri big" ?disabled=${this.busy} data-maint-finish @click=${() => void this.finish()}>${mt('finish')}</button>
+        ${list ? html`${r.can.write ? html`<button type="button" class="btn pri big" ?disabled=${this.busy} data-maint-finish @click=${() => void this.finish()}>${mt('finish')}</button>
+            <button type="button" class="btn" ?disabled=${this.busy} data-maint-cancel-run @click=${() => void this.cancelRun()}>${mt('cancelRun')}</button>` : nothing}`
+          : atEnd ? html`${r.can.write ? html`<button type="button" class="btn pri big" ?disabled=${this.busy} data-maint-finish @click=${() => void this.finish()}>${mt('finish')}</button>
             <button type="button" class="btn" ?disabled=${this.busy} data-maint-cancel-run @click=${() => void this.cancelRun()}>${mt('cancelRun')}</button>` : nothing}`
           : html`<div class="nav">${this.i > 0 ? html`<button type="button" class="btn big" ?disabled=${this.busy} data-maint-prev @click=${() => void this.go(-1)}>${mt('prev')}</button>` : html`<span></span>`}
             <button type="button" class="btn pri big" ?disabled=${this.busy} data-maint-next @click=${() => void this.go(1)}>${mt('next')}</button></div>`}
-        <button type="button" class="btn ghost" data-maint-run-close @click=${() => { void this.saveCurrent().then(() => this.dispatchEvent(new CustomEvent('close'))); }}>${mt('backToList')}</button>
+        <button type="button" class="btn ghost" data-maint-run-close @click=${() => { void (this.view === 'list' ? this.saveAll() : this.saveCurrent()).then(() => this.dispatchEvent(new CustomEvent('close'))); }}>${mt('backToList')}</button>
       </div>
     </section>`;
   }

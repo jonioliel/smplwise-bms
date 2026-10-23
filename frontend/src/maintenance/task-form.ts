@@ -115,6 +115,19 @@ export class MaintTaskForm extends LitElement {
       ${mark && mark.look !== 'ok' && this.d.kind !== 'vendor_document' ? html`<span class="chip" data-look=${mark.look} data-maint-vendor-mark>${mark.text}</span>` : nothing}${this.err('vendor_id')}</div>`;
   }
 
+  /** What it is about (MAINT215B): an elevator or a generator of the infrastructure screens - their cards then show the nearest certificate. */
+  private assetField(o: Options): TemplateResult | typeof nothing {
+    const el = o.elevators ?? [];
+    const ge = o.generators ?? [];
+    if (!el.length && !ge.length) return nothing;
+    return html`<div class="fld"><label for="f-asset">${mt('fAsset')}</label>
+      <select id="f-asset" class="inp" data-maint-field="asset" @change=${(e: Event) => this.set('asset', (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${!this.d.asset}>${mt('fAssetNone')}</option>
+        ${el.length ? html`<optgroup label=${mt('elevator')}>${el.map((x) => html`<option value=${`elevator:${x.id}`} ?selected=${this.d.asset === `elevator:${x.id}`}>${x.name}</option>`)}</optgroup>` : nothing}
+        ${ge.length ? html`<optgroup label=${mt('generator')}>${ge.map((x) => html`<option value=${`generator:${x.id}`} ?selected=${this.d.asset === `generator:${x.id}`}>${x.name}</option>`)}</optgroup>` : nothing}
+      </select></div>`;
+  }
+
   private intervalField(): TemplateResult {
     const optional = this.d.kind === 'certificate' || this.d.kind === 'vendor_document';
     return html`<div class="row"><div class="fld"><label for="f-every">${mt('fInterval')}</label>
@@ -164,6 +177,7 @@ export class MaintTaskForm extends LitElement {
           ${o.placeless || !places.length ? html`<option value="" ?selected=${!this.d.place}>${mt('fPlaceNone')}</option>` : nothing}
           ${places.map((p) => html`<option value=${p.value} ?selected=${this.d.place === p.value}>${p.label}</option>`)}</select></div>`}
       </div>
+      ${k === 'vendor_document' ? nothing : this.assetField(o)}
       ${this.vendorField(o)}
       <div class="row">${plan ? this.date('anchor_date', 'fFirstDate') : this.date('due_date', 'fValidUntil')}
         <div class="fld"><label for="f-lead">${mt('fLead')}</label><input id="f-lead" class="inp num" inputmode="numeric" .value=${this.d.lead} placeholder=${String(leadDefault)}

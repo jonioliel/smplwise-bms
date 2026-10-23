@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import '../generator/gen-live-page';
 import '../generator/gen-charts-page';
 import '../generator/gen-alerts-page';
+import '../maintenance/cert-row'; // MAINT215B: the nearest inspection / certificate of the generator (while the maintenance module is on)
 import type { TabItem } from '../components/sw-tabs';
 import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
 import type { RouteState } from '../router';
@@ -181,7 +182,7 @@ export class InfraGenerator extends LitElement {
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.generator')} data-infra-pages></sw-tabs>`;
-    return html`<div class="rows" data-gen-shell>${l1}${row}${pick}</div><div class="body" data-page=${page}>${body}</div>`;
+    return html`<div class="rows" data-gen-shell>${l1}${row}${pick}${d ? html`<maint-cert-row kind="generator" subjectId=${d.id}></maint-cert-row>` : nothing}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 }
 

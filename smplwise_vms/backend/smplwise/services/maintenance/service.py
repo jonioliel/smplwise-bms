@@ -123,6 +123,7 @@ def task_out(viewer: Viewer, row: Any, today: date, *, detail: bool = False) -> 
         "anchor_date": row["anchor_date"], "due_date": row["due_date"], "lead_days": row["lead_days"], "state": st.state, "days_left": st.days_left,
         "active": bool(row["active"]), "auto_ticket": bool(row["auto_ticket"]), "department_id": row["department_id"], "ticket_id": row["ticket_id"],
         "last_done_at": row["last_done_at"], "revision": row["revision"], **_names(viewer.conn, row),
+        "file_count": viewer.conn.execute("SELECT COUNT(*) FROM maint_files WHERE task_id = ? AND deleted_at IS NULL", (row["id"],)).fetchone()[0],
     }
     if row["kind"] == "round":
         out.update(_round_summary(viewer.conn, row["id"]))
@@ -133,6 +134,7 @@ def task_out(viewer: Viewer, row: Any, today: date, *, detail: bool = False) -> 
         open_run = viewer.conn.execute("SELECT id FROM maint_records WHERE task_id = ? AND status = 'open'", (row["id"],)).fetchone()
         out["open_run_id"] = open_run["id"] if open_run else None
         out["can"] = can(viewer, row)
+        out["files"] = file_list(viewer.conn, row["id"])
     return out
 
 
@@ -710,6 +712,103 @@ def request_from_item(viewer: Viewer, run_id: str, key: str, body: dict[str, Any
     return {"ticket_id": res.ticket_id, "number": res.number, "run": run_out(viewer, run_id)}
 
 
+# ---------------------------------------------------------------- the certificate / document file (MAINT215B)
+
+FILE_KINDS = ("certificate", "vendor_document")
+
+
+def file_out(conn: sqlite3.Connection, r: Any) -> dict[str, Any]:
+    return {"id": r["id"], "name": r["name"], "kind": r["kind"], "bytes": r["bytes"], "uploaded_at": r["uploaded_at"], "uploaded_by_name": _user_name(conn, r["uploaded_by"])}
+
+
+def file_list(conn: sqlite3.Connection, task_id: str) -> list[dict[str, Any]]:
+    return [file_out(conn, r) for r in conn.execute("SELECT * FROM maint_files WHERE task_id = ? AND deleted_at IS NULL ORDER BY uploaded_at, id", (task_id,)).fetchall()]
+
+
+def file_precheck(viewer: Viewer, task_id: str) -> sqlite3.Row:
+    """Before any byte is read: the task is visible, is a certificate or a supplier document, the caller manages it, and the file limit
+    of the task (Settings) is not reached."""
+    row = require_task(viewer, task_id)
+    viewer.require_on(MANAGE, row, action="maintenance.file.add")
+    if row["kind"] not in FILE_KINDS:
+        raise ApiError(409, "files_not_supported", "קבצים נשמרים באישורים ובמסמכי ספקים בלבד.")
+    if viewer.conn.execute("SELECT COUNT(*) FROM maint_files WHERE task_id = ? AND deleted_at IS NULL", (task_id,)).fetchone()[0] >= access.file_max_per_task(viewer.conn):
+        raise ApiError(409, "too_many_files", "הגעתם למספר הקבצים המרבי למשימה.", details={"max": access.file_max_per_task(viewer.conn)})
+    return row
+
+
+def file_record(viewer: Viewer, task_id: str, stored: Any, name: str, rid: str | None) -> dict[str, Any]:
+    from . import files as mfiles
+
+    conn = viewer.conn
+    fid = new_id()
+    conn.execute("INSERT INTO maint_files(id, task_id, kind, path, name, sha256, bytes, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 (fid, task_id, stored.kind, stored.rel_path, mfiles.clean_name(name, stored.kind), stored.sha256, stored.bytes, viewer.uid, access.now_iso()))
+    conn.execute("UPDATE maint_tasks SET updated_at = ? WHERE id = ?", (access.now_iso(), task_id))
+    audit(conn, actor=viewer.principal, action="maintenance.file.add", decision="allowed", resource_type="maint_task", resource_id=task_id, request_id=rid,
+          details={"file_id": fid, "kind": stored.kind, "bytes": stored.bytes})  # never the name or the bytes
+    return file_out(conn, conn.execute("SELECT * FROM maint_files WHERE id = ?", (fid,)).fetchone())
+
+
+def file_get(viewer: Viewer, task_id: str, file_id: str) -> sqlite3.Row:
+    require_task(viewer, task_id)
+    r = viewer.conn.execute("SELECT * FROM maint_files WHERE id = ? AND task_id = ? AND deleted_at IS NULL", (file_id, task_id)).fetchone()
+    if r is None:
+        raise ApiError(404, "maint_file_not_found", "הקובץ לא נמצא.")
+    return r
+
+
+def file_delete(viewer: Viewer, task_id: str, file_id: str, rid: str | None) -> sqlite3.Row:
+    """Soft delete (the row stays for the audit trail); the caller removes the bytes."""
+    row = require_task(viewer, task_id)
+    viewer.require_on(MANAGE, row, action="maintenance.file.delete")
+    r = file_get(viewer, task_id, file_id)
+    viewer.conn.execute("UPDATE maint_files SET deleted_at = ? WHERE id = ?", (access.now_iso(), file_id))
+    audit(viewer.conn, actor=viewer.principal, action="maintenance.file.delete", decision="allowed", resource_type="maint_task", resource_id=task_id, request_id=rid,
+          details={"file_id": file_id})
+    return r
+
+
+# ---------------------------------------------------------------- the reminder log (MAINT215B)
+
+LOG_MAX = 300
+LOG_EVENTS = ("due_soon", "overdue", "request", "request_failed")
+
+
+def reminder_log(viewer: Viewer, event: str | None = None, task_id: str | None = None, limit: int = 100) -> dict[str, Any]:
+    """What the worker sent: newest first, each line a task title, a kind, an event and a date. A line of a task the caller may not see
+    is left out (a deleted task's line: managers only)."""
+    viewer.require_anywhere(VIEW)
+    conn = viewer.conn
+    where: list[str] = []
+    args: list[Any] = []
+    if event:
+        if event not in LOG_EVENTS:
+            raise invalid(model.Invalid("event", "unknown"))
+        where.append("event = ?")
+        args.append(event)
+    if task_id:
+        where.append("task_id = ?")
+        args.append(task_id)
+    limit = max(1, min(int(limit), LOG_MAX))
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    rows = conn.execute(f"SELECT * FROM maint_reminder_log {clause} ORDER BY at DESC, id DESC LIMIT ?", (*args, limit * 3)).fetchall()
+    items: list[dict[str, Any]] = []
+    cache: dict[str, bool] = {}
+    for r in rows:
+        ok = cache.get(r["task_id"])
+        if ok is None:
+            t = _row(conn, r["task_id"])
+            ok = access.visible(viewer, t) if t is not None and not t["deleted_at"] else MANAGE in viewer.anywhere
+            cache[r["task_id"]] = ok
+        if ok:
+            items.append({"id": r["id"], "task_id": r["task_id"], "title": r["title"], "task_kind": r["task_kind"], "event": r["event"], "due_date": r["due_date"],
+                          "detail": r["detail"], "at": r["at"]})
+        if len(items) >= limit:
+            break
+    return {"items": items, "reminders_enabled": access.reminders_enabled(conn), "keep_days": access.log_keep_days(conn)}
+
+
 # ---------------------------------------------------------------- the elevator / generator / device / supplier cards
 
 SUBJECT_COLUMNS = {"elevator": "elevator_id", "generator": "generator_id", "entity": "entity_id", "vendor": "vendor_id"}
@@ -763,6 +862,39 @@ def vendor_status(conn: sqlite3.Connection, vendor_ids: list[str], today: date) 
     return out
 
 
+def insurance_marks(conn: sqlite3.Connection, vendor_ids: list[str], today: date) -> dict[str, dict[str, Any]]:
+    """For the tickets assignee picker (owner review 24.10, MARKING ONLY - nothing is blocked or confirmed): per supplier the state of
+    its liability insurance: `expired` (every insurance document of it has passed its date), `expiring` (the valid one ends within
+    `maintenance.vendor_insurance_warn_days`), `missing` (no insurance document at all - only while `maintenance.vendor_missing_insurance_mark`
+    is on) or `ok`. Document type and date only, never a file. Empty while the module is off. No permission check: the caller (the
+    assign dialog, a manager) decides who sees the mark."""
+    out: dict[str, dict[str, Any]] = {}
+    ids = [v for v in dict.fromkeys(vendor_ids) if v]
+    if not ids or not access.module_on(conn):
+        return out
+    warn = access.insurance_warn_days(conn)
+    miss = access.missing_insurance_mark(conn)
+    marks = ",".join("?" * len(ids))
+    best: dict[str, date] = {}
+    for r in conn.execute(f"""SELECT vendor_id, due_date FROM maint_tasks WHERE kind = 'vendor_document' AND doc_type = 'insurance' AND deleted_at IS NULL
+                              AND active = 1 AND due_date IS NOT NULL AND vendor_id IN ({marks})""", ids).fetchall():
+        d = _date(r["due_date"])
+        if d is not None and (r["vendor_id"] not in best or d > best[r["vendor_id"]]):
+            best[r["vendor_id"]] = d
+    for vid in ids:
+        d = best.get(vid)
+        if d is None:
+            if miss:
+                out[vid] = {"state": "missing", "valid_until": None}
+        elif d < today:
+            out[vid] = {"state": "expired", "valid_until": d.isoformat()}
+        elif (d - today).days <= warn:
+            out[vid] = {"state": "expiring", "valid_until": d.isoformat()}
+        else:
+            out[vid] = {"state": "ok", "valid_until": d.isoformat()}
+    return out
+
+
 def vendor_documents(viewer: Viewer, vendor_id: str) -> dict[str, Any]:
     """A supplier's card: its documents (placeless tasks - maintenance.view at any scope, owner answer 24.10 q15) and the other
     tasks it is the supplier of that the caller may see."""
@@ -806,7 +938,13 @@ def options(viewer: Viewer) -> dict[str, Any]:
         depts = []
     people = [{"id": u["id"], "name": u["display_name"] or u["username"] or ""} for u in conn.execute(
         "SELECT id, display_name, username FROM users WHERE active = 1 ORDER BY COALESCE(display_name, username), id LIMIT 1000").fetchall()]
-    return {"places": places, "placeless": MANAGE in viewer.anywhere, "vendors": vendors(viewer)["items"] if VIEW in viewer.anywhere else [],
+    # MAINT215B: what a certificate / plan can be attached to - the elevators and generators of the infrastructure screens
+    try:
+        elevators = [{"id": e["id"], "name": e["name"]} for e in conn.execute("SELECT id, name FROM infra_elevators ORDER BY sort_order, name, id LIMIT 200").fetchall()]
+        generators = [{"id": g["id"], "name": g["name"]} for g in conn.execute("SELECT id, name FROM generator_devices WHERE status <> 'removed' ORDER BY name, id LIMIT 200").fetchall()]
+    except sqlite3.Error:
+        elevators, generators = [], []
+    return {"places": places, "elevators": elevators, "generators": generators, "placeless": MANAGE in viewer.anywhere, "vendors": vendors(viewer)["items"] if VIEW in viewer.anywhere else [],
             "departments": depts, "people": people, "categories": list(model.CATEGORIES), "doc_types": list(model.DOC_TYPES),
             "defaults": access.defaults(conn), "tickets_on": _tickets_on(conn)}
 
@@ -819,49 +957,99 @@ def _tickets_on(conn: sqlite3.Connection) -> bool:
 
 # ---------------------------------------------------------------- a request opened by a plan, closed in the tickets module
 
-def on_ticket_closed(conn: sqlite3.Connection, ticket: Any, closer_uid: str, now: str) -> str | None:
-    """Owner answer 24.10 q19: closing the service request a plan opened on schedule marks the plan done for that due date, with the
-    person who closed the request recorded as the performer. Only while the module is on; only the request the task opened for
-    its CURRENT due date (a request of an older cycle, or a plan already marked done, changes nothing); a round is walked, never
-    completed this way; a certificate / document without an interval needs its new date from a person. Never raises into the close."""
+def _plan_of_request(conn: sqlite3.Connection, ticket_id: str) -> sqlite3.Row | None:
+    """The task whose CURRENT request this is and which a closed request may mark done: a request of an older cycle, a paused or
+    deleted task, a round (walked, never completed this way) and a certificate / document without an interval (its new date needs a
+    person) change nothing."""
+    row = conn.execute("SELECT * FROM maint_tasks WHERE ticket_id = ? AND deleted_at IS NULL", (ticket_id,)).fetchone()
+    if row is None or row["kind"] == "round" or not row["active"] or row["ticket_due"] != row["due_date"] or not row["due_date"]:
+        return None
+    if row["kind"] in ("certificate", "vendor_document") and not row["interval_unit"]:
+        return None
+    return row
+
+
+def _mark_done_from_request(conn: sqlite3.Connection, row: Any, ticket_id: str, performer_uid: str, now: str, via: str, actor: Any = None) -> str:
+    today = access.today(conn)
+    due_before = _date(row["due_date"])
+    if row["kind"] == "preventive":
+        due_after = model.advance(_date(row["anchor_date"]), row["interval_unit"], row["interval_count"], due_before, today)
+        valid_until = None
+    else:
+        valid_until = model.occurrence(today, row["interval_unit"], row["interval_count"], 1)
+        due_after = valid_until
+    rec_id = new_id()
+    conn.execute("SAVEPOINT maint_close")
     try:
-        if not access.module_on(conn):
-            return None
-        row = conn.execute("SELECT * FROM maint_tasks WHERE ticket_id = ? AND deleted_at IS NULL", (ticket["id"],)).fetchone()
-        if row is None or row["kind"] == "round" or not row["active"] or row["ticket_due"] != row["due_date"] or not row["due_date"]:
-            return None
-        if row["kind"] in ("certificate", "vendor_document") and not row["interval_unit"]:
-            return None
-        today = access.today(conn)
-        due_before = _date(row["due_date"])
-        if row["kind"] == "preventive":
-            due_after = model.advance(_date(row["anchor_date"]), row["interval_unit"], row["interval_count"], due_before, today)
-            valid_until = None
-        else:
-            valid_until = model.occurrence(today, row["interval_unit"], row["interval_count"], 1)
-            due_after = valid_until
-        rec_id = new_id()
-        conn.execute("SAVEPOINT maint_close")
-        try:
-            conn.execute("""INSERT INTO maint_records(id, task_id, kind, status, started_by, started_by_name, started_at, finished_at, performed_on, due_before,
-                            due_after, valid_until, note, result, ticket_ids_json) VALUES (?, ?, 'completion', 'done', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?)""",
-                         (rec_id, row["id"], closer_uid, _user_name(conn, closer_uid), now, now, today.isoformat(), model.iso(due_before), model.iso(due_after),
-                          model.iso(valid_until), "נסגר דרך בקשת השירות", json.dumps([ticket["id"]])))
-            _advance_task(conn, row, due_after, now)
-        except Exception:
-            conn.execute("ROLLBACK TO maint_close")
-            conn.execute("RELEASE maint_close")
-            raise
+        conn.execute("""INSERT INTO maint_records(id, task_id, kind, status, started_by, started_by_name, started_at, finished_at, performed_on, due_before,
+                        due_after, valid_until, note, result, ticket_ids_json) VALUES (?, ?, 'completion', 'done', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?)""",
+                     (rec_id, row["id"], performer_uid, _user_name(conn, performer_uid), now, now, today.isoformat(), model.iso(due_before), model.iso(due_after),
+                      model.iso(valid_until), "נסגר דרך בקשת השירות", json.dumps([ticket_id])))
+        _advance_task(conn, row, due_after, now)
+    except Exception:
+        conn.execute("ROLLBACK TO maint_close")
         conn.execute("RELEASE maint_close")
-        audit(conn, actor=None, action="maintenance.task.complete", decision="allowed", resource_type="maint_task", resource_id=row["id"],
-              details={"record_id": rec_id, "via": "ticket_closed", "ticket_id": ticket["id"], "performer": closer_uid, "due_before": model.iso(due_before),
-                       "due_after": model.iso(due_after)})
-        return rec_id
+        raise
+    conn.execute("RELEASE maint_close")
+    audit(conn, actor=actor, action="maintenance.task.complete", decision="allowed", resource_type="maint_task", resource_id=row["id"],
+          details={"record_id": rec_id, "via": via, "ticket_id": ticket_id, "performer": performer_uid, "due_before": model.iso(due_before),
+                   "due_after": model.iso(due_after)})
+    return rec_id
+
+
+def on_ticket_closed(conn: sqlite3.Connection, ticket: Any, closer_uid: str, now: str) -> str | None:
+    """Closing the service request a plan opened. Owner review 24.10: by default the closer is ASKED whether to mark the plan done
+    (`close_proposal` / `confirm_close`, setting `maintenance.close_request_mode` = ask); `auto` marks it at once, the closer as the
+    performer (the 24.10 q19 behaviour); `off` leaves the plan alone. This hook acts only in `auto`. Only while the module is on.
+    Never raises into the close."""
+    try:
+        if not access.module_on(conn) or access.close_mode(conn) != "auto":
+            return None
+        row = _plan_of_request(conn, ticket["id"])
+        if row is None:
+            return None
+        return _mark_done_from_request(conn, row, ticket["id"], closer_uid, now, "ticket_closed")
     except Exception:  # noqa: BLE001 - the close of a request never fails because of the maintenance module
         import logging
 
         logging.getLogger(__name__).warning("maintenance: could not mark a plan done from a closed request", exc_info=True)
         return None
+
+
+def close_proposal(viewer: Viewer, ticket_id: str) -> dict[str, Any]:
+    """After a request is closed: does it belong to a plan the caller may mark done, and is the installation set to ASK? Answers
+    `{proposal: null}` for everything else (no hint about a task the caller may not see). Asking, never changing."""
+    conn = viewer.conn
+    none = {"proposal": None}
+    if access.close_mode(conn) != "ask":
+        return none
+    t = conn.execute("SELECT id, status FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    if t is None or t["status"] != "closed":
+        return none
+    row = _plan_of_request(conn, ticket_id)
+    if row is None or not access.visible(viewer, row):
+        return none
+    needed = MANAGE if row["kind"] in ("certificate", "vendor_document") else PERFORM
+    if not viewer.holds_on(needed, row):
+        return none
+    due = _date(row["due_date"])
+    today = access.today(conn)
+    if row["kind"] == "preventive":
+        nxt = model.advance(_date(row["anchor_date"]), row["interval_unit"], row["interval_count"], due, today)
+    else:
+        nxt = model.occurrence(today, row["interval_unit"], row["interval_count"], 1)
+    return {"proposal": {"task_id": row["id"], "title": row["title"], "kind": row["kind"], "due_date": row["due_date"], "next_due": model.iso(nxt)}}
+
+
+def confirm_close(viewer: Viewer, ticket_id: str, rid: str | None) -> dict[str, Any]:
+    """The closer said yes: the plan is marked done for its due date with THIS person as the performer."""
+    conn = viewer.conn
+    prop = close_proposal(viewer, ticket_id)["proposal"]
+    if prop is None:
+        raise ApiError(409, "nothing_to_confirm", "אין תוכנית שממתינה לסימון.")
+    row = _row(conn, prop["task_id"])
+    rec = _mark_done_from_request(conn, row, ticket_id, viewer.uid, access.now_iso(), "ticket_closed_confirmed", viewer.principal)
+    return {"record_id": rec, "task": get_task(viewer, prop["task_id"])}
 
 
 # ---------------------------------------------------------------- QR / NFC tags
@@ -930,7 +1118,7 @@ def list_tags(viewer: Viewer, include_revoked: bool = False) -> dict[str, Any]:
     viewer.require_anywhere(MANAGE)
     sql = "SELECT * FROM maint_tags" + ("" if include_revoked else " WHERE revoked_at IS NULL") + " ORDER BY created_at DESC, id LIMIT ?"
     items = [tag_out(r, viewer.conn) for r in viewer.conn.execute(sql, (TAGS_MAX,)).fetchall() if _tag_target_ok(viewer, r["target_kind"], r["target_id"], MANAGE)]
-    return {"items": items, "base_url": access.defaults(viewer.conn)["tag_base_url"]}
+    return {"items": items, "base_url": access.tag_base(viewer.conn)}
 
 
 def revoke_tag(viewer: Viewer, tag_id: str, rid: str | None) -> dict[str, Any]:

@@ -93,3 +93,36 @@ CREATE TABLE maint_tags (
   revoked_by   TEXT
 );
 CREATE INDEX idx_maint_tags_target ON maint_tags (target_kind, target_id);
+
+-- MAINT215B (owner review 24.10): the certificate / document FILE of a task - a PDF (checked by the tickets cost-file validator, shown
+-- as a download) or a photographed page (re-encoded through the tickets image pipeline). The bytes live on the data volume under
+-- <data>/maintenance/<task_id>/; this table is never carried in a project backup (the bytes would be missing after a restore).
+CREATE TABLE maint_files (
+  id           TEXT PRIMARY KEY,
+  task_id      TEXT NOT NULL REFERENCES maint_tasks(id),
+  record_id    TEXT,                                  -- the renewal it was attached to, if any
+  kind         TEXT NOT NULL CHECK (kind IN ('pdf', 'image')),
+  path         TEXT NOT NULL,                         -- relative to <data>/maintenance
+  name         TEXT NOT NULL DEFAULT '',              -- a cleaned display name, never used as a path
+  sha256       TEXT NOT NULL,
+  bytes        INTEGER NOT NULL,
+  uploaded_by  TEXT NOT NULL,
+  uploaded_at  TEXT NOT NULL,
+  deleted_at   TEXT
+);
+CREATE INDEX idx_maint_files_task ON maint_files (task_id) WHERE deleted_at IS NULL;
+
+-- MAINT215B: the reminder log - one row per reminder the worker actually sent (or request it opened), so the manager can see what
+-- went out and when. The task title is copied (a deleted task keeps its line); never a person, a phone number or a file.
+CREATE TABLE maint_reminder_log (
+  id         TEXT PRIMARY KEY,
+  task_id    TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  task_kind  TEXT NOT NULL,
+  event      TEXT NOT NULL CHECK (event IN ('due_soon', 'overdue', 'request', 'request_failed')),
+  due_date   TEXT,
+  detail     TEXT NOT NULL DEFAULT '',                -- a code (request_failed) or a ticket id (request)
+  at         TEXT NOT NULL
+);
+CREATE INDEX idx_maint_reminder_log_at ON maint_reminder_log (at);
+CREATE INDEX idx_maint_reminder_log_task ON maint_reminder_log (task_id);

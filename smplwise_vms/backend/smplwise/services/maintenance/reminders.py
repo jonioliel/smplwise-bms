@@ -10,7 +10,11 @@ Per active task with a due date, on the installation's local date:
     while the tickets module is on; otherwise nothing (and `ticket_error` = tickets_off, so Settings can say why).
 Idempotent: the level reached for a due date (`reminded_due` / `reminded_level`) and the due date a request was opened for
 (`ticket_due`) are written in the same transaction as the notification / the request. Completing, rescheduling, pausing or
-deleting a task resolves its open reminder rows (`resolve_for`). Nothing runs while `maintenance.enabled` is off. The
+deleting a task resolves its open reminder rows (`resolve_for`). Nothing runs while `maintenance.enabled` is off. MAINT215B (owner
+review 24.10): NO reminder goes out until an administrator enables `maintenance.reminders_enabled` (default off) - while it is off the
+level reached is not advanced, so enabling it later sends what is due at that moment; every reminder and every request the worker opens
+is written to `maint_reminder_log` (the log page). A request on schedule is a per-task automation a manager set up and does not wait
+for that switch. How often the worker looks and how long the log is kept are settings. The
 notifications carry the task's title and a date - never a person, a phone number or a file."""
 from __future__ import annotations
 
@@ -28,7 +32,6 @@ log = logging.getLogger(__name__)
 
 SOURCE_SOON, SOURCE_OVERDUE = "maintenance.due_soon", "maintenance.overdue"
 SUBJECT = "maintenance"
-_CHECK_EVERY_S = 900.0
 DUE_TEXT = {"certificate": "בתוקף עד", "vendor_document": "בתוקף עד", "preventive": "לביצוע עד", "round": "לביצוע עד"}
 LATE_TEXT = {"certificate": "התוקף פג ב־", "vendor_document": "התוקף פג ב־", "preventive": "היה לביצוע ב־", "round": "היה לביצוע ב־"}
 
@@ -62,6 +65,21 @@ def resolve_for(conn: sqlite3.Connection, task_id: str, due_text: str | None, re
                                                  dedupe_key=_key(task_id, due_text, level), resolve=True, params={"resolution": reason}))
         except Exception:  # noqa: BLE001 - a notification problem never blocks the maintenance write
             log.warning("could not resolve a maintenance reminder", exc_info=True)
+
+
+def _log(conn: sqlite3.Connection, row: Any, event: str, due: str | None, detail: str = "") -> None:
+    """One line of the reminder log (a title, a kind, a date and a code / id - nothing personal)."""
+    from ...db import new_id
+
+    conn.execute("INSERT INTO maint_reminder_log(id, task_id, title, task_kind, event, due_date, detail, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                 (new_id(), row["id"], row["title"], row["kind"], event, due, detail[:120], access.now_iso()))
+
+
+def prune_log(conn: sqlite3.Connection, at: datetime | None = None) -> int:
+    from datetime import timedelta
+
+    cut = ((at or access.now()) - timedelta(days=access.log_keep_days(conn))).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return conn.execute("DELETE FROM maint_reminder_log WHERE at < ?", (cut,)).rowcount
 
 
 def _open_ticket(conn: sqlite3.Connection, row: Any, due: date) -> str | None:
@@ -106,6 +124,7 @@ def tick(conn: sqlite3.Connection, at: datetime | None = None) -> dict[str, int]
     stats = {"tasks": 0, "soon": 0, "overdue": 0, "tickets": 0, "ticket_errors": 0}
     if not access.module_on(conn):
         return stats
+    send = access.reminders_enabled(conn)
     today = access.today(conn, at)
     rows = conn.execute("SELECT * FROM maint_tasks WHERE deleted_at IS NULL AND active = 1 AND due_date IS NOT NULL").fetchall()
     for row in rows:
@@ -114,23 +133,29 @@ def tick(conn: sqlite3.Connection, at: datetime | None = None) -> dict[str, int]
         st = model.due_state(due, row["lead_days"], today)
         level = 2 if st.state == "overdue" else 1 if st.state == "due_soon" else 0
         reached = row["reminded_level"] if row["reminded_due"] == row["due_date"] else 0
-        if level > reached:
+        if send and level > reached:
             if level == 2:
                 notify.emit_full(conn, _signal(row, due, "soon", resolve=True))
                 notify.emit_full(conn, _signal(row, due, "overdue"))
                 stats["overdue"] += 1
+                _log(conn, row, "overdue", row["due_date"])
             else:
                 notify.emit_full(conn, _signal(row, due, "soon"))
                 stats["soon"] += 1
+                _log(conn, row, "due_soon", row["due_date"])
             conn.execute("UPDATE maint_tasks SET reminded_due = ?, reminded_level = ? WHERE id = ?", (row["due_date"], level, row["id"]))
         if level >= 1 and row["auto_ticket"] and row["department_id"] and row["ticket_due"] != row["due_date"]:
             err = _open_ticket(conn, row, due)
             if err is None:
                 stats["tickets"] += 1
+                tid = conn.execute("SELECT ticket_id FROM maint_tasks WHERE id = ?", (row["id"],)).fetchone()
+                _log(conn, row, "request", row["due_date"], (tid["ticket_id"] if tid and tid["ticket_id"] else ""))
             else:
                 stats["ticket_errors"] += 1
                 if row["ticket_error"] != err:
                     conn.execute("UPDATE maint_tasks SET ticket_error = ? WHERE id = ?", (err, row["id"]))
+                    _log(conn, row, "request_failed", row["due_date"], err)
+    prune_log(conn, at)
     return stats
 
 
@@ -162,7 +187,13 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------- the janitor hook
 
 _last_check = 0.0
+_every_s = 900.0
 _check_lock = threading.Lock()
+
+
+def _set_every(seconds: float) -> None:
+    global _every_s
+    _every_s = max(60.0, seconds)
 
 
 def janitor(db: Any) -> None:
@@ -170,13 +201,14 @@ def janitor(db: Any) -> None:
     global _last_check
     with _check_lock:
         mono = time.monotonic()
-        if _last_check and mono - _last_check < _CHECK_EVERY_S:
+        if _last_check and mono - _last_check < _every_s:
             return
         _last_check = mono
     try:
         with db.connection(label="maintenance.reminders") as conn:
             if not access.module_on(conn):
                 return
+            _set_every(access.check_minutes(conn) * 60.0)  # MAINT215B: the interval is a setting, read at each pass
             stats = tick(conn)
         if stats["soon"] or stats["overdue"] or stats["tickets"] or stats["ticket_errors"]:
             log.info("maintenance reminders: %s", stats)
@@ -185,5 +217,6 @@ def janitor(db: Any) -> None:
 
 
 def reset_for_tests() -> None:
-    global _last_check
+    global _last_check, _every_s
     _last_check = 0.0
+    _every_s = 900.0

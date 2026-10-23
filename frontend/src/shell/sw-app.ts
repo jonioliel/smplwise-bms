@@ -62,6 +62,7 @@ import '../screens/tickets-board'; // CR-038 slice 6: the manager board (#/ticke
 import '../screens/tickets-handlers'; // owner 2026-10-14: "מטפלים וספקים" (#/tickets/handlers)
 import '../screens/tickets-rfqs'; // TKRFQ2 (2.6.1): requests for quotation (#/tickets/rfqs)
 import '../screens/tickets-maintenance'; // CR-MAINT215 slice 2: the maintenance section (#/tickets/maintenance/<page>)
+import '../maintenance/close-prompt'; // MAINT215B: asks the closer whether to mark the plan done when a request a plan opened is closed
 import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
 import { rt } from '../tickets/rfq-text';
@@ -2765,6 +2766,7 @@ export class SwApp extends LitElement {
             ${this.renderMe('bottom')}
           </nav>`}
       ${this.renderUserMenu()}
+      <maint-close-prompt></maint-close-prompt>
     `;
   }
 

@@ -1,4 +1,4 @@
-import { LitElement, html, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -8,14 +8,13 @@ import { ApiError, describeError } from '../api/client';
 import { maintApi, type Task, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
-import { PAGE_KINDS, PAGE_KPIS, applyFilter, badgeText, fmtDate, intervalText, kindText, kpiCounts, lastRunText, lookOf, segsOf, subLine, treeRows, type KpiKey, type Page, type Seg } from './model';
+import { PAGE_KINDS, PAGE_KPIS, applyFilter, badgeText, fmtDate, intervalText, kindText, kpiCounts, lastRunText, lookOf, segsOf, subLine, treeRows, type KpiKey, type ListPage, type Seg } from './model';
 import { maintCss } from './styles';
 import './task-sheet';
 import './task-form';
 import './vendor-card';
 import './round-run';
 
-type ListPage = Exclude<Page, 'tags'>;
 const COLLAPSED_KEY = 'sw.maintenance.collapsed';
 const POLL_MS = 60_000;
 
@@ -65,7 +64,7 @@ export class MaintListPage extends LitElement {
   private timer?: number;
   private loadedFor = '';
 
-  static styles = maintCss;
+  static styles = [maintCss, css`:host { flex: 1; overflow: hidden; }`];
 
   connectedCallback() {
     super.connectedCallback();

@@ -8,7 +8,7 @@ import { tempCss } from '../temperature/styles';
  * (`table.t`, the toolbar search and the segmented control), the pill buttons, the sw-state-panel states and sw-dialog. Tokens only.
  */
 export const maintCss = [tempCss, css`
-  :host { --tc-acc: var(--sw-accent); display: flex; flex-direction: column; gap: 14px; min-inline-size: 0; }
+  :host { --tc-acc: var(--sw-accent); display: flex; flex-direction: column; gap: 14px; min-inline-size: 0; min-block-size: 0; }
   [data-look='acc'] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); }
   [data-look='ok'] { --c-soft: var(--sw-success-soft); }
   [data-look='warn'] { --c-soft: var(--sw-warning-soft); }
@@ -45,9 +45,14 @@ export const maintCss = [tempCss, css`
   .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
 
   /* the places tree beside the list; a select on phones */
-  .cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; min-inline-size: 0; }
-  .cols > * { min-inline-size: 0; }
+  .cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; align-items: stretch; min-inline-size: 0; min-block-size: 0; flex: 1; }
+  .cols > * { min-inline-size: 0; min-block-size: 0; }
   .panel.flush { padding: 0; overflow: hidden; }
+  /* no page scroll (owner 24.10): the places tree and the table scroll inside their panels, the header of the table stays */
+  .cols > .tree-w { overflow: auto; }
+  .cols > .panel.flush { display: flex; flex-direction: column; }
+  .cols > .panel.flush > .scrollx, .cols > .panel.flush > .cards-m { flex: 1; min-block-size: 0; overflow: auto; }
+  table.t thead th { position: sticky; inset-block-start: 0; z-index: 1; }
   .tree-m { display: none; }
   .tree-m select, .inp, select.inp {
     inline-size: 100%; font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm);
@@ -152,6 +157,7 @@ export const maintCss = [tempCss, css`
     .top .sp { display: none; }
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .cols { grid-template-columns: minmax(0, 1fr); }
+    .cols > .panel.flush > .tree-m, .cols > .panel.flush > .toolbar { flex: none; }
     .tree-w { display: none; }
     .tree-m { display: block; padding: 10px 10px 0; }
     .tree-m select { min-block-size: 44px; }
@@ -160,7 +166,7 @@ export const maintCss = [tempCss, css`
     .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .seg button { min-block-size: 38px; flex: none; }
     .scrollx { display: none; }
-    .cards-m { display: grid; gap: 8px; padding: 10px; }
+    .cards-m { display: grid; gap: 8px; padding: 10px; align-content: start; }
     .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); cursor: pointer; text-align: start; font: inherit; color: inherit; }
     .cards-m .c:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .cards-m .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

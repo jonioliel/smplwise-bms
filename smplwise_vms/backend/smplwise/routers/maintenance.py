@@ -10,12 +10,16 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, File, Path, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
+from ..audit import audit
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..db import unlocked
+from ..errors import ApiError
 from ..rbac import Principal
-from ..services.maintenance import access, model, service
+from ..services.maintenance import access, files as mfiles, model, service
 from ..services.maintenance.access import Viewer
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -50,7 +54,9 @@ def module_state(principal: Principal = Depends(current_principal_ro), conn: sql
     held = v.anywhere if enabled else frozenset()
     return {"enabled": enabled, "can": {"view": access.VIEW in held, "perform": access.PERFORM in held, "manage": access.MANAGE in held,
                                         "open_request": enabled and service.tickets_can_create(v)},
-            "tickets_on": service._tickets_on(conn)}  # slice 2: the screens hide every request affordance while the tickets module is off
+            "tickets_on": service._tickets_on(conn),
+            # MAINT215B: the installation's default of the phone round (step | list) - every performer's screen starts from it
+            "round_view": access.round_view(conn)}  # slice 2: the screens hide every request affordance while the tickets module is off
 
 
 # ---------------------------------------------------------------- tasks
@@ -140,6 +146,79 @@ def task_records(task_id: str = Path(..., pattern=ID), limit: int = Query(50, ge
                  conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The task's history: completions and rounds, newest first."""
     return service.records(Viewer(conn, principal), task_id, limit)
+
+
+# ---------------------------------------------------------------- the certificate / document file (MAINT215B)
+
+@router.post("/maintenance/tasks/{task_id}/files", status_code=201)
+def add_file(request: Request, task_id: str = Path(..., pattern=ID), file: UploadFile = File(...), principal: Principal = Depends(current_principal),
+             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Attach the scanned certificate / the policy to a certificate or a supplier document (maintenance.manage on its place): a PDF
+    (the tickets cost-file check) or a photographed page (the tickets image pipeline). Validated outside the write lock."""
+    viewer = Viewer(conn, principal)
+    service.file_precheck(viewer, task_id)
+    data = file.file.read(mfiles.cost_files.PDF_MAX_BYTES + 1)
+    data_dir = settings_of(request).data_dir
+    try:
+        with unlocked(conn):  # the decode never holds the database write lock
+            stored = mfiles.store(data_dir, task_id, data)
+    except mfiles.Refused as exc:
+        audit(conn, actor=principal, action="maintenance.file.add", decision="denied", resource_type="maint_task", resource_id=task_id, reason=exc.code, request_id=_rid(request))
+        raise ApiError(exc.status, exc.code, exc.message, retryable=exc.status == 429, details=dict(exc.details)) from None
+    try:
+        service.file_precheck(viewer, task_id)  # the write lock was released for the decode: the task may have changed meanwhile
+        return service.file_record(viewer, task_id, stored, file.filename or "", _rid(request))
+    except Exception:
+        mfiles.remove(data_dir, stored.rel_path)
+        raise
+
+
+@router.get("/maintenance/tasks/{task_id}/files/{file_id}")
+def get_file(request: Request, task_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal_ro),
+             conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    """The file of a task the caller may see: a PDF only as a download, never inline."""
+    row = service.file_get(Viewer(conn, principal), task_id, file_id)
+    try:
+        path = mfiles.path_of(settings_of(request).data_dir, row["path"])
+    except ValueError:
+        raise ApiError(404, "maint_file_not_found", "הקובץ לא נמצא.") from None
+    if not path.is_file():
+        raise ApiError(404, "maint_file_not_found", "הקובץ לא נמצא.")
+    h = mfiles.download_headers(row["name"], row["kind"])
+    return FileResponse(path, media_type=h.pop("Content-Type"), headers=h)
+
+
+@router.delete("/maintenance/tasks/{task_id}/files/{file_id}")
+def delete_file(request: Request, task_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Remove a file (maintenance.manage on the task's place); the row stays for the audit trail, the bytes go."""
+    row = service.file_delete(Viewer(conn, principal), task_id, file_id, _rid(request))
+    mfiles.remove(settings_of(request).data_dir, row["path"])
+    return {"id": file_id, "deleted": True}
+
+
+# ---------------------------------------------------------------- the reminder log (MAINT215B)
+
+@router.get("/maintenance/reminder-log")
+def reminder_log(event: str | None = Query(None, max_length=20), task_id: str | None = Query(None, max_length=128), limit: int = Query(100, ge=1, le=service.LOG_MAX),
+                 principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """What the worker sent (reminders and requests on schedule), newest first; only tasks the caller may see."""
+    return service.reminder_log(Viewer(conn, principal), event, task_id, limit)
+
+
+# ---------------------------------------------------------------- closing the request a plan opened (MAINT215B)
+
+@router.get("/maintenance/close-proposal/{ticket_id}")
+def close_proposal(ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """After a request was closed: the plan it belongs to (when the installation asks, and the caller may mark it done), or null."""
+    return service.close_proposal(Viewer(conn, principal), ticket_id)
+
+
+@router.post("/maintenance/close-proposal/{ticket_id}/confirm")
+def confirm_close(request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The person said yes: the plan is marked done for its due date, he is recorded as the performer."""
+    return service.confirm_close(Viewer(conn, principal), ticket_id, _rid(request))
 
 
 # ---------------------------------------------------------------- rounds

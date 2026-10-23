@@ -45,8 +45,11 @@ class MW:
     def h(self, user: str) -> dict[str, str]:
         return self.w.h(user)
 
-    def on(self) -> "MW":
-        r = self.c.patch(f"{API}/settings", json={"maintenance.enabled": "true"})
+    def on(self, reminders: bool = True) -> "MW":
+        """The module on. MAINT215B (owner review 24.10): reminders are OFF until enabled in Settings - the slice-1 tests exercise the
+        worker, so they enable them here; the new tests (test_maintenance_215b.py) call on(reminders=False)."""
+        body = {"maintenance.enabled": "true", **({"maintenance.reminders_enabled": "true"} if reminders else {})}
+        r = self.c.patch(f"{API}/settings", json=body)
         assert r.status_code == 200, r.text
         return self
 
@@ -93,12 +96,15 @@ def mw(settings):
 ROUTES = [("GET", "/tasks"), ("POST", "/tasks"), ("GET", "/tasks/x1"), ("PATCH", "/tasks/x1"), ("DELETE", "/tasks/x1"), ("POST", "/tasks/x1/complete"),
           ("GET", "/tasks/x1/records"), ("POST", "/tasks/x1/runs"), ("GET", "/runs/r1"), ("PUT", "/runs/r1/answers"), ("POST", "/runs/r1/finish"),
           ("POST", "/runs/r1/cancel"), ("POST", "/runs/r1/items/k1/request"), ("GET", "/by-subject/elevator/e1"), ("GET", "/vendors/v1/documents"),
-          ("GET", "/tags"), ("POST", "/tags"), ("DELETE", "/tags/t1"), ("GET", "/scan/" + "A" * 22)]
+          ("GET", "/tags"), ("POST", "/tags"), ("DELETE", "/tags/t1"), ("GET", "/scan/" + "A" * 22),
+          # MAINT215B
+          ("GET", "/tasks/x1/files/f1"), ("DELETE", "/tasks/x1/files/f1"), ("GET", "/reminder-log"), ("GET", "/close-proposal/t1"), ("POST", "/close-proposal/t1/confirm")]
 
 
 def test_switch_is_off_by_default_and_every_route_answers_the_uniform_404(mw):
     assert mw.c.get(f"{API}/settings").json()["settings"]["maintenance.enabled"] == "false"
-    assert mw.c.get(f"{M}/module").json() == {"enabled": False, "can": {"view": False, "perform": False, "manage": False, "open_request": False}, "tickets_on": True}
+    assert mw.c.get(f"{M}/module").json() == {"enabled": False, "can": {"view": False, "perform": False, "manage": False, "open_request": False}, "tickets_on": True,
+                                                         "round_view": "step"}
     for method, path in ROUTES:
         r = mw.c.request(method, M + path, json={} if method in ("POST", "PUT", "PATCH") else None)
         assert r.status_code == 404 and r.json()["code"] == "feature_disabled", (method, path, r.status_code, r.text)
@@ -625,7 +631,9 @@ def test_the_default_lead_per_kind_is_a_setting(mw):
     assert mw.c.patch(f"{API}/settings", json={"maintenance.tag_base_url": "javascript:alert(1)"}).status_code == 422
     assert mw.c.patch(f"{API}/settings", json={"maintenance.tag_base_url": "https://arx.example.test"}).status_code == 200
     opts = mw.c.get(f"{M}/options").json()
-    assert opts["defaults"] == {"lead_days": {"certificate": 60, "preventive": 3, "round": 0, "vendor_document": 30}, "tag_base_url": "https://arx.example.test"}
+    d = opts["defaults"]
+    assert d["lead_days"] == {"certificate": 60, "preventive": 3, "round": 0, "vendor_document": 30} and d["tag_base_url"] == "https://arx.example.test"
+    assert d["tag_effective_url"] == "https://arx.example.test", "the explicit address wins over the remote address"
     assert mw.c.get(f"{M}/tags").json()["base_url"] == "https://arx.example.test"
 
 
@@ -665,8 +673,10 @@ def test_the_list_carries_the_place_chain_and_the_round_summary(mw):
     assert mw.task(title="ללא מקום")["place_path"] == []
 
 
-def test_closing_the_request_a_plan_opened_marks_the_plan_done_with_the_closer(mw):
+def test_closing_the_request_a_plan_opened_marks_the_plan_done_with_the_closer_in_auto_mode(mw):
+    """The 24.10 q19 behaviour is now the installation's `auto` mode; the default asks (test_maintenance_215b.py)."""
     mw.on()
+    assert mw.c.patch(f"{API}/settings", json={"maintenance.close_request_mode": "auto"}).status_code == 200
     t = _plan(mw, lead_days=7)
     mw.tick(at(2027, 1, 14))
     tid = mw.c.get(f"{M}/tasks/{t['id']}").json()["ticket_id"]

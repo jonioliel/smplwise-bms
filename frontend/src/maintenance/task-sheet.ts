@@ -4,10 +4,10 @@ import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
-import { maintApi, type MaintRecord, type TaskDetail, type TaskKind } from '../api/maintenance';
+import { maintApi, type MaintFile, type MaintRecord, type TaskDetail, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
-import { badgeText, categoryText, docTypeText, fmtDate, fmtInstant, intervalText, kindText, lookOf } from './model';
+import { badgeText, categoryText, docTypeText, fileSizeText, fmtDate, fmtInstant, intervalText, kindText, lookOf } from './model';
 import { maintCss } from './styles';
 
 const today = () => {
@@ -52,6 +52,9 @@ export class MaintTaskSheet extends LitElement {
   @state() private busy = false;
   @state() private formError = '';
   @state() private confirmDelete = false;
+  @state() private fileBusy = false;
+  @state() private fileError = '';
+  @state() private confirmFile: MaintFile | null = null;
   @state() private f = { performed_on: '', valid_until: '', next_due: '', note: '' };
 
   static styles = maintCss;
@@ -136,6 +139,70 @@ export class MaintTaskSheet extends LitElement {
     }
   }
 
+  private async uploadFile(input: HTMLInputElement) {
+    const t = this.task;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!t || !f) return;
+    this.fileBusy = true;
+    this.fileError = '';
+    try {
+      await maintApi.uploadFile(t.id, f);
+      this.emit('changed', mt('fileAddedToast'));
+      await this.load();
+    } catch (e) {
+      this.fileError = describeError(e);
+    } finally {
+      this.fileBusy = false;
+    }
+  }
+
+  private async downloadFile(f: MaintFile) {
+    if (!this.task) return;
+    this.fileError = '';
+    try {
+      await maintApi.downloadFile(this.task.id, f);
+    } catch (e) {
+      this.fileError = describeError(e);
+    }
+  }
+
+  private async removeFile(f: MaintFile) {
+    const t = this.task;
+    if (!t) return;
+    this.fileBusy = true;
+    this.fileError = '';
+    try {
+      await maintApi.removeFile(t.id, f.id);
+      this.confirmFile = null;
+      this.emit('changed', mt('fileRemovedToast'));
+      await this.load();
+    } catch (e) {
+      this.fileError = describeError(e);
+    } finally {
+      this.fileBusy = false;
+    }
+  }
+
+  /** The scanned certificate / the policy (certificates and supplier documents): a list with download; adding and removing are a manager's. */
+  private filesPanel(t: TaskDetail): TemplateResult | typeof nothing {
+    if (t.kind !== 'certificate' && t.kind !== 'vendor_document') return nothing;
+    const files = t.files ?? [];
+    return html`<div class="panel" data-maint-files><div class="hd"><h4>${mt('filesTitle')}</h4><span class="sp"></span>
+        ${t.can.edit ? html`<label class="btn sm" aria-disabled=${String(this.fileBusy)}><sw-icon name="plus" size="14"></sw-icon>${this.fileBusy ? mt('fileUploading') : mt('fileAdd')}
+          <input type="file" hidden accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" ?disabled=${this.fileBusy} data-maint-file-input @change=${(e: Event) => void this.uploadFile(e.target as HTMLInputElement)}></label>` : nothing}</div>
+      ${files.length ? html`<ul class="hist" data-maint-file-list>${files.map((f) => html`<li data-maint-file=${f.id}><span class="t"><b>${f.name}</b><span class="mut"> · ${fileSizeText(f.bytes)}</span></span>
+          <button type="button" class="btn sm" data-maint-file-download @click=${() => void this.downloadFile(f)}><sw-icon name="download" size="14"></sw-icon>${mt('fileDownload')}</button>
+          ${t.can.edit ? html`<button type="button" class="btn sm ghost" aria-label=${`${mt('fileRemove')} ${f.name}`} data-maint-file-remove @click=${() => { this.confirmFile = f; }}><sw-icon name="trash" size="14"></sw-icon></button>` : nothing}</li>`)}</ul>`
+        : html`<div class="mut" data-maint-files-empty>${mt('filesEmpty')}</div>`}
+      ${t.can.edit ? html`<div class="mut">${mt('fileHint')}</div>` : nothing}
+      ${this.fileError ? html`<div class="alert err" role="alert" data-maint-file-error>${this.fileError}</div>` : nothing}
+      ${this.confirmFile ? html`<div class="alert err" role="alertdialog" data-maint-file-confirm><sw-icon name="warning" size="18"></sw-icon><div>${mt('fileRemoveConfirm', { n: this.confirmFile.name })}
+        <div class="acts"><button type="button" class="btn sm dng" ?disabled=${this.fileBusy} data-maint-file-remove-yes @click=${() => void this.removeFile(this.confirmFile!)}>${mt('fileRemove')}</button>
+        <button type="button" class="btn sm" @click=${() => { this.confirmFile = null; }}>${mt('cancel')}</button></div></div></div>` : nothing}
+    </div>`;
+  }
+
   private async startRound() {
     const t = this.task;
     if (!t) return;
@@ -218,6 +285,7 @@ export class MaintTaskSheet extends LitElement {
       </div>
       <div>
         ${this.completePanel(t)}
+        ${this.filesPanel(t)}
         <div class="panel"><div class="hd"><h4>${mt('history')}</h4></div>
           ${this.records.length ? html`<ol class="hist" data-maint-history>${this.records.map((r) => this.histLine(r))}</ol>` : html`<div class="mut">${mt('historyEmpty')}</div>`}
         </div>

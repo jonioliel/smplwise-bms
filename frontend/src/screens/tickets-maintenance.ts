@@ -14,6 +14,7 @@ import { maintAccess, onMaintAccess, refreshMaintenance, type MaintAccess } from
 import { PAGE_LABEL, pageHref, pageOf, pagesFor, type Page } from '../maintenance/model';
 import '../maintenance/list-page';
 import '../maintenance/tags-page';
+import '../maintenance/log-page';
 import '../maintenance/scan-page';
 
 /**
@@ -32,16 +33,20 @@ export class TicketsMaintenance extends LitElement {
   private stop?: () => void;
 
   static styles = [srHeadingCss, css`
+    /* owner 24.10: a control screen never scrolls as a PAGE - the section fills the height of the screen and each page scrolls inside its
+       own panel (the list's table, the log, the tags). */
     :host {
-      display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max);
-      inline-size: 100%; box-sizing: border-box;
+      display: flex; flex-direction: column; gap: 14px; block-size: 100%; min-block-size: 0; padding: 14px var(--sw-page-pad) 16px; max-inline-size: var(--sw-content-max);
+      inline-size: 100%; box-sizing: border-box; overflow: hidden;
     }
     sw-tabs { flex: none; } /* a scroll container in a flex column would shrink to nothing on a phone */
-    .body { min-inline-size: 0; display: flex; flex-direction: column; gap: 14px; }
+    .body { min-inline-size: 0; min-block-size: 0; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+    .body > * { flex: 1; min-block-size: 0; overflow: auto; }
     .skl { border-radius: var(--sw-r-md); background: var(--sw-skeleton); block-size: 160px; }
     .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; border: 1px solid var(--sw-border); background: var(--sw-surface);
       color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); text-decoration: none; }
-    @media (max-width: 767px) { :host { padding: 12px 14px 20px; gap: 12px; } }
+    @media (max-width: 767px) { :host { padding: 12px 14px 12px; gap: 12px; } }
+    @media print { :host { overflow: visible; block-size: auto; } .body > * { overflow: visible; } }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -64,6 +69,7 @@ export class TicketsMaintenance extends LitElement {
     const seg = r?.segments ?? [];
     if (seg[2] === 'scan' && seg[3]) return html`<maint-scan-page .token=${seg[3]} .access=${this.access}></maint-scan-page>`;
     if (page === 'tags') return html`<maint-tags-page .access=${this.access}></maint-tags-page>`;
+    if (page === 'log') return html`<maint-log-page .access=${this.access}></maint-log-page>`;
     return html`<maint-list-page .page=${page} .access=${this.access} .openTask=${r?.params.get('task') ?? ''} .openRun=${r?.params.get('run') ?? ''}></maint-list-page>`;
   }
 

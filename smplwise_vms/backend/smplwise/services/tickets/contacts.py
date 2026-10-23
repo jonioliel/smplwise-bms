@@ -310,6 +310,27 @@ def list_for(viewer: Viewer, *, query: str = "", kind: str | None = None, depart
             "handler_departments": sorted(scope.departments) if scope is not None and scope.capable else []}
 
 
+def _insurance_marks(conn, out: list[dict[str, Any]], vendor_of: dict[str, str | None]) -> None:
+    """MAINT215B (owner review 24.10): a supplier (and a contact of a supplier) whose liability insurance is expired / ending / absent
+    carries `insurance: {state, valid_until}` in the picker - a MARK only; assigning is never blocked or confirmed here. Only while the
+    maintenance module is on; a failure of the module never breaks the dialog."""
+    try:
+        from ..maintenance import access as maccess
+        from ..maintenance import service as mservice
+
+        if not maccess.module_on(conn):
+            return
+        marks = mservice.insurance_marks(conn, [v for v in vendor_of.values() if v], maccess.today(conn))
+        for c in out:
+            m = marks.get(vendor_of.get(c["id"]) or "")
+            if m is not None:
+                c["insurance"] = m
+    except Exception:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).warning("tickets: could not read the supplier insurance marks", exc_info=True)
+
+
 def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any]]:
     """The assign dialog's outside contacts for one ticket (section 8 "assignee picker"): active, not erased, not an internal
     user's row, allowed in the ticket's department - only for a caller who may send outside (D25). TKSTAFF2: staff contacts
@@ -323,12 +344,14 @@ def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any
     dmap = store_links.departments_map(conn, [r["id"] for r in rows])
     vendors = {r["id"]: r for r in rows if r["kind"] == "vendor"}
     out = []
+    vendor_of: dict[str, str | None] = {}
     for r in rows:
         if r.get("user_id") or not allowed_in(dmap.get(r["id"], []), ticket["department_id"]):
             continue
         if assignees.is_staff(r):
             continue
         vendor = vendors.get(r.get("vendor_id") or "")
+        vendor_of[r["id"]] = r["id"] if r["kind"] == "vendor" else (r.get("vendor_id") or None)
         require = bool(r["require_code"]) or bool(vendor and vendor["require_code"])
         share = r.get("share_history")
         if share is None and vendor is not None:
@@ -339,6 +362,7 @@ def assignable_for(viewer: Viewer, ticket: dict[str, Any]) -> list[dict[str, Any
             "has_phone": bool(r.get("phone_e164")), "has_email": bool(r.get("email")), "preferred_channel": r["preferred_channel"],
             "require_code": require, "share_history": None if share is None else bool(share), "lang": r["lang"],
         })
+    _insurance_marks(conn, out, vendor_of)
     order = {"employee": 0, "vendor": 1, "person": 2}  # the dialog groups them: employees, vendors, contacts
     return sorted(out, key=lambda c: (order.get(c["contact_kind"], 3), c["name"]))
 

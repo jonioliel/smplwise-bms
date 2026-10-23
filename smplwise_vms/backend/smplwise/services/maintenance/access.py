@@ -158,11 +158,95 @@ def default_lead(conn: sqlite3.Connection, kind: str) -> int:
     return v if 0 <= v <= model.LEAD_MAX else model.DEFAULT_LEAD[kind]
 
 
+# MAINT215B (owner review 24.10): every behaviour switch and threshold is a setting; the built-in value is the second argument.
+REMINDERS_KEY = "maintenance.reminders_enabled"          # reminders go out only after an administrator enables them (default off)
+ROUND_VIEW_KEY = "maintenance.round_phone_view"          # step (one checkpoint per screen) | list (one long list) - the default of the phone round
+CLOSE_MODE_KEY = "maintenance.close_request_mode"        # ask (default) | auto | off: what closing a plan's request does to the plan
+CHECK_MINUTES_KEY = "maintenance.reminder_check_minutes"  # how often the worker looks (1-1440)
+LOG_KEEP_KEY = "maintenance.reminder_log_keep_days"      # how long the reminder log is kept (7-3650)
+MISSING_INSURANCE_KEY = "maintenance.vendor_missing_insurance_mark"  # mark a supplier with no insurance document at all
+INSURANCE_WARN_KEY = "maintenance.vendor_insurance_warn_days"        # amber mark when the insurance ends within this many days (0-365)
+FILE_MAX_KEY = "maintenance.file_max_per_task"           # certificate / document files per task (1-50)
+CLOSE_MODES = ("ask", "auto", "off")
+ROUND_VIEWS = ("step", "list")
+DEFAULT_CHECK_MINUTES, DEFAULT_LOG_KEEP_DAYS, DEFAULT_INSURANCE_WARN = 15, 365, 30
+
+
+def _int_setting(conn: sqlite3.Connection, key: str, default: int, lo: int, hi: int) -> int:
+    try:
+        v = int(str(get_setting(conn, key, None)))
+    except (TypeError, ValueError):
+        return default
+    return v if lo <= v <= hi else default
+
+
+def _flag(conn: sqlite3.Connection, key: str, default: bool) -> bool:
+    raw = get_setting(conn, key, None)
+    return default if raw is None else str(raw) == "true"
+
+
+def file_max_per_task(conn: sqlite3.Connection) -> int:
+    return _int_setting(conn, FILE_MAX_KEY, 10, 1, 50)
+
+
+def reminders_enabled(conn: sqlite3.Connection) -> bool:
+    return _flag(conn, REMINDERS_KEY, False)
+
+
+def close_mode(conn: sqlite3.Connection) -> str:
+    v = get_setting(conn, CLOSE_MODE_KEY, "ask")
+    return v if v in CLOSE_MODES else "ask"
+
+
+def round_view(conn: sqlite3.Connection) -> str:
+    v = get_setting(conn, ROUND_VIEW_KEY, "step")
+    return v if v in ROUND_VIEWS else "step"
+
+
+def check_minutes(conn: sqlite3.Connection) -> int:
+    return _int_setting(conn, CHECK_MINUTES_KEY, DEFAULT_CHECK_MINUTES, 1, 1440)
+
+
+def log_keep_days(conn: sqlite3.Connection) -> int:
+    return _int_setting(conn, LOG_KEEP_KEY, DEFAULT_LOG_KEEP_DAYS, 7, 3650)
+
+
+def missing_insurance_mark(conn: sqlite3.Connection) -> bool:
+    return _flag(conn, MISSING_INSURANCE_KEY, True)
+
+
+def insurance_warn_days(conn: sqlite3.Connection) -> int:
+    return _int_setting(conn, INSURANCE_WARN_KEY, DEFAULT_INSURANCE_WARN, 0, 365)
+
+
+def remote_address(conn: sqlite3.Connection) -> str:
+    """The installation's remote address (Settings > local identity `security.local_public_url`), else the tickets module's public
+    address; "" when neither is set."""
+    v = (get_setting(conn, "security.local_public_url", "") or "").strip()
+    if v:
+        return v
+    try:
+        from ..tickets import handler_links
+
+        return (handler_links.public_base_url(conn) or "").strip()
+    except Exception:  # noqa: BLE001 - an address problem never breaks a screen; the sticker then falls back to this page's address
+        return ""
+
+
+def tag_base(conn: sqlite3.Connection) -> str:
+    """The address a sticker carries (owner 24.10: the REMOTE address): the explicit override in Settings, else the remote address."""
+    return (get_setting(conn, TAG_BASE_KEY, "") or "").strip() or remote_address(conn)
+
+
 def defaults(conn: sqlite3.Connection) -> dict[str, Any]:
-    """The installation's editable defaults the screens show (lead per kind, the sticker address)."""
+    """The installation's editable defaults the screens show (lead per kind, the sticker address, the behaviours)."""
     from . import model
 
-    return {"lead_days": {k: default_lead(conn, k) for k in model.KINDS}, "tag_base_url": get_setting(conn, TAG_BASE_KEY, "") or ""}
+    return {"lead_days": {k: default_lead(conn, k) for k in model.KINDS}, "tag_base_url": get_setting(conn, TAG_BASE_KEY, "") or "",
+            "tag_effective_url": tag_base(conn), "reminders_enabled": reminders_enabled(conn), "round_phone_view": round_view(conn),
+            "close_request_mode": close_mode(conn), "reminder_check_minutes": check_minutes(conn), "reminder_log_keep_days": log_keep_days(conn),
+            "vendor_missing_insurance_mark": missing_insurance_mark(conn), "vendor_insurance_warn_days": insurance_warn_days(conn),
+            "file_max_per_task": file_max_per_task(conn)}
 
 
 def can_see_task(conn: sqlite3.Connection, principal: Principal, task_id: str | None) -> bool:

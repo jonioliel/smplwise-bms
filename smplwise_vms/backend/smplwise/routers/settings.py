@@ -394,6 +394,18 @@ DEFAULTS: dict[str, str] = {
     "maintenance.lead_days.round": "0",
     "maintenance.lead_days.vendor_document": "30",
     "maintenance.tag_base_url": "",
+    # MAINT215B (owner review 24.10): reminders go out ONLY after an administrator enables them here (default off); the phone round opens
+    # as one checkpoint per screen ("step") or one long list ("list"); closing the request a plan opened ASKS the closer whether to mark the
+    # plan done ("ask"), marks it at once ("auto") or leaves it alone ("off"); how often the worker looks (minutes), how long the reminder log
+    # is kept (days) and the supplier-insurance marks of the tickets picker (a supplier with no insurance document at all; amber window in days).
+    "maintenance.reminders_enabled": "false",
+    "maintenance.round_phone_view": "step",
+    "maintenance.close_request_mode": "ask",
+    "maintenance.reminder_check_minutes": "15",
+    "maintenance.reminder_log_keep_days": "365",
+    "maintenance.vendor_missing_insurance_mark": "true",
+    "maintenance.vendor_insurance_warn_days": "30",
+    "maintenance.file_max_per_task": "10",
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
@@ -826,6 +838,14 @@ class SettingsPatch(BaseModel):
     maintenance_lead_round: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.round")
     maintenance_lead_vendor_document: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.vendor_document")
     maintenance_tag_base_url: str | None = Field(default=None, max_length=300, pattern=r"^(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/%-]*)?)?$", alias="maintenance.tag_base_url")
+    maintenance_reminders_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.reminders_enabled")  # MAINT215B
+    maintenance_round_phone_view: str | None = Field(default=None, pattern="^(step|list)$", alias="maintenance.round_phone_view")
+    maintenance_close_request_mode: str | None = Field(default=None, pattern="^(ask|auto|off)$", alias="maintenance.close_request_mode")
+    maintenance_reminder_check_minutes: str | None = Field(default=None, pattern=r"^([1-9][0-9]{0,2}|1[0-3][0-9]{2}|14[0-3][0-9]|1440)$", alias="maintenance.reminder_check_minutes")
+    maintenance_reminder_log_keep_days: str | None = Field(default=None, pattern=r"^([7-9]|[1-9][0-9]{1,2}|[1-2][0-9]{3}|3[0-5][0-9]{2}|36[0-4][0-9]|3650)$", alias="maintenance.reminder_log_keep_days")
+    maintenance_vendor_missing_insurance_mark: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.vendor_missing_insurance_mark")
+    maintenance_vendor_insurance_warn_days: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.vendor_insurance_warn_days")
+    maintenance_file_max_per_task: str | None = Field(default=None, pattern=r"^([1-9]|[1-4][0-9]|50)$", alias="maintenance.file_max_per_task")
 
     model_config = {"populate_by_name": True}
 

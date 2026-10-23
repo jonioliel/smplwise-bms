@@ -8,7 +8,7 @@
  *   request  the tickets module on AND tickets.create - otherwise no "open a service request" anywhere (owner rule 2026-10-20)
  */
 import { isApi, onSession } from '../api/session';
-import { maintApi, type ModuleState } from '../api/maintenance';
+import { maintApi, type ModuleState, type RoundView } from '../api/maintenance';
 import { applyMaintenanceOn } from '../shell/nav';
 
 export interface MaintAccess {
@@ -19,16 +19,18 @@ export interface MaintAccess {
   manage: boolean;
   request: boolean;
   ticketsOn: boolean;
+  /** MAINT215B: the installation's default of the phone round (Settings) */
+  roundView: RoundView;
 }
 
-const OFF: MaintAccess = { enabled: false, view: false, perform: false, manage: false, request: false, ticketsOn: false };
+const OFF: MaintAccess = { enabled: false, view: false, perform: false, manage: false, request: false, ticketsOn: false, roundView: 'step' };
 let current: MaintAccess = { ...OFF, enabled: null };
 const listeners = new Set<(a: MaintAccess) => void>();
 
 export function accessOf(s: ModuleState | null): MaintAccess {
   if (!s) return { ...OFF };
   return { enabled: s.enabled, view: s.enabled && s.can.view, perform: s.enabled && s.can.perform, manage: s.enabled && s.can.manage, request: s.enabled && s.can.open_request,
-    ticketsOn: s.tickets_on ?? s.can.open_request };
+    ticketsOn: s.tickets_on ?? s.can.open_request, roundView: s.round_view === 'list' ? 'list' : 'step' };
 }
 
 export function maintAccess(): MaintAccess {

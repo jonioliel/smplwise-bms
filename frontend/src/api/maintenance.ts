@@ -3,7 +3,8 @@
  * The server is the authority for every permission and visibility rule; the screens only hide what `can` says is not offered.
  * Nothing here reaches a device: a service request is opened only through the tickets module, and only while that module is on.
  */
-import { del, get, patch, post, put } from './client';
+import { ApiError, apiUrl, del, get, patch, post, put, upload, type ApiErrorBody } from './client';
+import { saveBlob } from './tickets-costs';
 
 export type TaskKind = 'certificate' | 'preventive' | 'round' | 'vendor_document';
 export const TASK_KINDS: readonly TaskKind[] = ['certificate', 'preventive', 'round', 'vendor_document'];
@@ -49,6 +50,7 @@ export interface Task {
   ticket_id: string | null;
   last_done_at: string | null;
   revision: number;
+  file_count?: number;
   vendor_name?: string | null;
   elevator_name?: string | null;
   generator_name?: string | null;
@@ -64,8 +66,19 @@ export interface TaskDetail extends Task {
   checklist: ChecklistItem[];
   ticket_error: string | null;
   open_run_id: string | null;
+  files?: MaintFile[];
   can: { edit: boolean; complete: boolean; start_round: boolean; open_request: boolean };
 }
+
+/** The scanned certificate / policy of a certificate or a supplier document (MAINT215B). */
+export interface MaintFile { id: string; name: string; kind: 'pdf' | 'image'; bytes: number; uploaded_at: string; uploaded_by_name: string }
+export type LogEvent = 'due_soon' | 'overdue' | 'request' | 'request_failed';
+export const LOG_EVENTS: readonly LogEvent[] = ['due_soon', 'overdue', 'request', 'request_failed'];
+export interface LogRow { id: string; task_id: string; title: string; task_kind: TaskKind; event: LogEvent; due_date: string | null; detail: string; at: string }
+export interface ReminderLog { items: LogRow[]; reminders_enabled: boolean; keep_days: number }
+export interface ClosePlan { task_id: string; title: string; kind: TaskKind; due_date: string | null; next_due: string | null }
+export type RoundView = 'step' | 'list';
+export interface Insurance { state: 'expired' | 'expiring' | 'missing' | 'ok'; valid_until: string | null }
 
 export interface TaskList { items: Task[]; counts: Record<DueState, number>; truncated: boolean; today: string }
 
@@ -103,6 +116,8 @@ export interface ModuleState {
   can: { view: boolean; perform: boolean; manage: boolean; open_request: boolean };
   /** the tickets module's switch: every request affordance leaves while it is off (owner rule 2026-10-20) */
   tickets_on?: boolean;
+  /** MAINT215B: the installation's default of the phone round */
+  round_view?: RoundView;
 }
 
 export interface VendorRow { id: string; name: string; state: 'expired' | 'expiring' | 'ok' | 'none'; expired: { doc_type: DocType; valid_until: string }[]; expiring: { doc_type: DocType; valid_until: string }[] }
@@ -111,13 +126,25 @@ export interface VendorCard { vendor_id: string; name: string; state: VendorRow[
 export interface FormPlace { kind: 'site' | 'building' | 'floor'; id: string; name: string; parent_id: string | null }
 export interface Options {
   places: FormPlace[];
+  /** what a certificate / plan can be attached to (MAINT215B) */
+  elevators?: { id: string; name: string }[];
+  generators?: { id: string; name: string }[];
   placeless: boolean;
   vendors: VendorRow[];
   departments: { id: string; name: string }[];
   people: { id: string; name: string }[];
   categories: string[];
   doc_types: string[];
-  defaults: { lead_days: Record<TaskKind, number>; tag_base_url: string };
+  defaults: {
+    lead_days: Record<TaskKind, number>;
+    tag_base_url: string;
+    /** the address stickers carry: the override, else the remote address ('' = none set) */
+    tag_effective_url?: string;
+    reminders_enabled?: boolean;
+    round_phone_view?: RoundView;
+    close_request_mode?: 'ask' | 'auto' | 'off';
+    file_max_per_task?: number;
+  };
   tickets_on: boolean;
 }
 
@@ -152,6 +179,8 @@ export interface TaskBody {
   doc_type?: DocType | null;
   owner_user_id?: string | null;
   entity_id?: string | null;
+  elevator_id?: string | null;
+  generator_id?: string | null;
   interval?: Interval | null;
   anchor_date?: string | null;
   due_date?: string | null;
@@ -196,4 +225,34 @@ export const maintApi = {
   createTag: (body: { target_kind: 'task' | 'entity'; target_id: string; label?: string; medium?: TagMedium }) => post<Tag>(`${B}/tags`, body),
   revokeTag: (id: string) => del(`${B}/tags/${enc(id)}`),
   scan: (token: string) => get<ScanAnswer>(`${B}/scan/${enc(token)}`),
+  bySubject: (kind: 'elevator' | 'generator' | 'entity' | 'vendor', id: string) => get<{ kind: string; id: string; state: DueState; items: Task[] }>(`${B}/by-subject/${kind}/${enc(id)}`),
+  reminderLog: (q: { event?: LogEvent; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.event) p.set('event', q.event);
+    if (q.limit) p.set('limit', String(q.limit));
+    const s = p.toString();
+    return get<ReminderLog>(`${B}/reminder-log${s ? `?${s}` : ''}`);
+  },
+  /** Fetch a file with the session and save it (a PDF is a download only; the server answers it with a sandbox policy). */
+  downloadFile: async (taskId: string, file: MaintFile): Promise<void> => {
+    const res = await fetch(apiUrl(`${B}/tasks/${enc(taskId)}/files/${enc(file.id)}`), { credentials: 'same-origin' });
+    if (!res.ok) {
+      let body: ApiErrorBody | null = null;
+      try {
+        body = (await res.json()) as ApiErrorBody;
+      } catch {
+        body = null;
+      }
+      throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
+    }
+    saveBlob(await res.blob(), file.name);
+  },
+  uploadFile: (taskId: string, file: File) => {
+    const f = new FormData();
+    f.append('file', file);
+    return upload<MaintFile>(`${B}/tasks/${enc(taskId)}/files`, f);
+  },
+  removeFile: (taskId: string, fileId: string) => del(`${B}/tasks/${enc(taskId)}/files/${enc(fileId)}`),
+  closeProposal: (ticketId: string) => get<{ proposal: ClosePlan | null }>(`${B}/close-proposal/${enc(ticketId)}`),
+  confirmClose: (ticketId: string) => post<{ record_id: string }>(`${B}/close-proposal/${enc(ticketId)}/confirm`, {}),
 };

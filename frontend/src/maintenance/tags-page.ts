@@ -69,7 +69,11 @@ export class MaintTagsPage extends LitElement {
     .sticker .s { font-size: var(--sw-fs-xs); color: #555; }
     .sticker .path { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); color: #555; direction: ltr; unicode-bidi: isolate; }
     .note { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+    :host { flex: 1; min-block-size: 0; }
+    /* owner 24.10: no page scrolling - the stickers and the table scroll inside this area */
+    .tagscroll { flex: 1; min-block-size: 0; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
     @media print {
+      .tagscroll { overflow: visible; display: block; }
       :host { visibility: visible; }
       .noprint { display: none !important; }
       .grid { visibility: visible; position: absolute; inset-block-start: 0; inset-inline-start: 0; inline-size: 100%; grid-template-columns: repeat(3, 1fr); }
@@ -210,8 +214,8 @@ export class MaintTagsPage extends LitElement {
       return html`${top}<sw-state-panel icon="qr" state="empty" heading=${mt('emptyTags')} hint=${mt('emptyTagsBody')} data-state="empty">
         <button type="button" class="btn pri" @click=${openNew}><sw-icon name="plus" size="16"></sw-icon>${mt('firstTag')}</button></sw-state-panel>${overlays}`;
     }
-    return html`${top}
-      <p class="note noprint" data-maint-tag-url>${this.base ? mt('tagUrlHint', { u: this.base }) : mt('tagNoBase')}</p>
+    return html`${top}<div class="tagscroll">
+      <p class="note noprint" data-maint-tag-url>${this.base ? mt('tagUrlHint', { u: this.base }) : mt('tagNoRemote')}</p>
       <div class="grid" data-maint-stickers>${live.map((t) => this.sticker(t))}</div>
       <div class="panel flush noprint">
         <div class="scrollx"><table class="t" data-maint-tags-table><thead><tr><th>${mt('colLabel')}</th><th>${mt('colTarget')}</th><th>${mt('colMedium')}</th><th class="hide-tablet">${mt('colCreated')}</th><th>${mt('colLastScan')}</th><th></th></tr></thead><tbody>
@@ -222,7 +226,7 @@ export class MaintTagsPage extends LitElement {
         <div class="cards-m">${live.map((t) => html`<div class="c"><div class="r1"><span class="t1">${t.label || this.targetText(t)}</span><span class="chip" data-look="acc">${t.medium.toUpperCase()}</span></div>
           <div class="mut">${this.targetText(t)} · ${t.last_scan_at ? fmtInstant(t.last_scan_at) : mt('neverScanned')}</div>
           <div class="r3"><button type="button" class="btn sm dng" @click=${() => { this.revoke = t; }}>${mt('tagRevoke')}</button></div></div>`)}</div>
-      </div>
+      </div></div>
       ${overlays}`;
   }
 }

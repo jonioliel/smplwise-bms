@@ -467,7 +467,12 @@ const rest: TicketsBackend = {
   get: (id) => get<TicketDetail>(`${T}/${enc(id)}`),
   create: (body) => post<CreateAnswer>(T, body),
   patch: (id, body) => patch<TicketDetail>(`${T}/${enc(id)}`, body),
-  status: (id, body) => post<TicketDetail>(`${T}/${enc(id)}/status`, body),
+  status: async (id, body) => {
+    const r = await post<TicketDetail>(`${T}/${enc(id)}/status`, body);
+    // CR-MAINT215B: a closed request may belong to a maintenance plan - the shell's prompt asks the closer (maintenance/close-prompt.ts)
+    if (body.to === 'closed') window.dispatchEvent(new CustomEvent('sw:ticket-closed', { detail: { id } }));
+    return r;
+  },
   assign: (id, body) => post<TicketDetail>(`${T}/${enc(id)}/assign`, body),
   giveBack: (id, body) => post<ReturnAnswer>(`${T}/${enc(id)}/return`, body),
   note: (id, text, external) => post<TicketDetail>(`${T}/${enc(id)}/notes`, { text, external }),
