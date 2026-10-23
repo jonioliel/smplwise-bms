@@ -309,7 +309,7 @@ test.describe('maintenance evidence', () => {
     await shot(page, 'files');
     const dl = page.waitForEvent('download');
     await files.locator('[data-maint-file-download]').click();
-    expect((await dl).suggestedFilename()).toBe('x.pdf');
+    expect((await dl).suggestedFilename()).toBe('תסקיר-מעלית-2026.pdf'); // the name the server gave the file
     const pdf = { name: 'scan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') };
     await files.locator('[data-maint-file-input]').setInputFiles(pdf);
     await expect(files.locator('[data-maint-file]')).toHaveCount(2);
@@ -374,13 +374,13 @@ test.describe('maintenance evidence', () => {
     await expect(page.locator(`${M} [data-maint-page="plans"]`)).toBeVisible();
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('sw:ticket-closed', { detail: { id: 't-1042' } })));
     const dlg = page.locator('sw-app maint-close-prompt [data-maint-close-prompt]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg.locator('[data-maint-close-yes]')).toBeVisible(); // the dialog element itself has no box (its content is fixed)
     await expect(dlg).toContainText('ניקוי מנדף המטבח');
     await dlg.locator('[data-maint-close-no]').click();
     await expect(dlg).toHaveCount(0);
     expect(mock.calls.some((c) => c.path === 'close-proposal/t-1042/confirm')).toBe(false);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('sw:ticket-closed', { detail: { id: 't-1042' } })));
-    await expect(dlg).toBeVisible();
+    await expect(dlg.locator('[data-maint-close-yes]')).toBeVisible();
     await shot(page, 'close-question');
     await dlg.locator('[data-maint-close-yes]').click();
     await expect(page.locator('sw-app maint-close-prompt .toast')).toHaveText('התוכנית סומנה כבוצעה');
