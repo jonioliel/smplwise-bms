@@ -98,7 +98,7 @@ test.describe('TABSET-293: every section is ordered from the tabs settings', () 
     expect(srv.patches[0]).toEqual({
       'ui.tabs': {
         infra: { order: ['generator', 'electricity', 'elevators', 'temperature'], hidden: [] },
-        'infra.generator': { order: ['charts', 'live', 'alerts', 'history'], hidden: [] },
+        'infra.generator': { order: ['charts', 'live', 'alerts', 'history', 'log'], hidden: [] }, // GENLOG092-295: the run log is saved in the order too
       },
     });
 
