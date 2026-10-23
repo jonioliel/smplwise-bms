@@ -25,7 +25,7 @@ RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "tick
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied")  # energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied", "incident")  # incident: CR-LIVEEVENT100 (events.read at the incident's floor)  # energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -135,6 +135,11 @@ SOURCES: tuple[Source, ...] = (
        subject="door", resolves=False),
     _s("door.emergency.drill", "תרגיל חירום בדלתות", "doors", "info", "תרגיל חירום", "תרגיל {kind} ({scope}) - ללא פעולה אמיתית.",
        who="managers", push=False, subject="door", resolves=False),
+    # CR-LIVEEVENT100 (services/incidents.py): a live event was opened (alarm hook, the event page, the map, a manual opening). Only ever
+    # signalled while the module is ON (default OFF). Recipients: everyone who may read the incident's floor (events.read) - editable here
+    # like every source; the acknowledge of the notification is a step of the incident's chain. Never a person in the text.
+    _s("incident.opened", "אירוע חי נפתח", "security", "critical", "אירוע חי", "{name} · {place}.", subject="incident", resolve_text="האירוע נסגר",
+       app=True),
     # ---- automations
     _s("schedule.not_confirmed", "תזמון לא בוצע", "automations", "alert", "תזמון לא בוצע", "{name}: {detail}.", window_s=3600, who="managers", subject="schedule", resolve_text="הריצה הבאה אושרה"),
     _s("automation.failed", "אוטומציה נכשלה", "automations", "alert", "אוטומציה נכשלה", "{name}: {detail}.", window_s=600, who="managers", subject="automation", resolves=False),

@@ -198,6 +198,9 @@ class Reach:
             from . import temperature_access
 
             return temperature_access.visible_to(self.conn, lambda eid: self._entity("devices.read", eid), sid)
+        if kind == "incident":  # CR-LIVEEVENT100: exactly who may read the incident - events.read at its floor (installation without one)
+            fid = origin.get("floor_id")
+            return self._allowed("events.read", ("floor", str(fid)) if fid else INSTALLATION)
         if kind == "session":
             if str(n.get("source") or "") == "security.lockout":
                 return self._allowed("system.configure")  # administrators ONLY: the locked-out account is not told (and cannot acknowledge it)
@@ -217,6 +220,9 @@ class Reach:
             return authorize(self.conn, self.principal, "events.ack", ("camera", cam) if cam else INSTALLATION).allowed
         if kind == "alarm_panel":
             return self._entity("alarm.view", n.get("subject_id"), own=True)
+        if kind == "incident":  # CR-LIVEEVENT100: the same right as the incident's own acknowledge
+            fid = origin.get("floor_id")
+            return self._allowed("events.ack", ("floor", str(fid)) if fid else INSTALLATION)
         if n.get("category") == "safety":
             return self._entity("alarm.view", n.get("subject_id")) if kind == "entity" else self._allowed("alarm.view")
         return True

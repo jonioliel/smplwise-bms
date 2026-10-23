@@ -565,6 +565,9 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
                     conn.execute("ROLLBACK TO frigate_auto")
                     conn.execute("RELEASE frigate_auto")
                     log.exception("frigate auto-profile hook failed for %s", new.get("entity_id"))
+                from . import incidents as incidents_svc  # CR-LIVEEVENT100 T1: a burglary alarm may open a live event (module + auto-open both OFF by default)
+
+                incidents_svc.on_ha_state(conn, data.get("old_state"), new)  # its own savepoint; never raises
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
                 try:
