@@ -6,7 +6,7 @@ import json
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
@@ -252,8 +252,17 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
             missing = [e for e in entity_ids if not states_at.get(e, {}).get("known")]
             if missing:
                 states_at.update(ha_history.recorder_state_at(missing, at_iso))
+        hide_past_presence = False
+        if at_iso:
+            from ..services import timescrub
+
+            # CR-TIMESCRUB101 section 6: with the time scrub on, the past of presence sensors needs history.presence - the bundle
+            # at an instant must not hand out what the snapshot locks (flag off: exactly today's bundle)
+            hide_past_presence = timescrub.enabled(read_settings(conn)) and not authorize(conn, principal, "history.presence", ("floor", floor_id)).allowed
         for r in conn.execute(f"SELECT * FROM ha_entities WHERE entity_id IN ({','.join('?' * len(entity_ids))})", entity_ids).fetchall():
             e = ha_sync.entity_row(r)
+            if hide_past_presence and timescrub.layer_of(r["domain"], r["device_class"], r["entity_id"], None) == "presence":
+                states_at[r["entity_id"]] = {"state": None, "changed_at": None, "known": False, "reason": "לא מורשה", "source": "vms"}
             e["alarm_managed"] = e["entity_id"] in managed
             e["actions"] = ha_bridge.actions_for(e["domain"]) if (can_control and not at_iso and not e["alarm_managed"]) else []
             if at_iso:
@@ -327,6 +336,95 @@ def floor_map(floor_id: str, request: Request, principal: Principal = Depends(cu
         # the placement editor's list: exactly the cameras it may place (placement.edit on their chain, T055 re-review)
         "cameras": [c for c in cameras.values() if placeable.allows(c["id"])] if placeable is not None else [c for c in cameras.values() if any(a["resource_id"] == c["id"] for a in [*anchors, *(m[0] for m in mirrored)])],
     }
+
+
+# ---------------------------------------------------------------- CR-TIMESCRUB101 slice 1: the building at an instant / over a period
+
+def _scrub_guard(conn: sqlite3.Connection) -> dict[str, Any]:
+    """The module flag (default off, section 8): off = the routes do not exist (404 feature_off)."""
+    from ..services import timescrub
+
+    s = read_settings(conn)
+    if not timescrub.enabled(s):
+        raise ApiError(404, "feature_off", "ציר הזמן של הבניין כבוי.")
+    return s
+
+
+def _scrub_instant(value: str | None, name: str) -> str:
+    try:
+        return parse_utc(value or "").strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (ValueError, TypeError):
+        raise ApiError(422, "validation", f"{name}: זמן חייב להיות UTC (Z).")
+
+
+def _note_presence_view(conn: sqlite3.Connection, principal: Principal, floor_id: str, request: Request) -> None:
+    """Section 6: one audit row per (user, floor, UTC day) whenever the presence layer was served - never one per cursor move."""
+    day = now_iso()[:10]
+    seen = conn.execute("SELECT 1 FROM audit_log WHERE action = 'history.presence.view' AND actor_user_id = ? AND resource_id = ? AND substr(at, 1, 10) = ? LIMIT 1",
+                        (principal.user_id, floor_id, day)).fetchone()
+    if seen is None:
+        audit(conn, actor=principal, action="history.presence.view", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request))
+
+
+def _scrub_cameras(conn: sqlite3.Connection, principal: Principal, floor_id: str) -> tuple[list[str], bool, bool]:
+    """The floor's current camera anchors the caller may play back (video.playback per camera), and whether any event of them is readable."""
+    play = camera_scope(conn, principal, "video.playback")
+    ev = camera_scope(conn, principal, "events.read")
+    ids = sorted({r[0] for r in conn.execute("SELECT resource_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (floor_id,)).fetchall()})
+    gone = removed_recorder_cameras(conn)
+    allowed = [c for c in ids if c not in gone and play.allows(c)]
+    cameras_ok = bool(allowed) or authorize(conn, principal, "video.playback", ("floor", floor_id)).allowed
+    events_ok = any(ev.allows(c) for c in ids) or authorize(conn, principal, "events.read", ("floor", floor_id)).allowed
+    return allowed, cameras_ok, events_ok
+
+
+@router.get("/floors/{floor_id}/history/snapshot")
+def floor_history_snapshot(floor_id: str, request: Request, at: str | None = None, principal: Principal = Depends(current_principal_ro),
+                           conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The floor at one instant, layer by layer, each authorised on its own (a layer the caller may not see: `not_permitted`, no data)."""
+    from ..services import timescrub
+
+    settings = _scrub_guard(conn)
+    get_floor(conn, floor_id)
+    reach = require_floor_read(conn, principal, floor_id)
+    at_iso = _scrub_instant(at, "at")
+    cams, cams_ok, events_ok = _scrub_cameras(conn, principal, floor_id)
+    if reach != "floor":  # T055: a camera-only reader sees the cameras it reaches, nothing else of the floor
+        events_ok = False
+    out = timescrub.snapshot(conn, principal, floor_id, at_iso, reach, settings, cams, cams_ok, events_ok)
+    if out["layers"]["presence"]["status"] not in ("not_permitted", "empty"):
+        _note_presence_view(conn, principal, floor_id, request)
+    return out
+
+
+@router.get("/floors/{floor_id}/history/range")
+def floor_history_range(floor_id: str, request: Request, frm: str | None = Query(default=None, alias="from"), to: str | None = None,
+                        layers: str | None = None, step: int | None = Query(default=None, ge=1, le=86400),
+                        principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Change-points per entity over a period (section 4.2): exact, or bucketed above MAX_POINTS (`bucket_s`); at most
+    `history.range_max_days` days (422 range_too_long) and ROW_SCAN_CAP native rows (413 range_too_large)."""
+    from ..services import timescrub
+
+    settings = _scrub_guard(conn)
+    get_floor(conn, floor_id)
+    reach = require_floor_read(conn, principal, floor_id)
+    lo, hi = _scrub_instant(frm, "from"), _scrub_instant(to, "to")
+    if hi <= lo:
+        raise ApiError(422, "validation", "סוף התקופה חייב להיות אחרי תחילתה.")
+    max_days = timescrub.range_max_days(settings)
+    if (parse_utc(hi) - parse_utc(lo)).total_seconds() > max_days * 86400:
+        raise ApiError(422, "range_too_long", f"תקופה ארוכה מדי: עד {max_days} ימים בבקשה אחת.", details={"max_days": max_days})
+    wanted = [x for x in (layers.split(",") if layers else timescrub.RANGE_LAYERS) if x]
+    unknown = [x for x in wanted if x not in timescrub.RANGE_LAYERS]
+    if unknown:
+        raise ApiError(422, "validation", "שכבה לא מוכרת.", details={"layers": unknown})
+    try:
+        out = timescrub.history_range(conn, principal, floor_id, lo, hi, reach, wanted, step)
+    except timescrub.RangeTooLarge as exc:
+        raise ApiError(413, "range_too_large", "יותר מדי שינויים בתקופה הזאת; קצרו את החלון.", details={"limit": "range_too_large", "rows": exc.rows, "cap": timescrub.ROW_SCAN_CAP})
+    if "presence" in out["layers"] and out["layers"]["presence"]["status"] not in ("not_permitted", "empty"):
+        _note_presence_view(conn, principal, floor_id, request)
+    return out
 
 
 class AnchorIn(BaseModel):

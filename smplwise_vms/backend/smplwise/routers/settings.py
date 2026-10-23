@@ -129,6 +129,12 @@ DEFAULTS: dict[str, str] = {
     "playback.helper_line": "all",
     "playback.diagnostics": "all",
     "history.ha_secondary": "false",  # S2: the HA recorder fills entity states the local history does not know (marked as secondary)
+    # CR-TIMESCRUB101 (owner-approved 2026-10-24): the time scrub of the historical map - the module flag (default off: the routes answer
+    # 404 and the screen is today's), the longest period one range request covers (days, 1..30) and how long the past of presence
+    # sensors is kept (days, 1..30; it only shortens the 30-day state history; applied by ha_history.prune while the flag is on)
+    "history.timescrub": "false",
+    "history.range_max_days": "7",
+    "history.presence_retention_days": "7",
     "plan.estimates": "true",  # Plan Studio: show estimated metres (≈) before a plan is calibrated; false hides metres until calibration (owner decision 2026-09-23)
     "plan.levels": "all",  # default levels view on every map: all levels together, or the floor's default level only (owner decision 2026-09-26)
     "map.shared_levels": "show",  # CR-009: the levels of a shared room's home floor in the other floor's level bar ("מפלס ראשי · קומה -1"): show | hide (owner 2026-09-29)
@@ -408,7 +414,7 @@ LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch t
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
+INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", *automation_settings.INT_KEYS)
 
 
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
@@ -689,6 +695,9 @@ class SettingsPatch(BaseModel):
     playback_helper_line: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.helper_line")
     playback_diagnostics: str | None = Field(default=None, pattern="^(all|installers|hidden)$", alias="playback.diagnostics")
     history_ha_secondary: str | None = Field(default=None, pattern="^(true|false)$", alias="history.ha_secondary")
+    history_timescrub: str | None = Field(default=None, pattern="^(true|false)$", alias="history.timescrub")  # CR-TIMESCRUB101
+    history_range_max_days: int | None = Field(default=None, ge=1, le=30, alias="history.range_max_days")
+    history_presence_retention_days: int | None = Field(default=None, ge=1, le=30, alias="history.presence_retention_days")
     plan_estimates: str | None = Field(default=None, pattern="^(true|false)$", alias="plan.estimates")
     plan_levels: str | None = Field(default=None, pattern="^(all|default)$", alias="plan.levels")
     map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")

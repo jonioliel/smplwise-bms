@@ -149,6 +149,10 @@ PERMISSION_LABELS: dict[str, str] = {
     # switch, the allowed sensors, the employee notice, the required-sensors policy, retention) are system.configure.
     "presence.report": "רישום המכשיר הנייד שלי ודיווח נוכחות",
     "presence.sensors.view": "צפייה במכשירים הניידים של כולם ובמה שהם משתפים",
+    # CR-TIMESCRUB101 section 6/7 (owner-approved 2026-10-24): the PAST of the presence sensors (motion / occupancy / presence) on the
+    # historical map's time scrub - it tells who was where, so it is not implied by devices.read: floor scope, site_admin and system_admin
+    # by default, in sensitive_permissions_not_implied; every serving writes one audit row per (user, floor, day) (history.presence.view).
+    "history.presence": "היסטוריית נוכחות במפה ההיסטורית (חיישני תנועה ונוכחות בעבר)",
     # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 6 / CR 6.1): six permissions, all scoped like devices.control (the
     # screen's anchor entity placement; HA areas and floors are never a scope). media.read (viewer and above, not kiosk) sees the
     # page, the cards and the state; media.control (operator and above) sends volume, keys, transport and text; media.power (operator
