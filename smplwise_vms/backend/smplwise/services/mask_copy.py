@@ -99,7 +99,7 @@ def plan_target(source_regions: list[list[list[int]]], source_frame: dict[str, A
     after = {"enabled": True, "regions": [{"id": str(i), "points": p} for i, p in enumerate(final, start=1)]}
     return {**base, "status": "unchanged" if same else "ready", "after": after,
             "added": 0 if mode == "replace" else max(0, len(final) - len(existing)),
-            "removed": max(0, len(existing) - len(final)) if mode == "replace" else 0}
+            "removed": len({_key(p) for p in existing} - {_key(p) for p in final})}
 
 
 def plan_digest(source_id: str, source_etag: str, mode: str, rows: list[dict[str, Any]]) -> str:

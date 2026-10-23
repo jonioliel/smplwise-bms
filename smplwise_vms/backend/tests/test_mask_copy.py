@@ -92,8 +92,8 @@ def test_switch_defaults_off_and_nothing_is_read(world):
 def test_plan_reads_only_never_writes_and_warns(world):
     c, fake, (a, b, c3), app = world
     _on(c)
-    fake.master[1], fake.regions[1] = True, {"1": sorted(SQUARE)}
-    fake.master[3], fake.regions[3] = True, {"1": sorted(SQUARE2)}
+    fake.master[1], fake.regions[1] = True, {"1": SQUARE}
+    fake.master[3], fake.regions[3] = True, {"1": SQUARE2}
     fake.calls.clear()
     r = c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [b, c3]})
     assert r.status_code == 200, r.text
@@ -118,10 +118,10 @@ def test_unchanged_replace_and_source_without_active_mask(world):
     c, fake, (a, b, _c3), _app = world
     _on(c)
     assert c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [b]}).json()["details"]["reason"] == "source_has_no_active_mask"
-    fake.master[1], fake.regions[1] = True, {"1": sorted(SQUARE)}
-    fake.master[2], fake.regions[2] = True, {"1": sorted(SQUARE)}
+    fake.master[1], fake.regions[1] = True, {"1": SQUARE}
+    fake.master[2], fake.regions[2] = True, {"1": SQUARE}
     assert c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [b]}).json()["unchanged"] == 1
-    fake.regions[2] = {"1": sorted(SQUARE2)}
+    fake.regions[2] = {"1": SQUARE2}
     rep = c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [b], "mode": "replace"}).json()["items"][0]
     assert rep["status"] == "ready" and rep["removed"] == 1 and len(rep["after"]["regions"]) == 1
     assert fake.writes() == []
@@ -130,7 +130,7 @@ def test_unchanged_replace_and_source_without_active_mask(world):
 def test_validation_and_rbac(world, settings):
     c, fake, (a, b, _c3), _app = world
     _on(c)
-    fake.master[1], fake.regions[1] = True, {"1": sorted(SQUARE)}
+    fake.master[1], fake.regions[1] = True, {"1": SQUARE}
     assert c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [a]}).status_code == 422
     assert c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [b, b]}).status_code == 422
     assert c.post(PLAN, json={"source_camera_id": a, "target_camera_ids": [b], "mode": "merge"}).status_code == 422
