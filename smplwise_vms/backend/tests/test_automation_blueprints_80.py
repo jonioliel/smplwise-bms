@@ -237,7 +237,10 @@ def test_every_library_blueprint_instantiates_through_the_create_path(bp_app, bp
     app, s, c, fake, tr = bp_app
     prev = c.post(f"{BP}/{bp_id}/preview", json={"params": params})
     assert prev.status_code == 200 and prev.json()["ok"] is True, prev.text
-    r = _inst(c, bp_id, params)
+    if bp_id == "scheduled_scene":  # a scene whose members are unknown asks for the editor's explicit confirmation, and nothing is written without it
+        first = _inst(c, bp_id, params)
+        assert first.status_code == 409 and first.json()["code"] == "confirmation_required" and not [x for x in tr.bridge_calls if x["op"] == "upsert"]
+    r = _inst(c, bp_id, params, confirm=(bp_id == "scheduled_scene"))
     assert r.status_code == 201, r.text
     item = r.json()["item"]
     assert item["state"] == "off" and item["sensitive"] is False and item["locked_count"] == 0
