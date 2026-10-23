@@ -164,6 +164,17 @@ class AccountStates(Protocol):
     def status(self, key: str) -> Any: ...  # messaging_accounts.AccountStatus (state, source, sendable)
 
 
+# CR-WA-PACING-295: the installation's recipient allow-list (services/wa_policy.make_guard), bound once at startup. (digits, outbox_id, purpose) ->
+# a refusal code or None. Class-level so every sender that builds a WhatsAppChannel (tickets, notifications, reports, codes) is held to it.
+RecipientGuard = Callable[[str, "str | None", "str | None"], "str | None"]
+_recipient_guard: RecipientGuard | None = None
+
+
+def set_recipient_guard(guard: RecipientGuard | None) -> None:
+    global _recipient_guard
+    _recipient_guard = guard
+
+
 class WhatsAppChannel:
     key = "whatsapp"
 
@@ -224,6 +235,12 @@ class WhatsAppChannel:
             log.info("whatsapp send outbox=%s outcome=%s code=%s", msg.outbox_id, result.outcome, result.outcome_code)
             return result
         assert service in ALLOWED_SERVICES
+        guard = _recipient_guard
+        if guard is not None:
+            blocked = guard(data["target"], msg.outbox_id, msg.purpose)
+            if blocked:
+                log.info("whatsapp send outbox=%s outcome=%s code=%s", msg.outbox_id, NOT_SENT, blocked)
+                return SendResult(NOT_SENT, blocked)
         try:
             reply = self._transport.call(DOMAIN, service, data, return_response=service not in self._no_response, timeout=self._timeout)
             result = classify(reply)

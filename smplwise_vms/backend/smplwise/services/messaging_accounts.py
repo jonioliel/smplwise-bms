@@ -54,8 +54,8 @@ class Pacing:
 
     min_gap_s: int = 5
     jitter_s: int = 1
-    per_hour: int = 300
-    per_day: int = 1500
+    per_hour: int = 100  # owner 2026-10-24: start low (100 an hour, 600 a day), both editable per account in Settings
+    per_day: int = 600
     per_recipient_hour: int = 4  # codes excluded (review C9 / T5b)
     hold_when_down_min: int = 15
 

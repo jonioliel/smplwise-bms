@@ -807,7 +807,7 @@ def run_job(worker: Worker, job: Job) -> None:
         _finish(db, job, "failed", "provider_refused", attempt, account_key=account.key, outcome=REFUSED)
     elif result.outcome == UNKNOWN:  # it may have left: never retried, never re-routed
         _finish(db, job, "failed", "unknown_outcome", attempt, account_key=account.key, outcome=UNKNOWN)
-    elif result.outcome == NOT_SENT and job.attempt < len(RETRY_DELAYS_S):
+    elif result.outcome == NOT_SENT and result.outcome_code != "recipient_not_allowed" and job.attempt < len(RETRY_DELAYS_S):
         _set(db, job, "retry", result.outcome_code or "not_sent", attempt)
         delay = RETRY_DELAYS_S[job.attempt]
         job.attempt = attempt
