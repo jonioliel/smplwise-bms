@@ -366,6 +366,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # CR-WA-PACING-295: the dedicated WisKey service principal may reserve and release a send on the shared WhatsApp budget - nothing else.
     # Sensitive, in no built-in role (a custom role holding only this permission is bound to the principal the owner created).
     "messaging.pacing.reserve": "הקצאת שליחה בתקציב הוואטסאפ המשותף (שירות WisKey בלבד)",
+    # CR-READY96 (demo mode, owner decision 2026-10-24): starting / extending / stopping a demo on a separate database is for the SYSTEM INSTALLER only -
+    # sensitive, in no built-in role (an administrator names it in a custom role). demo.run_anywhere: the owner may also start one over the remote channel on any server
+    # (elsewhere the remote demo runs only where the installer switched `demo.allow_remote` on).
+    "demo.run": "הפעלת מצב הדגמה על מסד נתונים נפרד (מתקין המערכת בלבד)",
+    "demo.run_anywhere": "הפעלת מצב הדגמה מרחוק בכל שרת (הבעלים בלבד)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage", "bridge.key.rotate"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)

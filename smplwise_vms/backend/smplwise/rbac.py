@@ -10,7 +10,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .db import now_iso, permission_revision
+from .db import database_of, now_iso, permission_revision
 from .errors import forbidden
 
 ROLES: dict[str, list[str]] = {
@@ -246,9 +246,22 @@ def _active_bindings(conn: sqlite3.Connection, principal: Principal) -> list[sql
     return rows
 
 
+def _demo_refuses(conn: sqlite3.Connection, permission: str) -> bool:
+    """CR-READY96: while the shared database handle is in demo mode, a physical-action / device-write / update / backup permission is never granted
+    (services/demo_mode.BLOCKED_EXACT) - the first gate, ahead of any binding."""
+    db = database_of(conn)
+    if db is None or not getattr(db, "demo", False):
+        return False
+    from .services.demo_mode import blocked_permission
+
+    return blocked_permission(permission)
+
+
 def authorize(conn: sqlite3.Connection, principal: Principal, permission: str, target: tuple[str, str]) -> Decision:
     if local_factor_gate(principal, permission):
         return Decision(False, "second_factor_required")
+    if _demo_refuses(conn, permission):
+        return Decision(False, "demo_mode")
     user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if user is not None and not user["active"]:
         return Decision(False, "user_inactive")

@@ -33,8 +33,10 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune."""
     from . import audit as audit_mod
     from .routers.settings import read_settings
-    from .services import events_derive, exports as ex, ha_history, playback as pb, playback_groups as pg, thumbnails
+    from .services import demo_mode, events_derive, exports as ex, ha_history, playback as pb, playback_groups as pg, thumbnails
 
+    if demo_mode.tick(db, settings):  # CR-READY96: a running demo ends here when its time is up; while one runs the real installation's housekeeping waits
+        return
     with db.connection() as conn:
         s = read_settings(conn)
     pb.expire_idle(settings, s["playback.lease_s"])
@@ -280,6 +282,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
+    from .services import demo_mode as _demo_mode
+
+    _demo_mode.clear_on_boot(settings)  # CR-READY96: a restart exits demo mode - the handle below always starts on the real file
     app.state.db = Database(settings.db_path)
     from .services import energy_billing_adapter
 
@@ -469,6 +474,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import quiet as quiet_router
 
     app.include_router(quiet_router.router, prefix=api, tags=["notifications"])  # CR-QUIET103 slice 1: quiet windows per floor / area (OFF)
+    from .routers import readiness as readiness_router
+
+    app.include_router(readiness_router.router, prefix=api, tags=["ops"])  # CR-READY96 slice 1: installation readiness score (system.configure)
+    from .routers import demo as demo_router
+
+    app.include_router(demo_router.router, prefix=api, tags=["ops"])  # CR-READY96 slice 1: demo mode on a separate database (demo.run, sensitive, in no built-in role)
     from .routers import occupancy as occupancy_router
 
     app.include_router(occupancy_router.router, prefix=api, tags=["occupancy"])  # ZONECOUNT107-295: people count per area from Frigate reviews (OFF)
