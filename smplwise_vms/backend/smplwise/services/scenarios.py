@@ -323,9 +323,9 @@ def _role_users(conn: sqlite3.Connection, roles: Iterable[str]) -> list[str]:
     roles = list(roles)
     if not roles:
         return []
-    q = f"SELECT DISTINCT subject_id FROM bindings WHERE subject_kind = 'user' AND effect = 'allow' AND role_id IN ({','.join('?' * len(roles))})"
+    q = f"SELECT DISTINCT subject_id FROM bindings WHERE subject_kind = 'user' AND effect = 'allow' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) AND role_id IN ({','.join('?' * len(roles))})"
     try:
-        return [r["subject_id"] for r in conn.execute(q, roles).fetchall()]
+        return [r["subject_id"] for r in conn.execute(q, (now_iso(), *roles)).fetchall()]
     except sqlite3.Error:
         return []
 
