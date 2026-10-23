@@ -43,11 +43,11 @@ export async function installReadinessMock(page: Page, o: ReadinessMockOptions =
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
     const method = req.method();
     if (p === 'me' && o.demo) {
-      // the base route's /me, with the demo block added
-      const res = await route.fetch().catch(() => null);
-      const base = res ? await res.json().catch(() => null) : null;
-      if (base) return json(route, { ...base, demo: o.demo });
-      return route.fallback();
+      // the Frigate mock's /me (same fields) with the demo block every signed-in user gets
+      return json(route, {
+        channel: 'local', remote: null, user: { id: 'u-admin', username: 'u-admin', display_name: 'יוני', source: 'ingress' }, active: true, bindings: [],
+        permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done', mode: 'full', demo: o.demo,
+      });
     }
     if (!/^(readiness|demo)(\/|$)/.test(p)) return route.fallback();
     let body: unknown = null;

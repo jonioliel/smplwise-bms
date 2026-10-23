@@ -20,6 +20,7 @@ const SIZES = [
 test.use({ timezoneId: 'Asia/Jerusalem', locale: 'he-IL' });
 
 async function open(page: Page, scheme: 'light' | 'dark' = 'light') {
+  await page.goto('about:blank');
   await page.goto(url(HASH, 'classic', scheme));
   await page.waitForSelector('sw-app system-readiness');
 }

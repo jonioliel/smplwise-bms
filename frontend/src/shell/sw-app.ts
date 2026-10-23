@@ -377,6 +377,8 @@ export class SwApp extends LitElement {
     }
     main > .screen[data-settings] > system-nav {
       flex: none;
+      /* CR-READY96: the sticky column never grows past the room the screen has (the tab row / banner above it used to push the shell's <main> into a page scroll by their own height) */
+      max-block-size: 100%;
     }
     main > .screen[data-settings] > :not(system-nav) {
       min-inline-size: 0;
