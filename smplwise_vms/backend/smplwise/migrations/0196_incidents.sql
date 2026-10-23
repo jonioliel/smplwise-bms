@@ -1,4 +1,4 @@
--- CR-LIVEEVENT100 (board r100) slice S1, PROVISIONAL number 0190: NOT FINAL. main ends at 0151 and release/2150 takes 0152+; this
+-- CR-LIVEEVENT100 (board r100) slice S1, PROVISIONAL number 0196 (0190 is taken by pilot/VENDORARRIVAL126-295): NOT FINAL. main ends at 0151 and release/2150 takes 0152+; this
 -- file is renumbered to the next free number at integration (the contiguity test test_the_release_numbers_are_contiguous_and_final is
 -- expected to be red on the pilot branch until then, exactly like the other provisional pilot migrations).
 -- The live event mode: one row per incident in progress (or closed, kept incidents.retention_days) and its chain of handling.
