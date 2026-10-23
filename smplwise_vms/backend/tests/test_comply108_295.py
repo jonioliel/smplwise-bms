@@ -188,7 +188,8 @@ def test_expired_revoked_inactive_and_archived_are_excluded(ac):
     ce.reset_rate()
     why = matrix(c, at=f"{SUN}T07:00:00Z", include_excluded=True)
     reasons = {(r["person_id"], r["station_id"]): r["reason"] for r in why["rows"]}
-    assert reasons[("u2", "entry-b")] == "expired" and reasons[("u5", "entry-a")] == "inactive" and reasons[("u4", "entry-c")] == "archived"
+    assert reasons[("u2", "entry-b")] == "expired" and reasons[("u5", "entry-a")] == "inactive"
+    assert not [k for k in reasons if k[0] == "u4"] or reasons[("u4", "entry-c")] == "archived", "an archived person is never listed as able to enter (WisKey's default directory hides them)"
     assert ("u1", "entry-a") not in reasons, "a disabled assignment is no assignment"
     assert ("u3", "entry-a") not in reasons and not [k for k in reasons if k[0] == "u3"], "nobody with no station appears"
 
