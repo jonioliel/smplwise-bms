@@ -293,8 +293,7 @@ Deviations / recorded contradictions (not silently resolved):
    presence retention ONLY while the flag is on (a deletion cannot be undone). Switch to "always" on the owner's word.
 3. A bucketed point's `t` is the bucket's start; `n` = changes inside it.
 
-Not in slice 1 yet (remaining): infra temperature probes and generator chips at T; circuit switches as lights-layer members of the
-snapshot (the bundle's `circuit_states` still carry them); the 60 s server cache; the sync playback screen does not read `t` / camera
+Not in slice 1 yet (remaining): infra temperature probes and generator chips at T; the 60 s server cache; the sync playback screen does not read `t` / camera
 parameters, so "all cameras of the floor from here" opens the playback screen with up to four cameras; the tablet "..." overflow menu;
 lanes for devices / temperature; `?from&to` in the URL; the performance run of 10.3; access-event marks; the gap row relies on the
 mirror's last `state_seen_at` (an installation silent for more than 60 s while connected would show a false gap - a sync heartbeat is

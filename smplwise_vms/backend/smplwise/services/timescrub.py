@@ -83,7 +83,7 @@ def layer_of(domain: str, device_class: str | None, entity_id: str, anchor_layer
 
 def floor_entities(conn: sqlite3.Connection, floor_id: str, at_iso: str | None) -> dict[str, list[str]]:
     """The floor's anchored HA entities per layer: the anchors effective at `at_iso` (all current ones when None). The switches of
-    the structure's circuits are NOT added yet (slice 1: the bundle's circuit_states carry them). Sorted ids, each entity in exactly one layer. As the floor bundle
+    the structure's circuits' switches join the lights layer (when not anchored elsewhere). Sorted ids, each entity in exactly one layer. As the floor bundle
     (routers/anchors.floor_map): the anchors of the instant only from the floor's first publish on - before it, the current anchors."""
     history_from = conn.execute("SELECT MIN(published_at) FROM plan_versions WHERE floor_id = ? AND published_at IS NOT NULL", (floor_id,)).fetchone()[0]
     if at_iso and history_from and at_iso >= history_from:
@@ -93,15 +93,33 @@ def floor_entities(conn: sqlite3.Connection, floor_id: str, at_iso: str | None) 
         rows = conn.execute("SELECT resource_id, layer_id FROM map_anchors WHERE floor_id = ? AND resource_type = 'ha_entity' AND effective_to IS NULL", (floor_id,)).fetchall()
     anchor_layer = {r["resource_id"]: r["layer_id"] for r in rows}
     out: dict[str, list[str]] = {k: [] for k in ENTITY_LAYERS}
-    if not anchor_layer:
+    exact = bool(at_iso and history_from and at_iso >= history_from)
+    switches = [e for e in circuit_switches(conn, floor_id, at_iso if exact else None) if e not in anchor_layer]
+    if not anchor_layer and not switches:
         return out
-    ids = sorted(anchor_layer)
+    ids = sorted({*anchor_layer, *switches})
     meta = {r["entity_id"]: r for r in conn.execute(f"SELECT entity_id, domain, device_class FROM ha_entities WHERE entity_id IN ({','.join('?' * len(ids))})", ids).fetchall()}
     for eid in ids:
         m = meta.get(eid)
         domain = m["domain"] if m else eid.split(".", 1)[0]
-        out[layer_of(domain, m["device_class"] if m else None, eid, anchor_layer[eid])].append(eid)
+        # a circuit's switch is the lamps' switch: lights layer unless it is anchored as something else
+        out[layer_of(domain, m["device_class"] if m else None, eid, anchor_layer.get(eid, "lights"))].append(eid)
     return out
+
+
+def circuit_switches(conn: sqlite3.Connection, floor_id: str, at_iso: str | None) -> list[str]:
+    """Switch entities of the circuits in the floor's published structure at `at_iso` (the current one when None). Only ids of the
+    switch/light shape (geometry_store.circuits_of drops the rest); circuits shared in from other floors are not added here."""
+    from . import geometry_store
+
+    if at_iso:
+        ver = conn.execute("SELECT id FROM plan_versions WHERE floor_id = ? AND status != 'draft' AND published_at IS NOT NULL AND published_at <= ? AND (archived_at IS NULL OR archived_at > ?) ORDER BY published_at DESC LIMIT 1",
+                           (floor_id, at_iso, at_iso)).fetchone()
+        row = geometry_store.at_row(conn, ver["id"], at_iso) if ver else None
+    else:
+        ver = conn.execute("SELECT id FROM plan_versions WHERE floor_id = ? AND status = 'published'", (floor_id,)).fetchone()
+        row = geometry_store.published_row(conn, ver["id"]) if ver else None
+    return sorted({c["switch_entity_id"] for c in geometry_store.circuits_of(row)})
 
 
 # ---------------------------------------------------------------- permissions

@@ -277,3 +277,32 @@ def test_presence_retention_only_shortens_and_only_with_the_flag(settings):
         left = [r[0] for r in conn.execute("SELECT entity_id FROM ha_state_history WHERE changed_at = ?", (old,)).fetchall()]
         assert left == ["light.lobby"]
         assert ha_history.prune_presence(conn, 400) == 0, "a longer presence retention never lengthens the 30-day history"
+
+
+def test_circuit_switches_are_lights_layer_members(settings):
+    """CR-TIMESCRUB101 slice 1 remainder: the switch of a published circuit replays in the lights layer without being anchored."""
+    app = create_app(settings)
+    c = TestClient(app)
+    floor = _floor(c, app)
+    _on(c)
+    with app.state.db.connection() as conn:
+        vid = conn.execute("SELECT id FROM plan_versions WHERE floor_id = ? AND status = 'published'", (floor,)).fetchone()["id"]
+        ha_sync.upsert_state(conn, _st("switch.hall", "off", NOW - dt.timedelta(hours=3), friendly_name="hall"))
+        ha_sync.upsert_state(conn, _st("switch.hall", "on", NOW - dt.timedelta(minutes=100), friendly_name="hall"))
+    g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
+    lamp = {"id": "l1", "item_id": "light.ceiling", "level_id": "L0", "position": [0.5, 0.3], "rotation_deg": 0, "size": {"w_m": 0.4, "d_m": 0.4, "h_m": 0.1}, "z_m": 2.5,
+            "params": {}, "label": None, "anchor_ref": None, "group_id": None, "confidence": 1, "source": "manual", "locked": False, "external_ids": {}}
+    level = {"id": "L0", "name": "main", "elevation_m": 0.0, "ceiling_height_m": 2.8, "is_default": True, "external_ids": {}}
+    circuit = {"id": "k1", "name": "hall", "switch_entity_id": "switch.hall", "member_ids": ["l1"], "color_token": "circuit-1", "power_w": 0}
+    put = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], levels=[level], objects=[lamp], circuits=[circuit]), "base_revision": g["geometry"]["revision"]})
+    assert put.status_code == 200 and put.json()["doc"]["circuits"], put.text
+    pub = c.post(f"/api/v1/plan-versions/{vid}/geometry/publish")
+    assert pub.status_code == 200 and pub.json().get("unchanged") is False, pub.text
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE plan_geometry SET published_at = ? WHERE plan_version_id = ? AND status = 'published'", (iso(NOW - dt.timedelta(hours=3)), vid))
+        dbg = [tuple(r) for r in conn.execute("SELECT plan_version_id, status, published_at FROM plan_geometry").fetchall()], [tuple(r) for r in conn.execute("SELECT id, status FROM plan_versions WHERE floor_id = ?", (floor,)).fetchall()], vid
+        assert timescrub.circuit_switches(conn, floor, None) == ["switch.hall"], dbg
+    snap = c.get(f"/api/v1/floors/{floor}/history/snapshot?at={iso(NOW - dt.timedelta(minutes=85))}").json()["layers"]["lights"]["entities"]
+    assert snap["switch.hall"]["state"] == "on" and snap["switch.hall"]["known"] is True
+    rng = c.get(f"/api/v1/floors/{floor}/history/range?from={iso(NOW - dt.timedelta(hours=2))}&to={iso(NOW)}&layers=lights").json()
+    assert "switch.hall" in rng["layers"]["lights"]["entities"]
