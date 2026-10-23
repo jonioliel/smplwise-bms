@@ -51,7 +51,7 @@ test.describe('live event: no scrolling', () => {
         await page.setViewportSize({ width: s.w, height: s.h });
         await open(page, DETAIL, scheme);
         const scr = page.locator('sw-app investigate-incidents');
-        await expect(scr.locator('[data-incident-chain] [data-step]').first()).toBeVisible();
+        await expect(scr.locator('[data-incident-chain] [data-step]').first()).toBeAttached(); // below 1200 px the chain is its own part
         await expect(scr.locator('[data-incident-tile]').first()).toBeAttached();
         await page.waitForTimeout(500);
         if (s.w >= 1200) {

@@ -84,7 +84,7 @@ test.describe('live event evidence', () => {
     await expect(scr.locator('[data-step="waiting"]')).toBeVisible();
     await expect(scr.locator('[data-step="door_open"]')).toContainText('פתיחת דלת');
     await expect(page.locator('sw-app [data-incident-pill]')).toBeVisible();
-    await expect(page.locator('sw-app [data-nav-dot="security"]')).toBeAttached();
+    await expect(page.locator('sw-app [data-nav-dot="security"]').first()).toBeAttached(); // the rail (and the bottom bar, drawn for the phone)
     await expect(page.locator('sw-app [data-tab-dot="incidents"]')).toBeAttached();
     await expect(scr.locator('[data-incident-ack]')).toBeVisible();
     await expect(scr.locator('[data-incident-close]')).toBeVisible();

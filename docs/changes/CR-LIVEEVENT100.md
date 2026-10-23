@@ -1,6 +1,6 @@
 # CR-LIVEEVENT100: live event mode - one page for an incident in progress
 
-Status: change record + mockup (v2, owner review 2026-10-24 applied - see section 10), nothing built. Board item r100. Branch `pilot/LIVEEVENT100-295` from
+Status: change record + mockup (v2, owner review 2026-10-24 applied - see section 10, APPROVED); built on pilot/LIVEEVENT100B-295 - see section 11. Board item r100. Branch `pilot/LIVEEVENT100-295` from
 `origin/main` @ `320e5555172106843b2690692d534aeed19eb8b3` (v2.12.4). Mockup: `docs/design/mockups/liveevent-100/index.html`
 (single file, RTL Hebrew, light + dark, desktop / tablet / phone, states active · none · camera offline · permission-limited ·
 loading · error · module off). Screenshots: `private/review/liveevent-100/` (gitignored). No code changes, no secrets, fake data only.
@@ -252,3 +252,23 @@ Run against `docs/design/mockups/liveevent-100/index.html` for 1366x768, 1920x10
 light and dark; role "operator without infrastructure"; every phone part; the settings sheet open. Per case: scrollTop == 0,
 scrollHeight <= clientHeight, scrollWidth <= clientWidth, no element outside the viewport, no element clipped by an overflow
 ancestor, no inner overflow. Screenshots were looked at (`private/review/liveevent-100-v2/`, gitignored).
+
+## 11. Build (branch `pilot/LIVEEVENT100B-295`, from the approved mockup v2)
+
+Built: S1 (migration **0190 PROVISIONAL** - renumber at integration; main ends 0151, release/2150 takes 0152+), S2, S3, S4, most of S5,
+the settings card of S6. Deviations from the text above, recorded rather than silently resolved:
+
+- Settings live in their own route (`GET|PUT /incidents/settings`, system.configure, every key bounded) instead of `routers/settings.py`
+  DEFAULTS, to keep the shared settings router out of the change; `/me` carries `modules.incidents`. Extra editable keys (owner rule
+  "all thresholds / timeouts editable"): `incident.max_live_phone`, `incident.snapshot_refresh_s`, `incident.refresh_s`,
+  `incident.hidden_stop_s`, `incident.door_window_s`, `incident.near_radius_pct`. Recipients: the notification policy
+  `incident.opened` (new subject kind `incident`, visibility = events.read at the incident's floor, acknowledge = events.ack).
+- The notification's acknowledge, its pending recipients and the door-open commands (audit rows `intercom.release`, outcome phase) are
+  read into the chain at read time (one notification + its events, the audit rows of the doors in the window), not mirrored as rows.
+- "Add to case" uses the existing item kinds (`event` for an incident from an event, otherwise a `note`); no new `incident` case kind.
+- Camera ranking is computed on the server from the map (same room, shared wall, radius, rest of the floor); `suggestAdjacent()` on the
+  client is not used. The elevators / generator halves call the existing endpoints (no building filter: elevators carry an area only).
+- Doors: "לדלת" opens the device screen (`#/devices?entity=`), where the existing per-action confirmation applies; there is no door page.
+
+Not built (open): the map "open here" action and the alarm-screen button (T4 / part of T5), the explicit 429 "quota full" tile state
+(the tile shows the player's own state), the lab measurement (S6), release notes.
