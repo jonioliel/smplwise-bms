@@ -57,6 +57,18 @@ FIRST_DELAY_S = 300
 CHECK_EVERY_S = 3600
 TRANSPORT: httpx.BaseTransport | None = None
 
+# FLEET215 UI slice: the silence threshold (hours without a report before the receiver shows "not reporting") is an installation setting,
+# editable by the system administrator; it travels as ONE header (never in the signed body: the 52-field schema is unchanged).
+SILENT_KEY = "fleet.silent_after_h"
+SILENT_DEFAULT_H = 36
+SILENT_MIN_H = 26   # a daily report plus its 3-hour retry must never look silent
+SILENT_MAX_H = 168
+# The "reporting stopped" message: one last small signed message sent when the customer switches the report off, so the receiver shows
+# "off" instead of "silent". Its own tiny closed schema (not the report schema), its own path.
+STOP_SCHEMA = "smplwise-fleet-stop/1"
+STOP_PATH = "/v1/stopped"
+STOP_KEYS = ("schema", "installation_id", "seq", "generated_at")
+
 STATES = ("ok", "warn", "error", "off", "absent", "unknown")
 OVERALL = ("ok", "warn", "error")
 COMPONENTS = ("db", "storage", "nvr", "go2rtc", "ha_sync", "bridge", "events_ingest", "events_derive", "discovery", "thumbnails",
@@ -302,6 +314,14 @@ def build_body(settings: Settings, conn: sqlite3.Connection, *, probe: bool = Tr
 
 # ---------------------------------------------------------------- the two keys
 
+def silent_after_h(conn: sqlite3.Connection) -> int:
+    try:
+        n = int(get_setting(conn, SILENT_KEY, str(SILENT_DEFAULT_H)) or SILENT_DEFAULT_H)
+    except ValueError:
+        n = SILENT_DEFAULT_H
+    return max(SILENT_MIN_H, min(SILENT_MAX_H, n))
+
+
 def switch_on(conn: sqlite3.Connection) -> bool:
     return (get_setting(conn, SWITCH, "false") or "false") == "true"
 
@@ -330,19 +350,26 @@ def _record(conn: sqlite3.Connection, *, seq: int | None, kid: str | None, body:
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (seq, kid, now_iso(), trigger, actor, result, http_status, body.decode("ascii") if body is not None else None))
     conn.execute("DELETE FROM fleet_report_log WHERE id NOT IN (SELECT id FROM fleet_report_log ORDER BY id DESC LIMIT ?)", (LOG_KEEP,))
+    if trigger == "stop":  # the stop message never moves the daily-report state (nothing is due while the switch is off)
+        set_setting(conn, "fleet.stopped_at", now_iso())
+        set_setting(conn, "fleet.stopped_result", result)
+        return
     set_setting(conn, "fleet.last_attempt_at", now_iso())
     set_setting(conn, "fleet.last_result", result)
     if result == "ok":
         set_setting(conn, "fleet.last_ok_at", now_iso())
 
 
-def post(url: str, body: bytes, kid: str, sig: str) -> tuple[str, int | None]:
+def post(url: str, body: bytes, kid: str, sig: str, *, path: str = REPORT_PATH, schema: str = SCHEMA,
+         silent_after_h: int | None = None) -> tuple[str, int | None]:
     """(result, http status). Results: ok | rejected | unreachable. The response body is never read into a log."""
-    headers = {"content-type": "application/json", "x-arx-fleet-schema": SCHEMA, "x-arx-fleet-kid": kid, "x-arx-fleet-sig": sig,
+    headers = {"content-type": "application/json", "x-arx-fleet-schema": schema, "x-arx-fleet-kid": kid, "x-arx-fleet-sig": sig,
                "user-agent": "smplwise-arx-fleet/1"}
+    if silent_after_h is not None:
+        headers["x-arx-fleet-silent-after-h"] = str(silent_after_h)
     try:
         with httpx.Client(timeout=SEND_TIMEOUT_S, transport=TRANSPORT, follow_redirects=False) as client:
-            r = client.post(url + REPORT_PATH, content=body, headers=headers)
+            r = client.post(url + path, content=body, headers=headers)
     except (httpx.HTTPError, OSError) as exc:
         log.info("fleet report not delivered: %s", type(exc).__name__)
         return "unreachable", None
@@ -363,6 +390,7 @@ def send_once(db: Database, settings: Settings, *, trigger: str = "schedule", ac
         return {"sent": False, "result": why}
     with db.connection(mode="read") as conn:
         body = build_body(settings, conn, probe=True)
+        silent_h = silent_after_h(conn)
     seq = fleet_keys.next_seq(settings)
     facts = fleet_keys.ensure(settings)
     try:
@@ -374,9 +402,43 @@ def send_once(db: Database, settings: Settings, *, trigger: str = "schedule", ac
         return {"sent": False, "result": "schema_refused", "seq": seq}
     data = canonical(payload)
     kid, sig = fleet_keys.sign(settings, data)
-    result, status = post(url, data, kid, sig)
+    result, status = post(url, data, kid, sig, silent_after_h=silent_h)
     with db.connection(label="fleet.report") as conn:
         _record(conn, seq=seq, kid=kid, body=data, result=result, http_status=status, trigger=trigger, actor=actor)
+    return {"sent": result == "ok", "result": result, "http_status": status, "seq": seq}
+
+
+def stop_body(installation_id: str, seq: int, now: dt.datetime) -> dict[str, Any]:
+    body = {"schema": STOP_SCHEMA, "installation_id": installation_id, "seq": seq,
+            "generated_at": now.astimezone(dt.timezone.utc).replace(second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:00Z")}
+    if set(body) != set(STOP_KEYS) or not ID_RE.match(installation_id) or not TIME_RE.match(body["generated_at"]):  # pragma: no cover - guard
+        raise FleetSchemaError("", "bad_stop")
+    return body
+
+
+def send_stop(db: Database, settings: Settings, *, actor: str | None = None, now: dt.datetime | None = None) -> dict[str, Any]:
+    """The customer switched the report OFF: send ONE last signed "reporting stopped" message (best effort, one attempt, 10 s) so the
+    receiver shows "off" instead of "silent". Sends nothing when the switch is still on, when the receiver option is unusable or when this
+    installation never had an id (nothing was ever reported, the receiver does not know it). Never raises."""
+    with db.connection(mode="read") as conn:
+        if switch_on(conn):
+            return {"sent": False, "result": "switch_on"}
+    url, why = receiver_url()
+    if url is None:
+        return {"sent": False, "result": why}
+    facts = fleet_keys.peek(settings)
+    if not facts["installation_id"]:
+        return {"sent": False, "result": "never_enrolled"}
+    try:
+        seq = fleet_keys.next_seq(settings)
+        data = canonical(stop_body(facts["installation_id"], seq, now or dt.datetime.now(dt.timezone.utc)))
+        kid, sig = fleet_keys.sign(settings, data)
+        result, status = post(url, data, kid, sig, path=STOP_PATH, schema=STOP_SCHEMA)
+        with db.connection(label="fleet.report") as conn:
+            _record(conn, seq=seq, kid=kid, body=data, result=result, http_status=status, trigger="stop", actor=actor)
+    except Exception as exc:  # noqa: BLE001 - a failed goodbye must never block the customer's switch
+        log.warning("fleet stop message failed: %s", type(exc).__name__)
+        return {"sent": False, "result": "error"}
     return {"sent": result == "ok", "result": result, "http_status": status, "seq": seq}
 
 
@@ -436,5 +498,7 @@ def status(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
         "installation_id": facts["installation_id"], "kid": facts["kid"], "alg": facts["alg"], "last_seq": facts["seq"],
         "last_attempt_at": get_setting(conn, "fleet.last_attempt_at"), "last_result": get_setting(conn, "fleet.last_result"),
         "last_ok_at": get_setting(conn, "fleet.last_ok_at"),
-        "schema": SCHEMA, "period_h": PERIOD_OK_S // 3600,
+        "schema": SCHEMA, "period_h": PERIOD_OK_S // 3600, "retry_h": PERIOD_RETRY_S // 3600,
+        "silent_after_h": silent_after_h(conn), "silent_range_h": [SILENT_MIN_H, SILENT_MAX_H], "silent_default_h": SILENT_DEFAULT_H,
+        "stopped_at": get_setting(conn, "fleet.stopped_at"), "stopped_result": get_setting(conn, "fleet.stopped_result"),
     }

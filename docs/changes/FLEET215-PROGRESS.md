@@ -82,3 +82,10 @@ off 1.0. One installation 1.11 at 1366 x 768, 1.41 on the phone.
 3. Key rotation: re-enroll by hand (slice 1) or a rotation message signed by the old key (slice 2)? Recommend slice 2.
 4. Admin overview behind Cloudflare Access in addition to ADMIN_TOKEN? Recommend yes.
 5. Data-processing terms with customers before the first enrollment (who signs)?
+
+## Settings UI (installation side) built 2026-10-24
+Owner approved mock-up v2 and answered: silence 36 h (EDITABLE), final signed "reporting stopped" message, silence alert to SmplWise (receiver side, not built here), exact body + 52 fields visible to the system administrator, enrollment code as text + copy, receiver stays a separate service, key replacement signed by the old key (stage 2), user counts yes, no extra customer approval.
+- Screen: Settings > new tab "דיווח בריאות" (`#/system/fleet-report`, system.configure, installation scope; the server also needs a system administrator): answer card (switch + send now), readiness to-do list, folded cards (what is sent: 52 fields grouped + technical names toggle + never-sent chips; last reports + exact body; connection details: address state, signature, id, enrollment code with copy, silence threshold, demo switch). Files: frontend/src/screens/system-fleet-report.ts, fleet/fleet-model.ts, i18n/fleet-report.ts, api/fleet-report.ts.
+- Backend: PUT /fleet/report also takes silent_after_h (26..168, default 36, audited); it travels to the receiver as header x-arx-fleet-silent-after-h (never in the signed body: the 52-field schema is unchanged). Switching ON->OFF sends one signed stop message (POST <url>/v1/stopped, schema smplwise-fleet-stop/1, keys schema/installation_id/seq/generated_at), best effort, logged with trigger "stop" (provisional migration 0149 CHECK extended).
+- RECEIVER TODO (separate service): accept /v1/stopped and show "off", read the silence header, silence alert by email.
+- Evidence: docs/design/evidence/fleet-215/ (desktop 1440 + phone 390, light/dark).

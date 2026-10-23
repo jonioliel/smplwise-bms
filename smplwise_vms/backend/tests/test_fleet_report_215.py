@@ -436,3 +436,73 @@ def test_the_schema_file_and_options_are_wired():
     assert self_update.OPTION_TYPES["fleet_report_url"] == "str?"
     text = (Path(__file__).resolve().parents[2] / "config.yaml").read_text(encoding="utf-8")
     assert '  fleet_report_url: ""' in text and "  fleet_report_url: str?" in text
+
+
+# ================================================================ settings UI slice: silence threshold + the "reporting stopped" message
+
+def test_silence_threshold_defaults_to_36_is_editable_in_range_and_audited(client, settings, db, receiver, url_on):
+    st = client.get(API).json()
+    assert st["silent_after_h"] == 36 and st["silent_range_h"] == [fr.SILENT_MIN_H, fr.SILENT_MAX_H] and st["silent_default_h"] == 36
+    r = client.put(API, json={"silent_after_h": 48})
+    assert r.status_code == 200 and r.json()["silent_after_h"] == 48 and r.json()["enabled"] is False, "only the threshold changed"
+    for bad in (fr.SILENT_MIN_H - 1, fr.SILENT_MAX_H + 1, 0, -5):
+        assert client.put(API, json={"silent_after_h": bad}).status_code == 422, bad
+    assert client.put(API, json={}).status_code == 422, "an empty change is refused"
+    assert client.put(API, json={"silent_after_h": "x"}).status_code == 422
+    assert client.get(API).json()["silent_after_h"] == 48
+    with db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT details_json FROM audit_log WHERE resource_id = 'fleet.report' AND action = 'settings.changed'").fetchall()
+    assert [json.loads(x["details_json"]) for x in rows] == [{"key": fr.SILENT_KEY, "before": 36, "after": 48}]
+    assert receiver.requests == []
+
+
+def test_the_silence_threshold_travels_as_one_header_not_in_the_signed_body(settings, db, receiver, url_on):
+    _switch(db, True)
+    with db.connection() as conn:
+        conn.execute("INSERT INTO settings(key, value) VALUES(?, ?)", (fr.SILENT_KEY, "60"))
+    assert fr.send_once(db, settings)["result"] == "ok"
+    req = receiver.requests[0]
+    assert req.headers["x-arx-fleet-silent-after-h"] == "60"
+    assert "silent" not in req.content.decode(), "the report body (52 fields) is unchanged"
+
+
+def test_switching_off_sends_one_last_signed_stop_message(client, settings, db, receiver, url_on):
+    assert client.put(API, json={"enabled": True}).status_code == 200
+    assert client.post(API + "/send").json()["result"] == "ok"
+    receiver.requests.clear()
+    r = client.put(API, json={"enabled": False})
+    assert r.status_code == 200 and r.json()["enabled"] is False and r.json()["stopped_result"] == "ok" and r.json()["stopped_at"]
+    assert len(receiver.requests) == 1
+    req = receiver.requests[0]
+    assert str(req.url) == URL + fr.STOP_PATH and req.headers["x-arx-fleet-schema"] == fr.STOP_SCHEMA
+    body = json.loads(req.content)
+    facts = fleet_keys.peek(settings)
+    assert set(body) == set(fr.STOP_KEYS) and body["schema"] == fr.STOP_SCHEMA and body["seq"] == 2
+    assert body["installation_id"] == facts["installation_id"]
+    assert fleet_keys.verify(facts["public_key"], req.content, req.headers["x-arx-fleet-sig"]) is True
+    log = client.get(API + "/log").json()["items"]
+    assert log[0]["trigger"] == "stop" and log[0]["result"] == "ok" and log[0]["payload"]["schema"] == fr.STOP_SCHEMA
+    with db.connection(mode="read") as conn:  # the daily state is untouched by the stop message
+        assert conn.execute("SELECT value FROM settings WHERE key = 'fleet.last_result'").fetchone()["value"] == "ok"
+
+
+def test_no_stop_message_when_it_was_already_off_or_without_the_add_on_option(client, settings, db, receiver, url_on, monkeypatch):
+    assert client.put(API, json={"enabled": False}).status_code == 200, "off -> off"
+    assert receiver.requests == []
+    client.put(API, json={"enabled": True})
+    monkeypatch.delenv(fr.URL_ENV)
+    r = client.put(API, json={"enabled": False})
+    assert r.status_code == 200 and receiver.requests == [], "without the add-on option nothing leaves"
+    assert r.json()["stopped_at"] is None
+
+
+def test_a_failed_stop_message_never_blocks_the_switch(client, settings, db, url_on, monkeypatch):
+    client.put(API, json={"enabled": True})
+    monkeypatch.setattr(fr, "TRANSPORT", httpx.MockTransport(FakeReceiver(raise_exc=httpx.ConnectError("refused"))))
+    r = client.put(API, json={"enabled": False})
+    assert r.status_code == 200 and r.json()["enabled"] is False and r.json()["stopped_result"] == "unreachable"
+
+
+def test_stop_body_refuses_a_bad_id():
+    with pytest.raises(fr.FleetSchemaError):
+        fr.stop_body("not-an-id", 1, dt.datetime.now(dt.timezone.utc))

@@ -35,6 +35,8 @@ _TEXT = {
     "receiver_not_configured": "כתובת השרת המקבל לא הוגדרה בהתקנה. פנו למתקין.",
     "receiver_url_invalid": "כתובת השרת המקבל שהוגדרה בהתקנה אינה תקינה. פנו למתקין.",
     "schema_refused": "הדוח לא עבר את בדיקת התוכן שלו ולא נשלח.",
+    "nothing_to_change": "לא נשלח שינוי.",
+    "silent_after_out_of_range": "מספר השעות מחוץ לטווח המותר.",
 }
 
 
@@ -43,8 +45,11 @@ def _rid(request: Request) -> str | None:
 
 
 class SwitchIn(BaseModel):
+    """`enabled`: the consent switch. `silent_after_h`: hours without a report after which the receiver shows "not reporting"
+    (SILENT_MIN_H..SILENT_MAX_H). Either or both; at least one."""
     model_config = ConfigDict(extra="forbid")
-    enabled: bool
+    enabled: bool | None = None
+    silent_after_h: int | None = None
 
 
 def _admin_or_403(conn: sqlite3.Connection, principal: Principal, request: Request, action: str) -> None:
@@ -66,16 +71,34 @@ def get_fleet_report(request: Request, principal: Principal = Depends(current_pr
 def put_fleet_report(body: SwitchIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     """CR-FLEET215: turn the daily fleet report on or off - the customer's consent (OFF by default); audited (system administrator)."""
     settings = settings_of(request)
-    with request.app.state.db.connection(label="fleet.report.switch") as conn:
+    db = request.app.state.db
+    stopping = False
+    with db.connection(label="fleet.report.switch") as conn:
         _admin_or_403(conn, principal, request, "settings.changed")
-        before = "on" if fr.switch_on(conn) else "off"
-        after = "on" if body.enabled else "off"
-        conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                     (fr.SWITCH, "true" if body.enabled else "false"))
-        audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RES,
-              request_id=_rid(request), details={"key": fr.SWITCH, "before": before, "after": after})
-        if body.enabled:
-            fleet_keys.ensure(settings)  # the id and key exist from the moment of consent (files only)
+        if body.enabled is None and body.silent_after_h is None:
+            raise ApiError(422, "nothing_to_change", _TEXT["nothing_to_change"])
+        if body.silent_after_h is not None:
+            if not fr.SILENT_MIN_H <= body.silent_after_h <= fr.SILENT_MAX_H:
+                raise ApiError(422, "silent_after_out_of_range", _TEXT["silent_after_out_of_range"])
+            old = fr.silent_after_h(conn)
+            conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                         (fr.SILENT_KEY, str(body.silent_after_h)))
+            audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RES,
+                  request_id=_rid(request), details={"key": fr.SILENT_KEY, "before": old, "after": body.silent_after_h})
+        if body.enabled is not None:
+            was_on = fr.switch_on(conn)
+            before = "on" if was_on else "off"
+            after = "on" if body.enabled else "off"
+            conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                         (fr.SWITCH, "true" if body.enabled else "false"))
+            audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RES,
+                  request_id=_rid(request), details={"key": fr.SWITCH, "before": before, "after": after})
+            if body.enabled:
+                fleet_keys.ensure(settings)  # the id and key exist from the moment of consent (files only)
+            stopping = was_on and not body.enabled
+    if stopping:  # outside the write connection: one signed "reporting stopped" message, best effort (never blocks the switch)
+        fr.send_stop(db, settings, actor=principal.user_id)
+    with db.connection(mode="read") as conn:
         return fr.status(settings, conn)
 
 
