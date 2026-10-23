@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>לוח הודעות - דגם למסכים</title>
 <!--
-  CR-NOTICE106 v2 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
+  CR-NOTICE106 v3 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
 
   Owner feedback 2026-10-24 on v1: the boards list, the board page and the compose dialog are approved as the SETTINGS / editing screens
   of the notices only. The TV screen is a different thing: a comfortable advertising-style screen for the building's customers - time,
@@ -19,9 +19,11 @@
     notices   - #/notices: readers see their notices; managers compose / edit / archive, and open "מי קרא" (names, owner decision)
     settings  - Settings > לוח הודעות: module switch, defaults (validity editable, read receipts, weather source), the boards list
     board     - one board's page with three tabs: כללי (link + QR) / תצוגה (template, blocks, feeds, slides, live preview) / הודעות
-    tv-lobby / tv-parking / tv-gym - the TV surface of a board; ?tpl=1|2|3 overrides the template, ?tv=landscape|portrait the orientation
-  TV SWITCHES: ?tvnet=live|stale|offline|gone  ?tvempty=1  ?tvnight=1  ?urgent=0  ?news=0|1  ?company=0  ?clock=fixed (09:12, ticker paused)
-  OTHER:       ?theme=dark  ?role=mgr|op|view  ?state=ready|empty|loading|error|off  ?dlg=compose|link|reads  ?bare=1 (hide the mock bar)
+    tv-lobby / tv-parking / tv-gym - open the STANDALONE TV page tv.html (v3; see its header for the URL switches)
+  TV (v3, owner review 2026-10-24: the v2 TV inside this page rendered badly or not at all on a real screen): the TV is now its own
+  file, tv.html, drawn on a fixed 1920x1080 / 1080x1920 canvas zoomed to the screen (720p, 1080p, 4K identical). ?tv=1&template=2
+  on this page redirects to tv.html with the same query. The display tab's preview is an iframe of tv.html - the same renderer.
+  OTHER:       ?ptpl=1|2|3 ?ptheme=dark|light (the display-tab preview)  ?theme=dark  ?role=mgr|op|view  ?state=ready|empty|loading|error|off  ?dlg=compose|link|reads  ?bare=1 (hide the mock bar)
   LOGOS: company (developer / management-company) logo at the inline start of the TV header, SmplWise logo at the inline end, both
   larger than v1 (owner 2026-10-24); the SVG symbols are the LOGOS-295 mockup's; storage and the asset pipeline are CR-LOGOS295's.
 -->
@@ -333,12 +335,11 @@ nav.bottom { display: none; }
 .tpl .sch .warn { background: var(--sw-warning); opacity: .7; }
 .tpl b { font-size: var(--sw-fs-md); color: var(--sw-heading); }
 .tpl span { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
-.prev { position: relative; inline-size: 100%; overflow: hidden; border-radius: var(--sw-r-md); background: #0b0f19; border: 1px solid var(--sw-border-strong); }
-.prev .tv.mini { position: absolute; inset: auto; inset-block-start: 0; inset-inline-start: 0; display: block; inline-size: 1920px; block-size: 1080px; transform-origin: 100% 0; z-index: 1; --u: 19.2px; }
-.prev .tv.mini { --w: 19.2px; }
-.prev .tv.mini.portrait { inline-size: 1080px; block-size: 1920px; --w: 10.8px; }
-.prev .tv.mini .mockline { display: none; }
-.blocks { display: grid; gap: 6px; }
+.prev { position: relative; inline-size: 100%; border-radius: var(--sw-r-md); background: #05080f; border: 1px solid var(--sw-border-strong); overflow: hidden; display: grid; place-items: center; }
+.prev iframe { display: block; border: 0; inline-size: 100%; aspect-ratio: 16 / 9; pointer-events: none; background: #070c18; }
+.prev.portrait { padding: 12px; background: var(--sw-surface-3); }
+.prev.portrait iframe { inline-size: min(100%, 300px); aspect-ratio: 9 / 16; border-radius: 6px; box-shadow: var(--sw-shadow-2); }
+.prev-cap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-block-start: 6px; color: var(--sw-text-3); font-size: var(--sw-fs-sm); }.blocks { display: grid; gap: 6px; }
 .blk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); min-inline-size: 0; }
 .blk .ck { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
 .blk .sub { grid-column: 2 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
@@ -366,181 +367,7 @@ nav.bottom { display: none; }
 .reads .bar { block-size: 8px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); overflow: hidden; }
 .reads .bar i { display: block; block-size: 100%; background: var(--sw-success); border-radius: inherit; }
 
-/* ===== the TV surface: a digital-signage layout of its own (lobby / parking screens), the product tokens, RTL, no shell, no login.
-   Sizes in --u (1 % of the longer screen side: 1vmax full screen, 19.2 px in the preview) so 16:9 and portrait share one scale;
-   the base body size is 2 * --u = 38 px on a 1920 screen, titles 3.6 * --u = 69 px: readable from 5 m. ===== */
-.tv { display: none; position: fixed; inset: 0; z-index: 40; background: var(--sw-bg); color: var(--sw-text); --u: 1vmax; --w: 1vw; --fs: 1; font-size: calc(2 * var(--u) * var(--fs)); line-height: 1.3; overflow: hidden; }
-body.tvmode .tv.on { display: block; }
-body.tvmode .app, body.tvmode .toast { display: none; }
-body:not(.bare) .tv:not(.mini) { inset-block-start: 40px; }
-.tv .shift { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto; grid-template-areas: 'hd' 'ban' 'bd' 'tk' 'ft'; transition: transform 2s linear; }
-/* header: company logo at the inline start, board + building name, the clock (templates without the side panel), SmplWise logo at the inline end */
-.tv .hd { grid-area: hd; display: flex; align-items: center; gap: calc(2.4 * var(--u)); padding: calc(1.3 * var(--u)) calc(3 * var(--u)); background: var(--sw-surface); border-block-end: 1px solid var(--sw-border); }
-.tv .lg { display: inline-flex; align-items: center; block-size: calc(4.6 * var(--u)); flex: none; }
-.tv .lg svg { block-size: 100%; inline-size: auto; max-inline-size: min(calc(26 * var(--u)), calc(28 * var(--w))); }
-.tv .lg.product { block-size: calc(4 * var(--u)); }
-.tv .lg .plate { display: inline-flex; align-items: center; block-size: 100%; padding: calc(.5 * var(--u)) calc(.9 * var(--u)); border-radius: calc(.6 * var(--u)); background: var(--sw-surface-solid); }
-:root[data-theme="dark"] .tv .lg .plate { background: #ffffff; }
-.tv[data-company="0"] .lg.company { display: none; }
-.tv .bname { flex: 1; min-inline-size: 0; text-align: center; display: grid; gap: 0; }
-.tv .bname b { font-size: calc(2.2 * var(--u)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv .bname span { font-size: calc(1.3 * var(--u)); color: var(--sw-text-3); }
-.tv .hclock { display: none; direction: ltr; text-align: end; }
-.tv .hclock b { display: block; font-size: calc(3.4 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
-.tv .hclock span { display: block; font-size: calc(1.2 * var(--u)); color: var(--sw-text-2); direction: rtl; }
-.tv[data-tpl="2"] .hclock, .tv[data-clock="0"][data-tpl="1"] .hclock { display: block; }
-.tv[data-tpl="2"][data-clock="0"] .hclock { display: none; }
-/* the urgent takeover: a danger band under the header, never rotated out, the largest type on the screen after the clock */
-.tv .ban { grid-area: ban; display: none; align-items: center; gap: calc(2 * var(--u)); padding: calc(1.1 * var(--u)) calc(3 * var(--u)); background: var(--sw-danger); color: #fff; }
-.tv[data-urgent="1"] .ban { display: flex; }
-.tv .ban svg { font-size: calc(3.4 * var(--u)); flex: none; }
-.tv .ban .bt { flex: 1; min-inline-size: 0; }
-.tv .ban .bt b { display: block; font-size: calc(2.6 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.15; text-wrap: balance; }
-.tv .ban .bt span { display: block; font-size: calc(1.6 * var(--u)); opacity: .95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tv .ban .when { flex: none; font-size: calc(1.5 * var(--u)); font-weight: var(--sw-fw-semibold); background: rgba(255,255,255,.18); border-radius: var(--sw-r-pill); padding: calc(.4 * var(--u)) calc(1.4 * var(--u)); white-space: nowrap; }
-/* body grid per template */
-.tv .bd { grid-area: bd; display: grid; gap: calc(1.8 * var(--u)); padding: calc(1.8 * var(--u)) calc(3 * var(--u)); min-block-size: 0; grid-template-columns: minmax(0, 31fr) minmax(0, 69fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'side stage' 'side promo'; }
-.tv[data-tpl="2"] .bd { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'stage' 'next'; }
-.tv[data-tpl="2"] .side, .tv[data-tpl="2"] .promo { display: none; }
-.tv[data-promo="0"] .promo, .tv[data-urgent="1"]:not(.portrait) .promo { display: none; }
-.tv[data-promo="0"] .bd, .tv[data-urgent="1"]:not(.portrait) .bd { grid-template-rows: minmax(0, 1fr); grid-template-areas: 'side stage'; }
-.tv[data-tpl="2"][data-promo="0"] .bd { grid-template-areas: 'stage' 'next'; grid-template-rows: minmax(0, 1fr) auto; }
-/* side panel: clock, date, weather, building info */
-.tv .side { grid-area: side; display: flex; flex-direction: column; gap: calc(1.8 * var(--u)); min-block-size: 0; }
-.tv .clk { display: grid; gap: calc(.3 * var(--u)); }
-.tv .clk b { font-size: calc(7.2 * var(--u)); font-weight: 800; line-height: .95; letter-spacing: -0.04em; color: var(--sw-heading); font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
-.tv .clk .d1 { font-size: calc(1.75 * var(--u)); font-weight: var(--sw-fw-semibold); color: var(--sw-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv .clk .d2 { font-size: calc(1.4 * var(--u)); color: var(--sw-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv[data-clock="0"] .clk { display: none; }
-.tv[data-hebdate="0"] .clk .d2 { display: none; }
-.tv .wx { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: calc(1.3 * var(--u)); padding: calc(1.4 * var(--u)) calc(1.8 * var(--u)); display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(1 * var(--u)); min-inline-size: 0; }
-.tv .wx .now { min-inline-size: 0; }
-.tv .wx .now .t span { white-space: normal; }
-.tv[data-weather="0"] .wx { display: none; }
-.tv .wx .now { display: flex; align-items: center; gap: calc(1.4 * var(--u)); }
-.tv .wx .now svg { font-size: calc(4.6 * var(--u)); color: var(--sw-warning); flex: none; }
-.tv .wx .now b { font-size: calc(4.4 * var(--u)); font-weight: 800; line-height: 1; color: var(--sw-heading); letter-spacing: -0.03em; }
-.tv .wx .now .t { display: grid; gap: calc(.2 * var(--u)); min-inline-size: 0; }
-.tv .wx .now .t span { font-size: calc(1.4 * var(--u)); color: var(--sw-text-2); }
-.tv .wx .hrs { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(.4 * var(--u)); text-align: center; font-size: calc(1.3 * var(--u)); color: var(--sw-text-2); border-block-start: 1px solid var(--sw-border); padding-block-start: calc(1 * var(--u)); }
-.tv .wx .hrs div { display: grid; gap: calc(.2 * var(--u)); justify-items: center; }
-.tv .wx .hrs svg { font-size: calc(2.2 * var(--u)); color: var(--sw-text-2); }
-.tv .wx .hrs b { font-size: calc(1.6 * var(--u)); color: var(--sw-heading); }
-.tv .wx .src { font-size: calc(1.05 * var(--u)); color: var(--sw-text-3); text-align: center; }
-.tv .info { display: grid; grid-template-columns: 1fr 1fr; gap: calc(.8 * var(--u)); margin-block-start: auto; }
-.tv[data-info="0"] .info { display: none; }
-.tv .info .ch { display: flex; align-items: center; gap: calc(.8 * var(--u)); padding: calc(.8 * var(--u)) calc(1.2 * var(--u)); border-radius: calc(1 * var(--u)); background: var(--sw-surface); border: 1px solid var(--sw-border); font-size: calc(1.35 * var(--u)); font-weight: var(--sw-fw-semibold); color: var(--sw-text); min-inline-size: 0; }
-.tv .info .ch svg { font-size: calc(2 * var(--u)); color: var(--sw-text-3); flex: none; }
-.tv .info .ch i { inline-size: calc(.9 * var(--u)); block-size: calc(.9 * var(--u)); border-radius: 50%; background: var(--c, var(--sw-unknown)); flex: none; margin-inline-start: auto; box-shadow: 0 0 0 calc(.3 * var(--u)) color-mix(in srgb, var(--c, var(--sw-unknown)) 22%, transparent); }
-.tv .info .ch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tv .info .ch small { color: var(--sw-text-3); font-weight: var(--sw-fw-regular); font-size: calc(1.15 * var(--u)); }
-/* landscape: the building chips live in the status footer (the side column keeps the clock and the weather); portrait: under the clock row */
-.tv .ft .info { display: flex; gap: calc(.7 * var(--u)); margin: 0; }
-.tv .ft .info .ch { font-size: calc(1.15 * var(--u)); padding: calc(.4 * var(--u)) calc(1 * var(--u)); background: var(--sw-surface-2); }
-.tv .ft .info .ch svg { font-size: calc(1.6 * var(--u)); }
-.tv .ft .info .ch small { font-size: calc(1.05 * var(--u)); }
-.tv:not(.portrait) .side .info, .tv.portrait .ft .info { display: none; }
-/* the stage: one notice at a time (landscape), severity colour on the inline-start edge */
-.tv .stage { grid-area: stage; display: grid; grid-template-columns: minmax(0, 1fr); position: relative; min-block-size: 0; }
-.tv .card { grid-area: 1 / 1; display: flex; flex-direction: column; gap: calc(1.1 * var(--u)); padding: calc(2 * var(--u)) calc(2.6 * var(--u)); background: var(--sw-surface); border: 1px solid var(--sw-border); border-inline-start: calc(.8 * var(--u)) solid var(--c, var(--sw-accent)); border-radius: calc(1.4 * var(--u)); box-shadow: var(--sw-shadow-2); opacity: 0; transition: opacity .8s var(--sw-ease); min-block-size: 0; overflow: hidden; }
-.tv .card.on { opacity: 1; }
-.tv .card .sev { display: inline-flex; align-items: center; gap: calc(.6 * var(--u)); align-self: flex-start; border-radius: var(--sw-r-pill); padding: calc(.35 * var(--u)) calc(1.4 * var(--u)); font-size: calc(1.4 * var(--u)); font-weight: var(--sw-fw-semibold); background: var(--c-soft); color: var(--c-text); }
-.tv .card .sev svg { font-size: calc(1.6 * var(--u)); }
-.tv .card h1 { margin: 0; font-size: calc(3.5 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.12; color: var(--sw-heading); letter-spacing: -0.02em; }
-.tv .card p { margin: 0; font-size: calc(2.1 * var(--u)); color: var(--sw-text); max-inline-size: 36ch; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
-.tv .card .when { margin-block-start: auto; display: flex; gap: calc(1.4 * var(--u)); align-items: center; font-size: calc(1.5 * var(--u)); color: var(--sw-text-2); }
-.tv .card .when svg { font-size: calc(1.8 * var(--u)); }
-.tv .dots { position: absolute; inset-block-end: calc(1.4 * var(--u)); inset-inline-end: calc(2.8 * var(--u)); display: flex; gap: calc(.6 * var(--u)); }
-.tv .dots span { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-border-strong); }
-.tv .dots span.on { background: var(--sw-accent); inline-size: calc(2.4 * var(--u)); border-radius: var(--sw-r-pill); }
-.tv .empty { grid-area: 1 / 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.2 * var(--u)); color: var(--sw-text-2); text-align: center; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: calc(1.4 * var(--u)); }
-.tv .empty .bigclock { font-size: calc(10 * var(--u)); font-weight: 800; color: var(--sw-heading); line-height: 1; font-variant-numeric: tabular-nums; direction: ltr; letter-spacing: -0.04em; }
-.tv .empty p { margin: 0; font-size: calc(2 * var(--u)); }
-.tv[data-empty="1"] .card, .tv[data-empty="1"] .dots, .tv[data-empty="1"] .ban, .tv[data-empty="1"] .next { display: none; }
-.tv[data-empty="1"] .empty { display: flex; }
-/* template 2: the "up next" strip under the stage */
-.tv .next { grid-area: next; display: none; gap: calc(1.2 * var(--u)); }
-.tv[data-tpl="2"] .next { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-.tv .next div { display: flex; align-items: center; gap: calc(1 * var(--u)); padding: calc(1 * var(--u)) calc(1.4 * var(--u)); border-radius: calc(1 * var(--u)); background: var(--sw-surface); border: 1px solid var(--sw-border); font-size: calc(1.5 * var(--u)); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); min-inline-size: 0; }
-.tv .next div i { inline-size: calc(.9 * var(--u)); block-size: calc(.9 * var(--u)); border-radius: 50%; background: var(--c, var(--sw-accent)); flex: none; }
-.tv .next div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tv .next div.on { color: var(--sw-heading); border-color: var(--c, var(--sw-accent)); }
-/* the promo / info slide area (manager-set images or text) */
-.tv .promo { grid-area: promo; position: relative; block-size: calc(12 * var(--u)); border-radius: calc(1.4 * var(--u)); overflow: hidden; background: var(--sw-surface); border: 1px solid var(--sw-border); }
-.tv .promo .sl { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: calc(2 * var(--u)); padding: calc(1.2 * var(--u)) calc(2.4 * var(--u)); color: #fff; opacity: 0; transition: opacity .8s var(--sw-ease); background: linear-gradient(120deg, #1f57d1, #0f766e); }
-.tv .promo .sl.b { background: linear-gradient(120deg, #5b21b6, #2767ed); }
-.tv .promo .sl.c { background: linear-gradient(120deg, #b45309, #dc2626); }
-.tv .promo .sl.on { opacity: 1; }
-.tv .promo .sl b { display: block; font-size: calc(2.3 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.15; }
-.tv .promo .sl span { display: block; font-size: calc(1.5 * var(--u)); opacity: .92; margin-block-start: calc(.3 * var(--u)); }
-.tv .promo .sl .pic { inline-size: calc(18 * var(--u)); block-size: 100%; border-radius: calc(1 * var(--u)); background: rgba(255,255,255,.14); border: 2px dashed rgba(255,255,255,.45); display: grid; place-items: center; font-size: calc(1.2 * var(--u)); opacity: .9; }
-.tv .promo .pd { position: absolute; inset-block-end: calc(1 * var(--u)); inset-inline-end: calc(2 * var(--u)); display: flex; gap: calc(.5 * var(--u)); }
-.tv .promo .pd span { inline-size: calc(.7 * var(--u)); block-size: calc(.7 * var(--u)); border-radius: 50%; background: rgba(255,255,255,.4); }
-.tv .promo .pd span.on { background: #fff; inline-size: calc(2 * var(--u)); border-radius: var(--sw-r-pill); }
-/* the news ticker (RSS titles chosen in the board settings; off by default) */
-.tv .tk { grid-area: tk; display: none; align-items: stretch; background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); font-size: calc(1.7 * var(--u)); }
-.tv[data-news="1"] .tk { display: flex; }
-.tv .tk .lbl { display: inline-flex; align-items: center; gap: calc(.6 * var(--u)); padding: calc(.8 * var(--u)) calc(2 * var(--u)); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: var(--sw-fw-bold); font-size: calc(1.4 * var(--u)); flex: none; }
-.tv .tk .win { flex: 1; min-inline-size: 0; overflow: hidden; display: flex; align-items: center; }
-.tv .tk .track { display: inline-block; white-space: nowrap; padding-inline: 100%; animation: tick 60s linear infinite; color: var(--sw-text); }
-.tv .tk .track em { font-style: normal; color: var(--sw-text-3); font-size: calc(1.3 * var(--u)); margin-inline: calc(1 * var(--u)) calc(3 * var(--u)); }
-@keyframes tick { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-body.fixedclock .tv .tk .track { animation-play-state: paused; animation-delay: -42s; }
-/* the status footer: last update, stale chip, building name, "powered by" when the product logo is hidden */
-.tv .ft { grid-area: ft; display: flex; align-items: center; gap: calc(1.6 * var(--u)); padding: calc(.7 * var(--u)) calc(3 * var(--u)); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); font-size: calc(1.15 * var(--u)); color: var(--sw-text-3); }
-.tv .ft .sp { flex: 1; }
-.tv .ft .live { display: inline-flex; align-items: center; gap: calc(.5 * var(--u)); }
-.tv .ft .live i { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-live); }
-.tv .stale { display: none; align-items: center; gap: calc(.5 * var(--u)); border-radius: var(--sw-r-pill); padding: calc(.2 * var(--u)) calc(1 * var(--u)); background: var(--sw-stale-soft); color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
-.tv[data-net="stale"] .stale { display: inline-flex; }
-.tv[data-net="stale"] .ft .live i { background: var(--sw-stale); }
-.tv[data-net="offline"] .bd { opacity: .7; }
-.tv .offband { grid-area: ban; display: none; align-items: center; justify-content: center; gap: calc(1 * var(--u)); padding: calc(.7 * var(--u)); background: var(--sw-offline-soft); color: var(--sw-offline-text); font-size: calc(1.4 * var(--u)); font-weight: var(--sw-fw-semibold); }
-.tv[data-net="offline"] .offband { display: flex; }
-.tv[data-net="offline"] .ban, .tv[data-net="offline"] .stale { display: none; }
-.tv[data-net="gone"] .bd, .tv[data-net="gone"] .ban, .tv[data-net="gone"] .offband, .tv[data-net="gone"] .tk { display: none; }
-.tv .gone { grid-area: bd; display: none; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.5 * var(--u)); color: var(--sw-text-2); font-size: calc(2 * var(--u)); }
-.tv[data-net="gone"] .gone { display: flex; }
-.tv[data-night="1"] .shift { filter: brightness(.5); }
-/* portrait (template 3 "portrait lobby", and any board on a portrait screen): header row, clock + weather row, banner, stacked notices, promo, ticker */
-.tv.portrait .hd { gap: calc(1.6 * var(--u)); padding-inline: calc(2.4 * var(--u)); }
-.tv.portrait .bname b { font-size: calc(1.9 * var(--u)); }
-.tv.portrait .bname span { font-size: calc(1.2 * var(--u)); }
-.tv.portrait .hclock { display: none !important; }
-.tv.portrait .bd { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: 'side' 'stage' 'promo'; padding-inline: calc(2.4 * var(--u)); gap: calc(1.8 * var(--u)); }
-.tv.portrait[data-promo="0"] .bd { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: 'side' 'stage'; }
-.tv.portrait[data-tpl="2"] .bd { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: 'side' 'stage' 'next'; }
-.tv.portrait[data-tpl="2"] .side { display: grid; }
-.tv.portrait[data-tpl="2"] .side .wx, .tv.portrait[data-tpl="2"] .side .info { display: none; }
-.tv.portrait .side { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'clk wx' 'info info'; gap: calc(1.4 * var(--u)) calc(2 * var(--u)); align-items: center; }
-.tv.portrait .clk { grid-area: clk; }
-.tv.portrait .clk b { font-size: calc(6.4 * var(--u)); }
-.tv.portrait .wx { grid-area: wx; padding: calc(1.1 * var(--u)) calc(1.5 * var(--u)); gap: calc(.8 * var(--u)); }
-.tv.portrait .wx .now svg { font-size: calc(4 * var(--u)); }
-.tv.portrait .wx .now b { font-size: calc(3.6 * var(--u)); }
-.tv.portrait .wx .hrs { grid-template-columns: repeat(4, 1fr); }
-.tv.portrait .wx .hrs div:nth-child(5) { display: none; }
-.tv.portrait .wx .src { display: none; }
-.tv.portrait .info { grid-area: info; grid-template-columns: repeat(3, 1fr); margin: 0; }
-.tv.portrait .info .ch:nth-child(4) { display: none; }
-.tv.portrait .stage { grid-template-rows: none; align-content: start; gap: calc(1.6 * var(--u)); overflow: hidden; -webkit-mask-image: linear-gradient(#000 88%, transparent); mask-image: linear-gradient(#000 88%, transparent); }
-.tv.portrait .card { grid-area: auto; opacity: 1; padding: calc(1.8 * var(--u)) calc(2.2 * var(--u)); gap: calc(.9 * var(--u)); flex: none; overflow: visible; min-block-size: auto; }
-.tv.portrait .card h1 { font-size: calc(3 * var(--u)); }
-.tv.portrait .card p { font-size: calc(1.8 * var(--u)); max-inline-size: none; -webkit-line-clamp: 4; }
-.tv.portrait .card .when { margin-block-start: 0; }
-.tv.portrait .dots { display: none; }
-.tv.portrait .next { grid-auto-flow: row; }
-.tv.portrait .ban { flex-wrap: wrap; padding-inline: calc(2.4 * var(--u)); }
-.tv.portrait .ban .bt b { font-size: calc(2.4 * var(--u)); }
-.tv.portrait .ban .bt span { white-space: normal; }
-.tv.portrait .ban .when { order: 3; }
-.tv.portrait .promo { block-size: calc(14 * var(--u)); }
-.tv.portrait .promo .sl .pic { inline-size: calc(14 * var(--u)); }
-.tv.portrait .tk { font-size: calc(1.6 * var(--u)); }
-.tv.portrait .ft { padding-inline: calc(2.4 * var(--u)); }
-.tv .mockline { position: absolute; inset-block-start: calc(.5 * var(--u)); inset-inline-start: calc(1 * var(--u)); display: flex; gap: 4px; z-index: 2; opacity: .6; flex-wrap: wrap; }
-.tv .mockline button { font: inherit; font-size: 11px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 2px 8px; cursor: pointer; }
-body.bare .tv .mockline { display: none; }
+/* the TV surface lives in tv.html (v3): one standalone renderer for the TV and for the preview iframe below */
 
 /* ===== tablet (<= 1023) ===== */
 @media (max-width: 1023px) {
@@ -650,9 +477,7 @@ body.bare .tv .mockline { display: none; }
 <!-- mockup-only controls -->
 <nav class="mock" aria-label="בקרת הדגם">
   <b>דגם</b>
-  <select id="page" aria-label="מסך"><option value="home">מסך: הבית (הווידג׳ט)</option><option value="notices">מסך: לוח הודעות</option><option value="settings">מסך: הגדרות › לוח הודעות</option><option value="board">מסך: לוח תצוגה אחד (עריכה)</option><option value="tv-lobby">טלוויזיה: לוח הלובי (תבנית 1)</option><option value="tv-parking">טלוויזיה: לוח החניון (תבנית 2)</option><option value="tv-gym">טלוויזיה: חדר הכושר (תבנית 3, אנכי)</option></select>
-  <select id="tvo" aria-label="כיוון הטלוויזיה"><option value="auto">טלוויזיה: אוטומטי</option><option value="landscape">טלוויזיה: רוחב 16:9</option><option value="portrait">טלוויזיה: אנכי</option></select>
-  <select id="tvtpl" aria-label="תבנית"><option value="">תבנית: של הלוח</option><option value="1">תבנית 1: מידע והודעות</option><option value="2">תבנית 2: הודעות בלבד</option><option value="3">תבנית 3: לובי אנכי</option></select>
+  <select id="page" aria-label="מסך"><option value="home">מסך: הבית (הווידג׳ט)</option><option value="notices">מסך: לוח הודעות</option><option value="settings">מסך: הגדרות › לוח הודעות</option><option value="board">מסך: לוח תצוגה אחד (עריכה)</option><option value="tv-lobby">טלוויזיה ↗ לוח הלובי (תבנית 1)</option><option value="tv-parking">טלוויזיה ↗ לוח החניון (תבנית 2)</option><option value="tv-gym">טלוויזיה ↗ חדר הכושר (תבנית 3, אנכי)</option></select>
   <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל</option><option value="op">תפקיד: מפעיל</option><option value="view">תפקיד: צופה</option></select>
   <select id="stsel" aria-label="מצב"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option></select>
   <button id="th" aria-pressed="false">כהה</button>
@@ -782,7 +607,7 @@ body.bare .tv .mockline { display: none; }
       <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את הלוח</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
       <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>לוח הודעות מופעל בהגדרות המערכת.</p></div><button class="btn" data-go="settings">להגדרות</button></div>
       <div class="top"><div><h1>לוח הלובי</h1><p class="sub">לוח תצוגה · <span class="ltr">/b/lobby</span> · מחובר, נראה לפני 20 שניות</p></div><span class="sp"></span>
-        <div class="meta"><button class="btn" data-go="tv-lobby"><svg class="ic"><use href="#i-eye"/></svg>תצוגה מקדימה</button><button class="btn" data-copy><svg class="ic"><use href="#i-copy"/></svg>העתקת קישור</button><button class="btn" data-link><svg class="ic"><use href="#i-rotate"/></svg>קישור חדש</button><span class="sw"><button class="tog" role="switch" aria-checked="true" aria-label="הלוח פעיל"></button></span></div></div>
+        <div class="meta"><button class="btn" data-tv-open="lobby"><svg class="ic"><use href="#i-eye"/></svg>פתיחת מסך הטלוויזיה</button><button class="btn" data-copy><svg class="ic"><use href="#i-copy"/></svg>העתקת קישור</button><button class="btn" data-link><svg class="ic"><use href="#i-rotate"/></svg>קישור חדש</button><span class="sw"><button class="tog" role="switch" aria-checked="true" aria-label="הלוח פעיל"></button></span></div></div>
       <div class="skl" aria-busy="true" aria-label="טוען"></div>
       <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-board"/></svg></div><div><h4>הלוח ריק</h4><p>הטלוויזיה מציגה "אין הודעות כרגע" עם השעון. סמנו הודעות ללוח הזה מתוך לוח ההודעות או מכאן.</p></div><button class="btn pri mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>הודעה חדשה ללוח</button></div>
       <!-- the board's tab row (components/sw-tabs compact): general / display / notices -->
@@ -798,11 +623,11 @@ body.bare .tv .mockline { display: none; }
               <button class="tpl" data-tpl="2" aria-pressed="false"><div class="sch"><i class="hd"></i><div class="row" style="grid-template-rows:5fr 1fr"><i class="acc"></i><div class="row" style="grid-template-columns:1fr 1fr 1fr"><i></i><i class="warn"></i><i></i></div></div><i class="hd"></i></div><b>הודעות בלבד</b><span>הודעה אחת גדולה והבאות בתור; שעון בכותרת</span></button>
               <button class="tpl" data-tpl="3" aria-pressed="false"><div class="sch port"><div class="row" style="grid-template-rows:1fr 1fr 4fr 1.5fr .8fr"><i class="hd"></i><i></i><i class="acc"></i><i></i><i></i></div></div><b>לובי אנכי</b><span>מסך מאונך: שעון ומזג אוויר למעלה, ההודעות בערימה, שקופית וחדשות</span></button>
             </div>
-            <div class="hd" style="margin:14px 0 8px"><h2>תצוגה מקדימה</h2><span class="sp"></span><button class="btn sm" data-go="tv-lobby"><svg class="ic"><use href="#i-eye"/></svg>מסך מלא</button></div>
-            <div class="prev" data-prev></div>
+            <div class="hd" style="margin:14px 0 8px"><h2>תצוגה מקדימה</h2><span class="sp"></span><button class="btn sm" data-tv-open=""><svg class="ic"><use href="#i-eye"/></svg>מסך מלא</button></div>
+            <div class="prev" data-prev></div><div class="prev-cap" data-prev-cap></div>
             <div class="form" style="margin-block-start:12px">
-              <div class="r"><div class="fld"><label>ערכת צבע</label><div class="seg" data-theme-seg><button aria-pressed="false" data-th="light">בהיר</button><button aria-pressed="true" data-th="dark">כהה</button><button aria-pressed="false" data-th="auto">אוטומטי · כהה 19:00–07:00</button></div></div><div class="fld"><label>כיוון המסך</label><div class="seg"><button aria-pressed="true">אוטומטי</button><button aria-pressed="false">רוחב</button><button aria-pressed="false">אנכי</button></div></div></div>
-              <div class="r"><div class="fld"><label>גודל הכתב</label><select class="inp"><option>100%</option><option>120%</option><option>140%</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
+              <div class="r"><div class="fld"><label>ערכת צבע</label><div class="seg" data-theme-seg><button aria-pressed="false" data-th="light">בהיר</button><button aria-pressed="true" data-th="dark">כהה</button><button aria-pressed="false" data-th="auto">אוטומטי · כהה 19:00–07:00</button></div></div><div class="fld"><label>כיוון המסך</label><div class="seg" data-orient-seg><button aria-pressed="true" data-or="auto">אוטומטי</button><button aria-pressed="false" data-or="landscape">רוחב</button><button aria-pressed="false" data-or="portrait">אנכי</button></div></div></div>
+              <div class="r"><div class="fld"><label>גודל הכתב</label><select class="inp" data-fs><option value="1">100%</option><option value="0.9">90%</option><option value="1.1">110%</option><option value="1.2">120%</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
               <div class="row" style="display:flex;gap:16px;flex-wrap:wrap"><label class="ck"><input type="checkbox" checked> הזזה איטית נגד צריבה</label><label class="ck"><input type="checkbox" checked data-blk="company"> לוגו היזם / חברת הניהול</label><label class="ck"><input type="checkbox" checked disabled> לוגו SmplWise</label></div>
             </div>
           </div>
@@ -816,7 +641,7 @@ body.bare .tv .mockline { display: none; }
                   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select class="inp" style="inline-size:auto"><option>מקור מהרשימה…</option><option>ynet · חדשות</option><option>גלובס · כלכלה</option><option>כלכליסט</option><option>וואלה · חדשות</option><option>כתובת RSS אחרת</option></select><button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>הוספה</button><span>מהירות</span><div class="seg"><button aria-pressed="false">איטי</button><button aria-pressed="true">רגיל</button><button aria-pressed="false">מהיר</button></div></div>
                 </div></div>
                 <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="info"> מצב הבניין</label><span></span><span class="st mut">סמלים בלבד, ללא פרטים</span><div class="sub"><label class="ck"><input type="checkbox" checked> מעליות</label><label class="ck"><input type="checkbox" checked> גנרטור</label><label class="ck"><input type="checkbox" checked> חניה פנויה</label><label class="ck"><input type="checkbox"> חדר כושר</label></div></div>
-                <div class="blk"><label class="ck"><input type="checkbox" checked> הודעות</label><span></span><span class="st mut">2 פעילות</span><div class="sub"><span>החלפה כל</span><select class="inp"><option>12 שניות</option><option>8 שניות</option><option>20 שניות</option><option>30 שניות</option></select><span>הודעה דחופה</span><span class="chip" data-look="alarm">פס קבוע למעלה</span></div></div>
+                <div class="blk"><label class="ck"><input type="checkbox" checked> הודעות</label><span></span><span class="st mut">2 פעילות</span><div class="sub"><span>החלפה כל</span><select class="inp" data-rot><option value="12">12 שניות</option><option value="8">8 שניות</option><option value="20">20 שניות</option><option value="30">30 שניות</option></select><span>הודעה דחופה</span><span class="chip" data-look="alarm">פס קבוע למעלה</span></div></div>
                 <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="promo"> שקופיות מידע ופרסום</label><span></span><span class="st mut">3 שקופיות · 15 שניות</span><div class="sub"><div class="slides" style="inline-size:100%">
                   <div class="slide"><div class="im"><svg class="ic" style="font-size:22px"><use href="#i-image"/></svg></div><div class="cap"><b>חדר הכושר פתוח</b><button class="btn sm">עריכה</button></div></div>
                   <div class="slide"><div class="im b"><svg class="ic" style="font-size:22px"><use href="#i-image"/></svg></div><div class="cap"><b>אפליקציית הבניין</b><button class="btn sm">עריכה</button></div></div>
@@ -927,11 +752,7 @@ body.bare .tv .mockline { display: none; }
   </div>
 </div>
 
-<!-- ===== THE TV SURFACE (no shell, no login): one host, filled from the board data by renderTv(); the mini preview uses the same renderer ===== -->
-<div class="tv" id="tv" data-net="live" data-tpl="1" data-urgent="1" data-company="1" data-clock="1" data-hebdate="1" data-weather="1" data-news="1" data-info="1" data-promo="1">
-  <div class="mockline"><button data-net="live">מחובר</button><button data-net="stale">לא מעודכן</button><button data-net="offline">מנותק</button><button data-net="gone">בוטל</button><button data-empty>ריק</button><button data-night>לילה</button><button data-urgent-toggle>דחוף</button><button data-news-toggle>חדשות</button><button data-company-toggle>לוגו חברה</button></div>
-  <div class="shift"></div>
-</div>
+<!-- ===== THE TV SURFACE: tv.html next to this file (standalone, full screen, no shell, no login); the display tab previews it in an iframe ===== -->
 
 <div class="toast" id="toast" role="status"></div>
 
@@ -945,6 +766,7 @@ body.bare .tv .mockline { display: none; }
     { id: 'parking', name: 'חניון', kind: 'floor', depth: 0, children: [] }, { id: 'roof', name: 'גג', kind: 'floor', depth: 0, children: [] }
   ];
   var WORST = { unk: 0, off: 1, ok: 2, acc: 3, warn: 4, alarm: 5 };
+  if (q.get('tv') === '1') { var tq = new URLSearchParams(location.search); tq.delete('tv'); location.replace('tv.html?' + tq.toString()); return; }
   if (q.get('bare') === '1') body.classList.add('bare');
 
   function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
@@ -957,16 +779,13 @@ body.bare .tv .mockline { display: none; }
 
   // pages
   function showPage(id) {
-    var tv = id.indexOf('tv-') === 0;
-    body.classList.toggle('tvmode', tv);
-    document.getElementById('tv').classList.toggle('on', tv);
+    if (id.indexOf('tv-') === 0) { location.href = TV_FILE + '?board=' + id.slice(3) + '&controls=1'; return; }
     document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
     var sys = id === 'settings' || id === 'board';
     document.getElementById('nav-main').hidden = sys; document.getElementById('nav-sys').hidden = !sys;
     document.getElementById('rail-home').classList.toggle('active', !sys); document.getElementById('rail-sys').classList.toggle('active', sys);
     document.querySelectorAll('.tabs a[data-go]').forEach(function (a) { var on = a.dataset.go === id; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     document.getElementById('page').value = id;
-    if (tv) { tvState.board = id.slice(3); tvRender(); }
   }
   document.getElementById('page').onchange = function () { showPage(this.value); };
   document.querySelectorAll('[data-go]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); showPage(a.dataset.go); }); });
@@ -1072,122 +891,41 @@ body.bare .tv .mockline { display: none; }
   }
   qr('qr1', 7); qr('qr2', 11);
 
-  // ===== the TV: board data -> one renderer for the full screen and the preview thumbnail =====
-  var SEV = { critical: 'alarm', alert: 'warn', info: 'acc' }, SEVL = { critical: 'דחוף', alert: 'חשוב', info: 'הודעה' };
-  var WX = { now: { t: 24, d: 'בהיר · רוח קלה מערבית', i: 'sun', src: 'תחנת מזג האוויר של הבניין · עודכן 09:10' }, hrs: [['12:00', 'sun', 26], ['14:00', 'cloudsun', 27], ['16:00', 'cloudsun', 25], ['18:00', 'cloud', 22], ['20:00', 'moon', 20]] };
-  var NEWS = [['ynet', 'כותרת לדוגמה: מזג האוויר - התחממות קלה צפויה לקראת סוף השבוע'], ['גלובס', 'כותרת לדוגמה: שינויים בקווי האוטובוס במרכז העיר החל מיום ראשון'], ['ynet', 'כותרת לדוגמה: מדד המחירים לחודש ספטמבר פורסם הבוקר'], ['גלובס', 'כותרת לדוגמה: רשות החשמל מעדכנת את תעריפי הלילה']];
-  var INFO = [['elev', 'מעלית צפונית', 'פועלת', 'ok'], ['elev', 'מעלית דרומית', 'בטיפול', 'warn'], ['gen', 'גנרטור', 'מוכן', 'ok'], ['car', 'חניה', '42 פנויות', 'ok']];
-  var URGENT = { sev: 'critical', t: 'הפסקת מים מחר 10:00-12:00', b: 'עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.', when: 'עד מחר 12:00' };
-  var BOARDS = {
-    lobby: { name: 'לוח הלובי', sub: 'מגדל הים · ברוכים הבאים', tpl: 1, rot: 12, news: 1, promo: 1, info: 1, weather: 1,
-      items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00.\nהמעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10 · 08:00–14:00' },
-        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.', when: '02.11 – 05.11' },
-        { sev: 'info', t: 'שעות קבלת קהל במשרד הניהול', b: 'ימים א-ה 08:30–16:00. בימי שישי בתיאום מראש בלבד.', when: 'קבוע' }],
-      promos: [['', 'חדר הכושר פתוח', 'כל יום 06:00–23:00 · הכניסה עם תג הדייר', 'תמונה'], ['b', 'אפליקציית הבניין', 'הודעות, שערים ותקלות - סרקו את הקוד בלובי', 'תמונה'], ['c', 'שוק איכרים בכניסה', 'יום שישי 31.10 · 08:00–13:00', 'תמונה']] },
-    parking: { name: 'לוח החניון', sub: 'מגדל הים · רמות -1 / -2', tpl: 2, rot: 10, news: 0, promo: 0, info: 1, weather: 0,
-      items: [{ sev: 'alert', t: 'רמה -2 סגורה ביום שישי', b: 'סימון חניות מחדש. הכניסה דרך רמה -1 בלבד.\nחניות הנכים ברמה -1 נשארות פתוחות.', when: 'יום שישי 30.10 · 06:00–16:00' },
-        { sev: 'info', t: 'שטיפת החניון ביום חמישי', b: 'נא לא להחנות ברמה -1 בין 06:00 ל-10:00. רכב שיישאר יועבר לרמה -2 על ידי הצוות.', when: 'יום חמישי 29.10' },
-        { sev: 'info', t: 'עמדות טעינה חדשות', b: 'ארבע עמדות טעינה לרכב חשמלי נפתחו ברמה -1, ליד הכניסה הדרומית. הפעלה באפליקציית הבניין.', when: 'מ-20.10' }],
-      promos: [] },
-    gym: { name: 'לוח חדר הכושר', sub: 'מגדל הים · קומה 2', tpl: 3, rot: 12, news: 1, promo: 1, info: 1, weather: 1,
-      items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10' },
-        { sev: 'info', t: 'חוג יוגה חדש', b: 'ימי שני ורביעי 19:00. ההרשמה במשרד הניהול או באפליקציה.', when: 'מ-02.11' },
-        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר.', when: '02.11 – 05.11' }],
-      promos: [['', 'חדר הכושר פתוח', 'כל יום 06:00–23:00', 'תמונה'], ['b', 'אפליקציית הבניין', 'סרקו את הקוד בלובי', 'תמונה']] }
-  };
-  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
-  function ic(n, cls) { return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#i-' + n + '"/></svg>'; }
-  var CLOCK = q.get('clock') === 'fixed' ? '09:12' : null;
-  if (CLOCK) body.classList.add('fixedclock');
-  function nowStr() { if (CLOCK) return CLOCK; var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
-  function renderTv(host, b, o) {
-    var dark = root.getAttribute('data-theme') === 'dark', word = dark ? '#sw-word-dark' : '#sw-word', co = dark ? '#co-dark' : '#co-light';
-    host.dataset.tpl = o.tpl; host.dataset.news = o.news ? '1' : '0'; host.dataset.promo = o.promo && b.promos.length ? '1' : '0'; host.dataset.info = o.info ? '1' : '0'; host.dataset.weather = o.weather ? '1' : '0';
-    host.dataset.clock = o.clock ? '1' : '0'; host.dataset.hebdate = o.hebdate ? '1' : '0'; host.dataset.company = o.company ? '1' : '0';
-    host.classList.toggle('portrait', !!o.portrait);
-    var h = '';
-    h += '<header class="hd"><div class="lg company"><span class="plate"><svg aria-label="נווה הירדן ניהול נכסים"><use href="' + co + '"/></svg></span></div>';
-    h += '<div class="bname"><b>' + esc(b.name) + '</b><span>' + esc(b.sub) + '</span></div>';
-    h += '<div class="hclock"><b data-clock>' + nowStr() + '</b><span>יום שישי · 23.10.2026</span></div>';
-    h += '<div class="lg product"><svg aria-label="SmplWise Arx"><use href="' + word + '"/></svg></div></header>';
-    h += '<div class="ban" role="alert">' + ic('warning') + '<div class="bt"><b>' + esc(URGENT.t) + '</b><span>' + esc(URGENT.b) + '</span></div><span class="when">' + esc(URGENT.when) + '</span></div>';
-    h += '<div class="offband">' + ic('offline') + 'הלוח מנותק מהמערכת · ההודעות האחרונות מוצגות</div>';
-    h += '<div class="bd">';
-    // side: clock, weather, info
-    h += '<div class="side"><div class="clk"><b data-clock>' + nowStr() + '</b><span class="d1">יום שישי · 23 באוקטובר 2026</span><span class="d2">י״ב בחשוון תשפ״ז · כניסת שבת 17:24</span></div>';
-    h += '<div class="wx"><div class="now">' + ic(WX.now.i) + '<b class="num">' + WX.now.t + '°</b><div class="t"><span>' + esc(WX.now.d) + '</span></div></div><div class="hrs">' + WX.hrs.map(function (x) { return '<div><span class="num">' + x[0] + '</span>' + ic(x[1]) + '<b class="num">' + x[2] + '°</b></div>'; }).join('') + '</div><span class="src">' + esc(WX.now.src) + '</span></div>';
-    var infoHtml = '<div class="info">' + INFO.map(function (x) { return '<div class="ch" data-look="' + x[3] + '">' + ic(x[0]) + '<span>' + esc(x[1]) + ' <small>' + esc(x[2]) + '</small></span><i></i></div>'; }).join('') + '</div>';
-    h += infoHtml + '</div>';
-    // stage
-    h += '<div class="stage">' + b.items.map(function (n, k) { return '<article class="card' + (k === 0 ? ' on' : '') + '" data-look="' + SEV[n.sev] + '"><span class="sev">' + (n.sev === 'alert' ? ic('warning') : '') + SEVL[n.sev] + '</span><h1>' + esc(n.t) + '</h1><p>' + esc(n.b) + '</p><div class="when">' + ic('calendar') + esc(n.when) + '</div></article>'; }).join('');
-    h += '<div class="dots" aria-hidden="true">' + b.items.map(function (n, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') + '</div>';
-    h += '<div class="empty"><div class="bigclock" data-clock>' + nowStr() + '</div><p>אין הודעות כרגע</p></div></div>';
-    h += '<div class="next">' + b.items.map(function (n, k) { return '<div class="' + (k === 0 ? 'on' : '') + '" data-look="' + SEV[n.sev] + '"><i></i><span>' + esc(n.t) + '</span></div>'; }).join('') + '</div>';
-    h += '<div class="promo">' + b.promos.map(function (p, k) { return '<div class="sl ' + p[0] + (k === 0 ? ' on' : '') + '"><div><b>' + esc(p[1]) + '</b><span>' + esc(p[2]) + '</span></div><div class="pic">' + esc(p[3]) + '</div></div>'; }).join('') + '<div class="pd">' + b.promos.map(function (p, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') + '</div></div>';
-    h += '</div>';
-    h += '<div class="gone">' + ic('offline', '') + 'הלוח אינו פעיל</div>';
-    h += '<div class="tk"><span class="lbl">' + ic('rss') + 'חדשות</span><div class="win"><div class="track">' + NEWS.map(function (n) { return esc(n[1]) + '<em>' + esc(n[0]) + '</em>'; }).join('') + '</div></div></div>';
-    h += '<footer class="ft">' + infoHtml + '<span class="sp"></span><span class="live"><i></i>עודכן <span data-clock>' + nowStr() + '</span></span><span class="stale">' + ic('clock') + 'לא מעודכן מ-09:04</span><span>' + esc(b.sub.split(' · ')[0]) + ' · לוח הודעות</span></footer>';
-    host.querySelector('.shift').innerHTML = h;
+  // ===== the TV lives in tv.html (standalone, full screen); the display tab previews THE SAME FILE in an iframe =====
+  var TV_FILE = 'tv.html';
+  var prevHost = document.querySelector('[data-prev]'), prevCap = document.querySelector('[data-prev-cap]');
+  var pv = { board: 'lobby', template: parseInt(q.get('ptpl'), 10) || 1, theme: q.get('ptheme') || 'dark', orient: 'auto', fs: '1', rotate: '12', blocks: { clock: 1, hebdate: 1, weather: 1, news: 1, info: 1, promo: 1, company: 1 } };
+  function tvUrl(extra) {
+    var s = new URLSearchParams({ board: pv.board, template: String(pv.template), theme: pv.theme, orient: pv.orient, fs: pv.fs, rotate: pv.rotate });
+    Object.keys(pv.blocks).forEach(function (k) { s.set(k, pv.blocks[k] ? '1' : '0'); });
+    if (q.get('clock') === 'fixed') s.set('clock', 'fixed');
+    Object.keys(extra || {}).forEach(function (k) { s.set(k, extra[k]); });
+    return TV_FILE + '?' + s.toString();
   }
-  var tvHost = document.getElementById('tv'), tvState = { board: 'lobby', tpl: null, i: 0, pi: 0 };
-  function tvOpts(b, override) {
-    var o = document.getElementById('tvo').value, portrait = o === 'portrait' || (o === 'auto' && innerHeight > innerWidth);
-    var tpl = tvState.tpl || b.tpl; if (tpl === 3) portrait = true;
-    return { tpl: tpl === 3 ? 1 : tpl, portrait: portrait, news: b.news, promo: b.promo, info: b.info, weather: b.weather, clock: 1, hebdate: 1, company: 1 };
-  }
-  function tvRender() {
-    var b = BOARDS[tvState.board], o = tvOpts(b);
-    ['news', 'promo', 'info', 'weather', 'clock', 'hebdate', 'company'].forEach(function (k) { if (tvState[k] !== undefined) o[k] = tvState[k]; });
-    renderTv(tvHost, b, o); tvState.i = 0; tvState.pi = 0;
-  }
-  function tvStep() {
-    if (!tvHost.classList.contains('on') || tvHost.dataset.empty === '1') return;
-    var cards = tvHost.querySelectorAll('.stage .card'), dots = tvHost.querySelectorAll('.dots span'), nx = tvHost.querySelectorAll('.next div');
-    if (cards.length > 1) { tvState.i = (tvState.i + 1) % cards.length; cards.forEach(function (c, k) { c.classList.toggle('on', k === tvState.i); }); dots.forEach(function (d, k) { d.classList.toggle('on', k === tvState.i); }); nx.forEach(function (d, k) { d.classList.toggle('on', k === tvState.i); }); }
-  }
-  function promoStep() { var sl = tvHost.querySelectorAll('.promo .sl'), pd = tvHost.querySelectorAll('.promo .pd span'); if (sl.length < 2) return; tvState.pi = (tvState.pi + 1) % sl.length; sl.forEach(function (s, k) { s.classList.toggle('on', k === tvState.pi); }); pd.forEach(function (s, k) { s.classList.toggle('on', k === tvState.pi); }); }
-  setInterval(tvStep, 12000); setInterval(promoStep, 15000);
-  document.getElementById('tvo').value = q.get('tv') || 'auto';
-  document.getElementById('tvo').onchange = function () { tvRender(); prevRender(); }; addEventListener('resize', function () { if (body.classList.contains('tvmode')) tvRender(); prevRender(); });
-  document.getElementById('tvtpl').value = q.get('tpl') || '';
-  document.getElementById('tvtpl').onchange = function () { tvState.tpl = parseInt(this.value, 10) || null; tvRender(); };
-  if (q.get('tpl')) tvState.tpl = parseInt(q.get('tpl'), 10) || null;
-  tvHost.querySelectorAll('.mockline [data-net]').forEach(function (b) { b.onclick = function () { tvHost.dataset.net = b.dataset.net; }; });
-  tvHost.querySelector('.mockline [data-empty]').onclick = function () { tvHost.dataset.empty = tvHost.dataset.empty === '1' ? '' : '1'; };
-  tvHost.querySelector('.mockline [data-night]').onclick = function () { tvHost.dataset.night = tvHost.dataset.night === '1' ? '' : '1'; };
-  tvHost.querySelector('.mockline [data-urgent-toggle]').onclick = function () { tvHost.dataset.urgent = tvHost.dataset.urgent === '1' ? '0' : '1'; };
-  tvHost.querySelector('.mockline [data-news-toggle]').onclick = function () { tvState.news = tvHost.dataset.news === '1' ? 0 : 1; tvRender(); };
-  tvHost.querySelector('.mockline [data-company-toggle]').onclick = function () { tvState.company = tvHost.dataset.company === '1' ? 0 : 1; tvRender(); };
-  if (q.get('tvnet')) tvHost.dataset.net = q.get('tvnet');
-  if (q.get('tvempty') === '1') tvHost.dataset.empty = '1';
-  if (q.get('tvnight') === '1') tvHost.dataset.night = '1';
-  if (q.get('urgent') === '0') tvHost.dataset.urgent = '0';
-  if (q.get('news') === '0') tvState.news = 0; if (q.get('news') === '1') tvState.news = 1;
-  if (q.get('company') === '0') tvState.company = 0;
-  // burn-in: a +-2 px drift on a 60 s cycle (CR-030 rule); the ticker and the fades are the only other motion
-  var ph = 0; setInterval(function () { ph = (ph + 1) % 4; var dx = [0, 2, 0, -2][ph], dy = [2, 0, -2, 0][ph]; tvHost.querySelector('.shift').style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }, 15000);
-  if (!CLOCK) { setInterval(function () { var s = nowStr(); document.querySelectorAll('[data-clock]').forEach(function (e) { e.textContent = s; }); }, 15000); }
-
-  // ===== the board page: tabs + the display tab's live preview (the same renderer, scaled) =====
-  var prevHost = document.querySelector('[data-prev]'), prevTpl = 1, prevBlocks = { clock: 1, hebdate: 1, weather: 1, news: 1, info: 1, promo: 1, company: 1 };
   function prevRender() {
     if (!prevHost) return;
-    var b = BOARDS.lobby, portrait = prevTpl === 3, W = prevHost.clientWidth || 600, tw = portrait ? 1080 : 1920, th = portrait ? 1920 : 1080;
-    var mini = prevHost.querySelector('.tv'); if (!mini) { mini = document.createElement('div'); mini.className = 'tv mini'; mini.dataset.net = 'live'; mini.dataset.urgent = '1'; mini.innerHTML = '<div class="shift"></div>'; prevHost.appendChild(mini); }
-    var o = { tpl: portrait ? 1 : prevTpl, portrait: portrait, news: prevBlocks.news, promo: prevBlocks.promo, info: prevBlocks.info, weather: prevBlocks.weather, clock: prevBlocks.clock, hebdate: prevBlocks.hebdate, company: prevBlocks.company };
-    var k = portrait ? Math.min(W, 320) / tw : W / tw;
-    renderTv(mini, b, o); mini.style.transform = 'scale(' + k + ')'; prevHost.style.blockSize = Math.round(th * k) + 'px';
-    if (portrait) { mini.style.insetInlineStart = 'auto'; mini.style.insetInlineEnd = '0'; mini.style.transformOrigin = '0 0'; prevHost.style.background = 'var(--sw-surface-3)'; } else { mini.style.insetInlineStart = '0'; mini.style.insetInlineEnd = 'auto'; mini.style.transformOrigin = '100% 0'; prevHost.style.background = '#0b0f19'; }
+    var portrait = pv.template === 3 || pv.orient === 'portrait';
+    prevHost.classList.toggle('portrait', portrait);
+    var fr = prevHost.querySelector('iframe');
+    if (!fr) { fr = document.createElement('iframe'); fr.title = 'תצוגה מקדימה של לוח הלובי'; fr.setAttribute('tabindex', '-1'); fr.setAttribute('loading', 'eager'); prevHost.appendChild(fr); }
+    // a portrait preview gets a portrait viewport, so tv.html picks the portrait canvas exactly as a vertical TV would
+    var url = tvUrl({ embed: '1', orient: portrait ? 'portrait' : 'landscape' });
+    if (fr.getAttribute('src') !== url) fr.setAttribute('src', url);
+    if (prevCap) prevCap.textContent = (portrait ? '1080 × 1920 · אנכי' : '1920 × 1080 · רוחב') + ' · ' + (pv.theme === 'light' ? 'בהירה' : pv.theme === 'auto' ? 'אוטומטית' : 'כהה') + ' · אותו קובץ שהטלוויזיה פותחת, מוקטן';
   }
-  document.querySelectorAll('[data-tpls] .tpl').forEach(function (b) { b.onclick = function () { prevTpl = parseInt(b.dataset.tpl, 10); b.parentNode.querySelectorAll('.tpl').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); prevRender(); }; });
-  document.querySelectorAll('[data-blk]').forEach(function (c) { c.addEventListener('change', function () { prevBlocks[c.dataset.blk] = c.checked ? 1 : 0; var blk = c.closest('.blk'); if (blk && c.parentNode.parentNode === blk) blk.dataset.off = c.checked ? '0' : '1'; prevRender(); }); });
-  document.querySelectorAll('[data-theme-seg] button').forEach(function (b) { b.addEventListener('click', function () { if (b.dataset.th !== 'auto') theme(b.dataset.th === 'dark'); prevRender(); }); });
+  function openTv(board) { var u = board && board !== pv.board ? TV_FILE + '?board=' + board + '&controls=1' : tvUrl({ controls: '1' }); window.open(u, '_blank'); }
+  document.querySelectorAll('[data-tv-open]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openTv(b.dataset.tvOpen); }); });
+  document.querySelectorAll('[data-tpls] .tpl').forEach(function (b) { b.onclick = function () { pv.template = parseInt(b.dataset.tpl, 10); b.parentNode.querySelectorAll('.tpl').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); prevRender(); }; });
+  document.querySelectorAll('[data-tpls] .tpl').forEach(function (x) { x.setAttribute('aria-pressed', String(parseInt(x.dataset.tpl, 10) === pv.template)); });
+  document.querySelectorAll('[data-blk]').forEach(function (c) { c.addEventListener('change', function () { pv.blocks[c.dataset.blk] = c.checked ? 1 : 0; var blk = c.closest('.blk'); if (blk && c.parentNode.parentNode === blk) blk.dataset.off = c.checked ? '0' : '1'; prevRender(); }); });
+  document.querySelectorAll('[data-theme-seg] button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.th === pv.theme)); b.addEventListener('click', function () { pv.theme = b.dataset.th; b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); prevRender(); }); });
+  document.querySelectorAll('[data-orient-seg] button').forEach(function (b) { b.addEventListener('click', function () { pv.orient = b.dataset.or; prevRender(); }); });
+  var fsSel = document.querySelector('[data-fs]'); if (fsSel) fsSel.onchange = function () { pv.fs = this.value; prevRender(); };
+  var rotSel = document.querySelector('[data-rot]'); if (rotSel) rotSel.onchange = function () { pv.rotate = this.value; prevRender(); };
   function showBoardTab(id) { document.querySelectorAll('.btabs a').forEach(function (a) { a.classList.toggle('on', a.dataset.bt === id); }); document.querySelectorAll('.bt-pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === id); }); if (id === 'disp') prevRender(); }
   document.querySelectorAll('.btabs a').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showBoardTab(a.dataset.bt); }); });
   document.querySelectorAll('[data-bt-go]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showBoardTab(a.dataset.btGo); }); });
   document.querySelectorAll('#s-board .seg:not([data-theme-seg]) button').forEach(function (b) { b.addEventListener('click', function () { b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
-  document.getElementById('th').addEventListener('click', function () { if (body.classList.contains('tvmode')) tvRender(); prevRender(); });
 
   setSt(q.get('state') || 'ready');
   showPage(q.get('page') || 'notices');

@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>לוח הודעות - מסך טלוויזיה</title>
+<!--
+  CR-NOTICE106 v3 - the TV (digital-signage) surface as a STANDALONE page. Static design mock-up, NOT product code:
+  self-contained, no network request, fake data only. The board page's "display" tab previews THIS file in an iframe,
+  so the preview and the full screen are the same renderer.
+
+  HOW IT SCALES (v3): the screen is authored on a fixed design canvas - 1920 x 1080 (landscape) or 1080 x 1920 (portrait) -
+  and the whole canvas is zoomed to the viewport: 1280x720 = x0.667, 1920x1080 = x1, 3840x2160 = x2. One axis is exactly the
+  base and the other stretches to the screen's real ratio, so the page always fills the screen, never scrolls and never shrinks
+  its type relative to the screen. A portrait template on a landscape screen (or the reverse) is pillar-/letter-boxed.
+
+  URL:  tv.html?board=lobby|parking|gym  &template=1|2|3  &theme=dark|light  &orient=auto|landscape|portrait
+        &urgent=band|full|0 (default band: the board's urgent notice)  &net=live|stale|offline|gone  &empty=1  &night=1
+        &news=0|1 &promo=0|1 &info=0|1 &weather=0|1 &clock=0|1 &hebdate=0|1 &company=0|1  &fs=0.8..1.4 (font scale)
+        &rotate=<s>  &clock=fixed (09:12, ticker and drift frozen - for screenshots)  &controls=1 (mock-up control strip)
+        &embed=1 (inside the Settings preview iframe: no controls, nothing else changes)
+  Sizes (canvas px at 1920): clock 176-210, notice title 84, notice body 50, urgent title 66 (full takeover 116), weather 104,
+  ticker 42, building chips 30. Safe margins 64 / 40 px (3.3 % / 3.7 %). Burn-in: the whole canvas drifts +-6 px every 60 s.
+-->
+<style>
+:root {
+  --bg: #f2f5fa; --bg-2: #e8edf6; --card: #ffffff; --card-2: #f6f8fc; --line: #dde3ee; --line-2: #ccd5e4;
+  --text: #17233a; --head: #0f1b30; --text-2: #3f4d68; --text-3: #5d6b85;
+  --accent: #2160e0; --accent-soft: #e5eeff; --accent-text: #1c55c9;
+  --warn: #e08a00; --warn-soft: #fff1d6; --warn-text: #9a5b00;
+  --danger: #c62828; --danger-band: #c62828; --danger-soft: #fde7e7; --danger-text: #a61b1b;
+  --ok: #1fa855; --stale: #e08a00; --off: #8a94a6; --off-soft: #e9edf3; --off-text: #4f5a6c;
+  --shadow: 0 10px 30px rgba(20,35,60,.08);
+  --font: "Heebo", "Assistant", "Rubik", "Segoe UI", "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #070c18; --bg-2: #0c1426; --card: #111b30; --card-2: #16223b; --line: #1f2c47; --line-2: #2b3b5c;
+  --text: #e8edf7; --head: #ffffff; --text-2: #b3bfd6; --text-3: #8f9cb6;
+  --accent: #4f86ff; --accent-soft: rgba(79,134,255,.18); --accent-text: #9dbcff;
+  --warn: #ffb02e; --warn-soft: rgba(255,176,46,.17); --warn-text: #ffc566;
+  --danger: #ff5a52; --danger-band: #b71c1c; --danger-soft: rgba(255,90,82,.18); --danger-text: #ff8f88;
+  --ok: #34d67a; --stale: #ffb02e; --off: #7d899e; --off-soft: rgba(125,137,158,.2); --off-text: #c0c8d6;
+  --shadow: none;
+  color-scheme: dark;
+}
+[data-look="acc"] { --c: var(--accent); --c-soft: var(--accent-soft); --c-text: var(--accent-text); }
+[data-look="warn"] { --c: var(--warn); --c-soft: var(--warn-soft); --c-text: var(--warn-text); }
+[data-look="alarm"] { --c: var(--danger); --c-soft: var(--danger-soft); --c-text: var(--danger-text); }
+[data-look="ok"] { --c: var(--ok); }
+[data-look="off"] { --c: var(--off); }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; block-size: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; cursor: none; }
+body.ctl { cursor: default; }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.num, .ltr { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+
+/* ===== the viewport host and the design canvas (sized + zoomed by fitCanvas()) ===== */
+#host { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; background: var(--bg); }
+body.box #host { background: #000; }
+#cv { position: relative; inline-size: 1920px; block-size: 1080px; overflow: hidden; background: var(--bg); --fs: 1; --k: 1; }
+#cv.tf { position: absolute; inset-block-start: 0; left: 0; transform-origin: 0 0; }
+:root[data-theme="dark"] #cv { background: radial-gradient(120% 90% at 85% 0%, #10204a 0%, rgba(16,32,74,0) 55%), var(--bg); }
+.shift { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'hd' 'ban' 'off' 'bd' 'tk' 'ft'; row-gap: 22px; padding: 36px 64px 32px; transition: transform 3s linear, filter .6s; }
+#cv.portrait .shift { padding: 52px 48px 40px; row-gap: 24px; }
+
+/* header: company logo (inline start) - building / board name - [clock in template 2] - SmplWise logo (inline end) */
+.hd { grid-area: hd; display: flex; align-items: center; gap: 40px; block-size: 100px; }
+.lg { flex: none; display: flex; align-items: center; block-size: 88px; }
+.lg svg { block-size: 100%; inline-size: auto; }
+.lg.company svg { inline-size: 385px; }
+.lg.product { block-size: 76px; }
+.lg.product svg { inline-size: 280px; }
+#cv[data-company="0"] .lg.company { display: none; }
+.bname { flex: 1; min-inline-size: 0; text-align: center; display: grid; gap: 2px; }
+.bname b { font-size: calc(46px * var(--fs)); font-weight: 800; line-height: 1.1; color: var(--head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
+.bname span { font-size: calc(28px * var(--fs)); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hclock { display: none; flex: none; text-align: center; padding-inline: 34px; border-inline: 2px solid var(--line); }
+.hclock b { display: block; font-size: calc(92px * var(--fs)); font-weight: 800; line-height: .95; color: var(--head); letter-spacing: -0.03em; }
+.hclock span { display: block; font-size: calc(27px * var(--fs)); color: var(--text-2); margin-block-start: 4px; white-space: nowrap; }
+#cv[data-tpl="2"]:not(.portrait) .hclock { display: block; }
+#cv[data-tpl="2"][data-clock="0"] .hclock { display: none; }
+
+/* urgent band (critical notice): never rotated out, white on a deep red (>= 6:1) */
+.ban { grid-area: ban; display: none; align-items: center; gap: 34px; padding: 20px 40px; border-radius: 22px; background: var(--danger-band); color: #fff; min-block-size: 0; }
+#cv[data-ub="1"] .ban { display: flex; }
+.ban > svg { font-size: 84px; flex: none; stroke-width: 2.2; }
+.ban .bt { flex: 1; min-inline-size: 0; display: grid; gap: 4px; }
+.ban .bt small { display: none; font-size: calc(26px * var(--fs)); font-weight: 700; letter-spacing: .02em; opacity: .9; }
+#cv.portrait .ban .bt small { display: block; }
+.ban .bt b { font-size: calc(64px * var(--fs)); font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; }
+.ban .bt > span { font-size: calc(36px * var(--fs)); line-height: 1.25; opacity: .96; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.ban .until { flex: none; font-size: calc(34px * var(--fs)); font-weight: 700; background: rgba(255,255,255,.2); border-radius: 999px; padding: 12px 30px; white-space: nowrap; }
+.offband { grid-area: off; display: none; align-items: center; justify-content: center; gap: 16px; padding: 14px; border-radius: 16px; background: var(--off-soft); color: var(--off-text); font-size: calc(32px * var(--fs)); font-weight: 700; }
+.offband svg { font-size: 40px; }
+#cv[data-net="offline"] .offband { display: flex; }
+
+/* ===== body per template ===== */
+.bd { grid-area: bd; min-block-size: 0; display: grid; gap: 28px; }
+/* template 1 (landscape): side column (clock, date, weather) at the inline start + the stage (notice) and the promo strip */
+#cv[data-tpl="1"] .bd { grid-template-columns: 560px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'side stage' 'side promo'; }
+#cv[data-tpl="1"][data-promo="0"] .bd, #cv[data-tpl="1"][data-ub="1"] .bd { grid-template-rows: minmax(0, 1fr); grid-template-areas: 'side stage'; }
+#cv[data-tpl="1"][data-promo="0"] .promo, #cv[data-tpl="1"][data-ub="1"] .promo { display: none; }
+#cv[data-tpl="1"][data-clock="0"][data-weather="0"] .bd { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'stage' 'promo'; }
+#cv[data-tpl="1"][data-clock="0"][data-weather="0"]:not(.portrait) .side { display: none; }
+/* template 2 (landscape): one large notice + "up next" strip; the clock lives in the header */
+#cv[data-tpl="2"] .bd { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'stage' 'next'; }
+#cv[data-tpl="2"] .side, #cv[data-tpl="2"] .promo { display: none; }
+
+.side { grid-area: side; min-block-size: 0; display: flex; flex-direction: column; gap: 26px; }
+.clk { display: grid; gap: 6px; padding-block-start: 4px; }
+.clk b { font-size: calc(184px * var(--fs)); font-weight: 800; line-height: .9; letter-spacing: -0.045em; color: var(--head); text-align: right; }
+.clk .d1 { font-size: calc(42px * var(--fs)); font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-block-start: 10px; }
+.clk .d2 { font-size: calc(32px * var(--fs)); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cv[data-clock="0"] .clk { display: none; }
+#cv[data-hebdate="0"] .clk .d2 { display: none; }
+.wx { background: var(--card); border: 2px solid var(--line); border-radius: 28px; padding: 26px 32px; display: grid; gap: 20px; box-shadow: var(--shadow); min-block-size: 0; }
+#cv[data-weather="0"] .wx { display: none; }
+.wx .now { display: flex; align-items: center; gap: 26px; }
+.wx .now svg { font-size: 104px; color: var(--warn); }
+.wx .now b { font-size: calc(104px * var(--fs)); font-weight: 800; line-height: 1; color: var(--head); letter-spacing: -0.03em; }
+.wx .now span { font-size: calc(32px * var(--fs)); color: var(--text-2); line-height: 1.25; }
+.wx .hrs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); text-align: center; border-block-start: 2px solid var(--line); padding-block-start: 18px; }
+.wx .hrs div { display: grid; gap: 8px; justify-items: center; }
+.wx .hrs span { font-size: calc(26px * var(--fs)); color: var(--text-3); }
+.wx .hrs svg { font-size: 46px; color: var(--text-2); }
+.wx .hrs b { font-size: calc(36px * var(--fs)); color: var(--head); font-weight: 700; }
+#cv[data-tpl="1"][data-ub="1"] .wx .hrs, #cv[data-tpl="1"][data-ub="1"] .clk .d2, .side.c1 .wx .hrs, .side.c2 .clk .d2, .side.c3 .wx .now span, .side.c4 .wx { display: none; }
+
+/* the stage: one notice at a time, severity on the inline-start edge */
+.stage { grid-area: stage; position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-block-size: 0; }
+.card { grid-area: 1 / 1; position: relative; display: flex; flex-direction: column; gap: calc(16px * var(--k)); padding: calc(36px * var(--k)) calc(52px * var(--k)) calc(34px * var(--k)); min-block-size: 0; overflow: hidden;
+  background: var(--card); border: 2px solid var(--line); border-inline-start: 16px solid var(--c); border-radius: 32px; box-shadow: var(--shadow); opacity: 0; transition: opacity .9s cubic-bezier(.2,0,0,1); }
+.card.on { opacity: 1; }
+.card > * { flex-shrink: 0; }
+.card .sev { align-self: flex-start; display: inline-flex; align-items: center; gap: 12px; padding: calc(8px * var(--k)) calc(26px * var(--k)); border-radius: 999px; background: var(--c-soft); color: var(--c-text); font-size: calc(32px * var(--fs) * var(--k)); font-weight: 700; }
+.card .sev svg { font-size: 1.1em; }
+.card h1 { margin: 0; font-size: calc(84px * var(--fs) * var(--k)); line-height: 1.08; font-weight: 800; color: var(--head); letter-spacing: -0.015em; text-wrap: balance; }
+.card p { margin: 0; font-size: calc(50px * var(--fs) * var(--k)); line-height: 1.32; color: var(--text); white-space: pre-line; max-inline-size: 40ch; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card .when { margin-block-start: auto; display: flex; align-items: center; gap: 16px; font-size: calc(36px * var(--fs) * var(--k)); font-weight: 600; color: var(--text-2); }
+.card .when svg { font-size: 1.1em; color: var(--text-3); }
+#cv[data-tpl="2"] .card h1 { font-size: calc(96px * var(--fs) * var(--k)); }
+#cv[data-tpl="2"] .card p { font-size: calc(54px * var(--fs) * var(--k)); max-inline-size: 46ch; }
+#cv[data-tpl="2"] .card .when { font-size: calc(40px * var(--fs) * var(--k)); }
+.dots { position: absolute; inset-block-end: 40px; inset-inline-end: 52px; display: flex; gap: 12px; direction: rtl; }
+.dots span { inline-size: 18px; block-size: 18px; border-radius: 999px; background: var(--line-2); transition: inline-size .5s, background .5s; }
+.dots span.on { inline-size: 56px; background: var(--accent); }
+.empty, .gone { grid-area: 1 / 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 24px; text-align: center; background: var(--card); border: 2px solid var(--line); border-radius: 32px; color: var(--text-2); }
+.empty svg, .gone svg { font-size: 96px; color: var(--text-3); }
+.empty p, .gone p { margin: 0; font-size: calc(56px * var(--fs)); font-weight: 700; color: var(--head); }
+.empty span, .gone span { font-size: calc(34px * var(--fs)); }
+#cv[data-empty="1"] .card, #cv[data-empty="1"] .dots, #cv[data-empty="1"] .next, #cv[data-empty="1"] .ban, #cv[data-empty="1"] .stack { display: none !important; }
+#cv[data-empty="1"] .empty { display: flex; }
+
+/* template 2: "up next" strip */
+.next { grid-area: next; display: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 22px; }
+#cv[data-tpl="2"] .next { display: grid; }
+.next div { display: flex; align-items: center; gap: 18px; padding: 20px 28px; border-radius: 22px; background: var(--card); border: 2px solid var(--line); min-inline-size: 0; font-size: calc(34px * var(--fs)); font-weight: 700; color: var(--text-2); transition: border-color .6s, color .6s; }
+.next div i { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--c); flex: none; }
+.next div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.next div.on { border-color: var(--c); color: var(--head); background: var(--card-2); }
+
+/* promo / info slides */
+.promo { grid-area: promo; position: relative; block-size: 168px; border-radius: 28px; overflow: hidden; }
+.promo .sl { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 36px; padding: 26px 44px; color: #fff; opacity: 0; transition: opacity .9s; background: linear-gradient(115deg, #1846b8, #0d6e66); }
+.promo .sl.b { background: linear-gradient(115deg, #4c1d95, #1d4ed8); }
+.promo .sl.c { background: linear-gradient(115deg, #9a3412, #b91c1c); }
+.promo .sl.on { opacity: 1; }
+.promo .sl b { display: block; font-size: calc(48px * var(--fs)); font-weight: 800; line-height: 1.1; }
+.promo .sl > div > span { display: block; font-size: calc(32px * var(--fs)); opacity: .94; margin-block-start: 8px; }
+.promo .sl .pic { inline-size: 220px; block-size: 108px; margin-block-end: 14px; border-radius: 18px; background: rgba(255,255,255,.14); border: 3px dashed rgba(255,255,255,.5); display: grid; place-items: center; font-size: 26px; }
+.promo .pd { position: absolute; inset-block-end: 9px; inset-inline-end: 44px; inline-size: 220px; justify-content: center; display: flex; gap: 10px; }
+.promo .pd span { inline-size: 14px; block-size: 14px; border-radius: 999px; background: rgba(255,255,255,.45); }
+.promo .pd span.on { background: #fff; inline-size: 40px; }
+
+/* the news ticker (off by default) */
+.tk { grid-area: tk; display: none; align-items: stretch; block-size: 84px; border-radius: 20px; overflow: hidden; background: var(--card); border: 2px solid var(--line); }
+#cv[data-news="1"] .tk { display: flex; }
+.tk .lbl { flex: none; display: inline-flex; align-items: center; gap: 14px; padding-inline: 32px; background: var(--accent); color: #fff; font-size: calc(34px * var(--fs)); font-weight: 800; }
+.tk .lbl svg { font-size: 36px; }
+.tk .win { position: relative; flex: 1; min-inline-size: 0; overflow: hidden; }
+.tk .track { position: absolute; left: 0; top: 50%; white-space: nowrap; font-size: calc(42px * var(--fs)); font-weight: 600; color: var(--head); animation: tick var(--dur, 60s) linear infinite; transform: translate(-100%, -50%); }
+.tk .track em { font-style: normal; font-weight: 500; color: var(--text-3); font-size: .78em; margin-inline: 22px 70px; }
+@keyframes tick { from { transform: translate(-100%, -50%); } to { transform: translate(var(--winw, 1600px), -50%); } }
+body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var(--dur, 60s) * -0.42); }
+
+/* footer: building chips (state only) + the live / stale status */
+.ft { grid-area: ft; display: flex; align-items: center; gap: 18px; min-block-size: 62px; }
+.chips { display: flex; flex-wrap: wrap; gap: 14px; min-inline-size: 0; flex: 0 1 auto; block-size: calc(64px * var(--fs)); padding-block: 1px; overflow: hidden; }
+#cv[data-info="0"] .chips { display: none; }
+.ch { display: flex; align-items: center; gap: 12px; padding: 8px 20px; line-height: 1.2; border-radius: 999px; background: var(--card); border: 2px solid var(--line); font-size: calc(30px * var(--fs)); font-weight: 700; color: var(--text); white-space: nowrap; }
+.ch svg { font-size: 34px; color: var(--text-3); }
+.ch small { font-size: 1em; font-weight: 500; color: var(--text-2); }
+.ch i { inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--c); flex: none; }
+.ft .sp { flex: 1; }
+.live { flex: none; display: inline-flex; align-items: center; gap: 12px; font-size: calc(26px * var(--fs)); color: var(--text-3); white-space: nowrap; }
+.live i { inline-size: 16px; block-size: 16px; border-radius: 50%; background: var(--ok); }
+.stale { display: none; align-items: center; gap: 10px; padding: 8px 20px; border-radius: 999px; background: var(--warn-soft); color: var(--warn-text); font-size: calc(28px * var(--fs)); font-weight: 700; white-space: nowrap; }
+.stale svg { font-size: 30px; }
+#cv[data-net="stale"] .stale { display: inline-flex; }
+#cv[data-net="stale"] .live i, #cv[data-net="offline"] .live i { background: var(--stale); }
+#cv[data-net="offline"] .bd { opacity: .7; }
+#cv[data-net="gone"] .bd > *, #cv[data-net="gone"] .ban, #cv[data-net="gone"] .tk, #cv[data-net="gone"] .chips, #cv[data-net="gone"] .live { display: none !important; }
+#cv[data-net="gone"] .bd { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; grid-template-areas: 'gone' !important; }
+#cv[data-net="gone"] .bd > .gone { display: flex !important; grid-area: gone; }
+#cv[data-night="1"] .shift { filter: brightness(.5); }
+
+/* ===== the full urgent takeover (?urgent=full): the first minute after publication, then one slot per rotation round ===== */
+.take { position: absolute; inset: 0; z-index: 5; display: none; grid-template-rows: auto minmax(0, 1fr) auto; padding: 48px 72px 44px; color: #fff; background: linear-gradient(160deg, #8f1111 0%, #c21d1d 55%, #a51616 100%); }
+#cv[data-urgent="full"] .take { display: grid; }
+.take .top { display: flex; align-items: center; gap: 36px; }
+.take .top .lg { block-size: 80px; }
+.take .top .lg.product { block-size: 70px; }
+.take .top .lg.company { block-size: 92px; padding: 10px 22px; border-radius: 18px; background: #fff; }
+.take .top .sp { flex: 1; }
+.take .top .tclk { font-size: calc(80px * var(--fs)); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.take .mid { display: flex; flex-direction: column; justify-content: center; gap: 30px; min-block-size: 0; max-inline-size: 1500px; }
+.take .tag { display: inline-flex; align-items: center; gap: 20px; align-self: flex-start; padding: 14px 34px; border-radius: 999px; background: #fff; color: #a51616; font-size: calc(44px * var(--fs)); font-weight: 800; }
+.take .tag svg { font-size: 52px; stroke-width: 2.4; }
+.take h1 { margin: 0; font-size: calc(124px * var(--fs) * var(--k)); line-height: 1.04; font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; }
+.take p { margin: 0; font-size: calc(62px * var(--fs) * var(--k)); line-height: 1.3; opacity: .97; max-inline-size: 32ch; }
+.take .bot { display: flex; align-items: center; gap: 24px; font-size: calc(44px * var(--fs)); font-weight: 700; }
+.take .bot .until { background: rgba(255,255,255,.2); border-radius: 999px; padding: 14px 36px; }
+.take .bot .sp { flex: 1; }
+.take .bot .meta { font-size: calc(28px * var(--fs)); font-weight: 500; opacity: .85; }
+
+/* ===== portrait (template 3, and any board on a portrait screen) ===== */
+#cv.portrait .hd { block-size: 96px; gap: 24px; }
+#cv.portrait .lg { block-size: 76px; }
+#cv.portrait .lg.company svg { inline-size: 332px; }
+#cv.portrait .lg.product { block-size: 64px; }
+#cv.portrait .lg.product svg { inline-size: 236px; }
+#cv.portrait .bname b { font-size: calc(38px * var(--fs)); }
+#cv.portrait .bname span { font-size: calc(24px * var(--fs)); }
+#cv.portrait .bd { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: 'side' 'chips' 'stage' 'promo' !important; gap: 26px; }
+#cv.portrait[data-promo="0"] .bd { grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: 'side' 'chips' 'stage' !important; }
+#cv.portrait .promo { display: block; block-size: 230px; }
+#cv.portrait[data-promo="0"] .promo { display: none; }
+#cv.portrait .side { display: grid; grid-template-columns: minmax(0, 1fr) 430px; grid-template-areas: 'clk wx'; gap: 0 32px; align-items: center; }
+#cv.portrait .clk { grid-area: clk; }
+#cv.portrait .clk b { font-size: calc(170px * var(--fs)); }
+#cv.portrait .clk .d1 { font-size: calc(38px * var(--fs)); }
+#cv.portrait .clk .d2 { font-size: calc(29px * var(--fs)); }
+#cv.portrait .wx { grid-area: wx; padding: 22px 26px; gap: 14px; }
+#cv.portrait .wx .now { gap: 16px; flex-wrap: wrap; }
+#cv.portrait .wx .now svg { font-size: 80px; }
+#cv.portrait .wx .now b { font-size: calc(92px * var(--fs)); }
+#cv.portrait .wx .now span { flex-basis: 100%; font-size: calc(28px * var(--fs)); }
+#cv.portrait .wx .hrs { grid-template-columns: repeat(4, minmax(0, 1fr)); padding-block-start: 14px; }
+#cv.portrait .wx .hrs div:nth-child(5) { display: none; }
+#cv.portrait .wx .hrs svg { font-size: 38px; }
+#cv.portrait .wx .hrs b { font-size: calc(32px * var(--fs)); }
+#cv.portrait .wx .hrs span { font-size: calc(24px * var(--fs)); }
+#cv.portrait[data-weather="0"] .side, #cv.portrait[data-clock="0"] .side { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'clk' 'wx'; }
+.pchips { grid-area: chips; display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#cv.portrait .pchips { display: grid; }
+#cv.portrait[data-info="0"] .pchips { display: none; }
+#cv.portrait .pchips .ch { border-radius: 20px; padding: 16px 22px; }
+#cv.portrait .pchips .ch span { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+#cv.portrait .ft .chips { display: none; }
+#cv.portrait[data-ub="1"] .ban { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 14px 26px; padding: 26px 34px; }
+#cv.portrait[data-ub="1"] .promo { display: none; }
+#cv.portrait[data-ub="1"] .bd { grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: 'side' 'chips' 'stage' !important; }
+#cv.portrait .ban > svg { font-size: 70px; }
+#cv.portrait .ban .bt b { font-size: calc(56px * var(--fs)); }
+#cv.portrait .ban .bt > span { -webkit-line-clamp: 2; font-size: calc(34px * var(--fs)); }
+#cv.portrait .ban .until { grid-column: 2; justify-self: start; font-size: calc(30px * var(--fs)); padding: 8px 24px; }
+/* portrait stage: the current notice as a featured card (fills the space) + the other notices as an "up next" list; rotates */
+#cv.portrait .stage { display: none; }
+.stack { grid-area: stage; display: none; flex-direction: column; gap: 18px; min-block-size: 0; overflow: hidden; }
+#cv.portrait .stack { display: flex; }
+.stack .card { opacity: 1; flex: 1 1 auto; min-block-size: 0; padding: calc(34px * var(--k)) calc(42px * var(--k)); gap: calc(14px * var(--k)); border-radius: 28px; border-inline-start-width: 14px; }
+.stack .card .sev { font-size: calc(30px * var(--fs) * var(--k)); padding: 6px 22px; }
+.stack .card h1 { font-size: calc(66px * var(--fs) * var(--k)); }
+.stack .card p { font-size: calc(42px * var(--fs) * var(--k)); max-inline-size: none; -webkit-line-clamp: 5; }
+.stack .card .when { font-size: calc(32px * var(--fs) * var(--k)); }
+.stack .ul { flex: none; display: grid; gap: 14px; }
+.stack .ul .h { font-size: calc(28px * var(--fs)); font-weight: 700; color: var(--text-3); }
+.stack .ul .r { display: flex; align-items: center; gap: 18px; padding: 18px 26px; border-radius: 20px; background: var(--card); border: 2px solid var(--line); min-inline-size: 0; }
+.stack .ul .r i { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--c); flex: none; }
+.stack .ul .r b { flex: 1; min-inline-size: 0; font-size: calc(38px * var(--fs)); font-weight: 700; color: var(--head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stack .ul .r span { flex: none; font-size: calc(28px * var(--fs)); color: var(--text-2); }
+.stack .pdots { display: flex; justify-content: center; gap: 12px; }
+.stack .pdots span { inline-size: 16px; block-size: 16px; border-radius: 999px; background: var(--line-2); }
+.stack .pdots span.on { inline-size: 48px; background: var(--accent); }
+#cv.portrait[data-empty="1"] .stage { display: grid; }
+#cv.portrait .take { padding: 56px 56px 48px; }
+#cv.portrait .take h1 { font-size: calc(104px * var(--fs) * var(--k)); }
+#cv.portrait .take p { font-size: calc(54px * var(--fs) * var(--k)); }
+#cv.portrait .take .bot { flex-wrap: wrap; }
+#cv.portrait .take .top .tclk { font-size: calc(68px * var(--fs)); }
+
+/* mock-up control strip (?controls=1 only; never on a real TV) */
+#ctl { position: fixed; inset-block-end: 10px; inset-inline-start: 10px; z-index: 50; display: none; flex-wrap: wrap; gap: 6px; max-inline-size: calc(100vw - 20px); padding: 8px 10px; border-radius: 12px; background: rgba(15,23,42,.88); color: #fff; font: 13px/1.2 "Segoe UI", Arial, sans-serif; opacity: .35; transition: opacity .2s; }
+#ctl:hover, #ctl:focus-within { opacity: 1; }
+body.ctl #ctl { display: flex; }
+#ctl select, #ctl a { font: inherit; color: #fff; background: transparent; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 4px 10px; text-decoration: none; }
+#ctl select option { color: #111; }
+@media (prefers-reduced-motion: reduce) { .tk .track { animation: none; transform: translate(0, -50%); left: auto; right: 0; } .shift { transition: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-offline" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 11a3.5 3.5 0 0 0 1 7z"/></symbol>
+  <symbol id="i-cloudsun" viewBox="0 0 24 24"><path d="M9 18h8a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 12a3 3 0 0 0 1 6z"/><path d="M15 4.5v1.5M19.5 9H21M18.2 5.8l1-1"/><path d="M13 8a3 3 0 0 1 5 1.2"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-elev" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18"/><path d="m7 10 1.5-2L10 10M14 14l1.5 2 1.5-2"/></symbol>
+  <symbol id="i-gen" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="10" rx="2"/><path d="M7 18v2M17 18v2M12 10l-2 3h4l-2 3"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 16v-4l2-5h10l2 5v4z"/><path d="M3 12h18M7 16v2M17 16v2"/><circle cx="8" cy="13" r="1"/><circle cx="16" cy="13" r="1"/></symbol>
+  <symbol id="i-rss" viewBox="0 0 24 24"><path d="M5 19h.01M5 12a7 7 0 0 1 7 7M5 5a14 14 0 0 1 14 14"/></symbol>
+  <!-- the SmplWise mark and wordmark (LOGOS-295 mockup symbols; the real files come from frontend/brand/ via the asset pipeline) -->
+  <symbol id="sw-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2767ed"/><path d="M43 22c-2.4-3-6.2-4.6-10.6-4.6-6.6 0-11 3.5-11 8.6 0 10.8 22 5.3 22 16.4 0 5.6-4.9 9.2-12.2 9.2-5.2 0-9.4-1.9-12.2-5.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="46" cy="44" r="3.2" fill="#8fe1ff"/></symbol>
+  <symbol id="sw-word" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill="#1e2e47">Smpl<tspan fill="#2767ed">Wise</tspan></text></symbol>
+  <symbol id="sw-word-dark" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill="#ffffff">Smpl<tspan fill="#9dbcff">Wise</tspan></text></symbol>
+  <!-- a fictional company logo (the developer / management-company logo of CR-LOGOS295), light + dark variants -->
+  <symbol id="co-light" viewBox="0 0 280 64"><g transform="translate(212 0)"><path d="M8 56V26l20-16 20 16v30H34V38H22v18z" fill="#0f766e"/><path d="M46 56V32l10-8 10 8v24H56V42h-6v14z" fill="#14b8a6"/></g><text x="200" y="31" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="25" font-weight="800" fill="#0f172a">נווה הירדן</text><text x="200" y="55" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="16" font-weight="600" fill="#0f766e" letter-spacing="1">ניהול נכסים</text></symbol>
+  <symbol id="co-dark" viewBox="0 0 280 64"><g transform="translate(212 0)"><path d="M8 56V26l20-16 20 16v30H34V38H22v18z" fill="#5eead4"/><path d="M46 56V32l10-8 10 8v24H56V42h-6v14z" fill="#99f6e4"/></g><text x="200" y="31" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="25" font-weight="800" fill="#ffffff">נווה הירדן</text><text x="200" y="55" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="16" font-weight="600" fill="#5eead4" letter-spacing="1">ניהול נכסים</text></symbol>
+</defs></svg>
+
+<div id="host"><div id="cv"><div class="shift"></div><div class="take"></div></div></div>
+<nav id="ctl" aria-label="בקרת הדגם"></nav>
+
+<script>
+(function () {
+  'use strict';
+  var Q = new URLSearchParams(location.search), root = document.documentElement, body = document.body;
+  function P(k, d) { var v = Q.get(k); return v === null || v === '' ? d : v; }
+  function B(k, d) { var v = Q.get(k); return v === null || v === '' ? d : v !== '0'; }
+
+  // ===== fake board data (the shape of the display feed, CR §8.3) =====
+  var SEV = { critical: 'alarm', alert: 'warn', info: 'acc' }, SEVL = { critical: 'דחוף', alert: 'חשוב', info: 'הודעה' };
+  var WX = { t: 24, d: 'בהיר · רוח קלה מערבית', i: 'sun', hrs: [['12:00', 'sun', 26], ['14:00', 'cloudsun', 27], ['16:00', 'cloudsun', 25], ['18:00', 'cloud', 22], ['20:00', 'moon', 20]] };
+  var NEWS = [['ynet', 'כותרת לדוגמה: התחממות קלה צפויה לקראת סוף השבוע'], ['גלובס', 'כותרת לדוגמה: שינויים בקווי האוטובוס במרכז העיר החל מיום ראשון'], ['ynet', 'כותרת לדוגמה: מדד המחירים לחודש ספטמבר פורסם הבוקר'], ['גלובס', 'כותרת לדוגמה: רשות החשמל מעדכנת את תעריפי הלילה']];
+  var INFO = [['elev', 'מעלית צפונית', 'פועלת', 'ok'], ['elev', 'מעלית דרומית', 'בטיפול', 'warn'], ['gen', 'גנרטור', 'מוכן', 'ok'], ['car', 'חניה', '42 פנויות', 'ok']];
+  var URGENT = { t: 'הפסקת מים מחר 10:00–12:00', b: 'עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.', until: 'עד מחר 12:00' };
+  var BOARDS = {
+    lobby: { name: 'לוח הלובי', bld: 'מגדל הים', sub: 'מגדל הים · ברוכים הבאים', tpl: 1, rot: 12, news: 1, promo: 1, info: 1, weather: 1, urgent: 1,
+      items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00.\nהמעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10 · 08:00–14:00' },
+        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.', when: '02.11 – 05.11' },
+        { sev: 'info', t: 'שעות קבלת קהל במשרד הניהול', b: 'ימים א-ה 08:30–16:00.\nבימי שישי בתיאום מראש בלבד.', when: 'קבוע' }],
+      promos: [['', 'חדר הכושר פתוח', 'כל יום 06:00–23:00 · הכניסה עם תג הדייר', 'תמונה'], ['b', 'אפליקציית הבניין', 'הודעות, שערים ותקלות - סרקו את הקוד בלובי', 'תמונה'], ['c', 'שוק איכרים בכניסה', 'יום שישי 31.10 · 08:00–13:00', 'תמונה']] },
+    parking: { name: 'לוח החניון', bld: 'מגדל הים', sub: 'מגדל הים · רמות 1- / 2-', tpl: 2, rot: 10, news: 0, promo: 0, info: 1, weather: 0, urgent: 1,
+      items: [{ sev: 'alert', t: 'רמה 2- סגורה ביום שישי', b: 'סימון חניות מחדש. הכניסה דרך רמה 1- בלבד.\nחניות הנכים ברמה 1- נשארות פתוחות.', when: 'יום שישי 30.10 · 06:00–16:00' },
+        { sev: 'info', t: 'שטיפת החניון ביום חמישי', b: 'נא לא להחנות ברמה 1- בין 06:00 ל-10:00. רכב שיישאר יועבר לרמה 2- על ידי הצוות.', when: 'יום חמישי 29.10' },
+        { sev: 'info', t: 'עמדות טעינה חדשות', b: 'ארבע עמדות טעינה לרכב חשמלי נפתחו ברמה 1-, ליד הכניסה הדרומית.', when: 'מ-20.10' }],
+      promos: [] },
+    gym: { name: 'לוח חדר הכושר', bld: 'מגדל הים', sub: 'מגדל הים · קומה 2', tpl: 3, rot: 12, news: 1, promo: 1, info: 1, weather: 1, urgent: 1,
+      items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10' },
+        { sev: 'info', t: 'חוג יוגה חדש', b: 'ימי שני ורביעי 19:00. ההרשמה במשרד הניהול או באפליקציה.', when: 'מ-02.11' },
+        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר.', when: '02.11 – 05.11' }],
+      promos: [['', 'חדר הכושר פתוח', 'כל יום 06:00–23:00', 'תמונה'], ['b', 'אפליקציית הבניין', 'סרקו את הקוד בלובי', 'תמונה']] }
+  };
+
+  // ===== options from the URL (= the board's display_json in the product) =====
+  var boardId = BOARDS[P('board', 'lobby')] ? P('board', 'lobby') : 'lobby', b = BOARDS[boardId];
+  var tplReq = parseInt(P('template', P('tpl', String(b.tpl))), 10); if (!(tplReq >= 1 && tplReq <= 3)) tplReq = b.tpl;
+  var themeReq = P('theme', 'dark'); if (themeReq === 'auto') { var hh = new Date().getHours(); themeReq = hh >= 19 || hh < 7 ? 'dark' : 'light'; }
+  root.setAttribute('data-theme', themeReq === 'light' ? 'light' : 'dark');
+  var FIXED = P('clock', '') === 'fixed';
+  var O = {
+    orient: P('orient', 'auto'), urgent: P('urgent', b.urgent ? 'band' : '0'), net: P('net', 'live'), empty: P('empty', '0') === '1', night: P('night', '0') === '1',
+    news: B('news', !!b.news), promo: B('promo', !!b.promo) && b.promos.length > 0, info: B('info', !!b.info), weather: B('weather', !!b.weather),
+    clock: FIXED ? true : B('clock', true), hebdate: B('hebdate', true), company: B('company', true),
+    fs: Math.min(1.4, Math.max(0.8, parseFloat(P('fs', '1')) || 1)), rot: Math.max(6, parseInt(P('rotate', String(b.rot)), 10) || b.rot)
+  };
+  if (['band', 'full', '0'].indexOf(O.urgent) < 0) O.urgent = O.urgent === '1' ? 'band' : '0';
+  if (P('controls', '0') === '1' && P('embed', '0') !== '1') body.classList.add('ctl');
+  if (FIXED) body.classList.add('frozen');
+
+  var cv = document.getElementById('cv'), shift = cv.querySelector('.shift'), take = cv.querySelector('.take');
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  // a numeric range ('10:00–12:00', '02.11 – 05.11') is one left-to-right run inside the Hebrew line
+  function tx(s) { return esc(s).replace(/(\d[\d:.]*\s*[–-]\s*\d[\d:.]*)/g, '<bdi dir="ltr" class="num">$1</bdi>'); }
+  function ic(n) { return '<svg class="ic" aria-hidden="true"><use href="#i-' + n + '"/></svg>'; }
+  function two(n) { return ('0' + n).slice(-2); }
+  function timeStr() { if (FIXED) return '09:12'; var d = new Date(); return two(d.getHours()) + ':' + two(d.getMinutes()); }
+  function dateStr(shortForm) {
+    if (FIXED) return shortForm ? 'יום שישי · 23.10' : 'יום שישי · 23 באוקטובר 2026';
+    var d = new Date(), w = '', m = '';
+    try { w = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(d); m = new Intl.DateTimeFormat('he-IL', shortForm ? { day: '2-digit', month: '2-digit' } : { day: 'numeric', month: 'long', year: 'numeric' }).format(d); } catch (e) { m = d.toLocaleDateString(); }
+    return w + ' · ' + m;
+  }
+  function logos() {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    return { co: '<div class="lg company"><svg viewBox="0 0 280 64" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="' + (dark ? '#co-dark' : '#co-light') + '"/></svg></div>',
+      sw: '<div class="lg product"><svg viewBox="0 0 236 64" role="img" aria-label="SmplWise"><use href="' + (dark ? '#sw-word-dark' : '#sw-word') + '"/></svg></div>' };
+  }
+
+  // ===== render: one function for the full screen and the Settings preview (same file in an iframe) =====
+  function portraitNow() { if (tplReq === 3) return true; if (O.orient === 'portrait') return true; if (O.orient === 'landscape') return false; return innerHeight > innerWidth; }
+  function render() {
+    var portrait = portraitNow(), L = logos();
+    cv.classList.toggle('portrait', portrait);
+    cv.dataset.tpl = portrait ? '3' : String(tplReq);
+    cv.dataset.urgent = O.urgent; cv.dataset.ub = O.urgent === '0' ? '0' : '1'; cv.dataset.net = O.net; cv.dataset.empty = O.empty ? '1' : '0'; cv.dataset.night = O.night ? '1' : '0';
+    ['news', 'promo', 'info', 'weather', 'clock', 'hebdate', 'company'].forEach(function (k) { cv.dataset[k] = O[k] ? '1' : '0'; });
+    cv.style.setProperty('--fs', O.fs);
+    var items = b.items, h = '';
+    h += '<header class="hd">' + L.co + '<div class="bname"><b>' + esc(b.name) + '</b><span>' + esc(b.sub) + '</span></div>';
+    h += '<div class="hclock"><b class="num" data-time>' + timeStr() + '</b><span data-date-short>' + esc(dateStr(true)) + '</span></div>' + L.sw + '</header>';
+    h += '<div class="ban" role="alert">' + ic('warning') + '<div class="bt"><small>הודעה דחופה</small><b>' + tx(URGENT.t) + '</b><span>' + tx(URGENT.b) + '</span></div><span class="until">' + tx(URGENT.until) + '</span></div>';
+    h += '<div class="offband">' + ic('offline') + 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות</div>';
+    h += '<main class="bd">';
+    h += '<div class="side">';
+    h += '<div class="clk"><b class="num" data-time>' + timeStr() + '</b><span class="d1" data-date>' + esc(dateStr(false)) + '</span><span class="d2">י״א בחשוון תשפ״ז · כניסת שבת 17:24</span></div>';
+    h += '<div class="wx"><div class="now">' + ic(WX.i) + '<b class="num">' + WX.t + '°</b><span>' + esc(WX.d) + '</span></div><div class="hrs">' + WX.hrs.map(function (x) { return '<div><span class="num">' + x[0] + '</span>' + ic(x[1]) + '<b class="num">' + x[2] + '°</b></div>'; }).join('') + '</div></div></div>';
+    var chips = INFO.map(function (x) { return '<div class="ch" data-look="' + x[3] + '">' + ic(x[0]) + '<span>' + esc(x[1]) + ' <small>' + esc(x[2]) + '</small></span><i></i></div>'; }).join('');
+    h += '<div class="pchips">' + chips + '</div>';
+    h += '<div class="stage">' + items.map(function (n, k) { return card(n, k === 0); }).join('');
+    h += '<div class="dots" aria-hidden="true">' + (items.length > 1 ? items.map(function (n, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') : '') + '</div>';
+    h += '<div class="empty">' + ic('board') + '<p>אין הודעות כרגע</p><span>' + esc(b.bld) + ' · יום נעים</span></div></div>';
+    h += '<div class="stack"></div>';
+    h += '<div class="next">' + items.map(function (n, k) { return '<div class="' + (k === 0 ? 'on' : '') + '" data-look="' + SEV[n.sev] + '"><i></i><span>' + esc(n.t) + '</span></div>'; }).join('') + '</div>';
+    h += '<div class="promo">' + b.promos.map(function (p, k) { return '<div class="sl ' + p[0] + (k === 0 ? ' on' : '') + '"><div><b>' + esc(p[1]) + '</b><span>' + esc(p[2]) + '</span></div><div class="pic">' + esc(p[3]) + '</div></div>'; }).join('') + '<div class="pd">' + (b.promos.length > 1 ? b.promos.map(function (p, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') : '') + '</div></div>';
+    h += '<div class="gone">' + ic('offline') + '<p>הלוח אינו פעיל</p><span>פנו להנהלת הבניין</span></div>';
+    h += '</main>';
+    h += '<div class="tk"><span class="lbl">' + ic('rss') + 'חדשות</span><div class="win"><div class="track">' + NEWS.map(function (n) { return esc(n[1]) + '<em>' + esc(n[0]) + '</em>'; }).join('') + '</div></div></div>';
+    h += '<footer class="ft"><div class="chips">' + chips + '</div><span class="sp"></span><span class="stale">' + ic('clock') + 'לא מעודכן מ-09:04</span><span class="live"><i></i>עודכן <span class="num" data-time>' + timeStr() + '</span> · ' + esc(b.name) + '</span></footer>';
+    shift.innerHTML = h;
+    take.innerHTML = '<div class="top">' + L.co.replace('#co-dark', '#co-light') + '<span class="sp"></span><span class="tclk num" data-time>' + timeStr() + '</span><span class="sp"></span>' + L.sw.replace('#sw-word"', '#sw-word-dark"') + '</div>' +
+      '<div class="mid"><span class="tag">' + ic('warning') + 'הודעה דחופה</span><h1>' + tx(URGENT.t) + '</h1><p>' + tx(URGENT.b) + '</p></div>' +
+      '<div class="bot"><span class="until">' + tx(URGENT.until) + '</span><span class="sp"></span><span class="meta">' + esc(b.bld) + ' · ' + esc(b.name) + '</span></div>';
+    state.i = 0; state.pi = 0; state.page = 0;
+    fitCanvas(); layoutAfter();
+  }
+  function card(n, on) { return '<article class="card' + (on ? ' on' : '') + '" data-look="' + SEV[n.sev] + '"><span class="sev">' + (n.sev !== 'info' ? ic('warning') : '') + SEVL[n.sev] + '</span><h1>' + tx(n.t) + '</h1><p>' + tx(n.b) + '</p><div class="when">' + ic('calendar') + '<span>' + tx(n.when) + '</span>' + '</div></article>'; }
+
+  // ===== the canvas: fixed design size, zoomed to the viewport; one axis = base, the other follows the screen ratio =====
+  var useZoom = window.CSS && CSS.supports && CSS.supports('zoom', '2');
+  function fitCanvas() {
+    var portrait = cv.classList.contains('portrait'), W0 = portrait ? 1080 : 1920, H0 = portrait ? 1920 : 1080;
+    var vw = innerWidth || W0, vh = innerHeight || H0, s = Math.min(vw / W0, vh / H0), W = W0, H = H0;
+    var sameOrient = (vh > vw) === portrait;
+    if (sameOrient) { W = Math.max(W0, Math.round(vw / s)); H = Math.max(H0, Math.round(vh / s)); }
+    body.classList.toggle('box', !sameOrient);
+    cv.style.inlineSize = W + 'px'; cv.style.blockSize = H + 'px';
+    if (useZoom) { cv.classList.remove('tf'); cv.style.zoom = s; cv.style.transform = ''; }
+    else { cv.classList.add('tf'); cv.style.transform = 'translate(' + Math.round((vw - W * s) / 2) + 'px,' + Math.round((vh - H * s) / 2) + 'px) scale(' + s + ')'; }
+  }
+
+  // ===== after layout: shrink-to-fit for long notices, ticker speed, portrait pages =====
+  function fit(el, min) {
+    if (!el) return; el.style.setProperty('--k', 1); var k = 1, i = 0;
+    while (el.scrollHeight > el.clientHeight + 2 && k > min && i < 24) { k -= 0.04; el.style.setProperty('--k', k.toFixed(2)); i++; }
+  }
+  function layoutAfter() {
+    cv.querySelectorAll('.stage .card').forEach(function (c) { fit(c, 0.62); });
+    // the side column drops its least important lines when the screen is short (offline band, urgent band, 4:3 screens)
+    var side = cv.querySelector('.side'); if (side) { side.classList.remove('c1', 'c2', 'c3', 'c4'); ['c1', 'c2', 'c3', 'c4'].forEach(function (c) { if (side.scrollHeight > side.clientHeight + 1) side.classList.add(c); }); }
+    if (O.urgent === 'full') fit(take.querySelector('.mid'), 0.6);
+    var win = cv.querySelector('.tk .win'), tr = cv.querySelector('.tk .track');
+    if (win && tr && O.news) { var ww = win.clientWidth, tw = tr.scrollWidth; tr.style.setProperty('--winw', ww + 'px'); tr.style.setProperty('--dur', Math.max(20, Math.round((ww + tw) / 130)) + 's'); }
+    paginate();
+  }
+  // portrait: the featured card + the others as rows (as many rows as fit; the featured card shrinks to fit last)
+  function paginate() {
+    var st = cv.querySelector('.stack'); if (!st || !cv.classList.contains('portrait')) return;
+    var items = b.items, n = items.length, cur = state.i % Math.max(1, n), h = card(items[cur], true);
+    var rest = []; for (var k = 1; k < n; k++) rest.push(items[(cur + k) % n]);
+    if (rest.length) h += '<div class="ul"><span class="h">ובהמשך</span>' + rest.map(function (x) { return '<div class="r" data-look="' + SEV[x.sev] + '"><i></i><b>' + tx(x.t) + '</b><span>' + tx(x.when) + '</span></div>'; }).join('') + '</div>';
+    if (n > 1) h += '<div class="pdots" aria-hidden="true">' + items.map(function (x, k) { return '<span' + (k === cur ? ' class="on"' : '') + '></span>'; }).join('') + '</div>';
+    st.innerHTML = h;
+    var rows = [].slice.call(st.querySelectorAll('.ul .r')), c = st.querySelector('.card');
+    while (rows.length && c.clientHeight < 300) { rows.pop().remove(); }
+    fit(c, 0.62);
+  }
+  // ===== motion: rotation, promo slides, clock, burn-in drift =====
+  var state = { i: 0, pi: 0, page: 0, pages: null };
+  function step() {
+    if (O.empty || O.net === 'gone') return;
+    if (cv.classList.contains('portrait')) { if (b.items.length > 1) { state.i = (state.i + 1) % b.items.length; paginate(); } return; }
+    var cards = cv.querySelectorAll('.stage .card'); if (cards.length < 2) return;
+    state.i = (state.i + 1) % cards.length;
+    cards.forEach(function (c, k) { c.classList.toggle('on', k === state.i); });
+    cv.querySelectorAll('.stage .dots span').forEach(function (d, k) { d.classList.toggle('on', k === state.i); });
+    cv.querySelectorAll('.next div').forEach(function (d, k) { d.classList.toggle('on', k === state.i); });
+  }
+  function promoStep() { var sl = cv.querySelectorAll('.promo .sl'), pd = cv.querySelectorAll('.promo .pd span'); if (sl.length < 2) return; state.pi = (state.pi + 1) % sl.length; sl.forEach(function (s, k) { s.classList.toggle('on', k === state.pi); }); pd.forEach(function (s, k) { s.classList.toggle('on', k === state.pi); }); }
+  function tickClock() { var t = timeStr(); cv.querySelectorAll('[data-time]').forEach(function (e) { if (e.textContent !== t) e.textContent = t; }); var d = dateStr(false), ds = dateStr(true); cv.querySelectorAll('[data-date]').forEach(function (e) { e.textContent = d; }); cv.querySelectorAll('[data-date-short]').forEach(function (e) { e.textContent = ds; }); }
+  var DRIFT = [[0, 0], [6, 3], [0, 6], [-6, 3], [-6, -3], [0, -6], [6, -3]], ph = 0;
+  function drift() { ph = (ph + 1) % DRIFT.length; shift.style.transform = 'translate(' + DRIFT[ph][0] + 'px,' + DRIFT[ph][1] + 'px)'; take.style.transform = shift.style.transform; }
+  if (!FIXED) { setInterval(step, O.rot * 1000); setInterval(promoStep, 15000); setInterval(tickClock, 5000); setInterval(drift, 60000); }
+  var rt = null; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(render, 120); });
+
+  // ===== mock-up control strip (?controls=1) =====
+  if (body.classList.contains('ctl')) {
+    var ctl = document.getElementById('ctl');
+    function sel(key, label, opts, cur) { return '<select data-k="' + key + '" aria-label="' + label + '">' + opts.map(function (o) { return '<option value="' + o[0] + '"' + (String(cur) === o[0] ? ' selected' : '') + '>' + label + ': ' + o[1] + '</option>'; }).join('') + '</select>'; }
+    ctl.innerHTML = sel('board', 'לוח', [['lobby', 'לובי'], ['parking', 'חניון'], ['gym', 'חדר כושר']], boardId) +
+      sel('template', 'תבנית', [['1', '1 מידע והודעות'], ['2', '2 הודעות בלבד'], ['3', '3 לובי אנכי']], tplReq) +
+      sel('theme', 'ערכה', [['dark', 'כהה'], ['light', 'בהירה']], root.getAttribute('data-theme')) +
+      sel('orient', 'כיוון', [['auto', 'אוטומטי'], ['landscape', 'רוחב'], ['portrait', 'אנכי']], O.orient) +
+      sel('urgent', 'דחוף', [['band', 'פס'], ['full', 'מסך מלא'], ['0', 'ללא']], O.urgent) +
+      sel('net', 'רשת', [['live', 'מחובר'], ['stale', 'לא מעודכן'], ['offline', 'מנותק'], ['gone', 'בוטל']], O.net) +
+      sel('empty', 'הודעות', [['0', 'יש'], ['1', 'ריק']], O.empty ? '1' : '0') +
+      sel('news', 'חדשות', [['1', 'כן'], ['0', 'לא']], O.news ? '1' : '0') +
+      sel('company', 'לוגו חברה', [['1', 'כן'], ['0', 'לא']], O.company ? '1' : '0') +
+      sel('night', 'לילה', [['0', 'לא'], ['1', 'כן']], O.night ? '1' : '0');
+    ctl.addEventListener('change', function (e) { var k = e.target.dataset.k; if (!k) return; Q.set(k, e.target.value); if (k === 'board') Q.delete('template'); location.search = Q.toString(); });
+  }
+
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { layoutAfter(); });
+})();
+</script>
+</body>
+</html>
