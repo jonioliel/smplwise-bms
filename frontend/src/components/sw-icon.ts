@@ -116,6 +116,8 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   battery: svg`<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/>`,
   // UXFIX-A11Y-295: the neutral empty state (nothing here yet) - a tray, not a map pin
   inbox: svg`<path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/>`,
+  // CR-WATER78: the water meters' empty state (the mockup's drop)
+  drop: svg`<path d="M12 3.5C9 7.5 6 10.6 6 14a6 6 0 0 0 12 0c0-3.4-3-6.5-6-10.5z"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

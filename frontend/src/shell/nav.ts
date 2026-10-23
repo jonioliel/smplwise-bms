@@ -619,8 +619,12 @@ export const INFRA_GENERATOR_HREF = '#/infra/generator/live';
 export const INFRA_ELEVATORS_HREF = '#/infra/elevators';
 /** CR-INFRA-TEMPERATURE 2.9.1: the temperature units (devices.read; offered once a unit is defined, or to a manager for setup). */
 export const INFRA_TEMPERATURE_HREF = '#/infra/temperature';
+/** CR-WATER78: the water meters (water.view; offered only while the module is on and the viewer may see water meters - water/access.ts). */
+export const INFRA_WATER_HREF = '#/infra/water/meters';
 export const INFRA_TABS: TabItem[] = [
   { id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF },
+  // CR-WATER78 section 3: directly after the electricity meters; hidden while the module is off (default) or the viewer lacks water.view
+  { id: 'water', label: 'מים', href: INFRA_WATER_HREF },
   // CR-031: a sibling of the meters, offered only when a generator is detected (or to a manager, for setup)
   { id: 'generator', label: 'גנרטור', href: INFRA_GENERATOR_HREF },
   // CR-INFRA-ELEVATORS: hidden until at least one elevator is defined that the viewer may see (elevators/access.ts)
@@ -642,11 +646,25 @@ export const INFRA_ELECTRICITY_PAGES: TabItem[] = [
 /** The electricity pages that show money (energy.bills). */
 export const INFRA_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
 export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
+/** CR-WATER78 sections 3 and 16: the water pages (level 2, `infra.water`). The money pages (חיובים, לקוחות) need water.bills, the settings
+ * page water.manage or system.configure; the screen (screens/infra-water.ts) checks them again from the module's status. */
+export const INFRA_WATER_PAGES: TabItem[] = [
+  { id: 'meters', label: 'מונים', href: INFRA_WATER_HREF },
+  { id: 'usage', label: 'צריכה', href: '#/infra/water/usage' },
+  { id: 'alerts', label: 'התראות', href: '#/infra/water/alerts' },
+  { id: 'accounts', label: 'חשבונות', href: '#/infra/water/accounts' },
+  { id: 'bills', label: 'חיובים', href: '#/infra/water/bills' },
+  { id: 'customers', label: 'לקוחות', href: '#/infra/water/customers' },
+  { id: 'settings', label: 'הגדרות', href: '#/infra/water/settings' },
+];
+/** The water pages that show money (water.bills) and the managers' page. */
+export const INFRA_WATER_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
+export const INFRA_WATER_MANAGE_PAGES: readonly string[] = ['settings'];
 
-/** A screen's page row (`infra.electricity` / `infra.generator`) shaped by `ui.tabs`: the configured order, the hidden pages left out
+/** A screen's page row (`infra.electricity` / `infra.generator` / `infra.water`) shaped by `ui.tabs`: the configured order, the hidden pages left out
  * (never all of them), with a backend only - the static demo shows the defaults, like every other row. The caller passes only the pages
  * this user may open; the items keep their own shape (a count, a device query). */
-export function infraPageTabs<T extends { id: string }>(section: 'infra.electricity' | 'infra.generator', items: T[], api: boolean): T[] {
+export function infraPageTabs<T extends { id: string }>(section: 'infra.electricity' | 'infra.generator' | 'infra.water', items: T[], api: boolean): T[] {
   return api ? configureTabs(section, items) : items;
 }
 
@@ -658,6 +676,10 @@ export function infraEntryHref(tabId: string, can?: Can): string | null {
     return configureTabs('infra.electricity', pages)[0]?.href ?? null;
   }
   if (tabId === 'generator' && isSectionConfigured('infra.generator')) return configureTabs('infra.generator', INFRA_GENERATOR_PAGES)[0]?.href ?? null;
+  if (tabId === 'water' && isSectionConfigured('infra.water')) {
+    const pages = INFRA_WATER_PAGES.filter((p) => (!INFRA_WATER_MONEY_PAGES.includes(p.id) || !can || can('water.bills')) && (!INFRA_WATER_MANAGE_PAGES.includes(p.id) || !can || can('water.manage') || can('system.configure')));
+    return configureTabs('infra.water', pages)[0]?.href ?? null;
+  }
   return null;
 }
 
@@ -685,6 +707,17 @@ export function applyInfraTemperature(show: boolean): void {
   const hide = !show;
   if (hide === INFRA_NO_TEMPERATURE) return;
   INFRA_NO_TEMPERATURE = hide;
+  for (const l of tabsListeners) l();
+}
+
+/** CR-WATER78 section 3: the water tab is offered only while the module is on AND the viewer may see water meters (GET /infra/water/status,
+ * water/access.ts); hidden = true until told otherwise (the module is off by default). A stale deep link still opens the screen, which
+ * shows the "module off" panel. */
+let INFRA_NO_WATER = true;
+export function applyInfraWater(show: boolean): void {
+  const hide = !show;
+  if (hide === INFRA_NO_WATER) return;
+  INFRA_NO_WATER = hide;
   for (const l of tabsListeners) l();
 }
 
@@ -915,7 +948,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'devices':
       return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'infra':
-      return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
+      return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : s[1] === 'water' ? 'water' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
       return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
@@ -1069,7 +1102,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [INFRA_GENERATOR_HREF]: ['generator.view'],
   [INFRA_ELEVATORS_HREF]: ['devices.read'],
   [INFRA_TEMPERATURE_HREF]: ['devices.read'],
-  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage'],
+  [INFRA_WATER_HREF]: ['water.view'], // CR-WATER78 section 3 (floor-scoped on the server: any scope)
+  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage', 'water.manage'],
   // CR-038 (section 8): the tickets area - "שלי" for whoever may view or open tickets (a creator sees the tickets they opened), "המחלקה" for
   // tickets.view (the server lists the caller's departments), "הכול" for tickets.all_departments; held at ANY scope (the server's visibility rule
   // narrows every row by place and department). The settings tab: the switch and the display (system.configure) or the name, departments and
@@ -1160,7 +1194,7 @@ export function tabAllowed(href: string, can?: Can): boolean {
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature' && t.id !== 'water') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;
@@ -1182,7 +1216,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(INFRA_NO_WATER && t.href === INFRA_WATER_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
   // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
   // decided after the gates above, which key on the built-in href
   if (!api || source !== INFRA_TABS) return shown;
@@ -1421,6 +1455,7 @@ export const TAB_SECTIONS: TabSectionDef[] = [
   tabSection('infra', () => tst('infraLabel'), () => tst('infraWhere'), () => plain(INFRA_TABS), 1, { offered: true }),
   tabSection('infra.electricity', () => tst('infraElectricityLabel'), () => tst('infraElectricityWhere'), () => plain(INFRA_ELECTRICITY_PAGES), 2),
   tabSection('infra.generator', () => tst('infraGeneratorLabel'), () => tst('infraGeneratorWhere'), () => plain(INFRA_GENERATOR_PAGES), 2),
+  tabSection('infra.water', () => tst('infraWaterLabel'), () => tst('infraWaterWhere'), () => plain(INFRA_WATER_PAGES), 2), // CR-WATER78
   tabSection('tickets', () => tt('area'), () => tst('ticketsWhere', { name: tt('area') }), () => plain(TICKETS_TABS.filter((t) => t.id !== 'external' || EXTERNAL_PLACEMENT !== 'access')), 1, { available: () => ticketsModuleOn() }), // SHAREDID-293: "גישת חוץ" only while it is placed under service management
   tabSection('system', () => tst('systemLabel'), () => tst('systemWhere'), () => plain(AREA_TABS.system), 1),
   tabSection('system.security', () => tst('systemSecurityLabel'), () => tst('systemSecurityWhere'), () => plain(SECURITY_SETTINGS_TABS), 2),
