@@ -193,7 +193,7 @@ SQLite write transaction serialises them by construction; a threaded test is sli
 | Slice | Content | Status |
 |---|---|---|
 | 1 | Backend core: tables, service, mint / refresh / sign-out / whoami, family management, settings, all revocation hooks, janitor, audit, limits, tests | **BUILT (this branch), switch OFF** |
-| 2 | Make the access token useful: `POST /auth/app/session` exchanges a live access token for an Arx session cookie for the web view (a persisted session row like USR2's, never longer than the family, revoked with it), the remote policy (`remote.policy`, flag / any role) and `remote.require_mfa_admin` checked at exchange; a concurrency test | proposed |
+| 2 | Make the access token useful: `POST /auth/app/session` exchanges a live access token for an Arx session cookie for the web view (a persisted session row like USR2's, never longer than the family, revoked with it), the remote policy (`remote.policy`, flag / any role) and `remote.require_mfa_admin` checked at exchange; a concurrency test | proposed; contract draft v2.2 (DRAFT - NOT BUILT - needs security review): `docs/changes/APPREFRESH-SESSION-EXCHANGE-SPEC.md` |
 | 3 | Proof of possession: the app generates a non-exportable key (Secure Enclave / StrongBox) at mint, the server stores its public key on the family, every refresh is a signed challenge (DPoP-style). Makes T3/T4 residuals go away | **BUILT** on `pilot/APPREFRESH2-295` as "slice 2 (device key)" - section 13 |
 | 4 | App work (Android + iOS) and the settings card ("כניסה שמורה באפליקציה") with the families list per user in "החשבון שלי" / user admin | proposed |
 | 5 | Contract text: a v2.1 section of `mobile-presence-contract.md` | after Q-answers |
