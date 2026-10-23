@@ -242,7 +242,7 @@ def read_people(settings: Any, auth: ia.Authority, *, station_id: str | None, gr
     if group:
         filters["group"] = group
     for _ in range(200):
-        reply = adapter.ADAPTER.people(settings, auth, query="", filters=dict(filters), offset=offset, limit=PAGE, snapshot=snapshot)
+        reply = adapter.ADAPTER.people(settings, auth, query="", filters=dict(filters), offset=offset, limit=PAGE, snapshot=snapshot, with_timing=True)
         page = reply.get("people")
         if page is None or reply.get("state") not in (None, "ready"):
             raise _unavailable()
@@ -266,19 +266,11 @@ def read_groups(settings: Any, auth: ia.Authority) -> dict[str, dict[str, Any]]:
     return {g["id"]: g for g in groups.get("groups") or []}
 
 
-def read_schedule(settings: Any, auth: ia.Authority, person_id: str) -> tuple[dict[str, Any] | None, str | None]:
-    """(schedule in force, flag). The person's page carries the timing; only the POLICY is in force (`enforcement` set) - a bare draft is
-    a proposal that nothing enforces and is ignored with a flag."""
-    from . import intercom_adapter as adapter
-
-    try:
-        reply = adapter.ADAPTER.person(settings, auth, person_id)
-    except ApiError as exc:
-        raise _unavailable("compliance_source_incomplete") from exc  # the person vanished mid-scan: the file would be partial
-    one = reply.get("person")
-    if one is None:
-        raise _unavailable()
-    timing = one.get("timing")
+def read_schedule(person: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    """(schedule in force, flag), from the people row (the list is read `with_timing`: one read per page, never one per person - the
+    WisKey command budget is a token bucket). Only the POLICY is in force (`enforcement` set); a bare draft is a proposal that nothing
+    enforces and is ignored with a flag."""
+    timing = person.get("timing")
     if not timing:
         return None, None
     if timing.get("enforcement") is None:
@@ -358,7 +350,7 @@ def build(conn: sqlite3.Connection, settings: Any, principal: Principal, window:
     seen_stations: set[str] = set()
     for p, assigned in candidates:
         flags: list[str] = []
-        schedule, schedule_flag = read_schedule(settings, auth, p["id"])
+        schedule, schedule_flag = read_schedule(p)
         if schedule_flag:
             flags.append(schedule_flag)
         grant = external_grant(conn, p["id"])

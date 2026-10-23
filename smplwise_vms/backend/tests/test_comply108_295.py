@@ -227,7 +227,7 @@ def test_group_inheritance_and_personal_allow_are_labelled(ac):
     assert by[("u2", "entry-b")]["source"] == "group" and by[("u2", "entry-b")]["groups"] == ["Staff"]
     assert by[("u1", "entry-a")]["source"] == "group"
     assert by[("u5", "entry-c")]["source"] == "personal"
-    assert by[("u5", "entry-a")]["source"] == "direct" and by[("u5", "entry-a")]["groups"] == []
+    assert by[("u5", "entry-a")]["source"] == "group", "u5 is in Staff, which grants entry-a; only entry-c carries the personal allow"
     assert by[("u1", "entry-a")]["doors"] == [1, 2]
 
 
