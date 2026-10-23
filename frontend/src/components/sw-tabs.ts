@@ -13,6 +13,8 @@ export interface TabItem {
   badge?: number;
   /** Dropdown presentation only: a dot on the chip while this item is not the selected one (`true` = alert, `'warn'` = attention). */
   alert?: boolean | 'warn';
+  /** CR-LIVEEVENT100: a small red dot after the label in the bar forms (an incident is open); the dropdown shows `alert`'s dot. */
+  dot?: boolean;
   /** Dropdown presentation, capsule style only (Unreleased): an icon at the start of the option; the other looks ignore it. */
   icon?: IconName;
   /** Dropdown presentation, capsule style only: a separator line instead of an item (the tab bars and the other dropdown looks skip it). */
@@ -167,6 +169,16 @@ export class SwTabs extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: 700;
       line-height: 1;
+    }
+    /* CR-LIVEEVENT100: a small red dot after the label (an incident is open) - no number, the page itself says how many */
+    .tdot {
+      display: inline-block;
+      inline-size: 7px;
+      block-size: 7px;
+      margin-inline-start: 6px;
+      border-radius: 50%;
+      background: var(--sw-danger);
+      vertical-align: middle;
     }
 
     /* ---- dropdown (0.1.153): one chip + a popover list; nothing to scroll or fade, and the chip's dot / hit area stick out of the box ---- */
@@ -376,7 +388,7 @@ export class SwTabs extends LitElement {
     if (this.mode === 'dropdown') {
       return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
-    const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}</span>`;
+    const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot ? html`<span class="tdot" data-tab-dot=${it.id} aria-hidden="true"></span>` : ''}</span>`;
     return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
       it.href
         ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`

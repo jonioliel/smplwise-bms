@@ -82,6 +82,9 @@ import '../screens/investigate-history-map';
 import '../screens/investigate-events';
 import '../screens/investigate-ha-events';
 import '../screens/investigate-event-detail';
+import '../screens/investigate-incidents'; // CR-LIVEEVENT100: אירוע חי
+import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
+import { it as incText } from '../i18n/incidents';
 import '../screens/investigate-reviews';
 import '../screens/investigate-cases';
 import '../screens/investigate-exports';
@@ -111,7 +114,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -228,6 +231,7 @@ export class SwApp extends LitElement {
   @state() private skin = currentSkin();
   private stopDesign?: () => void;
   private stopTicketNames?: () => void;
+  private stopIncidents?: () => void;
   @state() private pickerOpen = false;
   @state() private pickerTree: DeviceTree | null = null;
   @state() private pickerCollapsed = new Set<string>();
@@ -626,6 +630,50 @@ export class SwApp extends LitElement {
       display: flex;
       flex-direction: column;
       align-items: flex-end;
+    }
+    /* CR-LIVEEVENT100: the "אירוע פעיל" pill beside the corner while an incident the viewer may read is open (one tap to the page) */
+    .float .evpill {
+      position: absolute;
+      inset-block-start: 0;
+      inset-inline-end: calc(100% + 8px);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      block-size: 34px;
+      padding: 0 12px 0 8px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-danger);
+      color: var(--sw-text-inverse);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      text-decoration: none;
+      white-space: nowrap;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .float .evpill i {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: #fff;
+      animation: sw-evpulse 1.6s ease-in-out infinite;
+    }
+    @keyframes sw-evpulse { 50% { opacity: .35; } }
+    @media (max-width: 767px) {
+      .float .evpill span { display: none; }
+      .float .evpill { padding: 0 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .float .evpill i { animation: none; } }
+    /* CR-LIVEEVENT100: the red dot on the security area icon (rail and bottom bar) */
+    .ndot {
+      position: absolute;
+      inset-block-start: 6px;
+      inset-inline-end: 12px;
+      inline-size: 9px;
+      block-size: 9px;
+      border-radius: 50%;
+      background: var(--sw-danger);
+      border: 2px solid var(--sw-surface);
+      pointer-events: none;
     }
     .float .pillrow {
       display: inline-flex;
@@ -1607,6 +1655,7 @@ export class SwApp extends LitElement {
     this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
     this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
     this.stopTicketNames = onTicketNames(() => this.requestUpdate()); // CR-038 D33: the rail, the tabs and the crumbs follow a rename at once
+    this.stopIncidents = onIncidentState(() => this.requestUpdate()); // CR-LIVEEVENT100: the pill and the red dots follow the open count
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
@@ -1619,6 +1668,7 @@ export class SwApp extends LitElement {
       // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
       if (!applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) })) startRfqQuestions(); // RFQQUESTIONS: the nav badge
       setTicketNames(s.me?.modules?.tickets_name);
+      startIncidents(s.mode === 'api' && !!s.me?.modules?.incidents); // CR-LIVEEVENT100: the open-incident pill / dots (OFF by default, the static demo too)
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
         this.setupDis = null;
@@ -1923,6 +1973,7 @@ export class SwApp extends LitElement {
     super.disconnectedCallback();
     this.stopDesign?.();
     this.stopTicketNames?.();
+    this.stopIncidents?.();
     this.stopRouter?.();
     this.stopSession?.();
     this.stopPermissions?.();
@@ -2229,7 +2280,14 @@ export class SwApp extends LitElement {
     const canSearch = !this.gated;
     if (dot === nothing && !canSearch) return nothing;
     const open = this.searchOpen && !!this.searchQ.trim();
+    const incidents = incidentsOpen();
+    const latest = incidentState().latest_id;
+    const pill = incidents && !this.gated
+      ? html`<a class="evpill" data-incident-pill href=${incidents === 1 && latest ? `#/investigate/incidents/${encodeURIComponent(latest)}` : '#/investigate/incidents'}
+          aria-label=${incidents === 1 ? incText('activeAria', { title: incidentState().latest_title ?? '' }) : incText('activePillN', { n: incidents })}><i aria-hidden="true"></i><span>${incidents === 1 ? incText('activePill') : incText('activePillN', { n: incidents })}</span></a>`
+      : nothing;
     return html`<div class="float" data-float>
+        ${pill}
         <div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>
         ${this.searchPanel
           ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">
@@ -2309,6 +2367,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''} .extraParam=${r.params.get('extra') ?? ''} .fromMap=${r.params.get('from') === 'map'}></investigate-playback>`;
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'} .at=${r.params.get('t') ?? ''} .camera=${r.params.get('camera') ?? ''}></investigate-history-map>`;
         if (s[1] === 'events' && s[2]) return html`<investigate-event-detail .eventId=${s[2]}></investigate-event-detail>`;
+        if (s[1] === 'incidents') return html`<investigate-incidents .incidentId=${s[2] ? decodeURIComponent(s[2]) : ''}></investigate-incidents>`; // CR-LIVEEVENT100
         if (s[1] === 'events' && sensorEventsOnly() && this.session.mode === 'api') return html`<investigate-ha-events .date=${r.params.get('date') ?? ''}></investigate-ha-events>`; // NVRLESS-295: no recorder events, the sensor events list
         if (s[1] === 'events') return html`<investigate-events .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>`;
         // NN5-F1B: the review screen; with no Frigate recorder it renders the event windows itself (investigate-reviews)
@@ -2767,6 +2826,7 @@ export class SwApp extends LitElement {
   /** RFQQUESTIONS: the small count on an area icon (vendor questions waiting in the tickets area for a manager). */
   private areaCount(id: string) {
     const n = areaBadge(id);
+    if (!n && areaDot(id)) return html`<span class="ndot" role="status" aria-label=${incText('railDot')} data-nav-dot=${id}></span>`; // CR-LIVEEVENT100
     return n ? html`<span class="nb" role="status" aria-label=${rt('navQuestionsAria', { n })} data-nav-badge=${id}>${n > 99 ? '99+' : n}</span>` : nothing;
   }
 
