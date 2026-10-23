@@ -85,6 +85,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_billing.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy billing janitor failed", exc_info=True)
+    try:  # CR-QUIET103: stamp quiet windows whose end instant has passed (the dispatch decides by the clock, not by this sweep; no device call)
+        from .services import quiet_windows
+
+        quiet_windows.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("quiet windows janitor failed", exc_info=True)
     try:  # NEEDSREVIEW (2.8.0): the yearly "needs review" reminder (January, once, throttled to an hourly check; never a door-system call)
         from .services import needs_review
 
@@ -448,6 +454,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import door_windows as door_windows_router
 
     app.include_router(door_windows_router.router, prefix=api, tags=["access-control"])  # CR-039 DOORWIN-295: door windows + emergency controls (OFF)
+    from .routers import quiet as quiet_router
+
+    app.include_router(quiet_router.router, prefix=api, tags=["notifications"])  # CR-QUIET103 slice 1: quiet windows per floor / area (OFF)
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])

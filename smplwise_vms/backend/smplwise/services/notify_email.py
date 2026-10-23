@@ -1066,7 +1066,7 @@ class EmailChannel(Channel):
         d.scratch["email_rendered"] = compose_notification(n, mode=d.mode, tz_name=d.tz, link_base=cfg.link_base, resolve_text=resolve_text)
         d.scratch["email_item"] = HeldItem("", d.nid, oneline(n.get("title"), 80), oneline(n.get("place"), 80), n.get("severity") or "info", int(n.get("count") or 1), _mono())
         if d.held(self.name):
-            return [Target(self.name, None, mask_address(a), "skipped", "quiet_hours") for a in cfg.recipients]
+            return [Target(self.name, None, mask_address(a), "skipped", d.held_reason()) for a in cfg.recipients]
         fold = False
         if d.mode == "escalate":
             GATE.force()
