@@ -18,7 +18,7 @@ from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import forbidden, validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
-from ..services import revocation
+from ..services import brand_assets, revocation
 from ..services import user_events, user_prefs
 
 router = APIRouter()
@@ -96,6 +96,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
         "channel": channel,
         "remote": remote,
+        "brand": brand_assets.full_view(conn),  # LOGOS-295: company name / logo stamps, logo size, dark-background mode, tab title parts
         "user": {
             "id": principal.user_id,
             "username": principal.username,

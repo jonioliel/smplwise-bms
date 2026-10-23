@@ -55,6 +55,9 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
 # Their fire history (`door_automation_fires`: the cooldown / cap counters and the block's decisions) is runtime state: never exported, never
 # restored (NEVER_EXPORTED_TABLES). The `doors.*` switches (feature, kill, limits) are SETTINGS_KEEP_PREFIXES and are never carried either.
 PROJECT_TABLES = PROJECT_TABLES + ["door_automations"]
+# LOGOS-295 (migration 0165, provisional): the company logo, base64 text so it travels as JSON with its stamps (the `brand.*` settings). An archive
+# written before the table restores no logo and no error; a replace restore of an archive that has the table brings both back with the same stamps.
+PROJECT_TABLES = PROJECT_TABLES + ["brand_assets"]
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
 # new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
