@@ -153,8 +153,9 @@ def task_records(task_id: str = Path(..., pattern=ID), limit: int = Query(50, ge
 @router.post("/maintenance/tasks/{task_id}/files", status_code=201)
 def add_file(request: Request, task_id: str = Path(..., pattern=ID), file: UploadFile = File(...), principal: Principal = Depends(current_principal),
              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Attach the scanned certificate / the policy to a certificate or a supplier document (maintenance.manage on its place): a PDF
-    (the tickets cost-file check) or a photographed page (the tickets image pipeline). Validated outside the write lock."""
+    """Attach a PDF or a photographed page (the scanned certificate / policy) to a certificate or a supplier document (maintenance.manage on its place).
+
+    The PDF passes the tickets cost-file check, the picture the tickets image pipeline; both are validated outside the write lock."""
     viewer = Viewer(conn, principal)
     service.file_precheck(viewer, task_id)
     data = file.file.read(mfiles.cost_files.PDF_MAX_BYTES + 1)
