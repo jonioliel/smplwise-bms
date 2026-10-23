@@ -265,6 +265,7 @@ def test_an_external_assignee_without_a_message_channel_escalates_at_the_crossin
 def test_only_the_monitor_and_the_bridge_read_tickets_as_the_system():
     allowed = {"services/tickets/store.py", "services/tickets/monitor.py", "services/tickets/notify_bridge.py",
                "services/tickets/rule_engine.py",  # TKRULES-291: the rule engine's clear pass (a system author, never a person's read)
+               "services/tickets/vendor_arrival.py",  # VENDORARRIVAL126-295: the missed-arrival step of the monitor tick (a system actor)
                "services/tickets/acceptance.py"}  # ACCEPT102: the sensor verification of finished work (a system actor)
     offenders = []
     for path in SMPLWISE.rglob("*.py"):

@@ -92,6 +92,9 @@ def tick(db: Database, *, force: bool = False) -> int:
         from . import acceptance  # ACCEPT102: the sensor verification of finished work (default off, never fails the tick)
 
         acceptance.run(db, now)
+        from . import vendor_arrival  # VENDORARRIVAL126-295: the missed-arrival alert (default off, never fails the tick)
+
+        vendor_arrival.run(db, now)
     except Exception:  # noqa: BLE001 - a housekeeping step never fails the tick
         STATS["errors"] += 1
         log.warning("tickets monitor step failed", exc_info=True)

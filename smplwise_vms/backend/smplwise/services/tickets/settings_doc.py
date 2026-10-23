@@ -478,6 +478,23 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     # RFQATT review 2.6.4 (owner question 1, decided by the lead 17.10): Word / Excel attachments on a request for quotation - OFF by
     # default until the hardened office checks are verified; PDF and pictures are always allowed (RFQ contract 19.2)
     ("rfq", "attachments", "allow_office"): (False, boolean),
+    # VENDORARRIVAL126-295 (board r126 / r127): the vendor's one-tap "I have arrived" on his page and the missed-arrival alert. OFF by
+    # default (an upgrade changes nothing). The expected window comes from the awarded work order's planned arrival, else from the time
+    # the vendor himself gave in the door-access request; a time without an end (or a date without a time) gets `default_window_min`
+    # (`day_from` - `day_to` for a plain date). The alert fires `grace_min` after the window's end, then every `repeat_min` (0 = once),
+    # at most `max_alerts` times; recipients = the department's managers (unless switched off) plus the named users - each still only for
+    # the requests he may see. `offer_access_request`: after the tap the page points to the door-access request step (an approval, never
+    # an automatic door action) when that step is available.
+    ("vendor_arrival", "enabled"): (False, boolean),
+    ("vendor_arrival", "default_window_min"): (120, int_range(15, 1440)),
+    ("vendor_arrival", "day_from"): ("08:00", hhmm),
+    ("vendor_arrival", "day_to"): ("17:00", hhmm),
+    ("vendor_arrival", "grace_min"): (30, int_range(0, 720)),
+    ("vendor_arrival", "repeat_min"): (60, int_range(0, 1440)),
+    ("vendor_arrival", "max_alerts"): (2, int_range(1, 5)),
+    ("vendor_arrival", "recipients", "managers"): (True, boolean),
+    ("vendor_arrival", "recipients", "users"): ([], _ids),
+    ("vendor_arrival", "offer_access_request"): (True, boolean),
     # RFQ-VENDOR-UPLOAD (owner decision 2026-10-17): a vendor may attach files / pictures to HIS quote through his RFQ link (a PUBLIC
     # upload route, contract 19.10). OFF by default: while off the upload / remove routes answer the uniform 404 and the page shows no
     # upload block. Word / Excel additionally need `rfq.attachments.allow_office`. A Fable review of the public surface is required
@@ -516,6 +533,9 @@ def _cross_problem(doc: dict[str, Any]) -> str | None:
     vu = (doc.get("rfq") or {}).get("vendor_uploads") if isinstance(doc.get("rfq"), dict) else None
     if isinstance(vu, dict) and vu.get("max_uploads", 0) < vu.get("max_files", 0):
         return "rfq.vendor_uploads.max_uploads:below_max_files"  # RFQ-VENDOR-UPLOAD: uploads in all never fewer than live files
+    va = doc.get("vendor_arrival") if isinstance(doc.get("vendor_arrival"), dict) else {}
+    if va and str(va.get("day_from", "08:00")) >= str(va.get("day_to", "17:00")):
+        return "vendor_arrival.day_to:below_day_from"  # VENDORARRIVAL126-295: the plain-date window runs forward within the day
     return None
 
 

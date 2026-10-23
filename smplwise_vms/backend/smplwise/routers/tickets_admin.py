@@ -251,6 +251,27 @@ class VendorPortalPatch(BaseModel):
     start_worker: StrictBool | None = None  # SECFIX2-295 / PUB-04: portal/start's work on the listener's worker thread (default OFF)
 
 
+class VendorArrivalRecipientsPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    managers: StrictBool | None = None
+    users: list[str] | None = Field(default=None, max_length=50)  # settings_doc validates the ids
+
+
+class VendorArrivalPatch(BaseModel):
+    """VENDORARRIVAL126-295: the vendor's "I have arrived" tap and the missed-arrival alert (OFF by default). Every window, reminder and
+    recipient is edited here; settings_doc validates each value (and day_from < day_to) again. system.configure, audited with the keys."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    default_window_min: StrictInt | None = None
+    day_from: str | None = Field(default=None, max_length=5)
+    day_to: str | None = Field(default=None, max_length=5)
+    grace_min: StrictInt | None = None
+    repeat_min: StrictInt | None = None
+    max_alerts: StrictInt | None = None
+    recipients: VendorArrivalRecipientsPatch | None = None
+    offer_access_request: StrictBool | None = None
+
+
 class NotifyPatch(BaseModel):
     """TKNOTIFMATRIX: the per-department notification matrix and the daily digest (both OFF by default = today's behaviour).
     `matrix` is {department id | "*": {source: "now" | "digest" | "off"}}; settings_doc validates every cell again."""
@@ -285,6 +306,7 @@ class SettingsBody(BaseModel):
     notify: NotifyPatch | None = None  # TKNOTIFMATRIX
     privacy: PrivacyPatch | None = None  # PRIVORG-291
     reports: ReportsPatch | None = None  # CR-VENDORQ-294
+    vendor_arrival: VendorArrivalPatch | None = None  # VENDORARRIVAL126-295
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -339,14 +361,18 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
             patch["ui"] = ui
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
-    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL
+    for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports", "vendor_arrival"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL / VENDORARRIVAL126-295
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value
             values = {k: v for k, v in sent.model_dump().items()
-                      if v is not None and k not in ("confirm_live_links", "attachments", "vendor_uploads")}
+                      if v is not None and k not in ("confirm_live_links", "attachments", "vendor_uploads", "recipients")}
             if values:
                 patch[block] = values
+    if body.vendor_arrival is not None and body.vendor_arrival.recipients is not None:  # VENDORARRIVAL126-295: the one nested block of its section
+        rec = {k: v for k, v in body.vendor_arrival.recipients.model_dump().items() if v is not None}
+        if rec:
+            patch.setdefault("vendor_arrival", {})["recipients"] = rec
     if body.rfq is not None and body.rfq.attachments is not None and body.rfq.attachments.allow_office is not None:
         # merged next to the other rfq keys of the same request (integ/264: one RfqPatch for RFQQUESTIONS / RFQPAY / RFQATT-FIX)
         patch.setdefault("rfq", {})["attachments"] = {"allow_office": body.rfq.attachments.allow_office}

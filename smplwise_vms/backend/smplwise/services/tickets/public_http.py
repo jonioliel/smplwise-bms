@@ -150,6 +150,8 @@ ROUTES: tuple[RouteRule, ...] = (
     # (services/access_arrival.py; the uniform 404 while `access.external_grants` is off)
     RouteRule("GET", r"/t/api/arrival", "/t/api/arrival", "token_read"),
     _json("/t/api/arrival", "token_write"),
+    # VENDORARRIVAL126-295: the vendor's one-tap "I have arrived" (services/tickets/vendor_arrival.py; the uniform 404 while its switch is off)
+    _json("/t/api/arrived", "token_write"),
     RouteRule("POST", r"/t/api/photo", "/t/api/photo", "photo", "multipart", PHOTO_MAX, UPLOAD_DEADLINE_S),
     RouteRule("GET", rf"/t/api/photo/{_ID}", "/t/api/photo/{attachment_id}", "photo_read"),
     # TKMAP1: the request's map element as a server-drawn picture (the photo read's own window; image/svg+xml, private, no-store)

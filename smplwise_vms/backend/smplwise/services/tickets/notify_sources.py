@@ -39,6 +39,10 @@ SOURCE_DEFS: tuple[dict[str, Any], ...] = (
     {"key": "ticket.stuck", "label": "חריגה מזמני הטיפול", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
     {"key": "ticket.returned", "label": "הוחזר למנהל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
     {"key": "ticket.question", "label": "שאלה מהמטפל", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
+    # VENDORARRIVAL126-295: the outside handler's expected arrival window passed without his "I have arrived" - the number and the place
+    # only. Recipients = the department's managers / the users named in the `vendor_arrival` settings; resolved by his arrival, a moved
+    # window, or the request ending. Fires only while `vendor_arrival.enabled` (default off)
+    {"key": "ticket.vendor_missed", "label": "ספק לא הגיע במועד הצפוי", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},
     {"key": "ticket.done", "label": "טיפול הסתיים - ממתין לסגירה", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False},
     {"key": "ticket.reply_unmatched", "label": "תשובה שלא שויכה", "severity": "info", "who": RULE_MANAGERS, "resolves": True, "push": False},
     {"key": "ticket.send_failed", "label": "הודעה למטפל לא נשלחה", "severity": "alert", "who": RULE_MANAGERS, "resolves": True},

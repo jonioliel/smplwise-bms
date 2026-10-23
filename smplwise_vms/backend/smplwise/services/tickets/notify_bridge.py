@@ -49,6 +49,7 @@ T_REMINDER = ("תזכורת: {ticket} #{number}", "{place} · {reason}")
 T_STUCK = ("{ticket} #{number} {f:תקועה|m:תקוע}", "{place} · {reason}")
 T_RETURNED = ("{ticket} #{number} {f:הוחזרה|m:הוחזר} למנהל", "{place} · {kind}")
 T_QUESTION = ("{ticket} #{number}: שאלה מהמטפל", "{place}")
+T_VENDOR_MISSED = ("{ticket} #{number}: הספק עדיין לא הגיע", "{place} · המועד הצפוי עבר")  # VENDORARRIVAL126-295
 T_DONE = ("{ticket} #{number}: הטיפול הסתיים", "{place} · ממתין לסגירה")
 T_SEND_FAILED = ("ההודעה על {ticket} #{number} לא נשלחה", "{place}")
 T_CONTACT = ("פרטי המטפל ב{ticket} #{number} השתנו", "{place} · הקישור בוטל")
@@ -61,6 +62,7 @@ T_CHANNEL = ("חשבון וואטסאפ מנותק", "{account} · הודעות 
 TEMPLATES: dict[str, tuple[str, str]] = {
     "ticket.new_unassigned": T_NEW, "ticket.assigned": T_ASSIGNED, "ticket.reminder": T_REMINDER, "ticket.stuck": T_STUCK,
     "ticket.status_update": T_STATUS, "ticket.comment_added": T_COMMENT,
+    "ticket.vendor_missed": T_VENDOR_MISSED,
     "ticket.returned": T_RETURNED, "ticket.question": T_QUESTION, "ticket.done": T_DONE, "ticket.send_failed": T_SEND_FAILED, "ticket.contact_changed": T_CONTACT,
     "ticket.reply_unmatched": T_UNMATCHED, "ticket.cost_submitted": T_COST_SUBMITTED, "ticket.cost_missing": T_COST_MISSING,
 }
@@ -115,6 +117,13 @@ def recipient_users(conn: sqlite3.Connection, rule: str, n: dict[str, Any]) -> l
     if rule == RULE_MANAGERS and origin.get("audience") == "digest":  # TKNOTIFMATRIX: one digest row per recipient (notify_matrix)
         uid = origin.get("user_id")
         return [uid] if isinstance(uid, str) and uid else []
+    if rule == RULE_MANAGERS and origin.get("audience") == "vendor_arrival":  # VENDORARRIVAL126-295: the settings choose the audience
+        from . import settings_doc
+
+        cfg = settings_doc.read(conn)["vendor_arrival"]
+        named = [uid for uid in cfg["recipients"]["users"] if store.user_is_active(conn, uid)]
+        managers = department_managers(conn, row) if cfg["recipients"]["managers"] else []
+        return list(dict.fromkeys(managers + named))
     if rule == RULE_MANAGERS:
         managers = department_managers(conn, row, notify_new_only=origin.get("audience") == "notify_new")
         if origin.get("audience") == "costs":  # S9b: only the managers who may see the costs where the ticket lies
@@ -255,7 +264,7 @@ def resolve_prefix(conn: sqlite3.Connection, ticket_id: str, part: str = "", *, 
 
 def source_of_key(key: str, *, followers: bool = False) -> str | None:
     part = key.split(":")[2] if key.count(":") >= 2 else ""
-    return {"unassigned": "ticket.new_unassigned", "assign": "ticket.assigned", "remind": "ticket.reminder", "stuck": "ticket.stuck",
+    return {"unassigned": "ticket.new_unassigned", "assign": "ticket.assigned", "remind": "ticket.reminder", "stuck": "ticket.stuck", "vmiss": "ticket.vendor_missed",
             "returned": "ticket.returned", "question": "ticket.question", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed",
             "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing"}.get(part) or (FOLLOWER_SOURCES.get(part) if followers else None)
 
@@ -404,6 +413,19 @@ def alert_managers(conn: sqlite3.Connection, row: dict[str, Any], kind: str) -> 
     action = _emit(conn, "ticket.stuck", row, T_STUCK, dedupe=f"ticket:{row['id']}:stuck:{kind}", severity=severity_of(conn, row),
                    origin={"kind": kind}, reason=REASON_TEXT.get(kind, ""))
     return action is not None
+
+
+def vendor_missed(conn: sqlite3.Connection, row: dict[str, Any], n: int) -> bool:
+    """VENDORARRIVAL126-295: the outside handler's expected arrival passed without his signal. `ticket.vendor_missed`, one row per alert
+    number (a repeat is a new row), to the audience of the `vendor_arrival` settings (see recipient_users). Number and place only."""
+    action = _emit(conn, "ticket.vendor_missed", row, T_VENDOR_MISSED, dedupe=f"ticket:{row['id']}:vmiss:{n}", severity="alert",
+                   origin={"audience": "vendor_arrival"})
+    return action is not None
+
+
+def resolve_vendor_missed(conn: sqlite3.Connection, ticket_id: str) -> None:
+    """He arrived, the window moved, or the request ended: every missed-arrival row of the ticket is over."""
+    resolve_prefix(conn, ticket_id, "vmiss:")
 
 
 def resolve_stuck(conn: sqlite3.Connection, ticket_id: str) -> None:

@@ -56,6 +56,11 @@ class EtaIn(_Strict):
     client_request_id: str = Field(max_length=64)
 
 
+class ArrivedIn(_Strict):
+    """VENDORARRIVAL126-295: the vendor's one tap "I have arrived" - nothing but the request id."""
+    client_request_id: str = Field(max_length=64)
+
+
 class ReturnIn(_Strict):
     kind: Literal["cannot_handle", "not_mine"]
     reason: clean_str(handler_actions.REASON_MAX, multiline=True)  # type: ignore[valid-type]
@@ -141,6 +146,11 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
 
                     if access_arrival.available(conn, ctx.link):
                         data["arrival"] = True
+                    from . import vendor_arrival  # VENDORARRIVAL126-295: the "I have arrived" card (None while the switch is off)
+
+                    block = vendor_arrival.page_block(conn, ctx.link, when)
+                    if block is not None:
+                        data["vendor_arrival"] = block
                 return data
 
         try:
@@ -238,6 +248,16 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
         body: ReturnIn = await read_json(request, ReturnIn)
         crid = parse_client_request_id(body.client_request_id)
         return await write(request, ctx, "/t/api/return", crid, handler_actions.give_back, kind=body.kind, reason=body.reason)
+
+    @r.post("/t/api/arrived")
+    async def arrived(request: Request, ctx: LinkContext = Depends(link_context(write=True))) -> JSONResponse:
+        """VENDORARRIVAL126-295: "I have arrived" - one tap, the link's token, the `token_write` window of the edge, idempotent. The uniform
+        404 while `vendor_arrival.enabled` is off (the default), on a staff link, or when the request is no longer open."""
+        from . import vendor_arrival
+
+        body: ArrivedIn = await read_json(request, ArrivedIn)
+        crid = parse_client_request_id(body.client_request_id)
+        return await write(request, ctx, vendor_arrival.ROUTE, crid, vendor_arrival.signal)
 
     @r.get("/t/api/arrival")
     async def arrival_view(request: Request, ctx: LinkContext = Depends(link_context())) -> JSONResponse:
