@@ -2850,7 +2850,10 @@ export class SwApp extends LitElement {
    */
   private renderTicketsChrome(sections: TabItem[], rowMode: { variant: string; adaptive: boolean; label: string; ddStyle: DdStyle; ddSize: DdSize; ddRing: DdRing; ddPanel: DdPanel }, rowStyle: ReturnType<typeof tabStyleOf>) {
     const api = this.session.mode === 'api';
-    const sec = ticketsSectionOf(this.route);
+    const own = ticketsSectionOf(this.route);
+    // a direct link to a page of a section this user is not offered (the "not a manager" state of the overview): the rows show his own
+    // first section, as the old one-row navigation showed his tabs on every route of the area
+    const sec = own && !sections.some((s) => s.id === own) && sections[0] ? (sections[0].id as typeof own) : own;
     const pages = ticketsPageTabs(sec, api, canNav);
     const page = ticketsPageOf(this.route);
     const showL1 = !this.gated && ticketsSectionRowShown(sections.length);
