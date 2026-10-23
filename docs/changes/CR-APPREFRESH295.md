@@ -396,7 +396,9 @@ then bind an attacker's key with no proof of possession of the old one.
 ### 14.3 Residual risk (recorded)
 
 - Path (2) is the owner's choice: a fresh, stolen session of the user can still end the user's own sign-in and then bind a new key. It is
-  audited (`key_released`) but not notified. Cheap follow-up candidate: notify the user on `key_released` too (same source pattern).
+  audited (`key_released`) and - owner decision Q312 - the user is notified (`security.app_device_key_released`, in the app and on the
+  phone by default; wording in the Settings, `security.app_refresh_key_released_notice_title` / `_body`, placeholder `{device}` only,
+  `SETTINGS_KEEP`; the audit row records `notified`).
 - Path (3) relies on the administrator verifying the request out of band; there is no in-app "request a reset" flow (not asked for).
 - A new install id is a new device registration (no pin); that is session-bound device enrolment, out of this slice's scope.
 

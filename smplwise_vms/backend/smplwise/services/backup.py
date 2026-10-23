@@ -197,7 +197,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_a
 # APPREFRESH2-295: the device-key mode (off | optional | required) - a restore must never weaken it
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # APPREFRESH3-295: the key-reset notice wording sits with the rest of the app sign-in policy (kept, never taken from an archive)
-SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body"}
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body",
+                                 "security.app_refresh_key_released_notice_title", "security.app_refresh_key_released_notice_body"}
 
 
 def _kept_setting(key: Any) -> bool:

@@ -68,11 +68,18 @@ DEVICE_KEY_DEFAULT = "optional"
 # (when the approval lapses, installation time zone). A PUT with null restores the default.
 NOTICE_TITLE_KEY = "security.app_refresh_key_reset_notice_title"
 NOTICE_BODY_KEY = "security.app_refresh_key_reset_notice_body"
-NOTICE_DEFAULTS: dict[str, tuple[str, int]] = {
-    NOTICE_TITLE_KEY: ("מפתח האבטחה של האפליקציה אופס", 80),
-    NOTICE_BODY_KEY: ("מנהל המערכת אישר איפוס של מפתח האבטחה במכשיר {device}. יש להיכנס מחדש באפליקציה עד {until}. אם לא ביקשת זאת - פנה למנהל המערכת.", 180),
-}
+# Owner decision Q312 (2026-10-23): the user is also told when the device's key is RELEASED by their own end of the sign-in (the app's
+# sign-out, "end this sign-in", "sign out everywhere") - same pattern, its own wording; the only placeholder there is {device}.
+RELEASED_TITLE_KEY = "security.app_refresh_key_released_notice_title"
+RELEASED_BODY_KEY = "security.app_refresh_key_released_notice_body"
 NOTICE_PLACEHOLDERS = ("{device}", "{until}")
+# setting key -> (default text, max length, allowed placeholders)
+NOTICE_DEFAULTS: dict[str, tuple[str, int, tuple[str, ...]]] = {
+    NOTICE_TITLE_KEY: ("מפתח האבטחה של האפליקציה אופס", 80, NOTICE_PLACEHOLDERS),
+    NOTICE_BODY_KEY: ("מנהל המערכת אישר איפוס של מפתח האבטחה במכשיר {device}. יש להיכנס מחדש באפליקציה עד {until}. אם לא ביקשת זאת - פנה למנהל המערכת.", 180, NOTICE_PLACEHOLDERS),
+    RELEASED_TITLE_KEY: ("מפתח האבטחה של האפליקציה שוחרר", 80, ("{device}",)),
+    RELEASED_BODY_KEY: ("הכניסה השמורה במכשיר {device} הסתיימה ומפתח האבטחה שלו שוחרר. הכניסה הבאה תוכל לרשום מפתח חדש. אם לא עשית זאת - פנה למנהל המערכת.", 180, ("{device}",)),
+}
 SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY, *NOTICE_DEFAULTS)
 # APPREFRESH3-295: an administrator-approved device-key reset lets the device's next mint bind a new key without the old key's proof, once,
 # within this window (then the pin holds again). A constant, like the retry grace.
@@ -106,7 +113,7 @@ KEY_BOUND_HE = "המכשיר הזה רשום עם מפתח אבטחה אחר. א
 NO_KEY_HE = "למכשיר הזה אין מפתח אבטחה רשום."
 REASON_HE = f"יש לכתוב סיבה ({RESET_REASON_MIN}-{RESET_REASON_MAX} תווים)."
 SELF_RESET_HE = "איפוס מפתח של המכשיר שלך מאשרים רק מתוך הרשת המקומית."
-NOTICE_INVALID_HE = "נוסח ההודעה: טקסט רגיל, עם {device} ו־{until} בלבד."
+NOTICE_INVALID_HE = "נוסח ההודעה: טקסט רגיל, עם הסימונים המותרים בלבד ({device}, ובהודעת האיפוס גם {until})."
 
 
 class Refused(ApiError):
@@ -221,25 +228,25 @@ def mode_rank(mode: str) -> int:
     return DEVICE_KEY_MODES.index(mode) if mode in DEVICE_KEY_MODES else len(DEVICE_KEY_MODES)
 
 
-def clean_notice(value: Any, max_len: int) -> str | None:
-    """A notice template as stored: whitespace folded, 1..max_len characters, no braces except the two placeholders. None = invalid."""
+def clean_notice(value: Any, max_len: int, placeholders: tuple[str, ...] = NOTICE_PLACEHOLDERS) -> str | None:
+    """A notice template as stored: whitespace folded, 1..max_len characters, no braces except the allowed placeholders. None = invalid."""
     if not isinstance(value, str):
         return None
     text = " ".join(value.split())
     if not 1 <= len(text) <= max_len:
         return None
     rest = text
-    for p in NOTICE_PLACEHOLDERS:
+    for p in placeholders:
         rest = rest.replace(p, "")
     return None if ("{" in rest or "}" in rest) else text
 
 
 def notice_template(conn: sqlite3.Connection, key: str) -> str:
-    default, max_len = NOTICE_DEFAULTS[key]
-    return clean_notice(get_setting(conn, key, default), max_len) or default  # a hand-edited bad row falls back to the default
+    default, max_len, allowed = NOTICE_DEFAULTS[key]
+    return clean_notice(get_setting(conn, key, default), max_len, allowed) or default  # a hand-edited bad row falls back to the default
 
 
-def render_notice(template: str, device: str, until: str) -> str:
+def render_notice(template: str, device: str, until: str = "") -> str:
     """Plain substitution (never str.format: a device name with braces stays text)."""
     return template.replace("{device}", device).replace("{until}", until)
 
@@ -265,10 +272,10 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
             if value != device_key_mode(conn):
                 changes[key] = value
         elif key in NOTICE_DEFAULTS:
-            default, max_len = NOTICE_DEFAULTS[key]
-            text = default if value is None else clean_notice(value, max_len)
+            default, max_len, allowed = NOTICE_DEFAULTS[key]
+            text = default if value is None else clean_notice(value, max_len, allowed)
             if text is None:
-                raise ApiError(422, "validation", NOTICE_INVALID_HE, details={"field": key, "max": max_len, "placeholders": list(NOTICE_PLACEHOLDERS)})
+                raise ApiError(422, "validation", NOTICE_INVALID_HE, details={"field": key, "max": max_len, "placeholders": list(allowed)})
             if text != notice_template(conn, key):
                 changes[key] = text
         elif key in POLICY:
@@ -532,23 +539,25 @@ def _until_text(conn: sqlite3.Connection, ts: float) -> str:
     return _dt.datetime.fromtimestamp(ts, zone(tz)).strftime("%d/%m/%Y %H:%M")
 
 
-def _notify_reset(conn: sqlite3.Connection, user_id: str, device_id: str, device_name: str, expires: float) -> bool:
-    """The device's own user is told (in the inbox and the channels of the `security.app_device_key_reset` policy) in the wording the
-    Settings hold. Never the administrator's name, the reason, or any key material. A failure never undoes the reset (logged)."""
+def _notify_user(conn: sqlite3.Connection, source: str, title_key: str, body_key: str, user_id: str, device_name: str, until: str = "") -> bool:
+    """The device's own user is told (in the inbox and the channels of `source`'s policy: in the app and on the phone by default) in the
+    wording the Settings hold. Never an administrator's name, a reason, or any key material. A failure never undoes the act (logged)."""
     try:
         from . import notify
 
-        until = _until_text(conn, expires)
-        title = render_notice(notice_template(conn, NOTICE_TITLE_KEY), device_name, until)
-        body = render_notice(notice_template(conn, NOTICE_BODY_KEY), device_name, until)
-        res = notify.emit_full(conn, notify.Signal("security.app_device_key_reset", "session", user_id,
-                                                   dedupe_key=f"security.app_device_key_reset:session:{user_id}:{notify.new_id()}",
+        title = render_notice(notice_template(conn, title_key), device_name, until)
+        body = render_notice(notice_template(conn, body_key), device_name, until)
+        res = notify.emit_full(conn, notify.Signal(source, "session", user_id, dedupe_key=f"{source}:session:{user_id}:{notify.new_id()}",
                                                    params={"notice_title": title, "notice_body": body, "name": device_name},
                                                    initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "app_device_key"}))
         return res.action in ("created", "folded", "renotified")
     except Exception:  # noqa: BLE001
-        log.warning("device key reset notice failed", exc_info=True)
+        log.warning("device key notice %s failed", source, exc_info=True)
         return False
+
+
+def _notify_reset(conn: sqlite3.Connection, user_id: str, device_id: str, device_name: str, expires: float) -> bool:
+    return _notify_user(conn, "security.app_device_key_reset", NOTICE_TITLE_KEY, NOTICE_BODY_KEY, user_id, device_name, _until_text(conn, expires))
 
 
 def approve_key_reset(conn: sqlite3.Connection, actor: Principal, device_id: str, reason: Any, *, channel: str, request_id: str | None) -> dict[str, Any]:
@@ -608,8 +617,12 @@ def release_pins(conn: sqlite3.Connection, device_ids: Any, reason: str, *, acto
             continue
         conn.execute("DELETE FROM app_refresh_device_keys WHERE device_id = ?", (did,))
         _drop_nonces(conn, pin_scope(did))
+        # owner decision Q312: the user hears of it (a stolen session that ends the sign-in to re-key the phone no longer goes unnoticed)
+        dev = conn.execute("SELECT name FROM mobile_devices WHERE id = ?", (did,)).fetchone()
+        notified = _notify_user(conn, "security.app_device_key_released", RELEASED_TITLE_KEY, RELEASED_BODY_KEY, row["user_id"],
+                                (dev["name"] if dev is not None else "") or "")
         audit(conn, actor=actor, action="auth.app_refresh.key_released", decision="allowed", resource_type="mobile_device", resource_id=did,
-              reason=reason, request_id=request_id, details={"key_fp": dk.fingerprint_prefix(row["device_key_fp"])})
+              reason=reason, request_id=request_id, details={"key_fp": dk.fingerprint_prefix(row["device_key_fp"]), "notified": notified})
         n += 1
     return n
 
@@ -1080,5 +1093,5 @@ __all__ = ["FEATURE_KEY", "Refused", "enabled", "enabled_db", "policy", "setting
            "resolve_access", "revoke_family", "revoke_device", "revoke_user", "revoke_anchor", "revoke_all", "revoke_anchor_db", "hook",
            "list_families", "family", "janitor", "reset_limits", "is_refresh_token", "is_access_token", "token_hash", "install_hash",
            "DEVICE_KEY_KEY", "DEVICE_KEY_MODES", "device_key_mode", "mode_rank", "challenge", "peek_device_family",
-           "pinned_key", "key_status", "approve_key_reset", "withdraw_key_reset", "release_pins", "NOTICE_TITLE_KEY", "NOTICE_BODY_KEY",
+           "pinned_key", "key_status", "approve_key_reset", "withdraw_key_reset", "release_pins", "NOTICE_TITLE_KEY", "NOTICE_BODY_KEY", "RELEASED_TITLE_KEY", "RELEASED_BODY_KEY",
            "RESET_WINDOW_S"]

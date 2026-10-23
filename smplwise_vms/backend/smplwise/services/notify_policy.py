@@ -159,6 +159,10 @@ SOURCES: tuple[Source, ...] = (
     # by services/app_refresh before the signal (never the administrator, the reason or key material)
     _s("security.app_device_key_reset", "איפוס מפתח האבטחה של האפליקציה", "security", "alert", "{notice_title}", "{notice_body}", window_s=3600,
        who="initiator", subject="session", resolves=False, app=True),
+    # APPREFRESH3-295 (owner Q312): the user's own sign-out released the phone-app device key - told the same way, its own wording
+    # (security.app_refresh_key_released_notice_*)
+    _s("security.app_device_key_released", "שחרור מפתח האבטחה של האפליקציה", "security", "alert", "{notice_title}", "{notice_body}", window_s=3600,
+       who="initiator", subject="session", resolves=False, app=True),
     # USR2 phase 2 (CR-USR2 §3, security review F7): the Arx-only sign-in's security events, to the managers (a `system` subject:
     # system.configure). Content-free - never a username, an address or a person; the audit rows carry the user id.
     _s("security.local_storm", "ניסיונות כניסה רבים של משתמשי Arx", "security", "alert", "ניסיונות כניסה רבים של משתמשי Arx",
