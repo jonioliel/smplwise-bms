@@ -74,6 +74,8 @@ import '../screens/live-camera';
 import '../screens/live-views';
 import '../screens/kiosk-wall';
 import '../screens/system-wall';
+import '../screens/system-notices'; // CR-NOTICE106: הגדרות › לוח הודעות
+import '../screens/devices-notices'; // CR-NOTICE106: ראשי › לוח הודעות
 import '../screens/system-access-control'; // CR-036 S10: הגדרות › בקרת כניסה
 import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
 import '../screens/investigate-playback';
@@ -111,7 +113,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -1618,6 +1620,7 @@ export class SwApp extends LitElement {
       applyCapabilities(s.mode === 'api' ? s.capabilities : null); // NN1: what the installation has decides which areas are offered (nav-capabilities.ts)
       // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
       if (!applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) })) startRfqQuestions(); // RFQQUESTIONS: the nav badge
+      applyNoticesHidden(s.mode === 'api' && !!s.me?.modules?.notices); // CR-NOTICE106: the notice board tab (OFF by default, the static demo too)
       setTicketNames(s.me?.modules?.tickets_name);
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
@@ -1673,6 +1676,7 @@ export class SwApp extends LitElement {
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
           if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
+          applyNoticesHidden(this.session.mode === 'api' && !!this.session.me?.modules?.notices); // CR-NOTICE106: HIDDEN_HREFS was just rebuilt
           void refreshElevatorsVisibility(); // CR-INFRA-ELEVATORS: the elevators tab appears once an elevator is defined
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
@@ -2330,6 +2334,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'wall') return html`<system-wall></system-wall>`; // הגדרות › מסכי קיר (CR-030)
+        if (s[1] === 'notices') return html`<system-notices .boardId=${s[2] ?? ''}></system-notices>`; // הגדרות › לוח הודעות (CR-NOTICE106)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
@@ -2392,6 +2397,7 @@ export class SwApp extends LitElement {
         // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer, the trash AND the editors are one element that reads the address itself:
         // the routes `.../<id>/edit` and `.../new/edit?kind=&template=` open S4's editor sheet (<automation-builder> / <script-editor> / <scene-editor>) over
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
+        if (s[1] === 'notices') return html`<devices-notices></devices-notices>`; // CR-NOTICE106: לוח הודעות (the screen checks the module and the rights)
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'infra':

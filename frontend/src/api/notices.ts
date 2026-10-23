@@ -1,0 +1,149 @@
+/**
+ * CR-NOTICE106: the ONLY module of the application that talks to `/api/v1/notices...` (smplwise_vms/backend/smplwise/routers/notices.py).
+ * The TV page (src/notice-tv/) has its own fetch of the display feed and never imports this file.
+ */
+import { api, del, get, patch, post, put } from './client';
+import type { Display } from '../notice-tv/tv-logic';
+
+export type Severity = 'info' | 'alert' | 'critical';
+export type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
+
+export interface Audience {
+  everyone?: boolean;
+  floors?: string[];
+  areas?: string[];
+  groups?: string[];
+  roles?: string[];
+}
+
+export interface Notice {
+  id: string;
+  title: string;
+  body: string;
+  severity: Severity;
+  starts_at: string;
+  ends_at: string | null;
+  pinned: boolean;
+  state: NoticeState;
+  dwell_s: number | null;
+  when_text: string | null;
+  published_at: string | null;
+  updated_at: string;
+  boards: string[];
+  read?: boolean;
+  audience?: Audience;
+  status?: 'draft' | 'published' | 'archived';
+  reads?: number;
+}
+
+export interface NoticesCan {
+  view: boolean;
+  manage: boolean;
+  manage_all: boolean;
+  push: boolean;
+  boards: boolean;
+  configure: boolean;
+}
+
+export interface NoticesList {
+  notices: Notice[];
+  can: NoticesCan;
+  now: string;
+  defaults: { default_days: number; default_severity: 'info' | 'alert' };
+}
+
+export interface Board {
+  id: string;
+  name: string;
+  slug: string;
+  enabled: boolean;
+  display?: Display;
+  has_token?: boolean;
+  token_rotated_at?: string | null;
+  last_seen_at?: string | null;
+  item_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NoticesSettings {
+  enabled: boolean;
+  default_days: number;
+  default_severity: 'info' | 'alert';
+  push_default: 'by_severity' | 'always' | 'never';
+  reads_names: boolean;
+  retention_days: number;
+  boards_remote: boolean;
+  boards_max: number;
+  weather_entity: string;
+  weather_fallback: boolean;
+  news_custom: boolean;
+  building_name: string;
+  boards_origin: string;
+  news_sources: { id: string; name: string; url: string }[];
+}
+
+export interface SettingsResponse {
+  settings: NoticesSettings;
+  can: NoticesCan;
+  weather_entities: { entity_id: string; name: string }[];
+  company_logo: boolean;
+  listener: boolean;
+  building_fallback: string;
+}
+
+export interface NoticeInput {
+  title: string;
+  body?: string;
+  severity?: Severity;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  until_archived?: boolean;
+  pinned?: boolean;
+  dwell_s?: number | null;
+  clear_dwell?: boolean;
+  when_text?: string;
+  audience?: Audience;
+  boards?: string[];
+  publish?: boolean;
+}
+
+export const noticesModule = () => get<{ enabled: boolean; can: NoticesCan }>('notices/module');
+export const noticesSettings = () => get<SettingsResponse>('notices/settings');
+export const patchNoticesSettings = (body: Partial<Omit<NoticesSettings, 'news_sources'>>) => patch<{ settings: NoticesSettings }>('notices/settings', body);
+export const uploadCompanyLogo = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api<{ company_logo: boolean }>('notices/settings/logo', { method: 'PUT', body: form });
+};
+export const removeCompanyLogo = () => del('notices/settings/logo');
+
+export const listNotices = (scope: 'mine' | 'all') => get<NoticesList>(`notices?scope=${scope}`);
+export const createNotice = (body: NoticeInput) => post<{ notice: Notice }>('notices', body);
+export const patchNotice = (id: string, body: Partial<NoticeInput>) => patch<{ notice: Notice }>(`notices/${encodeURIComponent(id)}`, body);
+export const publishNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/publish`);
+export const archiveNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/archive`);
+export const deleteNotice = (id: string) => del(`notices/${encodeURIComponent(id)}`);
+export const markRead = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
+export const audiencePreview = (audience: Audience) => post<{ users: number; in_scope: boolean }>('notices/audience/preview', { audience });
+export const audienceOptions = () =>
+  get<{ floors: { id: string; name: string; building: string }[]; groups: { id: string; name: string }[]; roles: { id: string; name: string }[] }>('notices/audience/options');
+
+export const listBoards = () => get<{ boards: Board[]; full: boolean; max?: number; remote?: boolean }>('notices/boards');
+export const getBoard = (id: string) =>
+  get<{ board: Board; notices: { id: string; title: string; severity: Severity; starts_at: string; ends_at: string | null; pinned: boolean; state: NoticeState; position: number }[] }>(
+    `notices/boards/${encodeURIComponent(id)}`,
+  );
+export const createBoard = (body: { name: string; slug: string; display?: Partial<Display> }) => post<{ board: Board; token: string }>('notices/boards', body);
+export const patchBoard = (id: string, body: { name?: string; enabled?: boolean; display?: Partial<Display> | Record<string, unknown> }) =>
+  patch<{ board: Board }>(`notices/boards/${encodeURIComponent(id)}`, body);
+export const rotateBoardToken = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/rotate-token`);
+export const deleteBoard = (id: string) => del(`notices/boards/${encodeURIComponent(id)}`);
+export const putBoardItems = (id: string, notice_ids: string[]) => put<{ notice_ids: string[] }>(`notices/boards/${encodeURIComponent(id)}/items`, { notice_ids });
+export const boardControl = (id: string, cmd: 'next' | 'prev' | 'pause' | 'play') => post<{ control: { seq: number; cmd: string } }>(`notices/boards/${encodeURIComponent(id)}/control`, { cmd });
+
+/** The TV link of a board: the page next to the application root, the token in the fragment (never sent to a server). */
+export function boardLink(slug: string, token: string, origin?: string): string {
+  const base = origin ? origin.replace(/\/+$/, '') + '/' : new URL('./', location.href).toString();
+  return `${base}b/${slug}#t=${token}`;
+}

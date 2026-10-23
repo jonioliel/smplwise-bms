@@ -616,3 +616,25 @@ listener as its checklist.
 13. **Promo slides.** Recommendation: text + optional picture per slide, per board, up to 10 slides, JPEG/PNG up to 1 MB
     re-encoded to 800 px (the bill-logo pipeline), no video, no external images. Question: should slides be shareable across
     boards (one slide, several boards) - recommendation yes, via the same board-items pattern, in slice 4.
+
+## 15. Build NOTICE106B-295 (pilot/NOTICE106B-295, from a1ac9d3ac)
+
+Built (module `notices.enabled` OFF by default): slice 1 core without the home widget, slice 3 TV boards in full, and from slice 4 the
+weather (the installation's `weather.*` entity) and the news ticker (server-side RSS, curated list + optional https URL).
+
+- Migration `0160_notices.sql` - **PROVISIONAL number** (main ends 0151, release/2150 takes 0152+): renumber at integration.
+- Backend: `services/notices/` (model, store, audience, display, sources, page, listener), `routers/notices.py`. Settings are the module's
+  own keys behind `GET/PATCH /notices/settings` (not the global settings PATCH); `notices.enabled` and `notices.boards.remote` are in the
+  backup `SETTINGS_KEEP`. New key `notices.boards.origin` (the address the TV links point to). Company logo: the boards keep their own
+  copy (`PUT /notices/settings/logo`, the bill-logo sanitiser) until CR-LOGOS295 lands. Control lease: `POST /notices/boards/{id}/control`.
+- The TVs reach the boards through a LAN listener (add-on option `notice_boards`, container port 18094, unmapped by default): it serves only
+  `/b/<slug>`, the TV page's own asset files and the two display routes. The main app serves the same routes (Ingress preview; the remote
+  channel only with `notices.boards.remote`).
+- TV page: `frontend/notice-tv.html` + `src/notice-tv/` - a third entry of the main Vite build; `tv.css` is generated from the approved
+  `tv.html` (verbatim, Heebo inlined); the renderer is the mock-up's, driven by the feed. Pixel check against the mock-up:
+  `tests/pixel-notice-tv-mock.spec.ts`. One deliberate deviation: template 2 shows the SmplWise mark in the header only (the mock-up also
+  drew it in the footer; §8.1 says header).
+- UI: `#/devices/notices` (ראשי › לוח הודעות; KPI filters, table / cards, compose dialog) and `#/system/notices` (+ `/<board id>`: tabs
+  כללי / תצוגה / הודעות, the live iframe preview, link + QR shown once).
+- NOT built: push (slice 2; `notices.push` is catalogued), the home widget, promo slides, the template-2 building photo, the building-status
+  chips (the page draws `info` when a feed carries it; the backend sends none yet), internet weather fallback, cast as a picture.

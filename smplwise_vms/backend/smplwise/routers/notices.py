@@ -111,6 +111,7 @@ class SettingsIn(BaseModel):
     weather_fallback: bool | None = None
     news_custom: bool | None = None
     building_name: str | None = Field(default=None, max_length=60)
+    boards_origin: str | None = Field(default=None, max_length=220)
 
 
 def _weather_entities(conn: sqlite3.Connection) -> list[dict[str, str]]:

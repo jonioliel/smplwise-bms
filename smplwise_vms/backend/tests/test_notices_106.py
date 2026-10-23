@@ -396,8 +396,8 @@ def test_weather_block_from_the_weather_entity(client, settings):
     db = Database(settings.db_path)
     future = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=2)).isoformat()
     with db.connection() as conn:
-        conn.execute("""INSERT INTO ha_entities(entity_id, domain, name, state, attributes_json, available, first_seen_at)
-                        VALUES ('weather.home', 'weather', 'Home', 'sunny', ?, 1, '2026-10-01T00:00:00Z')""",
+        conn.execute("""INSERT INTO ha_entities(entity_id, domain, name, state, attributes_json, available, first_seen_at, updated_at)
+                        VALUES ('weather.home', 'weather', 'Home', 'sunny', ?, 1, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')""",
                      (json.dumps({"temperature": 24.4, "forecast": [{"datetime": future, "temperature": 26, "condition": "partlycloudy"}]}),))
     client.patch(f"{API}/notices/settings", json={"weather_entity": "weather.home"})
     _b, token = _board(client)

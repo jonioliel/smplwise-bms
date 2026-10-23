@@ -44,6 +44,9 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "notices.weather_fallback": "false",
     "notices.news_custom": "true",
     "notices.building_name": "",
+    # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
+    # empty = the address the manager uses (the Settings screen says so)
+    "notices.boards.origin": "",
 }
 
 
@@ -294,6 +297,7 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "weather_fallback": raw["notices.weather_fallback"] == "true",
         "news_custom": raw["notices.news_custom"] == "true",
         "building_name": raw["notices.building_name"][:60],
+        "boards_origin": raw["notices.boards.origin"],
         "news_sources": CURATED_NEWS,
     }
 
@@ -303,6 +307,7 @@ SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
     "push_default": "notices.push_default", "reads_names": "notices.reads_names", "retention_days": "notices.retention_days",
     "boards_remote": "notices.boards.remote", "boards_max": "notices.boards.max", "weather_entity": "notices.weather_entity",
     "weather_fallback": "notices.weather_fallback", "news_custom": "notices.news_custom", "building_name": "notices.building_name",
+    "boards_origin": "notices.boards.origin",
 }
 
 
@@ -336,4 +341,9 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
             out[key] = value
         elif field == "building_name":
             out[key] = clean_text(value, field, 60)
+        elif field == "boards_origin":
+            v = str(value or "").strip().rstrip("/")
+            if v and not re.match(r"^https?://[A-Za-z0-9.\-\[\]:]{1,200}$", v):
+                raise Invalid(field, "כתובת הלוחות: http(s)://שם-או-כתובת[:פורט], בלי נתיב.")
+            out[key] = v
     return out
