@@ -512,6 +512,16 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("vendor_stats", "repeat_days"): (30, int_range(1, 365)),
     ("vendor_stats", "card_permission"): ("tickets.manage", _choice("tickets.manage", "tickets.directory", "tickets.configure", "tickets.view")),
     ("vendor_stats", "money_permission"): ("tickets.costs.view", _choice("tickets.costs.view", "tickets.costs", "tickets.configure")),
+    # slice 2: the list behind a number (rows per answer), the vendor columns of the monthly CSV, and the numbers of the one-line strip in
+    # the quote comparison (the same line the assignee picker draws)
+    ("vendor_stats", "list_limit"): (50, int_range(10, 200)),
+    ("vendor_stats", "csv_columns"): (True, boolean),
+    ("vendor_stats", "strip_numbers"): (["arrival", "repeat"], lambda v: stat_numbers(v)),
+    # vendor_documents (r084 surfaces; the data is CR-MAINT215's): the confirmation when a vendor with a lapsed document is assigned (answer
+    # 27 / MAINT215 question 5: asked, never refused), whether a document that lapses inside its lead also asks, and the marks in the comparison
+    ("vendor_documents", "confirm_on_assign"): (True, boolean),
+    ("vendor_documents", "confirm_expiring"): (False, boolean),
+    ("vendor_documents", "comparison_marks"): (True, boolean),
     # visits (r126 / r127): planned vendor visits, the vendor's "I arrived" and the missed-arrival detector
     #   grace_min              minutes after the planned window before a visit is missed (answer 32: 60; a department may override)
     #   claim_counts           the vendor's own press counts as an arrival - a declaration (answer 31); off: it is "reported" until staff confirm

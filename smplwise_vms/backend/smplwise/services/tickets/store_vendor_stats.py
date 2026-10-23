@@ -80,19 +80,24 @@ def same_device_followup(conn: sqlite3.Connection, ticket_id: str, entity_id: st
     return conn.execute(sql, [entity_id, ticket_id, start, end, *contact_ids]).fetchone() is not None
 
 
-def open_now(conn: sqlite3.Connection, contact_ids: list[str]) -> int:
+def open_tickets(conn: sqlite3.Connection, contact_ids: list[str]) -> list[dict[str, Any]]:
+    """The requests open with the unit now (slice 2: the list behind the "open now" number), newest assignment first."""
     if not contact_ids:
-        return 0
-    sql = (f"SELECT COUNT(DISTINCT a.ticket_id) FROM ticket_assignments a JOIN tickets t ON t.id = a.ticket_id WHERE a.assignee_kind = 'contact' "
-           f"AND a.contact_id IN ({_marks(contact_ids)}) AND a.ended_at IS NULL AND t.status NOT IN ('closed', 'cancelled')")
-    return int(conn.execute(sql, contact_ids).fetchone()[0] or 0)
+        return []
+    sql = (f"SELECT a.ticket_id, MAX(a.assigned_at) AS at FROM ticket_assignments a JOIN tickets t ON t.id = a.ticket_id WHERE a.assignee_kind = 'contact' "
+           f"AND a.contact_id IN ({_marks(contact_ids)}) AND a.ended_at IS NULL AND t.status NOT IN ('closed', 'cancelled') GROUP BY a.ticket_id ORDER BY at DESC")
+    return [dict(r) for r in conn.execute(sql, contact_ids).fetchall()]
+
+
+def open_now(conn: sqlite3.Connection, contact_ids: list[str]) -> int:
+    return len(open_tickets(conn, contact_ids))
 
 
 def settled_claims_with_basis(conn: sqlite3.Connection, contact_ids: list[str], since: str, until: str) -> list[dict[str, Any]]:
     """Approved / paid demands of the unit approved in the window, each with its latest VENDOR revision that named a quote basis."""
     if not contact_ids:
         return []
-    sql = (f"SELECT c.id AS claim_id, c.ticket_id, r.total_minor, r.currency, r.basis_json FROM ticket_cost_claims c "
+    sql = (f"SELECT c.id AS claim_id, c.ticket_id, c.approved_at, r.total_minor, r.currency, r.basis_json FROM ticket_cost_claims c "
            f"JOIN ticket_cost_revisions r ON r.claim_id = c.id WHERE c.contact_id IN ({_marks(contact_ids)}) AND c.status IN ('approved', 'paid') "
            "AND c.approved_at >= ? AND c.approved_at < ? AND r.source = 'vendor' AND r.basis_json IS NOT NULL AND r.basis_json != 'null' "
            "AND r.seq = (SELECT MAX(r2.seq) FROM ticket_cost_revisions r2 WHERE r2.claim_id = c.id AND r2.source = 'vendor' "
@@ -102,7 +107,7 @@ def settled_claims_with_basis(conn: sqlite3.Connection, contact_ids: list[str], 
 
 def visits(conn: sqlite3.Connection, unit_id: str, since: str, until: str) -> list[dict[str, Any]]:
     try:
-        return [dict(r) for r in conn.execute("SELECT id, ticket_id, state, late FROM ticket_visits WHERE vendor_id = ? AND planned_from >= ? "
-                                              "AND planned_from < ?", (unit_id, since, until)).fetchall()]
+        return [dict(r) for r in conn.execute("SELECT id, ticket_id, state, late, planned_from FROM ticket_visits WHERE vendor_id = ? AND planned_from >= ? "
+                                              "AND planned_from < ? ORDER BY planned_from DESC", (unit_id, since, until)).fetchall()]
     except sqlite3.Error:
         return []

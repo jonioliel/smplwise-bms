@@ -275,6 +275,17 @@ class VendorStatsPatch(BaseModel):
     repeat_days: StrictInt | None = None
     card_permission: str | None = Field(default=None, max_length=40)
     money_permission: str | None = Field(default=None, max_length=40)
+    list_limit: StrictInt | None = None
+    csv_columns: StrictBool | None = None
+    strip_numbers: list[str] | None = Field(default=None, max_length=6)
+
+
+class VendorDocumentsPatch(BaseModel):
+    """CR-SVC215 slice 2: the vendor-document surfaces of the service module (the data is CR-MAINT215's)."""
+    model_config = ConfigDict(extra="forbid")
+    confirm_on_assign: StrictBool | None = None
+    confirm_expiring: StrictBool | None = None
+    comparison_marks: StrictBool | None = None
 
 
 class VisitsPatch(BaseModel):
@@ -306,6 +317,7 @@ class BudgetsPatch(BaseModel):
 class SettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     vendor_stats: VendorStatsPatch | None = None  # CR-SVC215
+    vendor_documents: VendorDocumentsPatch | None = None  # CR-SVC215 slice 2
     visits: VisitsPatch | None = None  # CR-SVC215
     budgets: BudgetsPatch | None = None  # CR-SVC215
     revision: int = Field(ge=0)
@@ -381,7 +393,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
     for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports",
-                  "vendor_stats", "visits", "budgets"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL / CR-SVC215
+                  "vendor_stats", "vendor_documents", "visits", "budgets"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL / CR-SVC215
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

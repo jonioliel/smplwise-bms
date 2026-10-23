@@ -70,17 +70,24 @@ def _months_back(now: dt.datetime, months: int) -> dt.datetime:
     return now.replace(year=year, month=month, day=day)
 
 
-def compute(conn, contact_id: str, *, months: int, now: dt.datetime, money: bool) -> dict[str, Any]:
-    """The card of the contact's unit over the last `months` months up to `now`. Raises NoCard."""
+def compute(conn, contact_id: str, *, months: int, now: dt.datetime, money: bool, only: set[str] | None = None) -> dict[str, Any]:
+    """The card of the contact's unit over the last `months` months up to `now`. Raises NoCard. `only` narrows the numbers (the strip of
+    the quote comparison, slice 2); the shown set of the settings still applies."""
     if months not in MONTHS:
         raise ValueError("months")
+    since, until = _iso(_months_back(now, months)), _iso(now + dt.timedelta(seconds=1))
+    out = card_between(conn, contact_id, since=since, until=until, money=money, only=only)
+    out["months"], out["to"] = months, _iso(now)
+    return out
+
+
+def card_between(conn, contact_id: str, *, since: str, until: str, money: bool, only: set[str] | None = None) -> dict[str, Any]:
+    """The card over [since, until) (UTC ISO instants) - the window of `compute` or of one line of the monthly CSV (slice 2). Raises NoCard."""
     c = cfg(conn)
     _contact, unit = unit_of(conn, contact_id)
-    since_dt = _months_back(now, months)
-    since, until = _iso(since_dt), _iso(now + dt.timedelta(seconds=1))
     ids = sv.unit_contact_ids(conn, unit)
     asg = sv.assignments(conn, ids, since, until)
-    shown = set(c["numbers"])
+    shown = set(c["numbers"]) if only is None else set(c["numbers"]) & only
     numbers: dict[str, Any] = {}
     if "response" in shown:
         numbers["response"] = _response(conn, asg)
@@ -96,8 +103,91 @@ def compute(conn, contact_id: str, *, months: int, now: dt.datetime, money: bool
         numbers["returned"] = {"count": ret, "base": len(asg), "share_bp": (ret * 10000 // len(asg)) if asg else None}
     if "volume" in shown:
         numbers["volume"] = {"done": len(done), "open_now": sv.open_now(conn, ids)}
-    return {"contact_id": contact_id, "unit_id": unit, "months": months, "from": since, "to": _iso(now), "numbers": numbers,
+    return {"contact_id": contact_id, "unit_id": unit, "from": since, "to": until, "numbers": numbers,
             "shown": [k for k in settings_doc.STAT_NUMBERS if k in shown and (k != "quote" or money)]}
+
+
+# ---------------------------------------------------------------- the list behind a number (slice 2)
+
+# metric -> (the card number it explains, whether it needs the money permission)
+METRICS: dict[str, tuple[str, bool]] = {
+    "response": ("response", False), "on_time": ("arrival", False), "late": ("arrival", False), "missed": ("arrival", False),
+    "repeat": ("repeat", False), "kept": ("quote", True), "overshoot": ("quote", True), "returned": ("returned", False),
+    "done": ("volume", False), "open": ("volume", False),
+}
+
+
+class MetricHidden(Exception):
+    """The number behind the metric is switched off in `vendor_stats.numbers`."""
+
+
+class MoneyNeeded(Exception):
+    """A money metric asked for without the money permission."""
+
+
+def tickets_behind(conn, contact_id: str, metric: str, *, months: int, now: dt.datetime, money: bool) -> list[dict[str, Any]]:
+    """The requests that make up one number of the card, newest first, one row per request: {ticket_id, at, detail}. The caller filters
+    by the ticket visibility and cuts the list - this function knows nothing of the viewer. Raises NoCard, MetricHidden, MoneyNeeded."""
+    number, needs_money = METRICS[metric]
+    if needs_money and not money:
+        raise MoneyNeeded(metric)
+    c = cfg(conn)
+    if number not in c["numbers"]:
+        raise MetricHidden(metric)
+    _contact, unit = unit_of(conn, contact_id)
+    since, until = _iso(_months_back(now, months)), _iso(now + dt.timedelta(seconds=1))
+    ids = sv.unit_contact_ids(conn, unit)
+    rows: list[dict[str, Any]] = []
+    if metric in ("on_time", "late", "missed"):
+        for v in sv.visits(conn, unit, since, until):
+            if v["state"] == "missed":
+                kind = "missed"
+            elif v["state"] == "arrived":
+                kind = "late" if v.get("late") else "on_time"
+            else:
+                continue
+            if kind == metric:
+                rows.append({"ticket_id": v["ticket_id"], "at": v["planned_from"], "detail": {"visit_id": v["id"]}})
+    elif metric in ("response", "returned", "done", "repeat"):
+        asg = sv.assignments(conn, ids, since, until)
+        if metric == "response":
+            signals = sv.first_link_signals(conn, [a["id"] for a in asg])
+            for a in asg:
+                start = _parse(a["assigned_at"])
+                cands = [t for t in (_parse(signals.get(a["id"])), _parse(a.get("acknowledged_at"))) if t is not None]
+                if start is not None and cands:
+                    mins = int(round(max(0.0, (min(cands) - start).total_seconds() / 60.0)))
+                    rows.append({"ticket_id": a["ticket_id"], "at": a["assigned_at"], "detail": {"minutes": mins}})
+        elif metric == "returned":
+            rows = [{"ticket_id": a["ticket_id"], "at": a["assigned_at"], "detail": {"kind": a["return_kind"]}} for a in asg if a.get("return_kind")]
+        else:
+            done = sv.done_events(conn, [a["id"] for a in asg], since, until)
+            if metric == "repeat":
+                days = int(c["repeat_days"])
+                rows = [{"ticket_id": d["ticket_id"], "at": d["at"], "detail": {"days": days}} for d in _repeat_matches(conn, done, ids, days)]
+            else:
+                rows = [{"ticket_id": d["ticket_id"], "at": d["at"], "detail": {}} for d in done]
+    elif metric == "open":
+        rows = [{"ticket_id": r["ticket_id"], "at": r["at"], "detail": {}} for r in sv.open_tickets(conn, ids)]
+    else:  # kept / overshoot
+        for r in sv.settled_claims_with_basis(conn, ids, since, until):
+            basis = _basis(r)
+            if basis is None:
+                continue
+            total = int(r["total_minor"])
+            over = total > basis
+            if (metric == "overshoot") == over:
+                rows.append({"ticket_id": r["ticket_id"], "at": r.get("approved_at") or "",
+                             "detail": {"basis_minor": basis, "total_minor": total, "currency": r["currency"],
+                                        "overshoot_bp": ((total - basis) * 10000 // basis) if over else 0}})
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in sorted(rows, key=lambda x: x["at"] or "", reverse=True):
+        if r["ticket_id"] in seen:
+            continue
+        seen.add(r["ticket_id"])
+        out.append(r)
+    return out
 
 
 def _response(conn, asg: list[dict[str, Any]]) -> dict[str, Any]:
@@ -120,32 +210,44 @@ def _arrival(conn, unit: str, since: str, until: str) -> dict[str, Any]:
             "share_bp": (on_time * 10000 // len(ended)) if ended else None}
 
 
-def _repeat(conn, done: list[dict[str, Any]], ids: list[str], days: int) -> dict[str, Any]:
-    count = 0
+def _repeat_matches(conn, done: list[dict[str, Any]], ids: list[str], days: int) -> list[dict[str, Any]]:
+    out = []
     for d in done:
         at = _parse(d["at"])
         if at is None:
             continue
         end = _iso(at + dt.timedelta(days=days))
         if sv.reopened_between(conn, d["ticket_id"], d["at"], end) or sv.same_device_followup(conn, d["ticket_id"], d.get("entity_id") or "", ids, d["at"], end):
-            count += 1
+            out.append(d)
+    return out
+
+
+def _repeat(conn, done: list[dict[str, Any]], ids: list[str], days: int) -> dict[str, Any]:
+    count = len(_repeat_matches(conn, done, ids, days))
     return {"count": count, "base": len(done), "share_bp": (count * 10000 // len(done)) if done else None, "days": days}
+
+
+def _basis(r: dict[str, Any]) -> int | None:
+    try:
+        b = json.loads(r["basis_json"] or "null")
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(b, dict) or not isinstance(b.get("basis_minor"), int) or b["basis_minor"] <= 0:
+        return None
+    return int(b["basis_minor"])
 
 
 def _quote(conn, ids: list[str], since: str, until: str) -> dict[str, Any]:
     kept, over_bp, base = 0, [], 0
     for r in sv.settled_claims_with_basis(conn, ids, since, until):
-        try:
-            b = json.loads(r["basis_json"] or "null")
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(b, dict) or not isinstance(b.get("basis_minor"), int) or b["basis_minor"] <= 0:
+        basis = _basis(r)
+        if basis is None:
             continue
         base += 1
         total = int(r["total_minor"])
-        if total <= b["basis_minor"]:
+        if total <= basis:
             kept += 1
         else:
-            over_bp.append((total - b["basis_minor"]) * 10000 // b["basis_minor"])
+            over_bp.append((total - basis) * 10000 // basis)
     return {"kept": kept, "base": base, "share_bp": (kept * 10000 // base) if base else None,
             "overshoot_median_bp": int(statistics.median(over_bp)) if over_bp else None}
