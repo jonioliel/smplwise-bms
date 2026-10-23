@@ -184,7 +184,8 @@ def test_sampling_writes_on_change_and_on_heartbeat_only(w):
     w.review("a", "cam_front")
     with w.conn() as conn:
         assert zc.sample(conn, t0 + dt.timedelta(seconds=60)) == 1   # 1 person
-        assert zc.sample(conn, t0 + dt.timedelta(seconds=60 + zc.HEARTBEAT_S + 1)) == 1   # heartbeat
+        conn.execute("UPDATE zone_count_samples SET at = ? WHERE id = (SELECT MAX(id) FROM zone_count_samples)", (zc._iso(t0 - dt.timedelta(seconds=zc.HEARTBEAT_S + 1)),))
+        assert zc.sample(conn, t0 + dt.timedelta(seconds=61)) == 1   # unchanged but its last row is older than the heartbeat: written again
     assert [c for _, _, c in w.samples()] == [0, 1, 1]
 
 
@@ -291,7 +292,7 @@ def test_unknown_count_is_null_over_the_api(w):
 def test_permission_and_area_scope(w):
     _enable(w)
     w.map("cam_front", "", "lobby")                    # lobby <- cam_front only
-    w.map("cam_front", "", "yard")                     # yard  <- cam_front and cam_yard
+    w.map("cam_front", "yard_zone", "yard")            # yard  <- cam_front (one zone) and cam_yard
     w.map("cam_yard", "", "yard")
     # a user with no occupancy.view anywhere: nothing listed, a detail answers 404, configuration is refused
     bind(w.client, w.settings, "viewer1", "viewer", "installation", "*")

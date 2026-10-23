@@ -32,7 +32,7 @@ Table `zone_count_map(recorder_id, camera_key, frigate_zone, area_id)`, unique p
 
 * `frigate_zone = ''` maps the **whole camera view** to an area (every review of that camera counts);
 * `frigate_zone = 'lobby_zone'` maps only reviews whose `zones` contain that Frigate zone name;
-* an area may be fed by several rows (several cameras / zones); a camera may feed several areas;
+* an area may be fed by several rows (several cameras / zones); a camera may feed several areas only through different Frigate zones (one row per camera and zone);
 * `camera_key` must be an imported camera of that recorder (`cameras.source_ref`), `area_id` an existing `ha_areas` row. Mappings are edited with
   `system.configure` (audited); they are never inferred automatically.
 
