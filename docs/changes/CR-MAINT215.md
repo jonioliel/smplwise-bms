@@ -244,3 +244,15 @@ UI (after the mockup is approved): the ledger screen with states and filters, th
 generator cards, tag printing (QR SVG, label) and the `#/m/<token>` route; certificate / document files through the tickets
 attachment pipeline; the supplier mark in the tickets assignee picker; request closure -> plan done (question 7); backup inclusion
 (question 6); the API inventory and user-guide pages; he / en first, ar / ru marked initial.
+
+## Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 6). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup v2 approved with these answers:
+
+- **Reminders (form Q3; this document's Q1):** the proposed lead times (30 days before a certificate expires, 7 days for a plan) are accepted, **but reminders are sent only after they are enabled in settings**; until then none goes out.
+- **Phone round (form Q4):** the mockup's one point per screen stays, and the technician can **switch the round to one long list**, either from settings or with a **quick-change button on the screen**.
+- **Vendor without insurance (form Q5; this document's Q5):** **marking only** (option b): a mark in the picker, no manager confirmation and no refusal.
+- **Closing a request opened by a plan (form Q6; this document's Q7):** closing marks the plan done **automatically**, but the system **asks the user a question and he decides** whether to mark it done. This is the automatic behavior: a proposal with a confirmation, neither a silent change nor a manual-only flow. Option a of Q7 is adjusted accordingly (the closer is recorded as the performer when the user confirms).
+- **Sticker address (form Q7; this document's Q4):** the **remote address** (option a).
