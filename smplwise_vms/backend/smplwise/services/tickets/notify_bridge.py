@@ -244,19 +244,25 @@ def resolve(conn: sqlite3.Connection, source: str, dedupe: str) -> None:
         log.warning("ticket notification resolve %s failed", source, exc_info=True)
 
 
-def resolve_prefix(conn: sqlite3.Connection, ticket_id: str, part: str = "") -> None:
-    """Resolve every open notification of a ticket whose key starts with `ticket:<id>:<part>` (each with its own source)."""
+def resolve_prefix(conn: sqlite3.Connection, ticket_id: str, part: str = "", *, followers: bool = False) -> None:
+    """Resolve every open notification of a ticket whose key starts with `ticket:<id>:<part>` (each with its own source); `followers` also
+    the requester / assignee status and note rows (FOLLOWER_SOURCES) - the ticket's deletion."""
     for key in store.open_notification_keys(conn, f"ticket:{ticket_id}:{part}"):
-        src = source_of_key(key)
+        src = source_of_key(key, followers=followers)
         if src:
             resolve(conn, src, key)
 
 
-def source_of_key(key: str) -> str | None:
+def source_of_key(key: str, *, followers: bool = False) -> str | None:
     part = key.split(":")[2] if key.count(":") >= 2 else ""
     return {"unassigned": "ticket.new_unassigned", "assign": "ticket.assigned", "remind": "ticket.reminder", "stuck": "ticket.stuck",
             "returned": "ticket.returned", "question": "ticket.question", "done": "ticket.done", "send": "ticket.send_failed", "contact": "ticket.contact_changed",
-            "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing"}.get(part)
+            "costsub": "ticket.cost_submitted", "costmiss": "ticket.cost_missing"}.get(part) or (FOLLOWER_SOURCES.get(part) if followers else None)
+
+
+# PUSHSVC-295: the per-person status / note rows (`ticket:<id>:upd:...` / `:cmt:...`). A close keeps them (the "closed" notice itself is one and
+# must still be delivered); a DELETE resolves them with every other row of the ticket (deletion.py passes followers=True).
+FOLLOWER_SOURCES = {"upd": "ticket.status_update", "cmt": "ticket.comment_added"}
 
 
 # ---------------------------------------------------------------- the action hooks (slice 1 calls them)

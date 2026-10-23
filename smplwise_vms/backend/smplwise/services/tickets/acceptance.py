@@ -28,6 +28,7 @@ from typing import Any
 from ...audit import audit
 from ...db import Database
 from . import model, notify_bridge, sla, store, stuck
+from . import store_acceptance as sa
 
 log = logging.getLogger("smplwise.tickets.acceptance")
 
@@ -50,7 +51,7 @@ class Settings:
 
 
 def load_settings(conn: sqlite3.Connection) -> Settings:
-    r = conn.execute("SELECT * FROM ticket_acceptance_settings WHERE id = 1").fetchone()
+    r = sa.settings_row(conn)
     if r is None:
         return Settings(False, 1440, 240, "flag", 2, ())
     try:
@@ -71,10 +72,10 @@ def blocks_auto_close(conn: sqlite3.Connection, ticket_id: str) -> bool:
     """The hook of the department's automatic close (monitor.auto_close): while the verification is pending, holding or flagged, only the
     acceptance (or a person) closes the ticket. Inert while the switch or the module is off."""
     try:
-        r = conn.execute("SELECT state FROM ticket_acceptance WHERE ticket_id = ?", (ticket_id,)).fetchone()
+        state = sa.state_of(conn, ticket_id)
     except sqlite3.Error:
         return False
-    return r is not None and r["state"] in ACTIVE and _enabled(conn)
+    return state in ACTIVE and _enabled(conn)
 
 
 # ---------------------------------------------------------------- the temperature predicate
@@ -109,8 +110,7 @@ def run(db: Database, now: dt.datetime) -> dict[str, int]:
         with db.connection(label="tickets.acceptance") as conn:
             if not _enabled(conn):
                 return {}
-            active = [r["ticket_id"] for r in conn.execute(
-                "SELECT ticket_id FROM ticket_acceptance WHERE state IN ('pending', 'holding', 'flagged') ORDER BY created_at LIMIT ?", (BATCH,)).fetchall()]
+            active = sa.active_ids(conn, BATCH)
             adopt_ids = adoptable(conn)
         for tid in adopt_ids:
             _guarded(db, tid, lambda c, t=tid: adopt(c, t, now))
@@ -137,37 +137,25 @@ def adoptable(conn: sqlite3.Connection) -> list[str]:
     cfg = load_settings(conn)
     if not cfg.categories:
         return []
-    return [r["id"] for r in conn.execute(
-        """SELECT t.id FROM tickets t
-             JOIN infra_temp_tickets l ON l.ticket_id = t.id
-             JOIN infra_temp_units u ON u.id = l.unit_id AND u.enabled = 1
-             LEFT JOIN ticket_acceptance a ON a.ticket_id = t.id
-            WHERE t.status = 'done' AND t.done_at IS NOT NULL AND t.category_id IN (SELECT value FROM json_each(?))
-              AND (a.ticket_id IS NULL OR (a.state NOT IN ('pending', 'holding', 'flagged') AND a.done_seq < (SELECT COUNT(*) FROM ticket_events e WHERE e.ticket_id = t.id AND e.to_status = 'done')))
-            ORDER BY t.done_at LIMIT ?""", (json.dumps(list(cfg.categories)), BATCH)).fetchall()]
+    return sa.adoptable_ids(conn, cfg.categories, BATCH)
 
 
 def _done_seq(conn: sqlite3.Connection, ticket_id: str) -> int:
     """How many times the ticket entered `done` (timeline rows with to_status = done): a counter, so a reopen and a new `done` inside the
     same second (done_at has second precision) are still told apart."""
-    return int(conn.execute("SELECT COUNT(*) FROM ticket_events WHERE ticket_id = ? AND to_status = 'done'", (ticket_id,)).fetchone()[0])
+    return sa.done_seq(conn, ticket_id)
 
 
 def adopt(conn: sqlite3.Connection, ticket_id: str, now: dt.datetime) -> bool:
     """Start the verification of one `done` ticket (the rule is frozen into the row, so a later settings change never moves a running one)."""
     cfg = load_settings(conn)
-    row = conn.execute(
-        "SELECT t.id, t.done_at, l.unit_id FROM tickets t JOIN infra_temp_tickets l ON l.ticket_id = t.id "
-        "JOIN infra_temp_units u ON u.id = l.unit_id AND u.enabled = 1 WHERE t.id = ? AND t.status = 'done' AND t.done_at IS NOT NULL", (ticket_id,)).fetchone()
+    row = sa.adopt_source(conn, ticket_id)
     if row is None:
         return False
     stamp = stuck.iso(now) or ""
-    conn.execute("DELETE FROM ticket_acceptance WHERE ticket_id = ?", (ticket_id,))
-    conn.execute(
-        """INSERT INTO ticket_acceptance(ticket_id, kind, subject_id, state, on_breach, hold_minutes, start_grace_minutes, max_restarts, done_at, done_seq, pending_since, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (ticket_id, "temperature", row["unit_id"], "pending", cfg.on_breach, cfg.hold_minutes, cfg.start_grace_minutes, cfg.max_restarts,
-         row["done_at"], _done_seq(conn, ticket_id), row["done_at"], stamp))
+    sa.replace_row(conn, {"ticket_id": ticket_id, "kind": "temperature", "subject_id": row["unit_id"], "state": "pending", "on_breach": cfg.on_breach,
+                          "hold_minutes": cfg.hold_minutes, "start_grace_minutes": cfg.start_grace_minutes, "max_restarts": cfg.max_restarts,
+                          "done_at": row["done_at"], "done_seq": _done_seq(conn, ticket_id), "pending_since": row["done_at"], "created_at": stamp})
     _note(conn, ticket_id, "acceptance_started", stamp, {"hold_minutes": cfg.hold_minutes, "on_breach": cfg.on_breach, "kind": "temperature"})
     STATS["adopted"] += 1
     return True
@@ -175,7 +163,7 @@ def adopt(conn: sqlite3.Connection, ticket_id: str, now: dt.datetime) -> bool:
 
 def step(conn: sqlite3.Connection, ticket_id: str, now: dt.datetime) -> str | None:
     """One look at one verification. Returns the new state (None = nothing changed)."""
-    a = conn.execute("SELECT * FROM ticket_acceptance WHERE ticket_id = ?", (ticket_id,)).fetchone()
+    a = sa.row(conn, ticket_id)
     if a is None or a["state"] not in ACTIVE:
         return None
     t = store.ticket_row_system(conn, ticket_id)
@@ -205,7 +193,7 @@ def _pending(conn, a, t, now: dt.datetime) -> str | None:
     hold_start = max([since, *[b["ended"] for b in breaches if b["ended"] is not None]])
     hold_start = min(hold_start, now)
     until = hold_start + dt.timedelta(minutes=int(a["hold_minutes"]))
-    conn.execute("UPDATE ticket_acceptance SET state = 'holding', hold_start = ?, hold_until = ? WHERE ticket_id = ?", (stuck.iso(hold_start), stuck.iso(until), a["ticket_id"]))
+    sa.start_hold(conn, a["ticket_id"], stuck.iso(hold_start), stuck.iso(until))
     _note(conn, a["ticket_id"], "acceptance_hold_started", stuck.iso(now) or "", {"hold_start": stuck.iso(hold_start), "hold_until": stuck.iso(until), "restarts": a["restarts"]})
     STATS["started"] += 1
     return "holding"
@@ -236,8 +224,7 @@ def _fail(conn, a, t, now: dt.datetime, why: str, *, breach_event_id: str | None
     stamp = stuck.iso(now) or ""
     rule = a["on_breach"]
     if why == "breach" and rule == "restart" and int(a["restarts"]) < int(a["max_restarts"]):
-        conn.execute("UPDATE ticket_acceptance SET state = 'pending', restarts = restarts + 1, pending_since = ?, hold_start = NULL, hold_until = NULL, breach_event_id = ? "
-                     "WHERE ticket_id = ?", (stamp, breach_event_id, a["ticket_id"]))
+        sa.restart(conn, a["ticket_id"], stamp, breach_event_id)
         _note(conn, a["ticket_id"], "acceptance_restarted", stamp, {"restarts": int(a["restarts"]) + 1, "max_restarts": int(a["max_restarts"]), "event": breach_event_id})
         STATS["restarted"] += 1
         return "pending"
@@ -245,7 +232,7 @@ def _fail(conn, a, t, now: dt.datetime, why: str, *, breach_event_id: str | None
         _finish(conn, a["ticket_id"], "reopened", why, stamp, breach_event_id)
         STATS["reopened"] += 1
         return "reopened"
-    conn.execute("UPDATE ticket_acceptance SET state = 'flagged', finished_at = ?, outcome = ?, breach_event_id = ? WHERE ticket_id = ?", (stamp, why, breach_event_id, a["ticket_id"]))
+    sa.flag(conn, a["ticket_id"], stamp, why, breach_event_id)
     _note(conn, a["ticket_id"], "acceptance_flagged", stamp, {"why": why, "event": breach_event_id})
     audit(conn, actor=None, action="ticket.acceptance", decision="allowed", resource_type="ticket", resource_id=a["ticket_id"],
           details={"number": t["number"], "result": "flagged", "why": why, "actor": "system"})
@@ -277,8 +264,7 @@ def _reopen(conn, a, t, now: dt.datetime, why: str) -> bool:
 # ---------------------------------------------------------------- bookkeeping
 
 def _finish(conn: sqlite3.Connection, ticket_id: str, state: str, outcome: str, stamp: str, breach_event_id: str | None = None) -> None:
-    conn.execute("UPDATE ticket_acceptance SET state = ?, outcome = ?, finished_at = ?, breach_event_id = COALESCE(?, breach_event_id) WHERE ticket_id = ?",
-                 (state, outcome, stamp, breach_event_id, ticket_id))
+    sa.finish(conn, ticket_id, state, outcome, stamp, breach_event_id)
 
 
 def _note(conn: sqlite3.Connection, ticket_id: str, kind: str, stamp: str, data: dict[str, Any]) -> None:
