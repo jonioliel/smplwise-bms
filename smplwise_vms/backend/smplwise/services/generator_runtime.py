@@ -17,6 +17,7 @@ from ..db import Database
 from . import generator_alerts as alerts
 from . import generator_core as core
 from . import generator_history as history
+from . import insights_generator
 
 log = logging.getLogger("smplwise.generator")
 
@@ -50,6 +51,10 @@ def tick(db: Database, settings: Settings, now: float | None = None, *, require_
             _LAST["minute"] = minute
             out["samples"] = history.record(conn, int(t))
         out.update(alerts.evaluate(conn, t, mirror_connected=True))
+        try:  # CR-INSIGHT215 slice 3: run counts and hours for the building report (its own failure never stops the alert engine)
+            out["runs"] = insights_generator.record(conn, t)
+        except Exception:  # noqa: BLE001
+            log.warning("generator run record failed", exc_info=True)
     return out
 
 
@@ -63,7 +68,7 @@ def janitor(db: Database, now: float | None = None) -> dict[str, Any] | None:
             conn.execute("SELECT 1 FROM generator_devices LIMIT 1")
         except Exception:  # noqa: BLE001
             return {"skipped": "no_schema"}
-        return {"history": history.prune(conn, int(t)), "alerts": alerts.prune_alerts(conn, t)}
+        return {"history": history.prune(conn, int(t)), "alerts": alerts.prune_alerts(conn, t), "runs": insights_generator.prune(conn, t)}
 
 
 def reset() -> None:

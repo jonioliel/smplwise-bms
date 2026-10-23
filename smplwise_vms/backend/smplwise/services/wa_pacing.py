@@ -197,7 +197,7 @@ def store_config(conn: sqlite3.Connection, cfg: PacerConfig) -> None:
 # ---------------------------------------------------------------- classes
 
 # the ledger's use keys of senders other than the tickets module
-USE_CLASS: Mapping[str, str] = {"notifications.whatsapp": CLASS_ALERT, "infra.temperature.reports": CLASS_REMINDER,
+USE_CLASS: Mapping[str, str] = {"notifications.whatsapp": CLASS_ALERT, "infra.temperature.reports": CLASS_REMINDER, "insights.reports": CLASS_REMINDER,
                                 "tickets.codes": CLASS_CODE, "access.codes": CLASS_CODE, "identity.local": CLASS_CODE,
                                 # CR-W11TPL-295: a template send is a normal people-screen message - no class of its own
                                 "intercom.messages": CLASS_TICKET, "intercom.template": CLASS_TICKET}

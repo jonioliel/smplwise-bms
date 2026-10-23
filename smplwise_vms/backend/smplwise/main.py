@@ -145,6 +145,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         generator_runtime.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("generator janitor failed", exc_info=True)
+    try:  # CR-INSIGHT215 slice 3: the scheduled monthly building report (OFF until set up and enabled; self-throttled to once a minute)
+        from .services import insights_delivery
+
+        insights_delivery.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("insights delivery janitor failed", exc_info=True)
     try:  # CR-INFRA-ELEVATORS 2.8.0: the elevators' state history past its retention (hourly inside; no Home Assistant call)
         from .services import elevators_runtime
 
@@ -510,6 +516,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(notify_whatsapp_router.router, prefix=api, tags=["notifications"])  # NOTIFWA: the WhatsApp channel - master switch, own-number test, own opt-out
     from .services import temperature_whatsapp as _temperature_whatsapp  # noqa: F401 - TEMPREG-295: joins the messaging use registry at startup (gated by the module state), not when a temperature route first runs
+    from .services import insights_delivery as _insights_delivery  # noqa: F401 - CR-INSIGHT215: its WhatsApp use joins the account mapping at startup (shown only while the delivery is on)
     from .services import access_grants as _access_grants  # noqa: F401 - REGSTART-295: the "access" messaging use joins at import; import it at startup, not via whichever router or worker ran first
     from .services import local_reset as _local_reset  # noqa: F401 - REGSTART-295: the "identity" messaging use joins at import; it was imported only by the housekeeping step and the identity router
 
@@ -573,6 +580,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import water as water_router
 
     app.include_router(water_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 1: מים - meters, readings, consumption, settings (module switch, default off)
+    from .routers import insights as insights_router  # CR-INSIGHT215: insights and the monthly building report (its own line; every part OFF by default)
+
+    app.include_router(insights_router.router, prefix=api, tags=["insights"])
     from .routers import nvr_batch as nvr_batch_router
 
     app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)

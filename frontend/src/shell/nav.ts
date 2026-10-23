@@ -688,6 +688,17 @@ export function applyInfraTemperature(show: boolean): void {
   for (const l of tabsListeners) l();
 }
 
+/** CR-INSIGHT215: the "סקירה ודוחות" tab (the building report and its door / waste drill-downs) is hidden until the server's status says at least
+ * one part is on for this viewer (insights/access.ts). */
+let REPORTS_HIDDEN = true;
+export function applyInfraInsights(show: { report: boolean; doors: boolean; waste: boolean }): void {
+  const hide = !(show.report || show.doors || show.waste);
+  if (hide === REPORTS_HIDDEN) return;
+  REPORTS_HIDDEN = hide;
+  for (const l of tabsListeners) l();
+}
+const insightHiddenHref = (href: string | undefined): boolean => href === TICKETS_REPORTS_HREF && REPORTS_HIDDEN;
+
 /** CR-023: the area is offered to holders of energy.view only when the installation has meters or the user may manage them (an installation
  * without meters shows nothing). Filled by electricity/visibility.ts; true = no meters and no manage permission. */
 let INFRA_NO_METERS = false;
@@ -709,8 +720,13 @@ export const TICKETS_HANDLERS_HREF = '#/tickets/handlers'; // owner request 2026
 export const TICKETS_ACCOUNTS_HREF = '#/tickets/accounts'; // TK258: the vendors account
 export const TICKETS_RFQS_HREF = '#/tickets/rfqs'; // TKRFQ2 (2.6.1): requests for quotation (the manager UI)
 export const TICKETS_OVERVIEW_HREF = '#/tickets/overview'; // MGRDASH (owner 2026-10-17): the manager overview, the area's first tab (managers only)
+/** CR-INSIGHT215: "סקירה ודוחות" - the building report (#/tickets/reports/building) and its drill-downs (doors, waste).
+ * TODO(SERVICEIA): the service-management navigation slice (pilot/SERVICEIA1-295) turns this into the section's page row; until it lands the
+ * section is one tab of the tickets area. */
+export const TICKETS_REPORTS_HREF = '#/tickets/reports/building';
 export const TICKETS_TABS: TabItem[] = [
   { id: 'overview', get label() { return ot('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: first, for managers only (TAB_PERMISSIONS + the board's server gate)
+  { id: 'reports', label: 'סקירה ודוחות', href: TICKETS_REPORTS_HREF },
   { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
   { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
   { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
@@ -918,7 +934,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'overview' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'overview' || s[1] === 'reports' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -1069,7 +1085,9 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [INFRA_GENERATOR_HREF]: ['generator.view'],
   [INFRA_ELEVATORS_HREF]: ['devices.read'],
   [INFRA_TEMPERATURE_HREF]: ['devices.read'],
-  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage'],
+  // CR-INSIGHT215: the reports section is offered to a holder of either permission (each screen asks its own part's status and permission)
+  [TICKETS_REPORTS_HREF]: ['reports.building', 'insights.read'],
+  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage', 'infra.elevators.manage', 'infra.temperature.manage', 'insights.manage'],
   // CR-038 (section 8): the tickets area - "שלי" for whoever may view or open tickets (a creator sees the tickets they opened), "המחלקה" for
   // tickets.view (the server lists the caller's departments), "הכול" for tickets.all_departments; held at ANY scope (the server's visibility rule
   // narrows every row by place and department). The settings tab: the switch and the display (system.configure) or the name, departments and
@@ -1182,7 +1200,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
   // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
   // decided after the gates above, which key on the built-in href
   if (!api || source !== INFRA_TABS) return shown;
