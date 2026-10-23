@@ -138,6 +138,16 @@ def failures_blocked(key: str) -> bool:
     return FAILURES.blocked(key) or FAILURES_ALL.blocked("all")
 
 
+def client_blocked(key: str) -> bool:
+    """The per-client tier only (security review F-07: a token of a LIVE family skips the global tier - its per-family bucket bounds it,
+    so a storm of garbage from elsewhere never locks every phone out for a minute)."""
+    return FAILURES.blocked(key)
+
+
+def global_blocked() -> bool:
+    return FAILURES_ALL.blocked("all")
+
+
 def failed(key: str) -> None:
     FAILURES.fail(key)
     FAILURES_ALL.fail("all")
@@ -239,6 +249,28 @@ def _user_refusal(conn: sqlite3.Connection, user_id: str) -> str | None:
     return None
 
 
+def _remote_refusal(conn: sqlite3.Connection, user_id: str) -> str | None:
+    """Security review F-01: the remote-access policy, as the remote channel applies it to a sign-in (ha_user_auth.policy_refusal without
+    the HA user object): a wall user never travels; under the policy an HA user needs the per-user flag, the administrator default or
+    (any_role) a binding. An Arx-only identity signs in on the remote channel by design (no flag). The administrators' MFA rule needs the
+    HA user's factor, which only a live HA sign-in knows: it is checked at the session exchange (slice 2), recorded in the CR."""
+    from ..rbac import LOCAL_ID_PREFIX
+    from . import ha_user_auth as hua
+    from . import wall as wall_service
+
+    if wall_service.remote_refusal_needed(conn, user_id):
+        return "wall_user_remote_not_allowed"
+    if str(user_id).startswith(LOCAL_ID_PREFIX):
+        return None
+    if hua.remote_basis(conn, user_id) is None:
+        return "remote_not_allowed"
+    return None
+
+
+def _refusal(conn: sqlite3.Connection, user_id: str) -> str | None:
+    return _user_refusal(conn, user_id) or _remote_refusal(conn, user_id)
+
+
 def _anchor_revoked(conn: sqlite3.Connection, fam: sqlite3.Row) -> bool:
     if fam["anchor_kind"] != "ha" or not fam["anchor_hash"]:
         return False
@@ -291,9 +323,11 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
         audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
               reason="binding_mismatch", request_id=request_id)
         raise Refused(409, "binding_mismatch", MISMATCH_HE)
-    refusal = _user_refusal(conn, principal.user_id)
-    if refusal:
-        raise Refused(403, "forbidden", INVALID_HE)
+    refusal = _refusal(conn, principal.user_id)
+    if refusal:  # F-04: audited like every other mint refusal
+        audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
+              reason=refusal, request_id=request_id)
+        raise Refused(403, "remote_not_allowed" if refusal.endswith("remote_not_allowed") else "forbidden", INVALID_HE)
     if not take("app_refresh.issue", principal.user_id, RATE_ISSUE):
         raise Refused(429, "rate_limited", RATE_HE, retryable=True, details={"retry_after_s": 60})
     revoke_device(conn, device_id, "replaced", actor=principal, request_id=request_id)
@@ -328,11 +362,49 @@ system_principal = _system
 
 def peek_family(db: Database, token: str) -> str | None:
     """The family id a refresh token names (a short read, no write gate), or None for an unknown / malformed token."""
+    return peek(db, token)[0]
+
+
+def peek(db: Database, token: str) -> tuple[str | None, bool]:
+    """(family id or None, whether that family is still live) - a short read, no write gate."""
     if not is_refresh_token(token):
-        return None
+        return None, False
     with db.connection(mode="read", label="app_refresh.peek") as conn:
-        r = conn.execute("SELECT family_id FROM app_refresh_tokens WHERE token_hash = ?", (token_hash(token),)).fetchone()
-    return r["family_id"] if r is not None else None
+        r = conn.execute("""SELECT t.family_id, f.revoked_at FROM app_refresh_tokens t LEFT JOIN app_refresh_families f ON f.family_id = t.family_id
+                            WHERE t.token_hash = ?""", (token_hash(token),)).fetchone()
+    if r is None:
+        return None, False
+    return r["family_id"], r["revoked_at"] is None
+
+
+def _current(conn: sqlite3.Connection, row: sqlite3.Row, now: float) -> bool:
+    """Is this refresh token the family's CURRENT one: live, or used inside the retry grace with a still-unused child (the phone that
+    lost the answer)."""
+    if row["state"] == "live":
+        return True
+    if row["state"] == "used" and now - epoch(row["used_at"]) <= RETRY_GRACE_S and row["child_hash"]:
+        child = conn.execute("SELECT state FROM app_refresh_tokens WHERE token_hash = ?", (row["child_hash"],)).fetchone()
+        return child is not None and child["state"] == "live"
+    return False
+
+
+def sign_out(conn: sqlite3.Connection, token: str, request_id: str | None) -> str | None:
+    """The app's own sign-out. Only the family's CURRENT token signs it out (`app_sign_out`); any older token of a live family is a
+    reuse by definition (security review F-03): the family ends as `reuse`, audited `reuse_detected`, so the theft signal is kept.
+    Returns what happened (`signed_out` | `reuse` | None for nothing to end)."""
+    row = conn.execute("SELECT * FROM app_refresh_tokens WHERE token_hash = ?", (token_hash(token),)).fetchone() if is_refresh_token(token) else None
+    if row is None:
+        return None
+    fam = conn.execute("SELECT * FROM app_refresh_families WHERE family_id = ?", (row["family_id"],)).fetchone()
+    if fam is None or fam["revoked_at"]:
+        return None
+    if not _current(conn, row, _now()):
+        _end(conn, fam, "reuse", request_id, action="auth.app_refresh.reuse_detected")
+        return "reuse"
+    revoke_family(conn, fam["family_id"], "app_sign_out")
+    audit(conn, actor=_system(fam["user_id"]), action="auth.app_refresh.revoked", decision="allowed", resource_type="mobile_device",
+          resource_id=fam["device_id"], reason="app_sign_out", request_id=request_id, details={"family": fam["family_id"], "channel": "app"})
+    return "signed_out"
 
 
 def _end(conn: sqlite3.Connection, fam: sqlite3.Row, reason: str, request_id: str | None, *, action: str = "auth.app_refresh.refused") -> None:
@@ -359,7 +431,7 @@ def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: st
     if dev is None or dev["revoked_at"] or dev["user_id"] != fam["user_id"] or not hmac.compare_digest(install_hash(dev["install_id"]), fam["install_hash"]):
         _end(conn, fam, "device_gone", request_id)
         raise Refused(401, "app_refresh_invalid", INVALID_HE)
-    refusal = _user_refusal(conn, fam["user_id"])
+    refusal = _refusal(conn, fam["user_id"])  # the user's state AND the remote-access policy, re-evaluated at every refresh (F-01)
     if refusal:
         _end(conn, fam, refusal, request_id)
         raise Refused(401, "app_refresh_invalid", INVALID_HE)
@@ -376,15 +448,10 @@ def refresh(conn: sqlite3.Connection, token: str, device_id: str, install_id: st
     if now >= abs_exp or now >= idle_exp:
         _end(conn, fam, "expired" if now >= abs_exp else "idle", request_id)
         raise Refused(401, "app_refresh_expired", EXPIRED_HE)
-    grace = RETRY_GRACE_S
     if row["state"] == "live":
         parent = row["token_hash"]
-    elif row["state"] == "used" and grace > 0 and now - epoch(row["used_at"]) <= grace and row["child_hash"]:
-        child = conn.execute("SELECT state FROM app_refresh_tokens WHERE token_hash = ?", (row["child_hash"],)).fetchone()
-        if child is None or child["state"] != "live":
-            _end(conn, fam, "reuse", request_id, action="auth.app_refresh.reuse_detected")
-            raise Refused(401, "app_refresh_invalid", INVALID_HE)
-        # the retry of a lost answer: the unused child (and every access token handed out with it) is superseded
+    elif _current(conn, row, now):
+        # the retry of a lost answer (inside RETRY_GRACE_S, child still unused): the child and every access token handed out with it are superseded
         conn.execute("UPDATE app_refresh_tokens SET state = 'superseded' WHERE token_hash = ?", (row["child_hash"],))
         conn.execute("DELETE FROM app_access_tokens WHERE family_id = ?", (fam["family_id"],))
         parent = row["token_hash"]
@@ -412,7 +479,7 @@ def resolve_access(conn: sqlite3.Connection, token: str) -> dict[str, Any] | Non
            JOIN app_refresh_families f ON f.family_id = a.family_id WHERE a.token_hash = ?""", (token_hash(token),)).fetchone()
     if r is None or r["f_revoked"] or epoch(r["expires_at"]) <= _now():
         return None
-    if _user_refusal(conn, r["user_id"]):
+    if _refusal(conn, r["user_id"]):  # F-01: the remote-access policy too
         return None
     return {"user_id": r["user_id"], "device_id": r["device_id"], "family_id": r["family_id"], "expires_at": r["expires_at"]}
 

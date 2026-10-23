@@ -4,21 +4,20 @@ install_id, absolute / idle / administrative expiry, every revocation path, the 
 that no token material reaches the database in clear, the audit log or the log. Fakes only: no Home Assistant, no phone."""
 from __future__ import annotations
 
-import dataclasses
 import json
 import logging
 import types
 
 import pytest
-from conftest import as_user, bind
+from conftest import as_user
 from fastapi.testclient import TestClient
-from test_remote_access import _www
+from fake_ha_core import FakeUser
+from test_remote_access import ORIGIN, Arx
 
-from smplwise.db import Database
-from smplwise.main import create_app
 from smplwise.routers import app_refresh as router_mod
 from smplwise.services import app_refresh as svc
 from smplwise.services import backup
+from smplwise.services import ha_user_auth as hua
 from smplwise.services import presence
 
 API = "/api/v1"
@@ -38,22 +37,54 @@ class Clock:
         self.t += seconds
 
 
+USERS = {"dana": "u-viewer", "joni": "u-owner", "vera": "u-vera"}  # the fake HA directory (test_remote_access.Arx) plus vera
+
+
+class Rx:
+    """A remote-enabled app with a fake HA core (test_remote_access.Arx): each user signs in on the remote channel with their own client
+    (the phone's web view: cookie + Origin); `c` is a plain client - the app's own refresh calls (no cookie) on `/arx` and the developer
+    administrator (dev-joni, the bootstrap system administrator) on the local channel."""
+
+    def __init__(self, settings, tmp_path, monkeypatch) -> None:
+        self.arx = Arx(settings, tmp_path, monkeypatch)
+        self.app, self.s, self.db = self.arx.app, self.arx.settings, self.arx.db
+        self.c = TestClient(self.app)
+        self.c.get(f"{API}/me")  # dev-joni: the bootstrap system administrator (local channel)
+        self.arx.core.add_user(FakeUser("u-vera", "vera", "pw-vera", "ורה"))
+        with self.db.connection() as conn:
+            conn.execute("INSERT INTO ha_users(id, name, username, is_active, is_admin, synced_at) VALUES ('u-vera', 'ורה', 'vera', 1, 0, '2026-10-23T00:00:00Z')")
+        for name in ("dana", "vera"):
+            self.arx.flag(USERS[name])
+            self.arx.bind(USERS[name], "viewer")
+        self.arx.bind("u-owner", "system_admin")  # admitted remotely by the administrator default
+        self._clients: dict[str, TestClient] = {}
+        self.seen: list[str] = []
+
+    def user(self, name: str, fresh: bool = False) -> TestClient:
+        """`name`'s signed-in remote client (a fresh HA sign-in when asked, or when there is none yet)."""
+        if fresh or name not in self._clients:
+            cl = TestClient(self.app, headers=ORIGIN)
+            token = self.arx.core.issue(USERS[name])["access_token"]
+            r = cl.post(f"{ARX}/auth/session", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 200, r.text
+            self._clients[name] = cl
+        return self._clients[name]
+
+    def bind(self, name: str, role: str) -> None:
+        self.arx.bind(USERS[name], role)
+
+
 @pytest.fixture()
 def rx(settings, tmp_path, monkeypatch):
     svc.reset_limits()
-    s = dataclasses.replace(settings, remote_access=True, www_dir=_www(tmp_path))
-    app = create_app(s)
-    c = TestClient(app)
-    c.get(f"{API}/me")  # joni: the bootstrap system administrator
-    bind(c, s, "dana", "viewer", "installation", "*")
-    bind(c, s, "vera", "viewer", "installation", "*")
-    clock = Clock(1_900_000_000.0)
-    monkeypatch.setattr(svc, "_now", clock)
+    r = Rx(settings, tmp_path, monkeypatch)
+    r.clock = Clock(1_900_000_000.0)
+    monkeypatch.setattr(svc, "_now", r.clock)
     frozen = presence._now()
     monkeypatch.setattr(presence, "_now", lambda: frozen)  # the limiters never refill mid-test
-    seen: list[str] = []  # every token this test saw, for the no-material checks
-    yield types.SimpleNamespace(app=app, c=c, s=s, db=Database(s.db_path), clock=clock, seen=seen)
+    yield r
     svc.reset_limits()
+    hua.reset_for_tests()
 
 
 def switch(rx, **values) -> dict:
@@ -67,14 +98,20 @@ def on(rx, **more) -> None:
 
 
 def register(rx, user: str = "dana", install_id: str = INSTALL, name: str = "הנייד של דנה") -> dict:
-    r = rx.c.post(f"{API}/presence/devices", json={"name": name, "platform": "ios", "install_id": install_id, "app_version": "1.0.0"}, headers=as_user(user))
+    body = {"name": name, "platform": "ios", "install_id": install_id, "app_version": "1.0.0"}
+    r = rx.user(user).post(f"{ARX}/presence/devices", json=body)
+    if r.status_code == 401:  # the sign-in was ended by the test (a revoke): sign in again, as the phone would
+        r = rx.user(user, fresh=True).post(f"{ARX}/presence/devices", json=body)
     assert r.status_code in (200, 201), r.text
     rx.seen.append(r.json()["device_token"])
     return r.json()
 
 
 def issue(rx, device_id: str, user: str = "dana", install_id: str = INSTALL):
-    r = rx.c.post(f"{API}/auth/app/refresh-tokens", json={"device_id": device_id, "install_id": install_id}, headers=as_user(user))
+    body = {"device_id": device_id, "install_id": install_id}
+    r = rx.user(user).post(f"{ARX}/auth/app/refresh-tokens", json=body)
+    if r.status_code == 401:
+        r = rx.user(user, fresh=True).post(f"{ARX}/auth/app/refresh-tokens", json=body)
     if r.status_code == 201:
         rx.seen += [r.json()["refresh_token"], r.json()["access_token"]]
     return r
@@ -89,7 +126,6 @@ def refresh(rx, token: str, device_id: str, install_id: str = INSTALL, prefix: s
 
 def whoami(rx, access: str):
     return rx.c.get(f"{ARX}/auth/app/whoami", headers={"Authorization": f"Bearer {access}"})
-
 
 def started(rx, user: str = "dana") -> tuple[dict, dict]:
     on(rx)
@@ -158,8 +194,8 @@ def test_issue_shows_the_tokens_once_and_keeps_only_hashes(rx):
     assert out["access_token"].startswith("arxa_") and out["token_type"] == "Bearer" and out["family_id"].startswith("arf_")
     assert 0 < out["expires_in"] <= 600
     fam = family_row(rx, out["family_id"])
-    assert fam["user_id"] == "dev-dana" and fam["device_id"] == dev["device_id"] and fam["install_hash"] == svc.install_hash(INSTALL)
-    assert fam["anchor_kind"] == "dev" and fam["generation"] == 1 and not fam["admin_capped"]
+    assert fam["user_id"] == "u-viewer" and fam["device_id"] == dev["device_id"] and fam["install_hash"] == svc.install_hash(INSTALL)
+    assert fam["anchor_kind"] == "ha" and len(fam["anchor_hash"]) == 64 and fam["channel"] == "remote" and fam["generation"] == 1 and not fam["admin_capped"]
     assert svc.epoch(fam["absolute_expires_at"]) - rx.clock() == pytest.approx(90 * DAY, abs=2)
     assert svc.epoch(fam["idle_expires_at"]) - rx.clock() == pytest.approx(30 * DAY, abs=2)
     with rx.db.connection(mode="read") as conn:
@@ -168,7 +204,7 @@ def test_issue_shows_the_tokens_once_and_keeps_only_hashes(rx):
     issued = audit_rows(rx, "auth.app_refresh.issued")
     assert len(issued) == 1 and json.loads(issued[0]["details_json"])["family"] == out["family_id"]
     # the family list never carries a token or a hash
-    listed = rx.c.get(f"{API}/auth/app/families", headers=as_user("dana")).json()["families"]
+    listed = rx.user("dana").get(f"{ARX}/auth/app/families").json()["families"]
     assert [f["family_id"] for f in listed] == [out["family_id"]] and listed[0]["device_name"] == "הנייד של דנה"
     assert "token" not in json.dumps(listed) and fam["install_hash"] not in json.dumps(listed)
     assert_no_material(rx)
@@ -198,7 +234,7 @@ def test_a_new_family_replaces_the_previous_one_of_the_device(rx):
 def test_rotation_is_single_use_and_the_access_token_works(rx):
     dev, out = started(rx)
     me = whoami(rx, out["access_token"])
-    assert me.status_code == 200 and me.json() == {"user_id": "dev-dana", "device_id": dev["device_id"], "family_id": out["family_id"], "expires_at": me.json()["expires_at"]}
+    assert me.status_code == 200 and me.json() == {"user_id": "u-viewer", "device_id": dev["device_id"], "family_id": out["family_id"], "expires_at": me.json()["expires_at"]}
     rx.clock.advance(60)
     r = refresh(rx, out["refresh_token"], dev["device_id"])
     assert r.status_code == 200, r.text
@@ -303,7 +339,7 @@ def test_an_administrator_is_capped_also_when_the_permission_comes_later(rx):
     # dana is a viewer when she signs in, then becomes an administrator: her next refresh is capped from then on
     ddev = register(rx, "dana")
     dout = issue(rx, ddev["device_id"]).json()
-    bind(rx.c, rx.s, "dana", "system_admin", "installation", "*")
+    rx.bind("dana", "system_admin")
     rx.clock.advance(25 * 3600)
     assert refresh(rx, dout["refresh_token"], ddev["device_id"]).json()["code"] == "app_refresh_expired"
 
@@ -321,21 +357,21 @@ def test_device_deleted_or_registered_again_ends_its_family(rx):
     register(rx)  # the same install registers again (a new device token)
     _dead(rx, dev, out, "device_reregistered")
     out2 = issue(rx, dev["device_id"]).json()
-    assert rx.c.delete(f"{API}/presence/devices/{dev['device_id']}", headers=as_user("dana")).status_code == 204
+    assert rx.user("dana").delete(f"{ARX}/presence/devices/{dev['device_id']}").status_code == 204
     _dead(rx, dev, out2, "device_deleted")
 
 
 def test_device_tokens_ended_by_a_factor_change_end_the_families(rx):
     dev, out = started(rx)
     with rx.db.connection() as conn:
-        presence.revoke_tokens(conn, "dev-dana")
+        presence.revoke_tokens(conn, "u-viewer")
     _dead(rx, dev, out, "device_tokens_ended")
 
 
 def test_a_disabled_user_cannot_refresh(rx):
     dev, out = started(rx)
     with rx.db.connection() as conn:
-        conn.execute("UPDATE users SET active = 0 WHERE id = 'dev-dana'")
+        conn.execute("UPDATE users SET active = 0 WHERE id = 'u-viewer'")
     assert whoami(rx, out["access_token"]).status_code == 401
     assert refresh(rx, out["refresh_token"], dev["device_id"]).status_code == 401
     assert family_row(rx, out["family_id"])["revoked_reason"] == "user_inactive"
@@ -345,7 +381,7 @@ def test_the_anchor_sign_in_revoked_ends_the_family(rx):
     dev, out = started(rx)
     with rx.db.connection() as conn:
         conn.execute("UPDATE app_refresh_families SET anchor_kind = 'ha', anchor_hash = ? WHERE family_id = ?", ("a" * 64, out["family_id"]))
-        conn.execute("INSERT INTO remote_revoked_chains(iss_hash, user_id, revoked_at, revoked_by, reason) VALUES (?, 'dev-dana', '2026-10-23T00:00:00Z', 'x', 'test')", ("a" * 64,))
+        conn.execute("INSERT INTO remote_revoked_chains(iss_hash, user_id, revoked_at, revoked_by, reason) VALUES (?, 'u-viewer', '2026-10-23T00:00:00Z', 'x', 'test')", ("a" * 64,))
     _dead(rx, dev, out, "sign_in_revoked")
 
 
@@ -356,11 +392,11 @@ def test_the_revocation_hooks_of_the_other_sign_in_paths(rx):
 
     dev, out = started(rx)
     with rx.db.connection() as conn:  # an HA user's other sign-ins ended (a factor enrolled, an administrator's revoke)
-        hua.revoke_user_sign_ins(conn, "dev-dana", actor=Principal("dev-joni", "joni", "joni", "dev"), reason="second_factor_enabled")
+        hua.revoke_user_sign_ins(conn, "u-viewer", actor=Principal("dev-joni", "joni", "joni", "dev"), reason="second_factor_enabled")
     _dead(rx, dev, out, "second_factor_enabled")
     out = issue(rx, dev["device_id"]).json()
     with rx.db.connection() as conn:  # an Arx-only identity's password change / reset / disable path
-        local_identity.revoke_user_sessions(conn, "dev-dana", "password_changed")
+        local_identity.revoke_user_sessions(conn, "u-viewer", "password_changed")
     _dead(rx, dev, out, "password_changed")
     out = issue(rx, dev["device_id"]).json()
     with rx.db.connection() as conn:  # one local sign-in revoked: only the families minted from it
@@ -372,17 +408,17 @@ def test_the_revocation_hooks_of_the_other_sign_in_paths(rx):
 def test_sign_out_everywhere_is_the_lost_phone_kill_switch(rx):
     dev, out = started(rx)
     # the existing remote kill switch: an administrator ends every remote sign-in of the user - the phone's family goes with it
-    r = rx.c.delete(f"{API}/auth/sessions", params={"user_id": "dev-dana"})
+    r = rx.c.delete(f"{API}/auth/sessions", params={"user_id": "u-viewer"})
     assert r.status_code == 200, r.text
     _dead(rx, dev, out, "revoked_all_by_admin")
     # and the app-family routes: the owner ends one, a non-administrator cannot end another user's, an administrator ends them all
     out = issue(rx, dev["device_id"]).json()
-    assert rx.c.delete(f"{API}/auth/app/families/{out['family_id']}", headers=as_user("vera")).status_code == 403
-    assert rx.c.delete(f"{API}/auth/app/families", params={"user_id": "dev-dana"}, headers=as_user("vera")).status_code == 403
-    assert rx.c.delete(f"{API}/auth/app/families/{out['family_id']}", headers=as_user("dana")).status_code == 204
+    assert rx.user("vera").delete(f"{ARX}/auth/app/families/{out['family_id']}").status_code == 403
+    assert rx.user("vera").delete(f"{ARX}/auth/app/families", params={"user_id": "u-viewer"}).status_code == 403
+    assert rx.user("dana").delete(f"{ARX}/auth/app/families/{out['family_id']}").status_code == 204
     _dead(rx, dev, out, "revoked_by_user")
     out = issue(rx, dev["device_id"]).json()
-    r = rx.c.delete(f"{API}/auth/app/families", params={"user_id": "dev-dana"})
+    r = rx.c.delete(f"{API}/auth/app/families", params={"user_id": "u-viewer"})
     assert r.json() == {"families_ended": 1}
     _dead(rx, dev, out, "revoked_all_by_admin")
     revoked = audit_rows(rx, "auth.app_refresh.revoked")
@@ -555,3 +591,93 @@ def test_no_token_reaches_the_log(rx, caplog):
     for tok in rx.seen:
         assert tok not in text
     assert_no_material(rx)
+
+
+# ---------------------------------------------------------------- security review 2026-10-23 (F-01 .. F-07)
+
+def test_f01_removing_the_remote_access_flag_ends_the_families(rx):
+    dev, out = started(rx)
+    r = rx.c.put(f"{API}/access/users/u-viewer/remote-access", json={"enabled": False})
+    assert r.status_code == 200, r.text
+    _dead(rx, dev, out, "remote_access_removed")
+
+
+def test_f01_the_remote_policy_is_re_evaluated_at_every_refresh_and_access_use(rx):
+    dev, out = started(rx)
+    dev2 = register(rx, "dana", install_id="44444444-2222-3333-4444-555555555555", name="טלפון שני")
+    with rx.db.connection() as conn:  # the policy changes without any hook (a raw row, a policy switch, a restore)
+        conn.execute("DELETE FROM remote_access_users WHERE user_id = 'u-viewer'")
+    assert whoami(rx, out["access_token"]).status_code == 401
+    r = refresh(rx, out["refresh_token"], dev["device_id"])
+    assert r.status_code == 401 and family_row(rx, out["family_id"])["revoked_reason"] == "remote_not_allowed"
+    # and minting is refused (audited) while the policy does not admit the user - dana's session is still live in memory
+    r = rx.user("dana").post(f"{ARX}/auth/app/refresh-tokens", json={"device_id": dev2["device_id"], "install_id": "44444444-2222-3333-4444-555555555555"})
+    assert r.status_code == 403 and r.json()["code"] == "remote_not_allowed"
+    assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.issue")][-1] == "remote_not_allowed"
+
+
+def test_f01_a_wall_user_never_refreshes(rx):
+    dev, out = started(rx)
+    with rx.db.connection() as conn:  # dana becomes a wall user whose profile does not travel (CR-030)
+        conn.execute("INSERT INTO wall_profiles(user_id, title, enabled, remote_allowed, config_json, created_at, created_by) "
+                     "VALUES ('u-viewer', 'קיר', 1, 0, '{}', '2026-10-23T00:00:00Z', 'test')")
+    r = refresh(rx, out["refresh_token"], dev["device_id"])
+    assert r.status_code == 401 and family_row(rx, out["family_id"])["revoked_reason"] == "wall_user_remote_not_allowed"
+
+
+def test_f02_the_local_channel_never_mints(rx):
+    on(rx)
+    dev = register(rx)
+    r = rx.c.post(f"{API}/auth/app/refresh-tokens", json={"device_id": dev["device_id"], "install_id": INSTALL}, headers=as_user("dana"))
+    assert r.status_code == 404
+    with rx.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM app_refresh_families").fetchone()[0] == 0
+    assert issue(rx, dev["device_id"]).status_code == 201  # the remote channel does
+
+
+def test_f02_a_stale_remote_sign_in_never_mints(rx, monkeypatch):
+    on(rx)
+    dev = register(rx)
+    monkeypatch.setattr(svc, "FRESH_SIGN_IN_S", -1)  # every sign-in is now older than the rule allows
+    r = rx.user("dana").post(f"{ARX}/auth/app/refresh-tokens", json={"device_id": dev["device_id"], "install_id": INSTALL})
+    assert r.status_code == 403 and r.json()["code"] == "fresh_sign_in_required"
+    assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.issue")] == ["sign_in_not_fresh"]
+
+
+def test_f03_only_the_current_token_signs_out_an_old_one_is_reuse(rx):
+    dev, out = started(rx)
+    t2 = refresh(rx, out["refresh_token"], dev["device_id"]).json()
+    rx.clock.advance(svc.RETRY_GRACE_S + 1)
+    assert rx.c.post(f"{ARX}/auth/app/sign-out", json={"refresh_token": out["refresh_token"]}).status_code == 204
+    assert family_row(rx, out["family_id"])["revoked_reason"] == "reuse"
+    assert len(audit_rows(rx, "auth.app_refresh.reuse_detected")) == 1
+    assert refresh(rx, t2["refresh_token"], dev["device_id"]).status_code == 401
+    # inside the grace, the parent of a still-unused child is the current token (the phone that lost the answer): a real sign-out
+    out = issue(rx, dev["device_id"]).json()
+    refresh(rx, out["refresh_token"], dev["device_id"])
+    assert rx.c.post(f"{ARX}/auth/app/sign-out", json={"refresh_token": out["refresh_token"]}).status_code == 204
+    assert family_row(rx, out["family_id"])["revoked_reason"] == "app_sign_out"
+
+
+def test_f04_a_mint_refused_for_an_inactive_user_is_audited(rx):
+    on(rx)
+    dev = register(rx)
+    with rx.db.connection() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = 'u-viewer'")
+        refusal = svc._refusal(conn, "u-viewer")
+        with pytest.raises(svc.Refused):
+            svc.issue(conn, svc.system_principal("u-viewer"), dev["device_id"], INSTALL, anchor_kind="ha", anchor_hash="", channel="remote", request_id=None)
+    assert refusal == "user_inactive"
+    assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.issue")] == ["user_inactive"]
+
+
+def test_f07_a_garbage_storm_never_locks_out_the_phones_of_live_families(rx, monkeypatch):
+    dev, out = started(rx)
+    monkeypatch.setattr(svc, "FAILURES_ALL", presence._Failures(3))  # the global tier, small for the test
+    for i in range(3):
+        assert refresh(rx, "arxr_" + f"{i:043d}", dev["device_id"]).status_code == 401
+    assert refresh(rx, "arxr_" + "9" * 43, dev["device_id"]).status_code == 429  # unknown tokens: the global tier holds
+    r = refresh(rx, out["refresh_token"], dev["device_id"])  # a live family's token: never stopped by it
+    assert r.status_code == 200
+    assert whoami(rx, r.json()["access_token"]).status_code == 200
+    assert whoami(rx, "arxa_" + "9" * 43).status_code == 429

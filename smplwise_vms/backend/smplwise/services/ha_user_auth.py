@@ -1803,10 +1803,10 @@ async def revalidate_once(db: Any, settings: Settings, validate: Callable[..., A
             continue
         STORE.drop(s.sid)
         dropped += 1
-        if reason == "token_revoked" and s.iss_hash:  # APPREFRESH-295: HA refused the sign-in's token - its app families end
+        if s.iss_hash:  # APPREFRESH-295 (F-01 c): HA refused the sign-in's token, or the policy no longer admits it - its app families end
             from . import app_refresh
 
-            await run_in_threadpool(app_refresh.revoke_anchor_db, db, s.iss_hash, "ha_sign_in_revoked")
+            await run_in_threadpool(app_refresh.revoke_anchor_db, db, s.iss_hash, "ha_sign_in_revoked" if reason == "token_revoked" else reason)
         await run_in_threadpool(_audit, db, actor=s.principal, action="auth.remote_session.revoked", decision="denied", reason=reason,
                                 meta={"client_ip": s.client_ip, **({"via": "bearer"} if s.via == "bearer" else {})})
     await _close_sockets()

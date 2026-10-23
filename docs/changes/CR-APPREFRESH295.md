@@ -1,6 +1,6 @@
 # CR-APPREFRESH295 - App refresh tokens: a persistent sign-in for the phone app
 
-Status: APPROVED by the owner 2026-10-23 (section 11); **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
+Status: APPROVED by the owner 2026-10-23 (section 11); security review 2026-10-23 fixes in (section 12); go state **LAB ONLY**; **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
 Board item r122, target 2.14.0. Migration **0150 PROVISIONAL** (one file, `0150_app_refresh_tokens.sql`; renumber at integration).
 No app code, no frontend, nothing on a real device or server. Activation (switch ON on a real installation) only after a Fable
 security review of the public surface (owner decision 1, section 11).
@@ -43,7 +43,7 @@ user (`GET /me` `user.id`).
 | T2 | **Token replay** (a token copied from the phone, a proxy, a crash log) | Single use + rotation: every refresh marks the token used. Presenting a used token outside the retry grace is **reuse** and revokes the family; inside the grace the unused child is superseded, so whichever of thief / phone refreshes second ends the family on its next refresh. | A thief who refreshes first holds a live family until the phone's next refresh (minutes); the phone then signs in again and the event is in the audit. |
 | T3 | **Leaked backup** (an Arx project backup, a database copy) | Only SHA-256 of 256-bit random tokens is stored; the three tables are `NEVER_EXPORTED_TABLES`, the switch and lifetimes are `SETTINGS_KEEP` (never exported, never restored). A restore can never revive a revoked family or a used token. | A phone backup (iCloud / Google) of app storage: the app must store the token in the Keychain with `ThisDeviceOnly` / Android Keystore-backed storage excluded from backup (app requirement A1). |
 | T4 | **Malicious app on the same phone** | OS sandbox + Keychain / Keystore (A1). Server side: a token presented with another `device_id` or `install_id` ends the family (`binding_mismatch`), so a token lifted without its install id is useless and noisy. | install_id lives in the same sandbox; true proof of possession needs a device-bound key (slice 3, Q6). |
-| T5 | **Session cookie theft used to mint a family** | Minting needs a signed-in session AND the caller's own device registration AND its install_id; on the remote channel only from a sign-in at most 15 minutes old. Every mint is audited. | HA sessions are in memory: after an add-on restart a silent HA re-sign-in starts a new chain (counts as fresh). |
+| T5 | **Session cookie theft used to mint a family** | Minting needs a signed-in REMOTE session (the local channel / Ingress never mints - security review F-02) AND the caller's own device registration AND its install_id, from a sign-in at most 15 minutes old, and the remote-access policy must admit the user. Every mint and every mint refusal is audited. | HA sessions are in memory: after an add-on restart a silent HA re-sign-in starts a new chain (counts as fresh). |
 | T6 | **Lost / stolen phone remote kill** | The existing kill switch: `DELETE /auth/sessions?user_id=` (sign out everywhere / an administrator) now also ends every app family of the user, also while the phone is offline; plus the per-family routes and the device delete. | - |
 | T7 | **User disabled, password changed, HA sign-in ended** | Checked at every refresh and every access-token use (user inactive / deleted in Arx or in the HA directory copy; the anchor sign-in in `remote_revoked_chains`); pushed at once from the revocation paths (local password change / reset / revoke, `revoke_user_sign_ins`, HA re-validation refusing the anchor's token, TFA2 device-token end). | An HA password change is invisible to Arx unless HA revokes the refresh token behind the anchor (it does not by itself): see Q4. |
 | T8 | **Brute force / guessing** | 256-bit tokens; per-client failure limiter (20 / min) and global (300 / min) -> 429; per-family refresh bucket; per-user mint bucket. Unknown tokens are answered from a read, never the write gate. | - |
@@ -66,7 +66,7 @@ user (`GET /me` `user.id`).
 ### 4.2 Flows
 
 1. **Mint** (`POST /auth/app/refresh-tokens`, session): body `{device_id, install_id}`. The device must be live and the caller's own,
-   the install id must match the registration (`409 binding_mismatch`, audited). Remote channel: sign-in age <= 15 min
+   the install id must match the registration (`409 binding_mismatch`, audited). The remote channel only (404 on the local channel, F-02); the remote-access policy must admit the user (`403 remote_not_allowed`, F-01); sign-in age <= 15 min
    (`403 fresh_sign_in_required`). A previous live family of the device is revoked (`replaced`). Answers `201` with the refresh and
    access tokens (shown once).
 2. **Refresh** (`POST /auth/app/refresh`, public, remote channel): body `{refresh_token, device_id, install_id}`. In one write
@@ -152,7 +152,7 @@ GET/PUT /auth/app/settings                         (system administrator) -> { "
 
 App behaviour (for the app teams, slice 4): `401` from refresh -> forget the refresh token, show the sign-in; `404` -> the server does
 not offer it (older or switched off): keep today's behaviour; `429` -> wait `retry_after_s`; a network error during refresh -> retry
-the SAME token within 20 s, never in parallel.
+the SAME token within 20 s, never in parallel (single-flight; the refresh request timeout must be below 20 s - section 12).
 
 ## 6. Permissions
 
@@ -226,3 +226,28 @@ SQLite write transaction serialises them by construction; a threaded test is sli
   when the new limit has passed. A lengthened lifetime never extends the absolute expiry a family was issued with (the effective value is
   the minimum of the stored and the current one); the idle window slides by the current idle lifetime, capped by that absolute expiry.
   The access-token lifetime applies to tokens issued after the change (an already issued access token keeps its minutes).
+
+## 12. Security review 2026-10-23 (Fable; `private/planning/SECURITY_REVIEW_APPREFRESH_2026-10-23.md`, reviewed head b740aff89)
+
+No Critical or High finding. Resolutions on this branch:
+
+| Finding | Resolution |
+|---|---|
+| F-01 Medium: remote-access policy not enforced on refresh / whoami; flag removal kept the families | `_remote_refusal` (wall user without remote, the `remote.policy` flag / administrator default / any_role basis; Arx-only identities are remote by design) is re-evaluated at every refresh (the family ends, reason `remote_not_allowed` / `wall_user_remote_not_allowed`), at every access-token use and at mint (audited). Removing the flag (`PUT /access/users/{id}/remote-access`) ends the user's families at once (`remote_access_removed`). The HA re-validation pass ends the anchor's families for every drop reason, not only `token_revoked`. The administrators' MFA rule needs the HA user's factor, which only a live HA sign-in knows: it is enforced at the slice 2 session exchange. |
+| F-02 Medium: a family minted on the local channel had no anchor and no freshness | The safer choice: minting is **refused on the local channel** (404, like the public routes); every family now comes from a remote sign-in Arx can anchor and end, within 15 minutes of it. |
+| F-03 Low: sign-out accepted historical tokens | Only the family's CURRENT token signs out (live, or the parent inside the 20 s grace with an unused child); any older token of a live family is a reuse: the family ends `reuse`, audited `reuse_detected`. |
+| F-04 Low: mint refusal of an inactive user not audited | Audited (`auth.app_refresh.issue` denied, reason `user_inactive` / `user_deleted` / the policy reason). |
+| F-05 Low: the 20 s grace hands a pair to a thief who presents the parent inside it | Accepted design residual until slice 3. **App requirement:** the refresh request timeout must be **below 20 s** (a retry after the grace is a reuse and signs the user out). |
+| F-06 Low: two parallel refreshes from one phone sign it out | **App requirement (MUST):** single-flight refresh - one refresh at a time per server, every caller waits for it. |
+| F-07 Low: the global failure tier (300 / min) could lock every phone out for a minute | A token (refresh, sign-out) or access token that resolves to a LIVE family skips the global tier - its per-family bucket bounds it; the global tier only stops unknown / ended tokens. The per-client tier (20 / min per address, IPv6 per /64) still applies to everyone. |
+| F-08 .. F-13 Info | Recorded: existence oracles through the limiter / 404 (random ids, no practical impact); a rotation keeps the previous access token for its minutes (slice 2 deletes them on rotation when the access token becomes a session, and keeps the access lifetime <= 15 min then); a server clock moving backwards widens windows (NTP from HA OS); caller-supplied `device_id` in a denied audit row (bounded); migration 0150 renumbered at integration; the named test gaps of section 8. |
+
+### 12.1 Go state
+
+- **Now: LAB ONLY.** The owner may switch `security.app_refresh` ON on his own installation (from the local channel), after the backend
+  suite is green on the integration head and the migration is renumbered; first family from his own phone after a fresh remote sign-in;
+  `reuse_detected` exercised once by hand and its audit row inspected (review section 6).
+- **Customers: NO-GO** until **slice 3, the device-bound key** (owner decision 6), is built and reviewed together with slice 2's session
+  exchange. Until then the refresh token and the install id live in the same app sandbox, and a copy of both works from anywhere for up
+  to the idle / absolute lifetime; detection is reactive (the next refresh of the real phone). The device key is the precondition for any
+  customer installation or app release with this feature.

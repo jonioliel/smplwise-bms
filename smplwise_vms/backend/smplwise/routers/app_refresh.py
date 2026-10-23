@@ -3,7 +3,8 @@
 Session routes (a signed-in user; the Arx cookie on the remote channel - `Origin` required by the channel's CSRF rule - or the Ingress
 identity locally):
   POST   /auth/app/refresh-tokens            mint a family for the caller's own device registration {device_id, install_id} (201, the
-                                             refresh + access token shown ONCE). Remote channel: only from a sign-in <= 15 minutes old.
+                                             refresh + access token shown ONCE). The remote channel only (security review F-02;
+                                             404 on the local channel), from a sign-in <= 15 minutes old.
   GET    /auth/app/families[?user_id=]       the caller's live families (another user's / everyone's: system.configure)
   DELETE /auth/app/families/{family_id}      end one family (its owner, or system.configure)                              -> 204
   DELETE /auth/app/families[?user_id=]       end every family of a user (own, or system.configure) - the lost-phone kill switch
@@ -61,9 +62,8 @@ def _client_key(request: Request) -> str:
     return "ip:" + (hua.limit_ip(hua.client_ip(request)) or "?")  # an IPv6 caller counts as its /64 (review 2.4.2 L4)
 
 
-def _limited(key: str) -> None:
-    if svc.failures_blocked(key):
-        raise ApiError(429, "rate_limited", svc.RATE_HE, retryable=True, details={"retry_after_s": 60})
+def _too_many() -> ApiError:
+    return ApiError(429, "rate_limited", svc.RATE_HE, retryable=True, details={"retry_after_s": 60})
 
 
 def _anchor(request: Request, caller: Caller) -> tuple[str, str, float | None]:
@@ -108,18 +108,19 @@ class SignOutIn(BaseModel):
 
 @router.post("/auth/app/refresh-tokens", status_code=201)
 def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
-    if not svc.enabled_db(_db(request)):
+    # Security review F-02 (owner: the safer choice): a family is minted on the remote channel only - from a remote sign-in Arx can see,
+    # anchor and end. The local channel (Ingress, developer) never mints: the same 404 as the public routes there.
+    if not is_remote(request) or not svc.enabled_db(_db(request)):
         raise _not_found()
     kind, anchor, age = _anchor(request, caller)
-    remote = is_remote(request)
     with _db(request).connection(label="app_refresh.issue") as conn:
         touch_user(conn, caller.principal)
-        if remote and (age is None or age > svc.FRESH_SIGN_IN_S):
+        if age is None or age > svc.FRESH_SIGN_IN_S:
             audit(conn, actor=caller.principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=body.device_id,
                   reason="sign_in_not_fresh", request_id=_rid(request))
             raise ApiError(403, "fresh_sign_in_required", svc.FRESH_HE)
         return svc.issue(conn, caller.principal, body.device_id, body.install_id, anchor_kind=kind, anchor_hash=anchor,
-                         channel="remote" if remote else caller.principal.source, request_id=_rid(request))
+                         channel="remote", request_id=_rid(request))
 
 
 # ---------------------------------------------------------------- the public routes
@@ -127,9 +128,12 @@ def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_call
 @guarded_route.post(router, _public_guard, "/auth/app/refresh")
 def refresh(body: RefreshIn, request: Request) -> dict[str, Any]:
     key = _client_key(request)
-    _limited(key)
+    if svc.client_blocked(key):
+        raise _too_many()
     db = _db(request)
-    fam_id = svc.peek_family(db, body.refresh_token)  # an unknown token never takes the write gate
+    fam_id, live = svc.peek(db, body.refresh_token)  # an unknown token never takes the write gate
+    if not live and svc.global_blocked():  # F-07: the global tier never stops a token of a live family
+        raise _too_many()
     if fam_id is None:
         svc.failed(key)
         raise ApiError(401, "app_refresh_invalid", svc.INVALID_HE)
@@ -146,18 +150,19 @@ def refresh(body: RefreshIn, request: Request) -> dict[str, Any]:
 @guarded_route.post(router, _public_guard, "/auth/app/sign-out", status_code=204)
 def sign_out(body: SignOutIn, request: Request) -> Response:
     key = _client_key(request)
-    _limited(key)
+    if svc.client_blocked(key):
+        raise _too_many()
     db = _db(request)
-    fam_id = svc.peek_family(db, body.refresh_token)
-    if fam_id is None:
-        svc.failed(key)
+    fam_id, live = svc.peek(db, body.refresh_token)
+    if not live:
+        if svc.global_blocked():
+            raise _too_many()
+        if fam_id is None:
+            svc.failed(key)
         return Response(status_code=204)  # the same answer: nothing to end
     with db.connection(label="app_refresh.sign_out") as conn:
-        fam = svc.family(conn, fam_id)
-        if fam is not None and not fam["revoked_at"]:
-            svc.revoke_family(conn, fam_id, "app_sign_out")
-            audit(conn, actor=svc.system_principal(fam["user_id"]), action="auth.app_refresh.revoked", decision="allowed", resource_type="mobile_device",
-                  resource_id=fam["device_id"], reason="app_sign_out", request_id=_rid(request), details={"family": fam_id, "channel": "app"})
+        if svc.sign_out(conn, body.refresh_token, _rid(request)) == "reuse":  # F-03: an old token is a reuse, never a sign-out
+            svc.failed(key)
     return Response(status_code=204)
 
 
@@ -165,11 +170,14 @@ def sign_out(body: SignOutIn, request: Request) -> Response:
 def whoami(request: Request) -> dict[str, Any]:
     _public_guard(request)
     key = _client_key(request)
-    _limited(key)
+    if svc.client_blocked(key):
+        raise _too_many()
     token = hua.bearer_of(request)
     with _db(request).connection(mode="read", label="app_refresh.whoami") as conn:
         found = svc.resolve_access(conn, token) if token else None
     if found is None:
+        if svc.global_blocked():
+            raise _too_many()
         svc.failed(key)
         raise ApiError(401, "app_access_invalid", svc.INVALID_HE)
     return found
