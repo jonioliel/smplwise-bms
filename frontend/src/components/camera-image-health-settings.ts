@@ -3,7 +3,6 @@ import { customElement, state } from 'lit/decorators.js';
 import './sw-button';
 import './sw-card';
 import './sw-field';
-import './sw-toggle';
 import './sw-state-panel';
 import { describeError, get, put } from '../api/client';
 import { cameraImageSettings, saveCameraImageSettings, type ImageHealthSettings, type ImageHealthSettingsAnswer } from '../api/camera-image-health';
@@ -42,6 +41,8 @@ export class CameraImageHealthSettings extends LitElement {
   @state() private policy: NotifyPolicy | null = null;
   @state() private users: { id: string; name: string }[] = [];
   @state() private ruleDraft: NotifyPolicy['recipients'] | null = null;
+  /** The excluded-cameras list is rendered only while open (a long installation has many cameras). */
+  @state() private excOpen = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -147,6 +148,26 @@ export class CameraImageHealthSettings extends LitElement {
       border-color: var(--sw-accent);
       background: color-mix(in srgb, var(--sw-accent) 10%, var(--sw-surface));
     }
+    .chk.sw {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    .chk .box {
+      inline-size: 16px;
+      block-size: 16px;
+      border-radius: var(--sw-r-2xs);
+      border: 1px solid var(--sw-border-strong, var(--sw-border));
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-style: normal;
+      flex-shrink: 0;
+    }
+    .chk[aria-pressed='true'] .box {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
+    }
     .chk span {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -223,14 +244,16 @@ export class CameraImageHealthSettings extends LitElement {
       min-inline-size: 44px;
       justify-content: center;
     }
-    /* the bubble skin's touch target: the switch's own box padded to 44 px (a press on the padding flips it, sw-toggle) */
-    :host([data-skin='bubble']) sw-toggle {
-      padding: 10px 1px;
-    }
+
   `;
 
   private chip(on: boolean, label: string, attr: string, onClick: () => void) {
     return html`<button type="button" class="chk" data-cih-chip=${attr} aria-pressed=${on ? 'true' : 'false'} @click=${onClick}><span>${label}</span></button>`;
+  }
+
+  /** A switch as a pressed chip with a check box (the same control as the checks; a 44 px target in the bubble skin). */
+  private switch(on: boolean, label: string, attr: string, onClick: () => void) {
+    return html`<button type="button" class="chk sw" role="switch" data-cih-switch=${attr} aria-checked=${on ? 'true' : 'false'} aria-pressed=${on ? 'true' : 'false'} @click=${onClick}><i class="box" aria-hidden="true">${on ? '✓' : ''}</i><span>${label}</span></button>`;
   }
 
   private recipients() {
@@ -262,8 +285,8 @@ export class CameraImageHealthSettings extends LitElement {
     const invalidUsers = (this.ruleDraft?.rule === 'users' && !(this.ruleDraft.user_ids ?? []).length);
     return html`<sw-card heading=${cit('settingsTitle')} data-cih-settings>
       <div class="top">
-        <sw-toggle label=${cit('enabled')} data-cih-enabled .checked=${v.enabled} @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('enabled', e.detail.checked)}></sw-toggle>
-        <sw-toggle label=${cit('passiveOnly')} data-cih-passive .checked=${v.passive_only} @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('passive_only', e.detail.checked)}></sw-toggle>
+        ${this.switch(v.enabled, cit('enabled'), 'enabled', () => this.set('enabled', !v.enabled))}
+        ${this.switch(v.passive_only, cit('passiveOnly'), 'passive', () => this.set('passive_only', !v.passive_only))}
       </div>
       <div class="ths">
         ${NUMS.map((k) => {
@@ -278,9 +301,9 @@ export class CameraImageHealthSettings extends LitElement {
         <span class="k">${cit('checks')}</span>
         ${CHECKS.map((c) => this.chip(v[c.key], cit(c.label), c.key, () => this.set(c.key, !v[c.key])))}
       </div>
-      ${this.th.cameras.length ? html`<details class="exc" data-cih-excluded>
+      ${this.th.cameras.length ? html`<details class="exc" data-cih-excluded ?open=${this.excOpen} @toggle=${(e: Event) => (this.excOpen = (e.target as HTMLDetailsElement).open)}>
         <summary>${cit('excludedCams')}${excluded.length ? html` <span class="n">(${excluded.length})</span>` : nothing}</summary>
-        <div class="list">${this.th.cameras.map((c) => this.chip(excluded.includes(c.id), c.name, `exclude:${c.id}`, () => this.set('excluded', excluded.includes(c.id) ? excluded.filter((x) => x !== c.id) : [...excluded, c.id])))}</div>
+        ${this.excOpen ? html`<div class="list">${this.th.cameras.map((c) => this.chip(excluded.includes(c.id), c.name, `exclude:${c.id}`, () => this.set('excluded', excluded.includes(c.id) ? excluded.filter((x) => x !== c.id) : [...excluded, c.id])))}</div>` : nothing}
       </details>` : nothing}
       ${this.recipients()}
       <div class="actions">

@@ -112,7 +112,8 @@ test.describe('camera image health', () => {
     await expect(s.locator('[data-cih-settings]')).toBeVisible({ timeout: 20_000 });
     await expect(s.locator('[data-cih-field]')).toHaveCount(10);
     await expect(s.locator('[data-cih-recipients]')).toBeVisible();
-    await s.locator('[data-cih-enabled] [role="switch"]').click(); // the switch itself (its label text is not a control)
+    await s.locator('[data-cih-switch="enabled"]').click();
+    await expect(s.locator('[data-cih-switch="enabled"]')).toHaveAttribute('aria-checked', 'true');
     await s.locator('[data-cih-field="blur_min"]').fill('12.5');
     await s.locator('[data-cih-chip="check_shift"]').click();
     await s.locator('[data-cih-rule]').selectOption('users');
@@ -140,6 +141,10 @@ test.describe('camera image health', () => {
         await page.goto(`/?design=a&skin=${skin}&scheme=light${hash}`);
         await page.waitForSelector(ready, { timeout: 20_000 });
         await page.evaluate(() => document.fonts.ready);
+        if (root === 'system-diagnostics') {
+          await page.locator('camera-image-health-settings [data-cih-excluded] summary').click(); // the excluded-camera chips are checked open
+          await expect(page.locator('camera-image-health-settings [data-cih-chip^="exclude:"]')).toHaveCount(4);
+        }
         for (const w of WIDTHS) {
           await page.setViewportSize({ width: w, height: height(w) });
           await page.waitForTimeout(150);
