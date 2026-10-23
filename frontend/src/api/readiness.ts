@@ -123,6 +123,27 @@ export function levelTone(level: ReadinessLevel): 'danger' | 'warning' | 'succes
   return level === 'ready' ? 'success' : level === 'almost' ? 'warning' : 'danger';
 }
 
+// ---- the score chip on the settings entry "מוכנות" (CR-READY96 slice 1) ----
+// The last RECORDED score (`/me.readiness`, system.configure holders only) is shown as a small chip after the entry's label; the page itself
+// refreshes it after every load / check. A tiny module store, so the settings navigation (a separate element) follows without a prop chain.
+export interface ReadinessChip { score: number; level: ReadinessLevel }
+let CHIP: ReadinessChip | null = null;
+const chipListeners = new Set<() => void>();
+export function setReadinessChip(next: { score?: unknown; level?: unknown } | null | undefined): void {
+  const score = Number(next?.score);
+  const level = next?.level;
+  const valid = next != null && Number.isFinite(score) && (level === 'building' || level === 'almost' || level === 'ready');
+  const value: ReadinessChip | null = valid ? { score: Math.max(0, Math.min(100, Math.round(score))), level: level as ReadinessLevel } : null;
+  if (value?.score === CHIP?.score && value?.level === CHIP?.level) return;
+  CHIP = value;
+  for (const l of chipListeners) l();
+}
+export const getReadinessChip = (): ReadinessChip | null => CHIP;
+export function onReadinessChip(cb: () => void): () => void {
+  chipListeners.add(cb);
+  return () => { chipListeners.delete(cb); };
+}
+
 /** "+8" labels of the next steps; zero gains print nothing. */
 export function gainText(gain: number): string {
   return gain > 0 ? `+${gain}` : '';

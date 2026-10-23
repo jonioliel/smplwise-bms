@@ -93,6 +93,7 @@ import '../screens/system-setup';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
 import '../screens/system-wizard';
 import '../screens/system-readiness';
+import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
@@ -1626,6 +1627,7 @@ export class SwApp extends LitElement {
       // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
       if (!applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) })) startRfqQuestions(); // RFQQUESTIONS: the nav badge
       setTicketNames(s.me?.modules?.tickets_name);
+      setReadinessChip(s.mode === 'api' ? s.me?.readiness : null); // CR-READY96: the score chip on the settings entry (configure holders only)
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
         this.setupDis = null;
