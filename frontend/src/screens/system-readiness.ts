@@ -11,7 +11,7 @@ import { can, isApi } from '../api/session';
 import {
   DATASET_TEXT, DEMO_HOURS, KPI_ORDER, KPI_TEXT, LEVEL_TEXT, SCENARIO_TEXT, STATUS_TEXT, THRESHOLD_FIELDS,
   attestHandover, changedSettings, demoReadiness, filterChecks, gainText, getDemo, getReadiness, kpiCounts, levelTone, points, runReadinessCheck,
-  saveReadinessSettings, startDemo, validSetting, weightKey,
+  saveReadinessSettings, setReadinessChip, startDemo, validSetting, weightKey,
   type DemoDataset, type DemoInfo, type DemoScenario, type KpiKey, type ReadinessCheck, type ReadinessReport, type ReadinessStatus,
 } from '../api/readiness';
 import { SkinController } from '../design/skin';
@@ -69,6 +69,7 @@ export class SystemReadiness extends LitElement {
     }
     try {
       this.report = await getReadiness();
+      setReadinessChip(this.report);
       this.forbidden = false;
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) this.forbidden = true;
@@ -86,6 +87,7 @@ export class SystemReadiness extends LitElement {
         this.report = demoReadiness();
       } else {
         this.report = await runReadinessCheck();
+        setReadinessChip(this.report);
       }
     } catch (err) {
       this.note = err instanceof ApiError && err.status === 429 ? `הבדיקה הורצה הרגע. אפשר שוב בעוד ${(err.body.details?.retry_after_s as number | undefined) ?? 30} שנ׳.` : describeError(err);
@@ -99,8 +101,10 @@ export class SystemReadiness extends LitElement {
     this.busy = true;
     this.note = '';
     try {
-      if (isApi()) this.report = await attestHandover(done, this.customer, this.handoverNote, this.printed);
-      else this.report = { ...demoReadiness(), handover: { ...demoReadiness().handover, done } };
+      if (isApi()) {
+        this.report = await attestHandover(done, this.customer, this.handoverNote, this.printed);
+        setReadinessChip(this.report);
+      } else this.report = { ...demoReadiness(), handover: { ...demoReadiness().handover, done } };
     } catch (err) {
       this.note = describeError(err);
     } finally {

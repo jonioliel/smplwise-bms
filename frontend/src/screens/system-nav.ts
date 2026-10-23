@@ -5,6 +5,7 @@ import { canNav, isApi, onSession } from '../api/session';
 import { onRouteChange, parseRoute, type RouteState } from '../router';
 import { activeEntry, searchSettings, visibleGroups, type SettingsEntry, type SettingsGroup } from './system-index';
 import { SkinController } from '../design/skin';
+import { getReadinessChip, levelTone, onReadinessChip } from '../api/readiness';
 
 /**
  * SET-polish (2026-10-10): the settings' own navigation. On a wide screen a column at the start side of every הגדרות page: a
@@ -26,6 +27,7 @@ export class SystemNav extends LitElement {
   @state() private opened: string | null = null;
   private offRoute: (() => void) | null = null;
   private offSession: (() => void) | null = null;
+  private offChip: (() => void) | null = null;
 
   static styles = css`
     :host {
@@ -183,6 +185,27 @@ export class SystemNav extends LitElement {
       font-weight: var(--sw-fw-medium);
       line-height: 1.3;
     }
+    .score-chip {
+      margin-inline-start: auto;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: var(--sw-fs-2xs);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1.5;
+      font-variant-numeric: tabular-nums;
+    }
+    .score-chip[data-tone='danger'] {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .score-chip[data-tone='warning'] {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
+    }
+    .score-chip[data-tone='success'] {
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
+    }
     a.sub {
       margin-inline-start: 14px;
       min-block-size: max(28px, var(--sw-settings-row-h, 0px));
@@ -337,12 +360,14 @@ export class SystemNav extends LitElement {
       this.opened = null; // a new page: the column follows it
     });
     this.offSession = onSession(() => this.refresh());
+    this.offChip = onReadinessChip(() => this.requestUpdate());
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.offRoute?.();
     this.offSession?.();
+    this.offChip?.();
   }
 
   private refresh() {
@@ -381,7 +406,8 @@ export class SystemNav extends LitElement {
 
   private link(entry: SettingsEntry, active: SettingsEntry | null, cursor = false, where = '') {
     const on = !!active && active.href === entry.href;
-    return html`<a href=${entry.href} class=${entry.sub && !where ? 'sub' : ''} aria-current=${on ? 'page' : 'false'} data-settings-link=${entry.href} data-cursor=${cursor ? 'true' : 'false'} @click=${() => { this.q = ''; this.cursor = -1; }}>${entry.label}${where ? html`<span class="crumb">${where}</span>` : nothing}</a>`;
+    const chip = entry.href === '#/system/readiness' ? getReadinessChip() : null; // CR-READY96: the last recorded score, toned by its level
+    return html`<a href=${entry.href} class=${entry.sub && !where ? 'sub' : ''} aria-current=${on ? 'page' : 'false'} data-settings-link=${entry.href} data-cursor=${cursor ? 'true' : 'false'} @click=${() => { this.q = ''; this.cursor = -1; }}>${entry.label}${where ? html`<span class="crumb">${where}</span>` : nothing}${chip ? html`<span class="score-chip" data-tone=${levelTone(chip.level)} data-readiness-chip dir="ltr">${chip.score}</span>` : nothing}</a>`;
   }
 
   render() {
