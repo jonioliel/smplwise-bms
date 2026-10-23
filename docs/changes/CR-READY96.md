@@ -177,3 +177,15 @@ S1, S3 and S5 are independent (three agents); S2 after S1, S4 after S3. Target: 
 4. **White-label placements.** (א) Login, rail, PDF, email sender, with "מופעל על ידי SmplWise Arx" kept on the login card - **recommended**. (ב) Also the browser tab title and the PWA name (changes the installed app's name on phones; needs a manifest per installation). (ג) Login and PDF only.
 5. **Who may brand.** (א) `system.configure` (the installer during setup, the customer's administrator later) - **recommended**. (ב) A new `brand.manage` key so the customer cannot change the installer's brand (adds a key for one screen; the handover report already records who branded).
 6. **Readiness for the customer.** (א) Same permission as the wizard (configure holders) - **recommended**. (ב) A read-only readiness card on the home screen for every manager, so the customer sees "76%" without entering Settings (contradicts the clean-operator-screens rule unless hidden after handover).
+
+## Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 11). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup approved with these answers:
+
+- **Handover threshold (form Q2; this document's Q3):** the score 90 and no blockers is **advice only**: the installer **can hand over earlier**; the threshold never blocks the handover.
+- **Demo depth (form Q3; this document's Q1):** **full** - a backend demo with its **own separate database** and fake adapters (option א).
+- **Remote demo (form Q4; this document's Q2):** over remote access the demo is allowed **only on the installer's own server** (option ב); the **owner may run the demo from anywhere**; permission to start it is for the **system installer** only.
+- **Double branding (form Q6):** **yes - branding lives in the logos mockup only**: the branding tab of the readiness screen is removed here (the placement of the installer's and the product's logos is decided in the logos change, not in this one; section 2.3 white-label follows it).
+- **Readiness for the customer (form Q7; this document's Q6):** shown **only to whoever configures the system** (the wizard's permission holders, option א); no readiness card for other managers.
