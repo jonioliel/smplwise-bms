@@ -61,6 +61,7 @@ from typing import Any, Callable
 
 from . import brand_assets, notify
 from . import notify_settings as nsettings
+from . import white_label
 from .notify_channels import Channel, Dispatch, Target, record_outcome, register
 from .notify_policy import BY_KEY, SEVERITY_LABEL_HE
 from .notify_visibility import Reach, is_manager, principal_of
@@ -389,9 +390,9 @@ def _link(link_base: str, nid: str | None) -> str:
     return f"{link_base}/#/notifications/{nid}" if link_base and nid else ""
 
 
-def _page(title: str, rows: list[tuple[str, str]], severity: str, link: str, footer: str, intro: str = "", cta: bool = True, brand: str = "") -> str:
+def _page(title: str, rows: list[tuple[str, str]], severity: str, link: str, footer: str, intro: str = "", cta: bool = True, brand: str = "",
+          installer: tuple[str, str] | None = None) -> str:
     e = html.escape
-    head_line = f"{brand} · Arx" if brand else "Arx"  # CR-LOGOS295 P6: the company's name as text (e-mail clients block images)
     color = SEVERITY_COLOR.get(severity, "#2563eb")
     cells = "".join(f'<tr><td style="padding:3px 0 3px 14px;color:#6b7280;white-space:nowrap;vertical-align:top;">{e(k)}</td><td style="padding:3px 0;color:#111827;">{e(v)}</td></tr>' for k, v in rows)
     if link:
@@ -400,20 +401,25 @@ def _page(title: str, rows: list[tuple[str, str]], severity: str, link: str, foo
     else:
         button = '<p style="margin:16px 0 4px;color:#374151;">לפרטים ולטיפול - היכנסו ל־Arx.</p>' if cta else ""
     lead = f'<p style="margin:0 0 8px;color:#374151;">{e(intro)}</p>' if intro else ""
+    # WHITELABEL097-295: the installer's name in the header line and its contact line under the footer - text only, the product's name stays
+    # CR-LOGOS295 P6: otherwise the company's name as text (e-mail clients block images); release/2160: the installer (white label ON) wins
+    head = f"{oneline(installer[0], 60)} · Arx" if installer else (f"{brand} · Arx" if brand else "Arx")
+    contact = f'<p style="margin:4px 0 0;font-size:12px;color:#6b7280;">{e(oneline(installer[1], 120))}</p>' if installer and installer[1] else ""
     return (
         '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
         '<body dir="rtl" style="margin:0;padding:16px;background:#f3f4f6;direction:rtl;text-align:right;font-family:Heebo,Arial,\'Segoe UI\',sans-serif;">'
         f'<div dir="rtl" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:10px;border-right:6px solid {color};padding:16px 18px;direction:rtl;text-align:right;">'
-        f'<div style="font-size:12px;color:#6b7280;margin-bottom:4px;">{e(head_line)}</div><div style="font-size:20px;font-weight:700;color:#111827;margin:0 0 10px;">{e(title)}</div>'
+        f'<div style="font-size:12px;color:#6b7280;margin-bottom:4px;">{e(head)}</div><div style="font-size:20px;font-weight:700;color:#111827;margin:0 0 10px;">{e(title)}</div>'
         f'{lead}<table role="presentation" dir="rtl" style="border-collapse:collapse;font-size:15px;">{cells}</table>{button}'
-        f'<p style="margin:14px 0 0;font-size:12px;color:#9ca3af;">{e(footer)}</p></div></body></html>'
+        f'<p style="margin:14px 0 0;font-size:12px;color:#9ca3af;">{e(footer)}</p>{contact}</div></body></html>'
     )
 
 
 FOOTER = "נשלח אוטומטית מ־Arx. אין להשיב להודעה זו."
 
 
-def compose_notification(n: dict[str, Any], *, mode: str, tz_name: str, link_base: str = "", resolve_text: str | None = None, brand: str = "") -> Rendered:
+def compose_notification(n: dict[str, Any], *, mode: str, tz_name: str, link_base: str = "", resolve_text: str | None = None, brand: str = "",
+                         installer: tuple[str, str] | None = None) -> Rendered:
     """The mail of one notification: type, place, severity, time, fold count, link. Built from the server-side row only - nothing a person
     typed except a place name, which is sanitised for the header. The body line is added for `system` subjects only."""
     title = oneline(n.get("title"), 80) or "התראה"
@@ -443,7 +449,9 @@ def compose_notification(n: dict[str, Any], *, mode: str, tz_name: str, link_bas
     lines = [_rtl(prefix + typed), ""] + [_rtl(f"{k}: {v}") for k, v in rows] + [""]
     lines.append(link if link else _rtl("לפרטים ולטיפול - היכנסו ל־Arx."))
     lines += ["", _rtl(FOOTER)]
-    return Rendered(subject, "\n".join(lines), _page(prefix + typed, rows, n.get("severity") or "info", link, FOOTER, brand=oneline(brand, 60)))
+    if installer:  # WHITELABEL097-295 (white label ON): the installer's name and contact line close the plain-text part too
+        lines += [_rtl(oneline(installer[0], 60))] + ([_rtl(oneline(installer[1], 120))] if installer[1] else [])
+    return Rendered(subject, "\n".join(lines), _page(prefix + typed, rows, n.get("severity") or "info", link, FOOTER, brand=oneline(brand, 60), installer=installer))
 
 
 @dataclass
@@ -1064,7 +1072,8 @@ class EmailChannel(Channel):
         if not audience_ok(conn, n, users, d.reach):
             return [Target(self.name, None, "", "skipped", "no_reach")]
         resolve_text = d.item.get("text") or (BY_KEY[n["source"]].resolve_text if n.get("source") in BY_KEY else None)
-        d.scratch["email_rendered"] = compose_notification(n, mode=d.mode, tz_name=d.tz, link_base=cfg.link_base, resolve_text=resolve_text, brand=brand_assets.company_name(conn))
+        d.scratch["email_rendered"] = compose_notification(n, mode=d.mode, tz_name=d.tz, link_base=cfg.link_base, resolve_text=resolve_text,
+                                                           brand=brand_assets.company_name(conn), installer=white_label.email_line(conn))
         d.scratch["email_item"] = HeldItem("", d.nid, oneline(n.get("title"), 80), oneline(n.get("place"), 80), n.get("severity") or "info", int(n.get("count") or 1), _mono())
         if d.held(self.name):
             return [Target(self.name, None, mask_address(a), "skipped", d.held_reason()) for a in cfg.recipients]

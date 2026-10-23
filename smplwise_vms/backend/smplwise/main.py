@@ -22,7 +22,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
+from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -472,6 +472,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
     app.include_router(settings_router.router, prefix=api, tags=["settings"])
     app.include_router(ui_background.router, prefix=api, tags=["settings"])  # CRY: the background pictures behind the glass
+    app.include_router(white_label_router.router, prefix=api, tags=["settings"])  # WHITELABEL097-295: the installer brand profile and the customer pack
     app.include_router(brand_router.router, prefix=api, tags=["settings"])  # LOGOS-295: the company logo, the logo size / dark-background choices, the tab title
     app.include_router(media.router, prefix=api, tags=["media"])
     app.include_router(recordings.router, prefix=api, tags=["recordings"])

@@ -23,6 +23,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from . import temperature as t
+from . import white_label
 from .timeutil import iso_utc
 
 MAX_UNITS = 30
@@ -241,6 +242,9 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
     model: dict[str, Any] = {"v": 1, "lang": lang, "from": lo, "to": hi, "zone": str(tz), "generated": int(now_ts), "units": out_units,
                              "chart": chart, "events": events, "signature": {"mode": "line"} if signature else None, "layout": layout,
                              "samples": samples}
+    line = white_label.email_line(conn)  # WHITELABEL097-295: white label ON - the installer's name and contact line in the page head (inside the digest)
+    if line:
+        model["installer"] = {"name": line[0], "contact": line[1]}
     model["digest"] = digest(model)
     return model
 
@@ -351,7 +355,7 @@ def _css(lang: str) -> str:
 body {{ font-family: HeeboHe, HeeboLa, NotoCy, NotoAr; font-size: 9.5pt; color: #1d2433; }}
 .unit {{ page-break-after: always; }} .unit:last-child {{ page-break-after: auto; }}
 .hd {{ display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1.5pt solid #1d2433; padding-bottom: 4pt; margin-bottom: 8pt; }}
-.hd h1 {{ margin: 0; font-size: 15pt; }} .hd .brand {{ font-weight: 700; font-size: 11pt; }}
+.hd h1 {{ margin: 0; font-size: 15pt; }} .hd .brand {{ font-weight: 700; font-size: 11pt; }} .hd .brand .inst {{ font-weight: 400; font-size: 8pt; color: #5b6a85; text-align: end; }}
 .sub {{ color: #5b6a85; font-size: 8.5pt; }}
 .stats {{ display: flex; gap: 5pt; margin: 6pt 0 10pt; }}
 .stats div {{ flex: 1; border: 0.6pt solid #d5dbe6; border-radius: 4pt; padding: 4pt 6pt; }}
@@ -391,6 +395,8 @@ def html_of(model: dict[str, Any]) -> str:
     foot = (f'<div class="foot">{E(L["site"])} · {E(L["generated"])} {gen:%d.%m.%Y %H:%M} ({E(model["zone"])}) · '
             f'<span class="n">{gen_utc:%Y-%m-%dT%H:%M:%SZ}</span> · {E(L["digest"])} <span class="n">sha256 {model["digest"][:16]}</span></div>')
     rng = range_text(model)
+    ins = model.get("installer") or {}
+    inst = (f'<div class="inst">{E(ins.get("name", ""))}' + (f' · {E(ins["contact"])}' if ins.get("contact") else "") + '</div>') if ins.get("name") else ""
     pages = []
     for u in model["units"]:
         s = u["stats"]
@@ -402,7 +408,7 @@ def html_of(model: dict[str, Any]) -> str:
         haccp = model.get("layout") == "haccp"
         body = [f'<div class="hd"><div><h1>{E(L["haccp"] if haccp else L["title"])} · {E(u["name"])}</h1><div class="sub">{E(u["area"] or "")} · {E(L["sensor"])}: {E(u["sensor"] or "—")}'
                 f' · {E(L["door"])}: {E(u["door"] or L["none"])} · {E(L["band"])}: {band}</div><div class="sub">{E(L["range"])}: <span class="n">{E(rng)}</span></div></div>'
-                f'<div class="brand">SmplWise</div></div>', f'<div class="stats">{stats}</div>']
+                f'<div class="brand">SmplWise{inst}</div></div>', f'<div class="stats">{stats}</div>']
         if not u.get("has_data", True):
             body.append(f'<div class="nodata" data-nodata>{E(L["no_data_range"])} · <span class="n">{E(rng)}</span></div>')
         if haccp and u.get("daily") is not None:

@@ -110,6 +110,27 @@ export class ArxLogin extends LitElement {
       block-size: 1px;
       background: var(--sw-border-strong);
     }
+    .linst {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      max-inline-size: 100%;
+      text-align: center;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .linst b {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
+      overflow-wrap: anywhere;
+      unicode-bidi: plaintext;
+    }
+    .linst span {
+      overflow-wrap: anywhere;
+      unicode-bidi: plaintext;
+    }
     .lhead small {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
@@ -597,6 +618,13 @@ export class ArxLogin extends LitElement {
           ${hasCompany ? html`<span class="lsep" aria-hidden="true"></span>` : nothing}
           <sw-brand kind="product" decorative .h=${hasCompany ? 46 : 62} data-arx-product-logo></sw-brand>
           <span class="sr">SmplWise Arx</span>
+          ${brandLogo().wl.enabled && (brandLogo().wl.name || brandLogo().wl.contact || brandLogo().wl.files.light || brandLogo().wl.files.dark)
+            ? html`<div class="linst" data-arx-installer>
+                <sw-brand kind="installer" .h=${30} .maxw=${180} data-arx-installer-logo></sw-brand>
+                ${brandLogo().wl.name ? html`<b data-arx-installer-name>${brandLogo().wl.name}</b>` : nothing}
+                ${brandLogo().wl.contact ? html`<span data-arx-installer-contact>${brandLogo().wl.contact}</span>` : nothing}
+              </div>`
+            : nothing}
           <small>גישה מרחוק מאובטחת</small>
         </div>`;
       })()}

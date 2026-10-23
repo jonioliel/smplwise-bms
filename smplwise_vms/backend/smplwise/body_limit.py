@@ -139,6 +139,13 @@ def _brand_logo(_s: Settings) -> int:
     return brand_assets.MAX_BYTES + MULTIPART_SLACK
 
 
+def _brand_pack(_s: Settings) -> int:
+    """WHITELABEL097-295: the customer pack import (services/white_label.MAX_PACK_BYTES; the route validates the zip itself)."""
+    from .services import white_label
+
+    return white_label.MAX_PACK_BYTES + MULTIPART_SLACK
+
+
 def _plan_ifc(_s: Settings) -> int:
     """CR-037: the IFC import (services/plan_ifc_read.MAX_BYTES; the route reads at most that many bytes itself)."""
     from .services import plan_ifc_read
@@ -191,6 +198,8 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(rf"/api/v1/floors/{_ID}/bakes"), _plan_bake, "plan_bake"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/settings/background/{_ID}"), _ui_background, "ui_background"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/brand/company-logo/{_ID}"), _brand_logo, "brand_logo"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/brand/white-label/logo/{_ID}"), _brand_logo, "brand_logo"),
+    (frozenset({"POST"}), re.compile(r"/api/v1/brand/white-label/pack"), _brand_pack, "brand_pack"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),
