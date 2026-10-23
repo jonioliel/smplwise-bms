@@ -193,6 +193,8 @@ def make_guard(db: Any, *, key_of: Callable[[Any], bytes | None] | None = None) 
 
     def guard(digits: str, outbox_id: str | None, purpose: str | None) -> str | None:
         try:
+            if not Path(db.path).exists():  # a database that is gone (a stopped app, a finished test) has no policy
+                return None
             with db.connection(mode="read", label="wa_policy.guard") as conn:
                 p = load(conn)
             if not p.enforce:
