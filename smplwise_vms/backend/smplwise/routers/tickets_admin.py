@@ -36,7 +36,8 @@ DOMAIN = r"^[a-z][a-z0-9_]{0,39}$"
 GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_departments", "tickets_external", "tickets_configure",
                "tickets_costs_view", "tickets_costs", "tickets_delete",  # + S9 (D31, 11A.8); + full deletion (owner 14.10)
                "tickets_handlers", "tickets_directory",  # + SMALL-294: the directory without the settings; + department managers' handlers (owner 2026-10-17)
-               "tickets_technician_requests")  # + VPORTALRFQ: the portal's technician requests (owner 2026-10-17)
+               "tickets_technician_requests",  # + VPORTALRFQ: the portal's technician requests (owner 2026-10-17)
+               "tickets_intake")  # + CR-INTAKE99: the free-text request queue (owner 143, 2026-10-24)
 
 
 def _rid(request: Request) -> str | None:
@@ -251,6 +252,27 @@ class VendorPortalPatch(BaseModel):
     start_worker: StrictBool | None = None  # SECFIX2-295 / PUB-04: portal/start's work on the listener's worker thread (default OFF)
 
 
+class IntakePatch(BaseModel):
+    """CR-INTAKE99: free-text request intake (WhatsApp drafts, OFF by default; settings_doc validates the ranges again)."""
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool | None = None
+    whatsapp: StrictBool | None = None
+    default_department: str | None = Field(default=None, max_length=64)
+    classifier: Literal["rules", "off"] | None = None
+    approval_reply: StrictBool | None = None
+    unlisted_reply: StrictBool | None = None
+    unlisted_reply_per_day: StrictInt | None = None
+    coalesce_min: StrictInt | None = None
+    sender_per_day: StrictInt | None = None
+    sender_per_week: StrictInt | None = None
+    installation_per_hour: StrictInt | None = None
+    installation_per_day: StrictInt | None = None
+    open_max: StrictInt | None = None
+    draft_ttl_days: StrictInt | None = None
+    rejected_keep_days: StrictInt | None = None
+    block_days: StrictInt | None = None
+
+
 class NotifyPatch(BaseModel):
     """TKNOTIFMATRIX: the per-department notification matrix and the daily digest (both OFF by default = today's behaviour).
     `matrix` is {department id | "*": {source: "now" | "digest" | "off"}}; settings_doc validates every cell again."""
@@ -338,6 +360,7 @@ class SettingsBody(BaseModel):
     notify: NotifyPatch | None = None  # TKNOTIFMATRIX
     privacy: PrivacyPatch | None = None  # PRIVORG-291
     reports: ReportsPatch | None = None  # CR-VENDORQ-294
+    intake: IntakePatch | None = None  # CR-INTAKE99
 
 
 def _problem(exc: ValueError) -> tuple[str, str]:
@@ -393,7 +416,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     if body.device_long_press is not None:  # D17 (slice 3)
         patch["device_long_press"] = body.device_long_press
     for block in ("links", "public", "code", "costs", "staff_links", "directory", "rfq", "vendor_portal", "notify", "privacy", "reports",
-                  "vendor_stats", "vendor_documents", "visits", "budgets"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL / CR-SVC215
+                  "vendor_stats", "vendor_documents", "visits", "budgets", "intake"):  # TKNOTIFMATRIX / PRIVORG-291 / slice 2 / 4 / 7 / 9 / TKSTAFF1 / CR-DEPT-MANAGER-HANDLERS / RFQQUESTIONS + CR-RFQ-PAYMENT-SCHEDULE / VPORTAL / CR-SVC215 / CR-INTAKE99
         sent = getattr(body, block)
         if sent is not None:
             # `rfq.attachments` is the one nested block (RFQATT review): handled below, never as a flat value

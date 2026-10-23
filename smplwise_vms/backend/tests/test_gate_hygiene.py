@@ -112,6 +112,8 @@ SAFE_DEFAULTS = {
     ("staff_links", "require_code"): True,
     ("phone_verify", "required"): False,
     ("rfq", "schedule_arrival"): False,
+    ("intake", "enabled"): False,  # CR-INTAKE99: free-text request intake ships OFF (owner 156: phases 1-3, no public page)
+    ("intake", "whatsapp"): False,
 }
 
 

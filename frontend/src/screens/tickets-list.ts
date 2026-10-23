@@ -7,6 +7,7 @@ import '../tickets/ticket-detail';
 import '../tickets/ticket-create';
 import '../tickets/calendar-view'; // TKCAL: the weekly calendar mode
 import '../tickets/inbound-queue'; // slice 5b: the unmatched WhatsApp replies (a chip only while the queue is not empty)
+import '../tickets/intake-queue'; // CR-INTAKE99: free-text requests waiting for approval (a chip only while the caller may handle them and one waits)
 import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top of "שלי" (owner decision, question 4 b)
 import type { TicketsTable } from './tickets-table';
@@ -443,6 +444,7 @@ export class TicketsList extends LitElement {
           ${STATUS_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}${withDept(c.states[s])}</button>`)}
         </div>
         <span class="grow"></span>
+        <tickets-intake-chip @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-intake-chip>
         ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}

@@ -340,6 +340,7 @@
         "tickets.handlers",
         "tickets.directory",
         "tickets.technician_requests",
+        "tickets.intake",
         "messaging.accounts.manage",
         "occupancy.view",
         "notices.view",
@@ -438,6 +439,13 @@
       "name_he": "אישור בקשות טכנאים מספקים ב{tickets}",
       "permissions": [
         "tickets.technician_requests"
+      ]
+    },
+    {
+      "id": "tickets_intake",
+      "name_he": "קליטת פניות ב{tickets}",
+      "permissions": [
+        "tickets.intake"
       ]
     },
     {
@@ -570,6 +578,7 @@
     "tickets.handlers",
     "tickets.directory",
     "tickets.technician_requests",
+    "tickets.intake",
     "messaging.accounts.manage",
     "occupancy.view",
     "messaging.pacing.reserve",

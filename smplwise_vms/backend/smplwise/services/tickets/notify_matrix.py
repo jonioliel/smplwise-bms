@@ -46,7 +46,7 @@ log = logging.getLogger("smplwise.tickets.notify_matrix")
 
 MODES = ("now", "digest", "off")
 # the department-scoped ticket sources a matrix can address (installation-level and per-user ones are not departmental)
-_EXCLUDED = {"ticket.channel_down", "ticket.staff_mobile", "ticket.portal_tech_request", "ticket.digest"}
+_EXCLUDED = {"ticket.channel_down", "ticket.staff_mobile", "ticket.portal_tech_request", "ticket.digest", "ticket.intake_new", "ticket.intake_unlisted"}
 MATRIX_SOURCES: tuple[str, ...] = tuple(d["key"] for d in SOURCE_DEFS
                                         if d["key"].startswith("ticket.") and d["key"] not in _EXCLUDED and d.get("subject", SUBJECT) == SUBJECT)
 DIGESTABLE: frozenset[str] = frozenset(MATRIX_SOURCES)  # owner decision 4 (2.9.1): assignee sources too
