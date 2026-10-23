@@ -6,6 +6,7 @@ import '../components/sw-state-panel';
 import { describeError, get, patch } from '../api/client';
 import { can, isApi } from '../api/session';
 import { TASK_KINDS, maintApi, type TaskKind } from '../api/maintenance';
+import { em } from '../i18n/emergency';
 import { mt, type MtKey } from '../i18n/maintenance';
 import { refreshMaintenance } from './access';
 import { maintCss } from './styles';
@@ -59,7 +60,7 @@ export class MaintSettings extends LitElement {
   private async load() {
     try {
       const r = await get<{ settings: Record<string, unknown> }>('settings');
-      const v: Record<string, string> = { 'maintenance.enabled': String(r.settings['maintenance.enabled'] ?? 'false'), 'maintenance.tag_base_url': String(r.settings['maintenance.tag_base_url'] ?? '') };
+      const v: Record<string, string> = { 'maintenance.enabled': String(r.settings['maintenance.enabled'] ?? 'false'), 'emergency_readiness.enabled': String(r.settings['emergency_readiness.enabled'] ?? 'false'), 'maintenance.tag_base_url': String(r.settings['maintenance.tag_base_url'] ?? '') };
       for (const k of TASK_KINDS) v[LEAD_KEY(k)] = String(r.settings[LEAD_KEY(k)] ?? BUILT_IN[k]);
       for (const [k, d] of Object.entries(EXTRA)) v[k] = String(r.settings[k] ?? d);
       this.values = v;
@@ -113,7 +114,7 @@ export class MaintSettings extends LitElement {
     if (Object.keys(this.problems()).length) return;
     const changes: Record<string, string> = {};
     for (const [k, v] of Object.entries(this.draft)) {
-      if (k === 'maintenance.enabled' || k === REMINDERS || k === MISSING_INS || this.values?.[k] === v) continue; // the switches are saved the moment they are flipped
+      if (k === 'maintenance.enabled' || k === 'emergency_readiness.enabled' || k === REMINDERS || k === MISSING_INS || this.values?.[k] === v) continue; // the switches are saved the moment they are flipped
       changes[k] = k.startsWith('maintenance.lead_days.') || k in NUM_RANGE ? String(Number(v)) : v.trim();
     }
     if (Object.keys(changes).length) void this.save(changes);
@@ -133,6 +134,11 @@ export class MaintSettings extends LitElement {
         <div class="switch"><div><h4>${mt('setModule')}</h4><div class="hint">${mt('setModuleHint')}</div></div>
           <sw-toggle label=${mt('setModule')} labelHidden .checked=${on} ?disabled=${this.busy} data-maint-enabled
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ 'maintenance.enabled': String(e.detail.checked) })}></sw-toggle></div>
+      </div>
+      <div class="panel card">
+        <div class="switch"><div><h4>${em('setModule')}</h4><div class="hint">${em('setModuleHint')}</div></div>
+          <sw-toggle label=${em('setModule')} labelHidden .checked=${v['emergency_readiness.enabled'] === 'true'} ?disabled=${this.busy || !on} data-emergency-enabled
+            @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ 'emergency_readiness.enabled': String(e.detail.checked) })}></sw-toggle></div>
       </div>
       <div class="panel card">
         <div><h4>${mt('setLeads')}</h4><div class="hint">${mt('setLeadsHint')}</div></div>

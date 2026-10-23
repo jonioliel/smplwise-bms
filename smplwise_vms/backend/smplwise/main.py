@@ -251,6 +251,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         maintenance_reminders.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("maintenance janitor failed", exc_info=True)
+    try:  # CR-EMERG104: the readiness history (a row only when the verdict or an item changed, or once a day); nothing while the module is off
+        from .services.emergency import service as emergency_service
+
+        emergency_service.janitor(db, settings)
+    except Exception:  # noqa: BLE001
+        log.warning("emergency readiness history failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -727,6 +733,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(maintenance_router.open_router, prefix=api, tags=["maintenance"])  # GET /maintenance/module: answers while the module is off
     app.include_router(maintenance_router.router, prefix=api, tags=["maintenance"])  # ledger, plans, rounds, supplier documents, tags (off by default)
+    from .routers import emergency_readiness as emergency_router  # CR-EMERG104: the read-only emergency readiness view (off by default)
+
+    app.include_router(emergency_router.open_router, prefix=api, tags=["emergency-readiness"])  # GET /emergency-readiness/module answers while the module is off
+    app.include_router(emergency_router.router, prefix=api, tags=["emergency-readiness"])
     from .services import ha_bridge as ha_bridge_svc
 
     ha_bridge_svc.configure(settings.data_dir)  # HMACACT-295: the key set needs the data directory for a connection that does not know its database

@@ -10,12 +10,15 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { srHeading, srHeadingCss } from '../components/sr-heading';
 import { mt } from '../i18n/maintenance';
+import { em } from '../i18n/emergency';
+import { emergencyApi, type EmergencyModule } from '../api/emergency';
 import { maintAccess, onMaintAccess, refreshMaintenance, type MaintAccess } from '../maintenance/access';
-import { PAGE_LABEL, pageHref, pageOf, pagesFor, type Page } from '../maintenance/model';
+import { PAGE_LABEL, SECTION_HREF, pageHref, pageOf, pagesFor, type Page } from '../maintenance/model';
 import '../maintenance/list-page';
 import '../maintenance/tags-page';
 import '../maintenance/log-page';
 import '../maintenance/scan-page';
+import '../maintenance/emergency-page';
 
 /**
  * CR-MAINT215 slice 2: the section "תחזוקה ובקרה" of the service-management area (`#/tickets/maintenance/<page>`), drawn as the
@@ -30,6 +33,8 @@ export class TicketsMaintenance extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) route: RouteState | null = null;
   @state() private access: MaintAccess = maintAccess();
+  /** CR-EMERG104: the emergency readiness tab is offered only while its own switch is on and the caller may view it (maintenance.view or emergency.view) */
+  @state() private emergency: EmergencyModule | null = null;
   private stop?: () => void;
 
   static styles = [srHeadingCss, css`
@@ -53,6 +58,7 @@ export class TicketsMaintenance extends LitElement {
     super.connectedCallback();
     this.stop = onMaintAccess((a) => (this.access = a));
     void refreshMaintenance();
+    void emergencyApi.module().then((m) => (this.emergency = m), () => (this.emergency = null));
   }
 
   disconnectedCallback() {
@@ -61,13 +67,17 @@ export class TicketsMaintenance extends LitElement {
   }
 
   private pages(): TabItem[] {
-    return pagesFor(this.access).map((p) => ({ id: p, label: mt(PAGE_LABEL[p]), href: pageHref(p) }));
+    const tabs: TabItem[] = pagesFor(this.access).map((p) => ({ id: p, label: mt(PAGE_LABEL[p]), href: pageHref(p) }));
+    if (this.emergency?.enabled && this.emergency.can.view) tabs.push({ id: 'emergency', label: em('tab'), href: `${SECTION_HREF}/emergency` });
+    return tabs;
   }
 
   private body(page: Page) {
     const r = this.route;
     const seg = r?.segments ?? [];
     if (seg[2] === 'scan' && seg[3]) return html`<maint-scan-page .token=${seg[3]} .access=${this.access}></maint-scan-page>`;
+    if (seg[2] === 'emergency') return this.emergency?.enabled && this.emergency.can.view ? html`<emergency-readiness-page></emergency-readiness-page>`
+      : html`<sw-state-panel state="forbidden" heading=${em('forbiddenTitle')} data-state="forbidden"></sw-state-panel>`;
     if (page === 'tags') return html`<maint-tags-page .access=${this.access}></maint-tags-page>`;
     if (page === 'log') return html`<maint-log-page .access=${this.access}></maint-log-page>`;
     return html`<maint-list-page .page=${page} .access=${this.access} .openTask=${r?.params.get('task') ?? ''} .openRun=${r?.params.get('run') ?? ''}></maint-list-page>`;
@@ -83,7 +93,8 @@ export class TicketsMaintenance extends LitElement {
         ${sys ? html`<a class="btn" href="#/system/infra/maintenance" data-maint-to-settings>${mt('toSettings')}</a>` : nothing}</sw-state-panel>`;
     }
     if (!a.view) return html`${heading}<sw-state-panel state="forbidden" heading=${mt('forbiddenTitle')} data-state="forbidden"></sw-state-panel>`;
-    const page = pageOf(this.route?.segments ?? []);
+    const emergencyTab = this.route?.segments[2] === 'emergency';
+    const page = emergencyTab ? ('emergency' as unknown as Page) : pageOf(this.route?.segments ?? []);
     const items = this.pages();
     const scan = this.route?.segments[2] === 'scan';
     // every page draws its own h1 (the temperature screen's page head); the visually hidden one is only for the state panels above
