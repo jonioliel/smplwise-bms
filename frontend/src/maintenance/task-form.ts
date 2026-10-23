@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import { CATEGORIES, DOC_TYPES, INTERVAL_UNITS, maintApi, type Options, type TaskDetail, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import { bodyOf, categoryText, docTypeText, draftOf, newDraft, newItem, placeOptions, validate, vendorMark, type Draft } from './model';
@@ -95,7 +96,7 @@ export class MaintTaskForm extends LitElement {
   }
 
   private date(k: 'due_date' | 'anchor_date', label: MtKey): TemplateResult {
-    return html`<div class="fld"><label for=${`f-${k}`}>${mt(label)}</label><input id=${`f-${k}`} class="inp num" type="date" .value=${this.d[k]} aria-invalid=${String(!!this.errors[k])}
+    return html`<div class="fld"><label for=${`f-${k}`}>${mt(label)}</label><input id=${`f-${k}`} class="inp num" type="date" lang=${dateInputLang()} .value=${this.d[k]} aria-invalid=${String(!!this.errors[k])}
       data-maint-field=${k} @input=${(e: Event) => this.set(k, (e.target as HTMLInputElement).value)}>${this.err(k)}</div>`;
   }
 

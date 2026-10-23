@@ -26,7 +26,7 @@ from smplwise.services import fleet_report as fr
 URL = "https://fleet-receiver.test/base"
 API = "/api/v1/fleet/report"
 SENTINELS = ("Sentinel Lobby Cam", "רחוב הסנטינל 17", "sentinel.person@example.test", "Sentinel Alert Title", "Sentinel body text",
-             "sentinel-nvr.example.test", "10.20.30.40", "Sentinel Person", "sentinel_user", "אתר בדיקה", "רחוב 1", "fleet-receiver.test")
+             "sentinel-nvr.example.test", "192.0.2.40", "Sentinel Person", "sentinel_user", "אתר בדיקה", "רחוב 1", "fleet-receiver.test")
 # key names (or parts of key names) that would mean a personal / identifying / physical field slipped in
 FORBIDDEN_KEY_PARTS = ("name", "title", "body", "label", "alias", "addr", "host", "url", "mail", "phone", "token", "passw", "secret",
                        "frame", "snapshot", "image", "door", "unlock", "latitude", "longitude", "serial", "mac_", "ip_", "person",
@@ -104,7 +104,7 @@ def _seed_personal(client, settings, db) -> None:
                         VALUES (?, 'test', 'test', 'critical', 'camera', 'Sentinel Alert Title', 'Sentinel body text sentinel.person@example.test',
                                 'רחוב הסנטינל 17', 'k1', ?, ?, ?)""", (new_id(), now_iso(), now_iso(), now_iso()))
         conn.execute("""INSERT INTO ha_entities(entity_id, name, domain, area_name, attributes_json, first_seen_at, updated_at)
-                        VALUES ('lock.sentinel_front_door', 'Sentinel Person front door', 'lock', 'רחוב הסנטינל 17', '{"ip": "10.20.30.40"}', ?, ?)""",
+                        VALUES ('lock.sentinel_front_door', 'Sentinel Person front door', 'lock', 'רחוב הסנטינל 17', '{"ip": "192.0.2.40"}', ?, ?)""",
                      (now_iso(), now_iso()))
 
 
@@ -230,7 +230,7 @@ NOW = dt.datetime(2026, 10, 22, 3, 0, tzinfo=dt.timezone.utc)
 @pytest.mark.parametrize("mutate,why", [
     (lambda b: b.update(site="x"), "unexpected_key"),
     (lambda b: b["versions"].update(addon="2.12.1 (Lobby)"), "bad_version"),
-    (lambda b: b["components"].update(nvr="down at 10.0.0.1"), "not_in_enum"),
+    (lambda b: b["components"].update(nvr="down at 192.0.2.1"), "not_in_enum"),
     (lambda b: b["counts"].update(cameras=True), "bad_integer"),
     (lambda b: b["counts"].update(cameras=-1), "bad_integer"),
     (lambda b: b["disk"].update(free_pct=101), "bad_integer"),
@@ -249,7 +249,7 @@ def test_the_closed_schema_refuses_every_deviation(mutate, why):
     with pytest.raises(fr.FleetSchemaError) as exc:
         fr.assemble(body, installation_id="a" * 32, seq=1, now=NOW)
     assert exc.value.why == why
-    assert "Lobby" not in str(exc.value) and "10.0.0.1" not in str(exc.value), "the error names the place, never the value"
+    assert "Lobby" not in str(exc.value) and "192.0.2.1" not in str(exc.value), "the error names the place, never the value"
 
 
 @pytest.mark.parametrize("iid,seq", [("A" * 32, 1), ("a" * 31, 1), ("a" * 32, 0), ("a" * 32, "1")])

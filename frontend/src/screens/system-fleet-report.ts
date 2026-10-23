@@ -654,7 +654,7 @@ export class SystemFleetReport extends LitElement {
     if (this.loadState !== 'ready' || !this.status) {
       const forbidden = this.loadState === 'forbidden';
       return html`<sw-page crumbs="הגדרות" heading=${heading} data-fleet-report data-state=${this.loadState}>
-        <sw-state-panel state=${forbidden ? 'forbidden' : 'error'} heading=${forbidden ? ft('forbiddenTitle') : ft('errorTitle')} hint=${forbidden ? '' : ft('errorHint')} actionLabel=${forbidden ? '' : ft('retry')}
+        <sw-state-panel icon="share" state=${forbidden ? 'forbidden' : 'error'} heading=${forbidden ? ft('forbiddenTitle') : ft('errorTitle')} hint=${forbidden ? '' : ft('errorHint')} actionLabel=${forbidden ? '' : ft('retry')}
           @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const st = this.status;

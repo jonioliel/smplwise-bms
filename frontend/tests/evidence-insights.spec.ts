@@ -224,9 +224,12 @@ test.describe('insights - doors and waste', () => {
     await page.locator('[data-kpi="explained"]').click();
     await expect(page.locator('[data-door-explained]')).toHaveCount(2);
     await expect(page.locator('[data-door-explained]').first()).toContainText('מנעול נפתח');
-    // the floors tree narrows the list
+    // the floors tree narrows the list (below 900px the tree column is hidden by design and the phone picker takes its place)
     await page.locator('[data-kpi="all"]').click();
-    await page.locator('sw-place-tree [aria-current], sw-place-tree button').filter({ hasText: 'גג' }).first().click();
+    await expect(page.locator('[data-door-row]')).toHaveCount(2);
+    const roof = page.locator('sw-place-tree [aria-current], sw-place-tree button').filter({ hasText: 'גג' }).first();
+    if (await roof.isVisible()) await roof.click();
+    else await page.locator('[data-place-select] select').selectOption('floor:גג');
     await expect(page.locator('[data-door-row]')).toHaveCount(0);
     await expect(page.locator('[data-state="empty"]')).toBeVisible();
   });
