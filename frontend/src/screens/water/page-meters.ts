@@ -173,6 +173,11 @@ export class WaterMetersPage extends LitElement {
     super.disconnectedCallback();
   }
 
+  willUpdate(ch: Map<string, unknown>) {
+    // a deep link to the add dialog (?add=1) lists the candidates as the button does
+    if (ch.has('params') && this.params.get('add') === '1' && this.candPhase === 'idle' && this.access.manage) void this.searchCands();
+  }
+
   private async load(initial: boolean) {
     if (initial) this.phase = 'loading';
     try {
