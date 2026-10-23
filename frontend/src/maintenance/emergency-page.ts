@@ -8,10 +8,11 @@ import { emergencyApi, type ItemGroup, type ItemStatus, type ReadinessItem, type
 import { em, emLang, EN_SUMMARY, EN_TITLES, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
 import './emergency-config';
+import './emergency-history';
 import { ageText, matches, type Filter } from './emergency-model';
 import { maintCss } from './styles';
 
-type View = 'list' | 'contacts' | 'settings';
+type View = 'list' | 'contacts' | 'history' | 'settings';
 const FILTERS: readonly Filter[] = ['all', 'red', 'amber', 'unknown', 'not_applicable'];
 const FILTER_LABEL: Record<Filter, EmKey> = { all: 'kpiAll', red: 'kpiRed', amber: 'kpiAmber', unknown: 'kpiUnknown', not_applicable: 'kpiNa' };
 const LOOK: Record<ItemStatus, string> = { green: 'ok', amber: 'warn', red: 'alarm', unknown: 'unk', not_applicable: 'unk', hidden: 'unk' };
@@ -125,11 +126,11 @@ export class EmergencyReadinessPage extends LitElement {
       <div class="top"><div><h1>${em('title')}</h1><p class="sub">${em('sub')}</p></div><span class="sp"></span>
         <div class="meta"><span class="vbadge" data-look=${VERDICT_LOOK[d.verdict]} data-emerg-verdict=${d.verdict}><sw-icon name=${VERDICT_ICON[d.verdict]} size="18"></sw-icon>${em(`verdict_${d.verdict}` as EmKey)}</span>
           <span class="mut num">${em('checkedAt', { t: fmtInstant(d.checked_at) })}</span>
-          <div class="seg noprint" role="group" data-emerg-views>${(['list', 'contacts', ...(d.can.manage ? ['settings'] : [])] as View[]).map((v) => html`<button type="button" aria-pressed=${String(this.view === v)} data-emerg-view=${v}
-            @click=${() => { this.view = v; }}>${em(({ list: 'viewList', contacts: 'viewContacts', settings: 'viewSettings' } as Record<View, EmKey>)[v])}</button>`)}</div>
+          <div class="seg noprint" role="group" data-emerg-views>${(['list', 'contacts', 'history', ...(d.can.manage ? ['settings'] : [])] as View[]).map((v) => html`<button type="button" aria-pressed=${String(this.view === v)} data-emerg-view=${v}
+            @click=${() => { this.view = v; }}>${em(({ list: 'viewList', contacts: 'viewContacts', history: 'viewHistory', settings: 'viewSettings' } as Record<View, EmKey>)[v])}</button>`)}</div>
           <button type="button" class="btn noprint" data-emerg-print @click=${() => window.print()}><sw-icon name="download" size="16"></sw-icon>${em('print')}</button></div></div>
       ${d.banners.length ? html`<div class="banners" data-emerg-banners>${d.banners.map((b) => html`<div class="banner" data-banner=${b.code}><sw-icon name="warning" size="18"></sw-icon>${em(`banner_${b.code}` as EmKey) === `banner_${b.code}` ? b.text : em(`banner_${b.code}` as EmKey)}</div>`)}</div>` : nothing}
-      ${this.view === 'list' ? this.listBody(d, counts, shown, groups) : this.view === 'contacts' ? html`<emergency-contacts-panel .manage=${d.can.manage}></emergency-contacts-panel>` : html`<emergency-settings-panel></emergency-settings-panel>`}
+      ${this.view === 'list' ? this.listBody(d, counts, shown, groups) : this.view === 'contacts' ? html`<emergency-contacts-panel .manage=${d.can.manage}></emergency-contacts-panel>` : this.view === 'history' ? html`<emergency-history-panel></emergency-history-panel>` : html`<emergency-settings-panel></emergency-settings-panel>`}
       <div class="foot">${em('printNote')}<span class="printonly"> ${em('signed')}</span></div>`;
   }
 

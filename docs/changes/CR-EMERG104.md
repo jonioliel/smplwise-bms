@@ -270,3 +270,7 @@ history, E13 = the list AND the recipients of the enabled critical notification 
 `#/tickets/maintenance/emergency` with the checklist, contacts and settings views, the Settings switch, printing (browser print).
 Not built: the optional home tile (q201 "can be added in Settings"); merging the approval files into one generated PDF (q208 - the print lists them as links);
 a daily digest (q7b was not chosen); recipients of the elevator/temperature/water rules are not resolved in E13 (rules that need an event are not counted).
+
+Continuation (23.10): added the read-only History view (`emergency-history-panel`, `GET /emergency-readiness/history`; bars of the worst verdict per period, 30/90/365 days up to the kept length, fits the viewport, no scrolling). All 20 thresholds are editable in Settings (the unit spec compares the label table with the backend table). `contracts/API_INVENTORY.md` regenerated (1347 routes; adds the 11 emergency-readiness routes, and three device-key routes the base inventory had not listed).
+Checked locally: `tsc --noEmit` exit 0; unit spec `unit-emergency.spec.ts` 7 passed; `test_emergency_readiness_295.py` 22 passed.
+NOT_RUN (runner busy with the 2.15.0 gate): Playwright screen specs and visual baselines for the emergency tab and the history view, the full backend suite, the migration-number check at integration (0194 is provisional), the production UI build (`build:addon`).

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ageText, matches, parseThreshold } from '../src/maintenance/emergency-model';
+import { ageText, bucketHistory, matches, parseThreshold } from '../src/maintenance/emergency-model';
 import { EM_KEYS, TH_LABEL, EM_TABLES, EN_SUMMARY, EN_TITLES, em } from '../src/i18n/emergency';
 
 // CR-EMERG104: the words of the emergency readiness tab. No browser:
@@ -50,4 +50,14 @@ test('every editable threshold has a label in both languages (20 keys, as the ba
     expect(v.he).toBeTruthy();
     expect(v.en).toBeTruthy();
   }
+});
+
+test('history buckets keep time order and the worst verdict of each bucket', () => {
+  const pt = (at: string, verdict: 'ready' | 'ready_with_gaps' | 'not_ready') => ({ at, verdict, counts: {} });
+  const pts = [pt('2026-10-04', 'ready'), pt('2026-10-02', 'not_ready'), pt('2026-10-01', 'ready'), pt('2026-10-03', 'ready_with_gaps')];
+  expect(bucketHistory(pts, 10).map((b) => b.verdict)).toEqual(['ready', 'not_ready', 'ready_with_gaps', 'ready']);
+  const two = bucketHistory(pts, 2);
+  expect(two.map((b) => b.verdict)).toEqual(['not_ready', 'ready_with_gaps']);
+  expect(two.map((b) => b.n)).toEqual([2, 2]);
+  expect(bucketHistory([], 5)).toEqual([]);
 });
