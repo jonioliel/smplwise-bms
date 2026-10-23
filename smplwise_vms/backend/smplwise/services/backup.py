@@ -31,7 +31,7 @@ PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "pl
 from . import energy_backup as _energy_backup  # noqa: E402
 
 PROJECT_TABLES = PROJECT_TABLES + [t for t in _energy_backup.MAIN_TABLES if t not in PROJECT_TABLES]
-# CR-WATER78 slice 1: the water meter registry (migration 0151), listed once in services/water_backup (the energy pattern).
+# CR-WATER78 slice 1: the water meter registry (migration 0150), listed once in services/water_backup (the energy pattern).
 from . import water_backup as _water_backup  # noqa: E402
 
 PROJECT_TABLES = PROJECT_TABLES + [t for t in _water_backup.MAIN_TABLES if t not in PROJECT_TABLES]

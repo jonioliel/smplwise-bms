@@ -1,6 +1,6 @@
 """CR-WATER78 slice 1: what the water module adds to the project backup (the energy_backup.py allow-list pattern, section 10).
 
-- MAIN_TABLES (the 0151 meter registry) join `backup.PROJECT_TABLES`; an archive written before the module existed keeps the
+- MAIN_TABLES (the 0150 meter registry) join `backup.PROJECT_TABLES`; an archive written before the module existed keeps the
   current rows on a `replace` restore (KEEP_WHEN_ABSENT) - an older backup never empties the meters.
 - Every archive carries `water/daily.json` (the daily totals keyed by meter id) whenever water.db exists.
 - With `water.include_history_in_backup` (default OFF) the archive also carries `water/water.db`, a consistent copy (SQLite online

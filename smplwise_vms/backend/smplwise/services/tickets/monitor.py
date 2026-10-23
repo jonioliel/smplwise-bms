@@ -89,9 +89,6 @@ def tick(db: Database, *, force: bool = False) -> int:
                 STATS["errors"] += 1
                 log.warning("tickets automatic close failed on %s", tid, exc_info=True)
         _LAST_RUN[key] = stuck.iso(now) or ""
-        from . import acceptance  # ACCEPT102: the sensor verification of finished work (default off, never fails the tick)
-
-        acceptance.run(db, now)
     except Exception:  # noqa: BLE001 - a housekeeping step never fails the tick
         STATS["errors"] += 1
         log.warning("tickets monitor step failed", exc_info=True)
@@ -195,18 +192,10 @@ def auto_close(conn, ticket_id: str, now: dt.datetime) -> bool:
     done_at = stuck.parse(row["done_at"])
     if not days or int(days) <= 0 or done_at is None or work_calendar.auto_close_at(done_at, int(days), work_calendar.load(conn, row["department_id"])) > now:
         return False
-    from . import acceptance, costs  # slice 9 (11A.3): a REQUIRED cost claim not yet approved keeps the ticket open (it stays "waiting for me")
+    from . import costs  # slice 9 (11A.3): a REQUIRED cost claim not yet approved keeps the ticket open (it stays "waiting for me")
 
     if costs.blocks_close(conn, ticket_id):
         return False
-    if acceptance.blocks_auto_close(conn, ticket_id):  # ACCEPT102: the sensor verification decides (a running hold or a flag keeps it for a person)
-        return False
-    return close_done(conn, row, now, "auto_closed", {"after_days": int(days)}, {"auto": True})
-
-
-def close_done(conn, row: dict[str, Any], now: dt.datetime, event_kind: str, event_data: dict[str, Any], audit_extra: dict[str, Any]) -> bool:
-    """The system's close of a `done` ticket (D10 and the ACCEPT102 acceptance share it): actor `system`, one timeline row, one audit row."""
-    ticket_id = row["id"]
     stamp = stuck.iso(now) or ""
     purge = stuck.iso(now + dt.timedelta(days=_purge_days(conn)))
     fields: dict[str, Any] = {"status": "closed", "closed_at": stamp, "closed_by": None, "current_assignment_id": None, "purge_after": purge,
@@ -218,9 +207,10 @@ def close_done(conn, row: dict[str, Any], now: dt.datetime, event_kind: str, eve
         store.update_assignment(conn, asg, {"ended_at": stamp, "end_reason": "closed"})
     sla.refresh(conn, ticket_id)  # slice 2's dues: none for a closed ticket
     store.set_sla_state(conn, ticket_id, {"stuck_kind": None, "stuck_level": 0, "reminders_sent": 0, "next_check_at": None})
-    store.insert_event(conn, ticket_id, event_kind, actor_kind="system", via="system", from_status="done", to_status="closed", at=stamp, data=event_data)
+    store.insert_event(conn, ticket_id, "auto_closed", actor_kind="system", via="system", from_status="done", to_status="closed", at=stamp,
+                       data={"after_days": int(days)})
     audit(conn, actor=None, action="ticket.close", decision="allowed", resource_type="ticket", resource_id=ticket_id,
-          details={"number": row["number"], "from": "done", "to": "closed", "actor": "system", **audit_extra})
+          details={"number": row["number"], "from": "done", "to": "closed", "actor": "system", "auto": True})
     notify_bridge.ticket_status(conn, ticket_id, "done", "closed")
     STATS["auto_closed"] += 1
     return True

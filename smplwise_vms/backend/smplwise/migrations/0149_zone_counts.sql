@@ -1,4 +1,4 @@
--- Final number 0150 (built as PROVISIONAL 0160; renumbered at the 2.14.0 integration, release/2140) (ZONECOUNT107-295, docs/changes/CR-ZONECOUNT107.md).
+-- Final number 0149 (built as PROVISIONAL 0160; renumbered at the 2.14.0 integration, release/2140) (ZONECOUNT107-295, docs/changes/CR-ZONECOUNT107.md).
 --
 -- Presence COUNT per area derived from Frigate review items (read-only, counts only). Shipped OFF (`occupancy.enabled` is absent = off): nothing is
 -- written to `zone_count_samples` while it is off, and switching it off through the API deletes the samples.

@@ -37,7 +37,6 @@ REASON_TEXT: dict[str, str] = {
     "ack": "ממתין לאישור קבלה",
     "stuck": "אין עדכון מזה זמן",
     "waiting": "ממתין לחלק מזה זמן",
-    "acceptance_failed": "הבדיקה אחרי התיקון לא עברה",  # ACCEPT102
 }
 RETURN_TEXT = {"not_mine": "לא שלי", "cannot_handle": "לא אוכל לטפל"}
 

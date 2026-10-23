@@ -20,7 +20,7 @@ tenants is optional and is an owner question (section 13, Q1); nothing of it is 
 
 | Slice | Content | Tier |
 |---|---|---|
-| **1** | Meters + readings + consumption: the module switch, migration 0151 (built as provisional 0152), the meter registry with water validation, the sampler on the existing state mirror (read-only), counter rules and epochs reused from the energy counter, 15-minute / daily totals, manual readings, retention, permissions, audit, backup, API, the "מים" tab with the pages **מונים** and **צריכה**, settings section, evidence | L |
+| **1** | Meters + readings + consumption: the module switch, migration 0150 (built as provisional 0152), the meter registry with water validation, the sampler on the existing state mirror (read-only), counter rules and epochs reused from the energy counter, 15-minute / daily totals, manual readings, retention, permissions, audit, backup, API, the "מים" tab with the pages **מונים** and **צריכה**, settings section, evidence | L |
 | **2** | Leak alerts: the evaluator (night flow, abnormal daily consumption, burst, not reporting), notification sources, the alert log page **התראות**, acknowledge / mute, routing settings, the home KPI (optional) | M (inside an L release) |
 | **3** | Billing to tenants (ONLY if Q1 is approved): water accounts on the electricity billing engine (formula, customer card, tariff per m³, periods, drafts, issue, PDF) with a `medium` on the account; the pages **חשבונות / חיובים** inside "מים" | L |
 
@@ -55,7 +55,7 @@ table_prefix='water_')`) instead of being copied. The electricity profile is `me
 prefix `energy_` - its behaviour and its tables do not change (a characterisation test proves the energy tables and the API
 inventory are byte-identical before / after).
 
-### 4.2 Main database (migration **0151 `infra_water.sql`**, built as provisional 0152, renumbered at the 2.14.0 integration; slice 2 takes a new migration)
+### 4.2 Main database (migration **0150 `infra_water.sql`**, built as provisional 0152, renumbered at the 2.14.0 integration; slice 2 takes a new migration)
 
 | Table | Purpose | Key columns (text ids, UTC ISO, decimals as text) |
 |---|---|---|
@@ -69,7 +69,7 @@ inventory are byte-identical before / after).
 Settings keys (not a table): `water.enabled` (**false**), `water.raw_retention_days` (90), `water.interval_retention_months` (26),
 `water.stale_after_minutes` (120 - water meters often report on change only; a still meter at night is silent for hours, so the
 stale threshold is longer than electricity's 60), `water.include_history_in_backup` (false), `water.home_kpi` (true, slice 2).
-Rollback of 0151: drop the tables, delete the `water.*` settings and the `water.*` policy rows; nothing else reads them.
+Rollback of 0150: drop the tables, delete the `water.*` settings and the `water.*` policy rows; nothing else reads them.
 
 ### 4.3 Time-series database `/data/water.db`
 The energy store's schema through the medium profile: `readings (meter_id, ts, value_ml, flags)`, `intervals (meter_id, bucket,
@@ -204,7 +204,7 @@ water store, never from the mirror directly; nothing is ever sent to a device.
 - Audit: `infra.water.meter.create/update/retire/replace`, `infra.water.reading.manual/undo`, `infra.water.calibration/undo`,
   `infra.water.settings.update`, `infra.water.enabled`, `infra.water.alerts.update`, `infra.water.event.ack/mute`,
   `infra.water.export` - ids and field names only.
-- Backup: the 0151 main tables join `backup.PROJECT_TABLES` through the water backup module (the `energy_backup.py` allow-list
+- Backup: the 0150 main tables join `backup.PROJECT_TABLES` through the water backup module (the `energy_backup.py` allow-list
   pattern); `water.db` optional (`water.include_history_in_backup`, default off); `daily` always exported as JSON; restore keeps
   the live-meter uniqueness.
 - Rate limits: CSV export 10 / minute / user; manual readings 60 / hour / user.

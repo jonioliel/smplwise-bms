@@ -1,7 +1,7 @@
 # CR-ZONECOUNT107 - people count per area, derived from Frigate (board item r107)
 
-Status: slice 1 (backend only) built on `pilot/ZONECOUNT107-295` from `origin/main` (v2.12.4, `320e5555`). Migration 0150 (built as provisional 0160;
-renumbered at the 2.14.0 integration; `0150_zone_counts.sql`). Default OFF. No frontend in this slice.
+Status: slice 1 (backend only) built on `pilot/ZONECOUNT107-295` from `origin/main` (v2.12.4, `320e5555`). Migration 0149 (built as provisional 0160;
+renumbered at the 2.14.0 integration; `0149_zone_counts.sql`). Default OFF. No frontend in this slice.
 
 ## 1. Goal
 

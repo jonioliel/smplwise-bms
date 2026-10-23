@@ -3,7 +3,7 @@ every route but /status and /settings, the sampler thread only while on, audited
 views, site_admin manages, floor scope narrows the meters, source_ref only to managers), the source validation matrix (a flow rate and a
 gas meter refused with their own codes), litres / m3 conversion (gallon and cubic-foot factors exact in micro-litres), the counter rules
 on litres through the water medium profile (and the electricity profile unchanged), series / consumption windows / CSV, manual
-readings, retention, backup with and without history, and migration 0151 contiguity. Fake mirror states only; no
+readings, retention, backup with and without history, and migration 0150 contiguity. Fake mirror states only; no
 infrastructure, no device."""
 from __future__ import annotations
 
@@ -425,7 +425,7 @@ def test_water_tables_are_project_tables_kept_when_absent():
         assert t in backup.PROJECT_TABLES and t in backup.KEEP_WHEN_ABSENT
 
 
-# ---------------------------------------------------------------- migration 0151 (built as provisional 0152; renumbered at release/2140)
+# ---------------------------------------------------------------- migration 0150 (built as provisional 0152; renumbered at release/2140)
 
 
 def test_migration_numbers_contiguous():
@@ -434,8 +434,8 @@ def test_migration_numbers_contiguous():
     assert numbers == list(range(1, numbers[-1] + 1)), "the sequence has no gap"
     water = [f.name for f in files.values() if "water" in f.name]
     assert water == ["0151_infra_water.sql"], "one file for the water module"
-    text = files[151].read_text(encoding="utf-8")
-    assert "Final number 0151" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
+    text = files[150].read_text(encoding="utf-8")
+    assert "Final number 0150" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
 
 
 def test_migration_applies_and_carries_the_gas_reservation(settings):
