@@ -185,7 +185,7 @@ STARTERS: dict[str, dict[str, str]] = {
         "ru": "Код подтверждения номера телефона: {code}\nДействует 10 минут. Никому его не сообщайте. Если вы не запрашивали код, проигнорируйте это сообщение.",
     },
 }
-FIXED_PURPOSES = frozenset({"phone_verify"})  # TKNOTIFOTP: always the starter above - a stored template is never used or accepted
+FIXED_PURPOSES = frozenset({"phone_verify", "intake_reply"})  # TKNOTIFOTP: always the starter above - a stored template is never used or accepted
 
 # VPORTAL 2.6.4 review F2: code-owned VARIANTS of a fixed purpose, chosen by the outbox row's `template_id` ('starter:<name>') -
 # never editable, never a stored template. `portal_code` is the vendor portal's sign-in code (purpose `phone_verify`, the same
@@ -228,7 +228,24 @@ FIXED_STARTERS["verify_technician"] = {
 # the same plus the installation's privacy contact line (the verify_privacy last line, so that wording stays in one place); chosen when a contact is set
 FIXED_STARTERS["verify_technician_contact"] = {lang: body + "\n" + FIXED_STARTERS["verify_privacy"][lang].rsplit("\n", 1)[1]
                                                for lang, body in FIXED_STARTERS["verify_technician"].items()}
-FIXED_VARIANTS = {"phone_verify": frozenset({"portal_code", "verify_privacy", "verify_technician", "verify_technician_contact"})}  # the fixed purpose each variant belongs to
+
+# CR-INTAKE99 (owner answers 144 and 267, 2026-10-24): the two FIXED replies to a requester's WhatsApp number - code-owned, never
+# editable, no free text. `intake_unlisted`: the number is not on the managed list (no draft is kept). `intake_approved`: a handler
+# approved the request; the number of the new request. ar / ru are an initial translation and need a native review.
+FIXED_STARTERS["intake_unlisted"] = {
+    "he": "המספר שלך אינו רשום במערכת. כדי לפתוח פנייה יש לפנות להנהלת הבניין ולבקש שיוסיפו אותך.",
+    "en": "Your number is not registered. To open a request, please ask the building management to add you.",
+    "ar": "رقمك غير مسجل في النظام. لفتح طلب يرجى التوجه إلى إدارة المبنى وطلب إضافتك.",
+    "ru": "Ваш номер не зарегистрирован. Чтобы подать обращение, попросите управляющую компанию добавить вас.",
+}
+FIXED_STARTERS["intake_approved"] = {
+    "he": "פנייתך התקבלה. מספר הטיפול: {number}.",
+    "en": "Your request was received. Reference number: {number}.",
+    "ar": "تم استلام طلبك. رقم المتابعة: {number}.",
+    "ru": "Ваше обращение принято. Номер: {number}.",
+}
+STARTERS["intake_reply"] = FIXED_STARTERS["intake_unlisted"]
+FIXED_VARIANTS = {"intake_reply": frozenset({"intake_unlisted", "intake_approved"}), "phone_verify": frozenset({"portal_code", "verify_privacy", "verify_technician", "verify_technician_contact"})}  # the fixed purpose each variant belongs to
 
 
 def fixed_starter(purpose: str, template_id: str | None, lang: str) -> TemplateText | None:

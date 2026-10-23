@@ -336,7 +336,7 @@ def test_the_roles_matrix(w):
     assert roles["viewer"]["permissions"] == [] and roles["operator"]["permissions"] == ["tickets.view", "tickets.create"]
     assert roles["system_admin"]["permissions"] == ["tickets.view", "tickets.create", "tickets.manage", "tickets.external", "tickets.all_departments", "tickets.configure",
                                                     "tickets.costs.view", "tickets.costs", "tickets.delete", "tickets.handlers", "tickets.directory",
-                                                    "tickets.technician_requests"]  # + slice 9 (D31), + delete (14.10), + handlers (17.10), + VPORTALRFQ
+                                                    "tickets.technician_requests", "tickets.intake"]  # + CR-INTAKE99; + slice 9 (D31), + delete (14.10), + handlers (17.10), + VPORTALRFQ
     custom = roles[r.json()["id"]]
     assert custom["builtin"] is False and custom["permissions"] == ["tickets.view", "tickets.manage", "tickets.configure"]
     assert not any(k.startswith("tickets_") for k in roles), "the grant roles are the personal card's"

@@ -29,7 +29,7 @@ UTC = dt.timezone.utc
 DEFAULT_WINDOW = {"from": "07:00", "to": "21:00"}
 
 HELD_BY_HOURS = frozenset({"reminder", "closed", "reassigned", "reopened", "update", "cost_rejected", "cost_approved", "cost_reopened"})
-NEVER_HELD = frozenset({"code", "test", "phone_verify"})  # TKNOTIFOTP: a verification code is asked for by a person who waits for it
+NEVER_HELD = frozenset({"code", "test", "phone_verify", "intake_reply"})  # TKNOTIFOTP: a verification code is asked for by a person who waits for it
 _HHMM = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 

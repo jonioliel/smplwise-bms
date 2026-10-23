@@ -39,8 +39,9 @@ DELETE = "tickets.delete"  # owner 14.10: full deletion (services/tickets/deleti
 HANDLERS = "tickets.handlers"  # owner 2026-10-17: a department manager manages his departments' handlers (services/tickets/dept_handlers.py)
 DIRECTORY = "tickets.directory"  # SMALL-294 (CR-038 18A, D15): the contact / vendor directory without tickets.configure (contacts.may_edit_directory)
 TECH_REQUESTS = "tickets.technician_requests"  # VPORTALRFQ (owner 2026-10-17): approve the portal's technician requests (portal_more.py)
+INTAKE = "tickets.intake"  # CR-INTAKE99 (owner 143): the free-text request queue; department managers and system admins hold it implicitly (services/tickets/intake.py)
 TICKET_PERMISSIONS: tuple[str, ...] = (VIEW, CREATE, MANAGE, EXTERNAL, ALL_DEPARTMENTS, CONFIGURE, "tickets.costs.view", "tickets.costs",  # +S9 (D31)
-                                       DELETE, HANDLERS, DIRECTORY, TECH_REQUESTS)
+                                       DELETE, HANDLERS, DIRECTORY, TECH_REQUESTS, INTAKE)
 PAGE_DEFAULT, PAGE_MAX = 50, 200
 SCAN_FACTOR = 5  # a page scans at most 5 x limit candidate rows, then returns short with a cursor (section 13.6)
 

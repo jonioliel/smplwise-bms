@@ -741,9 +741,29 @@ class MessagingRuntime:
             decision = proc.process(event, now)
             if decision is None:
                 return 0
-            apply_decision(conn, decision, now)
+            iid = apply_decision(conn, decision, now)
             self.counters[decision.result] += 1
+            if iid and decision.result == "unknown_sender" and decision.reason is None:
+                self._intake(conn, event, iid, now)
             return 1
+
+    def _intake(self, conn, event: Mapping[str, Any], inbound_id: str, now: dt.datetime) -> None:
+        """CR-INTAKE99: a text that matched no ticket and no RFQ reaches the free-text intake (known numbers only, owner 146). The
+        envelope row keeps `unknown_sender` and gets the intake reason (and the draft id). A failure never loses the envelope."""
+        from . import intake
+
+        msg = inbound_mod.normalise(event)
+        if msg is None or msg.event_type != inbound_mod.EVENT_RECEIVED or (msg.msg_type or "") not in inbound_mod.TEXT_TYPES:
+            return
+        try:
+            _kid, key = KEYS.current(create=False)
+            reason, draft_id = intake.accept(conn, key=key, digits=msg.sender_digits, content=msg.content, account_key=msg.account_key, now=now, rt=self)
+        except Exception as exc:  # noqa: BLE001 - never the text, a number or the exception message
+            self.counters["intake_failed"] += 1
+            log.warning("intake failed (%s)", type(exc).__name__)
+            return
+        conn.execute("UPDATE ticket_inbound SET reason = ?, intake_draft_id = ? WHERE id = ?", (reason, draft_id, inbound_id))
+        self.counters[reason] += 1
 
     # ------------------------------------------------------------ enqueue helpers (called inside a request's transaction)
 
@@ -813,6 +833,9 @@ class MessagingRuntime:
             from . import out_documents  # CR-VENDORQ-294: a document's bytes go at expiry / revocation, its row 90 days later
 
             n += out_documents.purge(conn, now)
+            from . import intake  # CR-INTAKE99: expire / purge drafts, the daily summary of unlisted attempts
+
+            n += intake.janitor(conn, now)
             n += wa_pacing.SqlitePacerStore(lambda: contextlib.nullcontext(conn), lambda: conn).prune(now - wa_pacing.COUNTER_KEEP)  # CR-WA-PACING-295
         if n:
             log.info("tickets messaging retention rows=%d", n)

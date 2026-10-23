@@ -39,6 +39,7 @@ PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "u
             # cancellation notice to vendors who quoted (owner decision 2) and the work order (stage C4)
             "rfq_invite", "rfq_reminder", "rfq_update", "rfq_cancelled", "rfq_order",
             "phone_verify",  # TKNOTIFOTP (folded into the 0089 outbox rebuild): the fixed number-verification code (no ticket, no link, WhatsApp only)
+            "intake_reply",  # CR-INTAKE99 (migration 0198, PROVISIONAL): a fixed reply to a requester number (in-memory target, WhatsApp only)
             "report")  # CR-VENDORQ-294 (migration 0128): a module's report to an external contact (contact_reports.py) - text built at send time
 # CR-VENDORQ-294: the purposes whose text a registered module provider builds at send time (no template, no params, no reply buttons)
 REPORT_PURPOSES = frozenset({"report"})
@@ -58,6 +59,7 @@ KIND_OF_PURPOSE = {
     "rfq_invite": "link", "rfq_update": "link", "rfq_order": "link", "rfq_reminder": "reminder", "rfq_cancelled": "status",
     "phone_verify": "code",
     "report": "status",
+    "intake_reply": "status",
 }
 # 7.3: 0 = code (sent first), 1 = assign / update / reopened, 2 = reminder / closed / reassigned (and the rest)
 PRIORITY_OF_PURPOSE = {"code": 0, "phone_verify": 0, "test": 0, "assign": 1, "update": 1, "reopened": 1, "rfq_invite": 1, "rfq_update": 1, "rfq_order": 1}

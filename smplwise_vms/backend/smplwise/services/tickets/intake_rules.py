@@ -87,8 +87,9 @@ class Lexicon:
             vocab.update(e.tokens)
             index.setdefault(e.tokens[0], []).append(e)
         self.place_words = (self.floor_words | self.ground_words | self.building_words | self.room_words
-                            | frozenset({"מינוס", "מרתף", "גג", "מדרגות"}))
-        self.vocab = frozenset(vocab) | self.place_words  # a proclitic is stripped off a place word too ("בקומה", "בחדר")
+                            | frozenset({MINUS, BASEMENT, ROOF, STAIRS}))
+        # a proclitic is stripped off a place word and off a number word too ("בקומה", "בחדר", "השלישית")
+        self.vocab = frozenset(vocab) | self.place_words | frozenset(self.numbers) | frozenset(self.ordinals)
         self.index = index
         return self
 
@@ -135,6 +136,9 @@ def key_of(token: str) -> str:
     return re.sub(r"(.)\1+", r"\1", t)
 
 
+MINUS, BASEMENT, ROOF, STAIRS = (key_of(normalise(w)[0]) for w in ("מינוס", "מרתף", "גג", "מדרגות"))  # keys: finals folded, runs collapsed
+
+
 def phrase_tokens(phrase: str) -> tuple[str, ...]:
     norm, _ = normalise(phrase)
     return tuple(key_of(m.group(0)) for m in _TOKEN.finditer(norm))
@@ -152,7 +156,11 @@ class Tok:
 def _strip_options(key: str, lex: Lexicon) -> tuple[str, ...]:
     """Proclitic stripping as alternatives (record 4.2 step 8): the stem must be a lexicon word of at least 2 letters and the
     token must not be a stop-list word."""
-    if key in lex.stop or len(key) < 3:
+    if key in lex.stop:
+        return (key,)
+    if len(key) == 2 and key[0] in PREFIX_LETTERS and key[1:] == ROOF[:1]:  # "הגג" collapses to "הג": the one 1-letter stem
+        return (key, ROOF)
+    if len(key) < 3:
         return (key,)
     alts = [key]
     for n in (1, 2, 3):
@@ -245,7 +253,12 @@ def _num_at(toks: list[Tok], i: int, lex: Lexicon) -> int | None:
     t = toks[i]
     if t.num is not None:
         return t.num
-    return lex.numbers.get(t.key, lex.ordinals.get(t.key))
+    for alt in t.alts:  # "השלישית" -> "שלישית"
+        if alt in lex.numbers:
+            return lex.numbers[alt]
+        if alt in lex.ordinals:
+            return lex.ordinals[alt]
+    return None
 
 
 def _part(text: str, toks: list[Tok], first: int, last: int) -> str:
@@ -273,7 +286,7 @@ def place_parts(text: str, toks: list[Tok], lex: Lexicon) -> list[dict[str, Any]
             if i + 1 < len(toks) and toks[i + 1].key in lex.ground_words:
                 add("P-floor-ground", "קומת קרקע", i, i + 1)
                 continue
-        if k == "מינוס":
+        if k == MINUS:
             n = _num_at(toks, i + 1, lex)
             if n is not None and 0 < n <= 9:
                 add("P-floor-neg", f"קומה -{n}", i, i + 1)
@@ -284,10 +297,10 @@ def place_parts(text: str, toks: list[Tok], lex: Lexicon) -> list[dict[str, Any]
         if k in lex.ground_words:
             add("P-floor-ground", "קומת קרקע" if k == "קרקע" else _part(text, toks, i, i), i, i)
             continue
-        if k == "מרתף":
+        if k == BASEMENT:
             add("P-floor-neg", "מרתף", i, i)
             continue
-        if k == "גג":
+        if k == ROOF:
             add("P-roof", "גג", i, i)
             continue
         if k in lex.building_words and i + 1 < len(toks) and (i + 1) not in used:
@@ -301,7 +314,7 @@ def place_parts(text: str, toks: list[Tok], lex: Lexicon) -> list[dict[str, Any]
             if nxt.num is not None and nxt.num > 0:
                 add("P-room", _part(text, toks, i, i + 1), i, i + 1)
                 continue
-        if k == "מדרגות":
+        if k == STAIRS:
             first = i - 1 if i and toks[i - 1].key == "חדר" and (i - 1) not in used else i
             add("P-stairs", "חדר מדרגות", first, i)
             continue

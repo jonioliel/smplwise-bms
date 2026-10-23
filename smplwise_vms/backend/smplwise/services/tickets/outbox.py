@@ -429,6 +429,11 @@ class Outbox:
         if purpose == "test":
             if phone_digits(test_target or "") is None or channel != "whatsapp" or not test_account_key:
                 raise OutboxError("test_target_invalid")
+        elif purpose == "intake_reply":
+            # CR-INTAKE99 / owner 143-156: a fixed reply to a requester's number that is NOT in the directory (the number lives in
+            # memory only, like a test target); WhatsApp only, no ticket / link / code, the account is resolved by the use as usual
+            if phone_digits(test_target or "") is None or channel != "whatsapp" or link_id or code or ticket_id or contact_id:
+                raise OutboxError("test_target_invalid")
         elif not contact_id:
             raise OutboxError("contact_required")
         try:
@@ -444,7 +449,7 @@ class Outbox:
             use = USE_EMAIL if channel == "email" else (USE_CODES if purpose in CODE_PURPOSES else (use_key or USE_MESSAGES))
             row = OutboxRow(
                 id=self.p.new_id(), purpose=purpose, channel=channel, use_key=use, created_at=now, not_before=now, updated_at=now,
-                recipient_kind="test" if purpose == "test" else "contact", contact_id=contact_id, ticket_id=ticket_id,
+                recipient_kind="test" if purpose in ("test", "intake_reply") else "contact", contact_id=contact_id, ticket_id=ticket_id,
                 assignment_id=assignment_id, link_id=link_id, department_id=department_id, params=clean, template_id=template_id,
                 template_revision=template_revision, priority=priority_of(purpose), requested_by=requested_by,
                 idempotency_key=idempotency_key, send_now=bool(send_now) and purpose == "assign",
@@ -485,7 +490,7 @@ class Outbox:
                 raise OutboxError("not_found")
             if old.state not in (UNKNOWN, NOT_SENT, REFUSED):
                 raise OutboxError("not_resendable")
-            if old.purpose in CODE_PURPOSES or old.purpose == "test":
+            if old.purpose in CODE_PURPOSES or old.purpose in ("test", "intake_reply"):
                 raise OutboxError("not_resendable")  # a code is asked for again by the vendor; a test is typed again
             now = now.astimezone(UTC)
             row = replace(old, id=self.p.new_id(), state="queued", held_reason=None, held_since=None, attempts=0, first_attempt_at=None,
@@ -839,7 +844,7 @@ class Outbox:
 
     def _fallback(self, row: OutboxRow, now: dt.datetime) -> None:
         """9.5. Called only for not_sent / refused (never for unknown)."""
-        if row.purpose in ("test", "phone_verify") or row.purpose in REPORT_PURPOSES:
+        if row.purpose in ("test", "phone_verify", "intake_reply") or row.purpose in REPORT_PURPOSES:
             # TKNOTIFOTP: a number check proves the NUMBER - it never takes another channel (the person asks again).
             # CR-VENDORQ-294: a report has no e-mail fallback in this slice; its module learns the outcome through the hooks.
             return
