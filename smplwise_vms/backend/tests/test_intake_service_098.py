@@ -100,6 +100,78 @@ def test_the_known_list_is_not_open_to_an_implicit_manager(w):
     assert add_known(w).status_code == 201
 
 
+# ---------------------------------------------------------------- SEC217: security review 2.16.0 finding 4.1 - drafts scoped by department
+
+def _draft_actions(w, user: str, did: str, rev: int) -> list[int]:
+    return [
+        w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h(user)).status_code,
+        w.c.put(f"{API}/tickets/intake/drafts/{did}", json={"revision": rev, "values": {"title": "x"}}, headers=w.h(user)).status_code,
+        w.c.post(f"{API}/tickets/intake/drafts/{did}/approve", json={"revision": rev}, headers=w.h(user)).status_code,
+        w.c.post(f"{API}/tickets/intake/drafts/{did}/reject", json={"revision": rev, "reason": "spam"}, headers=w.h(user)).status_code,
+        w.c.post(f"{API}/tickets/intake/drafts/{did}/merge", json={"revision": rev, "number": 1}, headers=w.h(user)).status_code,
+    ]
+
+
+def test_sec217_a_department_manager_sees_only_his_departments_drafts(w):
+    turn_on(w)  # default department: maintenance
+    add_known(w)
+    did = accept(w, PHONE, SECRET_WORDS)[1]
+    rev = w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("joni")).json()["revision"]
+    assert [d["id"] for d in drafts(w, "mona").json()["drafts"]] == [did]  # the maintenance manager
+    other = drafts(w, "cleo").json()  # the cleaning manager: the queue opens, but holds nothing of maintenance
+    assert other["drafts"] == [] and other["total"] == 0
+    assert w.c.get(f"{API}/tickets/intake/summary", headers=w.h("cleo")).json()["open"] == 0
+    assert w.c.get(f"{API}/tickets/intake/summary", headers=w.h("mona")).json()["open"] == 1
+    assert _draft_actions(w, "cleo", did, rev) == [404] * 5  # the same 404 as an unknown id - no existence oracle
+    assert w.c.get(f"{API}/tickets/intake/drafts/nope", headers=w.h("cleo")).json()["code"] == \
+        w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("cleo")).json()["code"]
+    d = rows(w, "SELECT state, revision FROM ticket_intake_drafts WHERE id = ?", did)[0]
+    assert d == {"state": "open", "revision": rev}  # nothing changed by the refused calls
+    assert SECRET_WORDS not in json.dumps(other)
+
+
+def test_sec217_routing_a_draft_moves_it_between_queues(w):
+    turn_on(w)
+    add_known(w)
+    did = accept(w, PHONE, SECRET_WORDS)[1]
+    rev = w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("mona")).json()["revision"]
+    r = w.c.put(f"{API}/tickets/intake/drafts/{did}", json={"revision": rev, "values": {"department_id": w.cleaning}}, headers=w.h("mona"))
+    assert r.status_code == 200, r.text
+    assert drafts(w, "mona").json()["drafts"] == [] and w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("mona")).status_code == 404
+    assert [d["id"] for d in drafts(w, "cleo").json()["drafts"]] == [did]
+    assert w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("cleo")).status_code == 200
+    assert [d["id"] for d in drafts(w, "joni").json()["drafts"]] == [did]  # installation-wide tickets.intake sees every draft
+
+
+def test_sec217_a_draft_without_a_department_is_for_installation_wide_handlers_only(w):
+    turn_on(w, default_department="")
+    add_known(w)
+    did = accept(w, PHONE, "שלום")[1]
+    with db(w).connection() as conn:
+        conn.execute("UPDATE ticket_intake_drafts SET suggestion_json = json_set(suggestion_json, '$.department_id', NULL) WHERE id = ?", (did,))
+    assert [d["id"] for d in drafts(w, "joni").json()["drafts"]] == [did]
+    assert drafts(w, "mona").json()["drafts"] == [] and drafts(w, "cleo").json()["drafts"] == []
+    assert w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("mona")).status_code == 404
+
+
+def test_sec217_duplicate_hints_show_only_tickets_the_handler_may_see(w):
+    turn_on(w)
+    add_known(w)
+    mine = w.create("mona", "מזגן לא מקרר")
+    foreign = w.create("joni", "ניקיון לובי", dept=w.cleaning)
+    did = accept(w, PHONE, "המזגן לא מקרר")[1]
+    with db(w).connection() as conn:
+        cat = "cat-sec217"
+        conn.execute("INSERT INTO ticket_categories(id, department_id, name) VALUES (?,?,?)", (cat, MAINT, "קירור"))
+        conn.execute("UPDATE tickets SET category_id = ? WHERE id IN (?, ?)", (cat, mine["id"], foreign["id"]))
+        conn.execute("UPDATE ticket_intake_drafts SET suggestion_json = json_set(suggestion_json, '$.category', json(?)) WHERE id = ?",
+                     (json.dumps({"value": cat, "confidence": "high"}), did))
+    seen = w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("mona")).json()["duplicates"]["ticket_numbers"]
+    assert mine["number"] in seen and foreign["number"] not in seen
+    every = w.c.get(f"{API}/tickets/intake/drafts/{did}", headers=w.h("joni")).json()["duplicates"]["ticket_numbers"]
+    assert {mine["number"], foreign["number"]} <= set(every)
+
+
 # ---------------------------------------------------------------- known numbers only (owner 146) + the unlisted reply (owner 267)
 
 def test_a_known_number_opens_a_draft_with_a_suggestion_and_nothing_else(w):

@@ -385,6 +385,40 @@ def test_per_token_rate_limit_and_the_failure_window(world):
     assert r.status_code == 429  # the address's failure window refuses before any lookup
 
 
+def _from(app, ip: str):
+    """A TestClient whose TCP peer is `ip` (no trusted proxy: the peer is the counted address)."""
+    return TestClient(app, base_url="https://partner.test", client=(ip, 50000))
+
+
+def test_sec217_global_failure_flood_never_locks_out_a_valid_token(world):
+    """Security review 2.16.0 finding 1.1: 300+ junk credentials per minute spread over many networks must not 429 a partner whose
+    token authenticates; the failures themselves still get 429 once the installation-wide window is full."""
+    cid = _client(world)
+    t = _token(world, cid, scopes=["elevators.read"])
+    app = PartnerApp(world["db"])
+    junk = {"Authorization": "Bearer arxp_" + "B" * 43}
+    codes = []
+    for i in range(320):  # 32 /24 networks x 10 failures: every per-network window stays under its limit of 20
+        codes.append(_from(app, f"203.0.{i // 10}.{1 + i % 10}").get("/p/v1/whoami", headers=junk).status_code)
+    assert codes[:300] == [401] * 300 and set(codes[300:]) == {429}  # the global window now answers the failures
+    assert _from(app, "198.51.100.7").get("/p/v1/whoami", headers={"Authorization": "Bearer nope"}).status_code == 429
+    for ip in ("198.51.100.8", "203.0.0.1"):  # a fresh network and even one inside the flood that is under its own limit
+        r = _from(app, ip).get("/p/v1/elevators", headers=_h(t["token"]))
+        assert r.status_code == 200, (ip, r.text)
+
+
+def test_sec217_ipv6_failures_are_keyed_by_the_48(world):
+    """Rotating through /64s of one /48 does not escape the per-network failure window."""
+    cid = _client(world)
+    t = _token(world, cid, scopes=["elevators.read"])
+    app = PartnerApp(world["db"])
+    junk = {"Authorization": "Bearer arxp_" + "B" * 43}
+    for i in range(20):
+        assert _from(app, f"2001:db8:aa:{i:x}::1").get("/p/v1/whoami", headers=junk).status_code == 401
+    assert _from(app, "2001:db8:aa:ff::1").get("/p/v1/elevators", headers=_h(t["token"])).status_code == 429
+    assert _from(app, "2001:db8:bb::1").get("/p/v1/elevators", headers=_h(t["token"])).status_code == 200  # another /48 is untouched
+
+
 def test_temperature_and_elevators_never_carry_entity_ids(world):
     with world["db"].connection() as conn:
         conn.execute("""INSERT INTO infra_temp_units (id, name, name_key, temp_entity_id, low, high, created_at, updated_at)

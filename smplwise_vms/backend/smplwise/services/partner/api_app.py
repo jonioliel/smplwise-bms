@@ -7,7 +7,8 @@ Per request, in this order:
 2. (method, path) must match ROUTES, else the same 404 bytes;
 3. the client address (the listener's trusted proxies and client-address header);
 4. a cookie, a token in the query string, or anything but exactly one `Authorization: Bearer arxp_...` -> 401 (a failure counted against
-   the address, no lookup); the failure window of the address (20 / minute, 300 / minute installation-wide) -> 429 with no lookup;
+   the address, no lookup); the failure window of the address (20 / minute per /24 or IPv6 /48) -> 429 with no lookup; the
+   installation-wide failure window (300 / minute) only turns a FAILED answer into 429 - it never blocks a token that authenticates;
 5. the token lookup (hash only): unknown / expired / revoked / partner disabled / another installation / outside the source CIDRs -> the
    SAME 401 bytes; the per-token windows -> 429 + Retry-After;
 6. the scope (403 `forbidden_scope`, audited) and the module switch (tickets off -> 404 as if the route did not exist);
@@ -18,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 import threading
@@ -69,6 +71,14 @@ class Answer(Exception):
     def __init__(self, status: int, body: dict[str, Any] | bytes, headers: Sequence[tuple[bytes, bytes]] = ()) -> None:
         super().__init__(status)
         self.status, self.body, self.headers = status, body, list(headers)
+
+
+def _fail_key(addr: Any, net: str) -> str:
+    """The failure bucket of a client: the listener's /24 key for IPv4; for IPv6 the /48 (not the /64 of the other windows) - a
+    single /48 holds 65k /64s, so a /64 failure key would make the per-network failure limit ineffective (SEC217, finding 1.1)."""
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is None:
+        return str(ipaddress.IPv6Network((int(addr) >> 80 << 80, 48)))
+    return net
 
 
 def _bytes(body: dict[str, Any] | bytes) -> bytes:
@@ -186,23 +196,24 @@ class PartnerApp:
         net, _source = classify_client(peer, forwarded, trusted)
         addr = client_address(peer, forwarded, trusted)
         addr_text = str(addr) if addr is not None else None
-        # 4. the credential's shape; failures counted against the address with no lookup
-        if self.limiter.check(f"fail:{net}", FAIL_PER_NET) > 0 or self.limiter.check("fail:*", FAIL_GLOBAL) > 0:
-            wait = max(self.limiter.check(f"fail:{net}", FAIL_PER_NET), self.limiter.check("fail:*", FAIL_GLOBAL))
+        # 4. the credential's shape; failures counted against the address with no lookup. SEC217 (security review 2.16.0, finding 1.1):
+        # only the PER-NETWORK window is checked before the lookup; the installation-wide window is consulted on the failure path
+        # alone, so a flood of junk credentials from many networks can no longer lock out a partner whose token authenticates.
+        fail_key = _fail_key(addr, net)
+        wait = self.limiter.check(f"fail:{fail_key}", FAIL_PER_NET)
+        if wait > 0:
             self.stats["rate_limited"] += 1
             raise Answer(429, {"code": "rate_limited", "retry_after_s": int(wait) + 1}, [(b"retry-after", str(int(wait) + 1).encode("ascii"))])
         auth = headers.get(b"authorization", [])
         query = (scope.get("query_string") or b"").decode("latin-1")
         token = core.parse_token(auth[0].decode("latin-1")) if len(auth) == 1 else None
         if token is None or headers.get(b"cookie") or _QUERY_TOKEN.search(query):
-            self._fail(net)
-            raise Answer(401, UNAUTHORIZED)
+            self._refuse(fail_key)
         ctx, reason = await anyio.to_thread.run_sync(self._authenticate, token, addr_text)
         if ctx is None:
-            self._fail(net)
             if reason in ("installation_mismatch", "source_address"):
                 await anyio.to_thread.run_sync(self._audit_denied, None, reason, route.name)
-            raise Answer(401, UNAUTHORIZED)
+            self._refuse(fail_key)
         # 5. the token's own windows
         wait = self.limiter.check(f"t:{ctx.id}", ((60.0, ctx.rate_per_min), (3600.0, ctx.rate_per_hour)))
         if wait > 0:
@@ -248,6 +259,16 @@ class PartnerApp:
         self.stats["unauthorized"] += 1
         self.limiter.record(f"fail:{net}", FAIL_PER_NET)
         self.limiter.record("fail:*", FAIL_GLOBAL)
+
+    def _refuse(self, fail_key: str) -> None:
+        """The failure path: count the failure, then 429 while the installation-wide failure window is full, else the uniform 401.
+        Never reached by a request whose token authenticates (SEC217, finding 1.1)."""
+        wait = self.limiter.check("fail:*", FAIL_GLOBAL)
+        self._fail(fail_key)
+        if wait > 0:
+            self.stats["rate_limited"] += 1
+            raise Answer(429, {"code": "rate_limited", "retry_after_s": int(wait) + 1}, [(b"retry-after", str(int(wait) + 1).encode("ascii"))])
+        raise Answer(401, UNAUTHORIZED)
 
     def _number(self, key: str) -> int:
         with self.db.connection(mode="read", label="partner.api.limits") as conn:
