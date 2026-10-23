@@ -382,7 +382,7 @@ def person_level_of(auth: Authority, person: dict[str, Any]) -> str:
     return auth.person_level(ids)
 
 
-def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False, detail: bool = True) -> dict[str, Any] | None:
+def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False, detail: bool = True, with_timing: bool = False) -> dict[str, Any] | None:
     """A person as this principal may see them, or None (not visible). NAMES: identity with the employee number (unless the
     administrator made it sensitive), the visible assignments (sync state; the error text under the sync-error rule),
     groups, validity and timing; SENSITIVE adds the credential kinds, whether there is a phone, the phone itself, the photo
@@ -423,7 +423,7 @@ def view_person(auth: Authority, person: dict[str, Any], *, legacy: bool = False
     # R4-09: the station list is the COMPLETE set only when WisKey's record is complete (no restricted projection) AND this principal
     # sees every assignment of it; otherwise an empty or short list means "not shown", never "no stations"
     out["stations_known"] = bool(person.get("stations_known", False)) and visible is not None and len(visible) == len(assignments or [])
-    out["timing"] = _copy(person.get("timing")) if detail else None
+    out["timing"] = _copy(person.get("timing")) if (detail or with_timing) else None  # with_timing: COMPLY108 - names-level data a list row may carry on request
     out["level"] = level
     wiskey_editable = person.get("operator_editable")
     # PERMOVR-293: the write gate's stations (override stations included); unknown overrides - unrestricted only, as the gate decides
