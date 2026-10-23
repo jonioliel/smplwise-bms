@@ -1,6 +1,6 @@
 # CR-IDENT146 - purge and personal-data export for Arx-only (local) identities
 
-Board item r146. Status: implemented on `pilot/IDENT146-295`, default OFF. Migration `0150` is PROVISIONAL (renumber at integration).
+Board item r146. Status: implemented on `pilot/IDENT146-295`, default OFF. Migration `0147` (built as provisional 0150; renumbered at the 2.14.0 integration, release/2140).
 
 ## Why
 Arx's local identities (`users.source = 'local'`, USR2) were soft-deleted only; nothing ever removed the personal data, and a person
