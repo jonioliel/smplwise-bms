@@ -274,7 +274,7 @@ export function eventLine(e: TicketEvent, depts: Record<string, string> = {}): E
     case 'reminder':
       return { icon: 'clock', text: bt('e_reminder', { n: Number(d.n ?? 1) }) };
     case 'vendor_arrived': // VENDORARRIVAL126-295
-      return { icon: 'pin', text: bt('e_vendor_arrived') };
+      return { icon: 'check', text: bt('e_vendor_arrived') };
     case 'vendor_missed':
       return { icon: 'warning', text: bt('e_vendor_missed') };
     case 'manager_alerted':

@@ -91,17 +91,18 @@ class ArrivedCard {
     this.element.dataset.arrived = b.state;
     const head = h('h2', null, icon('pin'), this.t('title'));
     if (b.state === 'arrived') {
-      this.element.replaceChildren(head,
-        h('div', { class: 'banner ok', attrs: { role: 'status', 'data-arrived-state': 'arrived' } }, icon('done'), this.t('arrived', { at: stamp(b.arrived_at, this.host.lang, this.host.zone) })),
-        b.offer_access ? h('p', { class: 'muted small', attrs: { 'data-arrived-access': true } }, this.t('access')) : null);
+      const done: Node[] = [head,
+        h('div', { class: 'banner ok', attrs: { role: 'status', 'data-arrived-state': 'arrived' } }, icon('done'), this.t('arrived', { at: stamp(b.arrived_at, this.host.lang, this.host.zone) }))];
+      if (b.offer_access) done.push(h('p', { class: 'muted small', attrs: { 'data-arrived-access': true } }, this.t('access')));
+      this.element.replaceChildren(...done);
       return;
     }
     const line = b.state === 'late' ? h('div', { class: 'banner bad', attrs: { role: 'status', 'data-arrived-late': true } }, icon('alert'), this.t('late'))
       : b.state === 'expected' ? h('p', { class: 'msg-body start', attrs: { 'data-arrived-window': true } },
         this.t('expected', { from: stamp(b.window_from, this.host.lang, this.host.zone), to: stamp(b.window_to, this.host.lang, this.host.zone) }))
         : h('p', { class: 'msg-body start' }, this.t('open'));
-    this.element.replaceChildren(head, line,
-      this.error ? h('div', { class: 'field-error', attrs: { role: 'alert', 'data-arrived-error': this.error } }, this.t(this.error)) : null,
+    const err = this.error ? [h('div', { class: 'field-error', attrs: { role: 'alert', 'data-arrived-error': this.error } }, this.t(this.error))] : [];
+    this.element.replaceChildren(head, line, ...err,
       h('button', { class: 'btn primary block', attrs: { type: 'button', disabled: this.busy, 'data-arrived-tap': true }, on: { click: () => void this.tap() } },
         icon('done'), this.t(this.busy ? 'sending' : 'button')));
   }
