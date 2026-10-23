@@ -39,14 +39,14 @@ from .. import __version__
 from ..config import Settings
 from ..db import Database, get_setting, now_iso, set_setting
 from ..mode import installation_mode
-from . import fleet_keys, readiness
+from . import demo_mode, fleet_keys, readiness
 
 log = logging.getLogger("smplwise.fleet_report")
 
 SCHEMA = "smplwise-fleet-report/1"
 SWITCH = "fleet.report_enabled"           # "true" | "false" (default false); Arx setting, system administrator only
 URL_ENV = "SW_FLEET_REPORT_URL"            # from the add-on option `fleet_report_url` (config.py)
-DEMO_SWITCH = "demo.enabled"               # services/demo_mode.py; the report only says whether it is on
+DEMO_MARK = "demo.example"                 # CR-READY96: set only inside a demo database (services/demo_mode._seed); the report says whether it read one
 REPORT_PATH = "/v1/report"
 SEND_TIMEOUT_S = 10.0
 MAX_BODY_BYTES = 8 * 1024
@@ -108,7 +108,7 @@ SCHEMA_KEYS: dict[str, Any] = {
     "disk": {"free_pct": _int(0, 100, True), "free_gb": _int(null=True), "total_gb": _int(null=True)},
     "backup": {"count": _int(), "last_age_h": _int(null=True), "offbox_targets": _int()},
     "update": {"check": ("enum", UPDATE_CHECKS, False), "available": ("bool", True), "latest": ("version", True)},
-    "readiness": {"score": _int(0, 100), "ready": ("bool", False), "missing": ("ids", readiness.ITEM_IDS)},
+    "readiness": {"score": _int(0, 100), "ready": ("bool", False), "missing": ("ids", readiness.CHECK_IDS)},
 }
 
 
@@ -269,7 +269,7 @@ def collect(settings: Settings, conn: sqlite3.Connection, health: dict[str, Any]
     return {
         "schema": SCHEMA,
         "mode": installation_mode(settings) if installation_mode(settings) in MODES else "full",
-        "demo_mode": (get_setting(conn, DEMO_SWITCH, "false") or "false") == "true",
+        "demo_mode": (get_setting(conn, DEMO_MARK, "false") or "false") == "true",
         "overall": health.get("status") if health.get("status") in OVERALL else "error",
         "uptime_h": _bounded((health.get("uptime_s") or 0) // 3600),
         "versions": {"addon": _version(__version__) or "0", "bridge": _version(bridge_meta.get("integration_version")),
@@ -288,9 +288,21 @@ def collect(settings: Settings, conn: sqlite3.Connection, health: dict[str, Any]
                    "offbox_targets": _scalar(conn, "backup_offbox_targets", "SELECT COUNT(*) FROM backup_offbox_targets WHERE enabled = 1")},
         "update": {"check": check if check in UPDATE_CHECKS else "unknown", "available": True if available == "true" else False if available == "false" else None,
                    "latest": _version(get_setting(conn, "update.latest"))},
-        "readiness": {"score": _bounded(ready.get("score"), 0, 100), "ready": bool(ready.get("ready")),
-                      "missing": [m for m in ready.get("missing", []) if m in readiness.ITEM_IDS]},
+        "readiness": readiness_block(ready),
     }
+
+
+def readiness_block(report: dict[str, Any]) -> dict[str, Any]:
+    """READYFLEET-295: the report's readiness block is a projection of CR-READY96's `readiness.evaluate()` - the single source of truth
+    (its checks, weights and thresholds are the `readiness.*` settings, edited in Settings). Ids only, never a summary, fact or link:
+    - `score`: the evaluated score;
+    - `ready`: the hand-over advice is met (score at or above `readiness.advice_score` and no critical check short);
+    - `missing`: the applicable checks that are not complete (attention / blocked / pending), blockers first, then by the points they would add."""
+    checks = [x for x in report.get("checks", []) if isinstance(x, dict) and x.get("id") in readiness.CHECK_IDS]
+    short = [x for x in checks if x.get("applicable") and x.get("status") in readiness.NOT_DONE]
+    short.sort(key=lambda x: (x.get("status") != readiness.BLOCKED, -int(x.get("gain") or 0), readiness.CHECK_IDS.index(x["id"])))
+    return {"score": _bounded(report.get("score"), 0, 100), "ready": bool((report.get("handover") or {}).get("advice_met")),
+            "missing": [x["id"] for x in short]}
 
 
 def assemble(body: dict[str, Any], *, installation_id: str, seq: int, now: dt.datetime) -> dict[str, Any]:
@@ -308,7 +320,7 @@ def build_body(settings: Settings, conn: sqlite3.Connection, *, probe: bool = Tr
     from . import health_report
 
     health = health_report.build(settings, conn, probe=probe)
-    ready = readiness.compute(settings, conn)
+    ready = readiness.evaluate(conn, settings)  # READYFLEET-295: CR-READY96's evaluation, never a second readiness rule
     return collect(settings, conn, health, ready)
 
 
@@ -381,7 +393,10 @@ def post(url: str, body: bytes, kid: str, sig: str, *, path: str = REPORT_PATH, 
 
 def send_once(db: Database, settings: Settings, *, trigger: str = "schedule", actor: str | None = None, now: dt.datetime | None = None) -> dict[str, Any]:
     """One attempt. The two keys are read FIRST: while either is off this returns at once - no health build, no key, no sequence
-    number, no connection, no log row."""
+    number, no connection, no log row. READYFLEET-295: the same while a CR-READY96 demo runs (the handle points at the demo file: its
+    example data is never reported as this installation's state)."""
+    if demo_mode.active(db):
+        return {"sent": False, "result": "demo_active"}
     with db.connection(mode="read") as conn:
         if not switch_on(conn):
             return {"sent": False, "result": "switch_off"}
@@ -456,6 +471,8 @@ def due(conn: sqlite3.Connection, now: float | None = None) -> bool:
 
 
 def tick(db: Database, settings: Settings) -> dict[str, Any] | None:
+    if demo_mode.active(db):  # READYFLEET-295: nothing is due while a demo runs; the next tick after it ends decides
+        return None
     with db.connection(mode="read") as conn:
         if not switch_on(conn) or not due(conn):
             return None

@@ -40,7 +40,7 @@ def fixture_body() -> dict:
         "disk": {"free_pct": 41, "free_gb": 38, "total_gb": 93},
         "backup": {"count": 6, "last_age_h": 50, "offbox_targets": 0},
         "update": {"check": "current", "available": False, "latest": "2.12.1"},
-        "readiness": {"score": 86, "ready": False, "missing": ["backup_recent", "backup_offsite"]},
+        "readiness": {"score": 86, "ready": False, "missing": ["backup", "notifications"]},  # CR-READY96 check ids (READYFLEET-295)
     }
 
 

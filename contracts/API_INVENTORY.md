@@ -875,9 +875,19 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | occupancy | DELETE | `/api/v1/occupancy/mappings/{mapping_id}` |  |
 | occupancy | GET | `/api/v1/occupancy/settings` |  |
 | occupancy | PUT | `/api/v1/occupancy/settings` | Switch the feature on / off and set the retention. Switching OFF deletes every stored sample. |
+| ops | GET | `/api/v1/demo` |  |
+| ops | POST | `/api/v1/demo/extend` |  |
+| ops | PUT | `/api/v1/demo/settings` |  |
+| ops | POST | `/api/v1/demo/start` |  |
+| ops | POST | `/api/v1/demo/stop` |  |
 | ops | GET | `/api/v1/health` | The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes. |
 | ops | GET | `/api/v1/health/report` | One status per subsystem (T033). Device probes are network calls, so they run outside the request's |
 | ops | GET | `/api/v1/health/summary` | What the top bar shows every signed-in user: cached states only, no device probes, no details that a |
+| ops | GET | `/api/v1/readiness` |  |
+| ops | PUT | `/api/v1/readiness/attest/{check_id}` |  |
+| ops | POST | `/api/v1/readiness/check` |  |
+| ops | GET | `/api/v1/readiness/settings` |  |
+| ops | PUT | `/api/v1/readiness/settings` |  |
 | ops | POST | `/api/v1/setup/check/{step}` | Run one step's check now (the device steps probe the NVR / Home Assistant / go2rtc with read-only calls; the |
 | ops | GET | `/api/v1/setup/state` | Every step's status without a device probe: the add-on's own facts, the last on-demand check of a device step |
 | plans | DELETE | `/api/v1/floors/{floor_id}/bakes` | Remove every still, mask and lightmap of the floor (and end its open request). |
@@ -1048,16 +1058,12 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | storage | GET | `/api/v1/storage` | Disks, per-camera recording schedule, retention measured vs. estimated (with reasons) and the pilot's |
 | storage | POST | `/api/v1/storage/exports/resume` | Resume the exports paused by a full disk now (they also resume on their own once there is room): 507 while free |
 | storage | GET | `/api/v1/storage/local` | No device call: the local disk and the queues (T068). |
-| system | GET | `/api/v1/demo` | CR-FLEET215: whether demo mode (example data, clearly marked) is on (system.configure). |
-| system | PUT | `/api/v1/demo` | CR-FLEET215: turn demo mode on or off (OFF by default; nothing is stored, so off is the whole cleanup); audited (system administrator). |
-| system | GET | `/api/v1/demo/dataset` | CR-FLEET215: the example dataset, every object marked `example: true` (system.configure; only while demo mode is on). |
 | system | GET | `/api/v1/fleet/report` | CR-FLEET215: the fleet report's switch, whether the receiver option is usable (never its value) and the last attempt (system administrator). |
 | system | PUT | `/api/v1/fleet/report` | CR-FLEET215: turn the daily fleet report on or off - the customer's consent (OFF by default); audited (system administrator). |
 | system | GET | `/api/v1/fleet/report/enrollment` | CR-FLEET215: the public enrollment facts (installation id, key id, public key, one-line code) for the receiver (system administrator). |
 | system | GET | `/api/v1/fleet/report/log` | CR-FLEET215: the exact bodies of the last fleet report attempts, newest first (system administrator). |
 | system | GET | `/api/v1/fleet/report/preview` | CR-FLEET215: exactly what would be sent now - validated, but not signed, numbered, sent or stored (system administrator). |
 | system | POST | `/api/v1/fleet/report/send` | CR-FLEET215: send one fleet report now; refused while the switch or the receiver option is off; audited (system administrator). |
-| system | GET | `/api/v1/readiness` | CR-FLEET215: the installation readiness score, its checklist and what is missing (system.configure; no device call). |
 | system | GET | `/api/v1/system/bridge-key` |  |
 | system | POST | `/api/v1/system/bridge-key/rotations` |  |
 | system | POST | `/api/v1/system/bridge-key/rotations/{rotation_id}/resume` |  |

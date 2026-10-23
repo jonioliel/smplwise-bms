@@ -234,7 +234,8 @@ NOW = dt.datetime(2026, 10, 22, 3, 0, tzinfo=dt.timezone.utc)
     (lambda b: b["counts"].update(cameras=True), "bad_integer"),
     (lambda b: b["counts"].update(cameras=-1), "bad_integer"),
     (lambda b: b["disk"].update(free_pct=101), "bad_integer"),
-    (lambda b: b["readiness"].update(missing=["backup_recent", "backup_recent"]), "bad_id_list"),
+    (lambda b: b["readiness"].update(missing=["backup", "backup"]), "bad_id_list"),
+    (lambda b: b["readiness"].update(missing=["backup_recent"]), "bad_id_list"),  # READYFLEET-295: the old FLEET215 ids are gone
     (lambda b: b["readiness"].update(missing=["call 050-0000000"]), "bad_id_list"),
     (lambda b: b.pop("alerts_open"), "missing_key"),
     (lambda b: b.update(demo_mode="yes"), "bad_boolean"),
@@ -355,7 +356,9 @@ def test_the_sequence_and_id_live_outside_the_database(settings, db, receiver, u
 
 def test_backups_never_carry_the_fleet_or_demo_state():
     assert "fleet_report_log" in backup_svc.NEVER_EXPORTED_TABLES
-    for key in (fr.SWITCH, "fleet.last_result", "demo.enabled"):
+    from smplwise.services import demo_mode
+
+    for key in (fr.SWITCH, "fleet.last_result", demo_mode.ALLOW_REMOTE):
         assert backup_svc._kept_setting(key), key
 
 

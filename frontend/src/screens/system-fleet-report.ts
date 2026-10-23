@@ -1,6 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-toggle';
@@ -8,11 +7,12 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError } from '../api/client';
-import { fleetApi, type FleetEnrollment, type FleetLogRow, type FleetStatus, type ReadinessView } from '../api/fleet-report';
+import { fleetApi, type FleetEnrollment, type FleetLogRow, type FleetStatus } from '../api/fleet-report';
+import { getReadiness, type ReadinessReport } from '../api/readiness';
 import { settingsStyles } from '../styles/settings';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { ft, pickLang } from '../i18n/fleet-report';
+import { ft } from '../i18n/fleet-report';
 import {
   FIELD_COUNT, FIELD_GROUPS, FIELD_TYPE_KEY, NEVER_SENT, answerOf, logLines, readyTitle, shortCode, shortId, silentProblem, viewOf,
 } from '../fleet/fleet-model';
@@ -20,7 +20,7 @@ import {
 /**
  * CR-FLEET215: Settings › דיווח בריאות (`#/system/fleet-report`) - the installation side of the daily health report to SmplWise.
  * Written for the simplest technician (owner-approved mock-up docs/design/mockups/fleet-215, v2): the FIRST screen answers one question -
- * is the report on, and what do I do - with the switch and "send now" visible without scrolling, then the readiness to-do list; everything
+ * is the report on, and what do I do - with the switch and "send now" visible without scrolling, then the readiness score with the way to the readiness screen (CR-READY96); everything
  * else is three folded cards (what is sent, the last reports, the connection details). Real components and the settings stylesheet only.
  *
  * The customer's system administrator sees exactly what leaves: the list of the 52 fields (grouped, technical names behind one toggle)
@@ -35,9 +35,8 @@ export class SystemFleetReport extends LitElement {
   @state() private loadState: 'loading' | 'ready' | 'forbidden' | 'error' = 'loading';
   @state() private status: FleetStatus | null = null;
   @state() private log: FleetLogRow[] = [];
-  @state() private readiness: ReadinessView | null = null;
+  @state() private readiness: ReadinessReport | null = null;
   @state() private readinessFailed = false;
-  @state() private demoOn = false;
   @state() private enrollment: FleetEnrollment | null = null;
   @state() private busy = false;
   @state() private flash: { tone: 'ok' | 'err'; text: string } | null = null;
@@ -416,7 +415,7 @@ export class SystemFleetReport extends LitElement {
       return;
     }
     this.loadState = 'ready';
-    await Promise.all([this.loadLog(), this.loadReadiness(), this.loadDemo()]);
+    await Promise.all([this.loadLog(), this.loadReadiness()]);
   }
 
   private async loadLog(): Promise<void> {
@@ -429,19 +428,11 @@ export class SystemFleetReport extends LitElement {
 
   private async loadReadiness(): Promise<void> {
     try {
-      this.readiness = await fleetApi.readiness();
+      this.readiness = await getReadiness();
       this.readinessFailed = false;
     } catch {
       this.readiness = null;
       this.readinessFailed = true;
-    }
-  }
-
-  private async loadDemo(): Promise<void> {
-    try {
-      this.demoOn = (await fleetApi.demo()).enabled;
-    } catch {
-      /* the demo row simply stays off */
     }
   }
 
@@ -482,18 +473,6 @@ export class SystemFleetReport extends LitElement {
     }
     await this.loadLog();
     this.busy = false;
-  }
-
-  private async setDemo(on: boolean): Promise<void> {
-    if (this.busy) return;
-    this.busy = true;
-    try {
-      this.demoOn = (await fleetApi.setDemo(on)).enabled;
-    } catch (e) {
-      this.say('err', e instanceof ApiError && e.body.user_message ? e.body.user_message : ft('saveFail'));
-    } finally {
-      this.busy = false;
-    }
   }
 
   private async saveSilent(): Promise<void> {
@@ -582,20 +561,15 @@ export class SystemFleetReport extends LitElement {
     if (this.readinessFailed) return html`<sw-card data-card="ready"><p class="muted" data-ready-failed>${ft('readyUnavailable')}</p></sw-card>`;
     const r = this.readiness;
     if (!r) return nothing;
-    const open = r.items.filter((i) => i.met === false);
-    // required first, then the heavier ones (the server already orders `missing`)
-    const order = new Map(r.missing.map((id, i) => [id, i]));
-    open.sort((x, y) => (order.get(x.id) ?? 99) - (order.get(y.id) ?? 99));
+    // READYFLEET-295 (owner review 24.10, form Q7: one readiness screen): this card is only the score the report carries and a way to the
+    // readiness screen (CR-READY96, `#/system/readiness`), which owns the checklist, its thresholds and weights. No list is repeated here.
+    const open = r.checks.filter((c) => c.applicable && (c.status === 'attention' || c.status === 'blocked' || c.status === 'pending')).length;
     return html`<sw-card data-card="ready">
       <div class="ready" data-ready>
         <div class="ring" style=${`--v:${r.score}`} role="img" aria-label=${`${r.score}%`}><b data-ready-score>${r.score}%</b></div>
-        <h3 class="rt"><span data-ready-title>${readyTitle(open.length)}</span><span class="csub">${open.length ? ft('readySub') : ft('readyAllOk')}</span></h3>
+        <h3 class="rt"><span data-ready-title>${readyTitle(open)}</span><span class="csub">${open ? ft('readySub') : ft('readyAllOk')}</span></h3>
+        <a class="link" data-ready-link href="#/system/readiness">${ft('readyOpen')}</a>
       </div>
-      ${repeat(open, (i) => i.id, (i) => html`<div class="check" data-ready-item=${i.id}>
-        <span class="m"><span>${pickLang(i.label)}${i.required ? html`<span class="chip">${ft('required')}</span>` : nothing}</span>
-          ${i.hint ? html`<span class="muted">${pickLang(i.hint)}</span>` : nothing}</span>
-        ${i.link?.href ? html`<a class="link" href=${i.link.href}>${ft('goTo')}</a>` : nothing}
-      </div>`)}
     </sw-card>`;
   }
 
@@ -666,9 +640,6 @@ export class SystemFleetReport extends LitElement {
             @input=${(ev: Event) => { this.silentDraft = (ev.target as HTMLInputElement).value; this.silentError = ''; }}
             @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') void this.saveSilent(); }} /><span class="muted">${ft('hoursUnit')}</span>
           <sw-button size="sm" variant="primary" data-silent-save ?disabled=${!dirty || this.busy} @click=${() => void this.saveSilent()}>${ft('silentSave')}</sw-button></span></div>
-      <div class="row"><span class="lbl">${ft('demoLabel')}<span class="muted">${ft('demoHint')}</span></span>
-        <span class="end"><sw-toggle data-demo label=${ft('demoLabel')} labelHidden .checked=${this.demoOn} ?disabled=${this.busy}
-          @change=${(ev: CustomEvent<{ checked: boolean }>) => void this.setDemo(ev.detail.checked)}></sw-toggle></span></div>
       <div class="row"><span class="lbl"><span class="muted" data-stop-note>${ft('stopNote')}</span></span></div>
     </sw-card>`;
   }

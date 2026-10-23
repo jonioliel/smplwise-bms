@@ -201,8 +201,10 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-033 section 9: the door settings (`doors.trusted_path`, default `off`) are never exported and never restored - a restore
 # can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
 # CR's "apply the stricter one" also never tightens from an archive.
-# CR-FLEET215: `fleet.*` (the consent switch and the last-attempt state) and `demo.*` (demo mode) describe THIS installation - an archive
-# never switches the fleet report or demo mode on, and never carries them to another box.
+# CR-FLEET215: `fleet.*` (the consent switch and the last-attempt state) describes THIS installation - an archive never switches the
+# fleet report on, and never carries it to another box. READYFLEET-295: `demo.*` (CR-READY96 demo mode; today `demo.allow_remote`) is kept
+# the same way - a restore can never allow a remote demo on a box that did not allow it (stricter than CR-READY96's first note, recorded
+# in docs/changes/READYFLEET-295.md).
 SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "fleet.", "demo.")
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.

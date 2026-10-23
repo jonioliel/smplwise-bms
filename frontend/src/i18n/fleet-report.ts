@@ -54,11 +54,10 @@ const he = {
   readyTitleNone: 'מוכנות ההתקנה: הכול מוכן',
   readyTitle: 'מוכנות ההתקנה: {n} דברים עוד חסרים',
   readyTitleOne: 'מוכנות ההתקנה: דבר אחד עוד חסר',
-  readySub: 'מה שמסומן "חובה" צריך להיסגר לפני מסירה ללקוח. הדוח היומי מראה את זה גם ל-SmplWise.',
+  readySub: 'הרשימה המלאה, הספים והמשקלים נמצאים במסך המוכנות. הדוח היומי מראה ל-SmplWise רק את הציון ומה חסר.',
   readyAllOk: 'כל מה שנדרש הוגדר.',
-  required: 'חובה',
   readyUnavailable: 'מוכנות ההתקנה לא נטענה. שאר העמוד תקין.',
-  goTo: 'מעבר ›',
+  readyOpen: 'למסך המוכנות ›',
 
   // what is sent
   sentTitle: 'מה נשלח בדוח',
@@ -117,8 +116,6 @@ const he = {
   silentSave: 'שמירה',
   silentRange: 'בין {min} ל-{max} שעות',
   silentSaved: 'נשמר',
-  demoLabel: 'נתוני דוגמה',
-  demoHint: 'מציג התקנה מדומה לצורכי הדגמה. הדוח מסמן שזו דוגמה, ובשרת היא לא נספרת כתקלה.',
 
   // field groups
   g_report: 'על הדוח עצמו',
@@ -168,7 +165,7 @@ const en: Partial<Record<keyof typeof he, string>> = {
   techTitle: 'SmplWise connection and installer details',
   copy: 'Copy',
   copied: 'Copied',
-  required: 'Required',
+  readyOpen: 'Open the readiness screen ›',
 };
 
 export type FleetTextKey = keyof typeof he;

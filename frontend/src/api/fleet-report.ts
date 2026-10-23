@@ -1,7 +1,7 @@
 /**
  * CR-FLEET215: the ONLY module of the frontend that talks to the installation's health-report routes
- * (smplwise_vms/backend/smplwise/routers/fleet.py, routers/readiness.py): the consent switch and the silence threshold, the last
- * attempts, the exact report that would be sent, the public enrollment facts, the readiness checklist and the demo-data switch.
+ * (smplwise_vms/backend/smplwise/routers/fleet.py): the consent switch and the silence threshold, the last attempts, the exact report
+ * that would be sent and the public enrollment facts. Readiness and demo mode are CR-READY96's (api/readiness.ts; READYFLEET-295).
  * Every route needs system.configure at installation scope AND a system administrator; a 403 is shown as "forbidden", never hidden.
  * The add-on option holding the receiver address is the installer's: the server only says whether it is usable, never its value.
  */
@@ -68,29 +68,6 @@ export interface FleetSendResult {
   seq?: number;
 }
 
-export interface ReadinessItem {
-  id: string;
-  /** null = does not apply to this installation (never listed) */
-  met: boolean | null;
-  required: boolean;
-  weight: number;
-  label: { he: string; en: string };
-  /** present only while the item is unmet */
-  hint: { he: string; en: string } | null;
-  link: { href: string };
-}
-
-export interface ReadinessView {
-  score: number;
-  ready: boolean;
-  met: number;
-  total: number;
-  /** ids of the unmet applicable items, required first */
-  missing: string[];
-  items: ReadinessItem[];
-  checked_at?: string;
-}
-
 const BASE = 'fleet/report';
 
 export const fleetApi = {
@@ -101,7 +78,4 @@ export const fleetApi = {
   preview: () => get<FleetPreview>(`${BASE}/preview`),
   enrollment: () => get<FleetEnrollment>(`${BASE}/enrollment`),
   send: () => post<FleetSendResult>(`${BASE}/send`),
-  readiness: () => get<ReadinessView>('readiness'),
-  demo: () => get<{ enabled: boolean; label?: unknown }>('demo'),
-  setDemo: (enabled: boolean) => put<{ enabled: boolean }>('demo', { enabled }),
 };

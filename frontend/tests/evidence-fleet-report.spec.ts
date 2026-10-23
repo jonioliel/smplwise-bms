@@ -7,7 +7,7 @@ import { installFleetMock, fleetUrl, type FleetMock, type FleetMockOptions } fro
 // CR-FLEET215 evidence: Settings › דיווח בריאות from the REAL build against the mock layer (fake data), desktop 1440 and phone 390,
 // light and dark. Also asserts behaviour: the four pages (off / on / no address / failed) plus loading / error / forbidden, the switch,
 // the "reporting stopped" message on switch-off, send now, the 52-field card, the exact body, the copy button, the silence threshold,
-// the demo switch, no horizontal overflow, and the first screen holding the answer, the switch and the send button without scrolling.
+// the readiness score linking to the one readiness screen (READYFLEET-295), no horizontal overflow, and the first screen holding the answer, the switch and the send button without scrolling.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-fleet-report.spec.ts --project=desktop --project=mobile --workers=1
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/fleet-215');
 const S = 'sw-app system-fleet-report';
@@ -113,18 +113,15 @@ test.describe('fleet report evidence', () => {
     await expect(page.locator(S).locator('[data-send]')).toContainText('ניסיון שליחה עכשיו');
   });
 
-  test('readiness: the to-do list with required marks and links, a complete list, a failed read', async ({ page }) => {
+  test('readiness: the score and the way to the one readiness screen (CR-READY96), a complete list, a failed read', async ({ page }) => {
     await go(page, { scene: 'on' });
     const s = page.locator(S);
     await expect(s.locator('[data-ready-score]')).toHaveText('78%');
     await expect(s.locator('[data-ready-title]')).toHaveText('מוכנות ההתקנה: 4 דברים עוד חסרים');
-    await expect(s.locator('[data-ready-item]')).toHaveCount(4);
-    await expect(s.locator('[data-ready-item="backup_recent"]')).toContainText('חובה');
-    await expect(s.locator('[data-ready-item="backup_offsite"]')).not.toContainText('חובה');
-    await expect(s.locator('[data-ready-item="camera_on_map"] a')).toHaveAttribute('href', '#/explore/sites');
+    await expect(s.locator('[data-ready-item]')).toHaveCount(0); // READYFLEET-295: the checklist lives only on the readiness screen
+    await expect(s.locator('[data-ready-link]')).toHaveAttribute('href', '#/system/readiness');
     await go(page, { scene: 'on', allReady: true });
     await expect(page.locator(S).locator('[data-ready-title]')).toHaveText('מוכנות ההתקנה: הכול מוכן');
-    await expect(page.locator(S).locator('[data-ready-item]')).toHaveCount(0);
     await go(page, { scene: 'on', readinessError: true });
     await expect(page.locator(S).locator('[data-ready-failed]')).toBeVisible();
     await expect(page.locator(S).locator('[data-answer]')).toBeVisible(); // the rest of the page still works
@@ -173,7 +170,7 @@ test.describe('fleet report evidence', () => {
     expect(m3.calls.some((c) => c.path === 'fleet/report/preview')).toBe(true);
   });
 
-  test('the details card: enrollment code with a copy button, silence threshold, demo data', async ({ page, context }) => {
+  test('the details card: enrollment code with a copy button, silence threshold', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined);
     const mock = await go(page, { scene: 'on' });
     const s = page.locator(S);
@@ -199,9 +196,7 @@ test.describe('fleet report evidence', () => {
     await expect(s.locator('[data-flash]')).toContainText('נשמר');
     await expect(s.locator('[data-silent]')).toHaveValue('48');
     expect(mock.calls.filter((c) => c.method === 'PUT').map((c) => c.body)).toEqual([{ silent_after_h: 48 }]);
-    // demo
-    await s.locator('[data-demo] button').click();
-    await expect.poll(() => mock.calls.filter((c) => c.path === 'demo' && c.method === 'PUT').map((c) => c.body)).toEqual([{ enabled: true }]);
+    await expect(s.locator('[data-demo]')).toHaveCount(0); // READYFLEET-295: demo mode is CR-READY96's, on the readiness screen
     await shot(page, 'fleet-tech-open');
     // the address option missing: said plainly, the code still shows
     await go(page, { scene: 'nourl' });

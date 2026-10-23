@@ -164,3 +164,7 @@ Mockup v2 approved with these answers:
 - **Silent threshold (form Q4; the mockup used 36 hours):** **not needed if not set**: there is no default number of hours after which an installation counts as "not reporting"; the rule applies only when the owner sets a value.
 - **Install row (form Q6: what is missing in an installation's row):** add the **contact person** (the contact and the installed version).
 - **Double readiness (form Q7):** **yes, one screen**: "installation readiness" appears on one screen only, shared with the readiness check (CR-READY96), not duplicated here and there.
+
+**Integration note (READYFLEET-295):** parts 2 and 3 of this record (the readiness score and demo mode) are superseded by CR-READY96:
+the fleet report's readiness block is a projection of CR-READY96's `readiness.evaluate()`, and demo mode is CR-READY96's separate demo
+database. See `docs/changes/READYFLEET-295.md`.

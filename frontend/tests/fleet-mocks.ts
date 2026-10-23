@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 
-// CR-FLEET215: the mock layer of the Settings › דיווח בריאות specs - the wire contract of routers/fleet.py and routers/readiness.py with
+// CR-FLEET215: the mock layer of the Settings › דיווח בריאות specs - the wire contract of routers/fleet.py and (CR-READY96) routers/readiness.py with
 // fake data only (invented ids and counts, no real installation). The whole app runs against it through page.route.
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -50,24 +50,23 @@ export const REPORT_BODY = {
   disk: { free_pct: 61, free_gb: 573, total_gb: 938 },
   backup: { count: 6, last_age_h: 71, offbox_targets: 0 },
   update: { check: 'available', available: true, latest: '2.15.1' },
-  readiness: { score: 78, ready: false, missing: ['backup_recent', 'camera_on_map', 'backup_offsite', 'up_to_date'] },
+  readiness: { score: 78, ready: false, missing: ['backup', 'notifications', 'places', 'handover'] },
 };
 
-function item(id: string, required: boolean, he: string, hint: string | null, href: string) {
-  return { id, met: hint === null, required, weight: required ? 3 : 1, label: { he, en: he }, hint: hint ? { he: hint, en: hint } : null, link: { href } };
+// READYFLEET-295: GET /readiness is CR-READY96's report (routers/readiness.py); the fleet screen shows its score and links to its screen
+function check(id: string, status: string, applicable = true) {
+  return { id, group: 'g', source: 'computed', title: id, weight: 10, critical: false, status, fraction: status === 'ok' ? 1 : 0.5, summary: '', facts: [], next: null,
+    applicable, checked_at: ago(1000), gain: status === 'ok' ? 0 : 5 };
 }
 
 function readiness(allReady: boolean) {
-  const items = allReady
-    ? [item('backup_recent', true, 'גיבוי מהיומיים האחרונים', null, '#/system/diagnostics?tab=health')]
-    : [
-      item('backup_recent', true, 'גיבוי מהיומיים האחרונים', 'הגיבוי האחרון בן 3 ימים. הריצו גיבוי או בדקו למה הוא נעצר.', '#/system/diagnostics?tab=health'),
-      item('backup_offsite', false, 'גיבוי מחוץ לשרת', 'אם הדיסק מתקלקל, גיבוי שיושב רק עליו הולך לאיבוד.', '#/system/diagnostics'),
-      item('camera_on_map', false, 'מצלמה מוצבת על המפה', 'מצלמה אחת עדיין לא הונחה על תוכנית הקומה.', '#/explore/sites'),
-      item('up_to_date', false, 'גרסה עדכנית', 'יש גרסה חדשה יותר (2.15.1).', '#/system/diagnostics'),
-      item('system_admin', true, 'יש מנהל מערכת', null, '#/system/access'),
-    ];
-  return { score: allReady ? 100 : 78, ready: allReady, met: allReady ? 1 : 1, total: items.length, missing: allReady ? [] : ['backup_recent', 'camera_on_map', 'backup_offsite', 'up_to_date'], items, checked_at: ago(1000) };
+  const checks = allReady
+    ? [check('backup', 'ok'), check('modules', 'not_applicable', false)]
+    : [check('backup', 'blocked'), check('notifications', 'attention'), check('places', 'attention'), check('handover', 'pending'), check('people', 'ok'),
+      check('modules', 'not_applicable', false)];
+  return { score: allReady ? 100 : 78, level: allReady ? 'ready' : 'almost', level_text: '', checks, checked_at: ago(1000),
+    handover: { advice_score: 90, advice_met: allReady, blockers: allReady ? [] : ['backup'], may_hand_over: true, done: allReady }, next_steps: [],
+    bands: { almost_min: 50, advice: 90 }, history: [], settings: {}, check_every_s: 30 };
 }
 
 export interface MockStatus { [k: string]: unknown; enabled: boolean; receiver_configured: boolean; sending: boolean; last_seq: number; silent_after_h: number }
@@ -101,7 +100,6 @@ export async function installFleetMock(page: Page, o: FleetMockOptions = {}): Pr
   const perms = configure ? ['system.configure', 'devices.read', 'map.read'] : ['devices.read', 'map.read'];
   const st: FleetMock = { calls: [], state: {} };
   let status: MockStatus = baseStatus(o);
-  let demo = false;
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -120,7 +118,7 @@ export async function installFleetMock(page: Page, o: FleetMockOptions = {}): Pr
     if (p === 'settings') return json(route, { settings: { 'ui.design': 'a' }, can_edit: configure });
     if (p.startsWith('notifications')) return json(route, { unread: 0, items: [] });
     if (p === 'tickets/module') return json(route, { enabled: false, public_ready: false, name: { he: { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' } }, name_revision: 0, ui: {} });
-    if (!p.startsWith('fleet/report') && p !== 'readiness' && p !== 'demo') return err(route, 404, 'not_found', 'לא נמצא');
+    if (!p.startsWith('fleet/report') && p !== 'readiness') return err(route, 404, 'not_found', 'לא נמצא');
     st.calls.push({ method, path: p, body });
     if (p === 'fleet/report' && method === 'GET') {
       if (o.statusDelay) await new Promise((r) => setTimeout(r, o.statusDelay));
@@ -153,8 +151,6 @@ export async function installFleetMock(page: Page, o: FleetMockOptions = {}): Pr
       return json(route, { sent: true, result: 'ok', http_status: 202, seq: status.last_seq });
     }
     if (p === 'readiness') return o.readinessError ? err(route, 500, 'internal', 'משהו השתבש') : json(route, readiness(!!o.allReady));
-    if (p === 'demo' && method === 'GET') return json(route, { enabled: demo, label: { he: 'נתוני דוגמה', en: 'Example data' } });
-    if (p === 'demo' && method === 'PUT') { demo = !!(body as { enabled: boolean }).enabled; return json(route, { enabled: demo, label: { he: 'נתוני דוגמה', en: 'Example data' } }); }
     return err(route, 404, 'not_found', 'לא נמצא');
   });
   return st;

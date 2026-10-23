@@ -5,7 +5,7 @@
 - GET  /fleet/report/enrollment  the public enrollment facts the installer copies into the receiver (creates the fleet key on first use)
 - GET  /fleet/report/preview     exactly what WOULD be sent now (validated; nothing is signed, sent, numbered or created)
 - GET  /fleet/report/log         what WAS sent: the exact bodies of the last attempts
-- POST /fleet/report/send        send one report now (refused while either key is off); audited
+- POST /fleet/report/send        send one report now (refused while either key is off or a CR-READY96 demo runs); audited
 
 Every route needs `system.configure` at the installation AND a system administrator (the precedent of /wiskey/switches). Refusals after the
 permission check are audited with a closed reason; nothing a caller typed is echoed into an audit row."""
@@ -23,7 +23,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
-from ..services import fleet_keys
+from ..services import demo_mode, fleet_keys
 from ..services import fleet_report as fr
 
 router = APIRouter()
@@ -37,6 +37,7 @@ _TEXT = {
     "schema_refused": "הדוח לא עבר את בדיקת התוכן שלו ולא נשלח.",
     "nothing_to_change": "לא נשלח שינוי.",
     "silent_after_out_of_range": "מספר השעות מחוץ לטווח המותר.",
+    "demo_active": "מצב הדגמה פעיל. הדוח נשלח רק מהנתונים האמיתיים של ההתקנה.",
 }
 
 
@@ -143,7 +144,7 @@ async def post_send(request: Request, principal: Principal = Depends(current_pri
     def _gate() -> None:
         with db.connection(label="fleet.report.send") as conn:
             _admin_or_403(conn, principal, request, "fleet.report.send")
-            why = None if fr.switch_on(conn) else "fleet_report_off"
+            why = "demo_active" if demo_mode.active(db) else None if fr.switch_on(conn) else "fleet_report_off"
             if why is None:
                 why = fr.receiver_url()[1]
             if why:
