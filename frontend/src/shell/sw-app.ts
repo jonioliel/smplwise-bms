@@ -92,6 +92,8 @@ import '../screens/system-audit';
 import '../screens/system-setup';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
 import '../screens/system-wizard';
+import '../screens/system-readiness';
+import '../components/sw-demo-banner';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
 import '../screens/system-security';
@@ -485,6 +487,9 @@ export class SwApp extends LitElement {
     }
     :host([data-design='a']) nav.rail .brand-tile {
       align-self: center;
+    }
+    .brand-tile[data-demo] {
+      background: repeating-linear-gradient(135deg, var(--sw-warning) 0 6px, var(--sw-warning-text) 6px 12px);
     }
     .brand-tile {
       display: grid;
@@ -2325,6 +2330,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'audit') return html`<system-audit></system-audit>`;
         if (s[1] === 'setup') return html`<system-setup></system-setup>`;
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
+        if (s[1] === 'readiness') return html`<system-readiness></system-readiness>`; // הגדרות › מוכנות (CR-READY96)
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
@@ -2729,7 +2735,7 @@ export class SwApp extends LitElement {
     const rowMode = this.rowModeProps(area, rowStyle);
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <span class="brand-tile" aria-hidden="true"><span>S</span></span>
+        <span class="brand-tile" aria-hidden="true" ?data-demo=${this.session.me?.demo?.active === true}><span>S</span></span>
         ${areas.map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
             <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>${this.areaCount(n.id)}
@@ -2741,6 +2747,7 @@ export class SwApp extends LitElement {
       ${this.renderFloat()}
       ${this.renderSysBanner()}
       <main>
+        <sw-demo-banner></sw-demo-banner>
         ${this.renderSetupHint()}
         ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
         ${this.renderGate() || html`

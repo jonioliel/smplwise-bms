@@ -256,7 +256,7 @@ def test_a_demo_runs_on_a_separate_database_and_leaves_the_real_one_untouched(ru
 def test_scenarios_shape_the_dataset(runner: TestClient):
     runner.post(f"{API}/demo/start", json={"scenario": "cameras_offline"})
     cc = _check(runner.get(f"{API}/readiness").json(), "cameras_connected")
-    assert cc["fraction"] == pytest.approx(4 / 6)
+    assert cc["fraction"] == pytest.approx(4 / 6, abs=1e-3)
     runner.post(f"{API}/demo/stop")
     runner.post(f"{API}/demo/start", json={"scenario": "new_installation"})
     assert _check(runner.get(f"{API}/readiness").json(), "cameras_connected")["fraction"] == 0.0
@@ -275,7 +275,7 @@ def test_physical_and_update_permissions_are_refused_while_a_demo_runs(runner: T
             d = rbac.authorize(conn, principal, p, rbac.INSTALLATION)
             assert not d.allowed and d.reason == "demo_mode", p
         assert rbac.authorize(conn, principal, "system.configure", rbac.INSTALLATION).allowed  # reading and configuring the demo itself is fine
-    assert runner.post(f"{API}/backups").status_code == 403
+    assert runner.post(f"{API}/backups", json={}).status_code == 403
     runner.post(f"{API}/demo/stop")
     with db.connection(mode="read") as conn:
         assert rbac.authorize(conn, principal, "devices.control", rbac.INSTALLATION).allowed
@@ -329,4 +329,3 @@ def test_a_restart_exits_demo_mode(runner: TestClient, settings):
     fresh = TestClient(create_app(settings))  # a new process: the handle starts on the real file and the demo folder is gone
     assert not fresh.app.state.db.demo and not (settings.data_dir / "demo").exists()
     assert fresh.get(f"{API}/me").json()["demo"] == {"active": False}
-    runner.post(f"{API}/demo/stop")

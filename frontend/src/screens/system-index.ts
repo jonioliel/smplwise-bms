@@ -119,6 +119,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'storage', label: 'אחסון', href: '#/system/storage', keywords: 'דיסק הקלטות נפח' },
       { tab: 'update', label: 'עדכונים', href: '#/system/update', keywords: 'גרסה update שדרוג' },
       { tab: 'wizard', label: 'אשף התקנה', href: '#/system/wizard', keywords: 'התקנה שלבים' },
+      { tab: 'readiness', label: 'מוכנות ההתקנה', href: '#/system/readiness', keywords: 'ציון מסירה הדגמה demo בדיקות גיבוי מוכן' },
       { tab: 'general', label: 'תמיכה', href: `${GEN}?tab=support`, keywords: 'לוגים חבילה' },
       { tab: 'screens', label: 'כל המסכים', href: '#/screens', keywords: 'קטלוג מסכים' },
     ],
