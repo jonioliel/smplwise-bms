@@ -36,6 +36,8 @@ export interface PresenceSettings {
   sites: { id: string; name: string; lat: number; lon: number; radius_m: number }[];
   beacons: Record<string, unknown>[];
   wifi_sites: Record<string, unknown>[];
+  /** PRESENCE307: who decides "connected to a site network": the phone (default) or the server (hash match). */
+  wifi_match_mode: 'phone' | 'server';
   retention_days: number;
   required_sensors: RequiredSensorsPolicy;
   break_glass: { until: string | null; reason: string; by: string | null };

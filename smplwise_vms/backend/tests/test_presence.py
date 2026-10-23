@@ -423,3 +423,70 @@ def test_janitor_prunes_events_messages_and_revoked_rows_per_the_retention_setti
 def test_janitor_on_an_empty_installation_is_a_no_op(world):
     app, _, _ = world
     assert svc.janitor(app.state.db) == {"events": 0, "messages": 0, "devices": 0}
+
+
+# ---------------------------------------------------------------- PRESENCE307: Wi-Fi match, phone-side or server-side
+
+def _net(cid: str, at: str, **value) -> dict:
+    return {"client_event_id": cid, "type": "sensor", "sensor": "network", "at": at, "value": {"network": "wifi", **value}}
+
+
+def _stored_values(app, did: str) -> dict[str, dict]:
+    with app.state.db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT client_event_id, value_json FROM mobile_presence_events WHERE device_id = ? AND sensor = 'network'", (did,)).fetchall()
+    return {r[0]: json.loads(r[1]) for r in rows}
+
+
+def test_wifi_match_mode_defaults_to_phone_validates_and_reaches_the_config(world):
+    app, c, _ = world
+    _, body = register(c, "dana")
+    tok = bearer(body["device_token"])
+    assert c.get(f"{API}/presence/config", headers=tok).json()["wifi_match_mode"] == "phone"
+    assert enable(c)["wifi_match_mode"] == "phone"
+    assert c.put(f"{API}/presence/settings", json={"wifi_match_mode": "cloud"}).status_code == 422
+    assert c.put(f"{API}/presence/settings", json={"wifi_match_mode": "server"}).json()["settings"]["wifi_match_mode"] == "server"
+    assert c.get(f"{API}/presence/config", headers=tok).json()["wifi_match_mode"] == "server"
+
+
+def test_wifi_phone_mode_trusts_the_boolean_and_still_understands_old_apps_that_send_the_hash(world):
+    app, c, _ = world
+    _, body = register(c, "dana")
+    did, tok = body["device_id"], bearer(body["device_token"])
+    salt = "s4lt"
+    good = svc.ssid_hash(salt, "OfficeNet")
+    enable(c, sites=[{"id": "site_main", "name": "x", "lat": 32.0, "lon": 34.8, "radius_m": 150}],
+           wifi_sites=[{"site_id": "site_main", "ssid_hash_salt": salt, "ssid_hashes": [good.upper()]}])
+    c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 2}, headers=tok)
+    events = [_net("n1", "2026-10-05T10:00:00Z", wifi_match=True, wifi_site_id="site_main"),
+              _net("n2", "2026-10-05T10:01:00Z", wifi_match=True, wifi_site_id="site_unknown"),
+              _net("n3", "2026-10-05T10:02:00Z", ssid_hash=good),  # an older app: hash only
+              _net("n4", "2026-10-05T10:03:00Z", ssid_hash=svc.ssid_hash(salt, "Other")),
+              _net("n5", "2026-10-05T10:04:00Z")]
+    r = c.post(f"{API}/presence/devices/{did}/events", json={"events": events}, headers=tok)
+    assert r.status_code == 200, r.text
+    v = _stored_values(app, did)
+    assert v["n1"] == {"network": "wifi", "wifi_match": True, "wifi_site_id": "site_main"}
+    assert v["n2"] == {"network": "wifi", "wifi_match": True}  # a site id the server does not know is dropped
+    assert v["n3"] == {"network": "wifi", "wifi_match": True, "wifi_site_id": "site_main"}  # derived; the hash is not stored
+    assert v["n4"] == {"network": "wifi", "wifi_match": False}
+    assert v["n5"] == {"network": "wifi"}
+    # the newest verdict rides on the state and never moves `inside`
+    st = c.get(f"{API}/presence/devices/{did}/state", headers=tok).json()["presence"]
+    assert st["wifi"]["at"] == "2026-10-05T10:03:00Z" and st["wifi"]["match"] is False and "inside" not in st
+
+
+def test_wifi_server_mode_matches_the_hash_itself_and_ignores_a_phone_claim(world):
+    app, c, _ = world
+    _, body = register(c, "dana")
+    did, tok = body["device_id"], bearer(body["device_token"])
+    salt = "s4lt"
+    good = svc.ssid_hash(salt, "OfficeNet")
+    enable(c, wifi_sites=[{"site_id": "site_main", "ssid_hash_salt": salt, "ssid_hashes": [good]}], wifi_match_mode="server")
+    c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 2}, headers=tok)
+    events = [_net("n1", "2026-10-05T10:00:00Z", ssid_hash=good), _net("n2", "2026-10-05T10:01:00Z", ssid_hash="deadbeef"),
+              _net("n3", "2026-10-05T10:02:00Z", wifi_match=True, wifi_site_id="site_main")]  # a claim without a hash: not trusted
+    assert c.post(f"{API}/presence/devices/{did}/events", json={"events": events}, headers=tok).status_code == 200
+    v = _stored_values(app, did)
+    assert v["n1"] == {"network": "wifi", "ssid_hash": good, "wifi_match": True, "wifi_site_id": "site_main"}
+    assert v["n2"]["wifi_match"] is False and "wifi_site_id" not in v["n2"]
+    assert v["n3"] == {"network": "wifi"}

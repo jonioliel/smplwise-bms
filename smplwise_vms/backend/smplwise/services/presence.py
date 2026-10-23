@@ -44,6 +44,7 @@ MAX_DEVICES_PER_USER = 10
 BATCH_MAX = 50
 VALUE_MAX_BYTES = 1024
 MODES = ("continuous",)
+WIFI_MATCH_MODES = ("phone", "server")  # PRESENCE307: who decides "connected to a site network"; default = the phone
 PLATFORMS = ("ios", "android")
 EVENT_TYPES = ("fix", "enter", "exit", "sensor")
 SOURCES = ("continuous", "region", "significant", "foreground")
@@ -85,6 +86,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "presence.sites": "[]",
     "presence.beacons": "[]",
     "presence.wifi_sites": "[]",
+    "presence.wifi_match_mode": "phone",
     "presence.retention_days": str(RETENTION_DEFAULT),
     "presence.required_sensors": json.dumps({"enabled": False, "sensors": [], "apply_to_web": False, "max_stale_hours": 48, "roles": [], "users": [], "exempt_users": []}),
     "presence.break_glass": json.dumps({"until": None, "reason": "", "by": None}),
@@ -238,6 +240,7 @@ def load_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         "sites": [s for s in _json(raw["presence.sites"], []) if isinstance(s, dict)],
         "beacons": [b for b in _json(raw["presence.beacons"], []) if isinstance(b, dict)],
         "wifi_sites": [w for w in _json(raw["presence.wifi_sites"], []) if isinstance(w, dict)],
+        "wifi_match_mode": raw["presence.wifi_match_mode"] if raw["presence.wifi_match_mode"] in WIFI_MATCH_MODES else "phone",
         "retention_days": max(RETENTION_MIN, min(RETENTION_MAX, int(raw["presence.retention_days"] or RETENTION_DEFAULT))),
         "required_sensors": req,
         "break_glass": {"until": iso(until) if until else None, "reason": str(bg.get("reason") or "")[:200], "by": bg.get("by") if isinstance(bg.get("by"), str) else None},
@@ -314,7 +317,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     notice text). The notice version rises by itself when the text changes or a sensor is newly allowed."""
     current = load_settings(conn)
     changes: dict[str, Any] = {}
-    unknown = set(body) - {"enabled", "mode", "interval_s", "distance_filter_m", "notice_text", "sensors_allowed", "intervals_s", "sites", "beacons", "wifi_sites",
+    unknown = set(body) - {"enabled", "mode", "interval_s", "distance_filter_m", "notice_text", "sensors_allowed", "intervals_s", "sites", "beacons", "wifi_sites", "wifi_match_mode",
                            "retention_days", "required_sensors"}
     if unknown:
         raise PresenceError(422, "validation", "שדה לא מוכר: " + ", ".join(sorted(unknown)), details={"fields": sorted(unknown)})
@@ -372,6 +375,11 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
         wifi = _validate_list_of_dicts(body["wifi_sites"], "wifi_sites", ("site_id", "ssid_hash_salt", "ssid_hashes"))
         set_setting(conn, "presence.wifi_sites", json.dumps(wifi, ensure_ascii=False))
         changes["wifi_sites"] = len(wifi)
+    if "wifi_match_mode" in body:
+        if body["wifi_match_mode"] not in WIFI_MATCH_MODES:
+            raise PresenceError(422, "validation", "מצב התאמת Wi-Fi: בטלפון או בשרת.", details={"field": "wifi_match_mode", "known": list(WIFI_MATCH_MODES)})
+        set_setting(conn, "presence.wifi_match_mode", body["wifi_match_mode"])
+        changes["wifi_match_mode"] = body["wifi_match_mode"]
     if "required_sensors" in body:
         req = _normalize_required(body["required_sensors"], strict=True)
         set_setting(conn, "presence.required_sensors", json.dumps(req))
@@ -575,6 +583,7 @@ def config_for(conn: sqlite3.Connection, st: dict[str, Any] | None = None) -> di
         },
         "beacons": st["beacons"] if enabled else [],
         "wifi_sites": st["wifi_sites"] if enabled else [],
+        "wifi_match_mode": st["wifi_match_mode"],
         "required_sensors": {"enabled": bool(st["required_sensors"]["enabled"] and enabled), "sensors": st["required_sensors"]["sensors"]},
     }
 
@@ -613,6 +622,54 @@ def _site_of(st: dict[str, Any], lat: float, lon: float) -> str | None:
     return best[1] if best else None
 
 
+def ssid_hash(salt: str, ssid: str) -> str:
+    """The contract's hash: lowercase hex SHA-256 of the UTF-8 bytes of `salt + ssid` (docs/api/mobile-presence-contract.md section 2.1)."""
+    return hashlib.sha256((salt + ssid).encode("utf-8")).hexdigest()
+
+
+def _resolve_wifi(value: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
+    """PRESENCE307: derive `wifi_match` (bool) / `wifi_site_id` for a `network` sensor event, per the Settings choice.
+    phone mode : the phone's own `wifi_match` / `wifi_site_id` is trusted (the site id must be a configured one); an older app that
+                 still sends `ssid_hash` gets the match derived here, and the hash is NOT stored (data minimisation).
+    server mode: the server decides from `ssid_hash` against `wifi_sites`; a phone-sent `wifi_match` is ignored; the hash is kept.
+    A `network` event without any Wi-Fi identification is stored as sent. Never raises."""
+    out = dict(value)
+    h = out.get("ssid_hash")
+    h = h.strip().lower() if isinstance(h, str) and h.strip() else None
+    known = {w.get("site_id") for w in st["wifi_sites"]} | {s.get("id") for s in st["sites"]}
+    server_site: str | None = None
+    if h:
+        for w in st["wifi_sites"]:
+            hashes = w.get("ssid_hashes")
+            if isinstance(hashes, list) and h in {str(x).strip().lower() for x in hashes}:
+                server_site = w.get("site_id")
+                break
+    if st["wifi_match_mode"] == "server":
+        out.pop("wifi_match", None)
+        out.pop("wifi_site_id", None)
+        if h is not None:
+            out["wifi_match"] = server_site is not None
+            if server_site is not None:
+                out["wifi_site_id"] = server_site
+        return out
+    # phone mode
+    phone_match = out.get("wifi_match")
+    if isinstance(phone_match, bool):
+        site = out.get("wifi_site_id")
+        if not phone_match or not isinstance(site, str) or site not in known:
+            out.pop("wifi_site_id", None)
+    elif h is not None:  # backward compatibility: an app that still sends the hash
+        out["wifi_match"] = server_site is not None
+        out.pop("wifi_site_id", None)
+        if server_site is not None:
+            out["wifi_site_id"] = server_site
+    else:
+        out.pop("wifi_match", None)
+        out.pop("wifi_site_id", None)
+    out.pop("ssid_hash", None)
+    return out
+
+
 def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
     cid = str(e.get("client_event_id") or "").strip()
     if not 1 <= len(cid) <= 64:
@@ -634,6 +691,8 @@ def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
             raise PresenceError(400, "invalid_event", "ערך החיישן: אובייקט שטוח של עד 20 מפתחות.", details={"field": "value", "client_event_id": cid})
         if len(json.dumps(value, ensure_ascii=False)) > VALUE_MAX_BYTES:
             raise PresenceError(400, "invalid_event", "ערך החיישן גדול מדי.", details={"field": "value", "client_event_id": cid})
+        if sensor == "network":
+            value = _resolve_wifi(value, st)
         out["sensor"], out["value"] = sensor, value
         return out
     # fix / enter / exit: location events need the location sensor allowed
@@ -678,6 +737,8 @@ def ingest(conn: sqlite3.Connection, device: sqlite3.Row, events: list[dict[str,
     accepted = duplicates = 0
     presence = _json(device["presence_json"], {})
     newest_at = presence.get("at") or ""
+    wifi = presence.get("wifi") if isinstance(presence.get("wifi"), dict) else None
+    wifi_at = (wifi or {}).get("at") or ""
     for ev in sorted(cleaned, key=lambda x: x["at"]):
         cur = conn.execute(
             "INSERT OR IGNORE INTO mobile_presence_events(device_id, user_id, client_event_id, type, sensor, site_id, lat, lon, accuracy_m, value_json, source, at, received_at)"
@@ -689,7 +750,13 @@ def ingest(conn: sqlite3.Connection, device: sqlite3.Row, events: list[dict[str,
             duplicates += 1
             continue
         accepted += 1
-        if ev["type"] == "sensor" or ev["at"] < newest_at:
+        if ev["type"] == "sensor":
+            v = ev["value"] or {}
+            if ev["sensor"] == "network" and isinstance(v.get("wifi_match"), bool) and ev["at"] >= wifi_at:
+                wifi_at = ev["at"]
+                wifi = {"match": v["wifi_match"], "site_id": v.get("wifi_site_id"), "at": ev["at"]}
+            continue
+        if ev["at"] < newest_at:
             continue  # the current state follows the newest location event only
         newest_at = ev["at"]
         if ev["type"] == "fix":
@@ -698,6 +765,8 @@ def ingest(conn: sqlite3.Connection, device: sqlite3.Row, events: list[dict[str,
             presence = {"inside": inside, "site_id": site, "at": ev["at"], "lat": ev["lat"], "lon": ev["lon"], "accuracy_m": ev["accuracy_m"], "source": ev["source"], "updated_at": now}
         else:
             presence = {"inside": ev["type"] == "enter", "site_id": ev["site_id"], "at": ev["at"], "lat": ev["lat"], "lon": ev["lon"], "accuracy_m": ev["accuracy_m"], "source": ev["source"] or "region", "updated_at": now}
+    if wifi is not None:
+        presence["wifi"] = wifi  # PRESENCE307: the newest Wi-Fi verdict rides along; it never moves `inside`
     conn.execute("UPDATE mobile_devices SET presence_json = ?, last_seen_at = ?, last_event_at = CASE WHEN ? > 0 THEN ? ELSE last_event_at END WHERE id = ?",
                  (json.dumps(presence), now, accepted, now, device["id"]))
     return {"accepted": accepted, "duplicates": duplicates, "inside": presence.get("inside"), "site_id": presence.get("site_id"), "notice_version": st["notice_version"]}
