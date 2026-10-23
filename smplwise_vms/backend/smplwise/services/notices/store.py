@@ -1,4 +1,4 @@
-"""CR-NOTICE106 - the tables of migration 0160 (provisional number): notices, boards, board items, read marks."""
+"""CR-NOTICE106 - the tables of migration 0165: notices, boards, board items, read marks."""
 from __future__ import annotations
 
 import datetime as dt

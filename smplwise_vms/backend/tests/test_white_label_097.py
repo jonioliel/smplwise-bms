@@ -331,12 +331,12 @@ def test_profile_travels_with_the_project_backup(settings):
         assert (v["name"], v["accent"], v["enabled"]) == ("מתקין", "pink", True) and v["logo"]["light"] == st
 
 
-def test_migration_0193_widens_the_kind_check_and_keeps_company_rows(settings):
+def test_migration_0167_widens_the_kind_check_and_keeps_company_rows(settings):
     app = create_app(settings)
     with TestClient(app) as c:
         c.post("/api/v1/brand/company-logo/light", files={"file": ("a.png", png(), "image/png")})
         with app.state.db.connection() as conn:
             assert conn.execute("SELECT COUNT(*) FROM brand_assets WHERE kind = 'company'").fetchone()[0] == 1
-            assert conn.execute("SELECT 1 FROM schema_migrations WHERE version = 193").fetchone() is not None
+            assert conn.execute("SELECT 1 FROM schema_migrations WHERE version = 167").fetchone() is not None
             with pytest.raises(Exception):
                 conn.execute("INSERT INTO brand_assets(kind, variant, stamp, mime, width, height, data_b64, uploaded_at) VALUES('bogus','light','a','image/png',1,1,'x','t')")

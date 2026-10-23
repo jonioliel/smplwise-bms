@@ -1,4 +1,4 @@
--- CR-TIMESCRUB101 slice 1 (board r101), PROVISIONAL number 0152 (renumber at integration if another branch takes it): the stretches
+-- CR-TIMESCRUB101 slice 1 (board r101), Final number 0160 (built as PROVISIONAL 0152; renumbered at the 2.16.0 integration, release/2160): the stretches
 -- when the local Home Assistant state history was NOT fed (the HA sync was disconnected or the add-on was down for more than 60 s).
 -- Written when the sync (re)connects after such a stretch (services/ha_history.note_connect_gap), pruned with the history itself.
 -- Without it the historical map cannot tell "nothing changed" from "Arx was not listening": a state is never carried across a gap.

@@ -1,5 +1,5 @@
--- 0199 PROVISIONAL (XSCENARIO109-295, docs/changes/CR-SCENARIO109.md sections 5 and 17.5): cross-module scenarios on one condition model.
--- The final number is assigned at integration under the renumbering rule. Additive only: new tables, no change to an existing table.
+-- Final number 0171 (built as PROVISIONAL 0199; renumbered at the 2.16.0 integration, release/2160) (XSCENARIO109-295,
+-- docs/changes/CR-SCENARIO109.md sections 5 and 17.5): cross-module scenarios on one condition model. Additive only: new tables, no change to an existing table.
 -- The tables stay empty while `scenarios.enabled` is false (the default). Nothing here contacts a device; a scenario never operates a door.
 
 CREATE TABLE scenario_rules (

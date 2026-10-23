@@ -1,6 +1,6 @@
 -- GENLOG092-295 (board row r092, version 2.17.0): the generator run log - start tests, mains-failure runs, run hours and fuel.
--- NUMBERING: PROVISIONAL 0175 on pilot/GENLOG092-295. main ends at 0151 and release/2150 uses 0152..0157; other open branches hold 0158 and
--- 0160. Renumber to the next free number at the 2.17.0 integration to keep the sequence contiguous. Nothing in the code refers to the number.
+-- Final number 0162 (built as PROVISIONAL 0175 on pilot/GENLOG092-295; renumbered at the 2.16.0 integration, release/2160).
+-- Nothing in the code refers to the number.
 -- It needs the tables of 0061_generator only (new tables, no ALTER).
 --
 -- Read-only against the controller, like the rest of the generator screen: every row is DERIVED from the state mirror (ha_entities) by
@@ -8,7 +8,7 @@
 
 -- One row per engine run (running = the controller's "generator running" flag, else the engine state, else the rpm above `running_rpm`).
 -- kind: test | mains_failure | manual | other (classified at the start, refined while the run lasts; kind_reason says which signal decided).
-CREATE TABLE generator_runs (
+CREATE TABLE generator_run_log (
   id             TEXT PRIMARY KEY,
   device_id      TEXT NOT NULL REFERENCES generator_devices(id) ON DELETE CASCADE,
   start_ts       INTEGER NOT NULL,                  -- epoch seconds (UTC)
@@ -30,8 +30,8 @@ CREATE TABLE generator_runs (
   peak_kw        REAL,
   last_run_ts    INTEGER NOT NULL                   -- the last tick that still saw the engine running
 );
-CREATE INDEX idx_generator_runs_device ON generator_runs (device_id, start_ts);
-CREATE UNIQUE INDEX idx_generator_runs_open ON generator_runs (device_id) WHERE end_ts IS NULL;
+CREATE INDEX idx_generator_run_log_device ON generator_run_log (device_id, start_ts);
+CREATE UNIQUE INDEX idx_generator_run_log_open ON generator_run_log (device_id) WHERE end_ts IS NULL;
 
 -- Fuel events derived from the level: a refill (a rise of at least `refill_min_pct`, folded until the level settles) and an unexplained drop
 -- while the engine rests (at least `drop_min_pct` inside `fuel_window_h`: a leak or a theft to check - a hint, never an alarm).

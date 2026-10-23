@@ -5,7 +5,7 @@ Two kinds of data live here:
 - `brand.*` settings (rows of `settings`, carried by the project backup): company name / kind, the stamps of the stored logos,
   `brand.logo_size` (s | m | l | xl), `brand.dark_mode` (plate | file | invert), `brand.title.prefix`, `brand.title.mode`
   (both | dev | project) and `brand.project.name`;
-- the `brand_assets` table (migration 0165, provisional): the normalised image of each (kind, variant) as base64 text, so the
+- the `brand_assets` table (migration 0166): the normalised image of each (kind, variant) as base64 text, so the
   backup carries it too.
 
 The upload is validated by CONTENT, never by the browser's Content-Type: PNG / JPEG / WebP are decoded behind a header-declared

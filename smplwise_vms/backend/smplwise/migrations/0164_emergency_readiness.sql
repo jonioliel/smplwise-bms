@@ -1,5 +1,5 @@
 -- CR-EMERG104 (emergency readiness view, docs/changes/CR-EMERG104.md, owner answers 24.10 q201-q209 + q284).
--- PROVISIONAL number 0194 (assigned by the lead for the EMERGREADY104-295 build; renumber at the integration).
+-- Final number 0164 (built as PROVISIONAL 0194 for the EMERGREADY104-295 build; renumbered at the 2.16.0 integration, release/2160).
 -- Additive only. Nothing here is read while the module switch `emergency_readiness.enabled` is off (default "false").
 --   * maint_tasks.emergency_slot: the CLOSED type column (owner q205 b) that binds a ledger task to one slot of the readiness view.
 --   * emergency_contacts: the dedicated emergency contact list (owner q203 b); phone / e-mail are shown only to a manager.

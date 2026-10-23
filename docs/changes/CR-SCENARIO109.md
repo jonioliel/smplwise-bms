@@ -327,5 +327,5 @@ value uses the global default.
 
 ### 17.5 Migration
 
-The build uses PROVISIONAL migration number **0199** (`0199_scenarios.sql`, replacing the `0170` placeholder of section 5); the final number is
+The build used PROVISIONAL migration number **0199**, final **0171** (`0171_scenarios.sql`, renumbered at the 2.16.0 integration, release/2160; it replaced the `0170` placeholder of section 5); the final number is
 assigned at integration under the renumbering rule.

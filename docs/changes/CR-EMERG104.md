@@ -260,7 +260,7 @@ Standing rule of the owner: every threshold / default / window / recipient is ed
 | 8 | (b) The print attaches the approval files | The printable view lists the bound tasks' approval files by reference; merging the file bytes into one PDF is NOT built in this slice (the print page links them). |
 | 9 | (a) "ready" / "not ready" and banners, no per-door lock state | As written in section 3 (E11, E12) and section 6 (banners). |
 
-Provisional migration number: **0194** (assigned by the lead for this build; renumber at integration). One file, additive: one column, two tables.
+Migration number: **0164** (built as provisional 0194; renumbered at the 2.16.0 integration, release/2160). One file, additive: one column, two tables.
 
 ## 15. Build status on `pilot/EMERGREADY104-295` (updated with each push)
 

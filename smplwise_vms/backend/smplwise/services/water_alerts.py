@@ -63,7 +63,7 @@ OVERRIDE_KEYS: dict[str, tuple[str, float | None, float | None]] = {
 }
 MUTE_MINUTES = (15, 30, 60, 120)
 # CR-WATER78 section 16 (owner review 24.10): the alert snooze ("נדנוד") - the offered durations (editable list), the main button's default
-# and the maximum, stored in water_alert_settings (0154) with one revision with the routing. Initial set 15 min, 1 hour, 4 hours, 1 day;
+# and the maximum, stored in water_alert_settings (0161) with one revision with the routing. Initial set 15 min, 1 hour, 4 hours, 1 day;
 # default 1 hour; maximum 7 days (a proposal the owner may change in Settings).
 SNOOZE_DEFAULTS: dict[str, Any] = {"durations": [15, 60, 240, 1440], "default": 60, "max": 10080}
 SNOOZE_LIMITS = {"min": 5, "max": 43200, "count": 12}  # 5 minutes .. 30 days, at most 12 offered durations
@@ -160,7 +160,7 @@ def load(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def snooze_of(r: Any) -> dict[str, Any]:
-    """The snooze settings of the row (tolerant: before 0154, or an unreadable value, the defaults)."""
+    """The snooze settings of the row (tolerant: before 0161, or an unreadable value, the defaults)."""
     out = copy.deepcopy(SNOOZE_DEFAULTS)
     if r is None or "snooze_minutes_json" not in r.keys():
         return out

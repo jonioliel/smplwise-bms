@@ -1,5 +1,5 @@
--- PROVISIONAL NUMBER (CR-NOTICE106 / NOTICE106B-295): main ends at 0151 and release/2150 takes 0152+; this file is renumbered at
--- integration like every other branch's migration. Nothing else refers to the number.
+-- Final number 0165 (CR-NOTICE106 / NOTICE106B-295; built as PROVISIONAL 0160, renumbered at the 2.16.0 integration, release/2160).
+-- Nothing else refers to the number.
 --
 -- CR-NOTICE106 - the building notice board (docs/changes/CR-NOTICE106.md section 3.1): notices, TV boards, the notices tagged to
 -- a board, read marks. The module switch `notices.enabled` is OFF by default (a setting, not a table). The effective state of a

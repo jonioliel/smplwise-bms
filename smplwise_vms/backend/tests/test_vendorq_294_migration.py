@@ -102,7 +102,8 @@ def test_the_file_carries_its_final_number_and_rebuilds_each_table_once():
     assert "CREATE TABLE outbound_documents" in sql
     later = [g.name for g in dbmod.MIGRATIONS_DIR.glob("*.sql") if BASE < int(g.name[:4]) and g != f
              and re.search(r"CREATE TABLE (ticket_outbox_new|ticket_rfq_messages_new)", g.read_text(encoding="utf-8"))]
-    assert later == [], "one rebuild of each table on this branch"
+    # release/2160: 0170 (CR-INTAKE99) rebuilds ticket_outbox once more for its `intake_reply` purpose - a later release's own rebuild
+    assert later == ["0170_ticket_intake.sql"], "one rebuild of each table on this branch; the next one is CR-INTAKE99's"
 
 
 def test_every_row_and_column_survives_and_only_the_d21_lines_change(upgraded):

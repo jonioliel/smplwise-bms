@@ -430,7 +430,7 @@ Tests added to section 11 for the build: title composition (all three modes, emp
 x dark file matrix (`file` without a file falls back to the plate), the sign-in card shows both logos with and without a company logo.
 
 ## 16. Build record - branch `pilot/LOGOS295B` (mockup v3.1 approved by the owner 2026-10-24)
-Built on `pilot/LOGOS-295` (main v2.12.4 base); nothing merged, nothing tagged. Provisional migration `0165_brand_assets.sql` (main ends
+Built on `pilot/LOGOS-295` (main v2.12.4 base); nothing merged, nothing tagged. Provisional migration `0165_brand_assets.sql` (final `0166_brand_assets.sql`, renumbered at the 2.16.0 integration, release/2160) (main ends
 0151, release/2150 takes 0152+): the integrator renumbers it.
 
 **Built.**

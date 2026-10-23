@@ -1,6 +1,6 @@
 -- WHITELABEL097-295 (white-label and customer pack, board row r097): the installer company's own logo joins the developer / management
--- company's in `brand_assets` as kind 'installer'. PROVISIONAL number 0193 (main ends at 0151, release trains take 0152+; this branch also sits on
--- 0165 of pilot/LOGOS295B): the integrator renumbers it at integration, like every pilot migration.
+-- company's in `brand_assets` as kind 'installer'. Final number 0167 (built as PROVISIONAL 0193; renumbered at the 2.16.0
+-- integration, release/2160; it follows 0166_brand_assets of pilot/LOGOS295B).
 -- SQLite cannot alter a CHECK, so the table is rebuilt with the wider kind list; rows are copied as they are.
 -- Settings keys (no schema): brand.wl.enabled ('0' | '1', default '0' = SmplWise branding only), brand.wl.name, brand.wl.contact,
 -- brand.wl.accent ('default' or a preset id of services/brand_colors.py), brand.wl.logo ({"light": stamp|null, "dark": stamp|null}).

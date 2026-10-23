@@ -1,4 +1,4 @@
--- PROVISIONAL 0197 (PARTNERAPI113-295, branch pilot/PARTNERAPI113-295 from origin/main 9d4e54439 = 2.14.0). Renumbered at integration;
+-- Final number 0169 (built as PROVISIONAL 0197 on pilot/PARTNERAPI113-295; renumbered at the 2.16.0 integration, release/2160);
 -- the content does not depend on the number. Design record: docs/changes/CR-PARTNERAPI113.md (section 11; owner answers 24.10 batch 3,
 -- questions 164-172).
 --

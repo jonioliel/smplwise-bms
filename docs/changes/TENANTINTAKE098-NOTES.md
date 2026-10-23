@@ -6,7 +6,7 @@ Owner answers: `private/planning/OWNER_ANSWERS_2026-10-24_batch2_notes.md` (143-
 ## What is built (OFF by default)
 
 - `intake_rules.py` + `intake_seed_he.json`: the pure, rule-based Hebrew extractor (no model, no network). Abstains below medium confidence.
-- Migration **0198 (PROVISIONAL, renumber at integration)**: `ticket_intake_known`, `_drafts`, `_lexicon`, `_feedback`, `_blocks`, `_unlisted`,
+- Migration **0170** (built as provisional 0198; renumbered at the 2.16.0 integration, release/2160): `ticket_intake_known`, `_drafts`, `_lexicon`, `_feedback`, `_blocks`, `_unlisted`,
   `ticket_inbound.intake_draft_id`, and a rebuild of `ticket_outbox` that only adds the purpose `intake_reply`.
 - `intake.py` + `routers/tickets_intake.py` (`/api/v1/tickets/intake/...`, operator side only, no public route): the inbound hook, caps,
   coalescing, drafts, edit / approve (through `create_ticket`, origin `inbound`, with a "needs review" note) / attach (by number) /

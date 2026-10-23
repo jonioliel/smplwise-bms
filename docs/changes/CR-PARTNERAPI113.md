@@ -404,7 +404,7 @@ Owner answers applied (24.10 batch 3, questions 164-172):
 
 Deviations and decisions of the build (to confirm at review):
 
-1. **Migration number**: PROVISIONAL **0197** (`0197_partner_api.sql`), not 0170 (the task's number); renumbered at integration.
+1. **Migration number**: built as PROVISIONAL **0197**; final **0169** (`0169_partner_api.sql`), renumbered at the 2.16.0 integration (release/2160).
 2. **`tickets.origin` stays `inbound`** for a partner request: the CHECK of migration 0079 cannot be widened without rebuilding `tickets`
    (foreign keys cannot be switched off inside the migration transaction). The partner link lives in the new table
    `partner_ticket_links (ticket_id, token_id, client_id, external_ref)`; the author is `partner:<ptk id>`, the timeline event carries

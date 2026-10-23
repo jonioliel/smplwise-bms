@@ -622,7 +622,7 @@ listener as its checklist.
 Built (module `notices.enabled` OFF by default): slice 1 core without the home widget, slice 3 TV boards in full, and from slice 4 the
 weather (the installation's `weather.*` entity) and the news ticker (server-side RSS, curated list + optional https URL).
 
-- Migration `0160_notices.sql` - **PROVISIONAL number** (main ends 0151, release/2150 takes 0152+): renumber at integration.
+- Migration `0165_notices.sql` (built as provisional `0160_notices.sql`; renumbered at the 2.16.0 integration, release/2160).
 - Backend: `services/notices/` (model, store, audience, display, sources, page, listener), `routers/notices.py`. Settings are the module's
   own keys behind `GET/PATCH /notices/settings` (not the global settings PATCH); `notices.enabled` and `notices.boards.remote` are in the
   backup `SETTINGS_KEEP`. New key `notices.boards.origin` (the address the TV links point to). Company logo: the boards keep their own

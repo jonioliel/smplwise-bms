@@ -255,7 +255,7 @@ ancestor, no inner overflow. Screenshots were looked at (`private/review/liveeve
 
 ## 11. Build (branch `pilot/LIVEEVENT100B-295`, from the approved mockup v2)
 
-Built: S1 (migration **0196 PROVISIONAL** - renumber at integration; main ends 0151, release/2150 takes 0152+), S2, S3, S4, most of S5,
+Built: S1 (migration **0168**, built as provisional 0196; renumbered at the 2.16.0 integration, release/2160), S2, S3, S4, most of S5,
 the settings card of S6. Deviations from the text above, recorded rather than silently resolved:
 
 - Settings live in their own route (`GET|PUT /incidents/settings`, system.configure, every key bounded) instead of `routers/settings.py`

@@ -31,7 +31,7 @@ dark / blurred / shifted must hold `confirm_samples` (2, 1-10) samples in a row;
 
 ## Reference view
 
-Table `camera_image_refs` (**PROVISIONAL migration 0191**; main ends at 0151, release/2150 uses 0152+ - renumber at integration): one 64 x 48
+Table `camera_image_refs` (migration **0163**, built as provisional 0191; renumbered at the 2.16.0 integration, release/2160): one 64 x 48
 grayscale thumbnail per camera, never a full picture. The first usable sample becomes the reference automatically; an administrator may set it
 from the latest sample or clear it (camera drawer on בריאות מצלמות; audited).
 

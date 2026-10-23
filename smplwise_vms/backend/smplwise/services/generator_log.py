@@ -3,7 +3,7 @@ and fuel, the fuel refills and unexplained drops, and the test cadence (when the
 
 Read-only and explanatory like the rest of the generator screen: everything is DERIVED from the values the state mirror already holds
 (services/generator_core.read_values_bulk) on the generator tick (services/generator_runtime.py, every 15 s). Nothing is sent to the
-controller, nothing is scheduled, nothing starts or stops an engine. Storage: migration `generator_run_log` (provisional 0175).
+controller, nothing is scheduled, nothing starts or stops an engine. Storage: migration `0162_generator_run_log` (built as provisional 0175).
 
 Running = the controller's "generator running" flag, else the engine state (running / cooling = running; stopped / fault = not), else the
 rpm at or above the `running_rpm` threshold. An unknown reading changes nothing; a run without any reading for `no_data_close_min` is
@@ -217,13 +217,13 @@ def _close(conn: sqlite3.Connection, run: sqlite3.Row, end_ts: int, reason: str,
            mains_present: bool | None) -> str:
     """Close an open run; a blip (shorter than `min_run_s`) is dropped. Returns closed | dropped."""
     if end_ts - run["start_ts"] < int(cfg["min_run_s"]):
-        conn.execute("DELETE FROM generator_runs WHERE id = ?", (run["id"],))
+        conn.execute("DELETE FROM generator_run_log WHERE id = ?", (run["id"],))
         return "dropped"
     kind, why = run["kind"], run["kind_reason"]
     if why == "unloaded":  # the final word on an unloaded run: its whole length counts now
         kind, why = decide("other", None, None, took_load=bool(run["took_load"]), mains_present=mains_present, duration_s=end_ts - run["start_ts"], cfg=cfg)
     v = values or {}
-    conn.execute("UPDATE generator_runs SET end_ts = ?, end_reason = ?, kind = ?, kind_reason = ?, hours_end = ?, fuel_end_pct = ?, fuel_end_l = ? WHERE id = ?",
+    conn.execute("UPDATE generator_run_log SET end_ts = ?, end_reason = ?, kind = ?, kind_reason = ?, hours_end = ?, fuel_end_pct = ?, fuel_end_l = ? WHERE id = ?",
                  (end_ts, reason, kind, why, _num(_val(v, "run_hours")), _num(_val(v, "fuel_pct")), _num(_val(v, "fuel_l")), run["id"]))
     return "closed"
 
@@ -275,7 +275,7 @@ def track(conn: sqlite3.Connection, now_ts: float, values_by_device: dict[str, d
         mains = mains_of(values, float(th["v_min"]))
         if mains is False:
             st["mains_lost_ts"] = ts
-        run = conn.execute("SELECT * FROM generator_runs WHERE device_id = ? AND end_ts IS NULL", (dev,)).fetchone()
+        run = conn.execute("SELECT * FROM generator_run_log WHERE device_id = ? AND end_ts IS NULL", (dev,)).fetchone()
         if run is not None and running is False:
             out["closed"] += _close(conn, run, ts, "stopped", values, cfg, mains) == "closed"
             run = None
@@ -291,7 +291,7 @@ def track(conn: sqlite3.Connection, now_ts: float, values_by_device: dict[str, d
                 obs = sticky_of(mode=mode, reason_kind=start_reason_kind(_val(values, "last_start_reason")), mains_lost_near=lost_near)
                 kind, why = decide("other", None, obs, took_load=loaded, mains_present=mains, duration_s=0, cfg=cfg)
                 conn.execute(
-                    """INSERT INTO generator_runs(id, device_id, start_ts, kind, kind_reason, mode_at_start, mains_at_start, took_load, hours_start, starts_start,
+                    """INSERT INTO generator_run_log(id, device_id, start_ts, kind, kind_reason, mode_at_start, mains_at_start, took_load, hours_start, starts_start,
                                                   fuel_start_pct, fuel_start_l, peak_load_pct, peak_kw, last_run_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (new_id(), dev, ts, kind, why, mode if isinstance(mode, str) else None, None if mains is None else int(mains), int(loaded),
                      _num(_val(values, "run_hours")), _num(_val(values, "starts")), _num(_val(values, "fuel_pct")), _num(_val(values, "fuel_l")),
@@ -306,7 +306,7 @@ def track(conn: sqlite3.Connection, now_ts: float, values_by_device: dict[str, d
                 obs = sticky_of(mode=mode, reason_kind=rk, mains_lost_near=lost_near)
                 kind, why = decide(run["kind"], run["kind_reason"], obs, took_load=took, mains_present=mains, duration_s=dur, cfg=cfg)
                 pl, pk = _num(_val(values, "load_pct")), _num(_val(values, "gen_kw"))
-                conn.execute("""UPDATE generator_runs SET kind = ?, kind_reason = ?, took_load = ?, last_run_ts = ?,
+                conn.execute("""UPDATE generator_run_log SET kind = ?, kind_reason = ?, took_load = ?, last_run_ts = ?,
                                 peak_load_pct = CASE WHEN ? IS NULL THEN peak_load_pct WHEN peak_load_pct IS NULL OR ? > peak_load_pct THEN ? ELSE peak_load_pct END,
                                 peak_kw = CASE WHEN ? IS NULL THEN peak_kw WHEN peak_kw IS NULL OR ? > peak_kw THEN ? ELSE peak_kw END WHERE id = ?""",
                              (kind, why, int(took), ts, pl, pl, pl, pk, pk, pk, run["id"]))
@@ -318,7 +318,7 @@ def track(conn: sqlite3.Connection, now_ts: float, values_by_device: dict[str, d
 def prune(conn: sqlite3.Connection, now_ts: float) -> dict[str, int]:
     keep = int(settings(conn)["retention_days"])
     cut = int(now_ts) - keep * 86400
-    a = conn.execute("DELETE FROM generator_runs WHERE end_ts IS NOT NULL AND end_ts < ?", (cut,)).rowcount
+    a = conn.execute("DELETE FROM generator_run_log WHERE end_ts IS NOT NULL AND end_ts < ?", (cut,)).rowcount
     b = conn.execute("DELETE FROM generator_fuel_events WHERE end_ts < ?", (cut,)).rowcount
     return {"runs": a, "fuel_events": b}
 
@@ -370,16 +370,16 @@ def summary(conn: sqlite3.Connection, device_id: str, lo: int, hi: int, now_ts: 
     """The strip above the log: run counts per kind, run time, controller hours, fuel used / refilled in lo..hi; the last test and when the next
     one is due (by `test_interval_days`); the run now in progress; the counters now."""
     cfg = settings(conn)
-    rows = conn.execute("SELECT * FROM generator_runs WHERE device_id = ? AND start_ts < ? AND (end_ts IS NULL OR end_ts > ?)", (device_id, hi, lo)).fetchall()
+    rows = conn.execute("SELECT * FROM generator_run_log WHERE device_id = ? AND start_ts < ? AND (end_ts IS NULL OR end_ts > ?)", (device_id, hi, lo)).fetchall()
     runs = [run_out(r, now_ts, cfg) for r in rows]
     by_kind = {k: sum(1 for x in runs if x["kind"] == k) for k in KINDS}
     run_s = sum(min(r["end_ts"] if r["end_ts"] is not None else now_ts, hi) - max(r["start_ts"], lo) for r in rows)
     fuel_pct = round(sum(x["fuel_used_pct"] or 0 for x in runs), 1)
     fuel_l = [x["fuel_used_l"] for x in runs if x["fuel_used_l"] is not None]
     fev = conn.execute("SELECT kind, from_pct, to_pct FROM generator_fuel_events WHERE device_id = ? AND start_ts < ? AND end_ts >= ?", (device_id, hi, lo)).fetchall()
-    last_test = conn.execute("SELECT * FROM generator_runs WHERE device_id = ? AND kind = 'test' ORDER BY start_ts DESC LIMIT 1", (device_id,)).fetchone()
-    last_mf = conn.execute("SELECT * FROM generator_runs WHERE device_id = ? AND kind = 'mains_failure' ORDER BY start_ts DESC LIMIT 1", (device_id,)).fetchone()
-    cur = conn.execute("SELECT * FROM generator_runs WHERE device_id = ? AND end_ts IS NULL", (device_id,)).fetchone()
+    last_test = conn.execute("SELECT * FROM generator_run_log WHERE device_id = ? AND kind = 'test' ORDER BY start_ts DESC LIMIT 1", (device_id,)).fetchone()
+    last_mf = conn.execute("SELECT * FROM generator_run_log WHERE device_id = ? AND kind = 'mains_failure' ORDER BY start_ts DESC LIMIT 1", (device_id,)).fetchone()
+    cur = conn.execute("SELECT * FROM generator_run_log WHERE device_id = ? AND end_ts IS NULL", (device_id,)).fetchone()
     interval = int(cfg["test_interval_days"])
     due = int(last_test["start_ts"]) + interval * 86400 if last_test is not None and interval else None
     v = values if values is not None else core.read_values(conn, device_id)
@@ -404,8 +404,8 @@ def list_runs(conn: sqlite3.Connection, device_id: str, lo: int, hi: int, now_ts
         where.append("kind = ?")
         args.append(kind)
     sql = " AND ".join(where)
-    total = conn.execute(f"SELECT COUNT(*) FROM generator_runs WHERE {sql}", args).fetchone()[0]
-    rows = conn.execute(f"SELECT * FROM generator_runs WHERE {sql} ORDER BY start_ts DESC, id LIMIT ? OFFSET ?", (*args, page_size, (page - 1) * page_size)).fetchall()
+    total = conn.execute(f"SELECT COUNT(*) FROM generator_run_log WHERE {sql}", args).fetchone()[0]
+    rows = conn.execute(f"SELECT * FROM generator_run_log WHERE {sql} ORDER BY start_ts DESC, id LIMIT ? OFFSET ?", (*args, page_size, (page - 1) * page_size)).fetchall()
     fev = conn.execute("SELECT * FROM generator_fuel_events WHERE device_id = ? AND start_ts < ? AND end_ts >= ? ORDER BY start_ts DESC LIMIT 20", (device_id, hi, lo)).fetchall()
     return {"runs": [run_out(r, now_ts, cfg) for r in rows], "total": total, "page": page, "page_size": page_size, "pages": max(1, -(-total // page_size)),
             "fuel_events": [{"id": f["id"], "kind": f["kind"], "started_at": _iso(f["start_ts"]), "ended_at": _iso(f["end_ts"]), "from_pct": f["from_pct"],
@@ -423,7 +423,7 @@ def mains_outages(conn: sqlite3.Connection, lo: int, hi: int) -> list[dict[str, 
             a = dt.datetime.fromisoformat(r["raised_at"].replace("Z", "+00:00")).timestamp()
             b = dt.datetime.fromisoformat(r["cleared_at"].replace("Z", "+00:00")).timestamp() if r["cleared_at"] else hi
             out.append({"from_ts": int(a), "to_ts": int(b), "source": "alert", "device_name": r["name"]})
-        for r in conn.execute("""SELECT g.start_ts, g.end_ts, d.name FROM generator_runs g JOIN generator_devices d ON d.id = g.device_id
+        for r in conn.execute("""SELECT g.start_ts, g.end_ts, d.name FROM generator_run_log g JOIN generator_devices d ON d.id = g.device_id
                                  WHERE g.kind = 'mains_failure' AND g.start_ts < ? AND (g.end_ts IS NULL OR g.end_ts > ?)""", (hi, lo)).fetchall():
             out.append({"from_ts": int(r["start_ts"]), "to_ts": int(r["end_ts"] if r["end_ts"] is not None else hi), "source": "run", "device_name": r["name"]})
     except (sqlite3.Error, ValueError):

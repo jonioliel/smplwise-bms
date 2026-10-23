@@ -1,5 +1,5 @@
--- PROVISIONAL number 0191 (CAMHEALTH091-295, board r091, docs/changes/CR-CAMHEALTH091.md). main ends at 0151 and release/2150 uses 0152+;
--- this file is renumbered to the next free number at the integration of the release that takes it.
+-- Final number 0163 (built as PROVISIONAL 0191; renumbered at the 2.16.0 integration, release/2160) (CAMHEALTH091-295, board r091,
+-- docs/changes/CR-CAMHEALTH091.md).
 --
 -- Camera image health: the REFERENCE view of each camera for the "shifted" check - a 64 x 48 grayscale thumbnail (3 KB of raw bytes, row
 -- major), never a full picture. The first usable sample becomes the reference automatically (`auto` = 1); an administrator may set it again

@@ -103,13 +103,13 @@ def bill(c, aid: str, rid: str = "req-000001") -> dict:
     return r.json()
 
 
-# ---------------------------------------------------------------- migration 0154 (PROVISIONAL)
+# ---------------------------------------------------------------- migration 0161 (built as provisional 0154; renumbered at release/2160)
 
-def test_migration_0154_is_provisional_and_creates_only_water_tables(app):
+def test_migration_0161_is_final_and_creates_only_water_tables(app):
     _c, settings = app
-    f = dbmod.MIGRATIONS_DIR / "0154_infra_water_billing.sql"
+    f = dbmod.MIGRATIONS_DIR / "0161_infra_water_billing.sql"
     text = f.read_text(encoding="utf-8")
-    assert "PROVISIONAL" in text.splitlines()[0]
+    assert "Final number 0161" in text.splitlines()[0]
     created = {ln.split()[2] for ln in text.splitlines() if ln.startswith("CREATE TABLE")}
     assert created == {"water_tariffs", "water_tariff_versions", "water_accounts", "water_account_meters", "water_bills", "water_bill_events", "water_auto_runs"}
     assert "vat" not in " ".join(created) and "customer" not in " ".join(created), "VAT and customers are the shared electricity tables"

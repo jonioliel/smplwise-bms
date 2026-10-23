@@ -1,6 +1,6 @@
 -- CR-LOGOS295 (docs/changes/CR-LOGOS295.md section 5.2 / 10): the installation's own logo - the developer / property-management
--- company's - one row per (kind, variant). PROVISIONAL number 0165 (main ends at 0151, release/2150 takes 0152+): the integrator
--- renumbers it at integration, like every pilot migration.
+-- company's - one row per (kind, variant). Final number 0166 (built as PROVISIONAL 0165; renumbered at the
+-- 2.16.0 integration, release/2160).
 -- The image is stored as base64 TEXT (not a BLOB as the CR first drew it): services/backup.py writes every table as JSON, so a
 -- text column travels in a project backup with no new restorable folder, and a restore can never land a stamp without its image.
 -- Settings keys (no schema): brand.company.name, brand.company.kind, brand.company.logo ({"light": stamp|null, "dark": stamp|null}),

@@ -8,7 +8,7 @@ switch `brand.wl.enabled` is OFF by default; while it is off nothing of the prof
 `/me.brand` carry `{"enabled": false}` only, the stamped public logo route answers 404).
 
 Storage: `brand.wl.*` settings rows (carried by the project backup like every setting) and the installer logos as kind `installer`
-in `brand_assets` (migration 0193, provisional), written through the same content-validating normaliser as the company logo
+in `brand_assets` (migration 0167), written through the same content-validating normaliser as the company logo
 (PNG / JPEG / WebP re-encoded, SVG rebuilt by services/svg_sanitize.py).
 
 The customer pack is one zip: `brand-profile.json`, `logos/light.(png|svg)`, `logos/dark.(png|svg)` and `README_HE.txt`. An import is

@@ -398,7 +398,7 @@ Status: BUILT on the branch - the backend of section 16 and the frontend's API c
 (the "מים" shell, מונים / צריכה / התראות and the new חשבונות / חיובים / לקוחות / הגדרות pages) are NOT built yet: slices 1 and 2 were
 backend-only, so the water area has no shell to mount pages in.
 
-- **Migration `0154_infra_water_billing.sql` (PROVISIONAL; the lead renumbers after the slice-1 / slice-2 files)**: `water_tariffs`,
+- **Migration `0161_infra_water_billing.sql` (built as provisional 0154; renumbered at the 2.16.0 integration, release/2160)**: `water_tariffs`,
   `water_tariff_versions` (`water_price` > 0 and `sewage_price` >= 0 per m3, `price_mode`), `water_accounts` (signed formula over water meter
   ids; `customer_id` references the SHARED `energy_customers`), `water_account_meters`, `water_bills` (`m3`, `total`, the sealed snapshot),
   `water_bill_events`, `water_auto_runs`; snooze columns `water_alert_settings.snooze_minutes_json / snooze_default_min / snooze_max_min`

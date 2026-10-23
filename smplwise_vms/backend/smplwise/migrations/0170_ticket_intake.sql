@@ -1,6 +1,6 @@
 -- CR-INTAKE99 (docs/changes/CR-INTAKE99.md) as answered by the owner 2026-10-24 (questions 143-156, follow-up 267): phases 1-3 only -
 -- free-text WhatsApp requests become DRAFTS that a human approves; only numbers on a managed list may open one.
--- PROVISIONAL NUMBER 0198 (the integrator renumbers at integration, the migration rule). Everything here is inert while
+-- Final number 0170 (built as PROVISIONAL 0198; renumbered at the 2.16.0 integration, release/2160). Everything here is inert while
 -- tickets.enabled or intake.enabled is off. No public surface: no requester sessions, codes or tokens (owner 156: decided later).
 --
 -- 1. ticket_intake_known    the managed list of numbers that may open a request by WhatsApp (owner 146): number, HMAC match key, last four

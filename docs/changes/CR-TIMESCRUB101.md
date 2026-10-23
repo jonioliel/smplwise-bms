@@ -278,7 +278,7 @@ Built (default OFF behind `history.timescrub`):
   entity ids. The range also carries the elevator layer.
 - `history.presence` (new, sensitive; site_admin + system_admin), the audit row `history.presence.view` once per (user, floor, UTC day).
   With the flag on, `GET /floors/{id}/map?at=` withholds the presence past from a caller without `history.presence` too.
-- Gap table `ha_state_history_gaps`, migration **0152 (PROVISIONAL)**, written by the HA sync's connect note (`ha_history.note_connect_gap`)
+- Gap table `ha_state_history_gaps`, migration **0160** (built as provisional 0152; renumbered at the 2.16.0 integration, release/2160), written by the HA sync's connect note (`ha_history.note_connect_gap`)
   when the last state the mirror saw is older than 60 s. Rule applied in both routes: a state is unknown when T is inside a gap OR a gap
   lies between its last change and T (stricter than 4.3's "T inside a gap"; it matches section 1's "never interpolates across a gap").
 - Settings `history.timescrub`, `history.range_max_days` (7, 1..30), `history.presence_retention_days` (7, 1..30).

@@ -1,5 +1,5 @@
--- PROVISIONAL NUMBER 0154 (CR-WATER78 slice 3 / slice A of mockup v4, pilot/WATER78C-295): renumbered at the integration to the next free
--- number after the water slice-1 / slice-2 files. The content does not depend on the number.
+-- Final number 0161 (built as PROVISIONAL 0154; renumbered at the 2.16.0 integration, release/2160) (CR-WATER78 slice 3 / slice A of
+-- mockup v4, pilot/WATER78C-295). The content does not depend on the number.
 --
 -- CR-WATER78 section 16 (owner review 24.10, mockup v4 APPROVED): water accounts, water + sewage tariffs, bills and their sealed snapshot,
 -- the automatic-generation runs, and the alert snooze. SHARED with electricity, never copied here (owner correction 24.10): VAT
