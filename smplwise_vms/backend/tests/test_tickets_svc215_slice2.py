@@ -87,7 +87,7 @@ def documents(s4, vendor_id: str, *docs: tuple[str, int, int], enabled: bool = T
         for i, (doc_type, left, lead) in enumerate(docs):
             conn.execute("INSERT INTO maint_tasks(id, kind, title, vendor_id, doc_type, due_date, lead_days, active, created_by, created_at, updated_at) "
                          "VALUES (?, 'vendor_document', ?, ?, ?, ?, ?, 1, 't', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
-                         (f"md-{vendor_id[:6]}-{i}", doc_type, vendor_id, doc_type, (today + dt.timedelta(days=left)).isoformat(), lead))
+                         (f"md-{crid()[:12]}", doc_type, vendor_id, doc_type, (today + dt.timedelta(days=left)).isoformat(), lead))
         set_setting(conn, "maintenance.enabled", "true" if enabled else "false")
 
 
