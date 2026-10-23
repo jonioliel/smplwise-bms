@@ -86,6 +86,9 @@ class ManualDispatch:
     def queue_code(self, conn, **_kw: Any) -> dict[str, Any]:
         return {"queued": False}
 
+    def queue_arrival_cancelled(self, conn, **_kw: Any) -> dict[str, Any]:
+        return {"queued": False, "channel": "manual"}
+
 
 DISPATCH: LinkDispatch = ManualDispatch()
 
@@ -237,6 +240,71 @@ def _access_needed_available(conn, contact: dict[str, Any]) -> bool:
         return access_arrival.flag_available(conn, contact) and not assignees.is_staff(contact)
     except Exception:  # noqa: BLE001 - the assign dialog never fails on the access feature
         return False
+
+
+def access_needed_block(conn, row: dict[str, Any], link_row: dict[str, Any], *, now: dt.datetime) -> dict[str, Any] | None:
+    """PHYSENTRY070-295: the ticket drawer's `link.access_needed` = {available, on}; None (the control is not drawn) while the switch
+    `access.external.arrival_after_grant` is off, the external-grants feature is off, the link is not the live current one, or the
+    assignment is not a regular outside vendor / person assignment (an RFQ work order has its own window)."""
+    try:
+        from .. import access_arrival, access_external
+
+        if not access_external.arrival_after_grant(conn):
+            return None
+        current = row.get("current_assignment_id")
+        if not current or link_row.get("assignment_id") != current or row.get("asg_ended_at") or row.get("asg_kind") != "contact":
+            return None
+        if handler_links.state(link_row, now) != "live" or link_row.get("kind") == "staff":
+            return None
+        contact = store_links.contact(conn, link_row.get("contact_id"))
+        if not _access_needed_available(conn, contact or {}) or access_arrival.is_rfq_order(conn, current):
+            return None
+        return {"available": True, "on": access_arrival.is_flagged(conn, current)}
+    except Exception:  # noqa: BLE001 - the ticket page never fails on this optional control
+        return None
+
+
+def set_access_needed(conn, viewer: Viewer, seen: Seen, *, value: bool, revision: int, rid: str | None = None) -> dict[str, Any]:
+    """PHYSENTRY070-295 (owner decision GRANTS3 Q3 = B): the manager ticks / unticks "entry required" on the CURRENT outside assignment AFTER
+    it was made. Off by default (setting `access.external.arrival_after_grant`): 409 `arrival_after_grant_off`. A manager holding
+    `tickets.external` only; 422 `not_allowed` for a staff / Arx-user / erased contact, an RFQ work order or a feature that is off;
+    409 `ticket_stale` on an old revision. Unticking only stops OFFERING the step: requests and grants that exist stay. When an
+    untick removed a tick and the link is live, the vendor gets the code-owned notice `arrival_cancelled` (an `update` message through
+    the outbox, held by the send hours; nothing when no channel can carry it - the result says `notice.queued: false`)."""
+    from .. import access_arrival, access_external
+
+    row = seen.row
+    _need(conn, viewer, seen, "ticket.access_needed", rid, external=True)
+    if not access_external.arrival_after_grant(conn):
+        raise ApiError(409, "arrival_after_grant_off", text(conn, "האפשרות כבויה."))
+    if row["revision"] != revision:
+        raise ApiError(409, "ticket_stale", text(conn, "הנתונים השתנו בינתיים. טענו מחדש."), details={"revision": row["revision"]})
+    link_row = _current_link(conn, seen)
+    aid = link_row["assignment_id"]
+    contact = store_links.contact(conn, link_row["contact_id"]) or {}
+    bad = ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "access_needed", "code": "not_allowed"}]})
+    if link_row.get("kind") == "staff" or access_arrival.is_rfq_order(conn, aid) or not _access_needed_available(conn, contact):
+        raise bad
+    now_dt = handler_links.now_utc()
+    now = handler_links.iso(now_dt)
+    live = handler_links.state(link_row, now_dt) == "live"
+    was = access_arrival.is_flagged(conn, aid)
+    notice: dict[str, Any] = {"queued": False}
+    if value:
+        if not live:
+            raise ApiError(409, "link_not_live", text(conn, "הקישור אינו פעיל. צרו קישור חדש."))
+        if not was:
+            access_arrival.set_flag(conn, assignment_id=aid, ticket_id=row["id"], by=viewer.uid, at=now)
+    elif was:
+        access_arrival.clear_flag(conn, assignment_id=aid)
+        queue = getattr(DISPATCH, "queue_arrival_cancelled", None)
+        if live and queue is not None:
+            notice = queue(conn, ticket=row, assignment_id=aid, link=link_row, contact=contact, requested_by=viewer.uid, token=now)
+    if bool(value) != was:
+        audit(conn, actor=viewer.principal, action="ticket.access_needed.set" if value else "ticket.access_needed.clear", decision="allowed",
+              resource_type="ticket", resource_id=row["id"], request_id=rid,
+              details={"number": row["number"], "assignment_id": aid, "notice_queued": bool(notice.get("queued")), "notice_channel": notice.get("channel")})
+    return {"on": bool(value), "notice": {"queued": bool(notice.get("queued")), "channel": notice.get("channel")}}
 
 
 def _cost_option(conn, row: dict[str, Any], contact: dict[str, Any], vendor: dict[str, Any] | None) -> dict[str, Any]:

@@ -53,11 +53,13 @@ DIGEST_HOUR_KEY = "access.external.digest_hour"    # 0..23
 DIGEST_LAST_KEY = "access.external.digest_last"    # internal: the period end of the last digest sent (never shown)
 NAME_SYNC_KEY = "access.external.name_sync"        # manual | auto (owner decision 5)
 PLACEMENT_KEY = "access.external.placement"        # access | tickets | both (owner decision 6)
+ARRIVAL_AFTER_GRANT_KEY = "access.external.arrival_after_grant"  # off | on (PHYSENTRY070-295; default off): the "entry required" tick after the assignment + the vendor notice on cancel
 NAME_SYNC_MODES = ("manual", "auto")
+OFF_ON = ("off", "on")
 PLACEMENTS = ("access", "tickets", "both")
 DIGEST_CHANNELS = ("app", "app_whatsapp")
-DEFAULTS = {DIGEST_DAY_KEY: "0", DIGEST_HOUR_KEY: "8", NAME_SYNC_KEY: "manual", PLACEMENT_KEY: "access"}
-KEYS = (DIGEST_DAY_KEY, DIGEST_HOUR_KEY, NAME_SYNC_KEY, PLACEMENT_KEY)
+DEFAULTS = {DIGEST_DAY_KEY: "0", DIGEST_HOUR_KEY: "8", NAME_SYNC_KEY: "manual", PLACEMENT_KEY: "access", ARRIVAL_AFTER_GRANT_KEY: "off"}
+KEYS = (DIGEST_DAY_KEY, DIGEST_HOUR_KEY, NAME_SYNC_KEY, PLACEMENT_KEY, ARRIVAL_AFTER_GRANT_KEY)
 
 DIGEST_SOURCE = "access.weekly_digest"
 CLOSED_SOURCE = "access.grant_closed_manual"
@@ -95,6 +97,14 @@ def name_sync(conn: sqlite3.Connection) -> str:
     return _choice(conn, NAME_SYNC_KEY, NAME_SYNC_MODES)
 
 
+def arrival_after_grant(conn: sqlite3.Connection) -> bool:
+    """PHYSENTRY070-295: default OFF; anything but exactly `on` (also an unreadable value) is off."""
+    try:
+        return _choice(conn, ARRIVAL_AFTER_GRANT_KEY, OFF_ON) == "on"
+    except sqlite3.Error:
+        return False
+
+
 def digest_day(conn: sqlite3.Connection) -> int:
     return _int(conn, DIGEST_DAY_KEY, 0, 6)
 
@@ -114,7 +124,7 @@ def digest_channel(conn: sqlite3.Connection) -> str:
 
 def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"digest_channel": digest_channel(conn), "digest_day": digest_day(conn), "digest_hour": digest_hour(conn), "name_sync": name_sync(conn),
-            "placement": placement(conn)}
+            "placement": placement(conn), "arrival_after_grant": "on" if arrival_after_grant(conn) else "off"}
 
 
 def apply_settings(conn: sqlite3.Connection, changes: dict[str, Any]) -> list[tuple[str, Any, Any]]:
@@ -122,7 +132,8 @@ def apply_settings(conn: sqlite3.Connection, changes: dict[str, Any]) -> list[tu
     after) for the audit."""
     before = settings_view(conn)
     out: list[tuple[str, Any, Any]] = []
-    keys = {"digest_day": DIGEST_DAY_KEY, "digest_hour": DIGEST_HOUR_KEY, "name_sync": NAME_SYNC_KEY, "placement": PLACEMENT_KEY}
+    keys = {"digest_day": DIGEST_DAY_KEY, "digest_hour": DIGEST_HOUR_KEY, "name_sync": NAME_SYNC_KEY, "placement": PLACEMENT_KEY,
+            "arrival_after_grant": ARRIVAL_AFTER_GRANT_KEY}
     for name, value in changes.items():
         if name == "digest_channel":
             _set_digest_channel(conn, str(value))

@@ -121,6 +121,8 @@ export interface ScreenSettings {
   digest_hour: number;
   name_sync: NameSync;
   placement: Placement;
+  /** PHYSENTRY070-295: default 'off' */
+  arrival_after_grant?: 'off' | 'on';
 }
 
 export interface GrantsReply {

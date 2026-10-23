@@ -1056,6 +1056,25 @@ class OutboxDispatch:
         held = hours.decide(row.purpose, self.rt.clock(), send_window(conn, ticket["department_id"]), time_zone(conn), send_now=row.send_now)
         return {"queued": True, "channel": ch, "outbox_id": row.id, "held_until": None if held.send else obs.iso_s(held.not_before)}
 
+    def queue_arrival_cancelled(self, conn, *, ticket: dict[str, Any], assignment_id: str, link: dict[str, Any], contact: dict[str, Any],
+                                requested_by: str, token: str) -> dict[str, Any]:
+        """PHYSENTRY070-295: the vendor notice "the entry request was cancelled" (purpose `update`, the code-owned variant
+        `arrival_cancelled`), inside the caller's transaction, never inline. Nothing is queued for a staff link or when no channel can carry it.
+        `token` (the instant of the cancel) makes one cancel one message."""
+        ch = self.channel(conn, contact)
+        if ch == "manual" or self.rt.outbox is None or link.get("kind") == "staff":
+            return {"queued": False, "channel": "manual"}
+        lang = contact.get("lang") if contact.get("lang") in mt.LANGS else mt.DEFAULT_LANG
+        try:
+            row = self.rt.enqueue(conn, purpose="update", contact_id=contact["id"], ticket_id=ticket["id"], assignment_id=assignment_id,
+                                  link_id=link["id"], department_id=ticket["department_id"],
+                                  params=message_params(conn, ticket, contact, assignment_id=assignment_id), channel=ch, requested_by=requested_by,
+                                  idempotency_key=f"arrcancel:{assignment_id}:{token}", template_id=mt.variant_template_id(mt.ARRIVAL_CANCELLED, lang))
+        except OutboxError:
+            log.warning("arrival-cancel notice not queued")
+            return {"queued": False, "channel": ch}
+        return {"queued": True, "channel": ch, "outbox_id": row.id}
+
     def code_ready(self, conn, contact: dict[str, Any]) -> tuple[bool, bool]:
         """(WhatsApp can carry a code now, e-mail can carry a code now) for the D6 rule at assignment time."""
         return code_channels(conn, contact, self.rt)

@@ -371,6 +371,25 @@ def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., p
     return _detail(conn, viewer, ticket_id)
 
 
+class AccessNeededBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: bool
+    revision: int = Field(ge=1)
+
+
+@router.post("/tickets/{ticket_id}/access-needed")
+def post_access_needed(body: AccessNeededBody, request: Request, ticket_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """PHYSENTRY070-295: "entry required" on the current outside assignment AFTER it was made (default off: setting
+    `access.external.arrival_after_grant`); an untick sends the vendor the cancel notice. Answers the ticket like the other link actions."""
+    viewer = Viewer(conn, principal)
+    seen = access.require_visible(viewer, ticket_id)
+    from ..services.tickets import external
+
+    external.set_access_needed(conn, viewer, seen, value=body.value, revision=body.revision, rid=_rid(request))
+    return _detail(conn, viewer, ticket_id)
+
+
 class ReturnBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: Literal["cannot_handle", "not_mine"]
