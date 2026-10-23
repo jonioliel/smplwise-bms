@@ -162,6 +162,7 @@ def create_ticket(conn, spec: TicketSpec, viewer: Viewer, *, rid: str | None = N
           details=details)
     sla.refresh(conn, ticket_id)  # slice 2: the dues of the new ticket (section 13.1)
     notify_bridge.ticket_created(conn, ticket_id)
+    _partner_hook(conn, ticket_id)
     if spec.assign_to is not None:
         seen = access.require_visible(viewer, ticket_id)  # checked above: the manager holds tickets.view and the ticket is placeless
         service.assign(conn, viewer, seen, spec.assign_to.kind, spec.assign_to.id, assign_note, spec.assign_note_external, seen.row["revision"], rid)
@@ -219,4 +220,68 @@ def create_by_rule(conn, spec: TicketSpec, *, source_note: str, absorb_note: str
           details={"number": number, "department_id": dept["id"], "origin": "rule", "rule_ref": spec.rule_ref, "actor": "system", **(data or {})})
     sla.refresh(conn, ticket_id)
     notify_bridge.ticket_created(conn, ticket_id)
+    _partner_hook(conn, ticket_id)
+    return CreateResult("created", ticket_id, number)
+
+
+def _partner_hook(conn, ticket_id: str) -> None:
+    """PARTNERAPI113-295: `ticket.created` for the partner webhooks (a constant-time no-op while `partner.webhooks` is off; never raises)."""
+    try:
+        from ..partner import webhooks
+
+        webhooks.on_ticket_created(conn, ticket_id)
+    except Exception:  # noqa: BLE001 - a webhook never breaks the creation of a ticket
+        pass
+
+
+# ---------------------------------------------------------------- PARTNERAPI113-295: the partner branch
+
+PARTNER_AUTHOR_PREFIX = "partner:"  # `tickets.created_by` of a partner ticket: `partner:<ptk id>` - never a user id
+
+
+def create_by_partner(conn, *, token_id: str, client_id: str, client_label: str, department_id: str, title: str, description: str,
+                      category_id: str | None, priority_key: str | None, floor_id: str | None, external_ref: str | None) -> CreateResult:
+    """The partner branch of the one creation path (CR-PARTNERAPI113 section 5): an UNASSIGNED ticket in an allowed department, placed on a
+    floor of the token's restriction when one is given. Same department / category / priority / text rules as a person's ticket. The
+    author is the partner token (`partner:<ptk id>`, timeline actor `system` with `via: partner`); origin stays `inbound` (the 0079 CHECK)
+    and the partner link is recorded in `partner_ticket_links`. The caller checked the scope, the departments and the restriction."""
+    dept = store.department(conn, department_id) if department_id else None
+    if dept is None or not dept["active"]:
+        raise service.invalid(conn, model.Invalid([model.Problem("department_id", "unknown")]))
+    try:
+        clean_title = model.text_field(title, "title", required=True, max_len=model.TITLE_MAX)
+        clean_desc = model.text_field(description, "description", required=False, max_len=model.DESCRIPTION_MAX, multiline=True)
+    except model.Invalid as exc:
+        raise service.invalid(conn, exc) from None
+    category, priority = _category_priority(conn, dept, TicketSpec(department_id=dept["id"], title=clean_title, category_id=category_id,
+                                                                    priority_key=priority_key))
+    placed: dict[str, Any] = {}
+    if floor_id:
+        row = conn.execute("""SELECT f.id AS floor_id, b.id AS building_id, b.site_id AS site_id FROM floors f JOIN buildings b ON b.id = f.building_id
+                              WHERE f.id = ? AND f.deleted_at IS NULL AND b.deleted_at IS NULL""", (floor_id,)).fetchone()
+        if row is None:
+            raise service.invalid(conn, model.Invalid([model.Problem("floor_id", "unknown")]))
+        placed = {"site_id": row["site_id"], "building_id": row["building_id"], "floor_id": row["floor_id"]}
+    now = now_iso()
+    ticket_id = new_id()
+    number = store.next_number(conn)
+    waiting_on, waiting_reason = model.waiting_for("new")
+    author = PARTNER_AUTHOR_PREFIX + token_id
+    name = model.clean_text(client_label)[:80]
+    store.insert_ticket(conn, {
+        "id": ticket_id, "number": number, "department_id": dept["id"], "category_id": category["id"] if category else None,
+        "priority_id": priority["id"], "title": clean_title, "description": clean_desc, "status": "new", "origin": "inbound",
+        "place_text": "", "created_by": author, "created_by_name": name, "last_activity_at": now,
+        "waiting_on": waiting_on, "waiting_reason": waiting_reason, "rule_ref": None, "dedupe_key": None,
+        "revision": 1, "created_at": now, "updated_at": now, **placed,
+    })
+    conn.execute("INSERT INTO partner_ticket_links (ticket_id, token_id, client_id, external_ref, created_at) VALUES (?,?,?,?,?)",
+                 (ticket_id, token_id, client_id, external_ref, now))
+    store.insert_event(conn, ticket_id, "created", actor_kind="system", actor_name=name, via="system", to_status="new",
+                       data={"origin": "inbound", "via": "partner", "partner_token": token_id}, at=now)
+    audit(conn, actor=None, action="partner.ticket.created", decision="allowed", resource_type="ticket", resource_id=ticket_id,
+          details={"number": number, "department_id": dept["id"], "token_id": token_id, "client_id": client_id, "floor_id": placed.get("floor_id")})
+    sla.refresh(conn, ticket_id)
+    notify_bridge.ticket_created(conn, ticket_id)  # the normal `ticket.new_unassigned` notification, like any other request
+    _partner_hook(conn, ticket_id)
     return CreateResult("created", ticket_id, number)

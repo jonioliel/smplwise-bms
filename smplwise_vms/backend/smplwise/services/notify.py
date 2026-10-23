@@ -265,6 +265,18 @@ def emit_full(conn: sqlite3.Connection, signal: Signal) -> EmitResult:
 
 
 def _emit(conn: sqlite3.Connection, signal: Signal) -> EmitResult:
+    res = _emit_inner(conn, signal)
+    if res.action in ("created", "resolved"):
+        try:  # PARTNERAPI113-295: the partner webhooks are one more consumer of the signal (a no-op while `partner.webhooks` is off)
+            from .partner import webhooks as partner_webhooks
+
+            partner_webhooks.on_notification(conn, signal, res.action)
+        except Exception:  # noqa: BLE001 - a webhook never breaks a notification
+            log.warning("partner webhook hook failed", exc_info=True)
+    return res
+
+
+def _emit_inner(conn: sqlite3.Connection, signal: Signal) -> EmitResult:
     policy = policies.get_policy(conn, signal.source)
     if policy is None:
         log.warning("notification signal of an unknown source %r ignored", signal.source)

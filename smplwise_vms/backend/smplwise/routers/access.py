@@ -87,6 +87,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # HMACACT2-295 (CR-034 section 7): starting or resuming a bridge key rotation. Sensitive, installation scope, system_admin only, never delegable,
     # never in a custom role (SYSTEM_PERMISSIONS). The route also still requires a system administrator.
     "bridge.key.rotate": "החלפת מפתח הגשר (הפעלה והמשך)",
+    # PARTNERAPI113-295 (owner answer 166): the partner interface - partner tokens, webhook targets, secrets, the delivery log. A SYSTEM permission:
+    # built-in system_admin only, never in a custom role, never delegable; a local Arx identity needs the second factor for it.
+    "partner.manage": "ניהול ממשק השותפים: אסימונים, יעדי הודעות ויומן משלוחים",
     "video.export": "ייצוא וידאו",
     "ha.entity.control": "שליטה בישויות HA",
     "audio.talk": "דיבור דו־כיווני",
@@ -407,7 +410,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "notices.boards": "לוח הודעות: לוחות תצוגה (קישורים והגדרות מסך)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
-                      "users.ha_manage", "identity.local.manage", "bridge.key.rotate"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
+                      "users.ha_manage", "identity.local.manage", "bridge.key.rotate", "partner.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a

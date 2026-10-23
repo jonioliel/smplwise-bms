@@ -131,6 +131,14 @@ SOURCES: tuple[Source, ...] = (
        who="managers", push=False, email=True, subject="system", resolve_text="העותק הבא הצליח"),
     _s("update.available", "עדכון זמין", "system", "info", "עדכון זמין", "גרסה {version} מוכנה להתקנה.", who="managers", push=False, email=True, subject="system", resolve_text="הגרסה הותקנה"),
     _s("notify.channel", "ערוץ התראות לא פועל", "system", "alert", "ערוץ התראות לא פועל", "{name}.", who="managers", push=False, subject="system", resolve_text="הערוץ חזר"),
+    # PARTNERAPI113-295 (services/partner): the partner interface's notices to the administrators - a token expires soon, the person who created a
+    # token is gone (owner answer 170: the token stays, the managers are told), a webhook target was paused by the circuit. Never a token or a URL.
+    _s("partner.token_expiring", "ממשק שותפים: אסימון עומד לפוג", "system", "info", "אסימון שותף עומד לפוג", "{name}: בתוקף עד {detail}.", who="managers",
+       push=False, subject="system", resolves=False),
+    _s("partner.owner_gone", "ממשק שותפים: יוצר האסימון אינו פעיל", "system", "info", "יוצר אסימון שותף אינו פעיל", "{name}: האסימון נשאר בתוקף.",
+       who="managers", push=False, subject="system", resolves=False),
+    _s("partner.endpoint_paused", "ממשק שותפים: יעד הודעות הושהה", "system", "alert", "יעד הודעות לשותף הושהה", "{name}: המשלוחים נכשלו ברצף.",
+       who="managers", push=False, subject="system", resolves=False),
     # ---- doors
     _s("opening.left_open", "דלת / חלון נשארו פתוחים", "doors", "alert", "פתוח זמן רב", "{name} פתוח יותר מ־{minutes} דקות.", after_s=600, resolve_text="נסגר"),
     _s("door.ring", "צלצול בדלת", "doors", "alert", "צלצול בדלת", "מישהו מצלצל ב{name}.", window_s=60, subject="door", resolve_text="הצלצול הסתיים"),

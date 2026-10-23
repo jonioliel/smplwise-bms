@@ -132,6 +132,7 @@ LOCAL_ADMIN_PERMISSIONS = frozenset({
     "rbac.assign", "identity.directory.read", "system.configure", "identity.local.manage",
     "rbac.roles.manage", "sources.configure", "audit.read", "backup.manage", "nvr.configure", "system.update",
     "bridge.key.rotate",  # HMACACT2-295: starting / resuming a bridge key rotation (system_admin only)
+    "partner.manage",  # PARTNERAPI113-295: the partner interface (system_admin only)
     "users.ha_manage",  # integ/264: USR1's system permission (system_admin only), listed for the same reason
 })
 LOCAL_ID_PREFIX = "l_"
