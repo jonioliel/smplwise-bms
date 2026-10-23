@@ -174,10 +174,10 @@ export class InsightsSettings extends LitElement {
     return html`<div class="card" data-thresholds><div class="ch-h"><h2>${ix('thresholds')}</h2></div><div class="fields">
       ${NUM_ORDER.map(({ k, label: l }) => html`<label>${ix(l)}<input class="inp ${errs.has(k) ? 'err' : ''}" data-field=${k} inputmode="decimal" .value=${f.nums[k]} aria-invalid=${errs.has(k)}
         @input=${(e: Event) => this.setNum(k, (e.target as HTMLInputElement).value)} />${errs.has(k) ? html`<span class="ferr" data-field-error=${k}>${fieldHint(k)}</span>` : nothing}</label>`)}
-      <label>${ix('fNight')}<span class="row" style="gap:6px"><input class="inp ${nightBad ? 'err' : ''}" type="time" data-field="night_from" .value=${f.nightFrom} @input=${(e: Event) => (this.form = { ...f, nightFrom: (e.target as HTMLInputElement).value })} />
+      <label class="wide2">${ix('fNight')}<span class="row" style="gap:6px"><input class="inp ${nightBad ? 'err' : ''}" type="time" data-field="night_from" .value=${f.nightFrom} @input=${(e: Event) => (this.form = { ...f, nightFrom: (e.target as HTMLInputElement).value })} />
         <span class="muted">-</span><input class="inp ${nightBad ? 'err' : ''}" type="time" data-field="night_to" .value=${f.nightTo} @input=${(e: Event) => (this.form = { ...f, nightTo: (e.target as HTMLInputElement).value })} /></span>
         ${nightBad ? html`<span class="ferr" data-field-error="night">${ix('fieldInvalid')}</span>` : nothing}</label>
-      <label>${ix('fDomains')}<span class="checks">${WASTE_DOMAINS.map((d) => html`<label><input type="checkbox" data-domain=${d} .checked=${f.domains.includes(d)} @change=${() => (this.form = { ...f, domains: this.toggleIn(f.domains, d) })} />${ix(`dom_${d}` as IxKey)}</label>`)}</span>
+      <label class="wide2">${ix('fDomains')}<span class="checks">${WASTE_DOMAINS.map((d) => html`<label><input type="checkbox" data-domain=${d} .checked=${f.domains.includes(d)} @change=${() => (this.form = { ...f, domains: this.toggleIn(f.domains, d) })} />${ix(`dom_${d}` as IxKey)}</label>`)}</span>
         ${hasField(this.bad, 'waste.domains') ? html`<span class="ferr">${ix('fieldInvalid')}</span>` : nothing}</label></div></div>`;
   }
 

@@ -107,7 +107,7 @@ export function reportFigures(model: ReportModel, lang: IxLang = model.lang): Fi
   if (d.doors?.configured) out.push({ id: 'doors', label: 'fDoors', value: fmtNum(d.doors.total.unexplained), note: ix('openings', undefined, lang) + ' ' + fmtNum(d.doors.total.openings), tone: 'muted' });
   if (d.temperature) out.push({ id: 'temp', label: 'fTemp', value: fmtNum(d.temperature.alarms), tone: d.temperature.alarms ? 'up' : 'muted' });
   if (out.length < 4 && d.elevators) out.push({ id: 'elevators', label: 'fElevators', value: fmtHM(d.elevators.down_min), tone: 'muted' });
-  if (out.length < 4 && d.generator?.runs) out.push({ id: 'genRuns', label: 'fGenRuns', value: fmtNum(d.generator.runs.runs), note: `${fmtNum(d.generator.runs.hours)} ${ix('hoursShort', undefined, lang)}`, tone: 'muted' });
+  if (out.length < 4 && d.generator?.runs) out.push({ id: 'genRuns', label: 'fGenRuns', value: fmtNum(d.generator.runs.runs), note: `${fmtNum(d.generator.runs.hours, 1)} ${ix('hoursShort', undefined, lang)}`, tone: 'muted' });
   else if (out.length < 4 && d.generator) out.push({ id: 'generator', label: 'fGenerator', value: fmtNum(d.generator.total), tone: d.generator.critical ? 'up' : 'muted' });
   if (out.length < 4 && d.cameras) out.push({ id: 'cameras', label: 'fCameras', value: fmtNum(d.cameras.events), tone: 'muted' });
   return out.slice(0, 4);

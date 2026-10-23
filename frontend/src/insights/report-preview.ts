@@ -91,7 +91,7 @@ function sectionBody(s: SectionId, model: ReportModel, lang: IxLang, o: PreviewO
       const alerts = g.alerts !== false;
       const runsTable = runs
         ? html`<div class="tw" data-gen-runs><table><thead><tr>${th(lang, 'device')}${th(lang, 'runsCol', 'n')}${th(lang, 'runHoursCol', 'n')}${th(lang, 'longestCol', 'n hide-m')}${th(lang, 'meterCol', 'n hide-m')}</tr></thead>
-            <tbody>${runs.devices.map((x) => html`<tr><td>${x.name}</td><td class="n">${x.runs}</td><td class="n">${fmtNum(x.hours)}</td><td class="n hide-m">${x.runs ? x.longest_min : '-'}</td><td class="n hide-m">${x.meter_hours === null ? '-' : fmtNum(x.meter_hours)}</td></tr>`)}</tbody></table></div>`
+            <tbody>${runs.devices.map((x) => html`<tr><td>${x.name}</td><td class="n">${x.runs}</td><td class="n">${fmtNum(x.hours, 1)}</td><td class="n hide-m">${x.runs ? x.longest_min : '-'}</td><td class="n hide-m">${x.meter_hours === null ? '-' : fmtNum(x.meter_hours, 1)}</td></tr>`)}</tbody></table></div>`
         : nothing;
       const alertsTable = !alerts
         ? nothing
@@ -101,7 +101,7 @@ function sectionBody(s: SectionId, model: ReportModel, lang: IxLang, o: PreviewO
           : runs ? nothing : html`<div class="muted">${T('none')}</div>`;
       return {
         head,
-        right: html`<span class="num">${runs ? `${runs.runs} · ${fmtNum(runs.hours)} ${T('hoursShort')}` : g.total}</span>`,
+        right: html`<span class="num">${runs ? `${runs.runs} · ${fmtNum(runs.hours, 1)} ${T('hoursShort')}` : g.total}</span>`,
         body: html`${runsTable}${alertsTable}`,
       };
     }

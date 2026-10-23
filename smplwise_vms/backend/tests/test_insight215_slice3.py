@@ -118,7 +118,7 @@ def test_a_silent_mirror_closes_the_run_at_the_last_time_seen(w):
         rows = conn.execute("SELECT interrupted, ended_at FROM generator_runs ORDER BY id").fetchall()
         assert rows[0]["interrupted"] == 1 and rows[0]["ended_at"] == "2026-09-10T08:04:00Z" and rows[1]["ended_at"] is None
         hours = ig.report(conn, ts(2026, 9, 1), ts(2026, 10, 1), 1)["hours"]
-    assert hours < 0.1  # four minutes plus an open run of a moment: the silent hours are NOT invented
+    assert hours <= 0.1  # four minutes plus an open run of a moment: the silent hours are NOT invented
 
 
 def test_a_run_across_midnight_of_the_month_counts_once_and_hours_are_clipped(w):

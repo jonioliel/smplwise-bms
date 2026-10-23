@@ -144,9 +144,16 @@ export const insightCss = css`
   @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
 
   .set { display: grid; gap: 14px; max-inline-size: 900px; }
+  /* a control screen: on a wide window the cards flow in two columns so the page does not run on for screens (one column below 1180 px) */
+  @media (min-width: 1180px) {
+    .set { display: block; columns: 2; column-gap: 14px; max-inline-size: 1240px; }
+    .set > .card { break-inside: avoid; margin-block-end: 14px; }
+    .set .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; padding: 12px 14px; }
+  }
   .sw { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-block-end: 1px solid var(--sw-border); }
   .sw:last-child { border-block-end: 0; }
   .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px; padding: 14px 16px; }
+  .fields .wide2 { grid-column: span 2; }
   .fields label { display: grid; gap: 4px; color: var(--sw-text-3); font-size: 12.5px; align-content: start; }
   .ferr { color: var(--sw-danger-text); font-size: 12px; }
   .ch-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-block-end: 1px solid var(--sw-border); }
@@ -173,6 +180,7 @@ export const insightCss = css`
   }
   @media (max-width: 520px) {
     .fields { grid-template-columns: minmax(0, 1fr); }
+    .fields .wide2 { grid-column: auto; }
     .actions { inline-size: 100%; }
     .actions .btn { flex: 1; justify-content: center; }
   }
