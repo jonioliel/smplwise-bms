@@ -258,7 +258,7 @@ def test_vendor_csv_columns_are_editable_and_windowed(s4):
     export.reset_rate()
     # the report range cuts the window: a range that starts after the visits sees no arrival base and no quote base
     rows = csv_of(s4.c.get(MONTHLY + "?from=2026-07-05&to=2026-07-05&group=vendor", headers=s4.h("joni")))
-    assert rows[1][2] == "1" and rows[1][4:] == ["", "", "", ""] or rows[1][4:] == ["", "", "", "", ""]
+    assert rows[1][2] == "1" and rows[1][4:] == [""] * 5, "numbers are arrival + quote: nothing ended inside that single day"
 
 
 # ---------------------------------------------------------------- the quote comparison
@@ -304,8 +304,6 @@ def test_the_comparison_carries_the_reputation_strip_and_the_document_mark(s4):
     put(s4, vendor_stats={"strip_numbers": ["arrival", "quote"]})
     mine = {v["contact_id"]: v for v in compare(s4, d["id"]).json()["vendors"]}[s4.vendor["id"]]
     assert set(mine["stats"]["numbers"]) == {"arrival", "quote"}
-    put(s4, vendor_stats={"money_permission": "tickets.configure", "strip_numbers": ["arrival", "quote"]})
-    # joni still holds configure; the strip keeps the quote number only for the money permission, so drop it from the card list instead
     put(s4, vendor_stats={"numbers": ["arrival", "repeat"]})
     mine = {v["contact_id"]: v for v in compare(s4, d["id"]).json()["vendors"]}[s4.vendor["id"]]
     assert set(mine["stats"]["numbers"]) == {"arrival"}, "a number hidden on the card is hidden in the strip"
@@ -344,13 +342,13 @@ def test_assigning_a_vendor_with_an_expired_document_asks_and_never_refuses(s4):
     tech = s4.add_contact(display_name="טכנאי קליימה", phone="050-000-0078", vendor_id=s4.vendor["id"])
     assert tech.status_code == 201, tech.text
     t = s4.ticket()
-    rev = s4.w.detail(t["id"])["revision"]
+    before = s4.w.detail(t["id"])
     r = s4.assign_contact(t["id"], tech.json()["id"])
     assert r.status_code == 409 and r.json()["code"] == "document_confirm_required", r.text
     docs = r.json()["details"]["documents"]
     assert [(x["doc_type"], x["state"]) for x in docs] == [("insurance", "expired")] and r.json()["details"]["vendor"]["id"] == s4.vendor["id"]
     after = s4.w.detail(t["id"])
-    assert after["revision"] == rev and after["status"] == "new", "nothing was written"
+    assert (after["revision"], after["status"]) == (before["revision"], before["status"]), "nothing was written"
     with s4.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM ticket_assignments WHERE ticket_id = ?", (t["id"],)).fetchone()[0] == 0
     denied = audits(s4, "tickets.assign.lapsed_document")
