@@ -280,7 +280,11 @@ def link_block(conn, ticket: dict[str, Any], *, manager: bool, external: bool, n
 
     locked_until = lock_state(conn, row, now) if locked else None
     staff = row.get("kind") == "staff"
+    from .external import access_needed_block  # PHYSENTRY070-295: present only while its switch is on and the link is the live current one
+
+    needed = access_needed_block(conn, ticket, row, now=now) if external else None
     return {
+        **({"access_needed": needed} if needed else {}),
         "kind": row.get("kind") or "external",  # TKSTAFF1: 'staff' = an internal employee's no-login link
         "state": st,
         "current": current,

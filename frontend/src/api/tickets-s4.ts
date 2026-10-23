@@ -184,6 +184,8 @@ export interface LinkBlock {
   require_code: boolean;
   code_locked: boolean;
   can: { copy: boolean; new: boolean; revoke: boolean; resend: boolean };
+  /** PHYSENTRY070-295: present only while the setting is on and the link is the live current one */
+  access_needed?: { available: boolean; on: boolean };
 }
 export type TicketWithLink = TicketDetail & { link?: LinkBlock | null };
 export interface CopyAnswer { url: string; text: string }
@@ -218,6 +220,7 @@ export interface TicketsS4Backend {
   assignContact(ticketId: string, body: AssignContactBody): Promise<TicketWithLink>;
   copyLink(ticketId: string): Promise<CopyAnswer>;
   linkAction(ticketId: string, action: 'new' | 'revoke'): Promise<TicketWithLink>;
+  setAccessNeeded(ticketId: string, value: boolean, revision: number): Promise<TicketWithLink>;
   health(): Promise<TicketsHealth>;
   probe(baseUrl?: string): Promise<ProbeAnswer>;
   rotateKey(): Promise<{ rotated: boolean; links_revoked: number; contacts_rekeyed: number }>;
@@ -253,6 +256,7 @@ const rest: TicketsS4Backend = {
   }),
   copyLink: (ticketId) => post<CopyAnswer>(`${T}/${enc(ticketId)}/link/copy`, {}),
   linkAction: (ticketId, action) => post<TicketWithLink>(`${T}/${enc(ticketId)}/link/${action}`, {}),
+  setAccessNeeded: (ticketId, value, revision) => post<TicketWithLink>(`${T}/${enc(ticketId)}/access-needed`, { value, revision }),
   health: () => get<TicketsHealth>(`${T}/health`),
   probe: (baseUrl) => post<ProbeAnswer>(`${T}/address/probe`, baseUrl === undefined ? {} : { base_url: baseUrl }),
   rotateKey: () => post<{ rotated: boolean; links_revoked: number; contacts_rekeyed: number }>(`${T}/key/rotate`, { confirm: true }),

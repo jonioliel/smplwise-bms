@@ -172,6 +172,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # WISKEYID: the external-grant switch and its limits are security policy - never loosened by an archive
                  "access.external_grants", "access.external.max_days", "access.external.max_doors",
                  "access.external.phone_fresh_days", "access.external.code_hour", "access.external.local_approvers",
+                 # PHYSENTRY070-295: the post-assignment entry tick and its vendor notice (default off) - never switched on by an archive
+                 "access.external.arrival_after_grant",
                  # K7: the resume cursor of an interrupted grant re-decision is this database's runtime state, never an archive's
                  "access.external.redecide_cursor",
                  # CR-BULKPEOPLE-295: the bulk people switch is security policy too - never switched on by an archive

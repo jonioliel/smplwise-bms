@@ -42,7 +42,7 @@ async function toClipboard(text: string): Promise<boolean> {
  * (`can.resend`: a live current link and a channel that can carry it).
  */
 export class LinkPanel implements ReactiveController {
-  private confirm: 'new' | 'revoke' | null = null;
+  private confirm: 'new' | 'revoke' | 'entry-off' | null = null;
   private copied: { url: string; text: string; at: number; manual: boolean } | null = null;
   private timer = 0;
 
@@ -96,6 +96,13 @@ export class LinkPanel implements ReactiveController {
     this.host.requestUpdate();
   }
 
+  /** PHYSENTRY070-295: tick / untick "physical entry required" on the current outside assignment (only while the server offers it). */
+  private async setEntry(t: TicketDetail, value: boolean): Promise<void> {
+    this.confirm = null;
+    this.copied = null;
+    await this.lend.run(() => ticketsS4Api().setAccessNeeded(t.id, value, t.revision) as Promise<TicketWithLink>, value ? tt('lkEntrySet') : tt('lkEntryClear'));
+  }
+
   private async act(t: TicketDetail, action: 'new' | 'revoke'): Promise<void> {
     this.confirm = null;
     this.copied = null;
@@ -136,15 +143,17 @@ export class LinkPanel implements ReactiveController {
         <textarea class="inp" readonly aria-label=${tt('lkCopyText')} .value=${this.copied.text} @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()}></textarea>
       </div>` : nothing}
       ${this.confirm ? html`<div class="lkconfirm" role="group" data-link-confirm=${this.confirm}>
-        <span>${this.confirm === 'new' ? tt('lkNewConfirm') : tt('lkRevokeConfirm')}</span>
+        <span>${this.confirm === 'new' ? tt('lkNewConfirm') : this.confirm === 'entry-off' ? tt('lkEntryConfirm') : tt('lkRevokeConfirm')}</span>
         <span class="lkacts">
-          <button type="button" class=${`btn sm ${this.confirm === 'revoke' ? 'danger' : 'primary'}`} data-link-confirm-ok ?disabled=${busy} @click=${() => void this.act(t, this.confirm!)}>
-            ${this.confirm === 'new' ? tt('lkNew') : tt('lkRevoke')}</button>
+          <button type="button" class=${`btn sm ${this.confirm === 'revoke' ? 'danger' : 'primary'}`} data-link-confirm-ok ?disabled=${busy} @click=${() => (this.confirm === 'entry-off' ? void this.setEntry(t, false) : void this.act(t, this.confirm as 'new' | 'revoke'))}>
+            ${this.confirm === 'new' ? tt('lkNew') : this.confirm === 'entry-off' ? tt('lkEntryOff') : tt('lkRevoke')}</button>
           <button type="button" class="btn sm" data-link-confirm-back @click=${() => { this.confirm = null; this.host.requestUpdate(); }}>${tt('back')}</button>
         </span>
       </div>` : html`<div class="lkacts">
         ${l.can.copy ? html`<button type="button" class="btn sm primary" data-link-copy ?disabled=${busy} @click=${() => void this.copy(t)}>${tIcon('copy')}${tt('lkCopy')}</button>` : nothing}
         ${this.copied && !this.copied.manual ? html`<button type="button" class="btn sm" data-link-copy-text @click=${() => void this.copyText()}>${tIcon('note')}${tt('lkCopyText')}</button>` : nothing}
+        ${l.access_needed?.available ? html`<button type="button" class="btn sm" data-link-entry aria-pressed=${String(l.access_needed.on)} ?disabled=${busy}
+          @click=${() => (l.access_needed!.on ? ((this.confirm = 'entry-off'), this.host.requestUpdate()) : void this.setEntry(t, true))}>${tIcon('lock')}${tt('lkEntry')}</button>` : nothing}
         ${l.can.resend ? html`<button type="button" class="btn sm" data-link-resend ?disabled=${busy} @click=${() => void this.resend(t)}>${tIcon('send')}${mtt('lkResend')}</button>` : nothing}
         ${l.can.new ? html`<button type="button" class="btn sm" data-link-new ?disabled=${busy} @click=${() => { this.confirm = 'new'; this.host.requestUpdate(); }}>${tIcon('refresh')}${tt('lkNew')}</button>` : nothing}
         ${l.can.revoke ? html`<button type="button" class="btn sm quiet dz" data-link-revoke ?disabled=${busy} @click=${() => { this.confirm = 'revoke'; this.host.requestUpdate(); }}>${tIcon('x')}${tt('lkRevoke')}</button>` : nothing}

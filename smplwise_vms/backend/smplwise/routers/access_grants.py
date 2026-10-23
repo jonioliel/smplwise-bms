@@ -145,6 +145,7 @@ class SettingsIn(BaseModel):
     digest_hour: int | None = Field(default=None, ge=0, le=23)
     name_sync: Literal["manual", "auto"] | None = None
     placement: Literal["access", "tickets", "both"] | None = None
+    arrival_after_grant: Literal["off", "on"] | None = None  # PHYSENTRY070-295: "entry required" after the assignment + the vendor notice on cancel (default off)
     cards: Literal["off", "on"] | None = None  # GRANTS3-295 (X5): card grants; `on` needs the go-live permit too
 
 
@@ -170,7 +171,7 @@ class AttachIn(BaseModel):
     evidence_ref: str = Field(max_length=256)
 
 
-_SCREEN_KEYS = ("digest_channel", "digest_day", "digest_hour", "name_sync", "placement")
+_SCREEN_KEYS = ("digest_channel", "digest_day", "digest_hour", "name_sync", "placement", "arrival_after_grant")
 
 
 @router.get("/access-grants")

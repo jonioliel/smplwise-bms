@@ -959,6 +959,7 @@ export class AccessExternalScreen extends LitElement {
           <div class="two"><sw-dropdown tall label=${xt('set_day')} .items=${days} .value=${String(d.digest_day)} @change=${(e: CustomEvent<{ id: string }>) => (this.draft = { ...d, digest_day: Number(e.detail.id) })}></sw-dropdown>
           <sw-dropdown tall label=${xt('set_hour')} .items=${hours} .value=${String(d.digest_hour)} @change=${(e: CustomEvent<{ id: string }>) => (this.draft = { ...d, digest_hour: Number(e.detail.id) })}></sw-dropdown></div></section>
         <section class="sec"><h4>${xt('set_name')}</h4>${seg('name_sync', [['manual', 'ns_manual'], ['auto', 'ns_auto']])}</section>
+        <section class="sec"><h4>${xt('set_arrival')}</h4>${seg('arrival_after_grant', [['off', 'ar_off'], ['on', 'ar_on']])}</section>
       </div>
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
       <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button>
