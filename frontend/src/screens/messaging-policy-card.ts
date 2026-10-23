@@ -28,7 +28,7 @@ export class MessagingPolicyCard extends LitElement {
   @state() private page = 0;
   @state() private phone = '';
   @state() private label = '';
-  @state() private role: PolicyRole = 'handler';
+  @state() private newRole: PolicyRole = 'handler';
   @state() private minutes = '30';
   private okTimer = 0;
   private tick = 0;
@@ -111,7 +111,7 @@ export class MessagingPolicyCard extends LitElement {
       this.error = mw('err_label');
       return;
     }
-    const body = { phone: this.phone.trim(), label: this.label.trim(), role: this.role };
+    const body = { phone: this.phone.trim(), label: this.label.trim(), role: this.newRole };
     void this.run(() => messagingPolicyApi().add(body), () => {
       this.phone = '';
       this.label = '';
@@ -167,8 +167,8 @@ export class MessagingPolicyCard extends LitElement {
           @input=${(e: Event) => (this.phone = (e.target as HTMLInputElement).value)}></label>
         <label>${mw('label')}<input class="in" maxlength="80" data-add="label" .value=${this.label} ?disabled=${this.busy}
           @input=${(e: Event) => (this.label = (e.target as HTMLInputElement).value)}></label>
-        <label>${mw('role')}<select class="in" data-add="role" ?disabled=${this.busy} @change=${(e: Event) => (this.role = (e.target as HTMLSelectElement).value as PolicyRole)}>
-          ${POLICY_ROLES.map((r) => html`<option value=${r} ?selected=${r === this.role}>${mw(`role_${r}` as MwKey)}</option>`)}</select></label>
+        <label>${mw('role')}<select class="in" data-add="role" ?disabled=${this.busy} @change=${(e: Event) => (this.newRole = (e.target as HTMLSelectElement).value as PolicyRole)}>
+          ${POLICY_ROLES.map((r) => html`<option value=${r} ?selected=${r === this.newRole}>${mw(`role_${r}` as MwKey)}</option>`)}</select></label>
         <sw-button size="sm" variant="primary" data-add-button ?disabled=${this.busy} @click=${() => this.add()}>${mw('add')}</sw-button></div>` : nothing}
       <div class="sect" data-policy-self>
         <div class="head"><strong>${mw('selfTitle')}</strong>

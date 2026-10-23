@@ -99,6 +99,11 @@ export async function installMessagingMock(page: Page, o: WaMockOptions = {}): P
     st.calls.push({ method, path: p, body });
     if (!perms.includes('system.configure') && !manage) return err(route, 403, 'forbidden', 'אין הרשאה');
     if (p === 'messaging/whatsapp' && method === 'GET') return json(route, view);
+    if (p === 'messaging/whatsapp/policy' && method === 'GET') { // WAPACE-295: the policy card (seven entries so the pager shows, a long name for the wrap check)
+      return json(route, { enforce: true, can_manage: manage, max_entries: 500,
+        allow: Array.from({ length: 7 }, (_, i) => ({ id: `mockentry${i + 1}`, label: i === 0 ? 'מנהל תחזוקה עם שם ארוך מאוד של ספק שירות מעליות ומערכות מיזוג אוויר' : `מטפל ${i + 1}`, role: i % 2 ? 'provider' : 'handler', last4: `019${i}` })),
+        self_messages: { active: true, until: '2026-10-24T09:30:00Z', minutes_default: 30, minutes_range: [1, 240] } });
+    }
     if (!manage) return err(route, 403, 'forbidden', 'אין הרשאה');
     if (p === 'messaging/whatsapp/refresh') return json(route, view);
     if (p === 'messaging/whatsapp/test') return json(route, { id: 'o-test', state: 'queued' });
