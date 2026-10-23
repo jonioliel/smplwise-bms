@@ -243,7 +243,8 @@ def test_every_library_blueprint_instantiates_through_the_create_path(bp_app, bp
     assert item["state"] == "off" and item["sensitive"] is False and item["locked_count"] == 0
     cfg = _stored(fake, item["config_id"])
     assert json.dumps(cfg, ensure_ascii=False).count("lock.") == 0 and "cover." not in json.dumps(cfg)
-    assert [x["op"] for x in tr.bridge_calls][-1] == "upsert"
+    ops_seen = [x["op"] for x in tr.bridge_calls]
+    assert ops_seen.count("upsert") == 1 and ops_seen[-1] in ("upsert", "disable"), ops_seen  # created through the bridge, then switched off (created disabled)
 
 
 def test_sunset_area_blueprint_expands_the_area_to_literal_entities(bp_app):
