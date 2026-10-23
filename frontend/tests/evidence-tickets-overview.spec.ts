@@ -109,7 +109,9 @@ test.describe('manager overview evidence (MGRDASH phase 1)', () => {
   test('not a manager: no tab, and a direct link shows the managers-only state', async ({ page }) => {
     await go(page, '/tickets/overview', { persona: 'operator' });
     await expect(page.locator(`${O} [data-overview-state="forbidden"]`)).toContainText('הסקירה פתוחה למנהלי מחלקות');
-    await expect(page.locator('sw-app sw-tabs').first()).not.toContainText('סקירה');
+    // SERVICEIA1-295: an operator sees one section (בקשות) with one page (רשימה), so the service area draws NO tab row at all (a row of one is
+    // left out); "no tab" therefore means no tab row anywhere carries "סקירה" - the row being absent is the expected case, not a missing element
+    await expect(page.locator('sw-app sw-tabs').filter({ hasText: 'סקירה' })).toHaveCount(0);
     await shot(page, 'overview-forbidden', 'light', false);
   });
 

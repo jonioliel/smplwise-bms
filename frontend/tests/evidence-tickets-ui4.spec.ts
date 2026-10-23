@@ -88,7 +88,10 @@ test.describe('tickets list v5 evidence', () => {
   test('the page frame: scope and state segments with counts, department counts, the scope is a link to its list', async ({ page }) => {
     const mock = await goList(page, '/tickets/mine');
     await page.waitForSelector(`${L} ticket-card`);
-    await expect(page.locator(`${L} [data-scope-seg] [data-scope]`)).toHaveCount(3);
+    // SERVICEIA2-295: the segment offers exactly the scopes the old level-1 tabs were offered for; the default persona (manager) has no
+    // tickets.all_departments, so "הכול" is not his (the three-scope admin case is evidence-serviceia2-list.spec.ts)
+    await expect(page.locator(`${L} [data-scope-seg] [data-scope]`)).toHaveCount(2);
+    await expect(page.locator(`${L} [data-scope-seg] [data-scope="all"]`)).toHaveCount(0);
     await expect(page.locator(`${L} [data-scope-seg] [data-scope="mine"]`)).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator(`${L} [data-scope-seg] [data-scope="department"] small`)).toBeVisible();
     const open = await page.locator(`${L} [data-status-filter="open"] small`).textContent();
