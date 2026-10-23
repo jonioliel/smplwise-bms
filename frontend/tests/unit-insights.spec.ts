@@ -6,7 +6,8 @@ import {
 import { IX_KEYS, IX_TABLES, ix } from '../src/i18n/insights';
 import { SECTION_IDS, fieldErrors, isOff, type DoorsAnswer, type InsightSettings, type ReportModel, type WasteAnswer } from '../src/api/insights';
 import { ApiError } from '../src/api/client';
-import { TICKETS_REPORTS_HREF, TICKETS_TABS, applyInfraInsights, applyTicketsHidden, visibleTabs } from '../src/shell/nav';
+import { TICKETS_REPORTS_HREF, TICKETS_REPORTS_PAGES, TICKETS_TABS, applyInfraInsights, applyTicketsHidden, ticketsSectionOf, ticketsPageOf, visibleTabs } from '../src/shell/nav';
+import { parseRoute } from '../src/router';
 
 // CR-INSIGHT215: the pure logic of the insight screens, the strings and the navigation gate. No browser:
 //   npx playwright test -c playwright.unit.config.ts tests/unit-insights.spec.ts
@@ -149,16 +150,23 @@ test('strings: every English key exists in Hebrew, placeholders match, nothing n
   expect(ix('download', undefined, 'en')).toBe('Download PDF');
 });
 
-test('navigation: the reports tab is hidden until a part is on, then offered to the permission holder', () => {
-  const tab = TICKETS_TABS.find((t) => t.id === 'reports');
+test('navigation: the building report is a page of "סקירה ודוחות", hidden until a part is on, then offered to the permission holder', () => {
+  // release/2150 (SERVICEIA1-295 x CR-INSIGHT215): the page sits after the manager overview in the reports section
+  const tab = TICKETS_REPORTS_PAGES.find((t) => t.id === 'reports');
   expect(tab?.href).toBe(TICKETS_REPORTS_HREF);
+  expect(TICKETS_REPORTS_PAGES.map((t) => t.id)).toEqual(['overview', 'reports']);
   const can = (p: string) => p === 'insights.read';
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   applyInfraInsights({ report: false, doors: false, waste: false });
-  expect(visibleTabs(TICKETS_TABS, true, can).some((t) => t.id === 'reports')).toBe(false);
+  expect(visibleTabs(TICKETS_REPORTS_PAGES, true, can).some((t) => t.id === 'reports')).toBe(false);
+  expect(visibleTabs(TICKETS_TABS, true, can).some((t) => t.id === 'reports')).toBe(false); // no page of the section for this user
   applyInfraInsights({ report: false, doors: true, waste: false });
-  expect(visibleTabs(TICKETS_TABS, true, can).some((t) => t.id === 'reports')).toBe(true);
-  expect(visibleTabs(TICKETS_TABS, true, () => false).some((t) => t.id === 'reports')).toBe(false);
+  expect(visibleTabs(TICKETS_REPORTS_PAGES, true, can).some((t) => t.id === 'reports')).toBe(true);
+  expect(visibleTabs(TICKETS_TABS, true, can).find((t) => t.id === 'reports')?.href).toBe(TICKETS_REPORTS_HREF); // the section opens on it
+  expect(visibleTabs(TICKETS_REPORTS_PAGES, true, () => false).some((t) => t.id === 'reports')).toBe(false);
+  for (const path of ['#/tickets/reports/building', '#/tickets/reports/doors', '#/tickets/reports/waste']) {
+    expect([ticketsSectionOf(parseRoute(path)), ticketsPageOf(parseRoute(path))], path).toEqual(['reports', 'reports']);
+  }
   applyInfraInsights({ report: false, doors: false, waste: false });
 });
 

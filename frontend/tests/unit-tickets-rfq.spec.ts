@@ -10,7 +10,7 @@ import {
   statusBar, stripCounts, toggleKind, windowText, type RfqDraft, type Selection,
 } from '../src/tickets/rfq-model';
 import { RFQ_TEXT_EN_KEYS, RFQ_TEXT_HE, RFQ_TEXT_KEYS, rfqTemplate } from '../src/tickets/rfq-text';
-import { TAB_PERMISSIONS, TICKETS_RFQS_HREF, TICKETS_TABS, activeAreaTab } from '../src/shell/nav';
+import { TAB_PERMISSIONS, TICKETS_RFQS_HREF, TICKETS_VENDORS_PAGES, activeAreaTab, ticketsPageOf } from '../src/shell/nav';
 
 // TKRFQ2 (2.6.1): the pure logic of the RFQ manager screens (tickets/rfq-model.ts), the wire body of the create route, the words
 // (tickets/rfq-text.ts) and the navigation entry.
@@ -261,13 +261,17 @@ test('the words: every English key exists in Hebrew; no retired word; the RFQ vo
   }
 });
 
-test('navigation: "בקשות הצעת מחיר" is a tab of the area before the vendors account, for openers and deciders', () => {
-  const tab = TICKETS_TABS.find((t) => t.id === 'rfqs');
+test('navigation: "בקשות הצעת מחיר" is a page of "ספקים וכספים" before the vendors account, for openers and deciders', () => {
+  // SERVICEIA1-295 (owner 24.10): the vendors section's pages in their old relative order
+  expect(TICKETS_VENDORS_PAGES.map((t) => t.id)).toEqual(['handlers', 'rfqs', 'accounts', 'external']);
+  const tab = TICKETS_VENDORS_PAGES.find((t) => t.id === 'rfqs');
   expect(tab?.href).toBe(TICKETS_RFQS_HREF);
   expect(tab?.label).toBe('בקשות הצעת מחיר');
-  expect(TICKETS_TABS.at(-3)?.id).toBe('accounts'); // CR-MAINT215: the maintenance section is last // SHAREDID-293: "גישת חוץ" follows, offered only when the owner places it here
+  expect(TICKETS_VENDORS_PAGES.at(-2)?.id).toBe('accounts'); // SHAREDID-293: "גישת חוץ" follows, offered only when the owner places it here
   expect(TAB_PERMISSIONS[TICKETS_RFQS_HREF]).toEqual(['tickets.external', 'tickets.costs']);
-  expect(activeAreaTab({ path: '/tickets/rfqs', mode: 'tickets', segments: ['tickets', 'rfqs'], params: new URLSearchParams('rfq=r1') } as never)).toBe('rfqs');
+  const r = { path: '/tickets/rfqs', mode: 'tickets', segments: ['tickets', 'rfqs'], params: new URLSearchParams('rfq=r1') } as never;
+  expect(activeAreaTab(r)).toBe('vendors');
+  expect(ticketsPageOf(r)).toBe('rfqs');
 });
 
 // rfq-thread-system-author: the manager's thread shows an automatic message under the localized "System" label, styled apart from a person's.

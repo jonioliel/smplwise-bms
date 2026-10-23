@@ -278,3 +278,20 @@ def test_ui_tabs_styles_same_permission_and_corrupt_style_reads_as_default(setti
         with app.state.db.connection() as conn:
             conn.execute("UPDATE settings SET value = ? WHERE key = 'ui.tabs'", ('{"explore": {"style": "glass"}}',))
         assert c.get(URL).json()["settings"]["ui.tabs"] == {}
+
+
+def test_tickets_section_row_setting_defaults_to_hide_single_and_round_trips(settings):
+    """SERVICEIA1-295 (owner 24.10, item 11): whether a user who sees one service-management section gets the section row - a setting,
+    default hide_single, editable (system.configure), validated against the two values; a corrupt stored value reads as the default."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get(URL).json()["settings"]["ui.tickets_section_row"] == "hide_single"
+        r = c.patch(URL, json={"ui.tickets_section_row": "always"})
+        assert r.status_code == 200, r.text
+        assert r.json()["settings"]["ui.tickets_section_row"] == "always"
+        assert c.get(URL).json()["settings"]["ui.tickets_section_row"] == "always"
+        assert c.patch(URL, json={"ui.tickets_section_row": "sometimes"}).status_code == 422
+        assert c.patch(URL, json={"ui.tickets_section_row": "hide_single"}).json()["settings"]["ui.tickets_section_row"] == "hide_single"
+        with app.state.db.connection() as conn:
+            conn.execute("UPDATE settings SET value = 'bogus' WHERE key = 'ui.tickets_section_row'")
+        assert c.get(URL).json()["settings"]["ui.tickets_section_row"] == "hide_single"

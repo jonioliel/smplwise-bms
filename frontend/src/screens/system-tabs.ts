@@ -12,7 +12,7 @@ import './system-tabs-mode';
 import { getSettings, patchSettings, type TabsConfig, type TabStyle, type TabStyleDefaults } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
-import { LOCKED_TABS, TAB_SECTIONS, TAB_STYLE_DEFAULTS, applyTabsConfig, normalizeTabStyles, normalizeTabsConfig, type TabSectionDef } from '../shell/nav';
+import { LOCKED_TABS, TAB_SECTIONS, TAB_STYLE_DEFAULTS, applyTabsConfig, normalizeTabStyles, normalizeTabsConfig, normalizeTicketsSectionRow, type TabSectionDef, type TicketsSectionRow } from '../shell/nav';
 import { SkinController } from '../design/skin';
 import { tst } from '../i18n/tab-sections';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -45,6 +45,9 @@ export class SystemTabsConfig extends LitElement {
   /** The bar style defaults per hierarchy level (`ui.tabs.styles`), as saved and as edited. */
   @state() private savedStyles: TabStyleDefaults = {};
   @state() private draftStyles: TabStyleDefaults = {};
+  /** SERVICEIA1-295: the service-management section row for a user who sees one section only (`ui.tickets_section_row`), as saved and as edited. */
+  @state() private savedSectionRow: TicketsSectionRow = 'hide_single';
+  @state() private draftSectionRow: TicketsSectionRow = 'hide_single';
   @state() private canEdit = false;
   @state() private loaded = false;
   @state() private busy = false;
@@ -235,6 +238,8 @@ export class SystemTabsConfig extends LitElement {
       this.draft = structuredClone(this.saved);
       this.savedStyles = normalizeTabStyles(r.settings['ui.tabs']);
       this.draftStyles = { ...this.savedStyles };
+      this.savedSectionRow = normalizeTicketsSectionRow(r.settings['ui.tickets_section_row']);
+      this.draftSectionRow = this.savedSectionRow;
       this.canEdit = r.can_edit && can('system.configure');
       this.error = '';
     } catch (err) {
@@ -344,7 +349,7 @@ export class SystemTabsConfig extends LitElement {
 
   private get dirty(): boolean {
     const canon = (c: TabsConfig, s: TabStyleDefaults) => JSON.stringify([Object.keys(c).sort().map((k) => [k, c[k].order, c[k].hidden, c[k].style ?? null]), s.level1 ?? null, s.level2 ?? null]);
-    return canon(this.draft, this.draftStyles) !== canon(this.saved, this.savedStyles);
+    return canon(this.draft, this.draftStyles) !== canon(this.saved, this.savedStyles) || this.draftSectionRow !== this.savedSectionRow;
   }
 
   /** The whole `ui.tabs` value as it is sent: the sections, plus the reserved `styles` key when a level default is set. */
@@ -357,13 +362,15 @@ export class SystemTabsConfig extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await patchSettings({ 'ui.tabs': this.payload() });
+      const r = await patchSettings({ 'ui.tabs': this.payload(), ...(this.draftSectionRow !== this.savedSectionRow ? { 'ui.tickets_section_row': this.draftSectionRow } : {}) });
       invalidateSettings();
       applyTabsConfig(r.settings as unknown as Record<string, unknown>); // the shell follows at once, no reload
       this.saved = normalizeTabsConfig(r.settings['ui.tabs']);
       this.draft = structuredClone(this.saved);
       this.savedStyles = normalizeTabStyles(r.settings['ui.tabs']);
       this.draftStyles = { ...this.savedStyles };
+      this.savedSectionRow = normalizeTicketsSectionRow(r.settings['ui.tickets_section_row']);
+      this.draftSectionRow = this.savedSectionRow;
       this.message = 'הלשוניות נשמרו';
       window.setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -376,6 +383,7 @@ export class SystemTabsConfig extends LitElement {
   private discard() {
     this.draft = structuredClone(this.saved);
     this.draftStyles = { ...this.savedStyles };
+    this.draftSectionRow = this.savedSectionRow;
     this.message = '';
     this.error = '';
   }
@@ -449,6 +457,21 @@ export class SystemTabsConfig extends LitElement {
     </sw-card>`;
   }
 
+  /** SERVICEIA1-295 (owner 24.10, item 11): on the service-management card - whether a user who sees ONE section only still gets the
+   * section row (default: hidden; the section's own page row is drawn either way). */
+  private renderSectionRowSetting() {
+    const cur = this.draftSectionRow;
+    return html`<div class="srow" data-tickets-section-row>
+      <span class="lbl">${tst('ticketsSingleRowLabel')}<span class="muted">${tst('ticketsSingleRowHint')}</span></span>
+      <span class="ctl">
+        <select data-tickets-section-row-select aria-label=${tst('ticketsSingleRowLabel')} ?disabled=${!this.canEdit} @change=${(e: Event) => { this.draftSectionRow = normalizeTicketsSectionRow((e.target as HTMLSelectElement).value); this.message = ''; }}>
+          <option value="hide_single" ?selected=${cur === 'hide_single'}>${tst('ticketsSingleRowHide')}</option>
+          <option value="always" ?selected=${cur === 'always'}>${tst('ticketsSingleRowShow')}</option>
+        </select>
+      </span>
+    </div>`;
+  }
+
   private renderSection(def: TabSectionDef) {
     const ids = this.orderedIds(def);
     const hidden = this.hiddenSet(def);
@@ -468,6 +491,7 @@ export class SystemTabsConfig extends LitElement {
               </select>
             </span>
           </div>`}
+      ${def.id === 'tickets' ? this.renderSectionRowSetting() : nothing}
       <ol aria-label=${`הלשוניות של ${def.label} לפי הסדר`}>
         ${repeat(
           ids,

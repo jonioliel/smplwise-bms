@@ -6,7 +6,7 @@ import {
   placeOptions, rangeText, resumeIndex, segsOf, stickerUrl, treeRows, validate, vendorMark,
 } from '../src/maintenance/model';
 import { CATEGORY_LABEL, CATEGORY_ORDER, MAINTENANCE_SOURCES } from '../src/api/notifications';
-import { TAB_PERMISSIONS, TICKETS_MAINTENANCE_HREF, TICKETS_TABS, applyMaintenanceOn, legacyRedirect, maintenanceModuleOn, visibleTabs } from '../src/shell/nav';
+import { TAB_PERMISSIONS, TICKETS_MAINTENANCE_HREF, TICKETS_MAINTENANCE_PAGE_HREF, TICKETS_MAINTENANCE_PAGES, TICKETS_TABS, applyMaintenanceOn, legacyRedirect, maintenanceModuleOn, ticketsPageOf, ticketsSectionOf, visibleTabs } from '../src/shell/nav';
 import { parseRoute } from '../src/router';
 
 // CR-MAINT215 slice 2: the pure part of the maintenance section (src/maintenance/model.ts), the run's answer shape, the notification
@@ -179,6 +179,16 @@ test('navigation: the section is a tab of the service-management area, maintenan
     const can = (p: string) => p === 'maintenance.view';
     expect(visibleTabs(TICKETS_TABS, true, can).map((t) => t.id)).toEqual(['maintenance']); // the tickets module off: the section alone keeps the area
     expect(visibleTabs(TICKETS_TABS, true, () => false).some((t) => t.id === 'maintenance')).toBe(false);
+    // release/2150 (SERVICEIA1-295): one page in the shell's rows, the ledger; the section entry address is redirect-only and keeps the query
+    expect(TICKETS_MAINTENANCE_PAGES.map((t) => [t.id, t.href])).toEqual([['maintenance', TICKETS_MAINTENANCE_PAGE_HREF]]);
+    expect(TAB_PERMISSIONS[TICKETS_MAINTENANCE_PAGE_HREF]).toEqual(['maintenance.view']);
+    expect(visibleTabs(TICKETS_TABS, true, can)[0]?.href).toBe(TICKETS_MAINTENANCE_PAGE_HREF);
+    const access = { api: true, ready: true, can };
+    expect(legacyRedirect(parseRoute('#/tickets/maintenance?task=t1'), access)).toBe('/tickets/maintenance/ledger?task=t1');
+    expect(legacyRedirect(parseRoute('#/tickets/maintenance/ledger'), access)).toBeNull();
+    for (const path of ['#/tickets/maintenance/ledger', '#/tickets/maintenance/rounds', '#/tickets/maintenance/scan/AbCdEfGhIjKlMnOpQrSt']) {
+      expect([ticketsSectionOf(parseRoute(path)), ticketsPageOf(parseRoute(path))], path).toEqual(['maintenance', 'maintenance']);
+    }
   } finally {
     applyMaintenanceOn(false);
   }

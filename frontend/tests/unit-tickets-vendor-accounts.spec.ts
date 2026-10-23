@@ -4,7 +4,7 @@ import { reportQs } from '../src/api/tickets-costs';
 import {
   NO_FILTERS, accountQuery, accountSummary, bucketOf, bulkItems, bulkOutcome, csvCell, keepSelection, payable, periodValid, selectionByCurrency,
 } from '../src/tickets/vendor-account-model';
-import { TAB_PERMISSIONS, TICKETS_TABS, activeAreaTab } from '../src/shell/nav';
+import { TAB_PERMISSIONS, TICKETS_VENDORS_PAGES, activeAreaTab, ticketsPageOf } from '../src/shell/nav';
 
 // TK258 "חשבון ספקים": the grouping and currency logic of the vendors account (tickets/vendor-account-model.ts) - per vendor and per
 // currency, never a sum across currencies; what the bulk "mark as paid" takes and shows; the per-item answer; the query; the CSV guard.
@@ -99,11 +99,14 @@ test('the CSV cell guard neutralises formula starters', () => {
   expect(csvCell(null)).toBe('""');
 });
 
-test('the tab: sixth entry of the area, tickets.costs.view, active on #/tickets/accounts', () => {
+test('the page: of "ספקים וכספים", tickets.costs.view, active on #/tickets/accounts', () => {
+  // SERVICEIA1-295 (owner 24.10): a page of the vendors section (same href, permission and screen)
   // SHAREDID-293 appended "גישת חוץ" (shown only when placed under service management): the vendors account is the last scope tab before it
-  const accounts = TICKETS_TABS.filter((t) => t.id !== 'external' && t.id !== 'maintenance').at(-1); // CR-MAINT215: the maintenance section is appended after
+  const accounts = TICKETS_VENDORS_PAGES.filter((t) => t.id !== 'external').at(-1);
   expect(accounts?.id).toBe('accounts');
   expect(accounts?.label).toBe('חשבון ספקים');
   expect(TAB_PERMISSIONS['#/tickets/accounts']).toEqual(['tickets.costs.view']);
-  expect(activeAreaTab({ path: '/tickets/accounts', mode: 'tickets', segments: ['tickets', 'accounts'], params: new URLSearchParams() } as never)).toBe('accounts');
+  const r = { path: '/tickets/accounts', mode: 'tickets', segments: ['tickets', 'accounts'], params: new URLSearchParams() } as never;
+  expect(activeAreaTab(r)).toBe('vendors');
+  expect(ticketsPageOf(r)).toBe('accounts');
 });

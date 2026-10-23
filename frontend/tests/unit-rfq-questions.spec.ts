@@ -7,7 +7,7 @@ import { answerWire } from '../src/api/tickets-rfq';
 import { mockRfq, resetDemoRfq } from '../src/api/tickets-rfq-mock';
 import { ANSWER_MAX, QUESTION_SHOWN_MAX, answerBody, answerProblems, awardQuestionWarning, navCount, pendingQuestions, questionBadge } from '../src/tickets/rfq-questions';
 import { RFQ_TEXT_EN_KEYS, RFQ_TEXT_HE } from '../src/tickets/rfq-text';
-import { TICKETS_TABS, applyRfqQuestions, applyTicketsHidden, areaBadge } from '../src/shell/nav';
+import { TICKETS_TABS, TICKETS_VENDORS_PAGES, applyRfqQuestions, applyTicketsHidden, areaBadge } from '../src/shell/nav';
 import { RFQ_TEXT } from '../src/public-ticket/rfq/rfq-text';
 import { freshDraft, parseRfqDraft, quoteWire } from '../src/public-ticket/rfq/rfq-state';
 
@@ -100,12 +100,16 @@ test.afterEach(() => {
   applyRfqQuestions(0);
 });
 
-test('the navigation: the RFQ tab carries a badge and the tickets area a count while the module is on', () => {
-  const tab = TICKETS_TABS.find((t) => t.id === 'rfqs')!;
+test('the navigation: the RFQ page entry carries a badge, its section a dot and the tickets area a count while the module is on', () => {
+  // SERVICEIA1-295 (owner 24.10, item 57): the number on the page entry, a dot on the "ספקים וכספים" section
+  const tab = TICKETS_VENDORS_PAGES.find((t) => t.id === 'rfqs')!;
+  const sec = TICKETS_TABS.find((t) => t.id === 'vendors')!;
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   applyRfqQuestions(3);
   expect(tab.badge).toBe(3);
   expect(tab.alert).toBe(true);
+  expect(sec.dot).toBe(true);
+  expect(sec.badge, 'no number on the section').toBeUndefined();
   expect(areaBadge('tickets')).toBe(3);
   expect(areaBadge('devices')).toBe(0);
   applyTicketsHidden({ 'tickets.enabled': 'false' });
@@ -113,6 +117,7 @@ test('the navigation: the RFQ tab carries a badge and the tickets area a count w
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   applyRfqQuestions(0);
   expect(tab.badge).toBeUndefined();
+  expect(sec.dot).toBeUndefined();
   expect(areaBadge('tickets')).toBe(0);
 });
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_TICKET_NAMES, NAME_MAX, definite, nameProblem, onTicketNames, renderName, setTicketNames, ticketNames, tn } from '../src/tickets/naming';
 import { TICKET_TEXT_EN_KEYS, TICKET_TEXT_KEYS, template, tt } from '../src/tickets/text';
-import { AREA_TABS, NAV_A, TICKETS_SETTINGS_HREF, applyTicketsHidden, visibleAreas, visibleTabs, type Can } from '../src/shell/nav';
+import { AREA_TABS, NAV_A, TICKETS_REQUESTS_PAGES, TICKETS_SETTINGS_HREF, TICKETS_VENDORS_PAGES, applyTicketsHidden, visibleAreas, visibleTabs, type Can } from '../src/shell/nav';
 import { SETTINGS_GROUPS, searchSettings, visibleGroups } from '../src/screens/system-index';
 
 // CR-038, owner decision D33 (2026-10-13): the tickets module's user-facing name is configurable; internal ids stay "tickets". These are the
@@ -105,8 +105,13 @@ test('the rail, the scope tabs, the settings tab and the settings index carry th
   const groups = visibleGroups(true, ALL);
   expect(searchSettings(groups, 'תקלות').map((r) => r.entry.href)).toContain(TICKETS_SETTINGS_HREF);
   expect(searchSettings(groups, 'מחלקות').map((r) => r.entry.href)).toContain('#/system/tickets?tab=departments');
-  // slice 6 adds the manager board; owner 2026-10-14 the fifth entry "מטפלים וספקים"; TKRFQ2 "בקשות הצעת מחיר"; TK258 "חשבון ספקים" last; MGRDASH "סקירה" first
-  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['סקירה', 'שלי', 'המחלקה', 'לוח מנהל', 'הכול', 'מטפלים וספקים', 'בקשות הצעת מחיר', 'חשבון ספקים']);
+  // SERVICEIA1-295 (owner 24.10): the area row is the sections (תחזוקה ובקרה has no page on this build); after a rename the requests section
+  // carries the configured plural (D33); the page rows keep every old entry
+  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['תקלות', 'ספקים וכספים', 'סקירה ודוחות']);
+  setTicketNames(null);
+  expect(visibleTabs(AREA_TABS.tickets, true, ALL).map((t) => t.label)).toEqual(['בקשות', 'ספקים וכספים', 'סקירה ודוחות']);
+  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, ALL).map((t) => t.label)).toEqual(['רשימה', 'לוח מנהל']);
+  expect(visibleTabs(TICKETS_VENDORS_PAGES, true, ALL).map((t) => t.label)).toEqual(['מטפלים וספקים', 'בקשות הצעת מחיר', 'חשבון ספקים']);
 });
 
 test('the module switch: the area is hidden until the session says it is on; the settings tab stays (it is where the switch is)', () => {
@@ -120,8 +125,9 @@ test('the module switch: the area is hidden until the session says it is on; the
   // permissions still decide: no ticket permission -> no area even when on; "הכול" needs tickets.all_departments
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   expect(visibleAreas(true, (p) => !p.startsWith('tickets.')).map((a) => a.id)).not.toContain('tickets');
-  expect(visibleTabs(AREA_TABS.tickets, true, (p) => p === 'tickets.view').map((t) => t.id)).toEqual(['mine', 'department']);
-  expect(visibleTabs(AREA_TABS.tickets, true, (p) => p === 'tickets.create').map((t) => t.id)).toEqual(['mine']);
+  expect(visibleTabs(AREA_TABS.tickets, true, (p) => p === 'tickets.view').map((t) => t.id)).toEqual(['requests']);
+  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, (p) => p === 'tickets.view').map((t) => t.id)).toEqual(['list']);
+  expect(visibleTabs(TICKETS_REQUESTS_PAGES, true, (p) => p === 'tickets.create').map((t) => t.id)).toEqual(['list']);
   // the settings tab needs system.configure or tickets.configure at the installation
   expect(visibleTabs(AREA_TABS.system, true, (p, inst) => p === 'tickets.configure' && !!inst).some((t) => t.href === TICKETS_SETTINGS_HREF)).toBe(true);
   expect(visibleTabs(AREA_TABS.system, true, (p, inst) => p === 'tickets.configure' && !inst).some((t) => t.href === TICKETS_SETTINGS_HREF)).toBe(false);

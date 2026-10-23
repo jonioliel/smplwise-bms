@@ -65,7 +65,8 @@ test.describe('tickets board evidence', () => {
       await expect(page.locator(`${B} ticket-board-tree`)).toHaveCount(0);
       await expect(page.locator(`${B} [data-floor-chips]`)).toBeVisible();
     }
-    await expect(page.locator('sw-app sw-tabs').first()).toContainText('לוח מנהל');
+    // SERVICEIA1-295: the board is a page of the requests section (the level-2 row under the sections)
+    await expect(page.locator('sw-app sw-tabs[data-tickets-pages]')).toContainText('לוח מנהל');
   });
 
   test('a state filter flattens the cards (D20) and lands in the address; the banner jumps to the stuck ones', async ({ page }) => {
@@ -128,7 +129,8 @@ test.describe('tickets board evidence', () => {
     await go(page, '/tickets/board', { persona: 'operator' });
     await page.waitForSelector(`${B} [data-tickets-state="forbidden"]`);
     await shot(page, 'board-forbidden');
-    await expect(page.locator('sw-app sw-tabs').first()).not.toContainText('לוח מנהל');
+    // SERVICEIA2-295: a non-manager has one page (the list), so no page row is drawn at all - the board is not offered in any row
+    await expect(page.locator('sw-app sw-tabs', { hasText: 'לוח מנהל' })).toHaveCount(0);
   });
 
   test('empty board and the module off', async ({ page }) => {

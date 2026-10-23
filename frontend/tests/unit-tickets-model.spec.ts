@@ -4,7 +4,7 @@ import {
   statusLabel, statusTone, ticketHref, whereLine,
 } from '../src/tickets/model';
 import { setTicketNames } from '../src/tickets/naming';
-import { activeAreaTab, areaOf } from '../src/shell/nav';
+import { activeAreaTab, areaOf, ticketsPageOf } from '../src/shell/nav';
 import type { TicketEvent, TicketStatus } from '../src/api/tickets';
 
 // CR-038 slice 1: the pure logic of the tickets screens (routes and filters in the address, status / priority presentation, relative
@@ -42,12 +42,14 @@ test('listHref leaves the defaults out and round-trips through parseTicketsRoute
   expect(ticketHref('0123456789abcdef')).toBe('#/tickets/0123456789abcdef');
 });
 
-test('the shell: the tickets routes are their own area; the scope tab is active, the full screen belongs to none', () => {
+test('the shell: the tickets routes are their own area; the scope page is active in the requests section, the full screen has no page', () => {
+  // SERVICEIA1-295: the area row is the section (activeAreaTab), the page row the page (ticketsPageOf)
   expect(areaOf(route('/tickets/mine'))).toBe('tickets');
-  expect(activeAreaTab(route('/tickets/department'))).toBe('department');
-  expect(activeAreaTab(route('/tickets/all?status=closed'))).toBe('all');
-  expect(activeAreaTab(route('/tickets'))).toBe('mine');
-  expect(activeAreaTab(route('/tickets/0123456789abcdef'))).toBe('');
+  for (const p of ['/tickets/department', '/tickets/all?status=closed', '/tickets', '/tickets/0123456789abcdef']) expect(activeAreaTab(route(p)), p).toBe('requests');
+  expect(ticketsPageOf(route('/tickets/department'))).toBe('list'); // SERVICEIA2-295: the scopes are one page
+  expect(ticketsPageOf(route('/tickets/all?status=closed'))).toBe('list');
+  expect(ticketsPageOf(route('/tickets'))).toBe('list');
+  expect(ticketsPageOf(route('/tickets/0123456789abcdef'))).toBe('');
 });
 
 test('2.5.6: "waiting for a part" is a sub-state of "in progress", not a step of the flow', () => {

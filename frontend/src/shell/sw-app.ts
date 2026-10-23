@@ -119,7 +119,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -845,6 +845,12 @@ export class SwApp extends LitElement {
       align-items: center;
       gap: 16px;
     }
+    /* SERVICEIA1-295: the service-management sections and the section's pages - side by side like the security sections and their
+       pages, wrapping to a second line when they do not fit (the phone always stacks them, below) */
+    :host([data-design='a']) .subnav[data-tickets-row] {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
     :host([data-design='a']) nav.bottom {
       /* 0.1.103: WisKey made this 5 areas (was 4); CR-007 made it 6 (חשמל); CR-010 folded לייב and חקירה into אבטחה (5).
          visibleAreas() renders unsliced here, so the grid follows the item count. */
@@ -1371,6 +1377,13 @@ export class SwApp extends LitElement {
       }
       :host([data-design='a']) .subnav sw-tabs {
         align-self: stretch;
+      }
+      /* SERVICEIA1-295: on the phone the section row (short labels) sits above the section's page row, each on its own line */
+      :host([data-design='a']) .subnav[data-tickets-row]:not([data-tabstyle='dropdown']) > sw-tabs {
+        flex: 1 1 100%;
+      }
+      :host([data-design='a']) .subnav[data-tickets-row][data-tabstyle='pill'] > sw-tabs[data-tickets-sections] {
+        flex: 0 1 auto;
       }
       /* 0.1.148: a segmented (pill) row keeps its natural width at the start of the row (the pill's 44 px tap area already
          holds 5 px of air around the 34 px track); the compact underline row takes no more room than its 32 px (its 44 px tap
@@ -2823,6 +2836,7 @@ export class SwApp extends LitElement {
    * share ONE row of two equal chips (the `tabpair`, 0.1.153). A level in the bar form (hybrid, three items or fewer) keeps its own row.
    */
   private renderChrome(section: ReturnType<typeof sectionOf>, tabs: TabItem[], editor: boolean, rowMode: { variant: string; adaptive: boolean; label: string; ddStyle: DdStyle; ddSize: DdSize; ddRing: DdRing; ddPanel: DdPanel }, rowStyle: ReturnType<typeof tabStyleOf>, showSections: boolean) {
+    if (this.route?.mode === 'tickets' && !editor) return this.renderTicketsChrome(tabs, rowMode, rowStyle);
     const second = !editor && !this.gated ? pairChip() : null;
     const secondChip = second ? html`<sw-dropdown block data-pair-chip dd-style=${ddStyleOf(second.group)} dd-size=${ddSizeOf(second.group)} dd-ring=${ddRingOf(second.group)} dd-panel=${ddPanelOf(second.group)} .items=${second.items} .value=${second.value} .label=${second.label} @change=${(e: CustomEvent<{ id: string }>) => second.onPick(e.detail.id)}></sw-dropdown>` : nothing;
     const pageChip = (label: string) => html`<sw-tabs block variant="dropdown" dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} .items=${tabs} .active=${activeAreaTab(this.route)} group-label=${label} data-area-tabs></sw-tabs>`;
@@ -2839,6 +2853,41 @@ export class SwApp extends LitElement {
     const pagesDd = tabs.length > 1 && !editor && (rowMode.variant === 'dropdown' || (rowMode.adaptive && tabs.length > HYBRID_MAX_ITEMS));
     if (pagesDd) return html`<div class="tabpair" data-tab-pair>${pageChip(rowMode.label)}${secondChip}</div>`;
     return html`${sections}${own}<div class="tabpair single" data-tab-pair>${secondChip}</div>`;
+  }
+
+  /**
+   * SERVICEIA1-295 (owner decisions 24.10): the service-management area's two rows - the SECTIONS (level 1, the area's own row: its style,
+   * its tabs / hybrid / dropdown mode, short labels on the phone, the RFQ-questions dot) and the current section's PAGES (level 2, the
+   * `tickets.<section>` style; a section with one page draws no page row, as every row of one). The section row is left out for a user who
+   * sees one section only unless the installation says otherwise (`ui.tickets_section_row`). In the dropdown form the two levels share one
+   * row of two chips (the security sections' `tabpair`). The rail and the phone bottom bar are untouched (the areas).
+   */
+  private renderTicketsChrome(sections: TabItem[], rowMode: { variant: string; adaptive: boolean; label: string; ddStyle: DdStyle; ddSize: DdSize; ddRing: DdRing; ddPanel: DdPanel }, rowStyle: ReturnType<typeof tabStyleOf>) {
+    const api = this.session.mode === 'api';
+    const own = ticketsSectionOf(this.route);
+    // a direct link to a page of a section this user is not offered (the "not a manager" state of the overview): the rows show his own
+    // first section, as the old one-row navigation showed his tabs on every route of the area
+    const sec = own && !sections.some((s) => s.id === own) && sections[0] ? (sections[0].id as typeof own) : own;
+    const pages = ticketsPageTabs(sec, api, canNav);
+    const page = ticketsPageOf(this.route);
+    const showL1 = !this.gated && ticketsSectionRowShown(sections.length);
+    const showL2 = !this.gated && pages.length > 1;
+    const pageStyle = tabStyleOf(sec ? `tickets.${sec}` : null, 2);
+    const areaLabel = NAV_A.find((n) => n.id === 'tickets')?.label ?? '';
+    if (rowMode.variant === 'dropdown') {
+      const chip = (items: TabItem[], active: string, label: string, attr: 'sections' | 'pages') => html`<sw-tabs block variant="dropdown" dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} .items=${items} .active=${active} group-label=${label} ?data-area-tabs=${attr === 'sections'} ?data-tickets-sections=${attr === 'sections'} ?data-tickets-pages=${attr === 'pages'}></sw-tabs>`;
+      const l1 = showL1 ? chip(sections, sec, areaLabel, 'sections') : nothing;
+      const l2 = showL2 ? chip(pages, page, 'עמודים', 'pages') : nothing;
+      if (showL1 && showL2) return html`<div class="tabpair" data-tab-pair data-tabs-mode="dropdown" data-tickets-row>${l1}${l2}</div>`;
+      return html`<div class="subnav" data-tabstyle="dropdown" data-tickets-row>${l1}${l2}</div>`;
+    }
+    const l1 = showL1
+      ? html`<sw-tabs .items=${sections} .active=${sec} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} ?short-labels=${this.phone} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.adaptive ? areaLabel : nothing} data-area-tabs data-tickets-sections></sw-tabs>`
+      : nothing;
+    const l2 = showL2
+      ? html`<sw-tabs .items=${pages} .active=${page} .variant=${pageStyle} ?adaptive=${rowMode.adaptive} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.adaptive ? 'עמודים' : nothing} data-tickets-pages></sw-tabs>`
+      : nothing;
+    return html`<div class="subnav" data-tabstyle=${rowStyle} data-tickets-row>${l1}${l2}</div>`;
   }
 
   /** SET-polish: the settings navigation column is drawn on every הגדרות page except the wizard (a guided flow) and, on a wide

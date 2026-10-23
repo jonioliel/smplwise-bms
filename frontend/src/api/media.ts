@@ -30,6 +30,8 @@ export interface ProductSettings {
   'ui.nav_size'?: NavSizeWire;
   /** Installation-wide tab order and visibility per navigation section (הגדרות › כללי › לשוניות); `{}` = the built-in tabs. */
   'ui.tabs'?: Record<string, unknown>;
+  /** SERVICEIA1-295: the service-management section row for a user who sees one section only - `hide_single` (default) | `always`. shell/nav.ts. */
+  'ui.tickets_section_row'?: string;
   /** How the tab groups are presented on the phone (0.1.153; הגדרות › כללי › לשוניות): `tabs` (default) | `hybrid` | `dropdown`, and a per-group override. shell/tabs-mode.ts. */
   'ui.tabs_mode'?: string;
   'ui.tabs_mode_groups'?: Record<string, string>;
