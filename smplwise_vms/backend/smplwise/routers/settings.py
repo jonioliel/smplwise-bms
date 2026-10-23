@@ -411,6 +411,10 @@ DEFAULTS: dict[str, str] = {
     # default. While off every /api/v1/maintenance* route but GET /maintenance/module answers 404 feature_disabled and the reminder pass
     # does nothing; the data is kept. Turning it on or off is audited as maintenance.module.enable / maintenance.module.disable.
     "maintenance.enabled": "false",
+    # CR-EMERG104: the read-only emergency readiness view (an appendix of the maintenance ledger) - OFF by default. While off every
+    # /api/v1/emergency-readiness* route but GET /emergency-readiness/module answers 404 feature_disabled. Audited as
+    # emergency_readiness.module.enable / disable (system.configure). Its thresholds, slot bindings, cameras and contacts live in their own routes.
+    "emergency_readiness.enabled": "false",
     # CR-MAINT215 slice 2 (owner answers 24.10 q13 / q16: every default editable in Settings): the reminder lead time a NEW task gets when
     # its form leaves it empty, per kind (days before the date; each task keeps its own value), and the address printed on a QR sticker
     # ("" = the installation's remote address; a scan always needs a signed-in person - a later GPS / IMEI confirmation hooks in here).
@@ -876,6 +880,7 @@ class SettingsPatch(BaseModel):
     automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
     update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
     tickets_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="tickets.enabled")  # CR-038: the tickets module switch
+    emergency_readiness_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="emergency_readiness.enabled")  # CR-EMERG104: the readiness view switch
     maintenance_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.enabled")  # CR-MAINT215: the maintenance module switch
     # CR-MAINT215 slice 2: the default lead per kind (0-365 days) and the sticker address (empty = the remote address)
     maintenance_lead_certificate: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.certificate")
@@ -1200,6 +1205,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         current_maint = get_setting(conn, "maintenance.enabled", DEFAULTS["maintenance.enabled"]) or DEFAULTS["maintenance.enabled"]
         if changes["maintenance.enabled"] != ("true" if current_maint == "true" else "false"):
             maintenance_switch = changes["maintenance.enabled"]
+    emergency_switch = None  # CR-EMERG104: the module switch gets its own audit row when it actually changes
+    if "emergency_readiness.enabled" in changes:
+        current_em = get_setting(conn, "emergency_readiness.enabled", DEFAULTS["emergency_readiness.enabled"]) or DEFAULTS["emergency_readiness.enabled"]
+        if changes["emergency_readiness.enabled"] != ("true" if current_em == "true" else "false"):
+            emergency_switch = changes["emergency_readiness.enabled"]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     forced = False
     if changes.get("schedules.shabbat_sensor"):
@@ -1297,6 +1307,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         from ..services.tickets.public_runtime import RUNTIME as tickets_public  # CR-038 S4: the handler page follows at once (W3, W12)
 
         tickets_public.module_switched(tickets_switch == "true")
+    if emergency_switch is not None:
+        audit(conn, actor=principal, action="emergency_readiness.module.enable" if emergency_switch == "true" else "emergency_readiness.module.disable", decision="allowed",
+              resource_type="installation", resource_id="emergency_readiness", request_id=getattr(request.state, "correlation_id", None))
     if maintenance_switch is not None:
         audit(conn, actor=principal, action="maintenance.module.enable" if maintenance_switch == "true" else "maintenance.module.disable", decision="allowed",
               resource_type="installation", resource_id="maintenance", request_id=getattr(request.state, "correlation_id", None))
