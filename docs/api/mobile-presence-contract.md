@@ -1,4 +1,4 @@
-# SmplWise Arx — mobile presence and push contract (v2, CR-027)
+# SmplWise Arx — mobile presence and push contract (v2.1, CR-027 + PRESENCE307)
 
 The server contract the SmplWise Arx phone apps (iOS first, Android later; same shape) are built against. It is the
 implemented truth of `smplwise_vms/backend/smplwise/routers/presence.py` and `routers/mobile_notifications.py`; where
@@ -7,7 +7,9 @@ it differs from the drafts in `mobile/ios-shell/HANDOFF_IOS_CODEX.md` section 6 
 `docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md` section 9). Codex extends the local mock (`mobile/ios-shell/tools/`) to
 this shape; the mock never points at the lab.
 
-Changelog: **v2 (2026-10-06, owner-approved)** - one app serves many Arx servers: the registration also returns `relay_url`
+Changelog: **v2.1 (PRESENCE307, owner decision; additive, backward compatible)** - `GET presence/config` adds `wifi_match_mode`
+(`phone` default | `server`); the `network` sensor event gains `wifi_match` / `wifi_site_id`; apps that still send `ssid_hash` keep
+working (section 2.1). **v2 (2026-10-06, owner-approved)** - one app serves many Arx servers: the registration also returns `relay_url`
 (section 1); every state-changing request that carries the session cookie must send `Origin`, and the refusal is
 machine-readable (section 0); `GET presence/gate` answers `{gate, sensors}` (section 5); relay registration is idempotent
 per push token and one relay token is one phone per server (sections 7.2, 8); a server id is owned by the first relay key
@@ -130,6 +132,7 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
   },
   "beacons": [ { "uuid": "…", "site_id": "site_main" } ],
   "wifi_sites": [ { "site_id": "site_main", "ssid_hash_salt": "…", "ssid_hashes": ["…"] } ],
+  "wifi_match_mode": "phone",
   "required_sensors": { "enabled": false, "sensors": [] },
   "device": { "device_id": "dev_…", "name": "הנייד של יוסי", "notice_ack_version": 0 }
 }
@@ -146,7 +149,32 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
   again before anything is reported.
 - `required_sensors` tells the app which sensors the administrator requires for using the system from the app
   (section 5); it is `enabled: false` while the master switch is off.
+- `wifi_match_mode` (v2.1; absent from older servers = treat as `server`, the pre-2.1 behaviour) tells the app who decides that
+  the phone is on a site's Wi-Fi network; see section 2.1. It is returned whatever the master switch says.
 - Sensor keys (v1, all platforms): `location, activity, steps, altitude, battery, network, beacon, app_state`.
+
+### 2.1 Wi-Fi site match: phone-side or server-side (v2.1, PRESENCE307)
+
+The administrator chooses in הגדרות › אפליקציה לנייד (`wifi_match_mode`, `PUT presence/settings`). The app reads it from every
+`GET presence/config` and follows it; it may change at any time. `wifi_sites` (salt + hashes per site) is delivered in both modes.
+
+Hash: `ssid_hash = lowercase hex( SHA-256( UTF-8( ssid_hash_salt + ssid ) ) )`, compared case-insensitively. The salt is the entry's
+`ssid_hash_salt`; try each `wifi_sites` entry with its own salt.
+
+| | `phone` (default) | `server` |
+|---|---|---|
+| Who matches | the app, locally, against `wifi_sites` | the server, against `wifi_sites` |
+| App sends in the `network` sensor `value` | `{ "network": "wifi", "wifi_match": true, "wifi_site_id": "site_main" }` or `{ "network": "wifi", "wifi_match": false }`. **No SSID, no hash.** | `{ "network": "wifi", "ssid_hash": "<hash>" }` (hash computed with the matching entry's salt; if the app holds several salts it sends the first entry's hash, as today) |
+| Server stores | the boolean and the site id (a `wifi_site_id` not configured on the server is dropped) | the hash plus the server's own `wifi_match` / `wifi_site_id`; a `wifi_match` sent by the phone is ignored |
+
+Backward compatibility: in `phone` mode a server still accepts a `network` event that carries only `ssid_hash` (an app that has not
+been updated): it derives `wifi_match` / `wifi_site_id` itself and **does not store the hash**. A `network` event with neither field is
+stored as before. Nothing is rejected because of these fields. The newest verdict appears in `GET presence/devices/{id}/state` as
+`presence.wifi = { match, site_id, at }`; it never changes `inside` (location events decide that).
+
+The `network` sensor must be in `sensors.allowed`; the employee notice covers "location and presence", which includes the Wi-Fi match.
+App work: read `wifi_match_mode`; in `phone` mode do the comparison on the device and stop sending the hash; keep sending the hash when
+the mode is `server` or the field is absent. Minimum app change for the next release: honour the mode; the hash path stays valid.
 
 ## 3. The notice — `POST presence/devices/{device_id}/ack` (device token)
 
@@ -187,7 +215,7 @@ Rules:
   | `steps` | steps delta per interval, floors up / down |
   | `altitude` | relative altitude change |
   | `battery` | level %, charging state, low-power mode |
-  | `network` | `wifi \| cellular \| none`, Wi-Fi SSID hash (matched against `wifi_sites`) |
+  | `network` | `wifi \| cellular \| none`; Wi-Fi: `wifi_match` + `wifi_site_id` (phone mode) or `ssid_hash` (server mode), see section 2.1 |
   | `beacon` | `site_id`, proximity bucket (`immediate \| near \| far`) |
   | `app_state` | `foreground \| background`, last-seen |
 

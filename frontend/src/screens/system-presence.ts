@@ -16,7 +16,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 
 const DEMO: PresenceSettings = {
   enabled: false, mode: 'continuous', interval_s: 60, distance_filter_m: 50, notice_text: '', notice_version: 1, sensors_allowed: [...SENSOR_KEYS], intervals_s: {},
-  sites: [], beacons: [], wifi_sites: [], retention_days: 30, required_sensors: { enabled: false, sensors: [], apply_to_web: false, max_stale_hours: 48, roles: [], users: [], exempt_users: [] },
+  sites: [], beacons: [], wifi_sites: [], wifi_match_mode: 'phone', retention_days: 30, required_sensors: { enabled: false, sensors: [], apply_to_web: false, max_stale_hours: 48, roles: [], users: [], exempt_users: [] },
   break_glass: { until: null, reason: '', by: null },
 };
 
@@ -205,7 +205,7 @@ export class SystemPresence extends LitElement {
     try {
       const d = this.draft;
       const r = await putPresenceSettings({
-        enabled: d.enabled, notice_text: d.notice_text, sensors_allowed: d.sensors_allowed, retention_days: d.retention_days,
+        enabled: d.enabled, notice_text: d.notice_text, sensors_allowed: d.sensors_allowed, retention_days: d.retention_days, wifi_match_mode: d.wifi_match_mode ?? 'phone',
         required_sensors: d.required_sensors,
       });
       this.saved = r.settings;
@@ -267,6 +267,11 @@ export class SystemPresence extends LitElement {
           <sw-toggle ?checked=${d.enabled} ?disabled=${!editable || this.busy} label="שיתוף פעיל" labelHidden data-presence-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ enabled: e.detail.checked })}></sw-toggle></div>
         <div class="row" data-presence-row="sensors"><span class="lbl">חיישנים מאושרים<span class="muted">העובד בוחר באפליקציה מתוך הרשימה הזו בלבד</span></span></div>
         <div class="grid" data-presence-sensors>${SENSOR_KEYS.map((k) => html`<label class="chk"><input type="checkbox" data-presence-sensor=${k} .checked=${d.sensors_allowed.includes(k)} ?disabled=${!editable || this.busy} @change=${(e: Event) => this.toggleSensor(k, (e.target as HTMLInputElement).checked)} /> ${SENSOR_LABEL[k]}</label>`)}</div>
+        <div class="row" data-presence-row="wifi-mode"><span class="lbl">התאמת Wi-Fi לאתר<span class="muted">בטלפון: הטלפון שולח רק "מחובר לרשת אתר"; בשרת: הטלפון שולח גיבוב של שם הרשת והשרת משווה</span></span>
+          <sw-field><select data-presence-wifi-mode ?disabled=${!editable || this.busy} @change=${(e: Event) => this.patch({ wifi_match_mode: (e.target as HTMLSelectElement).value as 'phone' | 'server' })}>
+            <option value="phone" ?selected=${(d.wifi_match_mode ?? 'phone') === 'phone'}>בטלפון (ברירת מחדל)</option>
+            <option value="server" ?selected=${d.wifi_match_mode === 'server'}>בשרת (גיבוב)</option>
+          </select></sw-field></div>
         <div class="row" data-presence-row="notice"><span class="lbl">הודעה לעובדים<span class="muted">גרסה ${d.notice_version}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש</span></span></div>
         <textarea data-presence-notice placeholder="טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)" .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
         <div class="row" data-presence-row="retention"><span class="lbl">שמירת יומן הדיווחים</span>
