@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מוכנות ההתקנה, מצב הדגמה ומיתוג - דגם למסכים</title>
+<!--
+  CR-READY96 (board r096 + r097) - static design mock-up for the owner's approval. NOT product code: self-contained, no network
+  request, fake data only. Change record: docs/changes/CR-READY96.md.
+
+  Owner standing style (2026-10-23): every mockup follows the visual language of the EXISTING screens (infrastructure temperature,
+  elevators, schedules). Drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin, light + dark copied
+  verbatim below), the real shell (frontend/src/shell/sw-app.ts: the area rail at the inline start, no top bar, the search / status
+  pill floating in the content's corner; phone: the bottom bar), the real tab rows (components/sw-tabs.ts: level 1 = the pill track
+  of AREA_TABS.system in shell/nav.ts), the real page head (h1 + subtitle + actions), the KPI row of the temperature / elevators
+  screens (each KPI a filter), the solid state badges and soft chips, the pill buttons and the sw-state-panel states.
+
+  THREE SCREENS (all under "מערכת", the settings area, reached from the user menu):
+    1. מוכנות ההתקנה  (#/system/readiness) - the score, the checklist with one-tap next steps, the handover card
+    2. the demo-mode banner + the start dialog (shown on every screen while demo mode is on; ?demo=on)
+    3. מיתוג           (#/system/brand)     - the installing company's name, logo, colours; the preview and what stays fixed
+  URL switches: ?page=ready|brand  ?theme=dark  ?demo=on  ?role=mgr|view  ?state=ready|empty|loading|error
+-->
+<style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) - the names used by the real screens ===== */
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
+  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
+  --sw-touch-desktop: 44px; --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2);
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
+  --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
+  --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; color-scheme: dark;
+}
+/* the state looks of the temperature screen (temperature/styles.ts) */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
+[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, .num { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ===== mockup-only controls (not part of the product) ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
+
+/* ===== the demo-mode banner (product): a full-width strip above the shell, warning colour, visible to every signed-in user ===== */
+.demo-bar { display: none; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 18px; background: var(--sw-warning); color: #1e2e47; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); border-block-end: 1px solid rgba(0,0,0,.08); }
+body.demo .demo-bar { display: flex; }
+.demo-bar .tag { display: inline-flex; align-items: center; gap: 6px; background: #1e2e47; color: #fff; border-radius: var(--sw-r-pill); padding: 2px 11px; font-weight: var(--sw-fw-bold); font-size: var(--sw-fs-sm); letter-spacing: .3px; }
+.demo-bar .sp { flex: 1; }
+.demo-bar .who { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-regular); opacity: .85; }
+.demo-bar .btn { background: #1e2e47; color: #fff; border-color: #1e2e47; }
+.demo-bar .btn.ghost { background: transparent; color: #1e2e47; border-color: rgba(30,46,71,.35); }
+body.demo .brand { background: repeating-linear-gradient(135deg, var(--sw-accent) 0 6px, #1e2e47 6px 10px); }
+body.demo .brand::after { content: 'הדגמה'; position: absolute; inset-block-end: -14px; font-size: 9px; font-weight: var(--sw-fw-bold); color: var(--sw-warning-text); }
+
+/* ===== the shell (shell/sw-app.ts): the rail at the inline start, the content column, the floating corner pill ===== */
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand { position: relative; align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); overflow: visible; }
+.brand img { inline-size: 100%; block-size: 100%; object-fit: cover; border-radius: inherit; }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); }
+.float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+body.demo .float .sysdot i { background: var(--sw-warning); }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+/* the tab row (components/sw-tabs.ts): level 1 = the pill track; here the settings area's tabs (AREA_TABS.system) */
+.subnav { padding: 12px 24px 0; display: flex; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; }
+.tabs a { position: relative; display: inline-flex; align-items: center; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
+.tabs a:hover { color: var(--sw-text); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs.pill .row { padding-inline: 3px; }
+.tabs.pill .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs.pill a { min-block-size: 34px; padding-inline: 1px; }
+.tabs.pill a .lbl { display: inline-flex; align-items: center; gap: 6px; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs.pill a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.tabs .count { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.tabs a.on .count { color: var(--sw-accent-text); }
+.tabs .count.warn { color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
+@media (max-width: 767px) and (pointer: coarse) { .tabs a { min-block-size: 44px; } }
+
+/* ===== the screen (screens/infra-temperature.ts :host / .top / .kpis) ===== */
+.screen { display: none; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; inline-size: 100%; min-inline-size: 0; }
+.screen.on { display: flex; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); }
+.top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.top .sp { flex: 1; }
+.top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--sw-border-strong); }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.pri:hover { background: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+.btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
+.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
+.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.btn svg { font-size: 16px; }
+/* KPI row: each a filter (aria-pressed), like the temperature screen */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer; --c: var(--sw-accent); }
+.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; color: var(--sw-heading); }
+.kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+/* badges (solid) and chips (soft) */
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+[data-look="warn"] .badge, .badge[data-look="warn"] { color: #1e2e47; }
+.badge svg { font-size: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
+/* panels / cards */
+.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+.panel.flush { padding: 0; overflow: hidden; }
+.panel h2, .panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
+.panel .hd .sp { flex: 1; }
+.hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; min-inline-size: 0; }
+.cols > * { min-inline-size: 0; }
+.side { display: grid; gap: 14px; }
+
+/* ===== the score hero: the ring (SVG), the level, the group bars ===== */
+.hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; }
+.ring { position: relative; inline-size: 128px; block-size: 128px; }
+.ring svg { inline-size: 100%; block-size: 100%; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+.ring .bg { stroke: var(--sw-surface-3); }
+.ring .fg { stroke: var(--c, var(--sw-accent)); stroke-dasharray: 339.3; stroke-dashoffset: calc(339.3 * (1 - var(--p, 0))); transition: stroke-dashoffset .6s var(--sw-ease); }
+.ring .v { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; }
+.ring .v b { font-size: 34px; line-height: 1; font-weight: var(--sw-fw-bold); color: var(--sw-heading); font-variant-numeric: tabular-nums; }
+.ring .v small { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.hero .lvl { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
+.hero .lvl .name { font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hero .scale { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.hero .scale span { display: block; block-size: 6px; border-radius: 3px; background: var(--sw-surface-3); }
+.hero .scale span.on { background: var(--c); }
+.hero .scale-l { display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.hero .scale-l span:nth-child(2) { text-align: center; } .hero .scale-l span:nth-child(3) { text-align: end; }
+.gates { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ===== the checklist: one row per check (like the electricity list rows .li), progress bar, facts, the next step ===== */
+.checks { display: flex; flex-direction: column; gap: 8px; }
+.ck { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 12px 14px; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); min-inline-size: 0; }
+.ck .st { inline-size: 36px; block-size: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--c-soft); color: var(--c-text); font-size: 18px; grid-row: span 2; }
+.ck .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ck .t2 { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+.ck .w { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ck .act { display: flex; gap: 6px; align-items: center; grid-row: span 2; }
+.ck .bar { grid-column: 2; block-size: 5px; border-radius: 3px; background: var(--sw-surface-3); overflow: hidden; }
+.ck .bar i { display: block; block-size: 100%; background: var(--c); inline-size: var(--p); }
+.ck .facts { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; }
+.ck[data-look="off"] { opacity: .7; }
+.ck .src { font-size: var(--sw-fs-2xs); font-weight: var(--sw-fw-medium); color: var(--sw-text-3); border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 0 6px; }
+/* the "next steps" list: ranked by score gain */
+.next { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.next li { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); }
+.next .n { inline-size: 24px; block-size: 24px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); display: grid; place-items: center; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); flex: none; }
+.next .t { flex: 1; min-inline-size: 0; }
+.next .t b { display: block; font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-base); }
+.next .t span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.next .g { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-success-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: var(--sw-fs-md); }
+.kv dt { color: var(--sw-text-3); }
+.kv dd { margin: 0; color: var(--sw-text); font-weight: var(--sw-fw-medium); overflow-wrap: anywhere; }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hist li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--sw-r-sm); font-size: var(--sw-fs-sm); }
+.hist .dot { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c, var(--sw-unknown)); flex: none; }
+.hist .t { flex: 1; min-inline-size: 0; }
+.hist .w { color: var(--sw-text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ===== forms (the settings screens) ===== */
+.form { display: grid; gap: 12px; }
+.fld { display: flex; flex-direction: column; gap: 5px; }
+.fld > label { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
+.inp { font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 36px; padding: 0 12px; inline-size: 100%; }
+.inp:focus { outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.file { display: flex; gap: 12px; align-items: center; border: 1px dashed var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 10px 12px; }
+.file .logo { inline-size: 56px; block-size: 56px; border-radius: var(--sw-r-md); display: grid; place-items: center; background: #0f766e; color: #fff; font-weight: 800; font-size: 22px; flex: none; }
+.file .grow { flex: 1; min-inline-size: 0; }
+.sw { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 0; border-block-end: 1px solid var(--sw-border); }
+.sw:last-child { border-block-end: 0; }
+.tog { inline-size: 36px; block-size: 20px; border-radius: 10px; background: var(--sw-offline); position: relative; flex: none; border: 0; cursor: pointer; }
+.tog::after { content: ''; position: absolute; inset-block-start: 2px; inset-inline-start: 2px; inline-size: 16px; block-size: 16px; border-radius: 50%; background: #fff; transition: transform var(--sw-t-fast) var(--sw-ease); }
+.tog[aria-checked="true"] { background: var(--sw-accent); }
+.tog[aria-checked="true"]::after { transform: translateX(-16px); }
+.tog[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatches button { inline-size: 32px; block-size: 32px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; background: var(--s); }
+.swatches button[aria-pressed="true"] { border-color: var(--sw-heading); box-shadow: 0 0 0 2px var(--sw-surface); }
+.fix { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+.fix li { display: flex; gap: 8px; align-items: flex-start; }
+.fix li svg { font-size: 15px; color: var(--sw-text-3); margin-block-start: 3px; }
+/* the brand preview: four miniatures (rail tile, login card, report footer, email line) */
+.prev { display: grid; gap: 10px; }
+.pv { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface-2); }
+.pv .cap { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.pv .tile { inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); display: grid; place-items: center; background: #0f766e; color: #fff; font-weight: 800; font-size: var(--sw-fs-xl); }
+.pv .login { border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); padding: 12px; display: grid; justify-items: center; gap: 6px; text-align: center; }
+.pv .login .ln { block-size: 8px; border-radius: 4px; background: var(--sw-surface-3); inline-size: 70%; }
+.pv .login .bt { block-size: 22px; border-radius: var(--sw-r-pill); background: #0f766e; inline-size: 60%; margin-block-start: 4px; }
+.pv .foot { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); border-block-start: 1px solid var(--sw-border); padding-block-start: 6px; }
+.pv .mail { font-size: var(--sw-fs-sm); }
+
+/* ===== states (components/sw-state-panel.ts) ===== */
+.state-panel { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 220px; }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
+.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state-panel[data-state="forbidden"] .icon { background: var(--sw-forbidden-soft); color: var(--sw-forbidden); }
+.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
+.skl { display: none; border-radius: var(--sw-r-md); background: linear-gradient(90deg, var(--sw-skeleton), var(--sw-skeleton-shine), var(--sw-skeleton)); background-size: 200% 100%; animation: skl 1.4s linear infinite; block-size: 160px; }
+@keyframes skl { to { background-position: -200% 0; } }
+body[data-st="loading"] .screen.on > :not(.skl):not(.top) { display: none !important; }
+body[data-st="loading"] .screen.on > .skl { display: block; }
+body[data-st="empty"] .screen.on > .cols, body[data-st="empty"] .screen.on > .kpis, body[data-st="empty"] .screen.on > .panel { display: none !important; }
+body[data-st="empty"] .screen.on > .state-panel[data-state="empty"] { display: flex; }
+body[data-st="error"] .screen.on > :not(.state-panel[data-state="error"]) { display: none !important; }
+body[data-st="error"] .screen.on > .state-panel[data-state="error"] { display: flex; }
+/* permissions: the viewer (no system.configure) sees the forbidden panel; the manage affordances leave */
+body[data-role="view"] .mng { display: none !important; }
+body[data-role="view"] .screen.on > :not(.state-panel[data-state="forbidden"]) { display: none !important; }
+body[data-role="view"] .screen.on > .state-panel[data-state="forbidden"] { display: flex; }
+/* dialogs (components/sw-dialog): a centred sheet on the overlay */
+.ov { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); display: none; align-items: center; justify-content: center; padding: 16px; }
+.ov.open { display: flex; }
+.dlg { background: var(--sw-surface-solid); border-radius: var(--sw-r-xl); box-shadow: var(--sw-shadow-3); inline-size: min(100%, 640px); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.dlg header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 8px; }
+.dlg header h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+.dlg header .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.dlg header .x { margin-inline-start: auto; }
+.dlg .body { padding: 8px 22px 18px; overflow: auto; display: grid; gap: 14px; }
+.dlg footer { display: flex; gap: 8px; align-items: center; padding: 12px 22px 18px; border-block-start: 1px solid var(--sw-border); }
+.dlg footer .sp { flex: 1; }
+.x { display: inline-grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; border: 0; background: var(--sw-surface-3); color: var(--sw-text-2); cursor: pointer; font: inherit; }
+.opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.opts button { border: 2px solid var(--sw-border-strong); border-radius: var(--sw-r-md); background: var(--sw-surface); padding: 12px 10px; text-align: start; font: inherit; cursor: pointer; display: grid; gap: 2px; color: var(--sw-text); }
+.opts button b { color: var(--sw-heading); }
+.opts button span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.opts button[aria-pressed="true"] { border-color: var(--sw-accent); background: var(--sw-accent-soft); }
+.alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--sw-r-md); font-size: var(--sw-fs-md); border: 1px solid transparent; }
+.alert.warn { background: var(--sw-warning-soft); border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent); color: var(--sw-warning-text); }
+.alert > div { flex: 1; min-inline-size: 0; }
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; }
+.toast.on { display: block; }
+nav.bottom { display: none; }
+
+/* ===== tablet (<= 1023: the rail keeps its icons only) ===== */
+@media (max-width: 1023px) {
+  nav.rail a span { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .screen { padding-inline: 20px; }
+  .cols { grid-template-columns: minmax(0, 1fr) 260px; }
+}
+/* ===== phone (<= 767: no rail, the bottom bar; the side column stacks under the list) ===== */
+@media (max-width: 767px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .float { inset-inline-end: 12px; }
+  .subnav { padding: 8px 12px 0; }
+  .screen { padding: 12px 14px 20px; gap: 12px; }
+  .top { flex-direction: column; align-items: stretch; }
+  .top .sp { display: none; }
+  .demo-bar { padding: 6px 12px; font-size: var(--sw-fs-sm); gap: 8px; }
+  .demo-bar .who, .demo-bar .btn.ghost { display: none; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .hero .lvl .name { justify-content: center; }
+  .hero .lvl { inline-size: 100%; }
+  .ck { grid-template-columns: auto minmax(0, 1fr); }
+  .ck .act { grid-column: 1 / -1; grid-row: auto; justify-content: flex-end; }
+  .ck .w { display: none; }
+  .row2 { grid-template-columns: minmax(0, 1fr); }
+  .opts { grid-template-columns: 1fr; }
+  .dlg { inline-size: 100%; max-block-size: 100dvh; border-radius: var(--sw-r-xl) var(--sw-r-xl) 0 0; align-self: flex-end; }
+  .ov { padding: 0; align-items: flex-end; }
+  .btn { min-block-size: 44px; }
+  .btn.sm { min-block-size: 36px; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
+  nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+  .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h12l-2 4 2 4H5"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 2 2 0 0 1 1.5-3.3H17a4 4 0 0 0 4-4c0-4-4-7-9-7z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  </defs>
+</svg>
+
+<!-- mockup-only controls -->
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם</b>
+  <select id="pg" aria-label="מסך"><option value="ready">מסך: מוכנות ההתקנה</option><option value="brand">מסך: מיתוג</option></select>
+  <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל מערכת</option><option value="view">תפקיד: ללא הרשאת מערכת</option></select>
+  <select id="stsel" aria-label="מצב המסך"><option value="ready">מצב: רגיל</option><option value="empty">מצב: התקנה חדשה</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option></select>
+  <button id="demo" aria-pressed="false">מצב הדגמה: כבוי</button>
+  <button id="th" aria-pressed="false">כהה</button>
+  <span class="sp"></span>
+  <button id="open-demo" class="mng">דיאלוג התחלת הדגמה</button>
+</nav>
+
+<!-- ===== the demo-mode banner (product): on every screen, for every user, while demo mode is on ===== -->
+<div class="demo-bar" role="status" aria-live="polite" data-demo-banner>
+  <span class="tag"><svg class="ic"><use href="#i-play"/></svg>הדגמה</span>
+  <span>הנתונים מדומים · פעולות למצלמות, לדלתות ולמכשירים חסומות · ההתקנה האמיתית לא נגעה</span>
+  <span class="who">מסתיים אוטומטית בעוד <b class="num">3:42</b> ש׳ · הופעל על ידי דני כהן</span>
+  <span class="sp"></span>
+  <button class="btn sm ghost">הארכה</button>
+  <button class="btn sm mng" id="demo-off"><svg class="ic"><use href="#i-close"/></svg>יציאה מההדגמה</button>
+</div>
+
+<div class="app">
+  <!-- the area rail (shell/sw-app.ts nav.rail); the settings area is reached from the user menu, so no area is active here -->
+  <nav class="rail" aria-label="ניווט ראשי">
+    <span class="brand" aria-hidden="true" data-brand-tile>S</span>
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>בקשות שירות</span></a>
+    <div class="grow"></div>
+    <span class="me" aria-label="תפריט המשתמש - מערכת">דכ</span>
+  </nav>
+  <div class="float" aria-hidden="true"><div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <main>
+    <!-- level 1: the settings area's tabs (AREA_TABS.system): "מוכנות" after the wizard, "מיתוג" after it (both system.configure) -->
+    <div class="subnav">
+      <nav class="tabs pill" aria-label="מערכת"><div class="row">
+        <a href="#"><span class="lbl">כללי</span></a><a href="#"><span class="lbl">התראות</span></a><a href="#"><span class="lbl">משתמשים והרשאות</span></a><a href="#"><span class="lbl">אבטחה</span></a><a href="#"><span class="lbl">אודיט</span></a><a href="#"><span class="lbl">אחסון</span></a><a href="#"><span class="lbl">עדכונים</span></a><a href="#"><span class="lbl">אשף התקנה</span></a>
+        <a href="#" data-p="ready" class="on" aria-current="page"><span class="lbl">מוכנות<span class="count num" data-score-chip>76%</span></span></a>
+        <a href="#" data-p="brand"><span class="lbl">מיתוג</span></a>
+        <a href="#"><span class="lbl">חיבורים</span></a><a href="#"><span class="lbl">בקרת כניסה</span></a><a href="#"><span class="lbl">קטלוג התקנים</span></a><a href="#"><span class="lbl">תזמונים</span></a><a href="#"><span class="lbl">מסכי קיר</span></a><a href="#"><span class="lbl">אוטומציות</span></a>
+      </div></nav>
+    </div>
+
+    <!-- ===== 1. installation readiness ===== -->
+    <section class="screen on" id="s-ready">
+      <div class="state-panel" data-state="forbidden"><div class="icon"><svg class="ic"><use href="#i-lock"/></svg></div><div><h4>אין הרשאה למסך הזה</h4><p>מוכנות ההתקנה פתוחה למנהלי המערכת (system.configure).</p></div></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>מצב המוכנות לא נטען</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>מוכנות ההתקנה</h1><p class="sub">מערכת · <span data-n-checks>12</span> בדיקות · הבדיקות קוראות בלבד מהמכשירים · נבדק לפני 4 דק׳</p></div><span class="sp"></span>
+        <div class="meta">
+          <button class="btn mng" id="start-demo"><svg class="ic"><use href="#i-play"/></svg>מצב הדגמה</button>
+          <button class="btn mng"><svg class="ic"><use href="#i-print"/></svg>דוח מסירה</button>
+          <button class="btn pri mng"><svg class="ic"><use href="#i-refresh"/></svg>בדוק הכול</button>
+        </div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-flag"/></svg></div><div><h4>התקנה חדשה - הציון מתחיל מאפס</h4><p>אשף ההתקנה מחבר את המכשירים; כאן רואים כמה ההתקנה שלמה: מצלמות מאומתות, קומות, אנשים, התראות, גיבוי, גישה מרחוק ומודולים. כל סעיף פותח את המסך שמשלים אותו.</p></div><a class="btn pri mng" href="#">לאשף ההתקנה</a></div>
+
+      <div class="panel hero" data-look="warn" id="hero">
+        <div class="ring" style="--p:.76"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="54"/><circle class="fg" cx="60" cy="60" r="54"/></svg><div class="v"><b data-score>76</b><small>מתוך 100</small></div></div>
+        <div class="lvl">
+          <div class="name"><span data-level>כמעט מוכן למסירה</span><span class="badge" data-look="alarm"><svg class="ic"><use href="#i-warning"/></svg>חסם אחד</span></div>
+          <div class="hint">מסירה ללקוח אפשרית מציון 90 ובלי חסמים. הסעיפים הקריטיים (מצלמות מחוברות, גיבוי, אנשים והרשאות) חוסמים גם בציון גבוה.</div>
+          <div class="scale" aria-hidden="true"><span class="on"></span><span class="on"></span><span></span></div>
+          <div class="scale-l" aria-hidden="true"><span>בהקמה · 0-49</span><span>כמעט מוכן · 50-89</span><span>מוכן למסירה · 90+</span></div>
+          <div class="gates"><span class="chip" data-look="alarm">חסם: גיבוי לא נבדק</span><span class="chip">ציון קודם: 71 (לפני 3 ימים)</span><span class="chip">+5 השבוע</span></div>
+        </div>
+      </div>
+
+      <div class="kpis" role="group" aria-label="סינון לפי מצב" data-kpis>
+        <button class="kpi" data-k="all" aria-pressed="true"><span class="dot" aria-hidden="true"></span><div><b data-n="all">0</b><span class="l">בדיקות</span></div></button>
+        <button class="kpi" data-k="alarm" data-look="alarm" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="alarm">0</b><span class="l">חסמים</span></div></button>
+        <button class="kpi" data-k="warn" data-look="warn" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="warn">0</b><span class="l">דורש השלמה</span></div></button>
+        <button class="kpi" data-k="ok" data-look="ok" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="ok">0</b><span class="l">תקין</span></div></button>
+        <button class="kpi" data-k="unk" data-look="unk" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="unk">0</b><span class="l">ממתין לאישור</span></div></button>
+        <button class="kpi" data-k="off" data-look="off" aria-pressed="false"><span class="dot" aria-hidden="true"></span><div><b data-n="off">0</b><span class="l">לא רלוונטי</span></div></button>
+      </div>
+
+      <div class="cols">
+        <div class="checks" data-checks></div>
+        <div class="side">
+          <div class="panel"><div class="hd"><h2>הצעדים הבאים</h2><span class="sp"></span><span class="mut">לפי תרומה לציון</span></div><ol class="next" data-next></ol></div>
+          <div class="panel"><div class="hd"><h2>מסירה ללקוח</h2><span class="sp"></span><span class="chip" data-look="unk">ממתין</span></div>
+            <dl class="kv"><dt>לקוח</dt><dd>מגדלי הירדן - ועד הבית</dd><dt>מתקין</dt><dd>דני כהן · אלקטרו-גל</dd><dt>נדרש</dt><dd>ציון 90+, בלי חסמים, חתימת הלקוח</dd></dl>
+            <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap"><button class="btn mng" disabled>אישור מסירה</button><button class="btn ghost mng"><svg class="ic"><use href="#i-print"/></svg>דוח מסירה</button></div>
+          </div>
+          <div class="panel"><div class="hd"><h2>היסטוריה</h2></div>
+            <ul class="hist">
+              <li data-look="ok"><span class="dot"></span><span class="t">גישה מרחוק הופעלה עם אימות למנהלים</span><span class="w">היום 09:12</span></li>
+              <li data-look="ok"><span class="t">6 משתמשים · תפקידים הוגדרו</span><span class="w">אתמול</span></li>
+              <li data-look="warn"><span class="dot"></span><span class="t">מצלמה "חניון 3" ללא הקלטה</span><span class="w">לפני 3 ימים</span></li>
+              <li data-look="unk"><span class="dot"></span><span class="t">ציון 71 · הבדיקה הראשונה</span><span class="w">לפני 3 ימים</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 2. white-label (brand) settings ===== -->
+    <section class="screen" id="s-brand">
+      <div class="state-panel" data-state="forbidden"><div class="icon"><svg class="ic"><use href="#i-lock"/></svg></div><div><h4>אין הרשאה למסך הזה</h4><p>המיתוג פתוח למנהלי המערכת (system.configure).</p></div></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>הגדרות המיתוג לא נטענו</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>מיתוג</h1><p class="sub">מערכת · שם חברת ההתקנה, הלוגו והצבעים בחבילת הלקוח · נשמר בהתקנה בלבד</p></div><span class="sp"></span>
+        <div class="meta"><button class="btn mng">איפוס לברירת המחדל</button><button class="btn pri mng" id="save-brand">שמירה</button></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-palette"/></svg></div><div><h4>עדיין בלי מיתוג</h4><p>המערכת מוצגת בשם ובצבעי המוצר. חברת ההתקנה יכולה להוסיף שם, לוגו וצבע ראשי, והם יופיעו במסך הכניסה, בפס הניווט, בדוחות ובהודעות.</p></div><button class="btn pri mng">הוספת מיתוג</button></div>
+
+      <div class="cols">
+        <div class="side">
+          <div class="panel"><div class="hd"><h2>חברת ההתקנה</h2></div>
+            <div class="form">
+              <div class="row2">
+                <div class="fld"><label for="b-name">שם החברה</label><input class="inp" id="b-name" value="אלקטרו-גל מערכות" data-b-name></div>
+                <div class="fld"><label for="b-short">שם קצר (פס הניווט, עד 2 אותיות או לוגו)</label><input class="inp" id="b-short" value="אג" maxlength="2" data-b-short></div>
+              </div>
+              <div class="fld"><label>לוגו (PNG/SVG, עד 512 KB, ריבועי)</label>
+                <div class="file"><span class="logo" data-b-logo>אג</span><div class="grow"><b>logo.svg</b><div class="mut">מוצג בפס הניווט, במסך הכניסה ובכותרת הדוחות · נשמר בקובץ מקומי בהתקנה</div></div><button class="btn sm mng">החלפה</button><button class="btn sm ghost mng">הסרה</button></div>
+              </div>
+              <div class="row2">
+                <div class="fld"><label for="b-phone">טלפון שירות</label><input class="inp num" id="b-phone" value="03-5550000" dir="ltr"></div>
+                <div class="fld"><label for="b-mail">אימייל שירות</label><input class="inp" id="b-mail" value="service@example.co.il" dir="ltr"></div>
+              </div>
+              <div class="fld"><label>צבע ראשי (ערכות הצבע הקיימות של המערכת)</label>
+                <div class="swatches" data-swatches>
+                  <button style="--s:#2767ed" aria-label="כחול המערכת" aria-pressed="false" data-c="#2767ed"></button>
+                  <button style="--s:#0f766e" aria-label="טורקיז" aria-pressed="true" data-c="#0f766e"></button>
+                  <button style="--s:#7c3aed" aria-label="סגול" aria-pressed="false" data-c="#7c3aed"></button>
+                  <button style="--s:#be123c" aria-label="בורדו" aria-pressed="false" data-c="#be123c"></button>
+                  <button style="--s:#c2410c" aria-label="כתום" aria-pressed="false" data-c="#c2410c"></button>
+                  <button style="--s:#1e2e47" aria-label="כחול כהה" aria-pressed="false" data-c="#1e2e47"></button>
+                </div>
+                <div class="mut">הצבע נבדק אוטומטית לניגודיות מול הטקסט; צבע שלא עובר מסומן ולא נשמר.</div>
+              </div>
+            </div>
+          </div>
+          <div class="panel"><div class="hd"><h2>איפה מופיע</h2></div>
+            <div class="sw"><span>מסך הכניסה - שם ולוגו</span><button class="tog" role="switch" aria-checked="true"></button></div>
+            <div class="sw"><span>פס הניווט - הלוגו במקום אות המוצר</span><button class="tog" role="switch" aria-checked="true"></button></div>
+            <div class="sw"><span>דוחות PDF - כותרת ושורת שירות</span><button class="tog" role="switch" aria-checked="true"></button></div>
+            <div class="sw"><span>אימייל והודעות - שם השולח ושורת שירות</span><button class="tog" role="switch" aria-checked="false"></button></div>
+            <div class="sw"><span>דפי הציבור של בקשות השירות (יש להם מיתוג משלהם)</span><button class="tog" role="switch" aria-checked="false" disabled></button></div>
+          </div>
+        </div>
+        <div class="side">
+          <div class="panel"><div class="hd"><h2>תצוגה מקדימה</h2><span class="sp"></span><span class="mut">מתעדכן בזמן השמירה</span></div>
+            <div class="prev">
+              <div class="pv"><span class="cap">פס הניווט</span><span class="tile" data-pv-tile>אג</span></div>
+              <div class="pv"><span class="cap">מסך הכניסה</span><div class="login"><span class="tile" data-pv-tile2>אג</span><b data-pv-name>אלקטרו-גל מערכות</b><span class="mut" data-pv-powered>מופעל על ידי SmplWise Arx</span><span class="ln"></span><span class="ln" style="inline-size:50%"></span><span class="bt"></span></div></div>
+              <div class="pv"><span class="cap">דוח PDF - כותרת תחתונה</span><div class="foot"><span data-pv-foot>אלקטרו-גל מערכות · שירות 03-5550000</span><span>הופק ב-SmplWise Arx 2.13.0</span></div></div>
+              <div class="pv"><span class="cap">אימייל</span><div class="mail"><b>מאת:</b> <span data-pv-mailfrom>אלקטרו-גל מערכות</span> · <b>נושא:</b> Arx · התראה: תנועה בחניון 3</div></div>
+            </div>
+          </div>
+          <div class="panel"><div class="hd"><h2>מה נשאר קבוע</h2></div>
+            <ul class="fix">
+              <li><svg class="ic"><use href="#i-lock"/></svg><span>שם המוצר וגרסתו ב"עדכונים", ב"אודות", בשורת "הופק ב-" של הדוחות ובמטא-דאטה של הקבצים.</span></li>
+              <li><svg class="ic"><use href="#i-lock"/></svg><span>טקסטים של אבטחה וכניסה (אימות דו-שלבי, נעילה, הודעות שגיאה) ומסמכי המערכת.</span></li>
+              <li><svg class="ic"><use href="#i-lock"/></svg><span>מיתוג של חברת ההתקנה בלבד: לא לוגו או שם של יצרן אחר, של הלקוח או של מוצר מתחרה.</span></li>
+              <li><svg class="ic"><use href="#i-lock"/></svg><span>תשתית המערכת אינה מוזכרת בשמה במסכי המפעילים (הכלל הקיים נשאר).</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom" aria-label="ניווט">
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg>ראשי</a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg>אבטחה</a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg>מפה</a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg>תשתיות</a>
+    <a href="#" class="active"><svg class="ic"><use href="#i-gear"/></svg>מערכת</a>
+  </nav>
+</div>
+
+<!-- ===== the demo-mode start dialog (system.configure) ===== -->
+<div class="ov" id="dlg-demo" role="dialog" aria-modal="true" aria-labelledby="dlg-demo-h">
+  <div class="dlg">
+    <header><div><h2 id="dlg-demo-h">התחלת מצב הדגמה</h2><p class="sub">נתונים מדומים לכל המסכים · ההתקנה האמיתית נשמרת בצד ולא נגעת</p></div><button class="x" aria-label="סגירה" data-close><svg class="ic"><use href="#i-close"/></svg></button></header>
+    <div class="body">
+      <div class="opts" role="group" aria-label="ערכת נתונים">
+        <button aria-pressed="true"><b>מגדל מגורים</b><span>3 מבנים · 14 קומות · 36 מצלמות · מעליות, גנרטור, חשמל</span></button>
+        <button aria-pressed="false"><b>בניין משרדים</b><span>8 קומות · 22 מצלמות · בקרת כניסה, בקשות שירות</span></button>
+        <button aria-pressed="false"><b>מרכז מסחרי</b><span>חניון, 48 מצלמות, מסכי קיר, מולטימדיה</span></button>
+      </div>
+      <div class="row2">
+        <div class="fld"><label for="d-len">משך</label><select class="inp" id="d-len"><option>שעה</option><option selected>4 שעות</option><option>עד יציאה ידנית (מקסימום 24 ש׳)</option></select></div>
+        <div class="fld"><label for="d-who">מי רואה</label><select class="inp" id="d-who"><option selected>כל המשתמשים המחוברים (הבאנר לכולם)</option></select></div>
+      </div>
+      <div class="alert warn"><svg class="ic"><use href="#i-warning"/></svg><div><b>במצב הדגמה שום פעולה לא מגיעה למכשירים.</b> פתיחת דלת, PTZ, הפעלת סצנה, שליחת התראה ושינוי הגדרות עובדים על הנתונים המדומים בלבד. הקלטות ותצוגה חיה מגיעות מקבצי דוגמה. היציאה מחזירה את ההתקנה האמיתית כפי שהייתה.</div></div>
+      <div class="mut">הפעלה ויציאה נרשמות באודיט. מצב ההדגמה אינו זמין בגישה מרחוק.</div>
+    </div>
+    <footer><span class="sp"></span><button class="btn" data-close>ביטול</button><button class="btn pri" id="demo-go"><svg class="ic"><use href="#i-play"/></svg>התחלת הדגמה</button></footer>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const q = new URLSearchParams(location.search);
+
+  /* ---- the readiness checks (fake data): src = computed | configured ---- */
+  const LEVEL = { ok: 'תקין', warn: 'דורש השלמה', alarm: 'חסם', unk: 'ממתין לאישור', off: 'לא רלוונטי' };
+  const CHECKS = [
+    { id: 'cameras_connected', look: 'ok', critical: true, w: 12, p: 1, src: 'computed', title: 'מצלמות מחוברות', sum: '9 מתוך 9 מצלמות מקוונות', facts: ['NVR ראשי · 9 ערוצים'], next: 'בריאות מצלמות' },
+    { id: 'cameras_verified', look: 'warn', w: 12, p: .78, src: 'computed', title: 'מצלמות מאומתות', sum: '7 מתוך 9 הפיקו תמונה והקלטה ב-24 השעות האחרונות', facts: ['חניון 3 · ללא הקלטה', 'מעלית ב · ללא תמונה'], next: 'בדיקת וידאו' },
+    { id: 'places', look: 'warn', w: 8, p: .8, src: 'computed', title: 'קומות ותוכניות', sum: '4 קומות, 3 עם תוכנית · 8 מתוך 9 מצלמות ממוקמות', facts: ['קומה 3 · אין תוכנית'], next: 'עריכת תוכנית' },
+    { id: 'people', look: 'ok', critical: true, w: 10, p: 1, src: 'computed', title: 'אנשים והרשאות', sum: '6 משתמשים · 2 תפקידים · חשבון הטכנאי מסומן', facts: ['מנהל הלקוח: ועד הבית'], next: 'משתמשים והרשאות' },
+    { id: 'notifications', look: 'warn', w: 10, p: .67, src: 'computed', title: 'התראות מגיעות', sum: 'אימייל נבדק לפני 3 ימים · 4 מכשירים עם דחיפה · WhatsApp לא מקושר', facts: ['בדיקה אחרונה · 20.10'], next: 'שליחת הודעת בדיקה' },
+    { id: 'backup', look: 'alarm', critical: true, w: 12, p: .33, src: 'computed', title: 'גיבוי מוגדר ונבדק', sum: 'גיבוי אחרון לפני 12 ימים · תרגול שחזור לא בוצע · אין יעד חיצוני', facts: ['סיסמת גיבוי · מוגדרת'], next: 'הרצת גיבוי ותרגול' },
+    { id: 'remote', look: 'ok', w: 8, p: 1, src: 'computed', title: 'גישה מרחוק', sum: 'מופעלת · אימות דו-שלבי למנהלים · 2 מכשירים מאושרים', facts: [], next: 'אבטחה' },
+    { id: 'time', look: 'ok', w: 4, p: 1, src: 'computed', title: 'שעון ואזור זמן', sum: 'סטייה 1 שנ׳ מול המקליט · Asia/Jerusalem', facts: [], next: 'חיבורים' },
+    { id: 'integrations', look: 'warn', w: 10, p: .75, src: 'computed', title: 'תשתיות מחוברות', sum: 'מקליט, go2rtc ותשתית המערכת תקינים · Frigate לא מגיב', facts: ['Frigate · 10:40 אחרון'], next: 'חיבורים' },
+    { id: 'modules', look: 'ok', w: 8, p: 1, src: 'computed', title: 'מודולים מוגדרים', sum: 'בקשות שירות: 3 מחלקות · חשמל: תעריפים · תזמונים: תקין', facts: ['3 מודולים פעילים'], next: 'הגדרות המודולים' },
+    { id: 'handover', look: 'unk', w: 6, p: 0, src: 'configured', title: 'מסירה ללקוח', sum: 'טרם אושרה · מדריך הלקוח לא הודפס', facts: [], next: 'אישור מסירה' },
+    { id: 'tags', look: 'off', w: 0, p: 0, src: 'computed', title: 'תגי QR/NFC', sum: 'מודול התחזוקה כבוי · לא נספר', facts: [], next: '' },
+  ];
+  const I = { ok: 'i-check', warn: 'i-warning', alarm: 'i-warning', unk: 'i-clock', off: 'i-minus' };
+
+  function render() {
+    const wrap = $('[data-checks]'); wrap.innerHTML = '';
+    for (const c of CHECKS) {
+      const el = document.createElement('article');
+      el.className = 'ck'; el.dataset.look = c.look; el.dataset.id = c.id; el.style.setProperty('--p', Math.round(c.p * 100) + '%');
+      el.innerHTML = `<span class="st" aria-hidden="true"><svg class="ic"><use href="#${I[c.look]}"/></svg></span>
+        <div><div class="t1">${c.title}<span class="badge">${LEVEL[c.look]}</span>${c.critical ? '<span class="chip">קריטי</span>' : ''}<span class="src">${c.src === 'computed' ? 'נמדד' : 'מאושר ידנית'}</span></div><div class="t2">${c.sum}</div></div>
+        <div class="act">${c.w ? `<span class="w num">${Math.round(c.p * c.w)}/${c.w} נק׳</span>` : ''}${c.next && c.look !== 'ok' && c.look !== 'off' ? `<button class="btn sm ${c.look === 'alarm' ? 'pri' : ''} mng">${c.next} ‹</button>` : c.next ? `<a class="btn sm ghost" href="#">${c.next} ‹</a>` : ''}</div>
+        <div class="bar" aria-hidden="true"><i></i></div>
+        ${c.facts.length ? `<div class="facts">${c.facts.map((f) => `<span class="chip">${f}</span>`).join('')}</div>` : ''}`;
+      wrap.appendChild(el);
+    }
+    const counts = { all: 0, ok: 0, warn: 0, alarm: 0, unk: 0, off: 0 };
+    for (const c of CHECKS) { counts.all++; counts[c.look]++; }
+    for (const k in counts) { const n = $(`[data-n="${k}"]`); if (n) n.textContent = counts[k]; }
+    const tw = CHECKS.reduce((a, c) => a + c.w, 0);
+    const score = Math.round(CHECKS.reduce((a, c) => a + c.w * c.p, 0) / tw * 100);
+    $('[data-score]').textContent = score; $('[data-score-chip]').textContent = score + '%'; $('.ring').style.setProperty('--p', score / 100);
+    $('[data-level]').textContent = score >= 90 ? 'מוכן למסירה' : score >= 50 ? 'כמעט מוכן למסירה' : 'בהקמה';
+    $('[data-n-checks]').textContent = CHECKS.length;
+    const next = CHECKS.filter((c) => c.look !== 'ok' && c.look !== 'off').map((c) => ({ c, g: (1 - c.p) * c.w })).sort((a, b) => b.g - a.g);
+    $('[data-next]').innerHTML = next.map((x, i) => `<li><span class="n">${i + 1}</span><span class="t"><b>${x.c.next}</b><span>${x.c.title}${x.c.critical ? ' · מסיר חסם' : ''}</span></span><span class="g num">+${Math.round(x.g)}</span></li>`).join('');
+  }
+  render();
+  /* KPI filters */
+  $$('[data-kpis] .kpi').forEach((b) => b.addEventListener('click', () => {
+    $$('[data-kpis] .kpi').forEach((o) => o.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true');
+    const k = b.dataset.k; $$('.ck').forEach((r) => { r.hidden = k !== 'all' && r.dataset.look !== k; });
+  }));
+
+  /* ---- pages ---- */
+  function page(p) {
+    $$('.screen').forEach((s) => s.classList.toggle('on', s.id === 's-' + p));
+    $$('.tabs a[data-p]').forEach((a) => { a.classList.toggle('on', a.dataset.p === p); if (a.dataset.p === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    $('#pg').value = p; window.scrollTo(0, 0);
+  }
+  $$('.tabs a[data-p]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); page(a.dataset.p); }));
+  $('#pg').addEventListener('change', (e) => page(e.target.value));
+  page(['ready', 'brand'].includes(q.get('page')) ? q.get('page') : 'ready');
+
+  /* ---- theme / role / state / demo ---- */
+  const th = $('#th');
+  function theme(d) { document.documentElement.dataset.theme = d ? 'dark' : 'light'; th.setAttribute('aria-pressed', String(d)); }
+  th.addEventListener('click', () => theme(document.documentElement.dataset.theme !== 'dark'));
+  theme(q.get('theme') === 'dark');
+  const role = $('#role'); role.addEventListener('change', () => (document.body.dataset.role = role.value));
+  role.value = q.get('role') === 'view' ? 'view' : 'mgr'; document.body.dataset.role = role.value;
+  const st = $('#stsel'); st.addEventListener('change', () => (document.body.dataset.st = st.value));
+  st.value = ['ready', 'empty', 'loading', 'error'].includes(q.get('state')) ? q.get('state') : 'ready'; document.body.dataset.st = st.value;
+  const demoBtn = $('#demo');
+  function demo(on) { document.body.classList.toggle('demo', on); demoBtn.setAttribute('aria-pressed', String(on)); demoBtn.textContent = 'מצב הדגמה: ' + (on ? 'פועל' : 'כבוי'); $('#start-demo').hidden = on; }
+  demoBtn.addEventListener('click', () => demo(!document.body.classList.contains('demo')));
+  demo(q.get('demo') === 'on');
+  $('#demo-off').addEventListener('click', () => { demo(false); toast('יצאת ממצב ההדגמה · ההתקנה האמיתית מוצגת'); });
+
+  /* ---- dialog ---- */
+  const dlg = $('#dlg-demo');
+  const open = () => { dlg.classList.add('open'); $('#demo-go').focus(); };
+  const close = () => dlg.classList.remove('open');
+  $('#start-demo').addEventListener('click', open); $('#open-demo').addEventListener('click', open);
+  $$('[data-close]', dlg).forEach((b) => b.addEventListener('click', close));
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  $$('.opts button', dlg).forEach((b) => b.addEventListener('click', () => { $$('.opts button', dlg).forEach((o) => o.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); }));
+  $('#demo-go').addEventListener('click', () => { close(); demo(true); toast('מצב הדגמה פועל · מגדל מגורים · 4 שעות'); });
+
+  /* ---- brand: live preview ---- */
+  const bind = (sel, targets, f) => $(sel).addEventListener('input', (e) => targets.forEach((t) => $$(t).forEach((el) => (el.textContent = f ? f(e.target.value) : e.target.value))));
+  bind('[data-b-name]', ['[data-pv-name]', '[data-pv-mailfrom]']);
+  bind('[data-b-name]', ['[data-pv-foot]'], (v) => v + ' · שירות 03-5550000');
+  bind('[data-b-short]', ['[data-pv-tile]', '[data-pv-tile2]', '[data-b-logo]']);
+  $$('[data-swatches] button').forEach((b) => b.addEventListener('click', () => {
+    $$('[data-swatches] button').forEach((o) => o.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true');
+    $$('[data-pv-tile], [data-pv-tile2], [data-b-logo], .pv .bt').forEach((el) => (el.style.background = b.dataset.c));
+  }));
+  $$('.tog:not([disabled])').forEach((t) => t.addEventListener('click', () => t.setAttribute('aria-checked', String(t.getAttribute('aria-checked') !== 'true'))));
+  $('#save-brand').addEventListener('click', () => { $('[data-brand-tile]').textContent = $('[data-b-short]').value; $('[data-brand-tile]').style.background = $('[data-swatches] [aria-pressed="true"]').dataset.c; toast('המיתוג נשמר'); });
+
+  let tt;
+  function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600); }
+})();
+</script>
+</body>
+</html>
