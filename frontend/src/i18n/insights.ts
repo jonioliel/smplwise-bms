@@ -6,6 +6,12 @@
  */
 const he = {
   // navigation
+  crumbArea: 'ניהול שירות',
+  crumbSection: 'סקירה ודוחות',
+  pageBuilding: 'דוחות בניין',
+  subReport: '{month} · קובץ PDF לפי דרישה',
+  subDoors: '{range} · {place}',
+  subWaste: '{range} · {place}',
   tabReport: 'דוח מבנה',
   tabDoors: 'דלתות',
   tabWaste: 'בזבוז',
@@ -201,12 +207,23 @@ const he = {
   fDomains: 'התקנים שנבדקים',
   fieldRange: 'ערך בין {lo} ל־{hi}',
   fieldInvalid: 'ערך לא תקין',
+  deliveryTitle: 'שליחה מתוזמנת',
+  deliveryFreq: 'תדירות',
+  freqDaily: 'יומי',
+  freqWeekly: 'שבועי',
+  freqMonthly: 'חודשי',
+  deliveryAt: 'שעה',
+  deliveryRecipients: 'נמענים',
   protectedTitle: 'מתגים מוגנים',
   protectedOpen: 'ניהול',
   switchNeedsAdmin: 'שינוי מתג דורש מנהל מערכת',
 };
 
 const en: Partial<Record<keyof typeof he, string>> = {
+  crumbArea: 'Service management',
+  crumbSection: 'Review and reports',
+  pageBuilding: 'Building reports',
+  subReport: '{month} · PDF on demand',
   tabReport: 'Building report',
   tabDoors: 'Doors',
   tabWaste: 'Waste',

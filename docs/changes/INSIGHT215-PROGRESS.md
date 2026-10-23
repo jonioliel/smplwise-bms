@@ -112,6 +112,18 @@ Frontend, all reusable under the new design (logic and data layers are look-inde
 
 Not built: doors screen, waste screen, settings screen (three switches, door pairs, thresholds + 422), sw-app routing, Settings section registration, unit and Playwright specs, visual checks. Deviations decided: no places tree on the report (model has no place filter); door list shows only unexplained/unverifiable rows (backend returns explained as counts + evidence kinds only); protected switches stay in their existing Settings page (link only).
 
+## Slice 2 (UI) - resumed and built against mockup v2 (2026-10-24)
+
+Screens (all mounted; `tsc --noEmit` clean): building report `infra-report` (month, language, section picker, KPI row, preview, PDF, "not included", states), `insights-doors` (verdict KPI filters, floors/areas tree, range, row timeline, explained evidence), `insights-waste` (kind filters, tree, night-consumption bars), `insights-settings` (three switches, door pairs through a dialog, every threshold with the server bounds and the 422 field error, default report sections, link to the existing protected-switches page). States: loading, empty, error, switched off (uniform 404), forbidden, PDF failure with retry.
+Look: crumbs + h1 + subtitle + `sw-tabs` underline-compact page row, temperature-style KPI tiles, pill buttons, `sw-place-tree`, `sw-toggle`, `sw-dialog`, v2 tokens only.
+Placement: temporary - tab `סקירה ודוחות` of the tickets area (`#/tickets/reports/{building,doors,waste}`, `TICKETS_REPORTS_HREF`, TODO(SERVICEIA) in nav.ts); it disappears with the tickets module switch. Settings section `תובנות ודוחות` inside הגדרות › תשתיות (`#/system/infra/insights`). Nav change is confined to nav.ts (one tab + helpers), sw-app.ts (three imports, one route line, one refresh call) and system-infra.ts (one section).
+Tab visibility comes from `GET /insights/status` (added in slice 2; no computation, no audit).
+
+NOT built (needs slice-3 backend): scheduled delivery (more than monthly, dates/hours, recipients, WhatsApp text) and the roles that see the generator run counts/hours (no schedule store and no run-hours data exist). The settings card is in `insights-settings.ts` behind `DELIVERY_BACKEND = false`; the generator section is still alerts only, so owner answer 26 is open. Owner answer 21 (readers via permissions): the screens gate on the permissions (`insights.read`, `reports.building`, `insights.manage`), so any role granted them sees the pages; roles.json defaults unchanged.
+Deviations from v2: no places tree on the report (no place filter in the model); the door list shows only unexplained/unverifiable openings (the server returns explained ones as counts + evidence kinds).
+
+Tests: `tests/unit-insights.spec.ts` 10 passed locally; `tests/evidence-insights.spec.ts` 14 passed locally (desktop project, local chromium, vite dev server, mocked backend; includes 1366/375 px light/dark overflow checks and a screenshot test skipped without SW_SHOTS_DIR). Backend tests for the two slice-2 tests: see the final report. API_INVENTORY.md not regenerated (+1 route).
+
 ## Runner state
 
 Worktree `~/work/pilot-INSIGHT215-295` belongs to run_remote.sh (reused); nothing of this agent is running. `~/ins215_*.log` are small logs.

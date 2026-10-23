@@ -54,6 +54,10 @@ import '../screens/system-multimedia';
 import '../screens/infra-generator'; // CR-031: תשתיות › גנרטור (live, charts, alerts, history)
 import '../screens/infra-elevators'; // CR-INFRA-ELEVATORS: תשתיות › מעליות (live list)
 import '../screens/infra-temperature'; // CR-INFRA-TEMPERATURE 2.9.1: תשתיות › טמפרטורות
+import '../screens/infra-report'; // CR-INSIGHT215: סקירה ודוחות › דוחות בניין
+import '../screens/insights-doors'; // CR-INSIGHT215: drill-down
+import '../screens/insights-waste'; // CR-INSIGHT215: drill-down
+import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
 import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
 import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
 import '../screens/tickets-list'; // CR-038: the tickets area (the list, the drawer, the create sheet)
@@ -1674,6 +1678,7 @@ export class SwApp extends LitElement {
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
           if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
           void refreshElevatorsVisibility(); // CR-INFRA-ELEVATORS: the elevators tab appears once an elevator is defined
+          void refreshInsightsVisibility(); // CR-INSIGHT215: the reports tab appears once a part is on for this viewer
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
@@ -2411,6 +2416,7 @@ export class SwApp extends LitElement {
         // CR-038: #/tickets/<id> is a ticket on the full screen (D18); #/tickets/<mine|department|all> the list with its drawer (?t=) and the
         // create form (?new=1). #/tickets opens this user's first visible scope tab. The screens answer "the module is off" themselves.
         if (isTicketId(s[1])) return keyed(s[1], html`<tickets-detail .ticketId=${s[1]}></tickets-detail>`);
+        if (s[1] === 'reports') return s[2] === 'doors' ? html`<insights-doors></insights-doors>` : s[2] === 'waste' ? html`<insights-waste></insights-waste>` : html`<infra-report .route=${r}></infra-report>`; // CR-INSIGHT215
         if (s[1] === 'overview') {
           void import('../screens/tickets-overview'); // MGRDASH: the manager overview, a lazy chunk of its own (the element upgrades when it lands)
           return html`<tickets-overview .route=${r}></tickets-overview>`;

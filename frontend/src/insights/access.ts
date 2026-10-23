@@ -31,6 +31,8 @@ export function onInsightsAccess(fn: (a: InsightsAccess) => void): () => void {
 export const NONE: InsightsStatus = { doors: false, waste: false, report: false };
 let last: InsightsStatus = NONE;
 export const insightsStatus = (): InsightsStatus => last;
+/** Fired on window when the status changed: the screens redraw their page row. */
+export const STATUS_EVENT = 'sw-insights-status';
 
 /** Asked once when the shell loads (and after a switch changed): shows the tabs of the parts that are on. */
 export async function refreshInsightsVisibility(): Promise<InsightsStatus> {
@@ -38,6 +40,7 @@ export async function refreshInsightsVisibility(): Promise<InsightsStatus> {
   if (!a.read && !a.report && !a.manage) {
     last = NONE;
     applyInfraInsights(last);
+    window.dispatchEvent(new CustomEvent(STATUS_EVENT));
     return last;
   }
   try {
@@ -47,5 +50,6 @@ export async function refreshInsightsVisibility(): Promise<InsightsStatus> {
     last = NONE;
   }
   applyInfraInsights(last);
+  window.dispatchEvent(new CustomEvent(STATUS_EVENT));
   return last;
 }

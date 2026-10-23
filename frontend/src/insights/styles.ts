@@ -12,21 +12,38 @@ export const insightCss = css`
     font-family: var(--sw-font);
   }
   * { box-sizing: border-box; }
-  h1 { font-size: 20px; line-height: 1.25; margin: 0; color: var(--sw-heading); font-weight: 700; }
+  h1 { font-size: var(--sw-fs-3xl); line-height: 1.2; margin: 0; color: var(--sw-heading); font-weight: 700; letter-spacing: -0.6px; }
+  .crumbs { font-size: var(--sw-fs-sm); color: var(--sw-text-2); margin-block-end: 2px; }
+  .crumbs a { color: inherit; text-decoration: none; }
+  .crumbs a:hover { color: var(--sw-accent-text); }
+  .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+  .pages { margin-block-end: 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-block-end: 14px; }
+  .kpi { --c: var(--sw-accent); display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; }
+  button.kpi { cursor: pointer; }
+  .kpi[aria-pressed='true'] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+  .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+  .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
+  .kpi b small { font-size: var(--sw-fs-xs); font-weight: 500; }
+  .kpi .l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+  .kpi .d { font-size: var(--sw-fs-xs); }
+  .kpi[data-look='bad'] { --c: var(--sw-danger); } .kpi[data-look='warn'] { --c: var(--sw-warning); } .kpi[data-look='ok'] { --c: var(--sw-success); } .kpi[data-look='unk'] { --c: var(--sw-unknown); }
+  .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
   h2 { font-size: 15px; margin: 0; color: var(--sw-heading); font-weight: 600; }
   button { font: inherit; }
   .num, td.n, .date { font-variant-numeric: tabular-nums; }
   .muted { color: var(--sw-text-3); }
   .row { display: flex; align-items: center; gap: 10px; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-block-end: 14px; }
-  .card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-1); }
+  .card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); }
   .pad { padding: 14px 16px; }
   .title { font-weight: 600; color: var(--sw-text); }
-  .btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); border-radius: var(--sw-r-sm); padding: 7px 12px; min-block-size: 36px; cursor: pointer; white-space: nowrap; text-decoration: none; }
+  .btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); font-weight: var(--sw-fw-semibold); cursor: pointer; white-space: nowrap; text-decoration: none; }
+  .btn:focus-visible, .chip:focus-visible, .seg button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
   .btn:hover { background: var(--sw-surface-2); }
   .btn:disabled { opacity: var(--sw-disabled-opacity, 0.5); cursor: default; }
-  .btn.primary { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse, #fff); font-weight: 600; }
-  .btn.primary:hover:not(:disabled) { background: var(--sw-accent-hover); }
+  .btn.primary, .btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
+  .btn.primary:hover:not(:disabled), .btn.pri:hover:not(:disabled) { background: var(--sw-accent-hover); }
   .btn.icon { padding: 7px; inline-size: 36px; justify-content: center; }
   .seg { display: inline-flex; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); overflow: hidden; }
   .seg button { border: 0; background: var(--sw-surface); color: var(--sw-text-2); padding: 7px 12px; min-block-size: 34px; cursor: pointer; }

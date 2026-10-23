@@ -4,7 +4,7 @@ import '../components/sw-icon';
 import '../components/sw-place-tree';
 import { ApiError } from '../api/client';
 import { isOff, type RangeId, type RangeQuery } from '../api/insights';
-import { insightsAccess, onInsightsAccess, type InsightsAccess } from './access';
+import { insightsAccess, onInsightsAccess, STATUS_EVENT, type InsightsAccess } from './access';
 import { ALL_PLACES, customRange, placeTree, type PlaceNode } from './model';
 import { ix } from '../i18n/insights';
 import { SkinController } from '../design/skin';
@@ -29,6 +29,7 @@ export abstract class InsightList<A> extends LitElement {
   @state() protected collapsed: Set<string> = new Set();
   private stopAccess?: () => void;
   private seq = 0;
+  private readonly redraw = () => this.requestUpdate();
 
   protected abstract fetchData(q: RangeQuery): Promise<A>;
   /** One entry per row of the answer, with its floor / area and its weight in the tree's counts. */
@@ -37,10 +38,12 @@ export abstract class InsightList<A> extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.stopAccess = onInsightsAccess((a) => (this.access = a));
+    window.addEventListener(STATUS_EVENT, this.redraw);
     void this.load();
   }
   disconnectedCallback() {
     this.stopAccess?.();
+    window.removeEventListener(STATUS_EVENT, this.redraw);
     super.disconnectedCallback();
   }
 

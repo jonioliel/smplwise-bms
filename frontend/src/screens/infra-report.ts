@@ -5,10 +5,11 @@ import type { RouteState } from '../router';
 import { navigate } from '../router';
 import { ApiError } from '../api/client';
 import { downloadReportPdf, getReport, isOff, SECTION_IDS, type ReportModel, type SectionId } from '../api/insights';
-import { insightsAccess, onInsightsAccess, type InsightsAccess } from '../insights/access';
-import { canGoNext, chosen, defaultMonth, monthLabel, REASON_ICON, reportEmpty, shiftMonth, storedPicks } from '../insights/model';
+import { insightsAccess, onInsightsAccess, STATUS_EVENT, type InsightsAccess } from '../insights/access';
+import { canGoNext, chosen, defaultMonth, monthLabel, REASON_ICON, reportEmpty, reportFigures, shiftMonth, storedPicks } from '../insights/model';
 import { renderPreview } from '../insights/report-preview';
 import { insightCss } from '../insights/styles';
+import { kpi, pageHead } from '../insights/chrome';
 import { ix, type IxKey, type IxLang } from '../i18n/insights';
 import { fmtWhen } from '../insights/model';
 import { SkinController } from '../design/skin';
@@ -37,12 +38,14 @@ export class InfraReport extends LitElement {
   @state() private pdfError = '';
   private stop?: () => void;
   private seq = 0;
+  private readonly redraw = () => this.requestUpdate();
 
   static styles = [insightCss, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
     this.stop = onInsightsAccess((a) => (this.access = a));
+    window.addEventListener(STATUS_EVENT, this.redraw);
     let raw: string | null = null;
     try {
       raw = localStorage.getItem(PICKS_KEY);
@@ -57,6 +60,7 @@ export class InfraReport extends LitElement {
   }
   disconnectedCallback() {
     this.stop?.();
+    window.removeEventListener(STATUS_EVENT, this.redraw);
     super.disconnectedCallback();
   }
 
@@ -115,13 +119,21 @@ export class InfraReport extends LitElement {
     const a = (e.target as HTMLElement).closest('[data-go]');
     if (!a) return;
     e.preventDefault();
-    navigate(`/infra/${a.getAttribute('data-go')}`);
+    navigate(`/tickets/reports/${a.getAttribute('data-go')}`);
   }
 
-  private header(canDownload: boolean) {
-    return html`<div class="head"><h1>${ix('reportTitle')}</h1>
-      <div class="row actions"><button class="btn primary" data-download ?disabled=${!canDownload || this.busy} @click=${() => void this.download()}>
-        <sw-icon name="download"></sw-icon>${this.busy ? ix('downloading') : ix('download')}</button></div></div>`;
+  private header() {
+    return pageHead('building', ix('pageBuilding'), ix('subReport', { month: monthLabel(this.month, this.rlang) }));
+  }
+
+  /** The temperature screen's KPI row: the report's headline numbers (the summary section's figures; the PDF prints them in its summary). */
+  private kpiRow() {
+    const m = this.model;
+    if (!m || this.phase !== 'ready' || !this.picked.has('summary') || m.omitted.some((o) => o.section === 'summary')) return nothing;
+    const figs = reportFigures(m, m.lang);
+    if (!figs.length) return nothing;
+    const look = (t?: string) => (t === 'up' ? 'bad' : t === 'down' ? 'ok' : 'unk');
+    return html`<div class="kpis" role="group" aria-label=${ix('sec_summary')} data-kpis>${figs.map((f) => kpi(f.value, ix(f.label, undefined, m.lang), look(f.tone), { unit: f.unit ? ix(f.unit, undefined, m.lang) : undefined, note: f.note, noteTone: f.tone ?? 'muted', key: f.id }))}</div>`;
   }
 
   private toolbar() {
@@ -137,6 +149,7 @@ export class InfraReport extends LitElement {
         <button data-lang="en" aria-pressed=${this.rlang === 'en'} @click=${() => this.setLang('en')}>${ix('langEn')}</button>
       </div>
       <span class="sp"></span>
+      <button class="btn pri" data-download ?disabled=${this.phase !== 'ready' || this.busy} @click=${() => void this.download()}><sw-icon name="download"></sw-icon>${this.busy ? ix('downloading') : ix('download')}</button>
       ${this.model && this.phase === 'ready' ? html`<span class="muted num" data-generated>${ix('generatedAt', { t: fmtWhen(new Date(this.model.generated * 1000).toISOString(), this.model.zone) })}</span>` : nothing}
     </div>`;
   }
@@ -159,14 +172,14 @@ export class InfraReport extends LitElement {
         return html`<div class="rep-loading" aria-busy="true" data-state="loading">${[58, 90, 70].map((h) => html`<div class="rs"><div class="skel" style="block-size:16px;inline-size:140px;margin-block-end:14px"></div><div class="skel" style="block-size:${h}px"></div></div>`)}</div>`;
       case 'error':
         return html`<div class="blank" data-state="error"><sw-icon name="warning" style="color:var(--sw-danger-text)"></sw-icon><b>${ix('errorTitle')}</b><span class="muted">${ix('errorBody')}</span>
-          <button class="btn primary" data-retry @click=${() => void this.load()}>${ix('retry')}</button></div>`;
+          <button class="btn pri" data-retry @click=${() => void this.load()}>${ix('retry')}</button></div>`;
       case 'empty':
         return html`<div class="blank" data-state="empty"><sw-icon name="calendar"></sw-icon><b>${ix('emptyMonthTitle', { month: monthLabel(this.month, this.rlang) })}</b>
           <button class="btn" data-prev-empty @click=${() => this.setMonth(shiftMonth(this.month, -1))}>${ix('prevMonth')}</button></div>`;
       case 'ready':
         return m
           ? html`<div data-state="ready" @click=${(e: Event) => this.onClick(e)}>${renderPreview(m, {
-              sections: chosen(SECTION_IDS, this.picked, m.omitted),
+              sections: chosen(SECTION_IDS, this.picked, m.omitted).filter((s) => s !== 'summary' || !reportFigures(m, m.lang).length),
               canDoors: this.access.read,
               canWaste: this.access.read,
               canManage: this.access.manage,
@@ -190,10 +203,10 @@ export class InfraReport extends LitElement {
       return html`<div class="card" data-state=${this.phase}><div class="blank"><sw-icon name=${this.phase === 'off' ? 'offline' : 'lock'}></sw-icon>
         <b>${ix(this.phase === 'off' ? 'offTitle' : 'forbiddenTitle')}</b><a class="btn" href="#/">${ix('toHome')}</a></div></div>`;
     }
-    return html`${this.header(this.phase === 'ready')}
+    return html`${this.header()}${this.kpiRow()}
       ${this.pdfError ? html`<div class="card" data-state="pdf-error" style="margin-block-end:14px"><div class="blank" style="padding:24px 20px"><sw-icon name="warning" style="color:var(--sw-danger-text)"></sw-icon>
         <b>${ix(this.pdfError === 'pdfTooBig' ? 'pdfTooBig' : 'pdfFailTitle')}</b>${this.pdfError === 'pdfTooBig' ? nothing : html`<span class="muted">${ix('pdfFailBody')}</span>`}
-        <div class="row"><button class="btn primary" data-pdf-retry @click=${() => void this.download()}>${ix('retry')}</button>
+        <div class="row"><button class="btn pri" data-pdf-retry @click=${() => void this.download()}>${ix('retry')}</button>
         <button class="btn" data-pdf-close @click=${() => (this.pdfError = '')}>${ix('close')}</button></div></div></div>` : nothing}
       <div class="card">${this.toolbar()}${this.phase === 'loading' && !this.model ? nothing : this.picker()}${this.body()}</div>
       ${this.omitted()}`;
