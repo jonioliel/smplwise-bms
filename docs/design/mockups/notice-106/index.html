@@ -6,23 +6,24 @@
 <meta name="robots" content="noindex, nofollow">
 <title>לוח הודעות - דגם למסכים</title>
 <!--
-  CR-NOTICE106 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
+  CR-NOTICE106 v2 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
 
-  Owner standing style (2026-10-23): the visual language of the existing infrastructure temperature / elevators / schedules screens.
-  Drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin light + dark, copied verbatim), the real shell
-  (shell/sw-app.ts: rail at the inline start, floating corner pill, no breadcrumb, phone bottom bar), the real tab rows (components/sw-tabs.ts),
-  the temperature page head and KPI-as-filter row, the sw-place-tree places tree (a select on phones), the electricity table / phone cards,
-  solid badges and soft chips, pill buttons, sw-state-panel states and the sw-dialog sheet - the same CSS as the MAINT215 v2 mockup.
+  Owner feedback 2026-10-24 on v1: the boards list, the board page and the compose dialog are approved as the SETTINGS / editing screens
+  of the notices only. The TV screen is a different thing: a comfortable advertising-style screen for the building's customers - time,
+  date, weather, news if possible, and the notices. v2 therefore keeps the editing screens in the infra temperature / schedules /
+  automations language (real tokens, real shell, tab rows, KPI filters, places tree, table / phone cards, sw-state-panel, sw-dialog) and
+  designs the TV as its own product surface: a digital-signage layout (16:9 and portrait) drawn with the product tokens, fonts and RTL.
 
   SCREENS (the mock bar or ?page=):
-    home      - the home screen with the "לוח הודעות" widget (among the existing widgets)
-    notices   - the page #/notices: readers see their notices; managers also compose / edit / archive (by permission)
-    settings  - Settings > לוח הודעות: module switch, defaults, the TV boards list (copy link, QR, preview, rotate)
-    board     - one board's page: link + QR (shown once), display settings, the notices assigned to it
-    tv-parking / tv-lobby - the TV view of a board (its own large-format look, product tokens, no login): ?tv=landscape|portrait
-  OTHER SWITCHES: ?theme=dark  ?role=mgr|op|view  ?state=ready|empty|loading|error|off  ?dlg=compose|link  ?bare=1 (hide the mock bar)
-  LOGOS: the TV header reserves two slots (product logo at the inline start, management-company logo at the inline end) as clearly marked
-  placeholders; storage, upload and the asset pipeline are CR-LOGOS295's.
+    home      - the home screen with the "לוח הודעות" widget
+    notices   - #/notices: readers see their notices; managers compose / edit / archive, and open "מי קרא" (names, owner decision)
+    settings  - Settings > לוח הודעות: module switch, defaults (validity editable, read receipts, weather source), the boards list
+    board     - one board's page with three tabs: כללי (link + QR) / תצוגה (template, blocks, feeds, slides, live preview) / הודעות
+    tv-lobby / tv-parking / tv-gym - the TV surface of a board; ?tpl=1|2|3 overrides the template, ?tv=landscape|portrait the orientation
+  TV SWITCHES: ?tvnet=live|stale|offline|gone  ?tvempty=1  ?tvnight=1  ?urgent=0  ?news=0|1  ?company=0  ?clock=fixed (09:12, ticker paused)
+  OTHER:       ?theme=dark  ?role=mgr|op|view  ?state=ready|empty|loading|error|off  ?dlg=compose|link|reads  ?bare=1 (hide the mock bar)
+  LOGOS: company (developer / management-company) logo at the inline start of the TV header, SmplWise logo at the inline end, both
+  larger than v1 (owner 2026-10-24); the SVG symbols are the LOGOS-295 mockup's; storage and the asset pipeline are CR-LOGOS295's.
 -->
 <style>
 /* ===== the product token table (frontend/src/design/tokens.ts, classic skin) ===== */
@@ -314,77 +315,230 @@ nav.bottom { display: none; }
 .w-skl { display: none; block-size: 96px; border-radius: var(--sw-r-md); background: var(--sw-skeleton); }
 .w-skl.on { display: block; }
 
-/* ===== the TV board: its own large-format look, the same tokens. Sizes in vmax so landscape and portrait share one scale. ===== */
-.tv { display: none; position: fixed; inset: 0; z-index: 40; background: var(--sw-bg); color: var(--sw-text); --tvs: 1; --u: calc(1vmax * var(--tvs)); font-size: calc(2.1 * var(--u)); line-height: 1.35; flex-direction: column; overflow: hidden; }
-body.tvmode .tv.on { display: flex; }
+/* ===== the board page: tab row + the "display" tab (template picker, blocks, feeds, slides, live preview) ===== */
+.btabs { display: none; }
+.btabs.on { display: flex; }
+.bt-pane { display: none; flex-direction: column; gap: 14px; }
+.bt-pane.on { display: flex; }
+.tpls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tpl { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); background: var(--sw-surface); font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.tpl[aria-pressed="true"] { border-color: var(--sw-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sw-accent) 35%, transparent); }
+.tpl .sch { display: grid; gap: 3px; padding: 4px; aspect-ratio: 16 / 9; border-radius: var(--sw-r-xs); background: var(--sw-surface-3); }
+.tpl .sch.port { aspect-ratio: 16 / 9; grid-template-columns: 1fr 1fr 1fr; align-items: center; justify-items: center; }
+.tpl .sch.port > div { inline-size: 36%; block-size: 92%; }
+.tpl .sch i { display: block; border-radius: 2px; background: var(--sw-border-strong); }
+.tpl .sch .hd { block-size: 10%; }
+.tpl .sch .row { display: grid; gap: 3px; flex: 1; min-block-size: 0; }
+.tpl .sch .acc { background: var(--sw-accent); opacity: .55; }
+.tpl .sch .warn { background: var(--sw-warning); opacity: .7; }
+.tpl b { font-size: var(--sw-fs-md); color: var(--sw-heading); }
+.tpl span { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.prev { position: relative; inline-size: 100%; overflow: hidden; border-radius: var(--sw-r-md); background: #0b0f19; border: 1px solid var(--sw-border-strong); }
+.prev .tv.mini { position: absolute; inset: auto; inset-block-start: 0; inset-inline-start: 0; display: block; inline-size: 1920px; block-size: 1080px; transform-origin: 100% 0; z-index: 1; --u: 19.2px; }
+.prev .tv.mini { --w: 19.2px; }
+.prev .tv.mini.portrait { inline-size: 1080px; block-size: 1920px; --w: 10.8px; }
+.prev .tv.mini .mockline { display: none; }
+.blocks { display: grid; gap: 6px; }
+.blk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); min-inline-size: 0; }
+.blk .ck { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.blk .sub { grid-column: 2 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
+.blk .sub.col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.blk .sub .inp, .blk .sub select.inp { inline-size: auto; max-inline-size: 100%; min-block-size: 30px; font-size: var(--sw-fs-sm); }
+.blk .sub .seg button { min-block-size: 24px; padding: 2px 10px; }
+.blk .st { font-size: var(--sw-fs-xs); }
+.blk[data-off="1"] .sub { opacity: var(--sw-disabled-opacity); }
+.feeds { display: grid; gap: 6px; }
+.feed { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); background: var(--sw-surface); font-size: var(--sw-fs-sm); min-inline-size: 0; }
+.feed b { color: var(--sw-heading); white-space: nowrap; }
+.feed .btn { flex: none; }
+.feed .u { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: end; color: var(--sw-text-3); font-family: var(--sw-font-mono); font-size: var(--sw-fs-xs); }
+.slides { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.slide { display: grid; gap: 4px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-surface); font-size: var(--sw-fs-sm); }
+.slide .im { aspect-ratio: 16 / 9; display: grid; place-items: center; color: #fff; font-weight: var(--sw-fw-semibold); background: linear-gradient(135deg, #2767ed, #0f766e); }
+.slide .im.b { background: linear-gradient(135deg, #7c3aed, #2767ed); }
+.slide .im.c { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+.slide .im.add { background: var(--sw-surface-3); color: var(--sw-text-3); border: 2px dashed var(--sw-border-strong); }
+.slide .cap { padding: 4px 8px 8px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.slide .cap b { color: var(--sw-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.disp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.disp-grid > * { min-inline-size: 0; }
+.reads { display: grid; gap: 8px; }
+.reads .bar { block-size: 8px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); overflow: hidden; }
+.reads .bar i { display: block; block-size: 100%; background: var(--sw-success); border-radius: inherit; }
+
+/* ===== the TV surface: a digital-signage layout of its own (lobby / parking screens), the product tokens, RTL, no shell, no login.
+   Sizes in --u (1 % of the longer screen side: 1vmax full screen, 19.2 px in the preview) so 16:9 and portrait share one scale;
+   the base body size is 2 * --u = 38 px on a 1920 screen, titles 3.6 * --u = 69 px: readable from 5 m. ===== */
+.tv { display: none; position: fixed; inset: 0; z-index: 40; background: var(--sw-bg); color: var(--sw-text); --u: 1vmax; --w: 1vw; --fs: 1; font-size: calc(2 * var(--u) * var(--fs)); line-height: 1.3; overflow: hidden; }
+body.tvmode .tv.on { display: block; }
 body.tvmode .app, body.tvmode .toast { display: none; }
-body.bare .tv { inset-block-start: 0; }
-body:not(.bare) .tv { inset-block-start: 40px; }
-.tv .shift { position: absolute; inset: 0; display: flex; flex-direction: column; transition: transform 2s linear; }
-.tv header { display: flex; align-items: center; gap: calc(2 * var(--u)); padding: calc(1.6 * var(--u)) calc(3 * var(--u)) calc(1.2 * var(--u)); border-block-end: 1px solid var(--sw-border); background: var(--sw-surface); }
-.tv .logo { display: grid; place-items: center; min-inline-size: calc(9 * var(--u)); block-size: calc(3.4 * var(--u)); border: 2px dashed var(--sw-border-strong); border-radius: calc(.6 * var(--u)); color: var(--sw-text-3); font-size: calc(1 * var(--u)); padding-inline: calc(1 * var(--u)); text-align: center; line-height: 1.15; }
-.tv .logo.product { min-inline-size: calc(7 * var(--u)); }
-.tv .bname { flex: 1; min-inline-size: 0; display: grid; gap: 0; }
-.tv .bname b { font-size: calc(1.9 * var(--u)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tv .bname span { font-size: calc(1.1 * var(--u)); color: var(--sw-text-3); }
-.tv .clock { display: grid; justify-items: end; direction: ltr; }
-.tv .clock b { font-size: calc(3 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
-.tv .clock span { font-size: calc(1.1 * var(--u)); color: var(--sw-text-2); direction: rtl; }
-.tv .banner { display: none; align-items: center; gap: calc(1.6 * var(--u)); padding: calc(1.3 * var(--u)) calc(3 * var(--u)); background: var(--sw-danger); color: #fff; }
-.tv .banner.on { display: flex; }
-.tv .banner svg { font-size: calc(3 * var(--u)); }
-.tv .banner .bt { flex: 1; min-inline-size: 0; }
-.tv .banner .bt b { display: block; font-size: calc(2.3 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.2; }
-.tv .banner .bt span { display: block; font-size: calc(1.5 * var(--u)); opacity: .95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tv .banner .when { flex: none; font-size: calc(1.3 * var(--u)); font-weight: var(--sw-fw-semibold); background: rgba(255,255,255,.18); border-radius: var(--sw-r-pill); padding: calc(.3 * var(--u)) calc(1.2 * var(--u)); white-space: nowrap; }
-.tv .stage { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); padding: calc(2.4 * var(--u)) calc(3 * var(--u)); position: relative; }
-.tv .card { grid-area: 1 / 1; display: flex; flex-direction: column; gap: calc(1.2 * var(--u)); opacity: 0; transition: opacity .6s var(--sw-ease); min-block-size: 0; }
+body:not(.bare) .tv:not(.mini) { inset-block-start: 40px; }
+.tv .shift { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto; grid-template-areas: 'hd' 'ban' 'bd' 'tk' 'ft'; transition: transform 2s linear; }
+/* header: company logo at the inline start, board + building name, the clock (templates without the side panel), SmplWise logo at the inline end */
+.tv .hd { grid-area: hd; display: flex; align-items: center; gap: calc(2.4 * var(--u)); padding: calc(1.3 * var(--u)) calc(3 * var(--u)); background: var(--sw-surface); border-block-end: 1px solid var(--sw-border); }
+.tv .lg { display: inline-flex; align-items: center; block-size: calc(4.6 * var(--u)); flex: none; }
+.tv .lg svg { block-size: 100%; inline-size: auto; max-inline-size: min(calc(26 * var(--u)), calc(28 * var(--w))); }
+.tv .lg.product { block-size: calc(4 * var(--u)); }
+.tv .lg .plate { display: inline-flex; align-items: center; block-size: 100%; padding: calc(.5 * var(--u)) calc(.9 * var(--u)); border-radius: calc(.6 * var(--u)); background: var(--sw-surface-solid); }
+:root[data-theme="dark"] .tv .lg .plate { background: #ffffff; }
+.tv[data-company="0"] .lg.company { display: none; }
+.tv .bname { flex: 1; min-inline-size: 0; text-align: center; display: grid; gap: 0; }
+.tv .bname b { font-size: calc(2.2 * var(--u)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv .bname span { font-size: calc(1.3 * var(--u)); color: var(--sw-text-3); }
+.tv .hclock { display: none; direction: ltr; text-align: end; }
+.tv .hclock b { display: block; font-size: calc(3.4 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
+.tv .hclock span { display: block; font-size: calc(1.2 * var(--u)); color: var(--sw-text-2); direction: rtl; }
+.tv[data-tpl="2"] .hclock, .tv[data-clock="0"][data-tpl="1"] .hclock { display: block; }
+.tv[data-tpl="2"][data-clock="0"] .hclock { display: none; }
+/* the urgent takeover: a danger band under the header, never rotated out, the largest type on the screen after the clock */
+.tv .ban { grid-area: ban; display: none; align-items: center; gap: calc(2 * var(--u)); padding: calc(1.1 * var(--u)) calc(3 * var(--u)); background: var(--sw-danger); color: #fff; }
+.tv[data-urgent="1"] .ban { display: flex; }
+.tv .ban svg { font-size: calc(3.4 * var(--u)); flex: none; }
+.tv .ban .bt { flex: 1; min-inline-size: 0; }
+.tv .ban .bt b { display: block; font-size: calc(2.6 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.15; text-wrap: balance; }
+.tv .ban .bt span { display: block; font-size: calc(1.6 * var(--u)); opacity: .95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv .ban .when { flex: none; font-size: calc(1.5 * var(--u)); font-weight: var(--sw-fw-semibold); background: rgba(255,255,255,.18); border-radius: var(--sw-r-pill); padding: calc(.4 * var(--u)) calc(1.4 * var(--u)); white-space: nowrap; }
+/* body grid per template */
+.tv .bd { grid-area: bd; display: grid; gap: calc(1.8 * var(--u)); padding: calc(1.8 * var(--u)) calc(3 * var(--u)); min-block-size: 0; grid-template-columns: minmax(0, 31fr) minmax(0, 69fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'side stage' 'side promo'; }
+.tv[data-tpl="2"] .bd { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'stage' 'next'; }
+.tv[data-tpl="2"] .side, .tv[data-tpl="2"] .promo { display: none; }
+.tv[data-promo="0"] .promo, .tv[data-urgent="1"]:not(.portrait) .promo { display: none; }
+.tv[data-promo="0"] .bd, .tv[data-urgent="1"]:not(.portrait) .bd { grid-template-rows: minmax(0, 1fr); grid-template-areas: 'side stage'; }
+.tv[data-tpl="2"][data-promo="0"] .bd { grid-template-areas: 'stage' 'next'; grid-template-rows: minmax(0, 1fr) auto; }
+/* side panel: clock, date, weather, building info */
+.tv .side { grid-area: side; display: flex; flex-direction: column; gap: calc(1.8 * var(--u)); min-block-size: 0; }
+.tv .clk { display: grid; gap: calc(.3 * var(--u)); }
+.tv .clk b { font-size: calc(7.2 * var(--u)); font-weight: 800; line-height: .95; letter-spacing: -0.04em; color: var(--sw-heading); font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
+.tv .clk .d1 { font-size: calc(1.75 * var(--u)); font-weight: var(--sw-fw-semibold); color: var(--sw-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv .clk .d2 { font-size: calc(1.4 * var(--u)); color: var(--sw-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv[data-clock="0"] .clk { display: none; }
+.tv[data-hebdate="0"] .clk .d2 { display: none; }
+.tv .wx { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: calc(1.3 * var(--u)); padding: calc(1.4 * var(--u)) calc(1.8 * var(--u)); display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(1 * var(--u)); min-inline-size: 0; }
+.tv .wx .now { min-inline-size: 0; }
+.tv .wx .now .t span { white-space: normal; }
+.tv[data-weather="0"] .wx { display: none; }
+.tv .wx .now { display: flex; align-items: center; gap: calc(1.4 * var(--u)); }
+.tv .wx .now svg { font-size: calc(4.6 * var(--u)); color: var(--sw-warning); flex: none; }
+.tv .wx .now b { font-size: calc(4.4 * var(--u)); font-weight: 800; line-height: 1; color: var(--sw-heading); letter-spacing: -0.03em; }
+.tv .wx .now .t { display: grid; gap: calc(.2 * var(--u)); min-inline-size: 0; }
+.tv .wx .now .t span { font-size: calc(1.4 * var(--u)); color: var(--sw-text-2); }
+.tv .wx .hrs { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(.4 * var(--u)); text-align: center; font-size: calc(1.3 * var(--u)); color: var(--sw-text-2); border-block-start: 1px solid var(--sw-border); padding-block-start: calc(1 * var(--u)); }
+.tv .wx .hrs div { display: grid; gap: calc(.2 * var(--u)); justify-items: center; }
+.tv .wx .hrs svg { font-size: calc(2.2 * var(--u)); color: var(--sw-text-2); }
+.tv .wx .hrs b { font-size: calc(1.6 * var(--u)); color: var(--sw-heading); }
+.tv .wx .src { font-size: calc(1.05 * var(--u)); color: var(--sw-text-3); text-align: center; }
+.tv .info { display: grid; grid-template-columns: 1fr 1fr; gap: calc(.8 * var(--u)); margin-block-start: auto; }
+.tv[data-info="0"] .info { display: none; }
+.tv .info .ch { display: flex; align-items: center; gap: calc(.8 * var(--u)); padding: calc(.8 * var(--u)) calc(1.2 * var(--u)); border-radius: calc(1 * var(--u)); background: var(--sw-surface); border: 1px solid var(--sw-border); font-size: calc(1.35 * var(--u)); font-weight: var(--sw-fw-semibold); color: var(--sw-text); min-inline-size: 0; }
+.tv .info .ch svg { font-size: calc(2 * var(--u)); color: var(--sw-text-3); flex: none; }
+.tv .info .ch i { inline-size: calc(.9 * var(--u)); block-size: calc(.9 * var(--u)); border-radius: 50%; background: var(--c, var(--sw-unknown)); flex: none; margin-inline-start: auto; box-shadow: 0 0 0 calc(.3 * var(--u)) color-mix(in srgb, var(--c, var(--sw-unknown)) 22%, transparent); }
+.tv .info .ch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv .info .ch small { color: var(--sw-text-3); font-weight: var(--sw-fw-regular); font-size: calc(1.15 * var(--u)); }
+/* landscape: the building chips live in the status footer (the side column keeps the clock and the weather); portrait: under the clock row */
+.tv .ft .info { display: flex; gap: calc(.7 * var(--u)); margin: 0; }
+.tv .ft .info .ch { font-size: calc(1.15 * var(--u)); padding: calc(.4 * var(--u)) calc(1 * var(--u)); background: var(--sw-surface-2); }
+.tv .ft .info .ch svg { font-size: calc(1.6 * var(--u)); }
+.tv .ft .info .ch small { font-size: calc(1.05 * var(--u)); }
+.tv:not(.portrait) .side .info, .tv.portrait .ft .info { display: none; }
+/* the stage: one notice at a time (landscape), severity colour on the inline-start edge */
+.tv .stage { grid-area: stage; display: grid; grid-template-columns: minmax(0, 1fr); position: relative; min-block-size: 0; }
+.tv .card { grid-area: 1 / 1; display: flex; flex-direction: column; gap: calc(1.1 * var(--u)); padding: calc(2 * var(--u)) calc(2.6 * var(--u)); background: var(--sw-surface); border: 1px solid var(--sw-border); border-inline-start: calc(.8 * var(--u)) solid var(--c, var(--sw-accent)); border-radius: calc(1.4 * var(--u)); box-shadow: var(--sw-shadow-2); opacity: 0; transition: opacity .8s var(--sw-ease); min-block-size: 0; overflow: hidden; }
 .tv .card.on { opacity: 1; }
-.tv .card .sev { display: inline-flex; align-items: center; gap: calc(.6 * var(--u)); align-self: flex-start; border-radius: var(--sw-r-pill); padding: calc(.3 * var(--u)) calc(1.3 * var(--u)); font-size: calc(1.3 * var(--u)); font-weight: var(--sw-fw-semibold); background: var(--c-soft); color: var(--c-text); }
-.tv .card h1 { margin: 0; font-size: calc(3.6 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.15; color: var(--sw-heading); letter-spacing: -0.02em; }
-.tv .card p { margin: 0; font-size: calc(2.1 * var(--u)); color: var(--sw-text); max-inline-size: 34ch; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
-.tv .card .when { margin-block-start: auto; display: flex; gap: calc(1.5 * var(--u)); align-items: center; font-size: calc(1.4 * var(--u)); color: var(--sw-text-2); }
-.tv .card .when svg { font-size: calc(1.6 * var(--u)); }
-.tv .dots { position: absolute; inset-block-end: calc(1.2 * var(--u)); inset-inline-start: calc(3 * var(--u)); display: flex; gap: calc(.6 * var(--u)); }
+.tv .card .sev { display: inline-flex; align-items: center; gap: calc(.6 * var(--u)); align-self: flex-start; border-radius: var(--sw-r-pill); padding: calc(.35 * var(--u)) calc(1.4 * var(--u)); font-size: calc(1.4 * var(--u)); font-weight: var(--sw-fw-semibold); background: var(--c-soft); color: var(--c-text); }
+.tv .card .sev svg { font-size: calc(1.6 * var(--u)); }
+.tv .card h1 { margin: 0; font-size: calc(3.5 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.12; color: var(--sw-heading); letter-spacing: -0.02em; }
+.tv .card p { margin: 0; font-size: calc(2.1 * var(--u)); color: var(--sw-text); max-inline-size: 36ch; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.tv .card .when { margin-block-start: auto; display: flex; gap: calc(1.4 * var(--u)); align-items: center; font-size: calc(1.5 * var(--u)); color: var(--sw-text-2); }
+.tv .card .when svg { font-size: calc(1.8 * var(--u)); }
+.tv .dots { position: absolute; inset-block-end: calc(1.4 * var(--u)); inset-inline-end: calc(2.8 * var(--u)); display: flex; gap: calc(.6 * var(--u)); }
 .tv .dots span { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-border-strong); }
 .tv .dots span.on { background: var(--sw-accent); inline-size: calc(2.4 * var(--u)); border-radius: var(--sw-r-pill); }
-.tv .empty { grid-area: 1 / 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.5 * var(--u)); color: var(--sw-text-2); text-align: center; }
-.tv .empty .bigclock { font-size: calc(11 * var(--u)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1; font-variant-numeric: tabular-nums; direction: ltr; }
+.tv .empty { grid-area: 1 / 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.2 * var(--u)); color: var(--sw-text-2); text-align: center; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: calc(1.4 * var(--u)); }
+.tv .empty .bigclock { font-size: calc(10 * var(--u)); font-weight: 800; color: var(--sw-heading); line-height: 1; font-variant-numeric: tabular-nums; direction: ltr; letter-spacing: -0.04em; }
 .tv .empty p { margin: 0; font-size: calc(2 * var(--u)); }
-.tv footer { display: flex; align-items: center; gap: calc(1.5 * var(--u)); padding: calc(.9 * var(--u)) calc(3 * var(--u)); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); font-size: calc(1.1 * var(--u)); color: var(--sw-text-3); }
-.tv footer .sp { flex: 1; }
-.tv footer .live { display: inline-flex; align-items: center; gap: calc(.5 * var(--u)); }
-.tv footer .live i { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-live); }
+.tv[data-empty="1"] .card, .tv[data-empty="1"] .dots, .tv[data-empty="1"] .ban, .tv[data-empty="1"] .next { display: none; }
+.tv[data-empty="1"] .empty { display: flex; }
+/* template 2: the "up next" strip under the stage */
+.tv .next { grid-area: next; display: none; gap: calc(1.2 * var(--u)); }
+.tv[data-tpl="2"] .next { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.tv .next div { display: flex; align-items: center; gap: calc(1 * var(--u)); padding: calc(1 * var(--u)) calc(1.4 * var(--u)); border-radius: calc(1 * var(--u)); background: var(--sw-surface); border: 1px solid var(--sw-border); font-size: calc(1.5 * var(--u)); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); min-inline-size: 0; }
+.tv .next div i { inline-size: calc(.9 * var(--u)); block-size: calc(.9 * var(--u)); border-radius: 50%; background: var(--c, var(--sw-accent)); flex: none; }
+.tv .next div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv .next div.on { color: var(--sw-heading); border-color: var(--c, var(--sw-accent)); }
+/* the promo / info slide area (manager-set images or text) */
+.tv .promo { grid-area: promo; position: relative; block-size: calc(12 * var(--u)); border-radius: calc(1.4 * var(--u)); overflow: hidden; background: var(--sw-surface); border: 1px solid var(--sw-border); }
+.tv .promo .sl { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: calc(2 * var(--u)); padding: calc(1.2 * var(--u)) calc(2.4 * var(--u)); color: #fff; opacity: 0; transition: opacity .8s var(--sw-ease); background: linear-gradient(120deg, #1f57d1, #0f766e); }
+.tv .promo .sl.b { background: linear-gradient(120deg, #5b21b6, #2767ed); }
+.tv .promo .sl.c { background: linear-gradient(120deg, #b45309, #dc2626); }
+.tv .promo .sl.on { opacity: 1; }
+.tv .promo .sl b { display: block; font-size: calc(2.3 * var(--u)); font-weight: var(--sw-fw-bold); line-height: 1.15; }
+.tv .promo .sl span { display: block; font-size: calc(1.5 * var(--u)); opacity: .92; margin-block-start: calc(.3 * var(--u)); }
+.tv .promo .sl .pic { inline-size: calc(18 * var(--u)); block-size: 100%; border-radius: calc(1 * var(--u)); background: rgba(255,255,255,.14); border: 2px dashed rgba(255,255,255,.45); display: grid; place-items: center; font-size: calc(1.2 * var(--u)); opacity: .9; }
+.tv .promo .pd { position: absolute; inset-block-end: calc(1 * var(--u)); inset-inline-end: calc(2 * var(--u)); display: flex; gap: calc(.5 * var(--u)); }
+.tv .promo .pd span { inline-size: calc(.7 * var(--u)); block-size: calc(.7 * var(--u)); border-radius: 50%; background: rgba(255,255,255,.4); }
+.tv .promo .pd span.on { background: #fff; inline-size: calc(2 * var(--u)); border-radius: var(--sw-r-pill); }
+/* the news ticker (RSS titles chosen in the board settings; off by default) */
+.tv .tk { grid-area: tk; display: none; align-items: stretch; background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); font-size: calc(1.7 * var(--u)); }
+.tv[data-news="1"] .tk { display: flex; }
+.tv .tk .lbl { display: inline-flex; align-items: center; gap: calc(.6 * var(--u)); padding: calc(.8 * var(--u)) calc(2 * var(--u)); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: var(--sw-fw-bold); font-size: calc(1.4 * var(--u)); flex: none; }
+.tv .tk .win { flex: 1; min-inline-size: 0; overflow: hidden; display: flex; align-items: center; }
+.tv .tk .track { display: inline-block; white-space: nowrap; padding-inline: 100%; animation: tick 60s linear infinite; color: var(--sw-text); }
+.tv .tk .track em { font-style: normal; color: var(--sw-text-3); font-size: calc(1.3 * var(--u)); margin-inline: calc(1 * var(--u)) calc(3 * var(--u)); }
+@keyframes tick { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+body.fixedclock .tv .tk .track { animation-play-state: paused; animation-delay: -42s; }
+/* the status footer: last update, stale chip, building name, "powered by" when the product logo is hidden */
+.tv .ft { grid-area: ft; display: flex; align-items: center; gap: calc(1.6 * var(--u)); padding: calc(.7 * var(--u)) calc(3 * var(--u)); border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); font-size: calc(1.15 * var(--u)); color: var(--sw-text-3); }
+.tv .ft .sp { flex: 1; }
+.tv .ft .live { display: inline-flex; align-items: center; gap: calc(.5 * var(--u)); }
+.tv .ft .live i { inline-size: calc(.8 * var(--u)); block-size: calc(.8 * var(--u)); border-radius: 50%; background: var(--sw-live); }
 .tv .stale { display: none; align-items: center; gap: calc(.5 * var(--u)); border-radius: var(--sw-r-pill); padding: calc(.2 * var(--u)) calc(1 * var(--u)); background: var(--sw-stale-soft); color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
 .tv[data-net="stale"] .stale { display: inline-flex; }
-.tv[data-net="stale"] footer .live i { background: var(--sw-stale); }
-.tv[data-net="offline"] .stage { opacity: .7; }
-.tv .offband { display: none; align-items: center; justify-content: center; gap: calc(1 * var(--u)); padding: calc(.7 * var(--u)); background: var(--sw-offline-soft); color: var(--sw-offline-text); font-size: calc(1.3 * var(--u)); font-weight: var(--sw-fw-semibold); }
+.tv[data-net="stale"] .ft .live i { background: var(--sw-stale); }
+.tv[data-net="offline"] .bd { opacity: .7; }
+.tv .offband { grid-area: ban; display: none; align-items: center; justify-content: center; gap: calc(1 * var(--u)); padding: calc(.7 * var(--u)); background: var(--sw-offline-soft); color: var(--sw-offline-text); font-size: calc(1.4 * var(--u)); font-weight: var(--sw-fw-semibold); }
 .tv[data-net="offline"] .offband { display: flex; }
-.tv[data-net="offline"] .stale { display: none; }
-.tv[data-net="gone"] .stage, .tv[data-net="gone"] .banner, .tv[data-net="gone"] .offband { display: none; }
-.tv .gone { display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.5 * var(--u)); color: var(--sw-text-2); font-size: calc(2 * var(--u)); }
+.tv[data-net="offline"] .ban, .tv[data-net="offline"] .stale { display: none; }
+.tv[data-net="gone"] .bd, .tv[data-net="gone"] .ban, .tv[data-net="gone"] .offband, .tv[data-net="gone"] .tk { display: none; }
+.tv .gone { grid-area: bd; display: none; flex-direction: column; align-items: center; justify-content: center; gap: calc(1.5 * var(--u)); color: var(--sw-text-2); font-size: calc(2 * var(--u)); }
 .tv[data-net="gone"] .gone { display: flex; }
-.tv[data-empty="1"] .card, .tv[data-empty="1"] .dots { display: none; }
-.tv[data-empty="1"] .empty { display: flex; }
 .tv[data-night="1"] .shift { filter: brightness(.5); }
-/* portrait: the header stacks (logos row, name, clock), everything else is the same */
-.tv.portrait header { flex-wrap: wrap; row-gap: calc(1 * var(--u)); }
-.tv.portrait .bname { order: 3; flex-basis: 100%; }
-.tv.portrait .logo.company { margin-inline-start: auto; }
-.tv.portrait .clock { order: 4; flex-basis: 100%; justify-items: start; direction: rtl; display: flex; align-items: baseline; gap: calc(1.2 * var(--u)); }
-/* portrait has the height: every active notice is stacked (no rotation), the dots leave; a long list still clips at the bottom and rotates pages */
-.tv.portrait .stage { grid-template-rows: none; align-content: start; gap: calc(2 * var(--u)); overflow: hidden; }
-.tv.portrait .card { grid-area: auto; opacity: 1; padding-block-end: calc(2 * var(--u)); border-block-end: 1px solid var(--sw-border); }
-.tv.portrait .card:last-of-type { border-block-end: 0; }
+/* portrait (template 3 "portrait lobby", and any board on a portrait screen): header row, clock + weather row, banner, stacked notices, promo, ticker */
+.tv.portrait .hd { gap: calc(1.6 * var(--u)); padding-inline: calc(2.4 * var(--u)); }
+.tv.portrait .bname b { font-size: calc(1.9 * var(--u)); }
+.tv.portrait .bname span { font-size: calc(1.2 * var(--u)); }
+.tv.portrait .hclock { display: none !important; }
+.tv.portrait .bd { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: 'side' 'stage' 'promo'; padding-inline: calc(2.4 * var(--u)); gap: calc(1.8 * var(--u)); }
+.tv.portrait[data-promo="0"] .bd { grid-template-rows: auto minmax(0, 1fr); grid-template-areas: 'side' 'stage'; }
+.tv.portrait[data-tpl="2"] .bd { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: 'side' 'stage' 'next'; }
+.tv.portrait[data-tpl="2"] .side { display: grid; }
+.tv.portrait[data-tpl="2"] .side .wx, .tv.portrait[data-tpl="2"] .side .info { display: none; }
+.tv.portrait .side { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'clk wx' 'info info'; gap: calc(1.4 * var(--u)) calc(2 * var(--u)); align-items: center; }
+.tv.portrait .clk { grid-area: clk; }
+.tv.portrait .clk b { font-size: calc(6.4 * var(--u)); }
+.tv.portrait .wx { grid-area: wx; padding: calc(1.1 * var(--u)) calc(1.5 * var(--u)); gap: calc(.8 * var(--u)); }
+.tv.portrait .wx .now svg { font-size: calc(4 * var(--u)); }
+.tv.portrait .wx .now b { font-size: calc(3.6 * var(--u)); }
+.tv.portrait .wx .hrs { grid-template-columns: repeat(4, 1fr); }
+.tv.portrait .wx .hrs div:nth-child(5) { display: none; }
+.tv.portrait .wx .src { display: none; }
+.tv.portrait .info { grid-area: info; grid-template-columns: repeat(3, 1fr); margin: 0; }
+.tv.portrait .info .ch:nth-child(4) { display: none; }
+.tv.portrait .stage { grid-template-rows: none; align-content: start; gap: calc(1.6 * var(--u)); overflow: hidden; -webkit-mask-image: linear-gradient(#000 88%, transparent); mask-image: linear-gradient(#000 88%, transparent); }
+.tv.portrait .card { grid-area: auto; opacity: 1; padding: calc(1.8 * var(--u)) calc(2.2 * var(--u)); gap: calc(.9 * var(--u)); flex: none; overflow: visible; min-block-size: auto; }
+.tv.portrait .card h1 { font-size: calc(3 * var(--u)); }
+.tv.portrait .card p { font-size: calc(1.8 * var(--u)); max-inline-size: none; -webkit-line-clamp: 4; }
 .tv.portrait .card .when { margin-block-start: 0; }
 .tv.portrait .dots { display: none; }
-.tv.portrait .card h1 { font-size: calc(3.2 * var(--u)); }
-.tv.portrait .card p { max-inline-size: none; -webkit-line-clamp: 8; }
-.tv.portrait .banner { flex-wrap: wrap; }
-.tv.portrait .banner .bt b { font-size: calc(2 * var(--u)); }
-.tv.portrait .banner .when { order: 3; }
-.tv .mockline { position: absolute; inset-block-start: calc(.5 * var(--u)); inset-inline-start: calc(1 * var(--u)); display: flex; gap: 4px; z-index: 2; opacity: .6; }
+.tv.portrait .next { grid-auto-flow: row; }
+.tv.portrait .ban { flex-wrap: wrap; padding-inline: calc(2.4 * var(--u)); }
+.tv.portrait .ban .bt b { font-size: calc(2.4 * var(--u)); }
+.tv.portrait .ban .bt span { white-space: normal; }
+.tv.portrait .ban .when { order: 3; }
+.tv.portrait .promo { block-size: calc(14 * var(--u)); }
+.tv.portrait .promo .sl .pic { inline-size: calc(14 * var(--u)); }
+.tv.portrait .tk { font-size: calc(1.6 * var(--u)); }
+.tv.portrait .ft { padding-inline: calc(2.4 * var(--u)); }
+.tv .mockline { position: absolute; inset-block-start: calc(.5 * var(--u)); inset-inline-start: calc(1 * var(--u)); display: flex; gap: 4px; z-index: 2; opacity: .6; flex-wrap: wrap; }
 .tv .mockline button { font: inherit; font-size: 11px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 2px 8px; cursor: pointer; }
 body.bare .tv .mockline { display: none; }
 
@@ -434,6 +588,13 @@ body.bare .tv .mockline { display: none; }
   nav.bottom a svg { font-size: 22px; }
   nav.bottom a.active { color: var(--sw-accent-text); }
   .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
+  .tpls { grid-template-columns: 1fr; }
+  .tpl .sch { aspect-ratio: 32 / 9; }
+  .disp-grid { grid-template-columns: minmax(0, 1fr); }
+  .blk { grid-template-columns: auto minmax(0, 1fr); }
+  .blk .st { grid-column: 1 / -1; }
+  .blk .sub select.inp { inline-size: 100%; }
+  .slides { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
 </head>
@@ -466,13 +627,32 @@ body.bare .tv .mockline { display: none; }
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2 2 0 0 0-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
   <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/></symbol>
   <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 12h3l2-6 3 12 3-9 2 5 2-2h5"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 11a3.5 3.5 0 0 0 1 7z"/></symbol>
+  <symbol id="i-cloudsun" viewBox="0 0 24 24"><path d="M9 18h8a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 12a3 3 0 0 0 1 6z"/><path d="M15 4.5v1.5M19.5 9H21M18.2 5.8l1-1"/><path d="M13 8a3 3 0 0 1 5 1.2"/></symbol>
+  <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 8a3.5 3.5 0 0 0 1 7z"/><path d="M9 18l-1 3M13 18l-1 3M17 18l-1 3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-elev" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18"/><path d="m7 10 1.5-2L10 10M14 14l1.5 2 1.5-2"/></symbol>
+  <symbol id="i-gen" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="10" rx="2"/><path d="M7 18v2M17 18v2M12 10l-2 3h4l-2 3"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 16v-4l2-5h10l2 5v4z"/><path d="M3 12h18M7 16v2M17 16v2"/><circle cx="8" cy="13" r="1"/><circle cx="16" cy="13" r="1"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m4 18 5-5 4 4 3-3 4 4"/><circle cx="16" cy="9" r="1.5"/></symbol>
+  <symbol id="i-rss" viewBox="0 0 24 24"><path d="M5 19h.01M5 12a7 7 0 0 1 7 7M5 5a14 14 0 0 1 14 14"/></symbol>
+  <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M3 10h6"/></symbol>
+  <!-- the SmplWise mark and wordmark (the same symbols as the LOGOS-295 mockup; the real files come from frontend/brand/ via the asset pipeline) -->
+  <symbol id="sw-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2767ed"/><path d="M43 22c-2.4-3-6.2-4.6-10.6-4.6-6.6 0-11 3.5-11 8.6 0 10.8 22 5.3 22 16.4 0 5.6-4.9 9.2-12.2 9.2-5.2 0-9.4-1.9-12.2-5.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="46" cy="44" r="3.2" fill="#8fe1ff"/></symbol>
+  <symbol id="sw-word" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill="#1e2e47">Smpl<tspan fill="#2767ed">Wise</tspan></text></symbol>
+  <symbol id="sw-word-dark" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill="#ffffff">Smpl<tspan fill="#8fb2ff">Wise</tspan></text></symbol>
+  <!-- a fictional company logo (the uploaded developer / management-company logo of CR-LOGOS295), light + dark variants -->
+  <symbol id="co-light" viewBox="0 0 280 64"><g transform="translate(212 0)"><path d="M8 56V26l20-16 20 16v30H34V38H22v18z" fill="#0f766e"/><path d="M46 56V32l10-8 10 8v24H56V42h-6v14z" fill="#14b8a6"/></g><text x="200" y="31" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a">נווה הירדן</text><text x="200" y="54" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="15" font-weight="500" fill="#0f766e" letter-spacing="1">ניהול נכסים</text></symbol>
+  <symbol id="co-dark" viewBox="0 0 280 64"><g transform="translate(212 0)"><path d="M8 56V26l20-16 20 16v30H34V38H22v18z" fill="#5eead4"/><path d="M46 56V32l10-8 10 8v24H56V42h-6v14z" fill="#99f6e4"/></g><text x="200" y="31" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">נווה הירדן</text><text x="200" y="54" direction="rtl" text-anchor="start" font-family="Heebo, Arial, sans-serif" font-size="15" font-weight="500" fill="#5eead4" letter-spacing="1">ניהול נכסים</text></symbol>
 </defs></svg>
 
 <!-- mockup-only controls -->
 <nav class="mock" aria-label="בקרת הדגם">
   <b>דגם</b>
-  <select id="page" aria-label="מסך"><option value="home">מסך: הבית (הווידג׳ט)</option><option value="notices">מסך: לוח הודעות</option><option value="settings">מסך: הגדרות › לוח הודעות</option><option value="board">מסך: לוח תצוגה אחד</option><option value="tv-parking">טלוויזיה: לוח החניון</option><option value="tv-lobby">טלוויזיה: לוח הלובי</option></select>
+  <select id="page" aria-label="מסך"><option value="home">מסך: הבית (הווידג׳ט)</option><option value="notices">מסך: לוח הודעות</option><option value="settings">מסך: הגדרות › לוח הודעות</option><option value="board">מסך: לוח תצוגה אחד (עריכה)</option><option value="tv-lobby">טלוויזיה: לוח הלובי (תבנית 1)</option><option value="tv-parking">טלוויזיה: לוח החניון (תבנית 2)</option><option value="tv-gym">טלוויזיה: חדר הכושר (תבנית 3, אנכי)</option></select>
   <select id="tvo" aria-label="כיוון הטלוויזיה"><option value="auto">טלוויזיה: אוטומטי</option><option value="landscape">טלוויזיה: רוחב 16:9</option><option value="portrait">טלוויזיה: אנכי</option></select>
+  <select id="tvtpl" aria-label="תבנית"><option value="">תבנית: של הלוח</option><option value="1">תבנית 1: מידע והודעות</option><option value="2">תבנית 2: הודעות בלבד</option><option value="3">תבנית 3: לובי אנכי</option></select>
   <select id="role" aria-label="תפקיד"><option value="mgr">תפקיד: מנהל</option><option value="op">תפקיד: מפעיל</option><option value="view">תפקיד: צופה</option></select>
   <select id="stsel" aria-label="מצב"><option value="ready">מצב: רגיל</option><option value="empty">מצב: ריק</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option></select>
   <button id="th" aria-pressed="false">כהה</button>
@@ -556,8 +736,8 @@ body.bare .tv .mockline { display: none; }
             <label class="search"><svg class="ic"><use href="#i-search"/></svg><input type="search" placeholder="חיפוש" aria-label="חיפוש" data-search></label>
           </div>
           <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>הודעה</th><th>למי</th><th>לוחות תצוגה</th><th>בתוקף</th><th>נשלחה</th><th></th></tr></thead><tbody>
-            <tr class="go" tabindex="0" data-look="alarm" data-state="active" data-kind="mine tv" data-place="all" data-sev="דחוף"><td><span class="badge"><svg class="ic"><use href="#i-warning"/></svg>דחוף</span></td><td><span class="t1">הפסקת מים מחר 10:00-12:00</span><span class="t2">עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></td><td><span class="chip" data-look="acc">כולם</span></td><td><span class="chips"><span class="chip">לובי</span><span class="chip">חניון</span></span></td><td class="date num">24.10 – 25.10 12:00</td><td class="date num">24.10 08:40 · 118</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
-            <tr class="go" tabindex="0" data-look="warn" data-state="active" data-kind="mine tv" data-place="bldg" data-sev="חשוב"><td><span class="badge">חשוב</span></td><td><span class="t1">טיפול במעלית הצפונית ביום שלישי</span><span class="t2">המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.</span></td><td><span class="chips"><span class="chip">קומות 1-6</span></span></td><td><span class="chips"><span class="chip">לובי</span></span></td><td class="date num">22.10 – 27.10</td><td class="date num">22.10 16:05 · 64</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go" tabindex="0" data-look="alarm" data-state="active" data-kind="mine tv" data-place="all" data-sev="דחוף"><td><span class="badge"><svg class="ic"><use href="#i-warning"/></svg>דחוף</span></td><td><span class="t1">הפסקת מים מחר 10:00-12:00</span><span class="t2">עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></td><td><span class="chip" data-look="acc">כולם</span></td><td><span class="chips"><span class="chip">לובי</span><span class="chip">חניון</span></span></td><td class="date num">24.10 – 25.10 12:00</td><td class="date num">24.10 08:40 · <button class="btn sm mng" data-reads>84/118</button><span class="reader-only">118</span></td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
+            <tr class="go" tabindex="0" data-look="warn" data-state="active" data-kind="mine tv" data-place="bldg" data-sev="חשוב"><td><span class="badge">חשוב</span></td><td><span class="t1">טיפול במעלית הצפונית ביום שלישי</span><span class="t2">המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.</span></td><td><span class="chips"><span class="chip">קומות 1-6</span></span></td><td><span class="chips"><span class="chip">לובי</span></span></td><td class="date num">22.10 – 27.10</td><td class="date num">22.10 16:05 · <button class="btn sm mng" data-reads>51/64</button><span class="reader-only">64</span></td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
             <tr class="go" tabindex="0" data-look="acc" data-state="active" data-kind="mine tv" data-place="parking" data-sev="רגיל"><td><span class="badge">פעילה</span></td><td><span class="t1">שטיפת החניון ביום חמישי</span><span class="t2">נא לא להחנות ברמה -1 בין 06:00 ל-10:00.</span></td><td><span class="chips"><span class="chip">חניון</span><span class="chip">קבוצה: חניון</span></span></td><td><span class="chips"><span class="chip">חניון</span></span></td><td class="date num">23.10 – 29.10</td><td class="mut">-</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
             <tr class="go" tabindex="0" data-look="warn" data-state="active" data-kind="tv" data-place="parking" data-sev="חשוב"><td><span class="badge">חשוב</span></td><td><span class="t1">רמה -2 סגורה ביום שישי</span><span class="t2">סימון חניות מחדש. הכניסה דרך רמה -1 בלבד.</span></td><td><span class="chips"><span class="chip" data-look="off">לוחות בלבד</span></span></td><td><span class="chips"><span class="chip">חניון</span></span></td><td class="date num">24.10 – 30.10</td><td class="mut">-</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
             <tr class="go mng-row" tabindex="0" data-look="acc" data-state="scheduled" data-kind="mine" data-place="bldg" data-sev="רגיל"><td><span class="badge">מתוזמנת</span></td><td><span class="t1">ניקוי חלונות חיצוני</span><span class="t2">צוות סנפלינג יעבוד על חזית הבניין. נא לסגור תריסים.</span></td><td><span class="chip" data-look="acc">כולם</span></td><td class="mut">-</td><td class="date num">02.11 – 05.11</td><td class="mut">-</td><td class="act"><button class="btn sm mng" data-compose>עריכה</button> <button class="btn sm mng">ארכוב</button></td></tr>
@@ -581,8 +761,9 @@ body.bare .tv .mockline { display: none; }
         <div class="panel"><div class="hd"><h2>המודול</h2><span class="sp"></span><span class="sw"><button class="tog" role="switch" aria-checked="true" aria-label="לוח הודעות"></button><span>פועל</span></span></div>
           <dl class="kv"><dt>כתיבה</dt><dd>עורכים ומנהלי אתר (notices.manage)</dd><dt>שליחת התראה</dt><dd>מנהלי אתר (notices.push)</dd><dt>לוחות תצוגה</dt><dd>מנהלי מערכת (notices.boards)</dd></dl></div>
         <div class="panel"><div class="hd"><h2>ברירות מחדל</h2></div>
-          <div class="form"><div class="r"><div class="fld"><label>תוקף</label><select class="inp"><option>7 ימים</option><option>3 ימים</option><option>14 ימים</option></select></div><div class="fld"><label>חומרה</label><select class="inp"><option>רגיל</option><option>חשוב</option></select></div></div>
-          <div class="r"><div class="fld"><label>התראה בפרסום</label><select class="inp"><option>לפי חומרה (דחוף בלבד)</option><option>תמיד</option><option>אף פעם</option></select></div><div class="fld"><label>שמירת היסטוריה</label><select class="inp"><option>שנה</option><option>חצי שנה</option></select></div></div></div></div>
+          <div class="form"><div class="r"><div class="fld"><label>תוקף ברירת מחדל</label><div style="display:flex;gap:8px;align-items:center"><input class="inp num" type="number" value="7" min="1" max="90" style="inline-size:90px"><span class="mut">ימים · ניתן לשינוי בכל הודעה</span></div></div><div class="fld"><label>חומרה</label><select class="inp"><option>רגיל</option><option>חשוב</option></select></div></div>
+          <div class="r"><div class="fld"><label>התראה בפרסום</label><select class="inp"><option>לפי חומרה (דחוף בלבד)</option><option>תמיד</option><option>אף פעם</option></select></div><div class="fld"><label>מי קרא</label><select class="inp"><option>שמות גלויים למנהלי ההודעות</option><option>ספירה בלבד</option></select></div></div>
+          <div class="r"><div class="fld"><label>שמירת היסטוריה</label><select class="inp"><option>שנה</option><option>חצי שנה</option></select></div><div class="fld"><label>מזג אוויר ללוחות</label><select class="inp"><option>תחנת מזג האוויר של המערכת (weather.home)</option><option>אינטרנט · Open-Meteo לפי כתובת הבניין</option><option>כבוי</option></select></div></div></div></div>
       </div>
       <div class="panel flush">
         <div class="toolbar"><h2 style="margin:0;font-size:var(--sw-fs-md)">לוחות תצוגה</h2><span class="chip">3 מתוך 10</span><span style="flex:1"></span><label class="ck"><input type="checkbox"> זמינים גם מחוץ לרשת הבניין</label><button class="btn pri" data-newboard><svg class="ic"><use href="#i-plus"/></svg>לוח חדש</button></div>
@@ -604,14 +785,57 @@ body.bare .tv .mockline { display: none; }
         <div class="meta"><button class="btn" data-go="tv-lobby"><svg class="ic"><use href="#i-eye"/></svg>תצוגה מקדימה</button><button class="btn" data-copy><svg class="ic"><use href="#i-copy"/></svg>העתקת קישור</button><button class="btn" data-link><svg class="ic"><use href="#i-rotate"/></svg>קישור חדש</button><span class="sw"><button class="tog" role="switch" aria-checked="true" aria-label="הלוח פעיל"></button></span></div></div>
       <div class="skl" aria-busy="true" aria-label="טוען"></div>
       <div class="state-panel" data-state="empty"><div class="icon"><svg class="ic"><use href="#i-board"/></svg></div><div><h4>הלוח ריק</h4><p>הטלוויזיה מציגה "אין הודעות כרגע" עם השעון. סמנו הודעות ללוח הזה מתוך לוח ההודעות או מכאן.</p></div><button class="btn pri mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>הודעה חדשה ללוח</button></div>
+      <!-- the board's tab row (components/sw-tabs compact): general / display / notices -->
+      <nav class="tabs compact btabs on" aria-label="לשוניות הלוח"><div class="row">
+        <a href="#" data-bt="gen" class="on"><span class="lbl">כללי</span></a><a href="#" data-bt="disp"><span class="lbl">תצוגה</span></a><a href="#" data-bt="items"><span class="lbl">הודעות<span class="count">(2)</span></span></a>
+      </div></nav>
+      <!-- ===== tab "display": what the TV shows and how ===== -->
+      <div class="bt-pane" data-pane="disp">
+        <div class="disp-grid">
+          <div class="panel"><div class="hd"><h2>תבנית המסך</h2><span class="sp"></span><span class="chip" data-look="acc">שינוי מתעדכן בטלוויזיה תוך 30 שניות</span></div>
+            <div class="tpls" data-tpls>
+              <button class="tpl" data-tpl="1" aria-pressed="true"><div class="sch"><i class="hd"></i><div class="row" style="grid-template-columns:3fr 7fr"><i></i><div class="row" style="grid-template-rows:3fr 1fr"><i class="acc"></i><i></i></div></div><i class="hd"></i></div><b>מידע והודעות</b><span>שעון, מזג אוויר, מצב הבניין, הודעה גדולה, שקופיות, חדשות</span></button>
+              <button class="tpl" data-tpl="2" aria-pressed="false"><div class="sch"><i class="hd"></i><div class="row" style="grid-template-rows:5fr 1fr"><i class="acc"></i><div class="row" style="grid-template-columns:1fr 1fr 1fr"><i></i><i class="warn"></i><i></i></div></div><i class="hd"></i></div><b>הודעות בלבד</b><span>הודעה אחת גדולה והבאות בתור; שעון בכותרת</span></button>
+              <button class="tpl" data-tpl="3" aria-pressed="false"><div class="sch port"><div class="row" style="grid-template-rows:1fr 1fr 4fr 1.5fr .8fr"><i class="hd"></i><i></i><i class="acc"></i><i></i><i></i></div></div><b>לובי אנכי</b><span>מסך מאונך: שעון ומזג אוויר למעלה, ההודעות בערימה, שקופית וחדשות</span></button>
+            </div>
+            <div class="hd" style="margin:14px 0 8px"><h2>תצוגה מקדימה</h2><span class="sp"></span><button class="btn sm" data-go="tv-lobby"><svg class="ic"><use href="#i-eye"/></svg>מסך מלא</button></div>
+            <div class="prev" data-prev></div>
+            <div class="form" style="margin-block-start:12px">
+              <div class="r"><div class="fld"><label>ערכת צבע</label><div class="seg" data-theme-seg><button aria-pressed="false" data-th="light">בהיר</button><button aria-pressed="true" data-th="dark">כהה</button><button aria-pressed="false" data-th="auto">אוטומטי · כהה 19:00–07:00</button></div></div><div class="fld"><label>כיוון המסך</label><div class="seg"><button aria-pressed="true">אוטומטי</button><button aria-pressed="false">רוחב</button><button aria-pressed="false">אנכי</button></div></div></div>
+              <div class="r"><div class="fld"><label>גודל הכתב</label><select class="inp"><option>100%</option><option>120%</option><option>140%</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
+              <div class="row" style="display:flex;gap:16px;flex-wrap:wrap"><label class="ck"><input type="checkbox" checked> הזזה איטית נגד צריבה</label><label class="ck"><input type="checkbox" checked data-blk="company"> לוגו היזם / חברת הניהול</label><label class="ck"><input type="checkbox" checked disabled> לוגו SmplWise</label></div>
+            </div>
+          </div>
+          <div style="display:grid;gap:14px;min-inline-size:0">
+            <div class="panel"><div class="hd"><h2>מה מוצג</h2><span class="sp"></span><button class="btn sm">שמירה</button></div>
+              <div class="blocks">
+                <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="clock"> שעון ותאריך</label><span></span><span class="st mut">תמיד גדול</span><div class="sub"><label class="ck"><input type="checkbox" checked data-blk="hebdate"> תאריך עברי</label></div></div>
+                <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="weather"> מזג אוויר</label><span></span><span class="st chip" data-look="ok">מתעדכן</span><div class="sub"><span>מקור</span><select class="inp"><option>תחנת מזג האוויר של המערכת (weather.home)</option><option>אינטרנט · Open-Meteo לפי כתובת הבניין</option></select><span>שעות קדימה</span><select class="inp"><option>5</option><option>3</option><option>8</option></select></div></div>
+                <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="news"> חדשות (כותרות)</label><span></span><span class="st mut">כבוי כברירת מחדל</span><div class="sub col">
+                  <div class="feeds"><div class="feed"><svg class="ic"><use href="#i-rss"/></svg><b>ynet · חדשות</b><span class="u">https://www.ynet.co.il/Integration/StoryRss2.xml</span><button class="btn sm">הסרה</button></div><div class="feed"><svg class="ic"><use href="#i-rss"/></svg><b>גלובס · כלכלה</b><span class="u">https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2</span><button class="btn sm">הסרה</button></div></div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select class="inp" style="inline-size:auto"><option>מקור מהרשימה…</option><option>ynet · חדשות</option><option>גלובס · כלכלה</option><option>כלכליסט</option><option>וואלה · חדשות</option><option>כתובת RSS אחרת</option></select><button class="btn sm"><svg class="ic"><use href="#i-plus"/></svg>הוספה</button><span>מהירות</span><div class="seg"><button aria-pressed="false">איטי</button><button aria-pressed="true">רגיל</button><button aria-pressed="false">מהיר</button></div></div>
+                </div></div>
+                <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="info"> מצב הבניין</label><span></span><span class="st mut">סמלים בלבד, ללא פרטים</span><div class="sub"><label class="ck"><input type="checkbox" checked> מעליות</label><label class="ck"><input type="checkbox" checked> גנרטור</label><label class="ck"><input type="checkbox" checked> חניה פנויה</label><label class="ck"><input type="checkbox"> חדר כושר</label></div></div>
+                <div class="blk"><label class="ck"><input type="checkbox" checked> הודעות</label><span></span><span class="st mut">2 פעילות</span><div class="sub"><span>החלפה כל</span><select class="inp"><option>12 שניות</option><option>8 שניות</option><option>20 שניות</option><option>30 שניות</option></select><span>הודעה דחופה</span><span class="chip" data-look="alarm">פס קבוע למעלה</span></div></div>
+                <div class="blk"><label class="ck"><input type="checkbox" checked data-blk="promo"> שקופיות מידע ופרסום</label><span></span><span class="st mut">3 שקופיות · 15 שניות</span><div class="sub"><div class="slides" style="inline-size:100%">
+                  <div class="slide"><div class="im"><svg class="ic" style="font-size:22px"><use href="#i-image"/></svg></div><div class="cap"><b>חדר הכושר פתוח</b><button class="btn sm">עריכה</button></div></div>
+                  <div class="slide"><div class="im b"><svg class="ic" style="font-size:22px"><use href="#i-image"/></svg></div><div class="cap"><b>אפליקציית הבניין</b><button class="btn sm">עריכה</button></div></div>
+                  <div class="slide"><div class="im c"><svg class="ic" style="font-size:22px"><use href="#i-image"/></svg></div><div class="cap"><b>שוק איכרים בכניסה</b><button class="btn sm">עריכה</button></div></div>
+                  <button class="slide" style="font:inherit;cursor:pointer;padding:0"><div class="im add"><svg class="ic" style="font-size:22px"><use href="#i-plus"/></svg></div><div class="cap"><b>שקופית חדשה</b></div></button>
+                </div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ===== tab "general": link, QR ===== -->
+      <div class="bt-pane on" data-pane="gen">
       <div class="two">
-        <div class="panel"><div class="hd"><h2>תצוגה</h2><span class="sp"></span><button class="btn sm">שמירה</button></div>
+        <div class="panel"><div class="hd"><h2>הלוח</h2><span class="sp"></span><button class="btn sm">שמירה</button></div>
           <div class="form">
             <div class="r"><div class="fld"><label>שם</label><input class="inp" value="לוח הלובי"></div><div class="fld"><label>כתובת (קבועה)</label><input class="inp ltr" value="lobby" disabled></div></div>
-            <div class="r"><div class="fld"><label>ערכת צבע</label><div class="seg"><button aria-pressed="false">בהיר</button><button aria-pressed="true">כהה</button><button aria-pressed="false">אוטומטי</button></div></div><div class="fld"><label>כיוון המסך</label><div class="seg"><button aria-pressed="true">אוטומטי</button><button aria-pressed="false">רוחב</button><button aria-pressed="false">אנכי</button></div></div></div>
-            <div class="r"><div class="fld"><label>החלפת הודעות כל</label><select class="inp"><option>12 שניות</option><option>8 שניות</option><option>20 שניות</option></select></div><div class="fld"><label>גודל הכתב</label><select class="inp"><option>100%</option><option>120%</option><option>140%</option></select></div></div>
-            <div class="r"><div class="fld"><label>שפת המסך</label><select class="inp"><option>עברית</option><option>English</option></select></div><div class="fld"><label>עמעום בלילה</label><select class="inp"><option>23:00–06:00 · 50%</option><option>ללא</option></select></div></div>
-            <div class="row" style="display:flex;gap:16px;flex-wrap:wrap"><label class="ck"><input type="checkbox" checked> שעון ותאריך</label><label class="ck"><input type="checkbox" checked> הזזה איטית נגד צריבה</label><label class="ck"><input type="checkbox" checked> לוגו חברת הניהול</label></div>
+            <div class="r"><div class="fld"><label>מיקום</label><select class="inp"><option>לובי · מבנה א</option><option>חניון</option><option>קומה 2 · חדר כושר</option></select></div><div class="fld"><label>שפת המסך</label><select class="inp"><option>עברית</option><option>English</option></select></div></div>
+            <dl class="kv" style="margin-block-start:4px"><dt>תבנית</dt><dd>מידע והודעות · כהה · <a href="#" data-bt-go="disp" style="color:var(--sw-accent-text)">לשונית תצוגה</a></dd><dt>הודעות</dt><dd>2 פעילות · <a href="#" data-bt-go="items" style="color:var(--sw-accent-text)">לשונית הודעות</a></dd><dt>נראה לאחרונה</dt><dd>לפני 20 שניות · 2 מסכים</dd></dl>
           </div></div>
         <div class="panel"><div class="hd"><h2>הקישור</h2></div>
           <div class="link"><code>https://arx.building.example/b/lobby#t=••••••••••••••••••••••••••••••••••••••</code><button class="btn sm" data-copy>העתקה</button></div>
@@ -619,6 +843,8 @@ body.bare .tv .mockline { display: none; }
           <div style="display:flex;gap:14px;align-items:center;margin-block-start:12px;flex-wrap:wrap"><div class="qr" aria-label="קוד QR לקישור"><svg viewBox="0 0 29 29" shape-rendering="crispEdges" id="qr1"></svg></div><dl class="kv"><dt>נוצר</dt><dd>02.10.2026</dd><dt>קישור חדש</dt><dd>15.10.2026 · דני כהן</dd><dt>שידור Cast</dt><dd class="mut">לא זמין לדפי אינטרנט (ראו שאלה 4)</dd></dl></div>
         </div>
       </div>
+      </div>
+      <div class="bt-pane" data-pane="items">
       <div class="panel flush">
         <div class="toolbar"><h2 style="margin:0;font-size:var(--sw-fs-md)">הודעות בלוח</h2><span class="chip">2 פעילות</span><span style="flex:1"></span><button class="btn mng" data-compose><svg class="ic"><use href="#i-plus"/></svg>הודעה חדשה ללוח</button></div>
         <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>הודעה</th><th>בתוקף</th><th></th></tr></thead><tbody>
@@ -626,6 +852,7 @@ body.bare .tv .mockline { display: none; }
           <tr data-look="warn"><td><span class="badge">חשוב</span></td><td><span class="t1">טיפול במעלית הצפונית ביום שלישי</span></td><td class="date num">22.10 – 27.10</td><td class="act"><button class="btn sm mng">הסרה מהלוח</button></td></tr>
         </tbody></table></div>
         <div class="cards-m" data-cards-board></div>
+      </div>
       </div>
     </section>
   </main>
@@ -681,52 +908,29 @@ body.bare .tv .mockline { display: none; }
   </div>
 </div>
 
-<!-- ===== THE TV VIEW (no shell, no login): two boards ===== -->
-<div class="tv" id="tv-parking" data-board="parking" data-net="live" data-theme-pref="dark">
-  <div class="mockline"><button data-net="live">מחובר</button><button data-net="stale">לא מעודכן</button><button data-net="offline">מנותק</button><button data-net="gone">בוטל</button><button data-empty>ריק</button><button data-night>לילה</button></div>
-  <div class="shift">
-    <header>
-      <div class="logo product">לוגו SmplWise<br>(CR-LOGOS295)</div>
-      <div class="bname"><b>לוח החניון</b><span>מגדל הים · רמות <span class="num">-1 / -2</span></span></div>
-      <div class="clock"><b data-clock>09:12</b><span>יום שישי · 24.10.2026</span></div>
-      <div class="logo company">לוגו חברת הניהול<br>(CR-LOGOS295, אופציונלי)</div>
-    </header>
-    <div class="banner on" role="alert"><svg class="ic"><use href="#i-warning"/></svg><div class="bt"><b>הפסקת מים מחר <span class="num">10:00-12:00</span></b><span>עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></div><span class="when">עד מחר 12:00</span></div>
-    <div class="offband"><svg class="ic"><use href="#i-offline"/></svg>הלוח מנותק מהמערכת · ההודעות האחרונות מוצגות</div>
-    <div class="stage" data-rot="10">
-      <article class="card on" data-look="warn"><span class="sev"><svg class="ic"><use href="#i-warning"/></svg>חשוב</span><h1>רמה -2 סגורה ביום שישי</h1><p>סימון חניות מחדש. הכניסה דרך רמה -1 בלבד.
-חניות הנכים ברמה -1 נשארות פתוחות.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>יום שישי 30.10 · <span class="num">06:00–16:00</span></div></article>
-      <article class="card" data-look="acc"><span class="sev">הודעה</span><h1>שטיפת החניון ביום חמישי</h1><p>נא לא להחנות ברמה -1 בין 06:00 ל-10:00. רכב שיישאר יועבר לרמה -2 על ידי הצוות.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>יום חמישי 29.10</div></article>
-      <article class="card" data-look="acc"><span class="sev">הודעה</span><h1>עמדות טעינה חדשות</h1><p>ארבע עמדות טעינה לרכב חשמלי נפתחו ברמה -1, ליד הכניסה הדרומית. הפעלה באפליקציית הבניין.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>מ-20.10</div></article>
-      <div class="dots" aria-hidden="true"></div>
-      <div class="empty"><div class="bigclock" data-clock>09:12</div><p>אין הודעות כרגע</p></div>
+<!-- ===== THE READ-RECEIPTS SHEET (owner 2026-10-24: names are visible to notice managers) ===== -->
+<div class="ov" id="ov-reads" role="dialog" aria-modal="true" aria-labelledby="h-reads">
+  <div class="dlg narrow">
+    <header><div><h2 id="h-reads">מי קרא</h2><p class="sub">הפסקת מים מחר 10:00-12:00 · נשלחה 24.10 08:40</p></div><button class="x" data-close aria-label="סגירה"><svg class="ic"><use href="#i-close"/></svg></button></header>
+    <div class="body">
+      <div class="reads"><div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi" data-look="ok"><span class="dot"></span><div><b>84</b><span class="l">קראו</span></div></div><div class="kpi" data-look="off"><span class="dot"></span><div><b>34</b><span class="l">טרם קראו</span></div></div><div class="kpi"><span class="dot"></span><div><b>118</b><span class="l">נמענים</span></div></div></div><div class="bar"><i style="inline-size:71%"></i></div></div>
+      <div class="seg" role="group" aria-label="רשימה"><button aria-pressed="true">קראו (84)</button><button aria-pressed="false">טרם קראו (34)</button></div>
+      <div class="scrollx" style="display:block;max-block-size:280px;overflow:auto"><table class="t"><thead><tr><th>שם</th><th>מקום</th><th>נקרא</th></tr></thead><tbody>
+        <tr><td><span class="t1">דני כהן</span></td><td class="mut">קומה 4</td><td class="date num">24.10 08:41</td></tr>
+        <tr><td><span class="t1">רונית לוי</span></td><td class="mut">קומה 2</td><td class="date num">24.10 08:52</td></tr>
+        <tr><td><span class="t1">יוסי אברהם</span></td><td class="mut">חניון</td><td class="date num">24.10 09:03</td></tr>
+        <tr><td><span class="t1">מיכל פרץ</span></td><td class="mut">קומה 6</td><td class="date num">24.10 09:07</td></tr>
+        <tr><td><span class="t1">אבי שמעוני</span></td><td class="mut">ועד הבית</td><td class="date num">24.10 09:10</td></tr>
+      </tbody></table></div>
     </div>
-    <div class="gone"><svg class="ic" style="font-size:2em"><use href="#i-offline"/></svg>הלוח אינו פעיל</div>
-    <footer><span class="live"><i></i>עודכן <span data-clock>09:12</span></span><span class="stale"><svg class="ic"><use href="#i-clock"/></svg>לא מעודכן מ-09:04</span><span class="sp"></span><span>לוח הודעות · SmplWise Arx</span></footer>
+    <footer><span class="mut">הרשימה נראית לבעלי הרשאת ניהול הודעות בלבד ואינה נשלחת לאף אחד.</span><span class="sp"></span><button class="btn pri" data-close>סגירה</button></footer>
   </div>
 </div>
 
-<div class="tv" id="tv-lobby" data-board="lobby" data-net="live" data-theme-pref="dark">
-  <div class="mockline"><button data-net="live">מחובר</button><button data-net="stale">לא מעודכן</button><button data-net="offline">מנותק</button><button data-net="gone">בוטל</button><button data-empty>ריק</button><button data-night>לילה</button></div>
-  <div class="shift">
-    <header>
-      <div class="logo product">לוגו SmplWise<br>(CR-LOGOS295)</div>
-      <div class="bname"><b>לוח הלובי</b><span>מגדל הים · ברוכים הבאים</span></div>
-      <div class="clock"><b data-clock>09:12</b><span>יום שישי · 24.10.2026</span></div>
-      <div class="logo company">לוגו חברת הניהול<br>(CR-LOGOS295, אופציונלי)</div>
-    </header>
-    <div class="banner on" role="alert"><svg class="ic"><use href="#i-warning"/></svg><div class="bt"><b>הפסקת מים מחר <span class="num">10:00-12:00</span></b><span>עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.</span></div><span class="when">עד מחר 12:00</span></div>
-    <div class="offband"><svg class="ic"><use href="#i-offline"/></svg>הלוח מנותק מהמערכת · ההודעות האחרונות מוצגות</div>
-    <div class="stage" data-rot="12">
-      <article class="card on" data-look="warn"><span class="sev"><svg class="ic"><use href="#i-warning"/></svg>חשוב</span><h1>טיפול במעלית הצפונית ביום שלישי</h1><p>המעלית הצפונית תושבת בין 08:00 ל-14:00.
-המעלית הדרומית פועלת כרגיל.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>יום שלישי 27.10 · <span class="num">08:00–14:00</span></div></article>
-      <article class="card" data-look="acc"><span class="sev">הודעה</span><h1>ניקוי חלונות חיצוני</h1><p>צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.</p><div class="when"><svg class="ic"><use href="#i-calendar"/></svg>02.11 – 05.11</div></article>
-      <div class="dots" aria-hidden="true"></div>
-      <div class="empty"><div class="bigclock" data-clock>09:12</div><p>אין הודעות כרגע</p></div>
-    </div>
-    <div class="gone"><svg class="ic" style="font-size:2em"><use href="#i-offline"/></svg>הלוח אינו פעיל</div>
-    <footer><span class="live"><i></i>עודכן <span data-clock>09:12</span></span><span class="stale"><svg class="ic"><use href="#i-clock"/></svg>לא מעודכן מ-09:04</span><span class="sp"></span><span>לוח הודעות · SmplWise Arx</span></footer>
-  </div>
+<!-- ===== THE TV SURFACE (no shell, no login): one host, filled from the board data by renderTv(); the mini preview uses the same renderer ===== -->
+<div class="tv" id="tv" data-net="live" data-tpl="1" data-urgent="1" data-company="1" data-clock="1" data-hebdate="1" data-weather="1" data-news="1" data-info="1" data-promo="1">
+  <div class="mockline"><button data-net="live">מחובר</button><button data-net="stale">לא מעודכן</button><button data-net="offline">מנותק</button><button data-net="gone">בוטל</button><button data-empty>ריק</button><button data-night>לילה</button><button data-urgent-toggle>דחוף</button><button data-news-toggle>חדשות</button><button data-company-toggle>לוגו חברה</button></div>
+  <div class="shift"></div>
 </div>
 
 <div class="toast" id="toast" role="status"></div>
@@ -755,14 +959,14 @@ body.bare .tv .mockline { display: none; }
   function showPage(id) {
     var tv = id.indexOf('tv-') === 0;
     body.classList.toggle('tvmode', tv);
-    document.querySelectorAll('.tv').forEach(function (t) { t.classList.toggle('on', t.id === id); });
+    document.getElementById('tv').classList.toggle('on', tv);
     document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === 's-' + id); });
     var sys = id === 'settings' || id === 'board';
     document.getElementById('nav-main').hidden = sys; document.getElementById('nav-sys').hidden = !sys;
     document.getElementById('rail-home').classList.toggle('active', !sys); document.getElementById('rail-sys').classList.toggle('active', sys);
     document.querySelectorAll('.tabs a[data-go]').forEach(function (a) { var on = a.dataset.go === id; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     document.getElementById('page').value = id;
-    if (tv) tvOrient();
+    if (tv) { tvState.board = id.slice(3); tvRender(); }
   }
   document.getElementById('page').onchange = function () { showPage(this.value); };
   document.querySelectorAll('[data-go]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); showPage(a.dataset.go); }); });
@@ -842,9 +1046,10 @@ body.bare .tv .mockline { display: none; }
   document.getElementById('open-compose').onclick = function () { open('ov-compose'); };
   document.getElementById('open-link').onclick = function () { open('ov-link'); };
   document.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-compose], [data-link], [data-copy], [data-toast], [data-newboard], [data-turn-on]'); if (!b) return;
+    var b = e.target.closest('[data-compose], [data-link], [data-copy], [data-toast], [data-newboard], [data-turn-on], [data-reads]'); if (!b) return;
     e.preventDefault(); e.stopPropagation();
     if (b.hasAttribute('data-compose')) open('ov-compose');
+    else if (b.hasAttribute('data-reads')) open('ov-reads');
     else if (b.hasAttribute('data-link') || b.hasAttribute('data-newboard')) open('ov-link');
     else if (b.hasAttribute('data-copy')) toast('הקישור הועתק');
     else if (b.hasAttribute('data-turn-on')) { setSt('ready'); toast('לוח ההודעות פועל'); }
@@ -867,32 +1072,127 @@ body.bare .tv .mockline { display: none; }
   }
   qr('qr1', 7); qr('qr2', 11);
 
-  // ===== the TV: orientation, rotation, states, clock, burn-in shift =====
-  function tvOrient() {
-    var o = document.getElementById('tvo').value, portrait = o === 'portrait' || (o === 'auto' && innerHeight > innerWidth);
-    document.querySelectorAll('.tv').forEach(function (t) { t.classList.toggle('portrait', portrait); });
+  // ===== the TV: board data -> one renderer for the full screen and the preview thumbnail =====
+  var SEV = { critical: 'alarm', alert: 'warn', info: 'acc' }, SEVL = { critical: 'דחוף', alert: 'חשוב', info: 'הודעה' };
+  var WX = { now: { t: 24, d: 'בהיר · רוח קלה מערבית', i: 'sun', src: 'תחנת מזג האוויר של הבניין · עודכן 09:10' }, hrs: [['12:00', 'sun', 26], ['14:00', 'cloudsun', 27], ['16:00', 'cloudsun', 25], ['18:00', 'cloud', 22], ['20:00', 'moon', 20]] };
+  var NEWS = [['ynet', 'כותרת לדוגמה: מזג האוויר - התחממות קלה צפויה לקראת סוף השבוע'], ['גלובס', 'כותרת לדוגמה: שינויים בקווי האוטובוס במרכז העיר החל מיום ראשון'], ['ynet', 'כותרת לדוגמה: מדד המחירים לחודש ספטמבר פורסם הבוקר'], ['גלובס', 'כותרת לדוגמה: רשות החשמל מעדכנת את תעריפי הלילה']];
+  var INFO = [['elev', 'מעלית צפונית', 'פועלת', 'ok'], ['elev', 'מעלית דרומית', 'בטיפול', 'warn'], ['gen', 'גנרטור', 'מוכן', 'ok'], ['car', 'חניה', '42 פנויות', 'ok']];
+  var URGENT = { sev: 'critical', t: 'הפסקת מים מחר 10:00-12:00', b: 'עקב עבודות תאגיד המים ברחוב. מומלץ למלא מים מראש.', when: 'עד מחר 12:00' };
+  var BOARDS = {
+    lobby: { name: 'לוח הלובי', sub: 'מגדל הים · ברוכים הבאים', tpl: 1, rot: 12, news: 1, promo: 1, info: 1, weather: 1,
+      items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00.\nהמעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10 · 08:00–14:00' },
+        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.', when: '02.11 – 05.11' },
+        { sev: 'info', t: 'שעות קבלת קהל במשרד הניהול', b: 'ימים א-ה 08:30–16:00. בימי שישי בתיאום מראש בלבד.', when: 'קבוע' }],
+      promos: [['', 'חדר הכושר פתוח', 'כל יום 06:00–23:00 · הכניסה עם תג הדייר', 'תמונה'], ['b', 'אפליקציית הבניין', 'הודעות, שערים ותקלות - סרקו את הקוד בלובי', 'תמונה'], ['c', 'שוק איכרים בכניסה', 'יום שישי 31.10 · 08:00–13:00', 'תמונה']] },
+    parking: { name: 'לוח החניון', sub: 'מגדל הים · רמות -1 / -2', tpl: 2, rot: 10, news: 0, promo: 0, info: 1, weather: 0,
+      items: [{ sev: 'alert', t: 'רמה -2 סגורה ביום שישי', b: 'סימון חניות מחדש. הכניסה דרך רמה -1 בלבד.\nחניות הנכים ברמה -1 נשארות פתוחות.', when: 'יום שישי 30.10 · 06:00–16:00' },
+        { sev: 'info', t: 'שטיפת החניון ביום חמישי', b: 'נא לא להחנות ברמה -1 בין 06:00 ל-10:00. רכב שיישאר יועבר לרמה -2 על ידי הצוות.', when: 'יום חמישי 29.10' },
+        { sev: 'info', t: 'עמדות טעינה חדשות', b: 'ארבע עמדות טעינה לרכב חשמלי נפתחו ברמה -1, ליד הכניסה הדרומית. הפעלה באפליקציית הבניין.', when: 'מ-20.10' }],
+      promos: [] },
+    gym: { name: 'לוח חדר הכושר', sub: 'מגדל הים · קומה 2', tpl: 3, rot: 12, news: 1, promo: 1, info: 1, weather: 1,
+      items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10' },
+        { sev: 'info', t: 'חוג יוגה חדש', b: 'ימי שני ורביעי 19:00. ההרשמה במשרד הניהול או באפליקציה.', when: 'מ-02.11' },
+        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר.', when: '02.11 – 05.11' }],
+      promos: [['', 'חדר הכושר פתוח', 'כל יום 06:00–23:00', 'תמונה'], ['b', 'אפליקציית הבניין', 'סרקו את הקוד בלובי', 'תמונה']] }
+  };
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function ic(n, cls) { return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#i-' + n + '"/></svg>'; }
+  var CLOCK = q.get('clock') === 'fixed' ? '09:12' : null;
+  if (CLOCK) body.classList.add('fixedclock');
+  function nowStr() { if (CLOCK) return CLOCK; var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function renderTv(host, b, o) {
+    var dark = root.getAttribute('data-theme') === 'dark', word = dark ? '#sw-word-dark' : '#sw-word', co = dark ? '#co-dark' : '#co-light';
+    host.dataset.tpl = o.tpl; host.dataset.news = o.news ? '1' : '0'; host.dataset.promo = o.promo && b.promos.length ? '1' : '0'; host.dataset.info = o.info ? '1' : '0'; host.dataset.weather = o.weather ? '1' : '0';
+    host.dataset.clock = o.clock ? '1' : '0'; host.dataset.hebdate = o.hebdate ? '1' : '0'; host.dataset.company = o.company ? '1' : '0';
+    host.classList.toggle('portrait', !!o.portrait);
+    var h = '';
+    h += '<header class="hd"><div class="lg company"><span class="plate"><svg aria-label="נווה הירדן ניהול נכסים"><use href="' + co + '"/></svg></span></div>';
+    h += '<div class="bname"><b>' + esc(b.name) + '</b><span>' + esc(b.sub) + '</span></div>';
+    h += '<div class="hclock"><b data-clock>' + nowStr() + '</b><span>יום שישי · 23.10.2026</span></div>';
+    h += '<div class="lg product"><svg aria-label="SmplWise Arx"><use href="' + word + '"/></svg></div></header>';
+    h += '<div class="ban" role="alert">' + ic('warning') + '<div class="bt"><b>' + esc(URGENT.t) + '</b><span>' + esc(URGENT.b) + '</span></div><span class="when">' + esc(URGENT.when) + '</span></div>';
+    h += '<div class="offband">' + ic('offline') + 'הלוח מנותק מהמערכת · ההודעות האחרונות מוצגות</div>';
+    h += '<div class="bd">';
+    // side: clock, weather, info
+    h += '<div class="side"><div class="clk"><b data-clock>' + nowStr() + '</b><span class="d1">יום שישי · 23 באוקטובר 2026</span><span class="d2">י״ב בחשוון תשפ״ז · כניסת שבת 17:24</span></div>';
+    h += '<div class="wx"><div class="now">' + ic(WX.now.i) + '<b class="num">' + WX.now.t + '°</b><div class="t"><span>' + esc(WX.now.d) + '</span></div></div><div class="hrs">' + WX.hrs.map(function (x) { return '<div><span class="num">' + x[0] + '</span>' + ic(x[1]) + '<b class="num">' + x[2] + '°</b></div>'; }).join('') + '</div><span class="src">' + esc(WX.now.src) + '</span></div>';
+    var infoHtml = '<div class="info">' + INFO.map(function (x) { return '<div class="ch" data-look="' + x[3] + '">' + ic(x[0]) + '<span>' + esc(x[1]) + ' <small>' + esc(x[2]) + '</small></span><i></i></div>'; }).join('') + '</div>';
+    h += infoHtml + '</div>';
+    // stage
+    h += '<div class="stage">' + b.items.map(function (n, k) { return '<article class="card' + (k === 0 ? ' on' : '') + '" data-look="' + SEV[n.sev] + '"><span class="sev">' + (n.sev === 'alert' ? ic('warning') : '') + SEVL[n.sev] + '</span><h1>' + esc(n.t) + '</h1><p>' + esc(n.b) + '</p><div class="when">' + ic('calendar') + esc(n.when) + '</div></article>'; }).join('');
+    h += '<div class="dots" aria-hidden="true">' + b.items.map(function (n, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') + '</div>';
+    h += '<div class="empty"><div class="bigclock" data-clock>' + nowStr() + '</div><p>אין הודעות כרגע</p></div></div>';
+    h += '<div class="next">' + b.items.map(function (n, k) { return '<div class="' + (k === 0 ? 'on' : '') + '" data-look="' + SEV[n.sev] + '"><i></i><span>' + esc(n.t) + '</span></div>'; }).join('') + '</div>';
+    h += '<div class="promo">' + b.promos.map(function (p, k) { return '<div class="sl ' + p[0] + (k === 0 ? ' on' : '') + '"><div><b>' + esc(p[1]) + '</b><span>' + esc(p[2]) + '</span></div><div class="pic">' + esc(p[3]) + '</div></div>'; }).join('') + '<div class="pd">' + b.promos.map(function (p, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') + '</div></div>';
+    h += '</div>';
+    h += '<div class="gone">' + ic('offline', '') + 'הלוח אינו פעיל</div>';
+    h += '<div class="tk"><span class="lbl">' + ic('rss') + 'חדשות</span><div class="win"><div class="track">' + NEWS.map(function (n) { return esc(n[1]) + '<em>' + esc(n[0]) + '</em>'; }).join('') + '</div></div></div>';
+    h += '<footer class="ft">' + infoHtml + '<span class="sp"></span><span class="live"><i></i>עודכן <span data-clock>' + nowStr() + '</span></span><span class="stale">' + ic('clock') + 'לא מעודכן מ-09:04</span><span>' + esc(b.sub.split(' · ')[0]) + ' · לוח הודעות</span></footer>';
+    host.querySelector('.shift').innerHTML = h;
   }
+  var tvHost = document.getElementById('tv'), tvState = { board: 'lobby', tpl: null, i: 0, pi: 0 };
+  function tvOpts(b, override) {
+    var o = document.getElementById('tvo').value, portrait = o === 'portrait' || (o === 'auto' && innerHeight > innerWidth);
+    var tpl = tvState.tpl || b.tpl; if (tpl === 3) portrait = true;
+    return { tpl: tpl === 3 ? 1 : tpl, portrait: portrait, news: b.news, promo: b.promo, info: b.info, weather: b.weather, clock: 1, hebdate: 1, company: 1 };
+  }
+  function tvRender() {
+    var b = BOARDS[tvState.board], o = tvOpts(b);
+    ['news', 'promo', 'info', 'weather', 'clock', 'hebdate', 'company'].forEach(function (k) { if (tvState[k] !== undefined) o[k] = tvState[k]; });
+    renderTv(tvHost, b, o); tvState.i = 0; tvState.pi = 0;
+  }
+  function tvStep() {
+    if (!tvHost.classList.contains('on') || tvHost.dataset.empty === '1') return;
+    var cards = tvHost.querySelectorAll('.stage .card'), dots = tvHost.querySelectorAll('.dots span'), nx = tvHost.querySelectorAll('.next div');
+    if (cards.length > 1) { tvState.i = (tvState.i + 1) % cards.length; cards.forEach(function (c, k) { c.classList.toggle('on', k === tvState.i); }); dots.forEach(function (d, k) { d.classList.toggle('on', k === tvState.i); }); nx.forEach(function (d, k) { d.classList.toggle('on', k === tvState.i); }); }
+  }
+  function promoStep() { var sl = tvHost.querySelectorAll('.promo .sl'), pd = tvHost.querySelectorAll('.promo .pd span'); if (sl.length < 2) return; tvState.pi = (tvState.pi + 1) % sl.length; sl.forEach(function (s, k) { s.classList.toggle('on', k === tvState.pi); }); pd.forEach(function (s, k) { s.classList.toggle('on', k === tvState.pi); }); }
+  setInterval(tvStep, 12000); setInterval(promoStep, 15000);
   document.getElementById('tvo').value = q.get('tv') || 'auto';
-  document.getElementById('tvo').onchange = tvOrient; addEventListener('resize', tvOrient);
-  document.querySelectorAll('.tv').forEach(function (t) {
-    var stage = t.querySelector('.stage'), cardsT = [].slice.call(stage.querySelectorAll('.card')), dots = stage.querySelector('.dots'), i = 0;
-    cardsT.forEach(function (c, k) { var d = document.createElement('span'); if (k === 0) d.className = 'on'; dots.appendChild(d); });
-    function step() { if (cardsT.length < 2 || t.dataset.empty === '1') return; i = (i + 1) % cardsT.length; cardsT.forEach(function (c, k) { c.classList.toggle('on', k === i); }); dots.querySelectorAll('span').forEach(function (d, k) { d.classList.toggle('on', k === i); }); }
-    setInterval(step, (parseInt(stage.dataset.rot, 10) || 12) * 1000);
-    t.querySelectorAll('.mockline [data-net]').forEach(function (b) { b.onclick = function () { t.dataset.net = b.dataset.net; }; });
-    t.querySelector('.mockline [data-empty]').onclick = function () { t.dataset.empty = t.dataset.empty === '1' ? '' : '1'; t.querySelector('.banner').classList.toggle('on', t.dataset.empty !== '1'); };
-    t.querySelector('.mockline [data-night]').onclick = function () { t.dataset.night = t.dataset.night === '1' ? '' : '1'; };
-    // burn-in: a +-2 px drift on a 60 s cycle (CR-030 rule)
-    var ph = 0; setInterval(function () { ph = (ph + 1) % 4; var dx = [0, 2, 0, -2][ph], dy = [2, 0, -2, 0][ph]; t.querySelector('.shift').style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }, 15000);
-  });
-  if (q.get('tvnet')) document.querySelectorAll('.tv').forEach(function (t) { t.dataset.net = q.get('tvnet'); });
-  if (q.get('tvempty') === '1') document.querySelectorAll('.tv').forEach(function (t) { t.dataset.empty = '1'; t.querySelector('.banner').classList.remove('on'); });
-  if (q.get('tvnight') === '1') document.querySelectorAll('.tv').forEach(function (t) { t.dataset.night = '1'; });
-  if (q.get('clock') !== 'fixed') { function tick() { var d = new Date(), s = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); document.querySelectorAll('[data-clock]').forEach(function (e) { e.textContent = s; }); } tick(); setInterval(tick, 15000); }
+  document.getElementById('tvo').onchange = function () { tvRender(); prevRender(); }; addEventListener('resize', function () { if (body.classList.contains('tvmode')) tvRender(); prevRender(); });
+  document.getElementById('tvtpl').value = q.get('tpl') || '';
+  document.getElementById('tvtpl').onchange = function () { tvState.tpl = parseInt(this.value, 10) || null; tvRender(); };
+  if (q.get('tpl')) tvState.tpl = parseInt(q.get('tpl'), 10) || null;
+  tvHost.querySelectorAll('.mockline [data-net]').forEach(function (b) { b.onclick = function () { tvHost.dataset.net = b.dataset.net; }; });
+  tvHost.querySelector('.mockline [data-empty]').onclick = function () { tvHost.dataset.empty = tvHost.dataset.empty === '1' ? '' : '1'; };
+  tvHost.querySelector('.mockline [data-night]').onclick = function () { tvHost.dataset.night = tvHost.dataset.night === '1' ? '' : '1'; };
+  tvHost.querySelector('.mockline [data-urgent-toggle]').onclick = function () { tvHost.dataset.urgent = tvHost.dataset.urgent === '1' ? '0' : '1'; };
+  tvHost.querySelector('.mockline [data-news-toggle]').onclick = function () { tvState.news = tvHost.dataset.news === '1' ? 0 : 1; tvRender(); };
+  tvHost.querySelector('.mockline [data-company-toggle]').onclick = function () { tvState.company = tvHost.dataset.company === '1' ? 0 : 1; tvRender(); };
+  if (q.get('tvnet')) tvHost.dataset.net = q.get('tvnet');
+  if (q.get('tvempty') === '1') tvHost.dataset.empty = '1';
+  if (q.get('tvnight') === '1') tvHost.dataset.night = '1';
+  if (q.get('urgent') === '0') tvHost.dataset.urgent = '0';
+  if (q.get('news') === '0') tvState.news = 0; if (q.get('news') === '1') tvState.news = 1;
+  if (q.get('company') === '0') tvState.company = 0;
+  // burn-in: a +-2 px drift on a 60 s cycle (CR-030 rule); the ticker and the fades are the only other motion
+  var ph = 0; setInterval(function () { ph = (ph + 1) % 4; var dx = [0, 2, 0, -2][ph], dy = [2, 0, -2, 0][ph]; tvHost.querySelector('.shift').style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; }, 15000);
+  if (!CLOCK) { setInterval(function () { var s = nowStr(); document.querySelectorAll('[data-clock]').forEach(function (e) { e.textContent = s; }); }, 15000); }
+
+  // ===== the board page: tabs + the display tab's live preview (the same renderer, scaled) =====
+  var prevHost = document.querySelector('[data-prev]'), prevTpl = 1, prevBlocks = { clock: 1, hebdate: 1, weather: 1, news: 1, info: 1, promo: 1, company: 1 };
+  function prevRender() {
+    if (!prevHost) return;
+    var b = BOARDS.lobby, portrait = prevTpl === 3, W = prevHost.clientWidth || 600, tw = portrait ? 1080 : 1920, th = portrait ? 1920 : 1080;
+    var mini = prevHost.querySelector('.tv'); if (!mini) { mini = document.createElement('div'); mini.className = 'tv mini'; mini.dataset.net = 'live'; mini.dataset.urgent = '1'; mini.innerHTML = '<div class="shift"></div>'; prevHost.appendChild(mini); }
+    var o = { tpl: portrait ? 1 : prevTpl, portrait: portrait, news: prevBlocks.news, promo: prevBlocks.promo, info: prevBlocks.info, weather: prevBlocks.weather, clock: prevBlocks.clock, hebdate: prevBlocks.hebdate, company: prevBlocks.company };
+    var k = portrait ? Math.min(W, 320) / tw : W / tw;
+    renderTv(mini, b, o); mini.style.transform = 'scale(' + k + ')'; prevHost.style.blockSize = Math.round(th * k) + 'px';
+    if (portrait) { mini.style.insetInlineStart = 'auto'; mini.style.insetInlineEnd = '0'; mini.style.transformOrigin = '0 0'; prevHost.style.background = 'var(--sw-surface-3)'; } else { mini.style.insetInlineStart = '0'; mini.style.insetInlineEnd = 'auto'; mini.style.transformOrigin = '100% 0'; prevHost.style.background = '#0b0f19'; }
+  }
+  document.querySelectorAll('[data-tpls] .tpl').forEach(function (b) { b.onclick = function () { prevTpl = parseInt(b.dataset.tpl, 10); b.parentNode.querySelectorAll('.tpl').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); prevRender(); }; });
+  document.querySelectorAll('[data-blk]').forEach(function (c) { c.addEventListener('change', function () { prevBlocks[c.dataset.blk] = c.checked ? 1 : 0; var blk = c.closest('.blk'); if (blk && c.parentNode.parentNode === blk) blk.dataset.off = c.checked ? '0' : '1'; prevRender(); }); });
+  document.querySelectorAll('[data-theme-seg] button').forEach(function (b) { b.addEventListener('click', function () { if (b.dataset.th !== 'auto') theme(b.dataset.th === 'dark'); prevRender(); }); });
+  function showBoardTab(id) { document.querySelectorAll('.btabs a').forEach(function (a) { a.classList.toggle('on', a.dataset.bt === id); }); document.querySelectorAll('.bt-pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === id); }); if (id === 'disp') prevRender(); }
+  document.querySelectorAll('.btabs a').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showBoardTab(a.dataset.bt); }); });
+  document.querySelectorAll('[data-bt-go]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showBoardTab(a.dataset.btGo); }); });
+  document.querySelectorAll('#s-board .seg:not([data-theme-seg]) button').forEach(function (b) { b.addEventListener('click', function () { b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
+  document.getElementById('th').addEventListener('click', function () { if (body.classList.contains('tvmode')) tvRender(); prevRender(); });
 
   setSt(q.get('state') || 'ready');
   showPage(q.get('page') || 'notices');
-  if (q.get('dlg') === 'compose') open('ov-compose'); if (q.get('dlg') === 'link') open('ov-link');
+  if (q.get('dlg') === 'compose') open('ov-compose'); if (q.get('dlg') === 'link') open('ov-link'); if (q.get('dlg') === 'reads') open('ov-reads');
+  if (q.get('btab')) showBoardTab(q.get('btab'));
 })();
 </script>
 </body>

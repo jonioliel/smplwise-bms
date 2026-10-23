@@ -1,6 +1,14 @@
 # CR-NOTICE106 - building notice board: notices, audiences, push, and TV boards
 
-Status: change record + mockup, no code. Branch `pilot/NOTICE106-295` from v2.12.4 (`320e55551`). Board item r106.
+Status: change record + mockup **v2**, no code. Branch `pilot/NOTICE106-295` from v2.12.4 (`320e55551`). Board item r106.
+
+**Owner review 2026-10-24 (v1 -> v2).** The boards list, the board page and the compose dialog are approved **as the settings /
+editing screens only**. The TV screen is a different product surface: "a comfortable advertising-style screen for the building's
+customers - time, date, weather, news if possible, and the notices". Decisions taken with it: the default validity is editable in
+Settings (Q7); read receipts show **names** to notice managers (Q5, privacy decision accepted by the owner); the TV carries **both**
+the developer / management-company logo and the SmplWise logo (Q10), the SmplWise logo on the opposite side from the company logo
+and both slightly larger than v1 (the logo feedback on CR-LOGOS295). Section 8 is rewritten for the display surface; §14 carries the
+two new owner questions (weather source, news sources).
 Module switch `notices.enabled`, **OFF by default**. Migration `0160_notices.sql` (**provisional** number, one file; renumber
 at integration like every other branch). Mockup: `docs/design/mockups/notice-106/index.html` (owner standing style: the
 infrastructure temperature / elevators / schedules language, real tokens and shell as in MAINT215 v2).
@@ -119,7 +127,7 @@ Order on every route: principal -> module switch (404) -> permission (403, audit
 | `POST /notices/{id}/archive` | `notices.manage` | any state -> archived; removes it from boards and widgets at once |
 | `DELETE /notices/{id}` | `notices.manage` | drafts only; published rows are archived, never deleted (audit trail) |
 | `POST /notices/{id}/read` | `notices.view` | marks read for me (widget "new" dot); idempotent |
-| `GET /notices/{id}/reads` | `notices.manage` | counts only: `{audience: n, read: n}` - never a user list (§10) |
+| `GET /notices/{id}/reads` | `notices.manage` | `{audience: n, read: n, users: [{user_id, name, place, read_at}], unread: [{user_id, name, place}]}` - names visible to notice managers (owner decision 2026-10-24, §10); `notices.reads_names = false` reduces it to counts |
 | `GET /notices/audience/preview` | `notices.manage` | `audience_json` -> `{users: n, floors: [...], groups: [...], roles: [...]}` for the compose dialog |
 | `GET /notices/boards` | `notices.boards` | list with `enabled`, `last_seen_at`, `has_token`, `item_count` |
 | `POST /notices/boards` | `notices.boards` | create; the answer carries the **plain token once** |
@@ -244,65 +252,116 @@ the display routes (§4.1). Audit actions: `notices.create`, `.publish`, `.push`
 - Quiet hours and pacing: whatever the pipeline does for `alert` today (NOTIFWA pacing, `0144_wa_pacing`) applies unchanged;
   the notice module does not add its own.
 
-## 8. The TV board
+## 8. The TV display surface (v2)
 
-### 8.1 Feed (`GET /api/v1/notices/display/{slug}`)
+The TV is **not** the editing board shown large. It is a digital-signage page for the lobby / parking / gym screens: a
+comfortable information screen the building's customers glance at from 5 metres - the time and date, the weather, the building's
+status, a rotating notice, an information / promo slide, a news ticker - with the notices as one block among them and an urgent
+notice taking the screen over. Drawn with the product tokens, fonts and RTL, but with its own layout language (mockup screens
+`tv-lobby`, `tv-parking`, `tv-gym`; 1920x1080, 1366x768, 1080x1920, phone).
+
+### 8.1 Blocks
+
+| block | content | source | default |
+|---|---|---|---|
+| **clock + date** | the time in the largest type on the screen (7.2 % of the long side), the weekday and date, the Hebrew date with the Shabbat candle-lighting time | the add-on clock (installation zone); Hebrew date and candle lighting computed locally (`hdate`-style algorithm, no network) | on; Hebrew date on |
+| **weather** | current temperature, condition and icon; the next N hours (3 / 5 / 8) with icon and temperature; the source line | the installation's **Home Assistant weather entity first** (`weather.*` chosen in Settings, `forecast` hourly attribute via `weather.get_forecasts`); internet fallback optional (Q11) | on when a weather entity exists |
+| **building status** | small chips with an icon, a name and a state dot: elevators (ELEVATORS280 state), generator (GEN1 ready / running), free parking (PARK count), gym open; **never** details, names or counts of people | the existing modules' public-safe state; each chip is opt-in per board and disappears when its module is off | on where the module exists; chips chosen per board |
+| **notices** | one notice card at a time (landscape) or the stack (portrait); severity on the card's inline-start edge (normal = accent, important = warning + badge, urgent = the takeover band) | §3 active notices tagged to the board | always on (it is the product) |
+| **urgent takeover** | a danger band under the header with the title, first line and the "until" chip; never rotated out; in landscape the promo strip yields its row to the notice card while the band is on | critical notices | automatic |
+| **promo / info slides** | a strip with a title, a line and an optional picture; rotates every 15 s with its own dots | slides the manager adds per board (text + optional JPEG/PNG up to 1 MB, re-encoded to 800 px like the bill logo; stored in a `notice_board_slides` table) | off until a slide exists |
+| **news ticker** | a single scrolling line of headlines with the source name after each | RSS feeds chosen in the board settings from a curated list or a custom URL, fetched **server-side** by the add-on every 15 min, titles only, HTML stripped, 2 KB per item cap, no images, no links; **off by default** (Q12) | off |
+| **logos** | company logo at the inline start of the header, SmplWise logo at the inline end (opposite sides, owner 2026-10-24), both 4-4.6 % of the long side (larger than v1); a logo without a dark variant sits on a white plate (CR-LOGOS295 plate rule) | CR-LOGOS295 | both on; the company logo can be hidden per board, the SmplWise logo cannot |
+| **status footer** | "updated 09:12" with a green dot; the stale chip; in landscape also the building chips; building name | the page itself | always |
+
+### 8.2 Templates (per board, with a live preview thumbnail in the "display" tab)
+
+| template | layout | for |
+|---|---|---|
+| 1 **מידע והודעות** (info + notices) | header / urgent band / body: side column (clock, date, weather) + stage (notice card, promo strip) / ticker / footer with chips | lobby, entrance |
+| 2 **הודעות בלבד** (notices only) | header with the clock / urgent band / one large notice card + "up next" strip of the other titles / ticker (optional) / footer with chips | parking, service corridors, screens without weather |
+| 3 **לובי אנכי** (portrait lobby) | header / urgent band / clock + weather row / chips row / stacked notices (pages rotate when longer than the screen, bottom fade) / promo / ticker / footer | portrait screens next to elevators |
+
+A board on a portrait screen with template 1 or 2 falls back to the portrait stacking (template 3 layout) automatically;
+`layout` can pin it. The preview in Settings is the same renderer scaled (not a screenshot), so what the manager sees is what the
+TV draws, in the board's theme.
+
+### 8.3 Feed (`GET /api/v1/notices/display/{slug}`)
 
 ```json
 {"board": {"name": "לוח הלובי", "slug": "lobby", "version": 17,
-           "display": {"lang": "he", "theme": "dark", "rotate_s": 12, "font_scale": 1.0, "layout": "auto",
-                       "clock": true, "night": {"from": "23:00", "to": "06:00", "dim": 0.5}, "burn_in": {"shift": true}},
+           "display": {"lang": "he", "theme": "dark", "template": 1, "layout": "auto", "rotate_s": 12, "font_scale": 1.0,
+                       "blocks": {"clock": true, "hebdate": true, "weather": true, "info": ["elevators", "generator", "parking"],
+                                  "promo": true, "news": true, "company_logo": true},
+                       "weather": {"source": "ha", "hours": 5}, "news": {"speed": "normal"},
+                       "night": {"from": "23:00", "to": "06:00", "dim": 0.5}, "burn_in": {"shift": true}},
            "logos": {"product": "/api/v1/notices/display/lobby/logo/product",
                      "company": "/api/v1/notices/display/lobby/logo/company"}},
  "now": "2026-10-24T09:12:00Z",
- "notices": [{"id": "...", "title": "...", "body": "...", "severity": "critical", "starts_at": "...", "ends_at": "...",
-              "pinned": true}]}
+ "notices": [{"id": "...", "title": "...", "body": "...", "severity": "critical", "starts_at": "...", "ends_at": "...", "pinned": true}],
+ "weather": {"updated": "...", "now": {"t": 24, "condition": "sunny", "text": "בהיר · רוח קלה מערבית"},
+             "hours": [{"at": "12:00", "t": 26, "condition": "sunny"}]},
+ "info": [{"kind": "elevator", "label": "מעלית צפונית", "state": "ok", "text": "פועלת"}],
+ "slides": [{"id": "...", "title": "...", "text": "...", "image": "/api/v1/notices/display/lobby/slide/<id>?v=<stamp>"}],
+ "news": [{"source": "ynet", "title": "..."}]}
 ```
 
-Nothing else: no author, no audience, no ids of places, no counters. `version` = max(`notice_boards.updated_at`,
-`notices.updated_at` of its items) as an integer, used as the ETag. `logos.company` is absent when the installation has no
-company logo (CR-LOGOS295 decides what "has" means and supplies both files in light and dark variants; the feed passes
-`theme` so the page asks for the right variant: `?variant=dark`).
+Nothing personal: no author, no audience, no ids of places, no counters. `version` = max(`notice_boards.updated_at`,
+`notices.updated_at` of its items, slides, feed fetch time) as an integer, used as the ETag. Weather, info and news are
+assembled server-side (the TV page never talks to Home Assistant or to the internet; only to the add-on), cached per board, and
+absent when the block is off. `logos.company` is absent when the installation has no company logo; the feed passes `theme`
+so the page asks for the right variant (`?variant=dark`).
 
-### 8.2 Display settings (`display_json`, per board, edited in Settings)
+### 8.4 Display settings (`display_json`, per board; the "display" tab of the board page)
 
 | key | values | default |
 |---|---|---|
-| `lang` | `he` / `en` (UI strings of the page; notices are shown as written) | `he` |
+| `template` | 1 / 2 / 3 (§8.2) | 1 |
+| `lang` | `he` / `en` (UI strings; notices as written) | `he` |
 | `theme` | `light` / `dark` / `auto` (auto = dark 19:00-07:00) | `dark` |
-| `rotate_s` | 6..60 | 12 |
+| `layout` | `auto` / `landscape` / `portrait` | `auto` |
+| `rotate_s` | 6..60 (notices) | 12 |
 | `font_scale` | 0.8..1.6 | 1.0 |
-| `layout` | `auto` / `landscape` / `portrait` | `auto` (from the viewport) |
-| `clock` | bool | true |
+| `blocks.clock`, `blocks.hebdate` | bool | true, true |
+| `blocks.weather`, `weather.source`, `weather.hours` | bool; `ha` / `internet`; 3 / 5 / 8 | true when an entity exists; `ha`; 5 |
+| `blocks.info` | list of chip kinds from `elevators`, `generator`, `parking`, `gym` | the kinds whose module is on |
+| `blocks.promo` | bool (+ the slides table) | true when a slide exists |
+| `blocks.news`, `news.feeds`, `news.speed` | bool; list of `{name, url}`; `slow` / `normal` / `fast` | **false**; []; `normal` |
+| `blocks.company_logo` | bool | true when a company logo exists |
 | `night` | `{from, to, dim 0.3..1}` | 23:00-06:00, 0.5 |
-| `burn_in` | `{shift: bool}` (the CR-030 rule: +-2 px on a 60 s cycle) | true |
-| `show_company_logo` | bool | true when a company logo exists |
+| `burn_in` | `{shift: bool}` (CR-030: +-2 px on a 60 s cycle) | true |
 
-### 8.3 Behaviour of the page
+Installation-wide in Settings > לוח הודעות > ברירות מחדל: the weather source for all boards (`notices.weather_entity`,
+`notices.weather_fallback`), the news allow-list (`notices.news_sources`, curated; a custom URL is per board and audited).
 
-- Full screen, no chrome: a header (board name, the two logo slots, clock and date), the body, a thin footer (the stale
-  indicator and the last update time). RTL Hebrew; `lang=en` flips the UI strings only.
-- Large type: base 2.2 vw in landscape (1920 -> 42 px), scaled by `font_scale`; titles 1.6 x; a body is clamped to 6 lines
-  with "..." - a notice is a notice, not an article.
-- **Critical** notices are a sticky banner at the top (danger colour, the warning icon, the title and the first line), never
-  rotated out, up to two stacked; the rest rotate below.
-- **Rotation**: one notice fills the stage at a time when more than one is active; a dot row shows the position; a notice
-  with a long body gets its time doubled; a single notice does not rotate. Order: pinned first, then severity, then
-  `starts_at` desc.
-- Polling every 30 s with `If-None-Match`; a changed version re-renders without flashing (the stage keeps its current item
-  if it still exists). No SSE / WebSocket: the product has no SSE and a TV browser reconnecting a WebSocket after sleep is
-  the failure mode CR-030 fights; polling with a stale indicator is the simplest honest answer for a sign.
-- **Stale**: after 3 missed polls (90 s) a small amber "לא מעודכן מ-12:04" chip appears in the footer; after 10 minutes the
-  stage dims to 0.7 and a grey band says the board is offline; the last good content stays (a sign that goes blank is worse
-  than a sign that is 10 minutes old). A 404 (board deleted or token rotated) shows "הלוח אינו פעיל" and stops polling.
-- **Empty**: "אין הודעות כרגע" with the clock large - the sign stays useful.
-- **Night**: inside the night window the whole page dims to `night.dim`; a critical notice published during the night wakes it
-  to full brightness for its validity.
-- **Burn-in**: the CR-030 pixel shift; the header and footer also swap sides every hour (the clock moves from one end to the
-  other), the stage background is a flat token colour, no fixed high-contrast edges.
-- Portrait: header stacks (logos row, then name, then clock), banner full width; the stage has the height, so every active
-  notice is **stacked** (no rotation, no dots) and only a list longer than the screen rotates in pages.
-- Light + dark: the product token table; dark is the default for a TV (CR-030 chose the same for walls).
+### 8.5 Behaviour of the page
+
+- Full screen, no chrome, no navigation, no links out. RTL Hebrew; `lang=en` flips the UI strings only.
+- Large type: the unit is 1 % of the longer screen side (`--u`), so landscape and portrait share one scale; body 2 u
+  (38 px at 1920), notice titles 3.5 u (67 px), the clock 7.2 u (138 px); scaled by `font_scale`. A notice body is clamped
+  to 6 lines (4 in portrait) - a notice is a notice, not an article.
+- **Urgent** (critical): the takeover band under the header, never rotated out, up to two stacked; in landscape the promo strip
+  hides while the band is on so the notice card keeps its body; everything else keeps running (a sign that shows only the
+  alarm loses the people who came for the time).
+- **Rotation**: one notice fills the stage at a time (landscape); dots show the position; a long body doubles its time; a
+  single notice does not rotate. Order: pinned, severity, `starts_at` desc. Template 2 shows the other titles in the "up next"
+  strip, the current one outlined in its severity colour. Portrait stacks every active notice; a list longer than the screen
+  rotates in pages with a bottom fade.
+- Promo slides rotate on their own 15 s clock; the ticker scrolls at the chosen speed, right-to-left reading order (the start of
+  a headline enters from the left edge first), 60 s per pass at `normal`.
+- Polling every 30 s with `If-None-Match`; a changed version re-renders without flashing (the stage keeps its current item if
+  it still exists). No SSE / WebSocket (CR-030's reasoning); polling with a stale indicator is the honest answer for a sign.
+- **Stale**: after 3 missed polls (90 s) the amber "לא מעודכן מ-09:04" chip appears in the footer and the live dot turns
+  amber; after 10 minutes the body dims to 0.7 and a grey band says the board is offline; the last good content stays. The
+  clock keeps running from the TV's own clock. A 404 (board deleted, token rotated, module off) shows "הלוח אינו פעיל" and
+  stops polling.
+- **Empty**: "אין הודעות כרגע" with the clock large inside the stage; the other blocks stay.
+- **Night**: the whole page dims to `night.dim`; a critical notice published during the night wakes it for its validity.
+- **Burn-in**: the CR-030 pixel shift on the whole page; the only other motion is the ticker, the 0.8 s card fades and the slide
+  fades; flat token backgrounds, no fixed high-contrast edges; the footer and header swap the clock side every hour in template 2.
+- Light + dark + auto from the product token table; dark is the default for a TV (as CR-030 chose for walls).
+- Privacy on a public screen: building chips are states only; weather is a place, not a person; the news ticker shows titles
+  the add-on fetched, never a third-party script in the page (the CSP of §4.1 stays `self` only).
 
 ## 9. UI (owner standing style)
 
@@ -319,15 +378,27 @@ company logo (CR-LOGOS295 decides what "has" means and supplies both files in li
   audience (segmented "כולם" / "לפי מקום" (the tree as checkboxes) / "לפי קבוצה או תפקיד" (chips)) with the live preview count,
   TV boards (chips of the enabled boards), push (checkbox, default by severity, disabled without `notices.push`), pinned;
   footer: "שמירה כטיוטה" / "פרסום". Short confirmations (toast), no hints paragraphs (owner 2026-09-30).
-- **Settings > לוח הודעות**: the module switch card; defaults card; **TV boards** card: table (name, slug, enabled, items,
-  last seen, actions: copy link, QR, preview, rotate link, settings, disable) and the board sheet (display settings + the link
-  shown once on create / rotate, with the QR from `qrSvg` of `sw-second-factor.ts`).
+- **Read receipts** ("מי קרא", owner decision 2026-10-24): the read count in the manager's table is a button that opens a
+  narrow sheet: KPI tiles (read / unread / recipients), a progress bar, a segmented control read / unread, a table of names with
+  the user's place and the read time. Visible to `notices.manage` only; not exported, not pushed.
+- **Settings > לוח הודעות**: the module switch card; defaults card (the default validity in days **editable** - owner 2026-10-24,
+  default severity, push on publish, read receipts names / counts, history retention, the weather source for the boards);
+  **TV boards** card: table (name, slug, enabled, items, last seen, actions: copy link, open).
+- **Board page** with three tabs (`sw-tabs` compact): **כללי** (name, fixed slug, location, language, the link shown once on
+  create / rotate with the QR from `qrSvg` of `sw-second-factor.ts`), **תצוגה** (the template picker with schematic
+  thumbnails, the live preview drawn by the TV renderer scaled, theme / orientation / font size / night dim / burn-in / company
+  logo, and the "מה מוצג" block list: clock + Hebrew date, weather source + hours, news feeds list + add + speed, building
+  chips, notices rotation, promo slides grid with add / edit), **הודעות** (the notices on the board).
 - States everywhere from `sw-state-panel`: loading (skeleton), empty, error, forbidden, module off.
 
 ## 10. Privacy
 
 - The TV feed and page carry no personal data at all (§8.1); the token is in the fragment, hashed at rest, rotatable.
-- Read receipts are counts only; no "who has read" list, no per-user export (Q5 asks whether a manager may see names).
+- Read receipts: the owner decided (2026-10-24) that notice managers see **names** (and the user's place and read time);
+  readers are told in the compose dialog's recipients line that managers see who read; no export, no push, counts only in the
+  audit log; `notices.reads_names` turns it back to counts per installation.
+- The TV feed adds weather, building states, slides and headlines - none of it personal; feeds are fetched by the add-on, so
+  the TV page never contacts a third party and no viewer is tracked by a news site.
 - `last_seen_at` on a board is a timestamp only - no address, no user agent.
 - Notices are building information; the body is plain text, no HTML, no attachments, no @-mentions.
 - Retention: archived / expired notices are soft-deleted after `notices.retention_days` (365) and purged after 30 more days;
@@ -336,8 +407,10 @@ company logo (CR-LOGOS295 decides what "has" means and supplies both files in li
 
 ## 11. Module switch and settings keys
 
-`notices.enabled` (default `"false"`), `notices.default_days` (7), `notices.default_severity` (`info`), `notices.push_default`
-(`by_severity`), `notices.retention_days` (365), `notices.boards.remote` (`"false"`), `notices.boards.max` (10). All in
+`notices.enabled` (default `"false"`), `notices.default_days` (7, editable 1..90), `notices.default_severity` (`info`),
+`notices.push_default` (`by_severity`), `notices.reads_names` (`"true"`), `notices.retention_days` (365), `notices.boards.remote`
+(`"false"`), `notices.boards.max` (10), `notices.weather_entity` (the chosen `weather.*` entity or empty), `notices.weather_fallback`
+(`"false"`, Q11), `notices.news_sources` (the curated list, Q12). All in
 `settings.DEFAULTS`, PATCH aliases, audit `notices.module.enable|disable`, `/me.modules.notices`, backup keep-list.
 With the module off: the routes answer 404, the nav tab and widget are hidden, the TV links answer 404 (a board page says
 "הלוח אינו פעיל"), nothing is deleted.
@@ -352,7 +425,9 @@ resolves; module off -> 404 before 403; display route: good token 200 + ETag/304
 (a schema test); logo proxy 404 when CR-LOGOS295 has none; retention sweep.
 Frontend (vitest): widget model (order, unread dot, hide-when-empty), page filters, compose validation (critical needs an end,
 audience within scope), the TV page's rotation / stale / empty / night state machine (pure logic module `tv-logic.ts`).
-Playwright: the page and the compose dialog at 1366 / 1024 / 375 light + dark; the TV page at 1920x1080 and 1080x1920.
+Playwright: the page and the compose dialog at 1366 / 1024 / 375 light + dark; the TV page at 1920x1080, 1366x768 and 1080x1920,
+templates 1-3, urgent on / off, stale / offline / gone / empty / night, with and without the company logo and the ticker.
+Mockup v2 evidence: `private/review/notice-106-v2/` (29 screenshots, `errors.txt` = no page errors, no horizontal overflow).
 Risk tier M (one module, one migration, one public surface); the public surface gets the security review of the tickets public
 listener as its checklist.
 
@@ -360,10 +435,12 @@ listener as its checklist.
 
 1. **Core** - migration, model, in-app API, permissions, module switch, page + compose + widget, tests. No push, no boards.
 2. **Push** - the source, the recipient rule, visibility, resolve on archive, the push checkbox.
-3. **TV boards** - boards API, display routes, the TV page (build target like `public-ticket.html`), Settings card with QR,
-   logo slots per CR-LOGOS295.
-4. **Cast as picture** (option B of §4.2) - only on the owner's word.
-5. Later: residents / units model, attachments, English second body, a wall-display widget.
+3. **TV boards** - boards API, display routes, the TV page (build target like `public-ticket.html`) with templates 1-3, the
+   clock / Hebrew date / notices / urgent / logos blocks, the board page with the display tab and the live preview, QR.
+4. **TV data blocks** - weather from the HA entity, building chips, promo slides (table + upload), the news ticker with the
+   server-side RSS fetcher and the curated list; each block behind its own setting.
+5. **Cast as picture** (option B of §4.2) - only on the owner's word.
+6. Later: residents / units model, attachments, English second body, a wall-display widget, internet weather fallback (Q11).
 
 ## 14. Owner questions (recommendation first)
 
@@ -377,13 +454,27 @@ listener as its checklist.
    per installation. TVs sit on the LAN; a mobile-network sign is the exception.
 4. **Cast.** Recommendation: ship the link (A) and decide on "cast as picture" (B) after the first TVs are up; B needs a
    runtime renderer in the add-on (size and CPU) and is not free.
-5. **Read receipts.** Recommendation: counts only (privacy, and the clean-screen rule). Alternative: names visible to
-   `notices.manage` - a privacy decision the owner should make explicitly.
+5. **Read receipts.** Decided 2026-10-24: names visible to notice managers (`notices.manage`), counts elsewhere; §10.
 6. **Residents.** Recommendation: not in this CR; "floor" means "whose access reaches the floor" (§5.3). A units model is a
    separate change record once residents exist as users.
-7. **Default validity.** Recommendation: 7 days, critical requires an explicit end; "until archived" allowed for info / alert.
+7. **Default validity.** Decided 2026-10-24: 7 days as the default, editable in Settings (1..90 days); critical requires an
+   explicit end; "until archived" allowed for info / alert.
 8. **Severity names in Hebrew.** Recommendation: רגיל / חשוב / דחוף.
 9. **Language on the TV.** Recommendation: Hebrew UI strings, one body as written; an English second body is slice 5.
-10. **Logos.** Reserved slots: product logo at the inline start of the header, company logo at the inline end, both in light
-    and dark, both in landscape and portrait, supplied per CR-LOGOS295 (the display endpoint only proxies). Recommendation:
-    the company logo defaults to shown when it exists; the product logo is always shown (small, never the larger of the two).
+10. **Logos.** Decided 2026-10-24: both logos on the TV - the company logo at the inline start of the header, the SmplWise
+    logo at the inline end (opposite sides), both slightly larger than v1 (4.6 % / 4 % of the long side), light and dark
+    variants, landscape and portrait, supplied per CR-LOGOS295 (the display endpoint only proxies). The company logo can be
+    hidden per board; the SmplWise logo cannot.
+11. **Weather source.** Recommendation: the installation's Home Assistant weather entity first (`weather.*`, chosen in Settings;
+    hourly forecast via `weather.get_forecasts`) - it is already there, local, and matches the building's location. Internet
+    fallback (Open-Meteo by the building's coordinates, no key, no account) only as an opt-in per installation for buildings
+    whose HA has no weather integration; off by default because it is an outbound call from the add-on on a schedule.
+    Alternative: internet only - rejected as the default (an outbound dependency for data HA already has).
+12. **News sources.** Recommendation: the ticker is **off by default**; when a manager turns it on, the feed list offers a short
+    curated list of Israeli general-news RSS feeds (the owner names which: e.g. ynet, Globes, Calcalist, Walla) plus a custom
+    URL field (audited). Fetched server-side every 15 min, titles only, HTML stripped, no images, no links on the TV. Questions
+    for the owner: (a) which sources go on the curated list; (b) whether a custom URL is allowed at all or only the list;
+    (c) whether a building may show the ticker on a parking screen (recommendation: yes, template 2 keeps it optional).
+13. **Promo slides.** Recommendation: text + optional picture per slide, per board, up to 10 slides, JPEG/PNG up to 1 MB
+    re-encoded to 800 px (the bill-logo pipeline), no video, no external images. Question: should slides be shareable across
+    boards (one slide, several boards) - recommendation yes, via the same board-items pattern, in slice 4.
