@@ -106,7 +106,7 @@ def t0() -> int:
 def test_module_off_by_default_every_route_but_status_and_settings(app):
     c, settings = app
     s = c.get(f"{API}/status").json()
-    assert s == {"enabled": False, "can_view": True, "can_manage": True, "can_configure": True, "meters": 0}
+    assert s == {"enabled": False, "can_view": True, "can_manage": True, "can_configure": True, "can_ack": True, "can_bills": True, "meters": 0}  # slice 3 adds can_ack / can_bills
     for url in ("/meters", "/meters/x", "/candidates", "/consumption", "/consumption.csv", "/meters/x/series", "/meters/x/readings", "/meters/x/manual-readings"):
         r = c.get(API + url)
         assert r.status_code == 404 and r.json()["code"] == "module_off", url
@@ -167,7 +167,7 @@ def test_permissions_registered_viewer_has_no_water_view():
         assert PERMISSION_LABELS[p] and p not in SENSITIVE
     assert {p for p in ROLES["operator"] if p.startswith("water.")} == {"water.view", "water.ack"}
     for role in ("site_admin", "system_admin"):
-        assert {p for p in ROLES[role] if p.startswith("water.")} == {"water.view", "water.ack", "water.manage"}
+        assert {p for p in ROLES[role] if p.startswith("water.")} == {"water.view", "water.ack", "water.manage", "water.bills"}  # slice 3: water.bills (sensitive)
     for role in ("viewer", "kiosk", "editor"):
         assert not [p for p in ROLES[role] if p.startswith("water.")], role  # owner Q4: viewers do NOT get water.view
     contract = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
@@ -211,7 +211,7 @@ def test_floor_scope_narrows_the_meters_with_a_uniform_404(app, monkeypatch):
     bind(c, settings, "flo", "operator", "floor", ids["floor2"])
     f = as_user("flo")
     assert [i["id"] for i in c.get(f"{API}/meters", headers=f).json()["items"]] == [a]
-    assert c.get(f"{API}/status", headers=f).json() == {"enabled": True, "can_view": True, "can_manage": False, "can_configure": False, "meters": 1}
+    assert c.get(f"{API}/status", headers=f).json() == {"enabled": True, "can_view": True, "can_manage": False, "can_configure": False, "can_ack": False, "can_bills": False, "meters": 1}
     for url in (f"/meters/{b}", f"/meters/{b}/series", f"/meters/{b}/readings", "/meters/nope"):
         r = c.get(API + url, headers=f)
         assert r.status_code == 404 and r.json()["code"] == "not_found", url  # invisible = missing
