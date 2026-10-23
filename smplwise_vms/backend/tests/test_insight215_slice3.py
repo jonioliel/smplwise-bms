@@ -81,13 +81,15 @@ def test_a_run_is_opened_kept_and_closed(w):
         t = ts(2026, 9, 10, 8)
         assert ig.record(conn, t) == {"opened": 0, "closed": 0}  # stopped: nothing
         set_state(conn, "running", 100.0)
-        assert ig.record(conn, t + 15)["opened"] == 1
-        assert ig.record(conn, t + 30)["opened"] == 0  # the same run
-        set_state(conn, "stopped", 101.5)
-        assert ig.record(conn, t + 3600)["closed"] == 1
+        assert ig.record(conn, t + 60)["opened"] == 1
+        for i in range(2, 11):  # a pass a minute while it runs: the same run, no new one
+            assert ig.record(conn, t + 60 * i)["opened"] == 0
+        set_state(conn, "stopped", 100.2)
+        assert ig.record(conn, t + 660)["closed"] == 1
         rep = ig.report(conn, ts(2026, 9, 1), ts(2026, 10, 1), 60)
     d = rep["devices"][0]
-    assert d["runs"] == 1 and d["meter_hours"] == 1.5 and 0.9 < d["hours"] < 1.1 and rep["runs"] == 1
+    assert d["runs"] == 1 and rep["runs"] == 1 and d["meter_hours"] == 0.2 and d["hours"] == 0.2  # 08:01 to 08:11
+    assert d["longest_min"] == 10
 
 
 def test_a_blip_below_the_threshold_is_not_counted_and_the_threshold_is_the_setting(w):
@@ -109,13 +111,14 @@ def test_a_silent_mirror_closes_the_run_at_the_last_time_seen(w):
         t = ts(2026, 9, 10, 8)
         set_state(conn, "running")
         ig.record(conn, t)
-        ig.record(conn, t + 600)
-        out = ig.record(conn, t + 600 + 3 * 3600)  # three silent hours, still "running" on return: a NEW run
+        ig.record(conn, t + 120)
+        ig.record(conn, t + 240)
+        out = ig.record(conn, t + 240 + 3 * 3600)  # three silent hours, still "running" on return: the old run ends where it was last seen, a NEW run starts
         assert out == {"opened": 1, "closed": 1}
         rows = conn.execute("SELECT interrupted, ended_at FROM generator_runs ORDER BY id").fetchall()
-        assert rows[0]["interrupted"] == 1 and rows[1]["ended_at"] is None
+        assert rows[0]["interrupted"] == 1 and rows[0]["ended_at"] == "2026-09-10T08:04:00Z" and rows[1]["ended_at"] is None
         hours = ig.report(conn, ts(2026, 9, 1), ts(2026, 10, 1), 1)["hours"]
-    assert hours < 0.3  # ten minutes plus an open run of a moment: the silent hours are NOT invented
+    assert hours < 0.1  # four minutes plus an open run of a moment: the silent hours are NOT invented
 
 
 def test_a_run_across_midnight_of_the_month_counts_once_and_hours_are_clipped(w):
@@ -131,6 +134,7 @@ def test_a_run_across_midnight_of_the_month_counts_once_and_hours_are_clipped(w)
 def test_the_tick_records_runs_and_survives_a_recorder_failure(w, monkeypatch):
     from smplwise.services import generator_runtime as gr
 
+    monkeypatch.setitem(gr._LAST, "detect", ts(2026, 9, 10, 8))  # no auto-detection pass: the generator below is the seeded one
     with w["db"].connection() as conn:
         seed_generator(conn, state="running")
     out = gr.tick(w["db"], w["settings"], ts(2026, 9, 10, 8), require_connection=False)
@@ -171,6 +175,7 @@ def test_who_gets_which_part_of_the_generator_section(w, monkeypatch):
     c.put(f"{API}/insights/settings", json={"settings": {"report": {"generator_runs": "report_readers"}}})
     p = SimpleNamespace()
     seen = {"generator.view": False}
+    monkeypatch.setattr(access, "permissions_anywhere", lambda conn, principal: [])
     monkeypatch.setattr(access, "authorize", lambda conn, principal, perm, scope: SimpleNamespace(allowed=seen.get(perm, True)))
     with w["db"].connection(mode="read") as conn:
         assert access.generator_parts(conn, p) == (False, True)           # a report reader without generator.view: runs only (answer 262)
@@ -223,11 +228,11 @@ def test_the_delivery_is_off_by_default_and_needs_the_manage_permission(w):
 def test_enabling_without_a_complete_setup_is_refused_with_what_is_missing(w):
     switch(w["db"], ic.SW_REPORT)
     r = put(w, {"enabled": True})
-    assert r.status_code == 422 and r.json()["error"]["code"] == "setup_incomplete" and "no_channel" in r.json()["error"]["details"]["fields"]
+    assert r.status_code == 422 and r.json()["code"] == "setup_incomplete" and "no_channel" in r.json()["details"]["fields"]
     r = put(w, {"config": {"whatsapp": True}, "enabled": True})
-    assert r.status_code == 422 and "no_recipients" in r.json()["error"]["details"]["fields"]
+    assert r.status_code == 422 and "no_recipients" in r.json()["details"]["fields"]
     r = put(w, {"config": {"email": True}, "enabled": True})
-    assert r.status_code == 422 and "email_not_configured" in r.json()["error"]["details"]["fields"]
+    assert r.status_code == 422 and "email_not_configured" in r.json()["details"]["fields"]
     assert w["c"].get(f"{API}/reports/building/delivery").json()["config"]["enabled"] is False
     assert not [a for a in audit_rows(w["db"], "reports.building.delivery.update") if json.loads(a["details_json"])["enabled"]]
 
@@ -236,7 +241,7 @@ def test_enabling_without_a_complete_setup_is_refused_with_what_is_missing(w):
 def test_a_bad_setup_names_its_field(w, cfg):
     switch(w["db"], ic.SW_REPORT)
     r = put(w, {"config": cfg})
-    assert r.status_code == 422 and r.json()["error"]["code"] == "validation", cfg
+    assert r.status_code == 422 and r.json()["code"] == "validation", cfg
 
 
 def test_enabling_also_needs_system_configure(w, monkeypatch):
@@ -401,7 +406,7 @@ def test_whatsapp_waits_for_the_send_hours(w, monkeypatch):
 def test_an_edit_that_would_leave_an_enabled_delivery_without_a_channel_is_refused(w, mail):
     enable(w)
     r = put(w, {"config": {"email": False}})
-    assert r.status_code == 422 and r.json()["error"]["code"] == "setup_incomplete"
+    assert r.status_code == 422 and r.json()["code"] == "setup_incomplete"
     assert w["c"].get(f"{API}/reports/building/delivery").json()["config"]["email"] is True
     off = put(w, {"enabled": False})
     assert off.status_code == 200 and off.json()["config"]["enabled"] is False

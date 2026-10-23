@@ -21,7 +21,8 @@ const model = (o: { lang?: string; month?: string; omitted?: { section: string; 
     tickets: { opened: o.empty ? 0 : 42, closed: o.empty ? 0 : 38, open_end: o.empty ? 0 : 6, overdue: 2, median_close_h: 43.2, by_department: o.empty ? [] : [{ name: 'אחזקה', opened: 21, closed: 19 }, { name: 'חשמל', opened: 9, closed: 9 }], oldest_open: [{ number: 118, department: 'אחזקה', age_days: 12 }], truncated: false },
     energy: o.empty ? { available: false, meters: [] } : { available: true, meters: [{ name: 'מונה ראשי', kwh: 18420, prev_kwh: 19600, last_year_kwh: 17100, coverage: 1 }], total_kwh: 18420, prev_total_kwh: 19600, change_pct: -6 },
     elevators: { items: [], down_min: 0 },
-    generator: { devices: [{ name: 'גנרטור ראשי', critical: 0, alert: 2, info: 1, total: 3, top: [] }], total: 3, critical: 0 },
+    generator: { alerts: true, devices: [{ name: 'גנרטור ראשי', critical: 0, alert: 2, info: 1, total: 3, top: [] }], total: 3, critical: 0,
+      runs: { devices: [{ name: 'גנרטור ראשי', runs: 4, hours: 6.5, longest_min: 140, meter_hours: 6.4 }], runs: 4, hours: 6.5, min_run_s: 60 } },
     temperature: { units: [{ name: 'חדר שרתים', alarms: 3, warnings: 1, out_min: 160, offline: 0 }], alarms: 3, out_min: 160 },
     doors: { configured: true, total: { openings: 412, explained: 406, unexplained: 4, unverifiable: 2 }, ranking: [], doors: [{ name: 'דלת אחורית', openings: 64, unexplained: 3, unverifiable: 0 }, { name: 'יציאה לגג', openings: 38, unexplained: 0, unverifiable: 2 }] },
     cameras: { events: 1284, minutes: 90, top: [{ name: 'לובי', count: 311, minutes: 40 }] },
@@ -54,18 +55,29 @@ const WASTE = {
 const SETTINGS = {
   settings: { doors: { before_s: 30, after_s: 10, min_open_s: 2, pairs: [{ sensor_entity_id: 'binary_sensor.back', lock_entity_id: 'lock.back', rex_entity_ids: ['binary_sensor.back_exit'], invert: false }] },
     waste: { empty_after_min: 20, min_waste_min: 30, night_min_min: 60, energy_factor: 1.5, energy_min_kwh: 1, baseline_weeks: 4, baseline_min_coverage: 0.8, domains: ['light', 'climate'], night_from: '22:00', night_to: '06:00' },
-    report: { sections: SECS } },
+    generator: { min_run_s: 60 },
+    report: { sections: SECS, generator_runs: 'report_readers' } },
   switches: { 'insights.doors.enabled': true, 'insights.waste.enabled': false, 'reports.building.enabled': true }, can_switch: true, sections: SECS, domains: ['light', 'climate', 'fan', 'switch'],
 };
 const ent = (entity_id: string, name: string, domain: string, extra: Record<string, unknown> = {}) => ({ entity_id, name, original_name: name, domain, device_class: null, area_name: null, ...extra });
 const ENTITIES = [ent('binary_sensor.back', 'דלת אחורית', 'binary_sensor', { device_class: 'door' }), ent('lock.back', 'מנעול אחורי', 'lock'), ent('binary_sensor.back_exit', 'לחצן אחורי', 'binary_sensor')];
 
 interface Mock { calls: { method: string; path: string; body: unknown }[]; }
-interface MockOpts { status?: Record<string, boolean>; report?: 'ok' | 'empty' | 'error' | 'off' | 'slow'; doors?: 'ok' | 'empty' | 'off'; saveError?: boolean; pdf?: number; perms?: string[] }
+interface MockOpts { canEnable?: boolean; emailReady?: boolean; status?: Record<string, boolean>; report?: 'ok' | 'empty' | 'error' | 'off' | 'slow'; doors?: 'ok' | 'empty' | 'off'; saveError?: boolean; pdf?: number; perms?: string[] }
 
 async function install(page: Page, o: MockOpts = {}): Promise<Mock> {
   const mock: Mock = { calls: [] };
   const perms = o.perms ?? ALL;
+  // the scheduled delivery: a small stateful fake of routers/insights.py (setup is complete once a channel is chosen and, for WhatsApp, a recipient)
+  const del = { enabled: false, enabled_at: null as string | null, dom: 1, at: '08:00', lang: 'he', email: false, whatsapp: false, users: [] as string[] };
+  const delView = () => {
+    const problems: string[] = [];
+    if (!del.email && !del.whatsapp) problems.push('no_channel');
+    if (del.email && o.emailReady === false) problems.push('email_not_configured');
+    if (del.whatsapp && !del.users.length) problems.push('no_recipients');
+    return { config: { ...del }, problems, email_ready: o.emailReady !== false, can_enable: o.canEnable !== false, planned_month: null, last: null,
+      recipients: [{ id: 'u1', name: 'דנה', reach: 'ok' }, { id: 'u2', name: 'אורי', reach: 'no_permission' }] };
+  };
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
     const u = new URL(req.url());
@@ -91,6 +103,19 @@ async function install(page: Page, o: MockOpts = {}): Promise<Mock> {
       }
       return json(route, SETTINGS);
     }
+    if (p === 'reports/building/delivery') {
+      if (method === 'PUT') {
+        const b = body as { config?: Partial<typeof del>; enabled?: boolean };
+        Object.assign(del, b.config ?? {});
+        if (b.enabled === true) {
+          const problems = delView().problems;
+          if (problems.length) return err(route, 422, 'setup_incomplete', 'ההגדרה לא הושלמה.', { fields: problems });
+          del.enabled = true;
+          del.enabled_at = '2026-10-23T10:00:00Z';
+        } else if (b.enabled === false) del.enabled = false;
+      }
+      return json(route, delView());
+    }
     if (p === 'insights/doors') return o.doors === 'off' ? err(route, 404, 'not_found', 'הפריט לא נמצא.') : json(route, o.doors === 'empty' ? { ...DOORS, doors: DOORS.doors.map((d) => ({ ...d, items: [], unexplained: 0, unverifiable: 0 })), total: { ...DOORS.total, unexplained: 0, unverifiable: 0 } } : DOORS);
     if (p === 'insights/waste') return json(route, WASTE);
     if (p === 'reports/building/preview') {
@@ -110,6 +135,16 @@ async function install(page: Page, o: MockOpts = {}): Promise<Mock> {
 }
 
 test.describe('insights - the building report', () => {
+  test('the generator section shows run counts and hours next to the alerts', async ({ page }) => {
+    await install(page);
+    await page.goto(url('/tickets/reports/building'));
+    const runs = page.locator('[data-sec="generator"] [data-gen-runs]');
+    await expect(runs).toBeVisible();
+    await expect(runs).toContainText('4');
+    await expect(runs).toContainText('6.5');
+    await expect(page.locator('[data-sec="generator"] [data-gen-alerts]')).toBeVisible();
+  });
+
   test('preview, picker, omitted list, language and PDF', async ({ page }) => {
     const m = await install(page);
     await page.goto(url('/tickets/reports/building'));
@@ -214,6 +249,67 @@ test.describe('insights - doors and waste', () => {
 });
 
 test.describe('insights - settings', () => {
+  test('the monthly delivery stays off until it is set up and then switched on', async ({ page }) => {
+    const m = await install(page);
+    await page.goto(url('/system/infra/insights'));
+    const card = page.locator('[data-delivery]');
+    await expect(card).toBeVisible();
+    // off by default; the switch is locked and the card says what is missing
+    await expect(page.locator('[data-delivery-state]')).toHaveText('כבויה');
+    await expect(page.locator('[data-delivery-switch]')).toHaveAttribute('disabled', '');
+    await expect(page.locator('[data-delivery-problems]')).toContainText('לבחור ערוץ אחד לפחות');
+    await expect(page.locator('[data-delivery-save]')).toBeDisabled();
+    // setup: a channel, the day, the time -> its own save; still off
+    await page.locator('[data-delivery-email]').check();
+    await page.locator('[data-delivery-dom]').selectOption('5');
+    await page.locator('[data-delivery-at]').fill('09:30');
+    await page.locator('[data-delivery-save]').click();
+    await expect.poll(() => m.calls.some((c) => c.method === 'PUT' && c.path === 'reports/building/delivery' && JSON.stringify(c.body) === '{"config":{"email":true,"dom":5,"at":"09:30"}}')).toBe(true);
+    await expect(page.locator('[data-delivery-state]')).toHaveText('כבויה');
+    expect(m.calls.some((c) => c.method === 'PUT' && JSON.stringify(c.body).includes('"enabled":true'))).toBe(false);
+    // the explicit switch
+    await page.locator('[data-delivery-switch]').click();
+    await expect(page.locator('[data-delivery-state]')).toContainText('פעילה');
+    await expect(page.locator('[data-delivery-state]')).toContainText('09:30');
+    await expect(page.locator('[data-delivery-problems]')).toHaveCount(0);
+  });
+
+  test('WhatsApp needs a recipient; one without the report permission cannot be picked', async ({ page }) => {
+    await install(page);
+    await page.goto(url('/system/infra/insights'));
+    await page.locator('[data-delivery-whatsapp]').check();
+    await expect(page.locator('[data-delivery-recipients]')).toBeVisible();
+    await expect(page.locator('[data-delivery-user="u2"]')).toBeDisabled();
+    await page.locator('[data-delivery-user="u1"]').check();
+    await page.locator('[data-delivery-save]').click();
+    await expect(page.locator('[data-delivery-note]')).toContainText('ההגדרה נשמרה');
+    await expect(page.locator('[data-delivery-problems]')).toHaveCount(0);
+  });
+
+  test('without system.configure the switch stays locked and says why', async ({ page }) => {
+    await install(page, { canEnable: false });
+    await page.goto(url('/system/infra/insights'));
+    await expect(page.locator('[data-delivery-switch]')).toHaveAttribute('disabled', '');
+    await expect(page.locator('[data-delivery]')).toContainText('הפעלה דורשת מנהל מערכת');
+  });
+
+  test('mail not configured is named as a missing step', async ({ page }) => {
+    await install(page, { emailReady: false });
+    await page.goto(url('/system/infra/insights'));
+    await page.locator('[data-delivery-email]').check();
+    await page.locator('[data-delivery-save]').click();
+    await expect(page.locator('[data-delivery-problems]')).toContainText('להגדיר דואר יוצא');
+  });
+
+  test('the generator run threshold and who sees the runs are editable and saved', async ({ page }) => {
+    const m = await install(page);
+    await page.goto(url('/system/infra/insights'));
+    await page.locator('[data-field="min_run_s"]').fill('120');
+    await page.locator('[data-runs-mode]').selectOption('generator_viewers');
+    await page.locator('[data-save]').click();
+    await expect.poll(() => m.calls.some((c) => c.method === 'PUT' && c.path === 'insights/settings' && JSON.stringify(c.body).includes('"min_run_s":120') && JSON.stringify(c.body).includes('"generator_runs":"generator_viewers"'))).toBe(true);
+  });
+
   test('switches, pairs, thresholds and the 422 field error', async ({ page }) => {
     const m = await install(page, { saveError: true });
     await page.goto(url('/system/infra/insights'));

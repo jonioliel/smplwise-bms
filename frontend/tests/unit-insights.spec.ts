@@ -109,7 +109,8 @@ test('waste: kinds, night anomalies and the filter', () => {
 const settings = (): InsightSettings => ({
   doors: { before_s: 30, after_s: 10, min_open_s: 2, pairs: [{ sensor_entity_id: 'binary_sensor.d', lock_entity_id: null, rex_entity_ids: [], invert: false }] },
   waste: { empty_after_min: 20, min_waste_min: 30, night_min_min: 60, energy_factor: 1.5, energy_min_kwh: 1, baseline_weeks: 4, baseline_min_coverage: 0.8, domains: ['light'], night_from: '22:00', night_to: '06:00' },
-  report: { sections: ['summary'] },
+  generator: { min_run_s: 60 },
+  report: { sections: ['summary'], generator_runs: 'report_readers' },
 });
 
 test('settings form: round trip, comma decimals, bad input left for the server, 422 field names', () => {
@@ -125,6 +126,10 @@ test('settings form: round trip, comma decimals, bad input left for the server, 
   expect(JSON.stringify(doc)).toContain('"min_waste_min":null');
   expect([...numErrors(['waste.min_waste_min', 'doors.pairs[0].lock_entity_id', 'doors.before_s'])].sort()).toEqual(['before_s', 'min_waste_min']);
   expect(BOUNDS.min_waste_min).toEqual({ group: 'waste', lo: 5, hi: 720 });
+  expect(BOUNDS.min_run_s).toEqual({ group: 'generator', lo: 0, hi: 3600 });
+  f.nums.min_run_s = '120';
+  expect(fromForm(f, s).generator.min_run_s).toBe(120);
+  expect([...numErrors(['generator.min_run_s'])]).toEqual(['min_run_s']);
   expect(fieldErrors(err(422, { fields: ['waste.min_waste_min'] }))).toEqual(['waste.min_waste_min']);
   expect(fieldErrors(err(500))).toEqual([]);
   expect(isOff(err(404))).toBe(true);

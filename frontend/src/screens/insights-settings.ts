@@ -6,17 +6,16 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError } from '../api/client';
 import { listEntities, type HaEntity } from '../api/ha';
-import { fieldErrors, getSettings, putSettings, SECTION_IDS, SWITCH_KEYS, type DoorPair, type SectionId, type SettingsAnswer, type SwitchKey } from '../api/insights';
+import {
+  fieldErrors, getDelivery, getSettings, isOff, isSetupIncomplete, putDelivery, putSettings, RUNS_MODES, SECTION_IDS, SWITCH_KEYS,
+  type DeliveryAnswer, type DeliveryEdit, type DoorPair, type RunsMode, type SectionId, type SettingsAnswer, type SwitchKey,
+} from '../api/insights';
 import { refreshInsightsVisibility } from '../insights/access';
 import { BOUNDS, fieldHint, fromForm, hasField, numErrors, toForm, type NumKey, type SettingsForm } from '../insights/model';
 import { insightCss } from '../insights/styles';
 import { ix, type IxKey } from '../i18n/insights';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-
-/** Scheduled delivery (more than monthly, several dates and hours, editable) and the roles that see the generator's run counts and hours need
- * the slice-3 backend (no schedule store, no run-hours data yet). The settings cards below are built but stay hidden until it lands. */
-export const DELIVERY_BACKEND = false;
 
 const SWITCH_LABEL: Record<SwitchKey, IxKey> = { 'insights.doors.enabled': 'swDoors', 'insights.waste.enabled': 'swWaste', 'reports.building.enabled': 'swReport' };
 const DOOR_CLASSES = ['door', 'window', 'opening', 'garage_door'];
@@ -26,13 +25,15 @@ const NUM_ORDER: { k: NumKey; label: IxKey }[] = [
   { k: 'min_open_s', label: 'fMinOpen' }, { k: 'before_s', label: 'fBefore' }, { k: 'after_s', label: 'fAfter' },
   { k: 'empty_after_min', label: 'fEmptyAfter' }, { k: 'min_waste_min', label: 'fMinWaste' }, { k: 'night_min_min', label: 'fNightMin' },
   { k: 'energy_factor', label: 'fFactor' }, { k: 'energy_min_kwh', label: 'fMinKwh' }, { k: 'baseline_weeks', label: 'fWeeks' }, { k: 'baseline_min_coverage', label: 'fCoverage' },
+  { k: 'min_run_s', label: 'fMinRun' },
 ];
 
 const label = (e: HaEntity | undefined): string => (e ? [e.name || e.original_name || ix('device'), e.area_name].filter(Boolean).join(' · ') : '-');
 
 /**
  * הגדרות › תשתיות › תובנות ודוחות (CR-INSIGHT215): the three switches (each off until the owner turns it on), the door pairs (explicit: a door
- * sensor with its lock and exit inputs), every threshold of the algorithms with the server's bounds, and the default sections of the report.
+ * sensor with its lock and exit inputs), every threshold of the algorithms with the server's bounds, the default sections of the report, who sees
+ * the generator's run counts in it, and the scheduled monthly delivery (off until it is set up AND switched on by a system administrator).
  * The whole document is validated by the server; a 422 names the field and the input shows its range. insights.manage; a switch also needs
  * system.configure.
  */
@@ -49,6 +50,12 @@ export class InsightsSettings extends LitElement {
   @state() private entities: HaEntity[] | null = null;
   @state() private entitiesError = false;
   @state() private editing: { index: number; pair: DoorPair } | null = null;
+  @state() private runsMode: RunsMode = 'report_readers';
+  @state() private del: DeliveryAnswer | null = null;
+  @state() private delEdit: DeliveryEdit = {};
+  @state() private delBusy = false;
+  @state() private delBad: string[] = [];
+  @state() private delNote: { tone: 'ok' | 'bad'; text: string } | null = null;
 
   static styles = [insightCss, bubbleChrome];
 
@@ -63,10 +70,23 @@ export class InsightsSettings extends LitElement {
       this.ans = await getSettings();
       this.form = toForm(this.ans.settings);
       this.sections = new Set(this.ans.settings.report.sections);
+      this.runsMode = this.ans.settings.report.generator_runs;
       this.phase = 'ready';
       void this.loadEntities();
+      void this.loadDelivery();
     } catch (e) {
       this.phase = e instanceof ApiError && (e.status === 403 || e.status === 404) ? 'forbidden' : 'error';
+    }
+  }
+
+  /** The delivery card exists only while the report is switched on (a switched-off part answers the uniform 404). */
+  private async loadDelivery() {
+    try {
+      this.del = await getDelivery();
+      this.delEdit = {};
+    } catch (e) {
+      this.del = null;
+      if (!isOff(e)) this.delNote = { tone: 'bad', text: ix('errorTitle') };
     }
   }
 
@@ -90,9 +110,10 @@ export class InsightsSettings extends LitElement {
     this.bad = [];
     try {
       const doc = fromForm(this.form, this.ans.settings);
-      doc.report = { sections: SECTION_IDS.filter((s) => this.sections.has(s)) };
+      doc.report = { sections: SECTION_IDS.filter((s) => this.sections.has(s)), generator_runs: this.runsMode };
       this.ans = await putSettings({ settings: doc, ...extra });
       this.form = toForm(this.ans.settings);
+      this.runsMode = this.ans.settings.report.generator_runs;
       this.note = { tone: 'ok', text: ix('saved') };
       void refreshInsightsVisibility();
     } catch (e) {
@@ -109,6 +130,7 @@ export class InsightsSettings extends LitElement {
     try {
       this.ans = await putSettings({ switches: { [key]: on } });
       void refreshInsightsVisibility();
+      if (key === 'reports.building.enabled') void this.loadDelivery();
     } catch {
       this.note = { tone: 'bad', text: ix('saveFailed') };
     } finally {
@@ -162,7 +184,10 @@ export class InsightsSettings extends LitElement {
   private sectionsCard() {
     return html`<div class="card" data-default-sections><div class="ch-h"><h2>${ix('sectionsGroup')}</h2></div><div class="pad"><span class="checks">${SECTION_IDS.map(
       (s) => html`<label><input type="checkbox" data-section=${s} .checked=${this.sections.has(s)} @change=${() => { const n = new Set(this.sections); if (n.has(s)) n.delete(s); else n.add(s); if (n.size) this.sections = n; this.requestUpdate(); }} />${ix(`sec_${s}` as IxKey)}</label>`,
-    )}</span></div></div>`;
+    )}</span>
+      <label class="formrow" style="margin-block-start:12px">${ix('runsModeTitle')}<select class="inp" data-runs-mode @change=${(e: Event) => (this.runsMode = (e.target as HTMLSelectElement).value as RunsMode)}>
+        ${RUNS_MODES.map((m) => html`<option value=${m} ?selected=${m === this.runsMode}>${ix(`runs_${m}` as IxKey)}</option>`)}</select>
+        ${hasField(this.bad, 'report.generator_runs') ? html`<span class="ferr">${ix('fieldInvalid')}</span>` : nothing}</label></div></div>`;
   }
 
   private pairDialog() {
@@ -192,12 +217,71 @@ export class InsightsSettings extends LitElement {
       }}>${ix('pairAdd')}</button><button class="btn" @click=${() => (this.editing = null)}>${ix('close')}</button></div></sw-dialog>`;
   }
 
-  /** Scheduled delivery and the generator roles: hidden until the slice-3 backend exists (DELIVERY_BACKEND). */
+  // ---------------------------------------------------------------- the scheduled monthly delivery
+
+  private dv<K extends keyof DeliveryEdit>(k: K): NonNullable<DeliveryEdit[K]> {
+    return (this.delEdit[k] ?? this.del!.config[k]) as NonNullable<DeliveryEdit[K]>;
+  }
+  private setDel(patch: DeliveryEdit) {
+    this.delEdit = { ...this.delEdit, ...patch };
+    this.delNote = null;
+  }
+
+  private async saveDelivery(enabled?: boolean) {
+    if (!this.del || this.delBusy) return;
+    this.delBusy = true;
+    this.delNote = null;
+    this.delBad = [];
+    try {
+      this.del = await putDelivery({ config: this.delEdit, ...(enabled === undefined ? {} : { enabled }) });
+      this.delEdit = {};
+      this.delNote = { tone: 'ok', text: ix(enabled === true ? 'deliveryTurnedOn' : enabled === false ? 'deliveryTurnedOff' : 'deliverySaved') };
+    } catch (e) {
+      this.delBad = fieldErrors(e);
+      this.delNote = { tone: 'bad', text: ix(isSetupIncomplete(e) ? 'deliverySetupMissing' : 'deliveryFailed') };
+    } finally {
+      this.delBusy = false;
+    }
+  }
+
+  private problemText(p: string): string {
+    return p === 'no_channel' || p === 'email_not_configured' || p === 'no_recipients' || p === 'report_off' ? ix(`problem_${p}` as IxKey) : p;
+  }
+
   private deliveryCard() {
-    if (!DELIVERY_BACKEND) return nothing;
-    return html`<div class="card" data-delivery><div class="ch-h"><h2>${ix('deliveryTitle')}</h2></div>
-      <div class="fields"><label>${ix('deliveryFreq')}<select class="inp"><option>${ix('freqDaily')}</option><option>${ix('freqWeekly')}</option><option>${ix('freqMonthly')}</option></select></label>
-      <label>${ix('deliveryAt')}<input class="inp" type="time" /></label><label>${ix('deliveryRecipients')}<input class="inp" /></label></div></div>`;
+    const d = this.del;
+    if (!d) return nothing;
+    const dirty = Object.keys(this.delEdit).length > 0;
+    const on = d.config.enabled;
+    const wa = this.dv('whatsapp');
+    const last = d.last ? ix('deliveryLast', { month: d.last.month, sent: d.last.counts.sent ?? 0 }) : ix('deliveryLastNone');
+    return html`<div class="card" data-delivery><div class="ch-h"><h2>${ix('deliveryTitle')}</h2>
+        <span class="sw" style="padding:0"><span class="muted" data-delivery-state>${on ? ix('deliveryOn', { day: d.config.dom, time: d.config.at }) : ix('deliveryOff')}</span>
+          <sw-toggle data-delivery-switch .checked=${on} ?disabled=${!d.can_enable || this.delBusy || dirty || (!on && d.problems.length > 0)} label=${ix('deliveryEnable')} labelHidden
+            @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDelivery(e.detail.checked)}></sw-toggle></span></div>
+      <div class="pad muted">${ix('deliveryMonthly')}</div>
+      ${this.delNote ? html`<div class="banner ${this.delNote.tone}" data-delivery-note style="margin:0 14px 10px">${this.delNote.text}${this.delNote.tone === 'bad' && this.delBad.length ? ` ${this.delBad.map((p) => this.problemText(p)).join(' · ')}` : ''}</div>` : nothing}
+      ${!on && d.problems.length ? html`<div class="pad ferr" data-delivery-problems>${ix('deliverySetupMissing')} ${d.problems.map((p) => this.problemText(p)).join(' · ')}</div>` : nothing}
+      ${!d.can_enable && !on ? html`<div class="pad muted">${ix('deliveryNeedsAdmin')}</div>` : nothing}
+      <div class="fields">
+        <label>${ix('deliveryDom')}<select class="inp" data-delivery-dom @change=${(e: Event) => this.setDel({ dom: Number((e.target as HTMLSelectElement).value) })}>
+          ${Array.from({ length: 28 }, (_, i) => i + 1).map((n) => html`<option value=${n} ?selected=${n === this.dv('dom')}>${n}</option>`)}</select></label>
+        <label>${ix('deliveryAt')}<input class="inp" type="time" data-delivery-at .value=${this.dv('at')} @input=${(e: Event) => this.setDel({ at: (e.target as HTMLInputElement).value })} /></label>
+        <label>${ix('deliveryLang')}<select class="inp" data-delivery-lang @change=${(e: Event) => this.setDel({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}>
+          <option value="he" ?selected=${this.dv('lang') === 'he'}>עברית</option><option value="en" ?selected=${this.dv('lang') === 'en'}>English</option></select></label>
+        <label>${ix('deliveryChannels')}<span class="checks">
+          <label><input type="checkbox" data-delivery-email .checked=${this.dv('email')} @change=${(e: Event) => this.setDel({ email: (e.target as HTMLInputElement).checked })} />${ix('chEmail')}</label>
+          <label><input type="checkbox" data-delivery-whatsapp .checked=${wa} @change=${(e: Event) => this.setDel({ whatsapp: (e.target as HTMLInputElement).checked })} />${ix('chWhatsapp')}</label></span>
+          ${this.dv('email') ? html`<span class="muted">${ix('deliveryEmailHint')}</span>` : nothing}</label>
+      </div>
+      ${wa ? html`<div class="pad" data-delivery-recipients><div class="muted" style="margin-block-end:6px">${ix('deliveryRecipients')}</div>
+        <div class="checks" style="max-block-size:150px;overflow:auto">${d.recipients.map((u) => {
+          const picked = this.dv('users').includes(u.id);
+          return html`<label><input type="checkbox" data-delivery-user=${u.id} .checked=${picked} ?disabled=${u.reach === 'no_permission' && !picked}
+            @change=${() => this.setDel({ users: this.toggleIn(this.dv('users'), u.id) })} />${u.name} <span class="muted">· ${ix(`reach_${u.reach}` as IxKey)}</span></label>`;
+        })}</div></div>` : nothing}
+      <div class="pad row" style="justify-content:space-between"><span class="muted" data-delivery-last>${last}</span>
+        <button class="btn pri" data-delivery-save ?disabled=${!dirty || this.delBusy} @click=${() => void this.saveDelivery()}>${ix('deliverySave')}</button></div></div>`;
   }
 
   render() {

@@ -45,8 +45,13 @@ export interface InsightSettings {
     night_from: string;
     night_to: string;
   };
-  report: { sections: SectionId[] };
+  /** Slice 3: a run shorter than `min_run_s` (a blip, a failed start) is not counted in the report. */
+  generator: { min_run_s: number };
+  /** `generator_runs`: who sees the generator's run counts and hours in the report (owner answer 262: the report's readers; editable). */
+  report: { sections: SectionId[]; generator_runs: RunsMode };
 }
+export type RunsMode = 'report_readers' | 'generator_viewers' | 'off';
+export const RUNS_MODES: readonly RunsMode[] = ['report_readers', 'generator_viewers', 'off'];
 export interface SettingsAnswer {
   settings: InsightSettings;
   switches: Record<SwitchKey, boolean>;
@@ -181,7 +186,15 @@ export interface ReportData {
     change_pct?: number | null;
   };
   elevators?: { items: { name: string; fault_min: number; out_min: number; fire_min: number; history_from: string | null; has_data: boolean }[]; down_min: number };
-  generator?: { devices: { name: string; critical: number; alert: number; info: number; total: number; top: { key: string; count: number }[] }[]; total: number; critical: number };
+  generator?: {
+    /** false = the viewer may see the run counts only (no generator.view): `devices` is empty. */
+    alerts?: boolean;
+    devices: { name: string; critical: number; alert: number; info: number; total: number; top: { key: string; count: number }[] }[];
+    total: number;
+    critical: number;
+    /** null = the installation keeps the run counts from this viewer (setting `report.generator_runs`). */
+    runs?: GeneratorRuns | null;
+  };
   temperature?: { units: { name: string; alarms: number; warnings: number; out_min: number; offline: number }[]; alarms: number; out_min: number };
   doors?: {
     configured: boolean;
@@ -196,6 +209,12 @@ export interface ReportData {
     anomalies: number;
     anomaly_top: EnergyAnomaly[];
   };
+}
+export interface GeneratorRuns {
+  devices: { name: string; runs: number; hours: number; longest_min: number; meter_hours: number | null }[];
+  runs: number;
+  hours: number;
+  min_run_s: number;
 }
 export interface ReportModel {
   v: number;
@@ -238,3 +257,34 @@ export async function downloadReportPdf(q: ReportQuery): Promise<void> {
   }
   saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), `building-report-${q.month ?? 'last'}.pdf`));
 }
+
+// ---------------------------------------------------------------- the scheduled monthly delivery (slice 3)
+
+export type DeliveryProblem = 'no_channel' | 'email_not_configured' | 'no_recipients' | 'report_off';
+export type RecipientReach = 'ok' | 'no_address' | 'no_consent' | 'no_permission';
+export interface DeliveryConfig {
+  /** On only after setup AND an explicit switch (needs system.configure). */
+  enabled: boolean;
+  enabled_at: string | null;
+  dom: number;
+  at: string;
+  lang: 'he' | 'en';
+  email: boolean;
+  whatsapp: boolean;
+  users: string[];
+}
+export interface DeliveryAnswer {
+  config: DeliveryConfig;
+  /** What is still missing before the delivery can be switched on ([] = the setup is complete). */
+  problems: DeliveryProblem[];
+  email_ready: boolean;
+  recipients: { id: string; name: string; reach: RecipientReach }[];
+  planned_month: string | null;
+  last: { month: string; counts: Record<string, number> } | null;
+  can_enable: boolean;
+}
+export type DeliveryEdit = Partial<Pick<DeliveryConfig, 'dom' | 'at' | 'lang' | 'email' | 'whatsapp' | 'users'>>;
+export const getDelivery = () => get<DeliveryAnswer>('reports/building/delivery');
+export const putDelivery = (body: { config?: DeliveryEdit; enabled?: boolean }) => put<DeliveryAnswer>('reports/building/delivery', body);
+/** 422 `setup_incomplete`: the missing pieces (`details.fields`). */
+export const isSetupIncomplete = (err: unknown): boolean => err instanceof ApiError && err.status === 422 && err.body.code === 'setup_incomplete';

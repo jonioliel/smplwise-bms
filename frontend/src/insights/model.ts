@@ -107,7 +107,8 @@ export function reportFigures(model: ReportModel, lang: IxLang = model.lang): Fi
   if (d.doors?.configured) out.push({ id: 'doors', label: 'fDoors', value: fmtNum(d.doors.total.unexplained), note: ix('openings', undefined, lang) + ' ' + fmtNum(d.doors.total.openings), tone: 'muted' });
   if (d.temperature) out.push({ id: 'temp', label: 'fTemp', value: fmtNum(d.temperature.alarms), tone: d.temperature.alarms ? 'up' : 'muted' });
   if (out.length < 4 && d.elevators) out.push({ id: 'elevators', label: 'fElevators', value: fmtHM(d.elevators.down_min), tone: 'muted' });
-  if (out.length < 4 && d.generator) out.push({ id: 'generator', label: 'fGenerator', value: fmtNum(d.generator.total), tone: d.generator.critical ? 'up' : 'muted' });
+  if (out.length < 4 && d.generator?.runs) out.push({ id: 'genRuns', label: 'fGenRuns', value: fmtNum(d.generator.runs.runs), note: `${fmtNum(d.generator.runs.hours)} ${ix('hoursShort', undefined, lang)}`, tone: 'muted' });
+  else if (out.length < 4 && d.generator) out.push({ id: 'generator', label: 'fGenerator', value: fmtNum(d.generator.total), tone: d.generator.critical ? 'up' : 'muted' });
   if (out.length < 4 && d.cameras) out.push({ id: 'cameras', label: 'fCameras', value: fmtNum(d.cameras.events), tone: 'muted' });
   return out.slice(0, 4);
 }
@@ -131,7 +132,7 @@ export function reportEmpty(model: ReportModel): boolean {
     (d.tickets && d.tickets.opened + d.tickets.closed + d.tickets.open_end > 0) ||
     (d.energy?.available && (d.energy.total_kwh ?? 0) > 0) ||
     (d.elevators && d.elevators.items.some((i) => i.has_data)) ||
-    (d.generator && d.generator.devices.length > 0) ||
+    (d.generator && (d.generator.devices.length > 0 || (d.generator.runs?.devices.length ?? 0) > 0)) ||
     (d.temperature && d.temperature.units.length > 0) ||
     (d.doors?.configured && d.doors.total.openings > 0) ||
     (d.cameras && d.cameras.events > 0) ||
@@ -272,9 +273,9 @@ export function customRange(from: string, to: string): { range: RangeId; from?: 
 
 // ---------------------------------------------------------------- the settings form
 
-export type NumKey = 'before_s' | 'after_s' | 'min_open_s' | 'empty_after_min' | 'min_waste_min' | 'night_min_min' | 'energy_factor' | 'energy_min_kwh' | 'baseline_weeks' | 'baseline_min_coverage';
+export type NumKey = 'before_s' | 'after_s' | 'min_open_s' | 'empty_after_min' | 'min_waste_min' | 'night_min_min' | 'energy_factor' | 'energy_min_kwh' | 'baseline_weeks' | 'baseline_min_coverage' | 'min_run_s';
 /** The server's bounds (insights_common._NUM), so a field can say its range before and after a 422. */
-export const BOUNDS: Record<NumKey, { group: 'doors' | 'waste'; lo: number; hi: number }> = {
+export const BOUNDS: Record<NumKey, { group: 'doors' | 'waste' | 'generator'; lo: number; hi: number }> = {
   before_s: { group: 'doors', lo: 5, hi: 300 },
   after_s: { group: 'doors', lo: 0, hi: 120 },
   min_open_s: { group: 'doors', lo: 0, hi: 60 },
@@ -285,6 +286,7 @@ export const BOUNDS: Record<NumKey, { group: 'doors' | 'waste'; lo: number; hi: 
   energy_min_kwh: { group: 'waste', lo: 0.1, hi: 1000 },
   baseline_weeks: { group: 'waste', lo: 2, hi: 8 },
   baseline_min_coverage: { group: 'waste', lo: 0.5, hi: 1 },
+  min_run_s: { group: 'generator', lo: 0, hi: 3600 },
 };
 
 export interface SettingsForm {
@@ -303,7 +305,7 @@ export function toForm(s: InsightSettings): SettingsForm {
 
 /** The document the server validates whole. A non-numeric field is left as NaN so the server names it (422) like any other bad value. */
 export function fromForm(f: SettingsForm, base: InsightSettings): InsightSettings {
-  const doc: InsightSettings = { doors: { ...base.doors, pairs: f.pairs }, waste: { ...base.waste, domains: f.domains, night_from: f.nightFrom, night_to: f.nightTo }, report: base.report };
+  const doc: InsightSettings = { doors: { ...base.doors, pairs: f.pairs }, waste: { ...base.waste, domains: f.domains, night_from: f.nightFrom, night_to: f.nightTo }, generator: { ...base.generator }, report: base.report };
   for (const [k, b] of Object.entries(BOUNDS) as [NumKey, (typeof BOUNDS)[NumKey]][]) {
     const raw = f.nums[k].trim().replace(',', '.');
     (doc[b.group] as unknown as Record<string, number>)[k] = raw === '' ? Number.NaN : Number(raw);

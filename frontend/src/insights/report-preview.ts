@@ -87,13 +87,22 @@ function sectionBody(s: SectionId, model: ReportModel, lang: IxLang, o: PreviewO
     case 'generator': {
       const g = d.generator;
       if (!g) return { head, body: nothing };
+      const runs = g.runs;
+      const alerts = g.alerts !== false;
+      const runsTable = runs
+        ? html`<div class="tw" data-gen-runs><table><thead><tr>${th(lang, 'device')}${th(lang, 'runsCol', 'n')}${th(lang, 'runHoursCol', 'n')}${th(lang, 'longestCol', 'n hide-m')}${th(lang, 'meterCol', 'n hide-m')}</tr></thead>
+            <tbody>${runs.devices.map((x) => html`<tr><td>${x.name}</td><td class="n">${x.runs}</td><td class="n">${fmtNum(x.hours)}</td><td class="n hide-m">${x.runs ? x.longest_min : '-'}</td><td class="n hide-m">${x.meter_hours === null ? '-' : fmtNum(x.meter_hours)}</td></tr>`)}</tbody></table></div>`
+        : nothing;
+      const alertsTable = !alerts
+        ? nothing
+        : g.devices.length
+          ? html`<div class="tw" data-gen-alerts><table><thead><tr>${th(lang, 'device')}${th(lang, 'critical', 'n')}${th(lang, 'alertCol', 'n')}${th(lang, 'info', 'n')}${th(lang, 'total', 'n')}</tr></thead>
+            <tbody>${g.devices.map((x) => html`<tr><td>${x.name}</td><td class="n">${x.critical}</td><td class="n">${x.alert}</td><td class="n">${x.info}</td><td class="n">${x.total}</td></tr>`)}</tbody></table></div>`
+          : runs ? nothing : html`<div class="muted">${T('none')}</div>`;
       return {
         head,
-        right: html`<span class="num">${g.total}</span>`,
-        body: g.devices.length
-          ? html`<div class="tw"><table><thead><tr>${th(lang, 'device')}${th(lang, 'critical', 'n')}${th(lang, 'alertCol', 'n')}${th(lang, 'info', 'n')}${th(lang, 'total', 'n')}</tr></thead>
-            <tbody>${g.devices.map((x) => html`<tr><td>${x.name}</td><td class="n">${x.critical}</td><td class="n">${x.alert}</td><td class="n">${x.info}</td><td class="n">${x.total}</td></tr>`)}</tbody></table></div>`
-          : html`<div class="muted">${T('none')}</div>`,
+        right: html`<span class="num">${runs ? `${runs.runs} · ${fmtNum(runs.hours)} ${T('hoursShort')}` : g.total}</span>`,
+        body: html`${runsTable}${alertsTable}`,
       };
     }
     case 'temperature': {

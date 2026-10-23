@@ -49,7 +49,7 @@ LABELS: dict[str, dict[str, str]] = {
            "s_doors": "{u} פתיחות לא מוסברות מתוך {n}", "s_cameras": "{n} תקלות · {m} דקות", "s_waste": "{e} דק׳ בחדר ריק · {n} דק׳ בלילה · {a} חריגות צריכה"},
     "en": {"title": "Monthly building report", "month": "Month", "generated": "Generated", "digest": "Content digest", "zone": "Time zone", "site": "SmplWise Arx",
            "summary": "Summary", "tickets": "Service requests", "energy": "Electricity", "elevators": "Elevators", "generator": "Generator", "temperature": "Temperatures",
-           "doors": "Unexplained door openings", "cameras": "Camera and recording health", "waste": "Energy waste",
+           "doors": "Unexplained door openings", "cameras": "Camera and recording health", "waste": "Energy consumption",
            "opened": "Opened", "closed": "Closed", "open_end": "Open at month end", "overdue": "Overdue", "department": "Department", "number": "Number",
            "age_days": "Days open", "oldest": "Oldest open requests", "median_close": "Median time to close (hours)",
            "meter": "Meter", "kwh": "kWh", "prev": "Previous month", "last_year": "Last year", "coverage": "Data coverage", "total": "Total",
