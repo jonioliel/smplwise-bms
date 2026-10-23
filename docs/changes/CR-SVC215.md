@@ -439,3 +439,12 @@ Slice 1 (backend, `pilot/SVC215-295`), deviations from the sections above, each 
 | Vendor card | services/tickets/vendor_stats.py + store_vendor_stats.py, `GET /tickets/contacts/{id}/stats` (audited per view). Response time is wall clock in slice 1 (the working-hours variant is a follow-up). |
 | Notifications | `ticket.visit_planned`, `ticket.arrived`, `ticket.arrival_missed`, `ticket.budget_warning`, `ticket.budget_exceeded`; listed in the policy matrix only while their switch is on. |
 | Not in slice 1 | The CSV vendor columns, the stats list route, the comparison rows and the lapsed-document confirmation (slice 2); every screen (slice 3); the public page's button and the public-surface review (slice 4, due before a release ships `visits.public_arrival` on); the vendor PDF (slice 5). |
+
+## Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 8). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup v2 approved with these answers:
+
+- **Comparison rows (form Q3):** the "supplier" and "documents" rows of the quote comparison go **before** the price row (the recommended option).
+- **Missed-arrival actions (form Q5):** the three actions offered when the vendor did not arrive are **enough for now**, and **adding and editing actions is to be allowed later** (the action list is to be extensible, in line with the standing rule that thresholds, recipients and defaults are editable in Settings).
