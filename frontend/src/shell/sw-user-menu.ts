@@ -4,6 +4,8 @@ import '../components/sw-avatar';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import '../components/sw-second-factor';
+import '../components/sw-native-device-card';
+import { nativeCan } from '../arx/native-app';
 import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the caller is an Arx-only identity
 import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
@@ -72,6 +74,7 @@ export class SwUserMenu extends LitElement {
   @state() private homeOpen = false;
   /** K11: the optional second factor section loads only while it is open. */
   @state() private factorOpen = false;
+  @state() private deviceOpen = false;
   @state() private staffOpen = false; // TKSTAFF1 review F3: the own work-link mobile
 
   static styles = css`
@@ -440,6 +443,7 @@ export class SwUserMenu extends LitElement {
       this.wiskeyOpen = false;
       this.homeOpen = false;
       this.factorOpen = false;
+      this.deviceOpen = false;
       this.staffOpen = false;
     }
   }
@@ -459,13 +463,13 @@ export class SwUserMenu extends LitElement {
     const home = this.api && !this.gated && canAnywhere('screen.personalize');
     // TKSTAFF1 (security review F3 / F4): the user's own mobile for no-login work links - for a user who may hold tickets
     const staff = this.api && !this.gated && ticketsEnabled() && canAnywhere('tickets.view');
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, wiskey, home, staff };
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.wiskey || acc.home || acc.staff;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -564,6 +568,12 @@ export class SwUserMenu extends LitElement {
           ? html`<li><details data-my-second-factor @toggle=${(e: Event) => (this.factorOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${t('secondFactor.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.factorOpen ? html`<sw-second-factor></sw-second-factor><sw-passkeys></sw-passkeys>` : nothing}</div>
+            </details></li>`
+          : nothing}
+        ${acc.device
+          ? html`<li><details data-my-device @toggle=${(e: Event) => (this.deviceOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="sensor" size=${18}></sw-icon></span><span class="txt">${t('nativeDevice.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.deviceOpen ? html`<sw-native-device-card></sw-native-device-card>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.android
