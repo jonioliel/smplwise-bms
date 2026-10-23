@@ -1,7 +1,7 @@
 # CR-ACCEPT102 - smart acceptance of vendor work (board item r102)
 
 Status: PROPOSED. Slice 1 (backend engine, temperature units only) built on `pilot/ACCEPT102-295` from `main` v2.12.4 (320e5555).
-Migration `0149_ticket_acceptance.sql` (built as provisional 0160; renumbered at the 2.14.0 integration). Default OFF.
+Migration `0151_ticket_acceptance.sql` (built as provisional 0160; renumbered at the 2.14.0 integration; it was 0149 in the first 2.14.0 build before the drop and re-merge). Default OFF.
 
 ## 1. Goal
 
