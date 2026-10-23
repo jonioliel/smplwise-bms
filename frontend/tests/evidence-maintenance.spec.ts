@@ -434,4 +434,31 @@ test.describe('maintenance evidence', () => {
     expect(patches[1]).toEqual({ 'maintenance.reminder_check_minutes': '5', 'maintenance.round_phone_view': 'list', 'maintenance.close_request_mode': 'auto', 'maintenance.vendor_insurance_warn_days': '14' });
     await shot(page, 'settings-behaviour');
   });
+
+  test('the elevator card and the generator page carry the "certificates and inspections" row', async ({ page }) => {
+    await installMaintenanceMock(page, { extraPerms: ['devices.read', 'infra.elevators.manage'] });
+    const NOW = '2027-01-15T09:00:00Z';
+    const live = { state: 'waiting', reason: 'waiting', partial: false, stale: false, since: NOW, roles: ['fault', 'waiting'], extras: [], flags: { fault: false, fire_service: false, out_of_service: false, waiting: true },
+      history: [{ state: 'waiting', from: '2027-01-14T09:00:00Z', to: NOW }] };
+    await page.route('**/api/v1/infra/elevators**', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ elevators: [{ id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: 'לובי', ...live }, { id: 'e2', name: 'מעלית דרומית', area_id: null, area_name: 'לובי', ...live }], summary: {}, stale: false, at: NOW }) }));
+    await open(page, '/infra/elevators');
+    await expect(page.locator('sw-app infra-elevators [data-elevator]')).toHaveCount(2);
+    const row = page.locator('sw-app infra-elevators [data-elevator="e1"] maint-cert-row [data-maint-cert-row="elevator"]');
+    await expect(row.locator('[data-maint-cert-text]')).toHaveText('עוד 30 ימים · 14.02.2027');
+    await expect(row.locator('[data-maint-cert-link]')).toHaveAttribute('href', '#/tickets/maintenance/ledger?task=c1');
+    await expect(page.locator('sw-app infra-elevators [data-elevator="e2"] [data-maint-cert-none]')).toBeVisible(); // no certificate recorded for this one
+    await shot(page, 'elevator-cert-row');
+    await noOverflow(page);
+  });
+
+  test('without the maintenance module the elevator card has no certificates row', async ({ page }) => {
+    await installMaintenanceMock(page, { enabled: false, extraPerms: ['devices.read', 'infra.elevators.manage'] });
+    const NOW = '2027-01-15T09:00:00Z';
+    await page.route('**/api/v1/infra/elevators**', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ elevators: [{ id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: null, state: 'waiting', reason: 'waiting', partial: false, stale: false, since: NOW, roles: ['waiting'], extras: [], flags: { waiting: true }, history: [] }], summary: {}, stale: false, at: NOW }) }));
+    await open(page, '/infra/elevators');
+    await expect(page.locator('sw-app infra-elevators [data-elevator="e1"]')).toBeVisible();
+    await expect(page.locator('sw-app infra-elevators maint-cert-row [data-maint-cert-row]')).toHaveCount(0);
+  });
 });

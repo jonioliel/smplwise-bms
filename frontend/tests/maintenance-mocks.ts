@@ -25,6 +25,8 @@ export interface MaintMockOptions {
   failList?: boolean;
   /** the installation's default of the phone round (default 'step') */
   roundView?: 'step' | 'list';
+  /** more permissions for the session (e.g. 'devices.read' for the infrastructure screens) */
+  extraPerms?: string[];
   /** reminders enabled in Settings (default false: the log page says so) */
   remindersOn?: boolean;
   /** no lines in the reminder log */
@@ -82,7 +84,7 @@ const VENDORS = [
 
 export async function installMaintenanceMock(page: Page, o: MaintMockOptions = {}): Promise<MaintMock> {
   const role = o.role ?? 'mgr';
-  const perms = ROLE_PERMS[role];
+  const perms = [...ROLE_PERMS[role], ...(o.extraPerms ?? [])];
   const ticketsOn = o.tickets !== false;
   const enabled = o.enabled !== false;
   await installGeneratorMock(page, { perms, count: 0, modules: ticketsOn ? { tickets: true } : undefined });
