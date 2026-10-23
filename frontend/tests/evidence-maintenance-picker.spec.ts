@@ -15,7 +15,8 @@ const NAME = { one: 'בקשת שירות', many: 'בקשות שירות', gender
 
 test.describe('assignee picker insurance marks', () => {
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
-  test.beforeEach((_, info) => {
+  test.beforeEach(({ browserName }, info) => {
+    void browserName;
     test.skip(info.project.name === 'tablet', 'desktop and phone');
   });
 
