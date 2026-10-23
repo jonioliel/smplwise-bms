@@ -175,10 +175,13 @@ def test_the_per_sender_daily_cap_refuses_silently(w):
 
 def test_the_queue_cap_never_drops_an_older_draft(w):
     turn_on(w, open_max=50, sender_per_day=20, sender_per_week=50, installation_per_hour=200, coalesce_min=1)
-    add_known(w)
+    phones = [f"05011122{n:02d}" for n in range(10, 15)]  # five listed numbers, ten drafts each (the per-sender cap is 20 a day)
+    for i, p in enumerate(phones):
+        assert add_known(w, phone=p, name=f"דייר {i}").status_code == 201
     for i in range(50):
-        assert accept(w, PHONE, f"תקלה {i}", NOW + dt.timedelta(minutes=2 * i))[0] == "intake_draft"
-    assert accept(w, PHONE, "עוד", NOW + dt.timedelta(minutes=200))[0] == "intake_cap"
+        digits = "972" + phones[i % 5][1:]
+        assert accept(w, digits, f"תקלה {i}", NOW + dt.timedelta(minutes=2 * i))[0] == "intake_draft", i
+    assert accept(w, "972" + phones[0][1:], "עוד", NOW + dt.timedelta(minutes=200))[0] == "intake_cap"
     assert rows(w, "SELECT COUNT(*) AS n FROM ticket_intake_drafts WHERE state = 'open'")[0]["n"] == 50
 
 
@@ -305,7 +308,7 @@ def test_a_configurers_synonym_and_domain_mapping_change_the_suggestion(w):
     add_known(w)
     cat = w.c.post(f"{API}/tickets/admin/departments/{MAINT}/categories", json={"name": "מעליות"}, headers=w.h("joni"))
     assert cat.status_code == 201, cat.text
-    cid = cat.json()["id"]
+    cid = next(c["id"] for c in cat.json()["categories"] if c["name"] == "מעליות")  # the answer is the department with its categories
     before = w.c.get(f"{API}/tickets/intake/drafts/{accept(w, PHONE, 'הליפט תקוע')[1]}", headers=w.h("joni")).json()
     assert before["suggestion"]["category"]["value"] is None, "an unmapped seed domain suggests nothing"
     assert w.c.post(f"{API}/tickets/intake/lexicon", json={"kind": "domain_map", "phrase": "elevator", "target_id": cid}, headers=w.h("joni")).status_code == 201
