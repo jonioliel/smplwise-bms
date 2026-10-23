@@ -188,7 +188,7 @@ export class TempReport extends LitElement {
 
   /** TEMPREP-295: the sample list's preview - the first rows (times in the installation's zone) and the true count; when the server will cap the
    * PDF, one line says how many are listed. Never the whole list (a month is ~43,000 minutes: the server sends only the first rows). */
-  private samplesBlock(m: ReportModel, u: ReportModel['units'][number], T: (k: TtKey) => string, lang: 'he' | 'en') {
+  private samplesBlock(m: ReportModel, u: ReportModel['units'][number], T: (k: TtKey) => string, _lang: 'he' | 'en') {
     const sm = u.samples;
     if (!m.samples || !sm) return nothing;
     const flags = (f: number) => ([[1, 'sfDefrost'], [2, 'sfDoor'], [4, 'sfOff'], [8, 'sfOut'], [16, 'sfAlert'], [32, 'sfAvg']] as [number, TtKey][]).filter(([b]) => f & b).map(([, k]) => T(k)).join(' · ');
