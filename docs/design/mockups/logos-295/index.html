@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>לוגו המערכת ולוגו חברת הניהול - דגם למסכים</title>
+<title>Smplwise Arx - נווה הירדן · מגדל A</title>
 <!--
   CR-LOGOS295 - static design mock-up for the owner's approval. NOT product code: self-contained, no network request, fake data only.
   Drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin, light + dark), the real shell
@@ -21,6 +21,13 @@
   - phone: NO brand strip on inner screens (precious space). The company logo appears only at the top of the home screen, on the
     sign-in page and in the installed app (splash / about). Toggle "טלפון: מסך פנימי" shows an inner screen without any logo row.
   - the dark-background question (Q3): the three behaviours side by side in Settings (plate - recommended, require a dark file, invert).
+
+  v3 (owner review 2026-10-24, item 3): (a) the SIGN-IN card shows BOTH logos (company on top, SmplWise below); (b) logo size selectable in
+  Settings (small / medium / large / very large - one --lg scale, every placement follows); (c) dark-background handling selectable (small light
+  plate / extra dark file / automatic inversion); (d) logos only, no names beside them, and the browser-tab title is configurable
+  ("Smplwise Arx - developer + project", or only one of them; document.title is really set); (e) upload place = Settings > General > System
+  appearance, PNG / SVG / WebP / JPEG. Control screens do not scroll the page: the card is tabbed (logos / size and dark background / browser
+  title) with a permanent preview column. URL switches added: ?size=s|m|l|xl ?dm=plate|file|invert ?tmode=both|dev|project ?tab=files|look|title|preview
 
   URL switches: ?view=shell|settings|login|tv|pdf  ?theme=dark  ?company=off  ?darkfile=on  ?state=ready|empty|error|uploading|readonly
                 ?screen=home|inner (the shell view: the home screen or an inner screen - matters on the phone)
@@ -112,8 +119,6 @@ main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: colum
 /* THE NEW ELEMENT (P1): the brand strip - company logo at the inline start (approved); at the inline END: the search / status pill,
    a hairline, then the SmplWise wordmark - i.e. in RTL the SmplWise logo sits at the far left, to the LEFT of the search (owner 24.10) */
 .strip { display: flex; align-items: center; gap: 14px; block-size: var(--sw-brandstrip-h); padding-inline: var(--sw-page-pad) 22px; }
-.strip .co { block-size: 36px; max-inline-size: 200px; display: inline-flex; align-items: center; }
-.strip .co img, .strip .co svg { block-size: 100%; inline-size: auto; max-inline-size: 200px; }
 .strip .end { display: inline-flex; align-items: center; gap: 12px; }
 .strip .sep { inline-size: 1px; block-size: 22px; background: var(--sw-border-strong); }
 .strip .sw { block-size: 28px; display: inline-flex; align-items: center; color: var(--sw-text-3); }
@@ -224,8 +229,6 @@ nav.bottom { display: none; }
 .pv .mini.d { background: #0d1220; color: #e6ebf5; }
 .pv .mini.d .bar { background: #151c2c; border-block-end: 1px solid #232e45; }
 .pv .mini.d .body i { background: #151c2c; border: 1px solid #232e45; }
-.pv .mini .co { block-size: 24px; display: inline-flex; align-items: center; }
-.pv .mini .co svg { block-size: 100%; inline-size: auto; }
 .pv .mini .pill { margin-inline-start: auto; inline-size: 44px; block-size: 20px; border-radius: 999px; border: 1px solid currentColor; opacity: .35; }
 .pv .mini .sw { block-size: 18px; display: inline-flex; align-items: center; }
 .pv .mini .sw svg { block-size: 18px; inline-size: auto; }
@@ -270,8 +273,6 @@ body:not(.no-company) .lcard .brand { display: none; }
 .tv.land { aspect-ratio: 16 / 9; inline-size: 100%; }
 .tv.port { aspect-ratio: 9 / 16; block-size: 100%; inline-size: 270px; }
 .tv .hd { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: var(--sw-surface); border-block-end: 1px solid var(--sw-border); min-block-size: 54px; }
-.tv .hd .co { block-size: 40px; display: inline-flex; align-items: center; }
-.tv .hd .co svg { block-size: 100%; inline-size: auto; max-inline-size: 220px; }
 .tv .hd .nm { font-size: 20px; font-weight: var(--sw-fw-bold); color: var(--sw-heading); white-space: nowrap; }
 .tv .hd .sp { flex: 1; }
 .tv .hd .clk { display: flex; flex-direction: column; align-items: center; line-height: 1.05; font-variant-numeric: tabular-nums; }
@@ -327,6 +328,142 @@ body.no-company .tv .co { display: none; }
 body.no-company .sheet .co { display: none; }
 .pdfcap { grid-column: 1 / -1; font-size: var(--sw-fs-sm); color: var(--sw-text-2); margin: 0; }
 
+
+/* ===== v3 (owner review 2026-10-24) ===== */
+/* logo size (setting: small / medium / large / very large) -> one scale variable; every placement multiplies it */
+:root { --lg: 1; --co-h: calc(36px * var(--lg)); --sw-h: calc(28px * var(--lg)); --top-chrome: 72px; }
+.mock { block-size: 40px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+.mock > * { flex: none; }
+.mock .sp { flex: 1 0 8px; }
+.mock .tag { padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-warning); color: #fff; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); }
+/* the browser tab (window title demo) */
+.chrome { block-size: 32px; display: flex; align-items: flex-end; gap: 8px; padding: 0 12px; background: #dfe3ea; }
+:root[data-theme="dark"] .chrome { background: #10151f; }
+.ctab { display: flex; align-items: center; gap: 8px; min-inline-size: 0; max-inline-size: 420px; block-size: 26px; padding: 0 12px; border-radius: 8px 8px 0 0; background: var(--sw-bg); color: var(--sw-text); font-size: 12px; font-family: Arial, "Segoe UI", sans-serif; }
+.ctab svg { inline-size: 14px; block-size: 14px; flex: none; }
+.ctab .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; unicode-bidi: plaintext; }
+.ctab i { font-style: normal; color: var(--sw-text-3); margin-inline-start: auto; padding-inline-start: 6px; }
+.chrome .lbl2 { margin-inline-start: auto; font-size: 10.5px; color: #6b7686; align-self: center; }
+.view.fit.on { display: block; block-size: calc(100dvh - var(--top-chrome)); }
+.view.fit .app { block-size: 100%; min-block-size: 0; grid-template-rows: minmax(0, 1fr); }
+.view.fit .loginbg { block-size: 100%; min-block-size: 0; }
+.screen { flex: 1 1 auto; min-block-size: 0; overflow: auto; }
+.app { min-block-size: calc(100dvh - var(--top-chrome)); }
+.loginbg { min-block-size: calc(100dvh - var(--top-chrome)); }
+/* one company-logo component for every placement: --h is set by the placement */
+.co { --h: var(--co-h); display: inline-flex; align-items: center; min-inline-size: 0; }
+.co svg { block-size: var(--h); inline-size: auto; max-inline-size: 100%; }
+.co .plate { padding: 2px 8px; }
+.co .plate svg { block-size: calc(var(--h) - 6px); }
+.co .inv svg { filter: invert(1) hue-rotate(180deg); }
+.strip { block-size: max(var(--sw-brandstrip-h), calc(var(--co-h) + 14px)); }
+.strip .sw { block-size: var(--sw-h); }
+.strip .sw svg { block-size: var(--sw-h); }
+.tv .hd .co { --h: calc(40px * var(--lg)); }
+.tv.port .hd .co { --h: calc(26px * var(--lg)); }
+.tv .hd .sw { block-size: calc(30px * var(--lg)); }
+.tv.port .hd .sw svg { block-size: calc(20px * var(--lg)) !important; }
+.pv .mini .co { --h: calc(20px * var(--lg)); }
+.pv .mini .sw, .pv .mini .sw svg { block-size: calc(16px * var(--lg)); }
+.pv .mini .bar { min-block-size: 40px; block-size: auto; padding-block: 5px; }
+body.no-company .strip .co, body.no-company .tv .co, body.no-company .lhead .co, body.no-company .lhead .lsep, body.no-company .cohome .co { display: none; }
+/* sign-in: BOTH logos, stacked and centred - company first, SmplWise below (owner 24.10: the sign-in screen must show both) */
+.lhead { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-block-end: 4px; }
+.lhead .co { --h: calc(46px * var(--lg)); }
+.lhead .lsep { inline-size: 56px; block-size: 1px; background: var(--sw-border-strong); }
+.lhead .sw { block-size: calc(30px * var(--lg)); display: inline-flex; }
+.lhead .sw svg { block-size: calc(30px * var(--lg)); inline-size: auto; }
+body.no-company .lhead .sw, body.no-company .lhead .sw svg { block-size: calc(40px * var(--lg)); }
+.lhead small { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+.lcard { padding-block: 22px 18px; gap: 14px; grid-area: auto; }
+.pv.one { grid-template-columns: minmax(0, 1fr); }
+/* ===== Settings > General > System appearance ===== */
+body[data-view="settings"] .setcols { block-size: 100%; }
+.bcard { padding: 12px 16px 10px; display: flex; flex-direction: column; min-block-size: 0; max-inline-size: none; }
+.bcard .top h1 { font-size: var(--sw-fs-2xl); letter-spacing: -0.3px; }
+.bcard .top .sub { margin: 0; font-size: var(--sw-fs-sm); }
+.btabs { margin-block: 8px 10px; }
+.btabs .trow a { cursor: pointer; }
+.bgrid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; flex: 1 1 auto; min-block-size: 0; align-items: start; }
+.pnl { display: none; }
+.pnl.on { display: flex; flex-direction: column; gap: 12px; }
+.side { display: flex; flex-direction: column; gap: 10px; padding-inline-start: 16px; border-inline-start: 1px solid var(--sw-border); }
+.side > b { font-size: var(--sw-fs-base); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.fld { display: flex; flex-direction: column; gap: 5px; min-inline-size: 0; }
+.fld > .lbl { display: flex; flex-direction: column; gap: 1px; font-size: var(--sw-fs-base); font-weight: var(--sw-fw-medium); color: var(--sw-text); }
+.g2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.lbox2 { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); min-inline-size: 0; }
+.lbox2.dim { opacity: .6; }
+.lbox2 .lt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-block-size: 28px; }
+.lbox2 .lt b { font-size: var(--sw-fs-base); font-weight: var(--sw-fw-medium); }
+.lbox2 .lt .sp { flex: 1; }
+.lbox2 .tile { min-block-size: 84px; }
+.lbox2 .tile svg { block-size: 48px; }
+.lbox2 .drop { min-block-size: 84px; padding: 8px; }
+.opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.opt { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1.5px solid var(--sw-border-strong); border-radius: var(--sw-r-md); background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
+.opt:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+.opt[aria-pressed="true"] { border-color: var(--sw-accent); background: var(--sw-accent-soft); box-shadow: 0 0 0 1px var(--sw-accent) inset; }
+.opt .tile { min-block-size: 64px; padding: 8px; }
+.opt .co { --h: 26px; }
+.opt b { font-size: var(--sw-fs-base); font-weight: var(--sw-fw-semibold); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.opt span.d { font-size: var(--sw-fs-xs); color: var(--sw-text-2); line-height: 1.4; }
+.seg.wrap { flex-wrap: wrap; }
+.sizebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tabdemo { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--sw-r-md); background: #dfe3ea; }
+:root[data-theme="dark"] .tabdemo { background: #10151f; }
+.tabdemo .ctab { max-inline-size: 100%; background: var(--sw-surface); }
+.tabdemo small { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+.chip.btnchip { cursor: pointer; border: 0; font: inherit; font-size: var(--sw-fs-xs); }
+.bcard .foot { margin-block-start: auto; border-block-start: 1px solid var(--sw-border); padding-block: 8px 0; }
+.ptab { display: none; }
+/* wide: the preview is a permanent side column; narrow: it becomes a fourth tab */
+@media (min-width: 1024px) { .side { display: flex !important; } }
+@media (max-width: 1199px) {
+  .bgrid { grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; }
+  .bcard .top .sub { display: none; }
+  .opts { gap: 8px; }
+  .opt { padding: 6px; gap: 4px; }
+  .opt .tile { min-block-size: 46px; padding: 4px; }
+  .opt .co { --h: 22px; }
+  .opt span.d { font-size: 11px; line-height: 1.3; }
+  .btabs { margin-block: 6px 8px; }
+  .pnl.on { gap: 10px; }
+}
+@media (max-width: 1023px) {
+  .bgrid { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; padding-inline-start: 0; border-inline-start: 0; }
+  .side.on { display: flex; }
+  .ptab { display: inline-flex; }
+  .setcols { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .setnav { padding: 4px; }
+}
+@media (max-width: 767px) {
+  .g2, .opts { grid-template-columns: minmax(0, 1fr); }
+  .bcard .top .sub { display: none; }
+  .bcard { padding: 10px 12px 8px; }
+  .lbox2 .tile { min-block-size: 56px; }
+  .lbox2 .tile svg { block-size: 36px; }
+  .lbox2 .drop { min-block-size: 56px; }
+  .opt { flex-direction: row; align-items: center; gap: 8px; padding: 6px; }
+  .opt .tile { flex: 0 0 128px; min-block-size: 44px; padding: 4px; }
+  .opt > b, .opt > span.d { display: block; }
+  .tabdemo small { display: none; }
+  .setnav { display: none; }
+  .bcard .foot .ghost, .bcard .foot .mut { display: none; }
+  .chrome .lbl2 { display: none; }
+  .bcard .foot { padding-block-start: 6px; }
+  .skl { block-size: 44px !important; }
+  .skl { block-size: 64px; }
+  .skl.s2 { block-size: 40px !important; }
+  .opt .co { --h: 22px; }
+  .btabs .trow a .lbl { padding: 0 9px; }
+  .mock { padding-inline: 8px; }
+  .tv .hd .co { --h: calc(24px * var(--lg)); }
+  .cohome .co { --h: calc(32px * var(--lg)); max-inline-size: 190px; }
+  .cohome .sw, .cohome .sw svg { block-size: calc(22px * var(--lg)); }
+}
+
 /* ===== tablet (<= 1023) ===== */
 @media (max-width: 1023px) {
   nav.rail a span { display: none; }
@@ -351,8 +488,6 @@ body.no-company .sheet .co { display: none; }
   .top { flex-direction: column; align-items: stretch; }
   .top .sp { display: none; }
   .cohome { display: flex; align-items: center; gap: 10px; min-block-size: 36px; margin-block-end: 2px; }
-  .cohome .co { block-size: 32px; max-inline-size: 150px; display: inline-flex; align-items: center; }
-  .cohome .co svg { block-size: 100%; inline-size: auto; max-inline-size: 150px; }
   .cohome .sp { flex: 1; }
   .cohome .sw { block-size: 22px; display: inline-flex; align-items: center; }
   .cohome .sw svg { block-size: 22px; inline-size: auto; }
@@ -368,7 +503,6 @@ body.no-company .sheet .co { display: none; }
   .tv .hd { gap: 10px; padding: 8px 12px; }
   .tv .hd .nm { font-size: 15px; }
   .tv .hd .clk b { font-size: 18px; }
-  .tv .hd .co { block-size: 24px; }
   .tv .stage { padding: 12px 14px; }
   .tv .stage .t { font-size: 18px; }
   .tv .stage .b { font-size: 12px; }
@@ -445,12 +579,12 @@ body.no-company .sheet .co { display: none; }
     <option value="readonly">הגדרות: צפייה בלבד</option>
   </select>
   <span class="sp"></span>
-  <span>CR-LOGOS295 · דגם סטטי</span>
+  <span class="tag" title="שני הלוגואים כאן זמניים (SmplWise מסומן בתג) עד שיתקבלו קבצי הלוגו; חברת הניהול בדיונית">לוגואים זמניים</span><span>CR-LOGOS295 · v3</span>
 </nav>
-<div class="note"><svg class="ic"><use href="#i-warning"/></svg><span><b>שני הלוגואים כאן זמניים</b> (SmplWise מסומן בקו מקווקו ובתג "זמני"; חברת הניהול - חברה בדיונית) עד שיתקבלו קבצי הלוגו. כל ההופעות נמשכות מסמל אחד - החלפתו מחליפה את כולן.</span></div>
+<div class="chrome" aria-hidden="true"><div class="ctab"><svg><use href="#sw-mark"/></svg><span class="ttl" id="tab-title"></span><i>×</i></div><span class="lbl2">כותרת הלשונית (נשלטת בהגדרות)</span></div>
 
 <!-- ===================== VIEW: shell ===================== -->
-<section class="view" id="v-shell">
+<section class="view fit" id="v-shell">
   <div class="app">
     <nav class="rail" aria-label="ניווט ראשי">
       <span class="brand-tile swl" aria-hidden="true" title="הסמל במקום ה-S"><svg><use href="#sw-mark"/></svg></span>
@@ -465,7 +599,7 @@ body.no-company .sheet .co { display: none; }
     <main>
       <!-- P1: the brand strip (desktop / tablet). v2 order: company | ... | pill | hairline | SmplWise (SmplWise to the LEFT of the search) -->
       <div class="strip" role="presentation" data-brand-strip>
-        <span class="co" data-brand-company><span class="nodark plate" style="padding:2px 7px"><svg style="block-size:30px" aria-hidden="true"><use href="#co-light"/></svg></span><svg class="hasdark" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-dark"/></svg><svg class="co-lightonly" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></span>
+        <span class="co" data-co data-brand-company></span>
         <span class="sp"></span>
         <span class="end">
           <div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div>
@@ -476,7 +610,7 @@ body.no-company .sheet .co { display: none; }
       <div class="subnav"><div class="tabs"><div class="trow"><a href="#" class="on"><span class="lbl">סקירה</span></a><a href="#"><span class="lbl">מצלמות</span></a><a href="#"><span class="lbl">אירועים</span></a><a href="#"><span class="lbl">מפות</span></a></div></div></div>
       <div class="screen">
         <!-- P2 v2 (phone only): the company logo once, at the top of the HOME screen; hidden on inner screens (?screen=inner) -->
-        <div class="cohome" role="presentation"><span class="co"><svg class="co-home-light" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></span><span class="sp"></span><span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span></div>
+        <div class="cohome" role="presentation"><span class="co" data-co></span><span class="sp"></span><span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span></div>
         <div class="top"><div><h1 data-home-title>סקירה</h1><p class="sub">מגדל A · 3 מבנים · 142 התקנים</p></div><span class="sp"></span><a class="btn" href="#">היום</a><a class="btn pri" href="#">צפייה חיה</a></div>
         <div class="kpis">
           <div class="kpi" style="--c: var(--sw-success)"><span class="dot"></span><div><b>128</b><span class="l">תקין</span></div></div>
@@ -498,8 +632,8 @@ body.no-company .sheet .co { display: none; }
   </div>
 </section>
 
-<!-- ===================== VIEW: settings ===================== -->
-<section class="view" id="v-settings">
+<!-- ===================== VIEW: settings (Settings > General > System appearance) ===================== -->
+<section class="view fit" id="v-settings">
   <div class="app">
     <nav class="rail" aria-label="ניווט ראשי">
       <span class="brand-tile swl" aria-hidden="true"><svg><use href="#sw-mark"/></svg></span>
@@ -513,7 +647,7 @@ body.no-company .sheet .co { display: none; }
     </nav>
     <main>
       <div class="strip" role="presentation">
-        <span class="co"><span class="nodark plate" style="padding:2px 7px"><svg style="block-size:30px" aria-hidden="true"><use href="#co-light"/></svg></span><svg class="hasdark" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-dark"/></svg><svg class="co-lightonly" role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></span>
+        <span class="co" data-co></span>
         <span class="sp"></span>
         <span class="end">
           <div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div>
@@ -525,101 +659,94 @@ body.no-company .sheet .co { display: none; }
       <div class="screen">
         <div class="setcols">
           <div class="panel setnav" style="padding:8px">
-            <a href="#">כללי</a><a href="#" class="on">מראה ותצוגה</a><a href="#">לשוניות</a><a href="#">אזור זמן</a><a href="#">אחסון</a>
+            <a href="#">פרטי ההתקנה</a><a href="#" class="on">מראה המערכת</a><a href="#">לשוניות</a><a href="#">אזור זמן</a><a href="#">אחסון</a>
           </div>
-          <div class="sections">
-            <div class="top"><div><h1>מראה ותצוגה</h1><p class="sub">סגנון, צבעי המותג והלוגו של ההתקנה</p></div></div>
 
-            <!-- the brand-colours card (exists today, unchanged) collapsed to a reminder of its place -->
-            <div class="card"><h2>צבעי המותג</h2><p class="subh">צבע ההדגשה וצבע מתג דולק</p><div class="row" style="padding-block:6px"><span class="lbl">צבע הדגשה<span class="muted">ברירת המחדל: הכחול של המערכת</span></span><span class="ctl"><span style="display:inline-flex;gap:6px"><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#2767ed;outline:2px solid var(--sw-text);outline-offset:2px"></i><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#34c759"></i><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#0d9488"></i><i style="inline-size:28px;block-size:28px;border-radius:50%;background:#7c3aed"></i></span></span></div></div>
+          <div class="card bcard" data-brand-logo-card>
+            <div class="top"><div><h1>מראה המערכת</h1><p class="sub">הגדרות › כללי › מראה המערכת · לוגו היזם / חברת הניהול ליד הלוגו של SmplWise</p></div>
+              <span class="sp"></span><span class="ro-only msg"><svg class="ic"><use href="#i-lock"/></svg>צפייה בלבד - שינוי דורש הרשאת ניהול מערכת</span></div>
 
-            <!-- THE NEW CARD -->
-            <div class="card" data-brand-logo-card>
-              <h2>מיתוג</h2>
-              <p class="subh">לוגו היזם או חברת הניהול - מופיע לצד הלוגו של SmplWise בכל המסכים, בכניסה, בדוחות ובלוחות המודעות</p>
-              <span class="ro-only msg" style="margin-block-end:6px"><svg class="ic"><use href="#i-lock"/></svg>צפייה בלבד - שינוי דורש הרשאת ניהול מערכת</span>
+            <div class="tabs btabs" role="tablist" aria-label="חלקי מראה המערכת"><div class="trow">
+              <a role="tab" data-tab="files"><span class="lbl">לוגואים</span></a>
+              <a role="tab" data-tab="look"><span class="lbl">גודל ורקע כהה</span></a>
+              <a role="tab" data-tab="title"><span class="lbl">שמות וכותרת</span></a>
+              <a role="tab" data-tab="preview" class="ptab"><span class="lbl">תצוגה</span></a>
+            </div></div>
 
-              <div class="row">
-                <span class="lbl">שם החברה<span class="muted">מופיע כטקסט חלופי ללוגו, בדוא"ל ובדוחות</span></span>
-                <span class="ctl"><input class="inp" value="נווה הירדן ניהול נכסים בע״מ" aria-label="שם החברה" data-ro></span>
-              </div>
-              <div class="row">
-                <span class="lbl">סוג</span>
-                <span class="ctl"><span class="seg"><button type="button" aria-pressed="false" data-ro>יזם</button><button type="button" aria-pressed="true" data-ro>חברת ניהול</button><button type="button" aria-pressed="false" data-ro>אחר</button></span></span>
-              </div>
+            <div class="bgrid">
+              <div class="lcolwrap" style="min-inline-size:0">
 
-              <!-- light logo row -->
-              <div class="lrow">
-                <div class="lt"><b>לוגו לרקע בהיר</b><span class="muted">PNG, SVG, WebP או JPEG · עד 2MB</span><span class="sp"></span>
-                  <span class="acts mng st-ready"><button class="btn sm" type="button"><svg class="ic"><use href="#i-swap"/></svg>החלפה</button><button class="btn sm dng" type="button"><svg class="ic"><use href="#i-trash"/></svg>הסרה</button></span>
-                </div>
-                <!-- empty -->
-                <div class="drop st-empty"><svg class="ic"><use href="#i-upload"/></svg><span>גררו לכאן קובץ לוגו, או</span><button class="btn sm mng" type="button">בחרו קובץ</button></div>
-                <!-- uploading -->
-                <div class="st-uploading" style="display:grid;gap:8px"><div class="tile light"><svg><use href="#co-light"/></svg></div><div class="prog"><i></i></div><span class="mut">מעלה… nave-logo.svg</span></div>
-                <!-- error -->
-                <div class="st-error" style="display:grid;gap:8px">
-                  <div class="drop" style="border-color: var(--sw-danger)"><svg class="ic" style="color:var(--sw-danger)"><use href="#i-warning"/></svg><span class="field-error">הקובץ גדול מדי (עד 2MB)</span><button class="btn sm mng" type="button">בחרו קובץ אחר</button></div>
-                  <span class="field-error">דוגמאות נוספות לשגיאות: "אפשר להעלות PNG, SVG, WebP או JPEG" · "התמונה קטנה מדי - לפחות 64 פיקסלים" · "קובץ ה-SVG מכיל תוכן שאינו נתמך"</span>
-                </div>
-                <!-- ready -->
-                <div class="st-ready">
-                  <div class="tiles">
-                    <div><div class="tile light"><svg role="img" aria-label="תצוגה מקדימה על רקע בהיר"><use href="#co-light"/></svg></div><span class="cap">על רקע בהיר</span></div>
-                    <div><div class="tile dark"><span class="nodark plate"><svg style="block-size:44px"><use href="#co-light"/></svg></span><svg class="hasdark" role="img" aria-label="תצוגה מקדימה על רקע כהה"><use href="#co-dark"/></svg></div><span class="cap"><span class="nodark">על רקע כהה - על לוחית בהירה (לא הועלתה גרסה כהה)</span><span class="hasdark">על רקע כהה - הגרסה הכהה שהועלתה</span></span></div>
+                <!-- tab 1: the files -->
+                <section class="pnl" data-panel="files">
+                  <div class="g2">
+                    <div class="lbox2">
+                      <div class="lt"><b>לוגו לרקע בהיר</b><span class="sp"></span>
+                        <span class="acts mng st-ready"><button class="btn sm" type="button"><svg class="ic"><use href="#i-swap"/></svg>החלפה</button><button class="btn sm dng" type="button"><svg class="ic"><use href="#i-trash"/></svg>הסרה</button></span></div>
+                      <span class="muted">PNG, SVG, WebP או JPEG · עד 2MB · לפחות 64 פיקסלים</span>
+                      <div class="drop st-empty"><svg class="ic"><use href="#i-upload"/></svg><span>גררו לכאן קובץ לוגו, או</span><button class="btn sm mng" type="button">בחרו קובץ</button></div>
+                      <div class="st-uploading" style="display:grid;gap:8px"><div class="tile light"><svg><use href="#co-light"/></svg></div><div class="prog"><i></i></div><span class="mut">מעלה… nave-logo.svg</span></div>
+                      <div class="st-error" style="display:grid;gap:6px">
+                        <div class="drop" style="border-color: var(--sw-danger)"><svg class="ic" style="color:var(--sw-danger)"><use href="#i-warning"/></svg><span class="field-error">הקובץ גדול מדי (עד 2MB)</span><button class="btn sm mng" type="button">בחרו קובץ אחר</button></div>
+                        <span class="field-error">שגיאות נוספות: "אפשר להעלות PNG, SVG, WebP או JPEG" · "התמונה קטנה מדי" · "קובץ ה-SVG מכיל תוכן שאינו נתמך"</span>
+                      </div>
+                      <div class="st-ready"><div class="tile light"><svg role="img" aria-label="תצוגה מקדימה על רקע בהיר"><use href="#co-light"/></svg></div>
+                        <div class="meta" style="margin-block-start:6px"><span>nave-logo.svg</span><span>·</span><span class="num">SVG · 18 KB</span><span>·</span><span>הועלה 24.10.2026 · יאיר א.</span></div></div>
+                    </div>
+                    <div class="lbox2" data-dark-col>
+                      <div class="lt"><b>לוגו לרקע כהה</b><span class="chip">אופציונלי</span><span class="sp"></span>
+                        <span class="acts mng hasdark"><button class="btn sm" type="button" data-act="upload-dark"><svg class="ic"><use href="#i-swap"/></svg>החלפה</button><button class="btn sm dng" type="button" data-act="remove-dark"><svg class="ic"><use href="#i-trash"/></svg>הסרה</button></span></div>
+                      <span class="muted" id="dark-note">PNG, SVG, WebP או JPEG · בשימוש כשנבחר "קובץ כהה נוסף"</span>
+                      <div class="drop nodark"><svg class="ic"><use href="#i-upload"/></svg><span>גררו לכאן גרסה לרקע כהה, או</span><button class="btn sm mng" type="button" data-act="upload-dark">בחרו קובץ</button></div>
+                      <div class="hasdark"><div class="tile dark"><svg><use href="#co-dark"/></svg></div>
+                        <div class="meta" style="margin-block-start:6px"><span>nave-logo-dark.svg</span><span>·</span><span class="num">SVG · 18 KB</span></div></div>
+                    </div>
                   </div>
-                  <div class="meta" style="margin-block-start:8px"><span>nave-logo.svg</span><span>·</span><span class="num">SVG · 18 KB</span><span>·</span><span>הועלה 24.10.2026 · יאיר א.</span></div>
-                </div>
+                </section>
+
+                <!-- tab 2: size and the dark-background behaviour -->
+                <section class="pnl" data-panel="look">
+                  <div class="fld"><span class="lbl">גודל הלוגו<span class="muted">חל על שני הלוגואים: שורת המעטפת, הכניסה והטלוויזיות</span></span>
+                    <div class="sizebar"><span class="seg" role="group" aria-label="גודל הלוגו"><button type="button" data-set="size" data-val="s" data-ro>קטן</button><button type="button" data-set="size" data-val="m" data-ro>בינוני</button><button type="button" data-set="size" data-val="l" data-ro>גדול</button><button type="button" data-set="size" data-val="xl" data-ro>גדול מאוד</button></span><span class="muted" id="size-note"></span></div></div>
+                  <div class="fld"><span class="lbl">לוגו על רקע כהה<span class="muted">מצב כהה במערכת ולוחות מודעות כהים · אם הלוגו נועד לרקע לבן</span></span>
+                    <div class="opts" role="group" aria-label="טיפול ברקע כהה">
+                      <button type="button" class="opt" data-set="dm" data-val="plate" data-ro><span class="tile dark"><span class="co" data-co data-scheme="dark" data-mode="plate"></span></span><b>לוחית בהירה קטנה <span class="chip ok">מומלץ</span></b><span class="d">הלוגו נשאר כמו שהוא על לוחית לבנה. קריא על כל רקע.</span></button>
+                      <button type="button" class="opt" data-set="dm" data-val="file" data-ro><span class="tile dark"><span class="co" data-co data-scheme="dark" data-mode="file" data-forcefile="1"></span></span><b>קובץ כהה נוסף</b><span class="d">מעלים גרסה לרקע כהה. עד שתועלה, מוצגת לוחית.</span></button>
+                      <button type="button" class="opt" data-set="dm" data-val="invert" data-ro><span class="tile dark"><span class="co" data-co data-scheme="dark" data-mode="invert"></span></span><b>היפוך צבעים אוטומטי</b><span class="d">ללא קובץ וללא לוחית. הצבעים משתנים ויכולים להשתבש.</span></button>
+                    </div>
+                    <div id="dm-warn" class="msg" style="color:var(--sw-warning-text)"><svg class="ic"><use href="#i-warning"/></svg><span>עדיין לא הועלה קובץ כהה - עד אז מוצגת לוחית בהירה.</span><button class="chip warn btnchip" type="button" data-act="goto" data-val="files">להעלאה</button></div>
+                  </div>
+                </section>
+
+                <!-- tab 3: the browser tab title -->
+                <section class="pnl" data-panel="title">
+                  <div class="g2">
+                    <label class="fld"><span class="lbl">שם היזם / החברה<span class="muted">חלופי ללוגו, בדוא"ל, בדוחות ובכותרת</span></span><input class="inp" data-bind="dev" data-ro></label>
+                    <div class="fld"><span class="lbl">סוג</span><span class="seg"><button type="button" aria-pressed="false" data-ro>יזם</button><button type="button" aria-pressed="true" data-ro>חברת ניהול</button><button type="button" aria-pressed="false" data-ro>אחר</button></span></div>
+                  </div>
+                  <div class="g2">
+                    <label class="fld"><span class="lbl">שם הפרויקט<span class="muted">למשל שם הבניין או האתר</span></span><input class="inp" data-bind="project" data-ro></label>
+                    <label class="fld"><span class="lbl">קידומת הכותרת<span class="muted">שם המוצר בתחילתה</span></span><input class="inp ltr" data-bind="prefix" data-ro></label>
+                  </div>
+                  <div class="fld"><span class="lbl">מה מופיע בכותרת הדפדפן אחרי הקידומת</span><span class="seg wrap" role="group"><button type="button" data-set="tmode" data-val="both" data-ro>יזם + פרויקט</button><button type="button" data-set="tmode" data-val="dev" data-ro>יזם בלבד</button><button type="button" data-set="tmode" data-val="project" data-ro>פרויקט בלבד</button></span></div>
+                  <div class="tabdemo"><div class="ctab"><svg><use href="#sw-mark"/></svg><span class="ttl" data-title></span><i>×</i></div><small>כך תיראה לשונית הדפדפן. בדגם הזה הכותרת מוחלפת באמת (document.title) בכל המסכים.</small></div>
+                </section>
               </div>
 
-              <!-- dark logo row -->
-              <div class="lrow">
-                <div class="lt"><b>לוגו לרקע כהה</b><span class="muted">לא חובה · בלעדיו הלוגו הבהיר יוצג על לוחית בהירה</span><span class="sp"></span>
-                  <span class="acts mng hasdark"><button class="btn sm" type="button"><svg class="ic"><use href="#i-swap"/></svg>החלפה</button><button class="btn sm dng" type="button"><svg class="ic"><use href="#i-trash"/></svg>הסרה</button></span>
-                </div>
-                <div class="drop nodark"><svg class="ic"><use href="#i-upload"/></svg><span>גררו לכאן גרסה לרקע כהה, או</span><button class="btn sm mng" type="button">בחרו קובץ</button></div>
-                <div class="hasdark"><div class="tiles"><div><div class="tile dark"><svg><use href="#co-dark"/></svg></div><span class="cap">על רקע כהה</span></div></div><div class="meta" style="margin-block-start:8px"><span>nave-logo-dark.svg</span><span>·</span><span class="num">SVG · 18 KB</span></div></div>
-              </div>
+              <aside class="side pnl" data-panel="preview">
+                <b>כך זה ייראה</b>
+                <div class="pv one"><div><div class="mini l"><div class="bar"><span class="co st-ready" data-co data-scheme="light"></span><span class="pill"></span><span class="sw swl quiet"><svg class="sw-word" data-scheme="light"><use href="#sw-word"/></svg></span></div><div class="body"><i></i><i></i><i></i></div></div><span class="cap">בהיר</span></div>
+                <div><div class="mini d"><div class="bar"><span class="co st-ready" data-co data-scheme="dark"></span><span class="pill"></span><span class="sw swl quiet"><svg class="sw-word" data-scheme="dark"><use href="#sw-word"/></svg></span></div><div class="body"><i></i><i></i><i></i></div></div><span class="cap">כהה</span></div></div>
+                <div class="tabdemo"><div class="ctab"><svg><use href="#sw-mark"/></svg><span class="ttl" data-title></span><i>×</i></div></div>
+                <span class="muted">מופיע גם בכניסה, בלוחות המודעות, בדוחות PDF ובדוא"ל. בטלפון: ראש מסך הבית והאפליקציה בלבד.</span>
+              </aside>
+            </div>
 
-              <!-- Q3 side by side (owner 24.10): what happens on a dark surface when ONLY a light logo was uploaded. Mockup block - the product
-                   shows only the chosen behaviour. The example: the developer uploads a light logo; the TV in the lobby runs the dark board. -->
-              <div class="lrow nodark" data-q3>
-                <div class="lt"><b>כשהועלה רק לוגו לרקע בהיר - מה קורה במצב כהה ובטלוויזיה?</b><span class="muted">שלוש ההתנהגויות האפשריות זו לצד זו · ההמלצה: לוחית בהירה</span></div>
-                <div class="tiles three">
-                  <div><div class="tile dark"><span class="plate"><svg style="block-size:40px" aria-hidden="true"><use href="#co-light"/></svg></span></div><span class="cap">א · לוחית בהירה <span class="chip ok">מומלץ</span><br>הלוגו נשאר כפי שהוא, קריא על כל רקע</span></div>
-                  <div><div class="tile dark"><span class="slot">אין לוגו עד שתועלה גרסה כהה</span></div><span class="cap">ב · דרישת קובץ כהה<br>בלי קובץ - המקום נשאר ריק בלילה ובטלוויזיה</span></div>
-                  <div><div class="tile dark"><svg class="inv" style="block-size:40px" aria-hidden="true"><use href="#co-light"/></svg></div><span class="cap">ג · היפוך צבעים אוטומטי<br>הירוק-כחול הופך ורוד-אדמדם - צבעי המותג מעוותים</span></div>
-                </div>
-              </div>
-
-              <!-- live preview: the shell strip in both schemes (always both, whatever the page's scheme) -->
-              <div class="lrow" style="border-block-end:0">
-                <div class="lt"><b>כך זה ייראה</b><span class="muted">המעטפת, בהיר וכהה</span></div>
-                <div class="pv">
-                  <div><div class="mini l"><div class="bar"><span class="co st-ready"><svg><use href="#co-light"/></svg></span><span class="pill"></span><span class="sw swl quiet"><svg><use href="#sw-word"/></svg></span></div><div class="body"><i></i><i></i><i></i></div></div><span class="cap">בהיר</span></div>
-                  <div><div class="mini d"><div class="bar"><span class="co st-ready"><span class="nodark plate" style="padding:2px 6px"><svg style="block-size:18px"><use href="#co-light"/></svg></span><svg class="hasdark"><use href="#co-dark"/></svg></span><span class="pill"></span><span class="sw swl quiet"><svg><use href="#sw-word-dark"/></svg></span></div><div class="body"><i></i><i></i><i></i></div></div><span class="cap">כהה</span></div>
-                </div>
-              </div>
-
-              <div class="row" style="border-block-end:0;padding-block:8px 4px">
-                <span class="lbl">איפה מופיע</span>
-              </div>
-              <ul class="where">
-                <li><svg class="ic"><use href="#i-check"/></svg>כל מסכי המערכת במחשב ובטאבלט</li>
-                <li><svg class="ic"><use href="#i-check"/></svg>בטלפון: ראש מסך הבית והאפליקציה המותקנת בלבד</li>
-                <li><svg class="ic"><use href="#i-check"/></svg>מסך הכניסה</li>
-                <li><svg class="ic"><use href="#i-check"/></svg>לוחות המודעות בטלוויזיות</li>
-                <li><svg class="ic"><use href="#i-check"/></svg>דוחות PDF</li>
-                <li><svg class="ic"><use href="#i-check"/></svg>דוא"ל - שם החברה בטקסט</li>
-                <li><svg class="ic"><use href="#i-check"/></svg>מסך הקיר (טאבלט)</li>
-              </ul>
-              <div class="foot">
-                <button class="btn pri mng" type="button" disabled><svg class="ic"><use href="#i-check"/></svg>שמירה</button>
-                <span class="msg ok st-ready"><svg class="ic"><use href="#i-check"/></svg>נשמר</span>
-                <button class="btn sm ghost mng st-ready" type="button"><svg class="ic"><use href="#i-copy"/></svg>העתקה גם לדפי השירות הציבוריים</button>
-                <span class="sp" style="flex:1"></span>
-                <span class="mut">הלוגו של SmplWise נשאר בכל מקום</span>
-              </div>
+            <div class="foot">
+              <button class="btn pri mng" type="button" disabled><svg class="ic"><use href="#i-check"/></svg>שמירה</button>
+              <span class="msg ok st-ready"><svg class="ic"><use href="#i-check"/></svg>נשמר</span>
+              <button class="btn sm ghost mng st-ready" type="button"><svg class="ic"><use href="#i-copy"/></svg>העתקה גם לדפי השירות הציבוריים</button>
+              <span class="sp" style="flex:1"></span>
+              <span class="mut">הלוגו של SmplWise נשאר בכל מקום</span>
             </div>
           </div>
         </div>
@@ -636,20 +763,16 @@ body.no-company .sheet .co { display: none; }
 </section>
 
 <!-- ===================== VIEW: login ===================== -->
-<section class="view" id="v-login">
+<section class="view fit" id="v-login">
   <div class="loginbg">
     <main class="lcard" aria-labelledby="arx-title">
-      <!-- with a company logo: the company on top -->
-      <div class="cohead"><svg role="img" aria-label="נווה הירדן ניהול נכסים"><use href="#co-light"/></svg></div>
-      <!-- without: today's row (mark + wordmark) -->
-      <div class="brand"><span class="mk swl" aria-hidden="true"><svg><use href="#sw-mark"/></svg></span><span class="name"><b>SmplWise <span>Arx</span></b><small>גישה מרחוק מאובטחת</small></span></div>
+      <!-- BOTH logos on the sign-in card (owner 24.10): the company on top, the SmplWise logo below; with no company logo, the SmplWise logo alone -->
+      <div class="lhead"><span class="co" data-co></span><span class="lsep"></span><span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span><small>גישה מרחוק מאובטחת</small></div>
       <div><h1 id="arx-title">כניסה</h1><p class="sub">הזינו את שם המשתמש והסיסמה שלכם</p></div>
       <label>שם משתמש<input class="inp" value="yair" aria-label="שם משתמש"></label>
       <label>סיסמה<input class="inp" type="password" value="••••••••" aria-label="סיסמה"></label>
       <button class="btn pri" type="button">כניסה</button>
       <a href="#" class="btn ghost sm" style="align-self:center">שכחתי סיסמה</a>
-      <!-- P3: the foot line stays whatever the company logo is (white-label limit, CR-LOGOS295 §8) -->
-      <div class="powered">מופעל על ידי <span class="mk swl quiet" aria-hidden="true"><svg><use href="#sw-mark"/></svg></span><b>SmplWise Arx</b></div>
     </main>
   </div>
 </section>
@@ -660,7 +783,7 @@ body.no-company .sheet .co { display: none; }
     <div>
       <div class="tv land" data-tv-landscape>
         <div class="hd">
-          <span class="co"><span class="nodark plate tvplate"><svg style="block-size:28px"><use href="#co-light"/></svg></span><svg class="hasdark"><use href="#co-dark"/></svg><svg class="co-lightonly"><use href="#co-light"/></svg></span>
+          <span class="co" data-co></span>
           <span class="nm">לוח הלובי</span>
           <span class="sp"></span>
           <span class="clk"><b class="num">09:12</b><small>יום שישי, 24 באוקטובר</small></span>
@@ -679,7 +802,7 @@ body.no-company .sheet .co { display: none; }
     <div>
       <div class="tv port" data-tv-portrait>
         <div class="hd">
-          <span class="logos"><span class="co"><span class="nodark plate"><svg style="block-size:22px"><use href="#co-light"/></svg></span><svg class="hasdark" style="block-size:26px"><use href="#co-dark"/></svg><svg class="co-lightonly" style="block-size:26px"><use href="#co-light"/></svg></span><span class="sp"></span><span class="sw swl" aria-hidden="true"><svg class="sw-word" style="block-size:20px"><use href="#sw-word"/></svg></span></span>
+          <span class="logos"><span class="co" data-co></span><span class="sp"></span><span class="sw swl" aria-hidden="true"><svg class="sw-word"><use href="#sw-word"/></svg></span></span>
           <span class="nm">לוח החניון</span>
           <span class="clk"><b class="num">09:12</b><small>24.10</small></span>
         </div>
@@ -722,60 +845,106 @@ body.no-company .sheet .co { display: none; }
 <script>
 (function () {
   // every <svg><use href="#symbol"> wrapper takes the symbol's viewBox, so CSS can size it by height alone (inline-size: auto)
-  document.querySelectorAll('svg:not(.ic)').forEach((s) => {
-    if (s.hasAttribute('viewBox')) return;
-    const ref = s.querySelector('use')?.getAttribute('href');
-    const sym = ref && ref.startsWith('#') ? document.getElementById(ref.slice(1)) : null;
-    if (sym) s.setAttribute('viewBox', sym.getAttribute('viewBox'));
-  });
+  function fixViewBoxes(scope) {
+    scope.querySelectorAll('svg:not(.ic)').forEach((s) => {
+      if (s.hasAttribute('viewBox')) return;
+      const ref = s.querySelector('use')?.getAttribute('href');
+      const sym = ref && ref.startsWith('#') ? document.getElementById(ref.slice(1)) : null;
+      if (sym) s.setAttribute('viewBox', sym.getAttribute('viewBox'));
+    });
+  }
+  fixViewBoxes(document);
   const q = new URLSearchParams(location.search);
   const body = document.body, root = document.documentElement;
   const views = ['shell', 'settings', 'login', 'tv', 'pdf'];
   const sel = (id) => document.getElementById(id);
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+  const CO_LABEL = 'נווה הירדן ניהול נכסים';
+  const SCALE = { s: 0.75, m: 1, l: 1.25, xl: 1.5 };
+  const SIZE_NAME = { s: 'קטן', m: 'בינוני', l: 'גדול', xl: 'גדול מאוד' };
   const state = {
-    view: views.includes(q.get('view')) ? q.get('view') : 'shell',
+    view: pick(q.get('view'), views, 'shell'),
     theme: q.get('theme') === 'dark' ? 'dark' : 'light',
     company: q.get('company') !== 'off',
     darkfile: q.get('darkfile') === 'on',
-    st: ['ready', 'empty', 'uploading', 'error', 'readonly'].includes(q.get('state')) ? q.get('state') : 'ready',
+    st: pick(q.get('state'), ['ready', 'empty', 'uploading', 'error', 'readonly'], 'ready'),
     screen: q.get('screen') === 'inner' ? 'inner' : 'home',
+    size: pick(q.get('size'), ['s', 'm', 'l', 'xl'], 'm'),
+    dm: pick(q.get('dm'), ['plate', 'file', 'invert'], 'plate'),
+    tmode: pick(q.get('tmode'), ['both', 'dev', 'project'], 'both'),
+    tab: pick(q.get('tab'), ['files', 'look', 'title', 'preview'], 'files'),
+    prefix: q.get('prefix') || 'Smplwise Arx',
+    dev: q.get('dev') || 'נווה הירדן',
+    project: q.get('project') || 'מגדל A',
   };
-  function swapWordmarks() {
-    // the sw-brand component (§4.4 rule 1): the scheme picks the file; the TV is always drawn with its own (dark by default) theme
-    const dark = state.theme === 'dark';
-    document.querySelectorAll('svg.sw-word use').forEach((u) => u.setAttribute('href', dark ? '#sw-word-dark' : '#sw-word'));
-    // the company logo in the shell strip: the dark file when uploaded, else the light file on a plate
-    document.querySelectorAll('.strip .co, .tv .co').forEach((co) => {
-      const plate = co.querySelector('.plate'), darkSvg = co.querySelector('svg.hasdark'), light = co.querySelector('svg.co-lightonly, svg.co-logo');
-      if (!plate && !darkSvg) return;
-      // toggleAttribute: `hidden` is an HTMLElement property, an SVG element only honours the attribute
-      if (plate) plate.toggleAttribute('hidden', !(dark && !state.darkfile));
-      if (darkSvg) darkSvg.toggleAttribute('hidden', !(dark && state.darkfile));
-      if (light) light.toggleAttribute('hidden', dark);
-    });
+
+  // the company-logo component: ONE function decides the markup for every placement (scheme + the Settings choice)
+  function coMarkup(scheme, mode, forceFile) {
+    const L = '<svg viewBox="0 0 280 64" role="img" aria-label="' + CO_LABEL + '"><use href="#co-light"/></svg>';
+    if (scheme !== 'dark') return L;
+    if (mode === 'invert') return '<span class="inv">' + L + '</span>';
+    if (mode === 'file' && (state.darkfile || forceFile)) return '<svg viewBox="0 0 280 64" role="img" aria-label="' + CO_LABEL + '"><use href="#co-dark"/></svg>';
+    return '<span class="plate">' + L + '</span>';
   }
+  function titleText() {
+    const parts = [];
+    if (state.tmode !== 'project' && state.dev.trim()) parts.push(state.dev.trim());
+    if (state.tmode !== 'dev' && state.project.trim()) parts.push(state.project.trim());
+    const iso = (s) => '⁨' + s + '⁩'; // first-strong isolates: a Hebrew name next to a Latin project name keeps its own direction in the tab
+    return state.prefix.trim() + (parts.length ? ' - ' + parts.map(iso).join(' · ') : '');
+  }
+
   function apply() {
+    const wide = matchMedia('(min-width: 1024px)').matches;
+    if (state.tab === 'preview' && wide) state.tab = 'files';
     views.forEach((v) => sel('v-' + v).classList.toggle('on', v === state.view));
     root.setAttribute('data-theme', state.theme);
-    body.classList.toggle('no-company', !state.company);
+    root.style.setProperty('--lg', String(SCALE[state.size]));
+    body.classList.toggle('no-company', !state.company || (state.view === 'settings' && state.st === 'empty'));
     body.classList.toggle('darkfile', state.darkfile);
     body.setAttribute('data-st', state.st);
+    body.setAttribute('data-view', state.view);
+    body.setAttribute('data-screen', state.screen);
     sel('m-view').value = state.view;
     sel('m-theme').setAttribute('aria-pressed', String(state.theme === 'dark'));
     sel('m-company').setAttribute('aria-pressed', String(state.company));
     sel('m-darkfile').setAttribute('aria-pressed', String(state.darkfile));
     sel('m-state').value = state.st;
     sel('m-screen').setAttribute('aria-pressed', String(state.screen === 'inner'));
-    body.setAttribute('data-screen', state.screen);
-    // the shell view doubles as "home" / "inner screen" (phone: the logo row exists on the home screen only)
     const ht = document.querySelector('[data-home-title]'); if (ht) ht.textContent = state.screen === 'inner' ? 'אבטחה' : 'סקירה';
     document.querySelectorAll('[data-ro]').forEach((el) => { el.disabled = state.st === 'readonly'; });
-    // the empty state: no company logo anywhere yet (the strip collapses, the login shows today's row)
-    if (state.view === 'settings' && state.st === 'empty') body.classList.add('no-company');
-    swapWordmarks();
+
+    // company logo placements
+    document.querySelectorAll('[data-co]').forEach((el) => {
+      el.innerHTML = coMarkup(el.dataset.scheme || state.theme, el.dataset.mode || state.dm, !!el.dataset.forcefile);
+    });
+    // SmplWise wordmark: the scheme picks the file
+    document.querySelectorAll('svg.sw-word use').forEach((u) => {
+      const sc = u.parentNode.dataset.scheme || state.theme;
+      u.setAttribute('href', sc === 'dark' ? '#sw-word-dark' : '#sw-word');
+    });
+    // window title: the real document.title + every place that shows it
+    const t = titleText();
+    document.title = t;
+    document.querySelectorAll('[data-title]').forEach((e) => { e.textContent = t; });
+    sel('tab-title').textContent = t;
+
+    // settings controls
+    document.querySelectorAll('[data-set]').forEach((b) => b.setAttribute('aria-pressed', String(state[b.dataset.set] === b.dataset.val)));
+    document.querySelectorAll('[data-bind]').forEach((i) => { if (document.activeElement !== i) i.value = state[i.dataset.bind]; });
+    document.querySelectorAll('[data-tab]').forEach((a) => { a.classList.toggle('on', a.dataset.tab === state.tab); a.setAttribute('aria-selected', String(a.dataset.tab === state.tab)); });
+    document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('on', p.dataset.panel === state.tab || (p.dataset.panel === 'preview' && wide)));
+    const sc = SCALE[state.size];
+    sel('size-note').textContent = SIZE_NAME[state.size] + ' · לוגו חברה ' + Math.round(36 * sc) + ' פיקסלים, SmplWise ' + Math.round(28 * sc);
+    sel('dm-warn').hidden = !(state.dm === 'file' && !state.darkfile);
+    const col = document.querySelector('[data-dark-col]');
+    col.classList.toggle('dim', state.dm !== 'file');
+    sel('dark-note').textContent = state.dm === 'file' ? 'PNG, SVG, WebP או JPEG · בשימוש במצב כהה ובטלוויזיות' : 'לא בשימוש כרגע - נבחר טיפול אחר ברקע כהה (לשונית "גודל ורקע כהה")';
+
     const u = new URL(location.href);
-    u.searchParams.set('view', state.view); u.searchParams.set('theme', state.theme);
-    u.searchParams.set('company', state.company ? 'on' : 'off'); u.searchParams.set('darkfile', state.darkfile ? 'on' : 'off'); u.searchParams.set('state', state.st); u.searchParams.set('screen', state.screen);
+    ['view', 'theme', 'size', 'dm', 'tmode', 'tab'].forEach((k) => u.searchParams.set(k, state[k]));
+    u.searchParams.set('company', state.company ? 'on' : 'off'); u.searchParams.set('darkfile', state.darkfile ? 'on' : 'off');
+    u.searchParams.set('state', state.st); u.searchParams.set('screen', state.screen);
     history.replaceState(null, '', u);
   }
   sel('m-view').addEventListener('change', (e) => { state.view = e.target.value; apply(); });
@@ -784,6 +953,18 @@ body.no-company .sheet .co { display: none; }
   sel('m-darkfile').addEventListener('click', () => { state.darkfile = !state.darkfile; apply(); });
   sel('m-screen').addEventListener('click', () => { state.screen = state.screen === 'inner' ? 'home' : 'inner'; apply(); });
   sel('m-state').addEventListener('change', (e) => { state.st = e.target.value; apply(); });
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-set],[data-tab],[data-act]');
+    if (!t) return;
+    if (t.dataset.set) state[t.dataset.set] = t.dataset.val;
+    else if (t.dataset.tab) state.tab = t.dataset.tab;
+    else if (t.dataset.act === 'upload-dark') state.darkfile = true;
+    else if (t.dataset.act === 'remove-dark') state.darkfile = false;
+    else if (t.dataset.act === 'goto') state.tab = t.dataset.val;
+    apply();
+  });
+  document.addEventListener('input', (e) => { const b = e.target.closest('[data-bind]'); if (b) { state[b.dataset.bind] = b.value; apply(); } });
+  addEventListener('resize', apply);
   apply();
 })();
 </script>

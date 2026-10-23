@@ -1,7 +1,8 @@
 # CR-LOGOS295 - Product logo and developer / management-company logo ("לוגו המערכת", "לוגו היזם / חברת הניהול")
 
 **Status:** proposed, awaiting the owner's answers (section 14). Mockup: `docs/design/mockups/logos-295/index.html` (v2 after the
-owner's feedback of 2026-10-24: company logo at the inline-start approved; SmplWise logo moved to the other side of the row, to the
+owner's feedback of 2026-10-24 (v3, section 15: the sign-in card shows both logos; logo size, dark-background handling and the browser-tab
+title are Settings choices; control screens never scroll the page). v2: company logo at the inline-start approved; SmplWise logo moved to the other side of the row, to the
 left of the search; both logos enlarged; no strip on phone inner screens; Q1 decided; Q3 explained in plain words with the three
 behaviours side by side). Both logos are placeholders until the owner sends his logo files.
 **Owner requirement (2026-10-24):** (1) the SmplWise logo on every system page and on the notice-board TV screens; (2) an additional
@@ -113,7 +114,7 @@ slot collapses, nothing shifts) when no company logo is set.
 |---|---|---|---|---|
 | P1 | Shell, desktop + tablet (design A rail) | the **brand strip** at the top of the content column, **inline-start** (approved 24.10), max 200 x 36 px | the mark replaces the "S" tile in the rail (36 px, `aria-hidden`); the wordmark (28 px) at the strip's **inline-end, past the search / status pill** - in RTL the far left, to the left of the search (owner 24.10: "the other side of the row") | strip height 48 px; order inline-start -> end: company logo, space, pill, hairline, SmplWise; it does not scroll; `--sw-rail-w` logic unchanged |
 | P2 | Shell, phone (bottom bar) | **no strip** (owner 24.10: phone space is precious). The company logo appears only (a) at the top of the **home screen** head, one 36 px row, max 150 x 32 px, with the SmplWise wordmark 22 px at its end; (b) on the sign-in card (P3); (c) in the installed app's splash / about screen | the mark stays in the bottom bar's brand slot as today; no wordmark on inner screens | inner screens (security, infrastructure, settings, ...) have no logo row at all; the float pill returns to its corner. Replaces the v1 "same strip everywhere" (Q1 decided) |
-| P3 | Sign-in card (`arx-login.ts`) | centred above the title, max 220 x 72 px | with a company logo: the card foot line "מופעל על ידי" + mark + "SmplWise Arx"; without: the present `.brand` row (mark + wordmark) | the sign-in page is served before any session: the company logo URL is public (section 6) |
+| P3 | Sign-in card (`arx-login.ts`) | centred above the title, 46 px high at the medium size (max 220 x 72 px) | **v3: the SmplWise logo (wordmark) directly below it, 30 px, always** - both logos stacked in the card head (owner 24.10: "the sign-in screen does not show the two logos"); without a company logo: the SmplWise logo alone, 40 px. The v2 foot line "מופעל על ידי" is dropped on this card | the sign-in page is served before any session: the company logo URL is public (section 6) |
 | P4 | Public pages of the tickets listener (handler, RFQ, portal, consent, document) | the organisation mark **stays the tickets logo** (section 2.7); a button in Settings copies the company logo into it (`CR-READY96` §8 rule) | footer line "מופעל על ידי SmplWise Arx" with the mark, 16 px, on every public page | the public listener bundles the SmplWise mark; it never fetches from the main app |
 | P5 | PDF / report headers (bill, temperature, readiness handover, future reports) | header, inline-start, box 34 x 17 mm (the bill's existing box) | footer `@bottom-right` "הופק ב-SmplWise Arx" becomes mark (4 mm) + text; the temperature head's text "SmplWise" becomes the wordmark (24 x 6 mm) | the bill keeps its **business** logo in the header box; when both exist the company logo goes to the footer-left; one helper `services/brand_assets.py: pdf_logos()` feeds all engines |
 | P6 | E-mail (`notify_email.py`) | company **name** as text in the header line ("<company> · Arx"); image only on the owner's word (Q2) | footer line "נשלח אוטומטית מ־SmplWise Arx" | notification e-mails stay text-first: most clients block remote images, CID attachments add weight to every alert |
@@ -192,12 +193,28 @@ map either, the dark files are the light files on a light plate (4.4 rule 2), an
    - (ג) **automatic colour invert:** the system flips the colours. Legible, but the teal-green mark becomes salmon-pink and a
      dark-blue wordmark becomes pale orange - the brand is distorted, which no developer will accept.
    The mockup's Settings card shows the three behaviours side by side (`data-q3`), on the same dark tile, with the example logo.
+   **v3 (owner 24.10): the choice is an administrator setting** (`brand.dark_mode` = `plate` | `file` | `invert`, default `plate`, section
+   5.1). Mode `file` falls back to the plate until a dark file exists (a warning with a "to upload" link is shown in Settings), so a
+   dark surface never shows an empty slot.
 3. Sizing by a `max-inline-size` / `max-block-size` box and `object-fit: contain`; a wide logo fills the width, a square one the height.
+   **v3: one scale `brand.logo_size` = `s` | `m` | `l` | `xl` (0.75 / 1 / 1.25 / 1.5, default `m`) multiplies every box of section 3**
+   (company 36 px and SmplWise 28 px in the strip at `m`; the strip height is `max(48 px, company + 14 px)`); PDF boxes are in mm
+   and do not scale.
 
 ## 5. The company logo (slice 2)
 
 ### 5.1 Settings
-Settings › כללי › מראה המערכת, a new card **"מיתוג"** (the one page `CR-READY96` §2.3 planned, now owned here) with:
+Settings › כללי › מראה המערכת (v3: the owner's chosen place), a new card **"מיתוג"** (the one page `CR-READY96` §2.3 planned, now owned
+here). **v3 layout - no page scroll:** the card has three tabs and a permanent preview column (on the phone the preview is a fourth tab):
+(1) **לוגואים** - the light and the dark file side by side; (2) **גודל ורקע כהה** - the size and the dark-background choice; (3) **שמות
+וכותרת** - name, kind, project name, browser-tab title. Every value below is editable here; nothing is fixed in code except the defaults.
+- `brand.logo_size` - small / medium / large / very large (segmented), with the resulting pixel heights shown.
+- `brand.dark_mode` - three option cards, each drawn on a dark tile with the real logo: light plate (recommended) / extra dark file /
+  automatic inversion (`filter: invert(1) hue-rotate(180deg)`, the one place a CSS invert is allowed, because the administrator chose it).
+- `brand.title.prefix` (default "Smplwise Arx"), `brand.title.mode` = `both` | `dev` | `project` (default `both`), `brand.project.name`
+  (new). `document.title` = `<prefix> - <developer/company> · <project>` (or only one of them); the parts are wrapped in Unicode
+  first-strong isolates so a Hebrew name beside a Latin project name keeps its own direction. Set by the shell on `/me.brand`,
+  per page the screen name is NOT appended (the owner asked for these names only). Accepted file types in the upload: PNG, SVG, WebP, JPEG.
 - `brand.company.name` - text, required to save a logo (it is the `alt`, the e-mail name, the PDF caption); <= 60 chars.
 - `brand.company.kind` - `developer` / `management` / `other` - only changes the label on the card and the handover report.
 - the **light logo** row: drop zone / "בחר קובץ", preview on a light surface, replace, remove.
@@ -227,7 +244,7 @@ unchanged (a logo is not a secret). The backup drill's checklist gains one line 
 ### 5.4 Upload rules
 | Rule | Value | Error copy (short, no technical words) |
 |---|---|---|
-| Types (by content, not extension) | PNG, SVG, WebP; JPEG accepted and converted (Q4) | "אפשר להעלות PNG, SVG, WebP או JPEG" |
+| Types (by content, not extension) | PNG, SVG, WebP, JPEG (decided 24.10; JPEG converted to PNG) | "אפשר להעלות PNG, SVG, WebP או JPEG" |
 | Size | <= 2 MB on the wire | "הקובץ גדול מדי (עד 2MB)" |
 | Raster dimensions | 64 <= short side; <= 4 MP; longest side re-encoded to <= 1 200 px PNG (alpha kept, `image_guard` ceiling applies) | "התמונה קטנה מדי - לפחות 64 פיקסלים" / "התמונה גדולה מדי" |
 | Aspect | between 1:1 and 6:1 (either way); a taller-than-wide logo is allowed up to 1:2 | "יחס התמונה חריג - מומלץ לוגו רוחבי" (warning, saved) |
@@ -382,19 +399,32 @@ Slice 1 ships with the placeholder if the owner's file is late; the swap is the 
    (The v1 recommendation (א), the same strip on every phone screen, is withdrawn.)
 2. **E-mails.** (א) Text only: the company name in the header line, "מופעל על ידי SmplWise Arx" in the footer - **recommended**
    (images are blocked by most clients and add weight to every alert). (ב) Both logos as embedded images in every e-mail.
-3. **Dark-background treatment when no dark logo was uploaded.** (א) The light logo on a small light plate - **recommended**,
+3. **DECIDED 24.10: an administrator choice in Settings among all three (section 5.1), default (א).** Original options: (א) The light logo on a small light plate - **recommended**,
    the artwork is never altered. (ב) Require a dark file before the logo shows on dark surfaces / the TV. (ג) Automatic colour
    invert (not recommended: distorts brand colours). The plain-words example is in section 4.4 rule 2; the mockup (Settings
    card, block "כשהועלה רק לוגו לרקע בהיר") shows the three behaviours side by side on one dark tile.
-4. **Accepted formats.** (א) PNG, SVG, WebP and JPEG (converted to PNG) - **recommended**, fewer refusals for a non-technical
+4. **DECIDED 24.10: (א) PNG, SVG, WebP and JPEG.** (א) PNG, SVG, WebP and JPEG (converted to PNG) - **recommended**, fewer refusals for a non-technical
    administrator. (ב) PNG, SVG, WebP only, as the requirement lists.
-5. **Installed-app identity.** (א) The PWA / Android icon, the app name, the browser tab title and the sender names stay SmplWise
+5. **DECIDED 24.10 (variant of ב): the app icon, app name and sender names stay SmplWise Arx; the browser-tab title is configurable (section 5.1, "Smplwise Arx - developer + project", or only one of them).** (א) The PWA / Android icon, the app name, the browser tab title and the sender names stay SmplWise
    Arx - **recommended** (one app identity per phone, no manifest per installation). (ב) Also the tab title "<company> · Arx".
 6. **Who may change the company logo.** (א) `system.configure` - **recommended** (the installer during setup, the administrator
    later; audited). (ב) A new `brand.manage` key so the customer's administrator cannot change it.
 7. **The SmplWise file.** (א) An SVG with the mark and the wordmark as two groups, plus a dark version if the brand has one -
    **recommended**. (ב) A PNG >= 1024 px (the SVG outputs are skipped; the TV and the favicon are slightly softer).
-8. **Company name beside the logo.** (א) Logo only on screen; the name is the `alt`, the e-mail text and the PDF caption -
+8. **DECIDED 24.10: (א) logos only on screen** - the names appear only in the browser-tab title (Q5). (א) Logo only on screen; the name is the `alt`, the e-mail text and the PDF caption -
    **recommended** (clean operator screens). (ב) Name next to the logo in the strip as well.
-9. **Where the card lives.** (א) Settings › כללי › מראה המערכת, next to the brand colours - **recommended** (one place for how the
+9. **DECIDED 24.10: Settings › כללי › מראה המערכת.** (א) Settings › כללי › מראה המערכת, next to the brand colours - **recommended** (one place for how the
    system looks). (ב) A separate "מיתוג" tab as READY96 drew.
+
+## 15. Owner review of mockup v2 (2026-10-24) and what v3 does
+| # | Owner note | v3 |
+|---|---|---|
+| 1 | Q7: the sign-in screen does not show the two logos | P3 now stacks the company logo and the SmplWise logo in the card head; verified light + dark, 1366 / 390, with and without a company logo |
+| 2 | Q2: size selectable in Settings: small / medium / large / very large | `brand.logo_size`, one scale for every placement (section 4.4 rule 3); the mockup applies it live to the shell strip, the sign-in card, the TV header and the preview |
+| 3 | Q3: dark background - upload an extra dark file, colour inversion, or a small light plate | `brand.dark_mode` (section 5.1); the three behaviours are real options, applied live to the shell, sign-in, TV and the preview |
+| 4 | Q4: logos only, but the browser tab / window title configurable: "Smplwise Arx - developer + project, or only one of them" | `brand.title.*` + `brand.project.name`; the mockup sets the real `document.title` and draws the tab at the top of every screen |
+| 5 | Q5: upload place General > System appearance | section 5.1 / Q9 |
+| 6 | Q6: PNG, SVG, WebP, JPEG | section 5.4 |
+| 7 | all values editable in Settings; control screens never scroll | tabbed card + permanent preview column, measured: no page or inner scroll at 1366 x 768 and 1024 x 768, and none on the phone settings tabs at 390 x 844 |
+Tests added to section 11 for the build: title composition (all three modes, empty names), scale applied to each placement, dark mode
+x dark file matrix (`file` without a file falls back to the plate), the sign-in card shows both logos with and without a company logo.
