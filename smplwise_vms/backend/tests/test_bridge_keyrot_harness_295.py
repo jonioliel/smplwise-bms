@@ -668,6 +668,7 @@ def test_k01_what_the_bridge_does_with_the_posted_key(lab, monkeypatch):
     bridge_install.announce_discovery(lab.db, lab.settings)
     assert posted[-1]["pairing_code"] == side.ks.keys[side.ks.signing], "the current key itself"
     side.discovery_update(posted[-1]["pairing_code"])
+    lab.clock.advance(2)  # a reload takes longer than the 1 s ts resolution of the persisted high-water
     assert side.entry_code == "" and side.ks.legacy is None
     assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
 
