@@ -73,7 +73,7 @@ export interface PresenceGate {
   reason: 'presence_disabled' | 'exempt' | 'not_in_scope' | 'web_not_covered' | 'break_glass' | 'missing_sensors' | null;
 }
 
-export type PresenceSettingsPatch = Partial<Pick<PresenceSettings, 'enabled' | 'notice_text' | 'sensors_allowed' | 'retention_days' | 'interval_s' | 'distance_filter_m'>> & {
+export type PresenceSettingsPatch = Partial<Pick<PresenceSettings, 'enabled' | 'notice_text' | 'sensors_allowed' | 'retention_days' | 'interval_s' | 'distance_filter_m' | 'wifi_match_mode'>> & {
   required_sensors?: Partial<RequiredSensorsPolicy>;
 };
 
