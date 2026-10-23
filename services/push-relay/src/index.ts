@@ -10,7 +10,7 @@
  * Routes:
  *   POST   /v1/register    (app)    {platform, push_token, app_version, bundle_id} -> {relay_token}; idempotent per push token (needs RELAY_TOKEN_SECRET, else 503)
  *   DELETE /v1/register    (app)    {relay_token} -> 204
- *   POST   /v1/push        (server) Authorization: Bearer <server key>; {relay_token, category, notification_id, priority, server, collapse?}
+ *   POST   /v1/push        (server) Authorization: Bearer <server key>; {relay_token, category, notification_id, priority, server, collapse?, critical_alert?, resolved_tone?} (the two optional members are booleans; iOS ignores both in phase 1)
  *   GET    /v1/health               {ok, apns, fcm}
  *
  * Abuse protection: bodies <= 2 KiB, strict shapes, per-address registration limit (60 / h), per-device push limits
@@ -154,6 +154,10 @@ async function handlePush(request: Request, env: Env, ctx: ExecutionContext): Pr
   const priority = body.priority === 'high' ? 'high' : 'normal';
   const collapse = typeof body.collapse === 'string' ? body.collapse.slice(0, 64) : undefined;
   if (!RELAY_TOKEN.test(relayToken) || !CATEGORIES.has(category) || !/^[A-Za-z0-9_\-]{4,64}$/.test(notificationId)) return error(400, 'bad_request');
+  // CRITRELAY217: optional booleans, absent = false; any other type (a string "true", 1, null) is refused rather than guessed at
+  for (const k of ['critical_alert', 'resolved_tone']) if (k in body && typeof body[k] !== 'boolean') return error(400, 'bad_request');
+  const criticalAlert = body.critical_alert === true;
+  const resolvedTone = body.resolved_tone === true;
   const hash = await sha256Hex(relayToken);
   const reg = await env.RELAY_KV.get<Registration>(`reg:${hash}`, 'json');
   if (!reg) {
@@ -170,7 +174,7 @@ async function handlePush(request: Request, env: Env, ctx: ExecutionContext): Pr
     if (owner === null) await env.RELAY_KV.put(`sid:${claimed}`, server);
     else if (owner !== server) return error(403, 'server_id_claimed');
   }
-  const message = { notificationId, category, priority, server: claimed, collapse } as const;
+  const message = { notificationId, category, priority, server: claimed, collapse, criticalAlert, resolvedTone } as const;
   let result: { status: number; reason?: string; retryAfter?: number };
   try {
     if (reg.platform === 'ios') {

@@ -6,7 +6,7 @@
 import { pemToDer, signJwt } from './crypto';
 
 export interface FcmConfig { projectId: string; clientEmail: string; privateKey: string }
-export interface PushMessage { notificationId: string; category: string; priority: 'high' | 'normal'; server: string; collapse?: string }
+export interface PushMessage { notificationId: string; category: string; priority: 'high' | 'normal'; server: string; collapse?: string; criticalAlert?: boolean; resolvedTone?: boolean }
 export interface SendResult { status: number; reason?: string; retryAfter?: number }
 
 let cached: { token: string; at: number; email: string } | null = null;
@@ -43,7 +43,13 @@ export function fcmMessage(token: string, m: PushMessage): Record<string, unknow
   return {
     message: {
       token,
-      data: { notification_id: m.notificationId, category: m.category, server: m.server, title: 'SmplWise Arx', body: 'התראה חדשה' },
+      // CRITRELAY217: `critical_alert: "1"` (FCM data values are strings) only for a flagged push; `resolved_tone: "1"` only for a resolved
+      // update that should play the short calming tone. Both members are ABSENT otherwise, so an app that does not know them sees what it always saw.
+      data: {
+        notification_id: m.notificationId, category: m.category, server: m.server, title: 'SmplWise Arx', body: 'התראה חדשה',
+        ...(m.criticalAlert === true ? { critical_alert: '1' } : {}),
+        ...(m.resolvedTone === true && m.criticalAlert !== true ? { resolved_tone: '1' } : {}),
+      },
       android: { priority: m.priority === 'high' ? 'HIGH' : 'NORMAL', ttl: '3600s', ...(m.collapse ? { collapse_key: m.collapse.slice(0, 64) } : {}) },
     },
   };

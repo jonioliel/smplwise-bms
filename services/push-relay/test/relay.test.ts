@@ -202,6 +202,48 @@ describe('push (server to relay)', () => {
     expect(dec(jwt[1])).toMatchObject({ iss: 'TEAMID1234' });
     expect(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, apnsPublic, b64urlDecode(jwt[2]), new TextEncoder().encode(`${jwt[0]}.${jwt[1]}`))).toBe(true);
   });
+  it('CRITRELAY217 FCM: critical_alert true adds data critical_alert "1"; absent or false leaves the data map exactly as before', async () => {
+    const relay_token = await token('android');
+    const dataOf = () => JSON.parse(calls.at(-1)!.init.body as string).message.data;
+    expect((await push(relay_token, { critical_alert: true })).status).toBe(200);
+    expect(dataOf().critical_alert).toBe('1');
+    expect(dataOf().resolved_tone).toBeUndefined();
+    await push(relay_token, { critical_alert: false });
+    expect(Object.keys(dataOf()).sort()).toEqual(['body', 'category', 'notification_id', 'server', 'title']);
+    await push(relay_token);
+    expect(Object.keys(dataOf()).sort()).toEqual(['body', 'category', 'notification_id', 'server', 'title']);
+  });
+  it('CRITRELAY217 FCM: resolved_tone true adds data resolved_tone "1" and never the critical flag', async () => {
+    const relay_token = await token('android');
+    expect((await push(relay_token, { resolved_tone: true, priority: 'normal' })).status).toBe(200);
+    const data = JSON.parse(calls.at(-1)!.init.body as string).message.data;
+    expect(data.resolved_tone).toBe('1');
+    expect(data.critical_alert).toBeUndefined();
+    await push(relay_token, { resolved_tone: true, critical_alert: true });
+    expect(JSON.parse(calls.at(-1)!.init.body as string).message.data.resolved_tone).toBeUndefined();
+  });
+  it('CRITRELAY217: a non-boolean critical_alert / resolved_tone is refused 400 before any upstream call', async () => {
+    const relay_token = await token('android');
+    const before = calls.length;
+    for (const bad of ['true', 1, null, 'yes', {}]) {
+      expect((await push(relay_token, { critical_alert: bad })).status).toBe(400);
+      expect((await push(relay_token, { resolved_tone: bad })).status).toBe(400);
+    }
+    expect(calls.length).toBe(before);
+  });
+  it('CRITRELAY217 iOS: the flags are ignored, the payload is byte-identical to the unflagged time-sensitive push', async () => {
+    const relay_token = await token();
+    await push(relay_token);
+    const plain = calls.at(-1)!.init.body as string;
+    expect((await push(relay_token, { critical_alert: true })).status).toBe(200);
+    expect(calls.at(-1)!.init.body).toBe(plain);
+    await push(relay_token, { critical_alert: true, resolved_tone: true });
+    expect(calls.at(-1)!.init.body).toBe(plain);
+    const p = JSON.parse(plain);
+    expect(p.aps['interruption-level']).toBe('time-sensitive');
+    expect(p.aps.sound).toBe('default');
+    expect(JSON.stringify(p)).not.toContain('critical');
+  });
   it('iOS normal priority has no time-sensitive level; sandbox uses the sandbox host', async () => {
     env.APNS_ENV = 'sandbox';
     const relay_token = await token();

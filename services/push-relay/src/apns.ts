@@ -8,7 +8,7 @@
 import { pemToDer, signJwt } from './crypto';
 
 export interface ApnsConfig { p8: string; keyId: string; teamId: string; bundleId: string; sandbox: boolean }
-export interface PushMessage { notificationId: string; category: string; priority: 'high' | 'normal'; server: string; collapse?: string }
+export interface PushMessage { notificationId: string; category: string; priority: 'high' | 'normal'; server: string; collapse?: string; criticalAlert?: boolean; resolvedTone?: boolean }
 export interface SendResult { status: number; reason?: string; retryAfter?: number }
 
 let cached: { token: string; at: number; keyId: string } | null = null;
@@ -26,7 +26,12 @@ export function apnsHost(sandbox: boolean): string {
   return sandbox ? 'https://api.sandbox.push.apple.com' : 'https://api.push.apple.com';
 }
 
-/** The generic APNs payload for one message. */
+/**
+ * The generic APNs payload for one message.
+ * CRITRELAY217 (owner decision 24.10): iOS gets NO Critical Alerts in phase 1. `criticalAlert` and `resolvedTone` are deliberately
+ * ignored here: a flagged push stays the normal time-sensitive push (`priority: high`), nothing changes in the payload. Critical Alerts
+ * on iOS (entitlement, `interruption-level: critical`, critical sound) are a later phase.
+ */
 export function apnsPayload(m: PushMessage): Record<string, unknown> {
   return {
     aps: {
