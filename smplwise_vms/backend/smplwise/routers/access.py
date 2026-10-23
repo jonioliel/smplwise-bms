@@ -310,6 +310,9 @@ PERMISSION_LABELS: dict[str, str] = {
     "water.view": "צפייה במוני מים ובצריכה",
     "water.ack": "התראות מים: אישור והשתקה",
     "water.manage": "ניהול מוני מים: הגדרה, קישור, כללי דליפה",
+    # CR-WATER78 slice 3 (section 16): money of the water billing - prices, amounts, open balances, the bills and every bill action, the
+    # customers' contact fields. Sensitive, never implied; site_admin and system_admin by default (operator / viewer: off).
+    "water.bills": "חיובי מים: סכומים, לקוחות, הפקה וביטול",
     # CR-INFRA-ELEVATORS: define elevators and link their state sensors (site_admin, system_admin; installation scope). Viewing the
     # elevators needs no permission of its own: devices.read, scoped by the floors of the linked sensors (routers/elevators.py).
     "infra.elevators.manage": "ניהול מעליות: הגדרה וקישור חיישני מצב",

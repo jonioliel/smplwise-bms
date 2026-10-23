@@ -326,11 +326,20 @@ def update_customer(conn: sqlite3.Connection, cid: str, body: dict[str, Any]) ->
     return sorted(fields)
 
 
+def _has_water_accounts(conn: sqlite3.Connection, cid: str) -> bool:
+    """CR-WATER78 section 16: the customer card is shared with the water accounts (water_accounts.customer_id); before that migration
+    the table does not exist and nothing is held."""
+    try:
+        return conn.execute("SELECT 1 FROM water_accounts WHERE customer_id = ? AND deleted_at IS NULL LIMIT 1", (cid,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
 def delete_customer(conn: sqlite3.Connection, cid: str, base_revision: int) -> None:
     row = get_customer(conn, cid)
     if base_revision != row["revision"]:
         raise conflict("revision_conflict", "הלקוח שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=row["revision"])
-    if conn.execute("SELECT 1 FROM energy_accounts WHERE customer_id = ? AND deleted_at IS NULL LIMIT 1", (cid,)).fetchone():
+    if conn.execute("SELECT 1 FROM energy_accounts WHERE customer_id = ? AND deleted_at IS NULL LIMIT 1", (cid,)).fetchone() or _has_water_accounts(conn, cid):
         raise conflict("customer_has_accounts", "ללקוח יש חשבונות פעילים. יש להעביר או למחוק אותם קודם.")
     # contact details are erased; the customer number stays reserved; issued bills keep their own snapshot copy
     conn.execute("UPDATE energy_customers SET deleted_at = ?, address = '', phone = '', email = '', tax_id = '', notes = '', revision = revision + 1, updated_at = ? WHERE id = ?",
