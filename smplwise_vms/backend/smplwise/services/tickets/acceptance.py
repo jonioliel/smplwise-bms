@@ -143,8 +143,14 @@ def adoptable(conn: sqlite3.Connection) -> list[str]:
              JOIN infra_temp_units u ON u.id = l.unit_id AND u.enabled = 1
              LEFT JOIN ticket_acceptance a ON a.ticket_id = t.id
             WHERE t.status = 'done' AND t.done_at IS NOT NULL AND t.category_id IN (SELECT value FROM json_each(?))
-              AND (a.ticket_id IS NULL OR (a.state NOT IN ('pending', 'holding', 'flagged') AND a.done_at < t.done_at))
+              AND (a.ticket_id IS NULL OR (a.state NOT IN ('pending', 'holding', 'flagged') AND a.done_seq < (SELECT COUNT(*) FROM ticket_events e WHERE e.ticket_id = t.id AND e.to_status = 'done')))
             ORDER BY t.done_at LIMIT ?""", (json.dumps(list(cfg.categories)), BATCH)).fetchall()]
+
+
+def _done_seq(conn: sqlite3.Connection, ticket_id: str) -> int:
+    """How many times the ticket entered `done` (timeline rows with to_status = done): a counter, so a reopen and a new `done` inside the
+    same second (done_at has second precision) are still told apart."""
+    return int(conn.execute("SELECT COUNT(*) FROM ticket_events WHERE ticket_id = ? AND to_status = 'done'", (ticket_id,)).fetchone()[0])
 
 
 def adopt(conn: sqlite3.Connection, ticket_id: str, now: dt.datetime) -> bool:
@@ -158,10 +164,10 @@ def adopt(conn: sqlite3.Connection, ticket_id: str, now: dt.datetime) -> bool:
     stamp = stuck.iso(now) or ""
     conn.execute("DELETE FROM ticket_acceptance WHERE ticket_id = ?", (ticket_id,))
     conn.execute(
-        """INSERT INTO ticket_acceptance(ticket_id, kind, subject_id, state, on_breach, hold_minutes, start_grace_minutes, max_restarts, done_at, pending_since, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        """INSERT INTO ticket_acceptance(ticket_id, kind, subject_id, state, on_breach, hold_minutes, start_grace_minutes, max_restarts, done_at, done_seq, pending_since, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (ticket_id, "temperature", row["unit_id"], "pending", cfg.on_breach, cfg.hold_minutes, cfg.start_grace_minutes, cfg.max_restarts,
-         row["done_at"], row["done_at"], stamp))
+         row["done_at"], _done_seq(conn, ticket_id), row["done_at"], stamp))
     _note(conn, ticket_id, "acceptance_started", stamp, {"hold_minutes": cfg.hold_minutes, "on_breach": cfg.on_breach, "kind": "temperature"})
     STATS["adopted"] += 1
     return True
@@ -174,7 +180,7 @@ def step(conn: sqlite3.Connection, ticket_id: str, now: dt.datetime) -> str | No
         return None
     t = store.ticket_row_system(conn, ticket_id)
     stamp = stuck.iso(now) or ""
-    if t is None or t["status"] != "done" or t["done_at"] != a["done_at"]:
+    if t is None or t["status"] != "done" or _done_seq(conn, ticket_id) != a["done_seq"]:
         # a person moved the ticket first (confirm, reopen, cancel, or a fresh `done`): the person wins, the system only records it
         _finish(conn, ticket_id, "overridden", f"status_changed:{t['status'] if t else 'deleted'}", stamp)
         _note(conn, ticket_id, "acceptance_overridden", stamp, {"status": t["status"] if t else None})

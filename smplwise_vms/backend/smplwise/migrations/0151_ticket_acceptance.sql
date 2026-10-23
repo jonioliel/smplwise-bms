@@ -28,6 +28,7 @@ CREATE TABLE ticket_acceptance (
   max_restarts   INTEGER NOT NULL,
   restarts       INTEGER NOT NULL DEFAULT 0,
   done_at        TEXT NOT NULL,
+  done_seq       INTEGER NOT NULL,                       -- how many times the ticket had entered `done` when verification began (a counter, not a clock: two dones in one second still differ)
   pending_since  TEXT NOT NULL,
   hold_start     TEXT,
   hold_until     TEXT,
