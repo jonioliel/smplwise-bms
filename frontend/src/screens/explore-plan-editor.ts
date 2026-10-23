@@ -22,7 +22,7 @@ import { ApiError, describeError, resourceUrl } from '../api/client';
 import type { Anchor, Camera, PlanVersion } from '../api/types';
 import { domainLabel, entityMarkerKind, listEntities, stateLabel, type HaEntity } from '../api/ha';
 import { ROOM_FILL_LABEL, setRenderMode, stylizeVersion, type RoomFill, type StylizeResult } from '../api/plans';
-import { ZONE_KINDS, acceptZones, addShareMember, createZone, deleteZone, detectZones, listZones, pointInPolygon, previewShare, removeShareMember, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneKind, type ZonePoint } from '../api/zones';
+import { ZONE_KINDS, acceptZoneCamera, acceptZones, addShareMember, clearZoneCamera, createZone, deleteZone, detectZones, getZoneCamera, listZones, pointInPolygon, previewShare, removeShareMember, shareZone, unshareZone, updateZone, zoneKindLabel, type SharePreview, type ShareRequest, type SpatialZone, type ZoneCameraLink, type ZoneKind, type ZonePoint } from '../api/zones';
 import { OTHER_FLOOR, findGeomItem, geomIds, geomItemPoint, overhangZone, sharedChip, sharedHint } from '../map/shared-space';
 import { bidi } from '../i18n/bidi';
 import '../components/sw-share-members';
@@ -38,6 +38,7 @@ import '../map/sw-floor-image-align';
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandSource, type CandState } from '../map/candidates';
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
+import { CAMERA_SUGGEST_DEFAULTS, sanitizeSettings, suggestCameras, type CameraSuggestSettings, type CameraSuggestion } from '../map/camera-suggest';
 import { cap } from '../api/session';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupMaterialsOf, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, MAX_STAIR_STEPS, sampledWall, wallLengthPx, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
@@ -331,6 +332,12 @@ export class ExplorePlanEditor extends LitElement {
   @state() private geomDiff: { versionId: string; data: GeometryDiffResponse | null; error: string; skip: string[] } | null = null;
   /** Setting `plan.estimates` (default true): estimated metres carry "≈" before calibration; false hides them. */
   @state() private showEstimates = true;
+  /** CAMSUGGEST138-295: the installation's defaults of the nearest-camera suggestion, the suggestions on screen (null = not asked) and the
+   * camera an editor accepted for the selected zone. A suggestion is only ever offered; the accept button is the only thing that saves one. */
+  @state() private camSuggestCfg: CameraSuggestSettings = CAMERA_SUGGEST_DEFAULTS;
+  @state() private camSuggestions: { zoneId: string; items: CameraSuggestion[] } | null = null;
+  @state() private zoneCamera: ZoneCameraLink | null = null;
+  private zoneCameraFor: string | null = null;
   /** Plan Studio phase 3 (T086): the detect tool - options, the running request, the candidate set and its states. The
    * set outlives a tool switch (only drawn while the tool is active) until it is confirmed, discarded or replaced. */
   @state() private detectOpts: DetectOpts = { walls: true, openings: true, strength: 0.6, replaceAuto: true, hollow: true };
@@ -638,6 +645,21 @@ export class ExplorePlanEditor extends LitElement {
     }
     .kv .k {
       color: var(--sw-text-3);
+    }
+    /* CAMSUGGEST138-295: at most three rows, so the zone panel keeps fitting the viewport */
+    .cam-sug {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-block-end: 1px dashed var(--sw-border);
+      font-size: var(--sw-fs-sm);
+    }
+    .cam-sug-name {
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
     }
     /* CR-009: a room shown on two floors */
     .shared-hint {
@@ -950,6 +972,7 @@ export class ExplorePlanEditor extends LitElement {
       void productSettings()
         .then((s) => {
           this.sharedLevels = s['map.shared_levels'] !== 'hide'; // CR-009: the shared room's home levels in the level bar
+          this.camSuggestCfg = sanitizeSettings({ maxDistance: Number(s['plan.camsuggest_distance']) / 100, fovWeight: Number(s['plan.camsuggest_fov']) / 100, maxSuggestions: Number(s['plan.camsuggest_count']) });
           this.showEstimates = s['plan.estimates'] !== 'false'; // undefined until the backend serves the setting (Task 13): estimates shown
           const lat = Number(s['site.latitude']);
           const lon = Number(s['site.longitude']);
@@ -2379,6 +2402,7 @@ export class ExplorePlanEditor extends LitElement {
   /** An undo (or a newer server document) that removes the selected circuit ends its selection and its member mode. */
   protected override willUpdate(): void {
     const doc = this.studio.doc;
+    if (this.zoneCameraFor !== this.selectedZoneId) this.loadZoneCamera(this.selectedZoneId); // CAMSUGGEST138-295: the selected zone's accepted camera
     // CR-009: an item just drawn inside a room another floor shares was renamed for that floor - the selection follows it
     const renamed = this.geomSel ? this.studio.claimed.get(this.geomSel.id) : undefined;
     if (renamed && doc && !geomIds(doc).has(this.geomSel!.id)) this.geomSel = { ...this.geomSel!, id: renamed };
@@ -5337,6 +5361,68 @@ export class ExplorePlanEditor extends LitElement {
     return this.renderStructurePanel(b, true);
   }
 
+  // ---- CAMSUGGEST138-295: the nearest camera for a zone ----
+
+  private loadZoneCamera(zoneId: string | null) {
+    this.zoneCameraFor = zoneId;
+    this.zoneCamera = null;
+    this.camSuggestions = null;
+    if (!zoneId || this.bundle?.source === 'demo') return;
+    getZoneCamera(zoneId).then(
+      (l) => { if (this.zoneCameraFor === zoneId) this.zoneCamera = l; },
+      () => {}, // no link shown rather than an error on a read that only decorates the panel
+    );
+  }
+
+  /** Up to three camera pins of this floor nearest to the zone; nothing is saved by asking. */
+  private askCameraSuggestions(z: SpatialZone) {
+    const b = this.bundle;
+    if (!b) return;
+    const cams = this.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, floorId: a.floor_id, levelId: a.level_id ?? null, position: a.position, rotationDeg: a.rotation_degrees, fovDeg: a.field_of_view_degrees }));
+    const zone = { id: z.id, floorId: z.floor_id, levelId: z.level_id ?? null, polygon: z.polygon };
+    this.camSuggestions = { zoneId: z.id, items: suggestCameras(zone, cams, this.camSuggestCfg, { aspect: b.height ? b.width / b.height : 1, exclude: this.zoneCamera?.anchor_id ? [this.zoneCamera.anchor_id] : [] }) };
+  }
+
+  private async setZoneCamera(z: SpatialZone, anchorId: string | null) {
+    this.zoneBusy = true;
+    this.error = '';
+    try {
+      const l = anchorId ? await acceptZoneCamera(z.id, anchorId) : await clearZoneCamera(z.id);
+      if (this.zoneCameraFor === z.id) this.zoneCamera = l;
+      this.camSuggestions = null;
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.zoneBusy = false;
+    }
+  }
+
+  private renderCameraSuggest(z: SpatialZone) {
+    const b = this.bundle;
+    if (!b || b.source === 'demo' || z.shared?.role === 'mirror') return nothing;
+    const linked = this.zoneCamera?.anchor_id ? this.anchors.find((a) => a.id === this.zoneCamera!.anchor_id) : undefined;
+    const sug = this.camSuggestions?.zoneId === z.id ? this.camSuggestions.items : null;
+    const hasCams = this.anchors.some((a) => a.resource_type === 'camera');
+    const pct = (d: number) => (d === 0 ? 'בתוך האזור' : `במרחק ${Math.max(1, Math.round(d * 100))}%`);
+    return html`<div class="cam-suggest" data-cam-suggest>
+      ${linked ? html`<div class="kv" data-zone-camera><span class="k">מצלמת האזור</span><span>${bidi(this.anchorName(linked))}</span></div>` : nothing}
+      ${b.permissions.edit && hasCams
+        ? html`<div class="btns"><sw-button size="sm" icon="camera" data-cam-suggest-ask ?disabled=${this.zoneBusy} @click=${() => this.askCameraSuggestions(z)}>הצע מצלמה קרובה</sw-button>${linked ? html`<sw-button size="sm" variant="ghost" data-cam-suggest-clear ?disabled=${this.zoneBusy} @click=${() => this.setZoneCamera(z, null)}>הסר קישור</sw-button>` : nothing}</div>`
+        : nothing}
+      ${sug
+        ? sug.length
+          ? html`<div class="cam-sug-list" data-cam-suggest-list>${sug.map((c) => {
+              const a = this.anchors.find((x) => x.id === c.id);
+              return html`<div class="cam-sug" data-cam-suggestion=${c.id}>
+                <span class="cam-sug-name">${a ? bidi(this.anchorName(a)) : c.id}<span class="note" style="margin:0">${pct(c.distance)}${c.facing === null ? ' · ללא שדה ראייה' : c.facing >= 0.5 ? ' · פונה לאזור' : ' · לא פונה לאזור'}</span></span>
+                <sw-button size="sm" variant="primary" icon="check" data-cam-suggest-accept ?disabled=${this.zoneBusy} @click=${() => this.setZoneCamera(z, c.id)}>קבל</sw-button>
+              </div>`;
+            })}</div>`
+          : html`<div class="note" data-cam-suggest-none>אין מצלמה בקרבת האזור בטווח שהוגדר בהגדרות &gt; מפה</div>`
+        : nothing}
+    </div>`;
+  }
+
   private renderZoneInspector(z: SpatialZone) {
     const cams = this.anchors.filter((a) => a.resource_type === 'camera' && pointInPolygon(a.position, z.polygon));
     const ents = this.anchors.filter((a) => a.resource_type !== 'camera' && pointInPolygon(a.position, z.polygon));
@@ -5358,6 +5444,7 @@ export class ExplorePlanEditor extends LitElement {
         : nothing}
       ${this.renderZoneTags(z)}
       ${this.renderZoneShare(z)}
+      ${this.renderCameraSuggest(z)}
       <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
       <div class="kv"><span class="k">התקנים באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
       <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>

@@ -472,6 +472,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import occupancy as occupancy_router
 
     app.include_router(occupancy_router.router, prefix=api, tags=["occupancy"])  # ZONECOUNT107-295: people count per area from Frigate reviews (OFF)
+    from .routers import camera_suggest as camera_suggest_router
+
+    app.include_router(camera_suggest_router.router, prefix=api, tags=["plan"])  # CAMSUGGEST138-295: nearest-camera suggestion settings + accepted zone camera
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])

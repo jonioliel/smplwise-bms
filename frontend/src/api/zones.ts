@@ -3,7 +3,7 @@
  * to the plan image; candidates come from local room detection on the plan and are saved only once the
  * editor accepts them.
  */
-import { api, del, get, patch, post } from './client';
+import { api, del, get, patch, post, put } from './client';
 import type { SpatialZone, ZonePoint } from './types';
 
 export type { SpatialZone, ZonePoint } from './types';
@@ -45,6 +45,18 @@ export const updateZone = (id: string, body: { revision: number; name?: string; 
   const path = `zones/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`;
   return signal ? api<SpatialZone>(path, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(path, body);
 };
+
+// ---------------------------------------------------------------- the zone's camera (CAMSUGGEST138-295)
+
+/** The camera pin an editor accepted for a zone from the nearest-camera suggestions (null = none). Never set automatically. */
+export interface ZoneCameraLink {
+  zone_id: string;
+  anchor_id: string | null;
+  updated_at: string | null;
+}
+export const getZoneCamera = (zoneId: string) => get<ZoneCameraLink>(`zones/${zoneId}/suggested-camera`);
+export const acceptZoneCamera = (zoneId: string, anchorId: string) => put<ZoneCameraLink>(`zones/${zoneId}/suggested-camera`, { anchor_id: anchorId });
+export const clearZoneCamera = (zoneId: string) => api<ZoneCameraLink>(`zones/${zoneId}/suggested-camera`, { method: 'DELETE' });
 
 // ---------------------------------------------------------------- shared space (CR-009)
 

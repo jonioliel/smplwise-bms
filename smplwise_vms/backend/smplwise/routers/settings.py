@@ -151,6 +151,12 @@ DEFAULTS: dict[str, str] = {
     # CR-029 S3: what the "prepare stills and lighting" step bakes per floor (presets, styles, time bands, the lightmap, the still's
     # size) and the storage caps per floor / installation (services/plan_bakes.py SETTING_*). A JSON object read back as an object.
     "plan.bakes": json.dumps(plan_bakes.SETTING_DEFAULT, separators=(",", ":")),
+    # CAMSUGGEST138-295 (board r138): the defaults of "suggest the nearest camera" in the zone editor (frontend/src/map/camera-suggest.ts).
+    # distance = the farthest a camera may stand from the zone, in percent of the plan width; fov = how strongly a known field of view that
+    # misses the zone counts against a camera, in percent (0 = distance only, 100 = such a camera is not offered); count = suggestions offered.
+    "plan.camsuggest_distance": "35",
+    "plan.camsuggest_fov": "50",
+    "plan.camsuggest_count": "3",
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
@@ -695,6 +701,9 @@ class SettingsPatch(BaseModel):
     map_default_floor: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.\-]*$", alias="map.default_floor")  # "" or an existing floor id (checked in the handler)
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
+    plan_camsuggest_distance: str | None = Field(default=None, pattern="^([1-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_distance")  # CAMSUGGEST138-295: 1-100 % of the plan width
+    plan_camsuggest_fov: str | None = Field(default=None, pattern="^([0-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_fov")  # 0-100 %
+    plan_camsuggest_count: str | None = Field(default=None, pattern="^[1-3]$", alias="plan.camsuggest_count")  # 1-3 suggestions
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
     site_location_source: str | None = Field(default=None, pattern="^(home|manual)$", alias="site.location_source")  # CR-029 S2 (owner 2026-10-11)
