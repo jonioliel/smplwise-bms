@@ -531,6 +531,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import recorder_health as recorder_health_router
 
     app.include_router(recorder_health_router.router, prefix=api, tags=["nvr"])  # CR-026: recorder health cards and thresholds
+    from .routers import camera_image_health as camera_image_health_router
+
+    app.include_router(camera_image_health_router.router, prefix=api, tags=["nvr"])  # CAMHEALTH091: camera image health (dark / blurred / frozen / shifted)
     app.include_router(frigate_router.router, prefix=api, tags=["frigate"])  # NN5 F1: the Frigate provider API (read-only toward Frigate)
     from .routers import frigate_control as frigate_control_router
 
@@ -828,6 +831,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import recorder_health
 
             recorder_health.POLLER.start(app.state.db, settings)  # CR-026: read-only health reads of every recorder (default once a minute)
+            from .services import camera_image_health
+
+            camera_image_health.POLLER.start(app.state.db, settings)  # CAMHEALTH091: idle until switched on in Settings; samples the cache or existing sub streams only
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
         if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
             from .services import cast_relay
@@ -932,6 +938,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import recorder_health
 
         await _in_thread(recorder_health.POLLER.shutdown)
+        from .services import camera_image_health
+
+        await _in_thread(camera_image_health.POLLER.shutdown)
         await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 

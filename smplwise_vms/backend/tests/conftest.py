@@ -20,6 +20,8 @@ os.environ.setdefault("SW_TEMPERATURE", "0")  # CR-INFRA-TEMPERATURE 2.9.1: test
 os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
 # CR-026: the recorder health poller stays off; tests call recorder_health.probe / poll_once / tick with explicit instants
 os.environ.setdefault("SW_RECORDER_HEALTH", "0")
+# CAMHEALTH091: the camera image health poller stays off; tests call camera_image_health.record / sample / poll_once / tick directly
+os.environ.setdefault("SW_CAMERA_IMAGE_HEALTH", "0")
 # NN5: the Frigate event loop (WebSocket + polling) stays off in app tests; they call frigate_events.poll_reviews / run_loop explicitly
 os.environ.setdefault("SW_FRIGATE_EVENTS", "0")
 # CR-021 S4: the start-up read of the running release's [platform-restart] marker stays off (a flagged release must not add a

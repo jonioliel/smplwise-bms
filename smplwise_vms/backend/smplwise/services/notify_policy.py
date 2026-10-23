@@ -75,6 +75,10 @@ SOURCES: tuple[Source, ...] = (
     _s("recorder.recording", "מצלמה לא מקליטה", "device_faults", "alert", "מצלמה לא מקליטה", "{name}: {detail}.", after_s=60, who="managers", subject="camera", resolve_notice=True, resolve_text="ההקלטה חזרה"),
     _s("recorder.clock", "שעון המקליט", "device_faults", "alert", "שעון המקליט סוטה", "{name}: {detail}.", after_s=600, who="managers", push=False, subject="system", resolve_text="השעון תקין"),
     _s("recorder.certificate", "תעודת המקליט", "device_faults", "alert", "תעודת המקליט עומדת לפוג", "{name}: {detail}.", who="managers", push=False, email=True, subject="system", resolve_text="התעודה חודשה"),
+    # CAMHEALTH091 (services/camera_image_health.py): the PICTURE of a camera is dark, blurred, frozen or shifted. One row per camera and
+    # problem kind. The sampling job is OFF by default (Settings > Health), so nothing fires until it is switched on; recipients here.
+    _s("camera.image", "תמונת מצלמה לא תקינה", "device_faults", "alert", "בעיה בתמונת המצלמה", "{name}: {detail}.", who="managers", push=False,
+       subject="camera", resolve_text="התמונה תקינה"),
     _s("device.unavailable", "התקן לא זמין", "device_faults", "info", "התקן לא זמין", "{name} לא זמין.", after_s=900, push=False, resolve_text="ההתקן חזר"),
     # CR-INFRA-ELEVATORS 2.8.0 (services/elevators_runtime.py): one source per alerting role, judged on that role's sensor. Owner decision 2026-10-18:
     # OFF by default, nobody, inbox only - the master / per-state switches, the recipients and the channels are chosen in Settings > Infrastructure >

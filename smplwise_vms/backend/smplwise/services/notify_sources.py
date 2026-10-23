@@ -291,7 +291,14 @@ def tick(db: Database, settings: Settings, now: dt.datetime | None = None) -> di
     group("sensors", sensors)
     group("actions", actions)
     group("sweeps", sweeps)
+    def camera_images() -> Any:
+        from . import camera_image_health  # CAMHEALTH091: the sampler's results -> camera.image notifications (no device I/O here)
+
+        with db.connection(label="notify.camera_images") as conn:
+            return camera_image_health.tick(conn, now)
+
     group("recorders", recorders)
+    group("camera_images", camera_images)
     group("update", lambda: update_tick(db, settings, now.timestamp()))
     return out
 
