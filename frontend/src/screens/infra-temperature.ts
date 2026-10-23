@@ -91,7 +91,11 @@ export class InfraTemperature extends LitElement {
       display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface);
       border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer;
     }
+    /* POLISH136: the KPI is a filter button - it answers hover (fine pointers only), press and keyboard like the cards */
+    .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .kpi:active { transform: scale(0.98); }
     .kpi[aria-pressed='true'] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+    .kpi[aria-pressed='true'] span.l { color: var(--sw-text); }
     .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
     .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
     .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
@@ -103,7 +107,10 @@ export class InfraTemperature extends LitElement {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg); overflow: hidden;
       background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0; cursor: pointer;
+      /* POLISH136: a tappable card confirms the press (transform only, token durations - zero under reduced motion) */
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
+    .ucard:active { transform: scale(0.99); }
     .ucard[data-look='alarm'] { border-color: color-mix(in srgb, var(--tc-alarm) 55%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--tc-alarm) 10%, transparent), var(--sw-surface) 55%); }
     .ucard[data-look='warn'] { border-color: color-mix(in srgb, var(--tc-warn) 55%, transparent); }
     .ucard[data-look='off'] { border-style: dashed; }
@@ -127,15 +134,17 @@ export class InfraTemperature extends LitElement {
     .floors { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .floors button {
       border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit;
-      font-size: var(--sw-fs-sm); cursor: pointer;
+      font-size: var(--sw-fs-sm); cursor: pointer; min-block-size: var(--sw-ctl-h-sm);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
+    .floors button:active { transform: scale(0.97); }
     .floors button[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
     .floors button:focus-visible, .ghead:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .groups { display: grid; gap: 18px; }
     .group { display: grid; gap: 10px; }
     .ghead {
-      display: flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 4px 2px; font: inherit; color: inherit; cursor: pointer; text-align: start;
-      inline-size: 100%;
+      display: flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 4px 6px; font: inherit; color: inherit; cursor: pointer; text-align: start;
+      inline-size: 100%; min-block-size: 32px; border-radius: var(--sw-r-md); transition: background-color var(--sw-t-fast) var(--sw-ease);
     }
     .ghead h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); }
     .ghead small { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
@@ -149,6 +158,35 @@ export class InfraTemperature extends LitElement {
     .toast {
       position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 20px); inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw;
       background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2);
+      /* POLISH136: the toast rises in instead of popping (token duration: zero under reduced motion) */
+      opacity: 1; transform: translateY(0); transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease);
+    }
+    @starting-style { .toast { opacity: 0; transform: translateY(8px); } }
+    /* POLISH136: the header actions and the add card answer a press like every other control on the page */
+    .top .btn, .hand .btn, .add { transition: border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .top .btn:active, .hand .btn:active { transform: scale(0.97); }
+    .add:active { transform: scale(0.99); }
+    /* POLISH136: the loading state draws the shape of the page (title, KPI row, three cards) instead of a blank screen; .skl was never
+       defined for this screen (the generator and elevators screens share the gap - noted for the round) */
+    .skl { display: flex; flex-direction: column; gap: 14px; }
+    .sk {
+      border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); box-sizing: border-box;
+      background: linear-gradient(90deg, var(--sw-surface-3) 0%, var(--sw-surface) 50%, var(--sw-surface-3) 100%); background-size: 200% 100%; animation: tp-shimmer 1.4s var(--sw-ease) infinite;
+    }
+    .sk-top { display: grid; gap: 8px; padding-block: 4px; }
+    .sk-h1 { inline-size: 180px; block-size: 30px; }
+    .sk-sub { inline-size: 320px; max-inline-size: 100%; block-size: 14px; border-radius: var(--sw-r-xs); }
+    .sk-kpi { block-size: 64px; }
+    .sk-card { block-size: 236px; border-radius: var(--sw-r-lg); }
+    @keyframes tp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    /* POLISH136: hover is only for fine pointers - a touch must not leave a card lit */
+    @media (hover: hover) and (pointer: fine) {
+      .ucard:hover { box-shadow: var(--sw-shadow-2); }
+      .ucard:hover:not([data-look='alarm']):not([data-look='warn']) { border-color: var(--sw-border-strong); }
+      .kpi:hover { border-color: var(--sw-border-strong); }
+      .floors button:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
+      .ghead:hover { background: var(--sw-surface-2); }
+      .add:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
     }
     @media (max-width: 600px) {
       .top { flex-direction: column; align-items: stretch; }
@@ -350,8 +388,12 @@ export class InfraTemperature extends LitElement {
     }
     if (!this.data) {
       return this.error
-        ? html`${this.l1()}<sw-state-panel state="error" heading=${tt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`
-        : html`${this.l1()}<div class="skl" style="block-size:160px" data-state="loading"></div>`;
+        ? html`${this.l1()}<sw-state-panel state="error" heading=${tt('loadError')} hint=${this.error} actionLabel=${tt('retry')} @action=${() => void this.load()} data-state="error"></sw-state-panel>`
+        : html`${this.l1()}<div class="skl" data-state="loading" role="status" aria-busy="true" aria-label=${tt('loading')}>
+            <div class="sk-top lead-head"><div class="sk sk-h1"></div><div class="sk sk-sub"></div></div>
+            <div class="kpis" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(() => html`<div class="sk sk-kpi"></div>`)}</div>
+            <div class="grid" aria-hidden="true">${[0, 1, 2].map(() => html`<div class="sk sk-card"></div>`)}</div>
+          </div>`;
     }
     const list = this.data.units;
     const aff = addAffordances(this.access.manage, this.editing);
