@@ -66,6 +66,7 @@ def claim(s4, ticket_id: str, total: int, basis: int | None, approved_at: str, c
     """An approved demand whose vendor revision named a quote basis (the input of the card's quote adherence)."""
     with s4.db.connection() as conn:
         aid = conn.execute("SELECT id FROM ticket_assignments WHERE ticket_id = ? ORDER BY assigned_at DESC LIMIT 1", (ticket_id,)).fetchone()[0]
+        conn.execute("DELETE FROM ticket_cost_claims WHERE assignment_id = ?", (aid,))  # the assignment may already hold its (awaiting) claim row
         conn.execute("INSERT INTO ticket_cost_claims(id, ticket_id, department_id, assignment_id, contact_id, required, status, currency, current_revision_id, "
                      "approved_total_minor, approved_at, snapshot_json, created_at, updated_at) VALUES (?, ?, 'dept-maintenance', ?, ?, 1, 'approved', 'ILS', ?, ?, ?, '{}', ?, ?)",
                      (cid, ticket_id, aid, contact or s4.contact["id"], cid + "-r", total, approved_at, approved_at, approved_at))
