@@ -121,6 +121,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_sampler.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy janitor failed", exc_info=True)
+    try:  # CR-WATER78: water retention (hourly inside; water.db only, its own gate; nothing while the module is off)
+        from .services import water_sampler
+
+        water_sampler.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("water janitor failed", exc_info=True)
     try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
         from .services import generator_runtime
 
@@ -552,6 +558,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import shift_summary as shift_summary_router  # CR-SHIFT114: the shift / 24-hour summary (read-only; OFF by default)
 
     app.include_router(shift_summary_router.router, prefix=api, tags=["reports"])
+    from .routers import water as water_router
+
+    app.include_router(water_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 1: מים - meters, readings, consumption, settings (module switch, default off)
     from .routers import nvr_batch as nvr_batch_router
 
     app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
@@ -764,6 +773,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
+        from .services import water_sampler
+
+        water_sampler.SAMPLER.start(app.state.db, settings)  # CR-WATER78: the water meters' poll - only while the module is on (read-only)
         from .services import generator_runtime
 
         generator_runtime.RUNNER.start(app.state.db, settings)  # CR-031: generator detection, history samples and alerts from the state mirror (read-only)
@@ -885,6 +897,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.shutdown()
+        from .services import water_sampler as _wsm
+
+        _wsm.SAMPLER.shutdown()
         from .services import generator_runtime
 
         generator_runtime.RUNNER.shutdown()
