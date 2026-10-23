@@ -79,3 +79,36 @@ These eight block the UI (CR-MAINT215.md section 11); recommendation first:
 - Test command that worked (from `~/work/maint215/smplwise_vms/backend`, in background with nohup):
   `nice -n 10 ~/smplwisebms/.venv/bin/python -m pytest -q -o addopts= -p no:cacheprovider tests/test_maintenance_215.py > ~/maint215_t1.out 2>&1 &`
 - rr.py calls that run longer than ~60 s get moved to the background; use nohup + poll the .out file.
+
+## Slice 2 (UI + the owner's answers 24.10 q13-q20) - 2026-10-24
+Owner approved mockup v2 and answered the eight questions (private/planning/OWNER_ANSWERS_2026-10-24_batch1_notes.md items 13-20; standing
+rule: every default editable in Settings, permissions grantable to any role).
+
+Backend (minimal, tested):
+- q13 lead time: `maintenance.lead_days.<kind>` settings (defaults 30/7/0/30, 0-365), used when a new task leaves it empty.
+- q14 permission: unchanged (site_admin + system_admin); the three permissions are ordinary catalogue entries, grantable to any role.
+- q15 placeless tasks and supplier documents: the permission at ANY scope (`Viewer.holds_where`, like a placeless ticket); the
+  recipient rule follows. The slice-1 isolation test was updated to the new rule.
+- q16 sticker address: `maintenance.tag_base_url` (empty = the remote address; https only); scan still needs a signed-in person.
+  Extension point for a later GPS / IMEI confirmation: the scan route (`service.scan`).
+- q17 supplier marks: `GET /maintenance/vendors` (document states); shown in the form's supplier picker and the supplier card.
+  NOT done: the tickets assignee picker's red mark + the approval by a holder of the approvals permission (tickets module change).
+- q18 backups: `maint_tasks`, `maint_records`, `maint_tags` in PROJECT_TABLES (+ KEEP_WHEN_ABSENT); restore drill test.
+- q19 closing the request a plan opened (tickets `change_status` -> closed) marks the plan done for that due date, closer = performer
+  (savepoint; never fails the close). Not hooked: auto-close by the tickets janitor and the handler-link close paths.
+- q20 notification category `maintenance` (backend, mobile push names, push relay - the Worker needs a redeploy, frontend).
+- `GET /maintenance/options` (form), `place_path`, `checklist_count`, round `open_run` / `last_run` in the list, tag `medium` and
+  `last_scan_at` (migration 0147 edited - still provisional), `request_departments` on a run, links `#/tickets/maintenance?task=`.
+
+Frontend: `screens/tickets-maintenance.ts` (section shell, page row, off / forbidden), `maintenance/` (model, access, styles, list page,
+task sheet, task form, supplier card, round run, tags page with QR stickers and printing, scan page, settings), `api/maintenance.ts`,
+`i18n/maintenance.ts` (he + en; ar / ru fall back to he). Nav: a `maintenance` entry in TICKETS_TABS (TODO for SERVICEIA1-295 to move it
+into its section structure), offered only while the module is on (also with the tickets module off), `#/m/<token>` redirect.
+Settings › תשתיות › תחזוקה ובקרה (module switch, leads, sticker address).
+
+Tests (local workstation): backend test_maintenance_215.py 39 passed (+ regression set 72 passed); frontend unit-maintenance 14 passed,
+related unit set passed after pin updates (tabset registry, tickets board / rfq / vendor-accounts, notifications, rtl);
+evidence-maintenance.spec.ts 48 passed (desktop / tablet / mobile, mocked backend). Runner: NOT_RUN (gate lock).
+
+Not built (slice 3 candidates): certificate / document file upload (needs the attachments pipeline), the reminder log page, the
+elevator / generator card rows (`by-subject` is ready), the tickets assignee picker mark + approval (q17), ar / ru translations.

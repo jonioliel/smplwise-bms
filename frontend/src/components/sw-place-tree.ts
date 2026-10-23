@@ -111,6 +111,16 @@ export class SwPlaceTree extends LitElement {
     .dot.mixed {
       background: var(--sw-unknown);
     }
+    /* CR-MAINT215: a place's worst due state */
+    .dot.alarm {
+      background: var(--sw-danger);
+    }
+    .dot.warn {
+      background: var(--sw-warning);
+    }
+    .dot.ok {
+      background: var(--sw-success);
+    }
     button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);

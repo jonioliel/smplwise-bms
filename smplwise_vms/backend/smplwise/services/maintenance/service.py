@@ -580,10 +580,23 @@ def start_run(viewer: Viewer, task_id: str, rid: str | None) -> dict[str, Any]:
 def run_out(viewer: Viewer, run_id: str) -> dict[str, Any]:
     run, task = _run(viewer, run_id)
     out = record_out(run)
-    out["task"] = {"id": task["id"], "title": task["title"], "entity_id": task["entity_id"]}
+    out["task"] = {"id": task["id"], "title": task["title"], "entity_id": task["entity_id"], "department_id": task["department_id"]}
     out["can"] = {"write": run["status"] == "open" and (run["started_by"] == viewer.uid and viewer.holds_on(PERFORM, task) or viewer.holds_on(MANAGE, task)),
                   "open_request": tickets_can_create(viewer)}
+    out["request_departments"] = _request_departments(viewer) if out["can"]["open_request"] and run["status"] == "open" else []
     return out
+
+
+def _request_departments(viewer: Viewer) -> list[dict[str, str]]:
+    """Slice 2: the departments the person may open a request in from a checkpoint (the tickets module's own rule) - names only."""
+    from ..tickets import access as taccess
+    from ..tickets import store as tstore
+
+    tv = taccess.Viewer(viewer.conn, viewer.principal)
+    try:
+        return [{"id": d["id"], "name": d["name"]} for d in tstore.departments(viewer.conn) if tv.can_create_in(d)]
+    except Exception:  # noqa: BLE001 - the picker is a convenience; the request route decides again
+        return []
 
 
 def save_answers(viewer: Viewer, run_id: str, body: dict[str, Any], rid: str | None) -> dict[str, Any]:

@@ -12,13 +12,15 @@ import { elevatorsAccess } from '../elevators/access';
 import '../elevators/elevator-settings'; // CR-INFRA-ELEVATORS: הגדרות › תשתיות › מעליות
 import { temperatureAccess } from '../temperature/access';
 import '../temperature/temp-settings'; // CR-INFRA-TEMPERATURE 2.9.1: הגדרות › תשתיות › טמפרטורות
+import '../maintenance/settings'; // CR-MAINT215 slice 2: הגדרות › תשתיות › תחזוקה ובקרה
+import { mt } from '../i18n/maintenance';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 // the sections register themselves (`screens/electricity/settings-*.ts`); see docs/architecture/ELECTRICITY_UI_SHELL.md
 import.meta.glob('./electricity/{page,settings}-*.ts', { eager: true });
 
-type Section = 'prices' | 'calendar' | 'business' | 'retention' | 'generator' | 'elevators' | 'temperature';
+type Section = 'prices' | 'calendar' | 'business' | 'retention' | 'generator' | 'elevators' | 'temperature' | 'maintenance';
 interface SectionDef {
   id: Section;
   label: string;
@@ -38,6 +40,8 @@ const SECTIONS: SectionDef[] = [
   { id: 'elevators', label: 'מעליות', tag: 'elevator-settings', allowed: () => elevatorsAccess().manage },
   // CR-INFRA-TEMPERATURE 2.9.1: the installation defaults of every rule and the alert routing (infra.temperature.manage)
   { id: 'temperature', label: 'טמפרטורות', tag: 'temp-settings', allowed: () => temperatureAccess().manage },
+  // CR-MAINT215 slice 2: the maintenance module's switch and defaults - lead per kind, the sticker address (system.configure)
+  { id: 'maintenance', get label() { return mt('setTitle'); }, tag: 'maint-settings', allowed: (a) => a.system },
 ];
 
 /**

@@ -61,6 +61,8 @@ import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (
 import '../screens/tickets-board'; // CR-038 slice 6: the manager board (#/tickets/board)
 import '../screens/tickets-handlers'; // owner 2026-10-14: "מטפלים וספקים" (#/tickets/handlers)
 import '../screens/tickets-rfqs'; // TKRFQ2 (2.6.1): requests for quotation (#/tickets/rfqs)
+import '../screens/tickets-maintenance'; // CR-MAINT215 slice 2: the maintenance section (#/tickets/maintenance/<page>)
+import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
 import { rt } from '../tickets/rfq-text';
 import '../tickets/vendor-accounts'; // TK258: "חשבון ספקים" (#/tickets/accounts)
@@ -1675,6 +1677,7 @@ export class SwApp extends LitElement {
           if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
           void refreshElevatorsVisibility(); // CR-INFRA-ELEVATORS: the elevators tab appears once an elevator is defined
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
+          void refreshMaintenance(); // CR-MAINT215 slice 2: the maintenance section appears while its module is on (maintenance.view)
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
@@ -2411,6 +2414,7 @@ export class SwApp extends LitElement {
         // CR-038: #/tickets/<id> is a ticket on the full screen (D18); #/tickets/<mine|department|all> the list with its drawer (?t=) and the
         // create form (?new=1). #/tickets opens this user's first visible scope tab. The screens answer "the module is off" themselves.
         if (isTicketId(s[1])) return keyed(s[1], html`<tickets-detail .ticketId=${s[1]}></tickets-detail>`);
+        if (s[1] === 'maintenance') return html`<tickets-maintenance .route=${r}></tickets-maintenance>`; // CR-MAINT215 slice 2 (answers while the tickets module is off)
         if (s[1] === 'overview') {
           void import('../screens/tickets-overview'); // MGRDASH: the manager overview, a lazy chunk of its own (the element upgrades when it lands)
           return html`<tickets-overview .route=${r}></tickets-overview>`;

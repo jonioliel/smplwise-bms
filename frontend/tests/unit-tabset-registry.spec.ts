@@ -86,7 +86,7 @@ test('nothing configured: the multimedia, infrastructure and tickets rows are ex
   expect(visibleTabs(INFRA_TABS, true, ALL).map((t) => t.href)).toEqual(INFRA_TABS.filter((t) => t.id !== 'temperature').map((t) => t.href)); // the temperatures tab waits for a unit (not offered here)
   expect(ids(visibleTabs(MULTIMEDIA_TABS, true, ALL))).toEqual(['screens', 'players', 'groups']);
   applyTicketsHidden({ 'tickets.enabled': 'true' });
-  expect(ids(visibleTabs(TICKETS_TABS, true, ALL))).toEqual(ids(TICKETS_TABS).filter((id) => id !== 'external')); // external access sits under access control by default
+  expect(ids(visibleTabs(TICKETS_TABS, true, ALL))).toEqual(ids(TICKETS_TABS).filter((id) => id !== 'external' && id !== 'maintenance')); // external access sits under access control by default; CR-MAINT215: the maintenance section waits for its module
   expect(visibleAreas(true, ALL).find((a) => a.id === 'infra')?.href).toBe(INFRA_METERS_HREF);
   expect(tabStyleOf('infra')).toBe('pill');
   expect(tabStyleOf('multimedia')).toBe('pill');
