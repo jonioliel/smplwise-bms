@@ -9,6 +9,7 @@ import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import './messaging-pacing-card';
+import './messaging-policy-card';
 import { ApiError, describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
 import { messagingAccountsApi, type PacingKey, type QueuedMove, type WaAccount, type WaUse, type WaWarning, type WhatsappView } from '../api/messaging-accounts';
@@ -573,7 +574,7 @@ export class SystemMessagingAccounts extends LitElement {
       ${this.ok ? html`<div class="msg ok" role="status" data-ok>${this.ok}</div>` : nothing}
       <div class="cols">
         <div class="col">${this.accountsCard()}${this.channelsCard()}</div>
-        <div class="col">${this.selectedCard()}<messaging-pacing-card .labels=${Object.fromEntries(this.view.accounts.map((a) => [a.key, a.label]))}></messaging-pacing-card></div>
+        <div class="col">${this.selectedCard()}<messaging-pacing-card .labels=${Object.fromEntries(this.view.accounts.map((a) => [a.key, a.label]))}></messaging-pacing-card><messaging-policy-card></messaging-policy-card></div>
       </div>
       ${this.editable ? html`<div class="savebar" data-savebar>
         <span class=${dirty ? 'dirty' : 'muted'}>${dirty ? wt('dirty') : ''}</span><span class="grow"></span>

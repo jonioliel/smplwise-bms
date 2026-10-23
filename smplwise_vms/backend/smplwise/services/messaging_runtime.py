@@ -256,6 +256,12 @@ def janitor(db: Any, now: dt.datetime | None = None) -> int:
     _janitor_at = now
     with db.connection(label="messaging.janitor") as conn:
         n = ma.SqliteSendLedger(conn).prune(now - ma.LEDGER_KEEP)
+        try:
+            from . import wa_policy
+
+            wa_policy.expire_window(conn, now)  # WAPACE-295: a self-messages test window past its end switches itself off (audit row)
+        except Exception:  # noqa: BLE001 - never stops the ledger prune
+            log.warning("wa policy window sweep failed")
     if n:
         log.info("messaging ledger pruned rows=%d", n)
     return n

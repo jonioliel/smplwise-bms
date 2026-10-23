@@ -36,7 +36,7 @@ from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require
 from ..services import ha_client
 from ..services import messaging_accounts as ma
 from ..services import messaging_runtime as mr
-from ..services import wa_pacing
+from ..services import wa_pacing, wa_policy
 from ..services.tickets.channel import phone_digits
 
 router = APIRouter()
@@ -262,6 +262,102 @@ def put_pacing(body: PacingModeBody, request: Request, principal: Principal = De
                                              "senders_accounts": sorted(new.senders),
                                              "max_wait_changed": sorted(k for k in wa_pacing.CLASSES if current.max_wait_min.get(k) != new.max_wait_min.get(k))})
     return _pacing_view(conn, True)
+
+
+# ---------------------------------------------------------------- WAPACE-295: the recipient allow-list and the self-messages test window
+
+class PolicyBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enforce: bool
+
+
+class AllowBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    phone: str = Field(max_length=40)
+    label: str = Field(max_length=200)
+    role: str = Field(default="other", max_length=16)
+
+
+class SelfWindowBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    minutes: int | None = None  # None = switch off now
+
+
+def _policy_view(conn: sqlite3.Connection, can_manage: bool) -> dict[str, Any]:
+    return wa_policy.view(wa_policy.load(conn), dt.datetime.now(dt.timezone.utc), can_manage)
+
+
+def _policy_audit(conn: sqlite3.Connection, principal: Principal, request: Request, what: str, **details: Any) -> None:
+    audit(conn, actor=principal, action="messaging.whatsapp.policy", decision="allowed", resource_type="installation", resource_id=wa_policy.SETTING_KEY,
+          request_id=_rid(request), details={"change": what, **details})
+
+
+@router.get("/messaging/whatsapp/policy")
+def get_policy(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The recipient allow-list (labels, roles, last four digits - never a number) and the self-messages test window."""
+    return _policy_view(conn, _reader(conn, principal))
+
+
+@router.put("/messaging/whatsapp/policy")
+def put_policy(body: PolicyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, MANAGE, INSTALLATION)
+    current = wa_policy.load(conn)
+    wa_policy.store(conn, wa_policy.with_enforce(current, body.enforce))
+    _policy_audit(conn, principal, request, "enforce", before=current.enforce, after=body.enforce, entries=len(current.allow))
+    return _policy_view(conn, True)
+
+
+@router.post("/messaging/whatsapp/policy/allow")
+def add_allowed(body: AllowBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Add one handler / provider by number. Only the keyed hash, the label, the role and the last four digits are stored."""
+    require(conn, principal, MANAGE, INSTALLATION)
+    digits = phone_digits(body.phone)
+    if digits is None:
+        raise _problems([{"code": "target_invalid", "field": "phone"}])
+    from pathlib import Path
+
+    from ..db import database_of
+
+    db = database_of(conn)
+    key = mr.messaging_key(Path(db.path).parent) if db is not None else None
+    if key is None:
+        raise ApiError(503, "messaging_key_unavailable", "מפתח ההודעות אינו זמין.")
+    current = wa_policy.load(conn)
+    new, problems = wa_policy.with_entry(current, key=mr.recipient_key(key, digits), digits=digits, label=body.label, role=body.role)
+    if problems:
+        raise _problems(problems)
+    wa_policy.store(conn, new)
+    _policy_audit(conn, principal, request, "allow_add", role=body.role, entries=len(new.allow))
+    return _policy_view(conn, True)
+
+
+@router.delete("/messaging/whatsapp/policy/allow/{entry_id}")
+def remove_allowed(entry_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, MANAGE, INSTALLATION)
+    current = wa_policy.load(conn)
+    new, problems = wa_policy.without_entry(current, entry_id[:40])
+    if problems:
+        raise ApiError(404, "not_found", "הרשומה לא נמצאה.")
+    wa_policy.store(conn, new)
+    _policy_audit(conn, principal, request, "allow_remove", entries=len(new.allow))
+    return _policy_view(conn, True)
+
+
+@router.put("/messaging/whatsapp/policy/self-messages")
+def put_self_window(body: SelfWindowBody, request: Request, principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Open (or restart) a timed self-messages test window of `minutes` (1-240), or switch it off with `minutes: null`. It ends by itself."""
+    require(conn, principal, MANAGE, INSTALLATION)
+    now = dt.datetime.now(dt.timezone.utc)
+    wa_policy.expire_window(conn, now)
+    current = wa_policy.load(conn)
+    new, problems = wa_policy.with_self_window(current, body.minutes, now)
+    if problems:
+        raise _problems(problems)
+    wa_policy.store(conn, new)
+    audit(conn, actor=principal, action="messaging.whatsapp.self_messages", decision="allowed", resource_type="installation", resource_id=wa_policy.SETTING_KEY,
+          request_id=_rid(request), details={"state": "on" if body.minutes is not None else "off", "minutes": body.minutes})
+    return _policy_view(conn, True)
 
 
 # the reservation port: WisKey asks for one send of its own, atomically against the same budget (docs/changes/CR-WA-PACING-295.md section 4)

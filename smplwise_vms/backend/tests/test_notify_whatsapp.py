@@ -734,19 +734,19 @@ def _seed_ledger(w, use: str, n: int, minutes_ago: int = 10) -> None:
 
 def test_notifications_stop_at_their_share_and_leave_the_rest_to_tickets(w):
     w.ready()
-    _seed_ledger(w, wa.USE_KEY, 150, minutes_ago=55)  # 50 % of the default 300 / hour already used by notifications; a slot frees in ~5 min
+    _seed_ledger(w, wa.USE_KEY, 50, minutes_ago=55)  # 50 % of the default 100 / hour (owner 2026-10-24) already used by notifications; a slot frees in ~5 min
     nid = w.emit(severity="alert")
     w.outbox()
     assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("retry", "budget")]  # held (within the 10-minute hold)
     assert w.fake.calls == []
-    crit = w.emit(severity="critical")  # critical may use up to 80 % (240 / hour)
+    crit = w.emit(severity="critical")  # critical may use up to 80 % (80 / hour)
     w.outbox()
     assert [r["status"] for r in w.rows(crit)] == ["sent"]
 
 
 def test_ticket_sends_do_not_count_against_the_notifications_share(w):
     w.ready()
-    _seed_ledger(w, "tickets.messages", 200)  # tickets used 200 of 300: notifications still have their own share
+    _seed_ledger(w, "tickets.messages", 70)  # tickets used 70 of 100: notifications still have their own share
     nid = w.emit(severity="alert")
     w.outbox()
     assert [r["status"] for r in w.rows(nid)] == ["sent"]
@@ -754,7 +754,7 @@ def test_ticket_sends_do_not_count_against_the_notifications_share(w):
 
 def test_the_share_is_configurable(w):
     w.ready(budget_pct=90, budget_critical_pct=90)
-    _seed_ledger(w, wa.USE_KEY, 150)
+    _seed_ledger(w, wa.USE_KEY, 50)
     nid = w.emit(severity="alert")
     w.outbox()
     assert [r["status"] for r in w.rows(nid)] == ["sent"]
@@ -762,7 +762,7 @@ def test_the_share_is_configurable(w):
 
 def test_budget_hold_past_the_ceiling_is_rate_limited(w, monkeypatch):
     w.ready()
-    _seed_ledger(w, wa.USE_KEY, 150)
+    _seed_ledger(w, wa.USE_KEY, 50)
     monkeypatch.setattr(wa, "MAX_HOLD_S", 0.0)
     nid = w.emit(severity="alert")
     w.outbox()

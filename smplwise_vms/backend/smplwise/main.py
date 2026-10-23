@@ -662,6 +662,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import announce_channel  # noqa: F401  (registers the `announce` notification channel)
 
     announcements_svc.attach(app.state.db, settings)  # a rule's announce action writes its log through this
+    from .services import wa_policy as wa_policy_svc
+    from .services.tickets import channel_whatsapp as _wa_channel
+
+    _wa_channel.set_recipient_guard(wa_policy_svc.make_guard(app.state.db))  # WAPACE-295: the WhatsApp recipient allow-list, for every sender
     from .routers import tickets as tickets_router, tickets_admin as tickets_admin_router  # CR-038 S1: the optional tickets module (its own lines)
 
     app.include_router(tickets_router.open_router, prefix=api, tags=["tickets"])  # GET /tickets/module: the only route that answers while the module is off

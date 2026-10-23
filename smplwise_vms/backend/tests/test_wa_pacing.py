@@ -20,7 +20,7 @@ from smplwise.services.tickets import channel_whatsapp as cw
 from smplwise.services.tickets.channel import NOT_SENT, REFUSED, SENT
 
 UTC = dt.timezone.utc
-P = ma.Pacing()  # 300 an hour, 1500 a day
+P = ma.Pacing()  # 100 an hour, 600 a day (owner 2026-10-24)
 NOW = dt.datetime(2026, 10, 21, 9, 0, 0, tzinfo=UTC)
 REF = "wk-sender-1"
 
@@ -80,7 +80,7 @@ def test_class_of():
 
 def test_the_owner_numbers_are_the_defaults_and_settings():
     assert wp.PROFILES["conservative"] == wp.Budget(per_minute=10, burst=5, burst_window_s=10)
-    assert (ma.Pacing().per_hour, ma.Pacing().per_day) == (300, 1500)
+    assert (ma.Pacing().per_hour, ma.Pacing().per_day) == (100, 600)
     assert ma.Pacing().min_gap_s * 10 <= 60, "the legacy gap must not be the binding limit at 10 a minute"
     cfg = wp.parse_config({"per_minute": 15, "burst": 7})
     assert cfg.budget() == wp.Budget(15, 7, 10)
@@ -141,11 +141,11 @@ def test_burst_window():
 
 def test_hour_and_day_shares_use_the_accounts_own_pacing():
     p, ledger, _ = pacer("standard")
-    for i in range(180):  # 300 an hour * 60% = 180 for a reminder; spread out so the minute cap never binds
+    for i in range(60):  # 100 an hour * 60% = 60 for a reminder; spread out so the minute cap never binds
         send(ledger, 100 + i * 19)
     d = check(p, wp.CLASS_REMINDER)
     assert not d.allowed and d.reason == "hour"
-    assert check(p, wp.CLASS_TICKET).allowed  # 80% = 240
+    assert check(p, wp.CLASS_TICKET).allowed  # 80% = 80
 
 
 def test_wiskey_sends_in_arxs_record_spend_the_same_budget():
