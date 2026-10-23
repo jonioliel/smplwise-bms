@@ -2,7 +2,12 @@
 
 Status: PROPOSED (change record + mockup, board item r101). No product code, no migration, no live-system access.
 Branch `pilot/TIMESCRUB101-295` from `main` @ 320e55551 (v2.12.4). Mockup: `docs/design/mockups/timescrub-101/index.html`
-(a copy for review at `private/review/timescrub-101-mockup.html`, screenshots under `private/review/timescrub-101/`).
+(v2 after the owner's feedback of 2026-10-24; a copy for review at `private/review/timescrub-101-mockup-v2.html`, screenshots and
+the viewport assertions under `private/review/timescrub-101-v2/`).
+
+**Owner feedback 2026-10-24 (v1 not approved):** "the page scrolls so you cannot reach the bottom to get the timeline - that makes no
+sense; redesign the screen WITHOUT bottom scrolling". Section 3.1 is the resulting layout rule; the content and the states of v1
+are kept unchanged.
 
 ## 1. Goal
 
@@ -61,6 +66,25 @@ history began (`ha_history.coverage().from`), or while Arx was down (`device_act
   here" (as today) and NEW "play all cameras of the floor from here" -> the synchronized playback screen
   (`#/investigate/playback/sync?t=`) with the floor's cameras preselected.
 - Default OFF (section 8). With the flag off the screen is exactly today's historical map.
+
+### 3.1 Layout rule (owner 2026-10-24): the page never scrolls, the timeline is always on screen
+- The screen is a fixed-height column inside the shell (`100dvh` minus the rail / bottom bar): tab row, compact head (title, time,
+  actions in one row), the blue status bar (one line, ellipsis), the plan + panel area, and the **timeline bar pinned to the bottom
+  of the viewport**. `document` scroll stays at 0 on every viewport; nothing is reached by scrolling the page.
+- The plan canvas takes all the height left between the head and the timeline (`flex: 1`, `min-height: 0`); the plan is fitted
+  inside it (never mirrored, never cropped). The side panel (layers, "at the instant", events) is the only scrolling region, with
+  internal scroll (`overflow-y: auto`, `overscroll-behavior: contain`).
+- The timeline bar: one control row (badge, time, play / speed in playback mode, step chips, window, date) that never wraps - on
+  tablets the hour steps, the date and the key hints move to the "..." menu; then the track (lanes + axis). The axis labels and the
+  cursor bubble are drawn counter-scaled so the glyphs keep their shape when the track is narrow.
+- Tablet (`<= 1023`): the two columns stay (panel 272 px, scrolling) so nothing drops below the timeline.
+- Phone (`<= 767`): the layer chips row above the plan, the plan fills the middle, the timeline bar sits above the bottom bar
+  (thinner lanes, a shorter axis, labels every 6 h); the detail cards open as a **sheet over the plan** ("פרטים" in the head, close
+  button in the sheet), with internal scroll only.
+- Minimum viewport check (mockup, headless Chromium, document scroll forced then read back): 1366x768, 1024x768, 375x812 and 375x667,
+  light and dark, all states - the timeline's bottom edge is inside the viewport with `scrollTop === 0` and
+  `scrollHeight <= innerHeight`; the plan keeps >= 246 px of height on the smallest phone. The product build repeats this check in
+  the Playwright suite (section 10.4).
 
 ## 4. Query model
 
@@ -207,7 +231,9 @@ p95, range for 1 h / 6 h / day / 7 days, with the numbers recorded in the task c
 default; locked layer draws nothing; the five states (no history, loading, error, layer not permitted, gap); cursor
 during a gap hatches the band and the panel says "פער בהקלטה"; playback speed changes; "play all cameras" lands on the
 sync screen with the floor's cameras and `t`; keyboard: space = play / pause, arrows = step; `prefers-reduced-motion`
-stops the playback animation of tints (states still change).
+stops the playback animation of tints (states still change). Layout (section 3.1): at 1366x768, 1024x768, 375x812 and 375x667,
+after a wheel scroll the document `scrollTop` is 0, `scrollHeight <= innerHeight`, and the timeline bar's bounding box is inside
+the viewport (above the phone bottom bar) in every state and both schemes; the phone details sheet scrolls internally only.
 
 10.5 Visual evidence: desktop / tablet / phone x light / dark, RTL; video and map geometry never mirrored.
 

@@ -20,7 +20,14 @@
   What is new on the screen (CR section 3): a layer legend with coverage + permission per layer, a playback bar (play / pause /
   speed / window), per-layer density lanes and gap hatching on the timeline, room tints (lit / presence / temperature) replayed on the
   plan, elevator state (position honestly "לא מוקלט"), "play all cameras from here".
-  URL switches: ?theme=dark  ?state=ready|nohistory|loading|error|gap  ?role=full|view  ?mode=snapshot|play  ?sticky=off (full-page captures)
+
+  v2 (owner feedback 2026-10-24: "the page scrolls so you cannot reach the timeline - redesign WITHOUT bottom scrolling"):
+  the screen is a fixed-height column - the page NEVER scrolls. The timeline / scrubber is a bar pinned to the bottom of the viewport
+  (desktop and phone, above the phone's bottom bar); the plan canvas fills whatever height is left; only the side panel scrolls
+  internally. The head and the status bar are compact. Phone: the layer chips stay above the plan, the detail cards ("בנקודת הזמן",
+  "אירועים") open as a sheet over the plan ("פרטים"). Verified at 1366x768, 1024x768, 375x812 and 375x667: the timeline is inside the
+  viewport with the document scroll at 0.
+  URL switches: ?theme=dark  ?state=ready|nohistory|loading|error|gap  ?role=full|view  ?mode=snapshot|play  ?drawer=open (phone sheet)
 -->
 <style>
 /* ===== the product token table (frontend/src/design/tokens.ts, classic skin) ===== */
@@ -86,7 +93,9 @@
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
-body { min-height: 100dvh; }
+/* v2: the page is a fixed-height column and never scrolls (the owner's rule); the timeline bar is always inside the viewport */
+html { block-size: 100%; overflow: hidden; }
+body { block-size: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 .ltr, .num { direction: ltr; unicode-bidi: isolate; }
 .num { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--sw-font-mono); }
@@ -95,7 +104,8 @@ body { min-height: 100dvh; }
 svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
 /* ===== mockup-only controls (not part of the product) ===== */
-.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; flex: none; min-block-size: 40px; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock > * { flex: none; }
 .mock b { margin-inline-end: 6px; }
 .mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
 .mock select option { color: #1e2e47; }
@@ -103,7 +113,7 @@ svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; st
 .mock .sp { flex: 1; }
 
 /* ===== the shell (shell/sw-app.ts): the rail at the inline start, the content column, the floating corner pill ===== */
-.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: 'rail main'; flex: 1; min-block-size: 0; position: relative; overflow: hidden; }
 nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
 .brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
 nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
@@ -118,8 +128,8 @@ nav.rail .grow { flex: 1; }
 .float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
 .float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
 .float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
-main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
-.subnav { padding: 12px 24px 0; display: flex; }
+main { grid-area: main; min-inline-size: 0; min-block-size: 0; display: flex; flex-direction: column; overflow: hidden; }
+.subnav { padding: 10px 24px 0; display: flex; flex: none; }
 .tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; padding-inline: 3px; }
@@ -132,10 +142,12 @@ main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: colum
 nav.bottom { display: none; }
 
 /* ===== the screen: the historical map's own head / bar / layout / stage / panel / timeline (investigate-history-map.ts) ===== */
-.screen { display: flex; flex-direction: column; min-inline-size: 0; flex: 1; }
-.head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 24px 12px; }
-.head h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-.head .sub { font-size: var(--sw-fs-sm); color: var(--sw-text-3); margin-block-start: 2px; }
+.screen { display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; flex: 1; }
+/* compact head (v2): one row, the title + the time under it, the actions at the end */
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 24px 6px; flex: none; }
+.head h1 { margin: 0; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); line-height: 1.25; }
+.head .sub { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-block-start: 0; }
+.head .acts-h { display: flex; gap: 6px; align-items: center; }
 .grow { flex: 1; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 6px 13px; min-block-size: 30px; border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
 .btn:hover { border-color: var(--sw-border-strong); }
@@ -148,7 +160,8 @@ nav.bottom { display: none; }
 .btn.icon { inline-size: 34px; padding: 0; }
 .sel { font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 30px; padding: 0 10px; }
 /* the blue status bar of the history screen (.bar: --sw-recorded-soft with a #cddcff hairline) */
-.bar { display: flex; align-items: center; gap: 10px; margin: 0 24px 10px; padding: 8px 12px; background: var(--sw-recorded-soft); border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent); border-radius: var(--sw-r-md); font-size: var(--sw-fs-sm); flex-wrap: wrap; }
+.bar { display: flex; align-items: center; gap: 10px; margin: 0 24px 8px; padding: 5px 12px; background: var(--sw-recorded-soft); border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent); border-radius: var(--sw-r-md); font-size: var(--sw-fs-sm); flex-wrap: nowrap; flex: none; min-block-size: 34px; }
+.bar > span:not(.chip) { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar .time { font-family: var(--sw-font-mono); direction: ltr; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text); }
 .bar .note { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
 .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 2px 10px; white-space: nowrap; background: var(--c, var(--sw-recorded)); color: var(--sw-text-inverse); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); line-height: 1.5; }
@@ -156,8 +169,9 @@ nav.bottom { display: none; }
 .chip[data-look] { background: var(--c-soft); color: var(--c-text); }
 button.chip { cursor: pointer; font: inherit; font-size: var(--sw-fs-xs); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); }
 button.chip:hover { border-color: var(--sw-border-strong); }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin: 0 24px 12px; align-items: start; }
-.stage { position: relative; block-size: 540px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-map-bg); box-shadow: var(--sw-shadow-1); overflow: hidden; }
+/* v2: the layout takes ALL the height left between the head and the pinned timeline; the plan canvas stretches, the panel scrolls inside */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); gap: 12px; margin: 0 24px 10px; align-items: stretch; flex: 1; min-block-size: 0; position: relative; }
+.stage { position: relative; block-size: auto; min-block-size: 0; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-map-bg); box-shadow: var(--sw-shadow-1); overflow: hidden; }
 .stage > svg.plan { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; direction: ltr; }
 .chipf { position: absolute; inset-inline-start: 12px; inset-block-start: 12px; z-index: var(--sw-z-map-ui); background: var(--sw-menu-surface); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 5px 10px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); display: inline-flex; gap: 6px; align-items: center; }
 .hist { position: absolute; inset-inline-end: 12px; inset-block-start: 12px; z-index: var(--sw-z-map-ui); background: var(--sw-menu-surface); border: 1px solid var(--sw-purple); color: var(--sw-text); border-radius: var(--sw-r-md); padding: 3px 9px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
@@ -178,7 +192,9 @@ button.chip:hover { border-color: var(--sw-border-strong); }
 .gapbar { position: absolute; inset-inline: 12px; inset-block-end: 48px; z-index: var(--sw-z-map-ui); display: none; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--sw-r-md); background: var(--sw-warning-soft); border: 1px solid color-mix(in srgb, var(--sw-warning) 45%, transparent); color: var(--sw-warning-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
 body[data-st="gap"] .gapbar { display: flex; }
 /* the side panel: sw-card look (heading + subheading), dl rows, event rows (.evl) */
-.panel { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
+.panel { display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-inline-end: 2px; }
+.panel .details { display: contents; }
+.panel .sheet-hd { display: none; }
 .card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 12px 14px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
 .card h2 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
 .card .sh { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-block-end: 8px; }
@@ -213,8 +229,10 @@ dd { margin: 0; font-weight: var(--sw-fw-medium); min-inline-size: 0; overflow-w
 .lyr .st { font-size: var(--sw-fs-xs); white-space: nowrap; }
 .lyr .st svg { font-size: 13px; vertical-align: -2px; }
 /* the timeline block (.tl) and the playback bar (NEW) */
-.tl { margin: 0 24px 24px; }
-.tlbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-block-end: 8px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+/* v2: the timeline is a bar pinned to the bottom of the viewport - always visible, never scrolled to; sticky is belt-and-braces */
+.tl { flex: none; position: sticky; inset-block-end: 0; z-index: var(--sw-z-map-ui); margin: 0; padding: 6px 24px 10px; background: var(--sw-bg); border-block-start: 1px solid var(--sw-border); }
+.tlbar { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; margin-block-end: 6px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-block-size: 36px; }
+.tlbar > * { flex: none; }
 .tlbar .time { font-family: var(--sw-font-mono); direction: ltr; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text); font-size: var(--sw-fs-md); }
 .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); }
 .seg button { padding: 3px 10px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-xs); white-space: nowrap; border: 0; background: transparent; min-block-size: 24px; }
@@ -222,7 +240,7 @@ dd { margin: 0; font-weight: var(--sw-fw-medium); min-inline-size: 0; overflow-w
 .play { display: inline-grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; border: 0; background: var(--sw-accent); color: var(--sw-text-inverse); cursor: pointer; box-shadow: var(--sw-shadow-primary); font: inherit; }
 .play:hover { background: var(--sw-accent-hover); }
 .play svg { font-size: 18px; }
-.track { position: relative; direction: ltr; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 8px 10px 4px; }
+.track { position: relative; direction: ltr; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 6px 10px 2px; }
 .track svg { display: block; inline-size: 100%; block-size: auto; }
 .lanes { display: grid; grid-template-columns: 92px 1fr; gap: 0 8px; align-items: stretch; }
 .lanes .ln { font-size: var(--sw-fs-2xs); color: var(--sw-text-3); display: flex; align-items: center; gap: 5px; min-block-size: 14px; direction: rtl; justify-content: flex-start; }
@@ -239,49 +257,72 @@ body[data-mode="play"] .only-snap { display: none !important; }
 .toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: 60; box-shadow: var(--sw-shadow-2); display: none; font-size: var(--sw-fs-sm); }
 .toast.on { display: block; }
 
-/* ===== tablet (<= 1023): rail icons only, the panel moves under the stage ===== */
+/* the phone-only "details" button and the sheet close button */
+.btn.details-btn, .sheet-hd { display: none; }
+/* ===== tablet (<= 1023): rail icons only; the two columns stay (the panel narrows and scrolls) so nothing drops below the timeline ===== */
 @media (max-width: 1023px) {
   nav.rail a span { display: none; }
   nav.rail a { min-block-size: 44px; }
-  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
-  .layout { grid-template-columns: minmax(0, 1fr); }
-  .panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .stage { block-size: 460px; }
+  .subnav { padding: 8px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .head, .bar, .layout { margin-inline: 16px; }
+  .head { padding-inline: 0; }
+  .tl { padding-inline: 16px; }
+  .layout { grid-template-columns: minmax(0, 1fr) 272px; gap: 10px; }
+  /* one row stays one row: the hour steps, the date and the key hints go to the "..." of the real screen */
+  .tlbar .note, .tlbar .dateq, .tlbar [data-step="-60"], .tlbar [data-step="60"] { display: none; }
 }
-/* ===== phone (<= 767): no rail, the bottom bar; the stage keeps its aspect, the legend becomes a chip row, the timeline sticks above the bar ===== */
+/* ===== phone (<= 767): no rail, the bottom bar; the plan fills the height between the layer chips and the pinned timeline; the detail
+   cards open as a sheet over the plan ("פרטים"); the page never scrolls ===== */
 @media (max-width: 767px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
   nav.rail { display: none; }
-  .float { inset-inline-end: 12px; }
-  .subnav { padding: 8px 12px 0; }
-  .head, .bar, .tl { margin-inline: 12px; }
-  .head { padding: 12px 0 8px; }
-  .head .acts-h { display: flex; gap: 6px; flex-wrap: wrap; inline-size: 100%; }
-  .head .acts-h .btn { min-block-size: 40px; flex: 1; }
-  .layout { margin-inline: 0; gap: 10px; }
-  .stage { block-size: auto; aspect-ratio: 4 / 3; border-radius: 0; border-inline: 0; }
+  .float { inset-inline-end: 12px; inset-block-start: 6px; }
+  .subnav { padding: 6px 80px 0 12px; }
+  .head { margin-inline: 0; padding: 6px 12px 4px; flex-wrap: nowrap; gap: 8px; }
+  .head h1 { font-size: var(--sw-fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head > div:first-child { min-inline-size: 0; }
+  .head .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head .acts-h { flex: none; gap: 4px; }
+  .head .acts-h .sel { display: none; }
+  .head .acts-h .btn { min-block-size: 34px; inline-size: 34px; padding: 0; }
+  .head .acts-h .btn span { display: none; }
+  .head .acts-h .btn.details-btn { display: inline-flex; }
+  .bar { display: none; }
+  .layout { margin: 0; gap: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .stage { order: 2; border-radius: 0; border-inline: 0; }
   .legend { display: none; }
   .hist { inset-inline-end: 8px; inset-block-start: 8px; }
   .chipf { inset-inline-start: 8px; inset-block-start: 8px; }
-  .panel { display: flex; padding-inline: 12px; }
+  .gapbar { inset-block-end: 10px; }
+  .panel { order: 1; overflow: visible; padding: 0 12px 6px; gap: 0; }
   .layers { flex-direction: row; overflow-x: auto; scrollbar-width: none; gap: 6px; padding-block-end: 2px; }
-  .lyr { grid-template-columns: auto auto; flex: none; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 10px 4px 6px; min-block-size: 36px; }
+  #layers-card { padding: 0; border: 0; background: transparent; box-shadow: none; }
+  #layers-card .hd { display: none; }
+  .lyr { grid-template-columns: auto auto; flex: none; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 3px 10px 3px 6px; min-block-size: 34px; background: var(--sw-surface); }
   .lyr .nm .cov { display: none; }
   .lyr .st { display: none; }
   .lyr .sw { inline-size: 26px; block-size: 16px; }
   .lyr .sw::after { inline-size: 12px; block-size: 12px; }
   .lyr .sw[aria-checked="true"]::after { transform: translateX(-10px); }
-  /* the timeline is a sheet stuck above the bottom bar (the playback screen's rule); body[data-sticky="off"] is a capture switch for full-page screenshots only */
-  .tl { position: sticky; inset-block-end: 0; z-index: var(--sw-z-map-ui); margin: 0; padding: 8px 12px 10px; background: var(--sw-bg); border-block-start: 1px solid var(--sw-border); }
-  body[data-sticky="off"] .tl, body[data-sticky="off"] nav.bottom { position: static; }
-  .tlbar { gap: 6px; }
-  /* the phone playback bar is one row: the hour steps, the window picker, the date and the key hints move to the "..." of the real screen */
+  /* the detail cards: a sheet over the plan, internal scroll only */
+  .panel .details { display: none; position: absolute; inset: 0; z-index: 8; background: var(--sw-bg); overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px 12px; flex-direction: column; gap: 10px; }
+  body[data-drawer="open"] .panel .details { display: flex; }
+  .panel .sheet-hd { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+  .panel .sheet-hd .grow { flex: 1; }
+  /* the pinned timeline: one compact control row, thinner lanes, a shorter axis */
+  .tl { padding: 6px 12px 8px; }
+  .tlbar { gap: 6px; min-block-size: 40px; margin-block-end: 4px; }
   .tlbar .dateq, .tlbar .note, .tlbar [data-step="-60"], .tlbar [data-step="60"], #win { display: none; }
+  .tlbar .time { font-size: var(--sw-fs-sm); }
   .mock > span:last-child { display: none; }
-  .lanes { grid-template-columns: 64px 1fr; }
+  .lanes { grid-template-columns: 58px 1fr; }
+  .lanes .ln { min-block-size: 11px; }
+  .lanes svg { block-size: 8px !important; }
+  #lane-cams { block-size: 12px !important; }
+  #axis { block-size: 26px !important; }
   .btn { min-block-size: 36px; }
-  .play { inline-size: 44px; block-size: 44px; }
-  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); position: sticky; inset-block-end: 0; z-index: 6; }
+  .play { inline-size: 40px; block-size: 40px; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); z-index: 6; }
   nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
   nav.bottom a svg { font-size: 22px; }
   nav.bottom a.active { color: var(--sw-accent-text); }
@@ -353,9 +394,11 @@ body[data-mode="play"] .only-snap { display: none !important; }
         <span class="grow"></span>
         <div class="acts-h">
           <select class="sel" aria-label="קומה"><option>מבנה א · קומה 2</option><option>מבנה א · קומה 1</option><option>מבנה א · קרקע</option></select>
-          <button class="btn" aria-pressed="true" title="הסתר את תמונת התוכנית"><svg class="ic"><use href="#i-map"/></svg>תמונת התוכנית</button>
-          <button class="btn" title="מקש 3"><svg class="ic"><use href="#i-cube"/></svg>3D</button>
-          <a class="btn" href="#"><svg class="ic"><use href="#i-live"/></svg>חזרה למצב חי</a>
+          <button class="btn" aria-pressed="true" title="הסתר את תמונת התוכנית"><svg class="ic"><use href="#i-map"/></svg><span>תמונת התוכנית</span></button>
+          <button class="btn" title="מקש 3"><svg class="ic"><use href="#i-cube"/></svg><span>3D</span></button>
+          <a class="btn" href="#" title="חזרה למצב חי"><svg class="ic"><use href="#i-live"/></svg><span>חזרה למצב חי</span></a>
+          <!-- phone only: opens the detail cards as a sheet over the plan -->
+          <button class="btn details-btn" id="details-btn" title="פרטים" aria-label="פרטים" aria-expanded="false"><svg class="ic"><use href="#i-inbox"/></svg></button>
         </div>
       </div>
       <div class="bar">
@@ -464,6 +507,9 @@ body[data-mode="play"] .only-snap { display: none !important; }
             </div>
           </div>
 
+          <!-- desktop: the cards continue the column (display: contents); phone: a sheet over the plan, internal scroll -->
+          <div class="details" id="details">
+          <div class="sheet-hd"><span>פרטים</span><span class="grow"></span><button class="btn sm" id="details-close" type="button">סגירה</button></div>
           <div class="card" id="at-card">
             <h2>בנקודת הזמן שנבחרה</h2><div class="sh">זמן ונתונים מאותו רגע</div>
             <dl>
@@ -491,6 +537,7 @@ body[data-mode="play"] .only-snap { display: none !important; }
               <a href="#"><span>אדם · לובי<div class="s">נגזר מהקלטה</div></span><span class="ltr mono">14:27:12</span></a>
               <a href="#"><span>כניסה אושרה · דלת ראשית<div class="s">מערכת הדלתות · ייתכן חלקי</div></span><span class="ltr mono">14:26:40</span></a>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -548,7 +595,11 @@ body[data-mode="play"] .only-snap { display: none !important; }
   body.dataset.st = q.get('state') || 'ready';
   body.dataset.role = q.get('role') || 'full';
   body.dataset.mode = q.get('mode') || 'snapshot';
-  if (q.get('sticky') === 'off') body.dataset.sticky = 'off';
+  if (q.get('drawer') === 'open') body.dataset.drawer = 'open';
+  // the phone sheet with the detail cards
+  const setDrawer = (on) => { if (on) body.dataset.drawer = 'open'; else delete body.dataset.drawer; $('#details-btn').setAttribute('aria-expanded', String(on)); };
+  $('#details-btn').addEventListener('click', () => setDrawer(body.dataset.drawer !== 'open'));
+  $('#details-close').addEventListener('click', () => setDrawer(false));
   $('#stsel').value = body.dataset.st; $('#role').value = body.dataset.role; $('#modesel').value = body.dataset.mode;
   $('#th').setAttribute('aria-pressed', String(document.documentElement.dataset.theme === 'dark'));
   $('#stsel').addEventListener('change', (e) => { body.dataset.st = e.target.value; render(); });
@@ -663,18 +714,22 @@ body[data-mode="play"] .only-snap { display: none !important; }
     const changes = (obj) => { let s2 = hatchDef; Object.values(obj).forEach((cp) => cp.forEach(([t, v], i) => { if (i === 0) return; s2 += rect(t, 2, v === 1 ? 0 : 5, v === 1 ? 10 : 5, v === 1 ? 'var(--c, var(--sw-accent))' : 'var(--sw-text-3)', 'opacity=".9"'); })); return s2 + gapHatch; };
     $('#lane-lights').innerHTML = `<g style="--c:var(--sw-map-lit)">${changes(lights)}</g>`;
     $('#lane-doors').innerHTML = `<g style="--c:var(--sw-tl-door)">${changes(doors)}</g>`;
-    $('#lane-pres').innerHTML = hatchDef + (layerOn('presence') && devAllowed() ? `<g style="--c:var(--sw-map-presence)">${changes(pres)}</g>` : rect(0, 1440, 3, 4, 'var(--sw-unknown-soft)') + `<text x="720" y="8" text-anchor="middle" font-size="7" fill="var(--sw-unknown-text)" font-family="var(--sw-font)" direction="rtl">לא מורשה</text>`);
+    const psx = Math.max($('#lane-pres').clientWidth, 1) / 1440;
+    $('#lane-pres').innerHTML = hatchDef + (layerOn('presence') && devAllowed() ? `<g style="--c:var(--sw-map-presence)">${changes(pres)}</g>` : rect(0, 1440, 3, 4, 'var(--sw-unknown-soft)') + `<g transform="translate(720 8) scale(${1 / psx} 1)"><text x="0" y="0" text-anchor="middle" font-size="7" fill="var(--sw-unknown-text)" font-family="var(--sw-font)" direction="rtl">לא מורשה</text></g>`);
     let al = hatchDef; alarm.forEach(([t, v], i) => { const next = alarm[i + 1] ? alarm[i + 1][0] : 1440; al += rect(t, next - t, 3, 4, v === 'disarmed' ? 'var(--sw-offline)' : v === 'armed_away' ? 'var(--sw-danger)' : 'var(--sw-success)', 'opacity=".75"'); }); $('#lane-alarm').innerHTML = al + gapHatch;
     let el = hatchDef; elev.forEach(([t, v], i) => { const next = elev[i + 1] ? elev[i + 1][0] : 1440; el += rect(t, next - t, 3, 4, v === 'fault' ? 'var(--sw-danger)' : 'var(--sw-success)', 'opacity=".75"'); }); $('#lane-elev').innerHTML = el;
     let ev = hatchDef; events.forEach(([t, k]) => { ev += rect(t - 1, 3, 0, 10, k === 'door' ? 'var(--sw-tl-door)' : k === 'person' ? 'var(--sw-tl-person)' : 'var(--sw-tl-motion)'); }); $('#lane-ev').innerHTML = ev;
-    // axis: ticks every hour, labels every 3 h, the future greyed (today only - this is a past day, nothing greyed)
-    let ax = ''; for (let h = 0; h <= 24; h++) { const x = h * 60; ax += `<line x1="${x}" x2="${x}" y1="0" y2="${h % 3 === 0 ? 8 : 4}" stroke="var(--sw-border-strong)" stroke-width="1.5"/>`; if (h % 3 === 0 && h < 24) ax += `<text x="${x + 3}" y="22" font-size="9" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${pad(h)}:00</text>`; }
-    $('#axis').innerHTML = ax + '<g id="cur"></g>';
+    // axis: ticks every hour, labels every 3 h (every 6 h on a narrow track), the future greyed (today only - a past day here, nothing greyed).
+    // the svg is stretched horizontally (preserveAspectRatio none): text is drawn inside a counter-scaled group so the glyphs keep their shape
+    const ax0 = $('#axis'); const sx = Math.max(ax0.clientWidth, 1) / 1440; const narrow = ax0.clientWidth < 600; const every = narrow ? 6 : 3; const fs = narrow ? 8.5 : 9;
+    let ax = ''; for (let h = 0; h <= 24; h++) { const x = h * 60; ax += `<line x1="${x}" x2="${x}" y1="0" y2="${h % every === 0 ? 8 : 4}" stroke="var(--sw-border-strong)" stroke-width="1.5"/>`; if (h % every === 0 && h < 24) ax += `<g transform="translate(${x + 3} 20) scale(${1 / sx} 1)"><text x="0" y="0" font-size="${fs}" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${pad(h)}:00</text></g>`; }
+    ax0.innerHTML = ax + '<g id="cur"></g>';
   }
   function drawCursor(m) {
     const g = $('#cur'); if (!g) return;
-    const lab = hhmm(m); const w = 40; const bx = Math.min(Math.max(m - w / 2, 0), 1440 - w);
-    g.innerHTML = `<rect x="${bx}" y="0" width="${w}" height="16" rx="3" fill="var(--sw-accent)"/><text x="${bx + w / 2}" y="11.5" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" font-family="var(--sw-font-mono)">${lab}</text>`;
+    const ax0 = $('#axis'); const sx = Math.max(ax0.clientWidth, 1) / 1440; const w = 42 / sx; const lab = hhmm(m);
+    const cx = Math.min(Math.max(m, w / 2), 1440 - w / 2);
+    g.innerHTML = `<g transform="translate(${cx} 0) scale(${1 / sx} 1)"><rect x="-21" y="0" width="42" height="15" rx="3" fill="var(--sw-accent)"/><text x="0" y="11" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" font-family="var(--sw-font-mono)">${lab}</text></g>`;
     $$('.lanes svg').forEach((l) => { let c = l.querySelector('.cur-line'); if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'line'); c.setAttribute('class', 'cur-line'); c.setAttribute('stroke', 'var(--sw-accent)'); c.setAttribute('stroke-width', '2'); c.setAttribute('y1', '0'); c.setAttribute('y2', '14'); l.appendChild(c); } c.setAttribute('x1', m); c.setAttribute('x2', m); });
   }
 
@@ -694,6 +749,7 @@ body[data-mode="play"] .only-snap { display: none !important; }
   $('#role').addEventListener('change', drawLanes);
   $$('.lyr .sw').forEach((sw) => sw.addEventListener('click', drawLanes));
   drawLanes(); render();
+  let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { drawLanes(); render(); }, 80); });
 })();
 </script>
 </body>
