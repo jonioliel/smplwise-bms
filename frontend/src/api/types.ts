@@ -37,7 +37,7 @@ export interface Me {
   /** CR-038 section 6: the optional modules the shell offers - the tickets module's switch (permissions decide the rest) and its
    * display name per language (owner decision D33: every text that names the module is rendered through tickets/naming.ts). Absent on
    * an older backend (= off). */
-  modules?: { tickets: boolean; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ };
+  modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ };
 }
 
 export interface Site {

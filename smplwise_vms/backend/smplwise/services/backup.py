@@ -111,6 +111,10 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "tickets.enabled", "tickets.settings", "tickets.name", "messaging.whatsapp", "messaging.pacing",
                  # TKRULES-291: the rules that open tickets from alerts - a restore never switches a rule on or re-routes one
                  "tickets.rules",
+                 # CR-NOTICE106: the notice board's switch and whether its TV links open on the remote channel are this installation's
+                 # policy - a restore never switches the module on or opens the boards outside the LAN. The module's tables are not
+                 # project tables (the tickets precedent: TV board tokens describe this installation's screens).
+                 "notices.enabled", "notices.boards.remote",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
                  "notify.whatsapp",
                  # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on

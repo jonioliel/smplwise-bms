@@ -35,14 +35,18 @@ watchdog: http://[HOST]:[PORT:8099]/healthz
 # (null) by default and the listener runs only when the option `cast_relay` is on: nothing is reachable until the owner does both.
 # CR-038: the handler page for service tickets (people outside the system update a ticket through a personal link). Unmapped
 # (null): the Cloudflare tunnel reaches the container port - never map it on the host. Listens only with the option `tickets_public`.
+# CR-NOTICE106: the TV boards of the notice board (a TV browser opens its board's link; read-only, one revocable token per board).
+# Unmapped (null) by default and the listener runs only when the option `notice_boards` is on.
 ports:
   18091/tcp: null
   18092/tcp: null
   18093/tcp: null
+  18094/tcp: null
 ports_description:
   18091/tcp: Provision-ISR alarm push (optional; only for recorders set to push events)
   18092/tcp: Cast relay for media screens (optional; only with the cast_relay option)
   18093/tcp: Handler page for service tickets (optional; only with the tickets_public option)
+  18094/tcp: TV notice boards (optional; only with the notice_boards option)
 backup: hot
 options:
   bootstrap_admin_username: ""
@@ -73,6 +77,8 @@ options:
   cast_relay: false
   # CR-038: the service tickets' handler page (container port 18093, reached through the Cloudflare tunnel only). Off by default.
   tickets_public: false
+  # CR-NOTICE106: the TV notice boards' listener (container port 18094; map a host port in Network too). Off by default.
+  notice_boards: false
   # one database writer at a time, in arrival order (the round-10 lock storm fix); turn off only if support asks
   # NN5/CR-029: makes the Frigate recorder type selectable in Settings (otherwise listed "coming soon"). Off by default; run.sh maps it to SW_FRIGATE.
   frigate_enabled: false
@@ -92,6 +98,7 @@ schema:
   push_relay_url: str?
   cast_relay: bool?
   tickets_public: bool?
+  notice_boards: bool?
   frigate_enabled: bool?
   db_write_gate: bool?
   log_level: list(debug|info|warning|error)

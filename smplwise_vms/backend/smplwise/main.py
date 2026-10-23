@@ -195,6 +195,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
             costs_retention.janitor(db, tickets_runtime.attachments_root())
     except Exception:  # noqa: BLE001
         log.warning("tickets cost janitor failed", exc_info=True)
+    try:  # CR-NOTICE106: archived / expired notices past `notices.retention_days` (soft delete, purge 30 days later) - hourly
+        from .services.notices import store as notices_store
+
+        notices_store.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("notices janitor failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -610,6 +616,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import messaging_accounts as messaging_accounts_router  # CR-038 S5a: WhatsApp accounts per use (installation-level, no module gate)
 
     app.include_router(messaging_accounts_router.router, prefix=api, tags=["messaging"])
+    from .routers import notices as notices_router  # CR-NOTICE106: לוח הודעות - notices, TV boards (module OFF by default)
+
+    app.include_router(notices_router.open_router, prefix=api, tags=["notices"])  # module state + settings: answer while the module is off
+    app.include_router(notices_router.display_router, prefix=api, tags=["notices"])  # the TV feed: no login, X-Board-Token
+    app.include_router(notices_router.router, prefix=api, tags=["notices"])
+    app.include_router(notices_router.page_router)  # GET /b/{slug}: the static TV page (before the www mount)
     from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
 
     tickets_messaging.configure(settings, app.state.db)
@@ -777,6 +789,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import cast_relay
 
             cast_relay.SERVER.start(cast_relay.go2rtc_fetch(settings))
+        if settings.notice_boards:  # CR-NOTICE106: the TV boards' LAN listener (container port 18094) - on the add-on option alone
+            from .services.notices import display as notice_display
+            from .services.notices import listener as notice_listener
+
+            notice_listener.SERVER.start(
+                notice_display.DisplayService(lambda: app.state.db.connection(mode="read", label="notices.display"), settings.data_dir,
+                                              touch=notice_display.touch_seen(app.state.db)), settings.www_dir)
         if settings.tickets_public:  # CR-038 S4: the handler page's listener - on the add-on option alone; its own thread, loop and pool
             await run_in_threadpool(tickets_public.start, app.state.db, settings)  # start() waits up to 5 s: never on the main loop (W14)
         await run_in_threadpool(tickets_messaging.start)  # CR-038 S5b: the `tickets-outbox` worker (idle while the module is off)
@@ -806,6 +825,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import cast_relay
 
         cast_relay.SERVER.stop()  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
+        from .services.notices import listener as notice_listener
+
+        notice_listener.SERVER.stop()  # CR-NOTICE106: the TV boards' LAN listener
         from starlette.concurrency import run_in_threadpool as _stop_in_thread
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
