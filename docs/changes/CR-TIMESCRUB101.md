@@ -1,6 +1,6 @@
 # CR-TIMESCRUB101 - Time scrub of the whole building on the floor plan ("building twin looking backwards")
 
-Status: PROPOSED (change record + mockup, board item r101). No product code, no migration, no live-system access.
+Status: APPROVED (owner review 2026-10-24, mockup v2). Slice 1 built on `pilot/TIMESCRUB101B-295` (see "Slice 1 build notes" at the end).
 Branch `pilot/TIMESCRUB101-295` from `main` @ 320e55551 (v2.12.4). Mockup: `docs/design/mockups/timescrub-101/index.html`
 (v2 after the owner's feedback of 2026-10-24; a copy for review at `private/review/timescrub-101-mockup-v2.html`, screenshots and
 the viewport assertions under `private/review/timescrub-101-v2/`).
@@ -268,3 +268,34 @@ Mockup v2 approved with these answers:
 - **Locked layer (this document's Q3):** a layer the viewer may not see is shown in the legend as **locked** (no data). Not hidden.
 - **Placement (this document's Q8):** the time scrub lives **inside the existing historical map** (same URL, same tab "מפה היסטורית"). No new tab.
 - **Unknown / gap (form Q7):** the markings "unknown" and "gap in the recording" are **clear as drawn** (the owner answered yes, no explanation needed): a moment with no recorded data is shown explicitly as unknown / a gap, never as "off" or as the last value.
+
+## Slice 1 build notes (pilot/TIMESCRUB101B-295, from release/2140)
+
+Built (default OFF behind `history.timescrub`):
+- `GET /api/v1/floors/{id}/history/snapshot?at=` and `GET /api/v1/floors/{id}/history/range?from&to&layers&step` (routers/anchors.py,
+  services/timescrub.py). Both 404 `feature_off` with the flag off. Layer classification mirrors `map/room-state.ts`; each entity is in
+  exactly one layer. Permissions per layer as section 6 (elevators: `devices.read` at installation scope). A locked layer returns no
+  entity ids. The range also carries the elevator layer.
+- `history.presence` (new, sensitive; site_admin + system_admin), the audit row `history.presence.view` once per (user, floor, UTC day).
+  With the flag on, `GET /floors/{id}/map?at=` withholds the presence past from a caller without `history.presence` too.
+- Gap table `ha_state_history_gaps`, migration **0152 (PROVISIONAL)**, written by the HA sync's connect note (`ha_history.note_connect_gap`)
+  when the last state the mirror saw is older than 60 s. Rule applied in both routes: a state is unknown when T is inside a gap OR a gap
+  lies between its last change and T (stricter than 4.3's "T inside a gap"; it matches section 1's "never interpolates across a gap").
+- Settings `history.timescrub`, `history.range_max_days` (7, 1..30), `history.presence_retention_days` (7, 1..30).
+- Frontend: the time scrub inside the historical map (same URL, same tab), timeline pinned, no page scroll, legend with locked layers,
+  snapshot + playback (one range request per window), gap bar and gap bands, unknown never drawn as off.
+
+Deviations / recorded contradictions (not silently resolved):
+1. Section 5 says "hard cap 25 000 rows scanned -> 413" and also "7 days x 300 entities fits the row cap when bucketed". Both cannot
+   hold; the build buckets in SQL (one indexed GROUP BY pass) and uses `ROW_SCAN_CAP = 500 000` native rows before the 413. To be
+   measured in 10.3 (NOT_RUN) and set from the numbers.
+2. Owner question 2 (presence retention while the scrub is off) is not answered in the review of 24.10; the build applies the shorter
+   presence retention ONLY while the flag is on (a deletion cannot be undone). Switch to "always" on the owner's word.
+3. A bucketed point's `t` is the bucket's start; `n` = changes inside it.
+
+Not in slice 1 yet (remaining): infra temperature probes and generator chips at T; circuit switches as lights-layer members of the
+snapshot (the bundle's `circuit_states` still carry them); the 60 s server cache; the sync playback screen does not read `t` / camera
+parameters, so "all cameras of the floor from here" opens the playback screen with up to four cameras; the tablet "..." overflow menu;
+lanes for devices / temperature; `?from&to` in the URL; the performance run of 10.3; access-event marks; the gap row relies on the
+mirror's last `state_seen_at` (an installation silent for more than 60 s while connected would show a false gap - a sync heartbeat is
+the follow-up).
