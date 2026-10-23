@@ -1,6 +1,8 @@
 # CR-SCENARIO109 - Cross-module scenarios on one condition model ("תרחישים")
 
-Status: PROPOSAL, design only, no code. Branch `pilot/SCENARIO109-295` from `origin/main` (v2.12.4, 320e5555). Board item r109.
+Status: APPROVED by the owner with changes (answers 24.10, batch 4 questions 210-219 and batch 5 follow-ups 270, 271, 276; section 17 binds over
+sections 1-16 where they differ). Build branch `pilot/XSCENARIO109-295` from `origin/release/2150`. Board items r109 / r219.
+Original status: PROPOSAL, design only, no code. Branch `pilot/SCENARIO109-295` from `origin/main` (v2.12.4, 320e5555). Board item r109.
 Builds on CR-017 (`docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md`, `docs/architecture/AUTOMATIONS_API.md`), CR-018 (notifications, `services/notify.py`,
 `notify_policy.py`, `notify_sources.py`), CR-038 (service module, `services/tickets/create.py`, `rule_engine.py`), CR-BLUEPRINT80 (`origin/pilot/BLUEPRINT80-295`,
 `docs/changes/CR-BLUEPRINT80.md`, declarative closed format), CR-INFRA-TEMPERATURE (`services/temperature_tickets.py`), the elevator / generator / presence
@@ -271,3 +273,59 @@ widening needs an approved CR).
 8. Caps: **Recommended: 20 fires and 5 requests per rule per day, 120 actions per hour globally** (6.3). Confirm or change.
 9. HA-entity-only rules: **Recommended: keep them as ordinary automations / blueprints and hint so in the builder.** Alternative: allow them here too.
 10. History replay ("what would this rule have done last night"): **Recommended: later (S8), temperature and water first.**
+
+## 17. Owner decisions (24.10, recorded 2026-10-23)
+
+Source: `private/planning/OWNER_ANSWERS_2026-10-24_batch4_notes.md` (210-219) and `..._batch5_notes.md` (270, 271, 276); questions page
+`private/review/OWNER_OPEN_QUESTIONS_2026-10-24.html` (ids sc-1..sc-10, follow-ups fx-210, fx-213, fx-217). No answer is frozen or postponed
+(the freeze of 184 covers SMS only; the postponement of 272 covers video search only). STANDING RULE: every threshold, default, window and
+recipient is editable in Settings; permissions are grantable to any role.
+
+| Q | answer | effect on this record |
+|---|---|---|
+| 1 placement | 210 -> follow-up 276 **b**: a new block family inside the automations editor, not a separate tab | 17.1 |
+| 2 lost sensor | 211 **a**: never acts; holds, then "defective" (`degraded`), optional notice | as 3.2 |
+| 3 first actions | 212 **a**: flag and notify first, service request in phase 4, safe scene last and optional | as 4 / 14; see 17.3 |
+| 4 identity | 213 -> 270 **a**: own service identity per scenario, author rights rechecked at every run; revoked = stop, mark defective, a manager reassigns | as 6.4, a service-identity record per scenario |
+| 5 presence | 214 **a**: counts per area / floor only, never names | as 3.1 |
+| 6 authors | 215 **b**: managers write scenarios from day one | 17.2 |
+| 7 notices without rights | 216 **a**: generic notice without values | as 8 |
+| 8 caps | 217 -> 271 **a**: 100 runs per day per rule, 20 service requests per day per rule, 600 actions per hour system-wide; overridable per rule, with a global default for rules that set none | 17.4 |
+| 9 HA-only rules | 218 **a**: stay ordinary automations / blueprints, with a hint in the builder | as 2 |
+| 10 history replay | 219 **a**: later (S8), temperature and water first | as 14 |
+
+### 17.1 Placement inside the automations editor (Q1, implementation risk)
+
+The scenarios appear as a **block family "חוצה מודולים"** inside the automations area: the same list chrome, tokens and editor frame as the
+automations editor, with a "scenarios" filter beside automations / scenes / scripts. The owner's note says the blocks must mirror Arx data into the
+editor read-only. Design that keeps the risk off the HA path:
+- Evaluation and storage stay Arx-side (sections 5, 10). HA automations cannot see Arx data, and mirroring every module state as an HA entity
+  is a write to HA, which this record forbids (1). So a cross-module block is never sent to HA, never converted to HA YAML and never mixed
+  with HA triggers / actions in one item: an item is either an HA automation or an Arx scenario.
+- The editor shows the Arx signals (catalogue, units, live values, freshness) read-only through `GET /scenarios/signals`; nothing in the
+  editor writes to a module.
+- Separate routes, tables, audit actions and switch (`scenarios.enabled`); the HA automation create / update path (`automation_ops`) is not
+  touched, so turning scenarios off or removing them leaves automations unchanged. Tests assert that no scenario route calls the bridge.
+
+### 17.2 Who may author (Q6)
+
+`scenario.view` and `scenario.manage` are granted by default to the managers (`site_admin`) and the system administrator (`system_admin`);
+`scenario.admin` (settings, kill switch, reassign) to `system_admin`. All three are grantable to any role. Section 8's reference rule still
+applies: an author references only signals and actions they may use themselves.
+
+### 17.3 Actions in the first build
+
+Owner order (Q3) is flag + notify, then service request, safe scene last. The first build branch carries `set_flag`, `notify` and
+`create_service_request` (each behind its own per-action switch, all OFF by default; the request action is absent when the service module is
+off, owner rule of 20.10). `run_safe_scene` and every door / device action are NOT built. Any wider action needs an approved CR.
+
+### 17.4 Caps (Q8)
+
+Global defaults (Settings): `max_fires_per_day` 100 (range 1-1000), `max_tickets_per_day` 20 (range 0-200), `max_actions_per_hour` 600
+(range 10-5000). Each rule may set its own `max_fires_per_day` / `max_tickets_per_day` inside the same ranges; a rule without its own
+value uses the global default.
+
+### 17.5 Migration
+
+The build uses PROVISIONAL migration number **0199** (`0199_scenarios.sql`, replacing the `0170` placeholder of section 5); the final number is
+assigned at integration under the renumbering rule.
