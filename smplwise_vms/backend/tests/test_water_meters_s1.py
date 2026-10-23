@@ -106,7 +106,7 @@ def t0() -> int:
 def test_module_off_by_default_every_route_but_status_and_settings(app):
     c, settings = app
     s = c.get(f"{API}/status").json()
-    assert s == {"enabled": False, "can_view": True, "can_manage": True, "can_configure": True, "meters": 0}
+    assert s == {"enabled": False, "can_view": True, "can_manage": True, "can_configure": True, "can_ack": True, "can_bills": True, "meters": 0}  # slice 3 adds can_ack / can_bills
     for url in ("/meters", "/meters/x", "/candidates", "/consumption", "/consumption.csv", "/meters/x/series", "/meters/x/readings", "/meters/x/manual-readings"):
         r = c.get(API + url)
         assert r.status_code == 404 and r.json()["code"] == "module_off", url
@@ -167,7 +167,7 @@ def test_permissions_registered_viewer_has_no_water_view():
         assert PERMISSION_LABELS[p] and p not in SENSITIVE
     assert {p for p in ROLES["operator"] if p.startswith("water.")} == {"water.view", "water.ack"}
     for role in ("site_admin", "system_admin"):
-        assert {p for p in ROLES[role] if p.startswith("water.")} == {"water.view", "water.ack", "water.manage"}
+        assert {p for p in ROLES[role] if p.startswith("water.")} == {"water.view", "water.ack", "water.manage", "water.bills"}  # slice 3: water.bills (sensitive)
     for role in ("viewer", "kiosk", "editor"):
         assert not [p for p in ROLES[role] if p.startswith("water.")], role  # owner Q4: viewers do NOT get water.view
     contract = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
@@ -211,7 +211,7 @@ def test_floor_scope_narrows_the_meters_with_a_uniform_404(app, monkeypatch):
     bind(c, settings, "flo", "operator", "floor", ids["floor2"])
     f = as_user("flo")
     assert [i["id"] for i in c.get(f"{API}/meters", headers=f).json()["items"]] == [a]
-    assert c.get(f"{API}/status", headers=f).json() == {"enabled": True, "can_view": True, "can_manage": False, "can_configure": False, "meters": 1}
+    assert c.get(f"{API}/status", headers=f).json() == {"enabled": True, "can_view": True, "can_manage": False, "can_configure": False, "can_ack": False, "can_bills": False, "meters": 1}
     for url in (f"/meters/{b}", f"/meters/{b}/series", f"/meters/{b}/readings", "/meters/nope"):
         r = c.get(API + url, headers=f)
         assert r.status_code == 404 and r.json()["code"] == "not_found", url  # invisible = missing
@@ -425,7 +425,7 @@ def test_water_tables_are_project_tables_kept_when_absent():
         assert t in backup.PROJECT_TABLES and t in backup.KEEP_WHEN_ABSENT
 
 
-# ---------------------------------------------------------------- migrations 0150 + 0152 (built as provisional 0152 / 0153; renumbered at release/2140 and release/2150)
+# ---------------------------------------------------------------- migrations 0150 + 0152 + 0161 (built as provisional 0152 / 0153 / 0154; renumbered at release/2140, release/2150 and release/2160)
 
 
 def test_migration_numbers_contiguous():
@@ -433,9 +433,11 @@ def test_migration_numbers_contiguous():
     numbers = sorted(files)
     assert numbers == list(range(1, numbers[-1] + 1)), "the sequence has no gap"
     water = sorted(f.name for f in files.values() if "water" in f.name)
-    assert water == ["0150_infra_water.sql", "0152_infra_water_alerts.sql"], "slice 1 and slice 2 files of the water module"
+    assert water == ["0150_infra_water.sql", "0152_infra_water_alerts.sql", "0161_infra_water_billing.sql"], "slice 1, 2 and 3 files of the water module"
     text = files[150].read_text(encoding="utf-8")
     assert "Final number 0150" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
+    text = files[161].read_text(encoding="utf-8")
+    assert "Final number 0161" in text.splitlines()[0] and "CREATE TABLE water_tariffs" in text
     text = files[152].read_text(encoding="utf-8")
     assert "Final number 0152" in text.splitlines()[0] and "CREATE TABLE water_alert_settings" in text
 

@@ -217,7 +217,8 @@ def status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.C
             n = sum(1 for r in wm.list_rows(conn) if reach.sees(r))
         except sqlite3.OperationalError:
             n = 0
-    return {"enabled": on, "can_view": can_view, "can_manage": _can(conn, principal, ws.MANAGE), "can_configure": _can(conn, principal, ws.CONFIGURE), "meters": n}
+    return {"enabled": on, "can_view": can_view, "can_manage": _can(conn, principal, ws.MANAGE), "can_configure": _can(conn, principal, ws.CONFIGURE),
+            "can_ack": _can(conn, principal, ws.ACK), "can_bills": _can(conn, principal, "water.bills"), "meters": n}
 
 
 # ---------------------------------------------------------------- candidates and meters
@@ -306,6 +307,12 @@ def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(
 def retire_meter(meter_id: str, request: Request, revision: int = Query(ge=1), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Retire a meter (its data is kept) (water.manage)."""
     _manage_check(conn, principal)
+    from ..services import water_billing as wb
+
+    used = wb.meters_in_use(conn, meter_id)
+    if used:  # section 6 / 16: a meter inside a billing account's formula is not retired (the account would stop counting it silently)
+        raise _err(409, "meter_in_use", "המונה משמש בחשבון חיוב: " + ", ".join(used[:5]) + ". יש להוציא אותו מהנוסחה קודם.",
+                   "The meter is used by a billing account. Remove it from the formula first.", accounts=used[:20])
     wm.retire(conn, meter_id, revision)
     audit(conn, actor=principal, action="infra.water.meter.retire", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request))
     return _one(request, conn, principal, wm.require_row(conn, meter_id))
@@ -725,7 +732,9 @@ def _event_out(r: sqlite3.Row, can_ack: bool) -> dict[str, Any]:
     return {"id": r["id"], "meter_id": r["meter_id"], "meter_name": r["display_name"], "meter_kind": r["meter_kind"], "area_name": r["area_name"],
             "floor_name": r["floor_name"], "kind": r["kind"], "severity": r["severity"], "opened_at": r["opened_at"], "closed_at": r["closed_at"],
             "close_reason": r["close_reason"], "value": value, "suppressed": r["suppressed"], "ack_at": r["ack_at"], "ack_by_display": r["ack_by_display"],
-            "notified": bool(r["notification_id"]), "can_ack": can_ack and r["closed_at"] is None and r["ack_at"] is None}
+            "notified": bool(r["notification_id"]), "can_ack": can_ack and r["closed_at"] is None and r["ack_at"] is None,
+            "snoozed_until": r["snoozed_until"] if r["closed_at"] is None and r["snoozed_until"] and r["snoozed_until"] > wm.epoch_to_iso(int(wr.clock())) else None,
+            "can_snooze": can_ack and r["closed_at"] is None}
 
 
 EVENTS_SQL = """SELECT e.*, m.display_name, m.kind AS meter_kind, m.source_ref, COALESCE(a.name, x.area_name) AS area_name,
@@ -828,6 +837,52 @@ def unmute_meter(meter_id: str, request: Request, principal: Principal = Depends
     conn.execute("UPDATE water_meters SET muted_until = NULL, muted_by = NULL WHERE id = ?", (meter_id,))
     audit(conn, actor=principal, action="infra.water.event.unmute", decision="allowed", resource_type="water_meter", resource_id=meter_id, request_id=_rid(request))
     return {"meter_id": meter_id, "muted_until": None}
+
+
+# ---------------------------------------------------------------- section 16: snooze one open alert ("נדנוד") for a configured duration
+
+class SnoozeBody(_Body):
+    minutes: int | None = Field(default=None, ge=1, le=43200)  # omitted = the configured default of the main button
+
+
+def _ack_event_row(conn: sqlite3.Connection, principal: Principal, event_id: str) -> sqlite3.Row:
+    _require_on(conn)
+    r = conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone()
+    if r is None or not wm.Reach(conn, principal).sees(r):
+        raise _err(404, "not_found", "ההתראה לא נמצאה.", "The alert was not found.")
+    if not _AckReach(conn, principal).allows(r):
+        require(conn, principal, ws.ACK, INSTALLATION)
+    if r["closed_at"] is not None:
+        raise _err(409, "event_closed", "ההתראה כבר הסתיימה.", "The alert has already ended.")
+    return r
+
+
+@router.post(f"{API}/events/{{event_id}}/snooze")
+def snooze_event(event_id: str, request: Request, principal: Principal = Depends(_acker), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Snooze one open alert for one of the configured durations (water.ack on its meter). It is NOT acknowledged: while snoozed its
+    warnings are held (an alarm only with `mute_includes_alarms`), and when the time ends it returns if the condition persists."""
+    body: SnoozeBody = _parse(request, raw, SnoozeBody)
+    r = _ack_event_row(conn, principal, event_id)
+    cfg = wa.load(conn)["snooze"]
+    minutes = body.minutes if body.minutes is not None else cfg["default"]
+    if minutes not in cfg["durations"] or minutes > cfg["max"]:
+        raise _err(422, "snooze_duration", "משך הנדנוד אינו אחד מהמשכים שהוגדרו.", "The snooze duration is not one of the configured durations.",
+                   fields=["minutes"], durations=cfg["durations"])
+    until = wm.epoch_to_iso(int(wr.clock()) + minutes * 60)
+    conn.execute("UPDATE water_alert_events SET snoozed_until = ?, snoozed_by = ? WHERE id = ?", (until, principal.user_id, event_id))
+    audit(conn, actor=principal, action="infra.water.event.snooze", decision="allowed", resource_type="water_meter", resource_id=r["meter_id"], request_id=_rid(request),
+          details={"event_id": event_id, "minutes": minutes})
+    return _event_out(conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone(), True)
+
+
+@router.delete(f"{API}/events/{{event_id}}/snooze")
+def unsnooze_event(event_id: str, request: Request, principal: Principal = Depends(_acker), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """End a snooze early (water.ack)."""
+    r = _ack_event_row(conn, principal, event_id)
+    conn.execute("UPDATE water_alert_events SET snoozed_until = NULL, snoozed_by = NULL WHERE id = ?", (event_id,))
+    audit(conn, actor=principal, action="infra.water.event.unsnooze", decision="allowed", resource_type="water_meter", resource_id=r["meter_id"], request_id=_rid(request),
+          details={"event_id": event_id})
+    return _event_out(conn.execute(EVENTS_SQL + " WHERE e.id = ?", (event_id,)).fetchone(), True)
 
 
 @router.get(f"{API}/alerts")

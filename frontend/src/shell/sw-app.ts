@@ -60,6 +60,7 @@ import '../screens/insights-doors'; // CR-INSIGHT215: drill-down
 import '../screens/insights-waste'; // CR-INSIGHT215: drill-down
 import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
 import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
+import '../screens/infra-water'; // CR-WATER78: תשתיות › מים (the shell; its pages register themselves)
 import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
 import '../screens/tickets-list'; // CR-038: the tickets area (the list, the drawer, the create sheet)
 import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (#/tickets/<id>)
@@ -131,6 +132,7 @@ import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
 import { refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the elevators tab under תשתיות
 import { refreshTemperatureVisibility } from '../temperature/access'; // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab under תשתיות
+import { refreshWaterVisibility } from '../water/access'; // CR-WATER78: the water tab (module on + water.view)
 import { refreshGeneratorVisibility } from '../generator/access'; // CR-031: the generator tab under תשתיות
 import { onTicketNames, setTicketNames } from '../tickets/naming'; // CR-038 D33: the tickets module's configurable name
 import { isTicketId } from '../tickets/model';
@@ -1706,6 +1708,7 @@ export class SwApp extends LitElement {
           void refreshInsightsVisibility(); // CR-INSIGHT215: the reports tab appears once a part is on for this viewer
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
           void refreshMaintenance(); // CR-MAINT215 slice 2: the maintenance section appears while its module is on (maintenance.view)
+          void refreshWaterVisibility(); // CR-WATER78: the water tab appears while the module is on and the viewer holds water.view
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
@@ -2432,6 +2435,14 @@ export class SwApp extends LitElement {
         if (s[1] === 'generator') return html`<infra-generator .route=${r}></infra-generator>`;
         if (s[1] === 'elevators') return html`<infra-elevators .route=${r}></infra-elevators>`; // CR-INFRA-ELEVATORS
         if (s[1] === 'temperature') return html`<infra-temperature .route=${r}></infra-temperature>`; // CR-INFRA-TEMPERATURE 2.9.1 (#/infra/temperature[/log])
+        // CR-WATER78: #/infra/water/<meters|usage|alerts|accounts|bills|customers|settings>[/...]; a bare #/infra/water opens its first page
+        if (s[1] === 'water') {
+          if (!s[2]) {
+            const entry = this.session.mode === 'api' ? infraEntryHref('water', canNav) : null;
+            queueMicrotask(() => window.location.replace(entry ?? '#/infra/water/meters'));
+          }
+          return html`<infra-water .route=${r}></infra-water>`;
+        }
         // CR-023: #/infra/electricity/<page> (meters, accounts, bills, customers); #/infra opens the meters page
         // TABSET-293: once the owner ordered them (ui.tabs), a bare #/infra opens the area's first visible tab and a bare #/infra/electricity its first configured page (ui.tabs)
         if (!s[1] || s[1] !== 'electricity' || !s[2]) {

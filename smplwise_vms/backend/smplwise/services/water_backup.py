@@ -22,7 +22,10 @@ from . import water_meters as wm
 log = logging.getLogger("smplwise.water")
 
 MAIN_TABLES = ["water_meters", "water_meter_epochs", "water_meter_manual_readings",
-               "water_alert_settings"]  # slice 2 (0152): the leak-rule defaults and the routing travel; the alert log and the cursor are history, not configuration
+               "water_alert_settings",  # slice 2 (0152): the leak-rule defaults and the routing travel; the alert log and the cursor are history, not configuration
+               # slice 3 (0161): issued water bills are financial records (the electricity billing pattern); the customers, VAT and the number
+               # ledger are the shared electricity tables and travel with energy_backup
+               "water_tariffs", "water_tariff_versions", "water_accounts", "water_account_meters", "water_bills", "water_bill_events", "water_auto_runs"]
 KEEP_WHEN_ABSENT = frozenset(MAIN_TABLES)
 DAILY_MEMBER = "water/daily.json"
 DB_MEMBER = "water/water.db"

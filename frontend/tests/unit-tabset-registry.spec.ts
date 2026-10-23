@@ -73,6 +73,7 @@ test('every area with a tab row has a registry section, and every section row is
   expect(byId['infra']).toEqual(ids(INFRA_TABS)); // a tab added to INFRA_TABS (temperature, 2.9.2) is listed by itself
   expect(byId['infra.electricity']).toEqual(['meters', 'accounts', 'bills', 'customers']);
   expect(byId['infra.generator']).toEqual(['live', 'alerts', 'charts', 'history']);
+  expect(byId['infra.water']).toEqual(['meters', 'usage', 'alerts', 'accounts', 'bills', 'customers', 'settings']); // CR-WATER78
   // SERVICEIA1-295: level 1 = the sections that have pages on this build; level 2 = the requests and vendors page rows
   expect(byId['tickets']).toEqual(['requests', 'maintenance', 'vendors', 'reports']); // release/2150: תחזוקה ובקרה has its page (CR-MAINT215)
   expect(byId['tickets.requests']).toEqual(['list', 'board']); // SERVICEIA2-295: the scopes are the list's own filter
@@ -91,7 +92,7 @@ test('every area with a tab row has a registry section, and every section row is
 
 test('nothing configured: the multimedia, infrastructure and tickets rows are exactly the built-in ones (existing installations unchanged)', () => {
   expect(ids(visibleTabs(INFRA_TABS, true, ALL))).toEqual(['electricity', 'generator', 'elevators']);
-  expect(visibleTabs(INFRA_TABS, true, ALL).map((t) => t.href)).toEqual(INFRA_TABS.filter((t) => t.id !== 'temperature').map((t) => t.href)); // the temperatures tab waits for a unit (not offered here)
+  expect(visibleTabs(INFRA_TABS, true, ALL).map((t) => t.href)).toEqual(INFRA_TABS.filter((t) => t.id !== 'temperature' && t.id !== 'water').map((t) => t.href)); // the temperatures tab waits for a unit, the water tab for the module (not offered here)
   expect(ids(visibleTabs(MULTIMEDIA_TABS, true, ALL))).toEqual(['screens', 'players', 'groups']);
   applyTicketsHidden({ 'tickets.enabled': 'true' });
   expect(ids(visibleTabs(TICKETS_TABS, true, ALL))).toEqual(['requests', 'vendors', 'reports']); // SERVICEIA1-295: the sections with a page

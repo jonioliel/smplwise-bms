@@ -118,6 +118,8 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   inbox: svg`<path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/>`,
   // CR-MAINT215 slice 2: the QR / NFC tags page
   qr: svg`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3h-3M14 21h3M21 21h.01"/>`,
+  // CR-WATER78: the water meters' empty state (the mockup's drop)
+  drop: svg`<path d="M12 3.5C9 7.5 6 10.6 6 14a6 6 0 0 0 12 0c0-3.4-3-6.5-6-10.5z"/>`,
 };
 
 export type IconName = keyof typeof PATHS;
