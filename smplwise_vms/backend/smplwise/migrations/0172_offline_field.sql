@@ -1,7 +1,7 @@
 -- OFFLINE110-295 slice 1 (server side of offline field work, task r110; owner answers 342-350, 24.10): the technician's work bundle, the
 -- device lock / wipe state, the replayed offline changes with their outcome, manager review of held changes, the day-list receipt and the
--- round points whose signed QR / NFC tags are verified on the server. PROVISIONAL number 0160 (renumber at the integration if another
--- branch took it). Additive only: rollback = run the previous version, the tables are ignored by it. No secret here (the tag key lives in
+-- round points whose signed QR / NFC tags are verified on the server. Final number 0172 (built as PROVISIONAL 0160; renumbered at the
+-- 2.17.0 integration, release/2170). Additive only: rollback = run the previous version, the tables are ignored by it. No secret here (the tag key lives in
 -- a file under the data directory, never in the database).
 CREATE TABLE offline_devices (
   device_id         TEXT NOT NULL,
