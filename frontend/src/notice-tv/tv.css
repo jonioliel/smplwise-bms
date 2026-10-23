@@ -76,8 +76,8 @@ body.box #host { background: #000; }
 .lg.product { block-size: calc(40px * var(--lg, 1)); opacity: .92; }
 .lg.product svg { inline-size: 148px; }
 /* CR-LOGOS295: the SmplWise logo is a picture (its PNG carries clear space, so the box is taller than the visible wordmark) */
-.lg.product { block-size: calc(56px * var(--lg, 1)); }
-.lg.product img { display: block; block-size: 100%; inline-size: auto; }
+.lg.product { inline-size: calc(190px * var(--lg, 1)); }
+.lg.product img { display: block; inline-size: 100%; block-size: auto; flex: none; } /* the box keeps the mock-up height (the layout does not move); the picture is a little taller and overflows its clear space evenly */
 /* the company logo on a dark surface: a light plate (default), a dark plate for a dark-only file, or the administrator's invert; plain = as uploaded */
 .lg.company[data-tr="plate"], .lg.company[data-tr="darkplate"] { box-sizing: border-box; padding: 6px 16px; border-radius: 12px; background: #ffffff; }
 .lg.company[data-tr="darkplate"] { background: #0d1220; }
@@ -304,7 +304,7 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 #cv.portrait .hd { min-block-size: 64px; }
 #cv.portrait .lg.company { block-size: calc(64px * var(--lg, 1)); }
 #cv.portrait .lg.company svg { inline-size: 280px; }
-#cv.portrait .lg.product { block-size: calc(50px * var(--lg, 1)); }
+#cv.portrait .lg.product { block-size: calc(36px * var(--lg, 1)); inline-size: calc(170px * var(--lg, 1)); }
 #cv.portrait .lg.product svg { inline-size: 132px; }
 #cv.portrait .welcome b { font-size: calc(84px * var(--fs)); }
 #cv.portrait .clock .t { font-size: calc(248px * var(--fs)); }
@@ -374,7 +374,7 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 .take p { margin: 0; font-size: calc(56px * var(--fs) * var(--k)); line-height: 1.35; font-weight: 300; opacity: .92; max-inline-size: 30ch; }
 .take .until { font-size: calc(40px * var(--fs) * var(--k)); font-weight: 400; color: #ffd9d2; margin-block-start: calc(10px * var(--k)); }
 .take .bot { display: flex; align-items: center; justify-content: space-between; gap: 24px; font-size: calc(26px * var(--fs)); color: rgba(246,238,232,.7); }
-.take .bot .lg.product { block-size: calc(52px * var(--lg, 1)); }
+.take .bot .lg.product { block-size: calc(40px * var(--lg, 1)); }
 #cv.portrait .take { padding: 56px 64px 44px; }
 #cv.portrait .take h1 { font-size: calc(104px * var(--fs) * var(--k)); }
 #cv.portrait .take p { font-size: calc(50px * var(--fs) * var(--k)); }

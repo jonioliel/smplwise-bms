@@ -15,6 +15,7 @@ async function open(page: Page, q: string, opts: { light?: boolean; dark?: boole
   const { light = true, dark = false, brand = {}, urgent = false } = opts;
   const feed = lobbyFeed(urgent ? { urgent: 'full' } : {});
   if (!urgent) feed.notices = feed.notices.filter((n) => n.severity !== 'critical');
+  else feed.notices[0] = { ...feed.notices[0], published_at: '2026-10-23T06:11:40Z' }; // first minute after publication: the take-over
   const logos: Record<string, string> = {};
   if (light) logos.company = 'api/v1/notices/display/lobby/logo/company?variant=light&v=aaaaaaaaaaaaaaaa';
   if (dark) logos.company_dark = 'api/v1/notices/display/lobby/logo/company?variant=dark&v=bbbbbbbbbbbbbbbb';
@@ -28,7 +29,8 @@ async function open(page: Page, q: string, opts: { light?: boolean; dark?: boole
     await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SVG(u.includes('variant=dark') ? '#0f766e' : '#1e2e47') });
   });
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.goto(tvUrl(q));
+  await page.goto('about:blank'); // a same-URL goto would be a same-document navigation: no reload, no new state
+  await page.goto(tvUrl(urgent ? q + '&now=2026-10-23T06:12:00Z' : q));
   await settled(page);
   return seen;
 }
