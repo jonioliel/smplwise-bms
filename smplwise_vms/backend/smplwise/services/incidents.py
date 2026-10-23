@@ -482,6 +482,9 @@ def cameras_panel(conn: sqlite3.Connection, row: sqlite3.Row, principal: Princip
     if row["source"] == "event" and row["source_ref"]:
         ev = conn.execute("SELECT camera_id FROM events WHERE id = ?", (row["source_ref"],)).fetchone()
         src_cam = ev["camera_id"] if ev else None
+    elif row["anchor_id"]:  # opened at a camera marker (the map's "open here"): that camera is the source
+        a = conn.execute("SELECT resource_type, resource_id FROM map_anchors WHERE id = ?", (row["anchor_id"],)).fetchone()
+        src_cam = a["resource_id"] if a and a["resource_type"] == "camera" else None
     near = neighbours(conn, row["floor_id"], row["x"], row["y"], cfg["incident.near_radius_pct"] / 100.0, source_camera=src_cam)
     ranked = near["cameras"] or [{"camera_id": c.get("camera_id"), "relation": c.get("relation") or "floor", "distance": 0.0}
                                  for c in _facts(row).get("cameras") or [] if isinstance(c, dict) and c.get("camera_id")]
@@ -686,6 +689,16 @@ def on_ha_state(conn: sqlite3.Connection, old: dict[str, Any] | None, new: dict[
 
 
 def _open_from_alarm(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any]) -> sqlite3.Row | None:
+    anchor, title = alarm_location(conn, panel_id, new)
+    row, _merged = open_incident(conn, source="alarm", title=title, floor_id=anchor["floor_id"] if anchor else None, x=anchor["x"] if anchor else None,
+                                 y=anchor["y"] if anchor else None, anchor_id=anchor["id"] if anchor else None, source_ref=panel_id, actor=None,
+                                 event_label="אזעקת פריצה")
+    return row
+
+
+def alarm_location(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any] | None = None) -> tuple[sqlite3.Row | None, str]:
+    """(anchor, title) of an alarm panel's incident: the first open zone of the panel placed on a floor plan, else the panel's own anchor,
+    else none; the title names the zone (or the panel). Used by the automatic hook and by the alarm screen's manual button."""
     from . import alarm as alarm_svc
 
     zone_name = None
@@ -707,7 +720,11 @@ def _open_from_alarm(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any
     attrs = (new or {}).get("attributes") or {}
     pname = (panel or {}).get("name") or attrs.get("friendly_name") or panel_id
     title = f"אזעקת פריצה · {zone_name}" if zone_name else f"אזעקת פריצה · {pname}"
-    row, _merged = open_incident(conn, source="alarm", title=title, floor_id=anchor["floor_id"] if anchor else None, x=anchor["x"] if anchor else None,
-                                 y=anchor["y"] if anchor else None, anchor_id=anchor["id"] if anchor else None, source_ref=panel_id, actor=None,
-                                 event_label="אזעקת פריצה")
-    return row
+    return anchor, title
+
+
+def anchor_row(conn: sqlite3.Connection, anchor_id: str) -> sqlite3.Row | None:
+    """A current anchor on a live floor, by id (the map's "open here")."""
+    return conn.execute(
+        "SELECT a.id, a.floor_id, a.x, a.y, a.resource_type, a.resource_id, a.label FROM map_anchors a JOIN floors f ON f.id = a.floor_id "
+        "WHERE a.id = ? AND a.effective_to IS NULL AND f.deleted_at IS NULL", (anchor_id,)).fetchone()

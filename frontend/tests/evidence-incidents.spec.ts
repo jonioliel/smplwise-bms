@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,12 @@ const detail = (over: Record<string, unknown> = {}) => ({
   ],
   pending: ['דנה', 'יוסי'], can_ack: true, can_case: true, can_audit: false, can_configure: false, settings: SETTINGS, policy: 'x', ...over,
 });
+
+/** Below 1200 px one part of the board is on screen at a time: pick it first (a no-op on a desktop). */
+async function part(scr: Locator, p: string) {
+  const btn = scr.locator(`[data-part-btn="${p}"]`);
+  if (await btn.isVisible()) await btn.click();
+}
 
 interface Opts { perms: string[]; module?: boolean; open?: number; cams?: 'ok' | 'forbidden'; infra?: boolean; detailOver?: Record<string, unknown> }
 
@@ -78,9 +84,11 @@ test.describe('live event evidence', () => {
     await page.goto(url('/investigate/incidents/i1')); // the notification's link (Notification.link = #/investigate/incidents/<id>)
     const scr = page.locator('sw-app investigate-incidents');
     await expect(scr.locator('[data-incident="i1"]')).toBeVisible();
-    for (const pane of ['map', 'cams', 'doors', 'chain']) await expect(scr.locator(`[data-pane="${pane}"]`).first()).toBeVisible();
+    for (const pane of ['map', 'cams', 'doors', 'chain']) { await part(scr, pane); await expect(scr.locator(`[data-pane="${pane}"]`).first()).toBeVisible(); }
     await expect(scr.locator('[data-incident-tile="c1"]')).toBeAttached();
+    await part(scr, 'doors');
     await expect(scr.locator('[data-incident-infra]')).toBeVisible();
+    await part(scr, 'chain');
     await expect(scr.locator('[data-step="waiting"]')).toBeVisible();
     await expect(scr.locator('[data-step="door_open"]')).toContainText('פתיחת דלת');
     await expect(page.locator('sw-app [data-incident-pill]')).toBeVisible();
@@ -101,11 +109,13 @@ test.describe('live event evidence', () => {
     await page.goto('about:blank');
     await page.goto(url('/investigate/incidents/i1'));
     const scr = page.locator('sw-app investigate-incidents');
+    await part(scr, 'cams');
     await expect(scr.locator('[data-incident-cams-forbidden]')).toBeVisible();
     await expect(scr.locator('[data-incident-infra]')).toHaveCount(0);
     await expect(scr.locator('[data-incident-ack]')).toHaveCount(0);
     await expect(scr.locator('[data-incident-close]')).toHaveCount(0);
     await expect(scr.locator('[data-incident-case]')).toHaveCount(0);
+    await part(scr, 'chain');
     await expect(scr.locator('[data-pane="chain"]')).toBeVisible();
     await page.screenshot({ path: path.join(OUT, `limited-${test.info().project.name}.png`) });
   });

@@ -129,6 +129,8 @@ def _acks_anywhere(conn: sqlite3.Connection, principal: Principal) -> bool:
 class OpenIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     event_id: str | None = Field(default=None, min_length=1, max_length=64)
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)  # the map's "open here" (a camera / device marker)
+    alarm_panel: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"^alarm_control_panel\.[a-z0-9_]+$")  # the alarm screen's button
     floor_id: str | None = Field(default=None, min_length=1, max_length=64)
     x: float | None = Field(default=None, ge=0, le=1)
     y: float | None = Field(default=None, ge=0, le=1)
@@ -159,6 +161,33 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
             row, merged = svc.open_incident(conn, source="event", title=title, floor_id=anchor["floor_id"] if anchor else None, x=anchor["x"] if anchor else None,
                                             y=anchor["y"] if anchor else None, anchor_id=anchor["id"] if anchor else None, source_ref=ev["id"],
                                             source_camera=ev["camera_id"], actor=principal, request_id=_rid(request), event_label=label)
+        except svc.Disabled:
+            raise _off() from None
+    elif body.anchor_id:
+        a = svc.anchor_row(conn, body.anchor_id)
+        if a is None:
+            raise ApiError(404, "not_found", "הסמן לא נמצא על המפה.")
+        require(conn, principal, ACK, ("floor", a["floor_id"]))
+        if a["resource_type"] == "camera":
+            name = svc._camera_names(conn).get(a["resource_id"], a["label"] or a["resource_id"])
+        else:
+            e = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ?", (a["resource_id"],)).fetchone()
+            name = (e["name"] if e and e["name"] else None) or a["label"] or a["resource_id"]
+        try:
+            row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or f"אירוע ידני · {name}", floor_id=a["floor_id"], x=a["x"], y=a["y"],
+                                            anchor_id=a["id"], source_ref=a["resource_id"], source_camera=a["resource_id"] if a["resource_type"] == "camera" else None,
+                                            actor=principal, request_id=_rid(request))
+        except svc.Disabled:
+            raise _off() from None
+    elif body.alarm_panel:
+        if conn.execute("SELECT 1 FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (body.alarm_panel,)).fetchone() is None:
+            raise ApiError(404, "not_found", "לוח האזעקה לא נמצא.")
+        anchor, title = svc.alarm_location(conn, body.alarm_panel)
+        require(conn, principal, ACK, ("floor", anchor["floor_id"]) if anchor else INSTALLATION)
+        try:
+            row, merged = svc.open_incident(conn, source="alarm", title=(body.title or "").strip() or title, floor_id=anchor["floor_id"] if anchor else None,
+                                            x=anchor["x"] if anchor else None, y=anchor["y"] if anchor else None, anchor_id=anchor["id"] if anchor else None,
+                                            source_ref=body.alarm_panel, actor=principal, request_id=_rid(request), event_label="אזעקת פריצה")
         except svc.Disabled:
             raise _off() from None
     else:

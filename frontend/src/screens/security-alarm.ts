@@ -29,6 +29,9 @@ import { DEMO_ALARM } from '../fixtures/alarm-demo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dayTimeText } from '../api/day-format';
+import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T1 manual): "פתח אירוע חי" only while the module is on
+import { mayOpenHere, openIncident } from '../api/incidents';
+import { it as incText } from '../i18n/incidents';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
 /** SEC polish: the zones as cards (the default) or as one dense list per area; kept per browser. */
@@ -939,6 +942,20 @@ export class SecurityAlarm extends LitElement {
     navigate('/system/security/alarm', { panel: id });
   }
 
+  /** CR-LIVEEVENT100: open a live incident for this panel (the first open zone placed on a plan gives the location; the merge window
+   * attaches it to an open incident of the same floor). Nothing is armed, disarmed or bypassed: it only opens the incident page. */
+  private async openLiveIncident(panelId: string) {
+    this.busy = true;
+    try {
+      const r = await openIncident({ alarm_panel: panelId });
+      navigate(`/investigate/incidents/${encodeURIComponent(r.incident.id)}`);
+    } catch (err) {
+      this.flash(describeError(err));
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private flash(text: string) {
     this.toast = text;
     window.clearTimeout(this.toastTimer);
@@ -1085,6 +1102,7 @@ export class SecurityAlarm extends LitElement {
     const sub = `${d.counts.zones} חיישנים · ${d.counts.open} פתוחים · ${d.counts.bypassed} עקופים${d.counts.faults ? ` · ${d.counts.faults} תקלות` : ''}${d.channel === 'remote' ? ' · מחוץ לרשת המקומית' : ''}`;
     return html`<sw-page heading="אזעקה" subheading=${sub}>
       <sw-button slot="actions" size="sm" variant="ghost" icon="lock" data-alarm-pin @click=${() => { this.pinOpen = true; this.pinError = ''; }}>הקוד האישי שלי</sw-button>
+      ${mayOpenHere(incidentsModuleOn()) ? html`<sw-button slot="actions" size="sm" icon="warning" data-alarm-incident ?disabled=${this.busy} @click=${() => void this.openLiveIncident(p.entity_id)}>${incText('alarmOpen')}</sw-button>` : nothing}
       ${d.panels.length > 1
         ? html`<div class="switcher" role="group" aria-label="בחירת לוח" data-alarm-switcher>${d.panels.map((x) => {
             const st = panelState(x.state, x.available);

@@ -16,6 +16,8 @@ import { cameraState, loadMap, type MapBundle } from '../api/maps';
 import { entityMarkerKind } from '../api/ha';
 import { zonesWithChips } from '../map/shared-space';
 import { snapshotUrl } from '../api/media';
+import { REFUSED_MS } from '../api/live-budget';
+import { liveCapTitle } from '../components/sw-live-player';
 import { listElevators, type Elevator } from '../api/elevators';
 import { listDevices, type GenDevice } from '../api/generator';
 import { getAccessEvents } from '../api/access-events';
@@ -82,6 +84,9 @@ export class InvestigateIncidents extends LitElement {
   @state() private generators: Panel<GenDevice[]> = { state: 'loading' };
   @state() private live = new Set<string>();
   @state() private paused = false;
+  /** Tiles the relay refused for the live quota (camera id -> the quota it named, 0 = unknown), until REFUSED_MS passes. */
+  @state() private capped = new Map<string, number>();
+  private capTimers = new Map<string, number>();
   @state() private snapBust = Date.now();
   @state() private sheet: 'settings' | 'close' | 'manual' | 'note' | null = null;
   @state() private casePick: NewCaseItem | null = null;
@@ -142,6 +147,7 @@ export class InvestigateIncidents extends LitElement {
     .tile.hot { box-shadow: 0 0 0 2px var(--sw-danger); }
     .tile sw-camera-tile { position: absolute; inset: 0; block-size: 100%; inline-size: 100%; }
     .tile .rel { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: rgba(0,0,0,.55); color: #fff; font-size: var(--sw-fs-2xs); pointer-events: none; z-index: 1; }
+    .capchip { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-warning); color: #1e2e47; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); pointer-events: none; }
     .drs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
     .dr { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 16px; border-block-start: 1px solid var(--sw-border); }
     .dr .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-base); line-height: 1.3; overflow-wrap: anywhere; }
@@ -242,7 +248,8 @@ export class InvestigateIncidents extends LitElement {
     this.mq?.removeEventListener('change', this.onMq);
     document.removeEventListener('visibilitychange', this.onVisibility);
     for (const t of [this.clockTimer, this.snapTimer]) window.clearInterval(t);
-    for (const t of [this.pollTimer, this.hiddenTimer, this.toastTimer]) window.clearTimeout(t);
+    for (const t of [this.pollTimer, this.hiddenTimer, this.toastTimer, ...this.capTimers.values()]) window.clearTimeout(t);
+    this.capTimers.clear();
     // leaving the page stops every player: the tiles leave the DOM with this element (sw-live-player tears its session down)
   }
 
@@ -421,6 +428,25 @@ export class InvestigateIncidents extends LitElement {
     }
     next.add(id);
     this.live = next;
+  }
+
+  /** A 4429 / `remote_live_cap` from the relay (the connection's live quota, `remote.max_live_streams` / `media.max_live_sessions`): the
+   * tile turns into its snapshot with "המכסה מלאה" (the player's own wording in the title) and is tried again after REFUSED_MS - never a
+   * retry storm, never another tile pushed out. */
+  private onPlayerStatus(id: string, e: Event) {
+    const d = (e as CustomEvent<{ code?: string | number; max?: number }>).detail;
+    if (d?.code !== 'remote_live_cap' && d?.code !== 4429) return;
+    if (this.capped.has(id)) return;
+    const next = new Map(this.capped);
+    next.set(id, Number(d.max) || 0);
+    this.capped = next;
+    const t = window.setTimeout(() => {
+      const m = new Map(this.capped);
+      m.delete(id);
+      this.capped = m;
+      this.capTimers.delete(id);
+    }, REFUSED_MS);
+    this.capTimers.set(id, t);
   }
 
   // ---------------------------------------------------------------- actions (all existing, all permissioned on the server)
@@ -680,13 +706,16 @@ export class InvestigateIncidents extends LitElement {
         : !n ? html`<sw-state-panel state="empty" compact quiet heading=${it('camsNone')}></sw-state-panel>`
         : html`<div class="tiles" data-incident-tiles style=${`grid-template-columns: repeat(${cols}, minmax(0, 1fr)); grid-template-rows: ${rows}`}>
             ${tiles.map((c, i) => {
-              const isLive = this.live.has(c.camera_id) && !this.paused;
+              const capped = this.capped.get(c.camera_id);
+              const isLive = this.live.has(c.camera_id) && !this.paused && capped === undefined;
               const style = this.narrow && i === 0 && n > 1 ? `grid-column: 1 / -1` : '';
               return html`<div class="tile ${i === 0 && c.relation !== 'floor' ? 'hot' : ''}" style=${style} data-incident-tile=${c.camera_id} data-live=${isLive ? 'true' : 'false'}
                 role="button" tabindex="0" aria-label=${isLive ? c.name : `${c.name} · ${it('swapLive')}`}
                 @click=${() => this.swapIn(c.camera_id)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.swapIn(c.camera_id); } }}>
                 <sw-camera-tile name=${c.name} meta=${c.relation_label} cameraId=${c.camera_id} state="live" profile="sub" transport="auto" fit="cover" ?compact=${this.narrow && i > 0}
-                  ?live=${isApi() && isLive} ?snapshotOnly=${isApi() && !isLive} poster=${isApi() ? snapshotUrl(c.camera_id, isLive ? undefined : this.snapBust) : ''}></sw-camera-tile>
+                  ?live=${isApi() && isLive} ?snapshotOnly=${isApi() && !isLive} poster=${isApi() ? snapshotUrl(c.camera_id, isLive ? undefined : this.snapBust) : ''}
+                  @player-status=${(e: Event) => this.onPlayerStatus(c.camera_id, e)}></sw-camera-tile>
+                ${capped !== undefined ? html`<span class="capchip" data-incident-cap=${c.camera_id} title=${liveCapTitle(capped)}><sw-icon name="warning" size=${12}></sw-icon>${it('capFull')}</span>` : nothing}
               </div>`;
             })}
           </div>`}

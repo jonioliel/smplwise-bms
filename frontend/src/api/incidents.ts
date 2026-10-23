@@ -4,7 +4,7 @@
  * Without a backend (the static demo) every call answers fake data in the shape of the API, so the screen can be reviewed.
  */
 import { get, post, put } from './client';
-import { isApi } from './session';
+import { canAnywhere, isApi } from './session';
 
 export type IncidentStatus = 'open' | 'closed';
 export type IncidentSource = 'alarm' | 'event' | 'notification' | 'manual';
@@ -184,7 +184,13 @@ export async function incidentDoors(id: string): Promise<IncidentDoors> {
   return get<IncidentDoors>(`incidents/${encodeURIComponent(id)}/doors`);
 }
 
-export async function openIncident(body: { event_id?: string; floor_id?: string; x?: number; y?: number; title?: string }): Promise<{ incident: IncidentDetail; merged: boolean }> {
+/** The map's "open here" and the alarm screen's button (CR §3 T4 / T1): only while the module is on and the caller holds events.ack
+ * somewhere (the server checks it at the floor). */
+export function mayOpenHere(moduleOn: boolean): boolean {
+  return moduleOn && (!isApi() || canAnywhere('events.ack'));
+}
+
+export async function openIncident(body: { event_id?: string; anchor_id?: string; floor_id?: string; x?: number; y?: number; title?: string; alarm_panel?: string }): Promise<{ incident: IncidentDetail; merged: boolean }> {
   if (!isApi()) {
     demoOpen = true;
     return { incident: demoIncident(), merged: false };

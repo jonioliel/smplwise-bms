@@ -204,6 +204,31 @@ def test_b02_open_from_event_and_from_the_alarm(w):
     assert row is not None and row["source"] == "alarm" and row["opened_by"] == "system" and row["title"].startswith("אזעקת פריצה")
 
 
+def test_b02_open_here_from_the_map_and_from_the_alarm_screen(w):
+    w.enable()
+    anchor = w.rows("SELECT id FROM map_anchors WHERE resource_id = ? AND effective_to IS NULL", (w.cam["A"],))[0]["id"]
+    r = w.c.post(f"{API}/incidents", json={"anchor_id": anchor}, headers=w.h("dana"))
+    assert r.status_code == 201, r.text
+    inc = r.json()["incident"]
+    assert inc["source"] == "manual" and inc["floor_id"] == w.f2 and inc["anchor_id"] == anchor and "חניון מזרח" in inc["title"] and inc["zone"] == "חניון"
+    cams = w.c.get(f"{API}/incidents/{inc['id']}/cameras").json()["cameras"]
+    assert cams[0]["camera_id"] == w.cam["A"] and cams[0]["relation"] == "source", "the marker's own camera is first"
+    d_anchor = w.rows("SELECT id FROM map_anchors WHERE resource_id = ? AND effective_to IS NULL", (w.cam["D"],))[0]["id"]
+    assert w.c.post(f"{API}/incidents", json={"anchor_id": d_anchor}, headers=w.h("dana")).status_code == 403, "events.ack at the marker's floor"
+    assert w.c.post(f"{API}/incidents", json={"anchor_id": "nope"}).status_code == 404
+    # the alarm screen's button: the panel (no zone placed on a plan) opens without a location, at installation scope
+    r = w.c.post(f"{API}/incidents", json={"alarm_panel": "alarm_control_panel.home"})
+    assert r.status_code == 201 and r.json()["incident"]["source"] == "alarm" and r.json()["incident"]["opened_by"] == "joni"
+    assert r.json()["incident"]["title"].startswith("אזעקת פריצה")
+    assert w.c.post(f"{API}/incidents", json={"alarm_panel": "alarm_control_panel.home"}, headers=w.h("dana")).status_code == 403, "no location = installation scope"
+    assert w.c.post(f"{API}/incidents", json={"alarm_panel": "alarm_control_panel.none"}).status_code == 404
+    assert w.c.post(f"{API}/incidents", json={"alarm_panel": "light.x"}).status_code == 422
+    w.place(w.f2, "ha_entity", "alarm_control_panel.home", 0.6, 0.3)  # the panel placed on floor 2: its incident is on that floor
+    w.c.put(f"{API}/incidents/settings", json={"settings": {"incident.merge_window_s": 0}})
+    r = w.c.post(f"{API}/incidents", json={"alarm_panel": "alarm_control_panel.home"}, headers=w.h("dana"))
+    assert r.status_code == 201 and r.json()["incident"]["floor_id"] == w.f2
+
+
 # ---------------------------------------------------------------- B-03: floor scope, cameras by video.live
 
 def test_b03_floor_scope_and_camera_filter(w):

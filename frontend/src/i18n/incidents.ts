@@ -157,6 +157,11 @@ const he = {
   srcNotification: 'התראה',
   srcManual: 'ידני',
   physicalNote: 'אין כאן שום פעולה פיזית: צפייה בלבד',
+  openHere: 'פתח אירוע חי כאן',
+  alarmOpen: 'פתח אירוע חי',
+  alarmGo: 'לאירוע החי',
+  capFull: 'המכסה מלאה',
+  capRetry: 'ניסיון חוזר בעוד רגע',
   genOnline: 'זמין',
   genOffline: 'לא זמין',
   genStale: 'לא מסונכרן',
@@ -202,7 +207,8 @@ const en: Partial<Record<Key, string>> = {
   sSave: 'Save', sCancel: 'Cancel', sClose: 'Close', sReadOnly: 'View only: changing these needs the system settings permission', sMinutes: '{n} minutes',
   sSeconds: '{n} seconds', sNone: 'No merging', sError: 'The settings were not saved', srcAlarm: 'Alarm', srcEvent: 'Event', srcNotification: 'Notification',
   srcManual: 'Manual', physicalNote: 'Nothing physical is operated here: view only', genOnline: 'Available', genOffline: 'Unavailable', genStale: 'Not in sync',
-  elevator: 'Elevator', generator: 'Generator',
+  elevator: 'Elevator', generator: 'Generator', openHere: 'Open live incident here', alarmOpen: 'Open live incident', alarmGo: 'To the live incident',
+  capFull: 'Stream quota full', capRetry: 'Retrying shortly',
 };
 
 export type ItKey = Key;
