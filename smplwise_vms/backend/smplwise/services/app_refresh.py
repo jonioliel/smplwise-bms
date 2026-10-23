@@ -2,7 +2,7 @@
 TOKENS with reuse detection, and the short-lived ACCESS TOKENS a refresh hands out. Backend only, behind `security.app_refresh`
 (default `off`: no route mints or accepts anything, the public routes answer 404 as if absent).
 
-- A FAMILY is one sign-in of one phone install (migration 0150): it is minted by a signed-in session for a device registration of
+- A FAMILY is one sign-in of one phone install (migration 0146): it is minted by a signed-in session for a device registration of
   the SAME user (CR-027 `mobile_devices`) and the install_id that registration holds, and it remembers the sign-in it came from
   (the anchor: the hashed HA refresh-token id, or the hashed Arx-only chain). One live family per device.
 - A refresh token (`arxr_` + 256 random bits) is SINGLE USE. A refresh presents it with the device id and the install id; the
@@ -494,7 +494,7 @@ def _revoke(conn: sqlite3.Connection, where: str, args: tuple[Any, ...], reason:
             subject: str | None = None) -> int:
     try:
         ids = [r["family_id"] for r in conn.execute(f"SELECT family_id FROM app_refresh_families WHERE revoked_at IS NULL AND {where}", args).fetchall()]
-    except sqlite3.OperationalError as exc:  # a database before migration 0150 (an upgrade test): nothing to revoke
+    except sqlite3.OperationalError as exc:  # a database before migration 0146 (an upgrade test): nothing to revoke
         if _tables_missing(exc):
             return 0
         raise

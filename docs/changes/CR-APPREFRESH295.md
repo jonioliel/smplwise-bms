@@ -1,7 +1,7 @@
 # CR-APPREFRESH295 - App refresh tokens: a persistent sign-in for the phone app
 
 Status: APPROVED by the owner 2026-10-23 (section 11); security review 2026-10-23 fixes in (section 12); go state **LAB ONLY**; **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
-Board item r122, target 2.14.0. Migration **0150 PROVISIONAL** (one file, `0150_app_refresh_tokens.sql`; renumber at integration).
+Board item r122, target 2.14.0. Migration **0146** (built as provisional 0150; renumbered at the 2.14.0 integration) (one file, `0146_app_refresh_tokens.sql`).
 No app code, no frontend, nothing on a real device or server. Activation (switch ON on a real installation) only after a Fable
 security review of the public surface (owner decision 1, section 11).
 
@@ -53,7 +53,7 @@ user (`GET /me` `user.id`).
 
 ## 4. Design
 
-### 4.1 Objects (migration 0150)
+### 4.1 Objects (migration 0146)
 
 - **Family** (`app_refresh_families`): `family_id` (`arf_` + 16 hex, an id, not a secret), `user_id`, `device_id`, `install_hash`
   (SHA-256 of `"install:" + install_id`), platform, **anchor** (`anchor_kind` = `ha` | `local` | `ingress` | `dev` | `none`,
@@ -163,7 +163,7 @@ the SAME token within 20 s, never in parallel (single-flight; the refresh reques
 
 ## 7. Migrations
 
-One file, **0150 PROVISIONAL**: `app_refresh_families`, `app_refresh_tokens`, `app_access_tokens` with indexes. Additive; older code never
+One file, **0146** (built as provisional 0150; renumbered at the 2.14.0 integration): `app_refresh_families`, `app_refresh_tokens`, `app_access_tokens` with indexes. Additive; older code never
 reads them. Rollback: run the previous version (the tables are ignored); dropping them signs every phone out of the persistent sign-in
 and nothing else. Not backup tables.
 
@@ -240,7 +240,7 @@ No Critical or High finding. Resolutions on this branch:
 | F-05 Low: the 20 s grace hands a pair to a thief who presents the parent inside it | Accepted design residual until slice 3. **App requirement:** the refresh request timeout must be **below 20 s** (a retry after the grace is a reuse and signs the user out). |
 | F-06 Low: two parallel refreshes from one phone sign it out | **App requirement (MUST):** single-flight refresh - one refresh at a time per server, every caller waits for it. |
 | F-07 Low: the global failure tier (300 / min) could lock every phone out for a minute | A token (refresh, sign-out) or access token that resolves to a LIVE family skips the global tier - its per-family bucket bounds it; the global tier only stops unknown / ended tokens. The per-client tier (20 / min per address, IPv6 per /64) still applies to everyone. |
-| F-08 .. F-13 Info | Recorded: existence oracles through the limiter / 404 (random ids, no practical impact); a rotation keeps the previous access token for its minutes (slice 2 deletes them on rotation when the access token becomes a session, and keeps the access lifetime <= 15 min then); a server clock moving backwards widens windows (NTP from HA OS); caller-supplied `device_id` in a denied audit row (bounded); migration 0150 renumbered at integration; the named test gaps of section 8. |
+| F-08 .. F-13 Info | Recorded: existence oracles through the limiter / 404 (random ids, no practical impact); a rotation keeps the previous access token for its minutes (slice 2 deletes them on rotation when the access token becomes a session, and keeps the access lifetime <= 15 min then); a server clock moving backwards widens windows (NTP from HA OS); caller-supplied `device_id` in a denied audit row (bounded); migration 0146 renumbered at integration; the named test gaps of section 8. |
 
 ### 12.1 Go state
 

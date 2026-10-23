@@ -1,5 +1,5 @@
--- PROVISIONAL number 0150 (APPREFRESH-295, branch pilot/APPREFRESH-295 from origin/main c37c75c91 = 2.12.3). Renumber at integration; the
--- content does not depend on the number. Design record: docs/changes/CR-APPREFRESH295.md.
+-- Final number 0146 (built as PROVISIONAL 0150; renumbered at the 2.14.0 integration, release/2140) (APPREFRESH-295, branch pilot/APPREFRESH-295 from origin/main c37c75c91 = 2.12.3).
+-- The content does not depend on the number. Design record: docs/changes/CR-APPREFRESH295.md.
 --
 -- The phone app's persistent sign-in (board item r122): rotating, single-use app refresh tokens in FAMILIES, and the short-lived access
 -- tokens a refresh hands out. No column holds token material: a token is stored only as SHA-256(token) (256-bit random values, so a
