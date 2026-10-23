@@ -18,7 +18,8 @@
         "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-home-polish.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
         "evidence-area-nav.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
-        "evidence-area-redesign.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]}
+        "evidence-area-redesign.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
+        "evidence-camsuggest-live.spec.ts": {"gate": false, "projects": ["desktop"]}
       }
     },
     "hud_layout": {

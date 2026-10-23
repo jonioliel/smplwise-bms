@@ -80,6 +80,11 @@ export interface ProductSettings {
   /** CR-006 1b: the presence tint's fade after the last motion - 'off' (the tint only while a sensor is on) or the
    * window in minutes as a string (default '3'), per installation. */
   'plan.presence_fade'?: string;
+  /** CAMSUGGEST138-295: defaults of "suggest the nearest camera" in the zone editor - max distance in % of the plan width (default '35'),
+   * how strongly a known field of view that misses the zone counts against a camera in % (default '50'), suggestions offered 1-3 (default '3'). */
+  'plan.camsuggest_distance'?: string;
+  'plan.camsuggest_fov'?: string;
+  'plan.camsuggest_count'?: string;
   /** K88 (owner 2026-10-04): where the live plan shows besides the map tab - 'devices' (a plan view in חשמל והתקנים),
    * 'area' (a card on the area page); [] = nowhere new. Default both. */
   'plan.surfaces'?: ('devices' | 'area')[];

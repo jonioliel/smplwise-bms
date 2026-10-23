@@ -1025,6 +1025,12 @@ export class SystemDiagnostics extends LitElement {
           <span class="ctl" style="display:flex;flex-direction:column;gap:6px">
             ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><input type="checkbox" data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', (e.target as HTMLInputElement).checked ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))} /> ${l}</label>`)}
           </span></div>
+        <div class="row" data-camsuggest-distance><span class="lbl">הצעת מצלמה לאזור: טווח מרבי<span class="muted">בעורך התוכנית, כפתור "הצע מצלמה קרובה" באזור מציע רק מצלמות שנמצאות בתוך הטווח הזה מקצה האזור, באחוזים מרוחב התוכנית. ההצעה לא נשמרת עד שלוחצים "קבל"</span></span>
+          ${sel('plan.camsuggest_distance', '35', 'camsuggest-distance', [['10', '10%'], ['20', '20%'], ['35', '35%'], ['50', '50%'], ['75', '75%'], ['100', '100%']])}</div>
+        <div class="row" data-camsuggest-fov><span class="lbl">הצעת מצלמה לאזור: משקל כיוון הצילום<span class="muted">מצלמה עם שדה ראייה ידוע שאינה פונה אל האזור יורדת בדירוג; "מרחק בלבד" מתעלם מהכיוון, "חובה" מסתיר מצלמה שמחטיאה את האזור לגמרי</span></span>
+          ${sel('plan.camsuggest_fov', '50', 'camsuggest-fov', [['0', 'מרחק בלבד'], ['25', 'נמוך'], ['50', 'בינוני'], ['75', 'גבוה'], ['100', 'חובה']])}</div>
+        <div class="row" data-camsuggest-count><span class="lbl">הצעת מצלמה לאזור: מספר הצעות</span>
+          ${sel('plan.camsuggest_count', '3', 'camsuggest-count', [['1', 'אחת'], ['2', 'שתיים'], ['3', 'שלוש']])}</div>
         <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
