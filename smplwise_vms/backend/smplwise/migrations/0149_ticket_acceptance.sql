@@ -1,4 +1,4 @@
--- CR-ACCEPT102 (board r102) slice 1, PROVISIONAL number: the smart acceptance of vendor work - after a ticket is marked `done`, the sensor
+-- CR-ACCEPT102 (board r102) slice 1, final number 0149 (built as PROVISIONAL 0160; renumbered at the 2.14.0 integration, release/2140): the smart acceptance of vendor work - after a ticket is marked `done`, the sensor
 -- data must show the fix HELD for a configurable time before the ticket is confirmed automatically. Slice 1: temperature units only.
 -- Default OFF: the single settings row has enabled = 0, and a ticket is only eligible when its category is opted in (categories_json).
 
