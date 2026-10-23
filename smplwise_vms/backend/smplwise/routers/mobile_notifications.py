@@ -67,11 +67,13 @@ def unregister_push(device_id: str, request: Request, caller: Caller = Depends(a
 
 @router.get("/notifications/categories")
 def list_categories(request: Request, caller: Caller = Depends(any_caller)) -> dict[str, Any]:
-    """The notification categories the app offers to mute, with the ones that are critical (device token or session)."""
-    if caller.device is None:
-        with _db(request).connection(mode="read", label="mobile_push.categories") as conn:
+    """The notification categories the app offers to mute, with the ones that are critical (device token or session), and (CRITSERVER217-295)
+    `critical_sound`: whether the owner enabled the Do-Not-Disturb-bypassing safety sound, read-only booleans and event-type names."""
+    with _db(request).connection(mode="read", label="mobile_push.categories") as conn:
+        if caller.device is None:
             touch_user(conn, caller.principal)
-    return {"categories": svc.categories()}
+        sound = svc.critical_sound(conn)
+    return {"categories": svc.categories(), "critical_sound": sound}
 
 
 @router.get("/notifications/app/{message_id}")

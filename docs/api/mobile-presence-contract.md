@@ -324,6 +324,10 @@ extension fetches the real title and body from the originating server with its d
   `DELETE presence/devices/{id}` to remove the device).
 - `GET notifications/categories` (device token or session) →
   `{ "categories": [ { "id": "safety", "name": "בטיחות", "critical": true }, { "id": "alerts", "name": "התראות", "critical": false }, … ] }`.
+  CRITSOUND (2.17.0, additive): the answer also carries `"critical_sound": { "enabled": bool, "types": ["sensor.smoke", …], "resolved_tone": bool }`,
+  read-only: whether the owner enabled the Do-Not-Disturb-bypassing safety sound (master switch on and at least one event type chosen),
+  which event types, and whether resolved updates carry the calming tone. Absent on older servers = disabled. Android behaviour:
+  `docs/changes/CRITSOUND-SPEC.md` section 5 (binding); iOS ignores it in phase 1.
 - `GET notifications/app/{message_id}` (device token) → `{ "message_id", "notification_id", "title", "body", "category",
   "severity", "deep_link", "at", "mode" }` - the text of one push for **this** device; `404 not_found` for another
   device's message, an unknown id or one older than 24 h. `mode: "resolved"` means the condition ended.
@@ -341,6 +345,9 @@ whatever `muted` holds, and the app never drops a push of a `critical` category 
 `{ "notification_id": "<message_id>", "category": "safety", "server": "<server_id>" }` and nothing else. `server` is the
 installation's `server_id` of section 0.1 (the app finds the origin and device token to fetch the text with from it;
 no match → drop the push).
+CRITSOUND (2.17.0, additive, Android only): the FCM data map may also carry `critical_alert: "1"` (a safety event the owner chose for the
+Do-Not-Disturb-bypassing channel) or `resolved_tone: "1"` (the resolved update of such an event: short calming tone); never both, never
+`"0"`, absent otherwise. APNs payloads are unchanged (no iOS Critical Alerts in phase 1). App behaviour: `docs/changes/CRITSOUND-SPEC.md` section 5.
 
 ## 8. The relay API (app ↔ relay; server ↔ relay)
 
@@ -357,11 +364,13 @@ option change, not an app update. The app uses the relay of the server it is reg
   tokens (retry later; nothing was stored).
 - `DELETE /v1/register` (app) `{ "relay_token": "rt_…" }` → `204`.
 - `POST /v1/push` (server; `Authorization: Bearer <server key>`) `{ "relay_token": "rt_…", "category": "safety",
-  "notification_id": "…", "priority": "high" | "normal", "server": "<server id, <= 64 chars>", "collapse": "<optional>" }`
+  "notification_id": "…", "priority": "high" | "normal", "server": "<server id, <= 64 chars>", "collapse": "<optional>", "critical_alert": <optional bool>, "resolved_tone": <optional bool> }`
   → `200 { "ok": true }`; `404 relay_token_unknown` (the server drops the device's push registration);
   `410 push_token_gone` (same); `429 rate_limited` (500 pushes per device per day, 60 per minute); `401` for a bad
   server key; `403 server_id_claimed` (the `server` id belongs to another server key: a configuration error of the
   installation, not retryable); `5xx` → retry with backoff.
+  `critical_alert` / `resolved_tone` (CRITSOUND, relay + server 2.17.0): strictly boolean when present (anything else `400 bad_request`),
+  default `false`; mapped to the FCM data keys of section 7.3 and ignored for APNs.
 - The relay stores only `sha256(relay_token) → {platform, push_token, bundle_id, created_at, counters}` (Workers KV,
   expires after 180 days without use). No notification text, no server addresses beyond the opaque server id. A server id is owned by the first server key that
   names it (`sid:<server id>` → key id), so one installation cannot make the phone attribute its pushes to another's id.
