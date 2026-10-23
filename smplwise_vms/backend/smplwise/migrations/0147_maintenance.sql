@@ -85,6 +85,8 @@ CREATE TABLE maint_tags (
   target_kind  TEXT NOT NULL CHECK (target_kind IN ('task', 'entity')),
   target_id    TEXT NOT NULL,
   label        TEXT NOT NULL DEFAULT '',
+  medium       TEXT NOT NULL DEFAULT 'qr' CHECK (medium IN ('qr', 'nfc')),  -- slice 2: printed sticker or written NFC tag (same token)
+  last_scan_at TEXT,                                                         -- slice 2: when a signed-in person last opened it
   created_by   TEXT NOT NULL,
   created_at   TEXT NOT NULL,
   revoked_at   TEXT,

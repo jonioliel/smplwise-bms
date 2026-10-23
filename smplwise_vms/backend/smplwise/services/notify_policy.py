@@ -20,7 +20,7 @@ from ..db import now_iso
 
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
-CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets")  # tickets: CR-038 (services/tickets/notify_sources.py)
+CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance")  # tickets: CR-038 (services/tickets/notify_sources.py); maintenance: CR-MAINT215 (owner answer 24.10 q20)
 RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "maintenance")  # maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
@@ -103,9 +103,9 @@ SOURCES: tuple[Source, ...] = (
     # CR-MAINT215 (services/maintenance/reminders.py): a certificate / inspection / supplier document before its expiry, a plan or a round
     # before its date, and once it is late. To the task's responsible person and the maintenance managers of its place (rule `maintenance`),
     # in the app only by default; nothing fires while the maintenance module is off. The task's title and a date - never a person.
-    _s("maintenance.due_soon", "אחזקה: מועד מתקרב", "device_faults", "info", "מועד מתקרב: {name}", "{name} - {what} {date}.", who="maintenance",
+    _s("maintenance.due_soon", "תחזוקה: מועד מתקרב", "maintenance", "info", "מועד מתקרב: {name}", "{name} - {what} {date}.", who="maintenance",
        push=False, subject="maintenance", resolve_text="בוצע או עודכן"),
-    _s("maintenance.overdue", "אחזקה: מועד עבר", "device_faults", "alert", "מועד עבר: {name}", "{name} - {what}{date}.", who="maintenance",
+    _s("maintenance.overdue", "תחזוקה: מועד עבר", "maintenance", "alert", "מועד עבר: {name}", "{name} - {what}{date}.", who="maintenance",
        push=False, subject="maintenance", resolve_text="בוצע או עודכן"),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),

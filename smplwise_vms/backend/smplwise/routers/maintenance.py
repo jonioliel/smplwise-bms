@@ -49,7 +49,8 @@ def module_state(principal: Principal = Depends(current_principal_ro), conn: sql
     v = Viewer(conn, principal)
     held = v.anywhere if enabled else frozenset()
     return {"enabled": enabled, "can": {"view": access.VIEW in held, "perform": access.PERFORM in held, "manage": access.MANAGE in held,
-                                        "open_request": enabled and service.tickets_can_create(v)}}
+                                        "open_request": enabled and service.tickets_can_create(v)},
+            "tickets_on": service._tickets_on(conn)}  # slice 2: the screens hide every request affordance while the tickets module is off
 
 
 # ---------------------------------------------------------------- tasks
@@ -215,12 +216,25 @@ def vendor_documents(vendor_id: str = Path(..., pattern=ID), principal: Principa
     return service.vendor_documents(Viewer(conn, principal), vendor_id)
 
 
+@router.get("/maintenance/vendors")
+def list_vendors(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Slice 2: the suppliers with the state of their documents (the picker's "insurance expired" mark)."""
+    return service.vendors(Viewer(conn, principal))
+
+
+@router.get("/maintenance/options")
+def form_options(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Slice 2: what the task form offers a manager (places he manages, suppliers, departments, people, the defaults)."""
+    return service.options(Viewer(conn, principal))
+
+
 # ---------------------------------------------------------------- QR / NFC tags
 
 class TagBody(_Body):
     target_kind: Literal["task", "entity"]
     target_id: str = Field(min_length=1, max_length=255)
     label: str | None = Field(default=None, max_length=model.LABEL_MAX)
+    medium: Literal["qr", "nfc"] | None = None  # slice 2
 
 
 @router.get("/maintenance/tags")
@@ -243,6 +257,6 @@ def revoke_tag(request: Request, tag_id: str = Path(..., pattern=ID), principal:
 
 
 @router.get("/maintenance/scan/{token}")
-def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def scan(token: str = Path(..., pattern=TOKEN), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A scanned sticker, for a signed-in person: the task or the device it opens (unknown, revoked or not visible: the same 404)."""
     return service.scan(Viewer(conn, principal), token)

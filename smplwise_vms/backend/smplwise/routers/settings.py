@@ -386,6 +386,14 @@ DEFAULTS: dict[str, str] = {
     # default. While off every /api/v1/maintenance* route but GET /maintenance/module answers 404 feature_disabled and the reminder pass
     # does nothing; the data is kept. Turning it on or off is audited as maintenance.module.enable / maintenance.module.disable.
     "maintenance.enabled": "false",
+    # CR-MAINT215 slice 2 (owner answers 24.10 q13 / q16: every default editable in Settings): the reminder lead time a NEW task gets when
+    # its form leaves it empty, per kind (days before the date; each task keeps its own value), and the address printed on a QR sticker
+    # ("" = the installation's remote address; a scan always needs a signed-in person - a later GPS / IMEI confirmation hooks in here).
+    "maintenance.lead_days.certificate": "30",
+    "maintenance.lead_days.preventive": "7",
+    "maintenance.lead_days.round": "0",
+    "maintenance.lead_days.vendor_document": "30",
+    "maintenance.tag_base_url": "",
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
@@ -620,6 +628,9 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
     return out
 
 
+LEAD_DAYS_PATTERN = r"^(0|[1-9][0-9]?|[12][0-9]{2}|3[0-5][0-9]|36[0-5])$"  # CR-MAINT215: 0-365 days
+
+
 class SettingsPatch(BaseModel):
     media_transport_default: str | None = Field(default=None, pattern="^(auto|webrtc|mse)$", alias="media.transport_default")
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=128, alias="media.max_live_sessions")
@@ -809,6 +820,12 @@ class SettingsPatch(BaseModel):
     update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
     tickets_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="tickets.enabled")  # CR-038: the tickets module switch
     maintenance_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.enabled")  # CR-MAINT215: the maintenance module switch
+    # CR-MAINT215 slice 2: the default lead per kind (0-365 days) and the sticker address (empty = the remote address)
+    maintenance_lead_certificate: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.certificate")
+    maintenance_lead_preventive: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.preventive")
+    maintenance_lead_round: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.round")
+    maintenance_lead_vendor_document: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.lead_days.vendor_document")
+    maintenance_tag_base_url: str | None = Field(default=None, max_length=300, pattern=r"^(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/%-]*)?)?$", alias="maintenance.tag_base_url")
 
     model_config = {"populate_by_name": True}
 

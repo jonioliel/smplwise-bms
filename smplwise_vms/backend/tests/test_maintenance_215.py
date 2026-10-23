@@ -98,7 +98,7 @@ ROUTES = [("GET", "/tasks"), ("POST", "/tasks"), ("GET", "/tasks/x1"), ("PATCH",
 
 def test_switch_is_off_by_default_and_every_route_answers_the_uniform_404(mw):
     assert mw.c.get(f"{API}/settings").json()["settings"]["maintenance.enabled"] == "false"
-    assert mw.c.get(f"{M}/module").json() == {"enabled": False, "can": {"view": False, "perform": False, "manage": False, "open_request": False}}
+    assert mw.c.get(f"{M}/module").json() == {"enabled": False, "can": {"view": False, "perform": False, "manage": False, "open_request": False}, "tickets_on": True}
     for method, path in ROUTES:
         r = mw.c.request(method, M + path, json={} if method in ("POST", "PUT", "PATCH") else None)
         assert r.status_code == 404 and r.json()["code"] == "feature_disabled", (method, path, r.status_code, r.text)
@@ -168,10 +168,11 @@ def test_isolation_between_scopes(mw):
     f3 = mw.task(title="מטף קומה 3", place=mw.floor("floor3"))
     whole = mw.task(title="ספרינקלרים - כל המבנה")
     bld = mw.task(title="מנדף המטבח", place={"kind": "building", "id": mw.floors["building"]})
-    # fred: operator on floor 2 only - floor 2 only (not the building, not the installation-level task)
+    # fred: operator on floor 2 only - floor 2 and the placeless task (owner answer 24.10 q15: like a placeless ticket, any scope),
+    # never floor 3 or the building
     listed = {i["id"] for i in mw.c.get(f"{M}/tasks", headers=mw.h("fred")).json()["items"]}
-    assert listed == {f2["id"]}
-    for other in (f3, whole, bld):
+    assert listed == {f2["id"], whole["id"]}
+    for other in (f3, bld):
         r = mw.c.get(f"{M}/tasks/{other['id']}", headers=mw.h("fred"))
         assert r.status_code == 404 and r.json()["code"] == "maint_task_not_found"
     # sara: site_admin on floor 2 only - manages floor 2, nothing else
@@ -180,7 +181,8 @@ def test_isolation_between_scopes(mw):
     r = mw.c.post(f"{M}/tasks", json={"kind": "certificate", "title": "x", "due_date": "2027-03-01", "place": mw.floor("floor3")}, headers=mw.h("sara"))
     assert r.status_code == 403
     r = mw.c.post(f"{M}/tasks", json={"kind": "certificate", "title": "x", "due_date": "2027-03-01"}, headers=mw.h("sara"))
-    assert r.status_code == 403, "a placeless task is an installation-level task"
+    assert r.status_code == 201, "a placeless task needs maintenance.manage at any scope (owner answer 24.10 q15)"
+    assert mw.c.post(f"{M}/tasks", json={"kind": "certificate", "title": "x", "due_date": "2027-03-01"}, headers=mw.h("fred")).status_code == 403, "an operator never manages"
     assert any(a["resource_id"] == mw.floors["floor3"] for a in mw.audits("maintenance.task.create", "denied"))
     r = mw.c.patch(f"{M}/tasks/{mine['id']}", json={"place": mw.floor("floor3")}, headers=mw.h("sara"))
     assert r.status_code == 403, "moving a task needs manage on the new place too"
@@ -594,7 +596,8 @@ def test_the_elevator_card_and_the_supplier_documents(mw):
     mw.task(kind="vendor_document", title="אישור עבודה בגובה", vendor_id=vid, doc_type="work_at_height", due_date="2027-02-01")
     docs = mw.c.get(f"{M}/vendors/{vid}/documents").json()
     assert docs["state"] == "expired" and {d["doc_type"] for d in docs["documents"]} == {"insurance", "work_at_height"}
-    assert mw.c.get(f"{M}/vendors/{vid}/documents", headers=mw.h("fred")).status_code == 404, "supplier documents are installation-level"
+    assert mw.c.get(f"{M}/vendors/{vid}/documents", headers=mw.h("fred")).json()["state"] == "expired", "supplier documents: view at any scope (q15)"
+    assert mw.c.get(f"{M}/vendors/{vid}/documents", headers=mw.h("vic")).status_code == 403
     with mw.db.connection(mode="read") as conn:
         st = msvc.vendor_status(conn, [vid, "unknown"], dt.date(2027, 1, 15))
     assert st[vid]["state"] == "expired" and st[vid]["expired"] == [{"doc_type": "insurance", "valid_until": "2027-01-10"}]
@@ -605,3 +608,122 @@ def test_the_elevator_card_and_the_supplier_documents(mw):
     assert mw.c.patch(f"{API}/settings", json={"maintenance.enabled": "false"}).status_code == 200
     with mw.db.connection(mode="read") as conn:
         assert msvc.vendor_status(conn, [vid], dt.date(2027, 1, 15)) == {}, "module off: no mark anywhere"
+
+
+# ================================================================ slice 2 (owner answers 24.10 q13-q20)
+
+def test_the_default_lead_per_kind_is_a_setting(mw):
+    mw.on()
+    assert mw.task()["lead_days"] == 30, "built-in default"
+    assert mw.c.patch(f"{API}/settings", json={"maintenance.lead_days.certificate": "60", "maintenance.lead_days.preventive": "3"}).status_code == 200
+    assert mw.task()["lead_days"] == 60
+    assert mw.task(lead_days=5)["lead_days"] == 5, "a task's own value wins"
+    assert _plan(mw, auto_ticket=False, department_id=None)["lead_days"] == 3
+    for bad in ("366", "-1", "abc", "1.5"):
+        assert mw.c.patch(f"{API}/settings", json={"maintenance.lead_days.round": bad}).status_code == 422, bad
+    assert mw.c.patch(f"{API}/settings", json={"maintenance.lead_days.round": "2"}, headers=mw.h("tom")).status_code == 403
+    assert mw.c.patch(f"{API}/settings", json={"maintenance.tag_base_url": "javascript:alert(1)"}).status_code == 422
+    assert mw.c.patch(f"{API}/settings", json={"maintenance.tag_base_url": "https://arx.example.test"}).status_code == 200
+    opts = mw.c.get(f"{M}/options").json()
+    assert opts["defaults"] == {"lead_days": {"certificate": 60, "preventive": 3, "round": 0, "vendor_document": 30}, "tag_base_url": "https://arx.example.test"}
+    assert mw.c.get(f"{M}/tags").json()["base_url"] == "https://arx.example.test"
+
+
+def test_form_options_are_for_managers_and_list_only_their_places(mw):
+    mw.on()
+    vid = mw.vendor("חשמל השרון")
+    assert mw.c.get(f"{M}/options", headers=mw.h("tom")).status_code == 403, "an operator never gets the form"
+    mine = mw.c.get(f"{M}/options", headers=mw.h("sara")).json()
+    assert {(p["kind"], p["id"]) for p in mine["places"]} == {("floor", mw.floors["floor2"])}, "sara manages floor 2 only"
+    assert mine["placeless"] is True and mine["tickets_on"] is True
+    full = mw.c.get(f"{M}/options").json()
+    assert {"floor", "building"} <= {p["kind"] for p in full["places"]}
+    assert vid in {v["id"] for v in full["vendors"]} and MAINT in {d["id"] for d in full["departments"]}
+    assert "dev-fred" in {p["id"] for p in full["people"]} and "fire" in full["categories"] and "insurance" in full["doc_types"]
+    mw.task(kind="vendor_document", title="ביטוח", vendor_id=vid, doc_type="insurance", due_date="2027-01-10")
+    vs = {v["id"]: v for v in mw.c.get(f"{M}/vendors", headers=mw.h("fred")).json()["items"]}
+    assert vs[vid]["state"] == "expired" and vs[vid]["expired"] == [{"doc_type": "insurance", "valid_until": "2027-01-10"}]
+    assert mw.c.get(f"{M}/vendors", headers=mw.h("vic")).status_code == 403
+    card = mw.c.get(f"{M}/vendors/{vid}/documents").json()
+    assert card["name"] == "חשמל השרון" and card["tasks"] == []
+
+
+def test_the_list_carries_the_place_chain_and_the_round_summary(mw):
+    mw.on()
+    rnd = _round(mw, mw.floor("floor2"))
+    row = next(i for i in mw.c.get(f"{M}/tasks").json()["items"] if i["id"] == rnd["id"])
+    assert [p["kind"] for p in row["place_path"]] == ["site", "building", "floor"][-len(row["place_path"]):] and row["place_path"][-1]["id"] == mw.floors["floor2"]
+    assert row["checklist_count"] == 3 and row["open_run"] is None and row["last_run"] is None
+    run = mw.c.post(f"{M}/tasks/{rnd['id']}/runs", headers=mw.h("fred")).json()
+    mw.c.put(f"{M}/runs/{run['id']}/answers", json={"answers": {"pump": {"ok": False}}}, headers=mw.h("fred"))
+    row = next(i for i in mw.c.get(f"{M}/tasks").json()["items"] if i["id"] == rnd["id"])
+    assert row["open_run"]["answered"] == 1 and row["open_run"]["total"] == 3 and row["open_run"]["id"] == run["id"]
+    mw.c.put(f"{M}/runs/{run['id']}/answers", json={"answers": {"pressure": {"value": 4}}}, headers=mw.h("fred"))
+    mw.c.post(f"{M}/runs/{run['id']}/finish", headers=mw.h("fred"))
+    row = next(i for i in mw.c.get(f"{M}/tasks").json()["items"] if i["id"] == rnd["id"])
+    assert row["open_run"] is None and row["last_run"]["issues"] == 1 and row["last_run"]["result"] == "issues"
+    assert mw.task(title="ללא מקום")["place_path"] == []
+
+
+def test_closing_the_request_a_plan_opened_marks_the_plan_done_with_the_closer(mw):
+    mw.on()
+    t = _plan(mw, lead_days=7)
+    mw.tick(at(2027, 1, 14))
+    tid = mw.c.get(f"{M}/tasks/{t['id']}").json()["ticket_id"]
+    assert tid
+    mw.clock = at(2027, 1, 16)
+    tk = mw.c.get(f"{API}/tickets/{tid}").json()
+    r = mw.c.post(f"{API}/tickets/{tid}/status", json={"to": "closed", "note": "בוצע", "revision": tk["revision"]})
+    assert r.status_code == 200, r.text
+    after = mw.c.get(f"{M}/tasks/{t['id']}").json()
+    assert after["due_date"] == "2027-02-20", "the plan moved to its next occurrence"
+    rec = mw.c.get(f"{M}/tasks/{t['id']}/records").json()["items"][0]
+    assert rec["kind"] == "completion" and rec["started_by_name"] and rec["ticket_ids"] == [tid] and rec["performed_on"] == "2027-01-16"
+    assert any(a["resource_id"] == t["id"] and "ticket_closed" in (a["details_json"] or "") for a in mw.audits("maintenance.task.complete", "allowed"))
+    # a request of a cycle that is already done changes nothing (no second record)
+    with mw.db.connection() as conn:
+        assert msvc.on_ticket_closed(conn, {"id": tid}, "dev-joni", "2027-01-16T10:00:00Z") is None
+    assert len(mw.c.get(f"{M}/tasks/{t['id']}/records").json()["items"]) == 1
+
+
+def test_a_tag_keeps_its_medium_and_the_time_of_the_last_scan_only(mw):
+    mw.on()
+    rnd = _round(mw, mw.floor("floor2"))
+    tag = mw.c.post(f"{M}/tags", json={"target_kind": "task", "target_id": rnd["id"], "label": "חדר משאבות", "medium": "nfc"}).json()
+    assert tag["medium"] == "nfc" and tag["last_scan_at"] is None and tag["target_name"] == rnd["title"] and tag["target_task_kind"] == "round"
+    assert mw.c.post(f"{M}/tags", json={"target_kind": "task", "target_id": rnd["id"], "medium": "rfid"}).status_code == 422
+    scan = mw.c.get(f"{M}/scan/{tag['token']}", headers=mw.h("fred")).json()
+    assert scan["route"] == f"#/tickets/maintenance?task={rnd['id']}"
+    listed = mw.c.get(f"{M}/tags").json()["items"][0]
+    assert listed["last_scan_at"] and set(listed) >= {"medium", "target_name"}
+    assert "dev-fred" not in json.dumps(listed), "never who scanned"
+
+
+def test_maintenance_tables_travel_in_the_project_backup_restore_drill(mw, settings, tmp_path):
+    from dataclasses import replace
+
+    from fastapi.testclient import TestClient
+
+    from smplwise.main import create_app
+    from smplwise.services import backup as bsvc
+
+    assert bsvc.MAINTENANCE_TABLES == ["maint_tasks", "maint_records", "maint_tags"] and set(bsvc.MAINTENANCE_TABLES) <= set(bsvc.PROJECT_TABLES)
+    assert set(bsvc.MAINTENANCE_TABLES) <= bsvc.KEEP_WHEN_ABSENT
+    mw.on()
+    rnd = _round(mw)
+    cert = mw.task(interval={"unit": "year", "count": 1})
+    mw.c.post(f"{M}/tasks/{cert['id']}/complete", json={"performed_on": "2027-01-10"})
+    tag = mw.c.post(f"{M}/tags", json={"target_kind": "task", "target_id": rnd["id"]}).json()
+    e = mw.c.post(f"{API}/backups", json={}).json()
+    assert e["tables"]["maint_tasks"] == 2 and e["tables"]["maint_records"] == 1 and e["tables"]["maint_tags"] == 1
+    raw = mw.c.get(f"{API}/backups/{e['name']}/download").content
+    # restore drill: a fresh installation gets the ledger back, ids, dates and the tag token included
+    c2 = TestClient(create_app(replace(settings, data_dir=tmp_path / "data2")))
+    up = c2.post(f"{API}/backups/upload", files={"file": ("m.zip", raw, "application/zip")})
+    res = c2.post(f"{API}/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert res.json()["tables"]["maint_tasks"] == 2 and res.json()["tables"]["maint_records"] == 1
+    db2 = Database(replace(settings, data_dir=tmp_path / "data2").db_path)
+    with db2.connection(mode="read") as conn:
+        assert {r["id"]: r["due_date"] for r in conn.execute("SELECT id, due_date FROM maint_tasks")} == {rnd["id"]: rnd["due_date"], cert["id"]: "2028-01-10"}
+        assert conn.execute("SELECT token FROM maint_tags").fetchone()[0] == tag["token"]

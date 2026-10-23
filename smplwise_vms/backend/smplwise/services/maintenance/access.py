@@ -1,8 +1,8 @@
 """CR-MAINT215 section 4: the module switch, the clock and THE visibility rule of the maintenance module.
 
 WHAT a caller may do is a permission (maintenance.view / perform / manage); WHERE is the task's place - its floor, else its
-building, else its site, else the installation (a placeless task is an installation-level task: a floor-scoped holder does not
-see it). Every read of a task goes through `visible()`: an invisible, unknown, deleted or foreign id is the same 404
+building, else its site. A placeless task (and every supplier document) follows the tickets module's rule for a placeless
+ticket (owner answer 24.10 q15): the permission held at ANY scope. Every read of a task goes through `visible()`: an invisible, unknown, deleted or foreign id is the same 404
 `maint_task_not_found`. While `maintenance.enabled` is off every route but GET /maintenance/module answers 404 `feature_disabled`
 and the worker does nothing. Arx RBAC is the only authority: no client flag, no Home Assistant admin flag."""
 from __future__ import annotations
@@ -94,8 +94,15 @@ class Viewer:
             self._cache[key] = authorize(self.conn, self.principal, permission, target).allowed
         return self._cache[key]
 
+    def holds_where(self, permission: str, target: tuple[str, str]) -> bool:
+        """The permission WHERE a task lies: on its place target, or at any scope for a placeless task (owner answer 24.10 q15,
+        like a placeless ticket). An explicit deny at the installation still wins through `authorize` for a placed task only."""
+        if target == INSTALLATION:
+            return permission in self.anywhere
+        return self.holds(permission, target)
+
     def holds_on(self, permission: str, row: Any) -> bool:
-        return self.holds(permission, target_of(row))
+        return self.holds_where(permission, target_of(row))
 
     @property
     def anywhere(self) -> frozenset[str]:
@@ -117,7 +124,7 @@ class Viewer:
     def require_on(self, permission: str, row: Any, *, action: str | None = None) -> None:
         """`permission` on the task's target - an audited 403 (the caller already proved it may SEE the task)."""
         target = target_of(row)
-        if self.holds(permission, target):
+        if self.holds_where(permission, target):
             return
         from ...audit import audit
 
@@ -132,7 +139,30 @@ def visible(viewer: Viewer, row: Any) -> bool:
         return False
     if not module_on(viewer.conn):
         return False
-    return viewer.holds(VIEW, target_of(row))
+    return viewer.holds_where(VIEW, target_of(row))
+
+
+DEFAULT_LEAD_KEY = "maintenance.lead_days."
+TAG_BASE_KEY = "maintenance.tag_base_url"
+
+
+def default_lead(conn: sqlite3.Connection, kind: str) -> int:
+    """The lead time a new task gets when its form leaves it empty (Settings, owner answer 24.10 q13); the built-in value otherwise."""
+    from . import model
+
+    raw = get_setting(conn, DEFAULT_LEAD_KEY + kind, None)
+    try:
+        v = int(str(raw))
+    except (TypeError, ValueError):
+        return model.DEFAULT_LEAD[kind]
+    return v if 0 <= v <= model.LEAD_MAX else model.DEFAULT_LEAD[kind]
+
+
+def defaults(conn: sqlite3.Connection) -> dict[str, Any]:
+    """The installation's editable defaults the screens show (lead per kind, the sticker address)."""
+    from . import model
+
+    return {"lead_days": {k: default_lead(conn, k) for k in model.KINDS}, "tag_base_url": get_setting(conn, TAG_BASE_KEY, "") or ""}
 
 
 def can_see_task(conn: sqlite3.Connection, principal: Principal, task_id: str | None) -> bool:

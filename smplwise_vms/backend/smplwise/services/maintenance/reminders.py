@@ -45,7 +45,7 @@ def _signal(row: Any, due: date, level: str, *, resolve: bool = False):
     from .. import notify
 
     return notify.Signal(source=SOURCE_OVERDUE if level == "overdue" else SOURCE_SOON, subject_kind=SUBJECT, subject_id=row["id"],
-                         dedupe_key=_key(row["id"], due.isoformat(), level), resolve=resolve, link=f"#/maintenance/tasks/{row['id']}",
+                         dedupe_key=_key(row["id"], due.isoformat(), level), resolve=resolve, link=f"#/tickets/maintenance?task={row['id']}",
                          params={"name": row["title"], "date": _fmt(due), "what": (LATE_TEXT if level == "overdue" else DUE_TEXT)[row["kind"]]},
                          origin={"maintenance_task_id": row["id"]})
 
@@ -145,11 +145,16 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     row = conn.execute("SELECT * FROM maint_tasks WHERE id = ?", (n.get("subject_id"),)).fetchone()
     if row is None or row["deleted_at"]:
         return []
+    from ...rbac import INSTALLATION, permissions_anywhere
+
     target = access.target_of(row)
     out = [row["owner_user_id"]] if row["owner_user_id"] else []
     for (uid,) in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall():
         p = principal_of(conn, uid)
-        if p is not None and authorize(conn, p, access.MANAGE, target).allowed:
+        if p is None:
+            continue
+        # a placeless task: maintenance.manage at any scope (owner answer 24.10 q15, like a placeless ticket)
+        if (access.MANAGE in permissions_anywhere(conn, p)) if target == INSTALLATION else authorize(conn, p, access.MANAGE, target).allowed:
             out.append(uid)
     return list(dict.fromkeys(out))
 
