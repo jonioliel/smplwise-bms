@@ -167,6 +167,12 @@ export class CameraImageHealthSettings extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-xs);
     }
+    details.exc {
+      display: block;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+      margin-block-start: 10px;
+    }
     details summary {
       cursor: pointer;
       color: var(--sw-text-2);
@@ -209,8 +215,17 @@ export class CameraImageHealthSettings extends LitElement {
     }
     :host([data-skin='bubble']) .chk,
     :host([data-skin='bubble']) .ths input,
-    :host([data-skin='bubble']) .row select {
+    :host([data-skin='bubble']) .row select,
+    :host([data-skin='bubble']) details summary {
       min-block-size: 44px;
+    }
+    :host([data-skin='bubble']) .chk {
+      min-inline-size: 44px;
+      justify-content: center;
+    }
+    /* the bubble skin's touch target: the switch's own box padded to 44 px (a press on the padding flips it, sw-toggle) */
+    :host([data-skin='bubble']) sw-toggle {
+      padding: 10px 1px;
     }
   `;
 
@@ -263,10 +278,10 @@ export class CameraImageHealthSettings extends LitElement {
         <span class="k">${cit('checks')}</span>
         ${CHECKS.map((c) => this.chip(v[c.key], cit(c.label), c.key, () => this.set(c.key, !v[c.key])))}
       </div>
-      ${this.th.cameras.length ? html`<div class="row"><details data-cih-excluded>
+      ${this.th.cameras.length ? html`<details class="exc" data-cih-excluded>
         <summary>${cit('excludedCams')}${excluded.length ? html` <span class="n">(${excluded.length})</span>` : nothing}</summary>
         <div class="list">${this.th.cameras.map((c) => this.chip(excluded.includes(c.id), c.name, `exclude:${c.id}`, () => this.set('excluded', excluded.includes(c.id) ? excluded.filter((x) => x !== c.id) : [...excluded, c.id])))}</div>
-      </details></div>` : nothing}
+      </details>` : nothing}
       ${this.recipients()}
       <div class="actions">
         <sw-button size="sm" variant="primary" data-cih-save ?disabled=${this.busy || !this.dirty || invalidUsers} @click=${() => this.save()}>${cit('save')}</sw-button>
