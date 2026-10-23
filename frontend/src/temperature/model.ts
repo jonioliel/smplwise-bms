@@ -64,7 +64,7 @@ export function minutesSince(iso: string | null, now: number): number {
   return iso ? Math.max(0, (now - Date.parse(iso)) / MIN) : 0;
 }
 
-export function hhmm(ms: number, lang = 'he-IL'): string {
+export function hhmm(ms: number, _lang = 'he-IL'): string {
   return timeText(new Date(ms));
 }
 

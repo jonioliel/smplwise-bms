@@ -101,7 +101,6 @@ const readCollapsed = (): ReadonlySet<string> => {
     return new Set();
   }
 };
-const uiLocale = () => (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en-GB' : 'he-IL';
 
 const ZONE = { kind: 'iana', name: 'Asia/Jerusalem' } as const;
 const DEMO: AccessStation[] = [

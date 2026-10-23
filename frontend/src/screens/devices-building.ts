@@ -25,7 +25,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { LiveController } from '../api/live-refresh'; // HOMELIVE-295
-import { hl, hlLang } from '../i18n/home-live';
+import { hl } from '../i18n/home-live';
 import { haPushLive, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { mapHrefForArea } from '../api/plan-links';

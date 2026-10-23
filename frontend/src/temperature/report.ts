@@ -191,7 +191,6 @@ export class TempReport extends LitElement {
   private samplesBlock(m: ReportModel, u: ReportModel['units'][number], T: (k: TtKey) => string, lang: 'he' | 'en') {
     const sm = u.samples;
     if (!m.samples || !sm) return nothing;
-    const loc = lang === 'he' ? 'he-IL' : 'en-GB';
     const flags = (f: number) => ([[1, 'sfDefrost'], [2, 'sfDoor'], [4, 'sfOff'], [8, 'sfOut'], [16, 'sfAlert'], [32, 'sfAvg']] as [number, TtKey][]).filter(([b]) => f & b).map(([, k]) => T(k)).join(' · ');
     const when = (ts: number) => dayTimeText(new Date(ts * 1000), { timeZone: m.zone });
     return html`<div data-rep-samples-block>

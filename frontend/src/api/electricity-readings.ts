@@ -7,7 +7,6 @@
 import { ApiError, get, post } from './client';
 import { isApi } from './session';
 import { FIXTURE_NOW } from '../electricity/fixtures';
-import { dateInputLang } from './day-format';
 
 export type ReadingUnit = 'kWh' | 'Wh' | 'MWh';
 /** allocation: the reading closed or re-split a reporting gap; record: kept for comparison only. */

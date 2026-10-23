@@ -5,7 +5,7 @@ import './sw-button';
 import './sw-state-panel';
 import './frigate-event-control';
 import { cardTime, objectLabel, playbackState, spanRows, spanText, timelineText, type ReviewDetail, type ReviewLayer } from '../api/frigate';
-import { fx, frigateLocale } from '../i18n/frigate-text';
+import { fx } from '../i18n/frigate-text';
 import { timeText } from '../api/day-format';
 
 const MAX_EVENT_ROWS = 6;

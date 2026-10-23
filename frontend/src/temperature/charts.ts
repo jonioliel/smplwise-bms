@@ -99,7 +99,7 @@ export function bigFrame(dt: BigChartData, w: number, h: number): Frame {
 }
 
 /** The detail chart (hover handled by the caller through `hit`). x labels: hours for <= 1.5 days, else day.month. */
-export function bigChart(dt: BigChartData, w: number, h: number, lang: string, cross: { x: number; y: number | null } | null): TemplateResult {
+export function bigChart(dt: BigChartData, w: number, h: number, _lang: string, cross: { x: number; y: number | null } | null): TemplateResult {
   const f = bigFrame(dt, w, h);
   const id = uid();
   const d = linePath(dt.points, f, Math.max(900, dt.step * 3));

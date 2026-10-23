@@ -17,7 +17,7 @@ import {
   alarmText, changeLine, getChanges, getFirstWrites, getPolicy, getProfiles, isFirstWriteRefusal, putPolicy, putProfileRules, revertChange, visibleClasses,
   type ChangeRow, type ControlPolicy, type FirstWrites, type ProfilesView, type SupervisedKind, type WriteClass,
 } from '../api/frigate-control';
-import { fx, frigateLocale } from '../i18n/frigate-text';
+import { fx } from '../i18n/frigate-text';
 import { adminStyles } from './frigate-admin-shared';
 import { dayTimeText } from '../api/day-format';
 

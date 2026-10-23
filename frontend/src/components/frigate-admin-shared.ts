@@ -1,6 +1,6 @@
 import { css, html, nothing } from 'lit';
 import type { FirstWrites, SupervisedKind } from '../api/frigate-control';
-import { fx, frigateLocale } from '../i18n/frigate-text';
+import { fx } from '../i18n/frigate-text';
 import { dayMonthTimeText } from '../api/day-format';
 
 /**
