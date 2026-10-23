@@ -124,7 +124,9 @@ test.describe('messaging accounts evidence', () => {
       await shot(page, 'messaging-readonly', scheme);
     }
     const s = page.locator(S);
-    await expect(s.locator('[data-read-only]')).toBeVisible();
+    // the page's own read-only note and (since WAPACE-295) the send-policy card's own "view only" tag - both must show
+    await expect(s.locator('p[data-read-only]')).toBeVisible();
+    await expect(s.locator('messaging-policy-card [data-read-only]')).toBeVisible();
     await expect(s.locator('[data-savebar]')).toHaveCount(0);
     await expect(s.locator('[data-use-pick="tickets.messages"]')).toBeDisabled();
     await s.locator('[data-account="manual:k3f9demo"]').click();

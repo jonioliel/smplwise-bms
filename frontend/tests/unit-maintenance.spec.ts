@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import type { Task, TaskDetail, VendorRow } from '../src/api/maintenance';
+import type { ModuleState, Task, TaskDetail, VendorRow } from '../src/api/maintenance';
+import { accessOf } from '../src/maintenance/access';
 import { MT_KEYS, MT_TABLES, mt } from '../src/i18n/maintenance';
 import {
   answerBody, answered, applyFilter, badgeText, bodyOf, certRowOf, draftOf, fileSizeText, fmtDate, insuranceMark, roundViewOf, ROUND_VIEW_KEY, intervalText, issueKeys, kpiCounts, lookOf, missingRequired, newDraft, nodeOf, outOfRange, pageOf, pagesFor,
@@ -256,4 +257,14 @@ test('every new text exists in Hebrew and English', () => {
     expect(MT_TABLES.he[k], k).toBeTruthy();
     expect(MT_TABLES.en[k] ?? mt(k, undefined, 'he'), k).toBeTruthy();
   }
+});
+
+test('the module answer: one without `can` reads as off (never a TypeError), a full one maps the switches (GATEFIX2150B)', () => {
+  expect(accessOf(null)).toMatchObject({ enabled: false, view: false, request: false, ticketsOn: false });
+  // the shape a catch-all test double or a proxy page returns: it used to throw "reading 'open_request'" on every page load
+  expect(() => accessOf({} as unknown as ModuleState)).not.toThrow();
+  expect(accessOf({} as unknown as ModuleState)).toMatchObject({ enabled: false, view: false, perform: false, manage: false, request: false, ticketsOn: false });
+  expect(accessOf({ enabled: true } as unknown as ModuleState)).toMatchObject({ enabled: false, view: false });
+  const on: ModuleState = { enabled: true, can: { view: true, perform: false, manage: false, open_request: true }, tickets_on: false, round_view: 'list' };
+  expect(accessOf(on)).toEqual({ enabled: true, view: true, perform: false, manage: false, request: true, ticketsOn: false, roundView: 'list' });
 });

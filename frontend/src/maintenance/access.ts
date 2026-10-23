@@ -28,8 +28,9 @@ let current: MaintAccess = { ...OFF, enabled: null };
 const listeners = new Set<(a: MaintAccess) => void>();
 
 export function accessOf(s: ModuleState | null): MaintAccess {
-  if (!s) return { ...OFF };
-  return { enabled: s.enabled, view: s.enabled && s.can.view, perform: s.enabled && s.can.perform, manage: s.enabled && s.can.manage, request: s.enabled && s.can.open_request,
+  // an answer without `can` (an older backend, a proxy page, a test double) is read as "off", like a failed read - never a TypeError
+  if (!s || typeof s.can !== 'object' || s.can === null) return { ...OFF };
+  return { enabled: s.enabled === true, view: s.enabled && s.can.view, perform: s.enabled && s.can.perform, manage: s.enabled && s.can.manage, request: s.enabled && s.can.open_request,
     ticketsOn: s.tickets_on ?? s.can.open_request, roundView: s.round_view === 'list' ? 'list' : 'step' };
 }
 
@@ -62,7 +63,8 @@ export function refreshMaintenance(): Promise<MaintAccess> {
     publish({ ...OFF });
     return Promise.resolve(current);
   }
-  inflight ??= maintApi.module().then((s) => accessOf(s), () => ({ ...OFF })).then((a) => {
+  // the catch sits AFTER accessOf so nothing it throws can leave `inflight` stuck (every later refresh would reuse a rejected promise)
+  inflight ??= maintApi.module().then((s) => accessOf(s)).catch(() => ({ ...OFF })).then((a) => {
     inflight = null;
     publish(a);
     return a;
