@@ -334,20 +334,17 @@
     "missing": {
      "type": "ids",
      "values": [
-      "addon_healthy",
-      "recorder_connected",
-      "home_system_connected",
-      "media_server",
-      "system_admin",
-      "backup_recent",
-      "floor_plan_published",
-      "camera_on_map",
-      "alert_receivers",
-      "disk_space",
-      "backup_offsite",
-      "more_people",
-      "service_departments",
-      "up_to_date"
+      "cameras_connected",
+      "cameras_verified",
+      "places",
+      "people",
+      "notifications",
+      "backup",
+      "remote",
+      "time",
+      "integrations",
+      "modules",
+      "handover"
      ]
     },
     "ready": {
