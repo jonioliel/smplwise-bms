@@ -2,6 +2,7 @@ import { svg, html, nothing, type TemplateResult } from 'lit';
 import type { TempUnit } from '../api/temperature';
 import { arcPath, arcPoint, deg, fmt1, frameOf, gaugeRange, hoursOf, linePath, niceTicks, stepPath, xOf, yOf, type Frame } from './model';
 import { tt } from '../i18n/temperature';
+import { timeText, dayMonthText } from '../api/day-format';
 
 /**
  * CR-INFRA-TEMPERATURE 2.9.1: the drawings of the temperature screens (owner-approved mockup 2026-10-19): the card gauge (a 240 degree arc with
@@ -98,7 +99,7 @@ export function bigFrame(dt: BigChartData, w: number, h: number): Frame {
 }
 
 /** The detail chart (hover handled by the caller through `hit`). x labels: hours for <= 1.5 days, else day.month. */
-export function bigChart(dt: BigChartData, w: number, h: number, lang: string, cross: { x: number; y: number | null } | null): TemplateResult {
+export function bigChart(dt: BigChartData, w: number, h: number, _lang: string, cross: { x: number; y: number | null } | null): TemplateResult {
   const f = bigFrame(dt, w, h);
   const id = uid();
   const d = linePath(dt.points, f, Math.max(900, dt.step * 3));
@@ -106,12 +107,12 @@ export function bigChart(dt: BigChartData, w: number, h: number, lang: string, c
   const span = dt.t1 - dt.t0;
   const xt: { t: number; l: string }[] = [];
   if (span <= 1.5 * 86400) {
-    for (let t = Math.ceil(dt.t0 / 14400) * 14400; t <= dt.t1; t += 14400) xt.push({ t, l: new Date(t * 1000).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', hour12: false }) });
+    for (let t = Math.ceil(dt.t0 / 14400) * 14400; t <= dt.t1; t += 14400) xt.push({ t, l: timeText(new Date(t * 1000)) });
   } else {
     const every = span <= 10 * 86400 ? 1 : 5;
     const first = new Date(dt.t0 * 1000);
     first.setHours(24, 0, 0, 0);
-    for (let t = first.getTime() / 1000; t <= dt.t1; t += every * 86400) xt.push({ t, l: new Date(t * 1000).toLocaleDateString(lang, { day: 'numeric', month: 'numeric' }) });
+    for (let t = first.getTime() / 1000; t <= dt.t1; t += every * 86400) xt.push({ t, l: dayMonthText(new Date(t * 1000)) });
   }
   const pw = w - f.ml - f.mr;
   const ph = h - f.mt - f.mb;

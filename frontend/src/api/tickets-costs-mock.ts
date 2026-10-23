@@ -17,6 +17,7 @@ import type {
 import type { CostFlow, MessageDraft, Quote, QuoteBlock, QuotesAnswer, QuotesBackend, QuoteState } from './tickets-quotes';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, minorToDecimal, quantityToMilli, vatOf } from '../tickets/cost-model';
 import { csvCell } from '../tickets/vendor-account-model';
+import { dayMonthTimeText } from './day-format';
 
 const sleep = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -386,7 +387,7 @@ export const mockQuotes: QuotesBackend = {
     }
     q.decision = { by: ME, at: iso(Date.now()), reason: reason || null };
     q.revision = (q.revision ?? 1) + 1;
-    const window = q.work_from ? new Date(q.work_from).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : undefined;
+    const window = q.work_from ? dayMonthTimeText(new Date(q.work_from)) : undefined;
     return quotesAnswer(t, draftOf(t, 'quote', q.id, q.state, { kinds: q.state === 'partially_approved' ? kindsOf(q) : undefined, reason, window }));
   },
   async onBehalf(id, body) {

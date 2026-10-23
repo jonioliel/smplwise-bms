@@ -24,6 +24,7 @@ import { dateInZone, closePlayback, createPlayback, frameUrl, playbackWsUrl, typ
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
 
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
@@ -907,11 +908,11 @@ export class InvestigateEvents extends LitElement {
   }
 
   private fmt(iso: string): string {
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+    return timeText(new Date(iso), { timeZone: this.tz, seconds: true });
   }
 
   private fmtDate(iso: string): string {
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, day: '2-digit', month: '2-digit' }).format(new Date(iso));
+    return dayMonthText(new Date(iso), { timeZone: this.tz });
   }
 
   private async ack(ev: VmsEvent) {
@@ -969,7 +970,7 @@ export class InvestigateEvents extends LitElement {
           : nothing}
         <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).filter((c) => !this.recorderId || c.recorder_id === this.recorderId).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
         <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
-        <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
+        <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
         <span class="rangepick" role="group" aria-label="טווח ימים" data-events-range>
           ${[[1, 'יום'], [7, '7 ימים'], [30, '30 יום']].map(([n, label]) => html`<button class=${this.rangeDays === n ? 'on' : ''} data-events-range-set=${n} @click=${() => this.setRange(n as number)}>${label}</button>`)}
         </span>
@@ -1047,7 +1048,7 @@ export class InvestigateEvents extends LitElement {
         <sw-field><select aria-label="אתר"><option>כל האתרים</option><option>אתר הדגמה</option></select></sw-field>
         <sw-field><select aria-label="מצלמה"><option>כל המצלמות</option></select></sw-field>
         <sw-field><select aria-label="סוג"><option>כל סוגי האירועים</option><option>אדם</option><option>רכב</option><option>תנועה</option><option>ניתוק</option></select></sw-field>
-        <sw-field><input type="date" value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
+        <sw-field><input type="date" lang=${dateInputLang()} value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
         <span class="grow"></span>
         <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')} count=${demoEvents.length}>הכל</sw-chip>
         <sw-chip ?selected=${this.filter === 'unacked'} @click=${() => (this.filter = 'unacked')} count=${demoEvents.filter((e) => !e.acked).length}>ללא טיפול</sw-chip>

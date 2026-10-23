@@ -13,6 +13,7 @@ import { parseRoute } from '../router';
 import type { Camera } from '../api/types';
 import { PhoneWidth, isPhoneWidth } from '../shell/phone';
 import { isOnWall } from './wall-arrangement';
+import { timeText } from '../api/day-format';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
@@ -556,7 +557,7 @@ export class KioskWall extends LitElement {
   private tick() {
     const d = new Date();
     this.clock = {
-      time: d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+      time: timeText(d),
       date: d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' }),
     };
     if (Date.now() - this.touchedAt >= IDLE_DIM_MS) this.setAttribute('data-idle', '');

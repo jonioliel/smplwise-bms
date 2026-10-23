@@ -40,6 +40,7 @@ import { showOnMapHref } from './org-locations-model'; // ORGPLAN2-291
 import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locations';
 import { locationPicker } from './location-picker';
 import { editLocationBody, editStartPick } from './org-locations-model';
+import { dateInputLang } from '../api/day-format';
 
 type Dlg =
   | { kind: 'answer' | 'resolve'; q: RfqQuestion }
@@ -656,10 +657,10 @@ export class TicketsRfqBoard extends LitElement {
             <div class="kinds" role="group" aria-label=${rt('fKinds')}>${(['labor', 'parts', 'travel', 'other'] as LineKind[]).map((k) => html`<button type="button" class="rc" aria-pressed=${String(e.kinds.includes(k) || k === 'labor')}
               ?disabled=${k === 'labor'} @click=${() => set({ kinds: toggleKind(e.kinds, k) })}>${ct(`k_${k}` as CostTextKey)}</button>`)}</div>` : html`<p class="note">${rt('editLocked')}</p>`}
           <div class="frm">
-            <label class="fld">${rt('fDue')}<input class="inp" type="date" data-edit-due .value=${e.dueDate} @change=${(x: Event) => set({ dueDate: (x.target as HTMLInputElement).value })} /></label>
-            <label class="fld">${rt('fDueTime')}<input class="inp" type="time" .value=${e.dueTime} @change=${(x: Event) => set({ dueTime: (x.target as HTMLInputElement).value })} /></label>
-            <label class="fld">${rt('fWindowFrom')}<input class="inp" type="date" .value=${e.from} @change=${(x: Event) => set({ from: (x.target as HTMLInputElement).value })} /></label>
-            <label class="fld">${rt('fWindowTo')}<input class="inp" type="date" .value=${e.to} min=${e.from || ''} @change=${(x: Event) => set({ to: (x.target as HTMLInputElement).value })} /></label>
+            <label class="fld">${rt('fDue')}<input class="inp" type="date" lang=${dateInputLang()} data-edit-due .value=${e.dueDate} @change=${(x: Event) => set({ dueDate: (x.target as HTMLInputElement).value })} /></label>
+            <label class="fld">${rt('fDueTime')}<input class="inp" type="time" lang=${dateInputLang()} .value=${e.dueTime} @change=${(x: Event) => set({ dueTime: (x.target as HTMLInputElement).value })} /></label>
+            <label class="fld">${rt('fWindowFrom')}<input class="inp" type="date" lang=${dateInputLang()} .value=${e.from} @change=${(x: Event) => set({ from: (x.target as HTMLInputElement).value })} /></label>
+            <label class="fld">${rt('fWindowTo')}<input class="inp" type="date" lang=${dateInputLang()} .value=${e.to} min=${e.from || ''} @change=${(x: Event) => set({ to: (x.target as HTMLInputElement).value })} /></label>
           </div>`, foot(rt('save'), 'edit', () => void this.saveEdit(), draft && !e.title.trim()), true);
       }
       case 'close':

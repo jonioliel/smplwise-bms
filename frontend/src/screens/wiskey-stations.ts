@@ -67,6 +67,7 @@ import {
   type TableTier,
 } from './wiskey-stations-logic';
 import { drawerBody, grid, rows, tableColumns, type Fetch, type StationDetail, type ViewCtx } from './wiskey-stations-views';
+import { timeText } from '../api/day-format';
 
 type ViewMode = 'cards' | 'list' | 'table';
 const VIEW_KEY = 'sw.wiskey.stations.view';
@@ -100,7 +101,6 @@ const readCollapsed = (): ReadonlySet<string> => {
     return new Set();
   }
 };
-const uiLocale = () => (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en-GB' : 'he-IL';
 
 const ZONE = { kind: 'iana', name: 'Asia/Jerusalem' } as const;
 const DEMO: AccessStation[] = [
@@ -164,7 +164,7 @@ export class WiskeyStations extends LitElement {
     cancel: (id) => window.clearTimeout(id),
     changed: () => this.requestUpdate(),
     refetch: () => void this.load(),
-    stamp: () => new Date().toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' }),
+    stamp: () => timeText(new Date()),
   });
   private stop: (() => void) | null = null;
   private stopRoute: (() => void) | null = null;

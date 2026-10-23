@@ -13,6 +13,7 @@ import {
 } from '../api/backup-offbox';
 import { obt, obtError, type ObtKey } from '../i18n/backup-offbox';
 import { settingsStyles } from '../styles/settings';
+import { dayMonthTimeText } from '../api/day-format';
 
 type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget };
 
@@ -128,7 +129,7 @@ export class SwOffboxBackup extends LitElement {
 
   private when(iso: string | null | undefined): string {
     if (!iso) return obt('never');
-    return new Date(iso).toLocaleString(document.documentElement.lang || 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return dayMonthTimeText(new Date(iso));
   }
 
   private runBadge(r: OffboxRun | null, label: ObtKey): TemplateResult {

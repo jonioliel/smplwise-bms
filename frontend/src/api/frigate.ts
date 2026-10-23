@@ -17,6 +17,7 @@ import { isPendingRestart } from './closed-errors';
 import { isApi } from './session';
 import type { Camera } from './types';
 import { he } from '../i18n/he';
+import { dayTimeText, timeText, dayMonthText } from './day-format';
 
 // ---- what a recorder offers (the capability summary) ----
 
@@ -83,7 +84,7 @@ export function retentionText(r: NonNullable<FrigateCapabilities['retention']>):
 /** A short local date and time (the browser's zone) for a UTC instant. */
 function whenText(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? iso : dayTimeText(d);
 }
 
 /** Rows of the summary card, ready to render: only what is known. Pure so the unit tests pin the wording. */
@@ -628,8 +629,8 @@ export function spanRows(it: Pick<ReviewItem, 'start' | 'end'>): TimelineRow[] {
 /** The time of an item in a zone: "10:12" and, when it is not today, the date before it. */
 export function cardTime(iso: string, tz: string, now: Date = new Date()): string {
   const d = new Date(iso);
-  const day = (x: Date) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(x);
-  const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+  const day = (x: Date) => dayMonthText(x, { timeZone: tz });
+  const hm = timeText(d, { timeZone: tz });
   return day(d) === day(now) ? hm : `${day(d)} ${hm}`;
 }
 

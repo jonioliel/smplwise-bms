@@ -17,6 +17,7 @@ import {
   CONFIRM_TIMEOUT_MS, HOLD_MAX_MS, HOLD_REPEAT_MS, KeyThrottle, TEXT_MAX, commandOffered, remoteSections,
   type AudioTarget, type KeyId, type MediaCommand, type MediaDevice, type MediaDeviceDetail, type MediaLive, type RemoteSection, type SourceItem,
 } from '../api/media-screens';
+import { timeText } from '../api/day-format';
 
 // ------------------------------------------------------------------------------------------------ mode of the remote
 
@@ -323,7 +324,7 @@ export function unavailableLine(live: Pick<MediaLive, 'power' | 'since'>): { tit
   if (!live.since) return { title, since: '' };
   const t = new Date(live.since);
   if (Number.isNaN(t.getTime())) return { title, since: '' };
-  const hhmm = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false }).format(t);
+  const hhmm = timeText(t);
   return { title, since: hhmm };
 }
 

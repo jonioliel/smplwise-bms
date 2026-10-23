@@ -38,6 +38,7 @@ import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
 import { initialLevel } from '../map/studio-ops';
 import { productSettings } from '../api/prefs';
+import { timeText, dayText } from '../api/day-format';
 
 const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
@@ -604,9 +605,9 @@ export class InvestigateEventDetail extends LitElement {
 
   private fmt(iso: string, withDate = false): string {
     const d = new Date(iso);
-    const time = new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(d);
+    const time = timeText(d, { timeZone: this.tz, seconds: true });
     if (!withDate) return time;
-    return `${new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)} · ${time}`;
+    return `${dayText(d, { timeZone: this.tz })} · ${time}`;
   }
 
   private renderCorrelation() {

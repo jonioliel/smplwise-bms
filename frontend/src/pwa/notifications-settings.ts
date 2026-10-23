@@ -28,6 +28,7 @@ import {
   type PushSubscriptionRow,
   type PushSupport,
 } from './push';
+import { dateInputLang, dayTimeText } from '../api/day-format';
 
 const CATEGORIES: { id: PushCategory; label: string; detail: string }[] = [
   { id: 'alerts', label: 'התראות מחוקים', detail: 'כל התראה שחוק ב"חוקים והתראות" מעלה: תנועה, חציית קו, אדם, רכב' },
@@ -266,7 +267,7 @@ export class ArxNotificationsSettings extends LitElement {
   private fmt(iso: string | null): string {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+      return dayTimeText(new Date(iso));
     } catch {
       return iso;
     }
@@ -317,9 +318,9 @@ export class ArxNotificationsSettings extends LitElement {
       <div class="row">
         <span class="lbl">מ־ עד<span class="muted">טווח לילה (למשל 22:00–07:00) עובר את חצות</span></span>
         <span class="times">
-          <sw-field><input type="time" data-push-from aria-label="תחילת שעות השקט" .value=${q?.from ?? '22:00'} ?disabled=${!q?.enabled} @change=${(e: Event) => this.setQuiet({ from: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field><input type="time" lang=${dateInputLang()} data-push-from aria-label="תחילת שעות השקט" .value=${q?.from ?? '22:00'} ?disabled=${!q?.enabled} @change=${(e: Event) => this.setQuiet({ from: (e.target as HTMLInputElement).value })} /></sw-field>
           <span>–</span>
-          <sw-field><input type="time" data-push-to aria-label="סוף שעות השקט" .value=${q?.to ?? '07:00'} ?disabled=${!q?.enabled} @change=${(e: Event) => this.setQuiet({ to: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field><input type="time" lang=${dateInputLang()} data-push-to aria-label="סוף שעות השקט" .value=${q?.to ?? '07:00'} ?disabled=${!q?.enabled} @change=${(e: Event) => this.setQuiet({ to: (e.target as HTMLInputElement).value })} /></sw-field>
         </span>
       </div>
       <div class="row">

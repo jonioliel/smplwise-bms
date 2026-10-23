@@ -64,6 +64,7 @@ import { ot } from '../tickets/overview-text';
 import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
+import { dateInputLang, dayText } from '../api/day-format';
 
 type Tab = (typeof SETTINGS_TABS)[number];
 const TABS = SETTINGS_TABS;
@@ -634,9 +635,9 @@ export class SystemTickets extends LitElement {
     const dirty = from !== hours.from || to !== hours.to;
     return html`<sw-card heading=${tt('setHoursCard')} data-card="hours">
       <div class="row"><span class="lbl">${tt('setHoursRow')}<span class="muted">${tt('setHoursRowSub')}</span></span>
-        <span class="end"><input class="in time" type="time" data-inst-hours="from" aria-label=${tt('setHoursRow')} aria-invalid=${String(!!err)} .value=${from} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, from: (e.target as HTMLInputElement).value })} />
+        <span class="end"><input class="in time" type="time" lang=${dateInputLang()} data-inst-hours="from" aria-label=${tt('setHoursRow')} aria-invalid=${String(!!err)} .value=${from} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, from: (e.target as HTMLInputElement).value })} />
           <span class="muted">${tt('hoursTo')}</span>
-          <input class="in time" type="time" data-inst-hours="to" aria-label=${`${tt('setHoursRow')} · ${tt('hoursTo')}`} aria-invalid=${String(!!err)} .value=${to} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, to: (e.target as HTMLInputElement).value })} />
+          <input class="in time" type="time" lang=${dateInputLang()} data-inst-hours="to" aria-label=${`${tt('setHoursRow')} · ${tt('hoursTo')}`} aria-invalid=${String(!!err)} .value=${to} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, to: (e.target as HTMLInputElement).value })} />
           <sw-button size="sm" variant="primary" data-inst-hours-save ?disabled=${!dirty || !!err || this.busy}
             @click=${() => void this.saveDoc({ send_hours: { from, to } }, () => (this.instDraft = { ...this.instDraft, from: undefined, to: undefined }))}>${tt('save')}</sw-button></span></div>
       ${err ? html`<div class="row"><span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span></div>` : nothing}
@@ -886,7 +887,7 @@ export class SystemTickets extends LitElement {
     return html`<sw-card data-card="dept-deleted"><details data-dept-deleted>
       <summary>${tt('depDeletedList')} · ${this.deletedDepts.length}</summary>
       <div class="people">${repeat(this.deletedDepts, (d) => d.id, (d) => html`<div class="person" data-dept-deleted-item=${d.id}>
-        <span class="who">${bidi(d.name)} <span class="muted">${new Date(d.deleted_at).toLocaleDateString('he-IL')}</span></span>
+        <span class="who">${bidi(d.name)} <span class="muted">${dayText(new Date(d.deleted_at))}</span></span>
         <sw-button size="sm" data-dept-restore=${d.id} ?disabled=${this.busy} @click=${() => void this.restoreDepartment(d.id)}>${tt('depRestore')}</sw-button>
       </div>`)}</div>
     </details></sw-card>`;
@@ -955,7 +956,7 @@ export class SystemTickets extends LitElement {
     const via = g.via === 'grant' ? tt('via_grant') : g.via === 'group' ? tt('via_group', { group: g.group_name ?? '' }) : tt('via_role', { role: g.role_name });
     // 2.5.0: a scope whose place was removed has no name - its id stands in (never "null")
     const scope = g.scope_type !== 'installation' ? ` · ${tt('permScope', { scope: g.scope_name || g.scope_id || '–' })}` : '';
-    const until = g.expires_at ? ` · ${tt('permUntil', { date: new Date(g.expires_at).toLocaleDateString('he-IL') })}` : '';
+    const until = g.expires_at ? ` · ${tt('permUntil', { date: dayText(new Date(g.expires_at)) })}` : '';
     return via + scope + until;
   }
 
@@ -1012,7 +1013,7 @@ export class SystemTickets extends LitElement {
               ${(this.scopes ?? [{ type: 'installation', id: '*', label: tt('permScopeAll') }]).map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${this.grantScope === `${s.type}:${s.id}`}>${s.label}</option>`)}
             </select></div>
           <div class="row"><span class="lbl">${tt('permGrantUntil')}</span>
-            <input class="in" type="date" min=${today} data-grant-until aria-label=${tt('permGrantUntil')} .value=${this.grantUntil} @input=${(e: Event) => (this.grantUntil = (e.target as HTMLInputElement).value)} /></div>
+            <input class="in" type="date" lang=${dateInputLang()} min=${today} data-grant-until aria-label=${tt('permGrantUntil')} .value=${this.grantUntil} @input=${(e: Event) => (this.grantUntil = (e.target as HTMLInputElement).value)} /></div>
           <div class="chipsrow" data-grant-perms>${PERMS.map((p) => {
             const g = this.grantOf(this.grantUser, p);
             return html`<button type="button" class="rc" aria-pressed=${String(!!g)} data-grant=${p} ?disabled=${this.busy} title=${g ? this.viaText(g) : ''} @click=${() => void this.toggleGrant(p, !g)}>${g ? '✓ ' : '+ '}${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? ` · ${tt('sensitive')}` : ''}</button>`;

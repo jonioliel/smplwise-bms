@@ -3,6 +3,7 @@
  * share ONE reading of `MediaLive`. Our own hues and neutral glyphs: never a brand colour or logo.
  */
 import type { MediaDevice, NowShowing } from '../api/media-screens';
+import { timeText } from '../api/day-format';
 
 /** HSL (our own hue) to an "r g b" triplet, the form the `--art` custom property takes (like `--dv-tile-on-*`). */
 export function hueRgb(hue: number, s = 0.62, l = 0.52): string {
@@ -31,7 +32,7 @@ export interface NowView {
 export const hhmm = (iso: string | null): string => {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return Number.isNaN(d.getTime()) ? '' : timeText(d);
 };
 
 /** The position of the playing item now: the reported one plus the time since it was reported (only while playing). */

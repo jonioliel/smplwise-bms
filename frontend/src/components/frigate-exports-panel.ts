@@ -11,6 +11,7 @@ import {
 } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { adminStyles, dateText, epochToLocal, firstBlocked, localToEpoch, supervisedBox } from './frigate-admin-shared';
+import { dateInputLang } from '../api/day-format';
 
 interface CreateDraft {
   camera: string;
@@ -208,8 +209,8 @@ export class FrigateExportsPanel extends LitElement {
       <div class="form">
         <label>${t.camera}<sw-dropdown block data-fx-camera .label=${t.camera} .placeholder=${t.chooseCamera} .value=${d.camera} .items=${items} @change=${(e: CustomEvent<{ id: string }>) => (this.draft = { ...d, camera: e.detail.id })}></sw-dropdown></label>
         <div class="two">
-          <label>${t.from}<input type="datetime-local" data-fx-start .value=${d.start} @input=${(e: Event) => (this.draft = { ...d, start: (e.target as HTMLInputElement).value })} /></label>
-          <label>${t.to}<input type="datetime-local" data-fx-end .value=${d.end} @input=${(e: Event) => (this.draft = { ...d, end: (e.target as HTMLInputElement).value })} /></label>
+          <label>${t.from}<input type="datetime-local" lang=${dateInputLang()} data-fx-start .value=${d.start} @input=${(e: Event) => (this.draft = { ...d, start: (e.target as HTMLInputElement).value })} /></label>
+          <label>${t.to}<input type="datetime-local" lang=${dateInputLang()} data-fx-end .value=${d.end} @input=${(e: Event) => (this.draft = { ...d, end: (e.target as HTMLInputElement).value })} /></label>
         </div>
         <label>${t.name}<input type="text" maxlength="80" data-fx-name .value=${d.name} @input=${(e: Event) => (this.draft = { ...d, name: (e.target as HTMLInputElement).value })} /></label>
         ${supervisedBox(this.first, 'export_create', d.supervised, (v) => (this.draft = { ...d, supervised: v }), 'export_create')}

@@ -13,6 +13,7 @@ import { can, isApi, onRemote } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { announceLang, announceText } from '../i18n/announce';
+import { dateInputLang } from '../api/day-format';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 
@@ -140,9 +141,9 @@ export class SystemAnnouncements extends LitElement {
         <div class="row"><span class="lbl">${t.quietEnabled}<span class="muted">${t.quietHint}</span></span>
           <sw-toggle label=${t.quietEnabled} labelHidden .checked=${q.enabled} data-announce-quiet-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ quiet: { enabled: e.detail.checked } })}></sw-toggle></div>
         <div class="row"><span class="lbl">${t.from}</span>
-          <input type="time" data-announce-quiet-from .value=${q.from} @change=${(e: Event) => void this.save({ quiet: { from: (e.target as HTMLInputElement).value } })} /></div>
+          <input type="time" lang=${dateInputLang()} data-announce-quiet-from .value=${q.from} @change=${(e: Event) => void this.save({ quiet: { from: (e.target as HTMLInputElement).value } })} /></div>
         <div class="row"><span class="lbl">${t.to}</span>
-          <input type="time" data-announce-quiet-to .value=${q.to} @change=${(e: Event) => void this.save({ quiet: { to: (e.target as HTMLInputElement).value } })} /></div>
+          <input type="time" lang=${dateInputLang()} data-announce-quiet-to .value=${q.to} @change=${(e: Event) => void this.save({ quiet: { to: (e.target as HTMLInputElement).value } })} /></div>
         <div class="row"><span class="lbl">${t.mode}</span>
           <select data-announce-quiet-mode aria-label=${t.mode} @change=${(e: Event) => void this.save({ quiet: { mode: (e.target as HTMLSelectElement).value as 'suppress' | 'lower' } })}>
             <option value="suppress" ?selected=${q.mode === 'suppress'}>${t.modeSuppress}</option><option value="lower" ?selected=${q.mode === 'lower'}>${t.modeLower}</option></select></div>

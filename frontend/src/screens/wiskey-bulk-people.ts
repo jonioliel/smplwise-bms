@@ -22,6 +22,7 @@ import {
 } from '../api/bulk-people';
 import { attention, codesText, editRequest, EMPTY_EDIT, precheckFile, previewCounts, shouldContinue, stepOf, valueText, type EditForm } from '../access-control/bulk-people-logic';
 import { bt, btDynamic } from '../i18n/bulk-people';
+import { dateInputLang } from '../api/day-format';
 
 export interface BulkStation {
   id: string;
@@ -366,8 +367,8 @@ export class SwBulkPeopleDialog extends LitElement {
     const f = this.form;
     const set = (patch: Partial<EditForm>) => (this.form = { ...f, ...patch });
     return html`<div class="grid2">
-        <label>${bt('edit_from')}<input type="date" data-bulk-from .value=${f.validFrom} @change=${(e: Event) => set({ validFrom: (e.target as HTMLInputElement).value })}></label>
-        <label>${bt('edit_until')}<input type="date" data-bulk-until .value=${f.validUntil} @change=${(e: Event) => set({ validUntil: (e.target as HTMLInputElement).value })}></label>
+        <label>${bt('edit_from')}<input type="date" lang=${dateInputLang()} data-bulk-from .value=${f.validFrom} @change=${(e: Event) => set({ validFrom: (e.target as HTMLInputElement).value })}></label>
+        <label>${bt('edit_until')}<input type="date" lang=${dateInputLang()} data-bulk-until .value=${f.validUntil} @change=${(e: Event) => set({ validUntil: (e.target as HTMLInputElement).value })}></label>
         <label>${bt('edit_active')}<select data-bulk-active @change=${(e: Event) => set({ active: (e.target as HTMLSelectElement).value as EditForm['active'] })}>
           <option value="keep" ?selected=${f.active === 'keep'}>${bt('edit_keep')}</option>
           <option value="on" ?selected=${f.active === 'on'}>${bt('edit_activate')}</option>

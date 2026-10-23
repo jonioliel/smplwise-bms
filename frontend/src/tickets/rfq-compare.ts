@@ -26,6 +26,7 @@ import { awardQuestionWarning, questionBadge } from './rfq-questions';
 import { tt, ticketsLang } from './text';
 import { payFromProposal, payProblems, payWire, proposalLines, type MgrDue, type MgrPay } from './rfq-terms-model';
 import type { FileRow } from './rfq-files';
+import { dateInputLang } from '../api/day-format';
 
 interface DraftOut { vendorId: string; name: string; text: string; send: boolean; notify: boolean; source?: { kind: 'award'; id: string } }
 
@@ -301,7 +302,7 @@ export class TicketsRfqCompare extends LitElement {
           <span class="seg sm" role="radiogroup">${(['percent', 'amount'] as const).map((m) => html`<button type="button" role="radio" aria-checked=${String(it.mode === m)}
             @click=${() => upd((c) => { c.items[i].mode = m; })}>${rt(m === 'percent' ? 'pyPercent' : 'pyAmount')}</button>`)}</span>
           <input class="inp" inputmode="decimal" dir="ltr" aria-label=${rt(it.mode === 'percent' ? 'pyPercent' : 'pyAmount')} .value=${it.value} @change=${(e: Event) => upd((c) => { c.items[i].value = (e.target as HTMLInputElement).value; })} />
-          <input class="inp" type="date" aria-label=${rt('pyDate')} min=${this.today()} .value=${it.date} @change=${(e: Event) => upd((c) => { c.items[i].date = (e.target as HTMLInputElement).value; })} />
+          <input class="inp" type="date" lang=${dateInputLang()} aria-label=${rt('pyDate')} min=${this.today()} .value=${it.date} @change=${(e: Event) => upd((c) => { c.items[i].date = (e.target as HTMLInputElement).value; })} />
           <button type="button" class="btn sm quiet" @click=${() => upd((c) => { c.items.splice(i, 1); })}>${rt('pyRemove')}</button></div>`)}
         <div class="frm">
           ${p.items.length < 5 && !p.items.some((x) => x.kind === 'advance') ? html`<button type="button" class="btn sm" @click=${() => upd((c) => { c.items.unshift({ kind: 'advance', mode: 'percent', value: '', date: '' }); })}>${rt('pyAddAdvance')}</button>` : nothing}
@@ -310,11 +311,11 @@ export class TicketsRfqCompare extends LitElement {
           <span class="mut">${rt('pk_final')}</span>
           <select class="inp" aria-label=${rt('pk_final')} @change=${(e: Event) => upd((c) => { c.due = (e.target as HTMLSelectElement).value as MgrDue; })}>
             ${([['completion', 'pdDone'], ['date', 'pdOnDate'], ['after_completion', 'pdAfterShort']] as const).map(([v, k]) => html`<option value=${v} ?selected=${p.due === v}>${rt(k)}</option>`)}</select>
-          ${p.due === 'date' ? html`<input class="inp" type="date" aria-label=${rt('pyDate')} .value=${p.date} @change=${(e: Event) => upd((c) => { c.date = (e.target as HTMLInputElement).value; })} />` : nothing}
+          ${p.due === 'date' ? html`<input class="inp" type="date" lang=${dateInputLang()} aria-label=${rt('pyDate')} .value=${p.date} @change=${(e: Event) => upd((c) => { c.date = (e.target as HTMLInputElement).value; })} />` : nothing}
           ${p.due === 'after_completion' ? html`<input class="inp" inputmode="numeric" dir="ltr" aria-label=${rt('pdAfterShort')} .value=${p.days} @change=${(e: Event) => upd((c) => { c.days = (e.target as HTMLInputElement).value.trim(); })} />` : nothing}
         </div>
         ${bad.length ? html`<div class="err" role="alert" data-cmp-pay-error>${rt('pyInvalid')}</div>` : nothing}` : nothing}
-      <label class="fld">${rt('pyArrival')}<input class="inp" type="date" data-cmp-arrival min=${this.today()} .value=${day}
+      <label class="fld">${rt('pyArrival')}<input class="inp" type="date" lang=${dateInputLang()} data-cmp-arrival min=${this.today()} .value=${day}
         @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; const n = new Map(this.arrivals); if (v) n.set(q.quote_id, v); else n.delete(q.quote_id); this.arrivals = n; }} />
         <span class="note">${rt('pyArrivalNote')}</span></label>
     </div>`;

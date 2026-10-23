@@ -11,6 +11,7 @@ import { settingsStyles } from '../styles/settings';
 import { bidi } from '../i18n/bidi';
 import { mp, type MpKey } from '../i18n/messaging-pacing';
 import { BURST_RANGE, MINUTE_RANGE, changedWaits, intValue, span, tone, waitValue, wiskeyReasonKey } from '../messaging/pacing-model';
+import { timeText } from '../api/day-format';
 
 /**
  * CR-WA-PACING-295: the shared send budget (Settings > messaging channel). One card: the mode (conservative by default), whether WisKey
@@ -129,7 +130,7 @@ export class MessagingPacingCard extends LitElement {
   private accountRow(a: PacingAccount): TemplateResult {
     const c = a.counters_24h;
     const t = tone(a);
-    const until = a.backoff ? new Date(a.backoff.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const until = a.backoff ? timeText(new Date(a.backoff.until)) : '';
     return html`<div class="acct" data-pacing-account=${a.account_key} data-tone=${t}>
       <div class="head"><strong>${bidi(this.labels[a.account_key] ?? a.account_key)}</strong>
         ${a.backoff ? html`<span class="tag warn" data-backoff><sw-icon name="warning" size="14"></sw-icon>${mp('backoffUntil', { time: until })}</span>` : nothing}

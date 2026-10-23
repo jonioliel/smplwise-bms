@@ -27,6 +27,7 @@ import { liveTileKnobs } from '../styles/tile-knobs';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncErrorText } from '../api/ha-sync-status';
+import { timeText } from '../api/day-format';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
 interface RawHealth {
@@ -134,7 +135,7 @@ export class LiveOverview extends LitElement {
   }
 
   private fmtTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: this.tz });
+    return timeText(new Date(iso), { timeZone: this.tz });
   }
 
   private spots(): Spot[] {
@@ -185,7 +186,7 @@ export class LiveOverview extends LitElement {
     }
     return html`
       <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `מצב המערכת: ${STATUS_LABEL[h.status]}${firstIssue ? ` · ${firstIssue.label}` : ' · כל הבדיקות תקינות'}` : 'קורא את מצב המערכת…'}>
-        <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${this.now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: this.tz })}</div>
+        <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${timeText(this.now, { timeZone: this.tz })}</div>
         <div class="kpis" data-overview-kpis>
           <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'} layout=${layout} href="#/system/devices?sort=offline" hint="פתח את רשימת המצלמות"></sw-kpi>
           <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>

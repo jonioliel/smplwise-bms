@@ -11,6 +11,7 @@ import {
 import { dwt, dwtDynamic } from '../i18n/door-windows';
 import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, type SheetStep } from './logic';
 import { dwCss } from './styles';
+import { timeText } from '../api/day-format';
 
 /**
  * CR-039 8 / DOORWIN-295: the emergency door controls.
@@ -365,7 +366,7 @@ export class DoorEmergencyStrip extends LitElement {
   render() {
     const inc = this.incident;
     if (!inc) return nothing;
-    const since = new Intl.DateTimeFormat('en-GB', { timeZone: this.zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(inc.requested_at));
+    const since = timeText(new Date(inc.requested_at), { timeZone: this.zone });
     const text = inc.drill ? dwt('emStripDrill', { kind: inc.kind_label, scope: inc.scope_name }) : dwt('emStrip', { kind: inc.kind_label, scope: inc.scope_name, since });
     return html`<div class="strip ${inc.drill ? 'drill' : ''}" role="status" data-em-strip=${inc.kind}>
       <sw-icon name="warning"></sw-icon>

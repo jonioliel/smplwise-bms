@@ -29,6 +29,7 @@ import { pillInk } from './pill-ink';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
+import { dateInputLang } from '../api/day-format';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
 export { QUALITY_KEY } from '../api/plan-quality';
@@ -1937,7 +1938,7 @@ export class SwPlan3d extends LitElement {
       ${this.timeOpen
         ? html`<div class="timepop" data-3d-time-pop>
             <input type="range" min="0" max="24" step="0.25" aria-label="שעה ביום" data-3d-time-slider .value=${String(s.hour)} @input=${(e: Event) => this.setTimeHour(Number((e.target as HTMLInputElement).value))} />
-            <div class="row"><input type="date" aria-label="תאריך" data-3d-time-date .value=${date} @change=${(e: Event) => this.setTimeDate((e.target as HTMLInputElement).value)} /><span>${TIME_BAND_HE[s.band as keyof typeof TIME_BAND_HE]} · שמש ${s.elevation}°</span></div>
+            <div class="row"><input type="date" lang=${dateInputLang()} aria-label="תאריך" data-3d-time-date .value=${date} @change=${(e: Event) => this.setTimeDate((e.target as HTMLInputElement).value)} /><span>${TIME_BAND_HE[s.band as keyof typeof TIME_BAND_HE]} · שמש ${s.elevation}°</span></div>
             ${this.site.known ? nothing : html`<div class="muted" data-3d-site-default>מיקום האתר לא הוגדר: מרכז הארץ</div>`}
           </div>`
         : nothing}`;

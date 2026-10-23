@@ -37,6 +37,7 @@ import {
   type IntercomTtsStatus,
 } from '../api/intercom';
 import { formatTime, t, UTC_ZONE } from './wiskey-format';
+import { timeText } from '../api/day-format';
 
 /** WisKey's door filter (wiskey-v4-overview.ts `WiskeyDoorFilter`). */
 type DoorFilter = 'all' | 'online' | 'attention';
@@ -326,7 +327,7 @@ export class WiskeyOverview extends LitElement {
     try {
       // a success reply always means `accepted: true` (anything else is raised as "outcome unknown" by the backend)
       await releaseIntercomDoor(c.station.id, c.lock.physical_index);
-      const at = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const at = timeText(new Date(), { seconds: true });
       this.setResult(c.station.id, 'ok', `הפקודה נשלחה ו־WisKey קיבל אותה (${at}). אין אישור שהדלת נפתחה בפועל - בדקו במצלמה או במקום.`);
     } catch (err) {
       const f = failure(err);

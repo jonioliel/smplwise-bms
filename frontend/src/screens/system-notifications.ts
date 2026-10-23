@@ -29,6 +29,7 @@ import { applyNotifyGlass, notifyStore } from '../components/notify-store';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { subscribeClock } from '../api/clock-ticker';
+import { dateInputLang } from '../api/day-format';
 
 type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'wa' | 'chan' | 'log';
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
@@ -1241,7 +1242,7 @@ export class SystemNotifications extends LitElement {
     const q = s.quiet;
     const dis = !q.enabled;
     return html`<section class="glass sec" data-set-section="quiet" id="sec-quiet"><header><h2>${nIcon('moon')}${SECTIONS[1].label}</h2><div class="sp">${this.tog(q.enabled, 'quiet-on', 'שעות שקט', () => this.patchSettings({ quiet: { ...q, enabled: !q.enabled } }))}</div></header>
-      <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>שעות</b></div><div class="r"><input class="inp sm ltr" type="time" data-quiet-from aria-label="מהשעה" style="inline-size:112px" .value=${q.from} ?disabled=${dis} @change=${(e: Event) => this.setTime('from', (e.target as HTMLInputElement).value)} /><span>עד</span><input class="inp sm ltr" type="time" data-quiet-to aria-label="עד השעה" style="inline-size:112px" .value=${q.to} ?disabled=${dis} @change=${(e: Event) => this.setTime('to', (e.target as HTMLInputElement).value)} /></div></div>
+      <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>שעות</b></div><div class="r"><input class="inp sm ltr" type="time" lang=${dateInputLang()} data-quiet-from aria-label="מהשעה" style="inline-size:112px" .value=${q.from} ?disabled=${dis} @change=${(e: Event) => this.setTime('from', (e.target as HTMLInputElement).value)} /><span>עד</span><input class="inp sm ltr" type="time" lang=${dateInputLang()} data-quiet-to aria-label="עד השעה" style="inline-size:112px" .value=${q.to} ?disabled=${dis} @change=${(e: Event) => this.setTime('to', (e.target as HTMLInputElement).value)} /></div></div>
       ${this.invalid === 'quiet_invalid' ? html`<div class="errline" data-set-error>${NOTIFY_ERROR_LABEL.quiet_invalid}</div>` : nothing}
       <div class="frow ${dis ? 'dis' : ''}"><div class="l"><b>ימים</b></div><div class="r"><div class="days" role="group" aria-label="ימים">${WEEKDAYS.map((d: Weekday) => html`<button type="button" aria-pressed=${String(q.days.includes(d))} data-quiet-day=${d} ?disabled=${dis} @click=${() => this.patchSettings({ quiet: { ...q, days: toggleDay(q.days, d) } })}>${WEEKDAY_LETTER[d]}</button>`)}</div></div></div>
       <div class="frow ${dis ? 'dis' : ''}" style="align-items:flex-start"><div class="l"><b>מה עובר בשעות שקט</b></div></div>

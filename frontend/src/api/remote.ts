@@ -1,5 +1,6 @@
 /** CR-008 P2: the remote sign-ins (SmplWise Arx sessions) - one's own, or everyone's for a system administrator. */
 import { api, get } from './client';
+import { dayMonthTimeText } from './day-format';
 
 export interface RemoteSession {
   /** A hash of the sign-in (never the cookie value); what the revoke endpoint takes. */
@@ -61,5 +62,5 @@ export function whenLabel(iso: string): string {
   const mins = Math.round((Date.now() - d.getTime()) / 60_000);
   if (mins < 2) return 'עכשיו';
   if (mins < 60) return `לפני ${mins} דק׳`;
-  return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return dayMonthTimeText(d);
 }

@@ -8,6 +8,7 @@ import type { WireCamera } from '../api/frigate';
 import { CLIP_MAX_S, SUPERVISED_KINDS, clipUrl, type FirstWrites } from '../api/frigate-control';
 import { fx } from '../i18n/frigate-text';
 import { adminStyles, epochToLocal, localToEpoch, supervisedBox } from './frigate-admin-shared';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * FRGD: the supervision view of ONE Frigate recorder (Settings only; CR-029 section 11): which kinds already had their first supervised
@@ -154,8 +155,8 @@ export class FrigateSupervision extends LitElement {
           <div class="form" data-fs-clip>
             <label>${s.exports.camera}<sw-dropdown block data-fs-camera .label=${s.exports.camera} .placeholder=${s.exports.camera} .value=${camera} .items=${items} @change=${(e: CustomEvent<{ id: string }>) => (this.camera = e.detail.id)}></sw-dropdown></label>
             <div class="two">
-              <label>${s.exports.from}<input type="datetime-local" data-fs-start .value=${this.start} @input=${(e: Event) => (this.start = (e.target as HTMLInputElement).value)} /></label>
-              <label>${s.exports.to}<input type="datetime-local" data-fs-end .value=${this.end} @input=${(e: Event) => (this.end = (e.target as HTMLInputElement).value)} /></label>
+              <label>${s.exports.from}<input type="datetime-local" lang=${dateInputLang()} data-fs-start .value=${this.start} @input=${(e: Event) => (this.start = (e.target as HTMLInputElement).value)} /></label>
+              <label>${s.exports.to}<input type="datetime-local" lang=${dateInputLang()} data-fs-end .value=${this.end} @input=${(e: Event) => (this.end = (e.target as HTMLInputElement).value)} /></label>
             </div>
             ${supervisedBox(first, 'clip_read', this.supervised, (v) => (this.supervised = v), 'clip_read')}
             ${this.error ? html`<div class="err" role="alert" data-fs-error>${this.error}</div>` : nothing}

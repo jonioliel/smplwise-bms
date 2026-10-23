@@ -5,6 +5,7 @@ import { dat, datCode, datLang } from '../i18n/door-automation';
 import { icon } from './automation-builder-icons';
 import { editorShared } from './automation-editor-css';
 import { canArm, dayOrder, formProblems, payload, sameDoor, stateChip, stateLine, toggleDay, toggleDoor } from './door-automation-logic';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-AUTODOORS-295: the "open a door" block of the automation editor, under the "Then" section. Shown only to a holder of
@@ -191,8 +192,8 @@ export class DoorAutomationBlock extends LitElement {
         ${p.windows.map((w, i) => html`<div class="win" data-window=${i}>
           <div class="days" role="group">${dayOrder(lang).map((d) => html`<button type="button" class="day ${w.days.includes(d) ? 'on' : ''}" aria-pressed=${w.days.includes(d) ? 'true' : 'false'}
             @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: this.policy.windows.map((x, j) => (j === i ? toggleDay(x, d) : x)) }; })}>${dat(`d${d}` as 'd0')}</button>`)}</div>
-          <label class="t"><span>${dat('from')}</span><input type="time" dir="ltr" .value=${w.start} @change=${(e: Event) => this.setWin(i, 'start', (e.target as HTMLInputElement).value)} /></label>
-          <label class="t"><span>${dat('to')}</span><input type="time" dir="ltr" .value=${w.end === '24:00' ? '23:59' : w.end} @change=${(e: Event) => this.setWin(i, 'end', (e.target as HTMLInputElement).value)} /></label>
+          <label class="t"><span>${dat('from')}</span><input type="time" lang=${dateInputLang()} dir="ltr" .value=${w.start} @change=${(e: Event) => this.setWin(i, 'start', (e.target as HTMLInputElement).value)} /></label>
+          <label class="t"><span>${dat('to')}</span><input type="time" lang=${dateInputLang()} dir="ltr" .value=${w.end === '24:00' ? '23:59' : w.end} @change=${(e: Event) => this.setWin(i, 'end', (e.target as HTMLInputElement).value)} /></label>
           ${p.windows.length > 0 ? html`<button type="button" class="link" @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: this.policy.windows.filter((_, j) => j !== i) }; })}>${dat('windowRemove')}</button>` : nothing}
         </div>`)}
         ${p.windows.length < 7 ? html`<button type="button" class="link" data-add-window @click=${() => this.edit(() => { this.policy = { ...this.policy, windows: [...this.policy.windows, { days: [6, 0, 1, 2, 3], start: '07:00', end: '09:00' }] }; })}>+ ${dat('windowAdd')}</button>` : nothing}

@@ -20,6 +20,7 @@ import { statusStyles } from '../access-control/status-css';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { mt, problemText, type MessagingKey } from '../i18n/access-messaging';
+import { dateInputLang } from '../api/day-format';
 
 /** WA-CONSENT-LINK: the consent request's languages (the server's CONSENT_LANGS) and the words of "the page cannot serve a link". */
 const CONSENT_LANGS = ['he', 'en', 'ar', 'ru'] as const;
@@ -617,10 +618,10 @@ export class SystemAccessMessaging extends LitElement {
             ${d.hours_on
               ? html`<div class="fields">
                   <sw-field label=${mt('hours.from')} ?data-bad=${this.shown('send_hours').length > 0}>
-                    <input type="time" class="ltr" .value=${d.hours_from} data-msg-setting="send_hours_from" @input=${(e: Event) => this.set({ hours_from: (e.target as HTMLInputElement).value }, 'send_hours')} />
+                    <input type="time" lang=${dateInputLang()} class="ltr" .value=${d.hours_from} data-msg-setting="send_hours_from" @input=${(e: Event) => this.set({ hours_from: (e.target as HTMLInputElement).value }, 'send_hours')} />
                   </sw-field>
                   <sw-field label=${mt('hours.to')} ?data-bad=${this.shown('send_hours').length > 0}>
-                    <input type="time" class="ltr" .value=${d.hours_to} data-msg-setting="send_hours_to" @input=${(e: Event) => this.set({ hours_to: (e.target as HTMLInputElement).value }, 'send_hours')} />
+                    <input type="time" lang=${dateInputLang()} class="ltr" .value=${d.hours_to} data-msg-setting="send_hours_to" @input=${(e: Event) => this.set({ hours_to: (e.target as HTMLInputElement).value }, 'send_hours')} />
                   </sw-field>
                 </div>`
               : nothing}

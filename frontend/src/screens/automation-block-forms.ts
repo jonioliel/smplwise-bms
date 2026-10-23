@@ -8,6 +8,7 @@ import { icon } from './automation-builder-icons';
 import {
   PRESENCE_ZONE, WEEKDAY_LABEL, entityIcon, lockedWhy, personIds, presenceOf, stateChoices, type Choice, type EditorEnv, type Presence, type Section,
 } from './automation-editor-logic';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-017 S4: one form per typed block, in a registry keyed by `section:type` (`trigger:state`, `condition:time`, `action:service` ...). A typed
@@ -71,7 +72,7 @@ function numIn(value: number | null | undefined, on: (n: number | null) => void,
 const textIn = (value: string, on: (v: string) => void, o: { ph?: string; attr?: string; ltr?: boolean; label?: string } = {}): TemplateResult =>
   html`<label class="inp"><input type="text" data-fld=${o.attr ?? ''} aria-label=${aria(o.attr, o.label)} dir=${o.ltr ? 'ltr' : 'auto'} placeholder=${o.ph ?? ''} .value=${value} @input=${(e: Event) => on((e.target as HTMLInputElement).value)} /></label>`;
 const timeIn = (value: string | null | undefined, on: (v: string) => void, attr: string): TemplateResult =>
-  html`<label class="inp"><input class="n" type="time" step="60" data-fld=${attr} aria-label=${aria(attr)} .value=${(value ?? '').slice(0, 5)} @change=${(e: Event) => on((e.target as HTMLInputElement).value)} /></label>`;
+  html`<label class="inp"><input class="n" type="time" lang=${dateInputLang()} step="60" data-fld=${attr} aria-label=${aria(attr)} .value=${(value ?? '').slice(0, 5)} @change=${(e: Event) => on((e.target as HTMLInputElement).value)} /></label>`;
 
 function durationFields(d: Duration | null | undefined, on: (d: Duration | undefined) => void, tag: string): TemplateResult {
   const set = (k: 'hours' | 'minutes' | 'seconds', n: number | null) => {
