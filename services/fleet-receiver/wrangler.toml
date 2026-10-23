@@ -1,0 +1,18 @@
+# SmplWise fleet receiver (CR-FLEET215). NOT deployed. Deploy only after the owner's decisions in docs/changes/CR-FLEET215.md section 12.
+name = "smplwise-fleet-receiver"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Enrollments, the last report and one report a day per installation. Create it once:
+#   npx wrangler kv namespace create FLEET_KV        -> paste the id below
+[[kv_namespaces]]
+binding = "FLEET_KV"
+id = "REPLACE_WITH_THE_KV_NAMESPACE_ID"
+
+[vars]
+# the newest released add-on version; an installation reporting an older one is marked "old version" in the overview
+LATEST_ADDON_VERSION = "2.12.1"
+
+# Secret (never here, never in git): ADMIN_TOKEN (32+ random characters) for the /v1/admin/* routes.
+# Recommended in addition: put /v1/admin/* behind Cloudflare Access (owner question 4).
+# Local development: put a fake ADMIN_TOKEN in .dev.vars (gitignored) and run `npx wrangler dev --local`.

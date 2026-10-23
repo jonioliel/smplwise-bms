@@ -69,6 +69,9 @@ options:
   remote_path: /arx
   # CR-027: the SmplWise push relay for the phone app's notifications (DOCS "Phone app push"). Empty = the app channel is off.
   push_relay_url: ""
+  # CR-FLEET215: the SmplWise fleet receiver for the daily health report (DOCS "Fleet health report"). Empty = no report is ever sent;
+  # even when set, nothing is sent until an Arx system administrator also switches the report on in Settings.
+  fleet_report_url: ""
   # CR-028: "send to screen" - the cast relay listener (container port 18092; map a host port in Network too). Off by default.
   cast_relay: false
   # CR-038: the service tickets' handler page (container port 18093, reached through the Cloudflare tunnel only). Off by default.
@@ -90,6 +93,7 @@ schema:
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
   push_relay_url: str?
+  fleet_report_url: str?
   cast_relay: bool?
   tickets_public: bool?
   frigate_enabled: bool?
