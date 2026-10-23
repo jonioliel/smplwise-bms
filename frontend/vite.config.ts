@@ -34,7 +34,9 @@ export default defineConfig({
     rollupOptions: {
       // CR-008 P3: the service worker is a second entry with a fixed name next to index.html (`arx-sw.js`), so it is
       // registered under the app's own base; it imports nothing the app imports, so it builds as one classic script.
-      input: { index: 'index.html', 'arx-sw': 'src/pwa/sw.ts' },
+      // CR-NOTICE106: the TV board page is a third entry (notice-tv.html -> src/notice-tv/main.ts), served by the backend at /b/<slug>
+      // (and by the boards' LAN listener) - it imports nothing of the application (its own stylesheet, its own logic module).
+      input: { index: 'index.html', 'arx-sw': 'src/pwa/sw.ts', 'notice-tv': 'notice-tv.html' },
       output: {
         entryFileNames: (chunk) => (chunk.name === 'arx-sw' ? 'arx-sw.js' : 'assets/[name]-[hash].js'),
         // Plan Studio 3D (T087): three.js in a chunk of its own, fetched only by the dynamic import of sw-plan-3d.

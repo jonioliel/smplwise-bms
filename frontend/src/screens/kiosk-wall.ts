@@ -14,6 +14,7 @@ import type { Camera } from '../api/types';
 import { PhoneWidth, isPhoneWidth } from '../shell/phone';
 import { isOnWall } from './wall-arrangement';
 import { timeText } from '../api/day-format';
+import '../components/sw-brand';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
@@ -156,8 +157,7 @@ export class KioskWall extends LitElement {
     header img {
       block-size: 24px;
       inline-size: auto;
-      filter: brightness(0) invert(1);
-      opacity: 0.9;
+      opacity: 0.9; /* LOGOS-295: the mark's own teal reads on the dark wall - the CSS invert of the PNG is gone (CR 4.4 rule 2) */
     }
     h1 {
       margin: 0;
@@ -587,6 +587,7 @@ export class KioskWall extends LitElement {
       <header>
         <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
         <h1>ניטור חי</h1>
+        <sw-brand kind="company" scheme="dark" .h=${24} .maxw=${120} data-kiosk-company-logo></sw-brand>
         <span class="spacer"></span>
         <sw-badge kind="live" label=${`${api ? this.selected.length : demo.length} מצלמות · ${online} חיות`}></sw-badge>
         ${api && this.pages > 1 ? html`<span class="pill" data-kiosk-page>עמוד ${pageIndex + 1}/${this.pages}${this.view.rotate ? ` · כל ${this.view.rotate} שנ׳` : ''}</span>` : nothing}

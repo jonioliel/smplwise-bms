@@ -38,7 +38,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: 'מראה ותצוגה',
     icon: 'dashboard',
     entries: [
-      { tab: 'general', label: 'מראה ותצוגה', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand קריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
+      { tab: 'general', label: 'מראה ותצוגה', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand לוגו logo יזם חברת ניהול שם הפרויקט כותרת הדפדפן לשונית גודל הלוגו לוחיתקריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
       { tab: 'general', label: 'לשוניות', href: `${GEN}?tab=tabs`, sub: true, keywords: 'סדר הסתרה סרגל פס תחתון כמוסה dropdown' },
       { tab: 'general', label: 'וידאו ומדיה', href: `${GEN}?tab=media`, sub: true, keywords: 'webrtc mse תעבורה קיר מצלמות קיוסק מסך פתיחה זרמים go2rtc ייצוא שמירה ימים ציר זמן צבעים סקינים AI תלת־ממד 3D מצב תצוגה ריאליסטי realistic תמונות מוכנות stills מסך קיר תצוגת התוכנית מפת תאורה מיקום האתר שמש מיקום הבית ידני קו רוחב קו אורך מעבר לתמונה מוכנה חוסר פעילות idle' },
       { tab: 'general', label: 'מפה', href: `${GEN}?tab=map`, sub: true, keywords: 'קומת ברירת מחדל 2D 3D מפלסים תוכנית תצוגה ריאליסטית realistic סגנון אדריכלי בהיר תאום דיגיטלי כהה שמש שעה מיקום האתר קו רוחב קו אורך רהיטים טקסטורות חתך סיור גובה עין ההעדפה שלי' },
@@ -46,6 +46,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'general', label: 'סוגי התקנים', href: `${GEN}?tab=devices&section=device-types`, sub: true, keywords: 'דוד ברז מתג סוג סמל כרטיס פעילות device types' },
       { tab: 'general', label: 'אפליקציה לנייד', href: `${GEN}?tab=mobile`, sub: true, keywords: 'נוכחות presence טלפון שיתוף נתונים חיישנים' },
       { tab: 'wall', label: 'מסכי קיר', href: '#/system/wall', keywords: 'wall טאבלט קיוסק תצוגה' },
+      { tab: 'notices', label: 'לוח הודעות', href: '#/system/notices', keywords: 'הודעות לבניין לוח תצוגה טלוויזיה מסך לובי TV board notices קישור QR' },
     ],
   },
   {

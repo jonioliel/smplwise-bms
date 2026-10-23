@@ -398,6 +398,13 @@ PERMISSION_LABELS: dict[str, str] = {
     # (elsewhere the remote demo runs only where the installer switched `demo.allow_remote` on).
     "demo.run": "הפעלת מצב הדגמה על מסד נתונים נפרד (מתקין המערכת בלבד)",
     "demo.run_anywhere": "הפעלת מצב הדגמה מרחוק בכל שרת (הבעלים בלבד)",
+    # CR-NOTICE106 section 6: the building notice board (module OFF by default). view = read my notices; manage = write, publish,
+    # archive, tag to TV boards (scoped: the audience must fit the writer's scope); push = publish with a push (slice 2); boards =
+    # the TV boards (links, display settings, tokens). manage / push / boards have single-permission grant roles.
+    "notices.view": "לוח הודעות: צפייה",
+    "notices.manage": "לוח הודעות: כתיבה, פרסום וארכוב",
+    "notices.push": "לוח הודעות: שליחת התראה לנמענים",
+    "notices.boards": "לוח הודעות: לוחות תצוגה (קישורים והגדרות מסך)",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage", "bridge.key.rotate"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
@@ -407,7 +414,8 @@ SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directo
 # system permission or with rbac.assign itself (no delegating the delegation), a custom role with a sensitive grant.
 # DOORWIN2-295 (CR-039 7.2): door_windows_guard (end a running window) is delegable by default; door_windows_manager, emergency_lock and emergency_open are NOT
 # (a delegated administrator cannot hand out building-wide hold-open or emergency rights unless the owner adds them to `rbac.delegable_roles`).
-DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard"]  # CR-038 8.2: the three plain ticket grants
+DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard",  # CR-038 8.2: the three plain ticket grants
+                     "notices_manage", "notices_push", "notices_boards"]  # CR-NOTICE106 section 6: the notice board's grants are delegable
 NEVER_DELEGABLE = {"system_admin", "site_admin"}
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))
 SCOPE_TABLES = {"site": "sites", "building": "buildings", "floor": "floors"}

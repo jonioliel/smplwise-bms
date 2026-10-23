@@ -64,6 +64,9 @@ PROJECT_TABLES = PROJECT_TABLES + ["door_automations"]
 # person who may see the target). Parents first (records and tags name a task). An archive written before the module KEEPS the current rows.
 MAINTENANCE_TABLES = ["maint_tasks", "maint_records", "maint_tags"]
 PROJECT_TABLES = PROJECT_TABLES + MAINTENANCE_TABLES
+# LOGOS-295 (migration 0166): the company logo, base64 text so it travels as JSON with its stamps (the `brand.*` settings). An archive
+# written before the table restores no logo and no error; a replace restore of an archive that has the table brings both back with the same stamps.
+PROJECT_TABLES = PROJECT_TABLES + ["brand_assets"]
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
 # new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
@@ -129,6 +132,10 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "tickets.enabled", "tickets.settings", "tickets.name", "messaging.whatsapp", "messaging.pacing", "messaging.wa_policy",
                  # TKRULES-291: the rules that open tickets from alerts - a restore never switches a rule on or re-routes one
                  "tickets.rules",
+                 # CR-NOTICE106: the notice board's switch and whether its TV links open on the remote channel are this installation's
+                 # policy - a restore never switches the module on or opens the boards outside the LAN. The module's tables are not
+                 # project tables (the tickets precedent: TV board tokens describe this installation's screens).
+                 "notices.enabled", "notices.boards.remote",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
                  "notify.whatsapp",
                  # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on

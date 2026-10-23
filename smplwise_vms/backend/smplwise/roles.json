@@ -13,7 +13,8 @@
         "entity.state.read",
         "video.live",
         "media.read",
-        "presence.report"
+        "presence.report",
+        "notices.view"
       ]
     },
     {
@@ -22,7 +23,8 @@
       "permissions": [
         "map.read",
         "video.live",
-        "wall.view"
+        "wall.view",
+        "notices.view"
       ]
     },
     {
@@ -66,7 +68,8 @@
         "infra.temperature.ack",
         "presence.report",
         "tickets.view",
-        "tickets.create"
+        "tickets.create",
+        "notices.view"
       ]
     },
     {
@@ -86,7 +89,9 @@
         "views.edit",
         "catalog.manage",
         "media.read",
-        "presence.report"
+        "presence.report",
+        "notices.view",
+        "notices.manage"
       ]
     },
     {
@@ -187,7 +192,10 @@
         "tickets.create",
         "tickets.manage",
         "tickets.external",
-        "tickets.costs.view"
+        "tickets.costs.view",
+        "notices.view",
+        "notices.manage",
+        "notices.push"
       ]
     },
     {
@@ -332,7 +340,11 @@
         "tickets.directory",
         "tickets.technician_requests",
         "messaging.accounts.manage",
-        "occupancy.view"
+        "occupancy.view",
+        "notices.view",
+        "notices.manage",
+        "notices.push",
+        "notices.boards"
       ]
     },
     {
@@ -461,6 +473,28 @@
         "access.read",
         "access.stations.read",
         "access.emergency.open"
+      ]
+    },
+    {
+      "id": "notices_manage",
+      "name_he": "לוח הודעות: כתיבה",
+      "permissions": [
+        "notices.view",
+        "notices.manage"
+      ]
+    },
+    {
+      "id": "notices_push",
+      "name_he": "לוח הודעות: שליחת התראה",
+      "permissions": [
+        "notices.push"
+      ]
+    },
+    {
+      "id": "notices_boards",
+      "name_he": "לוח הודעות: לוחות תצוגה",
+      "permissions": [
+        "notices.boards"
       ]
     }
   ],

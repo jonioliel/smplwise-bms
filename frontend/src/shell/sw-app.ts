@@ -84,6 +84,8 @@ import '../screens/live-camera';
 import '../screens/live-views';
 import '../screens/kiosk-wall';
 import '../screens/system-wall';
+import '../screens/system-notices'; // CR-NOTICE106: הגדרות › לוח הודעות
+import '../screens/devices-notices'; // CR-NOTICE106: ראשי › לוח הודעות
 import '../screens/system-access-control'; // CR-036 S10: הגדרות › בקרת כניסה
 import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
 import '../screens/investigate-playback';
@@ -123,7 +125,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
+import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -144,6 +146,8 @@ import { setGlassScheme } from '../screens/devices-style';
 import { setBrandColors } from '../design/brand';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
+import { brandLogo, logoScale, onBrandLogo } from '../design/brand-logo'; // LOGOS-295: the logo strip's size follows the administrator's scale
+import '../components/sw-brand';
 import { loadLook, setInstallationLook } from '../design/look';
 import { loadBackgroundPref, setInstallationBackground } from '../design/background';
 import { setCustomPalettes } from '../design/palette';
@@ -236,6 +240,7 @@ export class SwApp extends LitElement {
   private stopTabsMode?: () => void;
   private stopPair?: () => void;
   private stopMobileOptions?: () => void;
+  private stopBrandLogo?: () => void;
   private navOrderUser: string | null = null;
   /** Bubble foundation: the skin in force (the bubble skin's phone shell is a dock row: pill stack + home button). */
   @state() private skin = currentSkin();
@@ -504,19 +509,61 @@ export class SwApp extends LitElement {
     .brand-tile[data-demo] {
       background: repeating-linear-gradient(135deg, var(--sw-warning) 0 6px, var(--sw-warning-text) 6px 12px);
     }
+    /* LOGOS-295: the SmplWise mark (a bundle file) replaces the blue "S" tile; the artwork is its own colour, no tile behind it */
     .brand-tile {
       display: grid;
       place-items: center;
       inline-size: 36px;
       block-size: 36px;
-      border-radius: var(--sw-r-md);
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-      font-weight: 800;
-      font-size: var(--sw-fs-xl);
       text-decoration: none;
       margin-block-end: 8px;
-      box-shadow: var(--sw-shadow-primary);
+    }
+    /* LOGOS-295: the logo strip - the company logo at the inline start, the SmplWise logo at the inline end, PAST the search / status pill
+       (RTL: the far left, to the left of the search; owner 2026-10-24). Desktop and tablet only: the phone has no strip. The pill (.float,
+       absolute) moves inward by the SmplWise logo's width; the strip stays at the top while the page scrolls. */
+    .brandstrip {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: calc(var(--sw-z-topbar) - 1);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: none;
+      box-sizing: border-box;
+      block-size: var(--sw-brandstrip-h, 48px);
+      padding-inline: var(--sw-page-pad, 30px) 22px;
+      background: var(--sw-bg);
+      min-inline-size: 0;
+    }
+    .brandstrip .sp {
+      flex: 1;
+    }
+    .homebrand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: none;
+      box-sizing: border-box;
+      min-block-size: 36px;
+      padding-block: 6px 0;
+      padding-inline: 12px 96px; /* the float pill keeps its corner */
+      min-inline-size: 0;
+    }
+    .homebrand .sp {
+      flex: 1;
+    }
+    @media print {
+      .brandstrip,
+      .homebrand {
+        display: none;
+      }
+    }
+    :host([data-brandstrip]) .float {
+      inset-block-start: calc(var(--sw-banner-h, 0px) + var(--sw-safe-top, 0px) + (var(--sw-brandstrip-h, 48px) - 34px) / 2);
+      inset-inline-end: calc(22px + var(--sw-brand-sw-w, 0px) + 14px);
+    }
+    :host([data-design='a'][data-top='page'][data-brandstrip]) {
+      --sw-float-reserve: 0px; /* the pill sits in the strip's row now, not over the page header */
     }
     a.item.a {
       flex-direction: column;
@@ -1643,12 +1690,14 @@ export class SwApp extends LitElement {
     this.stopTabsConfig = onTabsConfig(() => this.requestUpdate()); // הגדרות › כללי › לשוניות: every tab row follows at once
     this.stopPair = onPairChip(() => this.requestUpdate()); // 0.1.153: a screen's second chip joins the first in one row
     this.stopTabsMode = onTabsMode(() => this.requestUpdate()); // 0.1.153: tabs / hybrid / dropdown follows at once
+    this.stopBrandLogo = onBrandLogo(() => this.requestUpdate()); // LOGOS-295: a saved logo / size shows at once
     this.stopMobileOptions = onMobileOptions(() => this.requestUpdate()); // הגדרות › כללי › אפשרויות נייד: the phone guards follow at once
     this.stopSession = onSession((s) => {
       this.session = s;
       applyCapabilities(s.mode === 'api' ? s.capabilities : null); // NN1: what the installation has decides which areas are offered (nav-capabilities.ts)
       // CR-038: the optional tickets module - its switch and its configured name (D33) arrive with the session (OFF by default, the static demo too: shell/nav.ts visibleAreas)
       if (!applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) })) startRfqQuestions(); // RFQQUESTIONS: the nav badge
+      applyNoticesHidden(s.mode === 'api' && !!s.me?.modules?.notices); // CR-NOTICE106: the notice board tab (OFF by default, the static demo too)
       setTicketNames(s.me?.modules?.tickets_name);
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
@@ -1704,6 +1753,7 @@ export class SwApp extends LitElement {
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
           if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
+          applyNoticesHidden(this.session.mode === 'api' && !!this.session.me?.modules?.notices); // CR-NOTICE106: HIDDEN_HREFS was just rebuilt
           void refreshElevatorsVisibility(); // CR-INFRA-ELEVATORS: the elevators tab appears once an elevator is defined
           void refreshInsightsVisibility(); // CR-INSIGHT215: the reports tab appears once a part is on for this viewer
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
@@ -1905,12 +1955,27 @@ export class SwApp extends LitElement {
     }
   }
 
+  /** LOGOS-295: the strip's height and the SmplWise logo's width (the pill steps in by it) follow the size scale; the host attribute tells the CSS. */
+  private syncBrandStrip() {
+    const on = !!this.renderRoot.querySelector('[data-brand-strip]');
+    this.toggleAttribute('data-brandstrip', on);
+    if (!on) {
+      this.style.removeProperty('--sw-brandstrip-h');
+      this.style.removeProperty('--sw-brand-sw-w');
+      return;
+    }
+    const sc = logoScale(brandLogo().size);
+    this.style.setProperty('--sw-brandstrip-h', `${Math.max(48, Math.round(36 * sc + 14))}px`);
+    this.style.setProperty('--sw-brand-sw-w', `${Math.round(40 * 4 * sc)}px`); // the logo PNG is 4:1
+  }
+
   protected updated() {
     // The first load is over: the session is known and, with a backend, the product settings (ui.tabs, the start screen, the
     // hidden areas) are applied. Nothing in the UI reads this; specs wait for it instead of sleeping.
     this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved));
     this.syncSearchOutside();
     this.applyNavSize();
+    this.syncBrandStrip();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
     const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone, .tabpair') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
@@ -1977,6 +2042,7 @@ export class SwApp extends LitElement {
     this.stopTabsMode?.();
     this.stopPair?.();
     this.stopMobileOptions?.();
+    this.stopBrandLogo?.();
     this.phoneMq.removeEventListener('change', this.onPhoneMq);
     window.removeEventListener('popstate', this.onPopState);
     window.removeEventListener('keydown', this.onGlobalKey);
@@ -2365,6 +2431,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'wall') return html`<system-wall></system-wall>`; // הגדרות › מסכי קיר (CR-030)
+        if (s[1] === 'notices') return html`<system-notices .boardId=${s[2] ?? ''}></system-notices>`; // הגדרות › לוח הודעות (CR-NOTICE106)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
@@ -2428,6 +2495,7 @@ export class SwApp extends LitElement {
         // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer, the trash AND the editors are one element that reads the address itself:
         // the routes `.../<id>/edit` and `.../new/edit?kind=&template=` open S4's editor sheet (<automation-builder> / <script-editor> / <scene-editor>) over
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
+        if (s[1] === 'notices') return html`<devices-notices></devices-notices>`; // CR-NOTICE106: לוח הודעות (the screen checks the module and the rights)
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'infra':
@@ -2776,7 +2844,7 @@ export class SwApp extends LitElement {
     const rowMode = this.rowModeProps(area, rowStyle);
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <span class="brand-tile" aria-hidden="true" ?data-demo=${this.session.me?.demo?.active === true}><span>S</span></span>
+        <span class="brand-tile" aria-hidden="true" data-brand-tile ?data-demo=${this.session.me?.demo?.active === true}><sw-brand kind="product" mark decorative .h=${36} .previewSize=${'m'}></sw-brand></span>
         ${areas.map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
             <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>${this.areaCount(n.id)}
@@ -2789,6 +2857,8 @@ export class SwApp extends LitElement {
       ${this.renderSysBanner()}
       <main>
         <sw-demo-banner></sw-demo-banner>
+        ${this.renderBrandStrip(editor)}
+        ${this.renderHomeBrand(editor)}
         ${this.renderSetupHint()}
         ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
         ${this.renderGate() || html`
@@ -2811,6 +2881,31 @@ export class SwApp extends LitElement {
       ${this.renderUserMenu()}
       <maint-close-prompt></maint-close-prompt>
     `;
+  }
+
+  /** LOGOS-295: show the strip on desktop / tablet, in the shell proper (not embedded, not in a full-screen editor). */
+  private brandStripOn(editor: boolean): boolean {
+    return !this.phone && !this.embedded() && !editor && this.route?.segments[0] !== 'kiosk';
+  }
+
+  /** LOGOS-295 (P2, owner 2026-10-24): on the PHONE the company logo shows only at the top of the home screen (one row, the SmplWise logo at its
+   * end) - inner screens have no logo row at all, the float pill keeps its corner. */
+  private renderHomeBrand(editor: boolean) {
+    if (!this.phone || this.embedded() || editor || this.gated || !isHomeRoute(this.route)) return nothing;
+    return html`<div class="homebrand" role="presentation" data-home-brand>
+      <sw-brand kind="company" .h=${32} .maxw=${150}></sw-brand>
+      <span class="sp"></span>
+      <sw-brand kind="product" decorative .h=${34}></sw-brand>
+    </div>`;
+  }
+
+  private renderBrandStrip(editor: boolean) {
+    if (!this.brandStripOn(editor)) return nothing;
+    return html`<div class="brandstrip" role="presentation" data-brand-strip>
+      <sw-brand kind="company" .h=${36} .maxw=${200}></sw-brand>
+      <span class="sp"></span>
+      <sw-brand kind="product" decorative .h=${40} data-brand-product></sw-brand>
+    </div>`;
   }
 
   /** RFQQUESTIONS: the small count on an area icon (vendor questions waiting in the tickets area for a manager). */

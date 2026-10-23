@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn, haErrorText, hasPendingSecondFactor, startFlow, submitStep, type LoginFlow } from './auth';
 import { t } from '../i18n/he';
+import { brandLogo, loadPublicBrand, onBrandLogo } from '../design/brand-logo';
+import '../components/sw-brand';
 import { inAndroidApp, switchServer } from './android-app';
 import { formatSize, loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
 import { changePassword, confirmReset, localMe, localPasskeySecondFactor, localPasskeySignIn, localSecondFactor, localSignIn, requestReset } from './local-auth';
@@ -94,34 +96,31 @@ export class ArxLogin extends LitElement {
       flex-direction: column;
       gap: 18px;
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .brand img {
-      inline-size: 44px;
-      block-size: 44px;
-      border-radius: var(--sw-r-md);
-    }
-    .brand .name {
+    /* LOGOS-295 (mockup v3.1): BOTH logos in the card head, centred - the company's on top (when one is set), the SmplWise logo below;
+       with no company logo the SmplWise logo alone, larger. The sizes follow the administrator's scale (sw-brand). */
+    .lhead {
       display: flex;
       flex-direction: column;
-      line-height: 1.15;
+      align-items: center;
+      gap: 10px;
+      padding-block-end: 4px;
     }
-    .brand b {
-      font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-bold);
-      letter-spacing: -0.01em;
-      direction: ltr;
-      text-align: end;
+    .lhead .lsep {
+      inline-size: 56px;
+      block-size: 1px;
+      background: var(--sw-border-strong);
     }
-    .brand b span {
-      color: var(--sw-accent);
-    }
-    .brand small {
+    .lhead small {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
+    }
+    .sr {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
     h1 {
       margin: 0;
@@ -314,9 +313,18 @@ export class ArxLogin extends LitElement {
     }
   `;
 
+  private stopBrand?: () => void;
+
   connectedCallback() {
     super.connectedCallback();
+    this.stopBrand = onBrandLogo(() => this.requestUpdate());
+    void loadPublicBrand(); // no session yet: the public brand view (company name / logos, size, dark-background mode)
     if (this.localEnabled) this.mode = this.initialMode || storedMode();
+  }
+
+  disconnectedCallback() {
+    this.stopBrand?.();
+    super.disconnectedCallback();
   }
 
   private setMode(mode: 'infra' | 'local') {
@@ -580,13 +588,18 @@ export class ArxLogin extends LitElement {
   }
 
   render() {
-    const base = import.meta.env.BASE_URL;
     const notice = this.notice ? REASON_TEXT[this.notice] ?? this.notice : '';
     return html`<main class="card" aria-labelledby="arx-title">
-      <div class="brand">
-        <img src="${base}brand/smplwise-mark.png" alt="" />
-        <span class="name"><b>SmplWise <span>Arx</span></b><small>גישה מרחוק מאובטחת</small></span>
-      </div>
+      ${(() => {
+        const hasCompany = !!(brandLogo().files.light || brandLogo().files.dark);
+        return html`<div class="lhead" data-arx-brand>
+          <sw-brand kind="company" .h=${46} .maxw=${220} data-arx-company-logo></sw-brand>
+          ${hasCompany ? html`<span class="lsep" aria-hidden="true"></span>` : nothing}
+          <sw-brand kind="product" decorative .h=${hasCompany ? 46 : 62} data-arx-product-logo></sw-brand>
+          <span class="sr">SmplWise Arx</span>
+          <small>גישה מרחוק מאובטחת</small>
+        </div>`;
+      })()}
       <div>
         <h1 id="arx-title">${this.step === 'credentials' ? (this.localEnabled ? lit('signInTitle') : 'כניסה') : this.step === 'enrol' ? lit('enrolTitle') : this.step === 'change' ? lit('changeTitle') : this.step === 'forgot' || this.step === 'reset' ? lit('forgotTitle') : 'אימות דו־שלבי'}</h1>
         <p class="sub">${this.step === 'forgot'

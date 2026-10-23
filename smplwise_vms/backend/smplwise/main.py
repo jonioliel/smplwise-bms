@@ -22,7 +22,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
+from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -257,6 +257,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         emergency_service.janitor(db, settings)
     except Exception:  # noqa: BLE001
         log.warning("emergency readiness history failed", exc_info=True)
+    try:  # CR-NOTICE106: archived / expired notices past `notices.retention_days` (soft delete, purge 30 days later) - hourly
+        from .services.notices import store as notices_store
+
+        notices_store.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("notices janitor failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -466,6 +472,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
     app.include_router(settings_router.router, prefix=api, tags=["settings"])
     app.include_router(ui_background.router, prefix=api, tags=["settings"])  # CRY: the background pictures behind the glass
+    app.include_router(brand_router.router, prefix=api, tags=["settings"])  # LOGOS-295: the company logo, the logo size / dark-background choices, the tab title
     app.include_router(media.router, prefix=api, tags=["media"])
     app.include_router(recordings.router, prefix=api, tags=["recordings"])
     app.include_router(playback.router, prefix=api, tags=["playback"])
@@ -743,6 +750,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import messaging_accounts as messaging_accounts_router  # CR-038 S5a: WhatsApp accounts per use (installation-level, no module gate)
 
     app.include_router(messaging_accounts_router.router, prefix=api, tags=["messaging"])
+    from .routers import notices as notices_router  # CR-NOTICE106: לוח הודעות - notices, TV boards (module OFF by default)
+
+    app.include_router(notices_router.open_router, prefix=api, tags=["notices"])  # module state + settings: answer while the module is off
+    app.include_router(notices_router.display_router, prefix=api, tags=["notices"])  # the TV feed: no login, X-Board-Token
+    app.include_router(notices_router.router, prefix=api, tags=["notices"])
+    app.include_router(notices_router.page_router)  # GET /b/{slug}: the static TV page (before the www mount)
     from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
 
     tickets_messaging.configure(settings, app.state.db)
@@ -922,6 +935,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import cast_relay
 
             cast_relay.SERVER.start(cast_relay.go2rtc_fetch(settings))
+        if settings.notice_boards:  # CR-NOTICE106: the TV boards' LAN listener (container port 18094) - on the add-on option alone
+            from .services.notices import display as notice_display
+            from .services.notices import listener as notice_listener
+
+            notice_listener.SERVER.start(
+                notice_display.DisplayService(lambda: app.state.db.connection(mode="read", label="notices.display"), settings.data_dir,
+                                              touch=notice_display.touch_seen(app.state.db)), settings.www_dir)
         if settings.tickets_public:  # CR-038 S4: the handler page's listener - on the add-on option alone; its own thread, loop and pool
             await run_in_threadpool(tickets_public.start, app.state.db, settings)  # start() waits up to 5 s: never on the main loop (W14)
         await run_in_threadpool(tickets_messaging.start)  # CR-038 S5b: the `tickets-outbox` worker (idle while the module is off)
@@ -951,6 +971,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import cast_relay
 
         cast_relay.SERVER.stop()  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
+        from .services.notices import listener as notice_listener
+
+        notice_listener.SERVER.stop()  # CR-NOTICE106: the TV boards' LAN listener
         from starlette.concurrency import run_in_threadpool as _stop_in_thread
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters

@@ -18,7 +18,7 @@ from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import forbidden, validation
 from ..mode import installation_mode
 from ..rbac import INSTALLATION, Principal, bindings_of, effective_permissions, has_any_binding, permissions_anywhere, permissions_fingerprint
-from ..services import revocation
+from ..services import brand_assets, revocation
 from ..services import user_events, user_prefs
 
 router = APIRouter()
@@ -89,6 +89,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         }
     from ..services import wall as wall_service
     from ..services.tickets import access as tickets_access, naming as tickets_naming
+    from ..services.notices import store as notices_store
     from ..services.tickets import settings_doc as tickets_settings  # D17 (slice 3): the long-press behaviour
 
     tickets_name = tickets_naming.read(conn)
@@ -99,10 +100,12 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         "demo": demo_svc.me_block(request.app.state.db),  # CR-READY96: every signed-in user is told while a demo runs (the banner)
         # CR-038 section 6: the optional modules the shell offers (the switch alone - permissions decide the rest) and the tickets
         # module's display name per language (owner decision D33: every screen names the module through it)
-        "modules": {"tickets": tickets_access.module_on(conn), "tickets_name": {k: tickets_name[k] for k in tickets_naming.LANGS}, "tickets_long_press": tickets_settings.read(conn)["device_long_press"]},  # D17 (slice 3)
+        "modules": {"notices": notices_store.module_on(conn),  # CR-NOTICE106: the notice board's switch (OFF by default)
+                    "tickets": tickets_access.module_on(conn), "tickets_name": {k: tickets_name[k] for k in tickets_naming.LANGS}, "tickets_long_press": tickets_settings.read(conn)["device_long_press"]},  # D17 (slice 3)
         "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
         "channel": channel,
         "remote": remote,
+        "brand": brand_assets.full_view(conn),  # LOGOS-295: company name / logo stamps, logo size, dark-background mode, tab title parts
         "user": {
             "id": principal.user_id,
             "username": principal.username,
