@@ -312,7 +312,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "infra.temperature.manage": "ניהול טמפרטורות: יחידות, חיישנים, ספים וכללים",
     # CR-INSIGHT215 (2.15.0): read-only insights (door openings without an entry event, waste) scoped by the entity they are about; their
     # thresholds and door pairs; the monthly building report (installation). Defaults: site_admin, system_admin. Every part ships OFF.
-    "insights.read": "תובנות: פתיחות דלת לא מוסברות ובזבוז אנרגיה",
+    "insights.read": "תובנות: פתיחות דלת לא מוסברות וצריכת אנרגיה",
     "insights.manage": "תובנות: ספים וזוגות דלת",
     "reports.building": "דוח בניין חודשי (PDF)",
     # CR-038 (the optional tickets module, docs/changes/CR-038-TICKETS-MODULE.md section 8; owner decisions D15 / D25): WHAT a person

@@ -156,3 +156,13 @@ test('navigation: the reports tab is hidden until a part is on, then offered to 
   expect(visibleTabs(TICKETS_TABS, true, () => false).some((t) => t.id === 'reports')).toBe(false);
   applyInfraInsights({ report: false, doors: false, waste: false });
 });
+
+test('no user-visible insights string says "waste" (owner review 24.10: the word is "energy consumption" / צריכת אנרגיה)', () => {
+  for (const lang of ['he', 'en'] as const) {
+    for (const [key, text] of Object.entries(IX_TABLES[lang])) {
+      expect(text, `${lang}.${key}`).not.toMatch(/בזבוז|\bwaste\b/i);
+    }
+  }
+  expect(ix('tabWaste', undefined, 'he')).toBe('צריכת אנרגיה');
+  expect(ix('wasteTitle', undefined, 'en')).toBe('Energy consumption');
+});

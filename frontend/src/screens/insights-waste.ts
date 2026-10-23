@@ -10,7 +10,7 @@ import { ix, type IxKey } from '../i18n/insights';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
- * סקירה ודוחות › בזבוז (CR-INSIGHT215): lights and air conditioning left on in an empty room or after hours, and night consumption above the
+ * סקירה ודוחות › צריכת אנרגיה (CR-INSIGHT215; the key and route stay `waste`): lights and air conditioning left on in an empty room or after hours, and night consumption above the
  * median of the same weekday. Room level only - never a person. Protected switches are never listed; an unknown state is never waste.
  */
 @customElement('insights-waste')

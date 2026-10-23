@@ -32,7 +32,7 @@ ELEVATOR_DOWN = ("fault", "out_of_service", "fire_service")
 LABELS: dict[str, dict[str, str]] = {
     "he": {"title": "דוח בניין חודשי", "month": "חודש", "generated": "הופק", "digest": "תמצית התוכן", "zone": "אזור זמן", "site": "SmplWise Arx",
            "summary": "סיכום", "tickets": "בקשות שירות", "energy": "חשמל", "elevators": "מעליות", "generator": "גנרטור", "temperature": "טמפרטורות",
-           "doors": "פתיחות דלת לא מוסברות", "cameras": "תקינות מצלמות והקלטה", "waste": "בזבוז אנרגיה",
+           "doors": "פתיחות דלת לא מוסברות", "cameras": "תקינות מצלמות והקלטה", "waste": "צריכת אנרגיה",
            "opened": "נפתחו", "closed": "נסגרו", "open_end": "פתוחות בסוף החודש", "overdue": "באיחור", "department": "מחלקה", "number": "מספר",
            "age_days": "ימים פתוחה", "oldest": "הבקשות הפתוחות הוותיקות", "median_close": "זמן סגירה חציוני (שעות)",
            "meter": "מונה", "kwh": "קוט״ש", "prev": "חודש קודם", "last_year": "אשתקד", "coverage": "כיסוי נתונים", "total": "סה״כ",
