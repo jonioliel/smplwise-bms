@@ -28,6 +28,7 @@ import datetime as dt
 import hashlib
 import json
 import math
+import re
 import secrets
 import sqlite3
 import threading
@@ -74,6 +75,21 @@ SENSORS: dict[str, dict[str, str]] = {
 SENSOR_KEYS = tuple(SENSORS)
 DEFAULT_INTERVALS: dict[str, int] = {"battery": 900, "steps": 300, "app_state": 300}
 
+# WHOIN034-295 (board r034 / r035): the "who is in the building" screen and the place editors (geofences, beacons, Wi-Fi sites).
+PROXIMITY = ("immediate", "near", "far")  # the beacon sensor's proximity bucket, nearest first
+SITES_MAX, BEACONS_MAX, WIFI_SITES_MAX, SSID_HASHES_MAX = 20, 100, 20, 20
+# Every threshold of the screen is a setting (presence.people), edited in הגדרות › אפליקציה לנייד. Ranges: (min, max).
+PEOPLE_DEFAULTS: dict[str, Any] = {
+    "stale_minutes": 30,  # a geofence state (enter / fix inside) older than this no longer counts as "in the building"
+    "beacon_max_age_minutes": 10,  # the newest beacon report must be at most this old to place a person on a floor / area
+    "wifi_max_age_minutes": 15,  # the newest network report matched against a Wi-Fi site must be at most this old
+    "min_proximity": "near",  # a beacon report counts only at this proximity or nearer
+    "show_names": True,  # False: the screen shows counts per floor / area only, never a name
+    "refresh_seconds": 30,  # how often the screen asks again while it is shown
+}
+PEOPLE_RANGES: dict[str, tuple[int, int]] = {"stale_minutes": (5, 1440), "beacon_max_age_minutes": (1, 240), "wifi_max_age_minutes": (1, 240), "refresh_seconds": (10, 300)}
+OPT_OUT_MAX = 5000
+
 SETTINGS_DEFAULTS: dict[str, str] = {
     "presence.enabled": "false",
     "presence.mode": "continuous",
@@ -90,6 +106,9 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "presence.retention_days": str(RETENTION_DEFAULT),
     "presence.required_sensors": json.dumps({"enabled": False, "sensors": [], "apply_to_web": False, "max_stale_hours": 48, "roles": [], "users": [], "exempt_users": []}),
     "presence.break_glass": json.dumps({"until": None, "reason": "", "by": None}),
+    "presence.people": json.dumps(PEOPLE_DEFAULTS),
+    # WHOIN034-295: the users who asked not to appear on the "who is in the building" screen (self-service, PUT presence/people/me)
+    "presence.people_opt_out": "[]",
 }
 
 
@@ -244,7 +263,62 @@ def load_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         "retention_days": max(RETENTION_MIN, min(RETENTION_MAX, int(raw["presence.retention_days"] or RETENTION_DEFAULT))),
         "required_sensors": req,
         "break_glass": {"until": iso(until) if until else None, "reason": str(bg.get("reason") or "")[:200], "by": bg.get("by") if isinstance(bg.get("by"), str) else None},
+        "people": _normalize_people(_json(raw["presence.people"], {}), strict=False),
+        "people_opt_out_count": len(opt_out_users(conn)),
     }
+
+
+def _normalize_people(p: Any, *, strict: bool) -> dict[str, Any]:
+    """The "who is in the building" thresholds (WHOIN034-295). Lenient on read (a bad stored value falls back to its default), strict on write."""
+    def bad(field: str, msg: str) -> PresenceError:
+        return PresenceError(422, "validation", msg, details={"field": f"people.{field}"})
+
+    if not isinstance(p, dict):
+        if strict:
+            raise bad("*", "הגדרות מסך מי במבנה אינן תקינות.")
+        p = {}
+    if strict:
+        unknown = set(p) - set(PEOPLE_DEFAULTS)
+        if unknown:
+            raise bad(sorted(unknown)[0], "שדה לא מוכר: " + ", ".join(sorted(unknown)))
+    out: dict[str, Any] = dict(PEOPLE_DEFAULTS)
+    for key, (lo, hi) in PEOPLE_RANGES.items():
+        v = p.get(key, PEOPLE_DEFAULTS[key])
+        if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
+            if strict:
+                raise bad(key, f"{key}: בין {lo} ל־{hi}.")
+            v = PEOPLE_DEFAULTS[key]
+        out[key] = v
+    prox = p.get("min_proximity", PEOPLE_DEFAULTS["min_proximity"])
+    if prox not in PROXIMITY:
+        if strict:
+            raise bad("min_proximity", "קרבה: immediate, near או far.")
+        prox = PEOPLE_DEFAULTS["min_proximity"]
+    out["min_proximity"] = prox
+    names = p.get("show_names", PEOPLE_DEFAULTS["show_names"])
+    if not isinstance(names, bool):
+        if strict:
+            raise bad("show_names", "הצגת שמות: כן/לא.")
+        names = PEOPLE_DEFAULTS["show_names"]
+    out["show_names"] = names
+    return out
+
+
+def opt_out_users(conn: sqlite3.Connection) -> list[str]:
+    """The users who asked not to appear on the "who is in the building" screen."""
+    v = _json(get_setting(conn, "presence.people_opt_out", "[]"), [])
+    return [u for u in v if isinstance(u, str) and 0 < len(u) <= 128][:OPT_OUT_MAX]
+
+
+def set_opt_out(conn: sqlite3.Connection, user_id: str, opted_out: bool) -> bool:
+    """Add / remove the user on the opt-out list; returns the new state. Idempotent."""
+    users = [u for u in opt_out_users(conn) if u != user_id]
+    if opted_out:
+        if len(users) >= OPT_OUT_MAX:
+            raise PresenceError(409, "opt_out_full", "רשימת הבקשות מלאה. פנו למנהל המערכת.")
+        users.append(user_id)
+    set_setting(conn, "presence.people_opt_out", json.dumps(sorted(users)))
+    return opted_out
 
 
 def _normalize_required(p: Any, *, strict: bool) -> dict[str, Any]:
@@ -289,12 +363,15 @@ def _normalize_required(p: Any, *, strict: bool) -> dict[str, Any]:
 
 
 def _validate_sites(v: Any) -> list[dict[str, Any]]:
-    if not isinstance(v, list) or len(v) > 20:
+    if not isinstance(v, list) or len(v) > SITES_MAX:
         raise PresenceError(422, "validation", "עד 20 אתרים (גדרות גאוגרפיות).", details={"field": "sites"})
     out = []
     for s in v:
         try:
-            sid, name = str(s["id"])[:64], str(s.get("name") or "")[:80]
+            if not isinstance(s, dict):
+                raise TypeError
+            # WHOIN034-295: the editor may leave a new geofence's id to the server
+            sid, name = str(s.get("id") or "").strip()[:64] or "site_" + new_id()[:10], " ".join(str(s.get("name") or "").split())[:80]
             lat, lon, radius = float(s["lat"]), float(s["lon"]), int(s.get("radius_m", 150))
             if not sid or not -90 <= lat <= 90 or not -180 <= lon <= 180 or not 30 <= radius <= 5000:
                 raise ValueError
@@ -306,10 +383,129 @@ def _validate_sites(v: Any) -> list[dict[str, Any]]:
     return out
 
 
-def _validate_list_of_dicts(v: Any, field: str, keys: tuple[str, ...], limit: int = 50) -> list[dict[str, Any]]:
-    if not isinstance(v, list) or len(v) > limit or any(not isinstance(x, dict) or set(keys) - set(x) for x in v):
-        raise PresenceError(422, "validation", f"{field}: רשימה של אובייקטים עם {', '.join(keys)}.", details={"field": field})
-    return [{k: (x[k] if isinstance(x[k], list) else str(x[k])[:200]) for k in x if k in keys} for x in v]
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+
+
+def ssid_hash(salt: str, ssid: str) -> str:
+    """WHOIN034-295: how a Wi-Fi site's network names are kept - `sha256_hex(salt + ssid)` over UTF-8 (the app hashes the SSID it
+    sees the same way with the site's `ssid_hash_salt` and reports `ssid_hash` in its `network` value). The name itself is never stored."""
+    return hashlib.sha256((salt + ssid).encode("utf-8")).hexdigest()
+
+
+def _place_floor(conn: sqlite3.Connection | None, floor_id: Any, zone_id: Any, field: str) -> tuple[str | None, str | None]:
+    """An optional (floor, area) placement: the floor must exist, the area (a spatial zone) must be on that floor."""
+    def bad(msg: str) -> PresenceError:
+        return PresenceError(422, "validation", msg, details={"field": field})
+
+    fid = str(floor_id).strip() if isinstance(floor_id, str) and floor_id.strip() else None
+    zid = str(zone_id).strip() if isinstance(zone_id, str) and zone_id.strip() else None
+    if zid and not fid:
+        raise bad("אזור דורש קומה.")
+    if conn is not None and fid:
+        if conn.execute("SELECT 1 FROM floors WHERE id = ? AND deleted_at IS NULL", (fid,)).fetchone() is None:
+            raise bad("הקומה לא נמצאה.")
+        if zid and conn.execute("SELECT 1 FROM spatial_zones WHERE id = ? AND floor_id = ? AND deleted_at IS NULL", (zid, fid)).fetchone() is None:
+            raise bad("האזור לא נמצא בקומה הזו.")
+    return fid, zid
+
+
+def _int_or_none(v: Any, lo: int, hi: int, field: str) -> int | None:
+    if v is None or v == "":
+        return None
+    if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
+        raise PresenceError(422, "validation", f"{field}: מספר בין {lo} ל־{hi}.", details={"field": field})
+    return v
+
+
+def _validate_beacons(conn: sqlite3.Connection | None, v: Any, site_ids: set[str]) -> list[dict[str, Any]]:
+    """Beacons (WHOIN034-295): `{id, name, uuid, major?, minor?, site_id, floor_id?, zone_id?}`. `uuid` and `site_id` are the contract's
+    original keys (the app ranges the UUID and reports the site); the rest is additive: the app may report `beacon_id` (or `uuid` with
+    `major` / `minor`) so the server can place the person on a floor and an area."""
+    if not isinstance(v, list) or len(v) > BEACONS_MAX:
+        raise PresenceError(422, "validation", f"עד {BEACONS_MAX} משדרים.", details={"field": "beacons"})
+    out: list[dict[str, Any]] = []
+    for b in v:
+        if not isinstance(b, dict):
+            raise PresenceError(422, "validation", "משדר: אובייקט.", details={"field": "beacons"})
+        uuid = str(b.get("uuid") or "").strip().lower()
+        if not _UUID_RE.match(uuid):
+            raise PresenceError(422, "validation", "מזהה המשדר (UUID) אינו תקין.", details={"field": "beacons.uuid"})
+        site_id = str(b.get("site_id") or "").strip()
+        if site_id not in site_ids:
+            raise PresenceError(422, "validation", "יש לשייך את המשדר לאתר מוגדר.", details={"field": "beacons.site_id"})
+        major = _int_or_none(b.get("major"), 0, 65535, "beacons.major")
+        minor = _int_or_none(b.get("minor"), 0, 65535, "beacons.minor")
+        bid = str(b.get("id") or "").strip() or "bcn_" + hashlib.sha256(f"{uuid}:{major}:{minor}".encode()).hexdigest()[:10]
+        if not _ID_RE.match(bid):
+            raise PresenceError(422, "validation", "מזהה משדר אינו תקין.", details={"field": "beacons.id"})
+        fid, zid = _place_floor(conn, b.get("floor_id"), b.get("zone_id"), "beacons.floor_id")
+        out.append({"id": bid, "name": " ".join(str(b.get("name") or "").split())[:80], "uuid": uuid, "major": major, "minor": minor, "site_id": site_id, "floor_id": fid, "zone_id": zid})
+    if len({b["id"] for b in out}) != len(out):
+        raise PresenceError(422, "validation", "מזהי המשדרים חייבים להיות ייחודיים.", details={"field": "beacons.id"})
+    if len({(b["uuid"], b["major"], b["minor"]) for b in out}) != len(out):
+        raise PresenceError(422, "validation", "אותו משדר (UUID, major, minor) מופיע פעמיים.", details={"field": "beacons.uuid"})
+    return out
+
+
+def _validate_wifi_sites(conn: sqlite3.Connection | None, v: Any, site_ids: set[str], current: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Wi-Fi sites (WHOIN034-295): `{id, name, site_id, floor_id?, ssid_hash_salt, ssid_hashes, add_ssids?}`. The editor sends new network
+    names in `add_ssids` (write-only): the server hashes them with the site's salt (made here when missing) and keeps only the hashes."""
+    if not isinstance(v, list) or len(v) > WIFI_SITES_MAX:
+        raise PresenceError(422, "validation", f"עד {WIFI_SITES_MAX} רשתות אתר.", details={"field": "wifi_sites"})
+    before = {str(w.get("id")): w for w in current if isinstance(w, dict) and w.get("id")}
+    out: list[dict[str, Any]] = []
+    for w in v:
+        if not isinstance(w, dict):
+            raise PresenceError(422, "validation", "רשת אתר: אובייקט.", details={"field": "wifi_sites"})
+        site_id = str(w.get("site_id") or "").strip()
+        if site_id not in site_ids:
+            raise PresenceError(422, "validation", "יש לשייך את הרשת לאתר מוגדר.", details={"field": "wifi_sites.site_id"})
+        wid = str(w.get("id") or "").strip() or "wifi_" + new_id()[:10]
+        if not _ID_RE.match(wid):
+            raise PresenceError(422, "validation", "מזהה רשת אינו תקין.", details={"field": "wifi_sites.id"})
+        salt = w.get("ssid_hash_salt") or (before.get(wid) or {}).get("ssid_hash_salt") or secrets.token_hex(16)
+        if not isinstance(salt, str) or not 8 <= len(salt) <= 64:
+            raise PresenceError(422, "validation", "ערך ההמלחה אינו תקין.", details={"field": "wifi_sites.ssid_hash_salt"})
+        hashes = w.get("ssid_hashes", [])
+        add = w.get("add_ssids", [])
+        if not isinstance(hashes, list) or any(not isinstance(h, str) or not _HEX64_RE.match(h) for h in hashes):
+            raise PresenceError(422, "validation", "רשימת הרשתות אינה תקינה.", details={"field": "wifi_sites.ssid_hashes"})
+        if not isinstance(add, list) or any(not isinstance(s, str) or not 1 <= len(s.encode("utf-8")) <= 32 for s in add):
+            raise PresenceError(422, "validation", "שם רשת: 1 עד 32 תווים.", details={"field": "wifi_sites.add_ssids"})
+        merged = list(dict.fromkeys([*hashes, *(ssid_hash(salt, s) for s in add)]))
+        if not merged:
+            raise PresenceError(422, "validation", "יש להזין לפחות שם רשת אחד.", details={"field": "wifi_sites.add_ssids"})
+        if len(merged) > SSID_HASHES_MAX:
+            raise PresenceError(422, "validation", f"עד {SSID_HASHES_MAX} רשתות לאתר.", details={"field": "wifi_sites.ssid_hashes"})
+        fid, _ = _place_floor(conn, w.get("floor_id"), None, "wifi_sites.floor_id")
+        out.append({"id": wid, "name": " ".join(str(w.get("name") or "").split())[:80], "site_id": site_id, "floor_id": fid, "ssid_hash_salt": salt, "ssid_hashes": merged})
+    if len({w["id"] for w in out}) != len(out):
+        raise PresenceError(422, "validation", "מזהי הרשתות חייבים להיות ייחודיים.", details={"field": "wifi_sites.id"})
+    return out
+
+
+def _validate_places(conn: sqlite3.Connection, body: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """The geofences, beacons, Wi-Fi sites and the screen's thresholds of one save, validated together (a beacon / Wi-Fi site must name
+    a geofence of the same save, or of the stored ones when the save leaves the geofences alone). None = not in this save."""
+    out: dict[str, Any] = {"sites": None, "beacons": None, "wifi_sites": None, "people": None}
+    site_ids = {str(s.get("id")) for s in current["sites"]}
+    if "sites" in body:
+        out["sites"] = _validate_sites(body["sites"])
+        site_ids = {s["id"] for s in out["sites"]}
+        # a geofence still named by a beacon or a Wi-Fi site cannot go unless those go (or move) in the same save
+        for key, label in (("beacons", "משדר"), ("wifi_sites", "רשת")):
+            if key not in body and any(str(x.get("site_id")) not in site_ids for x in current[key]):
+                raise PresenceError(422, "validation", f"{label} עדיין משויך לאתר שהוסר.", details={"field": key})
+    if "beacons" in body:
+        out["beacons"] = _validate_beacons(conn, body["beacons"], site_ids)
+    if "wifi_sites" in body:
+        out["wifi_sites"] = _validate_wifi_sites(conn, body["wifi_sites"], site_ids, current["wifi_sites"])
+    if "people" in body:  # a partial object: the keys it leaves out keep their stored values
+        p = body["people"]
+        out["people"] = _normalize_people({**current["people"], **p} if isinstance(p, dict) else p, strict=True)
+    return out
 
 
 def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -318,9 +514,10 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     current = load_settings(conn)
     changes: dict[str, Any] = {}
     unknown = set(body) - {"enabled", "mode", "interval_s", "distance_filter_m", "notice_text", "sensors_allowed", "intervals_s", "sites", "beacons", "wifi_sites", "wifi_match_mode",
-                           "retention_days", "required_sensors"}
+                           "retention_days", "required_sensors", "people"}
     if unknown:
         raise PresenceError(422, "validation", "שדה לא מוכר: " + ", ".join(sorted(unknown)), details={"fields": sorted(unknown)})
+    places = _validate_places(conn, body, current)  # WHOIN034-295: all validated BEFORE anything is written (a refusal still commits)
     bump = False
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
@@ -363,18 +560,18 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
             raise PresenceError(422, "validation", "מרווחי הדיווח: שניות (30–86400) לכל חיישן מוכר.", details={"field": "intervals_s"})
         set_setting(conn, "presence.intervals_s", json.dumps(v))
         changes["intervals_s"] = v
-    if "sites" in body:
-        sites = _validate_sites(body["sites"])
-        set_setting(conn, "presence.sites", json.dumps(sites, ensure_ascii=False))
-        changes["sites"] = len(sites)
-    if "beacons" in body:
-        beacons = _validate_list_of_dicts(body["beacons"], "beacons", ("uuid", "site_id"))
-        set_setting(conn, "presence.beacons", json.dumps(beacons, ensure_ascii=False))
-        changes["beacons"] = len(beacons)
-    if "wifi_sites" in body:
-        wifi = _validate_list_of_dicts(body["wifi_sites"], "wifi_sites", ("site_id", "ssid_hash_salt", "ssid_hashes"))
-        set_setting(conn, "presence.wifi_sites", json.dumps(wifi, ensure_ascii=False))
-        changes["wifi_sites"] = len(wifi)
+    if places["sites"] is not None:
+        set_setting(conn, "presence.sites", json.dumps(places["sites"], ensure_ascii=False))
+        changes["sites"] = len(places["sites"])
+    if places["beacons"] is not None:
+        set_setting(conn, "presence.beacons", json.dumps(places["beacons"], ensure_ascii=False))
+        changes["beacons"] = len(places["beacons"])
+    if places["wifi_sites"] is not None:
+        set_setting(conn, "presence.wifi_sites", json.dumps(places["wifi_sites"], ensure_ascii=False))
+        changes["wifi_sites"] = len(places["wifi_sites"])  # counts only: never a network name or a hash in the audit row
+    if places["people"] is not None:
+        set_setting(conn, "presence.people", json.dumps(places["people"]))
+        changes["people"] = places["people"]
     if "wifi_match_mode" in body:
         if body["wifi_match_mode"] not in WIFI_MATCH_MODES:
             raise PresenceError(422, "validation", "מצב התאמת Wi-Fi: בטלפון או בשרת.", details={"field": "wifi_match_mode", "known": list(WIFI_MATCH_MODES)})

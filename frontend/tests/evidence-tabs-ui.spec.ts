@@ -274,7 +274,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await expect(ed.locator('[data-tabs-section]')).toHaveCount(13);
     expect(await ed.locator('[data-tabs-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-tabs-section')))).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'multimedia', 'wiskey', 'infra', 'infra.electricity', 'infra.generator', 'system', 'system.security']);
     const rows = (sec: string) => ed.locator(`li[data-sec="${sec}"] .name`).allTextContents();
-    expect(await rows('explore')).toEqual(['אתרים ומבנים', 'מפת קומה']);
+    expect(await rows('explore')).toEqual(['אתרים ומבנים', 'מפת קומה', 'מי במבנה']); // WHOIN034-295: the registry lists every tab of the section
     expect((await rows('security.live')).map((s) => s.trim())).toEqual(['תמונת מצב', 'כל המצלמות', 'תצוגות שמורות']);
     expect((await rows('security')).map((s) => s.trim())).toEqual(['לייב', 'חקירה', 'אזעקה']); // the alarm section: listed, last by default
     const save = ed.locator('[data-tabs-save]');
@@ -283,7 +283,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
 
     // buttons: the map's floor tab up
     await ed.locator('li[data-sec="explore"][data-tab="floors"] .mv[data-move="up"]').click();
-    expect(await rows('explore')).toEqual(['מפת קומה', 'אתרים ומבנים']);
+    expect(await rows('explore')).toEqual(['מפת קומה', 'אתרים ומבנים', 'מי במבנה']);
     await expect(save.locator('button')).toBeEnabled();
     // keyboard: the handle's arrow keys, with the announcement
     await ed.locator('li[data-sec="security"][data-tab="live"] .handle').focus();
@@ -314,6 +314,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     const floorsToggle = ed.locator('li[data-sec="explore"][data-tab="floors"] sw-toggle');
     await sitesToggle.locator('button').click();
     await expect(ed.locator('li[data-sec="explore"][data-tab="sites"]')).toHaveClass(/off/);
+    await ed.locator('li[data-sec="explore"][data-tab="presence"] sw-toggle button').click(); // WHOIN034-295: the third map tab
     await expect(floorsToggle).toHaveAttribute('disabled', '');
     // the way back to this editor cannot be hidden
     await expect(ed.locator('li[data-sec="system"][data-tab="general"] sw-toggle')).toHaveAttribute('disabled', '');
@@ -326,7 +327,7 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await expect.poll(() => st.patches.length).toBe(1);
     expect(st.patches[0]).toEqual({
       'ui.tabs': {
-        explore: { order: ['floors', 'sites'], hidden: ['sites'] },
+        explore: { order: ['floors', 'sites', 'presence'], hidden: ['sites', 'presence'] },
         security: { order: ['investigate', 'live', 'alarm'], hidden: [] },
         'security.live': { order: ['views', 'overview', 'wall'], hidden: [] },
         'security.investigate': { order: [], hidden: ['cases'] },

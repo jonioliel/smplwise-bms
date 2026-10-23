@@ -191,6 +191,29 @@ the owner has no sites with coordinates yet and the catalogue's `sites` table ha
 a separate change); a per-user "my devices" card in the account page (the app shows "המכשיר הזה"; the web card waits
 for the frontend bridge changes listed in the handoff section 10). Phase 2 (second milestone): section 6.
 
+## 10a. WHOIN034-295 (board r034 / r035, target 2.16.0): "מי במבנה" and the place editors
+
+Branch `pilot/WHOIN034-295` from `origin/main` (v2.14.0). **No migration** (settings rows and the existing event log). Presence stays
+**OFF by default per installation** (the employee notice is not final): while `presence.enabled` is off the screen shows one clean
+"off" state and the API answers nothing but the floor list.
+
+| Part | Built | Where |
+|---|---|---|
+| Permission | `presence.view` "צפייה במי שנמצא במבנה": system_admin only by default, **sensitive** (a custom role names it among its sensitive permissions), scoped like the map - a floor-scoped holder sees the people placed on that floor; a person placed on a site only needs installation scope. Both role catalogues and `PERMISSION_LABELS`. | `roles.json`, `contracts/examples/role-catalog.design.json`, `routers/access.py` |
+| Read API | `GET presence/people` (session; presence.view at any scope, refusal audited): per person the most precise fresh placement - **beacon** (`beacon` value `beacon_id` or `uuid` + `major` / `minor`, at `min_proximity` or nearer, at most `beacon_max_age_minutes` old) > **Wi-Fi** (`network` value `ssid_hash` matched against a Wi-Fi site, at most `wifi_max_age_minutes` old) > **geofence** (`inside: true` at most `stale_minutes` old); a newer exit wins; several phones: the most precise, then the newest. Counts per floor and area, per site, totals. Audited `presence.people.view` once per viewer per 10 minutes with counts, never names. | `services/presence_people.py`, `routers/presence.py` |
+| Privacy | A device counts only while it acknowledged the **current** notice version and its phone reports the sensor on (location also `sharing: true`). Per-person **opt-out** (`GET/PUT presence/people/me`, self-service, presence.report, audited `presence.people.opt_out`; nobody can set it for someone else): never named, never placed on a floor or area, counted only in `totals.hidden`. `people.show_names: false` = counts only. The administrator sees how many opted out, not who. | same |
+| Thresholds | `presence.people` `{stale_minutes 30 (5-1440), beacon_max_age_minutes 10 (1-240), wifi_max_age_minutes 15 (1-240), min_proximity near, show_names true, refresh_seconds 30 (10-300)}`; a partial save keeps the other keys. | `services/presence.py`, הגדרות › אפליקציה לנייד › מסך מי במבנה |
+| Place editors | Beacons `{id, name, uuid, major?, minor?, site_id, floor_id?, zone_id?}` (UUID format, a configured geofence, the area on that floor, unique id and (uuid, major, minor)); Wi-Fi sites `{id, name, site_id, floor_id?, ssid_hash_salt, ssid_hashes, add_ssids}` - `add_ssids` is write-only, the server hashes `sha256_hex(salt + ssid)` and keeps only hashes (salt made per site, kept on later saves); geofences get a server id when sent without one. A geofence still named by a beacon / Wi-Fi site cannot be removed alone. **One save is validated as a whole before anything is written** (a refusal commits its audit row, so a half-applied save was possible before). Audit carries counts only. | `services/presence.py` `_validate_places` |
+| Screen | מפה › **מי במבנה** (`#/explore/presence`, tab for presence.view holders): KPI row (inside / on a floor / site only / asked not to appear), the floor's plan with each area labelled by its count, the list with search; fits the viewport (the list scrolls inside its panel; a phone switches between map and list); off / no places / counts only / forbidden states; polled per `refresh_seconds`. Built to the infrastructure screens' look (no approved presence mockup existed in `private/review`). | `frontend/src/screens/explore-presence.ts` (+ `-logic.ts`), `i18n/presence.ts` |
+| Settings | הגדרות › אפליקציה לנייד has three pages (`?tab=mobile&page=places|screen`): the existing sharing / policy page; **מקומות** - geofences, beacons and Wi-Fi sites on one page, three cards; **מסך מי במבנה** - the thresholds and the opt-out count. | `system-presence.ts`, `system-presence-places.ts` (+ `-logic.ts`) |
+| Opt-out card | On the personal settings page (#/system/notifications), only while sharing is on and the user holds presence.report. | `screens/presence-opt-out.ts` |
+| Contract | additive: beacon / Wi-Fi config keys, the SSID hash scheme, and the `beacon` / `network` value spellings the server reads (contract sections 2 and 4). The app (Codex, r037) must send `beacon_id` (or `uuid` / `major` / `minor`) and `proximity`, and `ssid_hash`. | `docs/api/mobile-presence-contract.md` |
+
+Tests: `tests/test_whoin034_295.py`; `frontend/tests/unit-whoin034-295.spec.ts`, `frontend/tests/evidence-whoin034-295.spec.ts`
+(screenshots under `docs/evidence/WHOIN034-295/`), `unit-tabs-config.spec.ts` updated for the new map tab.
+Not built: a live dot per person on the plan (areas carry counts, which is also the privacy-safer choice), history of presence
+(the time-scrub change request owns it), an Arabic / Russian column for the new words (they fall back to Hebrew).
+
 ## 11. Rollback
 
 Migration 0057 is additive (three new tables). Running the previous version ignores them; the new permissions in the
