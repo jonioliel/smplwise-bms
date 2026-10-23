@@ -506,7 +506,9 @@ PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth
                     ("POST", "/api/v1/auth/local/passkey/options"), ("POST", "/api/v1/auth/local/passkey"),
                     # APPREFRESH-295: the phone app's refresh / sign-out / access-token check are public by nature (404 while
                     # security.app_refresh is off, guard first; tests/test_app_refresh_295.py covers the guard and the tokens)
-                    ("POST", "/api/v1/auth/app/refresh"), ("POST", "/api/v1/auth/app/sign-out"), ("GET", "/api/v1/auth/app/whoami")}
+                    ("POST", "/api/v1/auth/app/refresh"), ("POST", "/api/v1/auth/app/sign-out"), ("GET", "/api/v1/auth/app/whoami"),
+                    # APPREFRESH2-295: the device-key proof nonce (the same guard; tests/test_app_refresh_devicekey_295.py)
+                    ("POST", "/api/v1/auth/app/refresh-challenge")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),

@@ -96,7 +96,9 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # CR-FLEET215: what this installation sent to the fleet receiver - runtime history of THIS box
                                    "fleet_report_log",
                                    # MAINT215B: the certificate files (the bytes are on the data volume and do not travel) and the reminder log (runtime history)
-                                   "maint_files", "maint_reminder_log"})
+                                   "maint_files", "maint_reminder_log",
+                                   # APPREFRESH2-295: the single-use device-key proof nonces
+                                   "app_refresh_nonces"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -210,6 +212,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_a
 # never switches counting on, and never switches it off behind the audited PUT /occupancy/settings; the denied-attempt alert switch
 # (DENYALERT133) is policy too, and its cursor is runtime state (an archive's older cursor would replay up to an hour of denials)
 SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days", "access.external.denied_alert", "access.external.denied_cursor"}
+# APPREFRESH2-295: the device-key mode (off | optional | required) - a restore must never weaken it
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 
 
 def _kept_setting(key: Any) -> bool:
