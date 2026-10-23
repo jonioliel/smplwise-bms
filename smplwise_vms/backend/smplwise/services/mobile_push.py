@@ -31,7 +31,7 @@ import httpx
 
 from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
-from . import notify, notify_channels, push
+from . import notify, notify_channels, notify_settings, push
 from .notify_policy import CATEGORIES
 from .notify_visibility import Reach, principal_of
 from .presence import _json, get_device, iso, now_utc
@@ -157,13 +157,15 @@ class Outcome:
     error: str | None = None
 
 
-def send_relay(relay_token: str, category: str, message_id: str, priority: str, server: str, collapse: str | None = None) -> Outcome:
+def send_relay(relay_token: str, category: str, message_id: str, priority: str, server: str, collapse: str | None = None, critical_alert: bool = False) -> Outcome:
     url, key = relay_url(), relay_key()
     if not url or not key:
         return Outcome(0, error="relay_unconfigured")
     body = {"relay_token": relay_token, "category": category, "notification_id": message_id, "priority": priority, "server": server}
     if collapse:
         body["collapse"] = collapse[:64]
+    if critical_alert:  # CRITSOUND124-295: the relay maps it to APNs interruption-level critical + critical sound / an FCM max-importance DND-bypass channel; absent otherwise
+        body["critical_alert"] = True
     try:
         with httpx.Client(timeout=SEND_TIMEOUT_S, transport=TRANSPORT, follow_redirects=False) as client:
             r = client.post(f"{url}/v1/push", json=body, headers={"Authorization": f"Bearer {key}", "User-Agent": "SmplWiseArx-server"})
@@ -236,6 +238,7 @@ class _Job:
     delivery_id: str | None
     mode: str
     attempt: int = 0
+    critical_alert: bool = False
 
     def recheck(self, db: Database) -> bool:
         with db.connection(mode="read", label="mobile_push.recheck") as conn:
@@ -257,7 +260,7 @@ class _Job:
 
 
 def attempt_job(notifier: "push.PushNotifier | None", db: Database, job: _Job) -> str:
-    outcome = send_relay(job.relay_token, job.category, job.message_id, job.priority, job.server, collapse=job.notification_id)
+    outcome = send_relay(job.relay_token, job.category, job.message_id, job.priority, job.server, collapse=job.notification_id, critical_alert=job.critical_alert)
     final = job.attempt + 1 >= len(BACKOFF_S) + 1
     result = record(db, job.device_id, outcome, final, delivery_id=job.delivery_id, notification_id=job.notification_id, attempt=job.attempt + 1)
     if result == "retry" and notifier is not None:
@@ -322,7 +325,8 @@ class AppPushChannel(notify_channels.Channel):
                 continue
             dev = t.data["device"]
             job = _Job(dev["id"], t.user_id or dev["user_id"], dev["push_relay_token"], t.data["message_id"], d.n["category"], "high" if (d.severity == "critical" or d.mode == "escalate") else "normal",
-                       d.scratch.get("app_server") or "srv", d.nid, t.delivery_id or None, d.mode)
+                       d.scratch.get("app_server") or "srv", d.nid, t.delivery_id or None, d.mode,
+                       critical_alert=d.mode != "resolved" and notify_settings.critical_sound_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity))
             attempt_job(notifier, notifier.db, job)
 
 

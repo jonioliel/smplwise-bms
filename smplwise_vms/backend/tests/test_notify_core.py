@@ -482,7 +482,7 @@ def test_settings_roundtrip_validation_and_revision(w):
     assert w.c.put(f"{API}/notify/settings", json={"image_in_push": True}).status_code == 422, "no camera image in a push in v1"
     assert w.set_settings(image_in_push=False)["image_in_push"] is False
     assert w.c.put(f"{API}/notify/settings", json={"pass_through": {"nope": {}}}).status_code == 422
-    assert w.set_settings(companion={"critical_sound_safety": True})["companion"] == {"critical_sound_safety": True}
+    assert w.set_settings(companion={"critical_sound_safety": True})["companion"] == {"critical_sound_safety": True, "critical_sound_types": {k: False for k in ("sensor.smoke", "sensor.gas", "sensor.co", "alarm.triggered", "sensor.leak")}}
     # the owner's two 2026-10-01 settings
     assert w.set_settings(center_layout="page", failures_audience="visible")["center_layout"] == "page"
     assert w.c.get(f"{API}/notify/settings").json()["failures_audience"] == "visible"
