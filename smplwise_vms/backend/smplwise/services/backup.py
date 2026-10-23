@@ -184,7 +184,7 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
-SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards"}
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge", "privacy.local_purge_days", "privacy.personal_export"}  # IDENT146: purge / export policy of THIS installation
 # APPREFRESH-295: the phone app's persistent sign-in switch and its lifetimes are security policy - never exported, never restored
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_absolute_days", "security.app_refresh_idle_days",
                                  "security.app_refresh_access_minutes", "security.app_refresh_admin_absolute_days",
