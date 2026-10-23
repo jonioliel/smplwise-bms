@@ -348,6 +348,9 @@ class FakeStore:
             raise OSError("synthetic: disk full")
         self.hass.disk[self.key] = json.dumps(data)
 
+    async def async_remove(self) -> None:
+        self.hass.disk.pop(self.key, None)
+
 
 def _track_time_interval(hass: "FakeHass", action: Any, interval: Any) -> Callable[[], None]:
     hass.intervals.append((action, interval))
@@ -518,8 +521,16 @@ class BridgeSide:
         self.start()
 
     def replace_entry(self, entry_id: str, pairing_code: str) -> None:
-        """The integration is deleted and added again (config flow `user` step): a NEW entry id, so a fresh key store."""
+        """The integration is deleted and added again (config flow `user` step): a NEW entry id, so a fresh key store. Home Assistant
+        unloads the deleted entry, then calls the integration's `async_remove_entry` (K-06)."""
         self.stop()
+        remove = getattr(self.mod, "async_remove_entry", None)
+        if remove is not None:
+            hass = FakeHass(self)
+            try:
+                hass.run(remove(hass, self.entry))
+            finally:
+                hass.close()
         self.entry = FakeEntry(entry_id, {self.mod.CONF_ADDON_URL: ADDON_URL, self.mod.CONF_PAIRING_CODE: pairing_code})
         self.start()
 

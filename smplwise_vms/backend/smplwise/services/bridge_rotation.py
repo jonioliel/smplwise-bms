@@ -465,15 +465,37 @@ class Engine:
         bk.scrub(self.db)
         return rot
 
-    def _unknown_commit(self, rot: dict[str, Any]) -> dict[str, Any]:
-        """R2: the commit's outcome is unknown. Ask the peer (under K_cur, which it verifies until its cap)."""
-        cur_m = self._material(rot["kid_from"])
+    def _status_either(self, rot: dict[str, Any], first_kid: str) -> dict[str, Any]:
+        """`status` signed with `first_kid`; when the peer cannot verify that key (its unsigned refusal reads as `peer_bad_answer`), once more
+        with the rotation's other key (K-03: past its 180 s cap a peer that committed holds K_next only, so a status under K_cur can never be
+        answered). Asking is harmless under either key: K_next already went out with the commit, and the answer's key is still judged by the
+        caller (H-09 / H-05). Raises PeerUnreachable when the first call gets no answer at all."""
         st: dict[str, Any] = {"ok": False}
-        if cur_m is not None:
+        tried: list[str] = []
+        for kid in (first_kid, rot["kid_from"], rot["kid_to"]):
+            if kid in tried:
+                continue
+            tried.append(kid)
+            material = self._material(kid)
+            if material is None:
+                continue
             try:
-                st = self._call("status", rot["kid_from"], cur_m, rot)
+                st = self._call("status", kid, material, rot)
             except peers.PeerUnreachable:
-                st = {"ok": False, "code": "peer_unreachable"}
+                if len(tried) == 1:
+                    raise
+                return st
+            if st.get("code") != "peer_bad_answer":
+                return st
+        return st
+
+    def _unknown_commit(self, rot: dict[str, Any]) -> dict[str, Any]:
+        """R2: the commit's outcome is unknown. Ask the peer (under K_cur, which it verifies until its cap; past the cap under K_next)."""
+        st: dict[str, Any] = {"ok": False}
+        try:
+            st = self._status_either(rot, rot["kid_from"])
+        except peers.PeerUnreachable:
+            st = {"ok": False, "code": "peer_unreachable"}
         # H-09: a peer that committed signs with K_next, one that did not signs with K_cur - a claim signed under the other key is not believed
         if st.get("ok") is True and (st.get("rotation") == "committed") != (st.get("signed_by") == rot["kid_to"]):
             st = {"ok": False, "code": "peer_bad_answer"}
@@ -564,7 +586,7 @@ class Engine:
                     raise RotationRefused(exc.code) from None
             assert cur.material is not None
             try:
-                st = self._call("status", cur.kid, cur.material, rot)
+                st = self._status_either(rot, cur.kid)  # K-03: under the other rotation key too when the peer no longer verifies Arx's current one
             except peers.PeerUnreachable:
                 return rot
             if st.get("ok") is not True:

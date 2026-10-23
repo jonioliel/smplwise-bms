@@ -381,6 +381,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     saver = KeyPersister(keyset, store.async_save, lambda: entry.data.get(CONF_PAIRING_CODE) or "", wipe_entry_code, hass.async_create_task,
                          on_error=save_failed)
     saver.clean_entry()  # HA-06: a restart between the key save and the entry update left the retired code in the entry
+    if keyset.repaired:  # K-02: a new pairing code arrived in this entry (discovery): the fresh key set replaces the stored one
+        _LOGGER.info("bridge re-paired with a new pairing code; the previous key set is discarded")
+        saver.save_soon()
 
     async def persist() -> None:
         """Save the key set when it changed (a rotation step, a retired key, a new high-water mark). Raises when the save fails."""
@@ -658,3 +661,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_LEASE_REQUEST)
     lease_service.async_detach_bridge(hass, entry.entry_id)  # LEASELIFE-295: the consumer stays registered; in-flight answers are not relayed
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """K-06: the integration was deleted - its key store (the bridge keys in clear) goes with it, so later Home Assistant backups do not carry
+    keys of a pairing that no longer exists. Best effort: a failed removal is logged without detail and never blocks the deletion."""
+    try:
+        await Store(hass, 1, f"{DOMAIN}_keys_{entry.entry_id}").async_remove()
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("bridge key store not removed (%s)", type(exc).__name__)

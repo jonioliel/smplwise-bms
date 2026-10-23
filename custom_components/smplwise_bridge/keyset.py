@@ -48,6 +48,8 @@ MODES = ("routine", "hard_cut")
 STATE_VERSION = 1
 ROTATION_ID_MAX = 64
 SAVE_DELAY_S = 2.0
+FP_LABEL = "smplwise-retired-pairing-code|"
+FP_RE = re.compile(r"^[0-9a-f]{64}$")
 _DUMMY = secrets.token_urlsafe(32)  # never a real key: keeps the compare's cost the same when no key can be used
 
 
@@ -91,6 +93,12 @@ def proof(material_next: str, rotation_id: str) -> str:
     return _mac(material_next, (PROOF_LABEL + rotation_id).encode("utf-8"))
 
 
+def legacy_fingerprint(code: str) -> str:
+    """A one-way tag of a RETIRED pairing code (K-02), kept in the saved state so a setup can tell that code (left in the entry by a restart
+    between two writes, HA-06) from a newly paired one. The code is 192 random bits and no longer a key when this is stored."""
+    return hashlib.sha256((FP_LABEL + code).encode("utf-8")).hexdigest()
+
+
 class KeySet:
     """The bridge's keys. `legacy` is the pairing secret (or None once it was retired); `state` the persisted rest."""
 
@@ -99,6 +107,15 @@ class KeySet:
         self._now, self._mono = now, mono
         self._legacy_in = legacy
         st = state if isinstance(state, dict) and state.get("v") == STATE_VERSION else {}
+        fp = st.get("legacy_fp")
+        self.legacy_fp: str | None = fp if isinstance(fp, str) and FP_RE.fullmatch(fp) else None
+        self.repaired = False
+        stored_keys = st.get("keys") if isinstance(st.get("keys"), dict) else {}
+        if (st.get("legacy_retired") and legacy and self.legacy_fp is not None
+                and not hmac.compare_digest(legacy_fingerprint(legacy), self.legacy_fp) and legacy not in stored_keys.values()):
+            # K-02: the entry holds a pairing code that is neither the retired one nor a key of the set - a NEW pairing (Supervisor discovery
+            # wrote the regenerated code into this same entry). The old key set belongs to the old pairing: start a fresh one on the new code.
+            st, self.legacy_fp, self.repaired = {}, None, True
         self.legacy_retired = bool(st.get("legacy_retired"))
         self.legacy = None if self.legacy_retired or not legacy else legacy
         keys = st.get("keys")
@@ -117,7 +134,7 @@ class KeySet:
             # the cap runs on the monotonic clock; after a restart the wall clock tells how much of it is already used
             used = max(0.0, self._now() - float(self.rotation.get("t0_wall") or 0.0))
             self._t0_mono = self._mono() - used
-        self.dirty = False
+        self.dirty = self.repaired  # a fresh set after a re-pair replaces the stored one at the next save
         self.legacy_wiped = False  # the caller blanks the config entry's copy of the pairing code once this turns True
         if self.signing != LEGACY_KID and self.signing not in self.keys:  # a damaged state: fall back to the pairing secret if it is still there
             self.signing, self.old, self.next = LEGACY_KID, None, None
@@ -126,15 +143,20 @@ class KeySet:
     # ------------------------------------------------------------ state
 
     def reload(self, state: dict[str, Any] | None) -> None:
-        """Go back to a saved state (a failed save). The replay cache is kept."""
-        seen = self._seen
+        """Go back to a saved state (a failed save). The replay cache AND the boot high-water are kept: inside one process the nonce cache
+        refuses replays, the boot mark only guards across restarts (K-05: taking the reloaded `hw` as a new boot mark refused every message
+        signed in the same second as the last accepted one - the rollback's own `status` / `abort`)."""
+        seen, boot = self._seen, self._boot_hw
         self.__init__(self._legacy_in, state, now=self._now, mono=self._mono)  # type: ignore[misc]
-        self._seen = seen
+        self._seen, self._boot_hw = seen, boot
 
     def state(self) -> dict[str, Any]:
+        """A SNAPSHOT of the persisted part (K-05): every nested dict is a copy, so a later op that mutates the live rotation or high-water
+        cannot change a snapshot taken before it - `reload(snapshot)` after a failed save really goes back to the old state."""
         live = {self.signing, self.old, self.next}
         return {"v": STATE_VERSION, "signing": self.signing, "keys": {k: v for k, v in self.keys.items() if k in live}, "old": self.old, "next": self.next,
-                "legacy_retired": self.legacy_retired, "rotation": self.rotation, "hw": self.hw}
+                "legacy_retired": self.legacy_retired, "legacy_fp": self.legacy_fp,
+                "rotation": dict(self.rotation) if self.rotation is not None else None, "hw": dict(self.hw)}
 
     def capabilities(self) -> dict[str, Any]:
         return {"rotation": CAPABILITY}
@@ -152,6 +174,7 @@ class KeySet:
         if kid == LEGACY_KID:
             if self.legacy is not None:
                 self.legacy_wiped = True
+                self.legacy_fp = legacy_fingerprint(self.legacy)  # K-02: lets a later setup tell the retired code from a new pairing code
             self.legacy, self.legacy_retired = None, True
         else:
             self.keys.pop(kid, None)

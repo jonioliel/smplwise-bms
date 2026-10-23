@@ -48,6 +48,7 @@ class FakeTrustedBridge:
         self.clock_snapshot: dict[str, Any] | None = None  # a W7 snapshot (gv._clock(...)); None = healthy, not under test
         self.timeout_after_delivery = False  # the open is recorded and dispatched, but the caller sees a transport error
         self.unreachable = False  # the call never reaches the bridge (connection refused)
+        self.keys: Callable[[str], str | None] | None = None  # K-07: the receiver's key set (kid -> material); None = the pairing secret only
         self.records: list[dict[str, Any]] = []
         self.calls: list[dict[str, Any]] = []  # every call: service, signed_message_json, parsed message, response
         self.other_calls: list[tuple[str, str]] = []
@@ -60,7 +61,7 @@ class FakeTrustedBridge:
         assert return_response is True, "door_open / door_open_status are always called with return_response"
         if self.unreachable:
             raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": "ConnectError"})
-        response, effects = gv.reference_door_service(service, data, self.clock.now(), self._setup())
+        response, effects = gv.reference_door_service(service, data, self.clock.now(), self._setup(), keys=self.keys)
         text = data.get("signed_message_json") if isinstance(data, dict) else None
         try:
             parsed = json.loads(text) if isinstance(text, str) else None

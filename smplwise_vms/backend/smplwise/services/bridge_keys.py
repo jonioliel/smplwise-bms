@@ -318,13 +318,14 @@ def adopt_legacy(conn: sqlite3.Connection, data_dir: Path) -> Key:
 
 def reset_set(conn: sqlite3.Connection) -> int:
     """A re-pair: every live key of the set is wiped (a new pairing secret starts a new `g0-legacy`) and an unfinished rotation is
-    closed. Returns the number of live keys wiped."""
+    closed - including one waiting in `needs_repair` (K-04: the re-pair IS the repair; otherwise doors stay paused and every start answers
+    `repair_required` on a fresh pairing). Returns the number of live keys wiped."""
     _secure_delete(conn)
     n = conn.execute("UPDATE bridge_keys SET state = 'discarded', value_enc = NULL, verify_until = NULL, ended_at = ? WHERE state IN "
                      "('pending', 'next', 'current', 'retiring')", (now_iso(),)).rowcount
     try:
-        conn.execute("UPDATE bridge_rotations SET state = 'rolled_back', ended_at = ?, result_code = 'repaired' WHERE state IN "
-                     "('prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring')", (now_iso(),))
+        conn.execute("UPDATE bridge_rotations SET state = 'rolled_back', ended_at = COALESCE(ended_at, ?), result_code = 'repaired' WHERE state IN "
+                     "('prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring', 'needs_repair')", (now_iso(),))
     except sqlite3.OperationalError:
         pass
     # the fixed legacy kid must be free for the next pairing: the old row stays for the trail under a retired name

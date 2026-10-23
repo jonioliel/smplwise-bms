@@ -4,8 +4,9 @@ ha_client.call_service -> HA REST) against the REAL bridge integration (custom_c
 
 Covers the lab run plan (docs/release/KEY_ROTATION_LAB_RUN_PLAN.md) steps 0-10 and failure cases F1-F7 without any live system:
 first rotation (legacy g0 adoption), second rotation, overlap and the door-pause window, retire / verify, restarts of both sides,
-R1 / R2 / R3 injections, needs_repair + resume, re-pair, and a secret scan. Tests marked xfail(strict) are FINDINGS: they assert the
-behaviour the plan / guide expects and fail today (a fix turns them red as XPASS, so the marker must then be removed)."""
+R1 / R2 / R3 injections, needs_repair + resume, re-pair, and a secret scan. The findings K-01 .. K-07 of the harness run were strict
+xfails / pinned tests; KEYROT-FIX-295 fixed them and the tests now assert the fixed behaviour (each fails on the harness commit 51c9355a0
+and passes on the fix; see docs/release/KEY_ROTATION_FIX_NOTES.md)."""
 from __future__ import annotations
 
 import base64
@@ -371,9 +372,9 @@ def test_r1_bridge_save_fails_at_begin_the_bridge_reverts_and_arx_rolls_back(lab
     assert lab.rest.wire[0]["http"] == 500
     assert rot["state"] == "rolled_back" and rot["result_code"] == "peer_unreachable", rot
     assert side.ks.next is None and side.ks.rotation is None, "__init__.rotate reloaded the saved state (begin replaces the rotation dict)"
-    # observed (part of K-05): the "saved" snapshot shares the live `hw` dict, so the reload keeps the high-water of the message whose save
-    # failed as the boot mark; Arx's best-effort abort, signed in the same second, is refused as a replay (unsigned)
-    assert (lab.rest.wire[1]["op"], lab.rest.wire[1]["code"], lab.rest.wire[1]["signed"]) == ("abort", "replay", False)
+    # K-05 fixed: the snapshot no longer shares the live `hw` dict, so the reload does not keep the high-water of the message whose save
+    # failed; Arx's best-effort abort (same second, fresh nonce) verifies and is answered signed: there is no rotation to abort
+    assert (lab.rest.wire[1]["op"], lab.rest.wire[1]["code"], lab.rest.wire[1]["signed"]) == ("abort", "unknown_rotation", True), lab.rest.wire[1]
     lab.clock.advance(2)
     assert lab.arx_message_verifies_at_bridge() is None and not lab.paused()
 
@@ -423,47 +424,58 @@ def test_r2_commit_applied_but_answer_lost_is_recovered_by_status(lab):
     assert _retire(lab)["last"]["state"] == "verified"
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING K-05: keyset.state() returns the LIVE `rotation` and `hw` dicts (keyset.py L134-L137), so "
-                                       "`saved = keyset.state()` in __init__.rotate (L596) is no snapshot; _op_commit mutates the rotation "
-                                       "in place (L302) and the reload after a failed save (L601) keeps committed=True with signing=K_cur")
 def test_r2_commit_reverted_by_a_failed_bridge_save_rolls_back(lab):
-    """The designed outcome (__init__.rotate docstring, plan section 3): a failed save reloads the OLD state and raises - Arx sees no
-    answer, asks `status`, hears `not_committed` under K_cur and rolls back (R1 `commit_not_applied`)."""
+    """K-05 (fixed; was a strict xfail): a failed save reloads the OLD state and raises - Arx sees no answer, asks `status`, hears
+    `not_committed` under K_cur and rolls back (R1 `commit_not_applied`). Before the fix keyset.state() returned the live `rotation` / `hw`
+    dicts, so the reload kept committed=True with signing=K_cur."""
     side = lab.side
     lab.rest.fault("commit", "save_fails")
     rot = lab.start().json()["rotation"]
+    assert lab.rest.wire[3]["op"] == "commit" and lab.rest.wire[3]["http"] == 500
     assert rot["state"] == "rolled_back" and rot["result_code"] == "commit_not_applied", rot
     assert side.ks.signing == bk.LEGACY_KID and side.ks.next is None and lab.current().kid == bk.LEGACY_KID
+    assert not lab.paused() and lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
 
 
-def test_k05_a_failed_commit_save_leaves_a_half_committed_bridge_that_blocks_every_later_rotation(lab):
-    """K-05 pinned: what actually happens today, end to end."""
-    side, clock = lab.side, lab.clock
+def test_k05_after_a_failed_commit_save_the_next_rotation_completes(lab):
+    """K-05 end to end: the swap is atomic on the bridge (snapshot + reload), so nothing half-committed survives - neither in memory nor
+    in `.storage` - and the administrator's next click rotates normally."""
+    side = lab.side
+    stored_before = side.stored_state()
     lab.rest.fault("commit", "save_fails")
     rot = lab.start().json()["rotation"]
-    assert lab.rest.wire[3]["op"] == "commit" and lab.rest.wire[3]["http"] == 500
-    # the reverted bridge state is inconsistent: still signing with K_cur, K_next kept as `next`, the rotation marked committed
-    assert (side.ks.signing, side.ks.next, side.ks.rotation["committed"]) == (bk.LEGACY_KID, rot["kid_to"], True)
-    # the immediate `status` is refused as a replay when it is signed in the commit's second (the kept high-water), and later ones say
-    # "committed" signed under K_cur - H-09 refuses to believe either, so Arx stays `switching` (doors paused)
-    status = [w for w in lab.rest.wire if w["op"] == "status"][0]
-    assert status["code"] == "replay" or (status["ok"] is True and status["signed"]), status
-    assert rot["state"] == "switching" and lab.paused(), rot
-    clock.advance(30)
-    assert lab.view()["rotation"]["state"] == "switching"
-    later_status = [w for w in lab.rest.wire if w["op"] == "status"][-1]
-    assert later_status["ok"] is True and later_status["signed"] is True, later_status
-    clock.advance(155)
+    assert rot["state"] == "rolled_back", rot
+    stored = side.stored_state()
+    assert stored["signing"] == bk.LEGACY_KID and rot["kid_to"] not in stored["keys"], "the failed commit never reached the store"
+    assert not (stored.get("rotation") or {}).get("committed"), stored.get("rotation")
+    assert stored_before is None or stored_before.get("signing") == bk.LEGACY_KID
+    side.restart()  # what Home Assistant would load after a restart: the same consistent state
+    assert side.ks.signing == bk.LEGACY_KID and side.ks.next is None
+    lab.clock.advance(2)
     side.sync()
-    assert lab.view()["last"]["state"] == "needs_repair"
-    done = lab.c.post(f"{KEY_API}/rotations/{rot['id']}/resume").json()["rotation"]
-    assert done["state"] == "rolled_back" and done["result_code"] == "aligned_to_current", done
-    assert not lab.paused() and lab.arx_message_verifies_at_bridge() is None and lab.push_ok()
-    # but the bridge never lets go of `next` (its cap drops `old` for a "committed" rotation): every later begin is refused
-    side.housekeeping()
-    assert side.ks.next == rot["kid_to"] and side.ks.rotation["closed"] is True
-    later = lab.start().json()["rotation"]
-    assert later["state"] == "rolled_back" and later["result_code"] == "not_allowed", later
+    again = lab.start().json()["rotation"]
+    assert again["state"] == "switched" and again["kid_from"] == bk.LEGACY_KID, again
+    assert _retire(lab)["last"]["state"] == "verified"
+
+
+def test_k05_keyset_state_is_a_snapshot():
+    """K-05 unit: mutating the live key set (an op, a new high-water mark) never changes a state() taken before it."""
+    clock = kh.Clock()
+    ksm = kh.bridge_submodule("keyset")
+    legacy = "synthetic-snapshot-legacy-0001"
+    ks = ksm.KeySet(legacy, None, now=clock, mono=clock.mono)
+    now = int(clock())
+    begin = bk.sign_with(bk.LEGACY_KID, legacy, _begin_body(rid="r1"), ts=now)
+    assert ks.handle_control(json.loads(json.dumps(begin)))["ok"] is True
+    saved = ks.state()
+    frozen = json.dumps(saved, sort_keys=True)
+    k_next = ks.keys["g1-0badc0de"]
+    commit = bk.sign_with("g1-0badc0de", k_next, {"protocol": br.PROTOCOL, "op": "commit", "rotation_id": "r1"}, ts=now + 1)
+    assert ks.handle_control(json.loads(json.dumps(commit)))["ok"] is True
+    assert ks.rotation["committed"] is True and ks.hw
+    assert json.dumps(saved, sort_keys=True) == frozen, "the snapshot did not move with the live state"
+    ks.reload(saved)
+    assert (ks.signing, ks.next, ks.rotation["committed"]) == (bk.LEGACY_KID, "g1-0badc0de", False)
 
 
 def test_r2_status_silent_then_answers_inside_the_budget(lab):
@@ -491,28 +503,56 @@ def _needs_repair_past_the_cap(lab) -> dict[str, Any]:
     return v["last"]
 
 
-def test_r2_silent_past_the_budget_needs_repair_and_resume_cannot_align_with_the_real_bridge(lab):
-    """FINDING K-03 (pinned behaviour). `needs_repair: commit_outcome_unknown` is only reached once t0 + 180 s has passed
-    (bridge_rotation.py L487-L491). By then the real bridge's own cap has dropped K_cur (keyset.py L160-L173), and `_repair` asks
-    `status` signed with Arx's current key = K_cur only (bridge_rotation.py L562-L567): the bridge answers an UNSIGNED refusal, so
-    resume never aligns - even with a healthy bridge. test_bridge_key_activation_295.test_h05 reaches needs_repair by an SQL update
-    without passing the cap, which hides this. Meanwhile the channel is split: the bridge signs with K_next (Arx still accepts it as
-    `next`), Arx signs with K_cur (the bridge refuses it)."""
+def test_r2_silent_past_the_budget_needs_repair_and_resume_aligns_with_the_real_bridge(lab):
+    """K-03 (fixed). `needs_repair: commit_outcome_unknown` is only reached once t0 + 180 s has passed. By then the real bridge's own cap
+    has dropped K_cur, so a `status` under K_cur gets an UNSIGNED refusal. `_repair` now asks once more under K_next (the rotation's other
+    key), hears `committed` signed by K_next, probes K_next (H-05) and aligns Arx to it: doors resume, both directions verify."""
     side = lab.side
     last = _needs_repair_past_the_cap(lab)
     assert lab.paused() and lab.view()["blocked_by"] == "repair_required"
     assert side.ks.signing == last["kid_to"] and side.ks.old is None and side.ks.legacy is None, "the bridge committed and capped"
+    assert lab.arx_message_verifies_at_bridge() == "bad_signature", "before the resume the channel is split"
+    n = len(lab.rest.wire)
     r = lab.c.post(f"{KEY_API}/rotations/{last['id']}/resume")
-    assert r.status_code == 200 and r.json()["rotation"]["state"] == "needs_repair", r.text
-    assert lab.rest.wire[-1]["op"] == "status" and lab.rest.wire[-1]["signed"] is False and lab.rest.wire[-1]["code"] == "bad_signature"
-    assert lab.push_ok(), "bridge -> Arx still verifies (K_next is `next` at Arx)"
-    assert lab.arx_message_verifies_at_bridge() == "bad_signature", "Arx -> bridge is broken until a re-pair"
-    assert lab.paused()
+    assert r.status_code == 200, r.text
+    done = r.json()["rotation"]
+    assert done["state"] == "retired" and done["result_code"] == "aligned_to_next", done
+    tail = lab.rest.wire[n:]
+    assert [w["op"] for w in tail] == ["status", "status", "probe"], tail
+    assert tail[0]["signed"] is False and tail[0]["code"] == "bad_signature", "K_cur is gone at the bridge"
+    assert tail[1]["signed"] is True and tail[2]["ok"] is True
+    assert not lab.paused() and lab.current().kid == last["kid_to"] and lab.keys()[bk.LEGACY_KID]["state"] == "retired"
+    assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
+    assert lab.view()["blocked_by"] is None
+    # and the next rotation runs normally
+    lab.clock.advance(2)
+    again = lab.start().json()["rotation"]
+    assert again["state"] == "switched" and again["kid_from"] == last["kid_to"], again
+    assert _retire(lab)["last"]["state"] == "verified"
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING K-04: a re-pair does not close a needs_repair rotation (bridge_keys.reset_set L326-L327 "
-                                       "lists only the active states), so doors stay paused and every start answers repair_required")
+def test_r2_status_under_k_cur_refused_past_the_cap_recovers_without_repair(lab):
+    """K-03, the automatic path: the commit's answer is lost and the next tick comes after the bridge's cap. The status under K_cur is
+    refused unsigned; the engine asks under K_next, hears `committed` (signed by K_next) and finishes the switch instead of needs_repair."""
+    lab.rest.fault("commit", "lost_after")
+    lab.rest.fault("status", "unreachable")
+    rot = lab.start().json()["rotation"]
+    assert rot["state"] == "switching"
+    lab.clock.advance(185)
+    lab.side.housekeeping()  # the bridge's cap drops K_cur
+    assert lab.side.ks.old is None
+    lab.side.sync()
+    v = lab.view()
+    assert v["rotation"] is None or v["rotation"]["state"] != "switching", v
+    v = lab.view()
+    assert v["last"]["state"] in ("verified", "retired"), v["last"]
+    assert "bridge.rotation.recovered" in lab.actions()
+    assert not lab.paused() and lab.current().kid == rot["kid_to"]
+    assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
+
+
 def test_repair_after_needs_repair_lifts_the_pause_and_allows_a_new_first_rotation(lab):
+    """K-04 (fixed; was a strict xfail): a re-pair closes a `needs_repair` rotation too (bridge_keys.reset_set)."""
     _needs_repair_past_the_cap(lab)
     r = lab.c.get(f"{API}/ha/bridge/pairing", params={"regenerate": "true"})
     assert r.status_code == 200
@@ -523,6 +563,10 @@ def test_repair_after_needs_repair_lifts_the_pause_and_allows_a_new_first_rotati
     assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None, "the new pairing works"
     v = lab.view()
     assert not lab.paused() and v["blocked_by"] is None and v["automatic"] == "awaiting_click", (v["blocked_by"], v["last"]["state"])
+    assert v["last"]["state"] == "rolled_back" and v["last"]["result_code"] == "repaired", v["last"]
+    again = lab.start().json()["rotation"]
+    assert again["state"] == "switched" and again["kid_from"] == bk.LEGACY_KID, again
+    assert _retire(lab)["last"]["state"] == "verified"
 
 
 # ====================================================================== R3: the peer rejects K_next after the switch
@@ -608,9 +652,9 @@ def test_f6_repair_by_removing_and_re_adding_the_integration(lab):
     again = lab.start().json()["rotation"]
     assert again["kid_from"] == bk.LEGACY_KID and again["state"] == "switched", again
     assert _retire(lab)["last"]["state"] == "verified"
-    # observed (FINDING K-06, low): the removed entry's key store stays in Home Assistant's .storage with its key in clear
-    # (__init__.py has no async_remove_entry); HA backups taken later still carry it
-    assert old_store in side.disk and rot["kid_to"] in json.loads(side.disk[old_store])["keys"]
+    # K-06 (fixed): deleting the integration removes its key store (async_remove_entry), so no later HA backup carries the old keys
+    assert rot["kid_to"] and old_store not in side.disk
+    assert f"smplwise_bridge_keys_{side.entry.entry_id}" in side.disk
 
 
 def test_f6_repair_during_a_rotation_closes_it_and_lifts_the_pause(lab):
@@ -622,53 +666,92 @@ def test_f6_repair_during_a_rotation_closes_it_and_lifts_the_pause(lab):
     assert (last["state"], last["result_code"]) == ("rolled_back", "repaired") and not lab.paused()
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING K-02: a re-pair delivered through Supervisor discovery updates the SAME config entry "
-                                       "(config_flow.py L68); its stored key set has legacy_retired, so KeySet ignores the new code "
-                                       "(keyset.py L102-L103) and Persister.clean_entry blanks it (keyset.py L364-L370)")
 def test_f6_repair_through_discovery_into_the_existing_entry(lab, monkeypatch):
+    """K-02 (fixed; was a strict xfail): the saved state keeps a one-way tag of the retired pairing code, so the bridge tells a NEW code in
+    its entry (discovery after a regenerate) from the retired one and starts a fresh key set on it."""
     side = lab.side
-    lab.start()
+    rot = lab.start().json()["rotation"]
     assert _retire(lab)["last"]["state"] == "verified"
+    assert side.stored_state()["legacy_fp"] and lab.code not in json.dumps(side.stored_state())
     new = lab.c.get(f"{API}/ha/bridge/pairing", params={"regenerate": "true"}).json()["pairing_code"]
     posted: list[dict[str, Any]] = []
     monkeypatch.setenv("SUPERVISOR_TOKEN", "synthetic-harness-token")
     monkeypatch.setattr(ha_client, "post_discovery", lambda settings, service, config: posted.append(config) or {})
     assert bridge_install.announce_discovery(lab.db, lab.settings) is True and posted[-1]["pairing_code"] == new
     side.discovery_update(posted[-1]["pairing_code"])  # HA: abort_if_unique_id_configured(updates=...) + reload
+    assert side.ks.repaired and side.ks.signing == bk.LEGACY_KID and side.ks.legacy == new and side.entry_code == new
+    assert rot["kid_to"] not in side.ks.keys
+    side.housekeeping()  # the fresh set replaces the stored one
+    assert rot["kid_to"] not in side.stored_state()["keys"] and not side.stored_state()["legacy_retired"]
     side.sync()
     assert lab.push_ok(), "bridge -> Arx after the re-pair"
     assert lab.arx_message_verifies_at_bridge() is None, "Arx -> bridge after the re-pair"
+    # a restart keeps the new pairing (the code is not mistaken for a new one again), and the first rotation of the new pairing works
+    side.restart()
+    lab.clock.advance(2)
+    assert not side.ks.repaired and side.ks.legacy == new
+    again = lab.start().json()["rotation"]
+    assert again["state"] == "switched" and again["kid_from"] == bk.LEGACY_KID, again
+    assert _retire(lab)["last"]["state"] == "verified"
+    assert side.entry_code == ""
+
+
+def test_k02_a_retired_code_left_in_the_entry_is_still_blanked(lab):
+    """K-02 must not undo HA-06: a restart between the key save and the entry update leaves the RETIRED code in the entry - that one is
+    recognised by its tag and blanked, the key set stays."""
+    side = lab.side
+    rot = lab.start().json()["rotation"]
+    assert _retire(lab)["last"]["state"] == "verified"
+    side.discovery_update(lab.code)  # the retired code back in the entry
+    lab.clock.advance(2)
+    assert not side.ks.repaired and side.ks.signing == rot["kid_to"] and side.entry_code == ""
+    assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
 
 
 # ====================================================================== the discovery announcement after a rotation
 
-@pytest.mark.xfail(strict=True, reason="FINDING K-01: bridge_install.announce_discovery (L114-L125, every add-on start) posts "
-                                       "ha_bridge.signing_key(conn) as `pairing_code`; after a rotation that is the CURRENT key material "
-                                       "(a BridgeKey str), which the hassio flow writes into the config entry (config_flow.py L68)")
-def test_k01_discovery_never_carries_rotated_key_material(lab, monkeypatch):
-    lab.start()
+def _capture_discovery(monkeypatch) -> list[dict[str, Any]]:
     posted: list[dict[str, Any]] = []
     monkeypatch.setenv("SUPERVISOR_TOKEN", "synthetic-harness-token")
     monkeypatch.setattr(ha_client, "post_discovery", lambda settings, service, config: posted.append(config) or {})
-    assert bridge_install.announce_discovery(lab.db, lab.settings) is True
+    return posted
+
+
+def test_k01_discovery_never_carries_rotated_key_material(lab, monkeypatch):
+    """K-01 (fixed; was a strict xfail): after the first rotation (switched, and again after verify) nothing is announced at all - in
+    particular not `signing_key()`, which is then the current key."""
+    posted = _capture_discovery(monkeypatch)
+    lab.start()
     material = lab.current().material
     assert material and lab.current().kid != bk.LEGACY_KID
-    assert (posted[-1]["pairing_code"] == material) is False, "the discovery carries the current key (value not printed)"
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and posted == []
+    assert _retire(lab)["last"]["state"] == "verified"
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and posted == []
+    assert lab.current().material not in json.dumps(posted)
 
 
-def test_k01_what_the_bridge_does_with_the_posted_key(lab, monkeypatch):
-    """The functional side of K-01 (pinned): the entry takes the key, reloads, KeySet ignores it (legacy retired) and clean_entry blanks
-    it again - the channel survives, but the key passed through the Supervisor's discovery store and HA's config-entry file."""
+def test_k01_discovery_carries_only_an_unadopted_pairing_code(lab, monkeypatch):
+    """K-01: the plain pairing code before the first rotation (first install), nothing after a FAILED first rotation (the code is then
+    adopted as g0-legacy: sealed, not repeated), and the NEW code after a regenerate (re-pair)."""
+    posted = _capture_discovery(monkeypatch)
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is True and posted[-1]["pairing_code"] == lab.code
+    lab.rest.fault("begin", "unreachable")
+    assert lab.start().json()["rotation"]["state"] == "rolled_back"
+    assert lab.current().kid == bk.LEGACY_KID and lab.secret_setting() == 0
+    n = len(posted)
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and len(posted) == n
+    new = lab.c.get(f"{API}/ha/bridge/pairing", params={"regenerate": "true"}).json()["pairing_code"]
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is True and posted[-1]["pairing_code"] == new != lab.code
+
+
+def test_k01_restart_after_a_rotation_leaves_the_entry_and_the_channel_alone(lab, monkeypatch):
+    """The add-on restarts after a rotation (the start-up hook announces): the bridge's entry is not touched, both directions verify."""
     side = lab.side
+    posted = _capture_discovery(monkeypatch)
     lab.start()
     assert _retire(lab)["last"]["state"] == "verified"
-    posted: list[dict[str, Any]] = []
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "synthetic-harness-token")
-    monkeypatch.setattr(ha_client, "post_discovery", lambda settings, service, config: posted.append(config) or {})
-    bridge_install.announce_discovery(lab.db, lab.settings)
-    assert posted[-1]["pairing_code"] == side.ks.keys[side.ks.signing], "the current key itself"
-    side.discovery_update(posted[-1]["pairing_code"])
-    lab.clock.advance(2)  # a reload takes longer than the 1 s ts resolution of the persisted high-water
+    lab.boot_arx()
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and posted == []
     assert side.entry_code == "" and side.ks.legacy is None
     assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
 

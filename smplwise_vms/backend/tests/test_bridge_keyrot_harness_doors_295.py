@@ -69,17 +69,31 @@ def test_door_route_is_paused_for_exactly_the_rotation_window(world, signed, mon
         clock.advance(92)
         v = c.get(f"{API}/system/bridge-key").json()
         assert v["last"]["state"] == "verified", v["last"]
+        # K-07 (owner decision 2026-10-24: keep the Arx wire as built and document it): after the first rotation the door message
+        # carries `kid` and signature v2. A receiver that knows only the pairing secret (every receiver deployed today) REFUSES it - no
+        # longer at the schema stage (the reference accepts the optional `kid` now) but at the signature stage: nothing is opened
         after = _open(world, SIDE)
         assert not (after.status_code == 503 and after.json().get("code") == br.PAUSE_CODE), after.text
         assert len(signed.opens()) == opens_before + 1, "the door command leaves Arx again"
-        # FINDING K-07 (pinned): after the first rotation the door message carries `kid` on the wire (trusted_door.sign_message ->
-        # trusted_caller.sign with a BridgeKey; the lease wire drops it with kid_on_wire=False, the door wire does not). The DTO v3
-        # reference that every golden vector agrees with refuses it at the schema stage, so a v3 receiver refuses EVERY door open
-        # after the first rotation (plan open question 7; CR section 15 "remain valid for g0-legacy")
         last = signed.opens()[-1]
         assert "kid" in last["message"] and last["message"]["kid"] == v["last"]["kid_to"]
-        assert last["response"]["result"] == "rejected" and last["response"]["code"] == "unknown_field", last["response"]
+        assert last["response"]["result"] == "rejected" and last["response"]["code"] == "bad_signature", last["response"]
+        assert not last["effects"]["dispatched"], "a refused open is never dispatched"
         assert after.status_code == 409 and after.json()["code"] == "door_refused"
+        # K-07 fixed in the contract: a receiver that verifies through the bridge's key set (the real KeySet here) accepts the kid and opens
+        trusted_door.reset_status_rate()
+        signed.clock.offset_s = -round(clock.offset)  # the door's clock follows the host clock (Arx signs issued_at from datetime.now)
+        signed.keys =lambda kid: side.ks._material(kid) if kid in side.ks.verifiable() else None
+        fixed = _open(world, SIDE)
+        assert fixed.status_code == 200, fixed.text
+        last = signed.opens()[-1]
+        assert last["message"]["kid"] == v["last"]["kid_to"] and last["response"]["result"] == "acknowledged", last["response"]
+        assert last["effects"]["dispatched"]
+        # the downgrade guard holds on that receiver: a kid-less message under the retired pairing secret is refused
+        rid = trusted_door.new_request_id()
+        old = trusted_door.sign_message(TEST_SECRET, "door_open", "dev-sam", "sam", SIDE, {"relay": 1}, rid)
+        resp = signed.call_service(None, "smplwise_bridge", "door_open", {"signed_message_json": old.text}, return_response=True)
+        assert resp["result"] == "rejected" and resp["code"] == "bad_signature", resp
     finally:
         side.stop()
         peers.set_peer_for_tests(None)

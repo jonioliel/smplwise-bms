@@ -506,9 +506,22 @@ def _plain_text(s: str, max_len: int) -> bool:
     return 0 < len(s) <= max_len and not any(ord(c) < 0x20 or 0x7F <= ord(c) < 0xA0 for c in s)
 
 
+# K-07 (KEYROT-FIX-295, key-rotation addendum): after the first bridge-key rotation every Arx message carries the key id `kid` and is signed
+# with signature v2 (`HMAC(key, "v2.<kid>.<ts>.<nonce>.<sha256(body without kid/ts/nonce/sig)>")`). The closed schema accepts this ONE
+# optional wire field; a message without it is exactly the v1-v3 wire (every golden vector unchanged, verified with the pairing secret).
+OPTIONAL_WIRE_KEYS = frozenset({"kid"})
+KID_RE = re.compile(r"g[0-9]{1,9}-(legacy|[0-9a-f]{8})")
+LEGACY_KID = "g0-legacy"
+
+
 def contract_schema(m: dict[str, Any]) -> tuple[int, int]:
     """Stage `schema`: closed schema at wire, actor and params level. Returns (issued_epoch, expires_epoch)."""
-    keys = set(m)
+    keys = set(m) - OPTIONAL_WIRE_KEYS
+    if "kid" in m:
+        if not isinstance(m["kid"], str):
+            raise ContractReject("schema", "wrong_type")
+        if not KID_RE.fullmatch(m["kid"]):
+            raise ContractReject("schema", "bad_format")
     if keys - WIRE_KEYS:
         raise ContractReject("schema", "unknown_field")
     if WIRE_KEYS - keys:
@@ -553,14 +566,20 @@ def contract_schema(m: dict[str, Any]) -> tuple[int, int]:
 
 
 def _digests(m: dict[str, Any]) -> tuple[str, str, str]:
-    signed_body = {k: v for k, v in m.items() if k not in ("ts", "nonce", "sig")}
+    signed_body = {k: v for k, v in m.items() if k not in ("kid", "ts", "nonce", "sig")}
     body_sha = hashlib.sha256(current_canonical(signed_body).encode("utf-8")).hexdigest()
-    hmac_input = f"{m['ts']}.{m['nonce']}.{body_sha}"
+    hmac_input = f"v2.{m['kid']}.{m['ts']}.{m['nonce']}.{body_sha}" if "kid" in m else f"{m['ts']}.{m['nonce']}.{body_sha}"
     return body_sha, hmac_input, hashlib.sha256(hmac_input.encode("utf-8")).hexdigest()
 
 
+_DUMMY_KEY = "TEST-ONLY-dummy-key-no-material-found"
+
+
 def contract_validate(service: str, service_data: Any, now: int | None, secret: str = TEST_SECRET,
-                      raw_inner: bytes | None = None) -> TrustedDoorDTO:
+                      raw_inner: bytes | None = None, keys: Any = None) -> TrustedDoorDTO:
+    """`keys` (K-07): the receiver's key set, `keys(kid) -> material | None` for a key that may verify now. Without it a kid-less message
+    verifies with `secret` (the pairing secret) and a message with a `kid` verifies only as `g0-legacy` with that secret. With it the
+    kid-less message is `g0-legacy` (so it stops verifying once the receiver retired the pairing secret - the downgrade guard)."""
     """The draft validation order, stateless part (stages transport .. time). Stage `state` (replay, request_id,
     station vs open record, relay range, capability) needs the bridge/WisKey store and is not modelled here."""
     # transport
@@ -583,8 +602,13 @@ def contract_validate(service: str, service_data: Any, now: int | None, secret: 
         raise ContractReject("binding", "target_is_self")
     # signature
     body_sha, hmac_input, auth_sha = _digests(m)
-    expected = hmac.new(secret.encode("utf-8"), hmac_input.encode("utf-8"), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, m["sig"]):
+    kid = m.get("kid", LEGACY_KID)
+    if keys is not None:
+        material = keys(kid)
+    else:
+        material = secret if kid == LEGACY_KID else None
+    expected = hmac.new((material or _DUMMY_KEY).encode("utf-8"), hmac_input.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, m["sig"]) or material is None:  # the compare runs even without a key (H-02)
         raise ContractReject("signature", "bad_signature")
     # time
     if type(now) is not int or now < CLOCK_FLOOR:
@@ -1262,7 +1286,7 @@ class V3Reject(Exception):
         self.request_id = request_id
 
 
-def contract_validate_v3(service: str, service_data: Any, now: int | None, raw_inner: bytes | None = None) -> TrustedDoorDTO:
+def contract_validate_v3(service: str, service_data: Any, now: int | None, raw_inner: bytes | None = None, keys: Any = None) -> TrustedDoorDTO:
     """v3 stateless stages: transport, encoding (UTF-8 check, THEN the 8192-byte limit), parse .. time as in v2."""
     if raw_inner is not None:
         data = raw_inner
@@ -1280,7 +1304,7 @@ def contract_validate_v3(service: str, service_data: Any, now: int | None, raw_i
     if len(data) > MAX_MESSAGE_BYTES:  # UTF-8 BYTES of signed_message_json, inclusive limit, before parse
         raise V3Reject("encoding", "message_too_large")
     try:
-        return contract_validate(service, None, now, raw_inner=data)
+        return contract_validate(service, None, now, raw_inner=data, keys=keys)
     except ContractReject as e:
         rid = json.loads(data.decode("utf-8"))["request_id"] if e.stage in POST_SCHEMA_STAGES else None
         raise V3Reject(e.stage, e.code, rid) from None
@@ -1310,12 +1334,12 @@ def _stored_result(request_id: str, target: str, rec: dict[str, Any]) -> dict[st
 
 
 def reference_door_service(service: str, service_data: Any, now: int | None, setup: dict[str, Any] | None,
-                           raw_inner: bytes | None = None) -> tuple[dict[str, Any], dict[str, bool]]:
+                           raw_inner: bytes | None = None, keys: Any = None) -> tuple[dict[str, Any], dict[str, bool]]:
     """The whole path in the v3 reference: stateless stages, clock health, stage `state`, pending, dispatch, response.
     `setup` is a vector's machine-readable `state_setup` (None for a stateless case: only the validation runs)."""
     effects = {"pending_created": False, "dispatched": False, "status_read": False, "replay_purge_allowed": True}
     try:
-        dto = contract_validate_v3(service, service_data, now, raw_inner=raw_inner)
+        dto = contract_validate_v3(service, service_data, now, raw_inner=raw_inner, keys=keys)
     except V3Reject as e:
         return _rejected(e.stage, e.code, e.request_id), effects
     if setup is None:
