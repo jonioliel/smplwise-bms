@@ -67,7 +67,8 @@ def _shape(r: dict[str, Any], viewer: Viewer) -> dict[str, Any]:
         return {"id": r["id"], "group": r["group"], "critical": r["critical"], "title": r["title"], "status": "hidden", "summary": REDACTED_TEXT, "facts": [], "source": None,
                 "next": None, "age_s": None, "fresh": None, "redacted": True}
     out = {"id": r["id"], "group": r["group"], "critical": r["critical"], "title": r["title"], "status": r["status"], "summary": r["summary"], "code": r.get("code", ""),
-           "facts": r["facts"], "source": {"href": r.get("href")}, "next": {"href": r.get("href")}, "age_s": r.get("age_s"), "fresh": r["status"] != "unknown", "redacted": False}
+           "facts": r["facts"], "source": {"href": r.get("href")}, "next": {"href": r.get("href")}, "age_s": r.get("age_s"), "fresh": r["status"] != "unknown", "redacted": False,
+           "files": r.get("files", [])}
     if "na" in r:
         out["na"] = r["na"]
     return out

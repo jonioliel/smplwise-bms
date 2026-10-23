@@ -246,6 +246,15 @@ def contacts(reachable: int, verified_ok: int, minimum: int) -> str:
     return "amber"
 
 
+def combine_people(contacts_status: str, sources_total: int, sources_empty: int) -> str:
+    """E13 = the dedicated list AND the derived recipients of the critical notification sources: a critical source nobody would be told about is red."""
+    if sources_empty:
+        return "red"
+    if contacts_status == "green" and sources_total == 0:
+        return "green"
+    return contacts_status
+
+
 def suppliers(linked: int, bad: int, doc_warn: int) -> str:
     """E14: suppliers linked to the emergency slots."""
     if linked == 0:

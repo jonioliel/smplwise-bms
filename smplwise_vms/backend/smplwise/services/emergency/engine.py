@@ -179,6 +179,17 @@ def e02b(ctx: Ctx) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- B. the ledger (owner q205 b: the closed emergency_slot column)
 
+def _files(ctx: Ctx, task_ids: list[str]) -> list[dict[str, Any]]:
+    """Owner q208: the approval files (certificate PDFs / photos) of the bound tasks, by reference. The bytes stay behind the maintenance file route
+    (which applies the ledger's own visibility rule); the print lists them."""
+    if not task_ids:
+        return []
+    q = ",".join("?" * len(task_ids))
+    rows = ctx.conn.execute(f"SELECT id, task_id, kind, name, uploaded_at FROM maint_files WHERE task_id IN ({q}) AND deleted_at IS NULL ORDER BY uploaded_at DESC", task_ids).fetchall()
+    return [{"id": r["id"], "task_id": r["task_id"], "kind": r["kind"], "name": r["name"], "uploaded_at": r["uploaded_at"],
+             "href": f"/api/v1/maintenance/tasks/{r['task_id']}/files/{r['id']}"} for r in rows]
+
+
 def _slot_tasks(ctx: Ctx, slot: str) -> list[sqlite3.Row]:
     return ctx.conn.execute("SELECT * FROM maint_tasks WHERE emergency_slot = ? AND deleted_at IS NULL AND active = 1 ORDER BY due_date", (slot,)).fetchall()
 
@@ -193,7 +204,7 @@ def _ledger_item(ctx: Ctx, item_id: str, slot: str, none_text: str, ok_text: str
     st = model.ledger_state(states)
     facts = [{"key": "task", "label": t["title"], "value": t["due_date"], "state": s, "task_id": t["id"]} for t, s in zip(tasks, states)]
     text = {"green": ok_text, "amber": amber_text, "red": red_text, "unknown": "אין תאריך תוקף לפריט בפנקס"}[st]
-    return _row(st, text, facts, href=HREF["maintenance"], code=f"ledger_{st}")
+    return _row(st, text, facts, href=HREF["maintenance"], code=f"ledger_{st}") | {"files": _files(ctx, [t["id"] for t in tasks])}
 
 
 def e03(ctx: Ctx) -> dict[str, Any]:
@@ -225,7 +236,7 @@ def e07(ctx: Ctx) -> dict[str, Any]:
         results.append(r["result"] if r else None)
     st = model.evacuation_round(states, results)
     text = {"green": "סבב פינוי בוצע בזמן", "amber": "סבב הפינוי קרוב למועדו או שנמצאו בו ליקויים", "red": "סבב הפינוי באיחור", "unknown": "אין נתוני ביצוע לסבב הפינוי"}[st]
-    return _row(st, text, [{"key": "task", "label": t["title"], "value": t["due_date"]} for t in tasks], href=HREF["maintenance"], code="evacuation")
+    return _row(st, text, [{"key": "task", "label": t["title"], "value": t["due_date"]} for t in tasks], href=HREF["maintenance"], code="evacuation") | {"files": _files(ctx, [t["id"] for t in tasks])}
 
 
 def e08(ctx: Ctx) -> dict[str, Any]:
@@ -260,7 +271,8 @@ def e09(ctx: Ctx) -> dict[str, Any]:
         facts.append({"key": "elevator", "label": e["name"], "value": min((t["due_date"] for t in tasks if t["due_date"]), default=None)})
     st = model.worst(statuses)
     text = {"green": "בדיקות המעליות בתוקף", "amber": "בדיקת מעלית קרובה לפקיעה", "red": "בדיקת מעלית פגה או שלא נקשרה", "unknown": "חסר תאריך תוקף לבדיקת מעלית"}[st]
-    return _row(st, text, facts, href=HREF["maintenance"], code="elevator_inspection")
+    ids = [r["id"] for r in ctx.conn.execute("SELECT id FROM maint_tasks WHERE emergency_slot = 'elevator_inspection' AND deleted_at IS NULL AND active = 1").fetchall()]
+    return _row(st, text, facts, href=HREF["maintenance"], code="elevator_inspection") | {"files": _files(ctx, ids)}
 
 
 def e10(ctx: Ctx) -> dict[str, Any]:
@@ -333,11 +345,66 @@ def _reachable_contacts(ctx: Ctx) -> tuple[int, int]:
     return reach, verified
 
 
+def derived_recipients(ctx: Ctx) -> dict[str, Any]:
+    """Owner q203 "both allowed": who WOULD be told. For every enabled critical-severity notification policy whose recipient rule can be resolved
+    here, the number of people it reaches today. A rule that cannot be resolved without an event (e.g. the initiator) is not counted either way.
+    The generator's routing starts empty by owner decision: a critical source with nobody to tell is exactly what this makes visible."""
+    import json as _json
+
+    from .. import notify
+    from .. import notify_policy as npol
+
+    rows = ctx.conn.execute("SELECT * FROM notify_policies WHERE enabled = 1 AND severity = 'critical'").fetchall()
+    total = resolved = 0
+    empty: list[str] = []
+    for r in rows:
+        pol = npol.row_to_policy(r)
+        rule = pol["recipients"].get("rule")
+        n = -1
+        try:
+            if rule == "managers":
+                n = len(notify.managers(ctx.conn))
+            elif rule == "scope":
+                n = len(notify._active_users(ctx.conn))
+            elif rule == "users":
+                active = {x[0] for x in ctx.conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
+                n = len([u for u in pol["recipients"].get("user_ids", []) if u in active])
+            elif rule == "generator":
+                from .. import generator_alerts as ga
+                from .. import generator_catalog as cat
+
+                devs = [d["id"] for d in ctx.conn.execute("SELECT id FROM generator_devices WHERE status <> 'removed'").fetchall()]
+                n = 0
+                for dev in devs:
+                    for t in cat.ALERT_TYPES:
+                        if t.severity != "critical":
+                            continue
+                        eff = ga.effective_routing(ctx.conn, dev, t.key, "critical")
+                        if eff is not None:
+                            n = max(n, len(eff["recipients"]["users"]) + len(eff["recipients"]["roles"]))
+                if not devs:
+                    n = -1
+        except Exception:  # noqa: BLE001 - an unresolvable rule is simply not counted
+            n = -1
+        if n < 0:
+            continue
+        total += 1
+        if n == 0:
+            empty.append(r["source"])
+        else:
+            resolved += 1
+    return {"total": total, "resolved": resolved, "empty": empty}
+
+
 def e13(ctx: Ctx) -> dict[str, Any]:
     reach, verified = _reachable_contacts(ctx)
-    st = model.contacts(reach, verified, int(ctx.th["contacts_min"]))
-    text = {"green": "רשימת אנשי החירום מלאה ונבדקה", "amber": "רשימת אנשי החירום חלקית או שלא נבדקה לאחרונה", "red": "אין אף איש קשר חירום שאפשר להגיע אליו"}[st]
-    return _row(st, text, [{"key": "reachable", "value": reach}, {"key": "verified", "value": verified}], href=HREF["contacts"], code="contacts")
+    contacts_st = model.contacts(reach, verified, int(ctx.th["contacts_min"]))
+    d = derived_recipients(ctx)
+    st = model.combine_people(contacts_st, d["total"], len(d["empty"]))
+    text = {"green": "רשימת אנשי החירום מלאה ונבדקה, ולמקורות הקריטיים יש נמענים", "amber": "רשימת אנשי החירום חלקית או שלא נבדקה לאחרונה",
+            "red": "אין איש קשר חירום שאפשר להגיע אליו, או שלמקור התראה קריטי אין נמענים"}[st]
+    return _row(st, text, [{"key": "reachable", "value": reach}, {"key": "verified", "value": verified}, {"key": "critical_sources", "value": d["total"]},
+                           {"key": "critical_sources_without_recipients", "value": len(d["empty"])}], href=HREF["contacts"], code="contacts")
 
 
 def e14(ctx: Ctx) -> dict[str, Any]:

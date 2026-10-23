@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { EM_KEYS, EM_TABLES, EN_SUMMARY, EN_TITLES, em } from '../src/i18n/emergency';
+import { ageText, matches, parseThreshold } from '../src/maintenance/emergency-model';
+import { EM_KEYS, TH_LABEL, EM_TABLES, EN_SUMMARY, EN_TITLES, em } from '../src/i18n/emergency';
 
 // CR-EMERG104: the words of the emergency readiness tab. No browser:
 //   npx playwright test -c playwright.unit.config.ts tests/unit-emergency.spec.ts
@@ -28,4 +29,25 @@ test('English titles cover all 20 items and the page never names the home platfo
   expect(Object.keys(EN_TITLES)).toHaveLength(20);
   const all = JSON.stringify([EM_TABLES, EN_TITLES, EN_SUMMARY]);
   expect(all).not.toMatch(/Home Assistant|Ingress|Companion|\bHA\b/);
+});
+
+test('age text, status filter and threshold parsing', () => {
+  expect(ageText(null)).toBe('');
+  expect(ageText(30, 'en')).toBe('1 min');
+  expect(ageText(7200, 'en')).toBe('2 h');
+  expect(ageText(86400 * 5, 'en')).toBe('5 days');
+  expect(matches('all', 'green')).toBe(true);
+  expect(matches('red', 'amber')).toBe(false);
+  expect(parseThreshold(' 35 ', 1, 365)).toBe(35);
+  expect(parseThreshold('0', 1, 365)).toBeNull();
+  expect(parseThreshold('abc', 1, 365)).toBeNull();
+  expect(parseThreshold('11.5', 1, 60)).toBe(11.5);
+});
+
+test('every editable threshold has a label in both languages (20 keys, as the backend)', () => {
+  expect(Object.keys(TH_LABEL)).toHaveLength(20);
+  for (const v of Object.values(TH_LABEL)) {
+    expect(v.he).toBeTruthy();
+    expect(v.en).toBeTruthy();
+  }
 });

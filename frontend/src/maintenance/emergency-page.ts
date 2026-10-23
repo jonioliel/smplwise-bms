@@ -7,9 +7,11 @@ import { ApiError, describeError } from '../api/client';
 import { emergencyApi, type ItemGroup, type ItemStatus, type ReadinessItem, type ReadinessPage, type Verdict } from '../api/emergency';
 import { em, emLang, EN_SUMMARY, EN_TITLES, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
+import './emergency-config';
+import { ageText, matches, type Filter } from './emergency-model';
 import { maintCss } from './styles';
 
-type Filter = 'all' | 'red' | 'amber' | 'unknown' | 'not_applicable';
+type View = 'list' | 'contacts' | 'settings';
 const FILTERS: readonly Filter[] = ['all', 'red', 'amber', 'unknown', 'not_applicable'];
 const FILTER_LABEL: Record<Filter, EmKey> = { all: 'kpiAll', red: 'kpiRed', amber: 'kpiAmber', unknown: 'kpiUnknown', not_applicable: 'kpiNa' };
 const LOOK: Record<ItemStatus, string> = { green: 'ok', amber: 'warn', red: 'alarm', unknown: 'unk', not_applicable: 'unk', hidden: 'unk' };
@@ -17,18 +19,6 @@ const ICON: Record<ItemStatus, IconName> = { green: 'check', amber: 'warning', r
 const VERDICT_LOOK: Record<Verdict, string> = { ready: 'ok', ready_with_gaps: 'warn', not_ready: 'alarm' };
 const VERDICT_ICON: Record<Verdict, IconName> = { ready: 'check', ready_with_gaps: 'warning', not_ready: 'warning' };
 const GROUP_ORDER: readonly ItemGroup[] = ['power', 'fire', 'elevators', 'doors', 'people', 'records', 'cameras'];
-
-/** The age of a fact in words; null stays empty. */
-export function ageText(s: number | null | undefined): string {
-  if (s === null || s === undefined || s < 0) return '';
-  if (s < 3600) return em('ageMin', { n: Math.max(1, Math.round(s / 60)) });
-  if (s < 172800) return em('ageHour', { n: Math.round(s / 3600) });
-  return em('ageDay', { n: Math.round(s / 86400) });
-}
-
-export function matches(f: Filter, status: ItemStatus): boolean {
-  return f === 'all' || status === f;
-}
 
 /**
  * CR-EMERG104 (owner answers 24.10): the emergency readiness tab of the maintenance section (`#/tickets/maintenance/emergency`). ONE
@@ -43,6 +33,7 @@ export class EmergencyReadinessPage extends LitElement {
   @state() private data: ReadinessPage | null = null;
   @state() private error = '';
   @state() private filter: Filter = 'all';
+  @state() private view: View = 'list';
   private timer?: number;
 
   static styles = [maintCss, css`
@@ -109,11 +100,12 @@ export class EmergencyReadinessPage extends LitElement {
 
   private row(i: ReadinessItem) {
     const look = LOOK[i.status];
-    const age = ageText(i.age_s);
+    const age = ageText(i.age_s, emLang());
     return html`<div class="item ${i.status}" data-look=${look} data-emerg-item=${i.id} data-status=${i.status}>
       <span class="disc" aria-hidden="true"><sw-icon name=${ICON[i.status]} size="16"></sw-icon></span>
       <div><div class="t1">${this.itemTitle(i)}${i.critical && !i.redacted ? html`<span class="chip" data-look="unk">${em('critical')}</span>` : nothing}</div>
-        <div class="t2">${this.summary(i)}${i.na ? html` · ${em('naBy', { by: i.na.by, at: fmtInstant(i.na.at, false) })}${i.na.note ? ` · ${i.na.note}` : ''}` : nothing}${age ? html` · ${em('age', { n: age })}` : nothing}</div></div>
+        <div class="t2">${this.summary(i)}${i.na ? html` · ${em('naBy', { by: i.na.by, at: fmtInstant(i.na.at, false) })}${i.na.note ? ` · ${i.na.note}` : ''}` : nothing}${age ? html` · ${em('age', { n: age })}` : nothing}</div>
+        ${i.files?.length ? html`<div class="t2 files" data-emerg-files>${em('files')}: ${i.files.map((f, n) => html`${n ? ', ' : ''}<a class="fix" href=${f.href}>${f.name || f.kind}</a>`)}</div>` : nothing}</div>
       <div class="side"><span class="st">${em(`st_${i.status}` as EmKey)}</span>${i.next?.href ? html` <a class="fix noprint" href=${i.next.href}>${em('fix')}</a>` : nothing}</div>
     </div>`;
   }
@@ -133,8 +125,16 @@ export class EmergencyReadinessPage extends LitElement {
       <div class="top"><div><h1>${em('title')}</h1><p class="sub">${em('sub')}</p></div><span class="sp"></span>
         <div class="meta"><span class="vbadge" data-look=${VERDICT_LOOK[d.verdict]} data-emerg-verdict=${d.verdict}><sw-icon name=${VERDICT_ICON[d.verdict]} size="18"></sw-icon>${em(`verdict_${d.verdict}` as EmKey)}</span>
           <span class="mut num">${em('checkedAt', { t: fmtInstant(d.checked_at) })}</span>
+          <div class="seg noprint" role="group" data-emerg-views>${(['list', 'contacts', ...(d.can.manage ? ['settings'] : [])] as View[]).map((v) => html`<button type="button" aria-pressed=${String(this.view === v)} data-emerg-view=${v}
+            @click=${() => { this.view = v; }}>${em(({ list: 'viewList', contacts: 'viewContacts', settings: 'viewSettings' } as Record<View, EmKey>)[v])}</button>`)}</div>
           <button type="button" class="btn noprint" data-emerg-print @click=${() => window.print()}><sw-icon name="download" size="16"></sw-icon>${em('print')}</button></div></div>
       ${d.banners.length ? html`<div class="banners" data-emerg-banners>${d.banners.map((b) => html`<div class="banner" data-banner=${b.code}><sw-icon name="warning" size="18"></sw-icon>${em(`banner_${b.code}` as EmKey) === `banner_${b.code}` ? b.text : em(`banner_${b.code}` as EmKey)}</div>`)}</div>` : nothing}
+      ${this.view === 'list' ? this.listBody(d, counts, shown, groups) : this.view === 'contacts' ? html`<emergency-contacts-panel .manage=${d.can.manage}></emergency-contacts-panel>` : html`<emergency-settings-panel></emergency-settings-panel>`}
+      <div class="foot">${em('printNote')}<span class="printonly"> ${em('signed')}</span></div>`;
+  }
+
+  private listBody(d: ReadinessPage, counts: Record<Filter, number>, shown: ReadinessItem[], groups: readonly ItemGroup[]) {
+    return html`
       <div class="kpis noprint" role="group" aria-label=${em('filterLabel')} data-emerg-kpis>
         ${FILTERS.map((k) => html`<button type="button" class="kpi" data-k=${k} data-look=${k === 'all' ? nothing : LOOK[k as ItemStatus]} aria-pressed=${String(this.filter === k)} data-emerg-kpi=${k}
           @click=${() => { this.filter = k; }}><span class="dot" aria-hidden="true"></span><span><b>${counts[k]}</b><span class="l">${em(FILTER_LABEL[k])}</span></span></button>`)}
@@ -143,8 +143,7 @@ export class EmergencyReadinessPage extends LitElement {
         ${groups.length ? groups.map((g) => html`<div class="grp">${em(`grp_${g}` as EmKey)}</div>${shown.filter((i) => i.group === g).map((i) => this.row(i))}`)
           : html`<div class="nomatch">${em('empty')}</div>`}
         ${d.counts.hidden ? html`<div class="foot">${em('hidden', { n: d.counts.hidden })}</div>` : nothing}
-      </div></div>
-      <div class="foot">${em('printNote')}<span class="printonly"> ${em('signed')}</span></div>`;
+      </div></div>`;
   }
 }
 

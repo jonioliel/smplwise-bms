@@ -109,6 +109,13 @@ def test_ledger_and_misc_rules() -> None:
     assert m.recorders([True], [True], [False], None, [False]) == "red"
 
 
+def test_people_combines_list_and_derived_recipients() -> None:
+    assert m.combine_people("green", 3, 0) == "green"
+    assert m.combine_people("green", 3, 1) == "red"       # a critical source nobody would be told about
+    assert m.combine_people("amber", 3, 0) == "amber"
+    assert m.combine_people("red", 0, 0) == "red"
+
+
 def test_thresholds_validation_and_merge() -> None:
     assert m.merged_thresholds({"fuel_green_pct": 60})["fuel_green_pct"] == 60
     assert m.merged_thresholds({"fuel_green_pct": 5000})["fuel_green_pct"] == 50         # out of range: the default stands
@@ -217,7 +224,8 @@ def test_binding_a_task_turns_the_slot_green_and_overdue_red(ew: EW) -> None:
 def test_binding_foreign_or_wrong_kind_refused(ew: EW) -> None:
     ew.on()
     assert ew.c.put(f"{E}/config", json={"bindings": {"nope": "extinguishers"}}, headers=ew.h("joni")).status_code == 404
-    t = ew.c.post(f"{API}/maintenance/tasks", json={"kind": "round", "title": "סבב", "category": "fire"}, headers=ew.h("joni")).json()["id"]
+    t = ew.c.post(f"{API}/maintenance/tasks", json={"kind": "round", "title": "סבב", "category": "fire", "interval": {"unit": "week", "count": 1}, "anchor_date": "2027-01-20",
+                                                              "checklist": [{"key": "a", "label": "בדיקה", "kind": "check"}]}, headers=ew.h("joni")).json()["id"]
     assert ew.c.put(f"{E}/config", json={"bindings": {t: "fire_certificate"}}, headers=ew.h("joni")).status_code == 422   # a round is not a certificate
     assert ew.c.put(f"{E}/config", json={"bindings": {t: "bogus"}}, headers=ew.h("joni")).status_code == 422
 
@@ -304,3 +312,15 @@ def test_service_imports_no_device_write_path() -> None:
     text = "\n".join(p.read_text(encoding="utf-8") for p in root.glob("*.py"))
     for forbidden in ("door_execute", "ha_actions", "nvr_write", "requests.post", "httpx", "subprocess", "door_run_guard"):
         assert forbidden not in text, forbidden
+
+
+def test_bound_task_files_are_listed_by_reference(ew: EW) -> None:
+    ew.on()
+    tid = ew.c.post(f"{API}/maintenance/tasks", json={"kind": "certificate", "title": "תעודה", "category": "fire", "due_date": "2027-06-01"}, headers=ew.h("joni")).json()["id"]
+    assert ew.c.put(f"{E}/config", json={"bindings": {tid: "fire_certificate"}}, headers=ew.h("joni")).status_code == 200
+    with ew.db.connection() as conn:
+        conn.execute("INSERT INTO maint_files(id, task_id, kind, path, name, sha256, bytes, uploaded_by, uploaded_at) VALUES ('f1', ?, 'pdf', 'x/f1.pdf', 'cert.pdf', 'h', 10, 'joni', '2027-01-01T00:00:00Z')", (tid,))
+    files = ew.items()["E03"]["files"]
+    assert [f["name"] for f in files] == ["cert.pdf"] and files[0]["href"].endswith(f"/maintenance/tasks/{tid}/files/f1")
+    assert "path" not in files[0] and "sha256" not in files[0]
+    assert ew.items("tom")["E03"].get("files") is not None  # tom holds maintenance.view: the references are the ledger's own
