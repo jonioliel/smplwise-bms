@@ -188,7 +188,8 @@ def test_defaults_then_settings_validation_and_audit(settings):
     with TestClient(app) as c:
         pub = c.get("/api/v1/brand/public").json()
         none = {"light": None, "dark": None}
-        assert pub == {"company": {"name": "", "logo": none, "logo_file": none}, "size": "m", "dark_mode": "plate"}
+        assert pub == {"company": {"name": "", "logo": none, "logo_file": none}, "size": "m", "dark_mode": "plate",
+                       "installer": {"enabled": False}}  # WHITELABEL097-295: the installer profile is off by default
         full = c.get("/api/v1/brand").json()
         assert full["title"] == {"prefix": "Smplwise Arx", "mode": "both"} and full["company"]["kind"] == "developer" and full["project"] == {"name": ""}
         r = c.put("/api/v1/brand", json={"company_name": "  נווה   הירדן ", "company_kind": "management", "logo_size": "xl", "dark_mode": "file", "title_prefix": "Arx",

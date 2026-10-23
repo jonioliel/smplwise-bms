@@ -209,10 +209,16 @@ def normalise_setting(key: str, value: Any) -> str:
     raise ValueError("key")
 
 
-def stamps(conn: sqlite3.Connection) -> dict[str, str | None]:
+# WHITELABEL097-295: the installer company's logo is a second kind in the same table; each kind keeps its stamps in its own setting.
+INSTALLER_KIND = "installer"
+K_WL_LOGO = "brand.wl.logo"
+_STAMP_KEY = {KIND: K_LOGO, INSTALLER_KIND: K_WL_LOGO}
+
+
+def stamps(conn: sqlite3.Connection, kind: str = KIND) -> dict[str, str | None]:
     out: dict[str, str | None] = {v: None for v in VARIANTS}
     try:
-        raw = json.loads(get_setting(conn, K_LOGO, DEFAULTS[K_LOGO]) or "{}")
+        raw = json.loads(get_setting(conn, _STAMP_KEY[kind], DEFAULTS[K_LOGO]) or "{}")
     except ValueError:
         return out
     if isinstance(raw, dict):
@@ -223,8 +229,8 @@ def stamps(conn: sqlite3.Connection) -> dict[str, str | None]:
     return out
 
 
-def _write_stamps(conn: sqlite3.Connection, st: dict[str, str | None]) -> None:
-    set_setting(conn, K_LOGO, json.dumps({v: st.get(v) for v in VARIANTS}, separators=(",", ":")))
+def _write_stamps(conn: sqlite3.Connection, st: dict[str, str | None], kind: str = KIND) -> None:
+    set_setting(conn, _STAMP_KEY[kind], json.dumps({v: st.get(v) for v in VARIANTS}, separators=(",", ":")))
 
 
 def _stored(conn: sqlite3.Connection, key: str, allowed: tuple[str, ...] | None = None) -> str:
@@ -234,9 +240,9 @@ def _stored(conn: sqlite3.Connection, key: str, allowed: tuple[str, ...] | None 
     return raw if isinstance(raw, str) else DEFAULTS[key]
 
 
-def meta(conn: sqlite3.Connection) -> dict[str, Any]:
+def meta(conn: sqlite3.Connection, kind: str = KIND) -> dict[str, Any]:
     """The facts of the stored logos that the Settings card shows (mime, size, who and when) - never the bytes."""
-    rows = conn.execute("SELECT variant, stamp, mime, width, height, length(data_b64) AS n, uploaded_by, uploaded_at FROM brand_assets WHERE kind = ?", (KIND,)).fetchall()
+    rows = conn.execute("SELECT variant, stamp, mime, width, height, length(data_b64) AS n, uploaded_by, uploaded_at FROM brand_assets WHERE kind = ?", (kind,)).fetchall()
     out: dict[str, Any] = {v: None for v in VARIANTS}
     for r in rows:
         out[r["variant"]] = {"stamp": r["stamp"], "mime": r["mime"], "width": r["width"], "height": r["height"], "bytes": (r["n"] or 0) * 3 // 4,
@@ -244,13 +250,13 @@ def meta(conn: sqlite3.Connection) -> dict[str, Any]:
     return out
 
 
-def logo_files(conn: sqlite3.Connection) -> dict[str, str | None]:
+def logo_files(conn: sqlite3.Connection, kind: str = KIND) -> dict[str, str | None]:
     """The stamped file name of each stored logo (`<stamp>.png` / `<stamp>.svg`): what a consumer appends to
     `brand/company-logo/<variant>/` - the extension says the type without a second request."""
-    st = stamps(conn)
+    st = stamps(conn, kind)
     out: dict[str, str | None] = {v: None for v in VARIANTS}
     try:
-        rows = conn.execute("SELECT variant, stamp, mime FROM brand_assets WHERE kind = ?", (KIND,)).fetchall()
+        rows = conn.execute("SELECT variant, stamp, mime FROM brand_assets WHERE kind = ?", (kind,)).fetchall()
     except sqlite3.Error:
         return out
     for r in rows:
@@ -263,13 +269,18 @@ def public_view(conn: sqlite3.Connection) -> dict[str, Any]:
     """What the sign-in page may know without a session: the company's name, the two logo stamps (and their file names) and the
     two look choices that decide how the logos are drawn."""
     st = stamps(conn)
+    from . import white_label  # WHITELABEL097-295: the installer profile, only while its master switch is on
+
     return {"company": {"name": _stored(conn, K_NAME), "logo": st, "logo_file": logo_files(conn)}, "size": _stored(conn, K_SIZE, SIZES),
-            "dark_mode": _stored(conn, K_DARK, DARK_MODES)}
+            "dark_mode": _stored(conn, K_DARK, DARK_MODES), "installer": white_label.public_view(conn)}
 
 
 def full_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    from . import white_label  # WHITELABEL097-295
+
     st = stamps(conn)
     return {
+        "installer": white_label.public_view(conn),
         "company": {"name": _stored(conn, K_NAME), "kind": _stored(conn, K_KIND, COMPANY_KINDS), "logo": st, "logo_file": logo_files(conn)},
         "size": _stored(conn, K_SIZE, SIZES),
         "dark_mode": _stored(conn, K_DARK, DARK_MODES),
@@ -280,35 +291,35 @@ def full_view(conn: sqlite3.Connection) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- storage
 
-def put(conn: sqlite3.Connection, variant: str, norm: Normalised, actor: str | None) -> str:
+def put(conn: sqlite3.Connection, variant: str, norm: Normalised, actor: str | None, kind: str = KIND) -> str:
     stamp = stamp_of(norm.data)
     conn.execute(
         "INSERT INTO brand_assets(kind, variant, stamp, mime, width, height, data_b64, uploaded_by, uploaded_at) VALUES(?,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(kind, variant) DO UPDATE SET stamp = excluded.stamp, mime = excluded.mime, width = excluded.width, height = excluded.height, "
         "data_b64 = excluded.data_b64, uploaded_by = excluded.uploaded_by, uploaded_at = excluded.uploaded_at",
-        (KIND, variant, stamp, norm.mime, norm.width, norm.height, base64.b64encode(norm.data).decode("ascii"), actor, now_iso()),
+        (kind, variant, stamp, norm.mime, norm.width, norm.height, base64.b64encode(norm.data).decode("ascii"), actor, now_iso()),
     )
-    st = stamps(conn)
+    st = stamps(conn, kind)
     st[variant] = stamp
-    _write_stamps(conn, st)
+    _write_stamps(conn, st, kind)
     return stamp
 
 
-def remove(conn: sqlite3.Connection, variant: str) -> bool:
-    gone = conn.execute("DELETE FROM brand_assets WHERE kind = ? AND variant = ?", (KIND, variant)).rowcount > 0
-    st = stamps(conn)
+def remove(conn: sqlite3.Connection, variant: str, kind: str = KIND) -> bool:
+    gone = conn.execute("DELETE FROM brand_assets WHERE kind = ? AND variant = ?", (kind, variant)).rowcount > 0
+    st = stamps(conn, kind)
     st[variant] = None
-    _write_stamps(conn, st)
+    _write_stamps(conn, st, kind)
     return gone
 
 
-def read(conn: sqlite3.Connection, variant: str, stamp: str | None = None) -> tuple[str, bytes, str] | None:
+def read(conn: sqlite3.Connection, variant: str, stamp: str | None = None, kind: str = KIND) -> tuple[str, bytes, str] | None:
     """(mime, bytes, stamp) of a stored logo, or None. With `stamp` the stored one must be that exact stamp; the stored bytes must
     hash to their stamp (a damaged or hand-edited row is never served). This is the one reader every surface uses (the API, the
     public listener route, the notice-board display)."""
     if variant not in VARIANTS:
         return None
-    row = conn.execute("SELECT stamp, mime, data_b64 FROM brand_assets WHERE kind = ? AND variant = ?", (KIND, variant)).fetchone()
+    row = conn.execute("SELECT stamp, mime, data_b64 FROM brand_assets WHERE kind = ? AND variant = ?", (kind, variant)).fetchone()
     if row is None or (stamp is not None and row["stamp"] != stamp):
         return None
     try:
