@@ -195,6 +195,14 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # PARTNERAPI113-295: token expiry / creator-gone notices, purge of ended tokens, the delivery log and old outbox rows
+        from .services.partner import core as partner_core, webhooks as partner_webhooks
+
+        with db.connection(label="partner.janitor") as conn:
+            partner_core.janitor(conn)
+            partner_webhooks.janitor(conn)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("partner janitor failed", exc_info=True)
     try:  # APPREFRESH-295: expired app access tokens, families that ran out, ended families past their audit keep
         from .services import app_refresh as app_refresh_svc
 
@@ -655,6 +663,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import bridge_key as bridge_key_router
 
     app.include_router(bridge_key_router.router, prefix=api, tags=["system"])  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)
+    from .routers import partner as partner_router
+
+    app.include_router(partner_router.router, prefix=api, tags=["system"])  # PARTNERAPI113-295: partner tokens and webhooks (off; go-live not permitted; fakes only)
     from .routers import access_grants as access_grants_router
 
     app.include_router(access_grants_router.router, prefix=api, tags=["access"])  # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants (off; go-live not permitted)
@@ -917,6 +928,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # HMACACT-295: finishes a rotation left mid-way, retires the old key at its deadline and starts the automatic rotation once
             # the bridge announces support (nothing is started while the switch is off or the bridge has not announced it)
             app.state.bridge_rotation_task = asyncio.create_task(bridge_rotation.worker_loop(app.state.db, settings))
+        if os.environ.get("SW_PARTNER_WEBHOOK_WORKER", "1") != "0":
+            from .services.partner import webhooks as partner_webhooks
+
+            # PARTNERAPI113-295: the webhook delivery worker - idle while `partner.webhooks` is off (and it cannot be switched on in this build)
+            app.state.partner_webhooks_task = asyncio.create_task(partner_webhooks.worker_loop(app.state.db, settings))
         from .services import backup_drill
 
         # DATASTORE-295: the monthly restore drill - the loop only reads its switch (`backup.drill.monthly`, OFF by default)
@@ -988,7 +1004,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task"):
+        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task"):
             task = getattr(app.state, name, None)
             if task:
                 task.cancel()

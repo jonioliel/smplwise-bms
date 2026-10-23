@@ -104,7 +104,11 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "app_refresh_nonces",
                                    # APPREFRESH3-295: the device-key pins - a restore must neither drop one (a new key would bind without
                                    # the old key's proof) nor revive one
-                                   "app_refresh_device_keys"})
+                                   "app_refresh_device_keys",
+                                   # PARTNERAPI113-295: partner tokens (hashes), webhook targets and sealed secrets, queued payloads, the delivery log,
+                                   # idempotency answers and the partner links of requests - a restore leaves the partner state of the target box alone
+                                   "partner_clients", "partner_tokens", "partner_endpoints", "partner_outbox", "partner_deliveries",
+                                   "partner_idempotency", "partner_ticket_links"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -211,8 +215,8 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-FLEET215: `fleet.*` (the consent switch and the last-attempt state) describes THIS installation - an archive never switches the
 # fleet report on, and never carries it to another box. READYFLEET-295: `demo.*` (CR-READY96 demo mode; today `demo.allow_remote`) is kept
 # the same way - a restore can never allow a remote demo on a box that did not allow it (stricter than CR-READY96's first note, recorded
-# in docs/changes/READYFLEET-295.md).
-SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "fleet.", "demo.")
+# in docs/changes/READYFLEET-295.md). PARTNERAPI113-295: `partner.*` (the partner switches and limits) are this installation's policy.
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "fleet.", "demo.", "partner.")
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge", "privacy.local_purge_days", "privacy.personal_export"}  # IDENT146: purge / export policy of THIS installation

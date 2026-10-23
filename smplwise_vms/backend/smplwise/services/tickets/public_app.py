@@ -405,6 +405,7 @@ class PublicApp:
         self.deps = deps
         self.gate = gate
         self.stats = stats
+        self.partner: Any = None  # PARTNERAPI113-295: the /p/v1 partner app (services/partner/api_app.py), attached by public_runtime
 
     @property
     def trusted(self) -> tuple[Network, ...]:
@@ -413,6 +414,11 @@ class PublicApp:
         return tuple(self.deps.trusted_proxies)
 
     async def __call__(self, scope: dict[str, Any], receive: Callable, send: Callable) -> None:
+        # PARTNERAPI113-295 (owner answer 164): `/p/...` belongs to the partner app - its own guard, credential, limits and answers; the
+        # tickets edge (and its module switch) never sees it. Without a partner app the path falls through to the edge's uniform 404.
+        if self.partner is not None and scope.get("type") in ("http", "websocket") and str(scope.get("path") or "").startswith("/p/"):
+            await self.partner(scope, receive, send)
+            return
         await self.edge(scope, receive, send)
 
 

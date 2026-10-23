@@ -128,6 +128,13 @@ class Runtime:
             claim_files=public_claims.SqlClaimFileSink(db, clock=clock), **deps_kw,
         )
         app = create_public_app(deps)
+        try:  # PARTNERAPI113-295: the partner API at /p/v1 on this same listener (answers the uniform 404 while `partner.api` is off)
+            from ..partner.api_app import PartnerApp
+
+            edge = app.edge
+            app.partner = PartnerApp(db, trusted=lambda: edge.trusted, client_ip_header=lambda: edge.client_ip_header.decode("ascii"))
+        except Exception:  # noqa: BLE001 - the handler page never depends on the partner app
+            log.warning("partner app not attached", exc_info=True)
         app.edge.set_portal(bool(doc.get("vendor_portal", {}).get("enabled")))  # VPORTAL: the bare / any-case root only while it is on
         try:
             app.gate.restore_from(db)  # both scopes: the windows and the known-good marks (wiring item 2; after migrate - W15)
@@ -209,6 +216,12 @@ class Runtime:
             self.switch.set(on)
         if on and KEYS.configured and KEYS.ensure() is None:
             log.error("tickets module key is %s and rows depend on a key: restore secrets/ from the backup", KEYS.status().get("state"))
+
+    def partner_switched(self, on: bool) -> None:
+        """PARTNERAPI113-295: a changed `partner.api` reaches the running partner app at once (else within its 5 s cache)."""
+        app = self.app
+        if app is not None and getattr(app, "partner", None) is not None:
+            app.partner.set_switch(on)
 
     def set_trusted(self, cidrs: list[str]) -> None:
         """W13: a changed `public.trusted_proxy_cidrs` reaches the running edge at once (no listener restart)."""

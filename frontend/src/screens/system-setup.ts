@@ -24,6 +24,7 @@ import '../components/nvr-recorders-card';
 import '../components/frigate-summary';
 import '../components/sw-secrets-card'; // TKSECRETS2: הגדרות › חיבורים › סודות
 import '../components/sw-bridge-key-card'; // CR-WISKEY-HMAC-ROTATION-295: הגדרות › חיבורים › מפתח הגשר (system administrator)
+import '../components/sw-partner-api-card'; // PARTNERAPI113-295: הגדרות › חיבורים › ממשק לשותפים (partner.manage, system administrator)
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -487,6 +488,7 @@ export class SystemSetup extends LitElement {
               ${this.renderWiskeyCard()}
               ${can('system.configure') ? html`<sw-secrets-card></sw-secrets-card>` : nothing}
               ${can('system.configure') ? html`<sw-bridge-key-card></sw-bridge-key-card>` : nothing}
+              ${can('partner.manage') ? html`<sw-partner-api-card></sw-partner-api-card>` : nothing}
               ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup><sw-door-inventory data-door-inventory></sw-door-inventory><sw-door-blocks data-door-blocks></sw-door-blocks>` : nothing}
               <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
