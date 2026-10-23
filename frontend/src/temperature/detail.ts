@@ -9,6 +9,7 @@ import { tempCss } from './styles';
 import './ticket-dialog';
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: no ticket action while the tickets module is off
 import { tt, type TtKey } from '../i18n/temperature';
+import { dayMonthText } from '../api/day-format';
 
 const WIDE_KEY = 'sw.temperature.detailWide';
 const MUTES = [15, 30, 60, 120];
@@ -328,7 +329,7 @@ export class TempDetail extends LitElement {
     const inDef = dt.defrost.some(([a, b]) => p[0] >= a && p[0] <= b);
     const sp = dt.setpoints?.[this.cross.i]?.[1] ?? null;
     const out = p[1] > dt.high || p[1] < dt.low;
-    const day = this.range === '24h' ? '' : `${new Date(ms).toLocaleDateString(lang, { day: 'numeric', month: 'numeric' })} · `;
+    const day = this.range === '24h' ? '' : `${dayMonthText(new Date(ms))} · `;
     const norm = dt.axisUnit === '';
     const near = (pts: [number, number][]) => pts.reduce<[number, number] | null>((b, q) => (b === null || Math.abs(q[0] - p[0]) < Math.abs(b[0] - p[0]) ? q : b), null);
     return html`<div class="tip" style=${`inset-inline-start:${(this.cross.x / this.chartW) * 100}%;inset-block-start:${((this.cross.y ?? 20) / 250) * 100}%`} data-temp-tip>

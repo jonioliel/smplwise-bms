@@ -22,6 +22,7 @@ import {
   type MetaMap,
   type TimeKind,
 } from './schedule-edit-logic';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-014 S4: the editor of one slot (mockup 05 / 06, the card under the board): when it runs, when its window ends, what it
@@ -345,7 +346,7 @@ export class ScheduleSlotPanel extends LitElement {
         ${kinds.map((k) => html`<option value=${k} ?selected=${p.kind === k}>${KIND_LABEL[k]}</option>`)}
       </select>
       ${p.kind === 'fixed'
-        ? html`<input type="time" step="60" ?disabled=${this.readOnly} data-time=${which} aria-label=${which === 'start' ? 'שעת התחלה' : 'שעת סיום'} .value=${p.time} @change=${(e: Event) => (e.target as HTMLInputElement).value && this.setTime(which, { time: (e.target as HTMLInputElement).value })} />`
+        ? html`<input type="time" lang=${dateInputLang()} step="60" ?disabled=${this.readOnly} data-time=${which} aria-label=${which === 'start' ? 'שעת התחלה' : 'שעת סיום'} .value=${p.time} @change=${(e: Event) => (e.target as HTMLInputElement).value && this.setTime(which, { time: (e.target as HTMLInputElement).value })} />`
         : p.kind === 'sunrise' || p.kind === 'sunset'
           ? html`<div class="pair">
               <input type="number" min=${this.allowNegativeSun ? -720 : 0} max="720" step="5" ?disabled=${this.readOnly} data-offset=${which} aria-label="דקות אחרי ${p.kind === 'sunrise' ? 'הזריחה' : 'השקיעה'}" .value=${String(p.offset)} @change=${(e: Event) => this.setTime(which, { offset: Number((e.target as HTMLInputElement).value) || 0 })} />

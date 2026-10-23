@@ -13,6 +13,7 @@ import { weekdayOf } from './logic';
 import { KIND_TONE, canReset, holidayMonths, kindChoices, validDay, type DayKind } from './events-logic';
 import { dwCss } from './styles';
 import { dweCss } from './events-styles';
+import { dateInputLang } from '../api/day-format';
 
 const GENERATORS = ['israel', 'none'] as const;
 type Pending = { text: string; run: () => Promise<unknown> };
@@ -143,7 +144,7 @@ export class DoorHolidays extends LitElement {
       ${this.canManage ? html`<div class="card" data-dw-add>
         <b>${dwe('hlAdd')}</b>
         <div class="row2">
-          <div class="field"><label for="dwh-date">${dwe('hlColDate')}</label><input id="dwh-date" type="date" min=${this.today} .value=${this.add.date}
+          <div class="field"><label for="dwh-date">${dwe('hlColDate')}</label><input id="dwh-date" type="date" lang=${dateInputLang()} min=${this.today} .value=${this.add.date}
             @change=${(e: Event) => (this.add = { ...this.add, date: (e.target as HTMLInputElement).value })}></div>
           <div class="field"><label for="dwh-kind">${dwe('hlColKind')}</label><select id="dwh-kind" @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as DayKind })}>
             ${kindChoices(null).map((k) => html`<option value=${k} ?selected=${this.add.kind === k}>${this.kindWord(k)}</option>`)}</select></div>

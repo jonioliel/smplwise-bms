@@ -12,6 +12,8 @@
  * (which both apps turn into their native server list). The function names match the TWA branch, so the merge of the
  * two is trivial.
  */
+import { nativeBridge } from './native-app';
+
 export const APP_PARAM = 'app';
 export const ANDROID_VALUE = 'android';
 export const STORAGE_KEY = 'arx.app.v1';
@@ -34,7 +36,8 @@ declare global {
 type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>;
 
 /** Pure: the shell's injected interface, when it looks like one. */
-export function shellBridge(w: { ArxApp?: unknown } | null | undefined): ArxAppBridge | null {
+export function shellBridge(w: { ArxApp?: unknown; top?: unknown } | null | undefined): ArxAppBridge | null {
+  if (w && 'top' in w && w.top !== w) return null; // MOBILE214: a frame is never the trusted page
   const b = w?.ArxApp as Partial<ArxAppBridge> | undefined;
   if (!b || typeof b !== 'object') return null;
   if (b.platform !== ANDROID_VALUE || typeof b.switchServer !== 'function') return null;
@@ -84,7 +87,8 @@ export function inAndroidApp(): boolean {
     const clean = withoutAppParam(window.location.href);
     if (clean !== window.location.href) history.replaceState(history.state, '', clean);
   }
-  cached = fromUrl || shellBridge(window) !== null;
+  // MOBILE214: the iOS app appends app=android too; its bridge says what it really is
+  cached = nativeBridge(window)?.platform === 'ios' ? false : fromUrl || shellBridge(window) !== null;
   return cached;
 }
 

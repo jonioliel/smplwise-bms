@@ -28,6 +28,7 @@ import { navigate, parseRoute } from '../router';
 import { DEMO_ALARM } from '../fixtures/alarm-demo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayTimeText } from '../api/day-format';
 
 type Filter = 'all' | 'open' | 'bypassed' | 'faults';
 /** SEC polish: the zones as cards (the default) or as one dense list per area; kept per browser. */
@@ -66,7 +67,7 @@ function when(iso: string | null): string {
   if (s < 60) return 'עכשיו';
   if (s < 3600) return `לפני ${Math.round(s / 60)} דק׳`;
   if (s < 86400) return `לפני ${Math.round(s / 3600)} שע׳`;
-  return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+  return dayTimeText(d);
 }
 
 /**

@@ -27,6 +27,7 @@ import {
   type Draft,
 } from './nvr-cameras-edit';
 import type { EncodingChanges } from '../api/nvr-settings';
+import { dayTimeText } from '../api/day-format';
 
 /** The editor's line when "שמור" cannot open the confirmation: the press always answers (owner report 2026-10-04: "nothing happens"). */
 export const SAVE_LINE = {
@@ -428,7 +429,7 @@ export class NvrCameraEditor extends LitElement {
 
   private when(iso: string): string {
     const t = new Date(iso);
-    return Number.isNaN(t.getTime()) ? '' : t.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+    return Number.isNaN(t.getTime()) ? '' : dayTimeText(t);
   }
 
   private renderHistory() {

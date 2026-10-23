@@ -25,6 +25,7 @@ import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang, dayTimeText } from '../api/day-format';
 
 interface RecentSet {
   cameras: string[];
@@ -174,7 +175,7 @@ export class InvestigateSync extends LitElement {
             </sw-card>
             <sw-card heading="זמן התחלה">
               <div class="transport">
-                <sw-field><input type="datetime-local" step="1" data-ltr data-sync-when .value=${this.when} aria-label="זמן" title="זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר" @change=${(e: Event) => (this.when = (e.target as HTMLInputElement).value)} /></sw-field>
+                <sw-field><input type="datetime-local" lang=${dateInputLang()} step="1" data-ltr data-sync-when .value=${this.when} aria-label="זמן" title="זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר" @change=${(e: Event) => (this.when = (e.target as HTMLInputElement).value)} /></sw-field>
                 <sw-button size="sm" @click=${() => (this.when = localInput(new Date(Date.now() - 10 * 60_000)))}>לפני 10 דק׳</sw-button>
                 <sw-button size="sm" @click=${() => (this.when = localInput(new Date(Date.now() - 60 * 60_000)))}>לפני שעה</sw-button>
                 <span class="grow"></span>
@@ -185,7 +186,7 @@ export class InvestigateSync extends LitElement {
               ? html`<sw-card heading="השוואות אחרונות" subheading="נשמר בדפדפן הזה בלבד">
                   ${this.recent.map((r) => html`<div class="recent" data-sync-recent>
                     <span>${r.cameras.map((id) => this.name(id)).join(' · ')}</span>
-                    <span class="ltr note">${new Date(r.at).toLocaleString('he-IL')}</span>
+                    <span class="ltr note">${dayTimeText(new Date(r.at), { seconds: true })}</span>
                     <sw-button size="sm" icon="play" @click=${() => this.launch(r.cameras, r.at)}>פתח</sw-button>
                   </div>`)}
                 </sw-card>`
@@ -420,7 +421,7 @@ export class InvestigateSync extends LitElement {
           )}
         </div>
         <div class="transport">
-          <sw-field><input type="datetime-local" value=${`2026-09-14T${minuteLabel(this.cursor)}`} data-ltr aria-label="זמן" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.split('T')[1] ?? '10:15'; const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; }} /></sw-field>
+          <sw-field><input type="datetime-local" lang=${dateInputLang()} value=${`2026-09-14T${minuteLabel(this.cursor)}`} data-ltr aria-label="זמן" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.split('T')[1] ?? '10:15'; const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; }} /></sw-field>
           <sw-button iconOnly icon="mic" label="דיבור"></sw-button>
           <sw-button iconOnly icon="back10" label="אחורה"></sw-button>
           <sw-button variant="primary" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה הכל' : 'נגן הכל'} @click=${() => (this.playing = !this.playing)}></sw-button>

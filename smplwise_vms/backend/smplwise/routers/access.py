@@ -61,6 +61,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",
     "events.ack": "סימון אירועים כטופלו",
+    # CR-SHIFT114 (r114): the shift / 24-hour summary. Holding it opens the screen; every section inside needs its own module's right (operator, site_admin, system_admin).
+    "reports.shift": "סיכום משמרת: מה קרה בבניין (סעיפים לפי ההרשאות שלך)",
     "map.import": "ייבוא תוכניות",
     "map.edit": "עריכת מפה",
     "map.publish": "פרסום תוכנית",
@@ -294,6 +296,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # never implied). energy.manage: meters, accounts and formulas, customers, prices and VAT, business details, the
     # operational electricity settings (site_admin, system_admin). Installation scope only in v1. The retention values stay
     # behind system.configure and the backup switch behind backup.manage.
+    # ZONECOUNT107-295 (CR-ZONECOUNT107): how many people are in an area now and over time (counts only). Sensitive, never implied; judged on every
+    # camera that feeds the area; built-in holder system_admin only. The mapping and the switch stay behind system.configure.
+    "occupancy.view": "צפייה בספירת אנשים לפי אזור",
     "energy.view": "צפייה במונים ובצריכה",
     "energy.bills": "חיובים: סכומים, לקוחות, הפקה וביטול",
     "energy.manage": "ניהול מונים, חשבונות, לקוחות ומחירים",
@@ -302,6 +307,14 @@ PERMISSION_LABELS: dict[str, str] = {
     # alert routing (site_admin, system_admin). View and alerts only: there is NO command to the controller, so no control permission.
     "generator.view": "צפייה בגנרטור והתראותיו",
     "generator.manage": "ניהול הגנרטור: זיהוי, מיפוי חיישנים וניתוב התראות",
+    # CR-WATER78 (water meters; owner decisions 2026-10-23): water.view = the tab, meters, consumption, readings (operator and above -
+    # NOT viewer: consumption of a tenant's sub-meter is personal data, Q4), scoped by the floors of the meter's entity (Q5); water.ack =
+    # acknowledge / mute leak warnings (slice 2; operator and above); water.manage = define / edit / replace / retire meters, manual
+    # readings, leak rule defaults, entity ids (site_admin, system_admin; installation scope). The module switch and the retention stay
+    # behind system.configure, the backup choice behind backup.manage. No actuation permission: the module never writes a device (Q6).
+    "water.view": "צפייה במוני מים ובצריכה",
+    "water.ack": "התראות מים: אישור והשתקה",
+    "water.manage": "ניהול מוני מים: הגדרה, קישור, כללי דליפה",
     # CR-INFRA-ELEVATORS: define elevators and link their state sensors (site_admin, system_admin; installation scope). Viewing the
     # elevators needs no permission of its own: devices.read, scoped by the floors of the linked sensors (routers/elevators.py).
     "infra.elevators.manage": "ניהול מעליות: הגדרה וקישור חיישני מצב",

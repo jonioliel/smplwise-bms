@@ -85,6 +85,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_billing.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy billing janitor failed", exc_info=True)
+    try:  # CR-QUIET103: stamp quiet windows whose end instant has passed (the dispatch decides by the clock, not by this sweep; no device call)
+        from .services import quiet_windows
+
+        quiet_windows.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("quiet windows janitor failed", exc_info=True)
     try:  # NEEDSREVIEW (2.8.0): the yearly "needs review" reminder (January, once, throttled to an hourly check; never a door-system call)
         from .services import needs_review
 
@@ -97,6 +103,18 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         pending_retention.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("pending retention janitor failed", exc_info=True)
+    try:  # IDENT146: purge local accounts disabled / deleted for privacy.local_purge_days (default 30; the switch privacy.local_purge is off by default)
+        from .services import local_privacy
+
+        local_privacy.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("local privacy janitor failed", exc_info=True)
+    try:  # ZONECOUNT107 / REL2140 M-2: people-count samples - all deleted while the switch is off, retention while on (read-gated)
+        from .services import zone_counts
+
+        zone_counts.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("zone count janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 
@@ -109,6 +127,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_sampler.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy janitor failed", exc_info=True)
+    try:  # CR-WATER78: water retention (hourly inside; water.db only, its own gate; nothing while the module is off)
+        from .services import water_sampler
+
+        water_sampler.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("water janitor failed", exc_info=True)
     try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
         from .services import generator_runtime
 
@@ -145,6 +169,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # APPREFRESH-295: expired app access tokens, families that ran out, ended families past their audit keep
+        from .services import app_refresh as app_refresh_svc
+
+        app_refresh_svc.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("app refresh janitor failed", exc_info=True)
     try:  # TFA2: expired second-factor lockout rows
         from .services import second_factor as second_factor_svc
 
@@ -436,6 +466,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import door_windows as door_windows_router
 
     app.include_router(door_windows_router.router, prefix=api, tags=["access-control"])  # CR-039 DOORWIN-295: door windows + emergency controls (OFF)
+    from .routers import quiet as quiet_router
+
+    app.include_router(quiet_router.router, prefix=api, tags=["notifications"])  # CR-QUIET103 slice 1: quiet windows per floor / area (OFF)
+    from .routers import occupancy as occupancy_router
+
+    app.include_router(occupancy_router.router, prefix=api, tags=["occupancy"])  # ZONECOUNT107-295: people count per area from Frigate reviews (OFF)
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
@@ -474,6 +510,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
+    from .routers import app_refresh as app_refresh_router
+
+    app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)
     from .routers import ha_users as ha_users_router
 
     app.include_router(ha_users_router.router, prefix=api, tags=["access"])  # USR1: home-system users created from Arx (users.ha_manage + an HA administrator)
@@ -507,6 +546,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import nvr_privacy as nvr_privacy_router
 
     app.include_router(nvr_privacy_router.router, prefix=api, tags=["nvr"])  # NVRMASK-295: privacy-mask read / preview / guarded apply (off by default)
+    from .routers import mask_copy as mask_copy_router
+
+    app.include_router(mask_copy_router.router, prefix=api, tags=["nvr"])  # MASKCOPY62-295: privacy-mask copy PLAN only, no device write (off by default)
     from .routers import energy_meters as energy_meters_router
 
     from .routers import generator as generator_router
@@ -519,6 +561,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(elevators_router.router, prefix=api, tags=["infra"])  # CR-INFRA-ELEVATORS: מעליות - definitions, sensor mapping, derived live state (view only)
     app.include_router(generator_router.router, prefix=api, tags=["generator"])  # CR-031: גנרטור - devices, live values, history, alerts, routing (view and alerts only)
     app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
+    from .routers import shift_summary as shift_summary_router  # CR-SHIFT114: the shift / 24-hour summary (read-only; OFF by default)
+
+    app.include_router(shift_summary_router.router, prefix=api, tags=["reports"])
+    from .routers import water as water_router
+
+    app.include_router(water_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 1: מים - meters, readings, consumption, settings (module switch, default off)
     from .routers import nvr_batch as nvr_batch_router
 
     app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
@@ -542,9 +590,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_station_permissions as access_station_permissions_router
 
     app.include_router(access_station_permissions_router.router, prefix=api, tags=["access"])  # STATIONPERM-295: per-station access of a person (off; go-live not permitted)
+    from .routers import compliance_export as compliance_export_router
+
+    app.include_router(compliance_export_router.router, prefix=api, tags=["access"])  # COMPLY108-295: who could enter which door and when (read-only export; off)
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import local_identity as local_identity_router
 
+    from .routers import local_privacy as local_privacy_router  # IDENT146: personal data export (off by default: privacy.personal_export)
+
+    app.include_router(local_privacy_router.router, prefix=api, tags=["identity"])
     app.include_router(local_identity_router.router, prefix=api, tags=["identity"])  # USR2: Arx-only identities (off by default: security.local_identity)
     from .routers import service_identity as service_identity_router
 
@@ -728,6 +782,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
+        from .services import water_sampler
+
+        water_sampler.SAMPLER.start(app.state.db, settings)  # CR-WATER78: the water meters' poll - only while the module is on (read-only)
         from .services import generator_runtime
 
         generator_runtime.RUNNER.start(app.state.db, settings)  # CR-031: generator detection, history samples and alerts from the state mirror (read-only)
@@ -849,6 +906,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.shutdown()
+        from .services import water_sampler as _wsm
+
+        _wsm.SAMPLER.shutdown()
         from .services import generator_runtime
 
         generator_runtime.RUNNER.shutdown()

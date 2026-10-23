@@ -28,6 +28,7 @@ import type { Camera } from '../api/types';
 import { CASE_STATUS_LABEL, FILE_STATUS_LABEL, PRESERVATION_LABEL, PRODUCER_LABEL, producerOf, addCaseItem, bundleUrl, caseItemFileUrl, checkCaseIntegrity, createBundle, createCase, deleteCase, getCase, importBundle, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleFileStatus, type BundleVerification, type Case, type CaseDetail, type CaseIntegrity, type CaseItem, type CaseStatus, type Preservation, type SignatureVerdict } from '../api/cases';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayTimeText } from '../api/day-format';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
@@ -39,7 +40,7 @@ function signatureText(s?: SignatureVerdict | null): string {
   if (!s.valid) return `חתימה לא תקינה${s.reason ? ` (${s.reason})` : ''} — ה־manifest שונה אחרי הייצוא או שהחתימה זויפה.`;
   return `חתימה תקינה · Ed25519 · מפתח ${s.kid}${s.trust === 'installation' ? (s.retired ? ' · מפתח שהוחלף, מוכר למתקן זה' : ' · המפתח הפעיל של מתקן זה') : ' · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון'}`;
 }
-const fmtWhen = (iso: string, tz?: string) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+const fmtWhen = (iso: string, tz?: string) => dayTimeText(new Date(iso), { timeZone: tz });
 const API_COLUMNS: TableColumn[] = [
   { key: 'title', label: 'תיק', render: (r) => html`<strong>${String(r.title)}</strong>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}${r.tags ? html`<div style="font-size:11px;color:var(--sw-text-3)">${String(r.tags)}</div>` : nothing}` },
   { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
@@ -682,7 +683,7 @@ export class InvestigateCaseDetail extends LitElement {
   }
 
   private fmt(iso: string) {
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'medium' }).format(new Date(iso));
+    return dayTimeText(new Date(iso), { timeZone: this.tz, seconds: true });
   }
 
   private async run(action: () => Promise<void>, okInfo = '') {

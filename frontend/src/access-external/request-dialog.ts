@@ -19,6 +19,7 @@ import {
 } from './request-model';
 import { rt, type RtKey } from '../i18n/access-request';
 import { xtLang } from '../i18n/access-external';
+import { dateInputLang, timeText } from '../api/day-format';
 
 /**
  * ACCESSREQ-293: the manual "request external access" form, built from the owner-approved mockup
@@ -385,8 +386,8 @@ export class AccessRequestDialog extends LitElement {
       return next;
     };
     return html`<section class="sec" data-sec="when"><h4><sw-icon name="calendar" size="14"></sw-icon>${rt('when')}<span class="sp"></span><span class="chip" data-tone="off"><sw-icon name="clock" size="12"></sw-icon>${rt('tz', { tz: this.tz })}</span></h4>
-      <div class="f2"><div class="field"><label for="vf">${rt('from')}</label><input id="vf" class="in num" type="date" min=${today} aria-invalid=${e.dates ? 'true' : 'false'} .value=${f.from} @change=${(ev: Event) => this.set({ from: (ev.target as HTMLInputElement).value, dates: new Set() })} /></div>
-        <div class="field"><label for="vu">${rt('until')}</label><input id="vu" class="in num" type="date" min=${f.from || today} aria-invalid=${e.dates ? 'true' : 'false'} .value=${f.until} @change=${(ev: Event) => this.set({ until: (ev.target as HTMLInputElement).value, dates: new Set() })} /></div></div>
+      <div class="f2"><div class="field"><label for="vf">${rt('from')}</label><input id="vf" class="in num" type="date" lang=${dateInputLang()} min=${today} aria-invalid=${e.dates ? 'true' : 'false'} .value=${f.from} @change=${(ev: Event) => this.set({ from: (ev.target as HTMLInputElement).value, dates: new Set() })} /></div>
+        <div class="field"><label for="vu">${rt('until')}</label><input id="vu" class="in num" type="date" lang=${dateInputLang()} min=${f.from || today} aria-invalid=${e.dates ? 'true' : 'false'} .value=${f.until} @change=${(ev: Event) => this.set({ until: (ev.target as HTMLInputElement).value, dates: new Set() })} /></div></div>
       ${this.err(e, 'dates')}
       ${n && !e.dates ? html`<div class="row"><span class="chip" data-tone="acc">${rt('daysOf', { n, max })}</span>${f.cred === 'pin' ? html`<span class="chip" data-tone="off"><sw-icon name="mail" size="12"></sw-icon>${due ? rt('codeAt', { t: due }) : rt('codeAtOnce')}</span>` : nothing}</div>` : nothing}
       <div class="seg" role="group"><button type="button" aria-pressed=${String(f.dmode === 'weekly')} @click=${() => this.set({ dmode: 'weekly' })}>${rt('weekdays')}</button><button type="button" aria-pressed=${String(f.dmode === 'dates')} @click=${() => this.set({ dmode: 'dates' })}>${rt('specificDates')}</button></div>
@@ -395,8 +396,8 @@ export class AccessRequestDialog extends LitElement {
         : html`<div class="pills" data-dates>${dates.length ? dates.map((d) => html`<button type="button" class="pill num" aria-pressed=${String(f.dates.has(d))} @click=${() => this.set({ dates: toggle(f.dates, d) })}>${dm(d)}</button>`) : html`<span class="chip" data-tone="off">${rt('pickRange')}</span>`}</div>`}
       ${this.err(e, 'days')}
       <div class="wins" data-wins>${f.wins.map((w, i) => html`<div class="win">
-          <input class="in num" type="time" aria-label=${rt('winFrom')} aria-invalid=${e.wins ? 'true' : 'false'} .value=${w.s} @change=${(ev: Event) => this.setWin(i, { s: (ev.target as HTMLInputElement).value })} /><span>–</span>
-          <input class="in num" type="time" aria-label=${rt('winUntil')} aria-invalid=${e.wins ? 'true' : 'false'} .value=${w.e === '24:00' ? '23:59' : w.e} @change=${(ev: Event) => { const v = (ev.target as HTMLInputElement).value; this.setWin(i, { e: v === '23:59' ? '24:00' : v }); }} />
+          <input class="in num" type="time" lang=${dateInputLang()} aria-label=${rt('winFrom')} aria-invalid=${e.wins ? 'true' : 'false'} .value=${w.s} @change=${(ev: Event) => this.setWin(i, { s: (ev.target as HTMLInputElement).value })} /><span>–</span>
+          <input class="in num" type="time" lang=${dateInputLang()} aria-label=${rt('winUntil')} aria-invalid=${e.wins ? 'true' : 'false'} .value=${w.e === '24:00' ? '23:59' : w.e} @change=${(ev: Event) => { const v = (ev.target as HTMLInputElement).value; this.setWin(i, { e: v === '23:59' ? '24:00' : v }); }} />
           <sw-button size="sm" variant="ghost" iconOnly icon="close" label=${rt('remove')} ?disabled=${f.wins.length === 1} @click=${() => this.set({ wins: f.wins.filter((_, j) => j !== i) })}></sw-button></div>`)}</div>
       ${this.err(e, 'wins')}
       <div class="pills">${PRESETS.map(([s, en]) => html`<button type="button" class="pill num" aria-pressed=${String(f.wins.length === 1 && f.wins[0].s === s && f.wins[0].e === en)} @click=${() => this.set({ wins: [{ s, e: en }] })}>${s}–${en}</button>`)}
@@ -523,7 +524,7 @@ export class AccessRequestDialog extends LitElement {
     const e = this.f.tried ? validate(this.f, this.ctx()) : {};
     const n = Object.keys(e).length;
     const offline = !g.reachable;
-    const asOf = g.as_of ? new Date(g.as_of).toLocaleTimeString(document.documentElement.lang || 'he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
+    const asOf = g.as_of ? timeText(new Date(g.as_of), { timeZone: this.tz }) : '';
     return html`<sw-dialog open xl heading=${rt('title')} data-request-dialog @close=${() => this.close()}>
       ${offline
         ? html`<div class="banner" data-tone="warn" data-offline role="status"><sw-icon name="offline" size="16"></sw-icon><span>${g.has_copy && asOf ? rt('offline', { t: asOf }) : rt('offlineNoCopy')}</span><span class="sp"></span>

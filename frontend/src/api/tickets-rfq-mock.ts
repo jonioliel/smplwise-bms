@@ -14,6 +14,7 @@ import type {
   RfqMessage, RfqMeta, RfqOrder, RfqOrderAnswer, RfqOrderPreview, RfqQuestion, RfqQuestionCounts, RfqQuoteBody, RfqScope, RfqState, RfqSummary, RfqVendor, RfqVendorState,
 } from './tickets-rfq';
 import { decimalToMinor, halfUpDiv, hoursToQuarters, quantityToMilli, vatOf } from '../tickets/cost-model';
+import { dayText, dayMonthText } from './day-format';
 
 const sleep = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -382,7 +383,7 @@ function orderAnswer(r: DRfq, awardId: string, extra: Partial<RfqOrderAnswer> = 
 }
 
 function orderText(r: DRfq, o: RfqOrder): string {
-  const d = (s: string | null) => (s ? new Date(s).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }).replace(/\//g, '.') : '');
+  const d = (s: string | null) => (s ? dayMonthText(new Date(s)) : '');
   const a = d(o.work_from);
   const b = d(o.work_to);
   const win = a && b && a !== b ? `${a}-${b}` : a || b || 'גמיש';
@@ -473,7 +474,7 @@ function draftOf(r: DRfq, a: RfqAward): RfqAwardAnswer['message_draft'] {
   const partial = a.line_indexes.length !== q.lines.length;
   const names: Record<LineKind, string> = { labor: 'עבודה', parts: 'חלקים', travel: 'נסיעות', other: 'אחר' };
   const kinds = [...new Set(a.line_indexes.map((i) => q.lines[i]?.kind).filter(Boolean))].map((k) => names[k as LineKind]).join(', ');
-  const d = (s: string | null) => (s ? new Date(s).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.') : '');
+  const d = (s: string | null) => (s ? dayText(new Date(s)) : '');
   const win = q.work_from || q.work_to ? ` (חלון עבודה: ${[d(q.work_from), d(q.work_to)].filter(Boolean).join(' - ')})` : '';
   const text = partial ? `שלום ${v.contact.name}, ההצעה שלכם עבור "${r.title}" אושרה חלקית: ${kinds}${win}.` : `שלום ${v.contact.name}, ההצעה שלכם עבור "${r.title}" אושרה במלואה${win}.`;
   return { text, lang: 'he', notify_default: true, send: { route: `POST /tickets/rfqs/${r.id}/vendors/${v.id}/messages`, source: { kind: 'award', id: a.id } } };

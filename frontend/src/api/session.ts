@@ -7,6 +7,7 @@ import { ApiError, apiUrl, get } from './client';
 import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities, type CapabilityName } from './capabilities';
 import type { Me } from './types';
 import { isRemoteChannel } from '../arx/channel';
+import { syncNativeSession } from '../arx/native-app';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
 
@@ -23,6 +24,9 @@ export let session: Session = { mode: 'loading', me: null, error: null, capabili
 
 function set(next: Omit<Session, 'capabilities'>) {
   session = { ...next, capabilities: resolveCapabilities(next.me) };
+  // MOBILE214: a hint to the native app (it verifies the identity itself); only a verified, allowed session counts as signed in
+  if (next.mode === 'api' && next.me) syncNativeSession(next.me.user.id);
+  else if (next.mode === 'unauthenticated') syncNativeSession(null);
   listeners.forEach((fn) => fn(session));
 }
 

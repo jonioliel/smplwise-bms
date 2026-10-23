@@ -169,7 +169,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -1017,12 +1017,14 @@ export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string>
   generator: 'לפי הגדרות הגנרטור', ticket_managers: 'מנהלי השירות', ticket_assignee: 'הגורם המטפל בבקשה', rfq_managers: 'מנהלי בקשות הצעת מחיר',
   elevator: 'לפי הגדרות המעליות', // CR-INFRA-ELEVATORS 2.8.0: chosen in Settings > Infrastructure > Elevators
   temperature: 'לפי הגדרות הטמפרטורות', // CR-INFRA-TEMPERATURE 2.9.1: chosen in Settings > Infrastructure > Temperatures (or per unit)
+  energy_bills: 'בעלי הרשאת חיובי החשמל', // ELECBILL77: the holders of energy.bills (installation scope; services/notify.py)
 };
 export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
   scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
   generator: 'As set on the generator screen', ticket_managers: 'Service managers', ticket_assignee: 'The person handling the request', rfq_managers: 'Quote request managers',
   elevator: 'As set on the elevators settings',
   temperature: 'As set on the temperatures settings (or per unit)',
+  energy_bills: 'Holders of the electricity bills permission',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 export interface ChannelCell {

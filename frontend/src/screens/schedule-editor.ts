@@ -108,6 +108,7 @@ import {
 } from './schedule-grid-logic';
 import { NEW_DRAFT_KEY } from './schedule-create-dialog';
 import { TEMPLATES, templateById, withPreset, type TemplateDraft } from './schedule-templates';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -1785,8 +1786,8 @@ export class ScheduleEditor extends LitElement {
       <div class="sec" data-period>
         <h4>תקופה</h4>
         <div class="dates">
-          <div class="field"><label for="from">מתאריך</label><input id="from" type="date" data-date-from ?disabled=${ro} .value=${d.start_date ?? ''} @change=${(e: Event) => this.patch({ start_date: (e.target as HTMLInputElement).value || null })} /></div>
-          <div class="field"><label for="to">עד תאריך</label><input id="to" type="date" data-date-to ?disabled=${ro} .value=${d.end_date ?? ''} @change=${(e: Event) => this.patch({ end_date: (e.target as HTMLInputElement).value || null })} /></div>
+          <div class="field"><label for="from">מתאריך</label><input id="from" type="date" lang=${dateInputLang()} data-date-from ?disabled=${ro} .value=${d.start_date ?? ''} @change=${(e: Event) => this.patch({ start_date: (e.target as HTMLInputElement).value || null })} /></div>
+          <div class="field"><label for="to">עד תאריך</label><input id="to" type="date" lang=${dateInputLang()} data-date-to ?disabled=${ro} .value=${d.end_date ?? ''} @change=${(e: Event) => this.patch({ end_date: (e.target as HTMLInputElement).value || null })} /></div>
         </div>
       </div>
       <div class="sec" data-conditions-sec>

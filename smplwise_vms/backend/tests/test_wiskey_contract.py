@@ -257,6 +257,7 @@ def test_the_commands_arx_uses_are_in_the_pinned_set_and_the_read_ones_are_not_p
 # ---------------------------------------------------------------- the adapter's reads against the catalog (CR-036 S4)
 
 from smplwise.services import intercom_adapter as adapter  # noqa: E402
+from smplwise.services import wiskey_media_contract as w10  # noqa: E402
 
 # one representative call of every typed read of the adapter; the frame it sends is what the catalog judges
 ADAPTER_CALLS: dict[str, Any] = {
@@ -280,7 +281,15 @@ ADAPTER_CALLS: dict[str, Any] = {
     "stations/technical_program_list": lambda c: adapter.program_list(c, "s1"),
     "stations/technical_hold_get": lambda c: adapter.hold_get(c, "s1", 1),
     "stations/technical_codes_get": lambda c: adapter.codes_get(c, "s1"),
+    # AVW10-295: WisKey's W10 station media (services/wiskey_media_contract.py) - judged against Arx's W10 PROPOSAL (below), not the pin
+    w10.DESCRIBE: lambda c: w10.station_descriptor(c, "s1", w10.Actor("u1", "Dana"), "req-0001"),
+    w10.STREAM_LEASE: lambda c: w10.stream_lease(c, "wk-desc-0123456789abcdef", "sub", w10.Actor("u1", "Dana"), "req-0002"),
+    w10.TALK_OPEN: lambda c: w10.talk_open(c, "wk-desc-0123456789abcdef", w10.Actor("u1", "Dana"), "req-0003", "2027-01-15T08:02:00Z"),
+    w10.TALK_FRAME: lambda c: w10.talk_frame(c, "wk-talk-0123456789abcdef", 1, b"\xff" * 160),
+    w10.TALK_FLOOR: lambda c: w10.talk_floor(c, "wk-talk-0123456789abcdef", True),
+    w10.TALK_CLOSE: lambda c: w10.talk_close(c, "wk-talk-0123456789abcdef", "stopped"),
 }
+W10_PROPOSAL = json.loads((ROOT / "docs" / "integrations" / "wiskey" / "catalog" / "w10-proposal" / "commands.proposed.json").read_text(encoding="utf-8"))["commands"]
 
 
 def adapter_frame(command: str) -> dict[str, Any]:
@@ -291,7 +300,36 @@ def adapter_frame(command: str) -> dict[str, Any]:
 
 
 def test_every_adapter_command_has_a_representative_call():
-    assert set(ADAPTER_CALLS) == set(adapter.CHANNEL_OF)
+    assert set(ADAPTER_CALLS) == set(adapter.CHANNEL_OF) | set(w10.COMMANDS)
+
+
+@pytest.mark.parametrize("command", sorted(w10.COMMANDS))
+def test_the_w10_frames_fit_arxs_proposed_request_schema(command: str):
+    """AVW10-295: W10 post-dates the pin, so each frame is held to the request schema Arx PROPOSED to WisKey (section 3 of
+    CR-036-S18-MEDIA.md) - exact key set, required keys, primitive types, `api_contract` exactly on the non-READ ones."""
+    assert command not in COMMANDS, f"{command}: the pin now lists it - judge it against the pin instead of the proposal"
+    entry = W10_PROPOSAL[command]
+    schema = entry["request"]
+    frame = adapter_frame(command)
+    assert frame["type"] == PREFIX + command and schema["properties"]["type"]["const"] == frame["type"]
+    assert not set(frame) - set(schema["properties"]), f"keys the proposal does not list: {sorted(set(frame) - set(schema['properties']))}"
+    assert not set(schema["required"]) - set(frame), "a required key is missing"
+    for key, value in frame.items():
+        assert conforms(value, schema["properties"][key]), f"{key}={value!r}"
+    read = entry["permission"]["read_command_for_security_guard_and_api_contract"]
+    assert (frame.get("api_contract") == intercom_client.API_CONTRACT) == (not read)
+    assert read == (command in w10.READ_COMMANDS)
+
+
+def test_the_w10_proposal_the_channel_and_the_contract_module_name_the_same_six_commands():
+    from smplwise.services import wiskey_channels as ch
+
+    assert set(W10_PROPOSAL) == set(w10.COMMANDS) == ch.MEDIA and len(w10.COMMANDS) == 6
+    assert "media" in ch.UNPINNED_CHANNELS and not (ch.MEDIA & ch.SERVICE), "the media commands ride their own guard only"
+    actor = adapter_frame(w10.DESCRIBE)["actor"]
+    assert actor == {"id": "u1", "display_name": "Dana"}
+    assert adapter_frame(w10.TALK_FRAME)["data"] == __import__("base64").b64encode(b"\xff" * 160).decode()
+    assert adapter_frame(w10.TALK_CLOSE)["reason"] in w10.CLOSE_REASONS
 
 
 @pytest.mark.parametrize("command", sorted(adapter.CHANNEL_OF))

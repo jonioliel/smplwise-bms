@@ -6,6 +6,7 @@ import {
   CHANNEL_GROUPS, HHMM, cycleMode, effectiveDept, matrixOf, MATRIX_MODES, setCell, setChannel, setDeptField, setSla, slaKey, toggleId,
   type ChannelGroup, type DeptRecipients, type MatrixMode, type NotifyDoc, type NotifyMatrix, type NotifySource,
 } from './notify-matrix-model';
+import { dateInputLang } from '../api/day-format';
 
 interface MetaDept { id: string; name: string; pending: number; priorities: { id: string; key: string; name: string }[] }
 interface Meta {
@@ -123,7 +124,7 @@ export class TicketNotifyMatrix extends LitElement {
     const groups = CHANNEL_GROUPS.filter((g) => this.meta?.channels.includes(g));
     return html`
       ${this.dept !== '*' && n.digest_enabled ? html`<div class="row"><span class="lbl">${nmt('deptTime')}<span class="muted">${nmt('deptTimeSub', { time: n.digest_time })}</span></span>
-        <span class="end"><input class="in time" type="time" aria-label=${nmt('deptTime')} data-notify-dept-time .value=${timeVal} ?disabled=${this.off}
+        <span class="end"><input class="in time" type="time" lang=${dateInputLang()} aria-label=${nmt('deptTime')} data-notify-dept-time .value=${timeVal} ?disabled=${this.off}
           @input=${(e: Event) => (this.deptTime = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-notify-dept-time-save ?disabled=${!timeDirty || this.off}
             @click=${() => void this.save({ departments: setDeptField(n.departments, this.dept, 'digest_time', this.deptTime || undefined) })}>${nmt('save')}</sw-button></span></div>` : nothing}
@@ -175,7 +176,7 @@ export class TicketNotifyMatrix extends LitElement {
       ${this.toggle(nmt('digestOn'), nmt('digestOnSub'), n.digest_enabled, 'digest-enabled', 'digest_enabled')}
       ${this.toggle(nmt('urgent'), nmt('urgentSub'), n.urgent_immediate ?? true, 'urgent-immediate', 'urgent_immediate')}
       <div class="row"><span class="lbl">${nmt('siteTime')}<span class="muted">${[nmt('siteTimeSub'), pending].filter(Boolean).join(' · ')}</span></span>
-        <span class="end"><input class="in time" type="time" aria-label=${nmt('siteTime')} data-notify-time .value=${timeVal} ?disabled=${this.off}
+        <span class="end"><input class="in time" type="time" lang=${dateInputLang()} aria-label=${nmt('siteTime')} data-notify-time .value=${timeVal} ?disabled=${this.off}
           @input=${(e: Event) => (this.time = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-notify-time-save ?disabled=${!dirty || this.busy} @click=${() => void this.save({ digest_time: this.time })}>${nmt('save')}</sw-button></span></div>
       ${n.matrix_enabled && this.meta ? html`

@@ -38,6 +38,7 @@ import { isPhoneWidth } from '../shell/tabs-mode';
 import { t as tr } from '../i18n/he';
 import { fx } from '../i18n/frigate-text';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { timeText } from '../api/day-format';
 
 /**
  * SC08 — live camera view (board 1 screen 5). With a backend: real stream through the relay
@@ -396,7 +397,7 @@ export class LiveCamera extends LitElement {
         this.recMsg = 'ההקלטה הידנית נעצרה.';
       } else {
         const r = await recordStart(this.cam.id, this.recMinutes);
-        this.recMsg = `הקלטה ידנית החלה · תיעצר אוטומטית ב־${new Date(r.stop_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}.`;
+        this.recMsg = `הקלטה ידנית החלה · תיעצר אוטומטית ב־${timeText(new Date(r.stop_at))}.`;
       }
       await this.loadRecord();
     } catch (err) {

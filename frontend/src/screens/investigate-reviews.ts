@@ -26,6 +26,7 @@ import { appendPage, applyReviewed, filtersActive, focusAfter, keyAction, nextRe
 import { fx, frigateLocale } from '../i18n/frigate-text';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayMonthTimeText } from '../api/day-format';
 
 /** The motion layer reads at most the last 24 h whatever the period says: the screen says so. */
 const f_motionCap = (f: { layer: string; period: string }) => f.layer === 'motion' && (f.period === '7d' || f.period === '30d');
@@ -380,7 +381,7 @@ export class InvestigateReviews extends LitElement {
     if (!it || !this.exportOn.has(it.recorder_id)) return;
     const start = Math.floor(Date.parse(it.start) / 1000);
     const end = it.end ? Math.ceil(Date.parse(it.end) / 1000) : Math.min(start + 60, Math.floor(Date.now() / 1000));
-    const when = new Intl.DateTimeFormat(frigateLocale(), { timeZone: this.tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(it.start));
+    const when = dayMonthTimeText(new Date(it.start), { timeZone: this.tz });
     this.exp = { item: it, name: `${it.camera_name} ${when}`.slice(0, 80), start, end: Math.max(end, start + 1), first: null, supervised: false, busy: false, error: '' };
     try {
       const first = await getFirstWrites(it.recorder_id);

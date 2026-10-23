@@ -6,6 +6,7 @@ import { getAlertSettings, getSettings, putAlertSettings, putSettings, type Aler
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { ticketsEnabled } from '../tickets/gate';
+import { dateInputLang } from '../api/day-format';
 
 type Val = boolean | number | string;
 const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
@@ -159,7 +160,7 @@ export class TempSettings extends LitElement {
     const v = this.draft[key];
     if (!spec) return nothing;
     if (spec.type === 'bool') return html`<input type="checkbox" .checked=${Boolean(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).checked }; }} />`;
-    if (spec.type === 'hhmm') return html`<input type="time" .value=${String(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value }; }} />`;
+    if (spec.type === 'hhmm') return html`<input type="time" lang=${dateInputLang()} .value=${String(v)} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value }; }} />`;
     if (spec.type === 'choice') {
       return html`<select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
         ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${CHOICE_LABEL[c] ? tt(CHOICE_LABEL[c]) : c}</option>`)}</select>`;

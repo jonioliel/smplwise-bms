@@ -356,13 +356,31 @@ def test_a_contact_erased_after_queuing_gets_no_email_report(env, mod):
     assert (done.state, done.outcome_code) == ("not_sent", "contact_missing") and env.mails == []
 
 
-def test_an_email_report_with_a_live_document_carries_the_same_temporary_link(env, mod, monkeypatch):
+def test_an_email_report_never_queues_a_document_link(env, mod, monkeypatch):
+    """DOCLINKSEC-295 M-01: the tickets rule "e-mail never carries the fragment" (links.py, review T3-2) holds for documents too - a report
+    WITH a document is refused on the e-mail channel at queue time (no row, no mail); the same report by WhatsApp still queues."""
     _mail_ready(env)
     _switch(env, to_contacts=True, documents=True, email=True)
     doc = _doc(env, monkeypatch)
-    _queue(env, channel="email", document_id=doc["id"])
+    with pytest.raises(CR.ReportRefused) as exc:
+        _queue(env, channel="email", document_id=doc["id"])
+    assert exc.value.code == "document_channel"
+    assert _reports(env) == [] and env.tick() == 0 and env.mails == []
+    assert _queue(env, document_id=doc["id"]).channel == "whatsapp"
+
+
+def test_an_email_report_whose_provider_names_a_document_at_send_time_never_leaves(env, mod, monkeypatch):
+    """DOCLINKSEC-295 M-01: the send-time guard - a provider that names a document for an e-mail row stops the message (not_sent /
+    document_channel, never retried) and no mail carries `#d.`. The document is the provider's, not the row's, so the row's not_sent hook
+    does not revoke it (as for a WhatsApp report); its token never left, and it expires on its own."""
+    _mail_ready(env)
+    _switch(env, to_contacts=True, documents=True, email=True)
+    doc = _doc(env, monkeypatch)
+    row = _queue(env, channel="email")
+    mod.document_id = doc["id"]
+    env.tick()
+    done = next(r for r in env.rows() if r.id == row.id)
+    assert (done.state, done.outcome_code) == ("not_sent", "document_channel") and env.mails == []
+    assert env.tick(minutes=30) == 0 and env.mails == [], "document_channel is not retryable"
     with env.s4.db.connection(mode="read") as conn:
-        token = out_documents.token_of(out_documents.row(conn, doc["id"]))
-    assert env.tick() == 1
-    text = env.mails[0][1].text
-    assert text.startswith("מגדלי הדר\n" + TEXT + "\nהדוח המלא (זמין עד ") and text.endswith(f"{BASE_URL}/support/#d.{token}")
+        assert out_documents.row(conn, doc["id"])["open_count"] == 0

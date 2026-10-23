@@ -15,6 +15,7 @@ import type { TableColumn } from '../components/sw-table';
 import { demoAudit } from '../fixtures/catalog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang } from '../api/day-format';
 
 const columns: TableColumn[] = [
   { key: 'time', label: 'זמן', render: (r) => html`14.09.2026 ${String(r.time)}` },
@@ -230,7 +231,7 @@ export class SystemAudit extends LitElement {
           <sw-field><select aria-label="פעולה"><option>כל הפעולות</option><option>צפייה</option><option>שינוי</option><option>ייצוא</option><option>פעולת HA</option></select></sw-field>
           <sw-field><select aria-label="משתמש"><option>כל המשתמשים</option></select></sw-field>
           <sw-field><select aria-label="אתר"><option>כל האתרים</option></select></sw-field>
-          <sw-field><input type="date" value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
+          <sw-field><input type="date" lang=${dateInputLang()} value="2026-09-14" data-ltr aria-label="תאריך" /></sw-field>
           <sw-chip icon="clock">שמירה: 180 יום</sw-chip>
         </div>
         <sw-table .columns=${columns} .rows=${demoAudit}></sw-table>

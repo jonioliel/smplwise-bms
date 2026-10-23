@@ -18,6 +18,7 @@ import { rfqStyles } from './rfq-styles';
 import { clientRequestId, dateTime, initials, notSelectedCount, orderAwards, orderBody, orderForm, orderFormValid, scopeText, windowText } from './rfq-model';
 import { rfqError } from './rfq-new';
 import { ticketsLang } from './text';
+import { dateInputLang } from '../api/day-format';
 
 type Form = { from: string; to: string; docs: string };
 
@@ -203,9 +204,9 @@ export class TicketsRfqOrder extends LitElement {
         </div>`
       : st === 'form' ? html`
         <div class="frm">
-          <label class="fld">${rt('ordFrom')}<input class="inp" type="date" data-order-from .value=${f.from} aria-invalid=${String(!orderFormValid(f) && !!f.from)}
+          <label class="fld">${rt('ordFrom')}<input class="inp" type="date" lang=${dateInputLang()} data-order-from .value=${f.from} aria-invalid=${String(!orderFormValid(f) && !!f.from)}
             @change=${(e: Event) => this.setForm(a.id, { from: (e.target as HTMLInputElement).value })} /></label>
-          <label class="fld">${rt('ordTo')}<input class="inp" type="date" data-order-to .value=${f.to} min=${f.from || ''}
+          <label class="fld">${rt('ordTo')}<input class="inp" type="date" lang=${dateInputLang()} data-order-to .value=${f.to} min=${f.from || ''}
             @change=${(e: Event) => this.setForm(a.id, { to: (e.target as HTMLInputElement).value })} /></label>
           <label class="fld wide">${rt('ordDocs')}<textarea class="inp" maxlength="1000" data-order-docs .value=${f.docs}
             @input=${(e: Event) => this.setForm(a.id, { docs: (e.target as HTMLTextAreaElement).value })}></textarea>

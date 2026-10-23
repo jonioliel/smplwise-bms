@@ -7,6 +7,7 @@ import { createSchedule, deleteSchedule, getReportPreview, getReportRecipients, 
 import { REPORT_RANGES, bidi, chosenVendors, recipientPicks, unreachable, vendorChannel, vendorChannelReason, vendorChannelsOffered } from './model';
 import { tempCss } from './styles';
 import { TT_KEYS, tt, type TtKey } from '../i18n/temperature';
+import { dateInputLang } from '../api/day-format';
 
 type Freq = 'daily' | 'weekly' | 'monthly';
 
@@ -245,7 +246,7 @@ export class TempWa extends LitElement {
                 ${[0, 1, 2, 3, 4, 5, 6].map((d) => html`<option value=${d} ?selected=${this.dow === d}>${tt(`dow${d}` as TtKey)}</option>`)}</select>` : nothing}
               ${this.freq === 'monthly' ? html`<label class="sw">${tt('waDom')}<input class="in" type="number" min="1" max="28" style="inline-size:70px" .value=${String(this.dom)}
                 @change=${(e: Event) => { this.dom = Math.max(1, Math.min(28, Number((e.target as HTMLInputElement).value) || 1)); }} /></label>` : nothing}
-              <span>${tt('waAt')}</span><input class="in" type="time" .value=${this.at} @change=${(e: Event) => { this.at = (e.target as HTMLInputElement).value; }} aria-label=${tt('waAt')} /></div>` : nothing}
+              <span>${tt('waAt')}</span><input class="in" type="time" lang=${dateInputLang()} .value=${this.at} @change=${(e: Event) => { this.at = (e.target as HTMLInputElement).value; }} aria-label=${tt('waAt')} /></div>` : nothing}
             ${this.schedules.length ? html`<div class="status"><span class="lbl">${tt('waSchedules')}</span>${this.schedules.map((s) => html`<div class="r" data-wa-schedule=${s.id}>
               <span>${tt(s.freq === 'daily' ? 'waDaily' : s.freq === 'weekly' ? 'waWeekly' : 'waMonthly')}${s.freq === 'weekly' && s.dow !== null ? ` · ${tt(`dow${s.dow}` as TtKey)}` : ''} · ${s.at} ·
                 ${s.units.map((u) => unitName.get(u) ?? '').filter(Boolean).join(', ')} · ${s.recipients.map((x) => names.get(x.id) ?? '').filter(Boolean).join(', ')}</span>

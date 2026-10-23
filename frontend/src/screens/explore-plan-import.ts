@@ -18,6 +18,7 @@ import { can, isApi } from '../api/session';
 import { getDxfEntities, importDxfGeometry, type DetectResult, type DxfEntities, type DxfTarget } from '../api/geometry';
 import { stashDxfCandidates } from '../map/candidates';
 import type { PlanAsset, PlanVersion } from '../api/types';
+import { dayTimeText } from '../api/day-format';
 
 const STEPS = ['קובץ', 'עמוד', 'חיתוך וסיבוב', 'שם והערות', 'שמירה ופרסום'];
 
@@ -740,7 +741,7 @@ export class ExplorePlanImport extends LitElement {
       ${!d && !p.error ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
       ${d
         ? html`<ul class="steps" data-import-publish-summary>
-            <li>${d.from ? `מחליפה את הגרסה שפורסמה ב-${new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(d.from.published_at ?? d.from.created_at))}` : 'הרקע הראשון של הקומה'}</li>
+            <li>${d.from ? `מחליפה את הגרסה שפורסמה ב-${dayTimeText(new Date(d.from.published_at ?? d.from.created_at))}` : 'הרקע הראשון של הקומה'}</li>
             <li>${an?.total ? `${an.total} פריטים מוצבים: ${an.carried} עוברים כמו שהם${an.needs_alignment ? `, ${an.needs_alignment} דורשים בדיקת מיקום על הרקע החדש` : ''}` : 'אין פריטים מוצבים על הקומה'}</li>
             <li>${d.geometry.same ? 'המבנה (קירות, פתחים, עצמים) נשאר כפי שהוא' : `המבנה משתנה (${d.geometry.changes.length} שדות)`}</li>
           </ul>

@@ -9,6 +9,7 @@ import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
 import { capsOf, customRangeError, fill, historyRoles, metricsOf, RANGES, toCsv } from './gen-logic';
+import { dateInputLang } from '../api/day-format';
 
 const G = he.generator;
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -66,8 +67,8 @@ export class GenChartsPage extends LitElement {
       <div class="row"><span class="h2">${G.charts.title}</span><div class="sp"></div>
         <div class="seg" role="group" aria-label=${G.charts.title} data-range>${RANGES.map((r) => html`<button aria-pressed=${this.range === r} @click=${() => this.pickRange(r)}>${G.charts.ranges[r]}</button>`)}</div>
         <button class="btn sm" @click=${() => this.csv()} ?disabled=${!this.data} data-csv>${G.charts.csv}</button></div>
-      ${this.range === 'custom' ? html`<div class="row" data-custom><label class="row mut">${G.charts.from} <input type="datetime-local" .value=${this.from} @input=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
-        <label class="row mut">${G.charts.to} <input type="datetime-local" .value=${this.to} @input=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>
+      ${this.range === 'custom' ? html`<div class="row" data-custom><label class="row mut">${G.charts.from} <input type="datetime-local" lang=${dateInputLang()} .value=${this.from} @input=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)} /></label>
+        <label class="row mut">${G.charts.to} <input type="datetime-local" lang=${dateInputLang()} .value=${this.to} @input=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)} /></label>
         <button class="btn sm pri" @click=${() => this.apply()}>${G.charts.apply}</button>${this.rangeError ? html`<span class="bad" role="alert">${this.rangeError}</span>` : nothing}</div>` : nothing}
       ${ms.length ? html`<div class="seg" role="group" data-metrics>${ms.map((m) => html`<button aria-pressed=${m.role === metric} @click=${() => navigate('/infra/generator/charts', { device: d.id, metric: m.role })}>${(G.charts.metrics as Record<string, string>)[m.role]}</button>`)}</div>` : nothing}
       ${ready ? html`<gen-chart-set mode="big" .deviceId=${d.id} .roles=${historyRoles(ms)} .range=${this.range} .from=${this.applied.from} .to=${this.applied.to} .metric=${metric} @history-loaded=${(e: CustomEvent<HistoryResponse>) => (this.data = e.detail)}></gen-chart-set>` : nothing}

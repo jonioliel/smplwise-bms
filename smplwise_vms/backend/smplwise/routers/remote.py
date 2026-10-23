@@ -168,6 +168,11 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
         if read_settings(conn)["remote.policy"] == "flag" and basis is None:
             dropped = len({s.sign_in() for s in hua.STORE.drop_user(user_id)})
             _close_sockets_from_thread()
+            # APPREFRESH-295 F-01: the phone app's saved sign-ins of the user end with the remote access
+            from ..services import app_refresh
+
+            app_refresh.hook("revoke_user", conn, user_id, "remote_access_removed", actor=principal,
+                             request_id=getattr(request.state, "correlation_id", None))
     if before != body.enabled:
         audit(conn, actor=principal, action="remote.access_flag", decision="allowed", resource_type="user", resource_id=user_id,
               request_id=getattr(request.state, "correlation_id", None),

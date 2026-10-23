@@ -15,6 +15,7 @@ import { dayToIso, initials, windowText } from './rfq-model';
 import { arrivalKey, dueWords, isoLocalDay, scheduleExact } from './rfq-terms-model';
 import { rfqError } from './rfq-new';
 import { ticketsLang } from './text';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-RFQ-PAYMENT-SCHEDULE `<tickets-rfq-terms .rfq>` (RFQ contract section 20): per approved award with terms - the approved payment
@@ -199,9 +200,9 @@ export class TicketsRfqTerms extends LitElement {
     const preview = (it ? t.notice?.instalment : t.notice?.arrival) ?? '';
     const bad = !m.date || (!it && !!m.to && m.to < m.date) || (m.notify && !m.message.trim()) || (m.resend && !m.orderText);
     return html`<div class="tmove" data-move=${key}>
-      <label class="fld">${rt(it ? 'insMoveDate' : 'arrMoveFrom')}<input class="inp" type="date" dir="ltr" .value=${m.date}
+      <label class="fld">${rt(it ? 'insMoveDate' : 'arrMoveFrom')}<input class="inp" type="date" lang=${dateInputLang()} dir="ltr" .value=${m.date}
         @input=${(e: Event) => set({ date: (e.target as HTMLInputElement).value })}></label>
-      ${it ? nothing : html`<label class="fld">${rt('arrMoveTo')}<input class="inp" type="date" dir="ltr" .value=${m.to}
+      ${it ? nothing : html`<label class="fld">${rt('arrMoveTo')}<input class="inp" type="date" lang=${dateInputLang()} dir="ltr" .value=${m.to}
         @input=${(e: Event) => set({ to: (e.target as HTMLInputElement).value })}></label>`}
       <label class="fld">${rt('insMoveReason')}<input class="inp" type="text" maxlength="500" .value=${m.reason}
         @input=${(e: Event) => set({ reason: (e.target as HTMLInputElement).value })}></label>

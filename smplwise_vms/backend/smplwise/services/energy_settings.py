@@ -97,6 +97,11 @@ def validate(key: str, raw: Any) -> str:
     spec = SPECS.get(key)
     if spec is None or spec.own_route is not None:
         raise ApiError(422, "validation", f"הגדרה לא מוכרת: {key}", details={"fields": [key]})
+    return validate_spec(spec, key, raw)
+
+
+def validate_spec(spec: SettingSpec, key: str, raw: Any) -> str:
+    """The value check of one spec (shared with the water module's own registry, services/water_settings.py)."""
     bad = ApiError(422, "validation", f"ערך לא תקין עבור {spec.label_he or key}", details={"fields": [key]})
     if spec.kind == "int":
         if isinstance(raw, bool) or not isinstance(raw, int):

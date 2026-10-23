@@ -34,7 +34,11 @@ MAX_BYTES = 2 * 1024 * 1024  # also the table CHECK
 LIVE_TOTAL_MAX = 64 * 1024 * 1024
 HOURS_CEILING = 168
 KEEP_ROWS = dt.timedelta(days=90)
-MEDIA_TYPES = {"application/pdf": ".pdf", "text/html": ".html"}
+# DOCLINKSEC-295 M-02 (security review 2026-10-23): the MINT-time allow-list is PDF only - the approved scope of the first consumer (the
+# temperature HACCP report). HTML stays out until a consumer exists and passes its own review: the HTML check below is a regex tripwire,
+# not a sanitizer, and a saved .html opens from the device with full script. The table CHECK, the filename pattern, `_check_content`'s HTML
+# branch and the serving code still know `text/html` (a row minted before this change is served as opaque bytes; reinstating is one line).
+MEDIA_TYPES = {"application/pdf": ".pdf"}
 REVOKE_REASONS = ("manual", "contact_changed", "contact_erased", "module_key", "send_failed", "source_cancelled")
 _FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,75}\.(?:pdf|html)")
 _MODULE = re.compile(r"[a-z_]{1,32}")

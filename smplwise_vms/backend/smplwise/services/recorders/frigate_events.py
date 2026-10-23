@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...db import now_iso, retry_locked
 from ...errors import ApiError
+from .. import zone_counts
 from ..timeutil import iso_utc
 
 if TYPE_CHECKING:
@@ -465,6 +466,7 @@ def poll_reviews(listener: "AlertStreamListener", ad: "FrigateAdapter", st: Frig
                          "ON CONFLICT(recorder_id) DO UPDATE SET last_poll_ts = COALESCE(?, last_poll_ts), last_poll_at = excluded.last_poll_at, last_poll_error = NULL, "
                          "ws_state = excluded.ws_state, ws_changed_at = excluded.ws_changed_at, ws_frames = excluded.ws_frames",
                          (listener.recorder_id, newest, now_iso(), st.ws_state, st.ws_changed_at, st.ws_frames, newest))
+            zone_counts.sample_quietly(conn)  # ZONECOUNT107-295: people per mapped area (a no-op while occupancy.enabled is off)
         return n
 
     changed = retry_locked(_write, what="frigate poll")
@@ -638,6 +640,7 @@ def _apply_frames(listener: "AlertStreamListener", reviews: list[Any], transitio
                 ev = store_offline(conn, listener.recorder_id, lookup, cam, since, back_at=now if kind == "online" else None)
                 if ev:
                     published.append(ev)
+            zone_counts.sample_quietly(conn)  # ZONECOUNT107-295
 
     retry_locked(_write, what="frigate frames")
     rules_svc.deliver_pending(fired)

@@ -12,7 +12,7 @@ import html
 import pytest
 
 from smplwise.services.tickets import out_documents as D, public_documents as PD, settings_doc
-from test_vendorq_294_documents import _get, _mint, _token, s4  # noqa: F401 - s4 is the fixture
+from test_vendorq_294_documents import HTML_REINSTATED, _get, _mint, _token, s4  # noqa: F401 - s4 is the fixture
 
 PROBES = {
     # the four the original filter already blocked (section 7.1) - kept as regressions
@@ -88,7 +88,8 @@ def test_escape_text_makes_hostile_names_inert_and_never_trips_the_tripwire():
     assert D.escape_text("מקרר ראשי 2") == "מקרר ראשי 2" and D.escape_text(None) == ""
 
 
-def test_an_html_document_is_downloaded_as_opaque_bytes_and_a_pdf_keeps_its_type(s4):  # noqa: F811
+def test_an_html_document_is_downloaded_as_opaque_bytes_and_a_pdf_keeps_its_type(s4, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(D, "MEDIA_TYPES", HTML_REINSTATED)  # DOCLINKSEC-295 M-02: HTML is refused at mint by default; a row minted before stays opaque
     assert PD.file_media_type("text/html") == "application/octet-stream"
     assert PD.file_media_type("application/pdf") == "application/pdf"
     assert PD.file_media_type("anything/else") == "application/octet-stream"
@@ -106,7 +107,8 @@ def test_an_html_document_is_downloaded_as_opaque_bytes_and_a_pdf_keeps_its_type
     assert got.headers["x-content-type-options"] == "nosniff" and got.headers["x-document-digest"] == hashlib.sha256(body).hexdigest()
 
 
-def test_minting_refuses_a_probe_end_to_end(s4):  # noqa: F811
+def test_minting_refuses_a_probe_end_to_end(s4, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(D, "MEDIA_TYPES", HTML_REINSTATED)  # DOCLINKSEC-295 M-02: the tripwire still guards a reviewed reinstatement
     with s4.db.connection() as conn:
         settings_doc.apply_patch(conn, {"reports": {"documents": True}})
     with pytest.raises(D.DocumentRefused) as exc:

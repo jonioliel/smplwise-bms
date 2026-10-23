@@ -73,7 +73,7 @@ def test_the_adapter_channels_are_exactly_what_the_adapter_sends():
     source = Path(intercom_adapter.__file__).read_text(encoding="utf-8")
     literals = set(re.findall(r'_ask\(call, "([a-z_/]+)"', source))
     assert literals == set(intercom_adapter.CHANNEL_OF), sorted(literals ^ set(intercom_adapter.CHANNEL_OF))
-    assert ch.ADAPTER_CHANNELS == ("read", "technical", "messaging", "readback", "pacing") and ch.describe()["read"]["in_use"] is True
+    assert ch.ADAPTER_CHANNELS == ("read", "technical", "messaging", "readback", "pacing", "media") and ch.describe()["read"]["in_use"] is True
     backend = Path(intercom_client.__file__).resolve().parents[1]
     builders = [p.name for p in backend.rglob("*.py") if "ADAPTER_CHANNELS" in p.read_text(encoding="utf-8") and p.name != "wiskey_channels.py"]
     assert builders == ["intercom_sync.py"]
@@ -158,7 +158,7 @@ def test_both_live_sessions_carry_their_guard(wiskey):
     wbf.FEED.start(s2)
     wait_for(lambda: wbf.FEED.status["state"] == "ready" and intercom_sync.STATE.state == "ready")
     assert getattr(intercom_sync.SYNC._call, "channel", None) == "service"
-    assert {name: getattr(c, "channel", None) for name, c in intercom_sync.SYNC._channel_calls.items()} == {"read": "read", "technical": "technical", "messaging": "messaging", "readback": "readback", "pacing": "pacing"}
+    assert {name: getattr(c, "channel", None) for name, c in intercom_sync.SYNC._channel_calls.items()} == {"read": "read", "technical": "technical", "messaging": "messaging", "readback": "readback", "pacing": "pacing", "media": "media"}
     assert getattr(wbf.FEED._call, "channel", None) == "background"
     # a write forced onto the background session is refused at the guard, and the fake never sees it
     code, _ = wbf.FEED.command("authorization/session", lambda call: intercom_client.release_door(call, "entry-a", 1))

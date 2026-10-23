@@ -20,6 +20,7 @@ import {
   type CheckFailure, type UpdateState,
 } from '../api/system-update';
 import { notifyUpdateState } from '../shell/update-marker';
+import { dayTimeText } from '../api/day-format';
 
 /**
  * הגדרות › עדכונים (CR-021 S2, installation scope, `system.update`: system administrators). The installed and the latest
@@ -406,7 +407,7 @@ export class SystemUpdate extends LitElement {
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(d);
+    return dayTimeText(d, { timeZone: this.tz });
   }
 
   private failureText(f: CheckFailure): string {

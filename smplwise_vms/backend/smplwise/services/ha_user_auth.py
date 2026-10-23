@@ -1680,6 +1680,17 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
             # a year after the revoke HA's sliding 90-day refresh token cannot still be alive unless used - and a used one is
             # refused here; keep the table small
             conn.execute("DELETE FROM remote_revoked_chains WHERE revoked_at < ?", (_days_ago(365),))
+            # APPREFRESH-295: the phone app's families minted from these sign-ins end with them; "sign out everywhere" (the user's own
+            # or an administrator's - the lost-phone kill switch) ends every family of the user, also one whose sign-in is not live now
+            from . import app_refresh
+
+            for h in hashes:
+                app_refresh.hook("revoke_anchor", conn, h, reason)
+            for s in dropped:  # REL2140 M-4: a sign-in without an `iss` anchors its families to the session's own sign-in
+                if not s.iss_hash:
+                    app_refresh.hook("revoke_anchor", conn, app_refresh.session_anchor(s.sign_in()), reason)
+            if reason in ("signed_out_everywhere", "revoked_all_by_admin"):
+                app_refresh.hook("revoke_user", conn, target_user, reason)
             # review L4: the channel is the ACTOR's (an administrator may revoke from inside the system); what was ended
             # is `ended_via` (cookie / bearer)
             audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=target_user,
@@ -1719,6 +1730,11 @@ def revoke_user_sign_ins(conn: Any, user_id: str, *, actor: Principal, reason: s
 
     keep_iss = keep.iss_hash if keep is not None else ""
     keep_sid = keep.sid if keep is not None else ""
+    from . import app_refresh
+
+    # APPREFRESH-295: the phone app's families of this user end too (except those of the kept sign-in), also when no remote session
+    # of theirs is live right now
+    app_refresh.hook("revoke_user", conn, user_id, reason, keep_anchor=keep_iss)
     victims = [s for s in STORE.sessions_of(user_id=user_id) if s.sid != keep_sid and not (keep_iss and s.iss_hash == keep_iss)]
     if not victims:
         return 0
@@ -1790,6 +1806,11 @@ async def revalidate_once(db: Any, settings: Settings, validate: Callable[..., A
             continue
         STORE.drop(s.sid)
         dropped += 1
+        # APPREFRESH-295 (F-01 c): HA refused the sign-in's token, or the policy no longer admits it - its app families end (REL2140 M-4:
+        # also those anchored to a sign-in without an `iss`, by the session's own sign-in)
+        from . import app_refresh
+
+        await run_in_threadpool(app_refresh.revoke_anchor_db, db, app_refresh.remote_anchor(s)[1], "ha_sign_in_revoked" if reason == "token_revoked" else reason)
         await run_in_threadpool(_audit, db, actor=s.principal, action="auth.remote_session.revoked", decision="denied", reason=reason,
                                 meta={"client_ip": s.client_ip, **({"via": "bearer"} if s.via == "bearer" else {})})
     await _close_sockets()

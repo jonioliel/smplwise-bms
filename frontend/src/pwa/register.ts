@@ -7,6 +7,7 @@
  * its scope, so it never touches Home Assistant's own pages or worker (scope `/`).
  */
 import { inAndroidApp } from '../arx/android-app';
+import { inNativeApp } from '../arx/native-app';
 
 /** Chromium's install prompt event (not in the DOM typings). */
 export interface InstallPromptEvent extends Event {
@@ -76,15 +77,20 @@ export function dismiss(key: string): void {
   changed();
 }
 
+/** MOBILE214: inside either native app (Android or iOS): the app is the installed form, no install banner or hint. */
+export function inNativeShell(): boolean {
+  return inAndroidApp() || inNativeApp();
+}
+
 /** Show the install banner: Chromium offered to install, not installed, not framed, not dismissed recently, and not
  * already inside the Android app (CR-008 §9 - the app is the installed form). */
 export function showInstall(): boolean {
-  return !!pwa.installEvent && !pwa.installed && !isStandalone() && !isFramed() && !inAndroidApp() && !dismissed('install');
+  return !!pwa.installEvent && !pwa.installed && !isStandalone() && !isFramed() && !inNativeShell() && !dismissed('install');
 }
 
 /** Show the iOS guide: Safari on iPhone/iPad, not already on the home screen, not framed, not dismissed recently. */
 export function showIosHint(): boolean {
-  return isIos() && !isStandalone() && !isFramed() && !inAndroidApp() && !dismissed('ios');
+  return isIos() && !isStandalone() && !isFramed() && !inNativeShell() && !dismissed('ios');
 }
 
 export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {

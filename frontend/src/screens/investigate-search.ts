@@ -16,6 +16,7 @@ import { navigate } from '../router';
 import { OBJECT_LABEL, searchProviders, semanticSearch, type ProvidersResponse, type SemanticResponse } from '../api/search';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayMonthTimeText } from '../api/day-format';
 
 const RESULTS = [
   { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'NVR: זיהוי אדם (Smart)' },
@@ -68,7 +69,7 @@ export class InvestigateSearch extends LitElement {
 
   private fmt(iso: string): string {
     try {
-      return new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      return dayMonthTimeText(new Date(iso));
     } catch {
       return iso;
     }

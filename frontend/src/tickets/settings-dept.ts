@@ -17,6 +17,7 @@ import {
 import { effectiveLinks, intIn, windowProblem } from './durations';
 import { ticketSettingsCss } from './settings-styles';
 import { tt, type TicketTextKey } from './text';
+import { dateInputLang } from '../api/day-format';
 
 type Directory = { users: { id: string; name: string }[]; groups: { id: string; name: string }[] };
 interface Drafts {
@@ -315,9 +316,9 @@ export class TicketsDeptEditor extends LitElement {
             else void this.patchDept({ send_hours: null }, () => this.set({ hours: undefined }));
           }}></sw-toggle></div>
         ${hoursOwn ? html`<div class="add">
-          <input class="in time" type="time" data-dept-hours="from" aria-label=${tt('depHours')} aria-invalid=${String(!!hoursErr)} .value=${hd.from} @input=${(e: Event) => this.set({ hours: { ...hd, from: (e.target as HTMLInputElement).value } })} />
+          <input class="in time" type="time" lang=${dateInputLang()} data-dept-hours="from" aria-label=${tt('depHours')} aria-invalid=${String(!!hoursErr)} .value=${hd.from} @input=${(e: Event) => this.set({ hours: { ...hd, from: (e.target as HTMLInputElement).value } })} />
           <span class="muted">${tt('hoursTo')}</span>
-          <input class="in time" type="time" data-dept-hours="to" aria-label=${`${tt('depHours')} · ${tt('hoursTo')}`} aria-invalid=${String(!!hoursErr)} .value=${hd.to} @input=${(e: Event) => this.set({ hours: { ...hd, to: (e.target as HTMLInputElement).value } })} />
+          <input class="in time" type="time" lang=${dateInputLang()} data-dept-hours="to" aria-label=${`${tt('depHours')} · ${tt('hoursTo')}`} aria-invalid=${String(!!hoursErr)} .value=${hd.to} @input=${(e: Event) => this.set({ hours: { ...hd, to: (e.target as HTMLInputElement).value } })} />
           <sw-button size="sm" variant="primary" data-dept-hours-save ?disabled=${this.busy || !!hoursErr || !this.dr.hours}
             @click=${() => void this.patchDept({ send_hours: { from: hd.from, to: hd.to } }, () => this.set({ hours: undefined }))}>${tt('save')}</sw-button>
           ${hoursErr ? html`<span class="field-error">${tt(`err_${hoursErr}` as TicketTextKey)}</span>` : nothing}

@@ -35,6 +35,7 @@ import {
   type Invalid,
   type Rect,
 } from './privacy-mask-logic';
+import { dayMonthTimeText } from '../api/day-format';
 
 /** What one camera's mask looks like on screen: the NVR's mask, the frame and limits, and the draft being edited. */
 interface Loaded {
@@ -1100,7 +1101,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
 
   private when(iso: string): string {
     const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(document.documentElement.lang || 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    return Number.isNaN(d.getTime()) ? '' : dayMonthTimeText(d);
   }
 
   private statusText(s: string): string {

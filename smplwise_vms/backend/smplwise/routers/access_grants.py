@@ -126,6 +126,7 @@ class SettingsIn(BaseModel):
     phone_fresh_days: int | None = Field(default=None, ge=30, le=365)
     code_hour: int | None = Field(default=None, ge=0, le=23)
     local_approvers: Literal["off", "on"] | None = None
+    denied_alert: Literal["off", "on"] | None = None  # DENYALERT133-295: notify the approvers of a station when an entry attempt there is refused
     # SECFIX2-295 / PUB-03 (owner 2026-10-21: defaults 90 / 10; 0 = off): erase an undecided vendor-typed technician after N days (7-365), and a cap
     # of undecided technicians per vendor (1-100)
     pending_retention_days: int | None = Field(default=None, ge=0, le=ag.PENDING_RETENTION_MAX)
@@ -313,7 +314,7 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
                       reason="access_grants_not_permitted", details={"key": key, "requested": "on"})
                 raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
         keys = {"external_grants": ag.FLAG_KEY, "max_days": ag.MAX_DAYS_KEY, "max_doors": ag.MAX_DOORS_KEY, "phone_fresh_days": ag.FRESH_KEY,
-                "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY, "cards": ag.CARDS_KEY,
+                "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY, "cards": ag.CARDS_KEY, "denied_alert": "access.external.denied_alert",
                 "pending_retention_days": ag.PENDING_RETENTION_KEY, "pending_max_per_vendor": ag.PENDING_CAP_KEY}
         before = ag.settings_view(conn)
         for name, value in changes.items():

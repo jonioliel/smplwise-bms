@@ -20,6 +20,7 @@ import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula
 import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { meterNames } from './meter-name';
+import { dateInputLang } from '../api/day-format';
 
 const STEPS = ['בחירת מונים', 'נוסחת החשבון', 'מחיר ומע״מ', 'תקופת חיוב', 'כרטיס לקוח', 'סיכום והפקה'];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -343,7 +344,7 @@ export class ElecAccountWizard extends ElecBase {
         ${this.months === 2 ? html`<div class="fld"><label for="am">חודש פתיחת המחזור</label><select id="am" data-anchor-month ?disabled=${this.edit} @change=${(e: Event) => (this.anchorMonth = Number((e.target as HTMLSelectElement).value))}>${MONTH_NAMES.map((m, i) => html`<option value=${i + 1} ?selected=${this.anchorMonth === i + 1}>${m}</option>`)}</select></div>` : nothing}
         <div class="fld"><label for="ad">יום תחילת תקופה</label><div class="unit"><input id="ad" class="ltr" type="number" min="1" max="28" data-anchor-day ?disabled=${this.edit} .value=${String(this.anchorDay)} @input=${(e: Event) => (this.anchorDay = Number((e.target as HTMLInputElement).value))} /><span>בחודש</span></div>
           ${this.anchorDay < 1 || this.anchorDay > 28 ? html`<div class="msg" role="alert">היום חייב להיות בין 1 ל-28</div>` : nothing}</div>
-        <div class="fld"><label for="fs">תחילת החיוב הראשון</label><input id="fs" type="date" class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
+        <div class="fld"><label for="fs">תחילת החיוב הראשון</label><input id="fs" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.firstStart) ? '' : 'err'}" data-first-start ?disabled=${this.edit} .value=${this.firstStart} @change=${(e: Event) => (this.firstStart = (e.target as HTMLInputElement).value)} />
           ${isIsoDate(this.firstStart) ? nothing : html`<div class="msg" role="alert">צריך לבחור תאריך</div>`}</div>
       </div>
       <div class="card flush soft"><div class="hd"><b class="h3">התקופות הבאות</b></div>${periods.length ? html`<table class="t" data-periods><thead><tr><th>תקופה</th><th>מספר חיוב</th></tr></thead><tbody>
@@ -427,7 +428,7 @@ export class ElecAccountWizard extends ElecBase {
         <div class="fld wide"><label for="tn">שם התעריף</label><input id="tn" class="${f.err.name ? 'err' : ''}" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} />${f.err.name ? html`<div class="msg" role="alert">${f.err.name}</div>` : nothing}</div>
         <div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${f.err.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${f.price} @input=${(e: Event) => set('price', (e.target as HTMLInputElement).value)} /><span>₪</span></div>${f.err.price ? html`<div class="msg" role="alert">${f.err.price}</div>` : nothing}</div>
         <div class="fld"><span class="lbl">המחיר שהוזן</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${f.mode === 'ex_vat'} @click=${() => (this.tf = { ...f, mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${f.mode === 'inc_vat'} @click=${() => (this.tf = { ...f, mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
-        <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
+        <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
       </div>
       ${f.error ? alertBox('err', f.error) : nothing}
       <button slot="actions" type="button" class="btn pri" data-tariff-save ?disabled=${f.busy} @click=${() => void this.saveTariff()}>שמירה</button>

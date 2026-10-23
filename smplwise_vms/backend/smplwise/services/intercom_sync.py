@@ -1183,6 +1183,7 @@ class IntercomSync:
         on_result: Callable[[dict[str, Any], str], None] | None = None,
         target: str | None = None,
         on_late: Callable[[dict[str, Any]], None] | None = None,
+        channel: str = "service",
     ) -> dict[str, Any]:
         """Run one PHYSICAL WisKey command (release, call signal, TTS start) like `command` - over the feed's own live
         session, never queued, never retried - but in the action lane (its own in-flight slots and rate buckets, so
@@ -1207,10 +1208,26 @@ class IntercomSync:
         (`ok` / `refused` / `unknown`) when this side stopped waiting (the local timeout) and the call ends later."""
         timeout = {"config": CONFIG_TIMEOUT_S, "capture": CAPTURE_TIMEOUT_S}.get(lane, ACTION_TIMEOUT_S)
         reply, outcome = self._execute(settings, key, send, project, who, timeout, lane=lane, not_after=not_after, on_settled=on_settled, slot_wait=slot_wait, free=free,
-                                       on_result=on_result, target=target, on_late=on_late)
+                                       on_result=on_result, target=target, on_late=on_late, channel=channel)
         if outcome != "ok":
             raise action_error(reply, outcome, lane)
         return reply
+
+    def media_post(self, send: Callable[[intercom_client.Call], Awaitable[Any]], channel: str = "media") -> Any:
+        """AVW10-295: schedule one talk-stream frame (`media/talk_frame` / `media/talk_floor`) on the feed's live session and return
+        its future at once (None when there is no live session: the caller ends the talk). No lane slot and no rate token: a talk
+        sends 50 frames a second while push-to-talk is held, and its own limits are the talk socket's (routers/intercom_media.py:
+        frames only while the floor is held, at most 100 a second, at most 1024 bytes) plus the caller's bound on frames in
+        flight. Only the `media` channel's guard is used, so nothing else can ride this path."""
+        loop = self._event_loop
+        if channel != "media" or loop is None or getattr(self, "_call", None) is None or STATE.state != "ready":
+            return None
+        coro = self._one_off(send, None, channel)
+        try:
+            return asyncio.run_coroutine_threadsafe(coro, loop)
+        except RuntimeError:  # the session's loop closed between the check and scheduling
+            coro.close()
+            return None
 
     def _execute(
         self,
@@ -1652,6 +1669,7 @@ class IntercomSync:
             if STATE.connected:
                 STATE.reconnects += 1
                 _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
+            _media_hook(None)  # AVW10-295: a talk through WisKey does not outlive the session it was opened on (no resume, no retry)
             STATE.connected = False
             try:
                 await asyncio.wait_for(stop_evt.wait(), timeout=delay)
@@ -1767,7 +1785,10 @@ class IntercomSync:
                 self._kick()
             elif kind == "access_revoked":
                 _lease_hook("receiver_changed")  # T8: the add-on lost WisKey access - every live capture lease goes
+                _media_hook(None)  # AVW10-295: and every talk through WisKey with it
                 self._fail(IntercomError("unauthorized", "subscribe"))
+            else:
+                _media_hook(event)  # AVW10-295: WisKey ended a talk itself (`media/talk_closed`); anything else is ignored there
         elif mid == self._entities_sub:
             # subscribe_entities also opens with the current states; that costs one coalesced refetch, and clients
             # are only told when the projection actually changed
@@ -1883,6 +1904,17 @@ def _lease_hook(reason: str, station_ids: list[str] | None = None) -> None:
             capture_lease.on_authority_change(reason, all=True)
         elif station_ids:
             capture_lease.on_authority_change(reason, station_ids=station_ids)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _media_hook(event: dict[str, Any] | None) -> None:
+    """AVW10-295: a WisKey subscription event for the station-media talks (None: every WisKey talk ends - the session is going).
+    Non-blocking (safe on this event loop), never raises."""
+    try:
+        from . import intercom_media
+
+        intercom_media.on_wiskey_event(event)
     except Exception:  # noqa: BLE001
         pass
 

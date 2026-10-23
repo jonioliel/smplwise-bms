@@ -186,7 +186,7 @@ def delete(conn, viewer: Viewer, seen: Seen, chk: Check, reason: str, rid: str |
         if not link.get("revoked_at") and revoke(conn, link, "manual", when):
             revoked += 1
     cancelled = store.cancel_ticket_outbox(conn, ticket_id, at)
-    notify_bridge.resolve_prefix(conn, ticket_id)  # every open notification of the ticket (assign, stuck, cost, send ...)
+    notify_bridge.resolve_prefix(conn, ticket_id, followers=True)  # every open notification of the ticket (assign, stuck, cost, send, status / note ...)
     facts = chk.facts or store.deletion_facts(conn, ticket_id)
     removed = store.purge_ticket(conn, ticket_id)
     counts = {"notes": facts["notes"], "photos": facts["photos"], "files": facts["photos"] + facts["cost_files"], "links": facts["links"],

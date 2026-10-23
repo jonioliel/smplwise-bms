@@ -25,6 +25,7 @@ import { describeError, get, patch, post, put, ApiError } from './client';
 import { commandId } from './request-id';
 import { isApi } from './session';
 import type { DayToken, ScheduleDraft } from './schedules';
+import { timeText } from './day-format';
 
 // ------------------------------------------------------------------------------------------------ vocabulary and blocks (§2.1)
 
@@ -1892,7 +1893,7 @@ export function traceView(t: RunTrace, opts: { timeZone?: string } = {}): TraceV
     if (!iso) return null;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
-    return new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: opts.timeZone }).format(d);
+    return timeText(d, { timeZone: opts.timeZone, seconds: true });
   };
   const cond = (c: RunTrace['conditions'][number]): TraceRow => ({
     path: c.path, depth: 0, sentence: c.sentence, status: c.passed === null ? 'skip' : c.passed ? 'ok' : 'bad', tag: c.passed === null ? 'דולג' : c.passed ? 'עבר' : 'נכשל',
@@ -1915,7 +1916,7 @@ export function traceView(t: RunTrace, opts: { timeZone?: string } = {}): TraceV
  * "רצה ב־18:42 כי …; התנאי "…" עבר; …". */
 export function shortRunSentence(t: Pick<RunTrace, 'at' | 'result' | 'trigger' | 'conditions' | 'steps' | 'context'>, opts: { timeZone?: string } = {}): string {
   const d = new Date(t.at);
-  const hhmm = Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: opts.timeZone }).format(d);
+  const hhmm = Number.isNaN(d.getTime()) ? '' : timeText(d, { timeZone: opts.timeZone });
   const failed = t.conditions.find((c) => c.passed === false);
   const manual = t.context.parent === 'user';
   const head = manual ? `הורצה ידנית ב־${hhmm}${t.context.user ? ` על ידי ${t.context.user}` : ''}` : failed ? `הופעלה ב־${hhmm} כי ${t.trigger.sentence}` : `רצה ב־${hhmm} כי ${t.trigger.sentence}`;

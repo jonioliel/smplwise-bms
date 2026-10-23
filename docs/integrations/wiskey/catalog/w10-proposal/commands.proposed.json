@@ -1,0 +1,103 @@
+{
+  "note": "Arx's PROPOSAL for WisKey W10 (arx.station_media.v1, docs/changes/CR-036-S18-MEDIA.md section 3), written by Arx 2026-10-23 (AVW10-295). NOT an extraction of WisKey's command registry and not part of the pinned rc37-contract.4 catalog. Same shape as the pin's commands.static.json (top-level request keys, base READ class) so tests/test_wiskey_contract.py can hold Arx's frames to it. Replace it with WisKey's own contract package once W10 ships; scripts/wiskey_contract_diff.py then reports the difference.",
+  "schema": "arx.station_media.v1",
+  "count": 6,
+  "commands": {
+    "media/station_descriptor": {
+      "request": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "type": {"const": "hikvision_intercom/media/station_descriptor"},
+          "api_contract": {"type": "integer", "minimum": 0, "maximum": 1},
+          "station_id": {"type": "string"},
+          "actor": {"type": "object"},
+          "request_id": {"type": "string"}
+        },
+        "required": ["id", "type", "station_id", "actor", "request_id"],
+        "additionalProperties": false
+      },
+      "permission": {"read_command_for_security_guard_and_api_contract": true}
+    },
+    "media/stream_lease": {
+      "request": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "type": {"const": "hikvision_intercom/media/stream_lease"},
+          "api_contract": {"type": "integer", "minimum": 0, "maximum": 1},
+          "session": {"type": "string"},
+          "profile": {"type": "string"},
+          "actor": {"type": "object"},
+          "request_id": {"type": "string"}
+        },
+        "required": ["id", "type", "session", "profile", "actor", "request_id"],
+        "additionalProperties": false
+      },
+      "permission": {"read_command_for_security_guard_and_api_contract": false}
+    },
+    "media/talk_open": {
+      "request": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "type": {"const": "hikvision_intercom/media/talk_open"},
+          "api_contract": {"type": "integer", "minimum": 0, "maximum": 1},
+          "session": {"type": "string"},
+          "actor": {"type": "object"},
+          "request_id": {"type": "string"},
+          "expires_at": {"type": "string"}
+        },
+        "required": ["id", "type", "session", "actor", "request_id", "expires_at"],
+        "additionalProperties": false
+      },
+      "permission": {"read_command_for_security_guard_and_api_contract": false}
+    },
+    "media/talk_frame": {
+      "request": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "type": {"const": "hikvision_intercom/media/talk_frame"},
+          "api_contract": {"type": "integer", "minimum": 0, "maximum": 1},
+          "talk_ref": {"type": "string"},
+          "seq": {"type": "integer", "minimum": 1},
+          "data": {"type": "string"}
+        },
+        "required": ["id", "type", "talk_ref", "seq", "data"],
+        "additionalProperties": false
+      },
+      "permission": {"read_command_for_security_guard_and_api_contract": false}
+    },
+    "media/talk_floor": {
+      "request": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "type": {"const": "hikvision_intercom/media/talk_floor"},
+          "api_contract": {"type": "integer", "minimum": 0, "maximum": 1},
+          "talk_ref": {"type": "string"},
+          "held": {"type": "boolean"}
+        },
+        "required": ["id", "type", "talk_ref", "held"],
+        "additionalProperties": false
+      },
+      "permission": {"read_command_for_security_guard_and_api_contract": false}
+    },
+    "media/talk_close": {
+      "request": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "type": {"const": "hikvision_intercom/media/talk_close"},
+          "api_contract": {"type": "integer", "minimum": 0, "maximum": 1},
+          "talk_ref": {"type": "string"},
+          "reason": {"type": "string"}
+        },
+        "required": ["id", "type", "talk_ref", "reason"],
+        "additionalProperties": false
+      },
+      "permission": {"read_command_for_security_guard_and_api_contract": false}
+    }
+  }
+}

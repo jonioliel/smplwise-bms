@@ -47,6 +47,20 @@ CAP_FACTOR = 1.5
 CAP_SLACK_WH = 50
 
 
+@dataclass(frozen=True)
+class CounterProfile:
+    """CR-WATER78 D1 (the medium profile): the absolute thresholds of the rules in the base unit of a medium. The electricity
+    profile (`ENERGY`, Wh) is the default everywhere and carries exactly the constants above, so electricity behaves as before;
+    water (`services/water_meters.WATER_PROFILE`, mL) passes its own: noise / reset 20 L, cap slack 20 L."""
+
+    reset_abs: int = RESET_ABS_WH
+    noise_abs: int = NOISE_ABS_WH
+    cap_slack: int = CAP_SLACK_WH
+
+
+ENERGY = CounterProfile()
+
+
 def flag_names(flags: int) -> list[str]:
     return [name for bit, name in FLAG_NAMES.items() if flags & bit]
 
@@ -80,8 +94,10 @@ class Outcome:
     accepted: bool = False   # the reading became the new reference (or was a held one confirmed)
 
 
-def cap_wh(max_kw: float, t0: int, t1: int) -> float:
-    return max(0.0, max_kw) * max(0, t1 - t0) / 3600.0 * 1000.0 * CAP_FACTOR + CAP_SLACK_WH
+def cap_wh(max_kw: float, t0: int, t1: int, profile: CounterProfile = ENERGY) -> float:
+    """The plausibility cap of a step: rate x hours x 1.5 x 1000 + slack, in the profile's base unit (kW -> Wh; for water the rate is
+    litres per hour, so the same arithmetic gives mL)."""
+    return max(0.0, max_kw) * max(0, t1 - t0) / 3600.0 * 1000.0 * CAP_FACTOR + profile.cap_slack
 
 
 def quality_of(t0: int, t1: int) -> int:
@@ -92,8 +108,9 @@ def _span(t0: int, t1: int, wh: int) -> Span:
     return Span(t0, t1, wh, quality_of(t0, t1))
 
 
-def process(state: CounterState, ts: int, value_wh: int, max_kw: float, last_reset: str | None = None) -> Outcome:
-    """Apply one reading. Out-of-order or duplicate readings (ts <= last accepted) change nothing."""
+def process(state: CounterState, ts: int, value_wh: int, max_kw: float, last_reset: str | None = None, profile: CounterProfile = ENERGY) -> Outcome:
+    """Apply one reading. Out-of-order or duplicate readings (ts <= last accepted) change nothing. `profile` carries the
+    absolute thresholds of the medium (default: electricity, Wh)."""
     if state.last_ts is None or state.last_value_wh is None:
         return Outcome(replace(state, last_ts=ts, last_value_wh=value_wh, held_ts=None, held_value_wh=None, held_kind=None, last_reset=last_reset), accepted=True)
     t0, p = state.last_ts, state.last_value_wh
@@ -111,7 +128,7 @@ def process(state: CounterState, ts: int, value_wh: int, max_kw: float, last_res
     if state.held_ts is not None and state.held_value_wh is not None:
         hts, hv = state.held_ts, state.held_value_wh
         cleared = replace(state, held_ts=None, held_value_wh=None, held_kind=None)
-        if 0 <= value_wh - hv <= cap_wh(max_kw, hts, ts):  # the held reading is confirmed by this one
+        if 0 <= value_wh - hv <= cap_wh(max_kw, hts, ts, profile):  # the held reading is confirmed by this one
             out = Outcome(replace(cleared, last_ts=ts, last_value_wh=value_wh), accepted=True)
             if state.held_kind == "up":
                 out.spans.append(Span(t0, hts, hv - p, Q_SPREAD))
@@ -122,7 +139,7 @@ def process(state: CounterState, ts: int, value_wh: int, max_kw: float, last_res
                 out.flags |= F_REBASE
             out.spans.append(_span(hts, ts, value_wh - hv))
             return out
-        if 0 <= value_wh - p <= cap_wh(max_kw, t0, ts):  # back at the old level: the held reading was a spike
+        if 0 <= value_wh - p <= cap_wh(max_kw, t0, ts, profile):  # back at the old level: the held reading was a spike
             out = Outcome(replace(cleared, last_ts=ts, last_value_wh=value_wh), accepted=True)
             out.spans.append(_span(t0, ts, value_wh - p))
             out.events.append((hts, "spike_dropped", hv - p))
@@ -132,21 +149,21 @@ def process(state: CounterState, ts: int, value_wh: int, max_kw: float, last_res
 
     d = value_wh - p
     if d >= 0:
-        if d <= cap_wh(max_kw, t0, ts):
+        if d <= cap_wh(max_kw, t0, ts, profile):
             out = Outcome(replace(state, last_ts=ts, last_value_wh=value_wh), accepted=True)
             out.spans.append(_span(t0, ts, d))
             return out
         out = Outcome(replace(state, held_ts=ts, held_value_wh=value_wh, held_kind="up"))
         out.flags |= F_GLITCH
         return out
-    if value_wh <= RESET_FRACTION * p or value_wh <= RESET_ABS_WH:
+    if value_wh <= RESET_FRACTION * p or value_wh <= profile.reset_abs:
         energy = max(0, value_wh)
         out = Outcome(replace(state, last_ts=ts, last_value_wh=value_wh), accepted=True)
         out.spans.append(_span(t0, ts, energy))
         out.flags |= F_RESET
         out.events.append((ts, "reset", energy))
         return out
-    if -d < NOISE_FRACTION * p and -d < NOISE_ABS_WH:
+    if -d < NOISE_FRACTION * p and -d < profile.noise_abs:
         out = Outcome(state)
         out.flags |= F_NOISE
         out.events.append((ts, "noise_ignored", -d))

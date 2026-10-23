@@ -17,6 +17,7 @@ import { costColumnsOn } from './table-model';
 import { COST_FILTER_STATUSES } from './cost-model';
 import { ct, type CostTextKey } from './cost-text';
 import { lt } from './list-text';
+import { dateInputLang } from '../api/day-format';
 
 type Pop = 'columns' | 'views' | 'filters' | 'report' | null;
 
@@ -230,8 +231,8 @@ export class TicketsTableToolbar extends LitElement {
     const grp = (g: MonthlyGroup, label: string) => html`<button type="button" class="rc" aria-pressed=${String(this.repGroup === g)} data-rep-group=${g} @click=${() => (this.repGroup = g)}>${label}</button>`;
     return html`<div class="pop" role="dialog" aria-label=${tbt('monthlyTitle')} data-pop="report">
       <div class="dates">
-        <label>${tbt('monthlyFrom')}<input class="inp" type="date" required data-rep-from .value=${this.repFrom} @change=${(ev: Event) => (this.repFrom = (ev.target as HTMLInputElement).value)} /></label>
-        <label>${tbt('monthlyTo')}<input class="inp" type="date" required data-rep-to .value=${this.repTo} @change=${(ev: Event) => (this.repTo = (ev.target as HTMLInputElement).value)} /></label>
+        <label>${tbt('monthlyFrom')}<input class="inp" type="date" lang=${dateInputLang()} required data-rep-from .value=${this.repFrom} @change=${(ev: Event) => (this.repFrom = (ev.target as HTMLInputElement).value)} /></label>
+        <label>${tbt('monthlyTo')}<input class="inp" type="date" lang=${dateInputLang()} required data-rep-to .value=${this.repTo} @change=${(ev: Event) => (this.repTo = (ev.target as HTMLInputElement).value)} /></label>
       </div>
       <div class="fgrp">${grp('department', tbt('monthlyByDepartment'))}${grp('vendor', tbt('monthlyByVendor'))}</div>
       ${this.repError ? html`<div class="hd" role="alert" data-rep-error>${this.repError}</div>` : nothing}
@@ -259,8 +260,8 @@ export class TicketsTableToolbar extends LitElement {
       <div class="fgrp">${COST_FILTER_STATUSES.map((k) => html`<button type="button" class="rc" aria-pressed=${String(e.cost_status.includes(k))} data-f-cost-status=${k}
         @click=${() => this.setExtra({ cost_status: e.cost_status.includes(k) ? e.cost_status.filter((x) => x !== k) : [...e.cost_status, k] })}>${ct(`cs_${k}` as CostTextKey)}</button>`)}</div>` : nothing}
       <div class="dates">
-        <label>${tbt('fCreatedFrom')}<input class="inp" type="datetime-local" data-f-from .value=${toLocalInput(e.created_from)} @change=${(ev: Event) => this.setExtra({ created_from: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
-        <label>${tbt('fCreatedTo')}<input class="inp" type="datetime-local" data-f-to .value=${toLocalInput(e.created_to)} @change=${(ev: Event) => this.setExtra({ created_to: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
+        <label>${tbt('fCreatedFrom')}<input class="inp" type="datetime-local" lang=${dateInputLang()} data-f-from .value=${toLocalInput(e.created_from)} @change=${(ev: Event) => this.setExtra({ created_from: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
+        <label>${tbt('fCreatedTo')}<input class="inp" type="datetime-local" lang=${dateInputLang()} data-f-to .value=${toLocalInput(e.created_to)} @change=${(ev: Event) => this.setExtra({ created_to: fromLocalInput((ev.target as HTMLInputElement).value) })} /></label>
       </div>
       </div>
       <hr />

@@ -27,6 +27,7 @@ import { invalidateSettings } from '../api/prefs';
 import { isApi, session } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayTimeText } from '../api/day-format';
 
 const STRATEGY: Record<string, string> = {
   device: 'אותו device',
@@ -227,7 +228,7 @@ export class SystemAlarmSettings extends LitElement {
     const otherPanels = (this.cfg?.panels ?? []).filter((x) => x.config_entry_id === p.config_entry_id && x.platform === p.platform);
     return html`<sw-card heading=${`${p.name}`} subheading=${`${p.integration} · ${p.entity_id}`} data-alarm-settings-panel=${p.entity_id}>
       <div class="row"><span class="lbl">שילוב<span class="muted">${p.integration_note || '—'} · config entry <span class="ltr">${p.config_entry_id ?? '—'}</span> · מצבי דריכה: ${p.arm_modes.join(', ')}${p.features_reported ? '' : ' (לא דווחו)'} · קוד: ${p.code_format ?? 'לא נדרש'}${p.code_format ? ` · קוד לדריכה: ${p.code_arm_required ? 'כן' : 'לא'}` : ''}</span></span></div>
-      <div class="row"><span class="lbl">קוד הלוח<span class="muted">נשמר מוצפן (AES-GCM, מפתח בתיקיית הנתונים של התוסף), לא מוצג ולא יוצא מהמערכת. משמש לשליחה ללוח עבור משתמשים מורשים.${info?.set ? ` מוגדר · ${new Date(info.set_at ?? '').toLocaleString('he-IL')} · ${info.set_by ?? ''}` : ' לא מוגדר.'}</span></span>
+      <div class="row"><span class="lbl">קוד הלוח<span class="muted">נשמר מוצפן (AES-GCM, מפתח בתיקיית הנתונים של התוסף), לא מוצג ולא יוצא מהמערכת. משמש לשליחה ללוח עבור משתמשים מורשים.${info?.set ? ` מוגדר · ${dayTimeText(new Date(info.set_at ?? ''), { seconds: true })} · ${info.set_by ?? ''}` : ' לא מוגדר.'}</span></span>
         <span class="inline">
           <input type="password" inputmode=${p.code_format === 'number' ? 'numeric' : 'text'} autocomplete="new-password" maxlength="32" placeholder="קוד חדש" aria-label="קוד הלוח" data-panel-code-input ?disabled=${ro}
             .value=${draft} @input=${(e: Event) => (this.codeDraft = { ...this.codeDraft, [p.entity_id]: (e.target as HTMLInputElement).value })} />
@@ -353,7 +354,7 @@ export class SystemAlarmUser extends LitElement {
         : nothing}
       <div class="row"><span class="lbl">דריכה<span class="muted">ללא קוד: לחיצה אחת, והמערכת שולחת את קוד הלוח השמור</span></span>${sel('arm_policy', p.arm_policy)}</div>
       <div class="row"><span class="lbl">נטרול ועקיפה<span class="muted">עקיפת חיישן הולכת לפי מדיניות הנטרול</span></span>${sel('disarm_policy', p.disarm_policy)}</div>
-      <div class="row"><span class="lbl">קוד אישי<span class="muted">${p.pin_set ? `מוגדר${p.pin_set_at ? ` · ${new Date(p.pin_set_at).toLocaleString('he-IL')}` : ''}${p.pin_set_by ? ` · ${p.pin_set_by}` : ''}` : 'לא מוגדר'} · 4–8 ספרות, נשמר כ-hash בלבד</span></span>
+      <div class="row"><span class="lbl">קוד אישי<span class="muted">${p.pin_set ? `מוגדר${p.pin_set_at ? ` · ${dayTimeText(new Date(p.pin_set_at), { seconds: true })}` : ''}${p.pin_set_by ? ` · ${p.pin_set_by}` : ''}` : 'לא מוגדר'} · 4–8 ספרות, נשמר כ-hash בלבד</span></span>
         <span class="inline"><input type="password" inputmode="numeric" autocomplete="new-password" maxlength="8" placeholder="קוד חדש" aria-label="קוד אישי" data-user-pin ?disabled=${ro} .value=${this.pin} @input=${(e: Event) => (this.pin = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" variant="primary" data-user-pin-save ?disabled=${ro || !/^\d{4,8}$/.test(this.pin)} @click=${() => { const v = this.pin; this.pin = ''; void this.run(() => setUserPin(this.userId, v, this.self ? this.current || undefined : undefined), 'הקוד האישי נשמר'); }}>שמירה</sw-button>
           ${p.pin_set ? html`<sw-button size="sm" variant="ghost" data-user-pin-clear ?disabled=${ro} @click=${() => void this.run(() => clearUserPin(this.userId), 'הקוד האישי נמחק')}>מחיקה</sw-button>` : nothing}</span></div>

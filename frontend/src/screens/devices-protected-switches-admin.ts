@@ -13,6 +13,7 @@ import {
 } from './protected-switches-logic';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayTimeText } from '../api/day-format';
 
 const PAGE = 100;
 
@@ -269,7 +270,7 @@ export class DevicesProtectedSwitches extends LitElement {
     const when = (r: ProtectedSwitchRow) => {
       const at = r.reviewed_at ?? r.marked_at;
       const who = r.reviewed_at ? r.reviewed_by : r.marked_by;
-      return at ? [who, new Date(at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })].filter(Boolean).join(' · ') : '';
+      return at ? [who, dayTimeText(new Date(at))].filter(Boolean).join(' · ') : '';
     };
     const box = (r: ProtectedSwitchRow) =>
       html`<input type="checkbox" data-protected-row=${r.entity_id} aria-label=${`בחר ${r.name}`} .checked=${this.selected.has(r.entity_id)} ?disabled=${readOnly(r)} @click=${(e: MouseEvent) => this.toggle(r.entity_id, (e.currentTarget as HTMLInputElement).checked, e.shiftKey, list)} />`;

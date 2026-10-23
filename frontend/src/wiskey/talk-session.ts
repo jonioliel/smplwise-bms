@@ -88,6 +88,7 @@ export function outcomeOfClose(code: number): string {
   if (code === 4408) return 'expired';
   if (code === 4403) return 'access_lost';
   if (code === 4503) return 'upstream_unavailable';
+  if (code === 4423) return 'busy';
   if (code === 4404 || code === 4409) return 'refused';
   if (code === 1000) return 'ended';
   return 'network';
@@ -102,6 +103,8 @@ export function problemOfOutcome(outcome: string): TalkProblem | null {
       return 'expired';
     case 'access_lost':
       return 'access_lost';
+    case 'busy':
+      return 'busy';
     case 'upstream_closed':
     case 'upstream_unavailable':
       return 'upstream';
