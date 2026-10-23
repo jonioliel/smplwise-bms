@@ -12,7 +12,7 @@ LIMITS_DEFAULT: dict[str, int] = {"writes_per_min": 30, "preview_per_min": 60, "
 LIMITS_RANGE: dict[str, tuple[int, int]] = {"writes_per_min": (1, 600), "preview_per_min": (1, 1200), "run_interval_s": (0, 3600), "scene_apply_interval_s": (0, 600),
                                             "storm_item_per_min": (2, 1000), "storm_total_per_min": (5, 10000)}
 CODE_VIEW_ROLES_DEFAULT = ["site_admin", "system_admin"]
-BOOL_KEYS = ("automations.enabled", "automations.storm_auto_disable", "automations.sensitive_warning", "automations.templates_enabled", "automations.ask_when_on_new")
+BOOL_KEYS = ("automations.enabled", "automations.storm_auto_disable", "automations.sensitive_warning", "automations.templates_enabled", "automations.ask_when_on_new", "automations.blueprints_enabled")
 LIST_KEYS = ("automations.code_view_roles", "automations.templates_hidden", "automations.templates_order", "automations.notify_targets")
 JSON_KEYS = LIST_KEYS + ("automations.limits",)
 INT_KEYS = ("automations.trash_days", "automations.versions_keep")
@@ -30,6 +30,7 @@ DEFAULTS: dict[str, str] = {
     "automations.templates_order": "[]",
     "automations.notify_targets": "[]",
     "automations.ask_when_on_new": "false",
+    "automations.blueprints_enabled": "false",  # CR-BLUEPRINT80: the ready-made templates library, OFF by default
     # owner answers 2026-10-01: how the phone list header folds the state filter, and the colour of the sensitive-step warning chip
     "automations.phone_filter": "fold",
     "automations.sensitive_chip": "amber",

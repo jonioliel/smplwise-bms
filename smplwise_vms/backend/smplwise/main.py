@@ -442,6 +442,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(multimedia.router, prefix=api, tags=["multimedia"])  # CR-015: מולטימדיה - מסכים ושלט (/api/v1/multimedia; /api/v1/media is the camera video router)
     app.include_router(schedules.router, prefix=api, tags=["schedules"])  # CR-014: תזמונים
     app.include_router(automations.router, prefix=api, tags=["automations"])  # CR-017: אוטומציות · סצנות · סקריפטים
+    from .routers import automation_blueprints as automation_blueprints_router  # CR-BLUEPRINT80: ready-made automation templates (its own line)
+
+    app.include_router(automation_blueprints_router.router, prefix=api, tags=["automations"])
     app.include_router(alarm.router, prefix=api, tags=["alarm"])  # CR-010: אבטחה › אזעקה
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(skins.router, prefix=api, tags=["plans"])
