@@ -3,6 +3,7 @@ the module settings (section 11). Pure functions: no database, no network."""
 from __future__ import annotations
 
 import datetime as dt
+import ipaddress
 import json
 import re
 from typing import Any
@@ -158,6 +159,17 @@ def _feed(raw: Any) -> dict[str, str] | None:
     url = str(raw.get("url") or "").strip()
     name = str(raw.get("name") or "").strip()[:40]
     if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url):
+        return None
+    # SEC217 (security review 2.16.0, finding 2.1): the syntax and name rules of the outgoing-request check at save time (port 443
+    # only, no user-info, no local / platform names, an IP literal must be globally routable). The DNS answers are checked again
+    # before EVERY fetch (sources.feed_target), so a name that later resolves inward is still refused.
+    from ..partner import ssrf
+
+    try:
+        target = ssrf.parse(url, ports=frozenset({443}), default_port=443)
+        if target.literal and ssrf.address_refused(ipaddress.ip_address(target.host)):
+            return None
+    except ssrf.Refused:
         return None
     return {"name": name or url[8:40], "url": url}
 

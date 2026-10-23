@@ -85,6 +85,52 @@ def may_handle(viewer: Viewer) -> bool:
     return access.MANAGE in viewer.anywhere and any(role == "manager" for role in viewer.roles.values())
 
 
+def draft_scope(viewer: Viewer) -> frozenset[str] | None:
+    """SEC217 (security review 2.16.0, finding 4.1): the departments whose drafts this handler sees. None = every draft (`tickets.intake`
+    held installation-wide, or a manager who also holds tickets.all_departments - he manages every department's requests anyway);
+    otherwise the departments he MANAGES. A draft belongs to its edited department, else the suggested one, else the intake default
+    department (the same order as an approval); a draft with no department at all is seen installation-wide only."""
+    if viewer.holds_installation(access.INTAKE):
+        return None
+    if access.MANAGE not in viewer.anywhere:
+        return frozenset()
+    if access.ALL_DEPARTMENTS in viewer.anywhere:
+        return None
+    return frozenset(d for d, role in viewer.roles.items() if role == "manager")
+
+
+# the draft's department in SQL, in the order of _final_values (edited key present - even null - wins over the suggestion)
+_DRAFT_DEPT_SQL = ("COALESCE(CASE WHEN json_type(COALESCE(NULLIF(edited_json, ''), '{}'), '$.department_id') IS NOT NULL "
+                   "THEN json_extract(COALESCE(NULLIF(edited_json, ''), '{}'), '$.department_id') "
+                   "ELSE json_extract(COALESCE(NULLIF(suggestion_json, ''), '{}'), '$.department_id') END, NULLIF(?, ''))")
+
+
+def _scope_sql(conn: sqlite3.Connection, viewer: Viewer) -> tuple[str, list[Any]]:
+    """A WHERE fragment (with its parameters) that keeps the drafts of `draft_scope`; empty for an installation-wide handler."""
+    scope = draft_scope(viewer)
+    if scope is None:
+        return "", []
+    if not scope:
+        return " AND 0", []
+    marks = ",".join("?" * len(scope))
+    return f" AND {_DRAFT_DEPT_SQL} IN ({marks})", [cfg(conn)["default_department"] or "", *sorted(scope)]
+
+
+def draft_department(conn: sqlite3.Connection, r: Mapping[str, Any]) -> str | None:
+    edited = json.loads(r["edited_json"] or "{}")
+    sug = json.loads(r["suggestion_json"] or "{}")
+    dept = edited["department_id"] if "department_id" in edited else sug.get("department_id")
+    return dept or (cfg(conn)["default_department"] or None)
+
+
+def in_scope(conn: sqlite3.Connection, viewer: Viewer, r: Mapping[str, Any]) -> bool:
+    scope = draft_scope(viewer)
+    if scope is None:
+        return True
+    dept = draft_department(conn, r)
+    return bool(dept) and dept in scope
+
+
 def may_manage_list(viewer: Viewer) -> bool:
     return viewer.holds_installation(access.INTAKE) or viewer.holds_installation(access.CONFIGURE)
 
@@ -341,7 +387,7 @@ def _notify_new(conn: sqlite3.Connection, draft_id: str, sug: Mapping[str, Any])
 
 # ---------------------------------------------------------------- drafts (the handler's side)
 
-def draft_view(conn: sqlite3.Connection, r: Mapping[str, Any], *, detail: bool = False) -> dict[str, Any]:
+def draft_view(conn: sqlite3.Connection, r: Mapping[str, Any], *, detail: bool = False, viewer: Viewer | None = None) -> dict[str, Any]:
     sug = json.loads(r["suggestion_json"] or "{}")
     edited = json.loads(r["edited_json"] or "{}")
     known = conn.execute("SELECT display_name, org, last4 FROM ticket_intake_known WHERE id = ?", (r["known_id"],)).fetchone() if r["known_id"] else None
@@ -355,20 +401,27 @@ def draft_view(conn: sqlite3.Connection, r: Mapping[str, Any], *, detail: bool =
         "category_id": edited.get("category_id", (sug.get("category") or {}).get("value")),
     }
     if detail:
-        out.update({"text": text_, "suggestion": sug, "edited": edited, "duplicates": _duplicates(conn, r, sug)})
+        out.update({"text": text_, "suggestion": sug, "edited": edited, "duplicates": _duplicates(conn, r, sug, viewer)})
     return out
 
 
-def _duplicates(conn: sqlite3.Connection, r: Mapping[str, Any], sug: Mapping[str, Any]) -> dict[str, Any]:
-    """Possible duplicates: other OPEN drafts of the same sender; open tickets in the same category in the last 7 days (numbers only)."""
-    same = conn.execute("SELECT id FROM ticket_intake_drafts WHERE state = 'open' AND sender_key = ? AND id <> ? LIMIT 5", (r["sender_key"], r["id"])).fetchall()
+def _duplicates(conn: sqlite3.Connection, r: Mapping[str, Any], sug: Mapping[str, Any], viewer: Viewer | None = None) -> dict[str, Any]:
+    """Possible duplicates: other OPEN drafts of the same sender; open tickets in the same category in the last 7 days (numbers only).
+    SEC217 (finding 4.1): with a viewer, only drafts inside his scope and tickets he may see; without one (internal callers) nothing."""
+    if viewer is None:
+        return {"drafts": [], "ticket_numbers": []}
+    where, params = _scope_sql(conn, viewer)
+    same = conn.execute(f"SELECT id FROM ticket_intake_drafts WHERE state = 'open' AND sender_key = ? AND id <> ?{where} LIMIT 5",
+                        (r["sender_key"], r["id"], *params)).fetchall()
     cat = (sug.get("category") or {}).get("value")
     tickets: list[int] = []
     if cat:
         since = _iso(dt.datetime.now(UTC) - dt.timedelta(days=7))
-        tickets = [x["number"] for x in conn.execute(
-            "SELECT number FROM tickets WHERE category_id = ? AND created_at >= ? AND status NOT IN ('closed','cancelled') ORDER BY number DESC LIMIT 5",
-            (cat, since))]
+        rows = conn.execute(
+            "SELECT id, number FROM tickets WHERE category_id = ? AND created_at >= ? AND status NOT IN ('closed','cancelled') ORDER BY number DESC LIMIT 50",
+            (cat, since)).fetchall()
+        seen = access.visible_by_ids(viewer, [x["id"] for x in rows])
+        tickets = [x["number"] for x in rows if x["id"] in seen][:5]
     return {"drafts": [x["id"] for x in same], "ticket_numbers": tickets}
 
 
@@ -378,25 +431,28 @@ def list_drafts(conn: sqlite3.Connection, viewer: Viewer, *, state: str = "open"
     limit = max(1, min(int(limit), 50))
     order = ("CASE urgency_key WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, received_at"
              if state == "open" else "received_at DESC")
-    rows = conn.execute(f"SELECT * FROM ticket_intake_drafts WHERE state = ? ORDER BY {order} LIMIT ? OFFSET ?", (state, limit, max(0, int(offset)))).fetchall()
-    total = int(conn.execute("SELECT COUNT(*) FROM ticket_intake_drafts WHERE state = ?", (state,)).fetchone()[0])
-    return {"drafts": [draft_view(conn, r) for r in rows], "total": total, "enabled": is_on(conn)}
+    where, params = _scope_sql(conn, viewer)  # SEC217 (finding 4.1): a department manager sees his departments' drafts only
+    rows = conn.execute(f"SELECT * FROM ticket_intake_drafts WHERE state = ?{where} ORDER BY {order} LIMIT ? OFFSET ?",
+                        (state, *params, limit, max(0, int(offset)))).fetchall()
+    total = int(conn.execute(f"SELECT COUNT(*) FROM ticket_intake_drafts WHERE state = ?{where}", (state, *params)).fetchone()[0])
+    return {"drafts": [draft_view(conn, r, viewer=viewer) for r in rows], "total": total, "enabled": is_on(conn)}
 
 
-def _draft(conn: sqlite3.Connection, draft_id: str) -> sqlite3.Row:
+def _draft(conn: sqlite3.Connection, draft_id: str, viewer: Viewer | None = None) -> sqlite3.Row:
+    """A draft by id; with a viewer, a draft outside his scope is the SAME 404 as an unknown id (SEC217, finding 4.1)."""
     r = conn.execute("SELECT * FROM ticket_intake_drafts WHERE id = ?", (draft_id,)).fetchone()
-    if r is None:
+    if r is None or (viewer is not None and not in_scope(conn, viewer, r)):
         raise ApiError(404, "draft_not_found", text(conn, "הפנייה לא נמצאה."))
     return r
 
 
 def get_draft(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, rid: str | None = None) -> dict[str, Any]:
     require_handler(conn, viewer, rid)
-    return draft_view(conn, _draft(conn, draft_id), detail=True)
+    return draft_view(conn, _draft(conn, draft_id, viewer), detail=True, viewer=viewer)
 
 
-def _open_draft(conn: sqlite3.Connection, draft_id: str, revision: int) -> sqlite3.Row:
-    r = _draft(conn, draft_id)
+def _open_draft(conn: sqlite3.Connection, draft_id: str, revision: int, viewer: Viewer | None = None) -> sqlite3.Row:
+    r = _draft(conn, draft_id, viewer)
     if r["state"] != "open" or r["revision"] != revision:
         raise ApiError(409, "draft_changed", text(conn, "הפנייה כבר טופלה או שהשתנתה. טענו מחדש."))
     return r
@@ -434,7 +490,7 @@ def _clean_edits(conn: sqlite3.Connection, raw: Mapping[str, Any]) -> dict[str, 
 
 def edit_draft(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: int, values: Mapping[str, Any], rid: str | None = None) -> dict[str, Any]:
     require_handler(conn, viewer, rid)
-    r = _open_draft(conn, draft_id, revision)
+    r = _open_draft(conn, draft_id, revision, viewer)
     try:
         clean = _clean_edits(conn, values)
     except model.Invalid as exc:
@@ -444,7 +500,9 @@ def edit_draft(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision
     conn.execute("UPDATE ticket_intake_drafts SET edited_json = ?, revision = revision + 1 WHERE id = ?", (_dumps(edited), draft_id))
     audit(conn, actor=viewer.principal, action="ticket.intake.edit", decision="allowed", resource_type="ticket_intake_draft", resource_id=draft_id,
           request_id=rid, details={"fields": sorted(clean)})
-    return draft_view(conn, _draft(conn, draft_id), detail=True)
+    # the answer to the edit itself is the edited draft; when he routed it to a department he does not manage it leaves his queue
+    # (the next read is the uniform 404) - nothing he had not already seen
+    return draft_view(conn, _draft(conn, draft_id), detail=True, viewer=viewer)
 
 
 def _feedback(conn: sqlite3.Connection, r: Mapping[str, Any], final: Mapping[str, Any], now: str) -> None:
@@ -486,7 +544,7 @@ def approve(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: i
     needs tickets.create where the ticket lies (create_ticket checks). The request carries a 'needs review' note; nothing is assigned
     or dispatched. One reply with the request number goes to the requester when `intake.approval_reply` is on (owner 144)."""
     require_handler(conn, viewer, rid)
-    r = _open_draft(conn, draft_id, revision)
+    r = _open_draft(conn, draft_id, revision, viewer)
     v = _final_values(conn, r)
     if not v["department_id"]:
         raise _invalid(conn, "department_id", "required")
@@ -530,7 +588,7 @@ def merge(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: int
     """Attach the text to an existing request as an INTERNAL note (needs: the ticket visible and tickets.manage for its department).
     The request is named by its id or by its number - an invisible or unknown one is the same 404."""
     require_handler(conn, viewer, rid)
-    r = _open_draft(conn, draft_id, revision)
+    r = _open_draft(conn, draft_id, revision, viewer)
     if (ticket_id is None) == (number is None):
         raise _invalid(conn, "ticket_id", "required")
     if ticket_id is None:
@@ -559,7 +617,7 @@ def reject(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: in
     require_handler(conn, viewer, rid)
     if reason not in REJECT_REASONS:
         raise _invalid(conn, "reason", "choice")
-    r = _open_draft(conn, draft_id, revision)
+    r = _open_draft(conn, draft_id, revision, viewer)
     now_dt = dt.datetime.now(UTC)
     now = _iso(now_dt)
     conn.execute("UPDATE ticket_intake_drafts SET state = 'rejected', reject_reason = ?, decided_by = ?, decided_at = ?, revision = revision + 1 WHERE id = ?",
@@ -585,7 +643,8 @@ def counts(conn: sqlite3.Connection, viewer: Viewer) -> dict[str, Any]:
     """The chip on the list: how many drafts wait (0 for someone who may not handle them - the same answer, no leak)."""
     if not may_handle(viewer) or not access.module_on(conn):
         return {"open": 0, "can": False, "enabled": False}
-    n = int(conn.execute("SELECT COUNT(*) FROM ticket_intake_drafts WHERE state = 'open'").fetchone()[0])
+    where, params = _scope_sql(conn, viewer)
+    n = int(conn.execute(f"SELECT COUNT(*) FROM ticket_intake_drafts WHERE state = 'open'{where}", params).fetchone()[0])
     return {"open": n, "can": True, "enabled": is_on(conn), "list": may_manage_list(viewer)}
 
 

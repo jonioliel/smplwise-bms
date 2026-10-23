@@ -431,6 +431,179 @@ def test_news_failure_keeps_the_last_titles():
     assert cache.titles("https://a") == ["a"] and len(calls) == 2
 
 
+# ---------------------------------------------------------------- SEC217: security review 2.16.0 findings 2.1 (SSRF) and 2.2 (listener)
+
+_RSS = b"<rss><channel><item><title>headline</title></item></channel></rss>"
+_FEED_DNS = {"news.example.com": ["93.184.216.34"], "inward.example.com": ["192.168.1.20"], "mixed.example.com": ["93.184.216.34", "10.0.0.5"],
+             "meta.example.com": ["169.254.169.254"], "ula.example.com": ["fd00::1"], "hop.example.com": ["93.184.216.35"]}
+
+
+@pytest.fixture()
+def feed_net(monkeypatch):
+    """A fake resolver and an httpx.MockTransport: nothing here resolves a real name or opens a socket."""
+    import httpx
+
+    from smplwise.services.partner import ssrf
+
+    seen: list[httpx.Request] = []
+    routes: dict[str, httpx.Response] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        key = f"{request.headers['host']}{request.url.raw_path.decode()}"
+        return routes.get(key, httpx.Response(200, content=_RSS))
+
+    monkeypatch.setattr(ssrf, "RESOLVE", lambda host: list(_FEED_DNS.get(host, [])))
+    monkeypatch.setattr(ssrf, "HOSTNAME", lambda: "arx-test-host")
+    monkeypatch.setattr(ssrf, "LOCAL_ADDRESSES", lambda: set())
+    monkeypatch.setattr(sources, "TRANSPORT", httpx.MockTransport(handler))
+    return {"seen": seen, "routes": routes, "httpx": httpx}
+
+
+@pytest.mark.parametrize("url", [
+    "https://news.example.com/rss", "https://news.example.com:443/rss?x=1", "https://93.184.216.34/rss",
+])
+def test_sec217_feed_urls_accepted(url):
+    assert model._feed({"name": "n", "url": url}) == {"name": "n", "url": url}
+    for f in model.CURATED_NEWS:  # the curated list still passes the save check
+        assert model._feed(f) == {"name": f["name"], "url": f["url"]}
+
+
+@pytest.mark.parametrize("url", [
+    "http://news.example.com/rss", "https://news.example.com:8443/rss", "https://user:pw@news.example.com/rss", "https://127.0.0.1/rss",
+    "https://10.0.0.5/rss", "https://192.168.1.20/rss", "https://169.254.169.254/latest", "https://[::1]/rss", "https://[fd00::1]/rss",
+    "https://[::ffff:10.0.0.5]/rss", "https://2130706433/rss", "https://0x7f.0.0.1/rss", "https://homeassistant/rss", "https://supervisor/x",
+    "https://nas.local/rss", "https://router.lan/rss", "https://arx-test-host/rss", "https://news.example.com/rss#top",
+])
+def test_sec217_feed_urls_refused_at_save(url, feed_net):
+    assert model._feed({"name": "n", "url": url}) is None
+
+
+def test_sec217_fetch_connects_to_the_checked_address_without_proxy(feed_net, monkeypatch):
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+    assert sources._default_fetch("https://news.example.com/rss") == _RSS
+    req = feed_net["seen"][-1]
+    assert req.url.host == "93.184.216.34" and req.headers["host"] == "news.example.com"
+    assert req.extensions.get("sni_hostname") == "news.example.com" and req.headers["accept-encoding"] == "identity"
+
+
+@pytest.mark.parametrize("host,code", [("inward.example.com", "refused_address"), ("mixed.example.com", "refused_address"),
+                                       ("meta.example.com", "refused_address"), ("ula.example.com", "refused_address"), ("gone.example.com", "dns")])
+def test_sec217_fetch_refuses_names_that_resolve_inward(feed_net, host, code):
+    """A name that passed the save check but resolves (now) to a private / metadata / ULA address is refused before any request."""
+    with pytest.raises(sources.FeedRefused) as exc:
+        sources._default_fetch(f"https://{host}/rss")
+    assert exc.value.code == code and feed_net["seen"] == []
+
+
+def test_sec217_redirects_are_checked_hop_by_hop(feed_net):
+    httpx = feed_net["httpx"]
+    routes = feed_net["routes"]
+    routes["news.example.com/rss"] = httpx.Response(302, headers={"location": "https://hop.example.com/feed"})
+    assert sources._default_fetch("https://news.example.com/rss") == _RSS
+    assert [r.url.host for r in feed_net["seen"]] == ["93.184.216.34", "93.184.216.35"]
+    for target in ("https://192.168.1.20/admin", "https://inward.example.com/", "http://hop.example.com/feed", "https://hop.example.com:8123/"):
+        feed_net["seen"].clear()
+        routes["news.example.com/rss"] = httpx.Response(302, headers={"location": target})
+        with pytest.raises(sources.FeedRefused):
+            sources._default_fetch("https://news.example.com/rss")
+        assert len(feed_net["seen"]) == 1  # the inward hop is never requested
+    routes["news.example.com/rss"] = httpx.Response(302, headers={"location": "/rss"})  # a loop
+    with pytest.raises(sources.FeedRefused) as exc:
+        sources._default_fetch("https://news.example.com/rss")
+    assert exc.value.code == "redirects"
+
+
+def test_sec217_feed_size_cap_and_status(feed_net):
+    httpx = feed_net["httpx"]
+    routes = feed_net["routes"]
+    routes["news.example.com/big"] = httpx.Response(200, content=b"x" * (sources.NEWS_MAX_BYTES + 1))
+    routes["news.example.com/err"] = httpx.Response(500, content=b"")
+    with pytest.raises(ValueError, match="too large"):
+        sources._default_fetch("https://news.example.com/big")
+    with pytest.raises(ValueError, match="status"):
+        sources._default_fetch("https://news.example.com/err")
+
+
+def test_sec217_board_settings_refuse_an_inward_feed(client, feed_net):
+    _on(client)
+    b, _t = _board(client)
+    for url in ("https://192.168.1.20/rss", "https://homeassistant:8123/rss", "https://news.example.com:8443/rss"):
+        r = client.patch(f"{API}/notices/boards/{b['id']}", json={"display": {"news": {"feeds": [{"name": "x", "url": url}]}}})
+        assert r.status_code == 422, (url, r.text)
+
+
+def _hold(addr, n, partial=True):
+    import socket
+
+    out = []
+    for _ in range(n):
+        s = socket.create_connection(addr, timeout=2)
+        if partial:
+            s.sendall(b"GET /b/lobby HTTP/1.1\r\nHost: x")  # an unfinished request: the handler thread waits for the rest
+        out.append(s)
+    return out
+
+
+def _closed_by_server(s, wait=3.0) -> bool:
+    s.settimeout(wait)
+    try:
+        return s.recv(1024) == b""
+    except (ConnectionError, OSError):
+        return True
+
+
+def test_sec217_listener_caps_connections_and_drops_slow_clients(monkeypatch):
+    import time
+
+    monkeypatch.setattr(listener, "MAX_CONNECTIONS", 4)
+    monkeypatch.setattr(listener, "MAX_PER_CLIENT", 3)
+    monkeypatch.setattr(listener._Handler, "timeout", 1.0)
+    srv = listener.BoardServer()
+    assert srv.start(None, None, host="127.0.0.1", port=0)
+    try:
+        addr = srv.address
+        held = _hold(addr, 3)
+        extra = _hold(addr, 1)[0]  # the 4th from the same address is over the per-client cap: closed at once
+        assert _closed_by_server(extra, 2.0)
+        assert srv._server.refused >= 1
+        for s in held:  # the socket timeout drops the slow-loris connections and gives their slots back
+            assert _closed_by_server(s, 5.0)
+        deadline = time.monotonic() + 5
+        while srv._server.open_connections and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert srv._server.open_connections == 0
+    finally:
+        srv.stop()
+
+
+def test_sec217_listener_total_cap():
+    srv = listener.BoundedServer(("127.0.0.1", 0), listener._Handler, max_connections=2, max_per_client=10)
+    try:
+        import socket
+        import threading
+
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        old = listener._Handler.timeout
+        listener._Handler.timeout = 1.0
+        try:
+            held = _hold(srv.server_address[:2], 2, partial=False)
+            extra = _hold(srv.server_address[:2], 1, partial=False)[0]
+            assert _closed_by_server(extra, 2.0) and srv.refused >= 1
+            for s in held:
+                s.close()
+        finally:
+            listener._Handler.timeout = old
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_sec217_handler_has_a_socket_timeout():
+    assert listener._Handler.timeout is not None and 0 < listener._Handler.timeout <= 30
+
+
 def test_sun_times_tel_aviv():
     rise, sset = sources.sun_times(dt.date(2026, 10, 23), 32.08, 34.78)
     il = dt.timezone(dt.timedelta(hours=3))

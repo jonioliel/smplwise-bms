@@ -15,6 +15,11 @@ from .display import DisplayService, Reply, Request, not_found
 
 log = logging.getLogger(__name__)
 CONTAINER_PORT = 18094
+# SEC217 (finding 2.2): the listener shares the backend process, so its threads are bounded. A TV reads one feed every few seconds
+# over HTTP/1.0 (one request per connection): 64 open connections in all and 16 per client address are far above any real lobby.
+REQUEST_TIMEOUT_S = 10.0
+MAX_CONNECTIONS = 64
+MAX_PER_CLIENT = 16
 
 
 def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: dict[str, str], client: str) -> Reply:
@@ -43,6 +48,9 @@ class _Handler(BaseHTTPRequestHandler):
     sys_version = ""
     svc: DisplayService
     www_dir: Any = None
+    # SEC217 (security review 2.16.0, finding 2.2): a socket timeout for every read / write of a connection - a client that sends
+    # its request one byte at a time, or nothing at all, is dropped instead of holding a thread for ever (slow-loris)
+    timeout = REQUEST_TIMEOUT_S
 
     def log_message(self, fmt: str, *args: Any) -> None:  # never the path (the slug) or the client address
         return
@@ -70,25 +78,87 @@ class _Handler(BaseHTTPRequestHandler):
     do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_POST
 
 
+class BoundedServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with a cap on open connections, in all and per client address (SEC217, finding 2.2). A connection over a
+    cap is closed at once, before a thread exists for it; a slot is given back when its handler thread ends."""
+
+    daemon_threads = True
+    block_on_close = False
+
+    def __init__(self, address: tuple[str, int], handler: type, *, max_connections: int | None = None, max_per_client: int | None = None) -> None:
+        super().__init__(address, handler)
+        self.max_connections = max_connections if max_connections is not None else MAX_CONNECTIONS
+        self.max_per_client = max_per_client if max_per_client is not None else MAX_PER_CLIENT
+        self._lock = threading.Lock()
+        self._open = 0
+        self._per: dict[str, int] = {}
+        self.refused = 0
+
+    @staticmethod
+    def _ip(client_address: Any) -> str:
+        return str(client_address[0]) if isinstance(client_address, (tuple, list)) and client_address else ""
+
+    def _release(self, ip: str) -> None:
+        with self._lock:
+            self._open = max(0, self._open - 1)
+            n = self._per.get(ip, 0) - 1
+            if n > 0:
+                self._per[ip] = n
+            else:
+                self._per.pop(ip, None)
+
+    @property
+    def open_connections(self) -> int:
+        with self._lock:
+            return self._open
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        ip = self._ip(client_address)
+        with self._lock:
+            ok = self._open < self.max_connections and self._per.get(ip, 0) < self.max_per_client
+            if ok:
+                self._open += 1
+                self._per[ip] = self._per.get(ip, 0) + 1
+            else:
+                self.refused += 1
+        if not ok:
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self._release(ip)
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._release(self._ip(client_address))
+
+
 class BoardServer:
     def __init__(self) -> None:
-        self._server: ThreadingHTTPServer | None = None
+        self._server: BoundedServer | None = None
         self._thread: threading.Thread | None = None
 
     @property
     def running(self) -> bool:
         return self._server is not None
 
+    @property
+    def address(self) -> tuple[str, int] | None:
+        return self._server.server_address[:2] if self._server is not None else None  # type: ignore[return-value]
+
     def start(self, svc: DisplayService, www_dir: Any, host: str = "0.0.0.0", port: int = CONTAINER_PORT) -> bool:  # noqa: S104 - the LAN TVs
         if self._server is not None:
             return True
         handler = type("NoticeBoardHandler", (_Handler,), {"svc": svc, "www_dir": www_dir})
         try:
-            server = ThreadingHTTPServer((host, port), handler)
+            server = BoundedServer((host, port), handler)
         except OSError as exc:
             log.warning("notice board listener could not start: %s", type(exc).__name__)
             return False
-        server.daemon_threads = True
         self._server = server
         self._thread = threading.Thread(target=server.serve_forever, name="notice-boards", daemon=True)
         self._thread.start()

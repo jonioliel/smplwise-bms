@@ -19,11 +19,14 @@ import math
 import re
 import threading
 import time
-import urllib.request
 from typing import Any, Callable
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
+import httpx
+
 from ...db import get_setting
+from ..partner import ssrf
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +35,10 @@ NEWS_MAX_BYTES = 512 * 1024
 NEWS_ITEMS_PER_FEED = 8
 NEWS_ITEM_MAX = 2048
 NEWS_TIMEOUT_S = 8.0
+NEWS_CONNECT_S = 4.0
+NEWS_PORTS = frozenset({443})
+NEWS_REDIRECTS_MAX = 3
+TRANSPORT: httpx.BaseTransport | None = None  # tests: an httpx.MockTransport (nothing here contacts a real feed in a test)
 
 CONDITIONS = {"clear-night": "moon", "sunny": "sun", "partlycloudy": "cloudsun", "cloudy": "cloud", "fog": "cloud", "rainy": "cloud", "pouring": "cloud",
               "snowy": "cloud", "snowy-rainy": "cloud", "lightning": "cloud", "lightning-rainy": "cloud", "hail": "cloud", "windy": "cloudsun",
@@ -174,16 +181,71 @@ def parse_feed(data: bytes, limit: int = NEWS_ITEMS_PER_FEED) -> list[str]:
     return out
 
 
+class FeedRefused(ValueError):
+    """The feed URL (or a redirect hop) is refused by the outgoing-request check; `code` is the check's class, never the URL."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def feed_target(url: str) -> tuple[ssrf.Target, str]:
+    """SEC217 (security review 2.16.0, finding 2.1): the partner webhook SSRF check, with the RSS port. `https://` only, port 443, no
+    user-info / fragment, no local or platform names, and EVERY DNS answer globally routable (no private, loopback, link-local /
+    metadata, CGNAT, ULA, mapped / NAT64 / 6to4 / Teredo, the platform networks, this machine). Returns the target and the ONE
+    checked address the request is sent to (a DNS answer that changes in between cannot steer it)."""
+    try:
+        target = ssrf.parse(url, ports=NEWS_PORTS, default_port=443)
+        return target, ssrf.check(target)
+    except ssrf.Refused as exc:
+        raise FeedRefused(exc.code) from None
+
+
+def _host_header(target: ssrf.Target) -> str:
+    h = f"[{target.host}]" if ":" in target.host else target.host
+    return h if target.port == 443 else f"{h}:{target.port}"
+
+
 def _default_fetch(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "SmplWise-Arx-NoticeBoard/1", "Accept": "application/rss+xml, application/xml, text/xml"})
-    with urllib.request.urlopen(req, timeout=NEWS_TIMEOUT_S) as resp:  # noqa: S310 - https only (model._feed), the owner's chosen feeds
-        final = resp.geturl()
-        if not final.startswith("https://"):
-            raise ValueError("redirect away from https")
-        data = resp.read(NEWS_MAX_BYTES + 1)
-    if len(data) > NEWS_MAX_BYTES:
-        raise ValueError("feed too large")
-    return data
+    """One feed read: connect to the checked address (TLS SNI and Host = the name), never through a proxy variable, redirects
+    followed by hand (at most NEWS_REDIRECTS_MAX, every hop checked again like the first), no compression (a small gzip cannot
+    expand past the cap unseen), at most NEWS_MAX_BYTES and NEWS_TIMEOUT_S in all."""
+    deadline = time.monotonic() + NEWS_TIMEOUT_S
+    current = url
+    for _hop in range(NEWS_REDIRECTS_MAX + 1):
+        target, ip = feed_target(current)
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("feed timeout")
+        host = f"[{ip}]" if ":" in ip else ip
+        headers = {"Host": _host_header(target), "User-Agent": "SmplWise-Arx-NoticeBoard/1", "Accept-Encoding": "identity",
+                   "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"}
+        with httpx.Client(transport=TRANSPORT, timeout=httpx.Timeout(left, connect=min(left, NEWS_CONNECT_S)), follow_redirects=False,
+                          trust_env=False) as client:
+            with client.stream("GET", f"https://{host}:{target.port}{target.path}", headers=headers,
+                               extensions={"sni_hostname": target.host}) as r:
+                if 300 <= r.status_code < 400:
+                    loc = (r.headers.get("location") or "").strip()
+                    if not loc:
+                        raise ValueError("redirect without a location")
+                    current = urljoin(current, loc)
+                    continue
+                if r.status_code != 200:
+                    raise ValueError("feed http status")
+                if (r.headers.get("content-encoding") or "identity").strip().lower() != "identity":
+                    raise ValueError("feed compressed")  # asked for identity: a compressed answer is refused, never expanded
+                declared = r.headers.get("content-length")
+                if declared and declared.strip().isdigit() and int(declared) > NEWS_MAX_BYTES:
+                    raise ValueError("feed too large")
+                buf = bytearray()
+                for chunk in r.iter_bytes():
+                    buf += chunk
+                    if len(buf) > NEWS_MAX_BYTES:
+                        raise ValueError("feed too large")
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("feed timeout")
+                return bytes(buf)
+    raise FeedRefused("redirects")
 
 
 class NewsCache:

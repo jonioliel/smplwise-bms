@@ -74,8 +74,10 @@ def _literal(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
         return None
 
 
-def parse(url: object) -> Target:
-    """Step 1 (syntax) and step 2 (names). Raises Refused('syntax' | 'scheme' | 'port' | 'refused_name')."""
+def parse(url: object, *, ports: frozenset[int] = ALLOWED_PORTS, default_port: int | None = None) -> Target:
+    """Step 1 (syntax) and step 2 (names). Raises Refused('syntax' | 'scheme' | 'port' | 'refused_name').
+    `ports` / `default_port`: the webhook defaults (9443 / 9453, an explicit port required); another outgoing fetch that reuses this
+    check (the notice-board news feeds, SEC217) passes its own allowed ports and the port a URL without one means."""
     if not isinstance(url, str) or not url or len(url) > URL_MAX:
         raise Refused("syntax")
     if any(ord(c) <= 32 or ord(c) == 127 for c in url) or "\\" in url:
@@ -92,7 +94,9 @@ def parse(url: object) -> Target:
         port = parts.port
     except ValueError:
         raise Refused("syntax") from None
-    if port is None or port not in ALLOWED_PORTS:
+    if port is None:
+        port = default_port
+    if port is None or port not in ports:
         raise Refused("port")
     raw = parts.hostname or ""
     if not raw:
