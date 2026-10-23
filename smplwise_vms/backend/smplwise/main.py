@@ -598,6 +598,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import wiskey_switches as wiskey_switches_router
 
     app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)
+    from .routers import fleet as fleet_router
+
+    # CR-FLEET215: the signed daily fleet report (switch OFF; system administrator). Its readiness block comes from CR-READY96's
+    # services/readiness.evaluate() (READYFLEET-295: one readiness, one screen); /readiness and /demo are CR-READY96's routers above.
+    app.include_router(fleet_router.router, prefix=api, tags=["system"])
     from .routers import access_station_permissions as access_station_permissions_router
 
     app.include_router(access_station_permissions_router.router, prefix=api, tags=["access"])  # STATIONPERM-295: per-station access of a person (off; go-live not permitted)
@@ -829,6 +834,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         # DATASTORE-295: the monthly restore drill - the loop only reads its switch (`backup.drill.monthly`, OFF by default)
         app.state.backup_drill_task = asyncio.create_task(backup_drill.monthly_loop(app.state.db, settings))
+        if os.environ.get("SW_FLEET_WORKER", "1") != "0":
+            from .services import fleet_report
+
+            # CR-FLEET215: the daily fleet report - the loop only reads its two keys (the `fleet_report_url` add-on option and the
+            # `fleet.report_enabled` switch, OFF by default); while either is off it builds, signs and sends nothing
+            app.state.fleet_report_task = asyncio.create_task(fleet_report.worker_loop(app.state.db, settings))
         from .services import push as push_svc
 
         push_svc.NOTIFIER.start(app.state.db)  # CR-008 P3: Web Push for rule alerts (only to subscribed users in scope)
@@ -877,7 +888,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task"):
+        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task"):
             task = getattr(app.state, name, None)
             if task:
                 task.cancel()

@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>דיווח בריאות וצי התקנות - דגם v2</title>
+<!--
+  CR-FLEET215 (2.15.0) - static design mock-up v2 for the owner's approval. NOT product code: self-contained, no network request,
+  invented data only (no real customer, host, address or key). Backend of slice 1: docs/changes/CR-FLEET215.md.
+
+  v2 after the owner's review of v1 ("a lot of scrolling, items that are not explained; must be comfortable for the simplest technician")
+  and the owner's directive of 23.10 (every mock-up follows the visual language of the temperature / elevators / schedules screens):
+    - Visual language = the product's own: the sw-page header (crumbs, 26 px heading, grey one-line subheading), the settings tab row
+      (sw-tabs "underline"), sw-card (12 px radius, 14 px padding, 14 px semibold title, collapsible cards with the chevron), the settings
+      rows (label + one-line hint at the start, the control at the end; styles/settings.ts), the infra KPI row (dot + number + label, each a
+      filter; infra-temperature / infra-elevators), the solid state badge and the soft chips of the infra screens, the tokens of
+      design/tokens.ts (colours, type scale, radii, shadows). Nothing new is invented where the product already has a piece.
+    - Placement: the installation's reporting SETTINGS are a new tab of Settings (the system area). The OVERVIEW of installations is
+      the receiver's own web page (a separate Cloudflare Worker, not inside Arx), drawn in the same language.
+    - The first screen answers the one question the user came with, the main action visible without scrolling (settings: is reporting
+      on and what do I do; overview: which installations need me; installation: what is wrong here). Everything else is behind
+      collapsed cards with a count, closed by default.
+    - Every item has a plain-Hebrew label and, where the meaning is not obvious, ONE short explanation line (this mock-up deliberately
+      relaxes the "no hints" operator rule; no paragraphs, no jargon). Status is always words + colour, never colour alone.
+      Technical names (schema paths, key ids) sit behind a "שמות טכניים" toggle.
+  Screens: 1 settings (off / on / receiver not set / send failed / loading / error), 2 receiver overview (data / empty / loading /
+  error / intake off), 3 one installation. The five open owner questions are toggles in the gallery bar ("שאלות פתוחות").
+  Width: the "טלפון" button renders the page inside a 390 px frame; container queries make a real 375 px phone identical.
+  URL switches: ?theme=dark  ?s=settings|fleet|inst  ?st=<state>  ?w=phone  ?q1=26|36|72 ?q2=1 ?q3=1 ?q4=0 ?q5=1
+  No platform branding (the home system is "תשתית המערכת").
+-->
+<style>
+:root {
+  color-scheme: light;
+  /* design/tokens.ts - light column */
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8;
+  --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef;
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-purple: #8b5cf6; --sw-purple-soft: #f1ebff; --sw-purple-text: #6d3fd6;
+  --sw-toggle-on: #2767ed; --sw-toggle-thumb: #ffffff;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65);
+  --sw-hover-wash: rgba(20,30,50,.05);
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-pill: 999px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-page-pad: 30px;
+  --sw-ctl-h-sm: 26px; --sw-ctl-h-md: 30px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44;
+  --sw-border: #232e45; --sw-border-strong: #2f3c58;
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-purple: #a78bfa; --sw-purple-soft: rgba(167,139,250,.2); --sw-purple-text: #c4b0ff;
+  --sw-toggle-on: #3a6ce0;
+  --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
+  --sw-hover-wash: rgba(255,255,255,.06);
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: 1.5; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+code, .mono { font-family: var(--sw-font-mono); direction: ltr; unicode-bidi: isolate; font-size: var(--sw-fs-xs); color: var(--sw-text-2); background: var(--sw-surface-2); padding: 2px 6px; border-radius: var(--sw-r-2xs); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--sw-text-3); }
+.small { font-size: var(--sw-fs-sm); }
+.ok-t { color: var(--sw-success-text); font-weight: 600; }
+.warn-t { color: var(--sw-warning-text); font-weight: 600; }
+.bad-t { color: var(--sw-danger-text); font-weight: 600; }
+.silent-t { color: var(--sw-purple-text); font-weight: 600; }
+
+/* mock-up gallery (not part of the product) */
+.gallery { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 8px 16px;
+  background: var(--sw-surface); border-bottom: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); }
+.gallery .grp { display: flex; gap: 4px; flex-wrap: wrap; }
+.gallery .sep { width: 1px; height: 22px; background: var(--sw-border); }
+.gallery .sp { flex: 1; }
+.gallery button { border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text-2); border-radius: var(--sw-r-pill);
+  padding: 4px 10px; cursor: pointer; font-size: var(--sw-fs-sm); }
+.gallery button[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: 600; }
+.gallery .lbl { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.gallery .q { border-style: dashed; }
+.gallery .q[aria-pressed="true"] { border-style: solid; }
+#b-more { display: none; }
+/* on a phone the mock-up bar folds to one row (screens + "עוד"), so the product's first screen is what the owner sees */
+@media (max-width: 760px) {
+  .gallery { padding: 6px 10px; gap: 4px 6px; }
+  .gallery .sep, .gallery .lbl { display: none; }
+  #b-more { display: inline-block; }
+  .gallery:not(.open) .more { display: none; }
+  #g-screens button { padding: 4px 8px; }
+}
+
+.stage { container-type: inline-size; margin: 0 auto; padding: 14px var(--sw-page-pad) 32px; }
+.stage.phone { max-width: 390px; padding: 0; margin: 14px auto 32px; border: 10px solid #0d121b; border-radius: 34px; overflow: hidden; min-height: 760px; background: var(--sw-bg); }
+.stage.phone .scr { padding: 12px 16px 28px; }
+.scr { display: none; flex-direction: column; gap: 14px; }
+.scr.on { display: flex; }
+.st { display: none; }
+.st.on { display: block; }
+.st > * + * { margin-top: 14px; }
+
+/* ---- sw-page header: crumbs, 26 px heading, grey one-line subheading, actions at the end ---- */
+.crumbs { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-bottom: 4px; }
+.pagehead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 12px; }
+.pagehead .head { min-width: 0; }
+h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: 700; letter-spacing: -.6px; color: var(--sw-heading); line-height: 1.2; }
+.sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.pagehead .actions { display: flex; gap: var(--sw-s-2); flex-wrap: wrap; align-items: center; }
+/* sw-tabs, the settings-page "underline" variant */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--sw-border); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { padding: 8px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: 500; white-space: nowrap; }
+.tabs a.on { color: var(--sw-accent-text); border-bottom-color: var(--sw-accent); }
+.back { display: inline-flex; align-items: center; gap: 4px; color: var(--sw-accent-text); cursor: pointer; background: none; border: 0; padding: 0; font-size: var(--sw-fs-sm); }
+
+/* ---- sw-card ---- */
+.card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-1); padding: 14px; min-width: 0; }
+.card.flush { padding: 0; overflow: hidden; }
+.card > header, .card .chead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.card.flush > header { padding: 12px 14px; margin: 0; border-bottom: 1px solid var(--sw-border); }
+.card h3 { margin: 0; font-size: var(--sw-fs-md); font-weight: 600; }
+.card h3 .csub { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-weight: 400; margin-top: 1px; }
+/* collapsible card: the heading is a button that folds the body (sw-card collapsible) */
+details.card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -14px; padding: 12px 14px; min-height: 52px; border-radius: var(--sw-r-md); }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary:hover { background: var(--sw-hover-wash); }
+details.card > summary .chev { flex: none; color: var(--sw-text-3); transition: transform .18s ease; }
+details.card[open] > summary .chev { transform: rotate(180deg); }
+details.card[open] > summary { margin-bottom: 0; border-radius: var(--sw-r-md) var(--sw-r-md) 0 0; border-bottom: 1px solid var(--sw-border); }
+details.card > .body { margin-top: 0; }
+details.card > .body.flush { margin: 0 -14px -14px; }
+
+/* ---- settings rows (styles/settings.ts): label + hint at the start, the control at the end ---- */
+.row { display: flex; justify-content: space-between; align-items: center; gap: var(--sw-s-3) var(--sw-s-4); padding: 10px 0; border-bottom: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); min-width: 0; }
+.row:last-child { border-bottom: 0; }
+.row .lbl { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; font-size: var(--sw-fs-base); font-weight: 500; color: var(--sw-text); }
+.row .lbl .muted { font-size: var(--sw-fs-xs); font-weight: 400; color: var(--sw-text-3); line-height: 1.45; }
+.row .end { display: flex; align-items: center; gap: var(--sw-s-2); flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.who { display: flex; gap: var(--sw-s-3); align-items: center; min-width: 0; flex: 1; }
+.ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--sw-r-sm); background: var(--sw-success-soft); color: var(--sw-success-text); flex: none; }
+.ic.warn { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+.ic.bad { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
+.ic.mute { background: var(--sw-surface-3); color: var(--sw-text-3); }
+.ic.silent { background: var(--sw-purple-soft); color: var(--sw-purple-text); }
+.ic svg { width: 16px; height: 16px; }
+.check { display: flex; justify-content: space-between; align-items: center; gap: var(--sw-s-2); padding: 8px 0; border-bottom: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); }
+.check:last-child { border-bottom: 0; }
+.check .m { min-width: 0; }
+.check .m .muted { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.val { color: var(--sw-text-2); text-align: end; max-width: 60%; overflow-wrap: anywhere; }
+.val.ok { color: var(--sw-success-text); } .val.warn { color: var(--sw-warning-text); } .val.err { color: var(--sw-danger-text); font-weight: 600; }
+.hint { font-size: var(--sw-fs-xs); color: var(--sw-text-3); line-height: 1.5; }
+.msg { display: inline-flex; align-items: center; gap: 6px; min-height: var(--sw-ctl-h-sm); padding: 2px 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-xs); font-weight: 500; background: var(--sw-surface-3); color: var(--sw-text-2); }
+.msg.ok { background: var(--sw-success-soft); color: var(--sw-success-text); } .msg.err { background: var(--sw-danger-soft); color: var(--sw-danger-text); } .msg.warn { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+.link { color: var(--sw-accent-text); font-size: var(--sw-fs-sm); cursor: pointer; background: none; border: 0; padding: 0; text-decoration: none; white-space: nowrap; }
+.foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sw-s-2); padding-top: var(--sw-s-3); margin-top: var(--sw-s-1); border-top: 1px solid var(--sw-border); }
+.foot .grow { flex: 1; }
+
+/* ---- sw-button ---- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--sw-ctl-h-md); padding: 0 12px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border-strong);
+  font-size: var(--sw-fs-sm); font-weight: 500; line-height: 1; cursor: pointer; white-space: nowrap; color: var(--sw-text); background: var(--sw-surface); box-shadow: var(--sw-shadow-1); text-decoration: none; }
+.btn:hover { background: var(--sw-surface-2); }
+.btn.sm { min-height: var(--sw-ctl-h-sm); padding: 0 9px; font-size: var(--sw-fs-xs); border-radius: var(--sw-r-xs); }
+.btn.lg { min-height: 36px; padding: 0 16px; font-size: var(--sw-fs-md); }
+.btn.primary { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.primary:hover { background: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--sw-text-2); }
+.btn[disabled] { opacity: .5; pointer-events: none; }
+/* sw-toggle 42 x 24 */
+.tog { display: inline-flex; align-items: center; gap: var(--sw-s-2); font-size: var(--sw-fs-sm); }
+.sw { position: relative; width: 42px; height: 24px; flex: none; border-radius: var(--sw-r-pill); border: 0; background: var(--sw-border-strong); cursor: pointer; padding: 0; }
+.sw::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); box-shadow: var(--sw-shadow-1); }
+.sw[aria-checked="true"] { background: var(--sw-toggle-on); }
+.sw[aria-checked="true"]::after { inset-inline-start: 21px; }
+@media (prefers-reduced-motion: no-preference) { .sw, .sw::after { transition: background-color .15s ease, inset-inline-start .15s ease; } .btn { transition: background-color .15s ease; } }
+
+/* ---- the infra language: KPI row, solid badge, soft chips ---- */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="bad"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="silent"] { --c: var(--sw-purple); --c-text: var(--sw-purple-text); --c-soft: var(--sw-purple-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="all"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer; min-width: 0; }
+.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.kpi .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+.kpi .x { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.kpi.static { cursor: default; }
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: 600; line-height: 1.4; }
+.badge.sm { padding: 2px 8px; font-size: var(--sw-fs-xs); }
+.badge[data-look="warn"] { color: #3d2400; }
+.badge[data-look="off"] { background: repeating-linear-gradient(-45deg, var(--c) 0 8px, color-mix(in srgb, var(--c) 82%, #000) 8px 12px); }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: 500; background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.chip[data-tone="err"] { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
+.chip[data-tone="warn"] { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+.chip[data-tone="ok"] { background: var(--sw-success-soft); color: var(--sw-success-text); }
+.chip[data-tone="off"] { background: var(--sw-offline-soft); color: var(--sw-offline-text); }
+.chip[data-tone="silent"] { background: var(--sw-purple-soft); color: var(--sw-purple-text); }
+.chip[data-tone="acc"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--c-soft); color: var(--sw-text); font-size: var(--sw-fs-sm); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+.banner .ic { background: transparent; color: var(--c-text); width: 24px; height: 24px; }
+.banner .ic svg { width: 20px; height: 20px; }
+.banner b { display: block; font-size: var(--sw-fs-md); }
+.banner .grow { flex: 1; min-width: 0; }
+.banner .btn { flex: none; }
+
+/* ---- the answer card: the state at the top of a page (the connection row of the settings screens, larger) ---- */
+.answer { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+.answer .ic { width: 44px; height: 44px; border-radius: var(--sw-r-md); }
+.answer .ic svg { width: 24px; height: 24px; }
+.answer .t { font-weight: 700; font-size: var(--sw-fs-xl); line-height: 1.25; color: var(--sw-heading); }
+.answer .s { color: var(--sw-text-2); margin-top: 2px; font-size: var(--sw-fs-base); }
+.answer .do { margin-top: 6px; font-weight: 600; font-size: var(--sw-fs-base); }
+.answer .do.bad { color: var(--sw-danger-text); } .answer .do.warn { color: var(--sw-warning-text); }
+.answer .act { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+/* readiness */
+.ready { display: flex; align-items: center; gap: 14px; }
+.ring { --v: 78; width: 56px; height: 56px; border-radius: 50%; flex: none; display: grid; place-items: center; background: conic-gradient(var(--sw-accent) calc(var(--v) * 1%), var(--sw-surface-3) 0); }
+.ring b { width: 44px; height: 44px; border-radius: 50%; background: var(--sw-surface); display: grid; place-items: center; font-size: var(--sw-fs-base); }
+
+/* what is sent */
+.tools { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--sw-border); align-items: center; flex-wrap: wrap; }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 20px; padding: 0 14px 12px; }
+.fg { padding-top: 10px; }
+.fg h4 { margin: 0 0 2px; font-size: var(--sw-fs-base); font-weight: 600; color: var(--sw-text); display: flex; justify-content: space-between; }
+.fg h4 .n { color: var(--sw-text-3); font-weight: 500; }
+.fg .gx { color: var(--sw-text-3); font-size: var(--sw-fs-xs); margin-bottom: 4px; }
+.f { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 5px 0; border-bottom: 1px dashed var(--sw-border); font-size: var(--sw-fs-sm); }
+.f:last-child { border-bottom: 0; }
+.f .l { color: var(--sw-text-2); }
+.f .ty { color: var(--sw-text-3); font-size: var(--sw-fs-xs); white-space: nowrap; }
+.f code { grid-column: 1 / -1; justify-self: start; display: none; background: none; padding: 0; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
+.tech .f code { display: block; }
+.never { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 14px; }
+.never span { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 3px 10px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); text-decoration: line-through; text-decoration-color: var(--sw-danger); }
+.grouplabel { font-size: var(--sw-fs-xs); font-weight: 600; color: var(--sw-text-3); letter-spacing: .04em; padding: 12px 14px 2px; border-top: 1px solid var(--sw-border); }
+.grouplabel .x { font-weight: 400; letter-spacing: 0; }
+pre.json { margin: 0; padding: 12px 14px; max-height: 300px; overflow: auto; background: var(--sw-surface-2); border-top: 1px solid var(--sw-border); direction: ltr; text-align: left; font: 12px/1.5 var(--sw-font-mono); color: var(--sw-text-2); }
+.qr { width: 84px; height: 84px; flex: none; border-radius: var(--sw-r-sm); background: repeating-linear-gradient(0deg, var(--sw-text) 0 6px, transparent 6px 12px), repeating-linear-gradient(90deg, var(--sw-text) 0 6px, transparent 6px 12px); background-blend-mode: multiply; opacity: .85; border: 6px solid var(--sw-surface); outline: 1px solid var(--sw-border); }
+
+/* tables (the settings tables: 12.5 px, small grey heads) and the mobile card list */
+table { width: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
+th { text-align: start; font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--sw-border-strong); white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--sw-border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+.click tbody tr { cursor: pointer; }
+.click tbody tr:hover td { background: var(--sw-hover-wash); }
+.name { font-weight: 600; }
+.mcards { display: none; }
+.mc { display: grid; gap: 3px; padding: 10px 14px; border-bottom: 1px solid var(--sw-border); cursor: pointer; }
+.mc:last-child { border-bottom: 0; }
+.mc .r { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.need { padding: 0; margin: 0; list-style: none; }
+.need li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--sw-border); cursor: pointer; }
+.need li:hover { background: var(--sw-hover-wash); }
+.need .why { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.need .why b { font-weight: 600; color: var(--sw-text); }
+.need .arrow { color: var(--sw-text-3); }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--sw-border); }
+.search { flex: 1; min-width: 150px; min-height: var(--sw-ctl-h-md); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); padding: 0 12px; background: var(--sw-surface-2); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); }
+
+/* empty / loading / error (sw-state-panel) */
+.state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: 32px 16px; color: var(--sw-text-2); min-height: 200px; }
+.state .icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.state.error .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state h2 { margin: 0; font-size: var(--sw-fs-xl); color: var(--sw-heading); }
+.state p { margin: 0; max-width: 440px; font-size: var(--sw-fs-sm); }
+.skl { display: block; border-radius: var(--sw-r-sm); background: var(--sw-skeleton); height: 12px; }
+.skrow { display: grid; grid-template-columns: 80px 2fr 1fr 2fr 1fr; gap: 18px; align-items: center; padding: 14px; border-bottom: 1px solid var(--sw-border); }
+@media (prefers-reduced-motion: no-preference) {
+  .skl { background: linear-gradient(90deg, var(--sw-skeleton) 0%, var(--sw-skeleton-shine) 50%, var(--sw-skeleton) 100%); background-size: 200% 100%; animation: shim 1.3s linear infinite; }
+  @keyframes shim { to { background-position: -200% 0; } }
+}
+
+/* installation detail */
+.strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; padding: 2px 0 6px; direction: ltr; }
+.strip i { height: 22px; border-radius: var(--sw-r-2xs); background: color-mix(in srgb, var(--sw-success) 55%, transparent); }
+.strip i.w { background: var(--sw-warning); }
+.strip i.b { background: var(--sw-danger); }
+.strip i.s { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sw-purple); }
+.axis { display: flex; justify-content: space-between; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); direction: ltr; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); margin-top: 6px; }
+.legend i { display: inline-block; width: 12px; height: 8px; border-radius: var(--sw-r-2xs); margin-inline-end: 5px; vertical-align: middle; background: color-mix(in srgb, var(--sw-success) 55%, transparent); }
+.legend i.w { background: var(--sw-warning); } .legend i.b { background: var(--sw-danger); } .legend i.s { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sw-purple); }
+.comps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 20px; padding: 0 14px 4px; }
+.comps .check .m .muted { font-size: var(--sw-fs-2xs); }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+
+/* phone / narrow container (the product's 767 px settings breakpoint and the 600 px infra one) */
+@container (max-width: 760px) {
+  .stage { --sw-page-pad: 16px; }
+  h1 { font-size: var(--sw-fs-xl); }
+  .cols { grid-template-columns: 1fr; }
+  table.desk { display: none; }
+  .mcards { display: block; }
+  .answer { grid-template-columns: auto 1fr; }
+  .answer .act { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px solid var(--sw-border); padding-top: 10px; }
+  .answer .act .btn { flex: 1; min-height: 36px; }
+  .kpis { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .kpi { padding: 8px 10px; gap: 8px; flex-direction: column; align-items: flex-start; }
+  .kpi b { font-size: var(--sw-fs-xl); }
+  .kpi .l { font-size: var(--sw-fs-xs); }
+  .kpi .dot { width: 10px; height: 10px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+  .kpis.four { grid-template-columns: 1fr 1fr; }
+  .fields, .comps { grid-template-columns: 1fr; }
+  .skrow { grid-template-columns: 60px 1fr 70px; }
+  .skrow > :nth-child(n+4) { display: none; }
+  .row { flex-direction: column; align-items: stretch; gap: var(--sw-s-2); }
+  .row .lbl { flex-basis: auto; }
+  .row .end { justify-content: flex-start; }
+  .row.keep { flex-direction: row; align-items: center; }
+  .row.keep .end { justify-content: flex-end; }
+  .banner { flex-wrap: wrap; }
+  .banner .btn { width: 100%; }
+  .toolbar .search { order: -1; flex-basis: 100%; }
+  .pagehead .actions .btn { flex: 1; }
+  .need li { grid-template-columns: 1fr auto; }
+  .need li .badge { grid-column: 1 / -1; justify-self: start; }
+  .gallery { padding: 6px 10px; }
+  .val { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<nav class="gallery" aria-label="מסכי הדגם">
+  <div class="grp" id="g-screens">
+    <button data-s="settings" aria-pressed="true">1. הגדרות › דיווח בריאות</button>
+    <button data-s="fleet" aria-pressed="false">2. השרת המקבל: ההתקנות</button>
+    <button data-s="inst" aria-pressed="false">3. השרת המקבל: התקנה אחת</button>
+    <button id="b-more" aria-pressed="false">עוד…</button>
+  </div>
+  <span class="sep"></span>
+  <span class="lbl">מצב:</span>
+  <div class="grp more" id="g-states"></div>
+  <span class="sep"></span>
+  <span class="lbl">שאלות פתוחות:</span>
+  <div class="grp more" id="g-q">
+    <button class="q" data-q="1" title="שאלה 1: אחרי כמה שעות בלי דוח ההתקנה נחשבת 'לא מדווחת'">סף שקט: 36 ש׳</button>
+    <button class="q" data-q="2" aria-pressed="false" title="שאלה 2: כשהלקוח מכבה, נשלחת הודעת 'הדיווח הופסק' כדי שהשרת יציג 'כבויה' ולא 'לא מדווחת'">הודעת כיבוי</button>
+    <button class="q" data-q="3" aria-pressed="false" title="שאלה 3: בנוסף למסך, גם מייל ל-SmplWise על התקנה שהשתתקה">מייל על שקט</button>
+    <button class="q" data-q="4" aria-pressed="true" title="שאלה 4: להראות למנהל המערכת גם את הדוח המדויק (JSON), לא רק את רשימת הפריטים">דוח מדויק</button>
+    <button class="q" data-q="5" aria-pressed="false" title="שאלה 5: קוד הרישום גם כברקוד QR לטלפון המתקין">קוד QR</button>
+  </div>
+  <span class="sp"></span>
+  <div class="grp more">
+    <button id="b-w" aria-pressed="false">טלפון</button>
+    <button id="b-th" aria-pressed="false">כהה</button>
+  </div>
+</nav>
+
+<main class="stage" id="stage">
+
+<!-- ============ 1. SETTINGS (a tab of the system area): the installation's health report ============ -->
+<section class="scr on" id="s-settings">
+  <div>
+    <div class="crumbs">הגדרות</div>
+    <nav class="tabs" aria-label="הגדרות"><a href="#">כללי</a><a href="#">התראות</a><a href="#">משתמשים והרשאות</a><a href="#">אודיט</a><a href="#">אחסון</a><a href="#">חיבורים</a><a href="#" class="on">דיווח בריאות</a></nav>
+  </div>
+  <div class="pagehead">
+    <div class="head"><h1>דיווח בריאות</h1>
+      <p class="sub">פעם ביום המערכת שולחת ל-SmplWise דוח קצר על מצבה, כדי שתקלה תטופל לפני שהלקוח מרגיש בה.</p></div>
+  </div>
+
+  <!-- loading -->
+  <div class="st" data-st="loading">
+    <div class="card"><div style="display:grid;gap:14px"><span class="skl" style="width:40%"></span><span class="skl" style="width:70%"></span><span class="skl" style="width:55%"></span></div></div>
+    <div class="hint" style="padding:0 4px">טוען את הגדרות הדיווח…</div>
+  </div>
+  <!-- error -->
+  <div class="st" data-st="error">
+    <div class="card"><div class="state error">
+      <div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <h2>הגדרות הדיווח לא נטענו</h2>
+      <p>המערכת עצמה עובדת. רק העמוד הזה לא הצליח להיטען. נסו שוב בעוד רגע.</p>
+      <button class="btn">נסו שוב</button>
+    </div></div>
+  </div>
+
+  <!-- the page (off / on / nourl / failed) -->
+  <div class="st on" data-st="off on nourl failed">
+    <!-- 1. the answer: is it on, what do I do -->
+    <div class="card">
+      <div class="answer">
+        <div class="ic" id="set-dot"></div>
+        <div style="min-width:0">
+          <div class="t" id="set-title"></div>
+          <div class="s" id="set-sub"></div>
+          <div class="do" id="set-do"></div>
+        </div>
+        <div class="act">
+          <label class="tog"><span style="font-weight:500;color:var(--sw-text)">שליחת דוח יומי</span><button class="sw" role="switch" id="sw-report" aria-label="שליחת דוח יומי" aria-checked="false"></button></label>
+          <button class="btn sm" id="b-send">שליחת דוח עכשיו</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. the installer's to-do list -->
+    <div class="card">
+      <header><div class="ready"><div class="ring" style="--v:78"><b class="num">78%</b></div>
+        <h3>מוכנות ההתקנה: 4 דברים עוד חסרים<span class="csub">מה שמסומן "חובה" צריך להיסגר לפני מסירה ללקוח. הדוח היומי מראה את זה גם ל-SmplWise.</span></h3></div></header>
+      <div class="check"><span class="m">גיבוי מהיומיים האחרונים <span class="chip" data-tone="err">חובה</span><span class="muted">הגיבוי האחרון בן 3 ימים. הריצו גיבוי או בדקו למה הוא נעצר.</span></span><a class="link" href="#">לגיבויים ›</a></div>
+      <div class="check"><span class="m">גיבוי גם מחוץ לשרת<span class="muted">אם הדיסק מתקלקל, גיבוי שיושב רק עליו הולך לאיבוד.</span></span><a class="link" href="#">לגיבויים ›</a></div>
+      <div class="check"><span class="m">כל מצלמה מוצבת על המפה<span class="muted">מצלמה אחת עדיין לא הונחה על תוכנית הקומה.</span></span><a class="link" href="#">לתוכנית ›</a></div>
+      <div class="check"><span class="m">גרסה עדכנית<span class="muted">יש גרסה חדשה יותר (2.15.1).</span></span><a class="link" href="#">לעדכונים ›</a></div>
+    </div>
+
+    <!-- 3. everything else: collapsible cards, closed -->
+    <details class="card" id="x-sent">
+      <summary>
+        <h3>מה נשלח בדוח <span class="muted num" id="sent-count"></span><span class="csub">רק מספרים ומצבים (תקין / אזהרה / תקלה). <b style="color:var(--sw-danger-text);font-weight:600">לעולם לא</b>: שמות, כתובות, סיסמאות, תמונות, אירועים, יומנים.</span></h3>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="body flush">
+        <div class="tools"><span class="hint">לפי נושא. כל פריט הוא מספר, זמן, כן/לא או מצב מרשימה קבועה.</span><span style="flex:1"></span><button class="btn sm" id="b-tech">שמות טכניים</button></div>
+        <div class="fields" id="fields"></div>
+        <div class="grouplabel">מה לעולם לא יוצא מההתקנה <span class="x">· גם לא בטעות: הדוח בנוי מרשימה סגורה, ואין בו מקום לדברים האלה</span></div>
+        <div class="never">
+          <span>שמות אנשים</span><span>שמות מצלמות וחדרים</span><span>כתובת הנכס</span><span>כתובות רשת</span><span>מספרים סידוריים</span><span>סיסמאות ומפתחות</span>
+          <span>קישורים</span><span>דוא״ל</span><span>טלפון</span><span>אירועים</span><span>תמונות ווידאו</span><span>יומנים</span><span>טקסט שגיאה</span><span>מזהי התקנים</span><span>ערכי הגדרות</span>
+        </div>
+      </div>
+    </details>
+
+    <details class="card" id="x-last">
+      <summary>
+        <h3>דוחות אחרונים<span class="csub" id="last-line"></span></h3>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="body flush">
+        <table><thead><tr><th>מתי</th><th>מה קרה</th><th>מספר דוח</th></tr></thead><tbody id="log"></tbody></table>
+        <div class="hint" style="padding:8px 14px;border-top:1px solid var(--sw-border)">מספר הדוח רק עולה. אם בשרת חסר מספר, יודעים שדוח לא הגיע.</div>
+        <details id="x-json" style="border-top:1px solid var(--sw-border)">
+          <summary style="list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 14px"><span><span style="font-weight:600">הדוח המדויק שנשלח</span><span class="hint" style="display:block">כמו שהשרת מקבל אותו. למנהל המערכת שרוצה לבדוק בעצמו.</span></span>
+            <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <pre class="json" id="json"></pre>
+        </details>
+      </div>
+    </details>
+
+    <details class="card" id="x-tech">
+      <summary>
+        <h3>חיבור ל-SmplWise ופרטים למתקין<span class="csub" id="tech-line"></span></h3>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="body">
+        <div class="row"><span class="lbl">לאן נשלח הדוח<span class="muted">המתקין מגדיר את זה פעם אחת בהגדרות ההתקנה. הלקוח לא צריך לגעת.</span></span><span class="end" id="set-url"></span></div>
+        <div class="row"><span class="lbl">חתימה על הדוח<span class="muted">כל דוח חתום במפתח של ההתקנה הזאת, כך שאי אפשר לזייף אותו.</span></span><span class="end"><span class="msg ok">תקינה</span><code>Ed25519 · 3f9a0c71be52d846</code></span></div>
+        <div class="row"><span class="lbl">מספר ההתקנה<span class="muted">מספר אקראי. זה מה שהשרת מכיר, לא שם או כתובת.</span></span><span class="end"><code>8c41…e07b</code></span></div>
+        <div class="row"><span class="lbl">קוד רישום<span class="muted">המתקין מזין אותו פעם אחת בשרת של SmplWise, וכך השרת יודע שהדוחות מגיעים מכאן.</span></span><span class="end" id="enroll-v"></span></div>
+        <div class="row keep"><span class="lbl">נתוני דוגמה<span class="muted">מציג התקנה מדומה לצורכי הדגמה. הדוח מסמן שזו דוגמה, ובשרת היא לא נספרת כתקלה.</span></span><span class="end"><button class="sw" role="switch" id="sw-demo" aria-label="נתוני דוגמה" aria-checked="false"></button></span></div>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ============ 2. THE RECEIVER'S OWN PAGE (a separate web page, not inside Arx): all installations ============ -->
+<section class="scr" id="s-fleet">
+  <div class="pagehead">
+    <div class="head"><div class="crumbs">SmplWise · שרת הדוחות</div><h1>ההתקנות שלנו</h1>
+      <p class="sub">כל התקנה שולחת דוח פעם ביום. למעלה: מה שצריך טיפול עכשיו.</p></div>
+    <div class="actions"><button class="btn primary">רישום התקנה חדשה</button></div>
+  </div>
+
+  <div class="st on" data-st="data">
+    <div class="kpis" id="kpis" role="group" aria-label="סינון לפי מצב"></div>
+    <div class="banner" id="silent-alert" data-look="silent">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 9.5-2.6M8.5 15.5a5 5 0 0 1 4-1.3"/><path d="m3 3 18 18"/><circle cx="12" cy="19" r="1"/></svg></span>
+      <div class="grow"><b id="silent-t"></b><span id="silent-n"></span></div>
+    </div>
+    <div class="card flush">
+      <header><h3 id="need-h"></h3><span class="hint">לחיצה על שורה פותחת את ההתקנה</span></header>
+      <ul class="need" id="need"></ul>
+    </div>
+    <div class="card flush">
+      <div class="toolbar"><h3 id="all-h">כל ההתקנות</h3><span style="flex:1"></span><input class="search" placeholder="חיפוש לפי שם" aria-label="חיפוש לפי שם"></div>
+      <table class="desk click">
+        <thead><tr><th>מצב</th><th>התקנה</th><th>דיווחה לאחרונה</th><th>מה חסר</th><th>גרסה</th><th>מוכנות</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="mcards" id="mrows"></div>
+    </div>
+  </div>
+
+  <div class="st" data-st="empty">
+    <div class="card"><div class="state">
+      <div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></div>
+      <h2>עדיין אין התקנות רשומות</h2>
+      <p>רושמים התקנה עם קוד הרישום שמופיע אצלה במסך "דיווח בריאות". אחרי הדוח הראשון היא תופיע כאן.</p>
+      <button class="btn primary">רישום התקנה חדשה</button>
+    </div></div>
+  </div>
+
+  <div class="st" data-st="loading">
+    <div class="kpis"><span class="kpi static"><span class="skl" style="width:100%"></span></span><span class="kpi static"><span class="skl" style="width:100%"></span></span><span class="kpi static"><span class="skl" style="width:100%"></span></span><span class="kpi static"><span class="skl" style="width:100%"></span></span></div>
+    <div class="card flush"><div id="skel"></div></div>
+    <div class="hint" style="padding:0 4px">טוען את רשימת ההתקנות…</div>
+  </div>
+
+  <div class="st" data-st="error">
+    <div class="banner" data-look="bad">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg></span>
+      <div class="grow"><b>הרשימה לא נטענה</b>ההתקנות עצמן ממשיכות לשלוח. רק המסך הזה לא הצליח להתחבר לשרת. רשימה אחרונה מ־23.10.2026 · 09:40.</div>
+      <button class="btn sm">נסו שוב</button>
+    </div>
+    <div class="card"><div class="state error">
+      <div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M9.5 5.2A9 9 0 0 1 21 12M3 12a9 9 0 0 0 13.4 7.8"/></svg></div>
+      <h2>אין חיבור לשרת</h2>
+      <button class="btn">נסו שוב</button>
+    </div></div>
+  </div>
+
+  <div class="st" data-st="intakeoff">
+    <div class="banner" data-look="off">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span>
+      <div class="grow"><b>קבלת הדוחות עצורה מאז 22.10.2026 · 18:05</b>ההתקנות שולחות, אבל השרת לא קולט. עד שמפעילים, כל ההתקנות ייראו כ"ממתינות" ולא תהיה התראה על שקט.</div>
+      <button class="btn sm primary">הפעלת הקבלה</button>
+    </div>
+    <div class="card flush">
+      <table class="desk"><thead><tr><th>מצב</th><th>התקנה</th><th>דוח אחרון שנקלט</th><th>גרסה</th></tr></thead><tbody id="rows-off"></tbody></table>
+      <div class="mcards" id="mrows-off"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. THE RECEIVER'S PAGE: one installation ============ -->
+<section class="scr" id="s-inst">
+  <div class="pagehead">
+    <div class="head"><button class="back" data-go="fleet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>כל ההתקנות</button>
+      <h1>מתחם לוגיסטי דרום</h1><p class="sub">דוח אחרון: 21.10 · 16:02 · גרסה 2.14.3</p></div>
+    <div class="actions"><button class="btn" title="לא להתריע על ההתקנה הזאת בזמן שמטפלים">השתקת התראות</button></div>
+  </div>
+
+  <div class="card">
+    <div class="answer">
+      <div class="ic silent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 9.5-2.6M8.5 15.5a5 5 0 0 1 4-1.3"/><path d="m3 3 18 18"/><circle cx="12" cy="19" r="1"/></svg></div>
+      <div style="min-width:0">
+        <div class="t"><span class="silent-t">לא מדווחת</span> כבר 41 שעות</div>
+        <div class="s">הדוח האחרון הגיע ב־21.10 בשעה 16:02. מאז לא הגיע כלום, אבל עד אז הכול היה תקין.</div>
+        <div class="do">מה לעשות: לבדוק באתר חשמל, ראוטר וחיבור לאינטרנט. אם המערכת דולקת, להתקשר ל-SmplWise.</div>
+      </div>
+      <div class="act"><span class="badge" data-look="silent">לא מדווחת</span></div>
+    </div>
+  </div>
+
+  <div class="kpis four">
+    <div class="kpi static" data-look="silent"><span class="dot"></span><div><b>41 ש׳</b><span class="l">מאז הדוח האחרון</span><span class="x bad-t">אמורה לדווח כל 24 שעות</span></div></div>
+    <div class="kpi static" data-look="bad"><span class="dot"></span><div><b>4</b><span class="l">התראות פתוחות בהתקנה</span><span class="x"><span class="bad-t">1 קריטית</span> · 3 רגילות</span></div></div>
+    <div class="kpi static" data-look="ok"><span class="dot"></span><div><b><bdi dir="ltr">412 GB</bdi></b><span class="l">מקום פנוי בדיסק</span><span class="x ok-t">44% פנוי · תקין</span></div></div>
+    <div class="kpi static" data-look="ok"><span class="dot"></span><div><b>19 ש׳</b><span class="l">מאז הגיבוי האחרון</span><span class="x ok-t">טרי</span></div></div>
+  </div>
+
+  <div class="card">
+    <header><h3>30 הימים האחרונים<span class="csub">כל ריבוע = יום אחד, לפי הדוח של אותו יום</span></h3></header>
+    <div class="strip" id="strip" role="img" aria-label="מצב יומי ב-30 הימים האחרונים"></div>
+    <div class="axis"><span>לפני 30 יום</span><span>היום</span></div>
+    <div class="legend"><span><i></i>תקין</span><span><i class="w"></i>אזהרה</span><span><i class="b"></i>תקלה</span><span><i class="s"></i>לא הגיע דוח</span></div>
+  </div>
+
+  <details class="card">
+    <summary><h3>מה עוד חסר בהתקנה הזאת <span class="muted">· 2</span><span class="csub">דברים שהמתקין צריך לסגור. מוכנות 92%.</span></h3>
+      <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <div class="body">
+      <div class="check"><span class="m">גיבוי גם מחוץ לשרת<span class="muted">כל 7 הגיבויים יושבים על אותו דיסק.</span></span></div>
+      <div class="check"><span class="m">הגשר דורש עדכון<span class="muted">מותקנת 0.9.6, נדרשת 0.9.8. בלי זה חלק מהפעולות מהטלפון לא יעבדו.</span></span></div>
+    </div>
+  </details>
+  <details class="card">
+    <summary><h3>חלקי המערכת <span class="muted">· 13</span><span class="csub" id="comps-line"></span></h3>
+      <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <div class="body flush"><div class="comps" id="comps"></div></div>
+  </details>
+  <details class="card">
+    <summary><h3>גרסאות<span class="csub">Arx 2.14.3 · <span class="warn-t">הגשר ישן</span> · תשתית המערכת 2026.10.1</span></h3>
+      <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <div class="body">
+      <div class="check"><span class="m">Arx<span class="muted">המערכת עצמה. הגרסה החדשה ביותר: 2.15.1.</span></span><span class="val"><code>2.14.3</code></span></div>
+      <div class="check"><span class="m">גשר<span class="muted">החלק שמחבר את הטלפון למערכת.</span></span><span class="val warn"><code>0.9.6</code> נדרש 0.9.8</span></div>
+      <div class="check"><span class="m">תשתית המערכת</span><span class="val"><code>2026.10.1</code></span></div>
+      <div class="check"><span class="m">שרת מדיה<span class="muted">מעביר את הווידאו מהמצלמות למסך.</span></span><span class="val"><code>1.9.9</code></span></div>
+      <div class="check"><span class="m">מסד נתונים<span class="muted">מספר המבנה. עולה עם כל עדכון.</span></span><span class="val"><code>0147</code></span></div>
+    </div>
+  </details>
+  <details class="card">
+    <summary><h3>פרטי ההתקנה<span class="csub">38 מצלמות · 2 מקליטים · נרשמה 02.09.2026</span></h3>
+      <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></summary>
+    <div class="body">
+      <div class="check"><span class="m">אופן הפעלה<span class="muted">"מלא" = מערכת אמיתית אצל לקוח. "דוגמה" = התקנת הדגמה.</span></span><span class="val">מלא</span></div>
+      <div class="check"><span class="m">מצלמות · מקליטים</span><span class="val num">38 · 2</span></div>
+      <div class="check"><span class="m">גיבויים<span class="muted">כמה גיבויים קיימים ומתי נעשה האחרון.</span></span><span class="val num">7 · אחרון לפני 19 שעות</span></div>
+      <div class="check"><span class="m">מפתח החתימה<span class="muted">מזהה המפתח שבו ההתקנה חותמת. מחליפים רק אם יש חשד שדלף.</span></span><span class="val"><code>b71e04c9a2d35f18</code> <button class="btn sm">החלפת מפתח</button></span></div>
+      <div class="check"><span class="m">נרשמה בשרת</span><span class="val num">02.09.2026</span></div>
+    </div>
+  </details>
+</section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var root = document.documentElement, q = new URLSearchParams(location.search);
+
+  /* ---------- owner questions (gallery toggles) ---------- */
+  var th0 = parseInt(q.get('q1') || '36', 10);
+  var Q = { th: [36, 26, 72].indexOf(th0) >= 0 ? th0 : 36, stop: q.get('q2') === '1', mail: q.get('q3') === '1', json: q.get('q4') !== '0', qr: q.get('q5') === '1' };
+
+  /* ---------- the privacy list: every schema path of CR-FLEET215 section 3, nothing more ---------- */
+  var T = { c: 'קבוע', id: 'מספר אקראי', n: 'מספר', t: 'זמן', e: 'מצב מרשימה', b: 'כן / לא', v: 'מספר גרסה', l: 'רשימה קבועה' };
+  var GROUPS = [
+    ['על הדוח עצמו', 'איזה דוח זה ומתי נוצר', [['גרסת מבנה הדוח', 'schema', 'c'], ['מספר ההתקנה (אקראי)', 'installation_id', 'id'], ['מספר רץ של הדוח', 'seq', 'n'],
+      ['מתי נוצר, לדקה', 'generated_at', 't'], ['מערכת אמיתית או הדגמה', 'mode', 'e'], ['נתוני דוגמה פועלים', 'demo_mode', 'b'],
+      ['מצב כללי', 'overall', 'e'], ['שעות מאז ההדלקה', 'uptime_h', 'n']]],
+    ['גרסאות', 'כדי לדעת מי צריך עדכון', [['Arx', 'versions.addon', 'v'], ['גשר', 'versions.bridge', 'v'], ['גשר נדרש', 'versions.bridge_required', 'v'],
+      ['תשתית המערכת', 'versions.ha', 'v'], ['שרת מדיה', 'versions.go2rtc', 'v'], ['מסד נתונים', 'versions.db_schema', 'v']]],
+    ['מצב חלקי המערכת', 'תקין / אזהרה / תקלה לכל חלק', [['מסד נתונים', 'components.db', 'e'], ['תיקיית נתונים', 'components.storage', 'e'], ['מקליט', 'components.nvr', 'e'],
+      ['שרת מדיה', 'components.go2rtc', 'e'], ['סנכרון עם תשתית המערכת', 'components.ha_sync', 'e'], ['גשר', 'components.bridge', 'e'],
+      ['קליטת אירועים', 'components.events_ingest', 'e'], ['עיבוד אירועים', 'components.events_derive', 'e'],
+      ['איתור התקנים', 'components.discovery', 'e'], ['תמונות ממוזערות', 'components.thumbnails', 'e'], ['ייצוא', 'components.exports', 'e'],
+      ['גיבויים', 'components.backups', 'e'], ['Frigate', 'components.frigate', 'e']]],
+    ['כמויות', 'מספרים בלבד, בלי שמות', [['מצלמות', 'counts.cameras', 'n'], ['מקליטים', 'counts.recorders', 'n'], ['מקליטי Hikvision', 'counts.recorders_by_vendor.hikvision', 'n'],
+      ['מקליטי Provision-ISR', 'counts.recorders_by_vendor.provision_isr', 'n'], ['שרתי Frigate', 'counts.recorders_by_vendor.frigate', 'n'],
+      ['מצלמות בלי מקליט', 'counts.recorders_by_vendor.none', 'n'], ['התקנים בקטלוג', 'counts.ha_entities', 'n'],
+      ['תוכניות קומה שפורסמו', 'counts.floors_published', 'n'], ['משתמשים פעילים', 'counts.users_active', 'n'], ['מנהלי מערכת', 'counts.system_admins', 'n']]],
+    ['התראות פתוחות', 'כמה, לא מה', [['מידע', 'alerts_open.info', 'n'], ['רגילות', 'alerts_open.alert', 'n'], ['קריטיות', 'alerts_open.critical', 'n']]],
+    ['דיסק', '', [['אחוז פנוי', 'disk.free_pct', 'n'], ['GB פנויים', 'disk.free_gb', 'n'], ['GB בסך הכול', 'disk.total_gb', 'n']]],
+    ['גיבוי', '', [['כמה גיבויים', 'backup.count', 'n'], ['גיל הגיבוי האחרון, בשעות', 'backup.last_age_h', 'n'], ['כמה יעדים מחוץ לשרת', 'backup.offbox_targets', 'n']]],
+    ['עדכון', '', [['תוצאת בדיקת העדכון', 'update.check', 'e'], ['יש עדכון', 'update.available', 'b'], ['הגרסה החדשה ביותר', 'update.latest', 'v']]],
+    ['מוכנות', 'מה עוד חסר להתקנה', [['ציון', 'readiness.score', 'n'], ['מוכנה למסירה', 'readiness.ready', 'b'], ['מה חסר (מרשימה קבועה)', 'readiness.missing', 'l']]]
+  ];
+  var total = 0;
+  $('#fields').innerHTML = GROUPS.map(function (g) {
+    total += g[2].length;
+    return '<div class="fg"><h4><span>' + g[0] + '</span><span class="n num">' + g[2].length + '</span></h4>' + (g[1] ? '<div class="gx">' + g[1] + '</div>' : '') +
+      g[2].map(function (f) { return '<div class="f"><span class="l">' + f[0] + '</span><span class="ty">' + T[f[2]] + '</span><code>' + f[1] + '</code></div>'; }).join('') + '</div>';
+  }).join('');
+  $('#sent-count').textContent = '· ' + total + ' פריטים';
+  $('#b-tech').onclick = function () { var on = $('#fields').classList.toggle('tech'); this.classList.toggle('primary', on); };
+
+  /* ---------- the exact body (invented values, the CR's closed schema) ---------- */
+  var BODY = {
+    schema: 'smplwise-fleet-report/1', installation_id: '8c41d2f09a6b4e1c93f57a20b6d1e07b', seq: 412, generated_at: '2026-10-23T03:12Z',
+    mode: 'full', demo_mode: false, overall: 'warn', uptime_h: 307,
+    versions: { addon: '2.15.0', bridge: '0.9.8', bridge_required: '0.9.8', ha: '2026.10.1', go2rtc: '1.9.9', db_schema: '0149' },
+    components: { db: 'ok', storage: 'ok', nvr: 'ok', go2rtc: 'ok', ha_sync: 'ok', bridge: 'ok', events_ingest: 'ok', events_derive: 'ok',
+      discovery: 'ok', thumbnails: 'ok', exports: 'ok', backups: 'warn', frigate: 'absent' },
+    counts: { cameras: 24, recorders: 1, recorders_by_vendor: { hikvision: 1, provision_isr: 0, frigate: 0, none: 0 }, ha_entities: 386,
+      floors_published: 3, users_active: 11, system_admins: 2 },
+    alerts_open: { info: 2, alert: 1, critical: 0 },
+    disk: { free_pct: 61, free_gb: 573, total_gb: 938 },
+    backup: { count: 6, last_age_h: 71, offbox_targets: 0 },
+    update: { check: 'available', available: true, latest: '2.15.1' },
+    readiness: { score: 78, ready: false, missing: ['backup_recent', 'camera_on_map', 'backup_offsite', 'up_to_date'] }
+  };
+  $('#json').textContent = JSON.stringify(BODY, null, 2);
+
+  /* ---------- settings states ---------- */
+  var ICON = {
+    ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+    mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 16.5v.01"/><path d="M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+    bad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg>'
+  };
+  var SET = {
+    off:    { dot: 'mute', title: 'הדיווח כבוי', sub: 'שום דבר לא נשלח ל-SmplWise. אם תהיה תקלה, נדע עליה רק כשהלקוח יתקשר.',
+              doText: 'כדי להתחיל: הדליקו את המתג "שליחת דוח יומי".', doCls: '', sw: false, url: 'set', last: 'old',
+              lastLine: 'הדוח האחרון נשלח לפני הכיבוי, ב־20.10.2026 · 03:10', techLine: 'הכול מוגדר. הדיווח יתחיל מיד עם ההדלקה.' },
+    on:     { dot: 'ok',   title: 'הדיווח פועל ותקין', sub: 'הדוח האחרון התקבל היום בשעה 03:12. הבא נשלח לבד מחר בשעה 03:12.',
+              doText: 'אין מה לעשות.', doCls: '', sw: true, url: 'set', last: 'ok',
+              lastLine: 'היום 03:12 · התקבל · דוח מספר 412', techLine: 'מחובר ל-SmplWise · חתימה תקינה' },
+    nourl:  { dot: 'warn', title: 'הדיווח דולק, אבל עדיין לא נשלח', sub: 'המתג דולק, אבל עוד לא הוגדר לאן לשלוח. לכן לא יצא אף דוח.',
+              doText: 'מה לעשות: המתקין פותח את הגדרות ההתקנה ומזין את כתובת השרת של SmplWise. הלקוח לא צריך לעשות כלום.', doCls: 'warn', sw: true, url: 'none', last: 'none',
+              lastLine: 'עדיין לא נשלח אף דוח', techLine: 'חסר: לאן לשלוח' },
+    failed: { dot: 'bad',  title: 'השליחה האחרונה נכשלה', sub: 'הדוח של היום 03:12 לא הגיע ל-SmplWise. הדוחות לפניו הגיעו. המערכת תנסה שוב לבד ב־06:12.',
+              doText: 'מה לעשות: לבדוק שיש אינטרנט באתר. אם יש, ללחוץ "שליחת דוח עכשיו". אם זה נכשל שוב, להתקשר ל-SmplWise.', doCls: 'bad', sw: true, url: 'set', last: 'fail',
+              lastLine: 'היום 03:12 · לא נשלח, אין חיבור · הניסיון הבא ב־06:12', techLine: 'מחובר ל-SmplWise · חתימה תקינה' }
+  };
+  var LOGS = {
+    ok:   [['היום 03:12', 'ok', 'התקבל', 412], ['אתמול 03:11', 'ok', 'התקבל', 411], ['21.10 · 03:11', 'ok', 'התקבל', 410]],
+    fail: [['היום 03:12', 'err', 'לא נשלח, אין חיבור', 412], ['אתמול 03:11', 'ok', 'התקבל', 411], ['21.10 · 03:11', 'ok', 'התקבל', 410]],
+    old:  [['20.10 · 03:10', 'ok', 'התקבל', 409], ['19.10 · 03:10', 'ok', 'התקבל', 408]],
+    none: []
+  };
+  function applySettings(st) {
+    var s = SET[st]; if (!s) return;
+    var d = $('#set-dot'); d.innerHTML = ICON[s.dot]; d.className = 'ic ' + (s.dot === 'ok' ? '' : s.dot);
+    $('#set-title').textContent = s.title; $('#set-sub').textContent = s.sub;
+    var dd = $('#set-do'); dd.textContent = s.doText; dd.className = 'do ' + s.doCls;
+    $('#sw-report').setAttribute('aria-checked', String(s.sw));
+    $('#set-url').innerHTML = s.url === 'set' ? '<span class="msg ok">הוגדר</span>' : '<span class="msg warn">עדיין לא הוגדר</span>';
+    $('#b-send').disabled = !(s.sw && s.url === 'set');
+    $('#b-send').textContent = st === 'failed' ? 'ניסיון שליחה עכשיו' : 'שליחת דוח עכשיו';
+    $('#last-line').textContent = s.lastLine; $('#tech-line').textContent = s.techLine;
+    $('#log').innerHTML = LOGS[s.last].map(function (r) { return '<tr><td class="num">' + r[0] + '</td><td><span class="msg ' + r[1] + '">' + r[2] + '</span></td><td class="num">' + r[3] + '</td></tr>'; }).join('') ||
+      '<tr><td colspan="3" class="muted">עדיין לא נשלח אף דוח</td></tr>';
+  }
+  $('#sw-report').onclick = function () { var on = this.getAttribute('aria-checked') !== 'true'; setState(on ? 'on' : 'off'); };
+  $('#sw-demo').onclick = function () { this.setAttribute('aria-checked', String(this.getAttribute('aria-checked') !== 'true')); };
+
+  /* ---------- fleet rows (invented labels, typed at the receiver when the installation is registered) ---------- */
+  // [name, hours since last report, "last seen" words, version, bridge installed/required, readiness, [info, alert, critical], disk free %, backup age h, flag]
+  var ROWS = [
+    ['קריית משרדים צפון', 0.1, 'לפני 6 דק׳', '2.15.0', null, 64, [0, 2, 1], 9, 5],
+    ['מתחם לוגיסטי דרום', 41, 'לפני 41 שעות', '2.14.3', ['0.9.6', '0.9.8'], 92, [0, 3, 1], 44, 19],
+    ['מרפאה רחוב הגפן', 72, 'לפני 3 ימים', '2.12.2', null, 71, [0, 0, 0], 58, 96, 'stopped'],
+    ['מגדל מגורים 12', 0.2, 'לפני 14 דק׳', '2.15.0', null, 78, [2, 1, 0], 61, 72],
+    ['בית ספר אלון', 2, 'לפני שעתיים', '2.13.1', ['0.9.4', '0.9.8'], 85, [1, 0, 0], 32, 22],
+    ['מרכז מסחרי השקד', 0.15, 'לפני 9 דק׳', '2.15.0', null, 100, [0, 0, 0], 70, 8],
+    ['משרדי הנהלה - קומה 4', 0.35, 'לפני 21 דק׳', '2.15.0', null, 96, [1, 0, 0], 81, 11],
+    ['חניון עירוני מערב', 1, 'לפני שעה', '2.14.3', null, 100, [0, 0, 0], 66, 6],
+    ['דוגמה - אולם תצוגה', 0.5, 'לפני 32 דק׳', '2.15.0', null, 100, [0, 0, 0], 88, 2, 'demo']
+  ];
+  var ST = { ok: 'תקין', warn: 'דורשת תשומת לב', bad: 'תקלה', silent: 'לא מדווחת', off: 'כבויה' };
+  function judge(r) {
+    var why = [], act = '', st = 'ok';
+    if (r[9] === 'stopped' && Q.stop) { return { st: 'off', why: ['הלקוח כיבה את הדיווח ב־20.10'], act: 'לוודא עם הלקוח שזה מכוון' }; }
+    if (r[1] >= Q.th) { st = 'silent'; why.push('לא הגיע דוח ' + r[2].replace('לפני ', 'כבר ')); act = 'לבדוק חשמל ואינטרנט באתר'; }
+    if (r[6][2]) { if (st !== 'silent') st = 'bad'; why.push(r[6][2] + ' התראה קריטית פתוחה'); act = act || 'לפתוח את ההתקנה ולטפל בהתראה'; }
+    if (r[7] < 15) { if (st === 'ok' || st === 'warn') st = 'bad'; why.push('הדיסק כמעט מלא (' + r[7] + '% פנוי)'); act = act || 'לפנות מקום או להחליף דיסק'; }
+    if (r[8] > 48) { if (st === 'ok') st = 'warn'; why.push('אין גיבוי טרי (אחרון לפני ' + Math.round(r[8] / 24) + ' ימים)'); act = act || 'להריץ גיבוי ולבדוק למה נעצר'; }
+    if (r[4]) { if (st === 'ok') st = 'warn'; why.push('הגשר דורש עדכון (' + r[4][0] + ' ← ' + r[4][1] + ')'); act = act || 'לעדכן את הגשר'; }
+    if (r[6][1] && st === 'ok') { st = 'warn'; why.push(r[6][1] + ' התראות רגילות פתוחות'); act = act || 'לפתוח את ההתקנה'; }
+    return { st: st, why: why, act: act };
+  }
+  function badge(st, sm) { return '<span class="badge' + (sm ? ' sm' : '') + '" data-look="' + st + '">' + ST[st] + '</span>'; }
+  function rowHtml(r, j) {
+    return '<tr data-f="' + j.st + '"><td>' + badge(j.st, true) + '</td>' +
+      '<td><span class="name">' + r[0] + '</span>' + (r[9] === 'demo' ? ' <span class="chip" data-tone="acc">התקנת הדגמה</span>' : '') + '</td>' +
+      '<td class="num ' + (j.st === 'silent' ? 'silent-t' : '') + '">' + r[2] + '</td>' +
+      '<td>' + (j.why.length ? j.why.join(' · ') : '<span class="ok-t">הכול בסדר</span>') + '</td>' +
+      '<td><code>' + r[3] + '</code></td><td class="num">' + r[5] + '%</td></tr>';
+  }
+  function cardHtml(r, j) {
+    return '<div class="mc" data-f="' + j.st + '"><div class="r"><span class="name">' + r[0] + '</span>' + badge(j.st, true) + '</div>' +
+      '<div class="r small"><span class="' + (j.st === 'silent' ? 'silent-t' : 'muted') + '">' + r[2] + '</span><span class="muted">מוכנות ' + r[5] + '%</span></div>' +
+      (j.why.length ? '<div class="small muted">' + j.why.join(' · ') + '</div>' : '') + '</div>';
+  }
+  var filterNow = 'all';
+  function renderFleet() {
+    var J = ROWS.map(judge), counts = { all: ROWS.length, ok: 0, warn: 0, bad: 0, silent: 0, off: 0 };
+    J.forEach(function (j) { counts[j.st]++; });
+    $('#rows').innerHTML = ROWS.map(function (r, i) { return rowHtml(r, J[i]); }).join('');
+    $('#mrows').innerHTML = ROWS.map(function (r, i) { return cardHtml(r, J[i]); }).join('');
+    var order = { silent: 0, bad: 1, warn: 2, off: 3, ok: 4 };
+    var need = ROWS.map(function (r, i) { return [r, J[i]]; }).filter(function (x) { return x[1].st !== 'ok' && x[1].st !== 'off'; })
+      .sort(function (a, b) { return order[a[1].st] - order[b[1].st]; });
+    $('#need-h').textContent = need.length ? 'צריכות טיפול עכשיו · ' + need.length : 'אף התקנה לא צריכה טיפול עכשיו';
+    $('#need').innerHTML = need.map(function (x) {
+      return '<li>' + badge(x[1].st, true) + '<span><span class="name">' + x[0][0] + '</span><div class="why">' +
+        x[1].why[0] + (x[1].why.length > 1 ? ' · ועוד ' + (x[1].why.length - 1) : '') + ' — <b>' + x[1].act + '</b></div></span><span class="arrow">›</span></li>';
+    }).join('');
+    var sil = need.filter(function (x) { return x[1].st === 'silent'; });
+    var al = $('#silent-alert');
+    if (sil.length) {
+      al.setAttribute('data-look', 'silent');
+      $('#silent-t').textContent = sil.length === 1 ? 'התקנה אחת לא מדווחת' : sil.length + ' התקנות לא מדווחות';
+      $('#silent-n').textContent = sil.map(function (x) { return x[0][0] + ' · ' + x[0][2].replace('לפני ', ''); }).join('  ·  ') +
+        '. "לא מדווחת" = לא הגיע דוח ' + Q.th + ' שעות.' + (Q.mail ? ' נשלח מייל ל-SmplWise היום ב־09:40.' : '');
+    } else {
+      al.setAttribute('data-look', 'ok'); $('#silent-t').textContent = 'כל ההתקנות דיווחו בזמן'; $('#silent-n').textContent = 'הדוח האחרון מכל התקנה הגיע בתוך ' + Q.th + ' השעות האחרונות.';
+    }
+    var K = [['all', 'הכול'], ['silent', 'לא מדווחות'], ['bad', 'תקלה'], ['warn', 'דורשות תשומת לב'], ['ok', 'תקינות'], ['off', 'כבויות']];
+    $('#kpis').innerHTML = K.filter(function (c) { return c[0] === 'all' || counts[c[0]]; }).map(function (c) {
+      return '<button type="button" class="kpi" data-look="' + c[0] + '" data-f="' + c[0] + '" aria-pressed="' + (filterNow === c[0]) + '"><span class="dot"></span><div><b>' + counts[c[0]] + '</b><span class="l">' + c[1] + '</span></div></button>'; }).join('');
+    $$('#kpis .kpi').forEach(function (c) { c.onclick = function () { filter(filterNow === c.dataset.f ? 'all' : c.dataset.f); }; });
+    $$('#rows tr, #mrows .mc, #need li').forEach(function (r) { r.onclick = function () { go('inst'); }; });
+    filter(filterNow);
+  }
+  function filter(f) {
+    filterNow = f;
+    $$('#kpis .kpi').forEach(function (c) { c.setAttribute('aria-pressed', String(c.dataset.f === f)); });
+    $$('#rows tr, #mrows .mc').forEach(function (r) { r.style.display = (f === 'all' || r.dataset.f === f) ? '' : 'none'; });
+    $('#all-h').textContent = f === 'all' ? 'כל ההתקנות' : 'התקנות במצב "' + ST[f] + '"';
+  }
+  var OFFROWS = ROWS.slice(0, 5);
+  $('#rows-off').innerHTML = OFFROWS.map(function (r) { return '<tr><td><span class="badge sm" data-look="off">ממתינה</span></td><td class="name">' + r[0] + '</td><td class="num muted">22.10 · 03:1' + (r[0].length % 10) + '</td><td><code>' + r[3] + '</code></td></tr>'; }).join('');
+  $('#mrows-off').innerHTML = OFFROWS.map(function (r) { return '<div class="mc"><div class="r"><span class="name">' + r[0] + '</span><span class="badge sm" data-look="off">ממתינה</span></div><div class="r small muted"><span>דוח אחרון שנקלט: 22.10</span></div></div>'; }).join('');
+  $('#skel').innerHTML = new Array(7).join('<div class="skrow"><span class="skl"></span><span class="skl"></span><span class="skl"></span><span class="skl"></span><span class="skl"></span></div>');
+
+  /* ---------- one installation ---------- */
+  var days = 'gggggggwggggggggwwgggggggbgg' + 'ss'; // oldest -> newest (LTR strip), last two silent
+  $('#strip').innerHTML = days.split('').map(function (c) { return '<i class="' + ({ w: 'w', b: 'b', s: 's' }[c] || '') + '"></i>'; }).join('');
+  var COMPS = [['מסד נתונים', 'ok', 'שומר את ההגדרות והאירועים'], ['תיקיית נתונים', 'ok', 'יש מקום ואפשר לכתוב'], ['מקליט', 'ok', 'המקליט עונה'],
+    ['שרת מדיה', 'ok', 'הווידאו מגיע למסך'], ['סנכרון עם תשתית המערכת', 'ok', ''], ['גשר', 'warn', 'ישן מדי, צריך עדכון'],
+    ['קליטת אירועים', 'ok', 'אירועים מהמצלמות נכנסים'], ['עיבוד אירועים', 'ok', ''], ['איתור התקנים', 'ok', ''], ['תמונות ממוזערות', 'ok', ''],
+    ['ייצוא', 'off', 'לא בשימוש בהתקנה הזאת'], ['גיבויים', 'ok', 'הגיבוי האחרון הצליח'], ['Frigate', 'absent', 'לא מותקן כאן']];
+  var CS = { ok: ['ok', 'תקין'], warn: ['warn', 'אזהרה'], error: ['err', 'תקלה'], off: ['off', 'כבוי'], absent: ['off', 'לא מותקן'], unknown: ['off', 'לא ידוע'] };
+  $('#comps').innerHTML = COMPS.map(function (c) { var s = CS[c[1]]; return '<div class="check"><span class="m">' + c[0] + (c[2] ? '<span class="muted">' + c[2] + '</span>' : '') + '</span><span class="chip" data-tone="' + s[0] + '">' + s[1] + '</span></div>'; }).join('');
+  var cc = { ok: 0, warn: 0, error: 0, off: 0, absent: 0 }; COMPS.forEach(function (c) { cc[c[1]]++; });
+  $('#comps-line').innerHTML = cc.ok + ' תקינים · <span class="warn-t">' + cc.warn + ' אזהרה (הגשר)</span> · ' + (cc.off + cc.absent) + ' לא בשימוש';
+
+  /* ---------- owner question toggles ---------- */
+  function applyQ() {
+    var b1 = $('[data-q="1"]'); b1.textContent = 'סף שקט: ' + Q.th + ' ש׳'; b1.setAttribute('aria-pressed', String(Q.th !== 36));
+    $('[data-q="2"]').setAttribute('aria-pressed', String(Q.stop)); $('[data-q="3"]').setAttribute('aria-pressed', String(Q.mail));
+    $('[data-q="4"]').setAttribute('aria-pressed', String(Q.json)); $('[data-q="5"]').setAttribute('aria-pressed', String(Q.qr));
+    $('#x-json').style.display = Q.json ? '' : 'none';
+    $('#enroll-v').innerHTML = (Q.qr ? '<span class="qr" role="img" aria-label="קוד QR לסריקה בטלפון"></span>' : '') + '<code>arx-fleet-1.8c41…</code><button class="btn sm">העתקה</button>';
+    renderFleet();
+  }
+  $('[data-q="1"]').onclick = function () { Q.th = { 36: 26, 26: 72, 72: 36 }[Q.th]; applyQ(); };
+  $('[data-q="2"]').onclick = function () { Q.stop = !Q.stop; applyQ(); };
+  $('[data-q="3"]').onclick = function () { Q.mail = !Q.mail; applyQ(); };
+  $('[data-q="4"]').onclick = function () { Q.json = !Q.json; applyQ(); };
+  $('[data-q="5"]').onclick = function () { Q.qr = !Q.qr; applyQ(); };
+
+  /* ---------- gallery ---------- */
+  var STATES = {
+    settings: [['off', 'כבוי'], ['on', 'פועל'], ['nourl', 'בלי כתובת'], ['failed', 'נכשל'], ['loading', 'טעינה'], ['error', 'שגיאה']],
+    fleet: [['data', 'נתונים'], ['empty', 'ריק'], ['loading', 'טעינה'], ['error', 'שגיאה'], ['intakeoff', 'קבלה עצורה']],
+    inst: [['silent', 'לא מדווחת']]
+  };
+  var cur = { s: 'settings', st: { settings: 'on', fleet: 'data', inst: 'silent' } };
+  function renderStates() {
+    $('#g-states').innerHTML = STATES[cur.s].map(function (x) { return '<button data-st="' + x[0] + '" aria-pressed="' + (cur.st[cur.s] === x[0]) + '">' + x[1] + '</button>'; }).join('');
+    $$('#g-states button').forEach(function (b) { b.onclick = function () { setState(b.dataset.st); }; });
+  }
+  function setState(st) {
+    cur.st[cur.s] = st;
+    $$('#s-' + cur.s + ' .st').forEach(function (el) { el.classList.toggle('on', el.dataset.st.split(' ').indexOf(st) >= 0); });
+    if (cur.s === 'settings') applySettings(st);
+    renderStates();
+  }
+  function go(s) {
+    cur.s = s;
+    $$('#g-screens button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.s === s)); });
+    $$('.scr').forEach(function (el) { el.classList.toggle('on', el.id === 's-' + s); });
+    setState(cur.st[s]); window.scrollTo(0, 0);
+  }
+  $$('#g-screens button').forEach(function (b) { b.onclick = function () { go(b.dataset.s); }; });
+  $$('.back[data-go]').forEach(function (b) { b.onclick = function () { go(b.dataset.go); }; });
+  function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); $('#b-th').setAttribute('aria-pressed', String(dark)); }
+  function width(phone) { $('#stage').classList.toggle('phone', phone); $('#b-w').setAttribute('aria-pressed', String(phone)); }
+  $('#b-th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+  $('#b-more').onclick = function () { var open = $('.gallery').classList.toggle('open'); this.setAttribute('aria-pressed', String(open)); };
+  $('#b-w').onclick = function () { width(!$('#stage').classList.contains('phone')); };
+
+  applyQ();
+  theme(q.get('theme') === 'dark');
+  width(q.get('w') === 'phone');
+  var s0 = STATES[q.get('s')] ? q.get('s') : 'settings';
+  if (q.get('st')) cur.st[s0] = q.get('st');
+  go(s0);
+})();
+</script>
+</body>
+</html>

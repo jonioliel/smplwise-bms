@@ -1,5 +1,5 @@
 -- CR-READY96 slice 1 (docs/changes/CR-READY96.md): the installation readiness score - the installer's attestation of what the system cannot measure,
--- and the score history. PROVISIONAL 0152 (pilot/READY96B-295 on release/2140, whose highest file is 0151); the final number is decided at integration.
+-- and the score history. PLACEHOLDER 0152 (pilot/READYFLEET-295 on main, whose highest file is 0151; see MIGRATIONS_NOTE.md); the final number is decided at integration.
 -- Additive only: rollback = run the previous version, the tables are ignored by it. Neither table is a backup table (never written to an archive,
 -- never restored): they describe THIS installation's hand-over, not the project.
 CREATE TABLE readiness_attestations (

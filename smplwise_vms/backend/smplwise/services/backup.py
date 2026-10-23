@@ -87,7 +87,9 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
                                    # APPREFRESH-295: the phone app's refresh-token families and access tokens (hashes only) - a restore must
                                    # never revive a revoked family or an already-used refresh token
-                                   "app_refresh_families", "app_refresh_tokens", "app_access_tokens"})
+                                   "app_refresh_families", "app_refresh_tokens", "app_access_tokens",
+                                   # CR-FLEET215: what this installation sent to the fleet receiver - runtime history of THIS box
+                                   "fleet_report_log"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -187,7 +189,11 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-033 section 9: the door settings (`doors.trusted_path`, default `off`) are never exported and never restored - a restore
 # can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
 # CR's "apply the stricter one" also never tightens from an archive.
-SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
+# CR-FLEET215: `fleet.*` (the consent switch and the last-attempt state) describes THIS installation - an archive never switches the
+# fleet report on, and never carries it to another box. READYFLEET-295: `demo.*` (CR-READY96 demo mode; today `demo.allow_remote`) is kept
+# the same way - a restore can never allow a remote demo on a box that did not allow it (stricter than CR-READY96's first note, recorded
+# in docs/changes/READYFLEET-295.md).
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "fleet.", "demo.")
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge", "privacy.local_purge_days", "privacy.personal_export"}  # IDENT146: purge / export policy of THIS installation

@@ -114,6 +114,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'tickets', get label() { return tt('setTabDepartments'); }, href: '#/system/tickets?tab=departments', sub: true },
       { tab: 'tickets', get label() { return tt('setTabPermissions'); }, href: '#/system/tickets?tab=permissions', sub: true },
       { tab: 'messaging-accounts', label: 'ערוץ ההודעות', href: '#/system/messaging-accounts', keywords: 'וואטסאפ whatsapp חשבון חשבונות מספר שולח קוד אימות שימושים קצב שליחה sms' }, // CR-038 S5a
+      { tab: 'fleet-report', label: 'דיווח בריאות', href: '#/system/fleet-report', keywords: 'דוח יומי smplwise fleet צי קוד רישום חתימה שקט לא מדווחת מה נשלח' }, // CR-FLEET215 (readiness and demo mode: the readiness tab, READYFLEET-295)
       { tab: 'general', label: 'בריאות ועבודות', href: `${GEN}?tab=health`, keywords: 'דיאגנוסטיקה מצב רכיבים תור' },
       { tab: 'general', label: 'גיבוי ושחזור', href: `${GEN}?tab=backup`, keywords: 'backup restore שחזור קובץ zip' },
       { tab: 'storage', label: 'אחסון', href: '#/system/storage', keywords: 'דיסק הקלטות נפח' },

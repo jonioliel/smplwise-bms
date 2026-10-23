@@ -48,7 +48,7 @@ CONFIGURE = "system.configure"                 # the settings (allow_remote)
 DATASETS = ("residential", "office", "retail")
 SCENARIOS = ("normal", "cameras_offline", "new_installation")
 DEFAULT_HOURS, MAX_HOURS = 4, 24
-ALLOW_REMOTE = "demo.allow_remote"             # a normal setting, off by default; backups carry it, but only an administrator on the installer's server turns it on
+ALLOW_REMOTE = "demo.allow_remote"             # off by default; only an administrator on the installer's server turns it on; never exported or restored (backup.SETTINGS_KEEP_PREFIXES, READYFLEET-295)
 
 # Everything that moves a physical thing, writes to a device or a recorder, updates or restores the installation, or changes who may do what.
 # While the handle is in demo mode rbac.authorize answers "demo_mode" for these.

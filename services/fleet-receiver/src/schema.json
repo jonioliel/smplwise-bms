@@ -1,0 +1,447 @@
+{
+ "keys": {
+  "alerts_open": {
+   "keys": {
+    "alert": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "critical": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "info": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    }
+   },
+   "type": "object"
+  },
+  "backup": {
+   "keys": {
+    "count": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "last_age_h": {
+     "max": 10000000,
+     "min": 0,
+     "null": true,
+     "type": "int"
+    },
+    "offbox_targets": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    }
+   },
+   "type": "object"
+  },
+  "components": {
+   "keys": {
+    "backups": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "bridge": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "db": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "discovery": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "events_derive": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "events_ingest": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "exports": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "frigate": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "go2rtc": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "ha_sync": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "nvr": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "storage": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    },
+    "thumbnails": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "ok",
+      "warn",
+      "error",
+      "off",
+      "absent",
+      "unknown"
+     ]
+    }
+   },
+   "type": "object"
+  },
+  "counts": {
+   "keys": {
+    "cameras": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "floors_published": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "ha_entities": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "recorders": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "recorders_by_vendor": {
+     "keys": {
+      "frigate": {
+       "max": 10000000,
+       "min": 0,
+       "null": false,
+       "type": "int"
+      },
+      "hikvision": {
+       "max": 10000000,
+       "min": 0,
+       "null": false,
+       "type": "int"
+      },
+      "none": {
+       "max": 10000000,
+       "min": 0,
+       "null": false,
+       "type": "int"
+      },
+      "provision_isr": {
+       "max": 10000000,
+       "min": 0,
+       "null": false,
+       "type": "int"
+      }
+     },
+     "type": "object"
+    },
+    "system_admins": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    },
+    "users_active": {
+     "max": 10000000,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    }
+   },
+   "type": "object"
+  },
+  "demo_mode": {
+   "null": false,
+   "type": "bool"
+  },
+  "disk": {
+   "keys": {
+    "free_gb": {
+     "max": 10000000,
+     "min": 0,
+     "null": true,
+     "type": "int"
+    },
+    "free_pct": {
+     "max": 100,
+     "min": 0,
+     "null": true,
+     "type": "int"
+    },
+    "total_gb": {
+     "max": 10000000,
+     "min": 0,
+     "null": true,
+     "type": "int"
+    }
+   },
+   "type": "object"
+  },
+  "generated_at": {
+   "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:00Z$",
+   "type": "re"
+  },
+  "installation_id": {
+   "pattern": "^[0-9a-f]{32}$",
+   "type": "re"
+  },
+  "mode": {
+   "null": false,
+   "type": "enum",
+   "values": [
+    "full",
+    "ha_only"
+   ]
+  },
+  "overall": {
+   "null": false,
+   "type": "enum",
+   "values": [
+    "ok",
+    "warn",
+    "error"
+   ]
+  },
+  "readiness": {
+   "keys": {
+    "missing": {
+     "type": "ids",
+     "values": [
+      "addon_healthy",
+      "recorder_connected",
+      "home_system_connected",
+      "media_server",
+      "system_admin",
+      "backup_recent",
+      "floor_plan_published",
+      "camera_on_map",
+      "alert_receivers",
+      "disk_space",
+      "backup_offsite",
+      "more_people",
+      "service_departments",
+      "up_to_date"
+     ]
+    },
+    "ready": {
+     "null": false,
+     "type": "bool"
+    },
+    "score": {
+     "max": 100,
+     "min": 0,
+     "null": false,
+     "type": "int"
+    }
+   },
+   "type": "object"
+  },
+  "schema": {
+   "type": "const",
+   "value": "smplwise-fleet-report/1"
+  },
+  "seq": {
+   "max": 10000000,
+   "min": 1,
+   "null": false,
+   "type": "int"
+  },
+  "update": {
+   "keys": {
+    "available": {
+     "null": true,
+     "type": "bool"
+    },
+    "check": {
+     "null": false,
+     "type": "enum",
+     "values": [
+      "current",
+      "available",
+      "refresh_failed_read_ok",
+      "unreachable",
+      "not_permitted",
+      "error",
+      "unknown"
+     ]
+    },
+    "latest": {
+     "null": true,
+     "pattern": "^[0-9A-Za-z._+-]{1,40}$",
+     "type": "version"
+    }
+   },
+   "type": "object"
+  },
+  "uptime_h": {
+   "max": 10000000,
+   "min": 0,
+   "null": false,
+   "type": "int"
+  },
+  "versions": {
+   "keys": {
+    "addon": {
+     "null": false,
+     "pattern": "^[0-9A-Za-z._+-]{1,40}$",
+     "type": "version"
+    },
+    "bridge": {
+     "null": true,
+     "pattern": "^[0-9A-Za-z._+-]{1,40}$",
+     "type": "version"
+    },
+    "bridge_required": {
+     "null": true,
+     "pattern": "^[0-9A-Za-z._+-]{1,40}$",
+     "type": "version"
+    },
+    "db_schema": {
+     "max": 10000000,
+     "min": 0,
+     "null": true,
+     "type": "int"
+    },
+    "go2rtc": {
+     "null": true,
+     "pattern": "^[0-9A-Za-z._+-]{1,40}$",
+     "type": "version"
+    },
+    "ha": {
+     "null": true,
+     "pattern": "^[0-9A-Za-z._+-]{1,40}$",
+     "type": "version"
+    }
+   },
+   "type": "object"
+  }
+ },
+ "type": "object"
+}

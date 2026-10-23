@@ -55,6 +55,8 @@ CHECKS: dict[str, tuple[str, str, int, bool, str]] = {
 }
 CRITICAL = frozenset(k for k, v in CHECKS.items() if v[3])
 HANDOVER = "handover"
+CHECK_IDS: tuple[str, ...] = tuple(CHECKS)  # the closed id set other consumers may name (the fleet report's `readiness.missing`, READYFLEET-295)
+NOT_DONE = (ATTENTION, BLOCKED, PENDING)     # an applicable check in one of these is "missing"
 
 
 def _int_in(lo: int, hi: int) -> Callable[[str], bool]:

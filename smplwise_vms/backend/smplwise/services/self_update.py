@@ -96,6 +96,7 @@ OPTION_TYPES: dict[str, str] = {
     "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
     "push_relay_url": "str?",  # CR-027: the SmplWise push relay's URL (config.py reads it into the environment; the key is in the secrets store)
+    "fleet_report_url": "str?",  # CR-FLEET215: the SmplWise fleet receiver's URL (config.py reads it into the environment; the Arx switch is the other key)
     "frigate_enabled": "bool?",  # CR-029: the Frigate recorder type is selectable (run.sh maps it to SW_FRIGATE)
     "cast_relay": "bool?",  # CR-028: the cast relay's listener (18092/tcp, unmapped by default)
     "tickets_public": "bool?",  # CR-038 S4: the tickets handler page's listener (18093/tcp, unmapped; the tunnel reaches it)

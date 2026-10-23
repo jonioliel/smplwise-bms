@@ -65,6 +65,7 @@ import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTI
 import { rt } from '../tickets/rfq-text';
 import '../tickets/vendor-accounts'; // TK258: "חשבון ספקים" (#/tickets/accounts)
 import '../screens/system-tickets'; // CR-038: the tickets module's settings
+import '../screens/system-fleet-report'; // CR-FLEET215: הגדרות › דיווח בריאות (the daily health report to SmplWise)
 import '../screens/system-messaging-accounts'; // CR-038 S5a: הגדרות › ערוץ ההודעות (WhatsApp accounts per use)
 import '../screens/security-alarm';
 import '../screens/schedule-editor';
@@ -2341,6 +2342,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
+        if (s[1] === 'fleet-report') return html`<system-fleet-report></system-fleet-report>`; // CR-FLEET215: דיווח בריאות
         if (s[1] === 'messaging-accounts') return html`<system-messaging-accounts></system-messaging-accounts>`; // CR-038 S5a: ערוץ ההודעות
         if (s[1] === 'tickets') return html`<system-tickets></system-tickets>`; // CR-038: the tickets module (its label is the configured name, D33)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
