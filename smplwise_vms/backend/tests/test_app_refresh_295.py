@@ -515,7 +515,7 @@ def test_changed_lifetimes_apply_to_new_tokens_and_existing_families_are_re_eval
     dev, old = started(rx)  # issued with 90 / 30 / 10
     switch(rx, **{svc.ABSOLUTE_KEY: 20, svc.IDLE_KEY: 5, svc.ACCESS_KEY: 2})
     other = register(rx, "vera", install_id="33333333-2222-3333-4444-555555555555", name="הנייד של ורה")
-    r = issue(rx, other["device_id"], user="vera")
+    r = issue(rx, other["device_id"], user="vera", install_id="33333333-2222-3333-4444-555555555555")
     assert r.status_code == 201, r.text
     new = r.json()
     assert new["expires_in"] == 120
