@@ -154,3 +154,13 @@ Settings UI, receiver deployment, key rotation message, a rendered overview page
 3. Key rotation: manual re-enroll in slice 1, or a rotation message signed by the old key in slice 2? Recommend slice 2.
 4. Admin overview behind Cloudflare Access in addition to `ADMIN_TOKEN`? Recommend yes.
 5. Data-processing terms with customers before the first enrollment: who signs?
+
+## Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 7). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup v2 approved with these answers:
+
+- **Silent threshold (form Q4; the mockup used 36 hours):** **not needed if not set**: there is no default number of hours after which an installation counts as "not reporting"; the rule applies only when the owner sets a value.
+- **Install row (form Q6: what is missing in an installation's row):** add the **contact person** (the contact and the installed version).
+- **Double readiness (form Q7):** **yes, one screen**: "installation readiness" appears on one screen only, shared with the readiness check (CR-READY96), not duplicated here and there.
