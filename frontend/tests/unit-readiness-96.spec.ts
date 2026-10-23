@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  KPI_ORDER, THRESHOLD_FIELDS, changedSettings, demoLeft, demoReadiness, filterChecks, gainText, kpiCounts, levelTone, points, validSetting, weightKey,
+  KPI_ORDER, THRESHOLD_FIELDS, getReadinessChip, onReadinessChip, setReadinessChip, changedSettings, demoLeft, demoReadiness, filterChecks, gainText, kpiCounts, levelTone, points, validSetting, weightKey,
 } from '../src/api/readiness';
 import { AREA_TABS, TAB_PERMISSIONS } from '../src/shell/nav';
 import { SETTINGS_GROUPS, visibleGroups } from '../src/screens/system-index';
@@ -60,6 +60,29 @@ test('every threshold the server knows is editable on the screen, and the demo f
   const r = demoReadiness();
   for (const f of THRESHOLD_FIELDS) expect(Object.keys(r.settings), f.key).toContain(f.key);
   for (const c of r.checks) expect(Object.keys(r.settings), c.id).toContain(weightKey(c.id));
+});
+
+test('the settings score chip keeps only a valid recorded score, clamps it, and tells its listeners once per change', () => {
+  let calls = 0;
+  const off = onReadinessChip(() => { calls += 1; });
+  setReadinessChip(null);
+  expect(getReadinessChip()).toBeNull();
+  expect(calls).toBe(0);
+  setReadinessChip({ score: 84.4, level: 'almost' });
+  expect(getReadinessChip()).toEqual({ score: 84, level: 'almost' });
+  setReadinessChip({ score: 84, level: 'almost' }); // unchanged: no notification
+  expect(calls).toBe(1);
+  setReadinessChip({ score: 140, level: 'ready' });
+  expect(getReadinessChip()).toEqual({ score: 100, level: 'ready' });
+  setReadinessChip({ score: 'x', level: 'ready' }); // not a score: the chip goes away
+  expect(getReadinessChip()).toBeNull();
+  setReadinessChip({ score: 50, level: 'bogus' });
+  expect(getReadinessChip()).toBeNull();
+  expect(calls).toBe(3);
+  off();
+  setReadinessChip({ score: 10, level: 'building' });
+  expect(calls).toBe(3);
+  setReadinessChip(null);
 });
 
 test('the screen is a settings tab for system.configure holders only, with a search entry', () => {

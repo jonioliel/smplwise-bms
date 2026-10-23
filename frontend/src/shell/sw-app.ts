@@ -108,6 +108,7 @@ import '../screens/system-setup';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
 import '../screens/system-wizard';
 import '../screens/system-readiness';
+import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
@@ -1748,6 +1749,7 @@ export class SwApp extends LitElement {
       applyNoticesHidden(s.mode === 'api' && !!s.me?.modules?.notices); // CR-NOTICE106: the notice board tab (OFF by default, the static demo too)
       setTicketNames(s.me?.modules?.tickets_name);
       startIncidents(s.mode === 'api' && !!s.me?.modules?.incidents); // CR-LIVEEVENT100: the open-incident pill / dots (OFF by default, the static demo too)
+      setReadinessChip(s.mode === 'api' ? s.me?.readiness : null); // CR-READY96: the score chip on the settings entry (configure holders only)
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
         this.setupDis = null;
