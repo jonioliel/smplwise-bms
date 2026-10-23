@@ -344,3 +344,48 @@ a leak is open (Q7), 01:00-05:00 with 6 L/h over two hours (Q8), the irrigation 
 - **Tests**: `tests/test_water_alerts_s2.py` (each rule at its exact threshold, irrigation default and override, dedup, holds, ack,
   permissions and floor scope on the log and the recipients, module off, restart persistence, the catalogue); `test_water_meters_s1.py`
   (the provisional-number test now expects 0152 + 0153) and `test_notify_core.py` (the water sources are gated like the ticket sources).
+
+## 16. Owner review 24.10 - mockup revision 4 (decisions recorded)
+
+Source: owner's review of the 11 mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 1). Water v3 is
+approved; revision 4 (`docs/design/mockups/water-78/index.html`) adds what the real electricity module already has.
+
+- **Q1 (billing) is answered YES, and "tenant billing / chargeback" is needed.** Slice 3 of section 2 is now in scope: what was built
+  for electricity must exist for water. This reverses the section 13 recommendation ("not now"); section 13 Q1 is closed by this
+  decision (recorded, not silently resolved).
+- **Pages added (level 2 of "מים"):** **חשבונות**, **חיובים**, **לקוחות**, **הגדרות** beside מונים / צריכה / התראות. They mirror
+  `electricity/elec-account-list.ts`, `elec-account-page.ts`, `elec-bills-list.ts`, `elec-bill-page.ts`, `elec-customers.ts` and
+  `elec-settings.ts` with water content. Implementer's rule is unchanged: the electricity components are reused through the
+  medium adapter, nothing is redrawn with its own component.
+  - **חשבונות (utility / billing accounts):** a customer + a signed meter formula (+ / minus, so a "general difference - losses and
+    leaks" account = the main meter minus every sub-meter is possible) + a tariff + a period (month / two months) + the automatic
+    bill mode (none / draft / issue). List (search, tiles, table, phone rows) and an account page with the tabs מצב / היסטוריה /
+    חיובים: the meters in the formula with start and current reading, the customer card, the price card, the next bill.
+    A stale meter is not counted until it reports again (the electricity rule) and says so on the account.
+  - **חיובים (bills and tenant chargeback):** the electricity states טיוטה / הונפק / נשלח / שולם / בוטל, number sequence, issue,
+    mark sent, mark paid, correct (a new draft that replaces), void with a reason, PDF. The bill separates water and sewage per
+    m³, then VAT.
+  - **לקוחות:** customer number, name, address / unit, phone, email, open balance, the customer card; a customer with accounts
+    cannot be deleted.
+  - **הגדרות:** tariffs with dated versions (water price and sewage price per m³, before VAT), VAT rate, business details on the
+    bill, bill numbering and payment terms, retention (bills and documents are kept 7 years and are not editable), and the alerts
+    section below. Real placement stays where the electricity settings live (system > infrastructure); the mockup draws it as a
+    page for review only.
+  - **Permissions (as electricity):** money columns, the bills / customers pages and the customer's phone need the bills permission
+    (here `water.bills`, section 8); settings need manage. Operators see accounts and consumption without money.
+- **New alert action: snooze ("נדנוד") for X time, X editable in settings.** In the alert log and in the meter card each open alert
+  carries a split button: the main part snoozes for the default duration, the arrow opens the list of the configured durations
+  (each shows the time it ends). The alert is not acknowledged: it returns when the time ends if the condition persists, and the
+  row shows "מנודנדת עד HH:MM" (the tile "מושתקות" is renamed "מנודנדות"). It replaces the hard-coded "השתקה 60 ד׳" of revision 3.
+  - Settings (הגדרות > התראות והשהיה): the list of offered durations (add / remove, minutes / hours / days; initial set 15 min, 1 hour,
+    4 hours, 1 day), the default for the main button (initial: 1 hour) and the maximum snooze (initial: 7 days, a suggestion to be
+    confirmed by the owner). The night-flow rules stay as approved and are not edited there.
+  - Permission: `water.ack` (the acknowledge / mute permission of section 8); viewers do not see the action.
+  - Backend note for the implementer: the slice-2 alert log's "mute" state becomes "snoozed until"; the duration list, the default
+    and the maximum are rows of `water_alert_settings` (one revision with the rest of the routing settings).
+- **Control-screen rule (owner, general):** no page scroll on control screens. Revision 4 was measured at 1440 x 900: every page
+  fits one screen, including every new page (the chart height, row padding and side cards were tightened for that). Phone width
+  lists scroll vertically as lists do; the meter card drawer keeps its internal scroll (unchanged from the electricity card).
+- **Evidence:** `private/review/water-78-mockup-v4.html` and `private/review/water-78-v4/` (screenshots, light and dark, desktop and phone).
+- **Not decided here (left as proposals in the mockup):** the tariff values, the 18% VAT rate, the bill header and the customer
+  fixtures are invented example data; the "maximum snooze" default; whether the "loss" account is offered by default.

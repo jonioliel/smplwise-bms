@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>מים - דגם למסכים (v3)</title>
+<title>מים - דגם למסכים (v4)</title>
 <!--
   CR-WATER78 (board item r078, "water meters under Infrastructure") - static design mock-up for the owner's approval, revision 3
   (owner feedback 2026-10-24: "much more in the style of the electricity meters screens"). NOT product code: self-contained, no
@@ -27,7 +27,9 @@
   irrigation night rule OFF, abnormal + burst on, m³ with litres under 1 m³, alerts on by default, no actuation, the module switch
   (default off, the off panel), viewers without water.view (the forbidden panel), the "מים" tab beside "מוני חשמל".
 
-  Pages (level 2 of "מים"): 1. מונים  2. צריכה  3. התראות (slice 2). Billing pages are NOT drawn (owner question Q1: not now).
+  Pages (level 2 of "מים"): 1. מונים  2. צריכה  3. התראות (slice 2)
+    4. חשבונות  5. חיובים  6. לקוחות  7. הגדרות  (revision 4, owner review 24.10: accounts and billing as in the electricity module - utility accounts with a meter formula,
+    bills, tenant chargeback, tariffs and VAT - plus the alert action "נדנוד" (snooze) whose durations are edited in the settings page).
   URL switches: ?page=meters|usage|alerts  ?scheme=dark (also ?theme=dark)  ?role=mgr|op|view  ?state=ready|empty|loading|error|off|forbidden
                 ?view=cards  ?sheet=1 (the meter drawer)  ?range=hours|days|months (the drawer's chart)
 -->
@@ -363,6 +365,45 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
   nav.bottom .av { display: inline-grid; place-items: center; inline-size: 24px; block-size: 24px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-2xs); font-weight: var(--sw-fw-semibold); }
   .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
 }
+
+/* ===== v4: accounts, bills, customers, settings (electricity/elec-*.ts, mirrored with water content) ===== */
+body[data-role="op"] .bil, body[data-role="view"] .bil { display: none !important; }
+.page .backrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.page .cols.side { grid-template-columns: minmax(0, 1fr) 320px; }
+@media (max-width: 899px) { .page .cols.side { grid-template-columns: minmax(0, 1fr); } }
+.page .col { display: flex; flex-direction: column; gap: 14px; min-inline-size: 0; }
+.page a.rowlink { color: var(--sw-accent-text); text-decoration: none; font-weight: var(--sw-fw-semibold); }
+.page tfoot td { font-weight: var(--sw-fw-semibold); background: var(--sw-surface-2); padding: 10px 12px; }
+.page .paper { background: var(--sw-surface-solid); color: var(--sw-text); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 18px 22px; display: flex; flex-direction: column; gap: 10px; }
+.page .paper .ph { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-block-end: 1px solid var(--sw-border); padding-block-end: 10px; }
+.page .paper table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
+.page .paper td, .page .paper th { padding: 6px 4px; text-align: start; border-block-end: 1px solid var(--sw-border); }
+.page .paper td.n, .page .paper th.n { text-align: end; }
+.page .paper .tot td { font-weight: var(--sw-fw-bold); border-block-end: 0; font-size: var(--sw-fs-md); }
+.page .formgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 767px) { .page .formgrid { grid-template-columns: minmax(0, 1fr); } }
+.page .chips-ed { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.page .chips-ed .chip button { all: unset; cursor: pointer; display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 50%; }
+.page .chips-ed .chip button:hover { background: var(--sw-surface-3); }
+.page .chips-ed .chip::before { display: none; }
+.page .chips-ed .chip { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.page .snz { display: inline-flex; }
+.page .snz .btn:first-child { border-start-end-radius: 0; border-end-end-radius: 0; }
+.page .snz .btn + .btn { border-start-start-radius: 0; border-end-start-radius: 0; margin-inline-start: -1px; padding-inline: 6px; }
+.menu { position: fixed; inset: auto;  z-index: calc(var(--sw-z-modal) + 5); display: none; flex-direction: column; min-inline-size: 150px; padding: 4px; background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-2, 0 8px 24px rgba(0,0,0,.18)); }
+.menu.on { display: flex; }
+.menu button { all: unset; box-sizing: border-box; cursor: pointer; padding: 8px 12px; border-radius: var(--sw-r-sm); font-size: var(--sw-fs-sm); color: var(--sw-text); }
+.menu button:hover, .menu button:focus-visible { background: var(--sw-surface-2); }
+.menu .mh { padding: 6px 12px 2px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.page .sect-nav { align-self: flex-start; }
+.drawer .frm { display: flex; flex-direction: column; gap: 12px; }
+/* control screens never scroll at desktop size (owner rule 24.10): the page's chart and rows are sized to fit one screen */
+.page svg.chart { max-block-size: 170px; }
+.page .usage-chart { max-inline-size: 560px; }
+.page table.t td { padding-block: 9px; }
+.page [data-acc-meters] td { padding-block: 5px; }
+.page .cols.side .card { padding: 12px 14px; }
+.page .cols.side .kv { gap: 3px 14px; font-size: var(--sw-fs-sm); }
 </style>
 </head>
 <body>
@@ -429,6 +470,10 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
           <a href="#" data-p="meters" class="on" aria-current="page"><span class="lbl">מונים</span></a>
           <a href="#" data-p="usage"><span class="lbl">צריכה</span></a>
           <a href="#" data-p="alerts"><span class="lbl">התראות<span class="count">(<span data-count="alerts">2</span>)</span></span></a>
+          <a href="#" data-p="accounts"><span class="lbl">חשבונות</span></a>
+          <a href="#" data-p="bills" class="bil"><span class="lbl">חיובים</span></a>
+          <a href="#" data-p="customers" class="bil"><span class="lbl">לקוחות</span></a>
+          <a href="#" data-p="settings" class="mng"><span class="lbl">הגדרות</span></a>
         </div></nav>
       </div>
       <div class="body elec">
@@ -513,15 +558,87 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
               <button class="btn mng" type="button">כללי דליפה</button>
             </div>
             <div class="tiles">
-              <div class="tile"><div class="k">פתוחות</div><div class="v" style="color:var(--sw-danger-text)"><span class="num">2</span></div></div>
+              <div class="tile"><div class="k">פתוחות</div><div class="v" style="color:var(--sw-danger-text)"><span class="num" data-t-open>2</span></div></div>
               <div class="tile"><div class="k">נסגרו השבוע</div><div class="v"><span class="num">3</span></div></div>
-              <div class="tile"><div class="k">מושתקות</div><div class="v"><span class="num">1</span></div></div>
+              <div class="tile"><div class="k">מנודנדות</div><div class="v"><span class="num" data-t-snz>1</span></div></div>
               <div class="tile"><div class="k">כללי דליפה</div><div class="v"><span class="num">01:00-05:00</span><span class="u">6 ליטר לשעה · שעתיים</span></div></div>
             </div>
             <div class="card flush scrollx desk-only"><table class="t" data-alerts-table>
               <thead><tr><th>מונה</th><th>אזור</th><th>סוג</th><th>מאז</th><th class="n">ערך</th><th>מצב</th><th></th></tr></thead>
               <tbody></tbody></table></div>
             <div class="list phone-only" style="flex-direction:column" data-alerts-rows></div>
+          </div>
+        </section>
+
+        <!-- ===== 4. חשבונות (elec-account-list.ts / elec-account-page.ts): a billing account = a customer + a meter formula + a tariff + a period ===== -->
+        <section class="page" id="s-accounts" data-st="ready">
+          <div data-state="ready">
+            <div data-acc-list class="page" style="display:flex">
+              <div class="row head">
+                <label class="inp"><span class="ic s16"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span><input type="search" placeholder="חיפוש חשבון או לקוח" aria-label="חיפוש חשבון או לקוח" data-acc-search></label>
+                <span class="sp"></span>
+                <button class="btn primary mng" type="button" data-new-account><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></span>חשבון חדש</button>
+              </div>
+              <div class="tiles">
+                <div class="tile"><div class="k">חשבונות פעילים</div><div class="v"><span class="num" data-at="active"></span></div></div>
+                <div class="tile"><div class="k">צריכה בתקופה</div><div class="v"><span class="num" data-at="m3"></span><span class="u">מ״ק</span></div></div>
+                <div class="tile bil"><div class="k">סכום עד כה</div><div class="v"><span class="num" data-at="amt"></span><span class="u">₪</span></div></div>
+                <div class="tile bil"><div class="k">טיוטות לבדיקה</div><div class="v"><span class="num" data-at="drafts"></span></div></div>
+              </div>
+              <div class="card flush scrollx desk-only"><table class="t" data-acc-table>
+                <thead><tr><th>חשבון</th><th>לקוח</th><th class="hide-tablet">נוסחה</th><th>תקופה</th><th class="n">צריכה בתקופה (מ״ק)</th><th class="n bil">סכום עד כה</th><th class="bil">חיוב אחרון</th><th>מצב</th></tr></thead>
+                <tbody></tbody></table></div>
+              <div class="list phone-only" style="flex-direction:column" data-acc-rows></div>
+            </div>
+            <div data-acc-detail class="page" style="display:none"></div>
+          </div>
+        </section>
+
+        <!-- ===== 5. חיובים (elec-bills-list.ts / elec-bill-page.ts) ===== -->
+        <section class="page bil-page" id="s-bills" data-st="ready">
+          <div data-state="ready">
+            <div data-bill-list class="page" style="display:flex">
+              <div class="row head">
+                <div class="seg" role="group" aria-label="סינון לפי מצב" data-bill-filter></div>
+                <label class="inp"><span class="ic s16"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span><input type="search" placeholder="חיפוש מספר או לקוח" aria-label="חיפוש מספר או לקוח" data-bill-search></label>
+                <span class="sp"></span>
+                <button class="btn" type="button" data-csv><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></span>ייצוא CSV</button>
+              </div>
+              <div class="tiles">
+                <div class="tile"><div class="k">טיוטות</div><div class="v"><span class="num" data-bt="draft"></span></div></div>
+                <div class="tile"><div class="k">ממתינים לתשלום</div><div class="v"><span class="num" data-bt="open"></span><span class="u">₪</span></div></div>
+                <div class="tile"><div class="k">שולמו בחודש האחרון</div><div class="v"><span class="num" data-bt="paid"></span><span class="u">₪</span></div></div>
+                <div class="tile"><div class="k">באיחור</div><div class="v"><span class="num" data-bt="late">0</span></div></div>
+              </div>
+              <div class="card flush scrollx desk-only"><table class="t" data-bill-table>
+                <thead><tr><th>מספר</th><th>לקוח</th><th>חשבון</th><th>תקופה</th><th class="n">מ״ק</th><th class="n">סה״כ כולל מע״מ</th><th>לתשלום עד</th><th>מצב</th></tr></thead>
+                <tbody></tbody></table></div>
+              <div class="list phone-only" style="flex-direction:column" data-bill-rows></div>
+            </div>
+            <div data-bill-detail class="page" style="display:none"></div>
+          </div>
+        </section>
+
+        <!-- ===== 6. לקוחות (elec-customers.ts): tenants / units billed for water ===== -->
+        <section class="page bil-page" id="s-customers" data-st="ready">
+          <div data-state="ready">
+            <div class="row head">
+              <label class="inp"><span class="ic s16"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span><input type="search" placeholder="חיפוש לקוח" aria-label="חיפוש לקוח" data-cust-search></label>
+              <span class="sp"></span>
+              <button class="btn primary mng" type="button" data-new-customer><span class="ic s15"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></span>לקוח חדש</button>
+            </div>
+            <div class="card flush scrollx desk-only"><table class="t" data-cust-table>
+              <thead><tr><th>מספר</th><th>שם</th><th>כתובת / יחידה</th><th>טלפון</th><th>דוא״ל</th><th class="n">חשבונות</th><th class="n">יתרה פתוחה</th></tr></thead>
+              <tbody></tbody></table></div>
+            <div class="list phone-only" style="flex-direction:column" data-cust-rows></div>
+          </div>
+        </section>
+
+        <!-- ===== 7. הגדרות (the real ones live under מערכת > תשתיות: prices / business / retention; here with water content + the alert snooze) ===== -->
+        <section class="page mng-page" id="s-settings" data-st="ready">
+          <div data-state="ready">
+            <div class="seg sect-nav" role="group" aria-label="חלקי ההגדרות" data-set-nav></div>
+            <div data-set-body class="page" style="display:flex"></div>
           </div>
         </section>
 
@@ -551,6 +668,18 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
     <div class="dbody"><div class="mc" data-meter-card></div></div>
   </div>
 </div>
+<div class="drawer elec" id="drawer2" role="dialog" aria-modal="true" aria-labelledby="dh2">
+  <div class="backdrop" data-close></div>
+  <div class="panel">
+    <div class="grip" aria-hidden="true"></div>
+    <header>
+      <div class="titles"><h3 id="dh2" data-d="name"></h3><div class="sub" data-d="sub"></div></div>
+      <button class="btn ghost sm icononly" type="button" data-close aria-label="סגירה" title="סגירה"><span class="ic s13"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></span></button>
+    </header>
+    <div class="dbody"><div class="mc" data-d2body></div></div>
+  </div>
+</div>
+<div class="menu elec" id="menu" role="menu"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -732,7 +861,7 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
       h += '<h3>התראות פתוחות</h3><div class="list" data-open-alerts>' + (leak
         ? '<div class="li"><div class="grow"><div class="t1">ספיקה רציפה בלילה · <span class="num">14</span> ליטר לשעה</div><div class="t2 wrap">מאז <span class="num">01:15</span> · 4 שעות ברצף · סף <span class="num">6</span> ליטר לשעה על פני שעתיים</div></div><span class="chip c-err">דליפה</span></div>'
         : '<div class="li"><div class="grow"><div class="t1">צריכה חריגה · פי <span class="num">2.1</span> מהרגיל ליום רביעי</div><div class="t2 wrap">מאז <span class="num">11:30</span> · <span class="num">6.10</span> מ״ק עד כה, רגיל <span class="num">2.90</span></div></div><span class="chip c-warn">חריגה</span></div>') + '</div>' +
-        '<div class="actions ack"><button class="btn sm primary" type="button" data-ack>אישור</button><button class="btn sm" type="button" data-mute>' + icon('bellOff', 13) + 'השתקה 60 ד׳</button></div>';
+        '<div class="actions ack"><button class="btn sm primary" type="button" data-ack>אישור</button>' + (ALERTS.filter(function (x) { return x.m === m.id && x.state === 'open'; })[0] ? snoozeHtml(ALERTS.filter(function (x) { return x.m === m.id && x.state === 'open'; })[0].id) : '') + '</div>';
     }
     h += '<h3>תקופות מונה</h3><div class="list" data-epochs>' + (EPOCHS[m.id] || EPOCHS.w1).map(function (e, i, arr) { return '<div class="li"><div class="grow"><div class="t1">' + e[0] + ' · <span class="num">' + e[1] + '</span></div><div class="t2 wrap">קריאת התחלה <span class="num">' + e[2] + '</span>' + (i < arr.length - 1 ? ' · עד <span class="num">' + arr[i + 1][1] + '</span>' : '') + (e[4] ? ' · ' + e[4] : '') + '</div></div>' + (i === arr.length - 1 ? '<span class="chip c-acc nodot">פעיל</span>' : '') + '</div>'; }).join('') + '</div>';
     h += '<div class="rd"><div class="row"><h3>קריאות ידניות וכיול</h3><span class="sp"></span><span class="actions mng"><button class="btn sm" type="button" data-reading>קריאה ידנית</button><button class="btn sm" type="button">כיול</button></span></div>' +
@@ -762,18 +891,19 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
 
   // ---- 3. the alerts page (slice 2): kind / severity / since / value / state; acknowledge and mute by water.ack ----
   var ALERTS = [
-    { m: 'w2', kind: 'דליפה · ספיקה רציפה בלילה', since: '23.10 01:15', value: '<span class="num">14</span> ליטר לשעה (סף <span class="num">6</span>)', state: 'open', chip: ['פתוחה', 'c-err'] },
-    { m: 'w3', kind: 'צריכה חריגה', since: '23.10 11:30', value: '<span class="num">6.10</span> מ״ק, רגיל <span class="num">2.90</span>', state: 'open', chip: ['פתוחה', 'c-warn'] },
-    { m: 'w7', kind: 'לא מדווח', since: '21.10 14:02', value: '-', state: 'muted', chip: ['מושתקת עד 09:30', 'c-mut'] },
-    { m: 'w4', kind: 'פריצה', since: '19.10 06:10', value: '<span class="num">2,400</span> ליטר לשעה (סף <span class="num">1,500</span>)', state: 'closed', chip: ['נסגרה · רונית לוי', 'c-ok'], until: '19.10 06:40' },
-    { m: 'w2', kind: 'דליפה · ספיקה רציפה בלילה', since: '18.10 02:00', value: '<span class="num">9</span> ליטר לשעה', state: 'closed', chip: ['נסגרה · דני כהן', 'c-ok'], until: '18.10 05:00' }
+    { id: 'al1', m: 'w2', kind: 'דליפה · ספיקה רציפה בלילה', since: '23.10 01:15', value: '<span class="num">14</span> ליטר לשעה (סף <span class="num">6</span>)', state: 'open', chip: ['פתוחה', 'c-err'] },
+    { id: 'al2', m: 'w3', kind: 'צריכה חריגה', since: '23.10 11:30', value: '<span class="num">6.10</span> מ״ק, רגיל <span class="num">2.90</span>', state: 'open', chip: ['פתוחה', 'c-warn'] },
+    { id: 'al3', m: 'w7', kind: 'לא מדווח', since: '21.10 14:02', value: '-', state: 'snoozed', chip: ['מנודנדת עד 09:30', 'c-mut'] },
+    { id: 'al4', m: 'w4', kind: 'פריצה', since: '19.10 06:10', value: '<span class="num">2,400</span> ליטר לשעה (סף <span class="num">1,500</span>)', state: 'closed', chip: ['נסגרה · רונית לוי', 'c-ok'], until: '19.10 06:40' },
+    { id: 'al5', m: 'w2', kind: 'דליפה · ספיקה רציפה בלילה', since: '18.10 02:00', value: '<span class="num">9</span> ליטר לשעה', state: 'closed', chip: ['נסגרה · דני כהן', 'c-ok'], until: '18.10 05:00' }
   ];
   var af = 'open';
   function renderAlerts() {
+    var cntO = 0, cntS = 0; ALERTS.forEach(function (a) { if (a.state === 'open') cntO++; if (a.state === 'snoozed') cntS++; }); document.querySelector('[data-t-open]').textContent = cntO; document.querySelector('[data-t-snz]').textContent = cntS; document.querySelectorAll('[data-count="alerts"]').forEach(function (x) { x.textContent = cntO + cntS; });
     var tb = document.querySelector('[data-alerts-table] tbody'), rows = document.querySelector('[data-alerts-rows]'); tb.innerHTML = ''; rows.innerHTML = '';
-    ALERTS.filter(function (a) { return af === 'all' || a.state === 'open'; }).forEach(function (a) {
+    ALERTS.filter(function (a) { return af === 'all' || a.state === 'open' || a.state === 'snoozed'; }).forEach(function (a) {
       var m = METERS.filter(function (x) { return x.id === a.m; })[0];
-      var acts = a.state === 'open' ? '<span class="acts ack"><button class="btn sm primary" type="button" data-ack>אישור</button><button class="btn sm" type="button" data-mute>' + icon('bellOff', 13) + 'השתקה 60 ד׳</button></span>' : '';
+      var acts = a.state === 'open' ? '<span class="acts ack"><button class="btn sm primary" type="button" data-ack>אישור</button>' + snoozeHtml(a.id) + '</span>' : '';
       var tr = el('tr', a.state === 'open' ? 'pick' : '', '<td class="b">' + m.name + '</td><td>' + areaName(m) + '<span class="mut dsk"> · ' + floorName(m) + '</span></td><td>' + a.kind + '</td><td><span class="num">' + a.since + '</span>' + (a.until ? '<span class="mut"> - <span class="num">' + a.until + '</span></span>' : '') + '</td><td class="n">' + a.value + '</td><td><span class="chip ' + a.chip[1] + '">' + a.chip[0] + '</span></td><td class="n">' + acts + '</td>');
       if (a.state === 'open') { tr.tabIndex = 0; tr.onclick = function (e) { if (!e.target.closest('.btn')) openMeter(m); }; }
       tb.appendChild(tr);
@@ -781,12 +911,280 @@ svg.chart text.val.leak { fill: var(--sw-danger-text); font-weight: var(--sw-fw-
     });
   }
   document.querySelectorAll('[data-alert-filter] button').forEach(function (b) { b.onclick = function () { af = b.dataset.f; b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); renderAlerts(); }; });
-  renderAlerts();
+  if (typeof SN !== 'undefined' && SN) renderAlerts();
+
+
+  // =====================================================================================================================================
+  // v4 (owner review 24.10, item 1): accounts and billing as in the real electricity module, with water content, and the alert snooze
+  // =====================================================================================================================================
+  var ILS = nf(2, 2); function ils(v) { return ILS.format(v); }
+  function byId(list, id) { return list.filter(function (x) { return x.id === id; })[0]; }
+  var VAT = 18;
+  var TARIFFS = [
+    { id: 't1', name: 'מים וביוב - מגורים', water: 10.20, sewage: 5.10, versions: [['01.01.2026', 10.20, 5.10], ['01.01.2025', 9.85, 4.90]] },
+    { id: 't2', name: 'שטחים משותפים והשקיה', water: 10.20, sewage: 0, versions: [['01.01.2026', 10.20, 0]] }
+  ];
+  var CUSTOMERS = [
+    { id: 'c1', no: '1001', name: 'דני כהן', addr: 'דירה 12, קומה 3', phone: '050-000-0001', email: 'dani@example.test' },
+    { id: 'c2', no: '1002', name: 'רונית לוי', addr: 'דירה 7, קומה 2', phone: '050-000-0002', email: 'ronit@example.test' },
+    { id: 'c3', no: '1003', name: 'ועד הבית', addr: 'שטחים משותפים', phone: '03-000-0003', email: 'vaad@example.test' },
+    { id: 'c4', no: '1004', name: 'חברת אחזקה אלון', addr: 'מחסן וחדר מכונות', phone: '03-000-0004', email: 'alon@example.test' }
+  ];
+  // formula = signed meter terms (elec-formula.ts): +meter / -meter; the "אובדן" account is the main meter minus every sub-meter
+  var ACCOUNTS = [
+    { id: 'a1', name: 'דירה 12', cust: 'c1', terms: [[1, 'w2']], tariff: 't1', auto: 'draft', status: 'active' },
+    { id: 'a2', name: 'דירה 7', cust: 'c2', terms: [[1, 'w6']], tariff: 't1', auto: 'draft', status: 'active' },
+    { id: 'a3', name: 'שטחים משותפים', cust: 'c3', terms: [[1, 'w5'], [1, 'w4'], [1, 'w3']], tariff: 't2', auto: 'draft', status: 'active' },
+    { id: 'a4', name: 'הפרש כללי (אובדן ודליפות)', cust: 'c3', terms: [[1, 'w1'], [-1, 'w2'], [-1, 'w3'], [-1, 'w4'], [-1, 'w5'], [-1, 'w6'], [-1, 'w7'], [-1, 'w8']], tariff: 't2', auto: 'off', status: 'active' },
+    { id: 'a5', name: 'מחסן', cust: 'c4', terms: [[1, 'w8'], [1, 'w7']], tariff: 't1', auto: 'off', status: 'paused' }
+  ];
+  function meterOf(id) { return byId(METERS, id); }
+  function sentence(a) { return a.terms.map(function (t, i) { return (i ? (t[0] > 0 ? ' + ' : ' − ') : (t[0] > 0 ? '' : '−')) + meterOf(t[1]).name; }).join(''); }
+  function accM3(a) { var s = 0; a.terms.forEach(function (t) { s += t[0] * (meterOf(t[1]).month || 0); }); return Math.max(0, s); }
+  function priceInc(a) { var t = byId(TARIFFS, a.tariff); return (t.water + t.sewage) * (1 + VAT / 100); }
+  function accHasStale(a) { return a.terms.some(function (t) { return meterOf(t[1]).status === 'stale'; }); }
+  function custOf(a) { return byId(CUSTOMERS, a.cust); }
+  var BILLS = [
+    { id: 'b11', no: '2026-0033', acc: 'a3', from: '01.09.2026', to: '30.09.2026', m3: 131.4, state: 'issued', issue: '02.10.2026', due: '01.11.2026' },
+    { id: 'b10', no: '2026-0032', acc: 'a2', from: '01.09.2026', to: '30.09.2026', m3: 16.8, state: 'sent', issue: '02.10.2026', due: '01.11.2026' },
+    { id: 'b9', no: '2026-0031', acc: 'a1', from: '01.09.2026', to: '30.09.2026', m3: 38.2, state: 'paid', issue: '02.10.2026', due: '01.11.2026', paidOn: '12.10.2026' },
+    { id: 'b8', no: null, acc: 'a4', from: '01.09.2026', to: '30.09.2026', m3: 79.5, state: 'draft', issue: null, due: null },
+    { id: 'b7', no: '2026-0030', acc: 'a1', from: '01.08.2026', to: '31.08.2026', m3: 35.1, state: 'paid', issue: '03.09.2026', due: '03.10.2026', paidOn: '20.09.2026', replaces: '2026-0027' },
+    { id: 'b6', no: '2026-0029', acc: 'a2', from: '01.08.2026', to: '31.08.2026', m3: 19.3, state: 'paid', issue: '02.09.2026', due: '02.10.2026', paidOn: '25.09.2026' },
+    { id: 'b5', no: '2026-0028', acc: 'a3', from: '01.08.2026', to: '31.08.2026', m3: 142.0, state: 'paid', issue: '02.09.2026', due: '02.10.2026', paidOn: '28.09.2026' },
+    { id: 'b4', no: '2026-0027', acc: 'a1', from: '01.08.2026', to: '31.08.2026', m3: 36.0, state: 'void', issue: '02.09.2026', due: '02.10.2026', voidWhy: 'בוטל: קריאת מונה שגויה, הונפק תיקון 2026-0030' }
+  ];
+  var BSTATE = { draft: ['טיוטה', 'c-mut'], issued: ['הונפק', 'c-acc'], sent: ['נשלח', 'c-warn'], paid: ['שולם', 'c-ok'], void: ['בוטל', 'c-err'] };
+  var nextNo = 34;
+  function billLines(b) { var a = byId(ACCOUNTS, b.acc), t = byId(TARIFFS, a.tariff), w = b.m3 * t.water, s = b.m3 * t.sewage, sub = w + s, vat = sub * VAT / 100; return { t: t, w: w, s: s, sub: sub, vat: vat, total: sub + vat }; }
+  function billChip(b) { var s = BSTATE[b.state]; return '<span class="chip ' + s[1] + '" data-bill-state="' + b.state + '">' + s[0] + '</span>'; }
+  function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 2200); }
+  function statePanels(sec, noun) {
+    // the same five panels as the first three pages: forbidden, off, loading, error, empty (page-meters.ts)
+    var mk = function (st, ic, h, p) { return '<div data-state="' + st + '"' + (st === 'loading' ? ' aria-busy="true"' : '') + '>' + (st === 'loading' ? '<div class="card" data-skl></div>' : '<div class="state-panel" data-state="' + (st === 'off' ? 'stale' : st) + '"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-' + ic + '"/></svg></span></div><div class="text" role="status"><h4>' + h + '</h4>' + (p ? '<p>' + p + '</p>' : '') + '</div></div>') + '</div>'; };
+    sec.insertAdjacentHTML('afterbegin', mk('forbidden', 'lock', 'אין הרשאה', 'למשתמש הזה אין הרשאה לצפות ב' + noun + '.') + mk('off', 'offline', 'המודול כבוי', 'מוני מים כבויים בהתקנה הזו. אפשר להפעיל בהגדרות.') + mk('loading') + mk('error', 'warning', 'לא ניתן לטעון את ' + noun, '') + mk('empty', 'drop', 'אין ' + noun + ' עדיין', ''));
+    var s = sec.querySelector('[data-skl]'); for (var i = 0; i < 6; i++) s.appendChild(el('div', 'row', '<div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div>'));
+  }
+  statePanels(document.getElementById('s-accounts'), 'חשבונות'); statePanels(document.getElementById('s-bills'), 'חיובים'); statePanels(document.getElementById('s-customers'), 'לקוחות'); statePanels(document.getElementById('s-settings'), 'הגדרות');
+  setSt(body.dataset.st);
+
+  // ---- the second drawer: forms and cards (sw-drawer, same shell as the meter card) ----
+  var D2 = document.getElementById('drawer2');
+  function openPanel(title, sub, htmlBody) { D2.querySelector('[data-d="name"]').textContent = title; D2.querySelector('[data-d="sub"]').textContent = sub || ''; D2.querySelector('[data-d2body]').innerHTML = htmlBody; D2.classList.add('open'); }
+  function closePanel() { D2.classList.remove('open'); }
+  D2.querySelectorAll('[data-close]').forEach(function (b) { b.onclick = closePanel; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closePanel(); hideMenu(); } });
+
+  // ---- 4. accounts ----
+  var A = document.getElementById('s-accounts'), accState = { q: '', open: null, tab: 'status' };
+  function lastBill(a) { var l = BILLS.filter(function (b) { return b.acc === a.id && b.no; })[0]; return l ? '<a class="rowlink num" href="#" data-bill-open="' + l.id + '">' + l.no + '</a> ' + billChip(l) : '<span class="mut">אין</span>'; }
+  function accChip(a) { return a.status === 'paused' ? '<span class="chip c-mut">מושהה</span>' : accHasStale(a) ? '<span class="chip c-warn">מונה לא מדווח</span>' : '<span class="chip c-ok">פעיל</span>'; }
+  function renderAccounts() {
+    var q1 = accState.q.trim(), list = ACCOUNTS.filter(function (a) { return !q1 || a.name.indexOf(q1) > -1 || custOf(a).name.indexOf(q1) > -1; });
+    var act = 0, m3s = 0, amt = 0; ACCOUNTS.forEach(function (a) { if (a.status === 'active') act++; m3s += accM3(a); amt += accM3(a) * priceInc(a); });
+    A.querySelector('[data-at="active"]').textContent = act; A.querySelector('[data-at="m3"]').textContent = m3(m3s); A.querySelector('[data-at="amt"]').textContent = F0.format(Math.round(amt));
+    A.querySelector('[data-at="drafts"]').textContent = BILLS.filter(function (b) { return b.state === 'draft'; }).length;
+    var tb = A.querySelector('[data-acc-table] tbody'), rows = A.querySelector('[data-acc-rows]'); tb.innerHTML = ''; rows.innerHTML = '';
+    list.forEach(function (a) {
+      var tr = el('tr', 'pick', '<td class="b">' + a.name + '</td><td>' + custOf(a).name + '</td><td class="mut hide-tablet" style="max-inline-size:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + sentence(a) + '</td><td>חודשית · מה-1</td><td class="n"><span class="num">' + m3(accM3(a)) + '</span></td><td class="n bil"><span class="num">' + ils(accM3(a) * priceInc(a)) + '</span></td><td class="bil">' + lastBill(a) + '</td><td>' + accChip(a) + '</td>');
+      tr.tabIndex = 0; tr.onclick = function (e) { if (!e.target.closest('a')) openAccount(a.id); }; tr.onkeydown = function (e) { if (e.key === 'Enter') openAccount(a.id); }; tb.appendChild(tr);
+      var li = el('div', 'li pick', '<div class="grow"><div class="t1">' + a.name + '</div><div class="t2">' + custOf(a).name + ' · <span class="num">' + m3(accM3(a)) + '</span> מ״ק<span class="bil"> · <span class="num">' + ils(accM3(a) * priceInc(a)) + '</span> ₪</span></div></div>' + accChip(a)); li.onclick = function () { openAccount(a.id); }; rows.appendChild(li);
+    });
+  }
+  A.querySelector('[data-acc-search]').oninput = function () { accState.q = this.value; renderAccounts(); };
+  A.querySelector('[data-new-account]').onclick = function () { accountForm(null); };
+  function openAccount(id, tab) { accState.open = id; accState.tab = tab || 'status'; renderAccountDetail(); }
+  function backToAccounts() { accState.open = null; renderAccountDetail(); }
+  function histRows(a) { var base = accM3(a) || 1, out = [], mon = ['10/26', '09/26', '08/26', '07/26', '06/26', '05/26', '04/26', '03/26', '02/26', '01/26', '12/25', '11/25']; for (var i = 0; i < 12; i++) { var v = i === 0 ? base : base * (0.82 + ((i * 5 + a.id.charCodeAt(1)) % 9) / 25); out.push({ label: mon[i], m3: v }); } return out; }
+  function renderAccountDetail() {
+    var list = A.querySelector('[data-acc-list]'), det = A.querySelector('[data-acc-detail]');
+    if (!accState.open) { list.style.display = 'flex'; det.style.display = 'none'; renderAccounts(); return; }
+    var a = byId(ACCOUNTS, accState.open), c = custOf(a), t = byId(TARIFFS, a.tariff), v = accM3(a);
+    list.style.display = 'none'; det.style.display = 'flex';
+    var h = '<div class="backrow"><a class="btn ghost sm" href="#" data-back-accounts>' + icon('chevronBack', 13) + 'חשבונות</a><h3 style="font-size:var(--sw-fs-lg)">' + a.name + '</h3>' + accChip(a) + '<span class="sp"></span><button class="btn mng" type="button" data-edit-account>עריכה</button><button class="btn primary mng bil" type="button" data-make-bill>הפקת חיוב</button></div>';
+    h += '<div class="seg" style="align-self:flex-start" role="tablist" aria-label="חלקי החשבון">' + [['status', 'מצב'], ['history', 'היסטוריה'], ['bills', 'חיובים']].map(function (x) { return '<button type="button" role="tab" data-acc-tab="' + x[0] + '" aria-pressed="' + (accState.tab === x[0]) + '"' + (x[0] === 'bills' ? ' class="bil"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>';
+    if (accState.tab === 'status') {
+      if (accHasStale(a)) h += '<div class="alert warn" data-stale-note><b>חדר מכונות - גג</b> לא מדווח מאז 21.10 14:02. הצריכה תיספר כשהמונה יחזור לדווח.</div>';
+      var rowsT = a.terms.map(function (tm) { var m = meterOf(tm[1]); return '<tr><td class="b">' + (tm[0] < 0 ? '<span class="mut">פחות</span> ' : '') + m.name + (m.status === 'stale' ? ' <span class="chip c-warn nodot">לא מדווח</span>' : '') + '</td><td class="n"><span class="num">' + reading(m.reading - (m.month || 0)) + '</span></td><td class="n"><span class="num">' + reading(m.reading) + '</span></td><td class="n"><span class="num">' + m3(m.month || 0) + '</span></td><td class="n"><span class="num">' + (tm[0] < 0 ? '-' : '+') + '</span></td><td class="n"><span class="num">' + m3(tm[0] * (m.month || 0) + 0) + '</span></td></tr>'; }).join('');
+      var phoneT = a.terms.map(function (tm) { var m = meterOf(tm[1]); return '<div class="li"><div class="grow"><div class="t1">' + (tm[0] < 0 ? 'פחות ' : '') + m.name + '</div><div class="t2">עכשיו <span class="num">' + reading(m.reading) + '</span> · צריכה <span class="num">' + m3(m.month || 0) + '</span></div></div></div>'; }).join('');
+      h += '<div class="tiles"><div class="tile"><div class="k">צריכה בתקופה</div><div class="v"><span class="num">' + m3(v) + '</span><span class="u">מ״ק</span></div></div>' +
+        '<div class="tile"><div class="k">יום <span class="num">23</span> מתוך <span class="num">31</span></div><div class="v"><span class="num">74%</span></div></div>' +
+        '<div class="tile"><div class="k">צפי לסוף התקופה</div><div class="v"><span class="num">' + F0.format(Math.round(v / 23 * 31)) + '</span><span class="u">מ״ק</span></div></div>' +
+        '<div class="tile bil" data-tile="amount"><div class="k">סכום עד כה</div><div class="v"><span class="num">' + F0.format(Math.round(v * priceInc(a))) + '</span><span class="u">₪</span></div></div></div>';
+      h += '<div class="cols side"><div class="col"><div class="card flush"><div class="hd" style="padding:14px 16px 0"><b>מונים בנוסחה</b><span class="sp"></span><span class="mut">' + sentence(a) + '</span></div>' +
+        '<div class="scrollx desk-only"><table class="t" data-acc-meters><thead><tr><th>מונה</th><th class="n">קריאה בתחילת התקופה</th><th class="n">קריאה נוכחית</th><th class="n">צריכה</th><th class="n">פעולה</th><th class="n">לחיוב (מ״ק)</th></tr></thead><tbody>' + rowsT + '</tbody><tfoot><tr><td colspan="5">סה״כ לחיוב</td><td class="n"><span class="num">' + m3(v) + '</span></td></tr></tfoot></table></div>' +
+        '<div class="list phone-only" style="flex-direction:column;padding:12px">' + phoneT + '<div class="row"><b>סה״כ לחיוב</b><span class="sp"></span><b class="num">' + m3(v) + '</b></div></div></div></div>' +
+        '<div class="col"><div class="card"><div class="hd"><b>לקוח</b><span class="sp"></span><a class="btn ghost sm bil" href="#" data-cust-open="' + c.id + '">כרטיס לקוח</a></div><dl class="kv"><dt>שם</dt><dd>' + c.name + '</dd><dt>מספר לקוח</dt><dd class="num">' + c.no + '</dd><dt>כתובת</dt><dd>' + c.addr + '</dd><dt class="bil">טלפון</dt><dd class="bil num">' + c.phone + '</dd></dl></div>' +
+        '<div class="card bil" data-card="price"><div class="hd"><b>מחיר למ״ק</b></div><dl class="kv"><dt>תעריף</dt><dd>' + t.name + '</dd><dt>מים לפני מע״מ</dt><dd class="num">' + ils(t.water) + ' ₪</dd><dt>ביוב לפני מע״מ</dt><dd class="num">' + ils(t.sewage) + ' ₪</dd><dt>מע״מ</dt><dd class="num">' + VAT + '%</dd><dt>כולל מע״מ</dt><dd class="num">' + ils(priceInc(a)) + ' ₪</dd></dl></div>' +
+        '<div class="card" data-card="next"><div class="hd"><b>חיוב הבא</b></div><dl class="kv"><dt>תקופה</dt><dd class="num">01.10.2026 - 31.10.2026</dd><dt class="bil">מספר צפוי</dt><dd class="bil num">2026-00' + nextNo + '</dd><dt>יצירה אוטומטית</dt><dd>' + ({ off: 'בלי יצירה אוטומטית', draft: 'ליצור טיוטה', issue: 'להנפיק אוטומטית' })[a.auto] + '</dd></dl></div></div></div>';
+    } else if (accState.tab === 'history') {
+      var hr = histRows(a), ser = hr.slice().reverse().map(function (r) { return { label: r.label.slice(0, 2), value: r.m3, title: m3(r.m3) + ' מ״ק' }; });
+      h += '<div class="card"><div class="hd"><b>צריכה לפי תקופה</b><span class="sp"></span><div class="seg" role="group" aria-label="טווח"><button type="button" aria-pressed="true">12 תקופות</button><button type="button" aria-pressed="false">24 תקופות</button></div></div>' + barChart(ser, 'צריכה חודשית של ' + a.name, {}) + '</div>';
+      h += '<div class="card flush scrollx desk-only"><table class="t" data-acc-history><thead><tr><th>תקופה</th><th class="n">מ״ק</th><th class="n">שינוי</th><th class="n bil">סכום</th></tr></thead><tbody>' + hr.slice(0, 6).map(function (r, i) { var prev = hr[i + 1], ch = prev ? Math.round((r.m3 / prev.m3 - 1) * 1000) / 10 : null; return '<tr><td class="num" style="text-align:start">' + r.label + (i === 0 ? ' <span class="chip c-warn nodot">חלקי</span>' : '') + '</td><td class="n"><span class="num">' + m3(r.m3) + '</span></td><td class="n"><span class="num ' + (ch > 0 ? 'up' : 'down') + '">' + (ch === null ? '-' : (ch > 0 ? '+' : '') + ch.toFixed(1) + '%') + '</span></td><td class="n bil"><span class="num">' + ils(r.m3 * priceInc(a)) + '</span></td></tr>'; }).join('') + '</tbody></table></div>';
+    } else {
+      var bl = BILLS.filter(function (b) { return b.acc === a.id; });
+      h += bl.length ? billsTableHtml(bl) : '<div class="state-panel" data-state="empty"><div class="icon"><span class="ic s26"><svg viewBox="0 0 24 24"><use href="#i-drop"/></svg></span></div><div class="text" role="status"><h4>אין חיובים לחשבון הזה</h4></div><button class="btn primary mng" type="button" data-make-bill>הפקת חיוב</button></div>';
+    }
+    det.innerHTML = h; bindDetail(det);
+  }
+  function bindDetail(root) {
+    root.querySelectorAll('[data-back-accounts]').forEach(function (x) { x.onclick = function (e) { e.preventDefault(); backToAccounts(); }; });
+    root.querySelectorAll('[data-acc-tab]').forEach(function (x) { x.onclick = function () { accState.tab = x.dataset.accTab; renderAccountDetail(); }; });
+    root.querySelectorAll('[data-edit-account]').forEach(function (x) { x.onclick = function () { accountForm(byId(ACCOUNTS, accState.open)); }; });
+    root.querySelectorAll('[data-make-bill]').forEach(function (x) { x.onclick = function () { toast('נוצרה טיוטה לתקופה 01.09.2026 - 30.09.2026'); }; });
+    root.querySelectorAll('[data-cust-open]').forEach(function (x) { x.onclick = function (e) { e.preventDefault(); customerCard(x.dataset.custOpen); }; });
+    bindBillLinks(root);
+  }
+  function bindBillLinks(root) { root.querySelectorAll('[data-bill-open]').forEach(function (x) { x.onclick = function (e) { e.preventDefault(); e.stopPropagation(); showPage('bills'); openBill(x.dataset.billOpen); }; }); }
+  function billsTableHtml(bl) {
+    return '<div class="card flush scrollx desk-only"><table class="t" data-acc-bills><thead><tr><th>מספר</th><th>תקופה</th><th class="n">מ״ק</th><th class="n">סה״כ כולל מע״מ</th><th>לתשלום עד</th><th>מצב</th></tr></thead><tbody>' + bl.map(function (b) { return '<tr><td class="num" style="text-align:start"><a class="rowlink" href="#" data-bill-open="' + b.id + '">' + (b.no || 'טיוטה') + '</a></td><td class="num">' + b.from + ' - ' + b.to + '</td><td class="n"><span class="num">' + m3(b.m3) + '</span></td><td class="n"><span class="num">' + ils(billLines(b).total) + '</span></td><td class="num">' + (b.due || '') + '</td><td>' + billChip(b) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<div class="list phone-only" style="flex-direction:column">' + bl.map(function (b) { return '<a class="li" href="#" data-bill-open="' + b.id + '"><div class="grow"><div class="t1 num">' + (b.no || 'טיוטה') + '</div><div class="t2"><span class="num">' + m3(b.m3) + '</span> מ״ק · <span class="num">' + ils(billLines(b).total) + '</span> ₪</div></div>' + billChip(b) + '</a>'; }).join('') + '</div>';
+  }
+  function accountForm(a) {
+    var isNew = !a, a0 = a || { name: '', cust: 'c1', terms: [[1, 'w2']], tariff: 't1', auto: 'draft' };
+    var opts = function (arr, sel, lab) { return arr.map(function (x) { return '<option value="' + x.id + '"' + (x.id === sel ? ' selected' : '') + '>' + lab(x) + '</option>'; }).join(''); };
+    openPanel(isNew ? 'חשבון חדש' : 'עריכת חשבון', isNew ? 'חיוב מים ללקוח' : a0.name,
+      '<div class="frm elec"><div class="fld"><label for="f-an">שם החשבון</label><input id="f-an" value="' + a0.name + '" placeholder="לדוגמה: דירה 12"></div>' +
+      '<div class="fld"><label for="f-ac">לקוח</label><select id="f-ac">' + opts(CUSTOMERS, a0.cust, function (c) { return c.no + ' · ' + c.name; }) + '</select></div>' +
+      '<div class="fld"><label>נוסחת מונים</label><div class="chips-ed" data-formula>' + a0.terms.map(function (t) { return '<span class="chip nodot c-acc">' + (t[0] < 0 ? '- ' : '+ ') + meterOf(t[1]).name + '</span>'; }).join('') + '<button class="btn sm" type="button" data-toast="נוסף מונה לנוסחה">' + icon('plus', 13) + 'מונה</button></div><div class="mut">מונים נוספים בחיבור או בחיסור. מונה שלא מדווח לא נספר עד שיחזור.</div></div>' +
+      '<div class="formgrid"><div class="fld"><label for="f-at">תעריף</label><select id="f-at">' + opts(TARIFFS, a0.tariff, function (t) { return t.name; }) + '</select></div>' +
+      '<div class="fld"><label for="f-ap">תקופת חיוב</label><select id="f-ap"><option>חודש</option><option>חודשיים</option></select></div>' +
+      '<div class="fld"><label for="f-ad">תחילת תקופה ראשונה</label><input id="f-ad" type="date" value="2026-10-01"></div>' +
+      '<div class="fld"><label for="f-au">יצירת חיוב</label><select id="f-au"><option value="off"' + (a0.auto === 'off' ? ' selected' : '') + '>בלי יצירה אוטומטית</option><option value="draft"' + (a0.auto === 'draft' ? ' selected' : '') + '>ליצור טיוטה</option><option value="issue"' + (a0.auto === 'issue' ? ' selected' : '') + '>להנפיק אוטומטית</option></select></div></div>' +
+      '<div class="row"><button class="btn primary" type="button" data-toast="החשבון נשמר" data-closepanel>שמירה</button><button class="btn" type="button" data-closepanel>ביטול</button></div></div>');
+  }
+  D2.addEventListener('click', function (e) { var b = e.target.closest('[data-toast]'); if (b) toast(b.dataset.toast); if (e.target.closest('[data-closepanel]')) closePanel(); });
+
+  // ---- 5. bills ----
+  var B = document.getElementById('s-bills'), bState = { f: 'all', q: '', open: null };
+  var BF = [['all', 'הכול'], ['draft', 'טיוטה'], ['issued', 'הונפק'], ['sent', 'נשלח'], ['paid', 'שולם'], ['void', 'בוטל']];
+  B.querySelector('[data-bill-filter]').innerHTML = BF.map(function (f) { return '<button type="button" aria-pressed="' + (f[0] === 'all') + '" data-f="' + f[0] + '">' + f[1] + '</button>'; }).join('');
+  B.querySelectorAll('[data-bill-filter] button').forEach(function (b) { b.onclick = function () { bState.f = b.dataset.f; B.querySelectorAll('[data-bill-filter] button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); renderBills(); }; });
+  B.querySelector('[data-bill-search]').oninput = function () { bState.q = this.value; renderBills(); };
+  function renderBills() {
+    var list = B.querySelector('[data-bill-list]'), det = B.querySelector('[data-bill-detail]');
+    if (bState.open) { list.style.display = 'none'; det.style.display = 'flex'; renderBill(); return; }
+    list.style.display = 'flex'; det.style.display = 'none';
+    var d = 0, op = 0, pd = 0; BILLS.forEach(function (b) { var t = billLines(b).total; if (b.state === 'draft') d++; if (b.state === 'issued' || b.state === 'sent') op += t; if (b.state === 'paid') pd += t; });
+    B.querySelector('[data-bt="draft"]').textContent = d; B.querySelector('[data-bt="open"]').textContent = F0.format(Math.round(op)); B.querySelector('[data-bt="paid"]').textContent = F0.format(Math.round(pd));
+    var q1 = bState.q.trim(), fl = BILLS.filter(function (b) { var a = byId(ACCOUNTS, b.acc); return (bState.f === 'all' || b.state === bState.f) && (!q1 || (b.no || '').indexOf(q1) > -1 || custOf(a).name.indexOf(q1) > -1); });
+    var tb = B.querySelector('[data-bill-table] tbody'), rows = B.querySelector('[data-bill-rows]'); tb.innerHTML = ''; rows.innerHTML = '';
+    fl.forEach(function (b) {
+      var a = byId(ACCOUNTS, b.acc), L = billLines(b);
+      var tr = el('tr', 'pick', '<td class="num" style="text-align:start"><b>' + (b.no || 'טיוטה') + '</b></td><td>' + custOf(a).name + '</td><td>' + a.name + '</td><td class="num">' + b.from.slice(0, 5) + ' - ' + b.to + '</td><td class="n"><span class="num">' + m3(b.m3) + '</span></td><td class="n"><span class="num">' + ils(L.total) + '</span></td><td class="num">' + (b.due || '') + '</td><td>' + billChip(b) + '</td>');
+      tr.tabIndex = 0; tr.onclick = function () { openBill(b.id); }; tr.onkeydown = function (e) { if (e.key === 'Enter') openBill(b.id); }; tb.appendChild(tr);
+      var li = el('div', 'li pick', '<div class="grow"><div class="t1">' + (b.no || 'טיוטה') + ' · ' + custOf(a).name + '</div><div class="t2">' + a.name + ' · <span class="num">' + ils(L.total) + '</span> ₪</div></div>' + billChip(b)); li.onclick = function () { openBill(b.id); }; rows.appendChild(li);
+    });
+    if (!fl.length) rows.appendChild(el('div', 'mut', 'אין חיובים תואמים'));
+  }
+  function openBill(id) { bState.open = id; renderBills(); }
+  function renderBill() {
+    var b = byId(BILLS, bState.open), a = byId(ACCOUNTS, b.acc), c = custOf(a), L = billLines(b), det = B.querySelector('[data-bill-detail]');
+    var act = { draft: [['issue', 'הנפקה', 'primary'], ['delete', 'מחיקת טיוטה', 'danger']], issued: [['sent', 'סימון כנשלח', 'primary'], ['paid', 'סימון כשולם', ''], ['correct', 'תיקון', ''], ['void', 'ביטול', 'danger']], sent: [['paid', 'סימון כשולם', 'primary'], ['correct', 'תיקון', ''], ['void', 'ביטול', 'danger']], paid: [['correct', 'תיקון', '']], void: [] }[b.state];
+    var h = '<div class="backrow"><a class="btn ghost sm" href="#" data-back-bills>' + icon('chevronBack', 13) + 'חיובים</a><h3 style="font-size:var(--sw-fs-lg)" class="num">' + (b.no ? 'חיוב ' + b.no : 'טיוטת חיוב') + '</h3>' + billChip(b) + '<span class="sp"></span>' +
+      act.map(function (x) { return '<button class="btn ' + x[2] + ' mng" type="button" data-bact="' + x[0] + '">' + x[1] + '</button>'; }).join('') + (b.state === 'draft' ? '' : '<button class="btn" type="button" data-bact="pdf">' + icon('download', 15) + 'PDF</button>') + '</div>';
+    if (b.state === 'void') h += '<div class="alert err">' + b.voidWhy + '</div>';
+    if (b.replaces) h += '<div class="alert warn">חיוב מתקן את <b class="num">' + b.replaces + '</b></div>';
+    h += '<div class="cols side"><div class="col"><div class="paper" data-paper><div class="ph"><div><b>דירות הנחל בע״מ</b><div class="mut">ח״פ <span class="num">51-000000-0</span> · רחוב הדוגמה 1, תל אביב</div></div><div style="text-align:end"><b>חשבונית מים' + (b.state === 'draft' ? ' (טיוטה)' : '') + '</b><div class="mut num">' + (b.no || 'ללא מספר') + '</div></div></div>' +
+      '<div class="row"><div style="flex:1"><div class="mut">לכבוד</div><b>' + c.name + '</b><div class="mut">' + c.addr + ' · לקוח <span class="num">' + c.no + '</span></div></div><div style="text-align:end"><div class="mut">תקופה</div><b class="num">' + b.from + ' - ' + b.to + '</b>' + (b.issue ? '<div class="mut">הונפק <span class="num">' + b.issue + '</span> · לתשלום עד <span class="num">' + b.due + '</span></div>' : '') + '</div></div>' +
+      '<table><thead><tr><th>פריט</th><th class="n">כמות</th><th class="n">מחיר</th><th class="n">סכום</th></tr></thead><tbody>' +
+      '<tr><td>צריכת מים - ' + a.name + '</td><td class="n num">' + m3(b.m3) + ' מ״ק</td><td class="n num">' + ils(L.t.water) + '</td><td class="n num">' + ils(L.w) + '</td></tr>' +
+      (L.t.sewage ? '<tr><td>דמי ביוב</td><td class="n num">' + m3(b.m3) + ' מ״ק</td><td class="n num">' + ils(L.t.sewage) + '</td><td class="n num">' + ils(L.s) + '</td></tr>' : '') +
+      '<tr><td colspan="3">סה״כ לפני מע״מ</td><td class="n num">' + ils(L.sub) + '</td></tr><tr><td colspan="3">מע״מ ' + VAT + '%</td><td class="n num">' + ils(L.vat) + '</td></tr><tr class="tot"><td colspan="3">סה״כ לתשלום</td><td class="n num">' + ils(L.total) + ' ₪</td></tr></tbody></table></div></div>' +
+      '<div class="col"><div class="card"><div class="hd"><b>פרטים</b></div><dl class="kv"><dt>חשבון</dt><dd>' + a.name + '</dd><dt>נוסחה</dt><dd>' + sentence(a) + '</dd><dt>תעריף</dt><dd>' + L.t.name + '</dd><dt>נשלח</dt><dd>' + (b.state === 'sent' || b.state === 'paid' ? 'בדוא״ל' : '<span class="mut">עדיין לא</span>') + '</dd><dt>שולם</dt><dd class="num">' + (b.paidOn || '<span class="mut">עדיין לא</span>') + '</dd></dl></div></div></div>';
+    det.innerHTML = h;
+    det.querySelector('[data-back-bills]').onclick = function (e) { e.preventDefault(); bState.open = null; renderBills(); };
+    det.querySelectorAll('[data-bact]').forEach(function (x) { x.onclick = function () {
+      var k = x.dataset.bact;
+      if (k === 'issue') { b.no = '2026-00' + (nextNo++); b.state = 'issued'; b.issue = '23.10.2026'; b.due = '22.11.2026'; toast('החיוב הונפק, מספר ' + b.no); }
+      else if (k === 'sent') { b.state = 'sent'; toast('סומן כנשלח'); } else if (k === 'paid') { b.state = 'paid'; b.paidOn = '23.10.2026'; toast('סומן כשולם'); }
+      else if (k === 'void') { b.state = 'void'; b.voidWhy = 'בוטל על ידי יוני'; toast('החיוב בוטל'); } else if (k === 'delete') { BILLS.splice(BILLS.indexOf(b), 1); bState.open = null; toast('הטיוטה נמחקה'); renderBills(); return; }
+      else if (k === 'correct') { toast('נפתחה טיוטת תיקון לחיוב ' + b.no); return; } else { toast('הקובץ הורד'); return; }
+      renderBills();
+    }; });
+  }
+
+  // ---- 6. customers ----
+  var C = document.getElementById('s-customers');
+  function renderCustomers() {
+    var q1 = C.querySelector('[data-cust-search]').value.trim(), tb = C.querySelector('[data-cust-table] tbody'), rows = C.querySelector('[data-cust-rows]'); tb.innerHTML = ''; rows.innerHTML = '';
+    CUSTOMERS.filter(function (c) { return !q1 || c.name.indexOf(q1) > -1 || c.no.indexOf(q1) > -1; }).forEach(function (c) {
+      var accs = ACCOUNTS.filter(function (a) { return a.cust === c.id; }), open = 0; BILLS.forEach(function (b) { if (custOf(byId(ACCOUNTS, b.acc)).id === c.id && (b.state === 'issued' || b.state === 'sent')) open += billLines(b).total; });
+      var tr = el('tr', 'pick', '<td class="num" style="text-align:start">' + c.no + '</td><td class="b">' + c.name + '</td><td>' + c.addr + '</td><td class="num">' + c.phone + '</td><td class="num">' + c.email + '</td><td class="n"><span class="num">' + accs.length + '</span></td><td class="n"><span class="num ' + (open ? 'bad' : '') + '">' + ils(open) + '</span></td>');
+      tr.tabIndex = 0; tr.onclick = function () { customerCard(c.id); }; tr.onkeydown = function (e) { if (e.key === 'Enter') customerCard(c.id); }; tb.appendChild(tr);
+      var li = el('div', 'li pick', '<div class="grow"><div class="t1">' + c.name + '</div><div class="t2">' + c.addr + ' · <span class="num">' + accs.length + '</span> חשבונות</div></div><div class="t2 num ' + (open ? 'bad' : '') + '">' + ils(open) + '</div>'); li.onclick = function () { customerCard(c.id); }; rows.appendChild(li);
+    });
+  }
+  C.querySelector('[data-cust-search]').oninput = renderCustomers;
+  C.querySelector('[data-new-customer]').onclick = function () { customerCard(null); };
+  function customerCard(id) {
+    var c = id ? byId(CUSTOMERS, id) : { no: '1005', name: '', addr: '', phone: '', email: '' };
+    var f = function (k, l, v, ltr) { return '<div class="fld"><label for="cf-' + k + '">' + l + '</label><input id="cf-' + k + '" value="' + v + '"' + (ltr ? ' dir="ltr"' : '') + '></div>'; };
+    var accs = ACCOUNTS.filter(function (a) { return a.cust === c.id; });
+    openPanel(id ? 'כרטיס לקוח' : 'לקוח חדש', id ? c.no + ' · ' + c.name : 'מספר לקוח ' + c.no,
+      '<div class="frm elec"><div class="formgrid">' + f('n', 'שם', c.name) + f('no', 'מספר לקוח', c.no, true) + f('a', 'כתובת / יחידה', c.addr) + f('p', 'טלפון', c.phone, true) + f('e', 'דוא״ל לשליחת חיובים', c.email, true) + f('t', 'ח״פ / ע.מ (לא חובה)', '', true) + '</div>' +
+      (id ? '<h3 style="font-size:var(--sw-fs-md)">חשבונות</h3><div class="list">' + (accs.map(function (a) { return '<div class="li"><div class="grow"><div class="t1">' + a.name + '</div><div class="t2">' + sentence(a) + '</div></div>' + accChip(a) + '</div>'; }).join('') || '<div class="mut">אין חשבונות</div>') + '</div>' : '') +
+      '<div class="row"><button class="btn primary" type="button" data-toast="הלקוח נשמר" data-closepanel>שמירה</button><button class="btn" type="button" data-closepanel>ביטול</button><span class="sp"></span>' + (id ? '<button class="btn danger" type="button" data-toast="ללקוח יש חשבונות פעילים. אי אפשר למחוק אותו.">מחיקה</button>' : '') + '</div></div>');
+  }
+
+  // ---- 7. settings: prices and VAT, business, alerts (the snooze), retention ----
+  var SN = { list: [15, 60, 240, 1440], def: 60 };
+  function snLabel(min) { return min < 60 ? min + ' ד׳' : min === 60 ? 'שעה' : min < 1440 ? min / 60 + ' שעות' : min === 1440 ? 'יממה' : min / 1440 + ' ימים'; }
+  function snUntil(min) { var t = 8 * 60 + 45 + min, day = Math.floor(t / 1440), m = t % 1440, s = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); return day ? (day === 1 ? 'מחר ' : day + ' ימים, ') + s : s; }
+  var S = document.getElementById('s-settings'), setSec = q.get('set') || 'prices';
+  var SETS = [['prices', 'תעריפים ומע״מ'], ['business', 'פרטי עסק'], ['alerts', 'התראות והשהיה'], ['retention', 'שמירת נתונים']];
+  function renderSettings() {
+    var nav = S.querySelector('[data-set-nav]'); nav.innerHTML = SETS.map(function (s) { return '<button type="button" data-set="' + s[0] + '" aria-pressed="' + (setSec === s[0]) + '">' + s[1] + '</button>'; }).join('');
+    nav.querySelectorAll('button').forEach(function (b) { b.onclick = function () { setSec = b.dataset.set; renderSettings(); }; });
+    var body2 = S.querySelector('[data-set-body]'), h = '';
+    if (setSec === 'prices') {
+      h = '<div class="cols side"><div class="col">' + TARIFFS.map(function (t) { return '<div class="card flush"><div class="hd" style="padding:14px 16px 0"><b>' + t.name + '</b><span class="sp"></span><span class="mut">בשימוש ב-' + ACCOUNTS.filter(function (a) { return a.tariff === t.id; }).length + ' חשבונות</span><button class="btn sm mng" type="button" data-toast="נוספה גרסת מחיר">גרסה חדשה</button></div><table class="t"><thead><tr><th>בתוקף מ-</th><th class="n">מים למ״ק</th><th class="n">ביוב למ״ק</th><th class="n">כולל מע״מ</th></tr></thead><tbody>' + t.versions.map(function (v, i) { return '<tr><td class="num" style="text-align:start">' + v[0] + (i === 0 ? ' <span class="chip c-ok nodot">נוכחי</span>' : '') + '</td><td class="n num">' + ils(v[1]) + '</td><td class="n num">' + ils(v[2]) + '</td><td class="n num">' + ils((v[1] + v[2]) * (1 + VAT / 100)) + '</td></tr>'; }).join('') + '</tbody></table></div>'; }).join('') +
+        '<button class="btn mng" type="button" style="align-self:flex-start" data-toast="נפתח טופס תעריף חדש">' + icon('plus', 13) + 'תעריף חדש</button></div>' +
+        '<div class="col"><div class="card"><div class="hd"><b>שיעור מע״מ</b><span class="sp"></span><button class="btn sm mng" type="button" data-toast="נוסף שיעור מע״מ חדש">שיעור חדש</button></div><dl class="kv"><dt>נוכחי</dt><dd class="num">' + VAT + '% מ-01.01.2025</dd></dl></div>' +
+        '<div class="card"><div class="hd"><b>ברירת מחדל להזנת מחיר</b></div><div class="fld"><select aria-label="הזנת מחיר"><option>לפני מע״מ</option><option>כולל מע״מ</option></select></div></div></div></div>';
+    } else if (setSec === 'business') {
+      h = '<div class="card"><div class="formgrid">' + [['שם העסק על החיוב', 'דירות הנחל בע״מ'], ['ח״פ / ע.מ', '51-000000-0'], ['כתובת', 'רחוב הדוגמה 1, תל אביב'], ['טלפון', '03-000-0000'], ['תחילית מספור חיובים', '2026-'], ['המספר הבא', '0034'], ['תנאי תשלום', 'שוטף + 30'], ['לוגו (PNG או JPEG עד 1MB)', 'לא הועלה']].map(function (x) { return '<div class="fld"><label>' + x[0] + '</label><input value="' + x[1] + '"></div>'; }).join('') + '</div><div class="row" style="margin-block-start:12px"><button class="btn primary mng" type="button" data-toast="ההגדרות נשמרו">שמירה</button></div></div>';
+    } else if (setSec === 'alerts') {
+      h = '<div class="cols side"><div class="col"><div class="card" data-card="snooze"><div class="hd"><b>השהיית התראה (נדנוד)</b></div>' +
+        '<div class="mut" style="margin-block-end:10px">בהתראה פתוחה אפשר להשהות את ההתראה לזמן קבוע בלי לאשר אותה. בסוף הזמן ההתראה חוזרת אם המצב נמשך. כאן קובעים אילו משכים מוצעים ומה ברירת המחדל של כפתור «נדנוד».</div>' +
+        '<div class="fld"><label>משכי נדנוד מוצעים</label><div class="chips-ed" data-sn-chips>' + SN.list.map(function (m) { return '<span class="chip nodot">' + snLabel(m) + '<button type="button" aria-label="הסרת ' + snLabel(m) + '" data-sn-del="' + m + '"><span class="ic s13"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></span></button></span>'; }).join('') +
+        '<span class="row" style="gap:6px;flex-wrap:nowrap"><input type="number" min="1" value="30" aria-label="משך להוספה" style="inline-size:76px" data-sn-n><select aria-label="יחידה" style="inline-size:96px" data-sn-u><option value="1">דקות</option><option value="60">שעות</option><option value="1440">ימים</option></select><button class="btn sm" type="button" data-sn-add>הוספה</button></span></div></div>' +
+        '<div class="formgrid" style="margin-block-start:12px"><div class="fld"><label for="sn-def">ברירת מחדל של כפתור «נדנוד»</label><select id="sn-def" data-sn-def>' + SN.list.map(function (m) { return '<option value="' + m + '"' + (m === SN.def ? ' selected' : '') + '>' + snLabel(m) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="fld"><label for="sn-max">נדנוד מרבי</label><select id="sn-max"><option>עד 7 ימים</option><option>עד 24 שעות</option><option>ללא הגבלה</option></select></div></div></div></div>' +
+        '<div class="col"><div class="card"><div class="hd"><b>כללי דליפה</b></div><dl class="kv"><dt>חלון לילה</dt><dd class="num">01:00-05:00</dd><dt>סף</dt><dd>6 ליטר לשעה</dd><dt>משך</dt><dd>שעתיים</dd></dl><div class="mut" style="margin-block-start:8px">הכללים נשארים כפי שאושרו ואינם משתנים כאן.</div></div></div></div>';
+    } else {
+      h = '<div class="card"><div class="formgrid"><div class="fld"><label>קריאות גולמיות</label><select><option>400 ימים</option><option>2 שנים</option></select></div><div class="fld"><label>צריכה שעתית ויומית</label><select><option>3 שנים</option><option>5 שנים</option></select></div><div class="fld"><label>חיובים ומסמכים</label><input value="7 שנים (לפי דין, לא ניתן לשינוי)" disabled></div></div></div>';
+    }
+    body2.innerHTML = h;
+    body2.querySelectorAll('[data-sn-del]').forEach(function (x) { x.onclick = function () { if (SN.list.length < 2) return toast('חייב להישאר לפחות משך אחד'); SN.list = SN.list.filter(function (m) { return m !== +x.dataset.snDel; }); if (SN.list.indexOf(SN.def) < 0) SN.def = SN.list[0]; renderSettings(); renderAlerts(); }; });
+    var add = body2.querySelector('[data-sn-add]'); if (add) add.onclick = function () { var v = Math.round(+body2.querySelector('[data-sn-n]').value * +body2.querySelector('[data-sn-u]').value); if (v > 0 && SN.list.indexOf(v) < 0) { SN.list.push(v); SN.list.sort(function (a, b) { return a - b; }); } renderSettings(); renderAlerts(); toast('משך הנדנוד נשמר'); };
+    var def = body2.querySelector('[data-sn-def]'); if (def) def.onchange = function () { SN.def = +def.value; renderAlerts(); toast('ברירת המחדל: ' + snLabel(SN.def)); };
+  }
+  S.addEventListener('click', function (e) { var b = e.target.closest('[data-toast]'); if (b) toast(b.dataset.toast); });
+  renderSettings(); renderCustomers(); renderAccounts(); renderBills(); renderAlerts();
+
+  // ---- the snooze: a split button (the default duration) + the menu of the configured durations ----
+  var MENU = document.getElementById('menu');
+  function hideMenu() { MENU.classList.remove('on'); }
+  function snoozeHtml(aid) {
+    return '<span class="snz ack"><button class="btn sm" type="button" data-snooze="' + SN.def + '" data-aid="' + aid + '">' + icon('bellOff', 13) + 'נדנוד ' + snLabel(SN.def) + '</button><button class="btn sm icononly" type="button" data-snmenu data-aid="' + aid + '" aria-haspopup="menu" aria-label="משך נדנוד אחר">' + icon('chevronDown', 13) + '</button></span>';
+  }
+  function snooze(aid, min) {
+    var a = byId(ALERTS, aid); a.state = 'snoozed'; a.chip = ['מנודנדת עד ' + snUntil(min), 'c-mut']; hideMenu(); renderAlerts(); if (current) renderCard();
+    toast('ההתראה נודנדה ל-' + snLabel(min) + ' (עד ' + snUntil(min) + ')');
+  }
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest('[data-snooze]'), m = e.target.closest('[data-snmenu]'), it = e.target.closest('[data-pick]');
+    if (s) return snooze(s.dataset.aid, +s.dataset.snooze);
+    if (it) return snooze(it.dataset.aid, +it.dataset.pick);
+    if (m) { var r = m.getBoundingClientRect(); MENU.innerHTML = '<div class="mh">נדנוד ל...</div>' + SN.list.map(function (x) { return '<button type="button" role="menuitem" data-pick="' + x + '" data-aid="' + m.dataset.aid + '">' + snLabel(x) + ' <span class="mut">(עד ' + snUntil(x) + ')</span></button>'; }).join('') + '<div class="mh">המשכים נקבעים בהגדרות</div>'; MENU.classList.add('on'); MENU.style.top = Math.min(r.bottom + 4, innerHeight - MENU.offsetHeight - 8) + 'px'; MENU.style.left = Math.max(8, Math.min(r.left, innerWidth - MENU.offsetWidth - 8)) + 'px'; return; }
+    if (!e.target.closest('#menu')) hideMenu();
+  });
 
   // ---- short confirmations (the toast of the real screens' notices) ----
   document.addEventListener('click', function (e) {
     var b = e.target.closest('.btn'); if (!b || b.closest('.mock') || b.dataset.close !== undefined) return;
-    var msg = b.dataset.ack !== undefined ? 'ההתראה אושרה' : b.dataset.mute !== undefined ? 'הושתק ל-60 דקות' : b.dataset.csv !== undefined ? 'הקובץ הורד' : null;
+    var msg = b.dataset.ack !== undefined ? 'ההתראה אושרה' : b.dataset.csv !== undefined ? 'הקובץ הורד' : null;
     if (!msg) return; e.stopPropagation(); var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 1800);
   }, true);
   if (q.get('page')) showPage(q.get('page'));
