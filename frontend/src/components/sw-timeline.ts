@@ -79,7 +79,11 @@ export class SwTimeline extends LitElement {
 
   @state() private hover: number | null = null;
   private lastHoverBucket = -1;
-  @state() private viewStart = -1;
+  /** Left edge of a window the host pins (minutes of day; -1 = centred on the cursor). The time scrub of the historical map
+   * owns its window (CR-TIMESCRUB101): it passes the start with `follow` off, so its lanes line up with this track. */
+  @property({ type: Number }) viewStart = -1;
+  /** A track without its own header row and legend, shorter (the time scrub draws its own controls and lanes around it). */
+  @property({ type: Boolean, reflect: true }) compact = false;
   @state() private dragging = false;
   private stopDisplay?: () => void;
 
@@ -124,6 +128,19 @@ export class SwTimeline extends LitElement {
       background: var(--sw-surface);
       color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-1);
+    }
+    :host([compact]) {
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+      background: transparent;
+    }
+    :host([compact]) .bar,
+    :host([compact]) .legend {
+      display: none;
+    }
+    :host([compact]) svg {
+      block-size: var(--sw-tl-h, 64px);
     }
     .precision {
       font-size: var(--sw-fs-xs);

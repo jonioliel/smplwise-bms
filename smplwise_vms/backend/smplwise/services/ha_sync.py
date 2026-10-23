@@ -612,6 +612,9 @@ def _note_connect_gap(db: Database) -> None:
     except Exception:  # noqa: BLE001
         last = None
     device_activity.note_connect(db, last)
+    from . import ha_history
+
+    ha_history.note_connect_gap(db, last)  # CR-TIMESCRUB101: the state history was not fed either - a gap row (never raises)
 
 
 def _note_platform_back(db: Database, lost_at: str) -> None:

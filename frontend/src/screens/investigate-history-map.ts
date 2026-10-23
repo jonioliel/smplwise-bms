@@ -42,8 +42,30 @@ import { sameRefs } from '../map/memo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dateInputLang, dayTimeText, timeText } from '../api/day-format';
+import '../components/sw-history-lanes';
+import type { SwTimeline } from '../components/sw-timeline';
+import { isFeatureOff, apiErrorCode, isoZ, loadRange, loadSnapshot, type HistoryRange, type HistorySnapshot, type LayerStatus } from '../api/history-scrub';
+import {
+  LAYER_COLOR, LAYER_IDS, LAYER_NAME, LAYER_STORAGE_KEY, RANGE_LAYERS, SPEEDS, advance, classifyEntity, coverageText, defaultSwitches, drawnStates, gapAt, gapsInWindow,
+  laneOf, layerDraws, layerStatusText, parseSwitches, replayFromRange, replayFromSnapshot, roomsKnown, serializeSwitches,
+  type EntityLayerId, type FloorReplay, type Lane, type LayerId, type LayerSwitches, type Speed,
+} from '../map/history-replay';
+import { layerSignature, roomStates, type RoomStateLayer } from '../map/room-state';
+import { stateEntitiesOf, stateFactsOf, type StateFacts } from '../map/state-facts';
+import { defaultLevelId } from '../map/studio-ops';
 
 const NEAR_MIN = 10;
+/** The window choices of the time scrub's bar (minutes); the track below zooms through the same values. */
+const SCRUB_WINDOWS: { label: string; minutes: number }[] = [
+  { label: 'יום', minutes: 1440 },
+  { label: '6 שע׳', minutes: 360 },
+  { label: 'שעה', minutes: 60 },
+  { label: '10 דק׳', minutes: 10 },
+];
+/** The elevator states the evaluator records (services/elevators_runtime.py), in the elevators screen's words. */
+const ELEVATOR_STATE: Record<string, string> = { ok: 'תקין', fault: 'תקלה', fire_service: 'שירות כבאים', out_of_service: 'מושבת', unknown: 'לא ידוע' };
+/** While playing, the plan's states follow the cursor at most this often (CR section 5: cursor debounce 150 ms during play). */
+const PLAY_STATE_MS = 150;
 
 function markerKind(t: EventKind): TimelineEvent['kind'] {
   return t === 'person' || t === 'vehicle' || t === 'motion' || t === 'line' || t === 'offline' || t === 'door' ? t : 'motion';
@@ -107,9 +129,47 @@ export class InvestigateHistoryMap extends LitElement {
   private itemNames = new Map<string, string>();
   /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
   private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
+
+  // ---- CR-TIMESCRUB101: the time scrub (setting history.timescrub; off = the screen above, unchanged) ----
+  /** The setting is on and the routes answered (a 404 feature_off turns it back off for the visit). */
+  @state() private scrub = false;
+  @state() private switches: LayerSwitches = defaultSwitches();
+  /** The snapshot of the latest settled cursor. */
+  @state() private snapshot: HistorySnapshot | null = null;
+  @state() private snapLoading = false;
+  @state() private snapError = '';
+  /** One range for the visible window (lanes + playback); never a request per frame. */
+  @state() private range: HistoryRange | null = null;
+  @state() private rangeNote = '';
+  @state() private mode: 'snapshot' | 'play' = 'snapshot';
+  @state() private playing = false;
+  @state() private speed: Speed = 1;
+  /** The visible window: its length and its left edge in minutes of the chosen day. */
+  @state() private winMinutes = 1440;
+  @state() private winStart = 0;
+  /** Phone: the detail cards as a sheet over the plan. */
+  @state() private detailsOpen = false;
+  /** While playing: the cursor (ms), and the instant the plan's states are computed for (follows at PLAY_STATE_MS). */
+  @state() private playMs = 0;
+  @state() private stateMs = 0;
+  private rangeMaxDays = 7;
+  private snapSeq = 0;
+  private rangeSeq = 0;
+  private rangeKey = '';
+  private rangeTimer = 0;
+  private raf = 0;
+  private lastFrame = 0;
+  private lastStateTick = 0;
+  private factsMemo: { geometry: GeometryDoc; w: number; h: number; catalog: CatalogLookup | null; facts: StateFacts } | null = null;
+  private replayMemo: { refs: unknown[]; value: FloorReplay | null } | null = null;
+  private drawnMemo: { refs: unknown[]; value: { states: Record<string, string | null>; lastChanged: Record<string, string | null> } } | null = null;
+  private roomMemo: { refs: unknown[]; value: RoomStateLayer | null } | null = null;
+  private snapReplayMemo: { snap: HistorySnapshot; value: FloorReplay } | null = null;
+
   private onKey = (e: KeyboardEvent) => {
     const t = e.composedPath()[0];
     const typing = t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    if (this.scrub && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && this.onScrubKey(e, t)) return;
     if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing) {
       e.preventDefault();
       if (e.repeat) return; // a held key flips the view once, as on the live map
@@ -353,6 +413,542 @@ export class InvestigateHistoryMap extends LitElement {
         display: none;
       }
     }
+
+    /* ===== CR-TIMESCRUB101 (owner layout rule 2026-10-24): the screen is a fixed-height column and NEVER scrolls - compact
+       head, one-line status bar, the plan + panel area takes all the height left (the plan fills it), the timeline bar is
+       pinned to the bottom; only the side panel scrolls, inside itself ===== */
+    :host([data-scrub]) {
+      block-size: 100%;
+      min-block-size: 0;
+      overflow: hidden;
+    }
+    :host([data-scrub]) .head {
+      flex: none;
+      gap: 8px 10px;
+      padding-block: 8px 6px;
+    }
+    :host([data-scrub]) h1 {
+      font-size: var(--sw-fs-xl);
+      line-height: 1.25;
+    }
+    :host([data-scrub]) .sub {
+      font-size: var(--sw-fs-xs);
+      margin-block-start: 0;
+    }
+    .acts-h {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .details-btn,
+    .sheet-hd {
+      display: none;
+    }
+    :host([data-scrub]) .bar {
+      flex: none;
+      flex-wrap: nowrap;
+      padding-block: 5px;
+      margin-block-end: 8px;
+      min-block-size: 34px;
+      box-sizing: border-box;
+    }
+    :host([data-scrub]) .bar > span:not(.pill) {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex: none;
+      border-radius: var(--sw-r-pill);
+      padding: 2px 9px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      white-space: nowrap;
+      background: var(--sw-surface);
+      color: var(--sw-recorded-text);
+      border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent);
+    }
+    .pill.warn {
+      color: var(--sw-warning-text);
+      background: var(--sw-warning-soft);
+      border-color: color-mix(in srgb, var(--sw-warning) 45%, transparent);
+    }
+    .layout.ts {
+      grid-template-rows: minmax(0, 1fr);
+      gap: 12px;
+      margin-block-end: 10px;
+      align-items: stretch;
+      flex: 1;
+      min-block-size: 0;
+      position: relative;
+    }
+    .layout.ts .stage {
+      block-size: auto;
+      min-block-size: 0;
+    }
+    .hist.gap {
+      border-color: var(--sw-warning);
+    }
+    .layout.ts .panel {
+      gap: 10px;
+      min-block-size: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      padding-inline-end: 2px;
+    }
+    .details {
+      display: contents;
+    }
+    .cover {
+      position: absolute;
+      inset: 0;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      /* no scrim: the plan stays readable around the (opaque) state panel */
+    }
+    .cover sw-state-panel {
+      max-inline-size: 420px;
+      background: var(--sw-surface-solid, var(--sw-surface));
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .gapbar {
+      position: absolute;
+      inset-inline: 12px;
+      inset-block-end: 48px;
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: var(--sw-r-md);
+      /* a HUD panel over the plan: the opaque surface with the warning hairline (styles/menu-surface.ts) */
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-warning);
+      color: var(--sw-warning-text);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .lcard {
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      padding: 12px 14px;
+      box-shadow: var(--sw-shadow-1);
+      min-inline-size: 0;
+    }
+    .lhd {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-block-end: 8px;
+    }
+    .lhd h2 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .lhd .grow {
+      flex: 1;
+    }
+    .layers {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .lyr {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 6px;
+      border-radius: var(--sw-r-sm);
+      font-size: var(--sw-fs-sm);
+      min-block-size: 34px;
+      box-sizing: border-box;
+    }
+    .lyr:hover {
+      background: var(--sw-hover-wash);
+    }
+    .lyr .sw {
+      position: relative;
+      inline-size: 30px;
+      block-size: 18px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-unknown);
+      border: 0;
+      cursor: pointer;
+      flex: none;
+      padding: 0;
+      transition: background var(--sw-t-fast) var(--sw-ease);
+    }
+    .lyr .sw::after {
+      content: '';
+      position: absolute;
+      inset-block-start: 2px;
+      inset-inline-start: 2px;
+      inline-size: 14px;
+      block-size: 14px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+      transition: transform var(--sw-t-fast) var(--sw-ease);
+    }
+    .lyr .sw[aria-checked='true'] {
+      background: var(--sw-accent);
+    }
+    .lyr .sw[aria-checked='true']::after {
+      transform: translateX(-12px);
+    }
+    .lyr .sw:disabled {
+      opacity: var(--sw-disabled-opacity, 0.5);
+      cursor: default;
+    }
+    .lyr .sw:focus-visible {
+      outline: var(--sw-focus-w, 2px) solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    .lyr .nm {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-inline-size: 0;
+    }
+    .lyr .nm i {
+      inline-size: 9px;
+      block-size: 9px;
+      border-radius: 50%;
+      background: var(--c, var(--sw-accent));
+      flex: none;
+    }
+    .lyr .cov {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      white-space: nowrap;
+    }
+    .lyr[data-off='true'] .nm {
+      color: var(--sw-text-3);
+    }
+    .lyr .st {
+      font-size: var(--sw-fs-xs);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .st[data-look='ok'] {
+      color: var(--sw-success-text);
+    }
+    .st[data-look='unk'] {
+      color: var(--sw-unknown-text);
+    }
+    .st[data-look='warn'] {
+      color: var(--sw-warning-text);
+    }
+    .st[data-look='lock'] {
+      color: var(--sw-forbidden-text);
+    }
+    .elev {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .acts {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-block-start: 10px;
+    }
+    /* the timeline bar pinned to the bottom (never scrolled to; sticky is belt-and-braces) */
+    .tlx {
+      flex: none;
+      position: sticky;
+      inset-block-end: 0;
+      z-index: var(--sw-z-map-ui);
+      padding: 6px 24px 10px;
+      background: var(--sw-bg);
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .tlrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow: hidden;
+      margin-block-end: 6px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      min-block-size: 36px;
+    }
+    .tlrow > * {
+      flex: none;
+    }
+    .tlrow .grow {
+      flex: 1;
+    }
+    .tlrow .time {
+      font-size: var(--sw-fs-md);
+    }
+    .tlrow sw-field {
+      inline-size: 150px;
+    }
+    .seg {
+      display: inline-flex;
+      padding: 3px;
+      gap: 2px;
+      background: var(--sw-surface-3);
+      border-radius: var(--sw-r-sm);
+    }
+    .seg button {
+      padding: 3px 10px;
+      border-radius: calc(var(--sw-r-sm) - 2px);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      white-space: nowrap;
+      border: 0;
+      background: transparent;
+      min-block-size: 24px;
+    }
+    .seg button[aria-pressed='true'] {
+      background: var(--sw-surface-solid, var(--sw-surface));
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .play {
+      display: inline-grid;
+      place-items: center;
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 50%;
+      border: 0;
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-primary, none);
+      font: inherit;
+    }
+    .play:hover {
+      background: var(--sw-accent-hover, var(--sw-accent));
+    }
+    .kbd {
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-2xs);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-2xs, 4px);
+      padding: 0 4px;
+      color: var(--sw-text-3);
+    }
+    .track {
+      position: relative;
+      direction: ltr;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-1);
+      padding: 6px 10px 2px;
+      --sw-lanes-label-w: 92px;
+    }
+    .track .tlwrap {
+      margin-left: calc(var(--sw-lanes-label-w) + 8px);
+      margin-block-start: 4px;
+    }
+    .track .rangenote {
+      direction: rtl;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-warning-text);
+      padding-block-end: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lyr .sw,
+      .lyr .sw::after {
+        transition: none;
+      }
+    }
+    /* tablet: the two columns stay (the panel narrows and scrolls) so nothing drops below the timeline; one control row
+       stays one row - the hour steps, the date and the key hints leave it */
+    @media (max-width: 1023px) {
+      :host([data-scrub]) .head,
+      :host([data-scrub]) .bar,
+      .layout.ts {
+        margin-inline: 16px;
+      }
+      :host([data-scrub]) .head,
+      :host([data-scrub]) .head.lead-head {
+        padding-inline: 0 0;
+        padding-inline-start: var(--sw-lead-reserve, 0px);
+      }
+      .layout.ts {
+        grid-template-columns: minmax(0, 1fr) 272px;
+        gap: 10px;
+      }
+      .tlx {
+        padding-inline: 16px;
+      }
+      .tlrow .keys,
+      .tlrow .dateq,
+      .tlrow [data-step='-60'],
+      .tlrow [data-step='60'] {
+        display: none;
+      }
+    }
+    /* phone: the layer chips row above the plan, the plan fills the height between them and the pinned timeline, the
+       detail cards open as a sheet over the plan ("פרטים") */
+    @media (max-width: 767px) {
+      :host([data-scrub]) .head,
+      :host([data-scrub]) .head.lead-head {
+        margin-inline: 0;
+        padding: 6px 12px 4px;
+        padding-inline-start: calc(12px + var(--sw-lead-reserve, 0px));
+        flex-wrap: nowrap;
+        gap: 8px;
+      }
+      :host([data-scrub]) h1 {
+        font-size: var(--sw-fs-md);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      :host([data-scrub]) .head > div:first-child {
+        min-inline-size: 0;
+      }
+      :host([data-scrub]) .sub {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .acts-h {
+        flex: none;
+        gap: 4px;
+      }
+      .acts-h sw-field,
+      .acts-h .note,
+      .acts-h .lbl {
+        display: none;
+      }
+      .details-btn {
+        display: inline-flex;
+      }
+      :host([data-scrub]) .bar {
+        display: none;
+      }
+      .layout.ts {
+        margin: 0;
+        gap: 0;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+      .layout.ts .stage {
+        order: 2;
+        border-radius: 0;
+        border-inline: 0;
+      }
+      .layout.ts .panel {
+        order: 1;
+        overflow: visible;
+        padding: 0 12px 6px;
+        gap: 0;
+      }
+      .layers {
+        flex-direction: row;
+        overflow-x: auto;
+        scrollbar-width: none;
+        gap: 6px;
+        padding-block-end: 2px;
+      }
+      .lcard {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+      .lcard .lhd {
+        display: none;
+      }
+      .lyr {
+        grid-template-columns: auto auto;
+        flex: none;
+        border: 1px solid var(--sw-border);
+        border-radius: var(--sw-r-pill);
+        padding: 3px 10px 3px 6px;
+        background: var(--sw-surface);
+      }
+      .lyr .cov,
+      .lyr .st {
+        display: none;
+      }
+      .lyr .sw {
+        inline-size: 26px;
+        block-size: 16px;
+      }
+      .lyr .sw::after {
+        inline-size: 12px;
+        block-size: 12px;
+      }
+      .lyr .sw[aria-checked='true']::after {
+        transform: translateX(-10px);
+      }
+      .details {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 8;
+        background: var(--sw-bg);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 10px 12px 12px;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .details.open {
+        display: flex;
+      }
+      .sheet-hd {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-semibold);
+      }
+      .sheet-hd .grow {
+        flex: 1;
+      }
+      .gapbar {
+        inset-block-end: 10px;
+      }
+      .tlx {
+        padding: 6px 12px 8px;
+      }
+      .tlrow {
+        gap: 6px;
+        min-block-size: 40px;
+        margin-block-end: 4px;
+      }
+      .tlrow .win,
+      .tlrow .speed {
+        display: none;
+      }
+      .tlrow .time {
+        font-size: var(--sw-fs-sm);
+      }
+      .track {
+        --sw-lanes-label-w: 58px;
+        --sw-lane-h: 8px;
+        --sw-tl-h: 44px;
+        padding: 4px 8px 0;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -364,6 +960,14 @@ export class InvestigateHistoryMap extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.onKey);
+    this.stopPlay(false);
+    window.clearTimeout(this.rangeTimer);
+    window.clearTimeout(this.frameTimer);
+  }
+
+  protected willUpdate(changed: Map<string, unknown>) {
+    // the fixed-height layout of the time scrub keys on the host (flag off: no attribute, today's scrolling page)
+    if (changed.has('scrub')) this.toggleAttribute('data-scrub', this.scrub);
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -386,6 +990,17 @@ export class InvestigateHistoryMap extends LitElement {
       const [settings, tree] = await Promise.all([productSettings(), this.tree ? Promise.resolve(this.tree) : loadTree()]);
       this.tz = settings['time.zone'] ?? this.tz;
       this.tree = tree;
+      // CR-TIMESCRUB101: the flag (default off = today's screen unchanged) and the cap of one range request
+      this.scrub = String(settings['history.timescrub'] ?? 'false') === 'true';
+      const maxDays = Number(settings['history.range_max_days'] ?? 7);
+      this.rangeMaxDays = Number.isFinite(maxDays) ? Math.max(1, Math.min(30, maxDays)) : 7;
+      if (this.scrub) this.restoreSwitches();
+      this.stopPlay(false);
+      this.snapshot = null;
+      this.snapError = '';
+      this.range = null;
+      this.rangeKey = '';
+      this.rangeNote = '';
       // the navigation links the generic 'f0': with a backend, land on the first real floor (3.11)
       if (isApi() && this.floors.length && !this.floors.some((f) => f.id === this.floorId)) {
         const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '').toString();
@@ -410,6 +1025,11 @@ export class InvestigateHistoryMap extends LitElement {
       }
       void this.updateGeometry();
       this.scheduleFrame();
+      if (this.scrub) {
+        this.fitWindow(true);
+        void this.fetchSnapshot();
+        this.scheduleRange(0);
+      }
       if (this.camera) {
         const a = this.bundle.anchors.find((x) => x.resource_type === 'camera' && x.resource_id === this.camera);
         this.selectedId = a?.id ?? null;
@@ -515,6 +1135,14 @@ export class InvestigateHistoryMap extends LitElement {
 
   setMinute(m: number) {
     this.minute = Math.max(0, Math.min(this.limitMinute, m));
+    if (this.scrub) {
+      if (this.playing) {
+        // a seek while playing moves the play head and keeps playing
+        this.playMs = this.instant.getTime();
+        this.stateMs = this.playMs;
+      }
+      this.fitWindow(false);
+    }
     this.scheduleFrame();
   }
 
@@ -525,6 +1153,7 @@ export class InvestigateHistoryMap extends LitElement {
       this.frameAt = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
       this.frameFailed = false;
       void this.ensureVersion();
+      if (this.scrub && !this.playing) void this.fetchSnapshot(); // the settled cursor's snapshot (the bundleSeq pattern)
     }, 600);
   }
 
@@ -585,9 +1214,16 @@ export class InvestigateHistoryMap extends LitElement {
   }
 
   private setDate(date: string) {
+    if (!date) return;
     this.date = date;
     this.minute = Math.min(this.minute, this.limitMinute);
     void this.loadDay();
+    if (this.scrub) {
+      this.stopPlay(false);
+      this.fitWindow(true);
+      this.scheduleRange();
+      this.scheduleFrame();
+    }
   }
 
   private fmt(iso: string) {
@@ -623,24 +1259,30 @@ export class InvestigateHistoryMap extends LitElement {
     const b = this.bundle;
     const g = this.geometry;
     if (!this.view3d || !b || b.source !== 'api' || !g) return null;
-    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames, this.recordings, this.minute, this.tz, this.real3d, this.materials3d];
+    // CR-TIMESCRUB101: with the time scrub on, the 3D replays the same filtered states as the 2D (known states of enabled,
+    // permitted layers only) and the same room-state layer; a switched-off layer's anchors are not drawn
+    const drawn = this.scrub ? this.scrubDrawn : null;
+    const scrubLayer = this.scrub ? this.scrubRoomLayer : null;
+    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames, this.recordings, this.minute, this.tz, this.real3d, this.materials3d, this.scrub, drawn, scrubLayer, this.switches];
     if (this.sceneMemo && sameRefs(this.sceneMemo.refs, refs)) return this.sceneMemo.desc;
     // ST7HIST (map/replay-3d.ts): the states of the instant - known only, explicit nulls otherwise (never the last live value);
     // a circuit's switch only when the history knows it at the instant
-    const { entityStates, circuitStates } = replayStates(b.anchors, b.circuitStates);
-    const anchors: SceneAnchor[] = b.anchors.map((a) => ({
+    const { entityStates, circuitStates } = drawn ? { entityStates: drawn.states, circuitStates: this.scrubCircuits } : replayStates(b.anchors, b.circuitStates);
+    const shown = this.scrub ? b.anchors.filter((a) => this.scrubVisible(a)) : b.anchors;
+    const anchors: SceneAnchor[] = shown.map((a) => ({
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
-      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: this.stateAt(a),
+      polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: drawn ? drawn.states[a.resource_id] ?? null : this.stateAt(a),
       online: a.resource_type === 'camera' ? this.coverageAt(a.resource_id).state === 'historic' : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
     }));
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level, this.itemNames, this.real3d, this.materials3d];
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones, layerSignature(scrubLayer)]), g, this.catalog3d, this.level, this.itemNames, this.real3d, this.materials3d];
     if (this.sceneMemo && sameRefs(this.sceneMemo.keys, keys)) {
       this.sceneMemo = { ...this.sceneMemo, refs };
       return this.sceneMemo.desc;
     }
     // the realistic part only while the element draws level 3 (its `realistic-change`): levels 1-2 get exactly the description of before
     const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true,
+      ...(scrubLayer ? { roomStates: scrubLayer } : {}),
       ...(this.real3d ? { realistic: true, materialsCatalog: this.materials3d } : {}) });
     // hover labels: anchors by their map name, objects by label or library name, zones by name
     const labels: Record<string, string> = {};
@@ -695,13 +1337,19 @@ export class InvestigateHistoryMap extends LitElement {
   // ---- render ----
 
   private renderPanel(b: MapBundle) {
+    return html`<div class="panel">${this.panelCards(b)}</div>`;
+  }
+
+  /** The "at the instant" card, the case picker and the events card. `x` (time scrub only) replaces the devices row with
+   * the replay's, adds rows (rooms, alarm, elevators) and actions, and can switch the events list off (layer off / locked). */
+  private panelCards(b: MapBundle, x?: { entities: unknown; rows: unknown; actions: unknown; eventsOff: string | null }) {
     const a = this.selectedAnchor;
     const cam = a?.resource_type === 'camera' ? a : null;
     const cov = cam ? this.coverageAt(cam.resource_id) : null;
     const recs = cam ? this.recordings.get(cam.resource_id) : undefined;
-    const near = this.eventsNear(undefined, NEAR_MIN);
+    const near = x?.eventsOff ? [] : this.eventsNear(undefined, NEAR_MIN);
     const tISO = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
-    return html`<div class="panel">
+    return html`
       <sw-card heading="בנקודת הזמן שנבחרה" subheading="זמן ונתונים מאותו רגע" data-history-panel>
         <dl>
           <dt>זמן</dt><dd><span class="ltr" data-history-time>${this.date} ${secondLabel(this.minute)}</span> <span class="note">${this.tz}</span></dd>
@@ -710,12 +1358,14 @@ export class InvestigateHistoryMap extends LitElement {
             ? html`<dt>הקלטה</dt><dd>${recs === undefined ? 'טוען…' : recs === null ? 'לא ניתן לבדוק מול ה־NVR' : cov?.segment ? html`יש הקלטה · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? 'רציף' : 'תנועה'}` : 'אין הקלטה בזמן זה (פער)'}</dd>
                 <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
             : nothing}
-          <dt>התקנים</dt><dd data-history-entities>${this.renderEntityStates(b)}</dd>
+          <dt>התקנים</dt><dd data-history-entities>${x ? x.entities : this.renderEntityStates(b)}</dd>
+          ${x ? x.rows : nothing}
           ${cam && this.frameAt ? html`<dt>פריים</dt><dd><div class="frame" data-history-frame>${this.frameFailed ? html`<span>אין פריים בהקלטה בזמן זה</span>` : html`<img src=${frameUrl(cam.resource_id, this.frameAt)} alt="פריים מההקלטה בזמן שנבחר" @error=${() => (this.frameFailed = true)} />`}</div></dd>` : nothing}
           <dt>גרסת תוכנית</dt><dd data-history-plan-version data-history-mode=${b.history ?? 'live'}>${b.history === 'exact' && b.planPublishedAt ? html`בתוקף באותו זמן · פורסמה <span class="ltr">${this.fmtWhen(b.planPublishedAt)}</span>${b.planArchivedAt ? html` · הוחלפה <span class="ltr">${this.fmtWhen(b.planArchivedAt)}</span>` : ''}` : b.historyFrom ? html`המפה הנוכחית · היסטוריית המפה מתחילה <span class="ltr">${this.fmtWhen(b.historyFrom)}</span>` : 'המפה הנוכחית'}</dd>
         </dl>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-block-start:10px">
           ${cam ? html`<sw-button variant="primary" size="sm" icon="history" @click=${() => navigate('/investigate/playback', { camera: cam.resource_id, t: tISO })}>נגן מכאן</sw-button>` : nothing}
+          ${x ? x.actions : nothing}
           <sw-button size="sm" icon="case" data-add-to-case ?disabled=${!cam} title=${cam ? 'קטע של המצלמה הנבחרת סביב הזמן שנבחר (15 שניות לפני, 45 אחרי)' : 'בחר מצלמה במפה'} @click=${() => { if (cam) this.casePick = { kind: 'clip', camera_id: cam.resource_id, ...clipAround(this.instant) }; }}>הוסף לתיק</sw-button>
         </div>
       </sw-card>
@@ -723,9 +1373,8 @@ export class InvestigateHistoryMap extends LitElement {
       <sw-card heading="אירועים סביב הזמן" subheading=${`±${NEAR_MIN} דקות · מצלמות הקומה`}>
         ${near.length
           ? html`<div class="evl" data-history-events>${near.slice(0, 8).map((e) => html`<a class=${cam && e.camera_id === cam.resource_id ? 'hit' : ''} href=${`#/investigate/events/${e.id}`}><span>${EVENT_LABEL[e.type] ?? e.type} · ${e.camera_name ?? e.channel ?? ''}<div class="s">${e.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'}${e.acked_at ? ' · טופל' : ''}</div></span><span class="ltr">${this.fmt(e.occurred_at)}</span></a>`)}</div>`
-          : html`<div class="note">אין אירועים בחלון הזה.</div>`}
-      </sw-card>
-    </div>`;
+          : html`<div class="note">${x?.eventsOff ?? 'אין אירועים בחלון הזה.'}</div>`}
+      </sw-card>`;
   }
 
   private renderApi() {
@@ -782,6 +1431,601 @@ export class InvestigateHistoryMap extends LitElement {
     `;
   }
 
+  // ---- CR-TIMESCRUB101: data ----
+
+  private restoreSwitches() {
+    try {
+      this.switches = parseSwitches(localStorage.getItem(LAYER_STORAGE_KEY));
+    } catch {
+      this.switches = defaultSwitches(); // blocked storage: the defaults (presence off)
+    }
+  }
+
+  private toggleLayer(id: LayerId) {
+    this.switches = { ...this.switches, [id]: !this.switches[id] };
+    try {
+      localStorage.setItem(LAYER_STORAGE_KEY, serializeSwitches(this.switches));
+    } catch {
+      /* private mode or blocked storage: the choice lives for this page only */
+    }
+  }
+
+  /** The routes answered 404 (the setting is off on the server): today's historical map for this visit. */
+  private featureOff() {
+    this.stopPlay(false);
+    this.scrub = false;
+    this.snapshot = null;
+    this.range = null;
+    this.rangeKey = '';
+  }
+
+  /** The snapshot of the cursor's instant; an older answer arriving late never replaces a newer one (the bundleSeq pattern). */
+  private async fetchSnapshot() {
+    const b = this.bundle;
+    if (!this.scrub || !b || b.source !== 'api') return;
+    const at = isoZ(this.instant);
+    if (this.snapshot && Date.parse(this.snapshot.at) === Date.parse(at)) return;
+    const seq = ++this.snapSeq;
+    const floor = this.floorId;
+    this.snapLoading = true;
+    try {
+      const s = await loadSnapshot(floor, at);
+      if (seq !== this.snapSeq || floor !== this.floorId) return;
+      this.snapshot = s;
+      this.snapError = '';
+      const days = Number(s.settings?.range_max_days);
+      if (Number.isFinite(days) && days >= 1) this.rangeMaxDays = Math.min(30, days);
+    } catch (err) {
+      if (seq !== this.snapSeq) return;
+      if (isFeatureOff(err)) {
+        this.featureOff();
+        return;
+      }
+      this.snapError = describeError(err);
+    } finally {
+      if (seq === this.snapSeq) this.snapLoading = false;
+    }
+  }
+
+  /** An instant (ms) of the chosen day's minute. */
+  private msAt(minute: number): number {
+    return instantInZone(this.date, minute, this.tz).getTime();
+  }
+
+  /** The minute of the chosen day for an instant (ms), fractional to the millisecond; the next midnight is 1440. */
+  private minuteOfMs(ms: number): number {
+    if (ms >= this.msAt(1440)) return 1440;
+    if (ms <= this.msAt(0)) return 0;
+    return Math.max(0, Math.min(1440, minuteInZone(new Date(ms), this.tz) + (((ms % 1000) + 1000) % 1000) / 60_000));
+  }
+
+  private get winFromMs(): number {
+    return this.msAt(this.winStart);
+  }
+
+  /** The window's right edge, never past now. */
+  private get winToMs(): number {
+    return Math.min(this.msAt(this.winStart + this.winMinutes), this.msAt(this.limitMinute));
+  }
+
+  /** Keeps the cursor inside the visible window (recentred when it left it); `reset` = the window around the cursor anew. */
+  private fitWindow(reset: boolean) {
+    const w = this.winMinutes;
+    if (!reset && this.minute >= this.winStart && this.minute <= this.winStart + w) return;
+    const start = w >= 1440 ? 0 : Math.max(0, Math.min(1440 - w, this.minute - w / 2));
+    if (start !== this.winStart || reset) {
+      this.winStart = start;
+      this.scheduleRange();
+    }
+  }
+
+  private setWindow(minutes: number) {
+    this.winMinutes = minutes;
+    this.winStart = minutes >= 1440 ? 0 : Math.max(0, Math.min(1440 - minutes, this.minute - minutes / 2));
+    this.scheduleRange();
+  }
+
+  /** The track zoomed itself (wheel): the window follows it. */
+  private onTimelineWindow(e: Event) {
+    const tl = e.target as SwTimeline;
+    this.winMinutes = tl.windowMinutes;
+    this.winStart = tl.start;
+    this.scheduleRange();
+  }
+
+  private scheduleRange(delay = 300) {
+    window.clearTimeout(this.rangeTimer);
+    this.rangeTimer = window.setTimeout(() => void this.fetchRange(), delay);
+  }
+
+  /** ONE range for the visible window (lanes and playback), capped at history.range_max_days. */
+  private async fetchRange() {
+    const b = this.bundle;
+    if (!this.scrub || !b || b.source !== 'api') return;
+    const from = this.winFromMs;
+    const to = Math.min(this.winToMs, from + this.rangeMaxDays * 86_400_000);
+    if (!(to > from)) {
+      this.range = null;
+      this.rangeKey = '';
+      return;
+    }
+    const key = `${this.floorId}|${from}|${to}`;
+    if (key === this.rangeKey) return;
+    const seq = ++this.rangeSeq;
+    const floor = this.floorId;
+    try {
+      const r = await loadRange(floor, isoZ(from), isoZ(to), RANGE_LAYERS);
+      if (seq !== this.rangeSeq || floor !== this.floorId) return;
+      this.range = r;
+      this.rangeKey = key;
+      this.rangeNote = '';
+    } catch (err) {
+      if (seq !== this.rangeSeq) return;
+      if (isFeatureOff(err)) {
+        this.featureOff();
+        return;
+      }
+      const code = apiErrorCode(err);
+      this.range = null;
+      this.rangeKey = '';
+      this.rangeNote = code === 'range_too_large' ? 'יותר מדי שינויים בחלון - בחרו חלון קצר יותר' : code === 'range_too_long' ? 'החלון ארוך מהמותר - בחרו חלון קצר יותר' : `פסי השכבות לא נטענו: ${describeError(err)}`;
+    }
+  }
+
+  /** The instant the plan's states are drawn for (ms): the play head's (stepped) while playing, the cursor's otherwise. */
+  private get replayMs(): number {
+    return this.playing ? this.stateMs : this.instant.getTime();
+  }
+
+  private get snapReplay(): FloorReplay | null {
+    const s = this.snapshot;
+    if (!s) return null;
+    if (this.snapReplayMemo?.snap !== s) this.snapReplayMemo = { snap: s, value: replayFromSnapshot(s) };
+    return this.snapReplayMemo.value;
+  }
+
+  /** The replay at the drawn instant: the snapshot when it is the settled cursor's, else computed from the range (playback,
+   * or the cursor moved and its snapshot is not back yet); null = nothing known (everything drawn unknown). A snapshot of
+   * another instant is never shown. */
+  private get replay(): FloorReplay | null {
+    const t = this.replayMs;
+    const refs: unknown[] = [this.snapshot, this.range, t, this.playing];
+    if (this.replayMemo && sameRefs(this.replayMemo.refs, refs)) return this.replayMemo.value;
+    let value: FloorReplay | null = null;
+    const s = this.snapshot;
+    if (!this.playing && s && Math.abs(Date.parse(s.at) - t) < 1000) value = this.snapReplay;
+    else if (this.range && t >= Date.parse(this.range.from) && t <= Date.parse(this.range.to)) value = replayFromRange(this.range, t, this.snapReplay);
+    this.replayMemo = { refs, value };
+    return value;
+  }
+
+  /** The status / retention per layer for the legend: the replay's, else the last snapshot's (permission and coverage). */
+  private get layerStatus(): Partial<Record<LayerId, LayerStatus>> {
+    return this.replay?.status ?? this.snapReplay?.status ?? {};
+  }
+
+  /** The layer of an anchored entity: the server's classification when the replay named it, else the client's mirror. */
+  private layerOfAnchor(a: MapBundle['anchors'][number]): EntityLayerId {
+    const id = a.resource_id;
+    return this.replay?.entities[id]?.layer ?? this.snapReplay?.entities[id]?.layer ?? classifyEntity({ id, domain: a.entity?.domain ?? id.split('.')[0] ?? '', device_class: a.entity?.device_class ?? null, layer_id: a.layer_id });
+  }
+
+  /** An anchor is drawn when its layer is switched on (a locked layer's anchors stay, drawn unknown, with no state). */
+  private scrubVisible(a: MapBundle['anchors'][number]): boolean {
+    return a.resource_type === 'camera' ? this.switches.cameras : !!this.switches[this.layerOfAnchor(a)];
+  }
+
+  /** Entity id -> drawn state (known, enabled, permitted) or null, for every anchored entity of the floor. */
+  private get scrubDrawn(): { states: Record<string, string | null>; lastChanged: Record<string, string | null> } {
+    const b = this.bundle;
+    const rep = this.replay;
+    const refs: unknown[] = [b, rep, this.switches];
+    if (this.drawnMemo && sameRefs(this.drawnMemo.refs, refs)) return this.drawnMemo.value;
+    const ids = (b?.anchors ?? []).filter((a) => a.resource_type === 'ha_entity').map((a) => a.resource_id);
+    const value = drawnStates(rep, this.switches, ids);
+    this.drawnMemo = { refs, value };
+    return value;
+  }
+
+  /** Circuit switches only from the bundle of the drawn instant itself (never during playback: the bundle is the settled
+   * cursor's), and only while the lights layer draws. */
+  private get scrubCircuits(): Record<string, string | null> {
+    const b = this.bundle;
+    const rep = this.replay;
+    const none = () => Object.fromEntries(Object.keys(b?.circuitStates ?? {}).sort().map((k) => [k, null] as [string, string | null]));
+    if (!b || !rep || this.playing || !b.at || Math.abs(Date.parse(b.at) - this.replayMs) >= 1000 || !layerDraws('lights', this.switches, rep.status)) return none();
+    return replayStates(b.anchors, b.circuitStates).circuitStates;
+  }
+
+  private factsFor(g: GeometryDoc, b: MapBundle): StateFacts {
+    const m = this.factsMemo;
+    if (m && m.geometry === g && m.w === b.width && m.h === b.height && m.catalog === this.catalogLookup) return m.facts;
+    const facts = stateFactsOf(g, b.width, b.height, this.catalogLookup);
+    this.factsMemo = { geometry: g, w: b.width, h: b.height, catalog: this.catalogLookup, facts };
+    return facts;
+  }
+
+  /** The room-state layer of the drawn instant, by the live map's own pure function (map/room-state.ts) from the drawn
+   * states: unknown contributes nothing; presence without a fade in the past (a tint only while a sensor is on); no
+   * attributes (the history does not record them). */
+  private get scrubRoomLayer(): RoomStateLayer | null {
+    const b = this.bundle;
+    const g = this.geometry;
+    if (!b || b.source !== 'api') return null;
+    const drawn = this.scrubDrawn;
+    const circuits = this.scrubCircuits;
+    const refs: unknown[] = [b, g, this.catalogLookup, drawn, JSON.stringify(circuits), this.replayMs];
+    if (this.roomMemo && sameRefs(this.roomMemo.refs, refs)) return this.roomMemo.value;
+    const facts = g ? this.factsFor(g, b) : null;
+    let value: RoomStateLayer | null = null;
+    if (b.zones.length || facts?.openings.length) {
+      const entities = stateEntitiesOf(b.anchors, drawn.states, { lastChanged: drawn.lastChanged, withAttributes: false });
+      const lamps = (facts?.lamps ?? []).map((l) => ({ x: l.x, y: l.y, level_id: l.level_id, on: (l.circuit !== null && circuits[l.circuit] === 'on') || (l.entity !== null && drawn.states[l.entity] === 'on') }));
+      const rooms = b.zones.map((z) => ({ id: z.id, polygon: z.polygon, level_id: z.level_id ?? null }));
+      const fallback = this.levelFallback;
+      value = roomStates({ rooms, entities, openings: facts?.openings ?? [], lamps, size: [b.width, b.height], scaleMPerPx: b.scaleMPerPx, now: this.replayMs, fade: 'off', levelOf: (id) => id ?? fallback });
+    }
+    this.roomMemo = { refs, value };
+    return value;
+  }
+
+  private get levelFallback(): string {
+    const b = this.bundle;
+    return this.geometry ? defaultLevelId(this.geometry) : (b?.levels.find((l) => l.is_default)?.id ?? 'L0');
+  }
+
+  private markersMemo: { refs: unknown[]; key: string; value: PlanMarker[] } | null = null;
+
+  /** The markers of the time scrub: switched-off layers are not drawn, an entity is "historic" only with a drawn state.
+   * Memoised (playback renders every frame; the cameras' coverage and the events near the cursor change per minute). */
+  private get scrubMarkers(): PlanMarker[] {
+    const b = this.bundle;
+    if (!b) return [];
+    const drawn = this.scrubDrawn;
+    const status = this.layerStatus;
+    const refs: unknown[] = [b, drawn, this.switches, this.recordings, this.events, Math.floor(this.minute), this.date];
+    const key = String(status.cameras ?? '');
+    if (this.markersMemo && this.markersMemo.key === key && sameRefs(this.markersMemo.refs, refs)) return this.markersMemo.value;
+    const camsLocked = status.cameras === 'not_permitted';
+    const byId = new Map(b.anchors.map((x) => [x.id, x]));
+    const out: PlanMarker[] = [];
+    for (const m of this.apiMarkers) {
+      const a = byId.get(m.id);
+      if (!a || !this.scrubVisible(a)) continue;
+      if (a.resource_type === 'camera') {
+        out.push(camsLocked ? { ...m, label: a.camera?.name ?? a.label ?? a.resource_id, state: 'unknown' } : m);
+        continue;
+      }
+      const s = drawn.states[a.resource_id] ?? null;
+      const name = entityName(a);
+      out.push({ ...m, label: s !== null ? `${name} · ${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: s })}` : name, state: s !== null ? 'historic' : 'unknown' });
+    }
+    this.markersMemo = { refs, key, value: out };
+    return out;
+  }
+
+  private lanesMemo: { key: string; refs: unknown[]; value: Lane[] } | null = null;
+
+  /** The lanes of the visible window: the HA layers and the elevators from the range, the events from the event list. */
+  private scrubLanes(winFrom: number, winTo: number): Lane[] {
+    const status = this.layerStatus;
+    const key = JSON.stringify([winFrom, winTo, status]);
+    const refs: unknown[] = [this.range, this.switches, this.events];
+    if (this.lanesMemo && this.lanesMemo.key === key && sameRefs(this.lanesMemo.refs, refs)) return this.lanesMemo.value;
+    const ids = ['lights', 'openings', 'presence', 'alarm', 'elevators'] as const;
+    const value: Lane[] = ids.map((id) => laneOf(this.range, id, winFrom, winTo, this.switches, status));
+    const evLocked = status.events === 'not_permitted';
+    value.push({ id: 'events', label: LAYER_NAME.events, color: LAYER_COLOR.events, off: !this.switches.events || evLocked, locked: evLocked, spans: [],
+      marks: evLocked ? [] : this.events.map((e) => Date.parse(e.occurred_at)).filter((t) => t >= winFrom && t <= winTo).sort((x, y) => x - y) });
+    this.lanesMemo = { key, refs, value };
+    return value;
+  }
+
+  // ---- CR-TIMESCRUB101: playback ----
+
+  private startPlay() {
+    if (this.playing) return;
+    this.mode = 'play';
+    const end = this.winToMs;
+    let t = this.instant.getTime();
+    if (t >= end - 1000 || t < this.winFromMs) t = this.winFromMs; // at the end (or outside the window): from the window's start
+    if (!(end > t)) return;
+    this.playing = true;
+    this.playMs = t;
+    this.stateMs = t;
+    this.minute = this.minuteOfMs(t);
+    this.lastFrame = performance.now();
+    this.lastStateTick = this.lastFrame;
+    this.raf = requestAnimationFrame(this.tick);
+  }
+
+  /** One animation frame while playing: N seconds of history per second at xN; the states follow at PLAY_STATE_MS; play
+   * stops at the window's end (never past now). requestAnimationFrame runs only while playing. */
+  private tick = (now: number) => {
+    if (!this.playing) return;
+    const dt = Math.min(250, Math.max(0, now - this.lastFrame));
+    this.lastFrame = now;
+    const r = advance(this.playMs, dt, this.speed, this.winToMs);
+    this.playMs = r.t;
+    this.minute = this.minuteOfMs(r.t);
+    if (r.ended || now - this.lastStateTick >= PLAY_STATE_MS) {
+      this.stateMs = r.t;
+      this.lastStateTick = now;
+    }
+    if (r.ended) {
+      this.stopPlay(true);
+      return;
+    }
+    this.raf = requestAnimationFrame(this.tick);
+  };
+
+  /** Stops playing; `settle` = the paused instant gets its snapshot / frame / bundle (600 ms). */
+  private stopPlay(settle: boolean) {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    if (!this.playing) return;
+    this.playing = false;
+    this.stateMs = this.playMs;
+    if (settle) this.scheduleFrame();
+  }
+
+  private togglePlay() {
+    if (this.playing) this.stopPlay(true);
+    else this.startPlay();
+  }
+
+  private setMode(m: 'snapshot' | 'play') {
+    if (m === 'snapshot') this.stopPlay(true);
+    this.mode = m;
+  }
+
+  /** Space = play / pause, arrows = a step (time flows left -> right on the track); handled = true. */
+  private onScrubKey(e: KeyboardEvent, t: EventTarget | undefined): boolean {
+    if (e.key === ' ' || e.code === 'Space') {
+      // a focused button / switch keeps its own Space
+      if (t instanceof HTMLElement && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.getAttribute('role') === 'switch')) return false;
+      e.preventDefault();
+      if (!e.repeat) this.togglePlay();
+      return true;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : this.winMinutes <= 10 ? 1 / 6 : 1;
+      this.setMinute(this.minute + (e.key === 'ArrowRight' ? step : -step));
+      return true;
+    }
+    return false;
+  }
+
+  /** Jumps to an instant (another day when needed), e.g. the first recorded moment. */
+  private goTo(ms: number) {
+    this.stopPlay(false);
+    const d = new Date(ms);
+    const day = dateInZone(d, this.tz);
+    const dayChanged = day !== this.date;
+    this.date = day;
+    this.minute = Math.min(this.limitMinute, minuteInZone(d, this.tz));
+    if (dayChanged) void this.loadDay();
+    this.fitWindow(true);
+    this.scheduleFrame();
+  }
+
+  // ---- CR-TIMESCRUB101: render ----
+
+  private fmtHm(ms: number): string {
+    return timeText(new Date(ms), { timeZone: this.tz });
+  }
+
+  private renderLayers(status: Partial<Record<LayerId, LayerStatus>>, retention: Partial<Record<LayerId, number | null>>) {
+    const camIds = (this.bundle?.anchors ?? []).filter((a) => a.resource_type === 'camera').map((a) => a.resource_id);
+    const covered = camIds.filter((id) => this.coverageAt(id).state === 'historic').length;
+    return html`<div class="lcard" data-history-layers>
+      <div class="lhd"><h2>שכבות</h2><span class="grow"></span>${this.range?.bucket_s ? html`<span class="note">דגימה כל ${Math.max(1, Math.round(this.range.bucket_s / 60))} דק׳</span>` : nothing}</div>
+      <div class="layers" role="group" aria-label="שכבות">
+        ${LAYER_IDS.map((id) => {
+          const st = status[id];
+          const locked = st === 'not_permitted';
+          const on = !!this.switches[id] && !locked;
+          const s = layerStatusText(st);
+          let text = s.text;
+          if (!st) text = this.snapLoading ? '…' : 'לא ידוע';
+          else if (id === 'elevators' && st === 'ok') text = 'מצב בלבד';
+          else if (id === 'cameras' && st === 'ok') text = `${covered} מ־${camIds.length}`;
+          const cov = id === 'cameras' ? '· לפי ה־NVR' : coverageText(retention[id]);
+          return html`<div class="lyr" data-layer=${id} data-off=${on ? 'false' : 'true'} data-status=${st ?? ''}>
+            <button class="sw" type="button" role="switch" aria-checked=${on ? 'true' : 'false'} aria-label=${LAYER_NAME[id]} ?disabled=${locked} @click=${() => this.toggleLayer(id)}></button>
+            <span class="nm"><i style=${`background:${LAYER_COLOR[id]}`}></i>${LAYER_NAME[id]}${cov ? html` <span class="cov">${cov}</span>` : nothing}</span>
+            <span class="st" data-look=${st ? s.look : 'unk'}>${locked ? html`<sw-icon name="lock" size=${13}></sw-icon>` : nothing}${text}</span>
+          </div>`;
+        })}
+      </div>
+    </div>`;
+  }
+
+  private reasonText(reason: string | null): string {
+    switch (reason) {
+      case 'gap':
+        return 'פער בהקלטה';
+      case 'forward_fill_exceeded':
+        return 'אין שינוי מוקלט קרוב';
+      case 'before_history':
+        return 'לפני תחילת ההיסטוריה';
+      default:
+        return reason ?? '';
+    }
+  }
+
+  /** The time scrub's parts of the "at the instant" card: the devices (from the replay), rooms, alarm, elevators, and
+   * "all the floor's cameras from here". */
+  private scrubPanelParts(b: MapBundle, rep: FloorReplay | null, status: Partial<Record<LayerId, LayerStatus>>) {
+    const drawn = this.scrubDrawn;
+    const ents = b.anchors.filter((a) => a.resource_type === 'ha_entity');
+    const known = ents.filter((a) => drawn.states[a.resource_id] !== null && drawn.states[a.resource_id] !== undefined);
+    const cov = rep?.coverage ?? this.snapshot?.coverage ?? null;
+    const entities = !ents.length
+      ? html`אין ישויות מוצבות בקומה`
+      : html`${known.length} מתוך ${ents.length} ידועות בזמן זה${cov?.from ? html` <span class="note">(היסטוריה מקומית מ־<span class="ltr">${this.fmtWhen(cov.from)}</span>)</span>` : html` <span class="note">(אין עדיין היסטוריה מקומית)</span>`}
+        <div class="evl" style="margin-block-start:4px">${ents.filter((a) => this.scrubVisible(a)).slice(0, 8).map((a) => {
+          const layer = this.layerOfAnchor(a);
+          const locked = status[layer] === 'not_permitted';
+          const s = drawn.states[a.resource_id] ?? null;
+          const e = rep?.entities[a.resource_id];
+          const name = entityName(a);
+          return html`<div data-history-entity data-known=${s !== null ? 'true' : 'false'} data-layer=${layer}><span>${name}</span><span class="note">${locked
+            ? 'לא מורשה'
+            : s !== null
+              ? html`${stateLabel({ ...(a.entity ?? { domain: '', unit: null, device_class: null, attributes: {} }), state: s })}${e?.changedAt ? html` · מ־<span class="ltr">${this.fmt(e.changedAt)}</span>` : ''}${e?.changedDuring ? ' · השתנה בתוך הדגימה' : ''}`
+              : html`לא ידוע${e?.reason ? ` · ${this.reasonText(e.reason)}` : ''}`}</span></div>`;
+        })}</div>`;
+    const rk = roomsKnown(b.zones, ents.map((a) => ({ x: a.position.x, y: a.position.y, level_id: a.level_id ?? null, state: drawn.states[a.resource_id] ?? null })), (id) => id ?? this.levelFallback);
+    const alarmPanels = Object.entries(rep?.entities ?? {}).filter(([, e]) => e.layer === 'alarm');
+    const alarmKnown = alarmPanels.find(([, e]) => e.known && e.state !== null);
+    const alarm = status.alarm === 'not_permitted'
+      ? html`<sw-icon name="lock" size=${12}></sw-icon> לא מורשה`
+      : !this.switches.alarm
+        ? 'השכבה כבויה'
+        : status.alarm === 'empty'
+          ? 'אין לוח אזעקה בקומה'
+          : alarmKnown
+            ? html`${stateLabel({ domain: 'alarm_control_panel', unit: null, device_class: null, attributes: {}, state: alarmKnown[1].state })}${alarmKnown[1].changedAt ? html` · מ־<span class="ltr">${this.fmt(alarmKnown[1].changedAt)}</span>` : ''}`
+            : 'לא ידוע';
+    const elevItems = Object.entries(rep?.elevators ?? {});
+    const showElev = status.elevators !== undefined && status.elevators !== 'empty';
+    const elevators = status.elevators === 'not_permitted'
+      ? html`<sw-icon name="lock" size=${12}></sw-icon> לא מורשה`
+      : !this.switches.elevators
+        ? 'השכבה כבויה'
+        : html`<div class="elev">${elevItems.length ? elevItems.map(([id, it]) => html`<sw-chip data-elevator=${id}>${it.name} · ${it.known && it.state ? ELEVATOR_STATE[it.state] ?? it.state : 'לא ידוע'}</sw-chip>`) : html`<span>לא ידוע</span>`}</div><div class="note">מיקום התא לא מוקלט</div>`;
+    const rows = html`
+      <dt>חדרים</dt><dd data-history-rooms>${rk.total ? `${rk.known} מתוך ${rk.total} ידועים` : 'אין חדרים מסומנים בקומה'}</dd>
+      <dt>אזעקה</dt><dd data-history-alarm>${alarm}</dd>
+      ${showElev ? html`<dt>מעליות</dt><dd data-history-elevators>${elevators}</dd>` : nothing}`;
+    const camsLocked = status.cameras === 'not_permitted';
+    const snapCams = this.snapshot?.layers.cameras?.camera_ids;
+    const camIds = camsLocked || !this.switches.cameras ? [] : (snapCams && snapCams.length ? snapCams : b.anchors.filter((a) => a.resource_type === 'camera').map((a) => a.resource_id));
+    const tISO = isoZ(this.instant);
+    // the synchronized playback of the floor's cameras at the instant: the playback screen with its `extra` cameras (the
+    // sync screen #/investigate/playback/sync reads no query parameters today); up to four cameras play together
+    const actions = html`<sw-button size="sm" icon="camera" data-history-all-cameras ?disabled=${!camIds.length} title=${camIds.length > 4 ? 'ארבע המצלמות הראשונות של הקומה' : 'כל מצלמות הקומה מהזמן שנבחר'}
+      @click=${() => { if (camIds.length) navigate('/investigate/playback', { camera: camIds[0], t: tISO, ...(camIds.length > 1 ? { extra: camIds.slice(1, 4).join(',') } : {}) }); }}>כל מצלמות הקומה מכאן</sw-button>`;
+    const eventsOff = status.events === 'not_permitted' ? 'לא מורשה' : !this.switches.events ? 'השכבה כבויה' : null;
+    return { entities, rows, actions, eventsOff };
+  }
+
+  private renderScrub() {
+    const b = this.bundle;
+    if (this.error && !b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="error" hint=${this.error}></sw-state-panel>`;
+    if (!b) return html`<div class="head lead-head"><h1>מפה היסטורית</h1></div><sw-state-panel state="loading"></sw-state-panel>`;
+    const sel = this.selectedAnchor;
+    const rep = this.replay;
+    const status = this.layerStatus;
+    const retention = rep?.retention ?? this.snapReplay?.retention ?? {};
+    const coverage = rep?.coverage ?? this.snapshot?.coverage ?? this.range?.coverage ?? null;
+    const tMs = this.replayMs;
+    const gap = coverage ? gapAt(coverage.gaps, tMs) : null;
+    const camsOn = this.switches.cameras && status.cameras !== 'not_permitted';
+    const eventsOn = this.switches.events && status.events !== 'not_permitted';
+    const segs = !camsOn ? [] : sel?.resource_type === 'camera' ? this.segmentsFor(sel.resource_id) ?? [] : Array.from(this.recordings.keys()).flatMap((id) => this.segmentsFor(id) ?? []);
+    const tlEvents: TimelineEvent[] = !eventsOn ? [] : (sel?.resource_type === 'camera' ? this.events.filter((e) => e.camera_id === sel.resource_id) : this.events).map((e) => ({ minute: minuteInZone(new Date(e.occurred_at), this.tz), kind: markerKind(e.type), label: `${EVENT_LABEL[e.type] ?? e.type}${e.count > 1 ? ` ×${e.count}` : ''}` }));
+    const when = `${this.date} ${secondLabel(this.minute)}`;
+    const winFrom = this.winFromMs;
+    const winTo = this.msAt(this.winStart + this.winMinutes);
+    const limitMs = this.msAt(this.limitMinute);
+    const cursorMs = this.playing ? this.playMs : this.instant.getTime();
+    const lanes = this.scrubLanes(winFrom, winTo);
+    const gaps = gapsInWindow(this.range?.coverage?.gaps ?? coverage?.gaps, winFrom, winTo);
+    const historyFrom = coverage?.from ? Date.parse(coverage.from) : null;
+    const noHistory = !!coverage && (historyFrom === null || tMs < historyFrom);
+    const layer = this.scrubRoomLayer;
+    const drawn = this.scrubDrawn;
+    const minDate = coverage?.from ? dateInZone(new Date(coverage.from), this.tz) : undefined;
+    const parts = this.scrubPanelParts(b, rep, status);
+    return html`
+      <div class="head lead-head">
+        <div><h1>המפה בזמן שנבחר · ${b.floorName}</h1><div class="sub">${b.buildingName} · <span class="ltr">${when}</span> · ${this.tz}</div></div>
+        <span class="grow"></span>
+        <div class="acts-h">
+          ${this.floors.length > 1 ? html`<sw-field><select aria-label="קומה" @change=${(e: Event) => navigate(`/investigate/floors/${(e.target as HTMLSelectElement).value}`, { t: this.instant.toISOString() })}>${this.floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>` : nothing}
+          ${b.imageUrl
+            ? html`<sw-button icon="map" aria-pressed=${this.planImage} data-plan-background title=${this.planImage ? 'הסתר את תמונת התוכנית' : 'הצג את תמונת התוכנית'} @click=${() => this.setPlanImage(!this.planImage)}><span class="lbl">תמונת התוכנית</span></sw-button>`
+            : nothing}
+          <sw-button icon="cube" aria-pressed=${this.view3d} data-view-3d ?disabled=${!this.view3d && (!webglAvailable() || !this.hasScene || this.threeState === 'loading')}
+            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם בזמן הזה' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.view3d ? '2D' : '3D'}</sw-button>
+          ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
+          <sw-button icon="live" data-back-live title="חזרה למצב חי" @click=${() => navigate(`/explore/floors/${b.floorId}`)}><span class="lbl">חזרה למצב חי</span></sw-button>
+          <sw-button class="details-btn" icon="inbox" data-history-details title="פרטים" aria-expanded=${this.detailsOpen ? 'true' : 'false'} @click=${() => (this.detailsOpen = !this.detailsOpen)}>פרטים</sw-button>
+        </div>
+      </div>
+      <div class="bar">
+        <sw-icon name="clock" size=${14}></sw-icon>
+        <span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>
+        <span class="grow"></span>
+        ${this.rangeNote ? html`<span class="pill warn" data-history-range-note>${this.rangeNote}</span>` : nothing}
+        ${this.mode === 'play'
+          ? html`<span class="pill" data-history-mode="play">ניגון · <span class="ltr">${this.fmtHm(winFrom)}–${this.fmtHm(Math.min(winTo, limitMs))}</span>${this.range?.bucket_s ? ` · דגימה כל ${Math.max(1, Math.round(this.range.bucket_s / 60))} דק׳` : ''}</span>`
+          : html`<span class="pill" data-history-mode="snapshot">רגע אחד</span>`}
+      </div>
+      <div class="layout ts">
+        <div class="stage">
+          <div class="chip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
+          <div class="hist ${gap ? 'gap' : ''}" data-history-tag>מצב היסטורי · <span class="ltr">${secondLabel(this.minute)}</span></div>
+          ${this.shows3d && this.sceneDescription
+            ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
+                .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
+                .sunAt=${tMs} .walkable=${REPLAY_VIEW.walkable} .stillsAvailable=${REPLAY_VIEW.stillsAvailable}
+                @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) this.real3d = e.detail.on; }}
+                @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
+            : nothing}
+          <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.scrubMarkers} .selectedId=${this.selectedId} .zones=${zonesWithChips(b.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${drawn.states} .roomStates=${layer} dimEntities
+            @marker-select=${(e: CustomEvent<MarkerSelectDetail>) => { this.selectedId = e.detail.id; this.frameFailed = false; }}></sw-plan-canvas>
+          ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
+          ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
+          ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה</span><span>מקווקו = לא ידוע / לא מוקלט</span><span>צהוב = מואר</span><span>כחול בהיר = נוכחות</span></div>`}
+          ${gap ? html`<div class="gapbar" data-history-gap role="status"><sw-icon name="warning" size=${14}></sw-icon><span>פער בהקלטה <span class="ltr">${this.fmtHm(Date.parse(gap.from))}–${this.fmtHm(Date.parse(gap.to))}</span> — המערכת לא הייתה מחוברת. מצבי ההתקנים לא ידועים, המצלמות לפי ה־NVR.</span></div>` : nothing}
+          ${this.snapLoading && !rep && !this.snapError ? html`<div class="cover" data-history-loading><sw-state-panel state="loading" heading="טוען את מצב הקומה…" hint="היסטוריה מקומית, הקלטות ואירועים."></sw-state-panel></div>` : nothing}
+          ${this.snapError && !rep ? html`<div class="cover" data-history-error><sw-state-panel state="error" heading="לא ניתן לטעון את המצב ההיסטורי" hint="המפה הנוכחית מוצגת ללא מצבים. נסו שוב." actionLabel="ניסיון חוזר" @action=${() => { this.snapshot = null; void this.fetchSnapshot(); }}></sw-state-panel></div>` : nothing}
+          ${noHistory && !this.snapLoading && !this.playing
+            ? html`<div class="cover" data-history-none><sw-state-panel icon="history" state="empty" heading="אין עדיין היסטוריה לקומה הזאת" hint=${historyFrom !== null ? `ההיסטוריה המקומית מתחילה ${this.fmtWhen(coverage!.from!)}. לפני כן מוצגת התוכנית בלבד, ההקלטות לפי ה־NVR.` : 'לפני תחילת ההיסטוריה המקומית מוצגת התוכנית בלבד, ההקלטות לפי ה־NVR.'}
+                actionLabel=${historyFrom !== null && historyFrom > tMs ? 'לרגע הראשון המוקלט' : ''} @action=${() => { if (historyFrom !== null) this.goTo(historyFrom); }}></sw-state-panel></div>`
+            : nothing}
+        </div>
+        <div class="panel">
+          ${this.renderLayers(status, retention)}
+          <div class="details ${this.detailsOpen ? 'open' : ''}" data-history-details-sheet>
+            <div class="sheet-hd"><span>פרטים</span><span class="grow"></span><sw-button size="sm" @click=${() => (this.detailsOpen = false)}>סגירה</sw-button></div>
+            ${this.panelCards(b, parts)}
+          </div>
+        </div>
+      </div>
+      <div class="tlx" data-history-timeline>
+        <div class="tlrow">
+          <sw-badge kind="historic"></sw-badge>
+          <span class="time" data-history-time-bar>${when}</span>
+          <div class="seg" role="group" aria-label="אופן">
+            <button type="button" aria-pressed=${this.mode === 'snapshot' ? 'true' : 'false'} data-mode="snapshot" @click=${() => this.setMode('snapshot')}>רגע אחד</button>
+            <button type="button" aria-pressed=${this.mode === 'play' ? 'true' : 'false'} data-mode="play" @click=${() => this.setMode('play')}>ניגון תקופה</button>
+          </div>
+          ${this.mode === 'play'
+            ? html`<button type="button" class="play" data-play aria-label=${this.playing ? 'השהיה' : 'ניגון'} aria-pressed=${this.playing ? 'true' : 'false'} @click=${() => this.togglePlay()}><sw-icon name=${this.playing ? 'pause' : 'play'} size=${18}></sw-icon></button>
+              <div class="seg speed" role="group" aria-label="מהירות">${SPEEDS.map((s) => html`<button type="button" data-speed=${s} aria-pressed=${this.speed === s ? 'true' : 'false'} @click=${() => (this.speed = s)}>×${s}</button>`)}</div>`
+            : nothing}
+          <sw-chip data-step="-60" @click=${() => this.setMinute(this.minute - 60)}>-1 שעה</sw-chip><sw-chip data-step="-5" @click=${() => this.setMinute(this.minute - 5)}>-5 דק׳</sw-chip><sw-chip data-step="5" @click=${() => this.setMinute(this.minute + 5)}>+5 דק׳</sw-chip><sw-chip data-step="60" @click=${() => this.setMinute(this.minute + 60)}>+1 שעה</sw-chip>
+          <span class="grow"></span>
+          <div class="seg win" role="group" aria-label="חלון">${SCRUB_WINDOWS.map((w) => html`<button type="button" data-window=${w.minutes} aria-pressed=${this.winMinutes === w.minutes ? 'true' : 'false'} @click=${() => this.setWindow(w.minutes)}>${w.label}</button>`)}</div>
+          <span class="dateq"><sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} min=${minDate ?? ''} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field></span>
+          ${this.mode === 'play' ? html`<span class="note keys"><span class="kbd">רווח</span> ניגון · <span class="kbd">←</span><span class="kbd">→</span> צעד</span>` : nothing}
+        </div>
+        <div class="track">
+          <sw-history-lanes .lanes=${lanes} .gaps=${gaps} .from=${winFrom} .to=${winTo} .cursor=${cursorMs} .limit=${limitMs < winTo ? limitMs : null} @seek=${(e: CustomEvent<{ ms: number }>) => this.setMinute(this.minuteOfMs(e.detail.ms))}></sw-history-lanes>
+          <div class="tlwrap">
+            <sw-timeline compact .segments=${segs} .events=${tlEvents} .cursor=${this.minute} .limit=${this.limitMinute} .follow=${false} .windowMinutes=${this.winMinutes} .viewStart=${this.winStart} precision="estimated"
+              @seek=${(e: CustomEvent<{ minute: number }>) => this.setMinute(e.detail.minute)} @scrub=${(e: CustomEvent<{ minute: number }>) => this.setMinute(e.detail.minute)} @window-change=${(e: Event) => this.onTimelineWindow(e)}></sw-timeline>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   // ---- demo (design preview without a backend) ----
 
   private get demoMarkers(): PlanMarker[] {
@@ -815,6 +2059,7 @@ export class InvestigateHistoryMap extends LitElement {
   }
 
   render() {
-    return isApi() ? this.renderApi() : this.renderDemo();
+    // CR-TIMESCRUB101: the time scrub only with a backend and the setting on; otherwise exactly the screens of before
+    return isApi() ? (this.scrub ? this.renderScrub() : this.renderApi()) : this.renderDemo();
   }
 }
