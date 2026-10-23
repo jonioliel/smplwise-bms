@@ -131,8 +131,9 @@ def day_bounds(day: dt.date, tz: ZoneInfo) -> tuple[int, int]:
 
 
 class EnergyStore:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, profile: ec.CounterProfile = ec.ENERGY):
         self.path = Path(path)
+        self.profile = profile  # CR-WATER78 D1: the medium's counter thresholds (electricity by default; water.db passes the water profile)
         self.db = EnergyDatabase(self.path)
         self.db.migrate()
         self._ids: dict[str, int] = {}
@@ -223,7 +224,7 @@ class EnergyStore:
         if not due:
             return result
         state = ec.CounterState(cur["last_ts"], cur["last_value_wh"], cur["held_ts"], cur["held_value_wh"], cur["held_kind"], cur["last_reset"])
-        outcome = ec.process(state, s.ts, s.value_wh, s.max_kw, s.last_reset)
+        outcome = ec.process(state, s.ts, s.value_wh, s.max_kw, s.last_reset, self.profile)
         for span in outcome.spans:
             self._add_span(conn, mid, span, tz)
         flags = outcome.flags | (ec.F_AFTER_UNAVAILABLE if after_unavailable else 0)
@@ -289,12 +290,12 @@ class EnergyStore:
                 return ManualPlan("record", "reported")
             if raw_wh < v0:
                 return ManualPlan("record", "outside_counter", (t0, v0))
-            if raw_wh - v0 > ec.cap_wh(max_kw, t0, ts):
+            if raw_wh - v0 > ec.cap_wh(max_kw, t0, ts, self.profile):
                 return ManualPlan("record", "implausible", (t0, v0))
             return ManualPlan("allocation", "open_gap", (t0, v0), None)
         prev, nxt = self._neighbours(conn, mid, ts, epoch_lo, epoch_hi)
         if prev is None and nxt is not None:
-            return self._plan_head(ts, raw_wh, (int(nxt["ts"]), int(nxt["value_wh"])), max_kw=max_kw, billed_until=billed_until)
+            return self._plan_head(ts, raw_wh, (int(nxt["ts"]), int(nxt["value_wh"])), max_kw=max_kw, billed_until=billed_until, profile=self.profile)
         if prev is None or nxt is None:
             return ManualPlan("record", "no_counter_data")
         p, n = (int(prev["ts"]), int(prev["value_wh"])), (int(nxt["ts"]), int(nxt["value_wh"]))
@@ -309,7 +310,7 @@ class EnergyStore:
         return ManualPlan("allocation", "closed_gap", p, n)
 
     @staticmethod
-    def _plan_head(ts: int, raw_wh: int, n: tuple[int, int], *, max_kw: float, billed_until: int | None) -> ManualPlan:
+    def _plan_head(ts: int, raw_wh: int, n: tuple[int, int], *, max_kw: float, billed_until: int | None, profile: ec.CounterProfile = ec.ENERGY) -> ManualPlan:
         """BILL-start-reading: a reading BEFORE the first reading of the counter life (typically the physical meter at the start of a
         billing period, the meter having been added to the system later that day). The energy first - typed is spread over
         [ts, first] like an open gap, so the opening reading of the bill is real and end - start = consumption. Never below the first
@@ -318,7 +319,7 @@ class EnergyStore:
             return ManualPlan("record", "reported", None, n)
         if raw_wh > n[1]:
             return ManualPlan("record", "outside_counter", None, n)
-        if n[1] - raw_wh > ec.cap_wh(max_kw, ts, n[0]):
+        if n[1] - raw_wh > ec.cap_wh(max_kw, ts, n[0], profile):
             return ManualPlan("record", "implausible", None, n)
         if billed_until is not None and ts < billed_until:
             return ManualPlan("record", "billed", None, n)
@@ -766,12 +767,14 @@ _STORES: dict[str, EnergyStore] = {}
 _STORES_LOCK = threading.Lock()
 
 
-def store_at(path: Path) -> EnergyStore:
+def store_at(path: Path, profile: ec.CounterProfile = ec.ENERGY) -> EnergyStore:
+    """The cached store of one file. profile: the medium of that file (CR-WATER78: water.db is opened with the water profile;
+    one file always belongs to one medium, so the cache key stays the path)."""
     key = os.path.normcase(str(Path(path).resolve()))
     with _STORES_LOCK:
         st = _STORES.get(key)
         if st is None or not Path(path).exists():
-            st = _STORES[key] = EnergyStore(Path(path))
+            st = _STORES[key] = EnergyStore(Path(path), profile)
         return st
 
 
