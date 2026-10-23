@@ -322,6 +322,7 @@ class VisitsPatch(BaseModel):
     eta_window_min: StrictInt | None = None
     rfq_window_min: StrictInt | None = None
     notify_vendor_on_miss: StrictBool | None = None
+    offer_access_request: StrictBool | None = None  # VENDORARRIVAL126B-295
     notify_internal_owner: StrictBool | None = None
     backfill_days: StrictInt | None = None
 

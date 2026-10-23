@@ -152,6 +152,10 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                     if block is not None:
                         if ctx.read_only:
                             block["can_arrive"] = False
+                        elif visits.cfg(conn)["offer_access_request"] and block["state"] in ("reported", "arrived"):
+                            from .. import access_arrival  # VENDORARRIVAL126B-295: only a pointer to the existing request step
+
+                            block["offer_access"] = bool(access_arrival.available(conn, ctx.link))
                         data["visit"] = block
                 return data
 

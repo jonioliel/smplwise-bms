@@ -548,6 +548,9 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("visits", "eta_window_min"): (60, int_range(15, 720)),
     ("visits", "rfq_window_min"): (240, int_range(15, 1440)),
     ("visits", "notify_vendor_on_miss"): (False, boolean),
+    # VENDORARRIVAL126B-295: after the vendor's arrival the page may point to the EXISTING entry-code request step (never opens a door;
+    # a manager still approves every request). OFF by default.
+    ("visits", "offer_access_request"): (False, boolean),
     ("visits", "notify_internal_owner"): (True, boolean),
     ("visits", "backfill_days"): (7, int_range(1, 60)),
     # budgets (r083): per scope and period (answer 34), one currency per row; an over-budget approval shows the overrun and asks for a
