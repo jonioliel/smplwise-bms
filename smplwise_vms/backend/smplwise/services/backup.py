@@ -87,7 +87,11 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
                                    # APPREFRESH-295: the phone app's refresh-token families and access tokens (hashes only) - a restore must
                                    # never revive a revoked family or an already-used refresh token
-                                   "app_refresh_families", "app_refresh_tokens", "app_access_tokens"})
+                                   "app_refresh_families", "app_refresh_tokens", "app_access_tokens",
+                                   # PARTNERAPI113-295: partner tokens (hashes), webhook targets and sealed secrets, queued payloads, the delivery log,
+                                   # idempotency answers and the partner links of requests - a restore leaves the partner state of the target box alone
+                                   "partner_clients", "partner_tokens", "partner_endpoints", "partner_outbox", "partner_deliveries",
+                                   "partner_idempotency", "partner_ticket_links"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -187,7 +191,7 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # CR-033 section 9: the door settings (`doors.trusted_path`, default `off`) are never exported and never restored - a restore
 # can never loosen them (the installation keeps its own, fail-closed value). Simplification recorded in the wave-1 report: the
 # CR's "apply the stricter one" also never tightens from an archive.
-SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "partner.")  # PARTNERAPI113-295: the partner switches and limits are this installation's policy
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge", "privacy.local_purge_days", "privacy.personal_export"}  # IDENT146: purge / export policy of THIS installation

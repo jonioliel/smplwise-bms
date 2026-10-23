@@ -1,6 +1,6 @@
 # CR-PARTNERAPI113 - An open interface for partners: scoped partner tokens and signed outgoing webhooks
 
-Status: **PROPOSED** 2026-10-23 (design only, no code). Board item r113. Branch `pilot/PARTNERAPI113-295` from `origin/main`
+Status: **BUILT, LAB ONLY** 2026-10-23 (section 16; was PROPOSED, design only). Board item r113. Branch `pilot/PARTNERAPI113-295` from `origin/main`
 320e55551 (2.12.4). Migration **0170 PROVISIONAL** (one file, `0170_partner_api.sql`; renumbered at integration).
 Go state after the build: **LAB ONLY**. Two switches, both OFF by default, plus a build constant `partner.GO_LIVE_PERMITTED = False`;
 nothing is ever turned on on a real installation before a Fable security review of the new public surface (section 14, Q8).
@@ -381,3 +381,58 @@ Test tier: M for slices 1-4, L for slice 5 (the delivery worker). Lab tests only
 
 No code, no migration file, no route, no UI, no test, no change to main, `release/*` or any other branch. Nothing contacted a partner,
 the lab or Home Assistant.
+
+## 16. Build record (PARTNERAPI113-295, 2026-10-23, branch `pilot/PARTNERAPI113-295` on origin/main 2.14.0)
+
+Status: **BUILT, LAB ONLY** - slices S1-S6 in one branch; S7 (security review of the public surface, first real destination) and the
+activation stay with the owner. `services/partner/core.GO_LIVE_PERMITTED = False`: both switches are refused ON (409
+`go_live_not_permitted`), so nothing in this build can serve `/p/v1` or send a webhook on a real installation.
+
+Owner answers applied (24.10 batch 3, questions 164-172):
+
+| Q | Answer | Where |
+|---|---|---|
+| 1 (164) | A: third minimal app on the existing public listener | `services/partner/api_app.py`; `PublicApp.__call__` hands `/p/...` to it before the tickets edge |
+| 2 (165) | A, public HTTPS only, **ports 9443 / 9453** (never 443 / 8443) | `services/partner/ssrf.ALLOWED_PORTS`; no local-network targets |
+| 3 (166) | A: system administrator only | `partner.manage` in `system_admin` only, SYSTEM_PERMISSIONS, LOCAL_ADMIN_PERMISSIONS, sensitive |
+| 4 (167) | **B**: title + description by default, names opt-in (off) | per token / endpoint `personal = {ticket_text: true, ticket_people: false}`; any non-default is audited `partner.token.personal_data` |
+| 5 (168) | A: no safety-sensor webhooks in v1 | `sensor.*` in `webhooks.EXCLUDED_PREFIXES` |
+| 6 (169) | A: expiry mandatory, 90 / 365, editable | settings `partner.token_default_days`, `partner.token_max_days` |
+| 7 (170) | A: token stays, managers notified | janitor -> notification `partner.owner_gone`; the list flags `owner_gone` |
+| 8 (171) | A: nothing live before the review and the owner's approval of the first destination | `GO_LIVE_PERMITTED = False` |
+| 9 (172) | A: no echo, configurable per endpoint | `partner_endpoints.skip_own` (default 1) |
+
+Deviations and decisions of the build (to confirm at review):
+
+1. **Migration number**: PROVISIONAL **0197** (`0197_partner_api.sql`), not 0170 (the task's number); renumbered at integration.
+2. **`tickets.origin` stays `inbound`** for a partner request: the CHECK of migration 0079 cannot be widened without rebuilding `tickets`
+   (foreign keys cannot be switched off inside the migration transaction). The partner link lives in the new table
+   `partner_ticket_links (ticket_id, token_id, client_id, external_ref)`; the author is `partner:<ptk id>`, the timeline event carries
+   `via: partner`, the API and the webhook payload say `origin: "partner"`.
+3. **Ticket placement**: a token restricted to sites / buildings / floors must send `floor_id` inside its restriction when it opens a request
+   (else it could never read it back); an installation-wide token may open a placeless request.
+4. **Free text**: with `ticket_text` on (the default, Q4 = B) `tickets.create` accepts title and description; with it off, a ticket template
+   of the department (`template_id`) gives the title and free text is refused.
+5. **Webhooks follow the notification sources**: an event is enqueued only when the notification engine CREATED or RESOLVED a row
+   (`notify._emit` hook) - so a source switched off in the notification settings (the elevator sources are OFF by default) sends no webhook
+   either. `ticket.created` comes from the creation path itself (all origins).
+6. **Backoff jitter**: each delay is drawn in [base / 2, base] (never an immediate retry), not full jitter in [0, base].
+7. **Management API**: answers 404 while both switches are off except `GET/PUT /partners/settings` (section 8), so in this build the card
+   shows only the switches (disabled) and the editable limits. All management works from either channel (system administrator + TOTP for an
+   Arx-only identity); only switching ON is local-only.
+8. **Secret sealing**: `connection_store.seal_partner_secret` (AAD `partner_webhook|<pep id>|<field>`, fields `url`, `secret`, `secret_prev`)
+   instead of `seal_service_secret`, whose allow-list is static.
+9. **Log hygiene (T10)**: the HTTP client's per-request INFO line (which carries the URL) is dropped while a partner delivery is in flight
+   (a logging filter bound to the sending thread's context).
+10. **Settings added** (all `partner.*`, never exported or restored - `SETTINGS_KEEP_PREFIXES`): `rate_per_min` 60, `rate_per_hour` 2000,
+    `create_per_hour` 30, `create_per_day` 200, `expiry_notice_days` 14, `rotation_overlap_hours` 24 (standing rule: every threshold editable).
+    The per-token rate limit is stored on the token (defaults from the settings).
+11. **Not built**: `webhooks.self` (reserved), the partner-facing guide (EN, slice 6 text), the private-network target option (Q2 B).
+12. **Listener port**: the public listener keeps its container port (18093) behind the tunnel; how 9443 / 9453 are exposed for partners on
+    the public side (Cloudflare / firewall) is deployment configuration outside this repository - to confirm with the owner.
+
+Files: `services/partner/{core,ssrf,webhooks,api_app,reads}.py`, `routers/partner.py`, migration 0197, hooks in `services/notify.py`,
+`services/tickets/create.py` (`create_by_partner` + the `ticket.created` hook), `services/tickets/public_app.py` / `public_runtime.py`,
+`connection_store.py`, `backup.py`, `rbac.py`, `routers/access.py`, `roles.json`, `notify_policy.py` (three `partner.*` notices), `main.py`;
+UI `frontend/src/components/sw-partner-api-card.ts`, `frontend/src/api/partners.ts`, `frontend/src/i18n/partners.ts` (Hebrew + English;
+Arabic / Russian fall back to Hebrew, dev-marked); tests `tests/test_partner_api_113.py`, `frontend/tests/unit-partner-api.spec.ts`.

@@ -213,6 +213,27 @@ def open_service_secret(data_dir: Path, kind: str, ident: str, field: str, blob:
     return _open(_Home(data_dir), _service_aad(kind, ident, field), blob)
 
 
+# PARTNERAPI113-295: a partner webhook endpoint's target URL and signing secret(s). The same key file and `v1:` format; the associated data
+# is `"partner_webhook|<pep_ id>|<field>"`, bound to ONE endpoint and ONE column - a blob moved to another endpoint or column does not open.
+PARTNER_FIELDS = frozenset({"url", "secret", "secret_prev"})
+
+
+def _partner_aad(endpoint_id: str, field: str) -> bytes:
+    import re as _re
+
+    if field not in PARTNER_FIELDS or not isinstance(endpoint_id, str) or not _re.fullmatch(r"pep_[0-9a-f]{16}", endpoint_id):
+        raise SecretError("not a secret field")
+    return f"partner_webhook|{endpoint_id}|{field}".encode("utf-8")
+
+
+def seal_partner_secret(data_dir: Path, endpoint_id: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _partner_aad(endpoint_id, field), plaintext)
+
+
+def open_partner_secret(data_dir: Path, endpoint_id: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _partner_aad(endpoint_id, field), blob)
+
+
 # ---------------------------------------------------------------- the in-app secrets store (TKSECRETS2, services/secrets_store.py)
 # The same key file and `v1:` format again; the associated data is `"app_secret|<name>|value"` - the kind `app_secret` is never a
 # service kind, so a blob moved between this store, a service secret or an NVR row does not decrypt.
