@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>אירוע חי - דגם למסך</title>
+<!--
+  CR-LIVEEVENT100 (board item r100, "live event mode") - static design mock-up for the owner's approval. NOT product code:
+  self-contained, no network request, fake data only (no lab names, addresses or serials).
+
+  Owner standing style (2026-10-23): every mockup follows the visual language of the EXISTING screens (infrastructure temperature,
+  elevators, schedules / automations). Drawn with the product's real token table (frontend/src/design/tokens.ts, classic skin, light +
+  dark columns copied verbatim below), the real shell (shell/sw-app.ts: the area rail at the inline start, no top bar, the floating
+  corner pill; phone: the bottom bar), the real tab rows (components/sw-tabs.ts: level 1 = pill track, level 2 = compact underline
+  row), the page head of screens/infra-temperature.ts (.top: h1 + subtitle + actions), the solid state badge and soft chips of
+  temperature/styles.ts, the pill buttons, the electricity table (table.t), and the sw-state-panel states.
+
+  PLACEMENT (lead's proposal, owner decides - CR-LIVEEVENT100.md §2): security area › section "חקירה" › page "אירוע חי"
+  (#/investigate/incidents, detail #/investigate/incidents/<id>). While an incident is open: a red dot on the security rail icon and
+  an "אירוע פעיל" pill beside the floating corner pill on every screen, for users who may read events on that floor.
+  Reached from: the alarm screen (zone alarm), a notification deep link, the event page (מרכז אירועים), the floor map (manual).
+
+  WHAT IS REUSED (no new components): sw-plan-canvas (map + markers + the event pin), sw-live-player (sub profile, WebRTC first),
+  adjacent-cameras.ts / services/correlation.py (nearest cameras, doors and sensors near the event), the access events log (who
+  opened), the elevators and generator live widgets, sw-state-panel, sw-badge / chips, the audit log.
+
+  NOTHING IS OPERATED FROM HERE: no door open, no emergency open / lock, no alarm arm / disarm / bypass, no PTZ. The only actions are
+  the existing, already-permissioned ones: acknowledge (events.ack), add to a case (cases.manage), close the incident (events.ack),
+  and links to the existing screens (door page, full player, live map, elevators).
+
+  URL switches: ?state=active|none|offline|limited|loading|error|off  ?theme=dark  ?role=full|op|view  ?phone-live=1
+-->
+<style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) - the names used by the real screens ===== */
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
+  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
+  --sw-touch-desktop: 44px; --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  --sw-video-bg: #0b1020;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2);
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
+  --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
+  --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; --sw-video-bg: #05080f; color-scheme: dark;
+}
+/* the state looks of the temperature screen (temperature/styles.ts): --c = the colour, --c-text = the text on its soft fill */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
+[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, [data-ltr], .num { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ===== mockup-only controls (not part of the product) ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
+
+/* ===== the shell (shell/sw-app.ts): the rail at the inline start, the content column, the floating corner pill ===== */
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+nav.rail a.active svg { color: var(--sw-accent); }
+nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+/* the red dot on the area icon while an incident is open (the RFQ-questions badge pattern, nav.ts applyRfqQuestions) */
+nav.rail a .dot, nav.bottom a .dot { position: absolute; inset-block-start: 6px; inset-inline-end: 14px; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-danger); border: 2px solid var(--sw-surface); display: none; }
+body[data-ev="active"] nav.rail a .dot, body[data-ev="active"] nav.bottom a .dot { display: block; }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); display: flex; gap: 8px; align-items: center; }
+.float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+/* the "active incident" pill: drawn on every screen while an incident the viewer may read is open; here it is the current page */
+.float .evpill { display: none; align-items: center; gap: 6px; block-size: 34px; padding: 0 12px 0 6px; border-radius: var(--sw-r-pill); background: var(--sw-danger); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); text-decoration: none; box-shadow: var(--sw-shadow-1); }
+.float .evpill i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: #fff; animation: pulse 1.6s ease-in-out infinite; }
+body[data-ev="active"] .float .evpill { display: inline-flex; }
+@keyframes pulse { 50% { opacity: .35; } }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+.subnav { padding: 12px 24px 0; display: flex; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; }
+.tabs a { position: relative; display: inline-flex; align-items: center; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
+.tabs a:hover { color: var(--sw-text); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs.pill .row { padding-inline: 3px; }
+.tabs.pill .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs.pill a { min-block-size: 34px; padding-inline: 1px; }
+.tabs.pill a .lbl { display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs.pill a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.tabs.compact { display: flex; position: relative; }
+.tabs.compact .row { flex: 1 0 auto; gap: 0; }
+.tabs.compact .row::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 31px; block-size: 1px; background: var(--sw-border); }
+.tabs.compact a { align-items: flex-start; padding: 0 10px; min-block-size: 32px; }
+.tabs.compact a .lbl { display: inline-flex; align-items: center; min-block-size: 30px; }
+.tabs.compact a::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 29px; block-size: 2px; z-index: 1; }
+.tabs.compact a.on::after { background: var(--sw-accent); }
+.tabs .count { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-inline-start: 5px; }
+.tabs a.on .count { color: var(--sw-accent-text); }
+.tabs .reddot { display: inline-block; inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-danger); margin-inline-start: 6px; }
+body:not([data-ev="active"]) .tabs .reddot { display: none; }
+@media (max-width: 767px) and (pointer: coarse) { .tabs a { min-block-size: 44px; } }
+
+/* ===== the screen (screens/infra-temperature.ts :host / .top) ===== */
+.screen { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; inline-size: 100%; min-inline-size: 0; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
+.top .sp { flex: 1; }
+.top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--sw-border-strong); }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.pri:hover { background: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+.btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
+.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
+.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.btn svg { font-size: 16px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+.badge svg { font-size: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
+.chip .d { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--c, var(--sw-text-3)); }
+.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+.panel.flush { padding: 0; overflow: hidden; }
+.panel.flush .hd { padding: 12px 16px 0; }
+.panel h2, .panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.panel .hd { display: flex; align-items: center; gap: 10px; margin-block-end: 10px; flex-wrap: wrap; }
+.panel .hd .sp { flex: 1; }
+.hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+.mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+.note { color: var(--sw-text-3); font-size: var(--sw-fs-xs); padding: 8px 16px 12px; }
+/* the incident head strip (the KPI row's card look, but facts rather than filters) */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.fact { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); --c: var(--sw-accent); min-inline-size: 0; }
+.fact .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.fact b { display: block; font-size: var(--sw-fs-lg); line-height: 1.2; color: var(--sw-heading); }
+.fact span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+.fact > div { min-inline-size: 0; }
+/* the two-column body: the map and the cameras; below: doors, infrastructure, the actor chain */
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.grid3 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.grid2 > *, .grid3 > * { min-inline-size: 0; }
+/* the plan (map/sw-plan-canvas.ts): geometry is never mirrored by RTL */
+.map { position: relative; direction: ltr; background: var(--sw-surface-2); border-radius: var(--sw-r-md); overflow: hidden; border: 1px solid var(--sw-border); }
+.map > svg { display: block; inline-size: 100%; block-size: auto; }
+.map .wall { fill: var(--sw-surface); stroke: var(--sw-text-2); stroke-width: 2.2; }
+.map .room-l { font: 600 11px var(--sw-font); fill: var(--sw-text-3); }
+.map .room-hot { fill: color-mix(in srgb, var(--sw-danger) 12%, var(--sw-surface)); }
+.map .cone { fill: var(--sw-accent); opacity: .14; }
+.map .cone.hot { fill: var(--sw-danger); opacity: .18; }
+.map .cam { fill: var(--sw-surface); stroke: var(--sw-accent); stroke-width: 2; }
+.map .cam.hot { stroke: var(--sw-danger); }
+body[data-cam="offline"] .map .cam[data-off] { stroke: var(--sw-offline); stroke-dasharray: 3 2; }
+body[data-cam="offline"] .map .cone[data-off] { display: none; }
+.map .lock { fill: var(--sw-surface); stroke: var(--sw-text-2); stroke-width: 2; }
+.map .lock.open { stroke: var(--sw-warning); fill: var(--sw-warning-soft); }
+.map .lbl { font: 500 10.5px var(--sw-font); fill: var(--sw-text); }
+.map .pin { fill: var(--sw-danger); }
+.map .pin-ring { fill: none; stroke: var(--sw-danger); stroke-width: 2; transform-origin: center; transform-box: fill-box; animation: ring 1.8s ease-out infinite; }
+@keyframes ring { from { transform: scale(.5); opacity: .9; } to { transform: scale(1.8); opacity: 0; } }
+.map .floorchip { position: absolute; inset-block-start: 10px; inset-inline-start: 10px; direction: rtl; }
+.map .legend { position: absolute; inset-block-end: 8px; inset-inline-end: 10px; direction: rtl; display: flex; gap: 6px; flex-wrap: wrap; }
+/* the camera tiles (the live wall's tile, screens/live-wall.ts, with sw-live-player inside) */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { position: relative; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-video-bg); aspect-ratio: 16 / 9; color: #fff; }
+.tile .vid { position: absolute; inset: 0; background: radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,.14), transparent 60%), linear-gradient(160deg, #1b2a4a, var(--sw-video-bg) 70%); }
+.tile .vid::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px); }
+.tile .vid .shape { position: absolute; border-radius: 4px; background: rgba(255,255,255,.08); }
+.tile .live { position: absolute; inset-block-start: 8px; inset-inline-start: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: rgba(0,0,0,.55); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
+.tile .live i { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-live); }
+.tile .prof { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: rgba(0,0,0,.55); font-size: var(--sw-fs-2xs); font-family: var(--sw-font-mono); direction: ltr; }
+.tile .cap { position: absolute; inset-inline: 0; inset-block-end: 0; padding: 18px 10px 8px; background: linear-gradient(transparent, rgba(0,0,0,.7)); display: flex; align-items: flex-end; gap: 8px; font-size: var(--sw-fs-sm); }
+.tile .cap b { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .cap .rel { font-size: var(--sw-fs-2xs); color: rgba(255,255,255,.75); white-space: nowrap; }
+.tile.hot { box-shadow: 0 0 0 2px var(--sw-danger); }
+.tile.snap .live { display: none; }
+.tile .snapchip { display: none; position: absolute; inset-block-start: 8px; inset-inline-start: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: rgba(0,0,0,.55); font-size: var(--sw-fs-xs); }
+.tile.snap .snapchip { display: inline-flex; }
+.tile.snap .vid { filter: saturate(.4) brightness(.8); }
+/* the offline / failed tile: the sw-state-panel look inside the tile */
+.tile.off .vid { background: var(--sw-surface-3); }
+.tile.off .st { position: absolute; inset: 0 0 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--sw-text-2); text-align: center; padding: 10px; }
+.tile.off .st .icon { display: grid; place-items: center; inline-size: 38px; block-size: 38px; border-radius: var(--sw-r-md); background: var(--sw-offline-soft); color: var(--sw-offline-text); font-size: 20px; }
+.tile.off .st b { font-size: var(--sw-fs-sm); color: var(--sw-text); }
+.tile.off .st small { font-size: var(--sw-fs-xs); }
+.tile.off .cap { color: var(--sw-text); background: linear-gradient(transparent, color-mix(in srgb, var(--sw-surface-3) 85%, transparent)); }
+.tile.off .cap .rel { color: var(--sw-text-3); }
+body:not([data-cam="offline"]) .tile.off { display: none; }
+body[data-cam="offline"] .tile.swap { display: none; }
+/* tables (electricity/styles.ts table.t) */
+.scrollx { overflow-x: auto; }
+table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
+table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 9px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
+table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
+table.t tbody tr:last-child td { border-block-end: 0; }
+td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); white-space: normal; }
+td.act { white-space: nowrap; text-align: end; }
+/* the infrastructure rows (elevators / generator home widgets) */
+.rows { display: flex; flex-direction: column; gap: 8px; }
+.li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); min-inline-size: 0; }
+.li .grow { flex: 1; min-inline-size: 0; }
+.li .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.li .t2 { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.li .ico { display: grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: var(--sw-r-md); background: var(--c-soft, var(--sw-surface-3)); color: var(--c-text, var(--sw-text-2)); font-size: 18px; flex: none; }
+/* the actor chain: a horizontal timeline on a desktop (the history rows of the task sheet, laid side by side) */
+.chain { display: flex; gap: 0; overflow-x: auto; scrollbar-width: thin; padding-block: 4px 8px; }
+.step { position: relative; flex: 1 1 150px; min-inline-size: 140px; max-inline-size: 260px; padding: 0 12px 0 0; }
+.step::before { content: ''; position: absolute; inset-inline-start: 12px; inset-inline-end: -4px; inset-block-start: 9px; block-size: 2px; background: var(--sw-border-strong); }
+.step:last-child::before { display: none; }
+.step .dot { display: block; position: relative; z-index: 1; inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--c, var(--sw-accent)); border: 3px solid var(--sw-surface); box-shadow: 0 0 0 2px var(--c, var(--sw-accent)); }
+.step.wait .dot { background: var(--sw-surface); box-shadow: 0 0 0 2px var(--sw-border-strong); }
+.step .w { display: block; margin-block-start: 8px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; }
+.step .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-sm); }
+.step .t2 { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
+.step.wait .t1 { color: var(--sw-text-3); font-weight: var(--sw-fw-medium); }
+/* the incidents list (the "no event" state): the electricity table with the open-incident row first */
+.state-panel { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 220px; }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
+.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state-panel[data-state="forbidden"] .icon { background: var(--sw-forbidden-soft); color: var(--sw-forbidden); }
+.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
+.state-panel.inline { min-block-size: 160px; padding: var(--sw-s-4); }
+.skl { display: none; border-radius: var(--sw-r-md); background: linear-gradient(90deg, var(--sw-skeleton), var(--sw-skeleton-shine), var(--sw-skeleton)); background-size: 200% 100%; animation: skl 1.4s linear infinite; block-size: 160px; }
+@keyframes skl { to { background-position: -200% 0; } }
+/* page states: loading / error / module off replace the body; "none" shows the list page instead of the incident page */
+#incident, #none { display: none; }
+body[data-ev="active"] #incident { display: flex; }
+body[data-ev="none"] #none { display: flex; }
+body[data-st="loading"] .screen > :not(.skl):not(.top) { display: none !important; }
+body[data-st="loading"] .screen > .skl { display: block; }
+body[data-st="error"] .screen > :not(.state-panel[data-state="error"]) { display: none !important; }
+body[data-st="error"] .screen > .state-panel[data-state="error"] { display: flex; }
+body[data-st="off"] .screen > :not(.state-panel[data-state="off"]) { display: none !important; }
+body[data-st="off"] .screen > .state-panel[data-state="off"] { display: flex; }
+body[data-st="off"] .float .evpill, body[data-st="off"] .tabs .reddot, body[data-st="off"] nav a .dot { display: none !important; }
+/* permissions: a panel the viewer may not see is replaced by its forbidden panel (cameras) or leaves entirely (infrastructure);
+   columns the viewer lacks (who opened: access.events.read) leave; actions the viewer lacks leave (events.ack, cases.manage) */
+body[data-role="view"] .need-ack, body[data-role="view"] .need-case, body[data-role="view"] .need-who, body[data-role="view"] .need-live, body[data-role="view"] .need-infra, body[data-role="op"] .need-infra { display: none !important; }
+body[data-role="view"] .forb-live { display: flex !important; }
+.forb-live { display: none; }
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; }
+.toast.on { display: block; }
+nav.bottom { display: none; }
+
+/* ===== tablet (<= 1023: the rail keeps its icons only) ===== */
+@media (max-width: 1023px) {
+  nav.rail a span:not(.dot) { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .screen { padding-inline: 20px; }
+  .grid3 { grid-template-columns: minmax(0, 1fr); }
+  .step { flex-basis: 170px; }
+}
+/* ===== phone (<= 767: no rail, the bottom bar; cameras first; one live stream, the rest snapshots; the chain is a list) ===== */
+@media (max-width: 767px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .float { inset-inline-end: 12px; }
+  .float .evpill span { display: none; }
+  .float .evpill { padding: 0 10px; }
+  .subnav { padding: 8px 12px 0; }
+  .screen { padding: 12px 14px 20px; gap: 12px; }
+  .top { flex-direction: column; align-items: stretch; }
+  .top .sp { display: none; }
+  .top h1 { font-size: var(--sw-fs-2xl); }
+  .top .meta .btn { flex: 1; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .fact { padding: 8px 12px; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .grid2 > .cams { order: -1; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tiles .tile:first-child { grid-column: 1 / -1; }
+  body:not([data-phone-live="all"]) .tiles .tile:not(:first-child):not(.off) { --snap: 1; }
+  body:not([data-phone-live="all"]) .tiles .tile:not(:first-child):not(.off) .live { display: none; }
+  body:not([data-phone-live="all"]) .tiles .tile:not(:first-child):not(.off) .snapchip { display: inline-flex; }
+  body:not([data-phone-live="all"]) .tiles .tile:not(:first-child):not(.off) .vid { filter: saturate(.4) brightness(.8); }
+  .tile .prof { display: none; }
+  .chain { flex-direction: column; gap: 0; overflow: visible; }
+  .step { flex: none; max-inline-size: none; display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 10px; padding: 0 0 14px; }
+  .step::before { inset-inline-start: 9px; inset-inline-end: auto; inset-block-start: 20px; inset-block-end: -2px; inline-size: 2px; block-size: auto; }
+  .step .w { grid-column: 2; margin: 0; }
+  .step .t1, .step .t2 { grid-column: 2; }
+  .step .dot { grid-row: 1 / span 3; }
+  .scrollx { display: none; }
+  .cards-m { display: grid; gap: 8px; padding: 0 12px 12px; }
+  .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); }
+  .cards-m .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cards-m .c .r1 .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); min-inline-size: 0; }
+  .cards-m .c .r3 { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .btn { min-block-size: 44px; }
+  .btn.sm { min-block-size: 36px; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); }
+  nav.bottom a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+  nav.bottom a .dot { inset-inline-end: calc(50% - 16px); inset-block-start: 4px; }
+  .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
+}
+@media (min-width: 768px) { .cards-m { display: none; } }
+</style>
+</head>
+<body data-ev="active" data-st="ready" data-role="full" data-cam="ok">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-case" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="m16 10 5-2v8l-5-2z"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17"/><path d="M3 21h18M14 12h.01"/></symbol>
+    <symbol id="i-elev" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M8 10l-1.5 2L8 14M16 14l1.5-2L16 10"/></symbol>
+    <symbol id="i-gen" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="10" rx="2"/><path d="M7 8V6h4v2M12 11l-2 3h4l-2 3"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s6-5.4 6-11a6 6 0 0 0-12 0c0 5.6 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12 4 7.5M12 12v9"/></symbol>
+  </defs>
+</svg>
+
+<!-- mockup-only controls -->
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם</b>
+  <select id="stsel" aria-label="מצב"><option value="active">מצב: אירוע פעיל</option><option value="none">מצב: אין אירוע</option><option value="offline">מצב: מצלמה לא זמינה</option><option value="limited">מצב: הרשאה חלקית (צופה)</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option><option value="off">מצב: מודול כבוי</option></select>
+  <select id="role" aria-label="תפקיד"><option value="full">תפקיד: מפעיל אבטחה (מלא)</option><option value="op">תפקיד: מפעיל (ללא תשתיות)</option><option value="view">תפקיד: צופה (אירועים + מפה)</option></select>
+  <button id="th" aria-pressed="false">כהה</button>
+  <span class="sp"></span>
+  <span class="mut" style="color:inherit;opacity:.8">אין כאן שום פעולה פיזית: צפייה בלבד</span>
+</nav>
+
+<div class="app">
+  <!-- the area rail (shell/sw-app.ts nav.rail): the security area active; a red dot on it while an incident is open -->
+  <nav class="rail" aria-label="ניווט ראשי">
+    <span class="brand" aria-hidden="true">S</span>
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span><span class="dot" aria-label="אירוע פעיל"></span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>בקשות שירות</span></a>
+    <div class="grow"></div>
+    <span class="me" aria-label="תפריט המשתמש">דכ</span>
+  </nav>
+  <div class="float"><a class="evpill" href="#" aria-label="אירוע פעיל - פריצה, דלת חניון -1"><i aria-hidden="true"></i><span>אירוע פעיל</span></a><div class="pillrow" aria-hidden="true"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <main>
+    <!-- level 1: the security sections (SECURITY_SECTIONS: לייב · חקירה · אזעקה) -->
+    <div class="subnav">
+      <nav class="tabs pill" aria-label="מדורים"><div class="row">
+        <a href="#"><span class="lbl">לייב</span></a>
+        <a href="#" class="on" aria-current="page"><span class="lbl">חקירה</span></a>
+        <a href="#"><span class="lbl">אזעקה</span></a>
+      </div></nav>
+    </div>
+    <!-- level 2: the section's pages (SECTION_TABS.investigate) with the new page "אירוע חי" -->
+    <div class="subnav">
+      <nav class="tabs compact" aria-label="עמודים"><div class="row">
+        <a href="#"><span class="lbl">מרכז אירועים</span></a>
+        <a href="#" class="on" aria-current="page"><span class="lbl">אירוע חי<span class="reddot" aria-hidden="true"></span></span></a>
+        <a href="#"><span class="lbl">הקלטות</span></a>
+        <a href="#"><span class="lbl">ניגון מסונכרן</span></a>
+        <a href="#"><span class="lbl">מפה היסטורית</span></a>
+        <a href="#"><span class="lbl">סקירה</span></a>
+        <a href="#"><span class="lbl">חיפוש</span></a>
+        <a href="#"><span class="lbl">תיקים</span></a>
+        <a href="#"><span class="lbl">חוקים והתראות</span></a>
+        <a href="#"><span class="lbl">ייצוא</span></a>
+        <a href="#"><span class="lbl">בריאות מצלמות</span></a>
+      </div></nav>
+    </div>
+
+    <!-- ===== the incident page (#/investigate/incidents/<id>) ===== -->
+    <section class="screen" id="incident">
+      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>מצב אירוע חי מופעל בהגדרות המערכת › אבטחה. עד אז המסך, הכפתורים וההתראות שמובילות אליו אינם מוצעים.</p></div><button class="btn need-ack">להגדרות</button></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון את האירוע</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top">
+        <div><h1><span class="badge" data-look="alarm" style="font-size:var(--sw-fs-sm)"><svg class="ic"><use href="#i-warning"/></svg>פעיל · <span class="num" id="elapsed">00:04:12</span></span>פריצה · דלת חניון -1</h1>
+          <p class="sub">מבנה א · קומה -1 (מרתף) / חניון · מקור: אזעקה, אזור 3 · נפתח <span class="num">14:01:50</span> אוטומטית מהאזעקה</p></div>
+        <span class="sp"></span>
+        <div class="meta">
+          <button class="btn pri need-ack" data-toast="אישור הקבלה נרשם"><svg class="ic"><use href="#i-check"/></svg>אישור קבלה</button>
+          <button class="btn need-case" data-toast="נוסף לתיק"><svg class="ic"><use href="#i-case"/></svg>הוסף לתיק</button>
+          <button class="btn dng need-ack" data-toast="האירוע נסגר ונרשם באודיט">סגירת האירוע</button>
+          <a class="btn ghost" href="#"><svg class="ic"><use href="#i-list"/></svg>למרכז האירועים</a>
+        </div>
+      </div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <!-- the facts strip (the KPI row look of the temperature screen, facts rather than filters) -->
+      <div class="facts" aria-label="עובדות האירוע">
+        <div class="fact" data-look="alarm"><span class="dot" aria-hidden="true"></span><div><b>אזעקה · אזור 3</b><span class="l">מקור · טרם נוטרלה</span></div></div>
+        <div class="fact" data-look="acc"><span class="dot" aria-hidden="true"></span><div><b class="need-live">4 מצלמות חיות</b><b class="forb-live" style="display:none">מצלמות: אין הרשאה</b><span class="l">פרופיל משני · 4 מתוך 16 במכסה</span></div></div>
+        <div class="fact" data-look="warn"><span class="dot" aria-hidden="true"></span><div><b>2 דלתות פתוחות</b><span class="l">מתוך 3 בסביבה</span></div></div>
+        <div class="fact" data-look="ok"><span class="dot" aria-hidden="true"></span><div><b>אושר · דני כהן</b><span class="l"><span class="num">14:02:40</span> · 2 ממתינים</span></div></div>
+      </div>
+
+      <div class="grid2">
+        <!-- the map: sw-plan-canvas with the floor's markers, the event pin and the suggested cameras highlighted -->
+        <div class="panel flush">
+          <div class="hd"><h2>מיקום האירוע</h2><span class="chip" data-look="alarm"><span class="d"></span>אזור 3 · חניון</span><span class="sp"></span><a class="btn sm" href="#"><svg class="ic"><use href="#i-map"/></svg>מפה חיה</a><button class="btn sm ghost"><svg class="ic"><use href="#i-cube"/></svg>3D</button></div>
+          <div class="map" style="margin:12px 16px 14px">
+            <svg viewBox="0 0 560 330" role="img" aria-label="תוכנית קומה -1 עם מיקום האירוע, המצלמות והדלתות בסביבה">
+              <!-- rooms -->
+              <rect class="wall room-hot" x="20" y="20" width="300" height="190" />
+              <rect class="wall" x="320" y="20" width="220" height="110" />
+              <rect class="wall" x="320" y="130" width="220" height="80" />
+              <rect class="wall" x="20" y="210" width="520" height="100" />
+              <text class="room-l" x="30" y="40">חניון -1</text>
+              <text class="room-l" x="330" y="40">חדר מכונות</text>
+              <text class="room-l" x="330" y="150">מחסן</text>
+              <text class="room-l" x="30" y="230">מסדרון מרתף</text>
+              <!-- camera cones -->
+              <path class="cone hot" d="M300 190 L190 60 L120 200 Z" />
+              <path class="cone" d="M30 300 L170 230 L200 310 Z" />
+              <path class="cone" d="M530 30 L420 120 L360 50 Z" />
+              <path class="cone" data-off d="M530 300 L400 240 L400 310 Z" />
+              <!-- doors (lock markers) -->
+              <rect class="lock open" x="150" y="202" width="34" height="16" rx="3" />
+              <text class="lbl" x="148" y="246" text-anchor="start">דלת חניון · פתוחה</text>
+              <rect class="lock" x="320" y="70" width="16" height="34" rx="3" />
+              <rect class="lock open" x="14" y="250" width="16" height="34" rx="3" />
+              <!-- cameras -->
+              <circle class="cam hot" cx="300" cy="190" r="7" /><text class="lbl" x="290" y="182" text-anchor="end">חניון -1 מזרח</text>
+              <circle class="cam" cx="30" cy="300" r="7" /><text class="lbl" x="42" y="296">מסדרון מרתף</text>
+              <circle class="cam" cx="530" cy="30" r="7" /><text class="lbl" x="520" y="52" text-anchor="end">חדר מכונות</text>
+              <circle class="cam" data-off cx="530" cy="300" r="7" /><text class="lbl" x="520" y="296" text-anchor="end">כניסה M1</text>
+              <!-- the event pin -->
+              <circle class="pin-ring" cx="167" cy="196" r="12" />
+              <circle class="pin" cx="167" cy="196" r="7" />
+              <circle cx="167" cy="196" r="2.5" fill="#fff" />
+            </svg>
+            <span class="floorchip chip"><svg class="ic"><use href="#i-pin"/></svg>קומה -1 (מרתף)</span>
+            <div class="legend"><span class="chip" data-look="alarm"><span class="d"></span>האירוע</span><span class="chip" data-look="acc"><span class="d"></span>מצלמה</span><span class="chip" data-look="warn"><span class="d"></span>דלת פתוחה</span></div>
+          </div>
+          <div class="note">מיקום סמוך הוא הקשר, לא הוכחת קשר סיבתי. התוכנית אינה מתהפכת בעברית.</div>
+        </div>
+
+        <!-- the cameras: the nearest ones (same room, a room sharing a wall, nearby) with sw-live-player on the sub profile -->
+        <div class="panel flush cams">
+          <div class="hd"><h2>המצלמות הקרובות</h2><span class="chip need-live" data-look="ok"><span class="d"></span>4 חיות · פרופיל משני</span><span class="sp"></span><a class="btn sm need-live" href="#"><svg class="ic"><use href="#i-play"/></svg>הנגן המלא</a></div>
+          <div class="state-panel inline forb-live" data-state="forbidden"><div class="icon"><svg class="ic"><use href="#i-lock"/></svg></div><div><h4>וידאו חי אינו זמין לך</h4><p>מצלמות הקומה הזו דורשות הרשאת צפייה חיה. שאר הלוח מוצג.</p></div></div>
+          <div class="tiles need-live" style="padding:0 16px 12px">
+            <div class="tile hot" aria-label="חניון -1 מזרח - חי"><div class="vid"><span class="shape" style="inset:38% 12% 10% 40%"></span><span class="shape" style="inset:20% 60% 50% 8%;opacity:.6"></span></div><span class="live"><i></i>חי</span><span class="prof">sub · WebRTC</span><span class="snapchip">תמונה · הקשה להפעלה</span><div class="cap"><b>חניון -1 מזרח</b><span class="rel">אותו חדר</span></div></div>
+            <div class="tile" aria-label="מסדרון מרתף - חי"><div class="vid"><span class="shape" style="inset:30% 30% 15% 30%"></span></div><span class="live"><i></i>חי</span><span class="prof">sub · WebRTC</span><span class="snapchip">תמונה · הקשה להפעלה</span><div class="cap"><b>מסדרון מרתף</b><span class="rel">חדר סמוך</span></div></div>
+            <div class="tile" aria-label="חדר מכונות - חי"><div class="vid"><span class="shape" style="inset:15% 50% 30% 10%"></span><span class="shape" style="inset:45% 10% 20% 55%;opacity:.5"></span></div><span class="live"><i></i>חי</span><span class="prof">sub · WebRTC</span><span class="snapchip">תמונה · הקשה להפעלה</span><div class="cap"><b>חדר מכונות</b><span class="rel">חדר סמוך</span></div></div>
+            <div class="tile swap" aria-label="כניסה M1 - חי"><div class="vid"><span class="shape" style="inset:25% 20% 25% 20%"></span></div><span class="live"><i></i>חי</span><span class="prof">sub · WebRTC</span><span class="snapchip">תמונה · הקשה להפעלה</span><div class="cap"><b>כניסה M1</b><span class="rel">בקרבת מקום</span></div></div>
+            <div class="tile off" aria-label="כניסה M1 - לא זמינה"><div class="vid"></div><div class="st"><span class="icon"><svg class="ic"><use href="#i-offline"/></svg></span><b>המצלמה לא זמינה</b><small>אין תמונה מהמקליט · ניסיון חוזר בעוד <span class="num">8</span> ש׳</small></div><div class="cap"><b>כניסה M1</b><span class="rel">בקרבת מקום</span></div></div>
+          </div>
+          <div class="note need-live">עד 4 זרמים חיים בלוח (הגדרה); מעבר למכסה - תמונה אחרונה והפעלה בהקשה. בטלפון זרם חי אחד.</div>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <!-- the doors: lock entities near the event (correlation) + the access log rows of the window (who opened). Read-only. -->
+        <div class="panel flush">
+          <div class="hd"><h2>הדלתות בסביבה</h2><span class="chip" data-look="warn"><span class="d"></span>2 פתוחות</span><span class="sp"></span><span class="mut">±10 דקות סביב האירוע</span></div>
+          <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>דלת</th><th class="need-who">מי פתח</th><th>מתי</th><th></th></tr></thead><tbody id="doors">
+            <tr data-look="warn"><td><span class="badge">פתוחה</span></td><td><span class="t1">דלת חניון -1</span><span class="t2">חניון · עמדת כניסה 2</span></td><td class="need-who">יוסי לוי · כרטיס</td><td class="num">14:02:33</td><td class="act"><a class="btn sm" href="#">לדלת</a></td></tr>
+            <tr data-look="warn"><td><span class="badge">פתוחה</span></td><td><span class="t1">יציאת חירום מרתף</span><span class="t2">מסדרון · חיישן דלת</span></td><td class="need-who"><span class="mut">ללא זיהוי · נפתחה מבפנים</span></td><td class="num">14:03:58</td><td class="act"><a class="btn sm" href="#">לדלת</a></td></tr>
+            <tr data-look="ok"><td><span class="badge">נעולה</span></td><td><span class="t1">דלת חדר מכונות</span><span class="t2">חדר מכונות · עמדת כניסה 3</span></td><td class="need-who"><span class="mut">-</span></td><td class="num mut">13:40:12</td><td class="act"><a class="btn sm" href="#">לדלת</a></td></tr>
+          </tbody></table></div>
+          <div class="cards-m" id="doors-m"></div>
+          <div class="note">פתיחה, נעילה ובקרות חירום נעשות רק מדף הדלת, בהרשאות הקיימות. כאן צפייה בלבד.</div>
+        </div>
+
+        <!-- infrastructure: elevators (devices.read) and the generator (generator.view); hidden entirely when the viewer lacks them -->
+        <div class="panel need-infra">
+          <div class="hd"><h2>מעליות וגנרטור</h2><span class="sp"></span><a class="btn sm ghost" href="#">תשתיות</a></div>
+          <div class="rows">
+            <div class="li" data-look="ok"><span class="ico"><svg class="ic"><use href="#i-elev"/></svg></span><div class="grow"><div class="t1">מעלית צפונית</div><div class="t2">עומדת בקומה -1 · דלתות פתוחות</div></div><span class="badge">תקינה</span></div>
+            <div class="li" data-look="acc"><span class="ico"><svg class="ic"><use href="#i-elev"/></svg></span><div class="grow"><div class="t1">מעלית דרומית</div><div class="t2">בתנועה · קומה 3 → קומה 0</div></div><span class="badge">בתנועה</span></div>
+            <div class="li" data-look="ok"><span class="ico"><svg class="ic"><use href="#i-gen"/></svg></span><div class="grow"><div class="t1">גנרטור ראשי</div><div class="t2">במתנה · רשת תקינה · דלק <span class="num">82%</span></div></div><span class="badge">מוכן</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- the actor chain: who was notified, who acknowledged, what was done (one source: the audit log + the incident's actions) -->
+      <div class="panel">
+        <div class="hd"><h2>שרשרת הטיפול</h2><span class="chip" data-look="ok"><span class="d"></span>אושר</span><span class="chip" data-look="warn"><span class="d"></span>2 ממתינים</span><span class="sp"></span><a class="btn sm ghost" href="#">אודיט מלא</a></div>
+        <div class="chain" role="list">
+          <div class="step" role="listitem" data-look="alarm"><span class="dot"></span><span class="w num">14:01:50</span><div class="t1">אזעקה · אזור 3</div><div class="t2">המערכת · האירוע נפתח אוטומטית</div></div>
+          <div class="step" role="listitem" data-look="acc"><span class="dot"></span><span class="w num">14:02:05</span><div class="t1">התראה ל־3 אנשים</div><div class="t2">דחיפה · דני כהן, מיכל בר, יוסי לוי</div></div>
+          <div class="step" role="listitem" data-look="ok"><span class="dot"></span><span class="w num">14:02:40</span><div class="t1">אישור קבלה · דני כהן</div><div class="t2">מהטלפון · מאשר ראשון</div></div>
+          <div class="step" role="listitem" data-look="warn"><span class="dot"></span><span class="w num">14:02:33</span><div class="t1 need-who">פתיחת דלת · יוסי לוי</div><div class="t1" style="display:none" data-nowho>פתיחת דלת</div><div class="t2">דלת חניון -1 · כרטיס · מערכת בקרת הכניסה</div></div>
+          <div class="step" role="listitem" data-look="acc"><span class="dot"></span><span class="w num">14:04:30</span><div class="t1">הערה · דני כהן</div><div class="t2">"שומר בדרך לחניון"</div></div>
+          <div class="step wait" role="listitem"><span class="dot"></span><span class="w">ממתין</span><div class="t1">מיכל בר · יוסי לוי</div><div class="t2">טרם אישרו</div></div>
+          <div class="step wait" role="listitem"><span class="dot"></span><span class="w">-</span><div class="t1">סגירת האירוע</div><div class="t2">נרשמת באודיט בשם הסוגר</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== the "no event" state: the incidents page (#/investigate/incidents) with nothing open ===== -->
+    <section class="screen" id="none">
+      <div class="state-panel" data-state="off"><div class="icon"><svg class="ic"><use href="#i-offline"/></svg></div><div><h4>המודול כבוי</h4><p>מצב אירוע חי מופעל בהגדרות המערכת › אבטחה.</p></div><button class="btn need-ack">להגדרות</button></div>
+      <div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><div><h4>לא ניתן לטעון</h4><p>משהו השתבש. נסו שוב.</p></div><button class="btn pri">ניסיון חוזר</button></div>
+      <div class="top"><div><h1>אירוע חי</h1><p class="sub">אין אירוע פעיל · 3 אירועים נסגרו השבוע</p></div><span class="sp"></span>
+        <div class="meta"><button class="btn pri need-ack"><svg class="ic"><use href="#i-plus"/></svg>פתיחת אירוע ידנית</button></div></div>
+      <div class="skl" aria-busy="true" aria-label="טוען"></div>
+      <div class="state-panel" style="display:flex"><div class="icon"><svg class="ic"><use href="#i-shield"/></svg></div><div><h4>אין אירוע פעיל</h4><p>אירוע חי נפתח אוטומטית מאזעקה (לפי ההגדרה), מהתראה, מדף אירוע במרכז האירועים או ידנית מהמפה. הוא מרכז על דף אחד את המיקום, המצלמות הקרובות, הדלתות, המעליות והגנרטור ואת שרשרת הטיפול.</p></div></div>
+      <div class="panel flush">
+        <div class="hd"><h2>אירועים אחרונים</h2><span class="sp"></span><span class="mut">נשמרים 365 ימים</span></div>
+        <div class="scrollx"><table class="t"><thead><tr><th>מצב</th><th>אירוע</th><th>מקור</th><th>נפתח</th><th>נסגר</th><th>משך</th></tr></thead><tbody id="recent">
+          <tr data-look="off"><td><span class="badge">נסגר</span></td><td><span class="t1">דלת פתוחה זמן רב · יציאת חירום 2</span><span class="t2">מבנה א · קומה 0</span></td><td>חוק</td><td class="num">21.10 · 09:14</td><td class="num">21.10 · 09:31</td><td class="num">17 דק׳</td></tr>
+          <tr data-look="off"><td><span class="badge">נסגר</span></td><td><span class="t1">גנרטור · מעבר לחירום</span><span class="t2">מבנה א · גג</span></td><td>התראה</td><td class="num">20.10 · 18:02</td><td class="num">20.10 · 18:40</td><td class="num">38 דק׳</td></tr>
+          <tr data-look="off"><td><span class="badge">נסגר</span></td><td><span class="t1">תרגיל · חניון -1</span><span class="t2">מבנה א · קומה -1</span></td><td>ידני</td><td class="num">19.10 · 11:00</td><td class="num">19.10 · 11:22</td><td class="num">22 דק׳</td></tr>
+        </tbody></table></div>
+        <div class="cards-m" id="recent-m"></div>
+      </div>
+    </section>
+  </main>
+  <nav class="bottom" aria-label="ניווט ראשי">
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span><span class="dot" aria-label="אירוע פעיל"></span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>בקשות שירות</span></a>
+  </nav>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var root = document.documentElement, body = document.body, q = new URLSearchParams(location.search);
+  function theme(dark) { if (dark) root.setAttribute('data-theme', 'dark'); else root.removeAttribute('data-theme'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
+  function setRole(r) { body.dataset.role = r; document.getElementById('role').value = r; }
+  // the mock states: active / none / offline / limited are combinations of ev + cam + role; loading / error / off are page states
+  function setState(s) {
+    body.dataset.st = (s === 'loading' || s === 'error' || s === 'off') ? s : 'ready';
+    body.dataset.ev = s === 'none' ? 'none' : 'active';
+    body.dataset.cam = s === 'offline' ? 'offline' : 'ok';
+    if (s === 'limited') setRole('view'); else if (s === 'active' || s === 'offline') setRole(document.getElementById('role').value === 'view' ? 'full' : document.getElementById('role').value);
+    document.getElementById('stsel').value = s;
+    // the camera fact follows the camera state
+    var f = document.querySelector('.facts .fact:nth-child(2) b.need-live'); if (f) f.textContent = s === 'offline' ? '3 מצלמות חיות · 1 לא זמינה' : '4 מצלמות חיות';
+    var ch = document.querySelector('.cams .hd .chip'); if (ch) { ch.dataset.look = s === 'offline' ? 'warn' : 'ok'; ch.lastChild.textContent = s === 'offline' ? '3 חיות · 1 לא זמינה' : '4 חיות · פרופיל משני'; }
+    var fl = document.querySelector('.facts .forb-live'); if (fl) fl.style.display = body.dataset.role === 'view' ? 'block' : 'none';
+    var nw = document.querySelector('[data-nowho]'); if (nw) nw.style.display = body.dataset.role === 'view' ? 'block' : 'none';
+  }
+  document.getElementById('stsel').onchange = function () { setState(this.value); };
+  document.getElementById('role').onchange = function () { setRole(this.value); setState(document.getElementById('stsel').value === 'limited' && this.value !== 'view' ? 'active' : document.getElementById('stsel').value); };
+  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+  theme(q.get('theme') === 'dark');
+  if (q.get('role')) setRole(q.get('role'));
+  if (q.get('phone-live') === '1') body.dataset.phoneLive = 'all';
+  setState(q.get('state') || 'active');
+  if (q.get('role')) setRole(q.get('role'));
+  // the elapsed counter (the incident clock; frozen when ?state is given by a test so screenshots are stable)
+  if (!q.has('state')) { var t0 = 252; setInterval(function () { t0++; var h = Math.floor(t0 / 3600), m = Math.floor(t0 % 3600 / 60), s = t0 % 60; document.getElementById('elapsed').textContent = [h, m, s].map(function (x) { return String(x).padStart(2, '0'); }).join(':'); }, 1000); }
+  // phone cards for the two tables (one source: the rows)
+  function cards(tblId, cardsId, pick) {
+    var host = document.getElementById(cardsId); if (!host) return;
+    [].slice.call(document.querySelectorAll('#' + tblId + ' tr')).forEach(function (tr) {
+      var c = tr.children, d = document.createElement('div'); d.className = 'c'; d.dataset.look = tr.dataset.look;
+      var r1 = document.createElement('div'); r1.className = 'r1';
+      var t = document.createElement('span'); t.className = 't1'; t.textContent = c[1].querySelector('.t1').textContent; r1.appendChild(t); r1.appendChild(c[0].firstElementChild.cloneNode(true));
+      var r2 = document.createElement('div'); r2.className = 'mut'; r2.innerHTML = pick(c);
+      d.appendChild(r1); d.appendChild(r2);
+      var act = c[c.length - 1].querySelector('.btn'); if (act) { var r3 = document.createElement('div'); r3.className = 'r3'; r3.appendChild(act.cloneNode(true)); d.appendChild(r3); }
+      host.appendChild(d);
+    });
+  }
+  cards('doors', 'doors-m', function (c) { return '<span class="need-who">' + c[2].innerHTML + ' · </span><span class="num">' + c[3].textContent.trim() + '</span>'; });
+  cards('recent', 'recent-m', function (c) { return c[2].textContent + ' · ' + c[3].textContent + ' · ' + c[5].textContent; });
+  // toasts for the actions (nothing physical happens; the product's confirmation is a short toast, owner 2026-09-30)
+  document.querySelectorAll('[data-toast]').forEach(function (b) { b.onclick = function () { var t = document.getElementById('toast'); t.textContent = b.dataset.toast; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 1800); }; });
+})();
+</script>
+</body>
+</html>
