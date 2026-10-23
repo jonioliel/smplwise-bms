@@ -286,7 +286,8 @@ def test_a_thief_with_the_parent_inside_the_grace_gets_nothing(rx):
     assert r.status_code == 401 and "refresh_token" not in r.json()
     assert family_row(rx, out["family_id"])["revoked_reason"] == "proof_invalid"
     # and without any proof (the same parent, inside the grace) the family would have ended as proof_missing: shown on a new family
-    dev, out, key = keyed(rx)
+    # (APPREFRESH3: the device stays pinned to the phone's key after a refusal - the phone re-mints with its SAME key)
+    dev, out, key = keyed(rx, key=key)
     assert prefresh(rx, out["refresh_token"], dev["device_id"], proof(rx, key, dev["device_id"], out["refresh_token"])).status_code == 200
     assert prefresh(rx, out["refresh_token"], dev["device_id"], None).status_code == 401
     assert family_row(rx, out["family_id"])["revoked_reason"] == "proof_missing"
