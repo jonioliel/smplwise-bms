@@ -391,9 +391,6 @@ DEFAULTS: dict[str, str] = {
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
-    # MASKCOPY62-295: planning a copy of one camera's privacy masks to other cameras (plan / preview only in slice 1, no device write).
-    # OFF by default; while off the plan route answers 409 feature_disabled.
-    "nvr.privacy_mask_copy": "false",
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
@@ -631,7 +628,6 @@ class SettingsPatch(BaseModel):
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     nvr_privacy_mask_write: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_write")  # NVRMASK-295
-    nvr_privacy_mask_copy: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_copy")  # MASKCOPY62-295
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
