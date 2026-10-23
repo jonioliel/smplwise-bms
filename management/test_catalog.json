@@ -10247,5 +10247,27 @@
     "expected": "Every listed test passes on the branch; no extended item is admitted unless the service user is restricted and the report is current.",
     "status": "NOT_RUN",
     "notes": "2026-10-21: run locally on the branch (see the commit message); not part of a gate yet."
+  },
+  {
+    "id": "AT-WHOIN-1",
+    "requirement_ids": [
+      "R-WHOIN-1"
+    ],
+    "task_ids": [
+      "WHOIN034-295"
+    ],
+    "title": "Who is in the building and the place editors: backend read API and validators, unit and evidence specs (mocked backend)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes / mocked backends only; no phone, no live installation"
+    ],
+    "procedure": [
+      "backend tests: tests/test_whoin034_295.py, tests/test_presence.py, tests/test_mobile_push.py, tests/test_access_permissions_wxperm.py, tests/test_rbac_groups.py",
+      "frontend specs: unit-whoin034-295.spec.ts, unit-tabs-config.spec.ts, evidence-whoin034-295.spec.ts, evidence-presence-settings.spec.ts, evidence-tabs-ui.spec.ts (desktop / tablet / mobile)"
+    ],
+    "expected": "Every listed test passes on the branch; the screen never scrolls the page on the three projects, day and night.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-23 runner, pilot/WHOIN034-295: backend test_whoin034_295 + test_presence 21 passed (@3143c8835); with test_mobile_push, test_access_permissions_wxperm, test_rbac_groups 68 passed + 1 test bug fixed (@363f5b7fd); specs 110 passed, 3 failed (evidence-tabs-ui editor: the new map tab, spec updated, re-run pending), 1 skipped. Not a gate."
   }
 ]

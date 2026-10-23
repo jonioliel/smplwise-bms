@@ -11961,5 +11961,46 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "WHOIN034-295",
+    "title": "Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on screen (board r035), 2.16.0",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "CR-027 section 10a: presence.view (sensitive, system_admin, floor-scoped); GET presence/people with beacon > Wi-Fi > geofence placement, thresholds as settings, current notice and sensor switches required, opt-out counted only, counts-only mode, throttled audit without names; GET/PUT presence/people/me; place validators (floor / area placement, SSIDs hashed server-side, one save validated whole); the screen fits the viewport; the three editors on one settings page; Hebrew i18n, day / night tokens; no migration; presence stays OFF by default."
+    ],
+    "requirement_ids": [
+      "R-WHOIN-1"
+    ],
+    "test_ids": [
+      "AT-WHOIN-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Privacy-sensitive screen: presence.view stays sensitive and system_admin-only; the master switch stays off until the employee notice is final."
+    },
+    "deliverables": [
+      "Backend: services/presence_people.py, routers/presence.py (people, people/me), services/presence.py (people settings, opt-out, beacon / Wi-Fi validators, whole-save validation), role catalogues, PERMISSION_LABELS",
+      "Frontend: screens/explore-presence.ts (+ -logic), screens/system-presence-places.ts (+ -logic), screens/presence-opt-out.ts, screens/system-presence.ts pages, i18n/presence.ts, nav + route",
+      "Tests: tests/test_whoin034_295.py; frontend/tests/unit-whoin034-295.spec.ts, evidence-whoin034-295.spec.ts",
+      "Docs: CR-027 section 10a, docs/api/mobile-presence-contract.md sections 2 and 4"
+    ],
+    "evidence": [
+      "2026-10-23 runner, pilot/WHOIN034-295: backend test_whoin034_295 + test_presence 21 passed (@3143c8835); with test_mobile_push, test_access_permissions_wxperm, test_rbac_groups 68 passed + 1 test bug fixed (@363f5b7fd); specs 110 passed, 3 failed (evidence-tabs-ui editor: the new map tab, spec updated, re-run pending), 1 skipped. Not a gate."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
