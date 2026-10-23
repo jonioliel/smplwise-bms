@@ -79,10 +79,10 @@ def _refuse(conn: sqlite3.Connection, principal: Principal, request: Request, re
 def _instant(name: str, value: str | None) -> datetime | None:
     if value is None:
         return None
-    at =ag.parse_iso(value) if len(value) <= 40 else None
-    if at is None or at.tzinfo is None:
+    at = ce.parse_instant(value, assume_utc=False)
+    if at is None:
         raise ApiError(422, "compliance_instant_invalid", "זמן לא תקין. יש לציין שעה עם אזור זמן.", details={"field": name})
-    return at.astimezone(timezone.utc)
+    return at
 
 
 def _run(request: Request, principal: Principal, conn: sqlite3.Connection, fmt: str, at: str | None, start: str | None, end: str | None,

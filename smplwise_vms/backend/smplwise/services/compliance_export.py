@@ -110,9 +110,24 @@ class Window:
 Interval = tuple[datetime, datetime]
 
 
+def parse_instant(text: Any, *, assume_utc: bool = True) -> datetime | None:
+    """An ISO-8601 instant in any offset form (`...Z` or `+00:00` - WisKey sends the latter; `access_grants.parse_iso` takes `Z` only) as
+    UTC. A value without an offset is UTC when `assume_utc`, else None. Anything unparseable is None."""
+    if not isinstance(text, str) or not 10 <= len(text) <= 40:
+        return None
+    try:
+        at = datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if at.tzinfo is None:
+        if not assume_utc:
+            return None
+        at = at.replace(tzinfo=timezone.utc)
+    return at.astimezone(timezone.utc)
+
+
 def _utc(text: str | None) -> datetime | None:
-    at = ag.parse_iso(text) if text else None
-    return at.astimezone(timezone.utc) if at else None
+    return parse_instant(text) if text else None
 
 
 def merge(items: list[Interval]) -> list[Interval]:
