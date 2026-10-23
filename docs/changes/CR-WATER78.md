@@ -1,6 +1,7 @@
 # CR-WATER78 - Water meters under Infrastructure (board item r078; gas later on the same model)
 
-Status: PROPOSED (change record + owner mockup only, 2026-10-23). Branch `pilot/WATER78-295` from `origin/main` (v2.12.3,
+Status update: owner decisions of 2026-10-23 applied; slice 1 built (pilot/WATER78-295), slice 2 built backend-only (pilot/WATER78B-295,
+section 15). Original status: PROPOSED (change record + owner mockup only, 2026-10-23). Branch `pilot/WATER78-295` from `origin/main` (v2.12.3,
 c37c75c917c79f694039c961174db37d57d43c4c). No product code, no migration file, no setting, no permission and no device was
 touched. Mockup: `docs/design/mockups/water-78/index.html` (single file, RTL Hebrew, light + dark, desktop + phone, the states).
 
@@ -276,3 +277,44 @@ water store, never from the mirror directly; nothing is ever sent to a device.
 | D6 | No actuation at all | AGENTS.md physical-systems rule; a valve is a separate approved CR |
 | D7 | Module switch default OFF (owner standing rule for new modules) | the electricity module has no switch (it hides without meters); water gets one and the off panel |
 | C1 | CR-023 §3 said "water and generators later as siblings" of "חשמל" - this CR makes "מים" a sibling of "מוני חשמל" in `INFRA_TABS`, the label the released tab carries | recorded, not a conflict |
+| D8 | Slice 2 has its OWN provisional migration file (0153 here) instead of appending to 0152 (section 4.2 said one file) | the lead's instruction for pilot/WATER78B-295: slice 1 is already integrated as 0150 on release/2140, so its file can no longer change; 0153 becomes 0152 there |
+| D9 | Routing per alert kind is stored as `water_alert_settings.kinds_json` (the temperature module's shape) instead of a `water_alert_recipients` table | one row, one revision, the same validation and policy mirroring as the temperature module; no per-meter recipient list in this slice |
+| D10 | One source `water.leak` carries both the night-flow warning (sent at severity `alert`) and the alarms (burst, a whole night - `critical`) through the signal's severity | the owner's rule "leak = alert, burst / continuous long = may be critical"; one notification per alert row, which re-notifies when it turns into an alarm |
+
+## 15. Slice 2 as built (pilot/WATER78B-295, from pilot/WATER78-295 @ 95e44558; backend only)
+
+Status: BUILT on the branch, backend only (no frontend, no device command of any kind). Owner decisions 2026-10-23 applied: alerts ON by
+default once the module is on (Q3), viewers without `water.view` (Q4), floor scope (Q5), never an actuation (Q6), the home tile only while
+a leak is open (Q7), 01:00-05:00 with 6 L/h over two hours (Q8), the irrigation night rule off (Q9), m³ / litres (Q10).
+
+- **Migration `0153_infra_water_alerts.sql` (PROVISIONAL; 0152 on release/2140 - the lead renumbers)**: `water_alert_settings` (one row of
+  installation defaults + `kinds_json` routing), `water_alert_events` (the alert log; a partial unique index keeps ONE open row per meter and
+  kind), `water_alert_state` (the evaluator's per-meter cursor = the last 15-minute bucket judged), `water_meters.muted_until / muted_by`.
+  Per-meter overrides use `water_meters.rules_json` (0152). The settings row joins the backup (water_backup.MAIN_TABLES); the log and the
+  cursor are history and do not.
+- **Evaluator `services/water_runtime.py`** on the janitor (main.janitor_tick), once per closed bucket (90 s grace), module-gated, clock
+  injectable (`water_runtime.clock` / `now=`). Rules exactly as section 9: night flow (N consecutive buckets >= the threshold inside the
+  window; a warning; an alarm when the whole window flowed - the alarm stays until a still bucket closes, a warning ends at a still bucket
+  or at `night_to`; one row per night window), abnormal (today so far > factor x the same-weekday median over `baseline_days`, strictly, and
+  > `abnormal_min_l`; no rule under 7 days of age or without a baseline day; ends with the day), burst (any bucket since the cursor above
+  `burst_lph` = `max_flow_lph`; an alarm at once; ends when the latest bucket is back at or below), not reporting (silence >= `offline_min`
+  AND the entity unavailable / unknown / gone). A paused or retired meter's rows end with a stated reason. Sensor health (battery /
+  signal) is NOT built in this slice.
+- **Notifications** through the existing pipeline as new sources `water.leak` (critical in the catalogue; push + app), `water.abnormal`
+  (alert; push), `water.offline` (alert; inbox), category `device_faults`, recipients rule `water` (leak: operators + site / system admins;
+  the rest: the admins), subject kind `water` (water.view on the meter, floor-scoped, only while the module is on). Deduplicated by the
+  alert row (dedupe key `source:row id`): one notification per row that folds, re-notifies when it becomes an alarm, resolves when the row
+  closes. The pipeline's quiet window, severity pass-through and delivery are untouched; the module's own holds (quiet hours - off by
+  default, mute 15/30/60/120 min, alerts off) hold WARNINGS only and log `suppressed`; alarms only with `quiet_includes_alarms` /
+  `mute_includes_alarms`. The water sources are listed in the policy matrix only while the module is on; switching the module off resolves
+  every open row and its notification with `alerts_disabled`.
+- **API** (all `module_off` while off): `GET /events?state=open|all&kind=&meter_id=` and `GET /events/summary` (water.view, floor-scoped;
+  KPI row + `home_tile {show, leaks, link}` honouring `water.home_kpi`), `POST /events/{id}/ack` (water.ack on the meter; acknowledges the
+  notification too; audited `infra.water.event.ack`), `POST|DELETE /meters/{id}/mute` (water.ack; audited), `GET /alerts` (water.manage) /
+  `PUT /alerts` (system.configure; audited `infra.water.alerts.update`), `PATCH /meters/{id}` accepts `rules` (water.manage). New setting
+  `water.home_kpi` (true, water.manage).
+- **Not built in slice 2**: the frontend (the **התראות** page, the settings section, the home tile), `GET /events.csv`, sensor health, the
+  ticket action from an open leak alert, per-meter recipients.
+- **Tests**: `tests/test_water_alerts_s2.py` (each rule at its exact threshold, irrigation default and override, dedup, holds, ack,
+  permissions and floor scope on the log and the recipients, module off, restart persistence, the catalogue); `test_water_meters_s1.py`
+  (the provisional-number test now expects 0152 + 0153) and `test_notify_core.py` (the water sources are gated like the ticket sources).
