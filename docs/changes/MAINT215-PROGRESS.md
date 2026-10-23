@@ -112,3 +112,14 @@ evidence-maintenance.spec.ts 48 passed (desktop / tablet / mobile, mocked backen
 
 Not built (slice 3 candidates): certificate / document file upload (needs the attachments pipeline), the reminder log page, the
 elevator / generator card rows (`by-subject` is ready), the tickets assignee picker mark + approval (q17), ar / ru translations.
+
+## MAINT215B (2026-10-24) - the remaining items and the owner review 24.10
+Branch `pilot/MAINT215B-295` from `pilot/MAINT215-295` @ cc936e1b2. Details: CR-MAINT215.md, last section.
+
+Built: red mark in the tickets assignee picker for a supplier with expired / missing insurance (marking only), certificate / document file upload (PDF + picture, tickets validators), the reminder log page, elevator and generator links with their "certificates and inspections" row, reminders only after enabled in Settings, the phone round switchable to a list (setting + quick toggle), the question when a plan's request is closed (default ask), the sticker address = the remote address, no page scrolling in the section, every threshold a setting.
+
+Still not built / open:
+- the "approval" of q17 (a holder of the approve permission confirms assigning an uninsured supplier) is NOT built: the owner's later answer is marking only; it can be added on top of the same `insurance` field.
+- the close question is raised by the staff UI only (see the CR); a janitor / vendor-page close asks nobody.
+- certificate files are not in project backups (the bytes are on the data volume).
+- ar / ru translations (fall back to Hebrew); no Playwright run of the elevator / generator pages with the new row beyond the unit specs.

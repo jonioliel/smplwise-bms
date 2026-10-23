@@ -184,7 +184,7 @@ Audit rows: `maintenance.task.create|update|delete|complete|department`, `mainte
 `maintenance.tag.create|revoke`, `maintenance.ticket.open`, `maintenance.module.enable|disable`, and every refusal. A tag's token
 is never written to the audit.
 
-## 8. What is explicitly NOT built (slice 1)
+## 8. What is explicitly NOT built (slice 1; slice 2 and MAINT215B built most of it - see the last section)
 
 * **No UI** beyond the API (the mockup `docs/design/mockups/maintenance-215/index.html` is for the owner's approval).
 * **No file of the certificate / document** (upload, preview). Slice 2, through the tickets attachment validator - not a second
@@ -256,3 +256,27 @@ Mockup v2 approved with these answers:
 - **Vendor without insurance (form Q5; this document's Q5):** **marking only** (option b): a mark in the picker, no manager confirmation and no refusal.
 - **Closing a request opened by a plan (form Q6; this document's Q7):** closing marks the plan done **automatically**, but the system **asks the user a question and he decides** whether to mark it done. This is the automatic behavior: a proposal with a confirmation, neither a silent change nor a manual-only flow. Option a of Q7 is adjusted accordingly (the closer is recorded as the performer when the user confirms).
 - **Sticker address (form Q7; this document's Q4):** the **remote address** (option a).
+
+## MAINT215B - the owner review 24.10 built (branch `pilot/MAINT215B-295`)
+
+Implements the decisions above on top of slice 2. Migration 0147 is still provisional and was edited in place (two more tables: `maint_files`, `maint_reminder_log`; neither is carried in a project backup - `backup.NEVER_EXPORTED_TABLES`). Every threshold and behaviour is a setting (Settings > Infrastructure > Maintenance, `system.configure`):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `maintenance.reminders_enabled` | false | **No reminder goes out until it is enabled.** While off the level reached is not advanced, so enabling later sends what is due at that moment (once). A request on schedule is a per-task automation a manager set and does not wait for this switch. |
+| `maintenance.reminder_check_minutes` | 15 (1-1440) | how often the worker looks |
+| `maintenance.reminder_log_keep_days` | 365 (7-3650) | how long the log is kept |
+| `maintenance.round_phone_view` | step | `step` (one checkpoint per screen) or `list`; the person's own choice on the screen (quick switch, saved in his browser) wins |
+| `maintenance.close_request_mode` | ask | `ask` / `auto` / `off`, see below |
+| `maintenance.vendor_missing_insurance_mark` | true | also mark a supplier with no insurance document at all |
+| `maintenance.vendor_insurance_warn_days` | 30 (0-365) | amber mark when the insurance ends within this many days |
+| `maintenance.file_max_per_task` | 10 (1-50) | files per certificate / document |
+| `maintenance.tag_base_url` | "" | sticker address override; empty = the **remote address** (`security.local_public_url`, else the tickets public address) |
+
+* **Supplier without insurance (form Q5, option b: marking only).** `GET /tickets/assignees` carries `insurance: {state: expired|expiring|missing|ok, valid_until}` on a supplier (and on a contact of a supplier) while the module is on; the picker shows a red mark (amber while ending). Nothing is refused, no confirmation is asked, no approval permission is involved (the earlier "manager approval" of q17 was superseded by the owner's later answer "marking only"). Document types and dates only; the assign dialog is a manager's.
+* **Certificate / document file.** `POST/GET/DELETE /maintenance/tasks/{id}/files`. A PDF passes the tickets cost-file check (`cost_files.check_pdf`: header, `%%EOF`, no active content or encryption, 10 MiB, stored as received and served only as a sandboxed download); a photographed page passes the tickets image pipeline (`image_intake.reencode`: fresh metadata-free JPEG, 8 MiB). Random names under `<data>/maintenance/<task>/`, confined paths, the decode outside the write lock, its own body-limit row. Upload / delete: `maintenance.manage` on the task's place; download: `maintenance.view`. Audited without the name or the bytes.
+* **Reminder log.** `GET /maintenance/reminder-log` and the page "יומן תזכורות": reminders (soon / overdue), requests opened, requests that could not be opened; only tasks the caller may see (a deleted task's line: managers only); the page says when reminders are off.
+* **Elevator and generator rows.** The task form links a task to an elevator or a generator (`GET /maintenance/options` lists them); each elevator card and the generator page show a "certificates and inspections" row (nearest date and state, link to the ledger) through `GET /maintenance/by-subject/...`, only while the module is on and the person may view it.
+* **Closing a request opened by a plan (form Q6).** Default `ask`: the closing does NOT change the plan; the shell asks the closer ("mark the plan done? next date ...") through `GET /maintenance/close-proposal/{ticket}` and, on yes, `POST .../confirm` marks the plan done for that due date with the confirming person as the performer. The question appears only for a person who may mark the plan (perform / manage) and only for the plan's current cycle; `auto` keeps the 24.10 q19 behaviour (marked at the close), `off` leaves the plan alone. Limit: the question is raised by the closing in the staff UI; a close by the tickets janitor or the vendor page asks nobody.
+* **Phone round list.** The module state carries the installation default; the round run has a quick switch (one point / one list) saved in the person's browser; the list saves all marks in one call.
+* **No page scrolling in control screens.** The maintenance section fills the height of the screen; the places tree, the table, the log, the stickers and the run scroll inside their own panel.
