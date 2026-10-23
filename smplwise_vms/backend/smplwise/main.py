@@ -501,6 +501,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import occupancy as occupancy_router
 
     app.include_router(occupancy_router.router, prefix=api, tags=["occupancy"])  # ZONECOUNT107-295: people count per area from Frigate reviews (OFF)
+    from .routers import scenarios as scenarios_router
+
+    app.include_router(scenarios_router.router, prefix=api, tags=["scenarios"])  # XSCENARIO109-295: cross-module scenarios (OFF; never a door or device action)
     app.include_router(devices.router, prefix=api, tags=["devices"])
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
@@ -849,6 +852,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import temperature_runtime
 
         temperature_runtime.RUNNER.start(app.state.db)  # CR-INFRA-TEMPERATURE 2.9.1: temperature history, status and alerts from the state mirror (read-only)
+        from .services import scenarios as scenarios_svc
+
+        scenarios_svc.RUNNER.start(app.state.db)  # XSCENARIO109-295: the scenario engine tick (reads nothing while the module is off)
         if os.environ.get("SW_BILL_PDF_SELFCHECK", "1") != "0":  # CR-023: log and expose which bill PDF engine really works here
             from .services import bill_pdf
 
@@ -979,6 +985,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import temperature_runtime as _tmr
 
         _tmr.RUNNER.shutdown()
+        from .services import scenarios as _scn
+
+        _scn.RUNNER.shutdown()
         from .services import wiskey_background_feed as _wbf
 
         _wbf.FEED.shutdown()

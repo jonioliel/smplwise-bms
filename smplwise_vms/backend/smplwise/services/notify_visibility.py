@@ -174,6 +174,8 @@ class Reach:
             return n.get("initiator_user_id") == uid
         if kind == "system":
             return self._allowed("system.configure")
+        if kind == "scenario":  # XSCENARIO109-295: exactly the audience the engine resolved for this row (detailed rows only to full readers)
+            return uid in ((origin.get("to") or [])[:200])
         if kind == "ticket":  # CR-038: exactly who may see the ticket (services/tickets/access.visible - module on, place, department)
             from .tickets import notify_bridge
 

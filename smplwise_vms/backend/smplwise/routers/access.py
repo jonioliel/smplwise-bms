@@ -299,6 +299,11 @@ PERMISSION_LABELS: dict[str, str] = {
     # ZONECOUNT107-295 (CR-ZONECOUNT107): how many people are in an area now and over time (counts only). Sensitive, never implied; judged on every
     # camera that feeds the area; built-in holder system_admin only. The mapping and the switch stay behind system.configure.
     "occupancy.view": "צפייה בספירת אנשים לפי אזור",
+    # XSCENARIO109-295 (CR-SCENARIO109 section 17): cross-module scenarios. view + manage: the managers and the system administrator from day
+    # one (owner Q6 = 215 b); admin (settings, kill switch, reassign): the system administrator. All three are grantable to any role.
+    "scenario.view": "צפייה בתרחישים חוצי מודולים",
+    "scenario.manage": "כתיבה ועריכה של תרחישים חוצי מודולים",
+    "scenario.admin": "הגדרות תרחישים, עצירת חירום והעברת בעלות",
     "energy.view": "צפייה במונים ובצריכה",
     "energy.bills": "חיובים: סכומים, לקוחות, הפקה וביטול",
     "energy.manage": "ניהול מונים, חשבונות, לקוחות ומחירים",
