@@ -280,6 +280,15 @@ class Go2rtc:
                 _REGISTERED[name] = digest
         return self._frame(status, body, too_large)
 
+    def frame_existing(self, name: str) -> bytes:
+        """CAMHEALTH091: one JPEG frame of a stream go2rtc ALREADY knows, asked for by name only (`src=<name>`). Never sends a source,
+        so it cannot create, register or re-point a stream; a name outside the `smplwise_` namespace is refused. A 404 (the stream is
+        gone) is `snapshot_unavailable`, not a retry with the source - re-creating streams is the stream sync's job."""
+        if not name.startswith(STREAM_PREFIX) or not NAME_RE.match(name):
+            raise ValueError("refusing to name a stream outside the smplwise_ namespace")
+        status, body, too_large = self._grab({"src": name})
+        return self._frame(status, body, too_large)
+
     def discard_probe_stream(self, name: str) -> None:
         """Delete a throwaway probe stream and forget its registration; a failure is logged (never the source) and swallowed - the
         stream is in-memory only and goes at the next go2rtc restart."""
